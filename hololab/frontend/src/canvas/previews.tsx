@@ -594,6 +594,9 @@ interface VideoArraySync {
   register: (id: string, el: HTMLVideoElement | null) => void;
   reportDuration: (id: string, d: number) => void;
   reportMasterTime: (t: number) => void;
+  reportEnded: () => void;
+  play: () => void;
+  pause: () => void;
   togglePlay: () => void;
   seek: (t: number) => void;
 }
@@ -609,6 +612,9 @@ function useVideoArraySync(): VideoArraySync {
   playingRef.current = playing;
   const currentTimeRef = useRef(currentTime);
   currentTimeRef.current = currentTime;
+  // Duration is derived state (max of reported per-tile durations);
+  // shadow it via a ref for the play()/end-of-video guard below.
+  const durationRef = useRef(0);
 
   const refs = useRef<Map<string, HTMLVideoElement>>(new Map());
 
@@ -670,8 +676,6 @@ function useVideoArraySync(): VideoArraySync {
     }
   }, [playing]);
 
-  const togglePlay = useCallback(() => setPlaying((p) => !p), []);
-
   const seek = useCallback((t: number) => {
     setCurrentTime(t);
     for (const v of refs.current.values()) {
@@ -683,10 +687,68 @@ function useVideoArraySync(): VideoArraySync {
     }
   }, []);
 
+  // pause/play both touch the ``<video>`` elements *synchronously*
+  // in addition to updating React state. The effect that iterates
+  // ``refs`` on ``playing`` change fires one commit later — 15-30 ms
+  // — and a 21-tile grid at 15 fps can slip ~5-30 rvfc frames past
+  // that window. The user's headline ask was "drag pauses
+  // immediately"; the effect is idempotent so calling it again on
+  // the next commit is harmless.
+  const pause = useCallback(() => {
+    setPlaying(false);
+    for (const v of refs.current.values()) {
+      try {
+        v.pause();
+      } catch {}
+    }
+  }, []);
+
+  // ``play()`` handles the "user hit play after the video ended"
+  // case by rewinding to 0 first — every mainstream player does
+  // this, so leaving currentTime pinned at duration and just
+  // flipping ``playing`` back to true (which yields no visible
+  // advance) would be surprising.
+  const play = useCallback(() => {
+    if (
+      durationRef.current > 0 &&
+      currentTimeRef.current >= durationRef.current - 0.05
+    ) {
+      setCurrentTime(0);
+      for (const v of refs.current.values()) {
+        try {
+          v.currentTime = 0;
+        } catch {}
+      }
+    }
+    setPlaying(true);
+    for (const v of refs.current.values()) {
+      void v.play().catch(() => {});
+    }
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    if (playingRef.current) pause();
+    else play();
+  }, [pause, play]);
+
+  // Master's onEnded → flip ``playing`` to false so the button
+  // reflects reality (was still showing ❚❚ pre-fix even though
+  // every video had already hit its own last frame). Also snap
+  // ``currentTime`` to ``duration``: Chrome's last ``timeupdate``
+  // before an ``ended`` event lands at ~duration - keyframe_gap
+  // rather than exactly at duration, which meant the derived
+  // ``atEnd = ct >= dur - 0.05`` check stayed false and the button
+  // showed ▶ (paused) instead of ↻ (replay).
+  const reportEnded = useCallback(() => {
+    setPlaying(false);
+    if (durationRef.current > 0) setCurrentTime(durationRef.current);
+  }, []);
+
   const duration = useMemo(() => {
     const vals = Object.values(durations);
     return vals.length === 0 ? 0 : Math.max(...vals);
   }, [durations]);
+  durationRef.current = duration;
 
   return {
     playing,
@@ -695,6 +757,9 @@ function useVideoArraySync(): VideoArraySync {
     register,
     reportDuration,
     reportMasterTime,
+    reportEnded,
+    play,
+    pause,
     togglePlay,
     seek,
   };
@@ -733,6 +798,7 @@ function VideoGridPreview({ baseUrl, handleId, memberGlob }: VideoGridProps) {
 
   const sync = useVideoArraySync();
   const [zoomedIdx, setZoomedIdx] = useState<number | null>(null);
+  const [hovered, setHovered] = useState(false);
 
   // Reset zoom + sync when the entry set changes (e.g. handle switch).
   useEffect(() => {
@@ -748,6 +814,8 @@ function VideoGridPreview({ baseUrl, handleId, memberGlob }: VideoGridProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [zoomedIdx]);
+
+  useVideoArrayKeyboard(sync, hovered);
 
   if (state.kind === "loading") {
     return (
@@ -776,6 +844,8 @@ function VideoGridPreview({ baseUrl, handleId, memberGlob }: VideoGridProps) {
   return (
     <div
       data-hl-video-array=""
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         ...PREVIEW_SHELL,
         position: "relative",
@@ -914,6 +984,7 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom }: TileProps) {
             ? (e) => syncRef.current.reportMasterTime(e.currentTarget.currentTime)
             : undefined
         }
+        onEnded={isMaster ? () => syncRef.current.reportEnded() : undefined}
         style={{
           display: "block",
           width: "100%",
@@ -974,6 +1045,7 @@ function ZoomOverlay({ baseUrl, entry, sync, onClose }: ZoomOverlayProps) {
         onLoadedMetadata={(e) => syncRef.current.reportDuration(ZOOM_REF_ID, e.currentTarget.duration)}
         // Zoom is master while active — see VideoGridPreview render.
         onTimeUpdate={(e) => syncRef.current.reportMasterTime(e.currentTarget.currentTime)}
+        onEnded={() => syncRef.current.reportEnded()}
         style={{
           display: "block",
           width: "100%",
@@ -1046,11 +1118,36 @@ interface ControlsProps {
  */
 function VideoArrayControls({ sync }: ControlsProps) {
   const disabled = sync.duration <= 0;
-  // ``nodrag`` / ``nopan`` are xyflow class-name hooks. When present
-  // anywhere on a pointer-target's ancestry, ReactFlow skips its
-  // node-drag / pane-pan handlers respectively for that gesture.
-  // Without them, dragging the scrubber gets intercepted as a
-  // node move because the whole node is a ReactFlow drag surface.
+
+  // Track the pre-drag playing state so pointerup can restore it —
+  // matches YouTube / Vimeo / QuickTime: drag pauses immediately,
+  // release resumes if the user had been playing. The refs mean the
+  // window-level pointerup handler doesn't need ``sync`` in its deps
+  // (would otherwise reattach on every timeupdate tick).
+  const syncRef = useRef(sync);
+  syncRef.current = sync;
+  const wasPlayingRef = useRef(false);
+  const draggingRef = useRef(false);
+
+  // pointerup can fire outside the slider (user drags off the bar
+  // then releases), so listen at window level. Attached once — the
+  // handler reads the latest sync via syncRef.
+  useEffect(() => {
+    const onUp = () => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      if (wasPlayingRef.current) syncRef.current.play();
+    };
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, []);
+
+  const atEnd = sync.duration > 0 && sync.currentTime >= sync.duration - 0.05;
+
   return (
     <div
       data-hl-controls=""
@@ -1068,8 +1165,9 @@ function VideoArrayControls({ sync }: ControlsProps) {
         type="button"
         onClick={sync.togglePlay}
         disabled={disabled}
-        title={sync.playing ? "pause all" : "play all"}
+        title={sync.playing ? "pause (space)" : atEnd ? "replay (space)" : "play (space)"}
         data-hl-play=""
+        data-hl-state={sync.playing ? "playing" : atEnd ? "ended" : "paused"}
         className="nodrag nopan"
         style={{
           width: 28,
@@ -1088,7 +1186,7 @@ function VideoArrayControls({ sync }: ControlsProps) {
           lineHeight: 1,
         }}
       >
-        {sync.playing ? "❚❚" : "▶"}
+        {sync.playing ? "❚❚" : atEnd ? "↻" : "▶"}
       </button>
       <input
         type="range"
@@ -1097,14 +1195,22 @@ function VideoArrayControls({ sync }: ControlsProps) {
         step={0.01}
         value={Math.min(sync.currentTime, sync.duration || 0)}
         disabled={disabled}
-        onChange={(e) => sync.seek(Number.parseFloat(e.target.value))}
+        onChange={(e) => syncRef.current.seek(Number.parseFloat(e.target.value))}
         data-hl-scrub=""
         className="nodrag nopan"
-        // Belt + braces on top of ``nodrag`` — stop pointerdown so
-        // ReactFlow's document-level listener doesn't grab the drag
-        // gesture on browsers where the class-hook alone isn't enough
-        // (older xyflow versions, or when a wrapper reads it late).
-        onPointerDown={(e) => e.stopPropagation()}
+        // Pause immediately on any interaction (click or drag) so the
+        // playhead doesn't advance while the user is choosing a
+        // position — resume happens on window pointerup above. Also
+        // stops propagation so ReactFlow's document-level listener
+        // doesn't grab the drag as a node move on older xyflow
+        // versions.
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          if (disabled) return;
+          draggingRef.current = true;
+          wasPlayingRef.current = syncRef.current.playing;
+          if (syncRef.current.playing) syncRef.current.pause();
+        }}
         style={{
           flex: 1,
           cursor: disabled ? "default" : "pointer",
@@ -1124,6 +1230,63 @@ function VideoArrayControls({ sync }: ControlsProps) {
       </span>
     </div>
   );
+}
+
+/** Keyboard shortcuts on the preview area.
+ *
+ *   space   toggle play/pause
+ *   ←       jump back 5 s
+ *   →       jump forward 5 s
+ *
+ *  Gated by hover so shortcuts don't fire while the user is somewhere
+ *  else on the canvas, and by the active-element check so typing in
+ *  the workflow name / a form input doesn't accidentally scrub the
+ *  video. Also runs on the capture phase so a slider-focused arrow
+ *  key gets our +/- 5 s jump instead of the browser's step-by-0.01 s
+ *  default.
+ */
+const KEYBOARD_SEEK_STEP = 5;
+
+function useVideoArrayKeyboard(sync: VideoArraySync, hovered: boolean): void {
+  const syncRef = useRef(sync);
+  syncRef.current = sync;
+
+  useEffect(() => {
+    if (!hovered) return;
+    const onKey = (e: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      const tag = active?.tagName?.toLowerCase();
+      if (
+        tag === "input" &&
+        (active as HTMLInputElement | null)?.type !== "range"
+      ) {
+        return;
+      }
+      if (tag === "textarea" || active?.isContentEditable) return;
+
+      if (e.key === " " || e.code === "Space") {
+        e.preventDefault();
+        syncRef.current.togglePlay();
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        const s = syncRef.current;
+        s.seek(Math.max(0, s.currentTime - KEYBOARD_SEEK_STEP));
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        const s = syncRef.current;
+        const cap = s.duration > 0 ? s.duration : Infinity;
+        s.seek(Math.min(cap, s.currentTime + KEYBOARD_SEEK_STEP));
+      }
+    };
+    // Capture phase so a slider-focused arrow key gets us first
+    // instead of the browser's step-by-``step`` (0.01 s) default.
+    window.addEventListener("keydown", onKey, { capture: true });
+    return () => window.removeEventListener("keydown", onKey, { capture: true });
+  }, [hovered]);
 }
 
 /** Split a ``/proxy/{node}/{sub}`` URL into its node prefix and sub-path.
