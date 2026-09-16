@@ -1129,6 +1129,32 @@ function VideoArrayControls({ sync }: ControlsProps) {
   const wasPlayingRef = useRef(false);
   const draggingRef = useRef(false);
 
+  // Local drag position. ``<input type=range>`` was a *controlled*
+  // input driven by ``sync.currentTime`` — during a fast drag on a
+  // 21-tile grid the ``onChange → sync.seek → 21× v.currentTime =
+  // t → setCurrentTime`` chain hits ~485 currentTime writes/sec.
+  // Real browsers can't commit React state fast enough under that
+  // load, so React resets the DOM ``value`` to the last committed
+  // ``sync.currentTime`` while the user is still dragging — the
+  // browser's native drag tracking gets fought and the thumb
+  // visibly sticks. Rendering the slider from ``dragValue`` while
+  // ``dragValue !== null`` decouples the thumb from that chain: the
+  // browser owns the thumb position during the drag, and React only
+  // shows it *after* the release lands a real ``sync.currentTime``.
+  const [dragValue, setDragValue] = useState<number | null>(null);
+
+  // rAF-throttle the actual video seeks during drag. Without this
+  // every ~16 ms input event fired a full 21-tile seek storm; with
+  // it we coalesce to one seek per animation frame regardless of
+  // how many input events land in between. Sync bar / scrub-preview
+  // still feels 60 Hz because ``dragValue`` updates on every event.
+  const rafRef = useRef<number | null>(null);
+  const scrubTargetRef = useRef<number>(0);
+  const flushScrub = useCallback(() => {
+    rafRef.current = null;
+    syncRef.current.seek(scrubTargetRef.current);
+  }, []);
+
   // pointerup can fire outside the slider (user drags off the bar
   // then releases), so listen at window level. Attached once — the
   // handler reads the latest sync via syncRef.
@@ -1136,6 +1162,22 @@ function VideoArrayControls({ sync }: ControlsProps) {
     const onUp = () => {
       if (!draggingRef.current) return;
       draggingRef.current = false;
+      // Flush any pending rAF seek, then commit the final drag
+      // position so every registered video lands on the exact
+      // release point (the throttled writes might have skipped it).
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      const finalV = scrubTargetRef.current;
+      if (Number.isFinite(finalV)) {
+        syncRef.current.seek(finalV);
+      }
+      // ``sync.seek`` set ``sync.currentTime = finalV`` on the same
+      // event tick, so releasing ``dragValue`` in the same batch
+      // makes React re-render with the slider still at finalV —
+      // no jump.
+      setDragValue(null);
       if (wasPlayingRef.current) syncRef.current.play();
     };
     window.addEventListener("pointerup", onUp);
@@ -1147,6 +1189,8 @@ function VideoArrayControls({ sync }: ControlsProps) {
   }, []);
 
   const atEnd = sync.duration > 0 && sync.currentTime >= sync.duration - 0.05;
+  const sliderValue =
+    dragValue !== null ? dragValue : Math.min(sync.currentTime, sync.duration || 0);
 
   return (
     <div
@@ -1193,23 +1237,47 @@ function VideoArrayControls({ sync }: ControlsProps) {
         min={0}
         max={Math.max(sync.duration, 0.01)}
         step={0.01}
-        value={Math.min(sync.currentTime, sync.duration || 0)}
+        value={sliderValue}
         disabled={disabled}
-        onChange={(e) => syncRef.current.seek(Number.parseFloat(e.target.value))}
+        onChange={(e) => {
+          const v = Number.parseFloat(e.target.value);
+          scrubTargetRef.current = v;
+          if (draggingRef.current) {
+            // Slider tracks the drag *immediately* via dragValue;
+            // media seeks queue behind a single rAF so 21 tiles
+            // don't stampede.
+            setDragValue(v);
+            if (rafRef.current === null) {
+              rafRef.current = requestAnimationFrame(flushScrub);
+            }
+          } else {
+            // Bare click on the track (no pointerdown+drag) — commit
+            // instantly. (In practice pointerdown always fires
+            // first, but a keyboard-arrow-driven change is a click
+            // in this sense and hitting seek() is the right thing.)
+            syncRef.current.seek(v);
+          }
+        }}
         data-hl-scrub=""
         className="nodrag nopan"
-        // Pause immediately on any interaction (click or drag) so the
-        // playhead doesn't advance while the user is choosing a
-        // position — resume happens on window pointerup above. Also
-        // stops propagation so ReactFlow's document-level listener
-        // doesn't grab the drag as a node move on older xyflow
-        // versions.
+        // Pause immediately on any interaction (click or drag) so
+        // the playhead doesn't advance while the user is choosing
+        // a position — resume happens on the window pointerup
+        // handler above. Only ``stopPropagation`` here, never
+        // ``preventDefault``: preventing the default kills the
+        // browser's native range-slider drag tracking entirely.
         onPointerDown={(e) => {
           e.stopPropagation();
           if (disabled) return;
           draggingRef.current = true;
           wasPlayingRef.current = syncRef.current.playing;
           if (syncRef.current.playing) syncRef.current.pause();
+          // Seed dragValue with the current playhead so the very
+          // first render during drag has a defined thumb position
+          // (React's re-render for setDragValue is scheduled but
+          // the initial slider paint uses sliderValue derived here).
+          setDragValue(syncRef.current.currentTime);
+          scrubTargetRef.current = syncRef.current.currentTime;
         }}
         style={{
           flex: 1,
