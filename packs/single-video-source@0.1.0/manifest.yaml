@@ -1,0 +1,75 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: single-video-source
+version: 0.1.0
+description: "Data-source node — points at ONE video file to feed the SfM+STG chain. Does NOT extract frames."
+category: "source/video"
+docs: |
+  Data-source node for a **single monocular video**. Symlinks the
+  source file into a handle so downstream reconstruction packs can
+  read it without copying bytes; it does **NOT** extract frames —
+  frame extraction happens downstream in the SfM step
+  (``video-to-camera-track`` / ``video-to-colmap``), which decodes
+  the video into per-frame images as part of its own workspace.
+
+  - **Param:** `video_path` — absolute path to a `.mp4`/`.mov`/`.mkv`.
+  - **Output:** `videos_dir` containing one ``input.<ext>`` symlink.
+  - **Output tag:** ``video-source`` (single-clip data class).
+  - Runs in ~1 s; fails fast if `video_path` doesn't exist.
+
+  When to use vs ``video-array-source``:
+
+  - Single monocular video (one camera, one clip) → this pack.
+  - Multi-camera capture or multi-clip inputs (directory of videos,
+    each clip is a different camera or take) → ``video-array-source``.
+
+  Downstream (``video-to-camera-track`` / ``video-to-colmap``) accepts
+  both ``video-source`` and ``video-source-array`` tags, so you can
+  wire either source pack into the same reconstruction chain.
+
+  Preview: derived from the ``video-source`` tag via the gateway's
+  tag→viewer registry (video-grid renders one tile). See
+  docs/pack-spec.md § "tag-driven preview inference".
+
+params:
+  video_path:
+    type: string
+    description: "Absolute path to the source video file (.mp4 / .mov / .MOV)."
+
+outputs:
+  videos_dir:
+    tags: [video-source]
+    description: "Directory containing one symlink to the source video (input.<ext>)."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  expected_duration_min: [0.01, 0.05]
+  resources:
+    # Symlink-only pack; no real disk or memory pressure. Values are
+    # generous rounding so the preflight never blocks this pack.
+    scratch_gb: 0.1
+    mem_gb: 0.5
+
+exec:
+  # Symlink so we don't duplicate potentially large video files. The
+  # downstream node walks the directory looking for the single video
+  # inside.
+  shell: |
+    set -euo pipefail
+    OUT="{{ outputs.videos_dir }}"
+    mkdir -p "$OUT"
+    SRC="{{ params.video_path }}"
+    if [ ! -f "$SRC" ]; then
+      echo "video_path not found or not a file: $SRC" >&2
+      exit 2
+    fi
+    ln -sf "$SRC" "$OUT/input$(python3 -c "import os,sys; print(os.path.splitext(sys.argv[1])[1])" "$SRC")"
+    echo "[ITER 1/1] source ready"
+
+idempotency:
+  marker: "{{ outputs.videos_dir }}/.hololab-done"
+
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'

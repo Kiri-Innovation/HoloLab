@@ -1,0 +1,88 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hololab"
+version = "0.0.1"
+description = "A node-graph GUI for CV research pipelines. Long-running GPU jobs, per-node previews, distributed by design."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+authors = [{ name = "The HoloLab Authors" }]
+keywords = ["node-graph", "pipeline", "computer-vision", "gaussian-splatting", "workflow"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+
+# Deliberately LIGHT dependencies only. Heavy compute (torch/CUDA) always lives
+# in user conda envs and is invoked via `conda run -p`. See docs/architecture.md.
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "websockets>=14",
+    "pydantic>=2.8",
+    "aiosqlite>=0.20",
+    "httpx>=0.27",
+    "typer>=0.12",
+    "jinja2>=3.1",
+    "structlog>=24.4",
+    "watchfiles>=0.24",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+]
+
+[project.scripts]
+hololab = "hololab.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/hololab-dev/hololab"
+Documentation = "https://github.com/hololab-dev/hololab/tree/main/docs"
+Issues = "https://github.com/hololab-dev/hololab/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["hololab"]
+
+# Bundle the built frontend as package data. In dev this dir may be empty;
+# gateway falls back to a placeholder page when dist/index.html is missing.
+[tool.hatch.build.targets.wheel.force-include]
+"hololab/frontend/dist" = "hololab/frontend/dist"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # function calls in default args (FastAPI Depends idiom)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]  # allow assert False in tests
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

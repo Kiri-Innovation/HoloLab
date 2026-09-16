@@ -1,0 +1,58 @@
+.hl-splitter {
+  position: relative;
+  z-index: 5;
+  flex: 0 0 auto;
+  touch-action: none;
+  user-select: none;
+}
+
+.hl-splitter::after {
+  position: absolute;
+  display: block;
+  background: var(--border-subtle);
+  content: "";
+  transition: background var(--dur-fast) var(--ease), width var(--dur-fast) var(--ease), height var(--dur-fast) var(--ease);
+}
+
+.hl-splitter--vertical {
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.hl-splitter--vertical::after {
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 1px;
+}
+
+.hl-splitter--horizontal {
+  width: 100%;
+  height: 6px;
+  cursor: row-resize;
+}
+
+.hl-splitter--horizontal::after {
+  right: 0;
+  bottom: 2px;
+  left: 0;
+  height: 1px;
+}
+
+.hl-splitter:hover::after,
+.hl-splitter.is-dragging::after {
+  background: var(--border-strong);
+}
+
+.hl-splitter--vertical:hover::after,
+.hl-splitter--vertical.is-dragging::after {
+  left: 1px;
+  width: 3px;
+}
+
+.hl-splitter--horizontal:hover::after,
+.hl-splitter--horizontal.is-dragging::after {
+  bottom: 1px;
+  height: 3px;
+}

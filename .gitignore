@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ...but we DO commit the packaging scripts under build/.
+!build/
+build/*/
+!build/*.sh
+!build/*.ps1
+!build/*.tmpl
+!build/README.md
+
+# venv
+.venv/
+.venv-runtime/
+venv/
+env/
+
+# Frontend build artifacts
+hololab/frontend/dist/
+hololab/frontend/node_modules/
+frontend/dist/
+frontend/node_modules/
+node_modules/
+
+# Frontend tooling caches
+.vite/
+*.tsbuildinfo
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime data (should never be here, but belt-and-suspenders)
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+workspace/
+
+# Local agent-session logs — was covered by the parent monorepo's
+# .gitignore before this repo was split out. Keep it here so future
+# runs of the CLI don't accidentally add session data.
+.flops/

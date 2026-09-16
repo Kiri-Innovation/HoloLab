@@ -1,0 +1,60 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: demo-echo
+version: 0.1.0
+description: "Tiny demo pack — creates a text output. Useful for smoke-testing the plumbing."
+category: "demo/echo"
+docs: |
+  Smoke-test pack: writes `message.txt` and ticks off `iterations` fake
+  progress steps so you can watch the log stream and progress bar.
+
+  - **Output:** `out_dir/message.txt` (the string you set in `message`).
+  - `iterations` also controls total runtime — each tick sleeps 0.2 s.
+  - Pair with **demo-consume** to smoke-test end-to-end handle wiring.
+
+params:
+  message:
+    type: string
+    default: "hello from hololab"
+  iterations:
+    type: int
+    default: 5
+    min: 1
+    description: "Fake progress iterations; each prints an [ITER k/N] line."
+
+outputs:
+  out_dir:
+    tags: [demo_output]
+    preview:
+      viewer: text
+      member: message.txt
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  expected_duration_min: [0.1, 0.2]
+
+exec:
+  shell: |
+    set -euo pipefail
+    N={{ params.iterations }}
+    OUT="{{ outputs.out_dir }}"
+    mkdir -p "$OUT"
+    echo "{{ params.message }}" > "$OUT/message.txt"
+    for i in $(seq 1 "$N"); do
+      echo "[ITER $i/$N] tick"
+      sleep 0.2
+    done
+    echo "done" > "$OUT/status.txt"
+
+idempotency:
+  marker: "{{ outputs.out_dir }}/.hololab-done"
+
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
+
+previews:
+  - id: message
+    type: text
+    path: "{{ outputs.out_dir }}/message.txt"

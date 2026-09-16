@@ -1,0 +1,354 @@
+/*
+ * Base styles — kept intentionally small. Everything visual either lives in
+ * theme/tokens.css (variables) or in component style objects that read
+ * ``var(--*)``. This file's job is limited to:
+ *   1. Reset (html/body/#root sizing)
+ *   2. Typography defaults (font, size, color)
+ *   3. Scrollbar + focus baseline
+ *   4. ReactFlow chrome overrides that can't be set via component props
+ *   5. Common form-control reset so <input>/<select>/<textarea> don't look
+ *      like OS-default widgets in one theme and slightly-off in the other.
+ */
+
+@import "./theme/tokens.css";
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--text-body);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* The application is a workstation: clear docks around a materially darker
+   work surface, not a collection of floating web cards. */
+.hl-app-shell { background: var(--bg); }
+.hl-workspace > aside, .hl-inspector { background: var(--surface); }
+.hl-workspace > main { background: var(--canvas); }
+.hl-topbar {
+  min-height: 48px; background: var(--surface); border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 var(--border-subtle); position: relative; z-index: 5;
+}
+.hl-topbar button { height: var(--control-h-md); }
+.hl-gallery-main, .hl-artifacts-main { background: var(--bg); }
+.hl-card, .hl-workflow-card {
+  background: var(--surface) !important; border-color: var(--border) !important;
+  box-shadow: none !important;
+}
+.hl-card:hover, .hl-workflow-card:hover { border-color: var(--border-strong) !important; box-shadow: none !important; }
+.hl-artifact-summary { background: var(--surface) !important; border-bottom: 1px solid var(--border) !important; }
+.hl-artifact-table { background: var(--surface) !important; box-shadow: none; }
+.hl-mono, code, pre { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Editor language primitives. Layout stays local to a component; surfaces,
+   controls and interaction feedback remain deliberately uniform. */
+.hl-panel { background: var(--surface); border: 1px solid var(--border); }
+.hl-panel--canvas { background: var(--canvas); }
+.hl-overlay { background: var(--overlay); border: 1px solid var(--border); box-shadow: var(--shadow-2); }
+.hl-panel-header {
+  min-height: var(--panel-header-height); padding: 0 var(--space-3);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  border-bottom: 1px solid var(--border); color: var(--text-muted);
+  font-size: var(--fs-micro); font-weight: var(--fw-semibold); letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.hl-button, button {
+  height: var(--control-h-md); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); background: var(--surface); color: var(--text-body);
+  padding: 0 var(--space-3); cursor: pointer; line-height: var(--lh-ui);
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.hl-button:hover:not(:disabled), button:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--text-subtle); }
+.hl-button:active:not(:disabled), button:active:not(:disabled) { background: var(--surface-alt); }
+.hl-button:disabled, button:disabled { opacity: .52; cursor: not-allowed; }
+.hl-button--primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: var(--fw-semibold); }
+.hl-button--primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.hl-button--secondary { background: var(--surface); }
+.hl-button--ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
+.hl-button--ghost:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
+.hl-icon-button { width: var(--control-h-sm); height: var(--control-h-sm); padding: 0; display: inline-grid; place-items: center; }
+[data-tooltip] { position: relative; }
+[data-tooltip]::after {
+  content: attr(data-tooltip); position: absolute; z-index: 100; left: 50%; bottom: calc(100% + var(--space-2));
+  transform: translate(-50%, 2px); pointer-events: none; opacity: 0; white-space: nowrap;
+  padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); background: var(--inverse-surface);
+  color: var(--text-on-dark); box-shadow: var(--shadow-2); font-size: var(--fs-xs); transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+[data-tooltip]:hover::after, [data-tooltip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+
+::selection {
+  background: var(--selection);
+  color: var(--text);
+}
+
+/* Scrollbars (WebKit) — subtle by default, more visible on hover. Firefox
+   uses ``scrollbar-color`` set on <html> via the tokens. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); background-clip: padding-box; border: 2px solid transparent; }
+html { scrollbar-color: var(--scrollbar-thumb) transparent; scrollbar-width: thin; }
+
+/* Baseline for form controls used across the app. Individual components
+   still layer their own padding/width, but everyone inherits the theme
+   colors + a consistent focus ring here. */
+input, select, textarea, button {
+  font: inherit;
+  color: inherit;
+  font-size: var(--fs-sm) !important;
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  background: var(--surface);
+  color: var(--text-body);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  height: var(--control-h-md);
+  padding: 0 var(--space-2);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+  outline: none;
+  transition: border-color var(--dur-fast) var(--ease),
+              box-shadow var(--dur-fast) var(--ease),
+              background var(--dur-fast) var(--ease);
+}
+input::placeholder, textarea::placeholder {
+  color: var(--text-subtle);
+}
+textarea { padding-top: var(--space-2); padding-bottom: var(--space-2); }
+input:hover:not(:disabled):not(:focus),
+select:hover:not(:disabled):not(:focus),
+textarea:hover:not(:disabled):not(:focus) {
+  border-color: var(--text-subtle);
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+input:disabled, select:disabled, textarea:disabled {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* select: swap the OS chevron for one that follows text color. Only when
+   the browser lets us — otherwise leave the native chevron alone. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 24px;
+  color: var(--text-body);
+}
+
+button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Default anchor styling — brand-accent underline. Overridden where needed. */
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* --------------------------------------------------------------------------
+ * ReactFlow chrome — some parts (MiniMap/Controls background, panel button
+ * colors) can't be set via component props. We take over the class hooks
+ * the library uses so a theme switch flows through them too. Attribution
+ * itself is hidden via <ReactFlow proOptions={{ hideAttribution: true }}>.
+ * -------------------------------------------------------------------------- */
+.react-flow__controls {
+  box-shadow: none !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: var(--surface) !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  color: var(--text-body) !important;
+  fill: currentColor;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  transition: background var(--dur-fast) var(--ease);
+}
+.react-flow__controls-button:hover {
+  background: var(--surface-hover) !important;
+}
+.react-flow__controls-button svg { fill: currentColor; }
+
+.react-flow__minimap {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+.react-flow__minimap-mask {
+  fill: var(--bg);
+  fill-opacity: 0.55;
+  stroke: var(--border-strong);
+}
+
+.react-flow { background: var(--canvas); }
+.react-flow__background { opacity: 1; }
+.react-flow__node { transition: none !important; }
+.react-flow__node[data-hololab-node="algorithm"] { filter: none; }
+/* Selection is intentionally the only graph glow. */
+.react-flow__node.selected [data-hololab-node="algorithm"] {
+  box-shadow: 0 0 0 2px var(--accent-soft), var(--rf-node-shadow) !important;
+}
+
+.react-flow__edge-path {
+  stroke: var(--rf-edge);
+  stroke-width: 1.6;
+}
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--rf-edge-strong);
+  stroke-width: 2.2;
+}
+.react-flow__handle {
+  border: 1px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+/* xyflow centres left/right handles outside their reference edge with a
+   horizontal translate. Algorithm ports instead sit half inside the card:
+   their 10px centre aligns exactly with the card border. The port rows are
+   horizontally inset by --space-3, so compensate for that inset here while
+   retaining the row as the vertical positioning reference. */
+.hololab-node .react-flow__handle {
+  width: 10px;
+  height: 10px;
+  min-width: 10px;
+  min-height: 10px;
+  border: 1px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+.hololab-node .react-flow__handle-left {
+  left: calc(-1 * var(--space-3) - 5px);
+  transform: translate(0, -50%);
+}
+.hololab-node .react-flow__handle-right {
+  right: calc(-1 * var(--space-3) - 5px);
+  transform: translate(0, -50%);
+}
+
+/* Workstation refinements: surfaces are differentiated by quiet fills and
+   one-pixel containment, never decorative inset bars or floating-card lift. */
+.hl-app-shell { letter-spacing: .005em; }
+.hl-topbar {
+  min-height: 52px;
+  background: var(--surface) !important;
+  border-bottom-color: var(--border) !important;
+}
+.hl-topbar > div:first-child,
+.hl-topbar > button:first-child { font-weight: var(--fw-bold); }
+.hl-workspace > aside {
+  background: var(--surface) !important;
+  border-color: var(--border-subtle) !important;
+}
+.hl-workspace > main { background: var(--canvas); }
+.hl-workspace .react-flow__background { background: var(--canvas); }
+
+.hl-dock { padding: 0 !important; background: var(--surface) !important; }
+.hl-dock-heading {
+  min-height: var(--panel-header-height); padding: 0 var(--space-3); margin: 0 0 var(--space-2) !important;
+  display: flex; align-items: center; gap: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+}
+.hl-section-title, .hl-panel-header {
+  color: var(--text-muted) !important; font-size: var(--fs-micro) !important;
+  font-weight: var(--fw-bold) !important; letter-spacing: .11em !important;
+  text-transform: uppercase;
+}
+.hl-compute-panel > .hl-section-title {
+  min-height: var(--panel-header-height); padding: 0 14px; margin: 0 !important;
+  display: flex; align-items: center; border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+}
+.hl-compute-panel > .hl-dock-card { margin: var(--space-2) 14px !important; }
+.hl-dock-card {
+  background: var(--surface-2) !important; border-color: var(--border) !important;
+  box-shadow: none;
+}
+.hl-dock-card:hover { background: var(--surface-hover) !important; border-color: var(--border-strong) !important; }
+.hl-runs-panel { background: var(--surface) !important; }
+.hl-runs-panel > .hl-panel-header {
+  min-height: var(--panel-header-height); padding: 0 var(--space-3) !important; background: var(--surface-2) !important;
+  border-bottom-color: var(--border-subtle) !important;
+}
+
+.hl-node-inspector, .hl-inspector-empty { background: var(--surface) !important; }
+.hl-node-inspector { padding-top: var(--space-4) !important; }
+.hl-node-drawer {
+  background: var(--overlay) !important; border-color: var(--border) !important;
+  box-shadow: var(--shadow-2) !important;
+}
+.hl-drawer-header { background: var(--surface-2) !important; border-bottom-color: var(--border) !important; }
+
+.hl-gallery-main, .hl-artifacts-main { background: var(--bg); }
+.hl-gallery-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: var(--space-4); max-width: 1360px;
+}
+.hl-workflow-card {
+  min-height: 160px; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important;
+  background: var(--surface) !important; box-shadow: none;
+}
+.hl-workflow-card:hover { border-color: var(--border-strong) !important; background: var(--surface-hover) !important; box-shadow: none !important; }
+.hl-artifact-summary {
+  background: var(--surface-2) !important; border-bottom-color: var(--border) !important;
+  box-shadow: none;
+}
+.hl-artifact-table { border-color: var(--border) !important; box-shadow: none; }
+.hl-artifact-table > div:first-child { background: var(--surface-2) !important; border-bottom-color: var(--border) !important; }
+
+/* Numbers and machine identifiers are intentionally quieter than labels. */
+.hl-artifact-table code, .hl-artifact-table [style*="fontVariantNumeric"],
+.hl-workflow-card [style*="fontVariantNumeric"], .hl-runs-panel [style*="fontVariantNumeric"] {
+  font-family: var(--font-mono) !important; color: var(--text-muted) !important;
+}
+
+/* Toolbar name input: invisible until hover/focus (VSCode tab-title pattern) */
+.wf-name-input {
+  background: transparent;
+  border: 1px solid transparent;
+}
+.wf-name-input:hover {
+  border-color: var(--border);
+  background: var(--surface);
+}
+.wf-name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+/* Dense table/icon actions are the sole compact interactive exception. */
+.hl-control-sm { width: var(--control-h-sm) !important; height: var(--control-h-sm) !important; padding: 0 !important; }
+/* Buttons acting as full list rows have content-driven height, not control height. */
+.hl-row-action { height: auto; }

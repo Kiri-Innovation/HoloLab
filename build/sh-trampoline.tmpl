@@ -1,0 +1,14 @@
+#!/bin/sh
+# HoloLab shebang trampoline — makes pip-generated console scripts relocatable.
+#
+# The pip-generated shim on the build machine has a hard-coded absolute path
+# in the shebang line. That path is invalid on any other machine. We replace
+# the shebang with the block below: the shell resolves the trampoline's own
+# location and execs the Python interpreter co-located with it.
+#
+# NB: the ``'''exec'`` line is BOTH a valid ``sh`` command and the start of a
+# Python triple-quoted string. The shell exits at ``exec`` and never sees
+# the Python code below; Python starts fresh at the top of the file and
+# treats the sh header as a docstring.
+'''exec' "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0")")/python" "$0" "$@"
+' '''

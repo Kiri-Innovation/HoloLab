@@ -1,0 +1,133 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: video-to-camera-track
+version: 0.1.0
+description: >
+  Phase-A1 of the single-video Sharp-4DGS pipeline. Extracts frames, runs
+  MegaSaM to recover per-frame camera poses + a shared K, and writes a
+  COLMAP-shaped dataset (colmap/sparse/0, images/, frames/, pts/, depth/,
+  mask/). Downstream track-to-gs-sequence consumes this without touching
+  the video again — the whole point of the split is cheap A2/A3 rerun.
+category: "tracking/megasam"
+docs: |
+  **Phase A1** of the Sharp-4DGS pipeline. Extracts frames from the input
+  video and runs MegaSaM to recover per-frame camera poses and a shared
+  intrinsic K, writing a COLMAP-shaped dataset plus depth/mask/pts.
+
+  - **Input:** `video_dir` from either ``single-video-source`` (tag
+    ``video-source``) or ``video-array-source`` (tag
+    ``video-source-array``) — both source packs just symlink videos
+    into a directory. Frame extraction happens HERE, not in the source.
+  - **Output:** `camera_track` — `colmap/sparse/0/`, `frames/`,
+    `megasam_run/`, `depth/`, `mask/`.
+  - `max_frames` × `skip` control how much of the video is processed;
+    `motion_mask_mode` must match STG's downstream setting.
+  - Requires `sharp_repo` set to the Kiri4DGS repo root on the node.
+
+  Multi-camera note: the current shell picks the FIRST video in the
+  input directory (``find … | head -1``); for an array of length N
+  from ``video-array-source`` only the first camera is processed
+  today. A dedicated multi-camera SFM step is a follow-up.
+
+inputs:
+  video_dir:
+    # Accept both single-clip and array-of-clips source packs. Single
+    # video is trivially a length-1 array; the shell handles both.
+    tags: [video-source, video-source-array]
+    description: "Directory produced by single-video-source (video-source) or video-array-source (video-source-array); the first video file inside is used."
+
+params:
+  max_frames:
+    type: int
+    default: 50
+    min: 1
+    description: "Cap on extracted frames (--max-frames on video_to_colmap.py)."
+
+  skip:
+    type: int
+    default: 1
+    min: 1
+    description: "Extract every Nth frame (--skip)."
+
+  motion_mask_mode:
+    type: enum
+    values: [gmc_residual, disp_p10p90, depth_p10p90]
+    default: depth_p10p90
+    description: "Motion mask heuristic; must match STG's --motion-mask-mode downstream."
+
+  sharp_repo:
+    type: string
+    description: "Absolute path to the Kiri4DGS repo root on this node (contains sharp-4dgs/)."
+
+outputs:
+  camera_track:
+    tags: [camera_track, sharp4dgs_reconstruct]
+    description: >
+      MegaSaM reconstruction directory (COLMAP layout + megasam_run/ +
+      pts/depth/mask). Feeds track-to-gs-sequence.
+
+runtime:
+  env: kiri
+  gpu:
+    required: true
+    vram_gb_min: 8
+  expected_duration_min: [2, 20]
+  resources:
+    # Empirical baseline @ 50 frames (720p input):
+    #   * scratch ~ 3 GiB (frames + depth + mask + colmap sparse)
+    #   * host RAM peak ~ 8 GiB (MegaSaM sliding-window solver)
+    #   * VRAM peak ~ 6 GiB
+    # Numbers scale roughly linearly with --max-frames; the preflight
+    # margin already covers modest over-runs.
+    scratch_gb: 4.0
+    mem_gb: 10.0
+    gpu_mem_gb: 8.0
+
+exec:
+  # video_to_colmap.py is the standalone entrypoint for A1. It writes into a
+  # single -o directory that becomes our declared handle 1:1 — no
+  # intermediate scratch juggling. We keep the whole tree (frames + colmap
+  # + megasam_run + pts/depth/mask) since track-to-gs-sequence needs the
+  # COLMAP model + frames alongside the depth/mask that MegaSaM emitted.
+  shell: |
+    set -euo pipefail
+    cd "{{ params.sharp_repo }}"
+
+    VIDEO=$(find "{{ inputs.video_dir }}" -maxdepth 1 -type l -o -type f | \
+      grep -iE '\.(mp4|mov|avi|mkv)$' | head -1)
+    if [ -z "$VIDEO" ]; then
+      echo "no video file found under {{ inputs.video_dir }}" >&2
+      exit 2
+    fi
+    VIDEO=$(readlink -f "$VIDEO")
+    echo "[ITER 1/1] tracking camera on: $VIDEO"
+
+    OUT="{{ outputs.camera_track }}"
+    mkdir -p "$OUT"
+
+    python sharp-4dgs/per-frame/video_to_colmap.py "$VIDEO" \
+      --track_megasam \
+      --skip {{ params.skip }} \
+      --max-frames {{ params.max_frames }} \
+      --motion-mask-mode {{ params.motion_mask_mode }} \
+      -o "$OUT"
+
+    # Sanity gate: MegaSaM must have produced the COLMAP model and the
+    # shared-K npz. If either is missing, fail loudly instead of leaving a
+    # half-baked handle for downstream to trip on.
+    test -d "$OUT/colmap/sparse/0" || { echo "missing colmap/sparse/0" >&2; exit 3; }
+    test -f "$OUT/megasam_run/original_resolution.npz" || {
+      echo "missing megasam_run/original_resolution.npz" >&2
+      exit 4
+    }
+
+idempotency:
+  marker: "{{ outputs.camera_track }}/.hololab-done"
+
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
+
+previews:
+  - id: first_frame
+    type: image
+    path: "{{ outputs.camera_track }}/frames/frame_000000.png"

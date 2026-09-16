@@ -1,0 +1,104 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: video-array-source
+version: 0.1.0
+description: "Data-source node — points at a DIRECTORY of videos (multi-clip / multi-camera) to feed the SfM+STG chain. Does NOT extract frames."
+category: "source/video"
+docs: |
+  Data-source node for a **multi-clip / multi-camera capture** — a
+  directory containing one or more video files, each typically a
+  distinct camera. Symlinks each video into a handle so downstream
+  reconstruction packs can read them without copying bytes; it does
+  **NOT** extract frames — frame extraction happens downstream in
+  the SfM step (``video-to-camera-track`` / ``video-to-colmap``),
+  which decodes the video into per-frame images as part of its own
+  workspace.
+
+  - **Param:** `video_dir` — absolute path to a directory containing
+    ``.mp4`` / ``.mov`` / ``.mkv`` / ``.webm`` / ``.avi`` files.
+  - **Output:** `videos_dir` containing one symlink per source video,
+    with the ORIGINAL basename preserved (e.g. ``camera_A.mp4``).
+    Symlinks are created in sorted-basename order so downstream
+    consumers see a deterministic sequence — important for
+    multi-camera setups where filename carries the camera identity.
+  - **Output tag:** ``video-source-array`` (multi-clip data class).
+  - Dotfiles are skipped; the pack fails fast if no matching video
+    file is found in the directory.
+
+  When to use vs ``single-video-source``:
+
+  - Single monocular video (one camera, one clip) →
+    ``single-video-source``.
+  - Multi-camera capture or multi-clip inputs (directory of videos,
+    each a different camera or take) → this pack.
+
+  Downstream (``video-to-camera-track`` / ``video-to-colmap``) accepts
+  both ``video-source`` and ``video-source-array`` tags. Today
+  downstream consumes the first video it finds — the array is a
+  forward-compat handoff for a future multi-camera SFM step; for
+  single-camera SFM the first video is the only one processed.
+
+  Preview: derived from the ``video-source-array`` tag via the
+  gateway's tag→viewer registry (video-grid renders one tile per
+  video). See docs/pack-spec.md § "tag-driven preview inference".
+
+params:
+  video_dir:
+    type: string
+    description: "Absolute path to a directory containing one or more video files."
+
+outputs:
+  videos_dir:
+    tags: [video-source-array]
+    description: "Directory of symlinks, one per source video, with the source basename preserved."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  expected_duration_min: [0.01, 0.05]
+  resources:
+    # Symlink-only pack; no real disk or memory pressure. Values are
+    # generous rounding so the preflight never blocks this pack.
+    scratch_gb: 0.1
+    mem_gb: 0.5
+
+exec:
+  # Enumerate video files at depth 1, sort by basename for
+  # deterministic ordering (multi-camera setups usually use
+  # camera_A / camera_B / … which sorts naturally), and symlink each
+  # into videos_dir preserving the source basename. Null-delimited
+  # find | sort | while lets filenames with spaces / newlines survive.
+  shell: |
+    set -euo pipefail
+    OUT="{{ outputs.videos_dir }}"
+    mkdir -p "$OUT"
+    VDIR="{{ params.video_dir }}"
+
+    if [ ! -d "$VDIR" ]; then
+      echo "video_dir not found or not a directory: $VDIR" >&2
+      exit 2
+    fi
+
+    COUNT=0
+    while IFS= read -r -d '' F; do
+      BASE=$(basename "$F")
+      case "$BASE" in
+        .*) continue ;;
+      esac
+      ln -sf "$F" "$OUT/$BASE"
+      COUNT=$((COUNT + 1))
+    done < <(find "$VDIR" -maxdepth 1 \( -type f -o -type l \) \
+              \( -iname '*.mp4' -o -iname '*.mov' -o -iname '*.mkv' \
+                 -o -iname '*.webm' -o -iname '*.avi' \) -print0 | sort -z)
+    if [ "$COUNT" -eq 0 ]; then
+      echo "no video files (.mp4/.mov/.mkv/.webm/.avi) found in $VDIR" >&2
+      exit 2
+    fi
+    echo "[ITER 1/1] linked $COUNT video(s) from $VDIR"
+
+idempotency:
+  marker: "{{ outputs.videos_dir }}/.hololab-done"
+
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'

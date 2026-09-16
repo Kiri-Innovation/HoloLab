@@ -1,0 +1,52 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: demo-consume
+version: 0.1.0
+description: "Reads a demo-echo output directory and writes a summary. Used to exercise handle wiring end-to-end."
+category: "demo/consume"
+docs: |
+  Consumer half of the demo pair: reads a `demo-echo` output directory and
+  writes a small report so you can confirm handles were materialised.
+
+  - **Input:** `in_dir` — a `demo_output` handle (from `demo-echo`).
+  - **Output:** `report_dir` with `listing.txt`, `echoed-message.txt`,
+    and `status.txt`.
+  - Cheap (<0.2 min); use for E2E plumbing checks, not real work.
+
+inputs:
+  in_dir:
+    tags: [demo_output]
+    description: "Directory produced by demo-echo."
+
+outputs:
+  report_dir:
+    tags: [demo_report]
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  expected_duration_min: [0.05, 0.2]
+
+exec:
+  shell: |
+    set -euo pipefail
+    OUT="{{ outputs.report_dir }}"
+    mkdir -p "$OUT"
+    echo "[ITER 1/1] wired handle -> {{ inputs.in_dir }}"
+    ls "{{ inputs.in_dir }}" > "$OUT/listing.txt"
+    if [ -f "{{ inputs.in_dir }}/message.txt" ]; then
+      cp "{{ inputs.in_dir }}/message.txt" "$OUT/echoed-message.txt"
+    fi
+    echo "consumed" > "$OUT/status.txt"
+
+idempotency:
+  marker: "{{ outputs.report_dir }}/.hololab-done"
+
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
+
+previews:
+  - id: report
+    type: text
+    path: "{{ outputs.report_dir }}/status.txt"
