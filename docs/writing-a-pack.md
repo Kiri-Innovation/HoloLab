@@ -236,14 +236,138 @@ so existing configs keep working untouched.
   `mem_gb`, and `gpu_mem_gb` against live disk/memory before it acks.
   Set these to the observed peak, not the average — a truthful estimate
   turns a mid-run SIGKILL into a fail-fast at assign time.
-- **Directory-name mismatch.** `hello-world@0.1.0/` with a manifest
-  saying `name: hello_world` is dropped silently (with a `pack
-  directory name mismatches manifest` log). The scanner treats the
-  directory name as the authoritative binding.
+- **Manifest fails to load.** A YAML syntax error, a missing required
+  field, or an unknown `apiVersion` gets logged as `pack manifest load
+  failed` and the pack is dropped. Directory / file names never affect
+  identity — `name` and `version` come from the manifest content, so
+  renaming the directory won't help; open the log line and fix the
+  manifest.
 - **Two sources declaring the same pack.** The node keeps the first
   and warns about the second (`pack ignored — duplicate of an earlier
   source`). Reorder `pack_dirs` if you meant the *later* source to
   take precedence.
+
+## Migrating an existing algorithm into HoloLab
+
+If you own a repo with a working algorithm and want it to appear as a
+node in HoloLab, this section is the checklist. The 30-second version
+above tells you what to type; this one tells you what to *decide*
+before you type it.
+
+### 1. Where the manifest lives
+
+Put `manifest.yaml` **inside your algorithm's repo**, next to the code
+it wraps (mode 1 or 2 above). Two reasons:
+
+- The manifest is versioned with the algorithm — a breaking change to
+  a script and its corresponding manifest tweak land in the same
+  commit.
+- `exec.shell` can reference sibling files with short relative paths
+  (or absolute paths if the repo lives at a fixed checkout — see the
+  case study below).
+
+The HoloLab repo's `packs/` directory is only for the source packs
+that ship with HoloLab itself (video-source, demo, etc.). External
+algorithms should never need to check anything in there.
+
+### 2. How to slice one algorithm into packs
+
+**One algorithm = one pack** is the default. A pack has a single
+`exec.shell` block and produces one snapshot of outputs. If your
+algorithm has clearly separable phases (SfM → training → export),
+prefer one pack per phase and let users wire them on the canvas.
+
+Signals that argue for splitting:
+
+- One phase is CPU-only and quick; the next needs a 24 GiB GPU for
+  hours. Splitting lets users retry the expensive step without redoing
+  the cheap one.
+- Users would reasonably want to pause between phases (inspect an
+  intermediate output, adjust a param, resume).
+- The intermediate artefact is a useful object on its own (e.g. a
+  COLMAP directory that other tools consume).
+
+Signals that argue for keeping it as one pack:
+
+- The phases share a large in-memory state that would be expensive to
+  serialize and reload.
+- The intermediate isn't consumable by anything else and users would
+  never inspect it.
+
+### 3. Design your tags
+
+Tags name the object type on a port. Edges connect only when tag sets
+overlap (see [pack-spec.md § Ports](pack-spec.md#ports--tags-are-the-object-type)).
+
+- **Reuse an existing tag** when your output is genuinely the same
+  object as an existing pipeline stage — `colmap`, `stg_model`,
+  `splatv`, `video-source`. Look at `hololab/packs/` and the vendored
+  official-pack manifests for the tag vocabulary in use.
+- **Add a specialising tag** to an existing tag when yours is a
+  subtype — e.g. `tags: [colmap, sharp4dgs_export]` means "a COLMAP
+  directory that is also a sharp4dgs export." Downstream packs that
+  read plain `[colmap]` still accept it; specialised consumers that
+  need `[sharp4dgs_export]` can require it.
+- **Invent a new tag** only when your object is genuinely new. Once
+  chosen, it becomes a shared vocabulary token — future packs that
+  consume it must use the same string.
+
+If you want tag-driven default previews (splatv renderer, video grid),
+add an entry to `hololab/gateway/tag_viewers.py::TAG_VIEWER_REGISTRY`;
+every pack whose output carries that tag then gets the viewer for free.
+
+### 4. Runtime coordination with the compute node
+
+Two things need to line up with the node config on the machine that
+will run the pack:
+
+- **`runtime.env`** is a *logical* name. The node's `config.yaml` maps
+  `envs.<name>` to a real conda prefix (e.g. `envs.kiri:
+  /cloud/.../envs/kiri`). Coordinate with the operator so the env
+  they've provisioned matches the name in your manifest.
+- **`runtime.resources`** — `scratch_gb`, `mem_gb`, `gpu_mem_gb`. The
+  node runs a live preflight against `df` / `MemAvailable` before it
+  acks a job; declaring a truthful *peak* turns a mid-run SIGKILL into
+  a fail-fast at assign time. Measure once with a smoke run rather
+  than guessing.
+
+### 5. Wiring inputs, outputs, and scratch
+
+- `{{ inputs.<port> }}` and `{{ outputs.<port> }}` render to absolute
+  paths the node created for you. Write into `{{ outputs.<port> }}`;
+  never write into `{{ inputs.<port> }}`.
+- For temporary files that must NOT be part of the output, use
+  `{{ scratch_dir }}` — the node cleans it up when the job finishes.
+- Set `idempotency.marker` to a file *inside* your output. Write it
+  last, from within `exec.shell`. On re-run with the same inputs the
+  node skips the subprocess and re-registers the existing handles.
+
+### 6. Validate end-to-end
+
+```bash
+# Local: manifest parses, required fields present.
+hololab pack validate /path/to/your/pack
+
+# On the compute node: add the source and rescan.
+#   UI: Compute nodes → ⚙ → Pack sources → + Add path
+#   or edit ~/.hololab/node/config.yaml → pack_dirs and restart the node.
+
+# From an agent (see skill/SKILL.md for the full REST surface):
+curl -s $HOLO/api/pack-catalog | jq '.[] | select(.name=="your-pack") | {name, version, manifest_path, source_dir}'
+
+# Wire a workflow that uses your pack in the UI, dispatch a run, and
+# tail its log if it fails.
+curl -s "$HOLO/api/jobs?algorithm_name=your-pack&state=failed&limit=1" | jq .
+curl -s "$HOLO/api/jobs/$JOB_ID/log?tail=200&stream=both" | jq -r '.lines[].line'
+```
+
+If the pack doesn't appear in `/api/pack-catalog`, look at the node
+log for `pack manifest load failed` (your YAML is broken) or `pack
+ignored — duplicate of an earlier source` (an earlier `pack_dirs`
+entry already declared this `name@version` — reorder to change
+precedence). If it appears but jobs fail immediately at assignment,
+your `runtime.env` name isn't in the node's `envs:` map, or
+`runtime.resources` exceeds what the node has free.
 
 ## Case study: Kiri4DGS's own official packs
 

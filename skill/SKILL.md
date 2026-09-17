@@ -52,6 +52,29 @@ Rules of thumb:
 
 ---
 
+## What are you trying to do?
+
+This skill covers **operating a running HoloLab** — dispatching
+workflows, reading outputs, cleaning up. If instead your goal is one
+of the two below, jump to the referenced doc first, then come back:
+
+- **"I have an algorithm in my own repo and I want it to appear as a
+  node in HoloLab."** → [`docs/writing-a-pack.md`](../docs/writing-a-pack.md).
+  Covers where to put `manifest.yaml`, how to slice one algorithm into
+  packs, how to design tags so your ports connect with existing
+  stages, how to declare `runtime.env` + `runtime.resources`, and how
+  to validate the pack end-to-end via `/api/pack-catalog`.
+  Field-by-field reference:
+  [`docs/pack-spec.md`](../docs/pack-spec.md).
+- **"I want to understand a `hololab://` reference someone pasted."**
+  → see [When the user pastes a `hololab://` reference](#when-the-user-pastes-a-hololab-reference)
+  below.
+
+Everything else — dispatch, debug, artifacts — is what the rest of
+this document covers.
+
+---
+
 ## The one call that tells you everything
 
 Start every session with:
