@@ -129,10 +129,9 @@ export function OpenInCocoderButton({
     setShowGuide(false);
     setStatus({ kind: "loading" });
     try {
-      const r = await flopsShowDocument({
-        path,
-        deviceId: deviceId as string,
-      });
+      const opts = { path, deviceId: deviceId as string };
+      console.info("[HoloLab] showDocument", opts);
+      const r = await flopsShowDocument(opts);
       if (r.success) {
         setStatus({ kind: "ok" });
       } else {
