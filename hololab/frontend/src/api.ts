@@ -154,14 +154,7 @@ export const rerunFromNode = (snapshot_id: string, graph_node_id: string) =>
 export const patchWorkflowGraphNodeCosmetic = (
   workflow_id: string,
   graph_node_id: string,
-  patch: {
-    preview_open?: string | null;
-    position?: { x: number; y: number };
-    // Cobrowser integration — pinning the Flops device id the "Open
-    // in Cocoder" button should target. See
-    // docs/cobrowser-integration.md.
-    flops_executor_id?: string | null;
-  },
+  patch: { preview_open?: string | null; position?: { x: number; y: number } },
 ) =>
   fetch(
     `/api/workflows/${workflow_id}/graph-nodes/${encodeURIComponent(graph_node_id)}/cosmetic`,
@@ -185,11 +178,7 @@ export const patchWorkflowGraphNodeCosmetic = (
 export const patchSnapshotGraphNodeCosmetic = (
   snapshot_id: string,
   graph_node_id: string,
-  patch: {
-    preview_open?: string | null;
-    position?: { x: number; y: number };
-    flops_executor_id?: string | null;
-  },
+  patch: { preview_open?: string | null; position?: { x: number; y: number } },
 ) =>
   fetch(
     `/api/snapshots/${snapshot_id}/graph-nodes/${encodeURIComponent(graph_node_id)}/cosmetic`,

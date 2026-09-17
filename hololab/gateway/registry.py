@@ -51,6 +51,13 @@ class NodeSession:
     # computing preview proxy URLs so a handle produced under the old
     # root still resolves after the node has been relocated.
     legacy_workspace_roots: list[str] = field(default_factory=list)
+    # Cobrowser integration — mirrored from the node's config.yaml via
+    # the register frame (or refreshed by ``PATCH /api/nodes/{id}/config``
+    # via node_config_set_req). The frontend reads it off
+    # ``GET /api/nodes`` and hands it to ``window.flops.showDocument``
+    # as ``deviceId`` for the "Open in Cocoder" button. Null when the
+    # operator hasn't set it. See docs/cobrowser-integration.md.
+    flops_executor_id: str | None = None
     # ``token_issued`` is set when this session's register frame either
     # minted a fresh node_token or the gateway is (re-)issuing one. The
     # socket handler forwards it in RegisterOk so the node can persist it
@@ -84,6 +91,7 @@ class NodeRegistry:
         node_token: str | None = None,
         workspace_root: str | None = None,
         legacy_workspace_roots: list[str] | None = None,
+        flops_executor_id: str | None = None,
     ) -> NodeSession:
         """Register a node, applying the three-path identity rule:
 
@@ -198,6 +206,7 @@ class NodeRegistry:
             protocol_v=protocol_v,
             workspace_root=workspace_root,
             legacy_workspace_roots=list(legacy_workspace_roots or []),
+            flops_executor_id=flops_executor_id,
             token_issued=token_issued,
         )
         # If there was an old session for this node_id, drop it silently — the
@@ -291,6 +300,7 @@ class NodeRegistry:
                     "advertised_url": s.advertised_url,
                     "workspace_root": s.workspace_root,
                     "legacy_workspace_roots": list(s.legacy_workspace_roots),
+                    "flops_executor_id": s.flops_executor_id,
                 }
             )
         return out

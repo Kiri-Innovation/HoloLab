@@ -49,10 +49,10 @@ class GraphNode(BaseModel):
       (V8 model).
 
     * **Cosmetic** — observer-only fields that don't participate in
-      dispatch: ``position``, ``preview_open``, ``flops_executor_id``.
-      These are MUTABLE inside a snapshot; the ``PATCH .../cosmetic``
-      endpoints update them in place without forking, and edits on the
-      draft back-propagate to the workflow's most recent snapshot so
+      dispatch: ``position`` and ``preview_open``. These are MUTABLE
+      inside a snapshot; the ``PATCH .../cosmetic`` endpoints update
+      them in place without forking, and edits on the draft
+      back-propagate to the workflow's most recent snapshot so
       switching to the "last run" view carries the state over.
     """
 
@@ -69,13 +69,6 @@ class GraphNode(BaseModel):
     # Nullable so old graph JSON blobs (produced before this field
     # existed) round-trip cleanly through pydantic.
     preview_open: str | None = None
-    # Cosmetic — the Flops device id the user pinned to this node so
-    # the "Open in Cocoder" button (Cobrowser integration) knows which
-    # machine's filesystem to target. Free-form string; validated at
-    # request time by the Flops host — an unknown id gets silently
-    # dropped by ``window.flops.showDocument``. See
-    # docs/cobrowser-integration.md for the full flow.
-    flops_executor_id: str | None = None
 
 
 class GraphEdge(BaseModel):

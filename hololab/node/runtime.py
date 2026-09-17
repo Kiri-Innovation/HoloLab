@@ -308,6 +308,7 @@ class NodeRuntime:
             node_token=self._node_token,
             workspace_root=str(self._config.workspace_root),
             legacy_workspace_roots=[str(p) for p in self._config.legacy_workspace_roots],
+            flops_executor_id=self._config.flops_executor_id,
         )
         await self._send("register", reg)
 
@@ -518,6 +519,7 @@ class NodeRuntime:
             "file_server_port": cfg.file_server_port,
             "advertised_url": cfg.advertised_url,
             "packs_dir": str(cfg.packs_dir),
+            "flops_executor_id": cfg.flops_executor_id,
         }
 
     async def _handle_config_get_req(self, req: NodeConfigGetReq) -> None:
@@ -564,6 +566,19 @@ class NodeRuntime:
                     if raw is not None and not isinstance(raw, str):
                         raise ValueError("advertised_url must be a string or null")
                     updates["advertised_url"] = raw or None
+                elif key == "flops_executor_id":
+                    # Cobrowser integration — see docs/cobrowser-integration.md.
+                    # Free-form string (typically ``dev_xxxxxxxx``); the
+                    # only sanity we enforce is "string or null,
+                    # non-empty when set". Flops itself validates
+                    # whether the id names a known device at request
+                    # time (unknown ids are silently ignored per spec).
+                    if raw is not None and not isinstance(raw, str):
+                        raise ValueError(
+                            "flops_executor_id must be a string or null"
+                        )
+                    trimmed = raw.strip() if isinstance(raw, str) else None
+                    updates["flops_executor_id"] = trimmed or None
                 else:
                     raise ValueError(f"field {key!r} is not editable from the UI")
         except ValueError as exc:

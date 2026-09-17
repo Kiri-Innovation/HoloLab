@@ -428,6 +428,13 @@ def _mount_routes(app: FastAPI) -> None:
         new_legacy = cfg.get("legacy_workspace_roots")
         if isinstance(new_legacy, list):
             session.legacy_workspace_roots = [str(p) for p in new_legacy]
+        # Same pattern for the Cobrowser device id — mirror straight
+        # onto the session so ``GET /api/nodes`` and the frontend's
+        # "Open in Cocoder" button pick up the new value without
+        # waiting for the node to reconnect.
+        if "flops_executor_id" in cfg:
+            v = cfg.get("flops_executor_id")
+            session.flops_executor_id = v if isinstance(v, str) and v else None
         return {"node_id": node_id, "config": cfg}
 
     @app.get(
@@ -1794,13 +1801,7 @@ def _mount_routes(app: FastAPI) -> None:
     # body contains — a client that tries to smuggle a ``params`` edit
     # through the cosmetic endpoint gets 400.
 
-    # ``flops_executor_id`` is the Flops-side device id the user pins to
-    # this graph node (Cobrowser's ``window.flops.showDocument`` needs
-    # it as ``deviceId`` to open handles on the right machine). Purely
-    # observer-side — it does not enter dispatch or lineage identity —
-    # so it belongs on the cosmetic allowlist alongside ``position`` /
-    # ``preview_open``. See docs/cobrowser-integration.md.
-    _COSMETIC_FIELDS: set[str] = {"preview_open", "position", "flops_executor_id"}
+    _COSMETIC_FIELDS: set[str] = {"preview_open", "position"}
 
     def _validate_cosmetic_patch(patch: dict[str, Any]) -> dict[str, Any]:
         """Return the subset of ``patch`` in the cosmetic allowlist.
@@ -2408,6 +2409,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
                 node_token=payload.node_token,
                 workspace_root=payload.workspace_root,
                 legacy_workspace_roots=payload.legacy_workspace_roots,
+                flops_executor_id=payload.flops_executor_id,
             )
         except NodeAuthError as exc:
             log.warning(

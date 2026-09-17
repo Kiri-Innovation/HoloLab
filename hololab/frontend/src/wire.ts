@@ -184,6 +184,12 @@ export interface ComputeNode {
   advertised_url: string | null;
   workspace_root: string | null;
   legacy_workspace_roots: string[];
+  // Cobrowser integration — Flops device id the operator configured on
+  // this compute node's config.yaml. Null when unset. The frontend's
+  // "Open in Cocoder" button reads this via ``compute nodes[node_id]``
+  // and hands it to ``window.flops.showDocument`` as ``deviceId``. See
+  // docs/cobrowser-integration.md.
+  flops_executor_id: string | null;
 }
 
 // Effective config the node reports via GET /api/nodes/{id}/config. The
@@ -196,6 +202,8 @@ export interface NodeEffectiveConfig {
   file_server_port: number;
   advertised_url: string | null;
   packs_dir: string;
+  // Editable — Cobrowser integration. See docs/cobrowser-integration.md.
+  flops_executor_id: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,10 +222,6 @@ export interface GraphNode {
   // Never affects dispatch — see the cosmetic/structural table in
   // docs/workflow-schema.md.
   preview_open?: string | null;
-  // Cosmetic. Flops device id the user pinned so the Cobrowser
-  // "Open in Cocoder" button targets the right machine. Null / absent
-  // when unconfigured. See docs/cobrowser-integration.md.
-  flops_executor_id?: string | null;
 }
 
 export interface GraphEdge {

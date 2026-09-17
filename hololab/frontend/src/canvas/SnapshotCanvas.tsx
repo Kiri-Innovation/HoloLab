@@ -38,7 +38,12 @@ import {
   type NodeChange,
   type NodeMouseHandler,
 } from "@xyflow/react";
-import type { CatalogPack, SnapshotDetail, SnapshotJob } from "../wire";
+import type {
+  CatalogPack,
+  ComputeNode,
+  SnapshotDetail,
+  SnapshotJob,
+} from "../wire";
 import { getHandle, patchSnapshotGraphNodeCosmetic } from "../api";
 import {
   AlgorithmNode,
@@ -57,6 +62,11 @@ export interface SnapshotCanvasProps {
   // owned by App so it can also drive the inspector.
   selectedGraphNodeId: string | null;
   onSelectionChange: (graphNodeId: string | null) => void;
+  // Compute-node map keyed by node_id. Threaded into each rendered
+  // AlgorithmNode's data so the preview drawer's "Open in Cocoder"
+  // button can resolve the producing node's ``flops_executor_id`` at
+  // render time. See docs/cobrowser-integration.md.
+  computeNodesById?: Record<string, ComputeNode>;
 }
 
 export function SnapshotCanvas({
@@ -64,6 +74,7 @@ export function SnapshotCanvas({
   catalog,
   selectedGraphNodeId,
   onSelectionChange,
+  computeNodesById,
 }: SnapshotCanvasProps) {
   // Index the catalog by (name, version) so pack lookup for each snapshot
   // node is O(1). If the pack has been uninstalled since the run we still
@@ -146,6 +157,7 @@ export function SnapshotCanvas({
             target: {
               port_name: w.portName,
               handle_id: info.handle_id,
+              node_id: info.node_id,
               proxy_url: info.proxy_url,
               storage: info.storage as "dir" | "file",
               absolute_path: info.absolute_path,
@@ -218,11 +230,6 @@ export function SnapshotCanvas({
         data: {
           pack,
           assigned_node_id: gn.assigned_node_id,
-          // Snapshot carries its own cosmetic ``flops_executor_id`` too —
-          // the "Open in Cocoder" button on the snapshot canvas honours
-          // the same setting the draft view used at run time. See
-          // docs/cobrowser-integration.md.
-          flops_executor_id: gn.flops_executor_id ?? null,
           // The snapshot's own workflow_id — the frozen graph belongs
           // to this workflow, so any ⧉ graph-node ref from the read-
           // only canvas points at the same position the draft view
@@ -232,6 +239,7 @@ export function SnapshotCanvas({
           runtime,
           previews: previewsByGraphNode[gn.id],
           previewOpen: previewOpenByGraphNode[gn.id] ?? null,
+          computeNodesById,
           onPreviewToggle: (portName: string | null) =>
             togglePreview(gn.id, portName),
         },

@@ -370,6 +370,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               targets[port_name] = {
                 port_name,
                 handle_id: info.handle_id,
+                node_id: info.node_id,
                 proxy_url: info.proxy_url,
                 storage: info.storage as "dir" | "file",
                 absolute_path: info.absolute_path,
@@ -430,6 +431,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // data. This drives the status badge, expand caret, inline preview
   // surface, and the card-header ⧉'s graph-node ref (which needs the
   // parent workflow id to form a resolvable token).
+  // Map form of the compute-nodes list, kept memoised so the sync
+  // effect below can pass identity-stable data down into node.data
+  // (avoids re-renders on every catalog poll when nothing changed).
+  const computeNodesById = useMemo<Record<string, ComputeNode>>(() => {
+    const out: Record<string, ComputeNode> = {};
+    for (const cn of computeNodes) out[cn.node_id] = cn;
+    return out;
+  }, [computeNodes]);
+
   useEffect(() => {
     setNodes((current) =>
       current.map((n) => {
@@ -438,11 +448,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const pv = previewsByGraphNode[n.id];
         const po = previewOpenByGraphNode[n.id] ?? null;
         const wid = workflowId ?? null;
+        const cnbi = computeNodesById;
         if (
           rt === d.runtime &&
           pv === d.previews &&
           po === (d.previewOpen ?? null) &&
-          wid === (d.workflow_id ?? null)
+          wid === (d.workflow_id ?? null) &&
+          cnbi === d.computeNodesById
         ) {
           return n;
         }
@@ -454,6 +466,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             previews: pv,
             previewOpen: po,
             workflow_id: wid,
+            computeNodesById: cnbi,
           },
         };
       }),
@@ -463,6 +476,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     previewsByGraphNode,
     previewOpenByGraphNode,
     workflowId,
+    computeNodesById,
     setNodes,
   ]);
 
@@ -624,30 +638,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                       ? patch.assigned_node_id
                       : n.data.assigned_node_id,
                   ...(patch.params ? { params: patch.params } : {}),
-                  ...(patch.flops_executor_id !== undefined
-                    ? { flops_executor_id: patch.flops_executor_id }
-                    : {}),
                 },
               }
             : n,
         ),
       );
-      // Cosmetic mirror to the latest snapshot (autosave will pick up
-      // the draft change on the debounce, but we don't want the "last
-      // run" view to hydrate an out-of-date executor id if the user
-      // switches views right after editing). Fire-and-forget — a
-      // failed patch just means the mirror is stale until next
-      // autosave.
-      if (patch.flops_executor_id !== undefined) {
-        const wid = workflowIdRef.current;
-        if (wid) {
-          void patchWorkflowGraphNodeCosmetic(wid, selectedNode.id, {
-            flops_executor_id: patch.flops_executor_id,
-          }).catch((err) => {
-            console.warn("flops_executor_id patch failed", err);
-          });
-        }
-      }
     },
     [selectedNode, setNodes],
   );
@@ -686,11 +681,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           // refresh + cross-device browsing (the whole point of the
           // "not localStorage" decision).
           preview_open: previewOpenByGraphNode[n.id] ?? null,
-          // Cosmetic. Included so autosave persists the executor id
-          // even before a snapshot is cut — mirror to the newest
-          // snapshot happens via the ``patchWorkflowGraphNodeCosmetic``
-          // call in ``onInspectorChange``.
-          flops_executor_id: d.flops_executor_id ?? null,
         };
       }),
       edges: edges.map((e) => ({
@@ -730,7 +720,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               data: {
                 pack,
                 assigned_node_id: gn.assigned_node_id,
-                flops_executor_id: gn.flops_executor_id ?? null,
                 ...({ params: gn.params } as object),
                 runtime: runtimeByGraphNode[gn.id],
                 previews: previewsByGraphNode[gn.id],
@@ -1013,6 +1002,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               bucket[r.portName] = {
                 port_name: r.portName,
                 handle_id: r.info.handle_id,
+                node_id: r.info.node_id,
                 proxy_url: r.info.proxy_url,
                 storage: r.info.storage as "dir" | "file",
                 absolute_path: r.info.absolute_path,
@@ -1131,6 +1121,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               catalog={catalog}
               selectedGraphNodeId={snapshotSelectedGraphNodeId}
               onSelectionChange={setSnapshotSelectedGraphNodeId}
+              computeNodesById={computeNodesById}
             />
           </>
         ) : (
@@ -1296,8 +1287,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                           }
                         ).params ?? {},
                       assigned_node_id: selectedNode.data.assigned_node_id,
-                      flops_executor_id:
-                        selectedNode.data.flops_executor_id ?? null,
                     }
                   : null
               }

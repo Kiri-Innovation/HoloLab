@@ -69,6 +69,14 @@ class NodeConfig(BaseModel):
     conda_bin: str = "conda"
     envs: dict[str, str] = Field(default_factory=dict)  # logical name → prefix path
 
+    # Cobrowser integration — the Flops device id for this compute node.
+    # When the HoloLab UI runs inside the Flops built-in browser, the
+    # "Open in Cocoder" button feeds this to ``window.flops.showDocument``
+    # as ``deviceId`` so Cocoder opens the artifact on the right
+    # machine. Null / absent when the operator hasn't configured Flops
+    # integration on this node. See docs/cobrowser-integration.md.
+    flops_executor_id: str | None = None
+
 
 def _default_config_path() -> Path:
     return node_data_dir() / "config.yaml"

@@ -70,6 +70,11 @@ class Register(BaseModel):
     node_token: str | None = None  # persistent secret; presented on reconnect
     workspace_root: str | None = None
     legacy_workspace_roots: list[str] = Field(default_factory=list)
+    # Cobrowser integration — Flops device id for this node, so the
+    # gateway can hand it to the frontend and the "Open in Cocoder"
+    # button knows which machine hosts the artifact. Null when unset.
+    # See docs/cobrowser-integration.md.
+    flops_executor_id: str | None = None
 
 
 class RegisterOk(BaseModel):

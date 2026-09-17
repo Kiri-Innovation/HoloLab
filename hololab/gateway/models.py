@@ -66,6 +66,15 @@ class NodeInfo(BaseModel):
             "so handles produced under an older workspace stay resolvable."
         ),
     )
+    flops_executor_id: str | None = Field(
+        default=None,
+        description=(
+            "Cobrowser device id the operator configured for this node "
+            "(see docs/cobrowser-integration.md). Null when unset — the "
+            "frontend's 'Open in Cocoder' button then shows the guide "
+            "callout instead of calling ``window.flops.showDocument``."
+        ),
+    )
 
 
 class PackRow(BaseModel):
@@ -246,10 +255,6 @@ class GraphNodeOut(BaseModel):
     # hydrate its preview-drawer state without a separate round-trip.
     # See docs/workflow-schema.md for the cosmetic/structural boundary.
     preview_open: str | None = None
-    # Cosmetic — the Flops device id the user pinned so the Cobrowser
-    # "Open in Cocoder" button can target the right machine. Absent /
-    # null when not configured. See docs/cobrowser-integration.md.
-    flops_executor_id: str | None = None
 
 
 class GraphEdgeOut(BaseModel):

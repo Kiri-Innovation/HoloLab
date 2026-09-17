@@ -11,7 +11,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getHandleSummary } from "../api";
-import type { HandleSummary, HandleSummaryEntry, OutputPreviewSpec } from "../wire";
+import type {
+  ComputeNode,
+  HandleSummary,
+  HandleSummaryEntry,
+  OutputPreviewSpec,
+} from "../wire";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 
 // ---------------------------------------------------------------------------
@@ -66,9 +71,11 @@ export interface PreviewProps {
   // currently uses it (to compose a per-entry absolute path for the
   // Cobrowser "Open in Cocoder" button). Other viewers ignore it.
   absolutePath?: string;
-  // Cosmetic Flops device id from the graph node. Same audience as
-  // ``absolutePath``.
-  flopsExecutorId?: string | null;
+  // The compute node that produced the handle. Passed to the
+  // Cobrowser "Open in Cocoder" button so it can look up
+  // ``flops_executor_id`` at render time and know which node to
+  // name in the "not configured" guide text.
+  producingNode?: ComputeNode | null;
 }
 
 export function Preview({
@@ -77,7 +84,7 @@ export function Preview({
   storage,
   handleId,
   absolutePath,
-  flopsExecutorId,
+  producingNode,
 }: PreviewProps) {
   // Resolve the final URL once so each viewer has a plain string to work with.
   const url =
@@ -108,7 +115,7 @@ export function Preview({
           handleId={handleId}
           memberGlob={spec.member}
           dirAbsolutePath={absolutePath}
-          flopsExecutorId={flopsExecutorId}
+          producingNode={producingNode}
         />
       );
     default: {
@@ -509,12 +516,12 @@ interface VideoGridProps {
   handleId: string;
   memberGlob: string | null | undefined;
   // Cobrowser integration — the video-array-source dir's absolute
-  // path on the producing node, and the graph node's Flops device
-  // id. Used to build a per-tile "Open in Cocoder" call inside the
-  // zoom overlay. Undefined when caller didn't thread them through;
-  // the zoom overlay simply hides the button in that case.
+  // path on the producing node + the compute node itself. Used to
+  // build a per-tile "Open in Cocoder" call inside the zoom overlay.
+  // Undefined / null when caller didn't thread them through — the
+  // zoom overlay simply hides the button in that case.
   dirAbsolutePath?: string;
-  flopsExecutorId?: string | null;
+  producingNode?: ComputeNode | null;
 }
 
 // Gap between tiles (CSS px). Kept small so a dense 5×5 layout doesn't
@@ -801,7 +808,7 @@ function VideoGridPreview({
   handleId,
   memberGlob,
   dirAbsolutePath,
-  flopsExecutorId,
+  producingNode,
 }: VideoGridProps) {
   const [state, setState] = useState<
     { kind: "loading" } | { kind: "ok"; summary: HandleSummary } | { kind: "err"; message: string }
@@ -936,7 +943,7 @@ function VideoGridPreview({
             sync={sync}
             onClose={() => setZoomedIdx(null)}
             dirAbsolutePath={dirAbsolutePath}
-            flopsExecutorId={flopsExecutorId}
+            producingNode={producingNode}
           />
         )}
       </div>
@@ -1044,9 +1051,10 @@ interface ZoomOverlayProps {
   entry: HandleSummaryEntry;
   sync: VideoArraySync;
   onClose: () => void;
-  // For the top-right "Open in Cocoder" button. Undefined = button hides.
+  // For the top-right "Open in Cocoder" button. Undefined dirPath / null
+  // producing node = button hides.
   dirAbsolutePath?: string;
-  flopsExecutorId?: string | null;
+  producingNode?: ComputeNode | null;
 }
 
 function ZoomOverlay({
@@ -1055,7 +1063,7 @@ function ZoomOverlay({
   sync,
   onClose,
   dirAbsolutePath,
-  flopsExecutorId,
+  producingNode,
 }: ZoomOverlayProps) {
   const [nodeRoot, dirSub] = useMemo(() => splitProxyBase(baseUrl), [baseUrl]);
   const encodedEntry = encodeURIComponent(entry.name);
@@ -1160,7 +1168,7 @@ function ZoomOverlay({
         {dirAbsolutePath && (
           <OpenInCocoderButton
             path={`${dirAbsolutePath.replace(/\/$/, "")}/${entry.name}`}
-            deviceId={flopsExecutorId ?? null}
+            computeNode={producingNode ?? null}
             onDark
           />
         )}

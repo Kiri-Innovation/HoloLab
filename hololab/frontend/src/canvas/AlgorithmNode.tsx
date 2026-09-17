@@ -6,7 +6,13 @@
 // enforce tag compatibility at edge-drawing time.
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import type { CatalogPack, InputPortSpec, OutputPortSpec, PortSpec } from "../wire";
+import type {
+  CatalogPack,
+  ComputeNode,
+  InputPortSpec,
+  OutputPortSpec,
+  PortSpec,
+} from "../wire";
 import { firstTagColour } from "../tags";
 import { CopyRefButton } from "./CopyRefButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
@@ -47,6 +53,11 @@ export interface NodeRuntime {
 export interface PreviewTarget {
   port_name: string;
   handle_id: string;
+  // Compute node id that produced this handle. The Cobrowser "Open in
+  // Cocoder" button reads the compute node's ``flops_executor_id``
+  // (from the ``computeNodesById`` map on the enclosing
+  // AlgorithmNodeData) to know which machine to target.
+  node_id: string;
   proxy_url: string;
   storage: "dir" | "file";
   // Producing node's local absolute path. Fed straight into
@@ -59,12 +70,6 @@ export interface PreviewTarget {
 export interface AlgorithmNodeData extends Record<string, unknown> {
   pack: CatalogPack;
   assigned_node_id: string | null;
-  // Flops device id the user pinned in the NodeInspector so the
-  // Cobrowser "Open in Cocoder" button knows which machine to target.
-  // Null when unconfigured, undefined when the graph pre-dates this
-  // field. Cosmetic in the same sense ``preview_open`` is — a change
-  // here does not fork a snapshot. See docs/cobrowser-integration.md.
-  flops_executor_id?: string | null;
   // The parent workflow's id. Threaded through so the card-header ⧉
   // can emit a ``hololab://graph-node/<workflow_id>/<graph_node_id>``
   // reference (graph node id alone is only unique inside its workflow).
@@ -78,6 +83,12 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   // Frontend-only: which preview drawer is expanded, if any. The node
   // grows a slot below its body when set. ``null`` = collapsed.
   previewOpen?: string | null;
+  // Compute-node map keyed by ``node_id``. The preview drawer's
+  // "Open in Cocoder" button looks up the producing node here to
+  // resolve ``flops_executor_id`` at render time — that way a
+  // NodeSettingsDrawer edit is visible in the drawer immediately,
+  // without a workflow autosave round-trip.
+  computeNodesById?: Record<string, ComputeNode>;
   // Optional per-node toggle. When supplied, the expand caret calls this
   // callback instead of dispatching PREVIEW_TOGGLE_EVENT — used by the
   // read-only snapshot canvas so its toggles stay local to that view
@@ -162,7 +173,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     previews,
     previewOpen,
     onPreviewToggle,
-    flops_executor_id: flopsExecutorId,
+    computeNodesById,
   } = data as AlgorithmNodeData;
   const inputEntries = Object.entries(pack.inputs);
   const outputEntries = Object.entries(pack.outputs);
@@ -415,7 +426,9 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   </span>
                   <OpenInCocoderButton
                     path={target.absolute_path}
-                    deviceId={flopsExecutorId ?? null}
+                    computeNode={
+                      computeNodesById?.[target.node_id] ?? null
+                    }
                     onDark
                   />
                   <CopyRefButton
@@ -432,7 +445,9 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   storage={target.storage}
                   handleId={target.handle_id}
                   absolutePath={target.absolute_path}
-                  flopsExecutorId={flopsExecutorId ?? null}
+                  producingNode={
+                    computeNodesById?.[target.node_id] ?? null
+                  }
                 />
               </>
             );

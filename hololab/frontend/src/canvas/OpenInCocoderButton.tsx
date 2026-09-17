@@ -6,30 +6,38 @@
 //     regular Chrome tab never sees it — hiding beats disabled here
 //     because the API literally does not exist to describe to the
 //     user;
-//   * requires the graph node to have a ``flops_executor_id`` cosmetic
-//     field set — that's the ``deviceId`` argument the API needs to
-//     know which machine's filesystem to target. If unset, the button
-//     still renders (so the missing config is visible) but the click
-//     inlines a hint instead of firing the API;
-//   * translates the API's ``reason`` codes back into short human
-//     strings. Never surfaces ``not-found`` / ``outside-roots``
-//     details on an unauthorised origin (the spec collapses those to
-//     ``declined`` on the host side already, but be defensive).
+//   * targets the **producing compute node** rather than the graph
+//     node — the ``deviceId`` for ``window.flops.showDocument`` comes
+//     from that compute node's ``flops_executor_id`` (set in the
+//     right-side COMPUTE NODES panel → gear → Node settings). This is
+//     a live lookup: an edit in Node settings is reflected on the next
+//     ``GET /api/nodes`` poll without needing to re-run the job;
+//   * when the producing node has no ``flops_executor_id``, the click
+//     does NOT hit the API. Instead the button expands a *visible*
+//     guide message beneath itself pointing at the panel + the exact
+//     field to fill — a hover tooltip alone (previous behaviour) is
+//     easy to miss;
+//   * on success / error paths, humanises the ``reason`` code from
+//     the API and flashes a status.
 //
 // See docs/cobrowser-integration.md.
 
 import { useEffect, useState } from "react";
+import type { ComputeNode } from "../wire";
 import { flopsAvailable, flopsShowDocument } from "../flops";
 
 export interface OpenInCocoderButtonProps {
   /** Producing node's local absolute path (from ``HandleInfo.absolute_path``). */
   path: string;
   /**
-   * The graph node's cosmetic ``flops_executor_id``. Empty / null means
-   * "user hasn't configured which device this artifact lives on";
-   * we still render the button but a click shows a hint.
+   * The compute node that produced this handle. The button reads
+   * ``flops_executor_id`` off it at render time so a NodeSettingsDrawer
+   * edit is visible immediately (no autosave round-trip needed). Null
+   * = producing node not connected right now → button still renders
+   * so the user can find the missing config, but shows an explanatory
+   * message instead of firing the API.
    */
-  deviceId: string | null;
+  computeNode: ComputeNode | null;
   /** Match ``CopyRefButton``'s onDark flag — this button lives inside
    *  the dark preview drawer + zoom overlay. */
   onDark?: boolean;
@@ -75,7 +83,7 @@ function reasonToMessage(reason: string | undefined): string {
 
 export function OpenInCocoderButton({
   path,
-  deviceId,
+  computeNode,
   onDark = false,
 }: OpenInCocoderButtonProps) {
   // Cheap availability re-check on mount — Cobrowser injects
@@ -88,29 +96,37 @@ export function OpenInCocoderButton({
   }, [available]);
 
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [showGuide, setShowGuide] = useState<boolean>(false);
 
   // Reset the flash back to idle after a few seconds so a stale
-  // success / error indicator doesn't linger.
+  // success / error indicator doesn't linger. The guide callout has
+  // its own timeout (a bit longer — the user needs to read it).
   useEffect(() => {
     if (status.kind === "ok" || status.kind === "err") {
       const t = window.setTimeout(() => setStatus({ kind: "idle" }), 3500);
       return () => window.clearTimeout(t);
     }
   }, [status.kind]);
+  useEffect(() => {
+    if (!showGuide) return;
+    const t = window.setTimeout(() => setShowGuide(false), 8000);
+    return () => window.clearTimeout(t);
+  }, [showGuide]);
 
   if (!available) return null;
 
+  const deviceId = computeNode?.flops_executor_id ?? null;
   const configured = !!deviceId && deviceId.trim().length > 0;
+  const nodeLabel = computeNode?.node_name ?? "this node";
 
   const onClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!configured) {
-      setStatus({
-        kind: "err",
-        msg: "set flops_executor_id in node settings",
-      });
+      setShowGuide(true);
+      setStatus({ kind: "err", msg: "flops_executor_id not set" });
       return;
     }
+    setShowGuide(false);
     setStatus({ kind: "loading" });
     try {
       const r = await flopsShowDocument({
@@ -160,35 +176,75 @@ export function OpenInCocoderButton({
         : status.kind === "err"
           ? `open in Cocoder failed: ${status.msg}`
           : `open in Cocoder · ${path} (device: ${deviceId})`
-    : "open in Cocoder — set flops_executor_id in node settings first";
+    : `${nodeLabel} has no Flops executor id — click for details`;
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={status.kind === "loading"}
-      title={title}
-      data-hl-open-cocoder=""
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 4,
-        width: "var(--control-h-sm)",
-        height: "var(--control-h-sm)",
-        padding: 0,
-        borderRadius: "var(--radius-sm)",
-        border,
-        background: bg,
-        color,
-        cursor: status.kind === "loading" ? "wait" : "pointer",
-        fontSize: "var(--fs-sm)",
-        lineHeight: 1,
-        transition:
-          "background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease)",
-      }}
-    >
-      {icon}
-    </button>
+    // Position: relative so the guide callout can anchor itself to
+    // this button. Inline-block so it doesn't disturb the flexbox
+    // layout inside the drawer header.
+    <span style={{ position: "relative", display: "inline-block" }}>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={status.kind === "loading"}
+        title={title}
+        data-hl-open-cocoder=""
+        data-hl-configured={configured ? "1" : "0"}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 4,
+          width: "var(--control-h-sm)",
+          height: "var(--control-h-sm)",
+          padding: 0,
+          borderRadius: "var(--radius-sm)",
+          border,
+          background: bg,
+          color,
+          cursor: status.kind === "loading" ? "wait" : "pointer",
+          fontSize: "var(--fs-sm)",
+          lineHeight: 1,
+          transition:
+            "background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease)",
+        }}
+      >
+        {icon}
+      </button>
+      {showGuide && (
+        <div
+          data-hl-open-cocoder-guide=""
+          role="status"
+          style={{
+            position: "absolute",
+            // Anchor to the button's bottom-right so the callout hangs
+            // below and slightly to the right of it — inside the
+            // preview drawer's dark surface where there's the most room.
+            top: "calc(var(--control-h-sm) + 6px)",
+            right: 0,
+            width: 260,
+            padding: "8px 10px",
+            background: "var(--surface)",
+            color: "var(--text-body)",
+            border: "1px solid var(--warn, #f0ad4e)",
+            borderRadius: "var(--radius-sm)",
+            boxShadow: "var(--shadow-2)",
+            fontSize: "var(--fs-xs)",
+            lineHeight: 1.45,
+            zIndex: 30,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+            ↗ Set the Flops executor id first
+          </div>
+          <div style={{ color: "var(--text-muted)" }}>
+            {nodeLabel} has no <code>flops_executor_id</code> configured.
+            Open the right-side <b>Compute nodes</b> panel → click the
+            ⚙ on <b>{nodeLabel}</b> → fill the{" "}
+            <b>Flops executor id</b> field → <b>Apply</b>.
+          </div>
+        </div>
+      )}
+    </span>
   );
 }

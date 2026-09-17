@@ -295,44 +295,23 @@ def test_empty_patch_rejected(tmp_path: Path) -> None:
         assert "empty" in r.json()["detail"]
 
 
-def test_workflow_cosmetic_patch_accepts_flops_executor_id(
+def test_workflow_cosmetic_patch_rejects_flops_executor_id(
     tmp_path: Path,
 ) -> None:
-    """``flops_executor_id`` is cosmetic — it names which Flops device
-    the Cobrowser "Open in Cocoder" button should target. Not part of
-    dispatch / lineage identity, so patching it must NOT fork the
-    snapshot; it lands on the draft and mirrors like ``preview_open``.
+    """Guardrail: after refactoring ``flops_executor_id`` onto the
+    compute-node's config.yaml (see docs/cobrowser-integration.md),
+    the cosmetic endpoint must reject it — that keeps a stale
+    frontend from silently succeeding against a rebooted server that
+    no longer expects graph-node-level values.
     """
 
-    app = create_app(db_path=tmp_path / "wcfl.sqlite")
+    app = create_app(db_path=tmp_path / "wcfl_rej.sqlite")
     with TestClient(app) as client:
-        wid = "99999999-9999-9999-9999-999999999999"
+        wid = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
         _seed_workflow(client, wid)
-
         r = client.patch(
             f"/api/workflows/{wid}/graph-nodes/n1/cosmetic",
             json={"flops_executor_id": "dev_abc12345"},
         )
-        assert r.status_code == 200, r.text
-        body = r.json()
-        assert body["applied"] == {"flops_executor_id": "dev_abc12345"}
-
-        # Round-trip through the workflow GET so we know the field
-        # survives the Pydantic in→out cycle (extra="forbid" on
-        # GraphNode means an omission here would 500 the read).
-        r = client.get(f"/api/workflows/{wid}")
-        assert r.status_code == 200
-        graph = r.json()["graph"]
-        n1 = next(n for n in graph["nodes"] if n["id"] == "n1")
-        assert n1["flops_executor_id"] == "dev_abc12345"
-
-        # Clearing the field (Flops env removed / user wants to un-pin)
-        # goes through the same endpoint with null.
-        r = client.patch(
-            f"/api/workflows/{wid}/graph-nodes/n1/cosmetic",
-            json={"flops_executor_id": None},
-        )
-        assert r.status_code == 200
-        r = client.get(f"/api/workflows/{wid}")
-        n1 = next(n for n in r.json()["graph"]["nodes"] if n["id"] == "n1")
-        assert n1["flops_executor_id"] is None
+        assert r.status_code == 400
+        assert "cosmetic" in r.json()["detail"]

@@ -60,6 +60,42 @@ def test_node_config_default_legacy_roots_is_empty(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Cobrowser integration: NodeConfig.flops_executor_id round-trip + default
+# ---------------------------------------------------------------------------
+
+
+def test_node_config_persists_flops_executor_id(tmp_path: Path) -> None:
+    """The device id the operator pins in NodeSettingsDrawer lives on
+    the node's own config.yaml (Cobrowser integration; see
+    docs/cobrowser-integration.md) and must round-trip through YAML
+    like every other machine-specific field.
+    """
+
+    cfg = NodeConfig(
+        node_name="kiri-fld",
+        workspace_root=tmp_path / "ws",
+        flops_executor_id="dev_kiri4090test",
+    )
+    path = tmp_path / "config.yaml"
+    write_node_config(cfg, path)
+
+    reloaded = load_node_config(path)
+    assert reloaded.flops_executor_id == "dev_kiri4090test"
+
+
+def test_node_config_default_flops_executor_id_is_null(tmp_path: Path) -> None:
+    """A fresh node has no Cobrowser integration configured — the
+    field defaults to None so the frontend hides the "Open in Cocoder"
+    button (or shows the guide callout) until the operator sets it.
+    """
+
+    path = tmp_path / "config.yaml"
+    path.write_text("node_name: sole\nworkspace_root: /tmp/ws\n")
+    reloaded = load_node_config(path)
+    assert reloaded.flops_executor_id is None
+
+
+# ---------------------------------------------------------------------------
 # strip_workspace_prefix — tries primary then each legacy root
 # ---------------------------------------------------------------------------
 

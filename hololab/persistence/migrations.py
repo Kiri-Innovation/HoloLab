@@ -276,6 +276,63 @@ MIGRATIONS: list[tuple[int, str]] = [
 ]
 
 
+MIGRATIONS.append(
+    (
+        9,
+        # Strip ``flops_executor_id`` from every persisted graph_json /
+        # draft_json blob. An earlier draft of the Cobrowser integration
+        # (see docs/cobrowser-integration.md) put the field on the graph
+        # node cosmetic allowlist; that was reverted in favour of a
+        # compute-node-level setting on ``NodeConfig``. Any workflow
+        # that got saved during the aborted refactor now trips
+        # ``WorkflowGraph.extra='forbid'`` on load. This one-shot
+        # rewrite drops the key wherever it appears — the field never
+        # carried semantic value here, so removal is safe. Guarded by
+        # ``json_extract`` so we only touch rows that actually contain
+        # the string, keeping the migration fast on healthy DBs.
+        """
+        UPDATE workflows
+           SET draft_json = (
+               WITH nodes AS (
+                   SELECT key, value FROM json_each(json_extract(draft_json, '$.nodes'))
+               ),
+               scrubbed_nodes AS (
+                   SELECT json_group_array(
+                       json_remove(value, '$.flops_executor_id')
+                   ) AS arr
+                   FROM nodes
+               )
+               SELECT json_set(
+                   draft_json,
+                   '$.nodes',
+                   json(scrubbed_nodes.arr)
+               ) FROM scrubbed_nodes
+           )
+         WHERE draft_json LIKE '%flops_executor_id%';
+
+        UPDATE snapshots
+           SET graph_json = (
+               WITH nodes AS (
+                   SELECT key, value FROM json_each(json_extract(graph_json, '$.nodes'))
+               ),
+               scrubbed_nodes AS (
+                   SELECT json_group_array(
+                       json_remove(value, '$.flops_executor_id')
+                   ) AS arr
+                   FROM nodes
+               )
+               SELECT json_set(
+                   graph_json,
+                   '$.nodes',
+                   json(scrubbed_nodes.arr)
+               ) FROM scrubbed_nodes
+           )
+         WHERE graph_json LIKE '%flops_executor_id%';
+        """,
+    ),
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

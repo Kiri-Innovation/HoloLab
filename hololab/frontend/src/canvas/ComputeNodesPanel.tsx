@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ComputeNode, NodeEffectiveConfig } from "../wire";
 import { ApiError, getNodeConfig, patchNodeConfig } from "../api";
+import { flopsAvailable } from "../flops";
 
 export interface ComputeNodesPanelProps {
   nodes: ComputeNode[];
@@ -215,6 +216,13 @@ function NodeSettingsDrawer({
   const [workspaceRoot, setWorkspaceRoot] = useState("");
   const [legacyRoots, setLegacyRoots] = useState<string[]>([]);
   const [advertisedUrl, setAdvertisedUrl] = useState("");
+  const [flopsExecutorId, setFlopsExecutorId] = useState("");
+
+  // Cobrowser integration is only meaningful when the page is
+  // rendered inside Flops (the ↗ button that consumes this id is
+  // hidden otherwise). Hide the input in a regular browser to avoid
+  // a dangling field the user can't act on.
+  const showFlopsField = flopsAvailable();
 
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
@@ -227,6 +235,7 @@ function NodeSettingsDrawer({
       setWorkspaceRoot(r.config.workspace_root);
       setLegacyRoots([...r.config.legacy_workspace_roots]);
       setAdvertisedUrl(r.config.advertised_url ?? "");
+      setFlopsExecutorId(r.config.flops_executor_id ?? "");
       setLoadErr(null);
     } catch (e) {
       const msg = e instanceof ApiError ? `HTTP ${e.status}` : (e as Error).message;
@@ -257,6 +266,10 @@ function NodeSettingsDrawer({
         if (!sameLegacy) patch.legacy_workspace_roots = trimmedLegacy;
         const advNorm = advertisedUrl.trim() || null;
         if (advNorm !== (config.advertised_url ?? null)) patch.advertised_url = advNorm;
+        const flopsNorm = flopsExecutorId.trim() || null;
+        if (flopsNorm !== (config.flops_executor_id ?? null)) {
+          patch.flops_executor_id = flopsNorm;
+        }
       }
       if (Object.keys(patch).length === 0) {
         setSaveErr("no changes to apply");
@@ -272,6 +285,7 @@ function NodeSettingsDrawer({
       setWorkspaceRoot(r.config.workspace_root);
       setLegacyRoots([...r.config.legacy_workspace_roots]);
       setAdvertisedUrl(r.config.advertised_url ?? "");
+      setFlopsExecutorId(r.config.flops_executor_id ?? "");
       onSaved?.();
     } catch (e) {
       const detail =
@@ -402,6 +416,24 @@ function NodeSettingsDrawer({
               How the gateway reaches this node's file server for
               /proxy/{"{"}node{"}"}/{"{"}sub{"}"} — normally auto-derived.
             </Hint>
+
+            {showFlopsField && (
+              <>
+                <FieldLabel>Flops executor id</FieldLabel>
+                <TextInput
+                  value={flopsExecutorId}
+                  onChange={setFlopsExecutorId}
+                  monospace
+                  placeholder="dev_xxxxxxxx"
+                />
+                <Hint>
+                  Used by the preview drawer's "Open in Cocoder" button
+                  (Cobrowser integration) as the ``deviceId`` for
+                  ``window.flops.showDocument``. Leave blank to disable
+                  the button for artifacts this node produces.
+                </Hint>
+              </>
+            )}
 
             <div
               style={{
