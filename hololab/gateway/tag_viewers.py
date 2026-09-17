@@ -53,6 +53,12 @@ TAG_VIEWER_REGISTRY: dict[str, OutputPreview] = {
     # already keys on the ``splatv`` tag, so packs that produce it
     # don't need to repeat themselves.
     "splatv": OutputPreview(viewer="splatv"),
+    # Ordered frame sequence (``frames/frame_XXXXXX.png``) — the abstract
+    # object shared between the frame extractor and any consumer that
+    # wants a sequence of images (MegaSaM tracker, future re-runs of
+    # other trackers). The default viewer just shows the first frame;
+    # promoting it to a proper image-grid viewer is a follow-up.
+    "frame_sequence": OutputPreview(viewer="image", member="frames/frame_000000.png"),
 }
 
 

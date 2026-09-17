@@ -380,13 +380,16 @@ you may want to mirror it for other in-repo algorithms.
 ```
 Kiri4DGS/
 ├── sharp-4dgs/per-frame/
-│   ├── video_to_colmap.py                       ← algorithm (A1)
-│   ├── video-to-camera-track.manifest.yaml      ← pack for the above
+│   ├── extract_frames_cli.py                    ← algorithm (A0 - frame extractor)
+│   ├── video-to-frames.manifest.yaml            ← pack for the above
+│   ├── video_to_colmap.py                       ← algorithm (A1 tracker; --convert-only reuses A0 frames)
+│   ├── frames-to-camera-track.manifest.yaml     ← pack for the above (MegaSaM only)
+│   ├── video-to-camera-track.manifest.yaml      ← deprecated A0+A1 combo pack, kept for BC
 │   ├── colmap_to_3d.py                          ← algorithm (A2)
 │   ├── track-to-gs-sequence.manifest.yaml       ← pack for the above
 │   ├── gsseq_to_multiview.py                    ← algorithm (A3)
 │   ├── gs-seq-to-multiview-colmap.manifest.yaml ← pack for the above
-│   ├── video_to_3d.py                           ← algorithm (A1+A2+A3 combo)
+│   ├── video_to_3d.py                           ← algorithm (A0+A1+A2+A3 combo)
 │   ├── video-to-colmap.manifest.yaml            ← pack for the above
 │   ├── path_setup.py                            ← support / not a pack
 │   └── ...
@@ -398,16 +401,26 @@ Kiri4DGS/
     └── manifest.yaml                            ← pack (mode 2)
 ```
 
-Four algorithms share `per-frame/` so each gets its own
+Six algorithms share `per-frame/` so each gets its own
 `<name>.manifest.yaml` (**mode 1**, precise-file). `SpacetimeGaussians/`
 and `Utils/STG_to_SplaTV/` are single-purpose directories so a top-level
 `manifest.yaml` (**mode 2**, index.html) is clean.
+
+The A0/A1 split — dedicated frame extractor
+(``video-to-frames``) + MegaSaM-only tracker
+(``frames-to-camera-track``) — replaces the older combined
+``video-to-camera-track`` pack. That legacy pack stays in ``pack_dirs``
+so existing workflow drafts still resolve, but new workflows should
+chain the split pair so the tracker can be re-run without re-decoding
+the video.
 
 **pack_dirs on the compute node** — one entry per manifest for mode-1,
 one entry per directory for mode-2:
 
 ```yaml
 pack_dirs:
+  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video-to-frames.manifest.yaml
+  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/frames-to-camera-track.manifest.yaml
   - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video-to-camera-track.manifest.yaml
   - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/track-to-gs-sequence.manifest.yaml
   - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video-to-colmap.manifest.yaml

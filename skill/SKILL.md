@@ -338,7 +338,7 @@ GET  /api/pack-catalog                                 — packs with port/param
 GET  /api/workflows                                    — list drafts + last_run rollups
 GET  /api/workflows/{id}                               — one draft (agent-shaped graph)
 POST /api/workflows                                    — create/update draft
-DELETE /api/workflows/{id}                             — delete draft (keeps history)
+DELETE /api/workflows/{id}                             — delete draft (keeps jobs + handles; snapshots are cascaded)
 POST /api/workflows/{id}/run                           — snapshot + run in background
 
 GET  /api/workflows/{id}/runs                          — list past snapshots
