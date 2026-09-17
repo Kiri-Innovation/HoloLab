@@ -1,22 +1,19 @@
 // "Jump to source" — canvas-header code-icon button. Same Cobrowser
 // integration as the preview drawer's ↗ button, but the target file is
-// the pack's implementation script, not a produced artifact:
+// the pack's manifest.yaml (the exec orchestration entry point):
 //
-//   * If the pack manifest declared ``source_entry`` (a path relative
-//     to the Kiri4DGS workspace root, or absolute), that file is
-//     opened. Sharp-4DGS / SpacetimeGaussians / Utils packs use this
-//     to point straight at ``sharp-4dgs/per-frame/video_to_colmap.py``,
-//     ``SpacetimeGaussians/train.py`` and friends.
-//   * Otherwise the button falls back to
-//     ``{packs_dir}/{name}@{version}/manifest.yaml`` — the exec
-//     orchestration lives there; it's always present.
+//   ``{source_dir}/{name}@{version}/manifest.yaml``
+//
+// ``source_dir`` comes from the pack catalog (the exact directory entry
+// in the node's ``pack_dirs`` list that this pack was loaded from). Falls
+// back to the compute node's primary ``packs_dir`` when the catalog entry
+// predates multi-pack-source support.
 //
 // The compute node is picked by preference: the graph node's explicit
 // assignment, else the first online node offering this pack. Without
 // a compute node the button still renders (per the design: guide the
-// operator to configure things) but flops_executor_id resolution and
-// ``packs_dir`` may be missing — in that case we fall back to opening
-// what we can and let the ``not-found`` reason surface from the API.
+// operator to configure things) but flops_executor_id resolution may be
+// missing — in that case we show the guide callout on click.
 //
 // See docs/cobrowser-integration.md#jump-to-source.
 
@@ -64,34 +61,18 @@ function CodeGlyph({ colour }: { colour: string }) {
 
 /** Resolve the target absolute path Cocoder will open.
  *
- *  Semantics documented on ``Manifest.source_entry`` and mirrored in
- *  docs/cobrowser-integration.md#jump-to-source. Exported for test.
+ *  Always ``{sourceDir}/{name}@{version}/manifest.yaml``.
+ *  ``pack.source_dir`` is preferred (the exact pack_dirs entry this pack
+ *  was loaded from); ``packsDir`` (the node's primary packs dir) is the
+ *  fallback for nodes that predate multi-pack-source support. Exported for test.
  */
 export function resolveSourceTarget(
   pack: CatalogPack,
   packsDir: string | null,
 ): string | null {
-  const entry = pack.source_entry;
-  if (entry && entry.startsWith("/")) {
-    // Absolute path — respected verbatim; ignores packs_dir.
-    return entry;
-  }
-  if (!packsDir) {
-    // We can't resolve either the manifest.yaml fallback OR a relative
-    // source_entry without a packs_dir. Bail — caller renders as
-    // unconfigured (fires the guide callout when clicked).
-    return null;
-  }
-  const trimmed = packsDir.replace(/\/+$/, "");
-  if (entry) {
-    // Relative to Kiri4DGS repo root (packs_dir.parent.parent per the
-    // spec). Compute that from packs_dir by stripping two components.
-    const parts = trimmed.split("/");
-    if (parts.length < 3) return null; // pathological packs_dir
-    const codeRoot = parts.slice(0, -2).join("/");
-    return `${codeRoot}/${entry}`;
-  }
-  return `${trimmed}/${pack.name}@${pack.version}/manifest.yaml`;
+  const sourceDir = pack.source_dir || packsDir;
+  if (!sourceDir) return null;
+  return `${sourceDir.replace(/\/+$/, "")}/${pack.name}@${pack.version}/manifest.yaml`;
 }
 
 export function OpenSourceButton({
@@ -126,7 +107,6 @@ export function OpenSourceButton({
   const packsDir = computeNode?.packs_dir ?? null;
   const nodeLabel = computeNode?.node_name ?? "this node";
   const target = resolveSourceTarget(pack, packsDir);
-  const isOverride = !!pack.source_entry;
 
   const onClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -191,7 +171,6 @@ export function OpenSourceButton({
         title={title}
         data-hl-open-source=""
         data-hl-configured={configured ? "1" : "0"}
-        data-hl-source-kind={isOverride ? "source_entry" : "manifest"}
         style={{
           display: "inline-flex",
           alignItems: "center",

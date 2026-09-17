@@ -281,17 +281,6 @@ class Manifest(BaseModel):
     description: str | None = None
     category: list[str] = Field(default_factory=list)
     docs: str | None = None
-    # "Jump to source" target — a relative path inside the Kiri4DGS
-    # workspace root (i.e. ``packs_dir.parent.parent`` in the standard
-    # layout), or an absolute path. The frontend's code-icon button on
-    # each canvas node opens this in Cocoder via
-    # ``window.flops.showDocument``. Optional; when absent the button
-    # falls back to opening the pack's own ``manifest.yaml``. Points at
-    # the pack's *core* implementation script — the file a maintainer
-    # would open to understand what this pack actually runs. See
-    # docs/cobrowser-integration.md#jump-to-source.
-    source_entry: str | None = None
-
     inputs: dict[str, InputSpec] = Field(default_factory=dict)
     outputs: dict[str, OutputSpec]
     params: dict[str, ParamSpec] = Field(default_factory=dict)

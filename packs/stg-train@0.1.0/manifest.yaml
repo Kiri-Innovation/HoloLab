@@ -4,7 +4,6 @@ name: stg-train
 version: 0.1.0
 description: "Train a SpacetimeGaussians 4D Gaussian model from a COLMAP directory."
 category: "training/spacetime-gaussians"
-source_entry: SpacetimeGaussians/train.py
 docs: |
   Trains a SpacetimeGaussians 4D Gaussian model on a COLMAP-shaped
   dataset produced by the A3 multi-view render.

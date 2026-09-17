@@ -155,12 +155,6 @@ export interface CatalogPack {
   description: string | null;
   category: string[];
   docs: string | null;
-  // Optional "Jump to source" target — a path (relative to the
-  // Kiri4DGS workspace root, i.e. ``packs_dir.parent.parent`` on the
-  // node, or absolute). The canvas node's code-icon button opens
-  // this in Cocoder; null → falls back to opening the pack's own
-  // manifest.yaml. See docs/cobrowser-integration.md#jump-to-source.
-  source_entry: string | null;
   // Which pack source directory this pack was loaded from on the
   // producing node — one of the node's ``pack_dirs`` entries. Lets
   // the palette / inspector show origin so a developer's ad-hoc

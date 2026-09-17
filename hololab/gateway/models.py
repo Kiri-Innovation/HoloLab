@@ -153,18 +153,6 @@ class CatalogPackEntry(BaseModel):
     description: str | None = None
     category: list[str] = Field(default_factory=list)
     docs: str | None = None
-    source_entry: str | None = Field(
-        default=None,
-        description=(
-            "Optional 'Jump to source' target — a path (relative to the "
-            "Kiri4DGS workspace root, or absolute) at the pack's core "
-            "implementation script. The frontend's code-icon button on "
-            "each canvas node opens this in Cocoder via "
-            "``window.flops.showDocument``; when null it falls back to "
-            "the pack's own ``manifest.yaml``. See "
-            "docs/cobrowser-integration.md#jump-to-source."
-        ),
-    )
     source_dir: str | None = Field(
         default=None,
         description=(
