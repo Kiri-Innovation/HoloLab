@@ -17,14 +17,15 @@ from hololab.node.runtime import _preflight_resources
 
 PACKS_ROOT = Path(__file__).parent.parent / "packs"
 
-# The canonical linear video pipeline. All six must declare resources.
+# In-repo pipeline packs that must declare resources. The pipeline's
+# heavy Sharp-4DGS / STG / SplaTV manifests now live in their source
+# repos alongside their algorithm code (see docs/writing-a-pack.md
+# #kiri4dgs-official-packs) — those aren't checkable from this repo's
+# CI checkout. This test still guards the source packs vendored here;
+# the moved manifests are guarded by pack validation at node scan time.
 PIPELINE_PACKS = [
     "single-video-source@0.1.0",
-    "video-to-camera-track@0.1.0",
-    "track-to-gs-sequence@0.1.0",
-    "gs-seq-to-multiview-colmap@0.1.0",
-    "stg-train@0.1.0",
-    "stg-to-splatv@0.1.0",
+    "video-array-source@0.1.0",
 ]
 
 

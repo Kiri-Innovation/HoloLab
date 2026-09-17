@@ -245,6 +245,82 @@ so existing configs keep working untouched.
   source`). Reorder `pack_dirs` if you meant the *later* source to
   take precedence.
 
+## Case study: Kiri4DGS's own official packs
+
+The pipeline packs shipped with Kiri4DGS (Sharp-4DGS Phase A1/A2/A3, STG
+training, .splatv export) follow a specific convention worth calling out —
+you may want to mirror it for other in-repo algorithms.
+
+**Layout — one manifest per algorithm, colocated with the code:**
+
+```
+Kiri4DGS/
+├── sharp-4dgs/per-frame/
+│   ├── video_to_colmap.py                       ← algorithm (A1)
+│   ├── video-to-camera-track.manifest.yaml      ← pack for the above
+│   ├── colmap_to_3d.py                          ← algorithm (A2)
+│   ├── track-to-gs-sequence.manifest.yaml       ← pack for the above
+│   ├── gsseq_to_multiview.py                    ← algorithm (A3)
+│   ├── gs-seq-to-multiview-colmap.manifest.yaml ← pack for the above
+│   ├── video_to_3d.py                           ← algorithm (A1+A2+A3 combo)
+│   ├── video-to-colmap.manifest.yaml            ← pack for the above
+│   ├── path_setup.py                            ← support / not a pack
+│   └── ...
+├── SpacetimeGaussians/
+│   ├── train.py                                 ← algorithm
+│   └── manifest.yaml                            ← pack (mode 2, index.html)
+└── Utils/STG_to_SplaTV/
+    ├── convert_to_splatv_lite.py                ← algorithm
+    └── manifest.yaml                            ← pack (mode 2)
+```
+
+Four algorithms share `per-frame/` so each gets its own
+`<name>.manifest.yaml` (**mode 1**, precise-file). `SpacetimeGaussians/`
+and `Utils/STG_to_SplaTV/` are single-purpose directories so a top-level
+`manifest.yaml` (**mode 2**, index.html) is clean.
+
+**pack_dirs on the compute node** — one entry per manifest for mode-1,
+one entry per directory for mode-2:
+
+```yaml
+pack_dirs:
+  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video-to-camera-track.manifest.yaml
+  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/track-to-gs-sequence.manifest.yaml
+  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video-to-colmap.manifest.yaml
+  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/gs-seq-to-multiview-colmap.manifest.yaml
+  - /cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians
+  - /cloud/cloud-ssd1/Kiri4DGS/Utils/STG_to_SplaTV
+  - /cloud/cloud-ssd1/Kiri4DGS/hololab/packs   # source / demo packs
+```
+
+**Absolute paths everywhere in the manifest** — this is the deliberate
+convention for Kiri4DGS's own packs:
+
+```yaml
+source_entry: /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video_to_colmap.py
+
+exec:
+  shell: |
+    cd /cloud/cloud-ssd1/Kiri4DGS
+    python /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video_to_colmap.py "$VIDEO" ...
+```
+
+No `{{ pack_dir }}/../..` navigation, no `params.sharp_repo` /
+`params.stg_repo` indirection. **The tradeoff is intentional**:
+
+- ✅ **Explicit and unambiguous** — one glance at the manifest tells you
+  exactly what file runs; no template resolution to trace through.
+- ✅ **No user-facing "where is your repo?" parameter** to fill in per
+  compute node.
+- ❌ **Manifests are pinned to this specific machine's checkout path**
+  (`/cloud/cloud-ssd1/Kiri4DGS`). If the repo moves, every manifest
+  needs updating.
+
+That's a fine tradeoff for **Kiri4DGS's own official packs**, which are
+authored for the main experimental machine. Third-party or portable
+packs should still prefer `{{ pack_dir }}` (or accept path params) —
+the polymorphic pack_dirs contract supports both styles.
+
 ## Where to look
 
 - Schema — `hololab/manifest/schema.py::Manifest`
