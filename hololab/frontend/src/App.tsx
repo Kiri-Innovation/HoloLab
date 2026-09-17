@@ -372,6 +372,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 handle_id: info.handle_id,
                 proxy_url: info.proxy_url,
                 storage: info.storage as "dir" | "file",
+                absolute_path: info.absolute_path,
               };
             }
             if (Object.keys(targets).length === 0) return;
@@ -623,11 +624,30 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                       ? patch.assigned_node_id
                       : n.data.assigned_node_id,
                   ...(patch.params ? { params: patch.params } : {}),
+                  ...(patch.flops_executor_id !== undefined
+                    ? { flops_executor_id: patch.flops_executor_id }
+                    : {}),
                 },
               }
             : n,
         ),
       );
+      // Cosmetic mirror to the latest snapshot (autosave will pick up
+      // the draft change on the debounce, but we don't want the "last
+      // run" view to hydrate an out-of-date executor id if the user
+      // switches views right after editing). Fire-and-forget — a
+      // failed patch just means the mirror is stale until next
+      // autosave.
+      if (patch.flops_executor_id !== undefined) {
+        const wid = workflowIdRef.current;
+        if (wid) {
+          void patchWorkflowGraphNodeCosmetic(wid, selectedNode.id, {
+            flops_executor_id: patch.flops_executor_id,
+          }).catch((err) => {
+            console.warn("flops_executor_id patch failed", err);
+          });
+        }
+      }
     },
     [selectedNode, setNodes],
   );
@@ -666,6 +686,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           // refresh + cross-device browsing (the whole point of the
           // "not localStorage" decision).
           preview_open: previewOpenByGraphNode[n.id] ?? null,
+          // Cosmetic. Included so autosave persists the executor id
+          // even before a snapshot is cut — mirror to the newest
+          // snapshot happens via the ``patchWorkflowGraphNodeCosmetic``
+          // call in ``onInspectorChange``.
+          flops_executor_id: d.flops_executor_id ?? null,
         };
       }),
       edges: edges.map((e) => ({
@@ -705,6 +730,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               data: {
                 pack,
                 assigned_node_id: gn.assigned_node_id,
+                flops_executor_id: gn.flops_executor_id ?? null,
                 ...({ params: gn.params } as object),
                 runtime: runtimeByGraphNode[gn.id],
                 previews: previewsByGraphNode[gn.id],
@@ -989,6 +1015,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 handle_id: r.info.handle_id,
                 proxy_url: r.info.proxy_url,
                 storage: r.info.storage as "dir" | "file",
+                absolute_path: r.info.absolute_path,
               };
             }
             setPreviewsByGraphNode((prev) => {
@@ -1269,6 +1296,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                           }
                         ).params ?? {},
                       assigned_node_id: selectedNode.data.assigned_node_id,
+                      flops_executor_id:
+                        selectedNode.data.flops_executor_id ?? null,
                     }
                   : null
               }

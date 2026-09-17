@@ -15,6 +15,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { CatalogPack, ComputeNode, GraphNode } from "../wire";
 import { MarkdownView } from "../ui/MarkdownView";
 import { Modal } from "../ui/Modal";
+import { flopsAvailable } from "../flops";
 
 export interface NodeInspectorProps {
   selected: GraphNode | null;
@@ -264,6 +265,11 @@ export function NodeInspector({
           )}
         </div>
 
+        <FlopsExecutorIdField
+          value={selected.flops_executor_id ?? null}
+          onChange={(v) => onChange({ flops_executor_id: v })}
+        />
+
         <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Parameters</h3>
         {Object.keys(pack.params).length === 0 ? (
           <div style={{ ...HINT, color: "var(--text-subtle)" }}>
@@ -378,6 +384,53 @@ function DocsColumn({ docs, onOpenFull }: { docs: string; onOpenFull: () => void
           View full
         </button>
       )}
+    </div>
+  );
+}
+
+/** Cobrowser executor-id field. Renders only inside the Flops built-in
+ *  browser — non-Cobrowser tabs (regular Chrome, Safari, etc.) never
+ *  see a value they can't use anyway, so we hide the row entirely
+ *  rather than showing a disabled input. See docs/cobrowser-integration.md.
+ *
+ *  Cosmetic: mirrored to the latest snapshot via cosmetic PATCH from
+ *  App.tsx's ``onInspectorChange``. Draft persistence rides autosave.
+ */
+function FlopsExecutorIdField({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  if (!flopsAvailable()) return null;
+  return (
+    <div style={{ ...FIELD, marginTop: 12 }}>
+      <div style={LABEL}>
+        Flops executor id
+        {value ? null : <span style={TAG}>unset</span>}
+      </div>
+      <input
+        type="text"
+        value={value ?? ""}
+        placeholder="dev_xxxxxxxx"
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        onChange={(e) => {
+          const raw = e.target.value.trim();
+          onChange(raw || null);
+        }}
+        style={{
+          width: "100%",
+          fontFamily: "var(--font-mono)",
+          fontSize: "var(--fs-xs)",
+        }}
+      />
+      <div style={HINT}>
+        The Flops device this graph node produces artifacts on. Used by
+        the preview drawer's "Open in Cocoder" button as ``deviceId``.
+      </div>
     </div>
   );
 }

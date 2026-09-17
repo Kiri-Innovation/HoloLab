@@ -108,6 +108,11 @@ export interface HandleSummary {
   storage: "dir" | "file";
   size_bytes: number | null;
   proxy_url: string;
+  // Producing node's local absolute path (before workspace-root
+  // stripping). Used by the Cobrowser "Open in Cocoder" button —
+  // ``window.flops.showDocument`` needs the raw path, not a proxy URL.
+  // See docs/cobrowser-integration.md.
+  absolute_path: string;
   // Discriminated payload. For ``kind: "dir"`` the fields carry
   // ``entries`` / ``entry_count`` / ``total_size_bytes`` / ``truncated``.
   // Other kinds have their own field sets; the frontend only reads the
@@ -162,6 +167,8 @@ export interface HandleInfo {
   // For dir-storage handles you typically fetch a specific member by
   // appending ``/<member>`` to this URL.
   proxy_url: string;
+  // Producing node's local absolute path — see HandleSummary above.
+  absolute_path: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +214,10 @@ export interface GraphNode {
   // Never affects dispatch — see the cosmetic/structural table in
   // docs/workflow-schema.md.
   preview_open?: string | null;
+  // Cosmetic. Flops device id the user pinned so the Cobrowser
+  // "Open in Cocoder" button targets the right machine. Null / absent
+  // when unconfigured. See docs/cobrowser-integration.md.
+  flops_executor_id?: string | null;
 }
 
 export interface GraphEdge {

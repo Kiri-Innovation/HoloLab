@@ -752,6 +752,11 @@ def _mount_routes(app: FastAPI) -> None:
             "size_bytes": handle.size_bytes,
             "output_port_name": handle.output_port_name,
             "proxy_url": proxy_url,
+            # Producing node's local absolute path — the Cobrowser
+            # "Open in Cocoder" button feeds this to
+            # ``window.flops.showDocument`` directly. See
+            # docs/cobrowser-integration.md.
+            "absolute_path": handle.path,
         }
 
     @app.get(
@@ -792,6 +797,7 @@ def _mount_routes(app: FastAPI) -> None:
             "storage": handle.storage,
             "size_bytes": handle.size_bytes,
             "proxy_url": proxy_url,
+            "absolute_path": handle.path,
             "fields": summary.get("fields", {}),
         }
 
@@ -1788,7 +1794,13 @@ def _mount_routes(app: FastAPI) -> None:
     # body contains — a client that tries to smuggle a ``params`` edit
     # through the cosmetic endpoint gets 400.
 
-    _COSMETIC_FIELDS: set[str] = {"preview_open", "position"}
+    # ``flops_executor_id`` is the Flops-side device id the user pins to
+    # this graph node (Cobrowser's ``window.flops.showDocument`` needs
+    # it as ``deviceId`` to open handles on the right machine). Purely
+    # observer-side — it does not enter dispatch or lineage identity —
+    # so it belongs on the cosmetic allowlist alongside ``position`` /
+    # ``preview_open``. See docs/cobrowser-integration.md.
+    _COSMETIC_FIELDS: set[str] = {"preview_open", "position", "flops_executor_id"}
 
     def _validate_cosmetic_patch(patch: dict[str, Any]) -> dict[str, Any]:
         """Return the subset of ``patch`` in the cosmetic allowlist.

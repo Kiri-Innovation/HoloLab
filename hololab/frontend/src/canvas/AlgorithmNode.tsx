@@ -9,6 +9,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { CatalogPack, InputPortSpec, OutputPortSpec, PortSpec } from "../wire";
 import { firstTagColour } from "../tags";
 import { CopyRefButton } from "./CopyRefButton";
+import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { Preview } from "./previews";
 
 // The port label shown on the canvas is the port's tag (its object type).
@@ -48,11 +49,22 @@ export interface PreviewTarget {
   handle_id: string;
   proxy_url: string;
   storage: "dir" | "file";
+  // Producing node's local absolute path. Fed straight into
+  // ``window.flops.showDocument`` by the Cobrowser "Open in Cocoder"
+  // button — a proxy URL wouldn't do because Cobrowser opens LOCAL
+  // files. See docs/cobrowser-integration.md.
+  absolute_path: string;
 }
 
 export interface AlgorithmNodeData extends Record<string, unknown> {
   pack: CatalogPack;
   assigned_node_id: string | null;
+  // Flops device id the user pinned in the NodeInspector so the
+  // Cobrowser "Open in Cocoder" button knows which machine to target.
+  // Null when unconfigured, undefined when the graph pre-dates this
+  // field. Cosmetic in the same sense ``preview_open`` is — a change
+  // here does not fork a snapshot. See docs/cobrowser-integration.md.
+  flops_executor_id?: string | null;
   // The parent workflow's id. Threaded through so the card-header ⧉
   // can emit a ``hololab://graph-node/<workflow_id>/<graph_node_id>``
   // reference (graph node id alone is only unique inside its workflow).
@@ -150,6 +162,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     previews,
     previewOpen,
     onPreviewToggle,
+    flops_executor_id: flopsExecutorId,
   } = data as AlgorithmNodeData;
   const inputEntries = Object.entries(pack.inputs);
   const outputEntries = Object.entries(pack.outputs);
@@ -400,6 +413,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   <span style={{ flex: 1 }}>
                     {pack.name} · {expanded}
                   </span>
+                  <OpenInCocoderButton
+                    path={target.absolute_path}
+                    deviceId={flopsExecutorId ?? null}
+                    onDark
+                  />
                   <CopyRefButton
                     kind="handle"
                     id={target.handle_id}
@@ -413,6 +431,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   baseUrl={target.proxy_url}
                   storage={target.storage}
                   handleId={target.handle_id}
+                  absolutePath={target.absolute_path}
+                  flopsExecutorId={flopsExecutorId ?? null}
                 />
               </>
             );

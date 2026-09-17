@@ -134,6 +134,14 @@ class HandleInfo(BaseModel):
     proxy_url: str = Field(
         description="Same-origin URL through the gateway proxy — no direct node access needed."
     )
+    absolute_path: str = Field(
+        description=(
+            "The handle's absolute path on the producing node's filesystem. "
+            "Needed by the Cobrowser 'Open in Cocoder' button, which asks the "
+            "Flops host to open a *local* file — a proxy URL wouldn't do. "
+            "See docs/cobrowser-integration.md."
+        ),
+    )
 
 
 class HandleSummary(BaseModel):
@@ -154,6 +162,12 @@ class HandleSummary(BaseModel):
     storage: str
     size_bytes: int | None = None
     proxy_url: str
+    absolute_path: str = Field(
+        description=(
+            "Same as HandleInfo.absolute_path — the producing node's local "
+            "filesystem path, for the Cobrowser 'Open in Cocoder' flow."
+        ),
+    )
     fields: dict[str, Any] = Field(
         default_factory=dict,
         description="Kind-specific structured metadata; empty for 'unknown'.",
@@ -232,6 +246,10 @@ class GraphNodeOut(BaseModel):
     # hydrate its preview-drawer state without a separate round-trip.
     # See docs/workflow-schema.md for the cosmetic/structural boundary.
     preview_open: str | None = None
+    # Cosmetic — the Flops device id the user pinned so the Cobrowser
+    # "Open in Cocoder" button can target the right machine. Absent /
+    # null when not configured. See docs/cobrowser-integration.md.
+    flops_executor_id: str | None = None
 
 
 class GraphEdgeOut(BaseModel):

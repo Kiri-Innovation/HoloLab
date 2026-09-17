@@ -148,6 +148,7 @@ export function SnapshotCanvas({
               handle_id: info.handle_id,
               proxy_url: info.proxy_url,
               storage: info.storage as "dir" | "file",
+              absolute_path: info.absolute_path,
             },
           };
         } catch (err) {
@@ -217,6 +218,11 @@ export function SnapshotCanvas({
         data: {
           pack,
           assigned_node_id: gn.assigned_node_id,
+          // Snapshot carries its own cosmetic ``flops_executor_id`` too —
+          // the "Open in Cocoder" button on the snapshot canvas honours
+          // the same setting the draft view used at run time. See
+          // docs/cobrowser-integration.md.
+          flops_executor_id: gn.flops_executor_id ?? null,
           // The snapshot's own workflow_id — the frozen graph belongs
           // to this workflow, so any ⧉ graph-node ref from the read-
           // only canvas points at the same position the draft view

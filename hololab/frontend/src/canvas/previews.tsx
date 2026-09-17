@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getHandleSummary } from "../api";
 import type { HandleSummary, HandleSummaryEntry, OutputPreviewSpec } from "../wire";
+import { OpenInCocoderButton } from "./OpenInCocoderButton";
 
 // ---------------------------------------------------------------------------
 // Common shell
@@ -60,9 +61,24 @@ export interface PreviewProps {
   // summary and by size-gated viewers that want ``size_bytes``. Optional
   // to keep the single-URL viewers callable without one.
   handleId?: string;
+  // Producing node's local absolute path — the *dir* path when
+  // ``storage === "dir"``. Only the video-grid's zoom overlay
+  // currently uses it (to compose a per-entry absolute path for the
+  // Cobrowser "Open in Cocoder" button). Other viewers ignore it.
+  absolutePath?: string;
+  // Cosmetic Flops device id from the graph node. Same audience as
+  // ``absolutePath``.
+  flopsExecutorId?: string | null;
 }
 
-export function Preview({ spec, baseUrl, storage, handleId }: PreviewProps) {
+export function Preview({
+  spec,
+  baseUrl,
+  storage,
+  handleId,
+  absolutePath,
+  flopsExecutorId,
+}: PreviewProps) {
   // Resolve the final URL once so each viewer has a plain string to work with.
   const url =
     storage === "dir" && spec.member && spec.viewer !== "video-grid"
@@ -86,7 +102,15 @@ export function Preview({ spec, baseUrl, storage, handleId }: PreviewProps) {
           </div>
         );
       }
-      return <VideoGridPreview baseUrl={baseUrl} handleId={handleId} memberGlob={spec.member} />;
+      return (
+        <VideoGridPreview
+          baseUrl={baseUrl}
+          handleId={handleId}
+          memberGlob={spec.member}
+          dirAbsolutePath={absolutePath}
+          flopsExecutorId={flopsExecutorId}
+        />
+      );
     default: {
       // Compile-time exhaustiveness check: if someone widens
       // ``OutputPreviewSpec.viewer`` without adding a switch case here,
@@ -484,6 +508,13 @@ interface VideoGridProps {
   baseUrl: string;
   handleId: string;
   memberGlob: string | null | undefined;
+  // Cobrowser integration — the video-array-source dir's absolute
+  // path on the producing node, and the graph node's Flops device
+  // id. Used to build a per-tile "Open in Cocoder" call inside the
+  // zoom overlay. Undefined when caller didn't thread them through;
+  // the zoom overlay simply hides the button in that case.
+  dirAbsolutePath?: string;
+  flopsExecutorId?: string | null;
 }
 
 // Gap between tiles (CSS px). Kept small so a dense 5×5 layout doesn't
@@ -765,7 +796,13 @@ function useVideoArraySync(): VideoArraySync {
   };
 }
 
-function VideoGridPreview({ baseUrl, handleId, memberGlob }: VideoGridProps) {
+function VideoGridPreview({
+  baseUrl,
+  handleId,
+  memberGlob,
+  dirAbsolutePath,
+  flopsExecutorId,
+}: VideoGridProps) {
   const [state, setState] = useState<
     { kind: "loading" } | { kind: "ok"; summary: HandleSummary } | { kind: "err"; message: string }
   >({ kind: "loading" });
@@ -898,6 +935,8 @@ function VideoGridPreview({ baseUrl, handleId, memberGlob }: VideoGridProps) {
             entry={zoomEntry}
             sync={sync}
             onClose={() => setZoomedIdx(null)}
+            dirAbsolutePath={dirAbsolutePath}
+            flopsExecutorId={flopsExecutorId}
           />
         )}
       </div>
@@ -1005,9 +1044,19 @@ interface ZoomOverlayProps {
   entry: HandleSummaryEntry;
   sync: VideoArraySync;
   onClose: () => void;
+  // For the top-right "Open in Cocoder" button. Undefined = button hides.
+  dirAbsolutePath?: string;
+  flopsExecutorId?: string | null;
 }
 
-function ZoomOverlay({ baseUrl, entry, sync, onClose }: ZoomOverlayProps) {
+function ZoomOverlay({
+  baseUrl,
+  entry,
+  sync,
+  onClose,
+  dirAbsolutePath,
+  flopsExecutorId,
+}: ZoomOverlayProps) {
   const [nodeRoot, dirSub] = useMemo(() => splitProxyBase(baseUrl), [baseUrl]);
   const encodedEntry = encodeURIComponent(entry.name);
   const videoUrl = `${baseUrl.replace(/\/$/, "")}/${encodedEntry}`;
@@ -1085,21 +1134,36 @@ function ZoomOverlay({ baseUrl, entry, sync, onClose }: ZoomOverlayProps) {
           position: "absolute",
           top: 6,
           right: 6,
-          padding: "2px 8px",
-          background: "rgba(0,0,0,0.55)",
-          color: "#fff",
-          border: "1px solid rgba(255,255,255,0.18)",
-          borderRadius: "var(--radius-pill)",
-          fontSize: 10,
-          fontFamily: "var(--font-mono)",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
           maxWidth: "60%",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
         }}
-        title={entry.name}
       >
-        {entry.name}
+        <div
+          style={{
+            padding: "2px 8px",
+            background: "rgba(0,0,0,0.55)",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.18)",
+            borderRadius: "var(--radius-pill)",
+            fontSize: 10,
+            fontFamily: "var(--font-mono)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+          title={entry.name}
+        >
+          {entry.name}
+        </div>
+        {dirAbsolutePath && (
+          <OpenInCocoderButton
+            path={`${dirAbsolutePath.replace(/\/$/, "")}/${entry.name}`}
+            deviceId={flopsExecutorId ?? null}
+            onDark
+          />
+        )}
       </div>
     </div>
   );

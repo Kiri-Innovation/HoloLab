@@ -85,6 +85,11 @@ def test_handle_lookup_strips_workspace_root(tmp_path: Path) -> None:
         assert body["output_port_name"] == "splatv"
         # The workspace_root prefix has been stripped.
         assert body["proxy_url"] == "/proxy/node-a/w/wf1/j/j1/model.splatv"
+        # The producing node's local absolute path is included verbatim
+        # so the frontend can pass it to ``window.flops.showDocument``
+        # (Cobrowser "Open in Cocoder"). Workspace-root prefix stripping
+        # is only for the proxy URL — Cobrowser wants the full path.
+        assert body["absolute_path"] == "/hololab/ws/w/wf1/j/j1/model.splatv"
 
 
 def test_handle_lookup_missing_workspace_root_falls_back_to_absolute(
@@ -109,6 +114,9 @@ def test_handle_lookup_missing_workspace_root_falls_back_to_absolute(
         # Fallback: the absolute path lands verbatim in the sub-path with the
         # leading ``/`` stripped so the URL is still well-formed.
         assert body["proxy_url"] == "/proxy/unknown-node/some/absolute/dir"
+        # ``absolute_path`` is unaffected by the strip fallback — always
+        # the raw path from the handle row.
+        assert body["absolute_path"] == "/some/absolute/dir"
 
 
 def test_handle_lookup_returns_404_for_unknown_id(tmp_path: Path) -> None:
