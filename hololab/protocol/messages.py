@@ -22,6 +22,13 @@ class PackInventoryEntry(BaseModel):
     name: str
     version: str
     manifest_hash: str  # sha256 of the manifest.yaml file; changes on edits
+    # Which entry from the node's ``pack_dirs`` list this pack was
+    # loaded from. Null when the node was upgraded to the pack_dirs
+    # protocol but reports an inventory it built with an older
+    # scanner. Frontend renders it as "source: /home/dev/my-packs"
+    # so an operator can tell a developer's ad-hoc pack apart from
+    # the vendored ones. See docs/writing-a-pack.md.
+    source_dir: str | None = None
 
 
 class GpuInfo(BaseModel):
@@ -81,7 +88,20 @@ class Register(BaseModel):
     # fallback target when a pack declares no ``source_entry``). Null
     # only during upgrades from a pre-v5 node that hasn't been restarted
     # yet. See docs/cobrowser-integration.md#jump-to-source.
+    #
+    # DEPRECATED in the multi-pack-source protocol — kept for
+    # backward-compat with older gateways. Modern nodes ALSO send
+    # ``pack_dirs`` below; the gateway prefers that list and falls
+    # back to a single-element list wrapping ``packs_dir`` when only
+    # the scalar is present.
     packs_dir: str | None = None
+    # Ordered list of directories this node scans for packs. First
+    # entry is the primary (used by the frontend as the target for
+    # the "Jump to source" fallback when no ``source_entry`` is
+    # declared). Extending this list is how a developer registers a
+    # custom pack source without vendoring — see
+    # docs/writing-a-pack.md.
+    pack_dirs: list[str] = Field(default_factory=list)
 
 
 class RegisterOk(BaseModel):

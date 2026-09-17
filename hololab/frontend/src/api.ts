@@ -275,7 +275,12 @@ export const patchNodeConfig = (
   patch: Partial<
     Pick<
       NodeEffectiveConfig,
-      "workspace_root" | "legacy_workspace_roots" | "node_name" | "advertised_url"
+      | "workspace_root"
+      | "legacy_workspace_roots"
+      | "pack_dirs"
+      | "node_name"
+      | "advertised_url"
+      | "flops_executor_id"
     >
   >,
 ) =>

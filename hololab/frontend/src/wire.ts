@@ -14,6 +14,11 @@ export interface PackInventoryEntry {
   name: string;
   version: string;
   manifest_hash: string;
+  // Which entry from the producing node's pack_dirs this pack was
+  // loaded from. Null on rolling upgrades where the node hasn't
+  // reconnected yet — the frontend just hides the origin chip in
+  // that case.
+  source_dir?: string | null;
 }
 
 export interface GpuInfo {
@@ -156,6 +161,12 @@ export interface CatalogPack {
   // this in Cocoder; null → falls back to opening the pack's own
   // manifest.yaml. See docs/cobrowser-integration.md#jump-to-source.
   source_entry: string | null;
+  // Which pack source directory this pack was loaded from on the
+  // producing node — one of the node's ``pack_dirs`` entries. Lets
+  // the palette / inspector show origin so a developer's ad-hoc
+  // pack is visually distinguishable from vendored ones. See
+  // docs/writing-a-pack.md.
+  source_dir?: string | null;
   inputs: Record<string, InputPortSpec>;
   outputs: Record<string, OutputPortSpec>;
   params: Record<string, ParamSpec>;
@@ -196,12 +207,17 @@ export interface ComputeNode {
   // and hands it to ``window.flops.showDocument`` as ``deviceId``. See
   // docs/cobrowser-integration.md.
   flops_executor_id: string | null;
-  // Absolute path of the node's packs dir. Consumed by the canvas
-  // node's "Jump to source" button to resolve the fallback target
-  // ``{packs_dir}/{name}@{version}/manifest.yaml``. Null only during
-  // a rolling upgrade before this node reconnected on the new
-  // protocol. See docs/cobrowser-integration.md#jump-to-source.
+  // Absolute path of the node's primary packs dir (``pack_dirs[0]``).
+  // Consumed by the canvas node's "Jump to source" button to resolve
+  // the fallback target ``{packs_dir}/{name}@{version}/manifest.yaml``.
+  // Null only during a rolling upgrade before this node reconnected
+  // on the new protocol. See docs/cobrowser-integration.md#jump-to-source.
   packs_dir: string | null;
+  // Full ordered list of pack source directories the node scans. The
+  // NodeSettingsDrawer renders + edits this list; adding an entry
+  // registers a custom pack source without vendoring the pack into
+  // the HoloLab repo. See docs/writing-a-pack.md.
+  pack_dirs?: string[];
 }
 
 // Effective config the node reports via GET /api/nodes/{id}/config. The
@@ -213,7 +229,11 @@ export interface NodeEffectiveConfig {
   file_server_host: string;
   file_server_port: number;
   advertised_url: string | null;
-  packs_dir: string;
+  // ``packs_dir`` is the legacy scalar (== ``pack_dirs[0]``). Modern
+  // clients prefer ``pack_dirs``. Both are populated so an older
+  // frontend loaded against a newer node still works.
+  packs_dir: string | null;
+  pack_dirs: string[];
   // Editable — Cobrowser integration. See docs/cobrowser-integration.md.
   flops_executor_id: string | null;
 }

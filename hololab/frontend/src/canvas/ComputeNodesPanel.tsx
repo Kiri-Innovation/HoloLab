@@ -8,7 +8,11 @@
 // workspace-root changes, and echoes back the effective config.
 
 import { useCallback, useEffect, useState } from "react";
-import type { ComputeNode, NodeEffectiveConfig } from "../wire";
+import type {
+  ComputeNode,
+  NodeEffectiveConfig,
+  PackInventoryEntry,
+} from "../wire";
 import { ApiError, getNodeConfig, patchNodeConfig } from "../api";
 import { flopsAvailable } from "../flops";
 
@@ -215,6 +219,7 @@ function NodeSettingsDrawer({
   const [nodeName, setNodeName] = useState("");
   const [workspaceRoot, setWorkspaceRoot] = useState("");
   const [legacyRoots, setLegacyRoots] = useState<string[]>([]);
+  const [packDirs, setPackDirs] = useState<string[]>([]);
   const [advertisedUrl, setAdvertisedUrl] = useState("");
   const [flopsExecutorId, setFlopsExecutorId] = useState("");
 
@@ -234,6 +239,7 @@ function NodeSettingsDrawer({
       setNodeName(r.config.node_name);
       setWorkspaceRoot(r.config.workspace_root);
       setLegacyRoots([...r.config.legacy_workspace_roots]);
+      setPackDirs([...r.config.pack_dirs]);
       setAdvertisedUrl(r.config.advertised_url ?? "");
       setFlopsExecutorId(r.config.flops_executor_id ?? "");
       setLoadErr(null);
@@ -264,6 +270,11 @@ function NodeSettingsDrawer({
           trimmedLegacy.length === config.legacy_workspace_roots.length &&
           trimmedLegacy.every((s, i) => s === config.legacy_workspace_roots[i]);
         if (!sameLegacy) patch.legacy_workspace_roots = trimmedLegacy;
+        const trimmedPackDirs = packDirs.map((s) => s.trim()).filter((s) => s.length > 0);
+        const samePackDirs =
+          trimmedPackDirs.length === config.pack_dirs.length &&
+          trimmedPackDirs.every((s, i) => s === config.pack_dirs[i]);
+        if (!samePackDirs) patch.pack_dirs = trimmedPackDirs;
         const advNorm = advertisedUrl.trim() || null;
         if (advNorm !== (config.advertised_url ?? null)) patch.advertised_url = advNorm;
         const flopsNorm = flopsExecutorId.trim() || null;
@@ -284,6 +295,7 @@ function NodeSettingsDrawer({
       setNodeName(r.config.node_name);
       setWorkspaceRoot(r.config.workspace_root);
       setLegacyRoots([...r.config.legacy_workspace_roots]);
+      setPackDirs([...r.config.pack_dirs]);
       setAdvertisedUrl(r.config.advertised_url ?? "");
       setFlopsExecutorId(r.config.flops_executor_id ?? "");
       onSaved?.();
@@ -405,6 +417,17 @@ function NodeSettingsDrawer({
               stay resolvable after moving the primary root.
             </Hint>
 
+            <FieldLabel>Pack directories</FieldLabel>
+            <LegacyRootsEditor value={packDirs} onChange={setPackDirs} />
+            <PackDirCounts pack_dirs={packDirs} packs={node.packs} />
+            <Hint>
+              Directories this node scans for algorithm packs. First entry is
+              the primary. Add a path to register a custom pack source
+              (ComfyUI-style) without vendoring — see{" "}
+              <code>docs/writing-a-pack.md</code>. Duplicate{" "}
+              <code>name@version</code> across dirs is first-wins.
+            </Hint>
+
             <FieldLabel>Advertised URL</FieldLabel>
             <TextInput
               value={advertisedUrl}
@@ -446,7 +469,6 @@ function NodeSettingsDrawer({
                 label="File server"
                 value={`${config.file_server_host}:${config.file_server_port}`}
               />
-              <ReadOnlyRow label="Packs dir" value={config.packs_dir} />
             </div>
 
             {saveErr && <ErrorLine text={saveErr} />}
@@ -689,6 +711,64 @@ function LegacyRootsEditor({
       >
         + Add legacy root
       </button>
+    </div>
+  );
+}
+
+// Per-source pack count, rendered under the Pack directories editor.
+// Reads the live inventory the node reported via the register frame
+// (``PackInventoryEntry.source_dir``) and groups counts by root — a
+// quick visual check that "this pack source contains N packs" before
+// hitting Apply. Packs whose ``source_dir`` isn't in the currently
+// edited list surface under an ``(unassigned)`` bucket so an operator
+// can spot a mismatch when the working draft doesn't yet match what
+// the running node is scanning.
+function PackDirCounts({
+  pack_dirs,
+  packs,
+}: {
+  pack_dirs: string[];
+  packs: PackInventoryEntry[];
+}) {
+  const counts = new Map<string, number>();
+  let unassigned = 0;
+  for (const p of packs) {
+    const src = p.source_dir;
+    if (src && pack_dirs.includes(src)) {
+      counts.set(src, (counts.get(src) ?? 0) + 1);
+    } else {
+      unassigned += 1;
+    }
+  }
+  if (pack_dirs.length === 0 && unassigned === 0) return null;
+  return (
+    <div
+      style={{
+        marginTop: 6,
+        fontSize: "var(--fs-xs)",
+        color: "var(--text-muted)",
+        fontFamily: "var(--font-mono)",
+      }}
+    >
+      {pack_dirs.map((d) => (
+        <div key={d} style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ wordBreak: "break-all" }}>{d || "(empty)"}</span>
+          <span>{counts.get(d) ?? 0} packs</span>
+        </div>
+      ))}
+      {unassigned > 0 && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            color: "var(--warn, #f0ad4e)",
+          }}
+          title="Packs the node reports as coming from a source not (yet) in the edited list — hit Apply to reconcile."
+        >
+          <span>(unassigned to any listed dir)</span>
+          <span>{unassigned} pack{unassigned === 1 ? "" : "s"}</span>
+        </div>
+      )}
     </div>
   );
 }

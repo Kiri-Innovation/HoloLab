@@ -11,7 +11,7 @@ import socket
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from hololab.paths import default_workspace_root, node_data_dir
 
@@ -42,8 +42,73 @@ class NodeConfig(BaseModel):
     file_server_port: int = 8829
     advertised_url: str | None = None  # e.g. "http://192.168.0.5:8829"
 
-    # Where packs live
-    packs_dir: Path = Field(default_factory=lambda: node_data_dir() / "packs")
+    # Where packs live. ``pack_dirs`` is the modern list-of-paths form —
+    # a node scans every entry so a developer can drop custom packs in
+    # a separate directory outside the HoloLab repo (ComfyUI custom_nodes
+    # style) and register just the path in this list, no vendoring
+    # required. See docs/writing-a-pack.md.
+    #
+    # Backward compatibility: the legacy scalar ``packs_dir`` field is
+    # still accepted on load. If the config declares only ``packs_dir``,
+    # the model validator promotes it to a single-entry ``pack_dirs``.
+    # If both are present, ``packs_dir`` is prepended (first-wins) so
+    # existing artifacts stay reachable. New writes always use
+    # ``pack_dirs`` — the legacy field is set to None so unrelated
+    # keys don't linger in config.yaml.
+    pack_dirs: list[Path] = Field(
+        default_factory=list,
+        description=(
+            "List of directories the node scans for packs; conflicts "
+            "on ``name@version`` resolve first-wins (later dirs' "
+            "duplicates are skipped with a warning). See "
+            "docs/writing-a-pack.md. Defaulted from the legacy "
+            "``packs_dir`` scalar or from ``node_data_dir()/packs`` "
+            "when neither field is set on load."
+        ),
+    )
+    packs_dir: Path | None = Field(
+        default=None,
+        description=(
+            "DEPRECATED — legacy single-directory form. Read on load "
+            "and merged into ``pack_dirs`` (front of the list). Written "
+            "back as None."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _merge_legacy_packs_dir(self) -> NodeConfig:
+        """Fold ``packs_dir`` (legacy scalar) into ``pack_dirs`` (list).
+
+        Merge rules:
+            * If the config declares only the legacy scalar, promote it
+              to a single-entry list — the pre-migration behavior stays
+              identical (``config.pack_dirs == [<the scalar>]``).
+            * If both are set, prepend the scalar to the list — the
+              first-wins scan order means the legacy path retains its
+              historical primacy over anything the operator added
+              later.
+            * If neither is set, fall back to the default
+              ``node_data_dir()/packs`` so a fresh install has a
+              working root without touching config.yaml.
+
+        The scalar is cleared on the way out so a subsequent
+        ``write_node_config`` doesn't carry the deprecated key
+        forward.
+        """
+
+        if self.packs_dir is not None:
+            merged: list[Path] = [self.packs_dir]
+            for p in self.pack_dirs:
+                if p not in merged:
+                    merged.append(p)
+            # Bypass pydantic's frozen-by-default via object.__setattr__;
+            # NodeConfig isn't frozen but future-proofing costs nothing.
+            object.__setattr__(self, "pack_dirs", merged)
+            object.__setattr__(self, "packs_dir", None)
+        if not self.pack_dirs:
+            # Both fields absent — apply the historical default.
+            object.__setattr__(self, "pack_dirs", [node_data_dir() / "packs"])
+        return self
 
     # Where to put job workspaces. Precedence when starting a node:
     #   CLI --workspace-root > config file value > default (~/.hololab/node/workspace).

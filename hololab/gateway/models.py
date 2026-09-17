@@ -46,6 +46,15 @@ class PackInventoryEntryOut(BaseModel):
     name: str
     version: str
     manifest_hash: str
+    source_dir: str | None = Field(
+        default=None,
+        description=(
+            "Which entry from the producing node's ``pack_dirs`` list "
+            "this pack was loaded from. Null on nodes that pre-date "
+            "the multi-pack-source protocol. See "
+            "docs/writing-a-pack.md."
+        ),
+    )
 
 
 class NodeInfo(BaseModel):
@@ -78,11 +87,22 @@ class NodeInfo(BaseModel):
     packs_dir: str | None = Field(
         default=None,
         description=(
-            "Absolute path of the node's packs directory. Consumed by "
-            "the frontend's per-node 'Jump to source' button to compute "
+            "Absolute path of the node's primary packs directory "
+            "(``pack_dirs[0]``). Consumed by the frontend's per-node "
+            "'Jump to source' button to compute "
             "``{packs_dir}/{name}@{version}/manifest.yaml`` (fallback "
             "when the pack declares no ``source_entry``). See "
             "docs/cobrowser-integration.md#jump-to-source."
+        ),
+    )
+    pack_dirs: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Full ordered list of directories this node scans for "
+            "packs. First entry is the primary. Multiple entries let "
+            "a developer register a custom pack source (ComfyUI "
+            "custom_nodes style) without vendoring — see "
+            "docs/writing-a-pack.md."
         ),
     )
 
@@ -143,6 +163,16 @@ class CatalogPackEntry(BaseModel):
             "``window.flops.showDocument``; when null it falls back to "
             "the pack's own ``manifest.yaml``. See "
             "docs/cobrowser-integration.md#jump-to-source."
+        ),
+    )
+    source_dir: str | None = Field(
+        default=None,
+        description=(
+            "Absolute path of the pack source directory this pack was "
+            "loaded from — one of the entries in the producing node's "
+            "``pack_dirs`` list. Lets the frontend show 'from /home/"
+            "dev/my-packs' next to a pack in the palette so an "
+            "operator can tell an ad-hoc user pack from a vendored one."
         ),
     )
     inputs: dict[str, PortSpecOut] = Field(default_factory=dict)

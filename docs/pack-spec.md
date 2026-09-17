@@ -1,5 +1,11 @@
 # Pack Specification (`hololab.dev/v1`)
 
+**New to HoloLab pack authoring?** Start with the friendlier walkthrough
+in [`writing-a-pack.md`](writing-a-pack.md) — it covers the 30-second
+"put a directory somewhere and register the path" flow, common pitfalls,
+and how the multi-source scanner works. This document is the field
+reference the frontend + node both validate against.
+
 An algorithm **pack** is a self-contained, machine-independent description of one algorithm. A pack is a directory containing at minimum:
 
 ```
@@ -380,6 +386,15 @@ hololab pack validate packs/my-algo@0.1.0
 
 The node's pack scanner picks up new packs and manifest edits automatically —
 no restart needed.
+
+## Multi-pack-source layout
+
+The node scans **every entry in `pack_dirs`** (config.yaml — see
+`NodeConfig.pack_dirs`, or edit from the UI's Pack directories field).
+Adding a directory registers a custom pack source without vendoring the
+pack into the HoloLab repo — the ComfyUI `custom_nodes` model. Conflict
+resolution across sources is *first-wins* + a warning. See
+[`writing-a-pack.md`](writing-a-pack.md) for the operator-facing recipe.
 
 ## Full field reference
 

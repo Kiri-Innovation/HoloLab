@@ -382,10 +382,11 @@ def _mount_routes(app: FastAPI) -> None:
     async def patch_node_config(node_id: str, body: dict[str, Any]) -> dict[str, Any]:
         """Body: ``{patch: {field: value, …}}`` — only editable fields are honoured.
 
-        Editable: ``workspace_root``, ``legacy_workspace_roots``, ``node_name``,
-        ``advertised_url``. Identity (node_id/node_token), pack directory,
-        conda plumbing, and gateway URL are read-only from the UI —
-        they need config.yaml + a node restart.
+        Editable: ``workspace_root``, ``legacy_workspace_roots``,
+        ``pack_dirs``, ``node_name``, ``advertised_url``,
+        ``flops_executor_id``. Identity (node_id/node_token), conda
+        plumbing, and gateway URL are read-only from the UI — they
+        need config.yaml + a node restart.
 
         The node validates each field before persisting to config.yaml
         and hot-restarts anything that needs restarting (file server on
@@ -435,6 +436,14 @@ def _mount_routes(app: FastAPI) -> None:
         if "flops_executor_id" in cfg:
             v = cfg.get("flops_executor_id")
             session.flops_executor_id = v if isinstance(v, str) and v else None
+        # Mirror pack_dirs + primary packs_dir so the frontend sees the
+        # new pack sources on the next ``GET /api/nodes`` without the
+        # node reconnecting. The next ``packs_updated`` frame will
+        # bring the pack inventory into sync separately.
+        new_pack_dirs = cfg.get("pack_dirs")
+        if isinstance(new_pack_dirs, list):
+            session.pack_dirs = [str(p) for p in new_pack_dirs]
+            session.packs_dir = session.pack_dirs[0] if session.pack_dirs else None
         return {"node_id": node_id, "config": cfg}
 
     @app.get(
@@ -2411,6 +2420,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
                 legacy_workspace_roots=payload.legacy_workspace_roots,
                 flops_executor_id=payload.flops_executor_id,
                 packs_dir=payload.packs_dir,
+                pack_dirs=payload.pack_dirs,
             )
         except NodeAuthError as exc:
             log.warning(

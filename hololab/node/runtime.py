@@ -36,7 +36,7 @@ from hololab.manifest.render import (
 from hololab.node.config import NodeConfig, write_node_config
 from hololab.node.executor import ExecPlan, run_subprocess
 from hololab.node.fileserver import ServeHandle, create_fileserver_app
-from hololab.node.packs import LoadedPack, scan_packs
+from hololab.node.packs import LoadedPack, scan_multi_packs
 from hololab.protocol import (
     ArtifactDeleteReq,
     ArtifactDeleteResp,
@@ -141,6 +141,10 @@ class NodeRuntime:
         self._fs_task: asyncio.Task[None] | None = None
         self._fs_handle: ServeHandle | None = None
 
+        # Pack watcher — respawned when ``pack_dirs`` changes so the
+        # awatch call binds to the new list.
+        self._watch_task: asyncio.Task[None] | None = None
+
     # -- lifecycle -----------------------------------------------------------
 
     async def run(self) -> None:
@@ -149,14 +153,23 @@ class NodeRuntime:
         Cancellation of the calling task exits all three.
         """
 
-        self._packs = _load_packs(self._config.packs_dir)
-        log.info("packs scanned", count=len(self._packs))
+        self._packs = _load_packs(self._config.pack_dirs)
+        log.info(
+            "packs scanned",
+            count=len(self._packs),
+            roots=[str(p) for p in self._config.pack_dirs],
+        )
 
         # File server runs as a separate task so a live config-set can
         # cancel and restart it with new roots without touching the
         # connect loop. See :meth:`_restart_file_server`.
         self._fs_task = self._spawn_file_server()
-        watch_task = asyncio.create_task(self._pack_watch_loop(), name="hololab-node-pack-watch")
+        # Pack watcher is likewise stored on ``self`` so a pack_dirs
+        # patch can restart it against the new list without touching
+        # the connect loop.
+        self._watch_task = asyncio.create_task(
+            self._pack_watch_loop(), name="hololab-node-pack-watch"
+        )
         # Scratch sweep runs once immediately (catch anything stranded by
         # a previous run) and then hourly. Bounds worst-case disk usage
         # for failed/cancelled jobs whose scratch is intentionally kept
@@ -168,7 +181,9 @@ class NodeRuntime:
         try:
             await self._connect_loop()
         finally:
-            for t in (self._fs_task, watch_task, sweep_task):
+            for t in (self._fs_task, self._watch_task, sweep_task):
+                if t is None:
+                    continue
                 t.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await t
@@ -214,6 +229,42 @@ class NodeRuntime:
                 await self._fs_task
         self._fs_task = self._spawn_file_server()
 
+    async def _restart_pack_watcher(self) -> None:
+        """Rescan packs against the current ``pack_dirs`` list and start a
+        fresh watcher.
+
+        Called from the config-set handler after the ``pack_dirs`` list
+        has been persisted. The rescan is synchronous so the immediate
+        ``packs_updated`` push reflects the exact list operators just
+        edited, which they'll then see land in the palette without a
+        node restart. A new watch task is spawned bound to the new
+        roots so incremental change events keep flowing.
+        """
+
+        if self._watch_task is not None:
+            self._watch_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._watch_task
+            self._watch_task = None
+
+        new_packs = _load_packs(list(self._config.pack_dirs))
+        self._packs = new_packs
+        if self._ws is not None:
+            inventory = [
+                PackInventoryEntry(
+                    name=p.manifest.name,
+                    version=p.manifest.version,
+                    manifest_hash=p.manifest_hash,
+                    source_dir=str(p.source_dir),
+                )
+                for p in new_packs.values()
+            ]
+            await self._safe_send("packs_updated", PacksUpdated(packs=inventory))
+
+        self._watch_task = asyncio.create_task(
+            self._pack_watch_loop(), name="hololab-node-pack-watch"
+        )
+
     async def _pack_watch_loop(self) -> None:
         """Watch the packs directory and push ``packs_updated`` on change.
 
@@ -222,15 +273,20 @@ class NodeRuntime:
         inventory is re-scanned and sent; the gateway overwrites its cache.
         """
 
-        packs_dir = self._config.packs_dir
-        packs_dir.mkdir(parents=True, exist_ok=True)
+        # Every configured pack root is watched — a change under any
+        # of them triggers a rescan of the full list, so a developer
+        # editing a manifest in their custom source directory triggers
+        # a ``packs_updated`` without needing to restart the node.
+        pack_dirs = list(self._config.pack_dirs)
+        for root in pack_dirs:
+            root.mkdir(parents=True, exist_ok=True)
 
         # Deferred import so plain --help stays fast.
         from watchfiles import awatch
 
         try:
-            async for _changes in awatch(packs_dir, recursive=True, step=250):
-                new_packs = _load_packs(packs_dir)
+            async for _changes in awatch(*pack_dirs, recursive=True, step=250):
+                new_packs = _load_packs(pack_dirs)
                 if self._packs_equivalent(new_packs):
                     continue
                 self._packs = new_packs
@@ -241,6 +297,7 @@ class NodeRuntime:
                             name=p.manifest.name,
                             version=p.manifest.version,
                             manifest_hash=p.manifest_hash,
+                            source_dir=str(p.source_dir),
                         )
                         for p in new_packs.values()
                     ]
@@ -291,7 +348,10 @@ class NodeRuntime:
 
         inventory = [
             PackInventoryEntry(
-                name=p.manifest.name, version=p.manifest.version, manifest_hash=p.manifest_hash
+                name=p.manifest.name,
+                version=p.manifest.version,
+                manifest_hash=p.manifest_hash,
+                source_dir=str(p.source_dir),
             )
             for p in self._packs.values()
         ]
@@ -309,7 +369,12 @@ class NodeRuntime:
             workspace_root=str(self._config.workspace_root),
             legacy_workspace_roots=[str(p) for p in self._config.legacy_workspace_roots],
             flops_executor_id=self._config.flops_executor_id,
-            packs_dir=str(self._config.packs_dir),
+            # ``packs_dir`` (scalar) is the primary root — kept for
+            # older gateways and for the "Jump to source" fallback
+            # target computation. ``pack_dirs`` is the full list under
+            # the new multi-pack-source protocol.
+            packs_dir=str(self._config.pack_dirs[0]) if self._config.pack_dirs else None,
+            pack_dirs=[str(p) for p in self._config.pack_dirs],
         )
         await self._send("register", reg)
 
@@ -519,7 +584,11 @@ class NodeRuntime:
             "file_server_host": cfg.file_server_host,
             "file_server_port": cfg.file_server_port,
             "advertised_url": cfg.advertised_url,
-            "packs_dir": str(cfg.packs_dir),
+            # Primary root — retained on the wire because older
+            # frontends read the scalar. Modern clients prefer
+            # ``pack_dirs`` (below) which lists every configured root.
+            "packs_dir": str(cfg.pack_dirs[0]) if cfg.pack_dirs else None,
+            "pack_dirs": [str(p) for p in cfg.pack_dirs],
             "flops_executor_id": cfg.flops_executor_id,
         }
 
@@ -567,6 +636,32 @@ class NodeRuntime:
                     if raw is not None and not isinstance(raw, str):
                         raise ValueError("advertised_url must be a string or null")
                     updates["advertised_url"] = raw or None
+                elif key == "pack_dirs":
+                    # Pack source list — how a developer registers a
+                    # custom source dir at runtime. Each entry must be
+                    # absolute (a relative path would resolve against
+                    # the daemon's cwd, which is not something the
+                    # operator can reliably know). We create the dir
+                    # if it doesn't exist yet so a fresh registration
+                    # doesn't fail on the first scan; existing
+                    # non-directories get rejected.
+                    if not isinstance(raw, list) or not raw:
+                        raise ValueError("pack_dirs must be a non-empty list of paths")
+                    seen: list[Path] = []
+                    for item in raw:
+                        p = Path(str(item)).expanduser()
+                        if not p.is_absolute():
+                            raise ValueError(
+                                f"pack_dirs entry must be absolute, got {item!r}"
+                            )
+                        if p.exists() and not p.is_dir():
+                            raise ValueError(
+                                f"pack_dirs entry exists but is not a directory: {item!r}"
+                            )
+                        p.mkdir(parents=True, exist_ok=True)
+                        if p not in seen:
+                            seen.append(p)
+                    updates["pack_dirs"] = seen
                 elif key == "flops_executor_id":
                     # Cobrowser integration — see docs/cobrowser-integration.md.
                     # Free-form string (typically ``dev_xxxxxxxx``); the
@@ -599,10 +694,13 @@ class NodeRuntime:
         # quirks (trailing slash, symlink resolution).
         old_primary = str(self._config.workspace_root)
         old_legacy = [str(p) for p in self._config.legacy_workspace_roots]
+        old_pack_dirs = [str(p) for p in self._config.pack_dirs]
         new_cfg = self._config.model_copy(update=updates)
         new_primary = str(new_cfg.workspace_root)
         new_legacy = [str(p) for p in new_cfg.legacy_workspace_roots]
+        new_pack_dirs = [str(p) for p in new_cfg.pack_dirs]
         roots_changed = (old_primary != new_primary) or (old_legacy != new_legacy)
+        pack_dirs_changed = old_pack_dirs != new_pack_dirs
 
         # Persist first — if config.yaml write fails, we don't want a
         # live-only config that vanishes on next boot.
@@ -628,6 +726,12 @@ class NodeRuntime:
                 legacy=new_legacy,
             )
             await self._restart_file_server()
+        if pack_dirs_changed:
+            log.info(
+                "pack_dirs changed via UI — rescanning + restarting watcher",
+                pack_dirs=new_pack_dirs,
+            )
+            await self._restart_pack_watcher()
 
         await self._send(
             "node_config_set_resp",
@@ -1260,8 +1364,10 @@ def _looks_like_local_path(value: str) -> bool:
     return value.startswith("/") or (len(value) >= 3 and value[1:3] == ":\\")
 
 
-def _load_packs(packs_dir: Path) -> dict[tuple[str, str], LoadedPack]:
-    return {(p.manifest.name, p.manifest.version): p for p in scan_packs(packs_dir)}
+def _load_packs(pack_dirs: list[Path]) -> dict[tuple[str, str], LoadedPack]:
+    return {
+        (p.manifest.name, p.manifest.version): p for p in scan_multi_packs(pack_dirs)
+    }
 
 
 def _probe_gpu() -> GpuInfo:

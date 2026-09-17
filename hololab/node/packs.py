@@ -22,15 +22,29 @@ _DIR_RE = re.compile(r"^(?P<name>[a-z0-9_-]+)@(?P<version>\d+\.\d+\.\d+)$")
 
 @dataclass(frozen=True)
 class LoadedPack:
-    """One successfully loaded pack — manifest + on-disk location + hash."""
+    """One successfully loaded pack — manifest + on-disk location + hash.
+
+    ``source_dir`` is the entry from the node's ``pack_dirs`` list that
+    this pack came from (its parent). Reported up to the gateway so the
+    catalog can render *where* a pack lives, and so an operator scanning
+    a shared machine can tell a developer's ad-hoc pack from a vendored
+    one.
+    """
 
     manifest: Manifest
     pack_dir: Path
     manifest_hash: str
+    source_dir: Path
 
 
 def scan_packs(packs_dir: Path) -> list[LoadedPack]:
-    """Return every valid pack under ``packs_dir``. Invalid packs are logged and skipped."""
+    """Return every valid pack under a *single* ``packs_dir``.
+
+    Invalid packs are logged and skipped. This is the single-root
+    primitive; multi-root scanning goes through
+    :func:`scan_multi_packs`, which applies the first-wins conflict
+    rule across a list of roots.
+    """
 
     if not packs_dir.exists():
         return []
@@ -69,5 +83,46 @@ def scan_packs(packs_dir: Path) -> list[LoadedPack]:
             )
             continue
 
-        out.append(LoadedPack(manifest=manifest, pack_dir=entry, manifest_hash=sha))
+        out.append(
+            LoadedPack(
+                manifest=manifest,
+                pack_dir=entry,
+                manifest_hash=sha,
+                source_dir=packs_dir,
+            )
+        )
     return out
+
+
+def scan_multi_packs(pack_dirs: list[Path]) -> list[LoadedPack]:
+    """Scan every directory in ``pack_dirs`` in order and dedup by ``name@version``.
+
+    Conflict rule: **first-wins**. If the same ``name@version`` is
+    present in more than one root, the earliest listed root keeps the
+    pack and later roots' duplicates are dropped with a ``pack ignored
+    — duplicate of an earlier source`` warning. Reason: users add
+    custom roots (``~/my-algo-packs``) at the end of the list to
+    *extend*, not to shadow, the vendored packs. Silently letting a
+    later root override would let a stray copy in a dev's home dir
+    replace a validated production pack — the opposite of what the
+    "custom_nodes"-style contract promises.
+
+    Returns packs in the order they were discovered (roots iterated in
+    ``pack_dirs`` order, sorted directories within each root).
+    """
+
+    seen: dict[tuple[str, str], LoadedPack] = {}
+    for root in pack_dirs:
+        for pack in scan_packs(root):
+            key = (pack.manifest.name, pack.manifest.version)
+            if key in seen:
+                log.warning(
+                    "pack ignored — duplicate of an earlier source",
+                    name=pack.manifest.name,
+                    version=pack.manifest.version,
+                    kept=str(seen[key].pack_dir),
+                    ignored=str(pack.pack_dir),
+                )
+                continue
+            seen[key] = pack
+    return list(seen.values())

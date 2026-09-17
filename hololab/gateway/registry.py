@@ -58,13 +58,17 @@ class NodeSession:
     # as ``deviceId`` for the "Open in Cocoder" button. Null when the
     # operator hasn't set it. See docs/cobrowser-integration.md.
     flops_executor_id: str | None = None
-    # Absolute path of the node's packs directory. Consumed by the
-    # frontend's per-node "Jump to source" button (opens the pack's
-    # ``manifest.yaml`` as a Cocoder fallback when no ``source_entry``
-    # is declared). Null when the node's Register frame didn't carry it
-    # (only possible during a rolling upgrade). See
-    # docs/cobrowser-integration.md#jump-to-source.
+    # Primary packs directory. In the multi-pack-source world this is
+    # ``pack_dirs[0]`` — kept as its own field for the "Jump to
+    # source" manifest.yaml fallback (which resolves against a single
+    # canonical root: the first one) and for backward-compat with
+    # older frontends that read the scalar.
     packs_dir: str | None = None
+    # Full list of pack source directories the node scans. Populated
+    # by the modern Register frame; when a legacy node sends only
+    # scalar ``packs_dir``, the registry wraps it in a single-entry
+    # list at register time.
+    pack_dirs: list[str] = field(default_factory=list)
     # ``token_issued`` is set when this session's register frame either
     # minted a fresh node_token or the gateway is (re-)issuing one. The
     # socket handler forwards it in RegisterOk so the node can persist it
@@ -100,6 +104,7 @@ class NodeRegistry:
         legacy_workspace_roots: list[str] | None = None,
         flops_executor_id: str | None = None,
         packs_dir: str | None = None,
+        pack_dirs: list[str] | None = None,
     ) -> NodeSession:
         """Register a node, applying the three-path identity rule:
 
@@ -216,6 +221,11 @@ class NodeRegistry:
             legacy_workspace_roots=list(legacy_workspace_roots or []),
             flops_executor_id=flops_executor_id,
             packs_dir=packs_dir,
+            # Multi-pack-source: prefer the modern list; fall back to
+            # wrapping a legacy scalar so the wire remains consistent.
+            pack_dirs=list(pack_dirs)
+            if pack_dirs
+            else ([packs_dir] if packs_dir else []),
             token_issued=token_issued,
         )
         # If there was an old session for this node_id, drop it silently — the
@@ -311,6 +321,7 @@ class NodeRegistry:
                     "legacy_workspace_roots": list(s.legacy_workspace_roots),
                     "flops_executor_id": s.flops_executor_id,
                     "packs_dir": s.packs_dir,
+                    "pack_dirs": list(s.pack_dirs),
                 }
             )
         return out
@@ -371,18 +382,34 @@ class NodeRegistry:
         # ``manifest_yaml`` field pushed in ``packs_updated`` (deferred).
         # This is documented in docs/workflow-schema.md non-goals.
 
-        # Practical workaround: walk the local ``packs/`` conventions to load
-        # manifests by name+version. In dev mode the packs dir is co-located,
-        # so this works today.
+        # Practical workaround: walk pack roots on the gateway host to load
+        # manifests by name+version. In the all-in-one deploy the gateway
+        # and node share disk, so this works today.
+        #
+        # Multi-pack-source: the pack's ``source_dir`` (reported by the
+        # node in each PackInventoryEntry) is the authoritative first
+        # place to look. Fall back to the session's pack_dirs, then to
+        # the historical ``./packs`` under cwd for the pre-pack_dirs
+        # transition window.
         from pathlib import Path as _Path
 
-        packs_dir = _Path.cwd() / "packs"
+        legacy_root = _Path.cwd() / "packs"
 
-        def _try_load(name: str, version: str) -> Any:
-            candidate = packs_dir / f"{name}@{version}" / "manifest.yaml"
-            if candidate.is_file():
-                m, _sha = load_manifest(candidate)
-                return m
+        def _try_load(name: str, version: str, source_dir: str | None, roots: list[str]) -> Any:
+            candidates: list[_Path] = []
+            if source_dir:
+                candidates.append(_Path(source_dir))
+            for r in roots:
+                p = _Path(r)
+                if p not in candidates:
+                    candidates.append(p)
+            if legacy_root not in candidates:
+                candidates.append(legacy_root)
+            for root in candidates:
+                path = root / f"{name}@{version}" / "manifest.yaml"
+                if path.is_file():
+                    m, _sha = load_manifest(path)
+                    return m
             return None
 
         for session in self._sessions.values():
@@ -402,6 +429,7 @@ class NodeRegistry:
                         "category": [],
                         "docs": None,
                         "source_entry": None,
+                        "source_dir": pk.source_dir,
                     },
                 )
                 if session.node_id not in entry["node_ids"]:
@@ -409,7 +437,9 @@ class NodeRegistry:
 
                 # Populate signature once, from the manifest on disk.
                 if not entry["outputs"]:
-                    manifest = _try_load(pk.name, pk.version)
+                    manifest = _try_load(
+                        pk.name, pk.version, pk.source_dir, list(session.pack_dirs)
+                    )
                     if manifest is not None:
                         entry["description"] = manifest.description
                         entry["category"] = list(manifest.category)
