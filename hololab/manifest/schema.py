@@ -281,6 +281,13 @@ class Manifest(BaseModel):
     description: str | None = None
     category: list[str] = Field(default_factory=list)
     docs: str | None = None
+    # ⌘/Ctrl+click "Jump to source" target — the pack's core implementation
+    # script. A relative path resolves against the Kiri4DGS repo root
+    # (``source_dir.parent.parent`` in the standard layout); an absolute
+    # path is used verbatim. When absent the modifier+click falls back to
+    # opening the pack directory. See docs/cobrowser-integration.md#jump-to-source.
+    source_entry: str | None = None
+
     inputs: dict[str, InputSpec] = Field(default_factory=dict)
     outputs: dict[str, OutputSpec]
     params: dict[str, ParamSpec] = Field(default_factory=dict)

@@ -8,6 +8,7 @@ description: >
   COLMAP-shaped dataset (colmap/sparse/0, images/, frames/, pts/, depth/,
   mask/). Downstream track-to-gs-sequence consumes this without touching
   the video again — the whole point of the split is cheap A2/A3 rerun.
+source_entry: sharp-4dgs/per-frame/video_to_colmap.py
 category: "tracking/megasam"
 docs: |
   **Phase A1** of the Sharp-4DGS pipeline. Extracts frames from the input

@@ -428,6 +428,7 @@ class NodeRegistry:
                         "description": None,
                         "category": [],
                         "docs": None,
+                        "source_entry": None,
                         "source_dir": pk.source_dir,
                     },
                 )
@@ -443,6 +444,7 @@ class NodeRegistry:
                         entry["description"] = manifest.description
                         entry["category"] = list(manifest.category)
                         entry["docs"] = manifest.docs
+                        entry["source_entry"] = manifest.source_entry
                         entry["inputs"] = {
                             n: {
                                 "tags": s.tags,

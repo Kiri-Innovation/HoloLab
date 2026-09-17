@@ -153,6 +153,17 @@ class CatalogPackEntry(BaseModel):
     description: str | None = None
     category: list[str] = Field(default_factory=list)
     docs: str | None = None
+    source_entry: str | None = Field(
+        default=None,
+        description=(
+            "⌘/Ctrl+click 'Jump to source' target — the pack's core "
+            "implementation script. Relative paths resolve against the "
+            "Kiri4DGS repo root; absolute paths are used verbatim. "
+            "Null for packs that don't declare one (modifier+click falls "
+            "back to the pack directory). See "
+            "docs/cobrowser-integration.md#jump-to-source."
+        ),
+    )
     source_dir: str | None = Field(
         default=None,
         description=(

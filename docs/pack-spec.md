@@ -78,6 +78,7 @@ previews:
 | `description` | No       | One-line summary shown in UI palette.                                  |
 | `category`    | No       | Slash-hierarchy path for the palette tree (e.g. `reconstruction/sharp-4dgs`). See [Category](#category). |
 | `docs`        | No       | Short Markdown blurb shown in the Inspector's About block. See [Docs](#docs). |
+| `source_entry`| No       | ⌘/Ctrl+click "Jump to source" target (the pack's core implementation script). Relative paths resolve against the Kiri4DGS repo root; absent → modifier+click opens the pack directory. |
 | `inputs`      | No       | Map of input name → input spec.                                        |
 | `outputs`     | Yes      | Map of output name → output spec. Must have ≥ 1 output.                |
 | `params`      | No       | Map of param name → param spec.                                        |

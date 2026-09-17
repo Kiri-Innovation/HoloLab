@@ -126,6 +126,26 @@ previews:
 
 Full field reference: [`pack-spec.md`](pack-spec.md).
 
+### Making the ⌘/Ctrl+click "Jump to source" button useful
+
+The canvas node header has a `</>` button. A plain click always opens
+`manifest.yaml`. A ⌘/Ctrl+click opens the pack's core **implementation
+script** when one is declared, or the pack directory otherwise.
+
+To make ⌘/Ctrl+click jump straight to your main script, add `source_entry`
+to the manifest:
+
+```yaml
+source_entry: my-tools/my-algo/main.py   # relative to the Kiri4DGS repo root
+# or
+source_entry: /opt/my-tools/main.py      # absolute path
+```
+
+User-created packs that live in a custom `pack_dirs` entry and keep
+everything inside the pack directory can skip `source_entry` — the
+modifier+click will open the directory itself so the operator can see
+all the files at once.
+
 ## Registering a pack source
 
 Any directory with `<name>@<version>/manifest.yaml` subdirectories is a

@@ -155,6 +155,10 @@ export interface CatalogPack {
   description: string | null;
   category: string[];
   docs: string | null;
+  // ⌘/Ctrl+click "Jump to source" target — the pack's core implementation
+  // script (relative to repo root or absolute). Null for packs that don't
+  // declare one; modifier+click then falls back to the pack directory.
+  source_entry: string | null;
   // Which pack source directory this pack was loaded from on the
   // producing node — one of the node's ``pack_dirs`` entries. Lets
   // the palette / inspector show origin so a developer's ad-hoc

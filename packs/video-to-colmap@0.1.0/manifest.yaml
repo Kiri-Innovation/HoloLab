@@ -3,6 +3,7 @@ kind: Algorithm
 name: video-to-colmap
 version: 0.1.0
 description: "Single video -> per-frame Sharp-4DGS reconstruction + multi-view COLMAP export."
+source_entry: sharp-4dgs/per-frame/video_to_3d.py
 category: "reconstruction/pipeline"
 docs: |
   **Composite pipeline**: runs A1 (MegaSaM track) + A2 (Sharp per-frame)

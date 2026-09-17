@@ -175,12 +175,33 @@ allow this origin".
 
 A second Cobrowser-integrated button lives on the **canvas node header
 itself** (next to `⧉` and the preview caret): a code-icon
-`</>` "Jump to source". Clicking it opens the pack's `manifest.yaml`
-in Cocoder — the exec orchestration entry point is always there.
+`</>` "Jump to source". It has two-tier behaviour:
 
-Target resolution:
+| Click | Target |
+|---|---|
+| Plain click | `{source_dir}/{name}@{version}/manifest.yaml` |
+| ⌘/Ctrl + click | `source_entry` if declared, else the pack directory |
 
-`{source_dir}/{name}@{version}/manifest.yaml`
+**Plain click** always opens `manifest.yaml` — the exec orchestration
+is always there and it's the pack's canonical entry point.
+
+**⌘/Ctrl+click** jumps to the pack's core implementation script when
+the manifest declares `source_entry`. Relative paths resolve against
+the Kiri4DGS repo root (`source_dir.parent.parent` in the standard
+layout). When `source_entry` is absent the modifier+click opens the
+pack directory instead, which is useful for user-created packs whose
+glue scripts sit alongside `manifest.yaml`.
+
+Packs with `source_entry` configured:
+
+| pack | `source_entry` |
+|---|---|
+| `video-to-camera-track` | `sharp-4dgs/per-frame/video_to_colmap.py` |
+| `track-to-gs-sequence`  | `sharp-4dgs/per-frame/colmap_to_3d.py` |
+| `video-to-colmap`       | `sharp-4dgs/per-frame/video_to_3d.py` |
+| `gs-seq-to-multiview-colmap` | `sharp-4dgs/per-frame/gsseq_to_multiview.py` |
+| `stg-train`             | `SpacetimeGaussians/train.py` |
+| `stg-to-splatv`         | `Utils/STG_to_SplaTV/convert_to_splatv_lite.py` |
 
 `source_dir` is the catalog entry's `source_dir` field — the exact
 `pack_dirs` entry this pack was loaded from on the node. Falls back
@@ -207,5 +228,6 @@ expands the same guide instead of firing the API. See
 * Button component: `hololab/frontend/src/canvas/OpenInCocoderButton.tsx`
 * Jump-to-source button: `hololab/frontend/src/canvas/OpenSourceButton.tsx`
 * Shared guide callout: `hololab/frontend/src/canvas/FlopsExecutorGuide.tsx`
+* Manifest field: `hololab/manifest/schema.py::Manifest.source_entry`
 * Settings UI: `hololab/frontend/src/canvas/ComputeNodesPanel.tsx::NodeSettingsDrawer`
 * API spec source: `temp/cobrowser-web-api.md`

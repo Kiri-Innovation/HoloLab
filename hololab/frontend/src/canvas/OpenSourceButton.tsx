@@ -1,19 +1,18 @@
-// "Jump to source" — canvas-header code-icon button. Same Cobrowser
-// integration as the preview drawer's ↗ button, but the target file is
-// the pack's manifest.yaml (the exec orchestration entry point):
+// "Jump to source" — canvas-header code-icon button. Two-tier behaviour:
 //
-//   ``{source_dir}/{name}@{version}/manifest.yaml``
+//   Plain click       → {source_dir}/{name}@{version}/manifest.yaml
+//   ⌘/Ctrl + click   → source_entry (if declared) or the pack directory
 //
-// ``source_dir`` comes from the pack catalog (the exact directory entry
-// in the node's ``pack_dirs`` list that this pack was loaded from). Falls
-// back to the compute node's primary ``packs_dir`` when the catalog entry
-// predates multi-pack-source support.
+// ``source_dir`` comes from the pack catalog (the exact pack_dirs entry
+// this pack was loaded from). Falls back to the node's primary ``packs_dir``
+// for nodes that predate multi-pack-source support.
 //
-// The compute node is picked by preference: the graph node's explicit
-// assignment, else the first online node offering this pack. Without
-// a compute node the button still renders (per the design: guide the
-// operator to configure things) but flops_executor_id resolution may be
-// missing — in that case we show the guide callout on click.
+// ``source_entry`` is an optional manifest field naming the pack's core
+// implementation script. Relative paths resolve against the Kiri4DGS repo
+// root (``source_dir.parent.parent`` in the standard layout); absolute
+// paths are used verbatim. When absent the modifier+click falls back to
+// opening the pack directory itself — useful for user-created packs whose
+// glue scripts sit alongside manifest.yaml.
 //
 // See docs/cobrowser-integration.md#jump-to-source.
 
@@ -59,20 +58,48 @@ function CodeGlyph({ colour }: { colour: string }) {
   );
 }
 
-/** Resolve the target absolute path Cocoder will open.
+/** Plain-click target: always manifest.yaml.
  *
- *  Always ``{sourceDir}/{name}@{version}/manifest.yaml``.
  *  ``pack.source_dir`` is preferred (the exact pack_dirs entry this pack
  *  was loaded from); ``packsDir`` (the node's primary packs dir) is the
  *  fallback for nodes that predate multi-pack-source support. Exported for test.
  */
-export function resolveSourceTarget(
+export function resolveManifestTarget(
   pack: CatalogPack,
   packsDir: string | null,
 ): string | null {
   const sourceDir = pack.source_dir || packsDir;
   if (!sourceDir) return null;
   return `${sourceDir.replace(/\/+$/, "")}/${pack.name}@${pack.version}/manifest.yaml`;
+}
+
+/** ⌘/Ctrl+click target: ``source_entry`` (if declared) or the pack directory.
+ *
+ *  Relative ``source_entry`` paths resolve against the Kiri4DGS repo root,
+ *  derived as ``sourceDir.parent.parent`` (packs live two levels deep under
+ *  the repo, e.g. ``<repo>/hololab/packs/``). Exported for test.
+ */
+export function resolveCodeTarget(
+  pack: CatalogPack,
+  packsDir: string | null,
+): string | null {
+  const sourceDir = pack.source_dir || packsDir;
+  if (!sourceDir) return null;
+  const trimmed = sourceDir.replace(/\/+$/, "");
+
+  const entry = pack.source_entry;
+  if (entry) {
+    if (entry.startsWith("/")) return entry;
+    // Relative → repo root = strip last 2 path components from sourceDir.
+    const parts = trimmed.split("/");
+    if (parts.length < 3) return null;
+    const repoRoot = parts.slice(0, -2).join("/");
+    return `${repoRoot}/${entry}`;
+  }
+
+  // No source_entry → open the pack directory so the operator can see
+  // all the files (glue scripts, templates, etc.) alongside manifest.yaml.
+  return `${trimmed}/${pack.name}@${pack.version}`;
 }
 
 export function OpenSourceButton({
@@ -106,17 +133,21 @@ export function OpenSourceButton({
   const configured = !!deviceId && deviceId.trim().length > 0;
   const packsDir = computeNode?.packs_dir ?? null;
   const nodeLabel = computeNode?.node_name ?? "this node";
-  const target = resolveSourceTarget(pack, packsDir);
+  const manifestTarget = resolveManifestTarget(pack, packsDir);
+  const codeTarget = resolveCodeTarget(pack, packsDir);
+  const hasSourceEntry = !!pack.source_entry;
 
   const onClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    const isModified = e.metaKey || e.ctrlKey;
+    const target = isModified ? codeTarget : manifestTarget;
     if (!configured || !target) {
       setShowGuide(true);
       setStatus({
         kind: "err",
         msg: !configured
           ? "flops_executor_id not set"
-          : "packs_dir unknown",
+          : "source directory unknown",
       });
       return;
     }
@@ -152,14 +183,17 @@ export function OpenSourceButton({
           ? "var(--inverse-muted)"
           : "var(--text-muted)";
 
+  const codeHint = hasSourceEntry
+    ? "⌘/Ctrl+click: code file"
+    : "⌘/Ctrl+click: pack dir";
   const title = configured
     ? status.kind === "loading"
-      ? "opening source in Cocoder…"
+      ? "opening in Cocoder…"
       : status.kind === "ok"
         ? "opened in Cocoder"
         : status.kind === "err"
           ? `Jump to source failed: ${status.msg}`
-          : `Jump to source · ${target ?? "?"} (device: ${deviceId})`
+          : `Jump to source · click: manifest.yaml · ${codeHint} (device: ${deviceId})`
     : `${nodeLabel} has no Flops executor id — click for details`;
 
   return (
@@ -171,6 +205,7 @@ export function OpenSourceButton({
         title={title}
         data-hl-open-source=""
         data-hl-configured={configured ? "1" : "0"}
+        data-hl-source-has-entry={hasSourceEntry ? "1" : "0"}
         style={{
           display: "inline-flex",
           alignItems: "center",
