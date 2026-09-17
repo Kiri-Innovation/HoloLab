@@ -58,6 +58,13 @@ class NodeSession:
     # as ``deviceId`` for the "Open in Cocoder" button. Null when the
     # operator hasn't set it. See docs/cobrowser-integration.md.
     flops_executor_id: str | None = None
+    # Absolute path of the node's packs directory. Consumed by the
+    # frontend's per-node "Jump to source" button (opens the pack's
+    # ``manifest.yaml`` as a Cocoder fallback when no ``source_entry``
+    # is declared). Null when the node's Register frame didn't carry it
+    # (only possible during a rolling upgrade). See
+    # docs/cobrowser-integration.md#jump-to-source.
+    packs_dir: str | None = None
     # ``token_issued`` is set when this session's register frame either
     # minted a fresh node_token or the gateway is (re-)issuing one. The
     # socket handler forwards it in RegisterOk so the node can persist it
@@ -92,6 +99,7 @@ class NodeRegistry:
         workspace_root: str | None = None,
         legacy_workspace_roots: list[str] | None = None,
         flops_executor_id: str | None = None,
+        packs_dir: str | None = None,
     ) -> NodeSession:
         """Register a node, applying the three-path identity rule:
 
@@ -207,6 +215,7 @@ class NodeRegistry:
             workspace_root=workspace_root,
             legacy_workspace_roots=list(legacy_workspace_roots or []),
             flops_executor_id=flops_executor_id,
+            packs_dir=packs_dir,
             token_issued=token_issued,
         )
         # If there was an old session for this node_id, drop it silently — the
@@ -301,6 +310,7 @@ class NodeRegistry:
                     "workspace_root": s.workspace_root,
                     "legacy_workspace_roots": list(s.legacy_workspace_roots),
                     "flops_executor_id": s.flops_executor_id,
+                    "packs_dir": s.packs_dir,
                 }
             )
         return out
@@ -391,6 +401,7 @@ class NodeRegistry:
                         "description": None,
                         "category": [],
                         "docs": None,
+                        "source_entry": None,
                     },
                 )
                 if session.node_id not in entry["node_ids"]:
@@ -403,6 +414,7 @@ class NodeRegistry:
                         entry["description"] = manifest.description
                         entry["category"] = list(manifest.category)
                         entry["docs"] = manifest.docs
+                        entry["source_entry"] = manifest.source_entry
                         entry["inputs"] = {
                             n: {
                                 "tags": s.tags,

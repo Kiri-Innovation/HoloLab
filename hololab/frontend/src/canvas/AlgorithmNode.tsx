@@ -16,6 +16,7 @@ import type {
 import { firstTagColour } from "../tags";
 import { CopyRefButton } from "./CopyRefButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
+import { OpenSourceButton } from "./OpenSourceButton";
 import { Preview } from "./previews";
 
 // The port label shown on the canvas is the port's tag (its object type).
@@ -281,6 +282,26 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           its workflow). In practice the palette (an unpersisted
           workflow being composed) is the only path that omits it.
         */}
+        {/*
+          Code-icon button: opens the pack's source in Cocoder via
+          window.flops.showDocument. Renders only inside Flops
+          (flopsAvailable()); resolves the target compute node in
+          this priority order:
+            1. The graph-node's explicit assignment (assigned_node_id),
+               so the developer picks the specific machine when there
+               are multiple online offering the same pack.
+            2. First entry of pack.node_ids (currently-online nodes).
+            3. null — button still renders (guide the operator to
+               configure things).
+        */}
+        <OpenSourceButton
+          pack={pack}
+          computeNode={
+            (assigned_node_id && computeNodesById?.[assigned_node_id]) ||
+            (pack.node_ids[0] && computeNodesById?.[pack.node_ids[0]]) ||
+            null
+          }
+        />
         {workflowId && (
           <CopyRefButton
             kind="graph-node"

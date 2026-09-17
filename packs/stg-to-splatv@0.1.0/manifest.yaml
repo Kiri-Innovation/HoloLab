@@ -4,6 +4,7 @@ name: stg-to-splatv
 version: 0.1.0
 description: "Converts a SpacetimeGaussians training output directory to a .splatv file."
 category: "export/splatv"
+source_entry: Utils/STG_to_SplaTV/convert_to_splatv_lite.py
 docs: |
   Converts a trained SpacetimeGaussians model directory to a single
   `.splatv` file ready for the browser viewer.

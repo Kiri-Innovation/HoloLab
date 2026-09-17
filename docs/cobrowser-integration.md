@@ -171,6 +171,45 @@ allow this origin".
   defaults to hiding the button (or showing the guide) until then.
   Nothing to backfill.
 
+## Jump to source
+
+A second Cobrowser-integrated button lives on the **canvas node header
+itself** (next to `⧉` and the preview caret): a code-icon
+`</>` "Jump to source". Clicking it opens the pack's implementation
+script in Cocoder rather than a produced artifact.
+
+Target resolution:
+
+1. If the pack manifest declared **`source_entry`** — a path relative
+   to the Kiri4DGS workspace root, or absolute — that is the target.
+   Configured for the Sharp-4DGS / STG packs so a click jumps straight
+   to the code:
+
+   | pack | `source_entry` |
+   |---|---|
+   | `video-to-camera-track` | `sharp-4dgs/per-frame/video_to_colmap.py` |
+   | `track-to-gs-sequence`  | `sharp-4dgs/per-frame/colmap_to_3d.py` |
+   | `video-to-colmap`       | `sharp-4dgs/per-frame/video_to_3d.py` |
+   | `gs-seq-to-multiview-colmap` | `sharp-4dgs/per-frame/gsseq_to_multiview.py` |
+   | `stg-train`             | `SpacetimeGaussians/train.py` |
+   | `stg-to-splatv`         | `Utils/STG_to_SplaTV/convert_to_splatv_lite.py` |
+
+2. Otherwise, `{packs_dir}/{name}@{version}/manifest.yaml` — the exec
+   orchestration lives there and is always present. Source packs
+   (`single-video-source`, `video-array-source`, demo packs) use this
+   fallback; there is no separate implementation script.
+
+`packs_dir` is exposed on `GET /api/nodes` (already visible read-only
+in the NodeSettingsDrawer). The compute node is picked in this order:
+graph node's explicit `assigned_node_id` → first entry of the pack's
+`node_ids` (i.e. first online node offering this pack).
+
+Same gating + guide callout as the `↗` button — hidden in a regular
+browser, and the click on a compute node without `flops_executor_id`
+expands the same guide instead of firing the API. See
+`hololab/frontend/src/canvas/OpenSourceButton.tsx` and
+`FlopsExecutorGuide.tsx`.
+
 ## Related surfaces
 
 * Node config schema: `hololab/node/config.py::NodeConfig`
@@ -181,5 +220,8 @@ allow this origin".
 * Gateway PATCH mirror: `hololab/gateway/app.py::patch_node_config`
 * Frontend Flops helper: `hololab/frontend/src/flops.ts`
 * Button component: `hololab/frontend/src/canvas/OpenInCocoderButton.tsx`
+* Jump-to-source button: `hololab/frontend/src/canvas/OpenSourceButton.tsx`
+* Shared guide callout: `hololab/frontend/src/canvas/FlopsExecutorGuide.tsx`
+* Manifest field: `hololab/manifest/schema.py::Manifest.source_entry`
 * Settings UI: `hololab/frontend/src/canvas/ComputeNodesPanel.tsx::NodeSettingsDrawer`
 * API spec source: `temp/cobrowser-web-api.md`

@@ -75,6 +75,16 @@ class NodeInfo(BaseModel):
             "callout instead of calling ``window.flops.showDocument``."
         ),
     )
+    packs_dir: str | None = Field(
+        default=None,
+        description=(
+            "Absolute path of the node's packs directory. Consumed by "
+            "the frontend's per-node 'Jump to source' button to compute "
+            "``{packs_dir}/{name}@{version}/manifest.yaml`` (fallback "
+            "when the pack declares no ``source_entry``). See "
+            "docs/cobrowser-integration.md#jump-to-source."
+        ),
+    )
 
 
 class PackRow(BaseModel):
@@ -123,6 +133,18 @@ class CatalogPackEntry(BaseModel):
     description: str | None = None
     category: list[str] = Field(default_factory=list)
     docs: str | None = None
+    source_entry: str | None = Field(
+        default=None,
+        description=(
+            "Optional 'Jump to source' target — a path (relative to the "
+            "Kiri4DGS workspace root, or absolute) at the pack's core "
+            "implementation script. The frontend's code-icon button on "
+            "each canvas node opens this in Cocoder via "
+            "``window.flops.showDocument``; when null it falls back to "
+            "the pack's own ``manifest.yaml``. See "
+            "docs/cobrowser-integration.md#jump-to-source."
+        ),
+    )
     inputs: dict[str, PortSpecOut] = Field(default_factory=dict)
     outputs: dict[str, OutputPortSpecOut] = Field(default_factory=dict)
     params: dict[str, ParamSpecOut] = Field(default_factory=dict)

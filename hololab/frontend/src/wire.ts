@@ -150,6 +150,12 @@ export interface CatalogPack {
   description: string | null;
   category: string[];
   docs: string | null;
+  // Optional "Jump to source" target — a path (relative to the
+  // Kiri4DGS workspace root, i.e. ``packs_dir.parent.parent`` on the
+  // node, or absolute). The canvas node's code-icon button opens
+  // this in Cocoder; null → falls back to opening the pack's own
+  // manifest.yaml. See docs/cobrowser-integration.md#jump-to-source.
+  source_entry: string | null;
   inputs: Record<string, InputPortSpec>;
   outputs: Record<string, OutputPortSpec>;
   params: Record<string, ParamSpec>;
@@ -190,6 +196,12 @@ export interface ComputeNode {
   // and hands it to ``window.flops.showDocument`` as ``deviceId``. See
   // docs/cobrowser-integration.md.
   flops_executor_id: string | null;
+  // Absolute path of the node's packs dir. Consumed by the canvas
+  // node's "Jump to source" button to resolve the fallback target
+  // ``{packs_dir}/{name}@{version}/manifest.yaml``. Null only during
+  // a rolling upgrade before this node reconnected on the new
+  // protocol. See docs/cobrowser-integration.md#jump-to-source.
+  packs_dir: string | null;
 }
 
 // Effective config the node reports via GET /api/nodes/{id}/config. The

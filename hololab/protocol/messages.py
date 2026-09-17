@@ -75,6 +75,13 @@ class Register(BaseModel):
     # button knows which machine hosts the artifact. Null when unset.
     # See docs/cobrowser-integration.md.
     flops_executor_id: str | None = None
+    # Absolute path to this node's packs directory. The frontend's
+    # per-node "Jump to source" button reads this off ``GET /api/nodes``
+    # to compute ``{packs_dir}/{name}@{version}/manifest.yaml`` (the
+    # fallback target when a pack declares no ``source_entry``). Null
+    # only during upgrades from a pre-v5 node that hasn't been restarted
+    # yet. See docs/cobrowser-integration.md#jump-to-source.
+    packs_dir: str | None = None
 
 
 class RegisterOk(BaseModel):

@@ -10,6 +10,7 @@ description: >
   it with different post-processing flags without re-tracking the
   camera.
 category: "reconstruction/sharp-4dgs"
+source_entry: sharp-4dgs/per-frame/colmap_to_3d.py
 docs: |
   **Phase A2** of the Sharp-4DGS pipeline. Runs Sharp per-frame inference
   on the tracked camera dataset and finalizes the per-frame gaussians.

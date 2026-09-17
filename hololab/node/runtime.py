@@ -309,6 +309,7 @@ class NodeRuntime:
             workspace_root=str(self._config.workspace_root),
             legacy_workspace_roots=[str(p) for p in self._config.legacy_workspace_roots],
             flops_executor_id=self._config.flops_executor_id,
+            packs_dir=str(self._config.packs_dir),
         )
         await self._send("register", reg)
 

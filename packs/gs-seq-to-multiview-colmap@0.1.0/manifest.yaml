@@ -10,6 +10,7 @@ description: >
   rerun to tune layout / view count without touching camera tracking or
   Sharp inference.
 category: "reconstruction/multiview-colmap"
+source_entry: sharp-4dgs/per-frame/gsseq_to_multiview.py
 docs: |
   **Phase A3** of the Sharp-4DGS pipeline. Renders the Sharp gaussians
   sequence into virtual multi-view COLMAP directories that STG can train

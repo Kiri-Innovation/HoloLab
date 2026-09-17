@@ -352,6 +352,7 @@ function stubPack(name: string, version: string): CatalogPack {
     description: null,
     category: [],
     docs: null,
+    source_entry: null,
     inputs: {},
     outputs: {},
     params: {},

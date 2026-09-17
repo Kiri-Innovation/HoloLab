@@ -25,6 +25,7 @@
 import { useEffect, useState } from "react";
 import type { ComputeNode } from "../wire";
 import { flopsAvailable, flopsShowDocument } from "../flops";
+import { FlopsExecutorGuide } from "./FlopsExecutorGuide";
 
 export interface OpenInCocoderButtonProps {
   /** Producing node's local absolute path (from ``HandleInfo.absolute_path``). */
@@ -210,40 +211,7 @@ export function OpenInCocoderButton({
       >
         {icon}
       </button>
-      {showGuide && (
-        <div
-          data-hl-open-cocoder-guide=""
-          role="status"
-          style={{
-            position: "absolute",
-            // Anchor to the button's bottom-right so the callout hangs
-            // below and slightly to the right of it — inside the
-            // preview drawer's dark surface where there's the most room.
-            top: "calc(var(--control-h-sm) + 6px)",
-            right: 0,
-            width: 260,
-            padding: "8px 10px",
-            background: "var(--surface)",
-            color: "var(--text-body)",
-            border: "1px solid var(--warn, #f0ad4e)",
-            borderRadius: "var(--radius-sm)",
-            boxShadow: "var(--shadow-2)",
-            fontSize: "var(--fs-xs)",
-            lineHeight: 1.45,
-            zIndex: 30,
-          }}
-        >
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>
-            ↗ Set the Flops executor id first
-          </div>
-          <div style={{ color: "var(--text-muted)" }}>
-            {nodeLabel} has no <code>flops_executor_id</code> configured.
-            Open the right-side <b>Compute nodes</b> panel → click the
-            ⚙ on <b>{nodeLabel}</b> → fill the{" "}
-            <b>Flops executor id</b> field → <b>Apply</b>.
-          </div>
-        </div>
-      )}
+      {showGuide && <FlopsExecutorGuide nodeLabel={nodeLabel} />}
     </span>
   );
 }

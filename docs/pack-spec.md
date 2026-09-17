@@ -72,6 +72,7 @@ previews:
 | `description` | No       | One-line summary shown in UI palette.                                  |
 | `category`    | No       | Slash-hierarchy path for the palette tree (e.g. `reconstruction/sharp-4dgs`). See [Category](#category). |
 | `docs`        | No       | Short Markdown blurb shown in the Inspector's About block. See [Docs](#docs). |
+| `source_entry`| No       | Optional "Jump to source" target for the canvas node's code-icon button (Cobrowser). See [Source entry](#source-entry). |
 | `inputs`      | No       | Map of input name → input spec.                                        |
 | `outputs`     | Yes      | Map of output name → output spec. Must have ≥ 1 output.                |
 | `params`      | No       | Map of param name → param spec.                                        |
@@ -133,6 +134,36 @@ lists, links, `inline code`, `**bold**`, and fenced code blocks. No HTML,
 no images — intentionally minimal so pack authors don't have to think
 about what will and won't survive the round-trip. The runtime never
 reads `docs`; it's presentation-only.
+
+### Source entry
+
+`source_entry` is an optional path that names the pack's **core
+implementation script**. It powers the code-icon "Jump to source"
+button in each canvas node's header: clicking it opens the file in
+Cocoder via `window.flops.showDocument` when the page runs inside the
+Flops Cobrowser. Omit it and the button falls back to opening the
+pack's own `manifest.yaml`.
+
+```yaml
+source_entry: sharp-4dgs/per-frame/video_to_colmap.py   # relative
+source_entry: /opt/tools/my-algo/entry.py               # absolute
+```
+
+Resolution:
+
+- **Relative** paths resolve against the Kiri4DGS workspace root — in the
+  standard layout that's `packs_dir.parent.parent` on the node (packs
+  live at `<repo>/hololab/packs/`, so stripping two segments lands on
+  the repo root). Paths matching `exec.shell`'s references like
+  `sharp-4dgs/per-frame/...`, `SpacetimeGaussians/...`,
+  `Utils/STG_to_SplaTV/...` work out of the box.
+- **Absolute** paths (leading `/`) are respected verbatim.
+- The runtime never reads this field — it's presentation-only, like
+  `docs`. If the path is wrong the Cobrowser API surfaces `not-found`
+  when clicked.
+
+The button hides itself entirely in non-Flops browsers, so it costs
+nothing to add.
 
 ### Ports — tags are the object type
 

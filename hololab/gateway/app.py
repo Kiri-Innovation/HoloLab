@@ -2410,6 +2410,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
                 workspace_root=payload.workspace_root,
                 legacy_workspace_roots=payload.legacy_workspace_roots,
                 flops_executor_id=payload.flops_executor_id,
+                packs_dir=payload.packs_dir,
             )
         except NodeAuthError as exc:
             log.warning(
