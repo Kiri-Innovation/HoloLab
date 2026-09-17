@@ -13,40 +13,82 @@ under the conda env you name.
 ## The 30-second version
 
 ```bash
-mkdir -p /home/dev/my-hololab-packs/hello-world@0.1.0
-$EDITOR /home/dev/my-hololab-packs/hello-world@0.1.0/manifest.yaml
-# register the source dir with your compute node:
-#   * open the right-side "Compute nodes" panel → ⚙ → Pack directories
-#     → add "/home/dev/my-hololab-packs" → Apply
-# node rescans, "hello-world" appears in the palette.
+# Recommended layout: manifest lives alongside the algorithm code.
+$EDITOR /home/dev/my-algo/manifest.yaml
+# register the source with your compute node:
+#   * open the right-side "Compute nodes" panel → ⚙ → Pack sources
+#     → add "/home/dev/my-algo" → Apply
+# node rescans, the pack appears in the palette.
 ```
 
 That's it. The rest of this document explains what goes in `manifest.yaml`
 and why.
 
-## Directory shape
+## Three ways to point at a pack
+
+Each entry in the node's `pack_dirs` config is polymorphic — the scanner
+picks the mode by what's on disk:
+
+### 1. Directory with `manifest.yaml` (recommended)
 
 ```
-/home/dev/my-hololab-packs/
+/home/dev/my-algo/
+├── manifest.yaml     ← the pack contract
+└── main.py           ← your algorithm code, side by side
+```
+
+Add `/home/dev/my-algo` to `pack_dirs`. The scanner finds the top-level
+`manifest.yaml` (index.html-style) and treats that directory as the pack.
+`name` and `version` come from the manifest content — the directory name
+is free-form.
+
+**Prefer this**: the manifest lives with the code, so `exec.shell` can
+reference sibling files with short relative paths, and the whole pack is
+one self-contained subtree you can commit / rsync / delete as a unit.
+
+### 2. Precise `.yaml` file — multiple algorithms in one folder
+
+```
+/home/dev/my-tools/
+├── convert.manifest.yaml
+├── convert.py
+├── analyse.manifest.yaml
+└── analyse.py
+```
+
+Add **two entries** to `pack_dirs`:
+
+```yaml
+pack_dirs:
+  - /home/dev/my-tools/convert.manifest.yaml
+  - /home/dev/my-tools/analyse.manifest.yaml
+```
+
+Each file is treated as one pack. Use this when several small algorithms
+share a folder and giving each its own subdirectory would just add
+ceremony.
+
+### 3. Directory of pack subdirectories (legacy repo layout)
+
+```
+/opt/my-hololab-packs/
 ├── hello-world@0.1.0/
-│   ├── manifest.yaml     ← required — this is the pack contract
-│   └── run.sh            ← optional — any files your exec references
+│   └── manifest.yaml
 └── another-algo@2.1.0/
     └── manifest.yaml
 ```
 
-Rules the node's scanner enforces (see `hololab/node/packs.py`):
+Add `/opt/my-hololab-packs` to `pack_dirs`. The scanner iterates every
+subdirectory that contains a `manifest.yaml`. Historical repository
+layout used by the vendored HoloLab packs; supported unchanged.
 
-- Directory name must be `<name>@<version>` where `name` matches
-  `[a-z0-9_-]+` and `version` is semver `MAJOR.MINOR.PATCH`.
-- The directory name segments **must match the `name` / `version` fields
-  inside `manifest.yaml`** — mismatch = the pack is skipped with a
-  warning. This is the safety net against accidental version drift.
-- If two directories in different pack sources declare the same
-  `name@version`, the node keeps the one from the earliest-listed
-  source (**first-wins**) and warns about the ignored duplicate. Users
-  extend the vendored packs by *appending* their own source — not by
-  shadowing.
+### Cross-source conflict rule
+
+If the same `name@version` appears in more than one `pack_dirs` entry,
+the earliest listed entry keeps the pack — **first-wins**. Users extend
+the vendored packs by *appending* their own source, not by shadowing.
+Directory / file names never affect identity — `name` + `version` come
+from the manifest content.
 
 ## Minimal `manifest.yaml`
 
@@ -130,46 +172,48 @@ Full field reference: [`pack-spec.md`](pack-spec.md).
 
 The canvas node header has a `</>` button. A plain click always opens
 `manifest.yaml`. A ⌘/Ctrl+click opens the pack's core **implementation
-script** when one is declared, or the pack directory otherwise.
+script** when one is declared, or the manifest's directory otherwise.
 
 To make ⌘/Ctrl+click jump straight to your main script, add `source_entry`
-to the manifest:
+to the manifest — **relative paths resolve against the manifest.yaml's
+own directory**:
 
 ```yaml
-source_entry: my-tools/my-algo/main.py   # relative to the Kiri4DGS repo root
-# or
-source_entry: /opt/my-tools/main.py      # absolute path
+source_entry: main.py                    # sibling of manifest.yaml (recommended)
+source_entry: subdir/main.py             # nested relative
+source_entry: /opt/my-tools/main.py      # absolute
 ```
 
-User-created packs that live in a custom `pack_dirs` entry and keep
-everything inside the pack directory can skip `source_entry` — the
-modifier+click will open the directory itself so the operator can see
-all the files at once.
+If your manifest is colocated with the code (mode 1 above), `source_entry:
+main.py` is enough — no path juggling.
+
+User-created packs that keep everything inside the pack directory can
+skip `source_entry` — ⌘/Ctrl+click then opens the directory itself so
+the operator sees all the files at once.
 
 ## Registering a pack source
 
-Any directory with `<name>@<version>/manifest.yaml` subdirectories is a
-"pack source". The node scans one or more of them, in order. Two ways to
-tell it about a new one:
+Two ways to tell the node about a new pack source (see the three modes
+above for the full picture — each entry can be a directory or a specific
+`.yaml` file):
 
 ### From the UI (recommended)
 
 1. Right-side **Compute nodes** panel → click the ⚙ on your node.
-2. Under **Pack directories**, click **+ Add legacy root** (same widget
-   is used for both — the label re-purposes it), paste the absolute path,
-   click **Apply**.
+2. Under **Pack sources**, click **+ Add path**, paste an absolute path
+   (a directory or a specific `.yaml` file), click **Apply**.
 3. The node rescans immediately and pushes a `packs_updated` frame to
    the gateway; the palette refreshes without a restart.
 
 ### From `config.yaml`
 
-Edit `~/.hololab/node/config.yaml` (or whatever path you pass to
-`hololab start --config`):
+Edit `~/.hololab/node/config.yaml`:
 
 ```yaml
 pack_dirs:
-  - /cloud/cloud-ssd1/Kiri4DGS/hololab/packs   # the vendored packs
-  - /home/dev/my-hololab-packs                 # your source
+  - /cloud/cloud-ssd1/Kiri4DGS/hololab/packs       # legacy repo layout
+  - /home/dev/my-algo                              # colocated manifest+code
+  - /home/dev/my-tools/convert.manifest.yaml       # precise-file
 ```
 
 Then restart the node. The legacy `packs_dir:` scalar is still accepted

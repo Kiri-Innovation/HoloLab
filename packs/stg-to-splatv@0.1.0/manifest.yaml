@@ -3,7 +3,7 @@ kind: Algorithm
 name: stg-to-splatv
 version: 0.1.0
 description: "Converts a SpacetimeGaussians training output directory to a .splatv file."
-source_entry: Utils/STG_to_SplaTV/convert_to_splatv_lite.py
+source_entry: ../../../Utils/STG_to_SplaTV/convert_to_splatv_lite.py
 category: "export/splatv"
 docs: |
   Converts a trained SpacetimeGaussians model directory to a single

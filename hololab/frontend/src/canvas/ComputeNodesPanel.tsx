@@ -417,15 +417,17 @@ function NodeSettingsDrawer({
               stay resolvable after moving the primary root.
             </Hint>
 
-            <FieldLabel>Pack directories</FieldLabel>
+            <FieldLabel>Pack sources</FieldLabel>
             <LegacyRootsEditor value={packDirs} onChange={setPackDirs} />
             <PackDirCounts pack_dirs={packDirs} packs={node.packs} />
             <Hint>
-              Directories this node scans for algorithm packs. First entry is
-              the primary. Add a path to register a custom pack source
-              (ComfyUI-style) without vendoring — see{" "}
-              <code>docs/writing-a-pack.md</code>. Duplicate{" "}
-              <code>name@version</code> across dirs is first-wins.
+              Each entry is either a <b>directory</b> (scanned for{" "}
+              <code>manifest.yaml</code> — either at the top level or one
+              level down, index.html-style) or a specific{" "}
+              <b><code>.yaml</code> file</b> when you want multiple
+              algorithm manifests in the same folder. First entry is the
+              primary; duplicate <code>name@version</code> across sources
+              is first-wins. See <code>docs/writing-a-pack.md</code>.
             </Hint>
 
             <FieldLabel>Advertised URL</FieldLabel>
@@ -648,7 +650,7 @@ function LegacyRootsEditor({
               next[i] = e.target.value;
               onChange(next);
             }}
-            placeholder="/absolute/path/to/old/workspace"
+            placeholder="/absolute/path (directory or .yaml file)"
             style={{
               flex: 1,
               fontSize: "var(--fs-sm)",
@@ -709,7 +711,7 @@ function LegacyRootsEditor({
           e.currentTarget.style.color = "var(--text-muted)";
         }}
       >
-        + Add legacy root
+        + Add path
       </button>
     </div>
   );

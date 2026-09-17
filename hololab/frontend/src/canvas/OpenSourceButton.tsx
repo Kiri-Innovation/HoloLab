@@ -1,18 +1,19 @@
 // "Jump to source" — canvas-header code-icon button. Two-tier behaviour:
 //
-//   Plain click       → {source_dir}/{name}@{version}/manifest.yaml
-//   ⌘/Ctrl + click   → source_entry (if declared) or the pack directory
+//   Plain click       → the pack's manifest.yaml (``pack.manifest_path``)
+//   ⌘/Ctrl + click   → source_entry (if declared) or the manifest's dir
 //
-// ``source_dir`` comes from the pack catalog (the exact pack_dirs entry
-// this pack was loaded from). Falls back to the node's primary ``packs_dir``
-// for nodes that predate multi-pack-source support.
+// ``manifest_path`` is the resolved absolute path reported by the node —
+// no wire-side path construction. Falls back to
+// ``{source_dir}/{name}@{version}/manifest.yaml`` when a legacy node
+// hasn't sent it yet.
 //
-// ``source_entry`` is an optional manifest field naming the pack's core
-// implementation script. Relative paths resolve against the Kiri4DGS repo
-// root (``source_dir.parent.parent`` in the standard layout); absolute
-// paths are used verbatim. When absent the modifier+click falls back to
-// opening the pack directory itself — useful for user-created packs whose
-// glue scripts sit alongside manifest.yaml.
+// ``source_entry`` (optional manifest field) names the pack's core
+// implementation script. Relative paths resolve against the manifest's
+// own directory (self-contained + portable); absolute paths are used
+// verbatim. When absent the modifier+click opens the manifest's directory
+// — useful for user-created packs whose glue scripts sit alongside
+// manifest.yaml.
 //
 // See docs/cobrowser-integration.md#jump-to-source.
 
@@ -26,8 +27,7 @@ export interface OpenSourceButtonProps {
   /** The compute node whose ``flops_executor_id`` + ``packs_dir`` we
    *  resolve against. Null when no online node offers this pack right
    *  now — the button still renders so the operator can see it, but
-   *  clicking shows the guide callout (there's nowhere to open the
-   *  file on). */
+   *  clicking shows the guide callout. */
   computeNode: ComputeNode | null;
   onDark?: boolean;
 }
@@ -58,48 +58,73 @@ function CodeGlyph({ colour }: { colour: string }) {
   );
 }
 
-/** Plain-click target: always manifest.yaml.
+/** Join two path pieces with a single ``/``. */
+function join(dir: string, rel: string): string {
+  return `${dir.replace(/\/+$/, "")}/${rel.replace(/^\/+/, "")}`;
+}
+
+/** Normalise a POSIX-style path by collapsing ``.``/``..`` segments.
+ *  Used so a manifest with ``source_entry: ../../../foo/bar.py`` resolves
+ *  to a clean absolute path the Cobrowser API can find on disk.
+ */
+function normalisePath(path: string): string {
+  const isAbsolute = path.startsWith("/");
+  const parts = path.split("/");
+  const stack: string[] = [];
+  for (const p of parts) {
+    if (p === "" || p === ".") continue;
+    if (p === "..") {
+      if (stack.length > 0 && stack[stack.length - 1] !== "..") {
+        stack.pop();
+      } else if (!isAbsolute) {
+        stack.push("..");
+      }
+      continue;
+    }
+    stack.push(p);
+  }
+  return (isAbsolute ? "/" : "") + stack.join("/");
+}
+
+/** Plain-click target: the pack's manifest.yaml.
  *
- *  ``pack.source_dir`` is preferred (the exact pack_dirs entry this pack
- *  was loaded from); ``packsDir`` (the node's primary packs dir) is the
- *  fallback for nodes that predate multi-pack-source support. Exported for test.
+ *  Prefers the node-reported ``pack.manifest_path`` (authoritative under
+ *  the polymorphic pack_dirs contract). Falls back to constructing a path
+ *  under ``source_dir`` (legacy repo-layout mode) or the node's primary
+ *  ``packsDir``. Exported for test.
  */
 export function resolveManifestTarget(
   pack: CatalogPack,
   packsDir: string | null,
 ): string | null {
+  if (pack.manifest_path) return pack.manifest_path;
   const sourceDir = pack.source_dir || packsDir;
   if (!sourceDir) return null;
   return `${sourceDir.replace(/\/+$/, "")}/${pack.name}@${pack.version}/manifest.yaml`;
 }
 
-/** ⌘/Ctrl+click target: ``source_entry`` (if declared) or the pack directory.
+/** ⌘/Ctrl+click target: ``source_entry`` (if declared) or the manifest's dir.
  *
- *  Relative ``source_entry`` paths resolve against the Kiri4DGS repo root,
- *  derived as ``sourceDir.parent.parent`` (packs live two levels deep under
- *  the repo, e.g. ``<repo>/hololab/packs/``). Exported for test.
+ *  Relative ``source_entry`` paths resolve against the manifest.yaml's own
+ *  directory (self-contained + portable across repo reorganisations).
+ *  Absolute paths are used verbatim. When absent, opens the manifest's
+ *  directory so the operator can see all sibling files at once. Exported
+ *  for test.
  */
 export function resolveCodeTarget(
   pack: CatalogPack,
   packsDir: string | null,
 ): string | null {
-  const sourceDir = pack.source_dir || packsDir;
-  if (!sourceDir) return null;
-  const trimmed = sourceDir.replace(/\/+$/, "");
+  const manifestPath = resolveManifestTarget(pack, packsDir);
+  if (!manifestPath) return null;
+  const manifestDir = manifestPath.replace(/\/[^/]*$/, "") || "/";
 
   const entry = pack.source_entry;
   if (entry) {
     if (entry.startsWith("/")) return entry;
-    // Relative → repo root = strip last 2 path components from sourceDir.
-    const parts = trimmed.split("/");
-    if (parts.length < 3) return null;
-    const repoRoot = parts.slice(0, -2).join("/");
-    return `${repoRoot}/${entry}`;
+    return normalisePath(join(manifestDir, entry));
   }
-
-  // No source_entry → open the pack directory so the operator can see
-  // all the files (glue scripts, templates, etc.) alongside manifest.yaml.
-  return `${trimmed}/${pack.name}@${pack.version}`;
+  return manifestDir;
 }
 
 export function OpenSourceButton({

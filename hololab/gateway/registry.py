@@ -386,19 +386,36 @@ class NodeRegistry:
         # manifests by name+version. In the all-in-one deploy the gateway
         # and node share disk, so this works today.
         #
-        # Multi-pack-source: the pack's ``source_dir`` (reported by the
-        # node in each PackInventoryEntry) is the authoritative first
-        # place to look. Fall back to the session's pack_dirs, then to
-        # the historical ``./packs`` under cwd for the pre-pack_dirs
-        # transition window.
+        # Preferred: use ``manifest_path`` from the pack inventory — the
+        # node reported the exact resolved path (supports the polymorphic
+        # pack_dirs contract). Fall back to guessing under source_dir /
+        # session pack_dirs / legacy ``./packs`` for pre-manifest_path
+        # nodes.
         from pathlib import Path as _Path
 
         legacy_root = _Path.cwd() / "packs"
 
-        def _try_load(name: str, version: str, source_dir: str | None, roots: list[str]) -> Any:
+        def _try_load(
+            name: str,
+            version: str,
+            manifest_path: str | None,
+            source_dir: str | None,
+            roots: list[str],
+        ) -> Any:
+            if manifest_path:
+                p = _Path(manifest_path)
+                if p.is_file():
+                    m, _sha = load_manifest(p)
+                    return m
             candidates: list[_Path] = []
             if source_dir:
-                candidates.append(_Path(source_dir))
+                sd = _Path(source_dir)
+                # ``source_dir`` may itself point directly at a manifest
+                # file in precise-file mode — check that first.
+                if sd.is_file():
+                    m, _sha = load_manifest(sd)
+                    return m
+                candidates.append(sd)
             for r in roots:
                 p = _Path(r)
                 if p not in candidates:
@@ -429,6 +446,7 @@ class NodeRegistry:
                         "category": [],
                         "docs": None,
                         "source_entry": None,
+                        "manifest_path": pk.manifest_path,
                         "source_dir": pk.source_dir,
                     },
                 )
@@ -438,7 +456,11 @@ class NodeRegistry:
                 # Populate signature once, from the manifest on disk.
                 if not entry["outputs"]:
                     manifest = _try_load(
-                        pk.name, pk.version, pk.source_dir, list(session.pack_dirs)
+                        pk.name,
+                        pk.version,
+                        pk.manifest_path,
+                        pk.source_dir,
+                        list(session.pack_dirs),
                     )
                     if manifest is not None:
                         entry["description"] = manifest.description

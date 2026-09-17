@@ -255,6 +255,7 @@ class NodeRuntime:
                     name=p.manifest.name,
                     version=p.manifest.version,
                     manifest_hash=p.manifest_hash,
+                    manifest_path=str(p.manifest_path),
                     source_dir=str(p.source_dir),
                 )
                 for p in new_packs.values()
@@ -297,6 +298,7 @@ class NodeRuntime:
                             name=p.manifest.name,
                             version=p.manifest.version,
                             manifest_hash=p.manifest_hash,
+                            manifest_path=str(p.manifest_path),
                             source_dir=str(p.source_dir),
                         )
                         for p in new_packs.values()
@@ -351,6 +353,7 @@ class NodeRuntime:
                 name=p.manifest.name,
                 version=p.manifest.version,
                 manifest_hash=p.manifest_hash,
+                manifest_path=str(p.manifest_path),
                 source_dir=str(p.source_dir),
             )
             for p in self._packs.values()

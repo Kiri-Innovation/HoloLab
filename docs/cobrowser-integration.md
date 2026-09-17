@@ -179,34 +179,38 @@ itself** (next to `⧉` and the preview caret): a code-icon
 
 | Click | Target |
 |---|---|
-| Plain click | `{source_dir}/{name}@{version}/manifest.yaml` |
-| ⌘/Ctrl + click | `source_entry` if declared, else the pack directory |
+| Plain click | `pack.manifest_path` (the resolved manifest.yaml) |
+| ⌘/Ctrl + click | `source_entry` if declared, else the manifest's directory |
 
-**Plain click** always opens `manifest.yaml` — the exec orchestration
-is always there and it's the pack's canonical entry point.
+**Plain click** opens the pack's `manifest.yaml` — the exec orchestration
+is always there and it's the pack's canonical entry point. The path comes
+from `manifest_path`, reported by the node under the polymorphic
+`pack_dirs` contract (see `docs/writing-a-pack.md`) — no more
+`{source_dir}/{name}@{version}/manifest.yaml` construction.
 
 **⌘/Ctrl+click** jumps to the pack's core implementation script when
 the manifest declares `source_entry`. Relative paths resolve against
-the Kiri4DGS repo root (`source_dir.parent.parent` in the standard
-layout). When `source_entry` is absent the modifier+click opens the
-pack directory instead, which is useful for user-created packs whose
-glue scripts sit alongside `manifest.yaml`.
+**the manifest.yaml's own directory** — self-contained and portable, so
+a manifest colocated with its code just says `source_entry: main.py`.
+When `source_entry` is absent the modifier+click opens the manifest's
+directory instead, useful for user-created packs whose glue scripts sit
+alongside `manifest.yaml`.
 
-Packs with `source_entry` configured:
+Packs with `source_entry` configured (values are relative to each pack's
+own manifest.yaml directory; the `../../../` prefix reflects that the
+vendored HoloLab packs live three levels deep under the Kiri4DGS repo
+root — a colocated manifest would use short paths like `main.py`):
 
 | pack | `source_entry` |
 |---|---|
-| `video-to-camera-track` | `sharp-4dgs/per-frame/video_to_colmap.py` |
-| `track-to-gs-sequence`  | `sharp-4dgs/per-frame/colmap_to_3d.py` |
-| `video-to-colmap`       | `sharp-4dgs/per-frame/video_to_3d.py` |
-| `gs-seq-to-multiview-colmap` | `sharp-4dgs/per-frame/gsseq_to_multiview.py` |
-| `stg-train`             | `SpacetimeGaussians/train.py` |
-| `stg-to-splatv`         | `Utils/STG_to_SplaTV/convert_to_splatv_lite.py` |
+| `video-to-camera-track` | `../../../sharp-4dgs/per-frame/video_to_colmap.py` |
+| `track-to-gs-sequence`  | `../../../sharp-4dgs/per-frame/colmap_to_3d.py` |
+| `video-to-colmap`       | `../../../sharp-4dgs/per-frame/video_to_3d.py` |
+| `gs-seq-to-multiview-colmap` | `../../../sharp-4dgs/per-frame/gsseq_to_multiview.py` |
+| `stg-train`             | `../../../SpacetimeGaussians/train.py` |
+| `stg-to-splatv`         | `../../../Utils/STG_to_SplaTV/convert_to_splatv_lite.py` |
 
-`source_dir` is the catalog entry's `source_dir` field — the exact
-`pack_dirs` entry this pack was loaded from on the node. Falls back
-to the node's primary `packs_dir` for nodes that predate multi-pack-source
-support. The compute node is picked in this order: graph node's explicit
+The compute node is picked in this order: graph node's explicit
 `assigned_node_id` → first entry of the pack's `node_ids` (i.e. first
 online node offering this pack).
 

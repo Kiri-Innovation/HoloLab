@@ -9,7 +9,7 @@ description: >
   This is the fastest of the three steps and the one you'll most often
   rerun to tune layout / view count without touching camera tracking or
   Sharp inference.
-source_entry: sharp-4dgs/per-frame/gsseq_to_multiview.py
+source_entry: ../../../sharp-4dgs/per-frame/gsseq_to_multiview.py
 category: "reconstruction/multiview-colmap"
 docs: |
   **Phase A3** of the Sharp-4DGS pipeline. Renders the Sharp gaussians

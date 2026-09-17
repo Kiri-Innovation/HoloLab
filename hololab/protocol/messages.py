@@ -22,12 +22,17 @@ class PackInventoryEntry(BaseModel):
     name: str
     version: str
     manifest_hash: str  # sha256 of the manifest.yaml file; changes on edits
-    # Which entry from the node's ``pack_dirs`` list this pack was
-    # loaded from. Null when the node was upgraded to the pack_dirs
-    # protocol but reports an inventory it built with an older
-    # scanner. Frontend renders it as "source: /home/dev/my-packs"
-    # so an operator can tell a developer's ad-hoc pack apart from
-    # the vendored ones. See docs/writing-a-pack.md.
+    # Absolute path of the manifest.yaml on the producing node. With the
+    # polymorphic pack_dirs contract this is what the frontend's
+    # "Jump to source" button opens directly — no more
+    # ``{source_dir}/{name}@{version}/manifest.yaml`` guessing.
+    # Null on legacy nodes that pre-date this field.
+    manifest_path: str | None = None
+    # The pack_dirs entry (as configured by the operator) this pack
+    # was loaded from — may be a file (precise-file mode) or a
+    # directory. Frontend renders it as "source: /home/dev/my-packs"
+    # so an operator can tell a developer's ad-hoc pack from a
+    # vendored one. See docs/writing-a-pack.md.
     source_dir: str | None = None
 
 

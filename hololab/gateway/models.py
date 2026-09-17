@@ -46,13 +46,22 @@ class PackInventoryEntryOut(BaseModel):
     name: str
     version: str
     manifest_hash: str
+    manifest_path: str | None = Field(
+        default=None,
+        description=(
+            "Absolute path of the manifest.yaml on the producing node. "
+            "The 'Jump to source' button opens this directly. Null on "
+            "legacy nodes that pre-date the polymorphic pack_dirs "
+            "protocol."
+        ),
+    )
     source_dir: str | None = Field(
         default=None,
         description=(
             "Which entry from the producing node's ``pack_dirs`` list "
-            "this pack was loaded from. Null on nodes that pre-date "
-            "the multi-pack-source protocol. See "
-            "docs/writing-a-pack.md."
+            "this pack was loaded from — may be a file (precise-file "
+            "mode) or a directory. Null on nodes that pre-date the "
+            "multi-pack-source protocol. See docs/writing-a-pack.md."
         ),
     )
 
@@ -158,10 +167,18 @@ class CatalogPackEntry(BaseModel):
         description=(
             "⌘/Ctrl+click 'Jump to source' target — the pack's core "
             "implementation script. Relative paths resolve against the "
-            "Kiri4DGS repo root; absolute paths are used verbatim. "
-            "Null for packs that don't declare one (modifier+click falls "
-            "back to the pack directory). See "
+            "manifest.yaml's own directory; absolute paths are used "
+            "verbatim. Null for packs that don't declare one "
+            "(modifier+click falls back to the pack directory). See "
             "docs/cobrowser-integration.md#jump-to-source."
+        ),
+    )
+    manifest_path: str | None = Field(
+        default=None,
+        description=(
+            "Absolute path of the manifest.yaml on the producing node. "
+            "The 'Jump to source' button opens this directly. Null on "
+            "legacy nodes that pre-date the polymorphic pack_dirs protocol."
         ),
     )
     source_dir: str | None = Field(

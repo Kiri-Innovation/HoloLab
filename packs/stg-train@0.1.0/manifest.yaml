@@ -3,7 +3,7 @@ kind: Algorithm
 name: stg-train
 version: 0.1.0
 description: "Train a SpacetimeGaussians 4D Gaussian model from a COLMAP directory."
-source_entry: SpacetimeGaussians/train.py
+source_entry: ../../../SpacetimeGaussians/train.py
 category: "training/spacetime-gaussians"
 docs: |
   Trains a SpacetimeGaussians 4D Gaussian model on a COLMAP-shaped

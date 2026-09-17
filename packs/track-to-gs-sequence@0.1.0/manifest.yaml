@@ -9,7 +9,7 @@ description: >
   is the expensive Sharp inference step; splitting it out lets you rerun
   it with different post-processing flags without re-tracking the
   camera.
-source_entry: sharp-4dgs/per-frame/colmap_to_3d.py
+source_entry: ../../../sharp-4dgs/per-frame/colmap_to_3d.py
 category: "reconstruction/sharp-4dgs"
 docs: |
   **Phase A2** of the Sharp-4DGS pipeline. Runs Sharp per-frame inference

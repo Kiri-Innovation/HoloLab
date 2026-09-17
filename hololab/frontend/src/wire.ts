@@ -14,10 +14,11 @@ export interface PackInventoryEntry {
   name: string;
   version: string;
   manifest_hash: string;
+  // Absolute path of the manifest.yaml on the producing node.
+  manifest_path?: string | null;
   // Which entry from the producing node's pack_dirs this pack was
-  // loaded from. Null on rolling upgrades where the node hasn't
-  // reconnected yet — the frontend just hides the origin chip in
-  // that case.
+  // loaded from — may be a file (precise-file mode) or a directory.
+  // Null on rolling upgrades where the node hasn't reconnected yet.
   source_dir?: string | null;
 }
 
@@ -156,14 +157,18 @@ export interface CatalogPack {
   category: string[];
   docs: string | null;
   // ⌘/Ctrl+click "Jump to source" target — the pack's core implementation
-  // script (relative to repo root or absolute). Null for packs that don't
-  // declare one; modifier+click then falls back to the pack directory.
+  // script. Relative paths resolve against the manifest.yaml's own directory;
+  // absolute paths are used verbatim. Null for packs that don't declare one;
+  // modifier+click then falls back to opening the pack directory.
   source_entry: string | null;
-  // Which pack source directory this pack was loaded from on the
-  // producing node — one of the node's ``pack_dirs`` entries. Lets
-  // the palette / inspector show origin so a developer's ad-hoc
-  // pack is visually distinguishable from vendored ones. See
-  // docs/writing-a-pack.md.
+  // Absolute path of the manifest.yaml on the producing node. The
+  // plain-click "Jump to source" target — no more ``{source_dir}/
+  // {name}@{version}/manifest.yaml`` guessing. Null on legacy nodes.
+  manifest_path?: string | null;
+  // Which ``pack_dirs`` entry this pack was loaded from on the producing
+  // node — may be a file (precise-file mode) or a directory. Lets the
+  // palette / inspector show origin so a developer's ad-hoc pack is
+  // visually distinguishable from vendored ones. See docs/writing-a-pack.md.
   source_dir?: string | null;
   inputs: Record<string, InputPortSpec>;
   outputs: Record<string, OutputPortSpec>;

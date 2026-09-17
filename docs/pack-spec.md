@@ -78,7 +78,7 @@ previews:
 | `description` | No       | One-line summary shown in UI palette.                                  |
 | `category`    | No       | Slash-hierarchy path for the palette tree (e.g. `reconstruction/sharp-4dgs`). See [Category](#category). |
 | `docs`        | No       | Short Markdown blurb shown in the Inspector's About block. See [Docs](#docs). |
-| `source_entry`| No       | ⌘/Ctrl+click "Jump to source" target (the pack's core implementation script). Relative paths resolve against the Kiri4DGS repo root; absent → modifier+click opens the pack directory. |
+| `source_entry`| No       | ⌘/Ctrl+click "Jump to source" target (the pack's core implementation script). Relative paths resolve against **the manifest.yaml's own directory**; absent → modifier+click opens the manifest's directory. |
 | `inputs`      | No       | Map of input name → input spec.                                        |
 | `outputs`     | Yes      | Map of output name → output spec. Must have ≥ 1 output.                |
 | `params`      | No       | Map of param name → param spec.                                        |
@@ -360,10 +360,22 @@ no restart needed.
 ## Multi-pack-source layout
 
 The node scans **every entry in `pack_dirs`** (config.yaml — see
-`NodeConfig.pack_dirs`, or edit from the UI's Pack directories field).
-Adding a directory registers a custom pack source without vendoring the
-pack into the HoloLab repo — the ComfyUI `custom_nodes` model. Conflict
-resolution across sources is *first-wins* + a warning. See
+`NodeConfig.pack_dirs`, or edit from the UI's Pack sources field).
+Each entry is polymorphic — the scanner picks the mode by what's on disk:
+
+1. **A `.yaml` / `.yml` file** — that file is treated as a pack manifest.
+   Lets one directory host multiple algorithms whose manifests sit
+   alongside each other (e.g. `main.manifest.yaml`, `variant.manifest.yaml`).
+2. **A directory containing `manifest.yaml`** — the directory *is* a pack
+   (index.html-style default). Recommended for packs whose manifest is
+   colocated with the algorithm's source code.
+3. **A directory with no `manifest.yaml`** — each subdirectory is
+   scanned for its own `manifest.yaml`. Preserves the historical
+   `packs/<name>@<version>/` repository layout.
+
+Pack identity (`name`, `version`) comes from the manifest content —
+directory names are no longer required to match. Conflict resolution
+across sources is **first-wins** + a warning. See
 [`writing-a-pack.md`](writing-a-pack.md) for the operator-facing recipe.
 
 ## Full field reference
