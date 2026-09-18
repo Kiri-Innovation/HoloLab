@@ -442,6 +442,40 @@ without an extra listing round-trip. Only ~9 thumbnails (3 groups × 3
 thumbs) are loaded up front; the drill-down loads at most
 `STRIP_MAX_CARDS` more. No probes.
 
+**Iframe-embedded viewers.** Some tags map to a full 3D viewer that
+already exists as a standalone web app; instead of re-implementing the
+renderer inside HoloLab we iframe the standalone build and inject the
+handle's files via `postMessage`. Rationale: the third-party viewer
+keeps evolving as its own product (own Three.js version, shaders,
+worker files); vendoring only its `dist/` avoids forking hundreds of
+files and hauling a large runtime submodule into HoloLab's own bundle.
+`colmap-cams` is the canonical example:
+
+* `colmap-cams` → `ColmapCamsPreview` iframes
+  `/colmaputil/index.html?embed=1` (vendored from
+  `/cloud/cloud-ssd1/Kiri4DGS/Utils/ColmapUtil`, refresh workflow in
+  `public/colmaputil/HOLOLAB_VENDORED.md`), waits for its
+  `colmap-ready` handshake, then posts a `colmap-load-files` message
+  with `cameras.txt` + `images.txt` fetched from
+  `${baseUrl}/{name}` plus a synthetic empty `points3D.txt` header
+  (poses-only pack — ColmapUtil's loader mandates all three files but
+  gracefully renders zero points).
+
+The iframe's sandbox is `allow-scripts allow-same-origin` since the
+viewer needs JS and its own asset chunks resolve same-origin (via
+Vite proxy in dev, SPA static mount in prod). No new gateway endpoint
+required — the existing `/proxy/{node}/{sub}` route serves individual
+files inside dir handles. See `ColmapUtil/README.md#嵌入模式` for the
+message-type reference on the receiving side.
+
+For the frontend to render the caret without a backend registry entry
+(e.g. a rolling upgrade where the running gateway hasn't ingested a
+new tag), `AlgorithmNode.expandableOutputs` promotes any port whose
+tag is in `FRONTEND_VIEWER_TAGS` to `kind: "viewer"` even when
+`spec.preview` is null. Keep that set in sync with the intercept
+clauses at the top of `previews.tsx::Preview()` — the two together
+form the tag-driven contract.
+
 #### Basic-info fallback (no viewer + resolved handle)
 
 Packs whose tags don't map to any viewer (typical for intermediate

@@ -166,6 +166,27 @@ interface ExpandablePort {
   kind: ExpandKind;
 }
 
+// Tags for which the frontend intercepts Preview() dispatch and picks
+// its own viewer regardless of what the backend's tag_viewers.py
+// registered (or didn't). Kept in one place so a new frontend-driven
+// tag family only has to touch two spots: this set + the intercept
+// clause in previews.tsx's Preview() function. Rolling upgrades where
+// the running gateway hasn't ingested a new tag_viewers.py entry
+// yet — like ``colmap-cams`` at the time of writing — still get the
+// caret because this promotion looks at the port's ``tags`` directly.
+const FRONTEND_VIEWER_TAGS = new Set<string>([
+  "frame_sequence",
+  "colmap-cams",
+]);
+
+function hasFrontendViewerTag(tags: string[] | undefined): boolean {
+  if (!tags) return false;
+  for (const t of tags) {
+    if (FRONTEND_VIEWER_TAGS.has(t)) return true;
+  }
+  return false;
+}
+
 function expandableOutputs(
   pack: CatalogPack,
   previews: Record<string, PreviewTarget> | undefined,
@@ -173,10 +194,15 @@ function expandableOutputs(
   const out: ExpandablePort[] = [];
   for (const [name, spec] of Object.entries(pack.outputs)) {
     const target = previews?.[name] ?? null;
-    if (spec.preview) {
+    if (spec.preview || hasFrontendViewerTag(spec.tags)) {
       out.push({ name, spec, target, kind: "viewer" });
     } else if (target) {
       out.push({ name, spec, target, kind: "info" });
+    } else {
+      // No preview spec and no handle yet — include anyway so the caret
+      // is always visible for nodes with outputs, and clicking it shows
+      // the "尚未运行" placeholder + Run button before the first run.
+      out.push({ name, spec, target: null, kind: "info" });
     }
   }
   return out;
@@ -659,12 +685,17 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   />
                 </div>
               );
-              if (expandKind === "viewer" && port.preview) {
+              if (expandKind === "viewer") {
                 return (
                   <>
                     {header}
                     <Preview
-                      spec={port.preview}
+                      // ``port.preview`` may be null when the viewer is
+                      // frontend-driven from tags alone (colmap-cams,
+                      // frame_sequence). Preview() intercepts by tag
+                      // before touching spec, so passing undefined is
+                      // safe. See PreviewProps in previews.tsx.
+                      spec={port.preview ?? undefined}
                       baseUrl={target.proxy_url}
                       storage={target.storage}
                       handleId={target.handle_id}
@@ -693,11 +724,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 </>
               );
             }
-            // Only viewer-kind ports fall back to the never-ran /
-            // cleaned placeholder — info-kind ports only appear in
-            // the expandables list when a target already exists, so
-            // this branch is unreachable for them (guarded by
-            // expandableOutputs above; kept exhaustive for clarity).
+            // Placeholder for viewer-kind with no/deleted handle, and
+            // info-kind with no handle yet (never ran).
             const placeholderKind =
               target?.deleted || runState === "done" ? "cleaned" : "never-ran";
             return (

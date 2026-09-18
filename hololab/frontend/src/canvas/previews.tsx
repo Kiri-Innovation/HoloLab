@@ -57,7 +57,14 @@ function Status({ text, kind }: { text: string; kind: "loading" | "error" | "inf
 // ---------------------------------------------------------------------------
 
 export interface PreviewProps {
-  spec: OutputPreviewSpec;
+  // The pack's declared viewer spec. Optional because some viewers are
+  // tag-driven from the frontend and don't need one (see the tag
+  // intercepts at the top of ``Preview()``): a ``frame_sequence`` or
+  // ``colmap-cams`` output whose pack manifest is silent about
+  // ``preview:`` still routes to the right viewer via its tags. When
+  // this is undefined and no tag intercept matches, we render an
+  // error pill.
+  spec?: OutputPreviewSpec;
   // Base URL of the handle. For file-storage handles this IS the file
   // URL. For dir-storage the viewer appends ``/`` + spec.member.
   baseUrl: string;
@@ -116,6 +123,35 @@ export function Preview({
       return <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />;
     }
     return <FrameStripPreview baseUrl={baseUrl} />;
+  }
+  // ``colmap-cams`` — COLMAP sparse reconstruction (cameras.txt +
+  // images.txt in a dir handle). Renders inside an iframe backed by
+  // the vendored ColmapUtil build (see
+  // ``public/colmaputil/HOLOLAB_VENDORED.md``). We route by tag so
+  // packs producing this type never need to declare a viewer, matching
+  // the frame_sequence pattern above.
+  if (
+    tags &&
+    tags.includes("colmap-cams") &&
+    storage === "dir"
+  ) {
+    return <ColmapCamsPreview baseUrl={baseUrl} />;
+  }
+
+  // No tag intercept matched and the caller didn't hand us a spec.
+  // Happens when a port has a frontend-driven tag (e.g. colmap-cams)
+  // for a non-``dir`` storage form the intercepts don't cover, or a
+  // future tag was added to FRONTEND_VIEWER_TAGS without a matching
+  // intercept clause below. Render an error pill rather than crashing.
+  if (!spec) {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status
+          text={`no viewer registered for tags: ${(tags ?? []).join(", ") || "(none)"}`}
+          kind="error"
+        />
+      </div>
+    );
   }
 
   // Resolve the final URL once so each viewer has a plain string to work with.
@@ -2795,6 +2831,153 @@ function NestedGroupDetail({
           total={group.imageFiles.length}
           onClose={() => setZoomIdx(null)}
         />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ColmapCamsPreview — 3D COLMAP viewer for ``colmap-cams`` dir handles.
+//
+// Rendered by the parent as ``<iframe src="/colmaputil/index.html?embed=1">``,
+// pointing at the vendored ColmapUtil build under
+// ``public/colmaputil/``. Data flow:
+//
+//   1. iframe boots, posts ``{type: 'colmap-ready'}`` to parent.
+//   2. parent fetches ``cameras.txt`` + ``images.txt`` from the proxy
+//      base URL (already same-origin via the /proxy mount).
+//   3. parent posts ``{type: 'colmap-load-files', files: [...]}``
+//      including a synthetic empty ``points3D.txt`` header (poses-only
+//      pack — ColmapUtil's loader mandates the file, so we hand it a
+//      zero-points scaffold and the visualizer renders 0 points +
+//      all cameras which is exactly the poses-only shape we want).
+//
+// See ``docs/pack-spec.md#Previews`` for the architecture rationale
+// and ``public/colmaputil/HOLOLAB_VENDORED.md`` for the refresh
+// workflow when ColmapUtil ships new features.
+// ---------------------------------------------------------------------------
+
+const COLMAP_IFRAME_HEIGHT = 260;
+
+// Minimal header-only points3D.txt — matches the format
+// ``model_converter --output_type TXT`` emits for empty reconstructions.
+// Kept as a constant so the empty scaffold is byte-identical across
+// preview mounts (helps any downstream caching in ColmapUtil).
+const COLMAP_EMPTY_POINTS3D =
+  "# 3D point list with one line of data per point:\n" +
+  "#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n" +
+  "# Number of points: 0, mean track length: 0\n";
+
+interface ColmapCamsPreviewProps {
+  baseUrl: string;
+}
+
+function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const sentRef = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+  const [handshaken, setHandshaken] = useState(false);
+
+  useEffect(() => {
+    sentRef.current = false;
+    setError(null);
+    setHandshaken(false);
+
+    const ctl = new AbortController();
+
+    async function sendSparse(target: Window) {
+      if (sentRef.current) return;
+      const dirBase = baseUrl.replace(/\/$/, "");
+      try {
+        const [camerasRes, imagesRes] = await Promise.all([
+          fetch(`${dirBase}/cameras.txt`, { signal: ctl.signal }),
+          fetch(`${dirBase}/images.txt`, { signal: ctl.signal }),
+        ]);
+        if (!camerasRes.ok) throw new Error(`cameras.txt: HTTP ${camerasRes.status}`);
+        if (!imagesRes.ok) throw new Error(`images.txt: HTTP ${imagesRes.status}`);
+        const [camerasBlob, imagesBlob] = await Promise.all([
+          camerasRes.blob(),
+          imagesRes.blob(),
+        ]);
+        if (ctl.signal.aborted) return;
+        const pointsBlob = new Blob([COLMAP_EMPTY_POINTS3D], { type: "text/plain" });
+        target.postMessage(
+          {
+            type: "colmap-load-files",
+            files: [
+              { name: "cameras.txt", blob: camerasBlob },
+              { name: "images.txt", blob: imagesBlob },
+              { name: "points3D.txt", blob: pointsBlob },
+            ],
+            name: "sfm",
+          },
+          "*",
+        );
+        sentRef.current = true;
+      } catch (e) {
+        if ((e as Error).name === "AbortError") return;
+        setError((e as Error).message);
+      }
+    }
+
+    function onMessage(e: MessageEvent) {
+      const iframe = iframeRef.current;
+      if (!iframe || e.source !== iframe.contentWindow) return;
+      const d = e.data as { type?: string } | null;
+      if (!d || typeof d !== "object") return;
+      if (d.type === "colmap-ready") {
+        setHandshaken(true);
+        sendSparse(iframe.contentWindow as Window);
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => {
+      ctl.abort();
+      window.removeEventListener("message", onMessage);
+    };
+  }, [baseUrl]);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <iframe
+        ref={iframeRef}
+        // ``?embed=1`` hides ColmapUtil's InitiationPage / sidebar /
+        // footer, leaving only the 3D visualizer. It also arms the
+        // EmbedDataListener which broadcasts ``colmap-ready`` on
+        // mount so we know when it's safe to postMessage.
+        src="/colmaputil/index.html?embed=1"
+        title="colmap-cams viewer"
+        // allow-scripts: viewer needs JS. allow-same-origin: served
+        // from same origin (vite proxy in dev, SPA mount in prod) so
+        // its own asset chunks resolve without a cross-origin dance.
+        sandbox="allow-scripts allow-same-origin"
+        style={{
+          width: "100%",
+          height: COLMAP_IFRAME_HEIGHT,
+          border: "1px solid var(--border-strong)",
+          borderRadius: "var(--radius-sm)",
+          background: "#000",
+          display: "block",
+        }}
+      />
+      {(!handshaken || error) && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.55)",
+            color: error ? "var(--status-failed)" : "var(--text-on-dark)",
+            fontSize: 11,
+            pointerEvents: "none",
+            padding: "0 var(--space-2)",
+            textAlign: "center",
+          }}
+        >
+          {error ? `load failed — ${error}` : "loading viewer…"}
+        </div>
       )}
     </div>
   );
