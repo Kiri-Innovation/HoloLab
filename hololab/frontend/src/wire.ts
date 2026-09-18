@@ -366,3 +366,43 @@ export interface SnapshotDetail {
   graph: WorkflowGraph;
   jobs: SnapshotJob[];
 }
+
+// GET /api/jobs/{job_id}/log — mirrors ``LogTail`` in gateway/models.py.
+// The panel's log viewer asks for a big-but-bounded tail (~10k lines) and
+// the server returns them in append order (oldest first) so an auto-scroll
+// to the bottom shows the tail of the run — matching what the user would
+// have seen if they'd watched stdout live.
+export interface LogLine {
+  stream: "stdout" | "stderr";
+  line: string;
+  ts: number;
+}
+
+export interface LogTail {
+  job_id: string;
+  lines: LogLine[];
+  total_returned: number;
+  truncated: boolean;
+}
+
+// GET /api/jobs/{job_id} — full job detail (RecentJobRow + params +
+// input_handles + fail_message + fail_exit_code). The log viewer fetches
+// this to show ``fail_message`` (the panel row only carries ``fail_reason``).
+export interface JobDetail {
+  job_id: string;
+  workflow_id: string | null;
+  snapshot_id: string | null;
+  graph_node_id: string | null;
+  node_id: string | null;
+  algorithm_name: string;
+  algorithm_version: string;
+  state: string;
+  progress: { current: number; total: number } | null;
+  fail_reason: string | null;
+  fail_exit_code: number | null;
+  fail_message: string | null;
+  params: Record<string, unknown>;
+  input_handles: Record<string, string>;
+  created_ts: number;
+  updated_ts: number;
+}

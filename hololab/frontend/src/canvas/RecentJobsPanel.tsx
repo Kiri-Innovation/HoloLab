@@ -1,10 +1,14 @@
 // Compact recent-jobs list. Sits under the NodeInspector at the bottom of
 // the layout. Clicking a row selects the corresponding canvas node so the
-// user can jump from a runtime event to the node that produced it.
+// user can jump from a runtime event to the node that produced it; the
+// dedicated "view log" icon on the row opens the log viewer so a red dot
+// no longer means "guess what went wrong". See JobLogModal.tsx.
 
+import { useState } from "react";
 import type { NodeRuntime } from "./AlgorithmNode";
 import { stateColour } from "./AlgorithmNode";
 import { CopyRefButton } from "./CopyRefButton";
+import { JobLogModal } from "./JobLogModal";
 
 export interface RecentJobRow {
   job_id: string;
@@ -30,7 +34,8 @@ const CARD: React.CSSProperties = {
   fontSize: "var(--fs-sm)",
   color: "var(--text-body)",
   display: "grid",
-  gridTemplateColumns: "10px 1fr auto auto auto",
+  // dot · title · progress · elapsed · [log-btn] · [copy-ref]
+  gridTemplateColumns: "10px 1fr auto auto auto auto",
   gap: 10,
   alignItems: "center",
   cursor: "pointer",
@@ -55,6 +60,20 @@ export function RecentJobsPanel({
     ? jobs.filter((j) => j.job_id && jobIsInWorkflow(j, currentWorkflowId))
     : jobs;
   const rows = scoped.slice(0, 25);
+
+  // Which job's log viewer is open. We keep the primer (algo name, state,
+  // elapsed) alongside so the modal header renders before the /api/jobs/
+  // roundtrip fills in fail_message.
+  const [openLog, setOpenLog] = useState<{
+    jobId: string;
+    primer: {
+      algorithm_name: string;
+      algorithm_version: string;
+      state: string;
+      fail_reason: string | null;
+      elapsed: string;
+    };
+  } | null>(null);
 
   return (
     <div
@@ -159,6 +178,22 @@ export function RecentJobsPanel({
           >
             {formatElapsed(j.created_ts, j.updated_ts)}
           </div>
+          <ViewLogButton
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpenLog({
+                jobId: j.job_id,
+                primer: {
+                  algorithm_name: j.algorithm_name,
+                  algorithm_version: j.algorithm_version,
+                  state: j.state,
+                  fail_reason: j.fail_reason ?? null,
+                  elapsed: formatElapsed(j.created_ts, j.updated_ts),
+                },
+              });
+            }}
+            state={j.state}
+          />
           <CopyRefButton
             kind="job"
             id={j.job_id}
@@ -167,7 +202,82 @@ export function RecentJobsPanel({
           />
         </div>
       ))}
+      <JobLogModal
+        jobId={openLog?.jobId ?? null}
+        primer={openLog?.primer ?? null}
+        onClose={() => setOpenLog(null)}
+      />
     </div>
+  );
+}
+
+// Compact icon button — opens the JobLogModal for one row. Sized to
+// match CopyRefButton (var(--control-h-sm)) so the two sit as a pair
+// at the row's tail. The icon is a simple three-line "document" glyph
+// (SVG so it doesn't render as an emoji on any platform); no colour on
+// idle, gentle brightening on hover so it doesn't fight the copy button.
+function ViewLogButton({
+  onClick,
+  state,
+}: {
+  onClick: (e: React.MouseEvent) => void;
+  state: string;
+}) {
+  const isTerminal =
+    state === "done" ||
+    state === "failed" ||
+    state === "cancelled" ||
+    state === "orphaned";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={
+        isTerminal
+          ? state === "failed"
+            ? "view failure log"
+            : "view log"
+          : "view log (running)"
+      }
+      aria-label="View job log"
+      data-hl-view-log=""
+      style={{
+        width: "var(--control-h-sm)",
+        height: "var(--control-h-sm)",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-sm)",
+        background: "var(--surface)",
+        color: "var(--text-muted)",
+        cursor: "pointer",
+        padding: 0,
+        transition:
+          "background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "var(--surface-hover)";
+        e.currentTarget.style.color = "var(--text)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "var(--surface)";
+        e.currentTarget.style.color = "var(--text-muted)";
+      }}
+    >
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        aria-hidden="true"
+      >
+        <path d="M3 3.5h10M3 8h10M3 12.5h6" />
+      </svg>
+    </button>
   );
 }
 

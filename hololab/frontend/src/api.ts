@@ -6,6 +6,8 @@ import type {
   ComputeNode,
   HandleInfo,
   HandleSummary,
+  JobDetail,
+  LogTail,
   NodeEffectiveConfig,
   RunSummaryRow,
   SnapshotDetail,
@@ -45,6 +47,27 @@ export const getComputeNodes = () =>
 
 export const getRecentJobs = () =>
   fetch("/api/jobs").then(json<Array<Record<string, unknown>>>);
+
+// Job detail — used by the log viewer to enrich the RecentJobRow with the
+// bigger ``fail_message`` blob (the panel row only carries ``fail_reason``).
+export const getJob = (job_id: string) =>
+  fetch(`/api/jobs/${encodeURIComponent(job_id)}`).then(json<JobDetail>);
+
+// Tail persisted stdout / stderr for one job. Default tail is high (10k)
+// because most jobs write far less than that and the endpoint pulls one
+// SQLite range scan either way — cheaper than paging.
+export const tailJobLog = (
+  job_id: string,
+  opts?: { tail?: number; stream?: "stdout" | "stderr" | "both" },
+) => {
+  const p = new URLSearchParams();
+  if (opts?.tail !== undefined) p.set("tail", String(opts.tail));
+  if (opts?.stream) p.set("stream", opts.stream);
+  const qs = p.toString();
+  return fetch(
+    `/api/jobs/${encodeURIComponent(job_id)}/log${qs ? "?" + qs : ""}`,
+  ).then(json<LogTail>);
+};
 
 export const getHandle = (handle_id: string) =>
   fetch(`/api/handles/${handle_id}`).then(json<HandleInfo>);
