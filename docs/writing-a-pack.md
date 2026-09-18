@@ -381,7 +381,7 @@ you may want to mirror it for other in-repo algorithms.
 Kiri4DGS/
 ├── sharp-4dgs/per-frame/
 │   ├── extract_frames_cli.py                    ← algorithm (A0 - frame extractor)
-│   ├── video-to-frames.manifest.yaml            ← pack for the above
+│   ├── frame-extraction.manifest.yaml           ← pack for the above
 │   ├── video_to_colmap.py                       ← algorithm (A1 tracker; --convert-only reuses A0 frames)
 │   ├── frames-to-camera-track.manifest.yaml     ← pack for the above (MegaSaM only)
 │   ├── video-to-camera-track.manifest.yaml      ← deprecated A0+A1 combo pack, kept for BC
@@ -407,7 +407,7 @@ and `Utils/STG_to_SplaTV/` are single-purpose directories so a top-level
 `manifest.yaml` (**mode 2**, index.html) is clean.
 
 The A0/A1 split — dedicated frame extractor
-(``video-to-frames``) + MegaSaM-only tracker
+(``frame-extraction``) + MegaSaM-only tracker
 (``frames-to-camera-track``) — replaces the older combined
 ``video-to-camera-track`` pack. That legacy pack stays in ``pack_dirs``
 so existing workflow drafts still resolve, but new workflows should
@@ -419,7 +419,7 @@ one entry per directory for mode-2:
 
 ```yaml
 pack_dirs:
-  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video-to-frames.manifest.yaml
+  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/frame-extraction.manifest.yaml
   - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/frames-to-camera-track.manifest.yaml
   - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video-to-camera-track.manifest.yaml
   - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/track-to-gs-sequence.manifest.yaml
