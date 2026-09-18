@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -109,9 +110,7 @@ async def run_snapshot(
 
         pack_entry = catalog_by_key.get((gnode.algorithm_name, gnode.algorithm_version))
         needs_fanout = bool(
-            gnode.arrayed_toggle
-            and pack_entry is not None
-            and pack_entry.get("arrayable", False)
+            gnode.arrayed_toggle and pack_entry is not None and pack_entry.get("arrayable", False)
         )
 
         if needs_fanout:
@@ -165,7 +164,23 @@ async def run_snapshot(
 # ---------------------------------------------------------------------------
 
 
-async def _run_fanout_node(
+@dataclass
+class _FanoutPlan:
+    """Everything needed to run a fan-out — assembled before the first
+    shard dispatch so callers can decide to run the body inline (the
+    ``run_snapshot`` path) or spawn it as a background task (the
+    single-node dispatch path)."""
+
+    parent_job: Job
+    parent_ws: str
+    element_ids: list[str]
+    arrayed_input_ports: list[str]
+    pack_outputs: dict[str, dict[str, Any]]
+    input_handles: dict[str, str]
+    session_node_id: str
+
+
+async def _prepare_fanout(
     app: FastAPI,
     *,
     snapshot_id: str,
@@ -173,18 +188,10 @@ async def _run_fanout_node(
     gnode: GraphNode,
     pack_entry: dict[str, Any],
     input_handles: dict[str, str],
-    job_timeout_s: float,
-) -> tuple[str, dict[str, str]]:
-    """Execute one arrayable graph node via sequential shard fan-out.
-
-    Returns ``(parent_job_id, {port -> aggregate_handle_id})``. The parent
-    row is created in PENDING → RUNNING → DONE|FAILED. Shard rows carry
-    ``parent_job_id`` + ``shard_element_id``; each writes into the parent's
-    workspace at ``{parent_ws}/{port}/{element_id}/``.
-
-    Failure model (v1): sequential + all-or-nothing. If a shard fails, we
-    do not create the remaining shards, mark the parent FAILED with a
-    reason that names the failing element, and raise ``WorkflowRunError``.
+) -> _FanoutPlan:
+    """Validate + create the parent-job row. Returns as soon as the row
+    is written (before any shard dispatch), so a fire-and-forget caller
+    can hand the parent_job_id back to the client.
     """
 
     registry: NodeRegistry = app.state.registry
@@ -204,7 +211,6 @@ async def _run_fanout_node(
             "cannot compute shard output prefix for fan-out"
         )
 
-    # -- Classify inputs: arrayed vs scalar --------------------------------
     pack_inputs: dict[str, dict[str, Any]] = pack_entry.get("inputs", {})
     pack_outputs: dict[str, dict[str, Any]] = pack_entry.get("outputs", {})
     arrayable = bool(pack_entry.get("arrayable", False))
@@ -215,22 +221,17 @@ async def _run_fanout_node(
         if effective_port_arrayed(bool(spec.get("arrayed", False)), arrayable, True)
     ]
     if not arrayed_input_ports:
-        # An arrayable node with the toggle on but no arrayed inputs — no
-        # element set to iterate. Treat as a validation error rather than
-        # silently produce zero shards.
         raise WorkflowRunError(
             f"graph node {gnode.id!r} has arrayed_toggle on but its pack "
             f"declares no arrayed inputs — nothing to fan out over"
         )
 
-    # -- Discover element set from every arrayed input ---------------------
     element_ids = await _discover_element_ids(
         handles=handles,
         input_handles=input_handles,
         arrayed_input_ports=arrayed_input_ports,
     )
 
-    # -- Create the parent job row (coordinator, no dispatch) --------------
     parent_job = Job(
         job_id=str(uuid.uuid4()),
         workflow_id=workflow_id,
@@ -246,12 +247,7 @@ async def _run_fanout_node(
     await store.create(parent_job)
     _push_update(hub, parent_job)
 
-    # Parent workspace path — shards write into
-    # ``{parent_ws}/{port}/{element_id}/`` via the shard_output_prefix override.
-    parent_ws = str(
-        Path(session.workspace_root) / "w" / workflow_id / "j" / parent_job.job_id
-    )
-
+    parent_ws = str(Path(session.workspace_root) / "w" / workflow_id / "j" / parent_job.job_id)
     log.info(
         "fanout begin",
         parent_job_id=parent_job.job_id,
@@ -260,14 +256,42 @@ async def _run_fanout_node(
         element_count=len(element_ids),
         compute_node=session.node_id,
     )
-
-    # Transition parent to RUNNING so the frontend sees a live indicator
-    # while shards execute. We use ASSIGNED as an intermediate since the
-    # state machine requires it.
-    parent_assigned = JobStateMachine.transition(
-        parent_job, JobState.ASSIGNED, node_id=session.node_id
+    return _FanoutPlan(
+        parent_job=parent_job,
+        parent_ws=parent_ws,
+        element_ids=element_ids,
+        arrayed_input_ports=arrayed_input_ports,
+        pack_outputs=pack_outputs,
+        input_handles=input_handles,
+        session_node_id=session.node_id,
     )
-    _, payload = event_from_transition(parent_job, parent_assigned)
+
+
+async def _execute_fanout_body(
+    app: FastAPI,
+    *,
+    snapshot_id: str,
+    workflow_id: str,
+    gnode: GraphNode,
+    plan: _FanoutPlan,
+    job_timeout_s: float,
+) -> dict[str, str]:
+    """Run the shard loop for a prepared fan-out. Returns
+    ``{port -> aggregate_handle_id}``. Transitions the parent job
+    PENDING → ASSIGNED → RUNNING → DONE|FAILED. Raises
+    :class:`WorkflowRunError` on shard failure (parent already marked
+    FAILED before the raise).
+    """
+
+    registry: NodeRegistry = app.state.registry
+    store: JobsStore = app.state.jobs_store
+    handles: HandleBook = app.state.handles
+    hub: FrontendHub = app.state.hub
+
+    parent_assigned = JobStateMachine.transition(
+        plan.parent_job, JobState.ASSIGNED, node_id=plan.session_node_id
+    )
+    _, payload = event_from_transition(plan.parent_job, parent_assigned)
     await store.update(parent_assigned, "transition:assigned", payload)
     _push_update(hub, parent_assigned)
     parent_running = JobStateMachine.transition(parent_assigned, JobState.RUNNING)
@@ -275,14 +299,13 @@ async def _run_fanout_node(
     await store.update(parent_running, "transition:running", payload)
     _push_update(hub, parent_running)
 
-    # -- Dispatch shards sequentially --------------------------------------
-    for idx, element_id in enumerate(element_ids):
+    for idx, element_id in enumerate(plan.element_ids):
         shard_inputs = await _shard_input_handles(
             handles=handles,
-            input_handles=input_handles,
-            arrayed_input_ports=arrayed_input_ports,
+            input_handles=plan.input_handles,
+            arrayed_input_ports=plan.arrayed_input_ports,
             element_id=element_id,
-            producer_node_id=session.node_id,
+            producer_node_id=plan.session_node_id,
         )
         shard_job_id = await _dispatch_shard(
             registry=registry,
@@ -291,10 +314,10 @@ async def _run_fanout_node(
             snapshot_id=snapshot_id,
             workflow_id=workflow_id,
             gnode=gnode,
-            parent_job_id=parent_job.job_id,
+            parent_job_id=plan.parent_job.job_id,
             shard_element_id=element_id,
             shard_input_handles=shard_inputs,
-            shard_output_prefix=parent_ws,
+            shard_output_prefix=plan.parent_ws,
         )
         final = await _await_job_terminal(store, shard_job_id, timeout_s=job_timeout_s)
         if final.state is not JobState.DONE:
@@ -302,43 +325,75 @@ async def _run_fanout_node(
             if final.fail_message:
                 reason += f": {final.fail_message}"
             await _mark_parent_failed(store, hub, parent_running, reason=reason)
-            raise WorkflowRunError(
-                f"fanout for graph node {gnode.id!r}: {reason}"
-            )
+            raise WorkflowRunError(f"fanout for graph node {gnode.id!r}: {reason}")
 
-    # -- Fan-in: register one aggregate output handle per output port ------
     parent_outputs: dict[str, str] = {}
-    for port_name, spec in pack_outputs.items():
-        aggregate_path = str(Path(parent_ws) / port_name)
+    for port_name, spec in plan.pack_outputs.items():
+        aggregate_path = str(Path(plan.parent_ws) / port_name)
         try:
             size_bytes = _dir_size_bytes(Path(aggregate_path))
         except OSError:
             size_bytes = None
         aggregate = Handle(
             handle_id=str(uuid.uuid4()),
-            node_id=session.node_id,
+            node_id=plan.session_node_id,
             storage=spec.get("storage", "dir"),
             tags=list(spec.get("tags", [])),
             path=aggregate_path,
             size_bytes=size_bytes,
-            job_id=parent_job.job_id,
+            job_id=plan.parent_job.job_id,
             output_port_name=port_name,
         )
         await handles.register(aggregate)
         parent_outputs[port_name] = aggregate.handle_id
 
-    # -- Parent → DONE ------------------------------------------------------
     parent_done = JobStateMachine.transition(parent_running, JobState.DONE)
     _, payload = event_from_transition(parent_running, parent_done)
     await store.update(parent_done, "transition:done", payload)
     _push_update(hub, parent_done)
     log.info(
         "fanout done",
-        parent_job_id=parent_job.job_id,
+        parent_job_id=plan.parent_job.job_id,
         graph_node=gnode.id,
-        element_count=len(element_ids),
+        element_count=len(plan.element_ids),
     )
-    return parent_job.job_id, parent_outputs
+    return parent_outputs
+
+
+async def _run_fanout_node(
+    app: FastAPI,
+    *,
+    snapshot_id: str,
+    workflow_id: str,
+    gnode: GraphNode,
+    pack_entry: dict[str, Any],
+    input_handles: dict[str, str],
+    job_timeout_s: float,
+) -> tuple[str, dict[str, str]]:
+    """Blocking fan-out — used by :func:`run_snapshot` where the caller
+    waits for every shard to finish before proceeding to the next node.
+
+    See :func:`_prepare_fanout` + :func:`_execute_fanout_body` for the
+    split used by the single-node dispatch path.
+    """
+
+    plan = await _prepare_fanout(
+        app,
+        snapshot_id=snapshot_id,
+        workflow_id=workflow_id,
+        gnode=gnode,
+        pack_entry=pack_entry,
+        input_handles=input_handles,
+    )
+    outputs = await _execute_fanout_body(
+        app,
+        snapshot_id=snapshot_id,
+        workflow_id=workflow_id,
+        gnode=gnode,
+        plan=plan,
+        job_timeout_s=job_timeout_s,
+    )
+    return plan.parent_job.job_id, outputs
 
 
 async def _discover_element_ids(
@@ -377,9 +432,7 @@ async def _discover_element_ids(
                     if not e.name.startswith(".") and e.is_dir(follow_symlinks=True)
                 )
         except OSError as exc:
-            raise WorkflowRunError(
-                f"cannot list arrayed input {port!r} ({h.path}): {exc}"
-            ) from exc
+            raise WorkflowRunError(f"cannot list arrayed input {port!r} ({h.path}): {exc}") from exc
         sets_by_port[port] = entries
 
     reference_port, reference = next(iter(sets_by_port.items()))
@@ -833,9 +886,7 @@ async def dispatch_graph_node(
     gnode = node_by_id[graph_node_id]
 
     if gnode.assigned_node_id is None:
-        raise DispatchError(
-            f"graph node {graph_node_id!r} has no assigned compute node"
-        )
+        raise DispatchError(f"graph node {graph_node_id!r} has no assigned compute node")
 
     # -- Choose Continue vs Fork --------------------------------------------
     existing_job_id: str | None = None
@@ -845,9 +896,7 @@ async def dispatch_graph_node(
 
     if base_snapshot_id is None:
         # No base → new snapshot, first attribution.
-        snap = await workflows_store.create_snapshot(
-            workflow_id=workflow_id, graph=graph
-        )
+        snap = await workflows_store.create_snapshot(workflow_id=workflow_id, graph=graph)
         target_snapshot_id = snap.snapshot_id
         operation = "continue"
     elif existing_job_id is None:
@@ -885,26 +934,98 @@ async def dispatch_graph_node(
     # -- Assigned node must be online ----------------------------------------
     session = registry.get_session(gnode.assigned_node_id)
     if session is None:
-        raise DispatchError(
-            f"assigned compute node {gnode.assigned_node_id!r} is not online"
-        )
+        raise DispatchError(f"assigned compute node {gnode.assigned_node_id!r} is not online")
 
-    # -- Dispatch the actual job --------------------------------------------
-    job_id = await _dispatch_job(
-        registry=registry,
-        store=jobs_store,
-        hub=hub,
-        snapshot_id=target_snapshot_id,
-        workflow_id=workflow_id,
-        gnode=gnode,
-        input_handles=input_handles,
+    # -- Fan-out routing: mirror the check ``run_snapshot`` does at
+    # execution.py:111. Without this, a single-node dispatch of an
+    # arrayable node with the arrayed toggle on would run the exec
+    # ONCE against the array-root handles, and the pack's per-shard
+    # input assumptions (e.g. ``{{ inputs.cams }}/cameras.txt``) would
+    # blow up. See the header button in AlgorithmNode's card.
+    pack_entry: dict[str, Any] | None = next(
+        (
+            c
+            for c in registry.catalog_json()
+            if c["name"] == gnode.algorithm_name and c["version"] == gnode.algorithm_version
+        ),
+        None,
+    )
+    needs_fanout = bool(
+        gnode.arrayed_toggle and pack_entry is not None and pack_entry.get("arrayable", False)
     )
 
-    # We don't wait for the job here — the REST call returns while the
-    # subprocess runs. The snapshot_jobs attribution happens when the
-    # job reaches DONE (in the job_done handler, not here). If the job
-    # fails / is cancelled, no attribution is written and the slot in
-    # target_snapshot_id stays empty — the user can re-dispatch.
+    if needs_fanout:
+        # Prepare synchronously so we can return the parent job_id in
+        # the API response; run the shard loop as a background task so
+        # the endpoint stays fire-and-forget (matching the non-fanout
+        # branch below). Attribution happens inside the task when the
+        # parent completes, mirroring ``run_snapshot`` line 128.
+        try:
+            plan = await _prepare_fanout(
+                app,
+                snapshot_id=target_snapshot_id,
+                workflow_id=workflow_id,
+                gnode=gnode,
+                pack_entry=pack_entry,
+                input_handles=input_handles,
+            )
+        except WorkflowRunError as exc:
+            raise DispatchError(str(exc)) from exc
+        job_id = plan.parent_job.job_id
+
+        async def _run_shards_in_background() -> None:
+            try:
+                await _execute_fanout_body(
+                    app,
+                    snapshot_id=target_snapshot_id,
+                    workflow_id=workflow_id,
+                    gnode=gnode,
+                    plan=plan,
+                    job_timeout_s=24 * 3600,
+                )
+            except WorkflowRunError:
+                # Parent already marked FAILED inside the body; no
+                # attribution written so the operator can re-dispatch.
+                return
+            except Exception:
+                log.exception(
+                    "dispatch fan-out task crashed unexpectedly",
+                    parent_job_id=plan.parent_job.job_id,
+                    graph_node=gnode.id,
+                )
+                return
+            try:
+                await snapshot_jobs.attribute(target_snapshot_id, plan.parent_job.job_id, gnode.id)
+            except Exception:
+                log.exception(
+                    "attribution failed after fan-out done",
+                    parent_job_id=plan.parent_job.job_id,
+                    graph_node=gnode.id,
+                )
+
+        # Retain a reference so the GC doesn't reap the background task
+        # mid-run (RUF006). Same pattern as ``app.py`` uses for full
+        # ``workflow_run_tasks``.
+        fanout_task = asyncio.create_task(
+            _run_shards_in_background(),
+            name=f"dispatch-fanout-{plan.parent_job.job_id}",
+        )
+        _bg_tasks: set[asyncio.Task[None]] = getattr(app.state, "dispatch_fanout_tasks", set())
+        _bg_tasks.add(fanout_task)
+        fanout_task.add_done_callback(_bg_tasks.discard)
+        app.state.dispatch_fanout_tasks = _bg_tasks
+    else:
+        # Non-fanout: fire-and-forget dispatch; attribution happens in
+        # the WS ``job_done`` handler when the subprocess reports DONE.
+        job_id = await _dispatch_job(
+            registry=registry,
+            store=jobs_store,
+            hub=hub,
+            snapshot_id=target_snapshot_id,
+            workflow_id=workflow_id,
+            gnode=gnode,
+            input_handles=input_handles,
+        )
 
     result: dict[str, Any] = {
         "snapshot_id": target_snapshot_id,
@@ -941,7 +1062,6 @@ async def _resolve_inputs_from_snapshot(
     the endpoint layer can surface a human-readable "upstream X hasn't
     produced Y yet" message.
     """
-
 
     snapshot_jobs: SnapshotJobsStore = app.state.snapshot_jobs
     handles: HandleBook = app.state.handles

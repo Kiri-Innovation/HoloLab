@@ -39,7 +39,6 @@ from hololab.gateway.execution import (
     run_snapshot,
 )
 from hololab.gateway.handles import Handle, HandleBook
-from hololab.persistence.db import open_database
 from hololab.gateway.jobs import Job, JobState, JobStateMachine, event_from_transition
 from hololab.gateway.registry import NodeSession
 from hololab.gateway.workflows import (
@@ -49,8 +48,8 @@ from hololab.gateway.workflows import (
 )
 from hololab.manifest.render import rendered_output_paths
 from hololab.manifest.schema import Manifest
+from hololab.persistence.db import open_database
 from hololab.protocol.messages import GpuInfo, JobFailReason
-
 
 # ---------------------------------------------------------------------------
 # Unit — rendered_output_paths shard override
@@ -266,7 +265,6 @@ async def _drive_shards(
     """
 
     store = client_app.state.jobs_store
-    hub = client_app.state.hub
     processed: set[str] = set()
 
     async def _loop() -> None:
@@ -290,9 +288,7 @@ async def _drive_shards(
                 await store.update(running, kind, payload)
                 idx_seen = len(processed)
                 processed.add(jid)
-                should_fail = (
-                    fail_at_index is not None and idx_seen == fail_at_index
-                )
+                should_fail = fail_at_index is not None and idx_seen == fail_at_index
                 if should_fail:
                     failed = JobStateMachine.transition(
                         running,
@@ -396,12 +392,8 @@ async def test_fanout_creates_shards_and_registers_aggregate(tmp_path: Path) -> 
                     ),
                 ],
             )
-            await app.state.workflows.save_draft(
-                workflow_id="wf1", name="fan-e2e", graph=graph
-            )
-            snap = await app.state.workflows.create_snapshot(
-                workflow_id="wf1", graph=graph
-            )
+            await app.state.workflows.save_draft(workflow_id="wf1", name="fan-e2e", graph=graph)
+            snap = await app.state.workflows.create_snapshot(workflow_id="wf1", graph=graph)
             return snap.snapshot_id, graph
 
         snapshot_id, graph = client.portal.call(_seed)
@@ -425,9 +417,7 @@ async def test_fanout_creates_shards_and_registers_aggregate(tmp_path: Path) -> 
         # Parent job returned + 2 shards persisted with parent_job_id.
         assert len(job_ids) == 1
         parent_id = job_ids[0]
-        shards = client.portal.call(
-            lambda: app.state.jobs_store.list_shards_of(parent_id)
-        )
+        shards = client.portal.call(lambda: app.state.jobs_store.list_shards_of(parent_id))
         assert len(shards) == 2
         assert sorted(s.shard_element_id for s in shards) == ["cam_A", "cam_B"]
         for s in shards:
@@ -436,9 +426,7 @@ async def test_fanout_creates_shards_and_registers_aggregate(tmp_path: Path) -> 
 
         # Aggregate output handle registered on the parent, pointing at
         # ``{parent_ws}/out`` — the natural aggregation directory.
-        parent_handles = client.portal.call(
-            lambda: app.state.handles.list_by_job(parent_id)
-        )
+        parent_handles = client.portal.call(lambda: app.state.handles.list_by_job(parent_id))
         assert len(parent_handles) == 1
         aggregate = parent_handles[0]
         assert aggregate.output_port_name == "out"
@@ -448,9 +436,7 @@ async def test_fanout_creates_shards_and_registers_aggregate(tmp_path: Path) -> 
         # Every shard's job_assign frame carried shard_element_id +
         # shard_output_prefix.
         frames_sent = [call.args[0] for call in session.ws.send_text.call_args_list]
-        assign_frames = [
-            json.loads(f) for f in frames_sent if '"kind":"job_assign"' in f
-        ]
+        assign_frames = [json.loads(f) for f in frames_sent if '"kind":"job_assign"' in f]
         assert len(assign_frames) == 2
         payloads = sorted(
             (env["payload"] for env in assign_frames),
@@ -459,9 +445,7 @@ async def test_fanout_creates_shards_and_registers_aggregate(tmp_path: Path) -> 
         assert payloads[0]["shard_element_id"] == "cam_A"
         assert payloads[1]["shard_element_id"] == "cam_B"
         for p in payloads:
-            assert p["shard_output_prefix"] == str(
-                ws_root / "w" / "wf1" / "j" / parent_id
-            )
+            assert p["shard_output_prefix"] == str(ws_root / "w" / "wf1" / "j" / parent_id)
 
 
 @pytest.mark.asyncio
@@ -534,9 +518,7 @@ async def test_fanout_shard_failure_marks_parent_failed(tmp_path: Path) -> None:
             await app.state.workflows.save_draft(
                 workflow_id="wf1", name="fan-fail-e2e", graph=graph
             )
-            snap = await app.state.workflows.create_snapshot(
-                workflow_id="wf1", graph=graph
-            )
+            snap = await app.state.workflows.create_snapshot(workflow_id="wf1", graph=graph)
             return snap.snapshot_id, graph
 
         snapshot_id, graph = client.portal.call(_seed)
@@ -561,9 +543,165 @@ async def test_fanout_shard_failure_marks_parent_failed(tmp_path: Path) -> None:
 
         # Only 2 shards should have been dispatched (0=cam_A done, 1=cam_B
         # failed) — the third element is never created.
-        rows = client.portal.call(
-            lambda: app.state.jobs_store.list_recent(100, order="asc")
-        )
+        rows = client.portal.call(lambda: app.state.jobs_store.list_recent(100, order="asc"))
         shard_rows = [r for r in rows if r["graph_node_id"] == "fan"]
         # 1 parent + 2 shards. Third (cam_C) skipped.
         assert len(shard_rows) == 3
+
+
+# ---------------------------------------------------------------------------
+# Single-node dispatch fan-out — the ``POST /dispatch/{gnode}`` endpoint
+# used to bypass ``_run_fanout_node`` entirely and just call ``_dispatch_job``,
+# so running a fan-out node in isolation (via the AlgorithmNode's header
+# Run button) blew up because ``{{ inputs.X }}`` rendered to the array
+# root instead of a per-shard element. Regression: the endpoint must
+# now honor arrayable+arrayed_toggle and spin up a shard fan-out even
+# for single-node dispatch.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_single_node_dispatch_fans_out_arrayable(tmp_path: Path) -> None:
+    ws_root = tmp_path / "ws"
+    ws_root.mkdir()
+    app = create_app(db_path=tmp_path / "test.sqlite")
+
+    from fastapi.testclient import TestClient
+
+    with TestClient(app) as client:
+        _fake_online_node(app, workspace_root=ws_root)
+        _install_fake_catalog(app)
+
+        arr_root = tmp_path / "arr"
+        arr_root.mkdir()
+        (arr_root / "cam_A").mkdir()
+        (arr_root / "cam_B").mkdir()
+
+        async def _seed() -> str:
+            await app.state.handles.register(
+                Handle(
+                    handle_id="h-arr",
+                    node_id="node-a",
+                    storage="dir",
+                    tags=["frame_sequence"],
+                    path=str(arr_root),
+                    job_id="upstream-job",
+                    output_port_name="out",
+                )
+            )
+            upstream = Job(
+                job_id="upstream-job",
+                workflow_id="wf-dispatch",
+                snapshot_id=None,
+                algorithm_name="src",
+                algorithm_version="0.1.0",
+                params={},
+                input_handles={},
+                graph_node_id="src",
+                state=JobState.DONE,
+            )
+            await app.state.jobs_store.create(upstream)
+
+            graph = WorkflowGraph(
+                nodes=[
+                    GraphNode(
+                        id="src",
+                        algorithm_name="src",
+                        algorithm_version="0.1.0",
+                        assigned_node_id="node-a",
+                    ),
+                    GraphNode(
+                        id="fan",
+                        algorithm_name="fanout-demo",
+                        algorithm_version="0.1.0",
+                        assigned_node_id="node-a",
+                        arrayed_toggle=True,
+                    ),
+                ],
+                edges=[
+                    GraphEdge(
+                        id="e",
+                        source="src",
+                        sourceHandle="out",
+                        target="fan",
+                        targetHandle="frames",
+                    ),
+                ],
+            )
+            await app.state.workflows.save_draft(
+                workflow_id="wf-dispatch", name="fan-single-dispatch", graph=graph
+            )
+            snap = await app.state.workflows.create_snapshot(workflow_id="wf-dispatch", graph=graph)
+            # Seed the ``src`` slot in the snapshot so the fan-out node's
+            # input can be resolved from the snapshot's attributions.
+            await app.state.snapshot_jobs.attribute(snap.snapshot_id, upstream.job_id, "src")
+            return snap.snapshot_id
+
+        snapshot_id = client.portal.call(_seed)
+
+        # Kick off the shard driver BEFORE dispatch so the shards land in
+        # ASSIGNED then get picked up by the background loop as they appear.
+        driver_task = client.portal.call(lambda: _drive_shards(app))
+        try:
+            r = client.post(
+                "/api/workflows/wf-dispatch/dispatch/fan",
+                params={"base_snapshot_id": snapshot_id},
+            )
+            assert r.status_code == 200, r.text
+            body = r.json()
+            assert body["operation"] == "continue"
+            # The returned ``job_id`` is the parent coordinator's, not a
+            # normal single-shot dispatch — proves fan-out was routed.
+            parent_id = body["job_id"]
+
+            # Wait for the background fan-out task to finish (poll the
+            # parent job's state; bounded so a bug can't hang the test).
+            async def _wait_done() -> Job:
+                for _ in range(300):
+                    job = await app.state.jobs_store.get(parent_id)
+                    if job is not None and job.state in {
+                        JobState.DONE,
+                        JobState.FAILED,
+                    }:
+                        return job
+                    await asyncio.sleep(0.05)
+                raise AssertionError("parent job never reached terminal state")
+
+            parent = client.portal.call(_wait_done)
+            assert parent.state is JobState.DONE
+
+            # Shards should exist under this parent.
+            shards = client.portal.call(lambda: app.state.jobs_store.list_shards_of(parent_id))
+            assert sorted(s.shard_element_id for s in shards) == ["cam_A", "cam_B"]
+            for s in shards:
+                assert s.state is JobState.DONE
+
+            # Aggregate handle registered on the parent (as with the
+            # ``run_snapshot`` path).
+            parent_handles = client.portal.call(lambda: app.state.handles.list_by_job(parent_id))
+            assert len(parent_handles) == 1
+            assert parent_handles[0].output_port_name == "out"
+
+            # Attribution: the fan-out background task attributes the
+            # parent to "fan" in the target snapshot. (Each shard is
+            # ALSO auto-attributed by ``JobsStore.update`` when it hits
+            # DONE — that's a pre-existing quirk of the bridge, not
+            # something this test is about; we just assert the parent
+            # made it in.)
+            async def _wait_attributed() -> list[dict[str, str]]:
+                for _ in range(200):
+                    rows = await app.state.snapshot_jobs.list_attributions(snapshot_id)
+                    fan_rows = [r for r in rows if r["graph_node_id"] == "fan"]
+                    if any(r["job_id"] == parent_id for r in fan_rows):
+                        return fan_rows
+                    await asyncio.sleep(0.05)
+                raise AssertionError(
+                    f"parent {parent_id} never attributed to 'fan' "
+                    f"(rows={rows})"
+                )
+
+            fan_rows = client.portal.call(_wait_attributed)
+            attributed_ids = {r["job_id"] for r in fan_rows}
+            assert parent_id in attributed_ids
+        finally:
+            client.portal.call(driver_task.cancel)
