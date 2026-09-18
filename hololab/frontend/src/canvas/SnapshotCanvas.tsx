@@ -34,6 +34,8 @@ import {
   useEdgesState,
   useNodesState,
   type Edge,
+  type EdgeMouseHandler,
+  type EdgeProps,
   type Node,
   type NodeChange,
   type NodeMouseHandler,
@@ -52,6 +54,8 @@ import {
 } from "./AlgorithmNode";
 import { MinimapToggleButton } from "./MinimapToggleButton";
 import { aggregateJobsToRuntime } from "./nodeRuntime";
+import { TypedEdge, type TypedEdgeData } from "./TypedEdge";
+import { effectiveOutputType, formatTypeLabel, formatTypeLabelLong } from "./edgeLabels";
 
 const NODE_TYPES = { algorithm: AlgorithmNode };
 
@@ -62,6 +66,12 @@ export interface SnapshotCanvasProps {
   // owned by App so it can also drive the inspector.
   selectedGraphNodeId: string | null;
   onSelectionChange: (graphNodeId: string | null) => void;
+  // Currently-selected edge id — same reason as ``selectedGraphNodeId``:
+  // lifting it here lets the App-owned bottom panel switch between the
+  // NodeInspector and the EdgeInspector without cross-referencing
+  // xyflow's internal state.
+  selectedEdgeId: string | null;
+  onEdgeSelectionChange: (edgeId: string | null) => void;
 }
 
 export function SnapshotCanvas({
@@ -69,6 +79,8 @@ export function SnapshotCanvas({
   catalog,
   selectedGraphNodeId,
   onSelectionChange,
+  selectedEdgeId,
+  onEdgeSelectionChange,
 }: SnapshotCanvasProps) {
   // Index the catalog by (name, version) so pack lookup for each snapshot
   // node is O(1). If the pack has been uninstalled since the run we still
@@ -246,14 +258,26 @@ export function SnapshotCanvas({
         },
       };
     });
-    const rfEdges: Edge[] = snapshot.graph.edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      sourceHandle: e.sourceHandle,
-      target: e.target,
-      targetHandle: e.targetHandle,
-      style: { strokeWidth: 2 },
-    }));
+    const rfEdges: Edge<TypedEdgeData>[] = snapshot.graph.edges.map((e) => {
+      const type = effectiveOutputType(e.source, e.sourceHandle, {
+        nodes: snapshot.graph.nodes,
+        edges: snapshot.graph.edges,
+        catalogByKey,
+      });
+      return {
+        id: e.id,
+        source: e.source,
+        sourceHandle: e.sourceHandle,
+        target: e.target,
+        targetHandle: e.targetHandle,
+        type: "typed",
+        selected: e.id === selectedEdgeId,
+        data: {
+          label: formatTypeLabel(type),
+          labelLong: formatTypeLabelLong(type),
+        },
+      };
+    });
     return { nodes: rfNodes, edges: rfEdges };
     // Selection is applied per-render below, so it's intentionally NOT
     // in the dep list here — otherwise every selection change would
@@ -273,7 +297,8 @@ export function SnapshotCanvas({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<AlgorithmNodeData>>(
     initial.nodes,
   );
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initial.edges);
+  const [edges, setEdges, onEdgesChange] =
+    useEdgesState<Edge<TypedEdgeData>>(initial.edges);
 
   // Re-seed when we switch to a different snapshot (or the catalog
   // changes and pack labels need refreshing).
@@ -296,23 +321,74 @@ export function SnapshotCanvas({
     );
   }, [selectedGraphNodeId, setNodes]);
 
+  // Same for edge selection so the accent-highlighted stroke reflects
+  // App-owned state (needed for e.g. programmatic edge selection).
+  useEffect(() => {
+    setEdges((current) =>
+      current.map((e) =>
+        e.selected === (e.id === selectedEdgeId)
+          ? e
+          : { ...e, selected: e.id === selectedEdgeId },
+      ),
+    );
+  }, [selectedEdgeId, setEdges]);
+
+  // Reverse sync: publish xyflow's own edge selection back up to the
+  // App so wire clicks (routed through xyflow's internal onEdgesChange
+  // handler) reach the bottom inspector uniformly.
+  useEffect(() => {
+    const sel = edges.find((e) => e.selected)?.id ?? null;
+    if (sel !== selectedEdgeId) onEdgeSelectionChange(sel);
+  }, [edges, selectedEdgeId, onEdgeSelectionChange]);
+
+  // Chip click callback passed to TypedEdge — mirrors onEdgeClick so
+  // chip and wire clicks both go through the App-owned selection state.
+  const onSelectEdge = useCallback(
+    (id: string) => {
+      onEdgeSelectionChange(id);
+      onSelectionChange(null);
+    },
+    [onEdgeSelectionChange, onSelectionChange],
+  );
+  const edgeTypes = useMemo(
+    () => ({
+      typed: (props: EdgeProps) => (
+        <TypedEdge {...props} onSelect={onSelectEdge} />
+      ),
+    }),
+    [onSelectEdge],
+  );
+
   const onNodeClick: NodeMouseHandler = (_evt, node) => {
     onSelectionChange(node.id);
+    onEdgeSelectionChange(null);
   };
-  const onPaneClick = () => onSelectionChange(null);
+  const onEdgeClick: EdgeMouseHandler = (_evt, edge) => {
+    onEdgeSelectionChange(edge.id);
+    onSelectionChange(null);
+  };
+  const onPaneClick = () => {
+    onSelectionChange(null);
+    onEdgeSelectionChange(null);
+  };
 
   return (
     <ReactFlow
       nodes={nodes}
       edges={edges}
       nodeTypes={NODE_TYPES}
+      edgeTypes={edgeTypes}
       onNodesChange={onNodesChange as (c: NodeChange[]) => void}
       onEdgesChange={onEdgesChange}
       onNodeClick={onNodeClick}
+      onEdgeClick={onEdgeClick}
       onPaneClick={onPaneClick}
       // Read-only affordances: no drag, no connect, no deletion. We
       // still leave elementsSelectable=true (the default) because the
-      // whole point of the snapshot view is to inspect nodes.
+      // whole point of the snapshot view is to inspect nodes and edges.
+      // ``edgesFocusable`` stays off (keyboard-focus / delete-key on
+      // edges is a draft affordance), but the edge stays *selectable*
+      // via ``onEdgeClick`` above.
       nodesDraggable={false}
       nodesConnectable={false}
       edgesFocusable={false}

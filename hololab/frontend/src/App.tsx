@@ -22,6 +22,7 @@ import {
   useUpdateNodeInternals,
   type Connection,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeChange,
   type OnConnect,
@@ -77,6 +78,13 @@ import { PackPalette } from "./canvas/PackPalette";
 import { ComputeNodesPanel } from "./canvas/ComputeNodesPanel";
 import { MinimapToggleButton } from "./canvas/MinimapToggleButton";
 import { NodeInspector } from "./canvas/NodeInspector";
+import { EdgeInspector } from "./canvas/EdgeInspector";
+import { TypedEdge, type TypedEdgeData } from "./canvas/TypedEdge";
+import {
+  effectiveOutputType,
+  formatTypeLabel,
+  formatTypeLabelLong,
+} from "./canvas/edgeLabels";
 import { RunsPanel } from "./canvas/RunsPanel";
 import { useDraftAutosave } from "./canvas/useDraftAutosave";
 import { SnapshotBanner } from "./canvas/SnapshotBanner";
@@ -548,8 +556,52 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [snapshotSelectedGraphNodeId, setSnapshotSelectedGraphNodeId] = useState<
     string | null
   >(null);
+  // Snapshot-view edge selection: lifted to App so the App-owned
+  // bottom inspector can switch between NodeInspector and EdgeInspector.
+  // (The draft view derives ``selectedEdge`` from xyflow's own
+  // ``edge.selected`` flag — same pattern the existing draft node
+  // selection uses via ``selectedNode``.)
+  const [snapshotSelectedEdgeId, setSnapshotSelectedEdgeId] = useState<
+    string | null
+  >(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<AlgorithmNodeData>>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<TypedEdgeData>>([]);
+  // Stable refs so onSelectEdge doesn't depend on edges/nodes and
+  // doesn't need to be recreated (which would remount all TypedEdge
+  // instances via edgeTypes useMemo).
+  const edgesRef = useRef(edges);
+  edgesRef.current = edges;
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  // Controlled-state callback for chip clicks: selects this edge and
+  // deselects all others + all nodes, so EdgeInspector reliably reflects
+  // the selection (rf.setEdges bypasses the controlled state and gets
+  // overwritten on the next render that re-applies the edges prop).
+  const onSelectEdge = useCallback(
+    (id: string) => {
+      onEdgesChange(
+        edgesRef.current.map((e) => ({
+          id: e.id,
+          type: "select" as const,
+          selected: e.id === id,
+        })),
+      );
+      onNodesChange(
+        nodesRef.current
+          .filter((n) => n.selected)
+          .map((n) => ({ id: n.id, type: "select" as const, selected: false })),
+      );
+    },
+    [onEdgesChange, onNodesChange],
+  );
+  const edgeTypes = useMemo(
+    () => ({
+      typed: (props: EdgeProps) => (
+        <TypedEdge {...props} onSelect={onSelectEdge} />
+      ),
+    }),
+    [onSelectEdge],
+  );
   // Imperative "re-measure this node" — used defensively after graph
   // hydration to nudge xyflow into re-parsing handle positions even
   // when the DOM element's dimensions didn't change (e.g. a fresh
@@ -856,7 +908,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
       setEdges((es) =>
         addEdge(
-          { ...conn, id: mintId("e"), animated: false, style: { strokeWidth: 2 } },
+          {
+            ...conn,
+            id: mintId("e"),
+            animated: false,
+            type: "typed",
+            data: {},
+          },
           es,
         ),
       );
@@ -905,6 +963,48 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   // --- selection → NodeInspector ---------------------------------------
   const selectedNode = useMemo(() => nodes.find((n) => n.selected) || null, [nodes]);
+  const selectedEdge = useMemo(() => edges.find((e) => e.selected) || null, [edges]);
+
+  // --- edge type labels ------------------------------------------------
+  //
+  // Re-project the draft graph into ``{GraphNode[], GraphEdge[]}`` shape
+  // for ``effectiveOutputType`` to walk (it needs ``tags_from`` back-refs
+  // via edges). We do it once per (nodes, edges, catalog) change and
+  // patch the label onto each edge's data. Object identity of the edge
+  // is preserved when the label didn't change so xyflow doesn't churn.
+  const displayEdges = useMemo(() => {
+    if (edges.length === 0) return edges;
+    const graphNodes = nodes.map((n) => ({
+      id: n.id,
+      algorithm_name: n.data.pack.name,
+      algorithm_version: n.data.pack.version,
+      position: n.position,
+      params: {},
+      assigned_node_id: n.data.assigned_node_id,
+      arrayed_toggle: Boolean(
+        (n.data as AlgorithmNodeData & { arrayed_toggle?: boolean }).arrayed_toggle,
+      ),
+    }));
+    const graphEdges = edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      sourceHandle: e.sourceHandle ?? "",
+      target: e.target,
+      targetHandle: e.targetHandle ?? "",
+    }));
+    return edges.map((e) => {
+      const t = effectiveOutputType(e.source, e.sourceHandle ?? "", {
+        nodes: graphNodes,
+        edges: graphEdges,
+        catalogByKey,
+      });
+      const label = formatTypeLabel(t);
+      const labelLong = formatTypeLabelLong(t);
+      const prev = e.data as TypedEdgeData | undefined;
+      if (prev?.label === label && prev.labelLong === labelLong) return e;
+      return { ...e, data: { ...(prev ?? {}), label, labelLong } };
+    });
+  }, [edges, nodes, catalogByKey]);
 
   // Snapshot-mode counterparts. Derived from viewingSnapshot +
   // snapshotSelectedGraphNodeId so the read-only inspector reflects
@@ -926,6 +1026,161 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     if (!gn) return null;
     return catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`) ?? null;
   }, [viewingSnapshot, snapshotSelectedGraphNodeId, catalogByKey]);
+
+  // Compose props for the EdgeInspector. Draft vs snapshot: both funnel
+  // into the same component with the same shape; the difference is only
+  // *where* the source handle id comes from (draft: previewsByGraphNode
+  // lookup; snapshot: SnapshotJob.output_handles). Returns null when
+  // nothing is selected or when the selected edge can't be resolved
+  // (source node disappeared etc.).
+  const edgeInspectorProps = useMemo(() => {
+    if (viewingSnapshot) {
+      if (!snapshotSelectedEdgeId) return null;
+      const ge = viewingSnapshot.graph.edges.find(
+        (e) => e.id === snapshotSelectedEdgeId,
+      );
+      if (!ge) return null;
+      const srcNode = viewingSnapshot.graph.nodes.find((n) => n.id === ge.source);
+      const tgtNode = viewingSnapshot.graph.nodes.find((n) => n.id === ge.target);
+      if (!srcNode || !tgtNode) return null;
+      const srcPack =
+        catalogByKey.get(
+          `${srcNode.algorithm_name}@${srcNode.algorithm_version}`,
+        ) ?? null;
+      const tgtPack =
+        catalogByKey.get(
+          `${tgtNode.algorithm_name}@${tgtNode.algorithm_version}`,
+        ) ?? null;
+      const portSpec = srcPack?.outputs[ge.sourceHandle] ?? null;
+      const type = effectiveOutputType(ge.source, ge.sourceHandle, {
+        nodes: viewingSnapshot.graph.nodes,
+        edges: viewingSnapshot.graph.edges,
+        catalogByKey,
+      });
+      // Source handle from the frozen job for this graph node (if any
+      // job attributed to this slot produced named outputs).
+      const srcJob = viewingSnapshot.jobs.find(
+        (j) => j.graph_node_id === ge.source,
+      );
+      const handleId = srcJob?.output_handles?.[ge.sourceHandle] ?? null;
+      // We don't know the producing compute node without a getHandle
+      // round-trip; the inspector fetches HandleInfo internally which
+      // carries node_id — but the OpenInCocoderButton needs the full
+      // ComputeNode object. Pass null here; the button will render but
+      // show the "not configured" guide until the user connects it.
+      // (A follow-up can resolve node_id → ComputeNode after the
+      // handle loads.)
+      const computeNode = null;
+      return {
+        edgeId: ge.id,
+        edgeType: type,
+        source: {
+          node: srcNode,
+          pack: srcPack,
+          portName: ge.sourceHandle,
+          portSpec,
+          handleId,
+          computeNode,
+        },
+        target: {
+          node: tgtNode,
+          pack: tgtPack,
+          portName: ge.targetHandle,
+        },
+      };
+    }
+    // Draft view.
+    if (!selectedEdge) return null;
+    const srcRf = nodes.find((n) => n.id === selectedEdge.source);
+    const tgtRf = nodes.find((n) => n.id === selectedEdge.target);
+    if (!srcRf || !tgtRf) return null;
+    const srcPack = srcRf.data.pack;
+    const tgtPack = tgtRf.data.pack;
+    const sourceHandle = selectedEdge.sourceHandle ?? "";
+    const targetHandle = selectedEdge.targetHandle ?? "";
+    const portSpec = srcPack.outputs[sourceHandle] ?? null;
+    // Rebuild GraphNode/Edge shape for effectiveOutputType (matches
+    // displayEdges above; kept inline because the args differ enough
+    // that pulling into a helper wouldn't pay for itself).
+    const graphNodes = nodes.map((n) => ({
+      id: n.id,
+      algorithm_name: n.data.pack.name,
+      algorithm_version: n.data.pack.version,
+      position: n.position,
+      params: {},
+      assigned_node_id: n.data.assigned_node_id,
+      arrayed_toggle: Boolean(
+        (n.data as AlgorithmNodeData & { arrayed_toggle?: boolean }).arrayed_toggle,
+      ),
+    }));
+    const graphEdges = edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      sourceHandle: e.sourceHandle ?? "",
+      target: e.target,
+      targetHandle: e.targetHandle ?? "",
+    }));
+    const type = effectiveOutputType(selectedEdge.source, sourceHandle, {
+      nodes: graphNodes,
+      edges: graphEdges,
+      catalogByKey,
+    });
+    const target = previewsByGraphNode[selectedEdge.source]?.[sourceHandle];
+    const computeNode =
+      target && target.node_id ? computeNodesById[target.node_id] ?? null : null;
+    // Build a synthetic GraphNode from the react-flow node so the
+    // EdgeInspector doesn't have to know the difference.
+    const srcNode: GraphNodeModel = {
+      id: srcRf.id,
+      algorithm_name: srcPack.name,
+      algorithm_version: srcPack.version,
+      position: srcRf.position,
+      params: {},
+      assigned_node_id: srcRf.data.assigned_node_id,
+      arrayed_toggle: Boolean(
+        (srcRf.data as AlgorithmNodeData & { arrayed_toggle?: boolean })
+          .arrayed_toggle,
+      ),
+    };
+    const tgtNode: GraphNodeModel = {
+      id: tgtRf.id,
+      algorithm_name: tgtPack.name,
+      algorithm_version: tgtPack.version,
+      position: tgtRf.position,
+      params: {},
+      assigned_node_id: tgtRf.data.assigned_node_id,
+      arrayed_toggle: Boolean(
+        (tgtRf.data as AlgorithmNodeData & { arrayed_toggle?: boolean })
+          .arrayed_toggle,
+      ),
+    };
+    return {
+      edgeId: selectedEdge.id,
+      edgeType: type,
+      source: {
+        node: srcNode,
+        pack: srcPack,
+        portName: sourceHandle,
+        portSpec,
+        handleId: target?.handle_id ?? null,
+        computeNode,
+      },
+      target: {
+        node: tgtNode,
+        pack: tgtPack,
+        portName: targetHandle,
+      },
+    };
+  }, [
+    viewingSnapshot,
+    snapshotSelectedEdgeId,
+    selectedEdge,
+    nodes,
+    edges,
+    catalogByKey,
+    previewsByGraphNode,
+    computeNodesById,
+  ]);
 
   const onInspectorChange = useCallback(
     (patch: Partial<GraphNodeModel>) => {
@@ -1049,7 +1304,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           sourceHandle: ge.sourceHandle,
           target: ge.target,
           targetHandle: ge.targetHandle,
-          style: { strokeWidth: 2 },
+          type: "typed",
+          data: {},
         })),
       );
       // Defensive re-measure kick — see the useEffect below. We
@@ -1233,6 +1489,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       const snap = await getSnapshot(snapshotId);
       setViewingSnapshot(snap);
       setSnapshotSelectedGraphNodeId(null);
+      setSnapshotSelectedEdgeId(null);
       // The Runs section lives in the right sidebar now, not on the
       // canvas — no reason to hide it on open. Keeping it visible also
       // shows the ``currentSnapshotId`` highlight so the user always
@@ -1246,6 +1503,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const onExitSnapshot = useCallback(() => {
     setViewingSnapshot(null);
     setSnapshotSelectedGraphNodeId(null);
+    setSnapshotSelectedEdgeId(null);
   }, []);
 
   const onRerunFromHere = useCallback(
@@ -1478,13 +1736,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               catalog={catalog}
               selectedGraphNodeId={snapshotSelectedGraphNodeId}
               onSelectionChange={setSnapshotSelectedGraphNodeId}
+              selectedEdgeId={snapshotSelectedEdgeId}
+              onEdgeSelectionChange={setSnapshotSelectedEdgeId}
             />
           </>
         ) : (
           <ReactFlow
             nodes={nodes}
-            edges={edges}
+            edges={displayEdges}
             nodeTypes={NODE_TYPES}
+            edgeTypes={edgeTypes}
             onNodesChange={onNodesChange as (c: NodeChange[]) => void}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
@@ -1629,7 +1890,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         }}
       >
         <div style={{ overflow: "hidden" }}>
-          {viewingSnapshot ? (
+          {edgeInspectorProps ? (
+            // Edge selected → swap the bottom slot into edge mode. Same
+            // container, different content. Node selection is mutually
+            // exclusive with edge selection (xyflow's default behaviour),
+            // so this branch reliably wins when the operator clicked a
+            // wire.
+            <EdgeInspector {...edgeInspectorProps} />
+          ) : viewingSnapshot ? (
             <SnapshotNodeInspector
               graphNodeId={snapshotSelectedGraphNodeId}
               pack={snapshotSelectedPack}

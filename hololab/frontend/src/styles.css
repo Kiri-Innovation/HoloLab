@@ -229,6 +229,14 @@ a:hover { text-decoration: underline; }
   stroke: var(--rf-edge-strong);
   stroke-width: 2.2;
 }
+/* Typed-edge chip lives in a portal at canvas root, not inside the
+   edge SVG group — so the parent-edge :hover selector above can't
+   reach it. Boost the chip itself on its own hover instead. */
+.hl-edge-chip:hover {
+  opacity: 1;
+  border-color: var(--border-strong);
+  color: var(--text-body);
+}
 .react-flow__handle {
   border: 1px solid var(--surface);
   box-shadow: 0 0 0 1px var(--border-strong);
