@@ -405,6 +405,29 @@ cards. Clicking a card opens the raw PNG in a zoomable overlay
 (Esc/← to close). Adopt the same pattern for any tag whose "one entry
 is representative" default isn't true.
 
+#### Basic-info fallback (no viewer + resolved handle)
+
+Packs whose tags don't map to any viewer (typical for intermediate
+utility outputs — `stg-train.model_dir`, `regroup-by-frame.by_frame`,
+`colmap-assemble.colmap`, …) previously showed **no expand caret** on
+the canvas node: the operator had to open the Artifacts panel to see
+what got produced. As of this build the caret appears whenever the
+pack declares `preview` **or** the latest run resolved a handle for
+that port; the drawer body then swaps in `BasicInfoPreview`
+(`previews.tsx`) — a compact card listing the producer's absolute
+path, storage kind (`dir`/`file`), total size, entry count, and a
+contents preview (top ~8 leaves, arrayed layouts flattened to
+`<element>/<leaf>` rows). The header row is identical to a
+viewer-backed drawer's — `pack · port · Open-in-Cocoder · CopyRef` —
+so the actionable affordances (jump to on-disk dir, copy handle ref)
+are always in the same place regardless of whether a bespoke viewer
+was wired.
+
+Placeholder rules from `f141ca4` are unchanged: `preview` declared
+without a live handle still opens onto `PreviewPlaceholder` (never-ran
+or cleaned) with the Run-this-node button; a port with neither
+`preview` nor a resolved handle has no caret at all.
+
 ### Progress
 
 ```yaml

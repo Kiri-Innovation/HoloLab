@@ -9,7 +9,7 @@
 //   * Flat, no gradients, no glow.
 //   * Sized to fit within the AlgorithmNode's expand slot without a modal.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getHandleSummary } from "../api";
 import type {
   ComputeNode,
@@ -153,6 +153,267 @@ export function Preview({
       );
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Basic-info panel — the fallback drawer body when the pack has no
+// preview viewer for a port but a handle DOES exist. Shows the
+// producer's on-disk path, storage kind, total size, and (for a
+// dir) a compact listing so an operator can eyeball what the node
+// produced without leaving the canvas. Same PREVIEW_SHELL chrome as
+// the real viewers so switching drawer contents doesn't reflow.
+//
+// Rationale: the caret used to be gated on ``spec.preview`` being
+// declared — pack authors who hadn't wired a viewer (stg-train,
+// regroup-by-frame, colmap-assemble, …) had NO way to see their
+// artifact from the canvas. Widening the caret to also open on a
+// resolved handle means these nodes need *something* to show; this
+// is that something.
+// ---------------------------------------------------------------------------
+
+// How many child rows the drawer lists before collapsing into a
+// "+N more" tail. Tuned to fit the 340-px expanded slot without
+// pushing the drawer taller than a real viewer.
+const BASIC_INFO_MAX_ROWS = 8;
+
+export interface BasicInfoPreviewProps {
+  handleId: string;
+  storage: "dir" | "file";
+  absolutePath: string;
+  // Falls back to the summary's own ``size_bytes`` when the caller
+  // doesn't have one handy; passed in so a freshly-resolved handle
+  // (HandleInfo.size_bytes) shows the number without waiting for the
+  // summary round trip to complete.
+  fallbackSize?: number | null;
+}
+
+export function BasicInfoPreview({
+  handleId,
+  storage,
+  absolutePath,
+  fallbackSize,
+}: BasicInfoPreviewProps) {
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ok"; summary: HandleSummary }
+    | { kind: "err"; message: string }
+  >({ kind: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const summary = await getHandleSummary(handleId);
+        if (!cancelled) setState({ kind: "ok", summary });
+      } catch (e) {
+        if (!cancelled) setState({ kind: "err", message: (e as Error).message });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [handleId]);
+
+  const rows: Array<{ label: string; value: string; mono?: boolean }> = [];
+  rows.push({ label: "path", value: absolutePath, mono: true });
+  rows.push({ label: "storage", value: storage });
+
+  if (state.kind === "ok") {
+    const s = state.summary;
+    const declaredSize = s.size_bytes ?? fallbackSize ?? null;
+    if (storage === "file") {
+      if (declaredSize !== null) {
+        rows.push({ label: "size", value: humanBytes(declaredSize) });
+      }
+    } else {
+      const entries = s.fields.entries ?? [];
+      // Prefer the recursive-ish total the summary computed. For an
+      // arrayed<T> handle that lives one level deeper, top-level
+      // ``total_size_bytes`` is 0 — sum the enriched children so the
+      // number isn't misleading.
+      let totalBytes = (s.fields.total_size_bytes as number | undefined) ?? 0;
+      if (!totalBytes) {
+        for (const e of entries) {
+          if (e.size_bytes) totalBytes += e.size_bytes;
+          for (const c of e.children ?? []) {
+            if (c.size_bytes) totalBytes += c.size_bytes;
+          }
+        }
+      }
+      if (totalBytes > 0 || declaredSize) {
+        rows.push({
+          label: "size",
+          value: humanBytes(totalBytes || declaredSize),
+        });
+      }
+      const entryCount = (s.fields.entry_count as number | undefined) ?? entries.length;
+      rows.push({ label: "entries", value: String(entryCount) });
+    }
+  } else if (fallbackSize) {
+    rows.push({ label: "size", value: humanBytes(fallbackSize) });
+  }
+
+  // For dir handles, list the top-level entries. When the layout is
+  // arrayed (children present on dir entries) we show the leaf that
+  // matters — the video / model / colmap file / … — plus its size so
+  // the row is informative on its own.
+  const listing = state.kind === "ok" ? summariseListing(state.summary) : null;
+
+  return (
+    <div
+      data-hl-basic-info=""
+      data-hl-storage={storage}
+      style={{
+        ...PREVIEW_SHELL,
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--space-2)",
+        minHeight: 96,
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "auto 1fr",
+          gap: "4px 12px",
+          fontSize: 11,
+        }}
+      >
+        {rows.map((r) => (
+          <Fragment key={r.label}>
+            <div style={{ color: "var(--inverse-muted)", textAlign: "right" }}>
+              {r.label}
+            </div>
+            <div
+              title={r.mono ? r.value : undefined}
+              style={{
+                color: "var(--text-on-dark)",
+                fontFamily: r.mono ? "var(--font-mono)" : "var(--font-sans)",
+                wordBreak: r.mono ? "break-all" : "normal",
+                userSelect: "text",
+              }}
+            >
+              {r.value}
+            </div>
+          </Fragment>
+        ))}
+      </div>
+      {state.kind === "loading" && (
+        <div style={{ fontSize: 10, color: "var(--inverse-muted)" }}>
+          loading…
+        </div>
+      )}
+      {state.kind === "err" && (
+        <div style={{ fontSize: 10, color: "var(--error)" }}>
+          summary failed: {state.message}
+        </div>
+      )}
+      {listing && listing.rows.length > 0 && (
+        <div>
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--inverse-muted)",
+              marginBottom: 4,
+              fontFamily: "var(--font-mono)",
+              letterSpacing: "0.02em",
+              textTransform: "uppercase",
+            }}
+          >
+            contents
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              gap: "2px 12px",
+              fontSize: 11,
+              fontFamily: "var(--font-mono)",
+              color: "var(--text-on-dark)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {listing.rows.map((row) => (
+              <Fragment key={row.name}>
+                <span
+                  title={row.name}
+                  style={{
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    minWidth: 0,
+                    color: row.isDir
+                      ? "var(--inverse-muted)"
+                      : "var(--text-on-dark)",
+                  }}
+                >
+                  {row.name}
+                  {row.isDir ? "/" : ""}
+                </span>
+                <span style={{ color: "var(--inverse-muted)", textAlign: "right" }}>
+                  {row.sizeLabel}
+                </span>
+              </Fragment>
+            ))}
+            {listing.hiddenCount > 0 && (
+              <>
+                <span style={{ color: "var(--inverse-muted)" }}>
+                  … +{listing.hiddenCount} more
+                </span>
+                <span />
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Collapse a directory summary into a compact list of leaf-oriented
+ *  rows. For an arrayed layout (top-level all dirs with a single video-
+ *  / model-shaped child) we surface the child's name + size — the dir
+ *  wrapper adds no information at that level. For a plain flat layout
+ *  we list the files directly. Rows are truncated to
+ *  BASIC_INFO_MAX_ROWS.
+ */
+function summariseListing(summary: HandleSummary): {
+  rows: Array<{ name: string; sizeLabel: string; isDir: boolean }>;
+  hiddenCount: number;
+} | null {
+  if (summary.storage !== "dir") return null;
+  const entries = summary.fields.entries ?? [];
+  const rows: Array<{ name: string; sizeLabel: string; isDir: boolean }> = [];
+  for (const e of entries) {
+    if (e.name.startsWith(".")) continue;
+    if (e.is_dir && e.children && e.children.length > 0) {
+      // Arrayed-style: surface the (usually single) leaf inside.
+      const leaves = e.children.filter((c) => !c.is_dir && !c.name.startsWith("."));
+      if (leaves.length === 1) {
+        rows.push({
+          name: `${e.name}/${leaves[0].name}`,
+          sizeLabel: humanBytes(leaves[0].size_bytes),
+          isDir: false,
+        });
+        continue;
+      }
+      // Fallback for a dir with several files inside — show the dir
+      // itself with a count so the row still fits one line.
+      rows.push({
+        name: e.name,
+        sizeLabel: `${leaves.length} files`,
+        isDir: true,
+      });
+      continue;
+    }
+    rows.push({
+      name: e.name,
+      sizeLabel: e.is_dir ? "dir" : humanBytes(e.size_bytes),
+      isDir: e.is_dir,
+    });
+  }
+  const shown = rows.slice(0, BASIC_INFO_MAX_ROWS);
+  return { rows: shown, hiddenCount: Math.max(0, rows.length - shown.length) };
 }
 
 // ---------------------------------------------------------------------------

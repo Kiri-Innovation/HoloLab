@@ -18,7 +18,7 @@ import { useCanvasContext } from "./CanvasContext";
 import { CopyRefButton } from "./CopyRefButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { OpenSourceButton } from "./OpenSourceButton";
-import { Preview } from "./previews";
+import { BasicInfoPreview, Preview } from "./previews";
 import { PreviewPlaceholder } from "./PreviewPlaceholder";
 
 function inputTitle(portName: string, spec: InputPortSpec): string {
@@ -142,27 +142,42 @@ const PORT_ROW: React.CSSProperties = {
 const NODE_WIDTH = 220;
 const NODE_WIDTH_EXPANDED = 340; // wider slot so previews have room to breathe
 
-// A previewable output = an output port that has a preview declaration
-// in the manifest. The caret shows whenever the pack has ANY such port,
-// even if no run has resolved a handle yet — clicking still opens the
-// drawer, which renders a "never-ran" placeholder + Run button so the
-// operator can trigger the first run in place.
+// An expandable output = a port the operator can open the drawer on.
+// Two cases:
 //
-// The optional ``target`` field carries the resolved handle when the
-// job has produced one; when absent (or when target.deleted is true)
-// the drawer swaps in PreviewPlaceholder.
-function previewableOutputs(
+//   * ``kind: "viewer"`` — the pack declared a preview viewer. The
+//     caret shows even without a live handle so the "尚未运行 / 产物已被清理"
+//     placeholders (see PreviewPlaceholder) + the in-place Run button
+//     still work.
+//   * ``kind: "info"``  — no preview declared but the last run resolved
+//     a handle. The drawer shows BasicInfoPreview (path, size, contents,
+//     Open-in-Cocoder) so operators aren't blind to what nodes without
+//     a bespoke viewer (stg-train, regroup-by-frame, colmap-assemble, …)
+//     just produced.
+//
+// A port with both a preview spec AND a target keeps ``kind: "viewer"``
+// — the viewer's own header already carries the same Open-in-Cocoder
+// + CopyRef affordances BasicInfoPreview surfaces.
+type ExpandKind = "viewer" | "info";
+interface ExpandablePort {
+  name: string;
+  spec: OutputPortSpec;
+  target: PreviewTarget | null;
+  kind: ExpandKind;
+}
+
+function expandableOutputs(
   pack: CatalogPack,
   previews: Record<string, PreviewTarget> | undefined,
-): Array<{ name: string; spec: OutputPortSpec; target: PreviewTarget | null }> {
-  const out: Array<{
-    name: string;
-    spec: OutputPortSpec;
-    target: PreviewTarget | null;
-  }> = [];
+): ExpandablePort[] {
+  const out: ExpandablePort[] = [];
   for (const [name, spec] of Object.entries(pack.outputs)) {
-    if (!spec.preview) continue;
-    out.push({ name, spec, target: previews?.[name] ?? null });
+    const target = previews?.[name] ?? null;
+    if (spec.preview) {
+      out.push({ name, spec, target, kind: "viewer" });
+    } else if (target) {
+      out.push({ name, spec, target, kind: "info" });
+    }
   }
   return out;
 }
@@ -231,19 +246,19 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const outputEntries = Object.entries(pack.outputs);
   const runState = runtime?.state;
   const runColour = stateColour(runState);
-  const previewables = previewableOutputs(pack, previews);
-  // Expand a port so long as it is previewable (has a preview spec on
-  // the pack). The drawer decides at render time whether to show the
-  // real Preview, the never-ran placeholder, or the cleaned placeholder.
-  const previewableNames = useMemo(
-    () => new Set(previewables.map((p) => p.name)),
-    [previewables],
+  const expandables = expandableOutputs(pack, previews);
+  // Expand a port so long as it is expandable (viewer-backed OR a
+  // handle exists). The drawer decides at render time whether to show
+  // the real Preview, the basic-info panel, or a placeholder.
+  const expandableNames = useMemo(
+    () => new Set(expandables.map((p) => p.name)),
+    [expandables],
   );
   const expanded =
-    previewOpen && previewableNames.has(previewOpen) ? previewOpen : null;
+    previewOpen && expandableNames.has(previewOpen) ? previewOpen : null;
   const width = expanded ? NODE_WIDTH_EXPANDED : NODE_WIDTH;
   const currentPreview =
-    expanded ? previewables.find((p) => p.name === expanded) ?? null : null;
+    expanded ? expandables.find((p) => p.name === expanded) ?? null : null;
   const runInFlight =
     runState === "pending" || runState === "assigned" || runState === "running";
 
@@ -562,11 +577,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             {progressLabel}
           </span>
         )}
-        {previewables.length > 0 && (
+        {expandables.length > 0 && (
           <PreviewCaret
             expanded={Boolean(expanded)}
             onClick={() => {
-              const next = expanded ? null : previewables[0].name;
+              const next = expanded ? null : expandables[0].name;
               if (onPreviewToggle) {
                 onPreviewToggle(next);
               } else {
@@ -602,66 +617,84 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           }}
         >
           {(() => {
-            const { name, spec: port, target } = currentPreview;
-            // Route: live preview when we have a non-deleted target;
-            // otherwise the placeholder tells the operator why (never
-            // ran vs cleaned) and offers Run this node.
-            const showRealPreview = target !== null && !target.deleted;
-            if (showRealPreview && target && port.preview) {
-              return (
-                <>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      marginBottom: 6,
-                      fontSize: 10,
-                      color: "var(--inverse-muted)",
-                    }}
-                  >
-                    <span style={{ flex: 1 }}>
-                      {pack.name} · {name}
-                    </span>
-                    <OpenInCocoderButton
-                      path={target.absolute_path}
-                      computeNode={
-                        computeNodesById?.[target.node_id] ?? null
-                      }
-                      onDark
-                    />
-                    <CopyRefButton
-                      kind="handle"
-                      id={target.handle_id}
-                      comment={`${pack.name} · ${name} output`}
-                      size="xs"
-                      onDark
-                    />
-                  </div>
-                  <Preview
-                    spec={port.preview}
-                    baseUrl={target.proxy_url}
-                    storage={target.storage}
-                    handleId={target.handle_id}
-                    absolutePath={target.absolute_path}
-                    producingNode={
+            const { name, spec: port, target, kind: expandKind } = currentPreview;
+            // Live drawer body when the handle is present and not
+            // tombstoned. Both viewer and basic-info kinds share the
+            // same header (pack · port + Open-in-Cocoder + CopyRef) so
+            // the operator gets the same actions regardless of whether
+            // the pack shipped a viewer. Only the body under the header
+            // differs: real Preview vs BasicInfoPreview.
+            const showLive = target !== null && !target.deleted;
+            if (showLive && target) {
+              const header = (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    marginBottom: 6,
+                    fontSize: 10,
+                    color: "var(--inverse-muted)",
+                  }}
+                >
+                  <span style={{ flex: 1 }}>
+                    {pack.name} · {name}
+                  </span>
+                  <OpenInCocoderButton
+                    path={target.absolute_path}
+                    computeNode={
                       computeNodesById?.[target.node_id] ?? null
                     }
-                    tags={port.tags}
+                    onDark
+                  />
+                  <CopyRefButton
+                    kind="handle"
+                    id={target.handle_id}
+                    comment={`${pack.name} · ${name} output`}
+                    size="xs"
+                    onDark
+                  />
+                </div>
+              );
+              if (expandKind === "viewer" && port.preview) {
+                return (
+                  <>
+                    {header}
+                    <Preview
+                      spec={port.preview}
+                      baseUrl={target.proxy_url}
+                      storage={target.storage}
+                      handleId={target.handle_id}
+                      absolutePath={target.absolute_path}
+                      producingNode={
+                        computeNodesById?.[target.node_id] ?? null
+                      }
+                      tags={port.tags}
+                    />
+                  </>
+                );
+              }
+              return (
+                <>
+                  {header}
+                  <BasicInfoPreview
+                    handleId={target.handle_id}
+                    storage={target.storage}
+                    absolutePath={target.absolute_path}
                   />
                 </>
               );
             }
-            // Placeholder classification: a tombstoned handle is
-            // definitely "cleaned"; otherwise if the last job reached
-            // done but no live target exists the handle was cleaned
-            // externally / before we could load it → also "cleaned";
-            // else the node genuinely has no run yet.
-            const kind =
+            // Only viewer-kind ports fall back to the never-ran /
+            // cleaned placeholder — info-kind ports only appear in
+            // the expandables list when a target already exists, so
+            // this branch is unreachable for them (guarded by
+            // expandableOutputs above; kept exhaustive for clarity).
+            const placeholderKind =
               target?.deleted || runState === "done" ? "cleaned" : "never-ran";
             return (
               <PreviewPlaceholder
-                kind={kind}
+                kind={placeholderKind}
                 packName={pack.name}
                 portName={name}
                 running={runInFlight}
