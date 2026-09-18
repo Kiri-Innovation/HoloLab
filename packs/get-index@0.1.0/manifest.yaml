@@ -46,12 +46,20 @@ exec:
   shell: |
     set -euo pipefail
     IDX={{ params.idx }}
-    # Sorted element list; framework's fan-out picks the same order.
-    # ``wc -l`` avoids bash's ``${#ARRAY[@]}`` construct — the leading
-    # ``{#`` inside the manifest's shell template would collide with
-    # Jinja2's ``{# ... #}`` comment syntax and blow up template render.
-    mapfile -t ENTRIES < <(ls -1 "{{ inputs.arr }}" | sort)
-    N=$(printf '%s\n' "${ENTRIES[@]}" | wc -l | tr -d ' ')
+    # Enumerate direct children of the arrayed dir in sorted order —
+    # find -printf '%f\n' gives just the filename (no leading path), and
+    # -mindepth 1 -maxdepth 1 limits to immediate children, matching
+    # sorted(os.listdir()) semantics used by the framework's fan-out.
+    mapfile -t ENTRIES < <(find "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
+    # Count via find -printf '.' (same as array-length). Two alternative
+    # approaches both have issues in this manifest context:
+    # - bash array length syntax (dollar + hash + ENTRIES + [@]) — the
+    #   hash-brace sequence is Jinja2's comment delimiter; template render
+    #   would fail at the opening tag.
+    # - printf '%s\n' "${ENTRIES[@]}" | wc -l — bash printf with no
+    #   arguments still emits a newline, so wc -l returns 1 for an empty
+    #   array; the bounds check then passes and ENTRIES[0] throws.
+    N=$(find "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 -printf '.' | wc -c | tr -d ' ')
     if [ "$IDX" -ge "$N" ] || [ "$IDX" -lt 0 ]; then
       echo "ERROR: idx $IDX out of range (array size $N)" >&2
       exit 1
