@@ -362,6 +362,19 @@ MIGRATIONS.append(
 )
 
 
+# V11 — record the moment a job enters RUNNING state so the frontend can
+# show live elapsed time without depending on updated_ts (which only moves
+# when a WS event arrives, freezing the display on silent long-running jobs).
+MIGRATIONS.append(
+    (
+        11,
+        """
+        ALTER TABLE jobs ADD COLUMN started_ts REAL;
+        """,
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

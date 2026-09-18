@@ -476,6 +476,7 @@ class JobUpdate(BaseModel):
     output_handles: dict[str, str] | None = None
     progress: JobProgress | None = None
     fail: JobFail | None = None
+    started_ts: float | None = None
 
 
 class LogChunk(BaseModel):

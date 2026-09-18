@@ -2756,6 +2756,7 @@ async def _dispatch_node_frame(
                     fail_message=job.fail_message,
                     created_ts=job.created_ts,
                     updated_ts=time.time(),
+                    started_ts=job.started_ts,
                 )
         except Exception:
             return
@@ -3064,6 +3065,7 @@ def _push_job_update(
         graph_node_id=job.graph_node_id,
         snapshot_id=job.snapshot_id,
         output_handles=output_handles,
+        started_ts=job.started_ts,
         progress=(
             JobProgress(
                 job_id=job.job_id,

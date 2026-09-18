@@ -596,8 +596,8 @@ class JobsStore:
                      algorithm_name, algorithm_version, params_json, input_handles_json,
                      state, progress_current, progress_total, fail_reason, fail_exit_code,
                      fail_message, created_ts, updated_ts, reused_from_job_id,
-                     parent_job_id, shard_element_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     parent_job_id, shard_element_id, started_ts)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job.job_id,
@@ -620,6 +620,7 @@ class JobsStore:
                     job.reused_from_job_id,
                     job.parent_job_id,
                     job.shard_element_id,
+                    job.started_ts,
                 ),
             )
             await conn.execute(
@@ -664,7 +665,8 @@ class JobsStore:
                     fail_reason=?,
                     fail_exit_code=?,
                     fail_message=?,
-                    updated_ts=?
+                    updated_ts=?,
+                    started_ts=COALESCE(started_ts, ?)
                 WHERE job_id=?
                 """,
                 (
@@ -676,6 +678,7 @@ class JobsStore:
                     job.fail_exit_code,
                     job.fail_message,
                     job.updated_ts,
+                    job.started_ts,
                     job.job_id,
                 ),
             )
@@ -707,7 +710,7 @@ class JobsStore:
                        algorithm_name, algorithm_version, params_json, input_handles_json,
                        state, progress_current, progress_total, fail_reason, fail_exit_code,
                        fail_message, created_ts, updated_ts, reused_from_job_id,
-                       parent_job_id, shard_element_id
+                       parent_job_id, shard_element_id, started_ts
                 FROM jobs WHERE job_id=?
                 """,
                 (job_id,),
@@ -738,6 +741,7 @@ class JobsStore:
             reused_from_job_id=row[17],
             parent_job_id=row[18],
             shard_element_id=row[19],
+            started_ts=row[20],
         )
 
     async def list_shards_of(self, parent_job_id: str) -> list[Job]:  # noqa: F821
@@ -760,7 +764,7 @@ class JobsStore:
                        algorithm_name, algorithm_version, params_json, input_handles_json,
                        state, progress_current, progress_total, fail_reason, fail_exit_code,
                        fail_message, created_ts, updated_ts, reused_from_job_id,
-                       parent_job_id, shard_element_id
+                       parent_job_id, shard_element_id, started_ts
                 FROM jobs
                 WHERE parent_job_id=?
                 ORDER BY created_ts ASC
@@ -792,6 +796,7 @@ class JobsStore:
                 reused_from_job_id=r[17],
                 parent_job_id=r[18],
                 shard_element_id=r[19],
+                started_ts=r[20],
             )
             for r in rows
         ]
@@ -832,7 +837,7 @@ class JobsStore:
                 f"""
                 SELECT job_id, workflow_id, node_id, graph_node_id, algorithm_name,
                        algorithm_version, state, progress_current, progress_total,
-                       fail_reason, created_ts, updated_ts
+                       fail_reason, created_ts, updated_ts, started_ts
                 FROM jobs
                 {where}
                 ORDER BY created_ts {direction}
@@ -856,6 +861,7 @@ class JobsStore:
                 "fail_reason": r[9],
                 "created_ts": r[10],
                 "updated_ts": r[11],
+                "started_ts": r[12],
             }
             for r in rows
         ]
@@ -897,7 +903,7 @@ class JobsStore:
                        j.fail_reason, j.fail_exit_code, j.fail_message,
                        j.params_json, j.input_handles_json,
                        j.created_ts, j.updated_ts,
-                       j.reused_from_job_id
+                       j.reused_from_job_id, j.started_ts
                 FROM snapshot_jobs sj
                 JOIN jobs j ON j.job_id = sj.job_id
                 WHERE sj.snapshot_id = ?
@@ -908,7 +914,7 @@ class JobsStore:
                        j.fail_reason, j.fail_exit_code, j.fail_message,
                        j.params_json, j.input_handles_json,
                        j.created_ts, j.updated_ts,
-                       j.reused_from_job_id
+                       j.reused_from_job_id, j.started_ts
                 FROM jobs j
                 WHERE j.snapshot_id = ?
                   AND j.state != 'done'
@@ -994,6 +1000,7 @@ class JobsStore:
                     or {}
                 ),
                 "reused_from_job_id": r[16],
+                "started_ts": r[17],
                 "created_ts": r[14],
                 "updated_ts": r[15],
             }

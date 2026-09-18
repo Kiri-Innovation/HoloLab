@@ -298,6 +298,7 @@ class JobRow(BaseModel):
     fail_reason: str | None = None
     created_ts: float
     updated_ts: float
+    started_ts: float | None = None
 
 
 class JobDetail(JobRow):

@@ -4,7 +4,7 @@
 // dedicated "view log" icon on the row opens the log viewer so a red dot
 // no longer means "guess what went wrong". See JobLogModal.tsx.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { NodeRuntime } from "./AlgorithmNode";
 import { stateColour } from "./AlgorithmNode";
 import { CopyRefButton } from "./CopyRefButton";
@@ -19,6 +19,7 @@ export interface RecentJobRow {
   progress?: { current: number; total: number } | null;
   updated_ts: number;
   created_ts: number;
+  started_ts?: number | null;
   fail_reason?: string | null;
 }
 
@@ -42,11 +43,19 @@ const CARD: React.CSSProperties = {
   transition: "background var(--dur-fast) var(--ease)",
 };
 
-function formatElapsed(created: number, updated: number): string {
-  const secs = Math.max(0, Math.round(updated - created));
+function formatElapsed(start: number, end: number): string {
+  const secs = Math.max(0, Math.round(end - start));
   if (secs < 60) return `${secs}s`;
   if (secs < 3600) return `${Math.round(secs / 60)}m`;
   return `${Math.round(secs / 3600)}h`;
+}
+
+function elapsedFor(j: RecentJobRow, now: number): string {
+  const isRunning = j.state === "running";
+  // Use started_ts (new field) when available; fall back to created_ts so
+  // old rows loaded before a gateway restart still tick immediately.
+  const start = j.started_ts ?? j.created_ts;
+  return formatElapsed(start, isRunning ? now : j.updated_ts);
 }
 
 export function RecentJobsPanel({
@@ -60,6 +69,30 @@ export function RecentJobsPanel({
     ? jobs.filter((j) => j.job_id && jobIsInWorkflow(j, currentWorkflowId))
     : jobs;
   const rows = scoped.slice(0, 25);
+
+  // Live clock for running jobs — ticks every second so elapsed counters
+  // advance without waiting for a WS event. The interval only runs when
+  // at least one running row is visible; it's torn down when there are none
+  // so idle panels incur zero overhead.
+  const [now, setNow] = useState(() => Date.now() / 1000);
+  const hasRunning = rows.some((j) => j.state === "running");
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!hasRunning) {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+    intervalRef.current = setInterval(() => setNow(Date.now() / 1000), 1000);
+    return () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [hasRunning]);
 
   // Which job's log viewer is open. We keep the primer (algo name, state,
   // elapsed) alongside so the modal header renders before the /api/jobs/
@@ -176,7 +209,7 @@ export function RecentJobsPanel({
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            {formatElapsed(j.created_ts, j.updated_ts)}
+            {elapsedFor(j, now)}
           </div>
           <ViewLogButton
             onClick={(e) => {
@@ -188,7 +221,7 @@ export function RecentJobsPanel({
                   algorithm_version: j.algorithm_version,
                   state: j.state,
                   fail_reason: j.fail_reason ?? null,
-                  elapsed: formatElapsed(j.created_ts, j.updated_ts),
+                  elapsed: elapsedFor(j, now),
                 },
               });
             }}

@@ -416,6 +416,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             progress: p.progress ?? existing?.progress ?? null,
             fail_reason: p.fail?.reason ?? existing?.fail_reason ?? null,
             updated_ts: now,
+            // Preserve started_ts once set; WS payload carries it only on
+            // the RUNNING transition frame (null/absent on later frames).
+            started_ts: existing?.started_ts ?? p.started_ts ?? null,
           };
           // Preserve workflow_id (carried on the wire but not on the panel row shape).
           (next as unknown as { workflow_id?: string }).workflow_id =
@@ -1980,6 +1983,7 @@ function jobToRow(j: JobSummary): RecentJobRow {
     progress: j.progress,
     created_ts: j.created_ts,
     updated_ts: j.updated_ts,
+    started_ts: j.started_ts ?? null,
     fail_reason: j.fail_reason,
   };
   (row as unknown as { workflow_id?: string }).workflow_id = j.workflow_id;

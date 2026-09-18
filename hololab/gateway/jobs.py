@@ -128,6 +128,12 @@ class Job:
     # shard is processing (e.g. ``cam_A`` for a per-camera fan-out).
     # NULL on parent + regular jobs.
     shard_element_id: str | None = None
+    # Timestamp of the ASSIGNED→RUNNING transition. None until the job
+    # actually starts executing (i.e. stays None for pending/assigned
+    # and for pre-V11 rows loaded from an unstarted gateway). The
+    # frontend uses this for live elapsed-time display without relying
+    # on ``updated_ts``, which only changes when a WS event fires.
+    started_ts: float | None = None
 
 
 class IllegalTransition(RuntimeError):
@@ -170,6 +176,7 @@ class JobStateMachine:
                 f"illegal transition for job {job.job_id}: {job.state.value} → {target.value}"
             )
 
+        now = time.time()
         new = Job(
             job_id=job.job_id,
             workflow_id=job.workflow_id,
@@ -189,10 +196,13 @@ class JobStateMachine:
             fail_exit_code=fail_exit_code if fail_exit_code is not None else job.fail_exit_code,
             fail_message=fail_message if fail_message is not None else job.fail_message,
             created_ts=job.created_ts,
-            updated_ts=time.time(),
+            updated_ts=now,
             reused_from_job_id=job.reused_from_job_id,
             parent_job_id=job.parent_job_id,
             shard_element_id=job.shard_element_id,
+            # First RUNNING transition stamps the start time; preserve it on
+            # all subsequent transitions (done, failed, etc.).
+            started_ts=now if target is JobState.RUNNING and job.started_ts is None else job.started_ts,
         )
         return new
 

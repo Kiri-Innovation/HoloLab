@@ -60,6 +60,7 @@ export interface JobUpdatePayload {
   output_handles?: Record<string, string> | null;
   progress?: { current: number; total: number } | null;
   fail?: { reason: string; exit_code?: number; message?: string } | null;
+  started_ts?: number | null;
 }
 
 // GET /api/jobs — same shape as JobUpdatePayload plus workflow bookkeeping.
@@ -75,6 +76,7 @@ export interface JobSummary {
   fail_reason: string | null;
   created_ts: number;
   updated_ts: number;
+  started_ts?: number | null;
 }
 export interface LogChunkPayload {
   job_id: string;
@@ -367,6 +369,7 @@ export interface SnapshotJob {
   // output_handles are inherited from the original job. UI can render
   // "reused" instead of "done".
   reused_from_job_id?: string | null;
+  started_ts?: number | null;
   created_ts: number;
   updated_ts: number;
 }
