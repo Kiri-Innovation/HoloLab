@@ -16,10 +16,12 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+import pytest
 import yaml
 
 from hololab.node.config import NodeConfig, load_node_config
 from hololab.node.packs import scan_multi_packs, scan_packs
+from hololab.node.runtime import _coerce_pack_dirs_patch, _pack_watch_roots
 
 
 def _write_manifest(pack_dir: Path, name: str, version: str) -> None:
@@ -182,9 +184,7 @@ def test_scan_multi_packs_mixed_modes(tmp_path: Path) -> None:
     _write_manifest(shared, "algo-a", "0.1.0")
     (shared / "manifest.yaml").rename(shared / "algo-a.manifest.yaml")
 
-    packs = scan_multi_packs(
-        [legacy_root, colocated, shared / "algo-a.manifest.yaml"]
-    )
+    packs = scan_multi_packs([legacy_root, colocated, shared / "algo-a.manifest.yaml"])
     names = {p.manifest.name for p in packs}
     assert names == {"vendored-pack", "colocated-pack", "algo-a"}
 
@@ -208,9 +208,7 @@ def test_load_legacy_packs_dir_scalar(tmp_path: Path) -> None:
     """
 
     cfg_path = tmp_path / "config.yaml"
-    cfg_path.write_text(
-        yaml.safe_dump({"packs_dir": str(tmp_path / "legacy-packs")})
-    )
+    cfg_path.write_text(yaml.safe_dump({"packs_dir": str(tmp_path / "legacy-packs")}))
     cfg = load_node_config(cfg_path)
     assert cfg.pack_dirs == [tmp_path / "legacy-packs"]
     assert cfg.packs_dir is None
@@ -256,3 +254,129 @@ def test_empty_pack_dirs_falls_back_to_default(tmp_path: Path) -> None:
 
     cfg = NodeConfig.model_validate({"pack_dirs": []})
     assert len(cfg.pack_dirs) == 1
+
+
+# ---------------------------------------------------------------------------
+# Pack watcher startup — regression for the silent-crash bug where the
+# watch loop's ``root.mkdir(exist_ok=True)`` raised ``FileExistsError``
+# on a precise-file pack_dirs entry, so the whole ``awatch`` never ran
+# and manifest edits stopped propagating until a node restart.
+# ---------------------------------------------------------------------------
+
+
+def test_pack_watch_roots_creates_missing_directory_entries(tmp_path: Path) -> None:
+    """Dir entries that don't exist yet are auto-created so the watcher
+    can bind to them on first registration."""
+
+    fresh = tmp_path / "fresh-dir"
+    assert not fresh.exists()
+    roots = _pack_watch_roots([fresh])
+    assert fresh.is_dir()
+    assert roots == [fresh]
+
+
+def test_pack_watch_roots_handles_file_entry_via_parent(tmp_path: Path) -> None:
+    """Precise-file entries — a real ``.manifest.yaml`` path — must NOT
+    crash the watcher (``mkdir`` on an existing file raises
+    ``FileExistsError`` even with ``exist_ok=True``). The watcher binds
+    to the file's parent directory instead; ``awatch`` fires on any
+    change inside and the loop re-scans the full ``pack_dirs``.
+    """
+
+    holder = tmp_path / "holder"
+    holder.mkdir()
+    manifest_file = holder / "custom.manifest.yaml"
+    manifest_file.write_text("apiVersion: hololab.dev/v1\nname: x\n")
+
+    roots = _pack_watch_roots([manifest_file])
+    assert roots == [holder]
+
+
+def test_pack_watch_roots_deduplicates_parents(tmp_path: Path) -> None:
+    """Multiple precise-file entries in the same directory collapse to
+    one watched parent so ``awatch`` doesn't receive duplicates."""
+
+    holder = tmp_path / "holder"
+    holder.mkdir()
+    (holder / "a.manifest.yaml").write_text("")
+    (holder / "b.manifest.yaml").write_text("")
+
+    roots = _pack_watch_roots([holder / "a.manifest.yaml", holder / "b.manifest.yaml"])
+    assert roots == [holder]
+
+
+def test_pack_watch_roots_mixed_dir_and_file(tmp_path: Path) -> None:
+    """Real-world config: some directory roots, some precise-file
+    entries — the watcher startup must succeed for all of them.
+    """
+
+    dir_root = tmp_path / "vendored"
+    file_holder = tmp_path / "sharp"
+    file_holder.mkdir()
+    manifest = file_holder / "recipe.manifest.yaml"
+    manifest.write_text("")
+
+    roots = _pack_watch_roots([dir_root, manifest])
+    assert dir_root.is_dir()  # auto-created
+    assert roots == [dir_root, file_holder]
+
+
+# ---------------------------------------------------------------------------
+# node_config_set PATCH validator — used to hard-reject file entries;
+# now accepts them (as the runtime already does at startup) so an
+# operator whose config already includes precise-file entries can
+# submit legal patches.
+# ---------------------------------------------------------------------------
+
+
+def test_coerce_pack_dirs_patch_accepts_file_entry(tmp_path: Path) -> None:
+    manifest = tmp_path / "shared" / "algo.manifest.yaml"
+    manifest.parent.mkdir()
+    manifest.write_text("")
+
+    out = _coerce_pack_dirs_patch([str(manifest)])
+    assert out == [manifest]
+
+
+def test_coerce_pack_dirs_patch_rejects_non_yaml_file(tmp_path: Path) -> None:
+    stray = tmp_path / "notes.txt"
+    stray.write_text("nope")
+
+    with pytest.raises(ValueError, match="\\.yaml / \\.yml"):
+        _coerce_pack_dirs_patch([str(stray)])
+
+
+def test_coerce_pack_dirs_patch_creates_missing_dir(tmp_path: Path) -> None:
+    """Fresh operator registration: dir entry that doesn't exist yet
+    gets created so the first scan doesn't crash on ``is_dir()``."""
+
+    fresh = tmp_path / "fresh"
+    _coerce_pack_dirs_patch([str(fresh)])
+    assert fresh.is_dir()
+
+
+def test_coerce_pack_dirs_patch_rejects_relative(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="must be absolute"):
+        _coerce_pack_dirs_patch(["relative/path"])
+
+
+def test_coerce_pack_dirs_patch_rejects_empty(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="non-empty list"):
+        _coerce_pack_dirs_patch([])
+
+
+def test_coerce_pack_dirs_patch_mixed_dir_and_file(tmp_path: Path) -> None:
+    """The real bug: an operator's live config has BOTH directory roots
+    and precise-file entries. Submitting that exact list back through
+    the PATCH endpoint must succeed — otherwise the operator can't
+    trigger a pack rescan without dropping their file entries."""
+
+    dir_root = tmp_path / "vendored"
+    dir_root.mkdir()
+    holder = tmp_path / "sharp"
+    holder.mkdir()
+    manifest = holder / "recipe.manifest.yaml"
+    manifest.write_text("")
+
+    out = _coerce_pack_dirs_patch([str(dir_root), str(manifest)])
+    assert out == [dir_root, manifest]

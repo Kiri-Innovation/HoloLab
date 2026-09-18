@@ -279,14 +279,13 @@ class NodeRuntime:
         # editing a manifest in their custom source directory triggers
         # a ``packs_updated`` without needing to restart the node.
         pack_dirs = list(self._config.pack_dirs)
-        for root in pack_dirs:
-            root.mkdir(parents=True, exist_ok=True)
+        watch_roots = _pack_watch_roots(pack_dirs)
 
         # Deferred import so plain --help stays fast.
         from watchfiles import awatch
 
         try:
-            async for _changes in awatch(*pack_dirs, recursive=True, step=250):
+            async for _changes in awatch(*watch_roots, recursive=True, step=250):
                 new_packs = _load_packs(pack_dirs)
                 if self._packs_equivalent(new_packs):
                     continue
@@ -640,31 +639,7 @@ class NodeRuntime:
                         raise ValueError("advertised_url must be a string or null")
                     updates["advertised_url"] = raw or None
                 elif key == "pack_dirs":
-                    # Pack source list — how a developer registers a
-                    # custom source dir at runtime. Each entry must be
-                    # absolute (a relative path would resolve against
-                    # the daemon's cwd, which is not something the
-                    # operator can reliably know). We create the dir
-                    # if it doesn't exist yet so a fresh registration
-                    # doesn't fail on the first scan; existing
-                    # non-directories get rejected.
-                    if not isinstance(raw, list) or not raw:
-                        raise ValueError("pack_dirs must be a non-empty list of paths")
-                    seen: list[Path] = []
-                    for item in raw:
-                        p = Path(str(item)).expanduser()
-                        if not p.is_absolute():
-                            raise ValueError(
-                                f"pack_dirs entry must be absolute, got {item!r}"
-                            )
-                        if p.exists() and not p.is_dir():
-                            raise ValueError(
-                                f"pack_dirs entry exists but is not a directory: {item!r}"
-                            )
-                        p.mkdir(parents=True, exist_ok=True)
-                        if p not in seen:
-                            seen.append(p)
-                    updates["pack_dirs"] = seen
+                    updates["pack_dirs"] = _coerce_pack_dirs_patch(raw)
                 elif key == "flops_executor_id":
                     # Cobrowser integration — see docs/cobrowser-integration.md.
                     # Free-form string (typically ``dev_xxxxxxxx``); the
@@ -673,9 +648,7 @@ class NodeRuntime:
                     # whether the id names a known device at request
                     # time (unknown ids are silently ignored per spec).
                     if raw is not None and not isinstance(raw, str):
-                        raise ValueError(
-                            "flops_executor_id must be a string or null"
-                        )
+                        raise ValueError("flops_executor_id must be a string or null")
                     trimmed = raw.strip() if isinstance(raw, str) else None
                     updates["flops_executor_id"] = trimmed or None
                 else:
@@ -1375,10 +1348,70 @@ def _looks_like_local_path(value: str) -> bool:
     return value.startswith("/") or (len(value) >= 3 and value[1:3] == ":\\")
 
 
+def _coerce_pack_dirs_patch(raw: object) -> list[Path]:
+    """Validate an inbound ``pack_dirs`` PATCH into an absolute path list.
+
+    Directory entries are auto-created (a fresh operator registration
+    shouldn't 400 on "doesn't exist yet"). File entries are the
+    "precise manifest" form (Mode 1 in :func:`~hololab.node.packs.scan_packs`)
+    and must already exist with a ``.yaml`` / ``.yml`` suffix — the
+    scanner needs that suffix and mkdir on an existing file raises.
+
+    Raises ``ValueError`` on any malformed entry so the caller (the
+    ``node_config_set_req`` handler) can surface the message verbatim
+    to the operator.
+    """
+
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("pack_dirs must be a non-empty list of paths")
+    seen: list[Path] = []
+    for item in raw:
+        p = Path(str(item)).expanduser()
+        if not p.is_absolute():
+            raise ValueError(f"pack_dirs entry must be absolute, got {item!r}")
+        if p.exists() and not p.is_dir():
+            if p.suffix not in (".yaml", ".yml"):
+                raise ValueError(
+                    f"pack_dirs file entry must have a .yaml / .yml suffix, got {item!r}"
+                )
+        else:
+            p.mkdir(parents=True, exist_ok=True)
+        if p not in seen:
+            seen.append(p)
+    return seen
+
+
+def _pack_watch_roots(pack_dirs: list[Path]) -> list[Path]:
+    """Coerce a ``pack_dirs`` list into paths suitable for ``awatch``.
+
+    Directory entries are created if missing so a fresh registration
+    doesn't crash the watcher. File entries (precise-manifest mode, see
+    :func:`~hololab.node.packs.scan_packs`) are replaced by their parent
+    directory — ``awatch`` needs a directory and ``pathlib.Path.mkdir``
+    on an existing file raises ``FileExistsError`` even with
+    ``exist_ok=True``. Duplicates are collapsed so the same directory
+    isn't watched twice.
+
+    Called at :func:`Runtime._pack_watch_loop` startup. Any file-entry
+    manifest still gets picked up: awatch fires on directory-level
+    events and the loop rescans the ENTIRE ``pack_dirs`` list, so which
+    path receives the notification is irrelevant to the rescan.
+    """
+
+    seen: list[Path] = []
+    for root in pack_dirs:
+        if root.exists() and not root.is_dir():
+            watched = root.parent
+        else:
+            root.mkdir(parents=True, exist_ok=True)
+            watched = root
+        if watched not in seen:
+            seen.append(watched)
+    return seen
+
+
 def _load_packs(pack_dirs: list[Path]) -> dict[tuple[str, str], LoadedPack]:
-    return {
-        (p.manifest.name, p.manifest.version): p for p in scan_multi_packs(pack_dirs)
-    }
+    return {(p.manifest.name, p.manifest.version): p for p in scan_multi_packs(pack_dirs)}
 
 
 def _probe_gpu() -> GpuInfo:
