@@ -465,6 +465,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [latestSnapshotGraph, setLatestSnapshotGraph] = useState<WorkflowGraph | null>(
     null,
   );
+  // ID of the most-recent snapshot for this workflow. Null until hydration.
+  // Used to highlight the "当前" chip in RunsPanel while in draft view.
+  const [latestSnapshotId, setLatestSnapshotId] = useState<string | null>(null);
 
   const catalogByKey = useMemo(() => {
     const m = new Map<string, CatalogPack>();
@@ -949,9 +952,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // Snapshot was just created from the current draft. Fetch the
       // frozen graph so the draft-modified badge clears immediately
       // after a successful run.
-      void getSnapshot(runResult.snapshot_id).then(
-        (snap) => setLatestSnapshotGraph(snap.graph),
-      ).catch(() => {/* best-effort; hydration on next load will fix */});
+      void getSnapshot(runResult.snapshot_id).then((snap) => {
+        setLatestSnapshotGraph(snap.graph);
+        setLatestSnapshotId(runResult.snapshot_id);
+      }).catch(() => {/* best-effort; hydration on next load will fix */});
     } catch (e) {
       if (
         e instanceof ApiError &&
@@ -1024,7 +1028,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       setWorkflowId(w.workflow_id);
       setWorkflowName(w.name);
       fromGraph(w.graph);
-      setLatestSnapshotGraph(null); // reset until hydration fills it in
+      setLatestSnapshotGraph(null);
+      setLatestSnapshotId(null); // both reset until hydration fills them in
       window.history.replaceState(null, "", `/w/${encodeURIComponent(w.workflow_id)}`);
 
       // Draft-view "carry the last run" hydration (ComfyUI-style):
@@ -1069,6 +1074,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             // the latest one — store its graph for the draft-modified badge.
             if (!seenFirstSnap) {
               setLatestSnapshotGraph(snap.graph);
+              setLatestSnapshotId(run.snapshot_id);
               seenFirstSnap = true;
             }
             // Inside one snapshot the jobs come oldest-first; iterate
@@ -1367,7 +1373,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             <RunsPanel
               workflowId={workflowId}
               onOpenSnapshot={(sid) => void onOpenSnapshot(sid)}
-              currentSnapshotId={viewingSnapshot?.snapshot_id ?? null}
+              currentSnapshotId={viewingSnapshot?.snapshot_id ?? latestSnapshotId}
               draftDiff={draftDiff}
               onSnapshotDeleted={(sid) => {
                 // If the operator deleted the run they were viewing,
