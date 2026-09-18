@@ -566,6 +566,51 @@ def test_handle_summary_dir(tmp_path: Path) -> None:
         assert body["fields"]["entry_count"] == 3
 
 
+def test_handle_summary_arrayed_layout_exposes_children(tmp_path: Path) -> None:
+    """arrayed<T> handles put element data one level down
+    (``videos_dir/cam00/cam00.mp4``). The dir summary enriches each
+    directory entry with its immediate children so viewers like
+    ``video-grid`` can compose per-element URLs without a second
+    round-trip per element.
+    """
+
+    app = create_app(db_path=tmp_path / "suma.sqlite")
+    with TestClient(app) as client:
+        d = tmp_path / "videos_dir"
+        d.mkdir()
+        for cam in ("cam00", "cam01", "cam02"):
+            sub = d / cam
+            sub.mkdir()
+            (sub / f"{cam}.mp4").write_bytes(b"\x00" * 42)
+
+        async def _seed() -> None:
+            await client.app.state.handles.register(
+                Handle(
+                    handle_id="h-arr",
+                    node_id="node-a",
+                    storage="dir",
+                    tags=["video-source"],
+                    path=str(d),
+                    size_bytes=None,
+                    output_port_name="videos_dir",
+                )
+            )
+
+        client.portal.call(_seed)
+
+        body = client.get("/api/handles/h-arr/summary").json()
+        assert body["kind"] == "dir"
+        entries = {e["name"]: e for e in body["fields"]["entries"]}
+        assert set(entries) == {"cam00", "cam01", "cam02"}
+        for cam, entry in entries.items():
+            assert entry["is_dir"] is True
+            child_names = {c["name"] for c in entry["children"]}
+            assert child_names == {f"{cam}.mp4"}
+            [leaf] = entry["children"]
+            assert leaf["is_dir"] is False
+            assert leaf["size_bytes"] == 42
+
+
 def test_handle_summary_unknown_returns_gracefully(tmp_path: Path) -> None:
     app = create_app(db_path=tmp_path / "sumu.sqlite")
     with TestClient(app) as client:

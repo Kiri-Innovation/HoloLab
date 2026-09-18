@@ -110,6 +110,12 @@ export interface HandleSummaryEntry {
   name: string;
   is_dir: boolean;
   size_bytes: number | null;
+  // Populated by the server for directory children so viewers can peek
+  // one level into an arrayed<T> layout (``<parent>/<element>/<file>``)
+  // without a second summary round trip. Only immediate children; not
+  // recursive. Absent for file entries and for directory entries the
+  // server chose not to enrich (missing = "don't know", not "empty").
+  children?: HandleSummaryEntry[];
 }
 
 export interface HandleSummary {

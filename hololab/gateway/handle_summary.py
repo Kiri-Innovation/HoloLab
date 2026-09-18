@@ -298,6 +298,12 @@ def _summarize_dir(path: Path, _handle: Handle) -> dict[str, Any]:
         entries: list[dict[str, Any]] = []
         total = 0
         total_size = 0
+        # Budget shared across the second level so an arrayed<T> handle
+        # with 100 element subdirs can't blow the payload up by dragging
+        # in thousands of grandchildren. The video-grid drawer (and any
+        # other arrayed-aware viewer) only needs the immediate leaf name
+        # inside each element to compose per-tile URLs.
+        children_budget = _MAX_DIR_ENTRIES
         for child in path.iterdir():
             total += 1
             if len(entries) >= _MAX_DIR_ENTRIES:
@@ -309,13 +315,19 @@ def _summarize_dir(path: Path, _handle: Handle) -> dict[str, Any]:
                 size = None
             if size is not None:
                 total_size += size
-            entries.append(
-                {
-                    "name": child.name,
-                    "is_dir": child.is_dir(),
-                    "size_bytes": size,
-                }
-            )
+            entry: dict[str, Any] = {
+                "name": child.name,
+                "is_dir": child.is_dir(),
+                "size_bytes": size,
+            }
+            # One-level descent so an arrayed<T> layout
+            # (``<parent>/<element>/<file>``) surfaces the leaf filenames
+            # a viewer needs to build per-element URLs, without a
+            # dedicated per-subdir endpoint or client-side probes.
+            if child.is_dir() and children_budget > 0:
+                entry["children"] = _list_dir_children(child, children_budget)
+                children_budget -= len(entry["children"])
+            entries.append(entry)
         fields["entry_count"] = total
         fields["total_size_bytes"] = total_size
         fields["entries"] = entries
@@ -323,3 +335,34 @@ def _summarize_dir(path: Path, _handle: Handle) -> dict[str, Any]:
     except OSError as exc:
         fields["error"] = f"list failed: {exc}"
     return {"kind": "dir", "fields": fields}
+
+
+def _list_dir_children(path: Path, budget: int) -> list[dict[str, Any]]:
+    """Return the immediate children of ``path`` up to ``budget`` items.
+
+    Silently returns ``[]`` on OSError (e.g. permission denied) — a
+    missing children field on one entry shouldn't fail the whole
+    summary. Grandchildren are NOT descended into; this is deliberately
+    a one-level peek.
+    """
+
+    out: list[dict[str, Any]] = []
+    try:
+        for grandchild in path.iterdir():
+            if len(out) >= budget:
+                break
+            try:
+                gst = grandchild.stat()
+                gsize = gst.st_size if grandchild.is_file() else None
+            except OSError:
+                gsize = None
+            out.append(
+                {
+                    "name": grandchild.name,
+                    "is_dir": grandchild.is_dir(),
+                    "size_bytes": gsize,
+                }
+            )
+    except OSError:
+        return []
+    return out

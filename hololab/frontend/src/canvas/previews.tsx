@@ -524,12 +524,54 @@ function filterEntries(
   entries: HandleSummaryEntry[],
   glob: string | null | undefined,
 ): HandleSummaryEntry[] {
-  const kept = entries.filter((e) => !e.is_dir && !e.name.startsWith("."));
+  // Flatten arrayed<video-source> layouts: ``video-array-source`` (and any
+  // future arrayed producer) lays elements out as
+  // ``<parent>/<element>/<video>``, so the top level is all dirs and the
+  // video is one level down. The server enriches directory entries with an
+  // immediate ``children`` list (see handle_summary._summarize_dir), so
+  // when a top-level entry looks like an arrayed element (dir, no
+  // dot-prefix, at least one video-shaped child) we emit one flattened
+  // entry per contained video with ``name = "<element>/<video>"``. The
+  // URL builders below split on ``/`` and encode each segment
+  // independently so the slash survives into the request path.
+  const visible: HandleSummaryEntry[] = [];
+  for (const e of entries) {
+    if (e.name.startsWith(".")) continue;
+    if (!e.is_dir) {
+      visible.push(e);
+      continue;
+    }
+    if (!e.children) continue;
+    for (const c of e.children) {
+      if (c.is_dir || c.name.startsWith(".")) continue;
+      visible.push({
+        name: `${e.name}/${c.name}`,
+        is_dir: false,
+        size_bytes: c.size_bytes,
+      });
+    }
+  }
   if (glob && glob.trim()) {
     const re = globToRegExp(glob.trim());
-    return kept.filter((e) => re.test(e.name));
+    // Match the glob against the leaf name so a manifest that says
+    // ``*.mp4`` still works whether the entry is flat or nested.
+    return visible.filter((e) => re.test(leafName(e.name)));
   }
-  return kept.filter((e) => isVideoName(e.name));
+  return visible.filter((e) => isVideoName(e.name));
+}
+
+function leafName(name: string): string {
+  const i = name.lastIndexOf("/");
+  return i < 0 ? name : name.slice(i + 1);
+}
+
+/** Encode each ``/``-separated segment independently so the slash stays a
+ *  path separator in the constructed URL. ``encodeURIComponent`` on the
+ *  whole path would turn ``cam00/cam00.mp4`` into ``cam00%2Fcam00.mp4``,
+ *  which the node fileserver would reject as a missing file.
+ */
+function encodePathSegments(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
 }
 
 interface VideoGridProps {
@@ -986,7 +1028,9 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom }: TileProps) {
   // Thumb + preview endpoints are separate node routes rooted at the
   // same ``/proxy/{node}`` prefix.
   const [nodeRoot, dirSub] = useMemo(() => splitProxyBase(baseUrl), [baseUrl]);
-  const encodedEntry = encodeURIComponent(entry.name);
+  // ``entry.name`` can carry ``/`` when we flattened an arrayed layout
+  // (see filterEntries). Encode per segment so the slash survives.
+  const encodedEntry = encodePathSegments(entry.name);
   const memberSub = `${dirSub}/${encodedEntry}`;
   const thumbUrl = `${nodeRoot}/_thumb/${THUMB_W}x${THUMB_H}/${memberSub}?at=${THUMB_AT_SECONDS}`;
   // Grid tiles stream the low-res proxy (see PREVIEW_W/H/FPS above and
@@ -1087,7 +1131,8 @@ function ZoomOverlay({
   producingNode,
 }: ZoomOverlayProps) {
   const [nodeRoot, dirSub] = useMemo(() => splitProxyBase(baseUrl), [baseUrl]);
-  const encodedEntry = encodeURIComponent(entry.name);
+  // Nested (arrayed) entry names carry ``/``; encode per-segment.
+  const encodedEntry = encodePathSegments(entry.name);
   const videoUrl = `${baseUrl.replace(/\/$/, "")}/${encodedEntry}`;
   const thumbSub = `${dirSub}/${encodedEntry}`;
   const thumbUrl = `${nodeRoot}/_thumb/${THUMB_W}x${THUMB_H}/${thumbSub}?at=${THUMB_AT_SECONDS}`;
