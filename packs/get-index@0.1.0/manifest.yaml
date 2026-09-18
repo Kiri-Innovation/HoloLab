@@ -47,9 +47,13 @@ exec:
     set -euo pipefail
     IDX={{ params.idx }}
     # Sorted element list; framework's fan-out picks the same order.
+    # ``wc -l`` avoids bash's ``${#ARRAY[@]}`` construct — the leading
+    # ``{#`` inside the manifest's shell template would collide with
+    # Jinja2's ``{# ... #}`` comment syntax and blow up template render.
     mapfile -t ENTRIES < <(ls -1 "{{ inputs.arr }}" | sort)
-    if [ "$IDX" -ge "${#ENTRIES[@]}" ] || [ "$IDX" -lt 0 ]; then
-      echo "ERROR: idx $IDX out of range (array size ${#ENTRIES[@]})" >&2
+    N=$(printf '%s\n' "${ENTRIES[@]}" | wc -l | tr -d ' ')
+    if [ "$IDX" -ge "$N" ] || [ "$IDX" -lt 0 ]; then
+      echo "ERROR: idx $IDX out of range (array size $N)" >&2
       exit 1
     fi
     PICKED="{{ inputs.arr }}/${ENTRIES[$IDX]}"

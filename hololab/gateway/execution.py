@@ -347,7 +347,15 @@ async def _discover_element_ids(
     input_handles: dict[str, str],
     arrayed_input_ports: list[str],
 ) -> list[str]:
-    """Return the sorted element list. Rejects mismatched sets across ports."""
+    """Return the sorted element list. Rejects mismatched sets across ports.
+
+    Element candidates = **subdirectory entries only, excluding dotfiles**.
+    Hidden files the framework itself writes (``.hololab-done`` idempotency
+    marker, ``.hololab-metadata.json``, etc.) live alongside real elements
+    in a producer's output dir but must not be dispatched as shards.
+    Files that aren't directories are also excluded — an arrayed<T> element
+    is by definition a subdir (the T's on-disk form is a directory).
+    """
 
     sets_by_port: dict[str, list[str]] = {}
     for port in arrayed_input_ports:
@@ -362,7 +370,12 @@ async def _discover_element_ids(
                 f"arrayed input handle {handle_id!r} for port {port!r} is not registered"
             )
         try:
-            entries = sorted(os.listdir(h.path))
+            with os.scandir(h.path) as it:
+                entries = sorted(
+                    e.name
+                    for e in it
+                    if not e.name.startswith(".") and e.is_dir(follow_symlinks=True)
+                )
         except OSError as exc:
             raise WorkflowRunError(
                 f"cannot list arrayed input {port!r} ({h.path}): {exc}"

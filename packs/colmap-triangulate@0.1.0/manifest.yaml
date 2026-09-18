@@ -123,13 +123,13 @@ exec:
       --image_path "$IMG_DIR" \
       --SiftExtraction.max_image_size {{ params.max_image_size }} \
       --SiftExtraction.max_num_features {{ params.max_num_features }} \
-      --SiftExtraction.use_gpu {{ params.use_gpu }}
+      --FeatureExtraction.use_gpu {{ params.use_gpu }}
 
     echo "[colmap-triangulate] exhaustive_matcher"
     colmap exhaustive_matcher \
       --database_path "$DB" \
-      --SiftMatching.use_gpu {{ params.use_gpu }} \
-      --SiftMatching.guided_matching 1
+      --FeatureMatching.use_gpu {{ params.use_gpu }} \
+      --FeatureMatching.guided_matching 1
 
     echo "[colmap-triangulate] point_triangulator (frozen intrinsics)"
     colmap point_triangulator \
@@ -158,3 +158,4 @@ exec:
 
 idempotency:
   marker: "{{ outputs.points }}/.hololab-done"
+

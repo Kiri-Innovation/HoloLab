@@ -2761,6 +2761,18 @@ async def _dispatch_node_frame(
         job = await store.get(payload.job_id)
         if job is None:
             return
+        # Silent packs (no stdout/stderr, e.g. ``array-length``) never emit a
+        # ``job_log`` frame, so the ASSIGNED → RUNNING nudge above never
+        # fires and ``job_done`` would trip IllegalTransition on the direct
+        # ASSIGNED → DONE step. Insert the RUNNING transition transparently
+        # so the state machine's DONE-follows-RUNNING invariant holds
+        # regardless of whether the pack produced log output.
+        if job.state is JobState.ASSIGNED:
+            running = JobStateMachine.transition(job, JobState.RUNNING)
+            kind_ev, ev_payload = event_from_transition(job, running)
+            await store.update(running, kind_ev, ev_payload)
+            _push_job_update(hub, running)
+            job = running
         new = JobStateMachine.transition(job, JobState.DONE)
         kind_ev, ev_payload = event_from_transition(job, new)
         await store.update(new, kind_ev, ev_payload)

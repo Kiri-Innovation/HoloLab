@@ -129,6 +129,23 @@ async def test_discover_element_ids_returns_sorted_subdirs(tmp_path: Path) -> No
 
 
 @pytest.mark.asyncio
+async def test_discover_element_ids_skips_dotfiles_and_files(tmp_path: Path) -> None:
+    """Framework sidecars (``.hololab-done``, ``.hololab-metadata.json``) and
+    stray files must NOT be dispatched as shards — element = subdir only."""
+    book, h = await _seeded_book(tmp_path, subdirs=["cam00", "cam01"])
+    # Drop in the exact files a real producer's output would carry.
+    (Path(h.path) / ".hololab-done").touch()
+    (Path(h.path) / ".hololab-metadata.json").write_text("{}")
+    (Path(h.path) / "stray.txt").write_text("noise")
+    elements = await _discover_element_ids(
+        handles=book,
+        input_handles={"frames": h.handle_id},
+        arrayed_input_ports=["frames"],
+    )
+    assert elements == ["cam00", "cam01"]
+
+
+@pytest.mark.asyncio
 async def test_discover_element_ids_rejects_mismatched_sets(tmp_path: Path) -> None:
     # Two arrayed inputs on the same node with disagreeing element sets.
     db = await open_database(tmp_path / "db.sqlite")

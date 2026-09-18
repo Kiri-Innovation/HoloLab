@@ -33,6 +33,16 @@ inputs:
     tags: [int]
     description: "How many copies to produce (integer scalar handle)."
 
+params:
+  element_id_format:
+    type: string
+    default: "%04d"
+    description: >
+      printf format for element ids (0-based ordinals). Change to e.g.
+      ``frame_%06d`` when downstream fan-out must pair by-name against a
+      sibling arrayed<T> whose element ids use that convention (e.g. a
+      ``regroup-by-frame`` output using ``frame_000000`` element ids).
+
 outputs:
   out:
     tags: [any]
@@ -59,7 +69,9 @@ exec:
     fi
     mkdir -p "{{ outputs.out }}"
     SRC=$(readlink -f "{{ inputs.data }}")
-    for i in $(seq -f "%04g" 0 $((N - 1))); do
-      ln -sfn "$SRC" "{{ outputs.out }}/$i"
+    FMT='{{ params.element_id_format }}'
+    for i in $(seq 0 $((N - 1))); do
+      NAME=$(printf "$FMT" "$i")
+      ln -sfn "$SRC" "{{ outputs.out }}/$NAME"
     done
-    echo "arrayfy: replicated $SRC → $N elements"
+    echo "arrayfy: replicated $SRC → $N elements as '$FMT'"
