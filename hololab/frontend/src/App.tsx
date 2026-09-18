@@ -479,6 +479,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // ID of the most-recent snapshot for this workflow. Null until hydration.
   // Used to highlight the "当前" chip in RunsPanel while in draft view.
   const [latestSnapshotId, setLatestSnapshotId] = useState<string | null>(null);
+  // Incremented after every single-node dispatch so RunsPanel re-fetches its
+  // list and shows the new snapshot row without requiring a manual Refresh.
+  const [runsPanelRefreshToken, setRunsPanelRefreshToken] = useState(0);
 
   const catalogByKey = useMemo(() => {
     const m = new Map<string, CatalogPack>();
@@ -636,7 +639,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         return;
       }
       dispatchNode(wid, graph_node_id).then(
-        () => resolve(),
+        (result) => {
+          setLatestSnapshotId(result.snapshot_id);
+          setRunsPanelRefreshToken((t) => t + 1);
+          resolve();
+        },
         (err: Error) => reject(err.message || "dispatch failed"),
       );
     };
@@ -1468,6 +1475,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               onOpenSnapshot={(sid) => void onOpenSnapshot(sid)}
               currentSnapshotId={viewingSnapshot?.snapshot_id ?? latestSnapshotId}
               draftDiff={draftDiff}
+              refreshSignal={runsPanelRefreshToken}
               onSnapshotDeleted={(sid) => {
                 // If the operator deleted the run they were viewing,
                 // drop the read-only canvas state and fall back to the

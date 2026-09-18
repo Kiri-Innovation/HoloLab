@@ -186,6 +186,56 @@ def test_catalog_refresh_preserves_node_identity_when_hash_matches() -> None:
     )
 
 
+def test_run_node_handler_captures_snapshot_id() -> None:
+    """RUN_NODE_EVENT handler must update latestSnapshotId after single-node dispatch.
+
+    Before the fix the handler discarded the dispatchNode return value so
+    ``latestSnapshotId`` (which drives the ``当前`` chip in RunsPanel) was
+    only updated by the full-workflow run path.  Any node run triggered by
+    the header ▶ button or the preview-drawer ``onRun`` callback produced a
+    new snapshot row in Run History but the ``当前`` marker stayed frozen on
+    the old snapshot id.
+
+    The fix: capture ``result.snapshot_id`` from the resolved promise and
+    call ``setLatestSnapshotId``.  We also bump ``runsPanelRefreshToken``
+    so RunsPanel re-fetches the list without requiring a manual Refresh.
+    Assert both invariants here so a future refactor that reverts either
+    half will fail the suite immediately.
+    """
+
+    body = APP_TSX.read_text(encoding="utf-8")
+
+    # Find the RUN_NODE_EVENT handler block.
+    m = re.search(r"RUN_NODE_EVENT,\s*onRun\b", body)
+    assert m, "could not locate window.addEventListener(RUN_NODE_EVENT, onRun) in App.tsx"
+
+    # Locate the dispatchNode call and extract its .then() argument body.
+    dn_match = re.search(r"dispatchNode\(wid,\s*graph_node_id\)\.then\(", body)
+    assert dn_match, "could not find dispatchNode(wid, graph_node_id).then( in App.tsx"
+    # Walk parens to extract the full .then(...) argument.
+    i = dn_match.end()
+    depth = 1
+    start = i
+    while i < len(body) and depth > 0:
+        ch = body[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        i += 1
+    then_arg = body[start : i - 1]
+
+    assert "setLatestSnapshotId" in then_arg, (
+        "RUN_NODE_EVENT handler must call setLatestSnapshotId(result.snapshot_id) "
+        "inside the dispatchNode resolve callback — otherwise the 当前 chip stays "
+        "on the old snapshot after a single-node run."
+    )
+    assert "setRunsPanelRefreshToken" in then_arg, (
+        "RUN_NODE_EVENT handler must call setRunsPanelRefreshToken to trigger "
+        "a RunsPanel list refresh after single-node dispatch."
+    )
+
+
 def test_app_setnodes_callback_does_not_write_canvas_metadata() -> None:
     """App-level setNodes must not inject workflow_id / computeNodesById.
 
