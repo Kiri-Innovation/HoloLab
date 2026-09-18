@@ -2880,13 +2880,13 @@ function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
   const [handshaken, setHandshaken] = useState(false);
   const [activated, setActivated] = useState(false);
 
-  // Deactivate on click-outside or Esc.
+  // Deactivate on click-outside or Esc — always live, setActivated(false)
+  // is a no-op when already inactive so there's no conditional guard.
   useEffect(() => {
-    if (!activated) return;
     function onDown(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setActivated(false);
-      }
+      if (!wrapperRef.current || wrapperRef.current.contains(e.target as Node))
+        return;
+      setActivated(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setActivated(false);
@@ -2897,7 +2897,7 @@ function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [activated]);
+  }, []);
 
   useEffect(() => {
     sentRef.current = false;
