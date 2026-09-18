@@ -21,13 +21,6 @@ import { OpenSourceButton } from "./OpenSourceButton";
 import { Preview } from "./previews";
 import { PreviewPlaceholder } from "./PreviewPlaceholder";
 
-// The port label shown on the canvas is the port's tag (its object type).
-// The internal port variable name (which the pack's shell template uses) is
-// hidden in the tooltip — graph authors care about the type, not the shell.
-function portLabel(tags: string[]): string {
-  return tags[0] ?? "?";
-}
-
 function inputTitle(portName: string, spec: InputPortSpec): string {
   const parts = [`port: ${portName}`, `tags: ${spec.tags.join(", ")}`];
   if (!spec.required) parts.push("optional");
@@ -139,13 +132,17 @@ const ARRAYED_DOT_OVERLAY: React.CSSProperties = {
   boxShadow: "0 0 0 2px var(--surface-2), 0 0 0 3.5px var(--text-muted)",
 };
 
-const ROW: React.CSSProperties = {
+// One I/O row — dot + name, sized so N inputs and M outputs each flow
+// independently without cross-alignment.
+const PORT_ROW: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 6,
+  gap: 8,
   fontSize: "var(--fs-xs)",
-  fontFamily: "var(--font-mono)",
   padding: "var(--space-1) 0",
+  minHeight: 20,
+  color: "var(--text-body)",
+  lineHeight: "var(--lh-ui)",
 };
 
 const NODE_WIDTH = 220;
@@ -239,7 +236,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
   const inputEntries = Object.entries(pack.inputs);
   const outputEntries = Object.entries(pack.outputs);
-  const rows = Math.max(inputEntries.length, outputEntries.length);
   const runState = runtime?.state;
   const runColour = stateColour(runState);
   const previewables = previewableOutputs(pack, previews);
@@ -258,13 +254,32 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const runInFlight =
     runState === "pending" || runState === "assigned" || runState === "running";
 
+  const assignedComputeNode =
+    assigned_node_id ? computeNodesById?.[assigned_node_id] ?? null : null;
+  const assignedLabel = assignedComputeNode
+    ? assignedComputeNode.node_name
+    : assigned_node_id
+      ? assigned_node_id.slice(0, 6)
+      : "not assigned";
+  const progressLabel =
+    runtime?.progress && runtime.progress.total > 0
+      ? `${runtime.progress.current}/${runtime.progress.total}`
+      : null;
+  const statusTitle = runtime?.fail_reason
+    ? `${runState} · ${runtime.fail_reason}`
+    : runState || "no run yet";
+  // Subtle top-border tint on failed nodes so a glance at the canvas
+  // shows which cards need attention without dedicating header space
+  // to a text pill.
+  const failedTint = runState === "failed";
+
   return (
     <div
       className="hololab-node"
       style={{
         width,
         background: "var(--surface-2)",
-        border: `1px solid ${selected ? "var(--accent)" : "var(--border-strong)"}`,
+        border: `1px solid ${selected ? "var(--accent)" : failedTint ? "var(--status-failed)" : "var(--border-strong)"}`,
         borderRadius: "var(--radius-md)",
         boxShadow: "var(--rf-node-shadow)",
         fontFamily: "var(--font-sans)",
@@ -276,7 +291,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       data-state={runState || ""}
       data-preview-open={expanded || ""}
     >
-      {/* header */}
+      {/* HEADER — status dot + pack name (ellipsis) + action icons */}
       <div
         style={{
           padding: "var(--space-2) var(--space-3)",
@@ -285,123 +300,226 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           borderRadius: "var(--radius-md) var(--radius-md) 0 0",
           display: "flex",
           alignItems: "center",
-          gap: 6,
+          gap: "var(--space-2)",
+          minHeight: 32,
         }}
       >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontWeight: 700,
-              fontSize: "var(--fs-lg)",
-              color: "var(--text)",
-              lineHeight: "var(--lh-tight)",
-              letterSpacing: "-0.005em",
-            }}
-          >
-            {pack.name}
-          </div>
-          <div
-            style={{
-              fontSize: "var(--fs-micro)",
-              color: "var(--text-muted)",
-              fontFamily: "var(--font-mono)",
-              marginTop: 1,
-            }}
-          >
-            v{pack.version}
-            {assigned_node_id ? ` · @ ${assigned_node_id.slice(0, 6)}` : " · not assigned"}
-          </div>
+        <span
+          data-hl-node-status={runState || "idle"}
+          title={statusTitle}
+          style={{
+            flex: "0 0 auto",
+            width: 8,
+            height: 8,
+            borderRadius: "var(--radius-pill)",
+            background: runState ? runColour : "var(--border-strong)",
+            boxShadow: runState === "running"
+              ? "0 0 0 2px color-mix(in srgb, var(--status-running) 25%, transparent)"
+              : "none",
+          }}
+        />
+        <div
+          title={`${pack.name} v${pack.version}`}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontWeight: "var(--fw-semibold)",
+            fontSize: "var(--fs-md)",
+            color: "var(--text)",
+            lineHeight: "var(--lh-tight)",
+            letterSpacing: "-0.005em",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {pack.name}
         </div>
+        <div
+          style={{
+            flex: "0 0 auto",
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-1)",
+          }}
+        >
+          <OpenSourceButton
+            pack={pack}
+            computeNode={
+              assignedComputeNode ||
+              (pack.node_ids[0] && computeNodesById?.[pack.node_ids[0]]) ||
+              null
+            }
+          />
+          {workflowId && (
+            <CopyRefButton
+              kind="graph-node"
+              id={`${workflowId}/${id}`}
+              comment={`${pack.name}${runState ? ` · ${runState}` : ""}`}
+              size="xs"
+            />
+          )}
+        </div>
+      </div>
+
+      {/* BODY — inputs left column, outputs right column, independent stacks */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          columnGap: "var(--space-2)",
+          padding: "var(--space-2) var(--space-3)",
+          minHeight: 24,
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {inputEntries.map(([portName, spec]) => {
+            const isArrayed = effectivePortArrayed(
+              spec.arrayed,
+              pack.arrayable,
+              arrayed_toggle,
+            );
+            return (
+              <div key={`in-${portName}`} style={{ ...PORT_ROW, position: "relative" }}>
+                <Handle
+                  type="target"
+                  position={Position.Left}
+                  id={portName}
+                  style={{
+                    ...DOT,
+                    background: firstTagColour(spec.tags),
+                    ...(isArrayed ? ARRAYED_DOT_OVERLAY : {}),
+                  }}
+                  data-tags={spec.tags.join(",")}
+                  data-required={spec.required ? "1" : "0"}
+                  data-hl-arrayed-port={isArrayed ? "" : undefined}
+                />
+                <span
+                  title={inputTitle(portName, spec)}
+                  style={{
+                    marginLeft: 10,
+                    color: spec.required
+                      ? "var(--text-body)"
+                      : "var(--text-subtle)",
+                    fontFamily: "var(--font-mono)",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    minWidth: 0,
+                  }}
+                >
+                  {portName}
+                  {!spec.required && (
+                    <span style={{ color: "var(--text-subtle)" }}>?</span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+          {outputEntries.map(([portName, spec]) => {
+            const isArrayed = effectivePortArrayed(
+              spec.arrayed,
+              pack.arrayable,
+              arrayed_toggle,
+            );
+            return (
+              <div
+                key={`out-${portName}`}
+                style={{ ...PORT_ROW, position: "relative", justifyContent: "flex-end" }}
+              >
+                <span
+                  title={outputTitle(portName, spec)}
+                  style={{
+                    marginRight: 10,
+                    color: "var(--text-body)",
+                    fontFamily: "var(--font-mono)",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    minWidth: 0,
+                    textAlign: "right",
+                  }}
+                >
+                  {portName}
+                </span>
+                <Handle
+                  type="source"
+                  position={Position.Right}
+                  id={portName}
+                  style={{
+                    ...DOT,
+                    background: firstTagColour(spec.tags),
+                    ...(isArrayed ? ARRAYED_DOT_OVERLAY : {}),
+                  }}
+                  data-tags={spec.tags.join(",")}
+                  data-hl-arrayed-port={isArrayed ? "" : undefined}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* FOOTER — compute-node · version · arrayed chip · expand caret */}
+      <div
+        style={{
+          padding: "var(--space-1) var(--space-3)",
+          borderTop: "1px solid var(--border-subtle)",
+          background: "var(--surface)",
+          borderRadius: "0 0 var(--radius-md) var(--radius-md)",
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-2)",
+          fontSize: "var(--fs-micro)",
+          color: "var(--text-muted)",
+          fontFamily: "var(--font-mono)",
+          minHeight: 20,
+        }}
+      >
+        <span
+          title={assigned_node_id ?? "no compute node assigned"}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            color: assigned_node_id ? "var(--text-muted)" : "var(--text-subtle)",
+          }}
+        >
+          {assignedLabel} · v{pack.version}
+        </span>
+        {progressLabel && (
+          <span
+            style={{
+              color: runColour,
+              fontVariantNumeric: "tabular-nums",
+              whiteSpace: "nowrap",
+            }}
+            title={statusTitle}
+          >
+            {progressLabel}
+          </span>
+        )}
         {arrayedOn && (
-          <div
+          <span
             data-hl-arrayed-badge=""
             title="并行处理数组输入 — 运行时框架为每个数组元素起一个 sub-job"
             style={{
-              background: "var(--warning-soft, rgba(200, 162, 0, 0.14))",
               color: "var(--warning, #c8a200)",
               border: "1px solid var(--warning, #c8a200)",
-              fontSize: "var(--fs-micro)",
-              fontWeight: 700,
-              padding: "1px 5px",
-              borderRadius: "var(--radius-sm, 4px)",
-              lineHeight: "14px",
+              borderRadius: "var(--radius-sm)",
+              padding: "0 var(--space-1)",
+              fontWeight: "var(--fw-semibold)",
               letterSpacing: "0.04em",
+              lineHeight: 1.4,
               whiteSpace: "nowrap",
             }}
           >
-            [N]
-          </div>
-        )}
-        {runState && (
-          <div
-            style={{
-              background: "var(--surface-alt)",
-              color: runColour,
-              border: "1px solid var(--border)",
-              fontSize: "var(--fs-micro)",
-              fontWeight: 600,
-              padding: "1px 6px",
-              borderRadius: "var(--radius-pill)",
-              lineHeight: "14px",
-              letterSpacing: "0.02em",
-              whiteSpace: "nowrap",
-            }}
-            title={
-              runtime?.fail_reason
-                ? `${runState} · ${runtime.fail_reason}`
-                : runState
-            }
-          >
-            {runState}
-            {runtime?.progress && runtime.progress.total > 0
-              ? ` ${runtime.progress.current}/${runtime.progress.total}`
-              : ""}
-          </div>
-        )}
-        {/*
-          The card-header ⧉ copies the GRAPH-NODE ref (position on the
-          canvas), not the current job id. Resolving a graph-node ref
-          returns the latest job / snapshot / handles at this position
-          plus a ready dispatch URL, so an agent still reaches the same
-          places in one hop — but the ref itself is stable across every
-          Fork, and remains valid even before the first run.
-
-          For per-execution grabs (a specific job the user wants to
-          point at) the RecentJobs panel row keeps its own ⧉ that
-          emits kind="job".
-
-          Rendered only when workflow_id is available — without it we
-          can't form a valid ref (graph_node_id is only unique inside
-          its workflow). In practice the palette (an unpersisted
-          workflow being composed) is the only path that omits it.
-        */}
-        {/*
-          Code-icon button: opens the pack's source in Cocoder via
-          window.flops.showDocument. Renders only inside Flops
-          (flopsAvailable()); resolves the target compute node in
-          this priority order:
-            1. The graph-node's explicit assignment (assigned_node_id),
-               so the developer picks the specific machine when there
-               are multiple online offering the same pack.
-            2. First entry of pack.node_ids (currently-online nodes).
-            3. null — button still renders (guide the operator to
-               configure things).
-        */}
-        <OpenSourceButton
-          pack={pack}
-          computeNode={
-            (assigned_node_id && computeNodesById?.[assigned_node_id]) ||
-            (pack.node_ids[0] && computeNodesById?.[pack.node_ids[0]]) ||
-            null
-          }
-        />
-        {workflowId && (
-          <CopyRefButton
-            kind="graph-node"
-            id={`${workflowId}/${id}`}
-            comment={`${pack.name}${runState ? ` · ${runState}` : ""}`}
-            size="xs"
-          />
+            arr
+          </span>
         )}
         {previewables.length > 0 && (
           <PreviewCaret
@@ -416,115 +534,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             }}
           />
         )}
-      </div>
-
-      {/* body: two aligned columns of inputs / outputs */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          padding: "var(--space-2) var(--space-3) var(--space-3)",
-          minHeight: 24,
-          rowGap: 4,
-        }}
-      >
-        {Array.from({ length: rows }).map((_, i) => {
-          const inp = inputEntries[i];
-          const out = outputEntries[i];
-          return (
-            <div key={`row-${i}`} style={{ display: "contents" }}>
-              {/* input side */}
-              <div style={{ ...ROW, position: "relative" }}>
-                {inp && (
-                  <>
-                    <Handle
-                      type="target"
-                      position={Position.Left}
-                      id={inp[0]}
-                      style={{
-                        ...DOT,
-                        background: firstTagColour(inp[1].tags),
-                        ...(effectivePortArrayed(
-                          inp[1].arrayed,
-                          pack.arrayable,
-                          arrayed_toggle,
-                        )
-                          ? ARRAYED_DOT_OVERLAY
-                          : {}),
-                      }}
-                      data-tags={inp[1].tags.join(",")}
-                      data-required={inp[1].required ? "1" : "0"}
-                      data-hl-arrayed-port={
-                        effectivePortArrayed(
-                          inp[1].arrayed,
-                          pack.arrayable,
-                          arrayed_toggle,
-                        )
-                          ? ""
-                          : undefined
-                      }
-                    />
-                    <span
-                      style={{
-                        marginLeft: 10,
-                        color: inp[1].required ? "var(--text-body)" : "var(--text-subtle)",
-                      }}
-                      title={inputTitle(inp[0], inp[1])}
-                    >
-                      {portLabel(inp[1].tags)}
-                      {!inp[1].required && "?"}
-                    </span>
-                  </>
-                )}
-              </div>
-              {/* output side */}
-              <div
-                style={{
-                  ...ROW,
-                  position: "relative",
-                  justifyContent: "flex-end",
-                }}
-              >
-                {out && (
-                  <>
-                    <span
-                      style={{ marginRight: 10, color: "var(--text-body)" }}
-                      title={outputTitle(out[0], out[1])}
-                    >
-                      {portLabel(out[1].tags)}
-                    </span>
-                    <Handle
-                      type="source"
-                      position={Position.Right}
-                      id={out[0]}
-                      style={{
-                        ...DOT,
-                        background: firstTagColour(out[1].tags),
-                        ...(effectivePortArrayed(
-                          out[1].arrayed,
-                          pack.arrayable,
-                          arrayed_toggle,
-                        )
-                          ? ARRAYED_DOT_OVERLAY
-                          : {}),
-                      }}
-                      data-tags={out[1].tags.join(",")}
-                      data-hl-arrayed-port={
-                        effectivePortArrayed(
-                          out[1].arrayed,
-                          pack.arrayable,
-                          arrayed_toggle,
-                        )
-                          ? ""
-                          : undefined
-                      }
-                    />
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })}
       </div>
 
       {expanded && currentPreview && (
@@ -629,6 +638,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
 }
 
 /** Small caret in the node header — flips on expand. Purely visual. */
+/** Compact caret button — used in the footer bar to toggle the preview
+ *  drawer. Sized to fit the 20 px footer without pushing it taller. */
 function PreviewCaret({
   expanded,
   onClick,
@@ -646,18 +657,19 @@ function PreviewCaret({
       title={expanded ? "collapse preview" : "expand preview"}
       style={{
         border: "1px solid var(--border-strong)",
-        background: expanded ? "var(--text)" : "var(--surface)",
-        color: expanded ? "var(--text-inverse)" : "var(--text-body)",
-        width: "var(--control-h-sm)",
-        height: "var(--control-h-sm)",
+        background: expanded ? "var(--text)" : "transparent",
+        color: expanded ? "var(--text-inverse)" : "var(--text-muted)",
+        width: 16,
+        height: 16,
         borderRadius: "var(--radius-sm)",
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        fontSize: "var(--fs-micro)",
+        fontSize: 9,
         lineHeight: 1,
         padding: 0,
+        flexShrink: 0,
       }}
     >
       {expanded ? "▾" : "▸"}
