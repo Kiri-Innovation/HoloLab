@@ -260,6 +260,7 @@ a:hover { text-decoration: underline; }
     height 120ms var(--ease),
     border-radius 120ms var(--ease),
     padding 120ms var(--ease),
+    transform var(--dur-fast) var(--ease),
     opacity var(--dur-fast) var(--ease),
     background var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease),
@@ -278,11 +279,10 @@ a:hover { text-decoration: underline; }
 }
 
 /* Dot mode: short-span edge — chip collapses to a small circle so it
-   doesn't overflow onto adjacent node cards. Expanded by CSS :hover on
-   the chip itself (edge SVG hover is handled by JS → removes data-dot).
-   Explicit width keeps the dot from shrinking below 8px (text-indent
-   tricks collapse shrink-to-fit to near-zero on absolutely positioned
-   elements with overflow: hidden). */
+   doesn't overflow onto adjacent node cards. All expansion is JS-driven
+   (onMouseEnter on the chip + fat hit-path both set edgeHovered) so the
+   chip gains [data-pop] rather than expanding via CSS :hover.
+   Explicit width keeps the dot from shrinking below 8px. */
 .hl-edge-chip[data-dot] {
   width: 8px;
   max-width: 8px;
@@ -293,14 +293,52 @@ a:hover { text-decoration: underline; }
   /* transparent outline expands click/hover hit area without affecting layout */
   outline: 8px solid transparent;
 }
+/* Subtle brightness-up on dot hover so the user knows it's interactive;
+   the actual pop is handled by JS → [data-pop] below. */
 .hl-edge-chip[data-dot]:hover {
-  width: auto;
-  max-width: 160px;
-  height: 18px;
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  color: var(--text-muted);
   outline: none;
+  border-color: var(--border-subtle);
+  opacity: 1;
+}
+
+/* Pop state: short-span edge expanded upward.
+   z-index: 10 places the chip above node cards (which have z-index: auto
+   within .react-flow__renderer's stacking context).
+   animation handles the pop-in; transform transition (defined on base
+   class) handles the smooth exit when [data-pop] is removed. */
+.hl-edge-chip[data-pop] {
+  transform: translate(-50%, calc(-50% - 28px));
+  overflow: visible;
+  z-index: 10;
+  opacity: 1;
+  animation: hl-chip-pop var(--dur-fast) var(--ease) both;
+}
+/* Down-pointing arrow tail: rotated square whose bottom-right corner
+   shows below the chip, matching the chip's border and background. */
+.hl-edge-chip[data-pop]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  transform: translateX(-50%) rotate(45deg);
+  width: 7px;
+  height: 7px;
+  background: var(--surface-2);
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  pointer-events: none;
+}
+.hl-edge-chip[data-pop][data-selected]::after {
+  background: var(--accent-soft);
+  border-right-color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+@keyframes hl-chip-pop {
+  from {
+    transform: translate(-50%, calc(-50% - 14px));
+    opacity: 0;
+  }
 }
 .react-flow__handle {
   border: 1px solid var(--surface);

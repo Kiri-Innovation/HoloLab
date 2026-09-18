@@ -65,6 +65,9 @@ function TypedEdgeInner({
 }: TypedEdgeProps) {
   // Track edge-path hover so the dot expands even before the user
   // reaches the tiny chip (via a 20 px transparent hit path below).
+  // Also set by the chip's own onMouseEnter so hovering the dot directly
+  // triggers the JS-driven pop (prevents CSS-transform flicker where the
+  // chip would move away from the cursor and immediately un-hover).
   const [edgeHovered, setEdgeHovered] = useState(false);
 
   const [path, labelX, labelY] = getBezierPath({
@@ -84,11 +87,13 @@ function TypedEdgeInner({
   const strokeWidth = selected ? STROKE_SELECTED : STROKE_DEFAULT;
 
   // Dot mode: short-span edge and not currently expanded.
-  // Chip-hover expansion is handled purely by CSS [data-dot]:hover so
-  // it needs no JS state; edge-path hover and selection remove data-dot
-  // via React to trigger the same expanded appearance.
+  // All expansion is JS-driven (onMouseEnter on both the fat hit-path and
+  // the chip itself) so the chip's transform change can't cause CSS-only
+  // hover to flicker.
   const useDot = label !== "" && Math.abs(targetX - sourceX) < DOT_THRESHOLD;
   const dotCollapsed = useDot && !selected && !edgeHovered;
+  // Pop state: short-span edge in expanded form — chip floats above the line.
+  const dotExpanded = useDot && (selected || edgeHovered);
 
   // The chip sits in an EdgeLabelRenderer portal — clicks on it do NOT
   // bubble to the underlying SVG edge, so xyflow's built-in
@@ -102,6 +107,12 @@ function TypedEdgeInner({
     },
     [onSelect, id],
   );
+
+  // When the user hovers directly on the collapsed dot, promote to the JS
+  // edgeHovered state so the pop is JS-driven (not CSS-only).  This prevents
+  // the chip from flickering: if CSS alone moved the chip up, the cursor
+  // would immediately leave the chip's new position and collapse it again.
+  const onChipEnter = useCallback(() => setEdgeHovered(true), []);
 
   return (
     <>
@@ -127,8 +138,10 @@ function TypedEdgeInner({
             className="hl-edge-chip"
             data-selected={selected ? "" : undefined}
             data-dot={dotCollapsed ? "" : undefined}
+            data-pop={dotExpanded ? "" : undefined}
             title={labelLong}
             onClick={onChipClick}
+            onMouseEnter={onChipEnter}
             style={{ left: labelX, top: labelY }}
           >
             {label}
