@@ -1,0 +1,159 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-sfm-cams-only
+version: 0.2.0
+description: >
+  Run COLMAP Structure-from-Motion on a ``frame_sequence`` and emit ONLY the
+  cameras + images (``colmap-cams``) — no per-scene points. Feeds
+  ``colmap-triangulate`` which consumes ``colmap-cams`` + per-frame images
+  to produce time-varying ``colmap-frame`` (per-frame COLMAP + undistorted
+  images).
+category: "reconstruction/colmap"
+
+docs: |
+  Wrapper around the vanilla COLMAP CLI — ``feature_extractor`` +
+  ``exhaustive_matcher`` + ``mapper``. Publishes the largest reconstructed
+  model as ``cameras.txt`` + ``images.txt`` in the **OPENCV** camera model
+  (a single shared rig intrinsic, per SpaceTimeGaussians' ``pre_no_prior``
+  recipe). ``colmap-triangulate`` picks up that OPENCV prior and does the
+  per-frame ``image_undistorter`` → PINHOLE conversion downstream.
+
+  ### What's baked in (post-v0.2.0 canonical STG no_prior config)
+
+  * ``feature_extractor --ImageReader.single_camera 1 --ImageReader.camera_model OPENCV``
+    — 21 rig cams share one OPENCV intrinsic. Mirrors
+    ``SpacetimeGaussians/thirdparty/gaussian_splatting/convert.py:65-66``.
+  * ``exhaustive_matcher`` (no ``guided_matching`` — original doesn't set it).
+  * ``mapper --Mapper.ba_global_function_tolerance=0.000001`` — the tight
+    BA tolerance the original ships with (``convert.py:83``); COLMAP's
+    default (1.0) leaves too much slack in the SfM solve.
+  * SIFT defaults raised to COLMAP defaults (8192 features, 3200 px cap)
+    — the v0.1.0 defaults (2048 / 2400) were the surface of an unrelated
+    smoke-run and shipped as prod by accident.
+
+  ### When to use this vs alternatives
+
+  * **``colmap-sfm-cams-only`` (this pack) + ``colmap-triangulate``** — the
+    canonical STG production pipeline: static rig-of-many-cams, run SfM on
+    one representative frame to solve camera poses, then triangulate every
+    frame independently against those known poses. Deterministic, fan-out
+    friendly.
+  * **``rig-group-triangulation``** — a *different* pack for the
+    calibration-experimentation workflow: poses come from a pre-solved rig
+    calibration JSON (``rig_extrinsics`` tag), grouping is time-bucketed
+    (``rig_groups`` tag), whole-array in one process. See its ``docs`` for
+    why the surfaces don't collapse into one pack.
+
+  Output layout::
+
+      output/
+        cameras.txt   # 1 OPENCV entry (single_camera=1)
+        images.txt    # N rig-cam poses
+
+  The ``colmap-triangulate`` pack expects this exact layout on its
+  ``cams`` input and re-runs ``feature_extractor`` in the same
+  single-camera / OPENCV mode so DB image IDs / camera IDs align with
+  the prior it constructs.
+
+inputs:
+  frames:
+    tags: [frame_sequence]
+    description: "One camera's (or one time-slice's) images — an SfM-runnable set."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  max_image_size:
+    type: int
+    default: 3200
+    min: 512
+    description: "SIFT downscale cap (--SiftExtraction.max_image_size). Matches COLMAP default."
+  max_num_features:
+    type: int
+    default: 8192
+    min: 512
+    description: "SIFT feature cap per image. Matches COLMAP default."
+
+outputs:
+  cams:
+    tags: [colmap-cams]
+    description: >
+      COLMAP text-format cameras.txt + images.txt in the OPENCV model
+      (single shared rig intrinsic). Downstream ``colmap-triangulate``
+      handles the per-frame ``image_undistorter`` → PINHOLE conversion.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false  # falls back to CPU if use_gpu=0
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    IMG_DIR="{{ inputs.frames }}/frames"
+    OUT="{{ outputs.cams }}"
+    DB="{{ scratch_dir }}/database.db"
+    SPARSE_ROOT="{{ scratch_dir }}/sparse"
+
+    if [ ! -d "$IMG_DIR" ]; then
+      echo "ERROR: input frames handle missing frames/ subdir: $IMG_DIR" >&2
+      exit 2
+    fi
+
+    mkdir -p "$OUT" "$SPARSE_ROOT"
+
+    echo "[colmap-sfm-cams-only] feature_extractor (single_camera=1, OPENCV)"
+    colmap feature_extractor \
+      --database_path "$DB" \
+      --image_path "$IMG_DIR" \
+      --ImageReader.single_camera 1 \
+      --ImageReader.camera_model OPENCV \
+      --SiftExtraction.max_image_size {{ params.max_image_size }} \
+      --SiftExtraction.max_num_features {{ params.max_num_features }} \
+      --FeatureExtraction.use_gpu {{ params.use_gpu }}
+
+    echo "[colmap-sfm-cams-only] exhaustive_matcher"
+    colmap exhaustive_matcher \
+      --database_path "$DB" \
+      --FeatureMatching.use_gpu {{ params.use_gpu }}
+
+    echo "[colmap-sfm-cams-only] mapper (ba_global_function_tolerance=1e-6)"
+    colmap mapper \
+      --database_path "$DB" \
+      --image_path "$IMG_DIR" \
+      --output_path "$SPARSE_ROOT" \
+      --Mapper.ba_global_function_tolerance=0.000001
+
+    # Mapper writes models 0/, 1/, ... — take model 0 (largest).
+    MODEL0="$SPARSE_ROOT/0"
+    if [ ! -d "$MODEL0" ]; then
+      echo "ERROR: COLMAP mapper produced no reconstruction under $SPARSE_ROOT" >&2
+      exit 3
+    fi
+
+    echo "[colmap-sfm-cams-only] model_converter → TXT"
+    colmap model_converter \
+      --input_path "$MODEL0" \
+      --output_path "$OUT" \
+      --output_type TXT
+
+    # points3D.txt is not part of this pack's contract — discard.
+    # rigs.txt / frames.txt (COLMAP 3.11+) also stripped: shipping the
+    # SfM's rig assignments into a downstream ``colmap-triangulate``'s
+    # prior trips the ``existing_frame.RigId() == frame.RigId()`` check
+    # in database_cache.cc:165 (the fresh feature_extractor's per-image
+    # default rigs won't match the SfM's grouped rigs). Without a prior
+    # rig assignment the downstream defaults win and the check passes.
+    rm -f "$OUT/points3D.txt" "$OUT/rigs.txt" "$OUT/frames.txt"
+
+    test -s "$OUT/cameras.txt" || { echo "no cameras.txt produced" >&2; exit 4; }
+    test -s "$OUT/images.txt"  || { echo "no images.txt produced" >&2; exit 4; }
+    echo "[colmap-sfm-cams-only] done → $OUT"
+
+idempotency:
+  marker: "{{ outputs.cams }}/.hololab-done"

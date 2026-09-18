@@ -1,0 +1,145 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-triangulate
+version: 0.2.0
+description: >
+  Per-frame COLMAP triangulate + undistort against KNOWN camera poses.
+  Consumes a ``colmap-cams`` handle (OPENCV cameras.txt + images.txt from
+  the SfM stage) plus a ``frame_sequence`` of that frame's raw images.
+  Runs COLMAP ``point_triangulator`` in the SfM's OPENCV space, then
+  ``image_undistorter`` to emit a **PINHOLE** per-frame model bundled with
+  undistorted images. Output tag is ``colmap-frame`` (self-contained
+  ``sparse/0/`` + ``images/``). ``arrayable: true`` — one shard per frame.
+source_entry: triangulate.py
+category: "reconstruction/colmap"
+
+docs: |
+  Same underlying primitive as ``rig-group-triangulation`` — both invoke
+  ``colmap point_triangulator`` — but the two packs sit at different
+  points in the workflow:
+
+  | | ``colmap-triangulate`` (this pack) | ``rig-group-triangulation`` |
+  |---|---|---|
+  | Purpose | **Production** STG pipeline stage | **Experiment** with rig-calibration recipes |
+  | Camera pose source | ``colmap-cams`` from an upstream SfM node | ``rig_extrinsics`` from a solved static rig calibration JSON |
+  | Fan-out model | ``arrayable: true`` — framework dispatches one shard per frame | Whole-array in one process with an internal thread pool |
+  | Coordinate frame | SfM world (OPENCV → undistorted PINHOLE per frame) | Static rig frame shared across all groups |
+
+  ### v0.2.0 — canonical STG no_prior mirror
+
+  This pack now mirrors what
+  ``SpacetimeGaussians/thirdparty/gaussian_splatting/helper3dg.py::getcolmapsinglen3d``
+  does per frame:
+
+  1. ``feature_extractor --ImageReader.single_camera 1 --ImageReader.camera_model OPENCV``
+     on this frame's raw images (matching the SfM's convention so DB IDs
+     align).
+  2. Build a prior model aligned with the fresh DB's IDs, filled with the
+     SfM's OPENCV intrinsics + this frame's per-rig-cam poses (looked up
+     by the ``grandparent-folder`` cam key).
+  3. ``exhaustive_matcher`` (no ``guided_matching`` — original doesn't set it).
+  4. ``point_triangulator --Mapper.ba_global_function_tolerance=0.000001``
+     (intrinsics are *not* frozen — the original allows BA to refine them
+     per frame, mirroring that here).
+  5. ``image_undistorter --output_type COLMAP`` converts the OPENCV model
+     + raw images into PINHOLE cameras.bin + undistorted images/. This is
+     the step that makes the STG dataset reader (`dataset_readers.py:156`
+     asserts PINHOLE / SIMPLE_PINHOLE only) accept the output.
+  6. Move ``sparse/*.bin`` into ``sparse/0/`` and drop a TXT mirror
+     alongside for grep-ability.
+
+  ### Rig-consistency fix (COLMAP 3.11+)
+
+  ``point_triangulator``'s ``Reconstruction::Load(database_cache)`` checks
+  ``existing_frame.RigId() == frame.RigId()`` on every frame. Under the
+  default one-rig-per-camera / one-frame-per-image convention that reduces
+  to *"for each DB ``image_id`` X, the prior's ``image_id`` X must reference
+  the same ``camera_id``."* SQLite auto-increments IDs in row-insertion
+  order and the extractor's reader threads insert in a non-deterministic
+  order, so mechanically copying the SfM's ``cameras.txt`` / ``images.txt``
+  into the prior fails on most shards (and even the SfM's own shard, by
+  luck alone).
+
+  ``triangulate.py`` runs ``feature_extractor`` first, queries the fresh
+  DB's assigned ``(image_id, name, camera_id)``, then synthesises a prior
+  model whose IDs are aligned with the DB by construction — intrinsics
+  and poses looked up from the SfM output via the per-camera key
+  extracted from the resolved image path (grandparent folder in the
+  ``regroup-by-frame`` layout).
+
+  Output layout::
+
+      output/                        # tag: colmap-frame
+        sparse/0/
+          cameras.bin / .txt         # PINHOLE (single shared rig intrinsic)
+          images.bin  / .txt         # poses adjusted for undistorted refs
+          points3D.bin / .txt
+        images/
+          <cam>.png                  # undistorted (image_undistorter output)
+
+  Downstream ``colmap-assemble`` symlinks these per-frame directories
+  into the ``colmap_N/`` container that ``stg-train`` reads.
+
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    description: "Known camera poses (cameras.txt + images.txt, OPENCV model) — the SfM output."
+  frames:
+    tags: [frame_sequence]
+    description: "This frame's per-camera images to triangulate against `cams`."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  max_image_size:
+    type: int
+    default: 3200
+    min: 512
+    description: "SIFT downscale cap. Matches COLMAP default."
+  max_num_features:
+    type: int
+    default: 8192
+    min: 512
+    description: "SIFT feature cap per image. Matches COLMAP default."
+  filter_max_reproj_error:
+    type: float
+    default: 4.0
+    min: 0.1
+    description: "point_triangulator reprojection filter (px). Matches COLMAP default."
+
+outputs:
+  frame:
+    tags: [colmap-frame]
+    description: >
+      Self-contained per-frame COLMAP directory: ``sparse/0/`` (PINHOLE
+      cameras + images + points3D, both .bin and .txt) plus ``images/``
+      with the undistorted per-rig-cam images. Ready for
+      ``colmap-assemble`` to fan-in into a ``colmap`` container.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/triangulate.py" \
+      --cams "{{ inputs.cams }}" \
+      --image-path "{{ inputs.frames }}/frames" \
+      --output "{{ outputs.frame }}" \
+      --scratch "{{ scratch_dir }}" \
+      --use-gpu {{ params.use_gpu }} \
+      --max-image-size {{ params.max_image_size }} \
+      --max-num-features {{ params.max_num_features }} \
+      --filter-max-reproj-error {{ params.filter_max_reproj_error }}
+
+idempotency:
+  marker: "{{ outputs.frame }}/.hololab-done"

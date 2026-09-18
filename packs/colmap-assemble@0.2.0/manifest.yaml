@@ -1,0 +1,71 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-assemble
+version: 0.2.0
+description: >
+  Assemble an ``arrayed<colmap-frame>`` (per-frame COLMAP directories with
+  PINHOLE cameras + undistorted images) into the ``colmap_N/`` container
+  layout that ``stg-train`` and every other consumer of the ``colmap`` tag
+  expects.
+source_entry: assemble.py
+category: "reconstruction/colmap"
+
+docs: |
+  Whole-array assembler. For every element ``i`` (sorted-order) of the
+  ``arrayed<colmap-frame>`` input, writes a ``colmap_{i}/`` subdirectory
+  into the output that STG's dataset reader can load verbatim::
+
+      output/
+        colmap_0/
+          sparse/0/
+            cameras.bin / .txt      -> frames/<elem_0>/sparse/0/cameras.*
+            images.bin  / .txt      -> ...
+            points3D.bin / .txt     -> ...
+          images/
+            <cam>.png               -> frames/<elem_0>/images/<cam>.png
+        colmap_1/
+          ...
+
+  Symlinks everywhere — no bytes copied.
+
+  ### v0.2.0 change vs v0.1.0
+
+  v0.1.0 fanned in three arrayed inputs (``cams`` + ``points`` + ``frames``)
+  because ``colmap-triangulate@0.1.0`` emitted only ``points3D.txt`` and
+  the cameras/images had to be sourced separately (``colmap-cams`` +
+  raw ``frame_sequence``). ``colmap-triangulate@0.2.0`` now emits a
+  self-contained ``colmap-frame`` (PINHOLE cameras + images + points +
+  undistorted images/), so assemble simplifies to one input.
+
+  This structural change is what makes ``stg-train`` accept the output —
+  the v0.1.0 chain shipped ``SIMPLE_RADIAL`` cameras and raw distorted
+  images to STG's dataset reader (``dataset_readers.py:156`` /
+  ``:237-238`` assert PINHOLE / SIMPLE_PINHOLE only).
+
+  Not arrayable — this is a whole-array reshape.
+
+inputs:
+  frames:
+    tags: [colmap-frame]
+    arrayed: true
+    description: "arrayed<colmap-frame> — one self-contained per-frame COLMAP dir per element (from colmap-triangulate[arrayed]@0.2.0+)."
+
+outputs:
+  colmap:
+    tags: [colmap]
+    description: "Container with colmap_0/, colmap_1/, ... — each a complete COLMAP model + undistorted image dir, ready for stg-train."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/assemble.py" \
+      --frames "{{ inputs.frames }}" \
+      --output "{{ outputs.colmap }}"
+
+idempotency:
+  marker: "{{ outputs.colmap }}/.hololab-done"
