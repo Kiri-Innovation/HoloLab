@@ -470,6 +470,60 @@ def effective_port_arrayed(port_arrayed: bool, pack_arrayable: bool, node_toggle
     return port_arrayed or (pack_arrayable and node_toggle)
 
 
+def effective_output_tags(
+    node: "GraphNode",
+    pack: "PackHandle",
+    port_name: str,
+    graph: "WorkflowGraph",
+    node_by_id: dict[str, "GraphNode"],
+    packs_by_key: dict[tuple[str, str], "PackHandle"],
+    _visited: set[tuple[str, str]] | None = None,
+) -> list[str]:
+    """Resolve an output port's effective tag set, following ``tags_from``.
+
+    Generic utility packs (``arrayfy`` / ``get-index``) declare an output
+    with ``tags_from: <input_port_name>`` so the element type propagates
+    from whatever the caller wired into that input. At validation time
+    we walk the wire back to the ultimate producer and adopt its effective
+    output tags. A port without ``tags_from`` returns its declared tags
+    verbatim (the original set-intersection semantics).
+
+    Cycles collapse to ``["any"]`` — the graph should be a DAG by the
+    time this runs, but propagation cycles (illegal manifest referencing
+    itself, etc.) are still guarded so the check never loops.
+    """
+
+    visited: set[tuple[str, str]] = set() if _visited is None else _visited
+    key = (node.id, port_name)
+    if key in visited:
+        return [ANY_TAG]
+    visited.add(key)
+
+    port = pack.outputs.get(port_name)
+    if port is None:
+        return []
+    if not port.tags_from:
+        return list(port.tags)
+
+    upstream_input = port.tags_from
+    for edge in graph.edges:
+        if edge.target != node.id or edge.targetHandle != upstream_input:
+            continue
+        up = node_by_id.get(edge.source)
+        if up is None:
+            break
+        up_pack = packs_by_key.get((up.algorithm_name, up.algorithm_version))
+        if up_pack is None:
+            break
+        return effective_output_tags(
+            up, up_pack, edge.sourceHandle, graph, node_by_id, packs_by_key, visited
+        )
+
+    # Nothing (yet) wired to the referenced input, or the wire broke —
+    # fall back to the declared tags (typically ``[any]``, matching-anything).
+    return list(port.tags)
+
+
 def validate_snapshot(
     graph: WorkflowGraph,
     *,
@@ -575,7 +629,11 @@ def validate_snapshot(
         # pack.arrayable × node.arrayed_toggle override.
         src_arr = effective_port_arrayed(src_out.arrayed, src_pack.arrayable, src.arrayed_toggle)
         tgt_arr = effective_port_arrayed(tgt_in.arrayed, tgt_pack.arrayable, tgt.arrayed_toggle)
-        src_tags = list(src_out.tags)
+        # Effective tag sets — outputs may declare ``tags_from`` to inherit
+        # from their pack's connected input (arrayfy / get-index generics).
+        src_tags = effective_output_tags(
+            src, src_pack, edge.sourceHandle, graph, node_by_id, packs_by_key
+        )
         tgt_tags = list(tgt_in.tags)
         if not ports_compatible(src_tags, src_arr, tgt_tags, tgt_arr):
             if src_arr != tgt_arr:

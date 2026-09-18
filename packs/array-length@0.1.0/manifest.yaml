@@ -1,0 +1,41 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: array-length
+version: 0.1.0
+description: >
+  Count the elements of an ``arrayed<T>`` handle. Produces an ``int``
+  scalar handle (a plain-text file with the count) that feeds into
+  ``arrayfy.count`` for broadcasting a scalar T to a matching arrayed<T>.
+category: "utility/arrayed"
+
+docs: |
+  Generic utility. Wire any arrayed<T> handle to ``arr``; the output ``n``
+  is an int scalar handle whose file contains the element count as a
+  base-10 integer with trailing newline.
+
+  Typical use: pair with ``arrayfy`` to broadcast one COLMAP camera set to
+  every frame — array-length reads the frame count, arrayfy replicates the
+  cams handle that many times.
+
+inputs:
+  arr:
+    tags: [any]
+    arrayed: true
+    description: "Any arrayed<T> handle (directory whose subdirs are elements)."
+
+outputs:
+  n:
+    tags: [int]
+    storage: file
+    description: "Base-10 integer file with the element count."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    N=$(find "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 -printf '.' | wc -c | tr -d ' ')
+    echo "$N" > "{{ outputs.n }}"

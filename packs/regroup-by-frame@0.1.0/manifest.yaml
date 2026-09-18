@@ -1,0 +1,67 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: regroup-by-frame
+version: 0.1.0
+description: >
+  Transpose ``arrayed<frame_sequence>`` from (camera × frame) layout to
+  (frame × camera) layout. Consumes N cameras' extracted frames; emits
+  M frames each holding one image per camera.
+source_entry: regroup.py
+category: "utility/arrayed"
+
+docs: |
+  Input layout (arrayed<frame_sequence>, one element per camera):
+  ```
+  <input>/
+    cam_A/
+      frames/
+        frame_000000.png
+        frame_000001.png
+    cam_B/
+      frames/
+        frame_000000.png
+        ...
+  ```
+
+  Output layout (arrayed<frame_sequence>, one element per frame):
+  ```
+  <output>/
+    frame_000000/
+      frames/
+        cam_A.png
+        cam_B.png
+    frame_000001/
+      frames/
+        ...
+  ```
+
+  Element ids on both sides are the sorted subdir names. Symlinks
+  (not copies) — no disk-copy overhead even at 21 cameras × 400 frames.
+
+  Whole-array operation (not per-shard) — pack is NOT arrayable; the
+  framework hands the arrayed handle path in as-is, the pack does the
+  transpose in one process.
+
+inputs:
+  by_cam:
+    tags: [frame_sequence]
+    arrayed: true
+    description: "arrayed<frame_sequence>: each element = one camera's frames."
+
+outputs:
+  by_frame:
+    tags: [frame_sequence]
+    arrayed: true
+    description: "arrayed<frame_sequence>: each element = one frame's cameras."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/regroup.py" \
+      --input "{{ inputs.by_cam }}" \
+      --output "{{ outputs.by_frame }}"

@@ -1,0 +1,61 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: get-index
+version: 0.1.0
+description: >
+  Pick one element of an ``arrayed<T>`` handle by 0-based index (sorted
+  subdir order). Produces the plain T handle.
+category: "utility/arrayed"
+
+docs: |
+  Element access utility. ``idx`` is a param (static "pick this one" —
+  no natural int-producing sibling to wire), not an input port. Element
+  order follows ``sorted(os.listdir())`` on the arrayed<T> directory,
+  matching the framework's fan-out element order.
+
+  Output tags propagate from ``arr`` via ``tags_from: arr``.
+
+  Typical use: pick the first frame of a regrouped arrayed<frame_sequence>
+  to feed a SfM node that only wants one frame's cameras.
+
+inputs:
+  arr:
+    tags: [any]
+    arrayed: true
+    description: "Any arrayed<T> handle."
+
+params:
+  idx:
+    type: int
+    default: 0
+    min: 0
+    description: "0-based element index (element_ids = sorted(listdir(arr)))."
+
+outputs:
+  item:
+    tags: [any]
+    tags_from: arr
+    description: "The idx-th element of arr, symlinked."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    IDX={{ params.idx }}
+    # Sorted element list; framework's fan-out picks the same order.
+    mapfile -t ENTRIES < <(ls -1 "{{ inputs.arr }}" | sort)
+    if [ "$IDX" -ge "${#ENTRIES[@]}" ] || [ "$IDX" -lt 0 ]; then
+      echo "ERROR: idx $IDX out of range (array size ${#ENTRIES[@]})" >&2
+      exit 1
+    fi
+    PICKED="{{ inputs.arr }}/${ENTRIES[$IDX]}"
+    # The framework pre-creates outputs.item as an empty dir (storage=dir
+    # default). Remove it and drop a symlink to the picked element in its
+    # place so downstream sees the same layout as the array's element.
+    rm -rf "{{ outputs.item }}"
+    ln -s "$(readlink -f "$PICKED")" "{{ outputs.item }}"
+    echo "get-index: picked [$IDX] = ${ENTRIES[$IDX]}"

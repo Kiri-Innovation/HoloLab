@@ -1,0 +1,65 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: arrayfy
+version: 0.1.0
+description: >
+  Broadcast a scalar T to ``arrayed<T>`` by replicating it N times via
+  symlinks (zero-copy). Pairs with ``array-length`` to match the count of
+  another array.
+category: "utility/arrayed"
+
+docs: |
+  Utility for the explicit-broadcast pattern: no implicit scalar → array
+  promotion happens on edges; wire an ``arrayfy`` node when you need to
+  feed a scalar T into an arrayable node that will fan-out over another
+  arrayed<T> input.
+
+  * ``data``  — the T to replicate (any tag, arrayed=false).
+  * ``count`` — an ``int`` scalar handle giving the number of copies
+    (typically produced by ``array-length`` on a sibling arrayed<T>).
+  * ``out``   — arrayed<T>: a directory containing ``count`` symlinks,
+    each pointing at ``data``. Element ids are zero-padded 4-digit
+    ordinals (``0000``, ``0001``, …).
+
+  Output tags inherit from the connected ``data`` input at wire time
+  (``tags_from: data``). This is the tag-propagation mechanism generic
+  utility packs use in place of manifest-level generics.
+
+inputs:
+  data:
+    tags: [any]
+    description: "The T to broadcast (any scalar tag)."
+  count:
+    tags: [int]
+    description: "How many copies to produce (integer scalar handle)."
+
+outputs:
+  out:
+    tags: [any]
+    tags_from: data
+    arrayed: true
+    description: "arrayed<T> with N identical elements (symlinks to `data`)."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    N=$(tr -d ' \n' < "{{ inputs.count }}")
+    if ! [[ "$N" =~ ^-?[0-9]+$ ]]; then
+      echo "ERROR: count is not a base-10 integer: '$N'" >&2
+      exit 1
+    fi
+    if [ "$N" -lt 0 ]; then
+      echo "ERROR: count must be non-negative (got $N)" >&2
+      exit 1
+    fi
+    mkdir -p "{{ outputs.out }}"
+    SRC=$(readlink -f "{{ inputs.data }}")
+    for i in $(seq -f "%04g" 0 $((N - 1))); do
+      ln -sfn "$SRC" "{{ outputs.out }}/$i"
+    done
+    echo "arrayfy: replicated $SRC → $N elements"
