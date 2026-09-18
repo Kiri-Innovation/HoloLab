@@ -1,0 +1,110 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: frame-extraction
+version: 0.1.0
+description: >
+  Extract frames from a video into a directory of ``frame_XXXXXX.png``
+  files. Generic utility pack — works with any downstream that consumes
+  a ``frame_sequence`` (MegaSaM, other trackers, image-space algorithms).
+# Ships WITH HoloLab (colocated with the manifest under hololab/packs/).
+# Zero deps on any algorithm repo — only stdlib + cv2 + numpy + tqdm +
+# ffmpeg/ffprobe. That's why this lives here and not next to sharp-4dgs.
+# ``source_entry`` resolves against the manifest's own directory
+# (self-contained + portable).
+source_entry: extract_frames.py
+category: "source/frames"
+docs: |
+  Frame extractor node. Takes a video and writes ``frame_XXXXXX.png``
+  into ``<output>/frames/``, plus a `frame_sequence`-tagged handle
+  downstream consumers pick up automatically.
+
+  - **Input:** `video_dir` from ``single-video-source`` or
+    ``video-array-source`` — the first video file inside is used.
+  - **Output:** `frame_sequence` — directory containing ``frames/``.
+  - `skip` and `max_frames` control how much of the video is extracted;
+    HDR (HLG / PQ) videos are tonemapped to sRGB automatically.
+
+  Ships with HoloLab (no algorithm repo required). Downstream MegaSaM
+  (``frames-to-camera-track``) consumes this handle directly — no
+  re-extraction, no video decode.
+
+inputs:
+  video_dir:
+    tags: [video-source, video-source-array]
+    description: "Directory produced by single-video-source or video-array-source; the first video file inside is used."
+
+params:
+  max_frames:
+    type: int
+    default: 50
+    min: 1
+    description: "Cap on extracted frames (--max-frames)."
+
+  skip:
+    type: int
+    default: 1
+    min: 1
+    description: "Extract every Nth frame (--skip)."
+
+outputs:
+  frame_sequence:
+    tags: [frame_sequence]
+    description: >
+      Directory containing ``frames/frame_XXXXXX.png``. Consumed by
+      ``frames-to-camera-track`` and any other algorithm that needs an
+      ordered image sequence.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  expected_duration_min: [0.05, 2.0]
+  resources:
+    # Empirical baseline @ 50 frames (720p input):
+    #   * scratch ~ 0.5 GiB (extracted PNGs; scales with resolution × count)
+    #   * host RAM peak ~ 0.5 GiB (ffmpeg + tqdm)
+    #   * GPU not used.
+    scratch_gb: 2.0
+    mem_gb: 2.0
+
+exec:
+  # ``{{ pack_dir }}`` points at hololab/packs/frame-extraction@0.1.0/ —
+  # HoloLab-owned packs use pack_dir for their own scripts (algorithm-repo
+  # packs use absolute repo paths instead). No ``cd`` needed; the script
+  # only touches the input/output paths passed in.
+  shell: |
+    set -euo pipefail
+
+    VIDEO=$(find "{{ inputs.video_dir }}" -maxdepth 1 -type l -o -type f | \
+      grep -iE '\.(mp4|mov|avi|mkv)$' | head -1)
+    if [ -z "$VIDEO" ]; then
+      echo "no video file found under {{ inputs.video_dir }}" >&2
+      exit 2
+    fi
+    VIDEO=$(readlink -f "$VIDEO")
+
+    OUT="{{ outputs.frame_sequence }}"
+    mkdir -p "$OUT"
+
+    python {{ pack_dir }}/extract_frames.py "$VIDEO" \
+      --skip {{ params.skip }} \
+      --max-frames {{ params.max_frames }} \
+      -o "$OUT"
+
+    # Sanity gate: frames/ must exist and be non-empty.
+    test -d "$OUT/frames" || { echo "missing frames/" >&2; exit 3; }
+    if ! ls "$OUT/frames"/frame_*.png >/dev/null 2>&1; then
+      echo "no frame_*.png under frames/" >&2
+      exit 4
+    fi
+
+idempotency:
+  marker: "{{ outputs.frame_sequence }}/.hololab-done"
+
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
+
+previews:
+  - id: first_frame
+    type: image
+    path: "{{ outputs.frame_sequence }}/frames/frame_000000.png"
