@@ -8,6 +8,26 @@ workspace pane. See the API spec at `temp/cobrowser-web-api.md` (the
 canonical version lives inside the Flops repo) for the exact
 `window.flops.showDocument` shape.
 
+> **This is an accepted, user-verified feature — do not silently drop
+> any of the three UI anchors in a canvas / drawer refactor.** They are
+> invisible in a regular browser (by design; `flopsAvailable()` gates
+> them), so it is very easy to remove one without noticing. If you
+> touch `AlgorithmNode.tsx`, `previews.tsx`, `EdgeInspector.tsx`, or
+> `ComputeNodesPanel.tsx`, verify each anchor still renders in Flops
+> using the DOM check below.
+>
+> **DOM check** (with `window.flops` injected before page load):
+>
+> - `[data-hl-open-source]` — one per node header (`</>` Jump to source)
+> - `[data-hl-open-cocoder]` — one per open preview drawer with a live
+>   target, plus one on the video-array zoom overlay, plus one in the
+>   EdgeInspector when an edge with a resolved handle is selected
+> - `showFlopsField` block in `NodeSettingsDrawer` renders the **Flops
+>   executor id** input under **Advertised URL**
+>
+> If any anchor is missing when `window.flops` is available, the
+> refactor dropped it — restore it before merging.
+
 ## What ships
 
 Three layers, no changes to the runtime data plane:
