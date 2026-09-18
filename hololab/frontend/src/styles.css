@@ -381,6 +381,18 @@ a:hover { text-decoration: underline; }
   transform: translate(0, -50%);
 }
 
+/* Arrayed frame: the card is wrapped in a 5px-inset frame (plus 1px
+   frame border) so handles need an extra 6px outward shift to land on
+   the frame's outer border rather than the inner card's. Two-class
+   selector so it outweighs the single-class rule above without depending
+   on source order. */
+.hl-arrayed-frame .hololab-node .react-flow__handle-left {
+  left: calc(-1 * var(--space-3) - 11px);
+}
+.hl-arrayed-frame .hololab-node .react-flow__handle-right {
+  right: calc(-1 * var(--space-3) - 11px);
+}
+
 /* Workstation refinements: surfaces are differentiated by quiet fills and
    one-pixel containment, never decorative inset bars or floating-card lift. */
 .hl-app-shell { letter-spacing: .005em; }

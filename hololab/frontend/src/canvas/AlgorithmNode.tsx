@@ -142,6 +142,17 @@ const PORT_ROW: React.CSSProperties = {
 const NODE_WIDTH = 220;
 const NODE_WIDTH_EXPANDED = 340; // wider slot so previews have room to breathe
 
+// Outer frame dimensions for ``arrayed_toggle`` nodes. The frame's job is
+// to say "this node fans out over its array input" at a glance without
+// stealing header real-estate from the pack name. Sides+bottom stay thin
+// so the frame reads as a hairline; the top band is a full label row.
+// Handles are pushed outward by (FRAME_INSET) so their centres sit on
+// the frame's outer border rather than the inner card's. Kept as consts
+// in one place so the CSS override below and the JSX layout can't drift.
+const FRAME_PAD_SIDE = 5;
+const FRAME_PAD_TOP = 20;
+const FRAME_BORDER = 1;
+
 // An expandable output = a port the operator can open the drawer on.
 // Two cases:
 //
@@ -328,7 +339,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   // to a text pill.
   const failedTint = runState === "failed";
 
-  return (
+  const card = (
     <div
       className="hololab-node"
       style={{
@@ -336,7 +347,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         background: "var(--surface-2)",
         border: `1px solid ${selected ? "var(--accent)" : failedTint ? "var(--status-failed)" : "var(--border-strong)"}`,
         borderRadius: "var(--radius-md)",
-        boxShadow: "var(--rf-node-shadow)",
+        boxShadow: arrayedOn ? "none" : "var(--rf-node-shadow)",
         fontFamily: "var(--font-sans)",
         color: "var(--text-body)",
         position: "relative",
@@ -391,22 +402,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         >
           {pack.name}
         </div>
-        {arrayedOn && (
-          <span
-            title="并行化 — 框架为每个数组元素起一个 sub-job"
-            style={{
-              flex: "0 0 auto",
-              fontSize: "var(--fs-xs)",
-              color: "var(--text-muted)",
-              fontFamily: "var(--font-sans)",
-              fontWeight: "var(--fw-normal)",
-              letterSpacing: 0,
-              whiteSpace: "nowrap",
-            }}
-          >
-            (arrayed)
-          </span>
-        )}
         <div
           style={{
             flex: "0 0 auto",
@@ -743,6 +738,61 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           })()}
         </div>
       )}
+    </div>
+  );
+
+  if (!arrayedOn) return card;
+
+  // Arrayed nodes wear a thin outer frame with a top band labelling the
+  // fan-out. Handles are pushed onto the frame's border via the
+  // ``.hl-arrayed-frame`` CSS override in styles.css so the edges land
+  // on the outermost visible edge rather than the inner card border.
+  // xyflow measures the wrapper (frame + card), so TypedEdge's node-rect
+  // avoidance automatically uses the enlarged bounds.
+  const frameWidth = width + 2 * FRAME_PAD_SIDE + 2 * FRAME_BORDER;
+  return (
+    <div
+      className="hl-arrayed-frame"
+      data-hololab-node="algorithm-frame"
+      style={{
+        width: frameWidth,
+        background: "var(--surface-alt)",
+        border: `1px solid var(--border-subtle)`,
+        borderRadius: "var(--radius-lg)",
+        padding: `${FRAME_PAD_TOP}px ${FRAME_PAD_SIDE}px ${FRAME_PAD_SIDE}px`,
+        position: "relative",
+        boxShadow: "var(--rf-node-shadow)",
+        fontFamily: "var(--font-sans)",
+        color: "var(--text-body)",
+        transition: "width 120ms ease-out",
+      }}
+    >
+      <div
+        data-hl-arrayed-band=""
+        title="arrayed — pack fans out over its array input"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: FRAME_PAD_TOP,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "var(--fs-micro)",
+          color: "var(--text-muted)",
+          fontFamily: "var(--font-mono)",
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          fontWeight: "var(--fw-semibold)",
+          lineHeight: 1,
+          pointerEvents: "none",
+          userSelect: "none",
+        }}
+      >
+        arrayed
+      </div>
+      {card}
     </div>
   );
 }
