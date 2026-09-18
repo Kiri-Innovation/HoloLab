@@ -61,6 +61,10 @@ export interface JobUpdatePayload {
   progress?: { current: number; total: number } | null;
   fail?: { reason: string; exit_code?: number; message?: string } | null;
   started_ts?: number | null;
+  // Fan-out shard bookkeeping — set on shard jobs so the Recent Jobs panel
+  // can collapse each parent + its shards into a single group row.
+  parent_job_id?: string | null;
+  shard_element_id?: string | null;
 }
 
 // GET /api/jobs — same shape as JobUpdatePayload plus workflow bookkeeping.
@@ -77,6 +81,8 @@ export interface JobSummary {
   created_ts: number;
   updated_ts: number;
   started_ts?: number | null;
+  parent_job_id?: string | null;
+  shard_element_id?: string | null;
 }
 export interface LogChunkPayload {
   job_id: string;

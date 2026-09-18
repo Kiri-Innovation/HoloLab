@@ -299,6 +299,11 @@ class JobRow(BaseModel):
     created_ts: float
     updated_ts: float
     started_ts: float | None = None
+    # Fan-out shard bookkeeping. Non-null on shards → the frontend groups
+    # them under the parent row in Recent Jobs; ``shard_element_id`` is
+    # the display label for each shard's expanded sub-row.
+    parent_job_id: str | None = None
+    shard_element_id: str | None = None
 
 
 class JobDetail(JobRow):

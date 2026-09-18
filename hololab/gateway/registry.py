@@ -837,7 +837,8 @@ class JobsStore:
                 f"""
                 SELECT job_id, workflow_id, node_id, graph_node_id, algorithm_name,
                        algorithm_version, state, progress_current, progress_total,
-                       fail_reason, created_ts, updated_ts, started_ts
+                       fail_reason, created_ts, updated_ts, started_ts,
+                       parent_job_id, shard_element_id
                 FROM jobs
                 {where}
                 ORDER BY created_ts {direction}
@@ -862,6 +863,8 @@ class JobsStore:
                 "created_ts": r[10],
                 "updated_ts": r[11],
                 "started_ts": r[12],
+                "parent_job_id": r[13],
+                "shard_element_id": r[14],
             }
             for r in rows
         ]

@@ -477,6 +477,13 @@ class JobUpdate(BaseModel):
     progress: JobProgress | None = None
     fail: JobFail | None = None
     started_ts: float | None = None
+    # Populated on shard jobs (arrayed<T> fan-out); the frontend uses this
+    # to group shards under their parent in the Recent Jobs panel.
+    parent_job_id: str | None = None
+    # Element key this shard is processing (e.g. ``cam_A``). Null on
+    # parent + regular jobs. Used as the display label for a group's
+    # expanded shard rows.
+    shard_element_id: str | None = None
 
 
 class LogChunk(BaseModel):

@@ -419,6 +419,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             // Preserve started_ts once set; WS payload carries it only on
             // the RUNNING transition frame (null/absent on later frames).
             started_ts: existing?.started_ts ?? p.started_ts ?? null,
+            // Fan-out linkage — sticky like started_ts; only shards ever
+            // carry these and they don't change over the job's lifetime.
+            parent_job_id: existing?.parent_job_id ?? p.parent_job_id ?? null,
+            shard_element_id:
+              existing?.shard_element_id ?? p.shard_element_id ?? null,
           };
           // Preserve workflow_id (carried on the wire but not on the panel row shape).
           (next as unknown as { workflow_id?: string }).workflow_id =
@@ -1984,6 +1989,8 @@ function jobToRow(j: JobSummary): RecentJobRow {
     created_ts: j.created_ts,
     updated_ts: j.updated_ts,
     started_ts: j.started_ts ?? null,
+    parent_job_id: j.parent_job_id ?? null,
+    shard_element_id: j.shard_element_id ?? null,
     fail_reason: j.fail_reason,
   };
   (row as unknown as { workflow_id?: string }).workflow_id = j.workflow_id;

@@ -20,6 +20,11 @@ export interface RecentJobRow {
   updated_ts: number;
   created_ts: number;
   started_ts?: number | null;
+  // Fan-out linkage: shard rows carry these; parent + regular jobs leave
+  // them null. Grouping uses ``parent_job_id`` to collapse a parent and
+  // its shards into a single Recent Jobs entry.
+  parent_job_id?: string | null;
+  shard_element_id?: string | null;
   fail_reason?: string | null;
 }
 
@@ -58,6 +63,132 @@ function elapsedFor(j: RecentJobRow, now: number): string {
   return formatElapsed(start, isRunning ? now : j.updated_ts);
 }
 
+// Fan-out grouping. Two shapes:
+//   * "single" — a stand-alone regular job. Rendered as one flat row.
+//   * "group"  — a parent + its shards. Rendered collapsed by default;
+//                click the caret to reveal the shard rows underneath.
+type SingleEntry = { kind: "single"; job: RecentJobRow };
+type GroupEntry = {
+  kind: "group";
+  parent: RecentJobRow;
+  shards: RecentJobRow[];
+  // ``sortTs`` drives interleaving with single rows; we key on the
+  // parent's created_ts so a fan-out sits in the timeline where it was
+  // dispatched (matches the raw list's ordering intuition).
+  sortTs: number;
+};
+type Entry = SingleEntry | GroupEntry;
+
+const IN_FLIGHT = new Set(["running", "assigned", "pending"]);
+
+// Same aggregation rule as ``aggregateJobsToRuntime`` (canvas node
+// status). Kept local because the shape here is RecentJobRow[] rather
+// than SnapshotJob[]; extracting a shared helper would force both files
+// to depend on a union type they otherwise don't need. If a third
+// caller shows up, promote to a shared utility.
+function aggregateGroupState(parent: RecentJobRow, shards: RecentJobRow[]): string {
+  const all = [parent, ...shards];
+  let hasFailed = false;
+  let hasInFlight = false;
+  let firstNonDone: string | null = null;
+  let allDone = true;
+  for (const j of all) {
+    if (j.state !== "done") allDone = false;
+    if (j.state === "failed") hasFailed = true;
+    else if (IN_FLIGHT.has(j.state)) hasInFlight = true;
+    if (j.state !== "done" && firstNonDone === null) firstNonDone = j.state;
+  }
+  if (hasFailed) return "failed";
+  if (hasInFlight) return "running";
+  if (allDone) return "done";
+  return firstNonDone ?? "done";
+}
+
+// Total wall-clock time of a fan-out: earliest start → last shard's
+// finish (or ``now`` if any shard is still running). Parent's
+// ``started_ts`` is usually the earliest but we take the min for
+// robustness against out-of-order shard startups.
+function groupElapsed(
+  parent: RecentJobRow,
+  shards: RecentJobRow[],
+  state: string,
+  now: number,
+): string {
+  const all = [parent, ...shards];
+  let earliest = Infinity;
+  for (const j of all) {
+    const s = j.started_ts ?? j.created_ts;
+    if (s < earliest) earliest = s;
+  }
+  if (!isFinite(earliest)) return "";
+  const running = state === "running";
+  if (running) return formatElapsed(earliest, now);
+  // Terminal — latest ``updated_ts`` across the whole group is when the
+  // last shard finished.
+  let latest = 0;
+  for (const j of all) if (j.updated_ts > latest) latest = j.updated_ts;
+  return formatElapsed(earliest, latest);
+}
+
+function buildEntries(rows: RecentJobRow[]): Entry[] {
+  // Bucket shards by parent_job_id; parents (and regular jobs) go into
+  // a lookup map so we can pair them up in one pass.
+  const parents = new Map<string, RecentJobRow>();
+  const shardsByParent = new Map<string, RecentJobRow[]>();
+  const regulars: RecentJobRow[] = [];
+  for (const j of rows) {
+    if (j.parent_job_id) {
+      const b = shardsByParent.get(j.parent_job_id);
+      if (b) b.push(j);
+      else shardsByParent.set(j.parent_job_id, [j]);
+    } else {
+      parents.set(j.job_id, j);
+    }
+  }
+  // Any row with shards attached is a group; anything else is single.
+  // A parentless orphan shard (shouldn't happen in practice) falls
+  // through as a single row so we don't drop it silently.
+  const entries: Entry[] = [];
+  const groupedParentIds = new Set<string>();
+  for (const [parentId, shards] of shardsByParent) {
+    const parent = parents.get(parentId);
+    if (!parent) {
+      // Orphan shards — render each as a single row rather than losing them.
+      for (const s of shards) entries.push({ kind: "single", job: s });
+      continue;
+    }
+    groupedParentIds.add(parentId);
+    // Sort shards by shard_element_id when set (stable, human-friendly);
+    // fall back to created_ts.
+    shards.sort((a, b) => {
+      if (a.shard_element_id && b.shard_element_id) {
+        return a.shard_element_id.localeCompare(b.shard_element_id);
+      }
+      return a.created_ts - b.created_ts;
+    });
+    entries.push({
+      kind: "group",
+      parent,
+      shards,
+      sortTs: parent.created_ts,
+    });
+  }
+  for (const p of parents.values()) {
+    if (groupedParentIds.has(p.job_id)) continue;
+    regulars.push(p);
+  }
+  for (const r of regulars) entries.push({ kind: "single", job: r });
+  // Newest first, matching the raw list order the panel already uses.
+  entries.sort((a, b) => {
+    const at = a.kind === "single" ? a.job.created_ts : a.sortTs;
+    const bt = b.kind === "single" ? b.job.created_ts : b.sortTs;
+    return bt - at;
+  });
+  return entries;
+}
+
+const SHARDS_INITIAL_LIMIT = 5;
+
 export function RecentJobsPanel({
   jobs,
   onSelectGraphNode,
@@ -68,14 +199,22 @@ export function RecentJobsPanel({
   const scoped = currentWorkflowId
     ? jobs.filter((j) => j.job_id && jobIsInWorkflow(j, currentWorkflowId))
     : jobs;
-  const rows = scoped.slice(0, 25);
+  // Cap by ENTRY count after grouping (25 entries), not by raw row count —
+  // otherwise a fan-out with 21 shards would eat the whole panel budget
+  // even though it collapses to a single row.
+  const entries = buildEntries(scoped).slice(0, 25);
 
-  // Live clock for running jobs — ticks every second so elapsed counters
-  // advance without waiting for a WS event. The interval only runs when
-  // at least one running row is visible; it's torn down when there are none
-  // so idle panels incur zero overhead.
+  // Live clock — ticks every second while anything on-screen is running
+  // (single rows OR any job inside a group). Interval tears down when
+  // everything visible is terminal, so idle panels incur zero overhead.
   const [now, setNow] = useState(() => Date.now() / 1000);
-  const hasRunning = rows.some((j) => j.state === "running");
+  const hasRunning = entries.some((e) => {
+    if (e.kind === "single") return e.job.state === "running";
+    return (
+      e.parent.state === "running" ||
+      e.shards.some((s) => s.state === "running")
+    );
+  });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (!hasRunning) {
@@ -93,6 +232,15 @@ export function RecentJobsPanel({
       }
     };
   }, [hasRunning]);
+
+  // Which group rows are currently expanded (keyed by parent job_id) and
+  // whether the user opted to see "all N shards" beyond the initial cap.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [expandedShardLists, setExpandedShardLists] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   // Which job's log viewer is open. We keep the primer (algo name, state,
   // elapsed) alongside so the modal header renders before the /api/jobs/
@@ -147,94 +295,53 @@ export function RecentJobsPanel({
           </span>
         )}
       </div>
-      {rows.length === 0 && (
+      {entries.length === 0 && (
         <div
           style={{ padding: 16, color: "var(--text-subtle)", fontSize: "var(--fs-sm)" }}
         >
           No jobs yet.
         </div>
       )}
-      {rows.map((j) => (
-        <div
-          key={j.job_id}
-          style={CARD}
-          onClick={() => j.graph_node_id && onSelectGraphNode(j.graph_node_id)}
-          title={j.job_id}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "var(--surface-hover)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-          }}
-        >
-          <div
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "var(--radius-pill)",
-              background: stateColour(j.state),
-            }}
+      {entries.map((entry) => {
+        if (entry.kind === "single") {
+          return (
+            <SingleJobRow
+              key={entry.job.job_id}
+              job={entry.job}
+              now={now}
+              onSelectGraphNode={onSelectGraphNode}
+              onOpenLog={setOpenLog}
+            />
+          );
+        }
+        return (
+          <GroupJobRow
+            key={entry.parent.job_id}
+            parent={entry.parent}
+            shards={entry.shards}
+            now={now}
+            expanded={expandedGroups.has(entry.parent.job_id)}
+            showAllShards={expandedShardLists.has(entry.parent.job_id)}
+            onToggleExpand={() =>
+              setExpandedGroups((prev) => {
+                const next = new Set(prev);
+                if (next.has(entry.parent.job_id)) next.delete(entry.parent.job_id);
+                else next.add(entry.parent.job_id);
+                return next;
+              })
+            }
+            onShowAllShards={() =>
+              setExpandedShardLists((prev) => {
+                const next = new Set(prev);
+                next.add(entry.parent.job_id);
+                return next;
+              })
+            }
+            onSelectGraphNode={onSelectGraphNode}
+            onOpenLog={setOpenLog}
           />
-          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            <strong style={{ color: "var(--text)", fontWeight: 600 }}>
-              {j.algorithm_name}
-            </strong>
-            <span
-              style={{
-                color: "var(--text-muted)",
-                marginLeft: 5,
-                fontFamily: "var(--font-mono)",
-                fontSize: "var(--fs-xs)",
-              }}
-            >
-              v{j.algorithm_version}
-            </span>
-          </div>
-          <div
-            style={{
-              color: "var(--text-muted)",
-              fontFamily: "var(--font-mono)",
-              fontSize: "var(--fs-xs)",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {j.progress && j.progress.total > 0
-              ? `${j.progress.current}/${j.progress.total}`
-              : ""}
-          </div>
-          <div
-            style={{
-              color: "var(--text-subtle)",
-              fontSize: "var(--fs-xs)",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {elapsedFor(j, now)}
-          </div>
-          <ViewLogButton
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpenLog({
-                jobId: j.job_id,
-                primer: {
-                  algorithm_name: j.algorithm_name,
-                  algorithm_version: j.algorithm_version,
-                  state: j.state,
-                  fail_reason: j.fail_reason ?? null,
-                  elapsed: elapsedFor(j, now),
-                },
-              });
-            }}
-            state={j.state}
-          />
-          <CopyRefButton
-            kind="job"
-            id={j.job_id}
-            comment={`${j.algorithm_name} · ${j.state}`}
-            size="xs"
-          />
-        </div>
-      ))}
+        );
+      })}
       <JobLogModal
         jobId={openLog?.jobId ?? null}
         primer={openLog?.primer ?? null}
@@ -311,6 +418,314 @@ function ViewLogButton({
         <path d="M3 3.5h10M3 8h10M3 12.5h6" />
       </svg>
     </button>
+  );
+}
+
+// State + primer shape shared between the panel and row components.
+type OpenLogState = {
+  jobId: string;
+  primer: {
+    algorithm_name: string;
+    algorithm_version: string;
+    state: string;
+    fail_reason: string | null;
+    elapsed: string;
+  };
+} | null;
+type SetOpenLog = React.Dispatch<React.SetStateAction<OpenLogState>>;
+
+// One flat row — used for both stand-alone jobs and, indented, for a
+// group's expanded shard rows. ``indent`` shifts the leading dot column
+// so shard rows read as visually nested under their parent.
+function SingleJobRow({
+  job,
+  now,
+  onSelectGraphNode,
+  onOpenLog,
+  label,
+  indent,
+}: {
+  job: RecentJobRow;
+  now: number;
+  onSelectGraphNode: (graphNodeId: string) => void;
+  onOpenLog: SetOpenLog;
+  label?: string;
+  indent?: boolean;
+}) {
+  const style: React.CSSProperties = indent
+    ? { ...CARD, padding: "5px 14px 5px 34px", background: "var(--surface-2)" }
+    : CARD;
+  return (
+    <div
+      style={style}
+      onClick={() => job.graph_node_id && onSelectGraphNode(job.graph_node_id)}
+      title={job.job_id}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = indent
+          ? "var(--surface-hover)"
+          : "var(--surface-hover)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = indent
+          ? "var(--surface-2)"
+          : "transparent";
+      }}
+    >
+      <div
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "var(--radius-pill)",
+          background: stateColour(job.state),
+        }}
+      />
+      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <strong style={{ color: "var(--text)", fontWeight: 600 }}>
+          {label ?? job.algorithm_name}
+        </strong>
+        {!label && (
+          <span
+            style={{
+              color: "var(--text-muted)",
+              marginLeft: 5,
+              fontFamily: "var(--font-mono)",
+              fontSize: "var(--fs-xs)",
+            }}
+          >
+            v{job.algorithm_version}
+          </span>
+        )}
+      </div>
+      <div
+        style={{
+          color: "var(--text-muted)",
+          fontFamily: "var(--font-mono)",
+          fontSize: "var(--fs-xs)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {job.progress && job.progress.total > 0
+          ? `${job.progress.current}/${job.progress.total}`
+          : ""}
+      </div>
+      <div
+        style={{
+          color: "var(--text-subtle)",
+          fontSize: "var(--fs-xs)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {elapsedFor(job, now)}
+      </div>
+      <ViewLogButton
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenLog({
+            jobId: job.job_id,
+            primer: {
+              algorithm_name: job.algorithm_name,
+              algorithm_version: job.algorithm_version,
+              state: job.state,
+              fail_reason: job.fail_reason ?? null,
+              elapsed: elapsedFor(job, now),
+            },
+          });
+        }}
+        state={job.state}
+      />
+      <CopyRefButton
+        kind="job"
+        id={job.job_id}
+        comment={`${job.algorithm_name} · ${job.state}`}
+        size="xs"
+      />
+    </div>
+  );
+}
+
+// Collapsed group summary: single row whose title is "``algo`` ×N" and
+// whose elapsed cell shows the wall-clock time of the whole fan-out.
+// Clicking the row toggles expansion; the caret is a passive indicator.
+// The log button on the group row opens the *parent* job's log — the
+// coordinator's stdout usually explains dispatch/fan-in behaviour.
+function GroupJobRow({
+  parent,
+  shards,
+  now,
+  expanded,
+  showAllShards,
+  onToggleExpand,
+  onShowAllShards,
+  onSelectGraphNode,
+  onOpenLog,
+}: {
+  parent: RecentJobRow;
+  shards: RecentJobRow[];
+  now: number;
+  expanded: boolean;
+  showAllShards: boolean;
+  onToggleExpand: () => void;
+  onShowAllShards: () => void;
+  onSelectGraphNode: (graphNodeId: string) => void;
+  onOpenLog: SetOpenLog;
+}) {
+  const state = aggregateGroupState(parent, shards);
+  const elapsed = groupElapsed(parent, shards, state, now);
+  const doneCount =
+    (parent.state === "done" ? 1 : 0) +
+    shards.filter((s) => s.state === "done").length;
+  const total = shards.length + 1;
+  const visibleShards = showAllShards
+    ? shards
+    : shards.slice(0, SHARDS_INITIAL_LIMIT);
+  const hiddenCount = shards.length - visibleShards.length;
+
+  return (
+    <>
+      <div
+        style={CARD}
+        onClick={onToggleExpand}
+        title={parent.job_id}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "var(--surface-hover)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "transparent";
+        }}
+      >
+        <div
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "var(--radius-pill)",
+            background: stateColour(state),
+          }}
+        />
+        <div
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              display: "inline-block",
+              width: 10,
+              color: "var(--text-muted)",
+              fontSize: 10,
+              transition: "transform var(--dur-fast) var(--ease)",
+              transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+            }}
+          >
+            ▸
+          </span>
+          <strong style={{ color: "var(--text)", fontWeight: 600 }}>
+            {parent.algorithm_name}
+          </strong>
+          <span
+            style={{
+              color: "var(--text-muted)",
+              fontFamily: "var(--font-mono)",
+              fontSize: "var(--fs-xs)",
+            }}
+          >
+            v{parent.algorithm_version}
+          </span>
+          <span
+            style={{
+              color: "var(--text-muted)",
+              fontFamily: "var(--font-mono)",
+              fontSize: "var(--fs-xs)",
+              marginLeft: 2,
+            }}
+          >
+            ×{total}
+          </span>
+        </div>
+        <div
+          style={{
+            color: "var(--text-muted)",
+            fontFamily: "var(--font-mono)",
+            fontSize: "var(--fs-xs)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {`${doneCount}/${total}`}
+        </div>
+        <div
+          style={{
+            color: "var(--text-subtle)",
+            fontSize: "var(--fs-xs)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {elapsed}
+        </div>
+        <ViewLogButton
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenLog({
+              jobId: parent.job_id,
+              primer: {
+                algorithm_name: parent.algorithm_name,
+                algorithm_version: parent.algorithm_version,
+                state,
+                fail_reason: parent.fail_reason ?? null,
+                elapsed,
+              },
+            });
+          }}
+          state={state}
+        />
+        <CopyRefButton
+          kind="job"
+          id={parent.job_id}
+          comment={`${parent.algorithm_name} ×${total} · ${state}`}
+          size="xs"
+        />
+      </div>
+      {expanded && (
+        <>
+          {visibleShards.map((s) => (
+            <SingleJobRow
+              key={s.job_id}
+              job={s}
+              now={now}
+              onSelectGraphNode={onSelectGraphNode}
+              onOpenLog={onOpenLog}
+              label={s.shard_element_id ?? s.job_id.slice(0, 8)}
+              indent
+            />
+          ))}
+          {hiddenCount > 0 && (
+            <div
+              onClick={onShowAllShards}
+              style={{
+                padding: "5px 14px 5px 34px",
+                fontSize: "var(--fs-xs)",
+                color: "var(--text-muted)",
+                cursor: "pointer",
+                background: "var(--surface-2)",
+                borderBottom: "1px solid var(--border)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "var(--text)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+            >
+              显示全部 {shards.length} 个 shard
+            </div>
+          )}
+        </>
+      )}
+    </>
   );
 }
 

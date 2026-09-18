@@ -3066,6 +3066,8 @@ def _push_job_update(
         snapshot_id=job.snapshot_id,
         output_handles=output_handles,
         started_ts=job.started_ts,
+        parent_job_id=job.parent_job_id,
+        shard_element_id=job.shard_element_id,
         progress=(
             JobProgress(
                 job_id=job.job_id,
