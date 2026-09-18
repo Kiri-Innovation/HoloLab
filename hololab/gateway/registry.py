@@ -448,6 +448,7 @@ class NodeRegistry:
                         "source_entry": None,
                         "manifest_path": pk.manifest_path,
                         "source_dir": pk.source_dir,
+                        "arrayable": False,
                     },
                 )
                 if session.node_id not in entry["node_ids"]:
@@ -467,12 +468,14 @@ class NodeRegistry:
                         entry["category"] = list(manifest.category)
                         entry["docs"] = manifest.docs
                         entry["source_entry"] = manifest.source_entry
+                        entry["arrayable"] = manifest.arrayable
                         entry["inputs"] = {
                             n: {
                                 "tags": s.tags,
                                 "required": s.required,
                                 "storage": s.storage.value,
                                 "description": s.description,
+                                "arrayed": s.arrayed,
                             }
                             for n, s in manifest.inputs.items()
                         }
@@ -485,6 +488,8 @@ class NodeRegistry:
                                 "tags": s.tags,
                                 "storage": s.storage.value,
                                 "description": s.description,
+                                "arrayed": s.arrayed,
+                                "tags_from": s.tags_from,
                                 # Tag → viewer inference: if the manifest
                                 # didn't declare an explicit ``preview:``
                                 # block, look at the port's tags and

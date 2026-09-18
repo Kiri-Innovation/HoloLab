@@ -43,10 +43,10 @@ class GraphNode(BaseModel):
 
     * **Structural** — anything that affects a job's execution or its
       data lineage identity: ``algorithm_name``, ``algorithm_version``,
-      ``params``, ``assigned_node_id``, plus the edges named on the
-      surrounding :class:`WorkflowGraph`. These are IMMUTABLE inside a
-      snapshot; a re-run that changes any of them Forks the snapshot
-      (V8 model).
+      ``params``, ``assigned_node_id``, ``arrayed_toggle``, plus the
+      edges named on the surrounding :class:`WorkflowGraph`. These are
+      IMMUTABLE inside a snapshot; a re-run that changes any of them
+      Forks the snapshot (V8 model).
 
     * **Cosmetic** — observer-only fields that don't participate in
       dispatch: ``position`` and ``preview_open``. These are MUTABLE
@@ -64,6 +64,12 @@ class GraphNode(BaseModel):
     position: GraphPosition = Field(default_factory=GraphPosition)
     params: dict[str, Any] = Field(default_factory=dict)
     assigned_node_id: str | None = None
+    # Structural — when the pack is ``arrayable``, turning this on marks
+    # every port that manifest-defaults to non-arrayed as arrayed at wire
+    # time, and the scheduler fan-outs one sub-job per element of the
+    # arrayed inputs. Default False keeps the pre-arrayed behavior for
+    # every existing node. See docs/pack-spec.md#arrayed-and-arrayable.
+    arrayed_toggle: bool = False
     # Cosmetic — the name of the output port whose preview drawer is
     # currently expanded, or ``None`` when the drawer is closed.
     # Nullable so old graph JSON blobs (produced before this field
@@ -372,16 +378,38 @@ def topological_order(graph: WorkflowGraph) -> list[str]:
 
 
 @dataclass(frozen=True)
+class InputPortView:
+    """Minimal input-port view for snapshot validation."""
+
+    tags: tuple[str, ...]
+    required: bool
+    arrayed: bool
+
+
+@dataclass(frozen=True)
+class OutputPortView:
+    """Minimal output-port view for snapshot validation."""
+
+    tags: tuple[str, ...]
+    arrayed: bool
+    # Name of an input port on the same pack whose (effective) tags this
+    # output mirrors. None → this port's declared ``tags`` are authoritative.
+    tags_from: str | None = None
+
+
+@dataclass(frozen=True)
 class PackHandle:
     """Minimal pack view for snapshot validation.
 
-    Ports are identified by their tag set (the "object type"). Storage form
-    (dir/file) and any other physical detail are irrelevant to compatibility
-    and therefore not present here.
+    Ports are identified by their tag set (the "object type") plus an
+    ``arrayed`` cardinality flag. Storage form (dir/file) is irrelevant
+    to compatibility. ``arrayable`` says the pack's exec is data-parallel
+    over arrayed inputs (see :class:`GraphNode.arrayed_toggle`).
     """
 
-    inputs: dict[str, tuple[list[str], bool]]  # port -> (tags, required)
-    outputs: dict[str, tuple[list[str]]]  # port -> (tags,)
+    inputs: dict[str, InputPortView]
+    outputs: dict[str, OutputPortView]
+    arrayable: bool = False
 
 
 @dataclass
@@ -392,10 +420,54 @@ class ValidationIssue:
     message: str
 
 
-def tags_compatible(a: list[str], b: list[str]) -> bool:
-    """Two tag sets are compatible iff they share at least one tag."""
+ANY_TAG = "any"
 
+
+def tags_compatible(a: list[str], b: list[str]) -> bool:
+    """Two tag sets are compatible iff they share at least one tag OR
+    either side declares the ``any`` wildcard tag.
+
+    Kept as a public helper for callers that already computed effective
+    tag sets and want a pure set-overlap check. Snapshot validation uses
+    :func:`ports_compatible` which additionally checks arrayed cardinality.
+    """
+
+    if ANY_TAG in a or ANY_TAG in b:
+        return True
     return bool(set(a) & set(b))
+
+
+def ports_compatible(
+    src_tags: list[str],
+    src_arrayed: bool,
+    tgt_tags: list[str],
+    tgt_arrayed: bool,
+) -> bool:
+    """Full edge compatibility: tag overlap AND arrayed cardinality match.
+
+    * ``any`` on either side matches every tag (utility packs like
+      ``arrayfy`` / ``get-index`` operate over any element type).
+    * Cardinality is strict: ``arrayed<T>`` only connects to ``arrayed<T>``;
+      ``T`` only connects to ``T``. Use an explicit ``arrayfy`` node to
+      broadcast a scalar into an array.
+    """
+
+    if src_arrayed != tgt_arrayed:
+        return False
+    return tags_compatible(src_tags, tgt_tags)
+
+
+def effective_port_arrayed(port_arrayed: bool, pack_arrayable: bool, node_toggle: bool) -> bool:
+    """Compute the runtime ``arrayed`` state of one port on one graph node.
+
+    Rule: ``manifest declaration OR (pack.arrayable AND node.arrayed_toggle)``.
+    A port that is arrayed in the manifest is always arrayed regardless of
+    the toggle (e.g. ``video-array-source.videos_dir``). Ports that default
+    to non-arrayed on an arrayable pack flip when the operator turns on
+    the checkbox.
+    """
+
+    return port_arrayed or (pack_arrayable and node_toggle)
 
 
 def validate_snapshot(
@@ -497,15 +569,25 @@ def validate_snapshot(
                 )
             )
             continue
-        (src_tags,) = src_pack.outputs[edge.sourceHandle]
-        tgt_tags, _tgt_required = tgt_pack.inputs[edge.targetHandle]
-        if not tags_compatible(src_tags, tgt_tags):
-            issues.append(
-                ValidationIssue(
-                    where=f"edge:{edge.id}",
-                    message=f"tag mismatch: {src_tags} vs {tgt_tags} have no overlap",
+        src_out = src_pack.outputs[edge.sourceHandle]
+        tgt_in = tgt_pack.inputs[edge.targetHandle]
+        # Effective arrayed state — the manifest default OR-ed with the
+        # pack.arrayable × node.arrayed_toggle override.
+        src_arr = effective_port_arrayed(src_out.arrayed, src_pack.arrayable, src.arrayed_toggle)
+        tgt_arr = effective_port_arrayed(tgt_in.arrayed, tgt_pack.arrayable, tgt.arrayed_toggle)
+        src_tags = list(src_out.tags)
+        tgt_tags = list(tgt_in.tags)
+        if not ports_compatible(src_tags, src_arr, tgt_tags, tgt_arr):
+            if src_arr != tgt_arr:
+                msg = (
+                    f"arrayed cardinality mismatch: source is "
+                    f"{'arrayed<' + ','.join(src_tags) + '>' if src_arr else ','.join(src_tags)}"
+                    f", target expects "
+                    f"{'arrayed<' + ','.join(tgt_tags) + '>' if tgt_arr else ','.join(tgt_tags)}"
                 )
-            )
+            else:
+                msg = f"tag mismatch: {src_tags} vs {tgt_tags} have no overlap"
+            issues.append(ValidationIssue(where=f"edge:{edge.id}", message=msg))
         incoming_edges[(edge.target, edge.targetHandle)].append(edge.id)
 
     # Rule 6: required inputs wired exactly once.
@@ -513,9 +595,9 @@ def validate_snapshot(
         pack = packs_by_key.get((node.algorithm_name, node.algorithm_version))
         if pack is None:
             continue
-        for port_name, (_tags, required) in pack.inputs.items():
+        for port_name, port in pack.inputs.items():
             wires = incoming_edges.get((node.id, port_name), [])
-            if required and not wires:
+            if port.required and not wires:
                 issues.append(
                     ValidationIssue(
                         where=f"node:{node.id}",

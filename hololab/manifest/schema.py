@@ -53,6 +53,16 @@ class InputSpec(BaseModel):
     :class:`StorageForm`); it defaults to ``dir`` and never affects edge
     matching. ``description`` is authorial help shown in tooltips.
 
+    ``arrayed`` marks the port as accepting an ``arrayed<T>`` value — a
+    directory whose immediate subdirectories are elements. See
+    ``docs/pack-spec.md#arrayed-and-arrayable``. Combines with the
+    containing pack's ``arrayable`` flag: an arrayable pack's ports flip
+    to arrayed at the graph node's ``arrayed_toggle`` (per-node checkbox).
+
+    The special tag ``any`` is a wildcard — it matches every other tag at
+    edge-compatibility time. Utility packs (``arrayfy`` / ``get-index`` /
+    ``array-length``) that operate over any element type use this.
+
     Backward-compatible legacy fields (``type``, ``optional``) are accepted
     but no longer participate in validation — they are recorded and ignored.
     """
@@ -63,6 +73,7 @@ class InputSpec(BaseModel):
     required: bool = True
     storage: StorageForm = StorageForm.DIR
     description: str | None = None
+    arrayed: bool = False
 
     @model_validator(mode="after")
     def _tags_non_empty(self) -> InputSpec:
@@ -105,6 +116,15 @@ class OutputSpec(BaseModel):
     Same semantics as :class:`InputSpec`: ``tags`` names the object type
     this port produces, ``storage`` is the internal transport hint.
     ``preview`` (optional) opts the port into the in-canvas viewer.
+
+    ``arrayed`` marks the port as producing an ``arrayed<T>`` value; same
+    per-node override rule as inputs (see :class:`InputSpec` docstring).
+
+    ``tags_from`` names one of this pack's input ports whose effective
+    tags this output should mirror. Used by generic utility packs
+    (``arrayfy``, ``get-index``) whose element type is determined by
+    what the caller wires in. Cyclic references are rejected at
+    validation time.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -113,6 +133,8 @@ class OutputSpec(BaseModel):
     storage: StorageForm = StorageForm.DIR
     description: str | None = None
     preview: OutputPreview | None = None
+    arrayed: bool = False
+    tags_from: str | None = None
 
     @model_validator(mode="after")
     def _tags_non_empty(self) -> OutputSpec:
@@ -287,6 +309,13 @@ class Manifest(BaseModel):
     # verbatim. When absent the modifier+click falls back to opening the
     # pack directory. See docs/cobrowser-integration.md#jump-to-source.
     source_entry: str | None = None
+    # Declares this pack's exec is data-parallel over its arrayed inputs.
+    # When true, the frontend shows an "arrayed" checkbox on the node; when
+    # the operator turns it on, the scheduler fan-outs one sub-job per
+    # element of the arrayed inputs. The pack author is contractually
+    # promising that shards do NOT share state or exchange data. See
+    # ``docs/writing-a-pack.md#writing-an-arrayable-pack``.
+    arrayable: bool = False
 
     inputs: dict[str, InputSpec] = Field(default_factory=dict)
     outputs: dict[str, OutputSpec]
@@ -296,6 +325,18 @@ class Manifest(BaseModel):
     idempotency: IdempotencySpec | None = None
     previews: list[PreviewSpec] = Field(default_factory=list)
     progress: ProgressSpec | None = None
+
+    @model_validator(mode="after")
+    def _check_tags_from_refs(self) -> Manifest:
+        """Every ``tags_from`` on an output must reference a real input port."""
+        input_names = set(self.inputs)
+        for out_name, spec in self.outputs.items():
+            if spec.tags_from is not None and spec.tags_from not in input_names:
+                raise ValueError(
+                    f"output port {out_name!r} has tags_from={spec.tags_from!r} "
+                    f"which is not a declared input port on this pack"
+                )
+        return self
 
     @field_validator("apiVersion")
     @classmethod

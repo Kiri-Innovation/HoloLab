@@ -66,6 +66,17 @@ export function diffGraphs(draft: WorkflowGraph, snap: WorkflowGraph): DiffItem[
       });
     }
 
+    // arrayed_toggle — structural (fans out at dispatch). Old snapshots
+    // predate this field; treat missing as false so a diff surfaces only
+    // when the draft actually turns it on.
+    const dArr = Boolean(dn.arrayed_toggle);
+    const sArr = Boolean(sn.arrayed_toggle);
+    if (dArr !== sArr) {
+      items.push({
+        description: `节点 ${label} arrayed 并行: ${sArr ? "开" : "关"} → ${dArr ? "开" : "关"}`,
+      });
+    }
+
     const dp = dn.params ?? {};
     const sp = sn.params ?? {};
     const keys = new Set([...Object.keys(dp), ...Object.keys(sp)]);

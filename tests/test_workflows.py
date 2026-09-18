@@ -10,6 +10,8 @@ from hololab.gateway.workflows import (
     GraphCycle,
     GraphEdge,
     GraphNode,
+    InputPortView,
+    OutputPortView,
     PackHandle,
     WorkflowGraph,
     WorkflowStore,
@@ -104,26 +106,29 @@ def test_topological_rejects_cycle() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _pack(inputs=None, outputs=None) -> PackHandle:
+def _pack(inputs=None, outputs=None, *, arrayable: bool = False) -> PackHandle:
     """Build a PackHandle from human-friendly kwargs.
 
     ``inputs``  values: ``(tags, required=True)`` or plain ``tags`` list.
     ``outputs`` values: plain ``tags`` list.
     """
 
-    def _norm_in(v):
+    def _norm_in(v) -> InputPortView:
         if isinstance(v, tuple):
-            return v  # already (tags, required)
-        return (list(v), True)
+            tags, required = v
+            return InputPortView(tags=tuple(tags), required=bool(required), arrayed=False)
+        return InputPortView(tags=tuple(v), required=True, arrayed=False)
 
-    def _norm_out(v):
+    def _norm_out(v) -> OutputPortView:
         if isinstance(v, tuple):
-            return v
-        return (list(v),)
+            (tags,) = v
+            return OutputPortView(tags=tuple(tags), arrayed=False)
+        return OutputPortView(tags=tuple(v), arrayed=False)
 
     return PackHandle(
         inputs={k: _norm_in(v) for k, v in (inputs or {}).items()},
         outputs={k: _norm_out(v) for k, v in (outputs or {}).items()},
+        arrayable=arrayable,
     )
 
 

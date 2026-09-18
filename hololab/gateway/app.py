@@ -19,7 +19,7 @@ from typing import Any
 import aiosqlite
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from hololab.gateway.spa_staticfiles import SPAStaticFiles
 
 from hololab import PROTOCOL_V_MAX, PROTOCOL_V_MIN
 from hololab.gateway.execution import (
@@ -208,9 +208,12 @@ def _mount_static(app: FastAPI) -> None:
     if dist is not None:
         # Static mount must come AFTER the /api and /ws routes; StaticFiles
         # gets registered here but resolved after specific routes.
+        # SPAStaticFiles adds an ``index.html`` fallback for extensionless
+        # 404s so path-based routes (``/w/<id>``, ``/artifacts``) refresh /
+        # deep-link to the SPA shell instead of returning 404.
         app.mount(
             "/",
-            StaticFiles(directory=str(dist), html=True),
+            SPAStaticFiles(directory=str(dist), html=True),
             name="frontend",
         )
     else:
@@ -1304,14 +1307,28 @@ def _mount_routes(app: FastAPI) -> None:
         registry: NodeRegistry = app.state.registry
 
         # Build validation inputs from the catalog + connected sessions.
+        from hololab.gateway.workflows import InputPortView, OutputPortView
+
         catalog = {(c["name"], c["version"]): c for c in registry.catalog_json()}
         packs_by_key: dict[tuple[str, str], PackHandle] = {
             key: PackHandle(
                 inputs={
-                    n: (list(i["tags"]), bool(i.get("required", True)))
+                    n: InputPortView(
+                        tags=tuple(i["tags"]),
+                        required=bool(i.get("required", True)),
+                        arrayed=bool(i.get("arrayed", False)),
+                    )
                     for n, i in entry["inputs"].items()
                 },
-                outputs={n: (list(o["tags"]),) for n, o in entry["outputs"].items()},
+                outputs={
+                    n: OutputPortView(
+                        tags=tuple(o["tags"]),
+                        arrayed=bool(o.get("arrayed", False)),
+                        tags_from=o.get("tags_from"),
+                    )
+                    for n, o in entry["outputs"].items()
+                },
+                arrayable=bool(entry.get("arrayable", False)),
             )
             for key, entry in catalog.items()
         }

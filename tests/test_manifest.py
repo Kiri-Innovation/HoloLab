@@ -276,3 +276,57 @@ def test_rendered_scratch_dir_lives_flat_under_workspace_root(tmp_path: Path) ->
 
     p = rendered_scratch_dir(tmp_path, "job-xyz")
     assert Path(p) == tmp_path / "scratch" / "job-xyz"
+
+
+# ---------------------------------------------------------------------------
+# arrayed / arrayable / tags_from (M1: type-system foundation)
+# ---------------------------------------------------------------------------
+
+
+def test_manifest_arrayable_defaults_false(tmp_path: Path) -> None:
+    manifest, _ = load_manifest(_write(tmp_path, VALID_MANIFEST))
+    assert manifest.arrayable is False
+
+
+def test_manifest_arrayable_accepts_true(tmp_path: Path) -> None:
+    data = dict(VALID_MANIFEST)
+    data["arrayable"] = True
+    manifest, _ = load_manifest(_write(tmp_path, data))
+    assert manifest.arrayable is True
+
+
+def test_port_arrayed_defaults_false(tmp_path: Path) -> None:
+    manifest, _ = load_manifest(_write(tmp_path, VALID_MANIFEST))
+    assert manifest.inputs["colmap"].arrayed is False
+    assert manifest.outputs["model"].arrayed is False
+
+
+def test_input_arrayed_can_be_declared(tmp_path: Path) -> None:
+    data = dict(VALID_MANIFEST)
+    data["inputs"] = {"colmap": {"tags": ["colmap"], "arrayed": True}}
+    manifest, _ = load_manifest(_write(tmp_path, data))
+    assert manifest.inputs["colmap"].arrayed is True
+
+
+def test_output_arrayed_can_be_declared(tmp_path: Path) -> None:
+    data = dict(VALID_MANIFEST)
+    data["outputs"] = {"model": {"tags": ["stg_model"], "arrayed": True}}
+    manifest, _ = load_manifest(_write(tmp_path, data))
+    assert manifest.outputs["model"].arrayed is True
+
+
+def test_output_tags_from_references_valid_input(tmp_path: Path) -> None:
+    """``tags_from`` may reference any declared input port name."""
+    data = dict(VALID_MANIFEST)
+    data["inputs"] = {"src": {"tags": ["any"]}}
+    data["outputs"] = {"passthrough": {"tags": ["any"], "tags_from": "src", "arrayed": True}}
+    manifest, _ = load_manifest(_write(tmp_path, data))
+    assert manifest.outputs["passthrough"].tags_from == "src"
+
+
+def test_output_tags_from_rejects_unknown_input(tmp_path: Path) -> None:
+    """``tags_from`` naming a nonexistent input is a manifest error."""
+    data = dict(VALID_MANIFEST)
+    data["outputs"] = {"model": {"tags": ["stg_model"], "tags_from": "nonexistent"}}
+    with pytest.raises(ValueError, match="tags_from"):
+        load_manifest(_write(tmp_path, data))

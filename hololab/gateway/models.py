@@ -134,6 +134,7 @@ class PortSpecOut(BaseModel):
     required: bool = True
     storage: str = "dir"
     description: str | None = None
+    arrayed: bool = False
 
 
 class OutputPortSpecOut(BaseModel):
@@ -143,6 +144,8 @@ class OutputPortSpecOut(BaseModel):
     storage: str = "dir"
     description: str | None = None
     preview: dict[str, Any] | None = None
+    arrayed: bool = False
+    tags_from: str | None = None
 
 
 class ParamSpecOut(BaseModel):
@@ -194,6 +197,14 @@ class CatalogPackEntry(BaseModel):
     inputs: dict[str, PortSpecOut] = Field(default_factory=dict)
     outputs: dict[str, OutputPortSpecOut] = Field(default_factory=dict)
     params: dict[str, ParamSpecOut] = Field(default_factory=dict)
+    arrayable: bool = Field(
+        default=False,
+        description=(
+            "When true, this pack's exec is data-parallel over its arrayed "
+            "inputs and the canvas shows an ``arrayed`` checkbox on each "
+            "node instance. See docs/pack-spec.md#arrayed-and-arrayable."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +340,10 @@ class GraphNodeOut(BaseModel):
     position: dict[str, float] = Field(default_factory=lambda: {"x": 0.0, "y": 0.0})
     params: dict[str, Any] = Field(default_factory=dict)
     assigned_node_id: str | None = None
+    # Structural — when the pack is ``arrayable``, this per-node checkbox
+    # promotes non-arrayed ports to arrayed at wire time and fan-outs at
+    # dispatch time. See docs/pack-spec.md#arrayed-and-arrayable.
+    arrayed_toggle: bool = False
     # Cosmetic — persisted with the workflow graph so the frontend can
     # hydrate its preview-drawer state without a separate round-trip.
     # See docs/workflow-schema.md for the cosmetic/structural boundary.

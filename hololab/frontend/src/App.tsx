@@ -54,7 +54,7 @@ import {
   runWorkflow,
   saveWorkflow,
 } from "./api";
-import { tagsCompatible } from "./tags";
+import { portsCompatible, effectivePortArrayed } from "./tags";
 import { diffGraphs } from "./canvas/diffGraphs";
 import type { DiffItem } from "./canvas/diffGraphs";
 import {
@@ -577,13 +577,30 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       const tgt = nodes.find((n) => n.id === conn.target)?.data;
       if (!src || !tgt) return;
 
-      const srcTags = src.pack.outputs[conn.sourceHandle]?.tags ?? [];
-      const tgtTags = tgt.pack.inputs[conn.targetHandle]?.tags ?? [];
-      if (!tagsCompatible(srcTags, tgtTags)) {
+      const srcOut = src.pack.outputs[conn.sourceHandle];
+      const tgtIn = tgt.pack.inputs[conn.targetHandle];
+      const srcTags = srcOut?.tags ?? [];
+      const tgtTags = tgtIn?.tags ?? [];
+      // Effective arrayed state depends on both the manifest declaration
+      // and the per-node ``arrayed_toggle`` (when the pack is arrayable).
+      // We read the toggle off the node data if present; unset → false.
+      const srcNode = nodes.find((n) => n.id === conn.source);
+      const tgtNode = nodes.find((n) => n.id === conn.target);
+      const srcArrayed = effectivePortArrayed(
+        srcOut?.arrayed,
+        src.pack.arrayable,
+        (srcNode?.data as { arrayed_toggle?: boolean } | undefined)?.arrayed_toggle,
+      );
+      const tgtArrayed = effectivePortArrayed(
+        tgtIn?.arrayed,
+        tgt.pack.arrayable,
+        (tgtNode?.data as { arrayed_toggle?: boolean } | undefined)?.arrayed_toggle,
+      );
+      if (!portsCompatible(srcTags, srcArrayed, tgtTags, tgtArrayed)) {
         // Flash a message via console for MVP; a toast is a follow-up.
-        console.warn(
-          `edge rejected: tags [${srcTags.join(",")}] × [${tgtTags.join(",")}] have no overlap`,
-        );
+        const srcLabel = srcArrayed ? `arrayed<${srcTags.join(",")}>` : srcTags.join(",");
+        const tgtLabel = tgtArrayed ? `arrayed<${tgtTags.join(",")}>` : tgtTags.join(",");
+        console.warn(`edge rejected: ${srcLabel} → ${tgtLabel} incompatible`);
         return;
       }
 

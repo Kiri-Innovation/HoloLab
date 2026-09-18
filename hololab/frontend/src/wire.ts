@@ -88,6 +88,11 @@ export interface PortSpec {
   tags: string[];
   storage: "dir" | "file";
   description: string | null;
+  // Cardinality flag — true means the port carries an ``arrayed<T>`` (a
+  // directory whose immediate subdirs are elements). Non-arrayable packs
+  // declare this at manifest time; arrayable packs get it flipped per
+  // graph node by ``GraphNode.arrayed_toggle``. See docs/pack-spec.md.
+  arrayed?: boolean;
 }
 
 export interface OutputPreviewSpec {
@@ -135,6 +140,11 @@ export interface HandleSummary {
 
 export interface OutputPortSpec extends PortSpec {
   preview: OutputPreviewSpec | null;
+  // Name of an input port on the SAME pack whose (effective) tags this
+  // output mirrors. Set on generic utility packs (``arrayfy`` /
+  // ``get-index``) where the element type is decided by the caller's
+  // wiring. Null for packs whose output tags are self-contained.
+  tags_from?: string | null;
 }
 
 export interface InputPortSpec extends PortSpec {
@@ -173,6 +183,10 @@ export interface CatalogPack {
   inputs: Record<string, InputPortSpec>;
   outputs: Record<string, OutputPortSpec>;
   params: Record<string, ParamSpec>;
+  // When true, this pack's exec is data-parallel over its arrayed inputs
+  // and each node instance gets an "arrayed" checkbox in the Inspector
+  // (see docs/pack-spec.md#arrayed-and-arrayable).
+  arrayable?: boolean;
 }
 
 // GET /api/handles/{id}
@@ -257,6 +271,11 @@ export interface GraphNode {
   position: { x: number; y: number };
   params: Record<string, unknown>;
   assigned_node_id: string | null;
+  // Structural — when the pack is ``arrayable``, this checkbox promotes
+  // every non-arrayed port to arrayed at wire time and fan-outs at
+  // dispatch time. Default false leaves pre-arrayed behavior intact.
+  // See docs/pack-spec.md#arrayed-and-arrayable.
+  arrayed_toggle?: boolean;
   // Cosmetic (observer-only) field. Name of the output port whose
   // preview drawer is expanded; null when the drawer is closed.
   // Never affects dispatch — see the cosmetic/structural table in
