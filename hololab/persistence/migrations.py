@@ -375,6 +375,21 @@ MIGRATIONS.append(
 )
 
 
+# V12 — per-run user annotations: favorite flag (置顶) and freeform Markdown
+# note. Both are NULL-safe on existing rows (favorite defaults to 0 / false,
+# note to NULL / empty). The PATCH endpoint updates them independently;
+# the GET /api/workflows/{id}/runs list includes both fields.
+MIGRATIONS.append(
+    (
+        12,
+        """
+        ALTER TABLE snapshots ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE snapshots ADD COLUMN note TEXT;
+        """,
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

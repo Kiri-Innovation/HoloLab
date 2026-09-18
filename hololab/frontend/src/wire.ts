@@ -341,6 +341,10 @@ export interface RunSummaryRow {
   // "N missing" chip on the run row. Live liveness (alive/dead) is not
   // stat'd here — the Artifacts page opts into that separately.
   artifact_counts?: { total?: number; deleted?: number };
+  // V12 user annotations. Optional so pre-migration / old-backend clients
+  // degrade safely (undefined = not favorited, no note).
+  favorite?: boolean;
+  note?: string | null;
 }
 
 // One job as it appears inside a snapshot detail. Wider than

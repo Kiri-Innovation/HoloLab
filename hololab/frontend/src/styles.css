@@ -495,3 +495,70 @@ a:hover { text-decoration: underline; }
 .hl-control-sm { width: var(--control-h-sm) !important; height: var(--control-h-sm) !important; padding: 0 !important; }
 /* Buttons acting as full list rows have content-driven height, not control height. */
 .hl-row-action { height: auto; }
+
+/* ---------------------------------------------------------------------------
+ * Run-note Markdown rendering (marked + DOMPurify output).
+ * Scoped to .hl-note-preview and .hl-note-rendered so browser resets
+ * don't bleed outside these containers.
+ * --------------------------------------------------------------------------- */
+.hl-note-preview h1, .hl-note-preview h2, .hl-note-preview h3,
+.hl-note-rendered h1, .hl-note-rendered h2, .hl-note-rendered h3 {
+  margin: 0.6em 0 0.3em;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+.hl-note-preview h1, .hl-note-rendered h1 { font-size: var(--fs-md, 15px); }
+.hl-note-preview h2, .hl-note-rendered h2 { font-size: var(--fs-sm, 13px); }
+.hl-note-preview h3, .hl-note-rendered h3 { font-size: var(--fs-sm, 13px); opacity: 0.85; }
+
+.hl-note-preview p, .hl-note-rendered p { margin: 0.4em 0; }
+.hl-note-preview p:first-child, .hl-note-rendered p:first-child { margin-top: 0; }
+
+.hl-note-preview ul, .hl-note-preview ol,
+.hl-note-rendered ul, .hl-note-rendered ol {
+  margin: 0.3em 0 0.4em;
+  padding-left: 1.4em;
+}
+.hl-note-preview li, .hl-note-rendered li { margin: 2px 0; }
+
+.hl-note-preview pre, .hl-note-rendered pre {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs, 11px);
+  background: var(--surface-2, #1c1c1e);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm, 4px);
+  padding: 6px 10px;
+  margin: 0.4em 0;
+  overflow-x: auto;
+  line-height: 1.45;
+  white-space: pre;
+}
+.hl-note-preview code, .hl-note-rendered code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm, 4px);
+  padding: 0 4px;
+}
+/* Inside <pre> the outer <code> background / border is redundant */
+.hl-note-preview pre code, .hl-note-rendered pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.hl-note-preview a, .hl-note-rendered a {
+  color: var(--accent, #4a9eff);
+  text-decoration: underline;
+}
+.hl-note-preview blockquote, .hl-note-rendered blockquote {
+  border-left: 3px solid var(--border);
+  margin: 0.4em 0;
+  padding-left: 10px;
+  color: var(--text-muted);
+}
+.hl-note-preview strong, .hl-note-rendered strong { color: var(--text); font-weight: 600; }
+.hl-note-preview em, .hl-note-rendered em { font-style: italic; }

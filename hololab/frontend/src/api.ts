@@ -138,6 +138,17 @@ export const runWorkflow = (workflow_id: string) =>
 export const listWorkflowRuns = (workflow_id: string) =>
   fetch(`/api/workflows/${workflow_id}/runs`).then(json<RunSummaryRow[]>);
 
+export const patchRun = (
+  workflow_id: string,
+  snapshot_id: string,
+  patch: { favorite?: boolean; note?: string | null },
+) =>
+  fetch(`/api/workflows/${workflow_id}/runs/${snapshot_id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  }).then(json<{ snapshot_id: string; favorite: boolean; note: string | null }>);
+
 export const getSnapshot = (snapshot_id: string) =>
   fetch(`/api/snapshots/${snapshot_id}`).then(json<SnapshotDetail>);
 

@@ -139,6 +139,9 @@ class SnapshotRow:
     # model, V8+). None for snapshots produced by the classic "run whole
     # workflow" path or by the first dispatch on a workflow.
     parent_snapshot_id: str | None = None
+    # V12 user annotations — safe defaults so callers never see None on old rows.
+    favorite: bool = False
+    note: str | None = None
 
 
 class WorkflowStore:
@@ -287,7 +290,7 @@ class WorkflowStore:
             self._db.read() as conn,
             conn.execute(
                 "SELECT snapshot_id, workflow_id, graph_json, created_ts, "
-                "parent_snapshot_id FROM snapshots WHERE snapshot_id=?",
+                "parent_snapshot_id, favorite, note FROM snapshots WHERE snapshot_id=?",
                 (snapshot_id,),
             ) as cur,
         ):
@@ -300,6 +303,8 @@ class WorkflowStore:
             graph=WorkflowGraph.model_validate_json(row[2]),
             created_ts=row[3],
             parent_snapshot_id=row[4],
+            favorite=bool(row[5]) if row[5] is not None else False,
+            note=row[6],
         )
 
     async def list_snapshots_for_workflow(self, workflow_id: str) -> list[SnapshotRow]:
@@ -314,7 +319,7 @@ class WorkflowStore:
             self._db.read() as conn,
             conn.execute(
                 "SELECT snapshot_id, workflow_id, graph_json, created_ts, "
-                "parent_snapshot_id FROM snapshots WHERE workflow_id=? "
+                "parent_snapshot_id, favorite, note FROM snapshots WHERE workflow_id=? "
                 "ORDER BY created_ts DESC",
                 (workflow_id,),
             ) as cur,
@@ -327,9 +332,54 @@ class WorkflowStore:
                 graph=WorkflowGraph.model_validate_json(r[2]),
                 created_ts=r[3],
                 parent_snapshot_id=r[4],
+                favorite=bool(r[5]) if r[5] is not None else False,
+                note=r[6],
             )
             for r in rows
         ]
+
+    async def patch_snapshot_annotations(
+        self,
+        snapshot_id: str,
+        workflow_id: str,
+        *,
+        favorite: bool | None = None,
+        note: str | None = None,
+        clear_note: bool = False,
+    ) -> bool:
+        """Update favorite / note on a snapshot. Returns False if not found."""
+
+        set_clauses: list[str] = []
+        params: list[Any] = []
+
+        if favorite is not None:
+            set_clauses.append("favorite = ?")
+            params.append(1 if favorite else 0)
+
+        if clear_note:
+            set_clauses.append("note = ?")
+            params.append(None)
+        elif note is not None:
+            set_clauses.append("note = ?")
+            params.append(note)
+
+        if not set_clauses:
+            # Nothing to write — verify the row exists.
+            snap = await self.get_snapshot(snapshot_id)
+            return snap is not None and snap.workflow_id == workflow_id
+
+        params.extend([snapshot_id, workflow_id])
+
+        async def _write(conn: aiosqlite.Connection) -> None:
+            await conn.execute(
+                f"UPDATE snapshots SET {', '.join(set_clauses)} "
+                "WHERE snapshot_id=? AND workflow_id=?",
+                params,
+            )
+
+        await self._db.write(_write)
+        snap = await self.get_snapshot(snapshot_id)
+        return snap is not None
 
 
 # ---------------------------------------------------------------------------

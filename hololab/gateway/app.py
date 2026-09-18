@@ -1443,9 +1443,75 @@ def _mount_routes(app: FastAPI) -> None:
                     "state_counts": state_counts,
                     "state": rollup,
                     "artifact_counts": artifact_counts,
+                    "favorite": snap.favorite,
+                    "note": snap.note,
                 }
             )
         return out
+
+    @app.patch(
+        "/api/workflows/{workflow_id}/runs/{snapshot_id}",
+        tags=["runs"],
+        summary="Update user annotations (favorite flag, Markdown note) on a run.",
+    )
+    async def patch_run(
+        workflow_id: str,
+        snapshot_id: str,
+        request: Request,
+    ) -> dict[str, Any]:
+        """Idempotent PATCH for per-run user annotations.
+
+        Body fields are all optional:
+          ``favorite`` (bool) — toggle starred / unstarred.
+          ``note`` (str | null) — Markdown note; empty string or null clears it.
+
+        Only fields present in the JSON body are written; absent fields are
+        left unchanged. 404 when the run doesn't exist under this workflow.
+        """
+
+        workflows_store: WorkflowStore = app.state.workflows
+
+        # Parse body manually so we can detect absent vs null fields.
+        try:
+            body: dict[str, Any] = await request.json()
+        except Exception:
+            body = {}
+
+        favorite_val: bool | None = None
+        note_val: str | None = None
+        clear_note = False
+
+        if "favorite" in body:
+            raw = body["favorite"]
+            if not isinstance(raw, bool):
+                raise HTTPException(status_code=422, detail="'favorite' must be a boolean")
+            favorite_val = raw
+
+        if "note" in body:
+            raw = body["note"]
+            if raw is None or raw == "":
+                clear_note = True
+            elif isinstance(raw, str):
+                note_val = raw
+            else:
+                raise HTTPException(status_code=422, detail="'note' must be a string or null")
+
+        found = await workflows_store.patch_snapshot_annotations(
+            snapshot_id,
+            workflow_id,
+            favorite=favorite_val,
+            note=note_val,
+            clear_note=clear_note,
+        )
+        if not found:
+            raise HTTPException(status_code=404, detail="run not found")
+
+        snap = await workflows_store.get_snapshot(snapshot_id)
+        return {
+            "snapshot_id": snapshot_id,
+            "favorite": snap.favorite if snap else False,
+            "note": snap.note if snap else None,
+        }
 
     @app.get(
         "/api/snapshots/{snapshot_id}",

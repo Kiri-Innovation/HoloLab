@@ -461,6 +461,10 @@ class RunSummary(BaseModel):
     # Filesystem-alive / dead / incomplete require the opt-in
     # ``?check=1`` on GET /api/artifacts — this endpoint stays cheap.
     artifact_counts: dict[str, int] = Field(default_factory=dict)
+    # V12 user annotations. Defaults make old clients / partially-migrated
+    # DBs safe: favorite=false, note absent.
+    favorite: bool = False
+    note: str | None = None
 
 
 class ArtifactRow(BaseModel):
