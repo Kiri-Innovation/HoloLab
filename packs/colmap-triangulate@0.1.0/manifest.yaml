@@ -113,6 +113,13 @@ exec:
 
     # Prior = the caller's cameras.txt + images.txt + an empty points3D.txt
     # (COLMAP's point_triangulator refuses to start without the file).
+    # DELIBERATELY don't ship rigs.txt/frames.txt from the SfM run: COLMAP
+    # 3.11+ enforces ``existing_frame.RigId() == frame.RigId()`` — the SfM's
+    # rig assignments are for the SfM's DB, and we're building a fresh DB
+    # here (each shard has different pixel content for frames != 0, so the
+    # SfM's descriptors don't apply). Without a prior rig assignment,
+    # feature_extractor's default one-camera-per-image rigs win and the
+    # check passes.
     cp "$CAMS_DIR/cameras.txt" "$PRIOR/cameras.txt"
     cp "$CAMS_DIR/images.txt"  "$PRIOR/images.txt"
     : > "$PRIOR/points3D.txt"

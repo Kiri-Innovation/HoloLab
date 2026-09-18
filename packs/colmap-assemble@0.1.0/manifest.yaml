@@ -1,0 +1,78 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-assemble
+version: 0.1.0
+description: >
+  Assemble per-frame ``colmap-cams`` + ``colmap-points`` + ``frame_sequence``
+  arrays into the container-of-``colmap_N/`` layout that ``stg-train`` (and
+  every other consumer of the ``colmap`` tag) expects.
+source_entry: assemble.py
+category: "reconstruction/colmap"
+
+docs: |
+  Whole-array assembler. For every element ``i`` (sorted-order) of the
+  three arrayed inputs, writes a ``colmap_{i}/`` subdirectory into the
+  output that STG's dataset reader can load verbatim::
+
+      output/
+        colmap_0/
+          sparse/0/
+            cameras.txt      -> cams/<elem_0>/cameras.txt
+            images.txt       -> cams/<elem_0>/images.txt
+            points3D.txt     -> points/<elem_0>/points3D.txt
+          images/
+            cam00.png        -> frames/<elem_0>/frames/cam00.png
+            cam01.png        -> ...
+        colmap_1/
+          ...
+
+  Symlinks everywhere — no bytes copied, so 21 cams × 400 frames stays
+  cheap on disk. Element ids across the three inputs must agree (framework
+  enforces this at fan-out time; assembler asserts on load).
+
+  ### When to use
+
+  Downstream STG / GS training packs that were authored for the
+  ``gsseq_to_multiview``-style ``colmap`` container will consume this
+  output directly. If you want to feed one such trainer from the
+  arrayed<T> triangulation pipeline (``colmap-sfm-cams-only`` +
+  ``colmap-triangulate[arrayed]``), insert this pack between the arrayed
+  outputs and the trainer.
+
+  Not arrayable — this is a whole-array reshape.
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    arrayed: true
+    description: "arrayed<colmap-cams> — one COLMAP camera set per frame (typically the arrayfy of one shared cams handle)."
+  points:
+    tags: [colmap-points]
+    arrayed: true
+    description: "arrayed<colmap-points> — one COLMAP points3D per frame (from colmap-triangulate[arrayed])."
+  frames:
+    tags: [frame_sequence]
+    arrayed: true
+    description: "arrayed<frame_sequence> — one frame_sequence per frame (from regroup-by-frame), providing the raw images STG needs to render supervisory views."
+
+outputs:
+  colmap:
+    tags: [colmap]
+    description: "Container with colmap_0/, colmap_1/, ... — each a complete COLMAP model + image dir, ready for stg-train."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/assemble.py" \
+      --cams "{{ inputs.cams }}" \
+      --points "{{ inputs.points }}" \
+      --frames "{{ inputs.frames }}" \
+      --output "{{ outputs.colmap }}"
+
+idempotency:
+  marker: "{{ outputs.colmap }}/.hololab-done"

@@ -59,7 +59,28 @@ def test_colmap_pack_docs_mention_rig_alternative(pack_name: str) -> None:
     )
 
 
-@pytest.mark.parametrize("pack_name", ["colmap-sfm-cams-only", "colmap-triangulate"])
+@pytest.mark.parametrize(
+    "pack_name", ["colmap-sfm-cams-only", "colmap-triangulate", "colmap-assemble"]
+)
 def test_colmap_pack_category(pack_name: str) -> None:
     m = _load(pack_name)
     assert m.category == ["reconstruction", "colmap"], m.category
+
+
+def test_colmap_assemble_shape() -> None:
+    """colmap-assemble fans in three arrayed<T> inputs → one non-arrayed
+    ``colmap`` container that stg-train can consume verbatim."""
+    m = _load("colmap-assemble")
+    # Not arrayable — whole-array reshape, one process.
+    assert m.arrayable is False
+    assert m.inputs["cams"].tags == ["colmap-cams"]
+    assert m.inputs["cams"].arrayed is True
+    assert m.inputs["points"].tags == ["colmap-points"]
+    assert m.inputs["points"].arrayed is True
+    assert m.inputs["frames"].tags == ["frame_sequence"]
+    assert m.inputs["frames"].arrayed is True
+    assert m.outputs["colmap"].tags == ["colmap"]
+    assert m.outputs["colmap"].arrayed is False
+    assert m.source_entry == "assemble.py"
+    script = PACKS_ROOT / "colmap-assemble@0.1.0" / m.source_entry
+    assert script.is_file()

@@ -65,7 +65,10 @@ params:
 outputs:
   cams:
     tags: [colmap-cams]
-    description: "COLMAP text-format cameras.txt + images.txt (no points3D)."
+    description: >
+      COLMAP text-format cameras.txt + images.txt (no points3D, no
+      rigs.txt / frames.txt — see comments in the exec for the
+      COLMAP-3.11 rig-id rationale).
 
 runtime:
   env: kiri
@@ -122,7 +125,13 @@ exec:
       --output_type TXT
 
     # points3D.txt is not part of this pack's contract — discard.
-    rm -f "$OUT/points3D.txt"
+    # rigs.txt / frames.txt (COLMAP 3.11+) also stripped: shipping the
+    # SfM's rig assignments into a downstream ``colmap-triangulate``'s
+    # prior trips the ``existing_frame.RigId() == frame.RigId()`` check
+    # in database_cache.cc:165 (the fresh feature_extractor's per-image
+    # default rigs won't match the SfM's grouped rigs). Without a prior
+    # rig assignment the downstream defaults win and the check passes.
+    rm -f "$OUT/points3D.txt" "$OUT/rigs.txt" "$OUT/frames.txt"
 
     test -s "$OUT/cameras.txt" || { echo "no cameras.txt produced" >&2; exit 4; }
     test -s "$OUT/images.txt"  || { echo "no images.txt produced" >&2; exit 4; }
