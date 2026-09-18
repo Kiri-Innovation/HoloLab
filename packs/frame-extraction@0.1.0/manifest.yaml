@@ -13,16 +13,28 @@ description: >
 # (self-contained + portable).
 source_entry: extract_frames.py
 category: "source/frames"
+
+# M7 migration: pack is arrayable. When the operator checks "并行处理数组输入"
+# on this node, an arrayed<video-source> input (from video-array-source) is
+# accepted and the scheduler dispatches one shard per element (per camera).
+# Each shard sees a scalar video-source (a directory containing one video)
+# — the shell logic is unchanged.
+arrayable: true
+
 docs: |
   Frame extractor node. Takes a video and writes ``frame_XXXXXX.png``
-  into ``<output>/frames/``, plus a `frame_sequence`-tagged handle
+  into ``<output>/frames/``, plus a ``frame_sequence``-tagged handle
   downstream consumers pick up automatically.
 
-  - **Input:** `video_dir` from ``single-video-source`` or
-    ``video-array-source`` — the first video file inside is used.
-  - **Output:** `frame_sequence` — directory containing ``frames/``.
-  - `skip` and `max_frames` control how much of the video is extracted;
-    HDR (HLG / PQ) videos are tonemapped to sRGB automatically.
+  - **Input:** ``video_dir`` from ``single-video-source`` (scalar
+    ``video-source``) — or ``video-array-source`` (``arrayed<video-source>``)
+    when the "并行处理数组输入" checkbox is on. Each shard sees a directory
+    containing one video.
+  - **Output:** ``frame_sequence`` — directory containing ``frames/``.
+    When arrayed, the parent job's aggregate output is
+    ``arrayed<frame_sequence>`` with one element per camera.
+  - ``skip`` and ``max_frames`` control how much of the video is
+    extracted; HDR (HLG / PQ) videos are tonemapped to sRGB automatically.
 
   Ships with HoloLab (no algorithm repo required). Downstream MegaSaM
   (``frames-to-camera-track``) consumes this handle directly — no
@@ -30,8 +42,8 @@ docs: |
 
 inputs:
   video_dir:
-    tags: [video-source, video-source-array]
-    description: "Directory produced by single-video-source or video-array-source; the first video file inside is used."
+    tags: [video-source]
+    description: "Directory produced by single-video-source or (with arrayed toggle on) one element of video-array-source; the first video file inside is used."
 
 params:
   max_frames:

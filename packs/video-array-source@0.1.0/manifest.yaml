@@ -16,12 +16,18 @@ docs: |
 
   - **Param:** `video_dir` — absolute path to a directory containing
     ``.mp4`` / ``.mov`` / ``.mkv`` / ``.webm`` / ``.avi`` files.
-  - **Output:** `videos_dir` containing one symlink per source video,
-    with the ORIGINAL basename preserved (e.g. ``camera_A.mp4``).
-    Symlinks are created in sorted-basename order so downstream
-    consumers see a deterministic sequence — important for
-    multi-camera setups where filename carries the camera identity.
-  - **Output tag:** ``video-source-array`` (multi-clip data class).
+  - **Output:** ``videos_dir`` is an ``arrayed<video-source>`` handle —
+    one subdirectory per source video, each subdir named after the
+    video's basename (extension stripped) so element ids read cleanly
+    (``camera_A``, ``camera_B``, ...). The video symlink lives INSIDE
+    that subdir under its original basename, so each element on its own
+    looks like a scalar ``video-source`` (a directory containing a
+    video file). This is the arrayed<T> layout the framework's fan-out
+    expects — see docs/pack-spec.md#arrayed-and-arrayable.
+  - **Output tag:** ``video-source`` with ``arrayed: true`` (M7
+    migration; the pre-arrayed ``video-source-array`` string tag has
+    been retired — same semantics, expressed via the type system's
+    cardinality flag instead).
   - Dotfiles are skipped; the pack fails fast if no matching video
     file is found in the directory.
 
@@ -32,15 +38,14 @@ docs: |
   - Multi-camera capture or multi-clip inputs (directory of videos,
     each a different camera or take) → this pack.
 
-  Downstream (``video-to-camera-track`` / ``video-to-colmap``) accepts
-  both ``video-source`` and ``video-source-array`` tags. Today
-  downstream consumes the first video it finds — the array is a
-  forward-compat handoff for a future multi-camera SFM step; for
-  single-camera SFM the first video is the only one processed.
+  Downstream ``frame-extraction`` is now ``arrayable: true``; check the
+  "并行处理数组输入" box on that node and the scheduler dispatches one
+  shard per camera, producing an ``arrayed<frame_sequence>`` output
+  ready for ``regroup-by-frame`` / ``colmap-triangulate``.
 
-  Preview: derived from the ``video-source-array`` tag via the
-  gateway's tag→viewer registry (video-grid renders one tile per
-  video). See docs/pack-spec.md § "tag-driven preview inference".
+  Preview: derived from the ``video-source`` tag via the gateway's
+  tag→viewer registry (video-grid renders one tile per element).
+  See docs/pack-spec.md § "tag-driven preview inference".
 
 params:
   video_dir:
@@ -49,8 +54,12 @@ params:
 
 outputs:
   videos_dir:
-    tags: [video-source-array]
-    description: "Directory of symlinks, one per source video, with the source basename preserved."
+    tags: [video-source]
+    arrayed: true
+    description: >
+      arrayed<video-source> — one subdirectory per source video, subdir
+      named after the video's stem, containing the video symlink under
+      its original basename.
 
 runtime:
   env: kiri
@@ -64,11 +73,13 @@ runtime:
     mem_gb: 0.5
 
 exec:
-  # Enumerate video files at depth 1, sort by basename for
-  # deterministic ordering (multi-camera setups usually use
-  # camera_A / camera_B / … which sorts naturally), and symlink each
-  # into videos_dir preserving the source basename. Null-delimited
-  # find | sort | while lets filenames with spaces / newlines survive.
+  # M7: arrayed<video-source> layout — enumerate video files at depth 1,
+  # sort by basename for deterministic ordering, and place each in its own
+  # element subdirectory named after the video's stem (extension stripped).
+  # Each element subdir carries the video symlink under its original
+  # basename, so a downstream arrayable ``frame-extraction`` shard sees a
+  # scalar ``video-source`` (dir-of-videos) shape identical to what
+  # ``single-video-source`` produces.
   shell: |
     set -euo pipefail
     OUT="{{ outputs.videos_dir }}"
@@ -86,7 +97,9 @@ exec:
       case "$BASE" in
         .*) continue ;;
       esac
-      ln -sf "$F" "$OUT/$BASE"
+      STEM="${BASE%.*}"          # camera_A.mp4 → camera_A  (element_id)
+      mkdir -p "$OUT/$STEM"
+      ln -sf "$F" "$OUT/$STEM/$BASE"
       COUNT=$((COUNT + 1))
     done < <(find "$VDIR" -maxdepth 1 \( -type f -o -type l \) \
               \( -iname '*.mp4' -o -iname '*.mov' -o -iname '*.mkv' \
@@ -95,7 +108,7 @@ exec:
       echo "no video files (.mp4/.mov/.mkv/.webm/.avi) found in $VDIR" >&2
       exit 2
     fi
-    echo "[ITER 1/1] linked $COUNT video(s) from $VDIR"
+    echo "[ITER 1/1] arrayed $COUNT video(s) into element subdirs of $OUT"
 
 idempotency:
   marker: "{{ outputs.videos_dir }}/.hololab-done"

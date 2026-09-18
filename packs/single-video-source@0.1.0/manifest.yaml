@@ -23,9 +23,11 @@ docs: |
   - Multi-camera capture or multi-clip inputs (directory of videos,
     each clip is a different camera or take) → ``video-array-source``.
 
-  Downstream (``video-to-camera-track`` / ``video-to-colmap``) accepts
-  both ``video-source`` and ``video-source-array`` tags, so you can
-  wire either source pack into the same reconstruction chain.
+  Downstream (``video-to-camera-track`` / ``video-to-colmap`` /
+  ``frame-extraction``) accepts ``video-source`` scalars (this pack) and,
+  when the "并行处理数组输入" arrayed checkbox is on, the equivalent
+  ``arrayed<video-source>`` (from ``video-array-source``). The pre-arrayed
+  ``video-source-array`` string tag was retired in the M7 migration.
 
   Preview: derived from the ``video-source`` tag via the gateway's
   tag→viewer registry (video-grid renders one tile). See

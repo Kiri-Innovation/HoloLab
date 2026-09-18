@@ -43,12 +43,12 @@ from hololab.manifest.schema import OutputPreview
 # ``viewer`` field must be one of the literals declared on
 # ``OutputPreview.viewer`` (splatv / video / image / text / video-grid).
 TAG_VIEWER_REGISTRY: dict[str, OutputPreview] = {
-    # Single video source — one video file in a directory. The
-    # video-grid viewer paints one tile (per its default filter).
+    # Video source — one video file in a directory (scalar). Also the
+    # element type for arrayed<video-source> from video-array-source; the
+    # video-grid viewer paints one tile (per its default filter) either way.
+    # The M7 arrayed migration retired the standalone ``video-source-array``
+    # tag; cardinality is expressed via ``PortSpec.arrayed`` now.
     "video-source": OutputPreview(viewer="video-grid"),
-    # Video-array source — a directory of video clips. Same viewer,
-    # the tile grid naturally expands to N videos.
-    "video-source-array": OutputPreview(viewer="video-grid"),
     # STG-to-Splatv output — the interactive Gaussian splat renderer
     # already keys on the ``splatv`` tag, so packs that produce it
     # don't need to repeat themselves.
