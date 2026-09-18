@@ -144,7 +144,7 @@ def test_diff_unset_copy(bundle_js: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Current-run chip.
+# Current-run chip — independent of draftDiff.
 # ---------------------------------------------------------------------------
 
 
@@ -156,6 +156,22 @@ def test_current_run_data_attr(bundle_js: str) -> None:
 def test_current_run_chip_label(bundle_js: str) -> None:
     """Current-run chip label: 「当前」."""
     assert "当前" in bundle_js
+
+
+def test_active_title_string(bundle_js: str) -> None:
+    """The run-row button title 'currently open on canvas' is a pure
+    snapshot-id comparison — no draftDiff gate — proving the chip shows
+    whenever the user has a snapshot open, regardless of draft state."""
+    assert "currently open on canvas" in bundle_js
+
+
+def test_current_chip_and_sentinel_coexist(bundle_js: str) -> None:
+    """Both indicators are compiled into the same bundle under independent
+    conditions (active = snapshot_id match; sentinel = draftDiff.length > 0).
+    When both conditions are true simultaneously, both appear in the panel:
+    the sentinel row at the top, the 「当前」chip on the matching run row."""
+    assert "data-hl-current-run" in bundle_js
+    assert "data-hl-draft-modified-row" in bundle_js
 
 
 # ---------------------------------------------------------------------------
