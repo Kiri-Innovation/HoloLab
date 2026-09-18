@@ -256,9 +256,12 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   );
   const expanded =
     previewOpen && expandableNames.has(previewOpen) ? previewOpen : null;
-  const width = expanded ? NODE_WIDTH_EXPANDED : NODE_WIDTH;
   const currentPreview =
     expanded ? expandables.find((p) => p.name === expanded) ?? null : null;
+  const width =
+    expanded && currentPreview?.kind === "viewer"
+      ? NODE_WIDTH_EXPANDED
+      : NODE_WIDTH;
   const runInFlight =
     runState === "pending" || runState === "assigned" || runState === "running";
 
