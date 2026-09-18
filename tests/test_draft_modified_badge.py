@@ -1,15 +1,18 @@
-"""Guard the draft-modified badge near the Run button.
+"""Guard the Run History panel's structural-change sentinel row and current-run chip.
 
-When the in-memory draft graph structurally differs from the latest snapshot,
-WorkflowToolbar renders a ``data-hl-draft-modified`` span with the text
-「已修改 · 运行将创建新快照」. Cosmetic-only changes (position, preview_open)
-do NOT count as differences — only structural fields do
-(nodes/algorithm_name/algorithm_version/params/assigned_node_id + edges).
+When the in-memory draft has structural changes that haven't been run yet,
+RunsPanel renders a ``data-hl-draft-modified-row`` sentinel div with the text
+「草稿有结构改动 · 待运行」above the real run rows. The sentinel is a non-button
+div with a distinct amber tint — visually separate from real snapshot rows.
 
-Same bundle-inspection pattern as ``test_cobrowser_error_callout.py`` and
-``test_preview_placeholder_bundle.py`` — the frontend has no vitest infra;
-we grep the built dist for the copy + data-attributes the browser will see.
-Skips gracefully when the dist isn't built.
+When a snapshot is currently open on the canvas, its row gets a
+``data-hl-current-run`` chip labelled 「当前」.
+
+Structural fields that count as changes: algorithm_name/version, params,
+assigned_node_id, edges. Cosmetic fields (position, preview_open) are excluded.
+
+Same bundle-inspection pattern as the other frontend tests — greps the built
+dist for copy + data-attributes. Skips gracefully when dist isn't built.
 """
 
 from __future__ import annotations
@@ -42,28 +45,38 @@ def bundle_js() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Data attribute — hooks for tests and custom tooling.
+# Structural-change sentinel row.
 # ---------------------------------------------------------------------------
 
 
-def test_draft_modified_data_attr_present(bundle_js: str) -> None:
-    """``WorkflowToolbar`` renders a ``data-hl-draft-modified`` element."""
-    assert "data-hl-draft-modified" in bundle_js
+def test_draft_modified_row_data_attr_present(bundle_js: str) -> None:
+    """``RunsPanel`` renders a ``data-hl-draft-modified-row`` sentinel div."""
+    assert "data-hl-draft-modified-row" in bundle_js
+
+
+def test_structural_change_label_present(bundle_js: str) -> None:
+    """Sentinel label: 「草稿有结构改动」."""
+    assert "草稿有结构改动" in bundle_js
+
+
+def test_pending_run_copy_present(bundle_js: str) -> None:
+    """Sentinel sub-label: 「待运行」."""
+    assert "待运行" in bundle_js
 
 
 # ---------------------------------------------------------------------------
-# Badge copy.
+# Current-run chip on the active run row.
 # ---------------------------------------------------------------------------
 
 
-def test_modified_label_present(bundle_js: str) -> None:
-    """Badge label: 「已修改」."""
-    assert "已修改" in bundle_js
+def test_current_run_data_attr_present(bundle_js: str) -> None:
+    """Active run row renders a ``data-hl-current-run`` chip."""
+    assert "data-hl-current-run" in bundle_js
 
 
-def test_fork_consequence_copy_present(bundle_js: str) -> None:
-    """Badge consequence copy: 「运行将创建新快照」."""
-    assert "运行将创建新快照" in bundle_js
+def test_current_run_chip_label_present(bundle_js: str) -> None:
+    """Current-run chip label: 「当前」."""
+    assert "当前" in bundle_js
 
 
 # ---------------------------------------------------------------------------

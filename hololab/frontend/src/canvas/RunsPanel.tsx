@@ -22,14 +22,19 @@ export interface RunsPanelProps {
   // presentation-only.
   onOpenSnapshot: (snapshotId: string) => void;
   // Which snapshot (if any) is currently open on the canvas — the panel
-  // highlights its row so the context is obvious when you re-open it.
+  // highlights its row and shows a "当前" chip so the context is obvious.
   currentSnapshotId: string | null;
+  // True when the in-memory draft has structural changes vs the latest
+  // snapshot that haven't been run yet. Adds a synthetic "草稿有结构改动"
+  // sentinel row at the top of the list (not a real run row).
+  draftModified?: boolean;
 }
 
 export function RunsPanel({
   workflowId,
   onOpenSnapshot,
   currentSnapshotId,
+  draftModified = false,
 }: RunsPanelProps) {
   const [runs, setRuns] = useState<RunSummaryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +86,7 @@ export function RunsPanel({
         runs={runs}
         currentSnapshotId={currentSnapshotId}
         onOpen={onOpenSnapshot}
+        draftModified={draftModified}
       />
     </div>
   );
@@ -129,10 +135,12 @@ function RunListView({
   runs,
   currentSnapshotId,
   onOpen,
+  draftModified,
 }: {
   runs: RunSummaryRow[] | null;
   currentSnapshotId: string | null;
   onOpen: (snapshotId: string) => void;
+  draftModified?: boolean;
 }) {
   if (runs === null) {
     return (
@@ -158,6 +166,35 @@ function RunListView({
   }
   return (
     <div style={{ overflow: "auto", flex: 1 }}>
+      {draftModified && (
+        <div
+          data-hl-draft-modified-row=""
+          title="The draft has structural changes (nodes / params / edges / assigned node) not yet captured in a snapshot."
+          style={{
+            padding: "8px 12px",
+            borderBottom: "1px dashed var(--border)",
+            background: "var(--warning-soft, rgba(200, 162, 0, 0.07))",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: "var(--fs-sm)",
+          }}
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 1,
+              background: "var(--warning, #c8a200)",
+              flexShrink: 0,
+            }}
+          />
+          <div>
+            <span style={{ fontWeight: 600, color: "var(--text)" }}>草稿有结构改动</span>
+            <span style={{ marginLeft: 5, color: "var(--text-muted)" }}>· 待运行</span>
+          </div>
+        </div>
+      )}
       {runs.map((r) => {
         const active = r.snapshot_id === currentSnapshotId;
         return (
@@ -207,9 +244,30 @@ function RunListView({
                   fontWeight: 600,
                   color: "var(--text)",
                   fontVariantNumeric: "tabular-nums",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexWrap: "wrap",
                 }}
               >
                 {formatTs(r.created_ts)}
+                {active && (
+                  <span
+                    data-hl-current-run=""
+                    style={{
+                      padding: "1px 6px",
+                      borderRadius: "var(--radius-pill)",
+                      background: "var(--accent-soft)",
+                      color: "var(--accent, #4a9eff)",
+                      fontSize: 9,
+                      fontWeight: 600,
+                      letterSpacing: "0.03em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    当前
+                  </span>
+                )}
               </div>
               <div
                 style={{

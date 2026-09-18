@@ -1150,7 +1150,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           onExitToGallery={onExitToGallery}
           saveStatus={autosave.status}
           onSaveRetry={autosave.save}
-          draftModified={isDraftModified}
         />
       </div>
 
@@ -1310,6 +1309,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               workflowId={workflowId}
               onOpenSnapshot={(sid) => void onOpenSnapshot(sid)}
               currentSnapshotId={viewingSnapshot?.snapshot_id ?? null}
+              draftModified={isDraftModified}
             />
           </div>
           </>
