@@ -264,6 +264,39 @@ export function NodeInspector({
           )}
         </div>
 
+        {pack.arrayable && (
+          <>
+            <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Fan-out</h3>
+            <div style={FIELD}>
+              <label
+                style={{
+                  ...LABEL,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 8,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  data-hl-arrayed-toggle=""
+                  checked={Boolean(selected.arrayed_toggle)}
+                  onChange={(e) => onChange({ arrayed_toggle: e.target.checked })}
+                  style={{ marginTop: 2 }}
+                />
+                <div>
+                  <div style={{ fontWeight: 500 }}>并行处理数组输入</div>
+                  <div style={{ ...HINT, marginTop: 2 }}>
+                    勾选后此节点的输入/输出端口变为 <code>arrayed&lt;T&gt;</code>；
+                    运行时框架对每个数组元素起一个 sub-job（v1 顺序执行），
+                    产物聚合在 <code>{"{parent}/{port}/{element_id}/"}</code>。
+                  </div>
+                </div>
+              </label>
+            </div>
+          </>
+        )}
+
         <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Parameters</h3>
         {Object.keys(pack.params).length === 0 ? (
           <div style={{ ...HINT, color: "var(--text-subtle)" }}>

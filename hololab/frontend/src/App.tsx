@@ -691,6 +691,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         data: {
           pack,
           assigned_node_id: pack.node_ids[0] ?? null, // default to the first eligible
+          ...({ arrayed_toggle: false } as object),
         },
       };
       setNodes((ns) => ns.concat(node));
@@ -737,6 +738,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                       ? patch.assigned_node_id
                       : n.data.assigned_node_id,
                   ...(patch.params ? { params: patch.params } : {}),
+                  ...(patch.arrayed_toggle !== undefined
+                    ? { arrayed_toggle: patch.arrayed_toggle }
+                    : {}),
                 },
               }
             : n,
@@ -768,7 +772,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const toGraph = useCallback((): WorkflowGraph => {
     return {
       nodes: nodes.map((n) => {
-        const d = n.data as AlgorithmNodeData & { params?: Record<string, unknown> };
+        const d = n.data as AlgorithmNodeData & {
+          params?: Record<string, unknown>;
+          arrayed_toggle?: boolean;
+        };
         return {
           id: n.id,
           algorithm_name: d.pack.name,
@@ -776,6 +783,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           position: { x: n.position.x, y: n.position.y },
           params: d.params ?? {},
           assigned_node_id: d.assigned_node_id,
+          // Structural — see docs/pack-spec.md#arrayed-and-arrayable.
+          arrayed_toggle: Boolean(d.arrayed_toggle),
           // Cosmetic — persisted with the workflow so it survives
           // refresh + cross-device browsing (the whole point of the
           // "not localStorage" decision).
@@ -820,6 +829,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 pack,
                 assigned_node_id: gn.assigned_node_id,
                 ...({ params: gn.params } as object),
+                ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
                 runtime: runtimeByGraphNode[gn.id],
                 previews: previewsByGraphNode[gn.id],
                 previewOpen: previewOpenByGraphNode[gn.id] ?? null,
@@ -1423,6 +1433,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                           }
                         ).params ?? {},
                       assigned_node_id: selectedNode.data.assigned_node_id,
+                      arrayed_toggle: Boolean(
+                        (
+                          selectedNode.data as AlgorithmNodeData & {
+                            arrayed_toggle?: boolean;
+                          }
+                        ).arrayed_toggle,
+                      ),
                     }
                   : null
               }

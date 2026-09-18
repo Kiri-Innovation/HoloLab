@@ -14,7 +14,7 @@ import type {
   OutputPortSpec,
   PortSpec,
 } from "../wire";
-import { firstTagColour } from "../tags";
+import { effectivePortArrayed, firstTagColour } from "../tags";
 import { CopyRefButton } from "./CopyRefButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { OpenSourceButton } from "./OpenSourceButton";
@@ -130,6 +130,15 @@ const DOT: React.CSSProperties = {
   borderRadius: "var(--radius-pill)",
 };
 
+// Applied on top of DOT for ports whose effective ``arrayed`` is true —
+// a subtle "target" halo (surface-coloured inner ring + accent outer
+// ring) so a glance at the canvas tells you which edges carry
+// arrayed<T> vs scalar values. Reads cleanly against both light and
+// dark themes because both ring colours come from CSS vars.
+const ARRAYED_DOT_OVERLAY: React.CSSProperties = {
+  boxShadow: "0 0 0 2px var(--surface-2), 0 0 0 3.5px var(--text-muted)",
+};
+
 const ROW: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -225,7 +234,9 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     onPreviewToggle,
     computeNodesById,
     readOnly,
-  } = data as AlgorithmNodeData;
+    arrayed_toggle,
+  } = data as AlgorithmNodeData & { arrayed_toggle?: boolean };
+  const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
   const inputEntries = Object.entries(pack.inputs);
   const outputEntries = Object.entries(pack.outputs);
   const rows = Math.max(inputEntries.length, outputEntries.length);
@@ -301,6 +312,26 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             {assigned_node_id ? ` · @ ${assigned_node_id.slice(0, 6)}` : " · not assigned"}
           </div>
         </div>
+        {arrayedOn && (
+          <div
+            data-hl-arrayed-badge=""
+            title="并行处理数组输入 — 运行时框架为每个数组元素起一个 sub-job"
+            style={{
+              background: "var(--warning-soft, rgba(200, 162, 0, 0.14))",
+              color: "var(--warning, #c8a200)",
+              border: "1px solid var(--warning, #c8a200)",
+              fontSize: "var(--fs-micro)",
+              fontWeight: 700,
+              padding: "1px 5px",
+              borderRadius: "var(--radius-sm, 4px)",
+              lineHeight: "14px",
+              letterSpacing: "0.04em",
+              whiteSpace: "nowrap",
+            }}
+          >
+            [N]
+          </div>
+        )}
         {runState && (
           <div
             style={{
@@ -413,9 +444,25 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                       style={{
                         ...DOT,
                         background: firstTagColour(inp[1].tags),
+                        ...(effectivePortArrayed(
+                          inp[1].arrayed,
+                          pack.arrayable,
+                          arrayed_toggle,
+                        )
+                          ? ARRAYED_DOT_OVERLAY
+                          : {}),
                       }}
                       data-tags={inp[1].tags.join(",")}
                       data-required={inp[1].required ? "1" : "0"}
+                      data-hl-arrayed-port={
+                        effectivePortArrayed(
+                          inp[1].arrayed,
+                          pack.arrayable,
+                          arrayed_toggle,
+                        )
+                          ? ""
+                          : undefined
+                      }
                     />
                     <span
                       style={{
@@ -453,8 +500,24 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                       style={{
                         ...DOT,
                         background: firstTagColour(out[1].tags),
+                        ...(effectivePortArrayed(
+                          out[1].arrayed,
+                          pack.arrayable,
+                          arrayed_toggle,
+                        )
+                          ? ARRAYED_DOT_OVERLAY
+                          : {}),
                       }}
                       data-tags={out[1].tags.join(",")}
+                      data-hl-arrayed-port={
+                        effectivePortArrayed(
+                          out[1].arrayed,
+                          pack.arrayable,
+                          arrayed_toggle,
+                        )
+                          ? ""
+                          : undefined
+                      }
                     />
                   </>
                 )}
