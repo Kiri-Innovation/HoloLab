@@ -39,6 +39,7 @@ def summarize_handle(handle: Handle) -> dict[str, Any]:
     """Return a summary dict for one handle.
 
     Dispatch order:
+        * tag contains ``int`` + storage=file → scalar-int (parse text)
         * ``storage="dir"``            → directory listing
         * tag contains ``splatv``      → splatv header parse
         * suffix ``.mp4/.mov/.mkv``    → video (structural fields only)
@@ -48,6 +49,13 @@ def summarize_handle(handle: Handle) -> dict[str, Any]:
     """
 
     path = Path(handle.path)
+
+    # ``int`` scalar handles — a small plain-text file whose sole content
+    # is a base-10 integer. Introduced by the arrayed<T> type system so
+    # nodes like ``array-length`` can flow counts into ``arrayfy``. See
+    # docs/pack-spec.md#int-scalar-handles.
+    if "int" in handle.tags and handle.storage == "file":
+        return _summarize_int(path, handle)
 
     if handle.storage == "dir":
         return _summarize_dir(path, handle)
@@ -64,6 +72,38 @@ def summarize_handle(handle: Handle) -> dict[str, Any]:
         return _summarize_text(path, handle)
 
     return {"kind": "unknown", "fields": {}}
+
+
+# ---------------------------------------------------------------------------
+# int scalar (plain-text base-10 integer file)
+# ---------------------------------------------------------------------------
+
+
+def _summarize_int(path: Path, _handle: Handle) -> dict[str, Any]:
+    """Parse a scalar ``int`` handle: a file containing one base-10 integer.
+
+    On parse failure we return the raw text under ``raw`` so the frontend
+    can show the actual bytes for debugging rather than silently claiming
+    the value is unknown.
+    """
+
+    try:
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return {"kind": "scalar-int", "fields": {"error": f"read failed: {exc}"}}
+
+    stripped = raw.strip()
+    try:
+        value = int(stripped)
+    except ValueError:
+        return {
+            "kind": "scalar-int",
+            "fields": {
+                "error": f"not a base-10 integer: {stripped[:64]!r}",
+                "raw": stripped[:256],
+            },
+        }
+    return {"kind": "scalar-int", "fields": {"value": value}}
 
 
 # ---------------------------------------------------------------------------

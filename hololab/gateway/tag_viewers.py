@@ -59,6 +59,11 @@ TAG_VIEWER_REGISTRY: dict[str, OutputPreview] = {
     # other trackers). The default viewer just shows the first frame;
     # promoting it to a proper image-grid viewer is a follow-up.
     "frame_sequence": OutputPreview(viewer="image", member="frames/frame_000000.png"),
+    # Scalar ``int`` handle — a small plain-text file whose sole content
+    # is a base-10 integer. The text viewer shows the value verbatim; a
+    # dedicated big-number scalar viewer is a follow-up when the UX
+    # needs it.
+    "int": OutputPreview(viewer="text"),
 }
 
 
