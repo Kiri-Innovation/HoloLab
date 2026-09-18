@@ -355,6 +355,14 @@ def _summarize_dir(path: Path, _handle: Handle) -> dict[str, Any]:
                                 child / "frames", drill_cap
                             )
                             children_budget -= len(gc["children"])
+                            # ``entry_count`` on the drilled dir carries
+                            # the true item count even when the children
+                            # list is capped, so the nested viewer's
+                            # per-group badge shows the real frame count
+                            # (e.g. 100) rather than the drill cap (8).
+                            gc["entry_count"] = _count_dir_entries(
+                                child / "frames"
+                            )
             entries.append(entry)
         fields["entry_count"] = total
         fields["total_size_bytes"] = total_size
@@ -363,6 +371,23 @@ def _summarize_dir(path: Path, _handle: Handle) -> dict[str, Any]:
     except OSError as exc:
         fields["error"] = f"list failed: {exc}"
     return {"kind": "dir", "fields": fields}
+
+
+def _count_dir_entries(path: Path) -> int:
+    """Return the total number of immediate children in ``path``.
+
+    Cheap (no per-entry stat, unlike :func:`_list_dir_children`). Used
+    to annotate drilled directories with their true item count when the
+    returned ``children`` list is capped — the nested viewer needs to
+    show the real frame count (e.g. 100) on each group card, not the
+    drill cap (8). Returns 0 on OSError so a permission-denied subdir
+    doesn't fail the whole summary.
+    """
+
+    try:
+        return sum(1 for _ in path.iterdir())
+    except OSError:
+        return 0
 
 
 def _list_dir_children(path: Path, budget: int) -> list[dict[str, Any]]:

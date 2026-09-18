@@ -663,6 +663,58 @@ def test_handle_summary_frames_subdir_gets_second_level_drill(
             for leaf in frames["children"]:
                 assert leaf["is_dir"] is False
                 assert leaf["size_bytes"] > 0
+            # NestedFrameSequencePreview's per-card badge reads
+            # ``entry_count`` off the drilled ``frames/`` entry so it
+            # can show the true frame count even when the children list
+            # was capped. Here 2 == 2 (no cap hit) — the cap-exceeded
+            # case is exercised by ``test_handle_summary_frames_drill_
+            # entry_count_survives_cap``.
+            assert frames["entry_count"] == 2
+
+
+def test_handle_summary_frames_drill_entry_count_survives_cap(
+    tmp_path: Path,
+) -> None:
+    """When a ``frames/`` subdir has more images than the drill cap,
+    the returned ``children`` list is truncated but ``entry_count`` on
+    the frames entry still reports the true total. NestedFrameSequence
+    Preview relies on this so the badge shows e.g. 100 frames, not the
+    8-image cap.
+    """
+
+    from hololab.gateway.handle_summary import _FRAMES_DRILL_CAP
+
+    app = create_app(db_path=tmp_path / "sumf2.sqlite")
+    with TestClient(app) as client:
+        d = tmp_path / "by_cam"
+        d.mkdir()
+        # One element with well over the drill cap of images.
+        n_frames = _FRAMES_DRILL_CAP * 3 + 5  # 29
+        f = d / "cam00" / "frames"
+        f.mkdir(parents=True)
+        for i in range(n_frames):
+            (f / f"f{i:04}.png").write_bytes(b"\x89PNG" + b"\x00" * 20)
+
+        async def _seed() -> None:
+            await client.app.state.handles.register(
+                Handle(
+                    handle_id="h-cap",
+                    node_id="node-a",
+                    storage="dir",
+                    tags=["frame_sequence"],
+                    path=str(d),
+                    size_bytes=None,
+                    output_port_name="by_cam",
+                )
+            )
+
+        client.portal.call(_seed)
+
+        body = client.get("/api/handles/h-cap/summary").json()
+        entry = body["fields"]["entries"][0]
+        frames = next(c for c in entry["children"] if c["name"] == "frames")
+        assert len(frames["children"]) == _FRAMES_DRILL_CAP
+        assert frames["entry_count"] == n_frames
 
 
 def test_handle_summary_unknown_returns_gracefully(tmp_path: Path) -> None:

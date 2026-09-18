@@ -1580,7 +1580,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               setLatestSnapshotJobs(snap.jobs);
               seenFirstSnap = true;
             }
-            for (const job of [...snap.jobs].reverse()) {
+            // Iterate in ASC (created_ts) order and first-write-wins per
+            // graph_node_id. For a fan-out slot the parent job is created
+            // *before* its shards and its ``output_handles`` carry the
+            // aggregated arrayed<T> handle (each shard carries a per-
+            // element slice with the same port_name). ASC + first-wins
+            // therefore picks the parent so the drawer sees the
+            // aggregate — NestedFrameSequencePreview shows "共 N 组"
+            // instead of collapsing to one shard's view. See
+            // SnapshotCanvas.jobsByGraphNodeId for the mirror comment.
+            for (const job of snap.jobs) {
               const gnid = job.graph_node_id;
               if (!gnid) continue;
               if (job.state !== "done") continue;

@@ -123,6 +123,11 @@ export interface HandleSummaryEntry {
   // recursive. Absent for file entries and for directory entries the
   // server chose not to enrich (missing = "don't know", not "empty").
   children?: HandleSummaryEntry[];
+  // True count of immediate children in this dir, even when ``children``
+  // was truncated by the server's drill cap. Populated for the drilled
+  // ``frames/`` subdir so the nested viewer's per-group badge shows the
+  // real frame count (e.g. 100) rather than the cap (8).
+  entry_count?: number;
 }
 
 export interface HandleSummary {

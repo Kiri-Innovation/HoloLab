@@ -2296,7 +2296,13 @@ interface NestedFrameSequenceProps {
 
 interface NestedGroup {
   name: string;
-  imageFiles: string[]; // sorted, image-only file names
+  imageFiles: string[]; // sorted, image-only file names (may be capped)
+  // True count of images in this group even when ``imageFiles`` was
+  // truncated by the server's per-drill cap. Server surfaces this as
+  // ``entry_count`` on the drilled ``frames/`` subdir (see
+  // ``handle_summary._summarize_dir``); falls back to
+  // ``imageFiles.length`` when absent (older gateway build).
+  totalImageCount: number;
   // Extra path segments between the element dir and each image file.
   // Empty string for the flat ``<element>/<image>`` layout; ``frames/``
   // for the pack-convention ``<element>/frames/<image>`` layout. Always
@@ -2329,7 +2335,15 @@ function NestedFrameSequencePreview({
 
   const [state, setState] = useState<
     | { kind: "loading" }
-    | { kind: "ok"; groups: NestedGroup[] }
+    // ``totalGroupCount`` = count of *all* top-level subdirs in the
+    // aggregate handle, whether or not the server had budget left to
+    // enrich their ``children`` for a thumbnail. ``groups`` is the
+    // subset that came back with at least one image reachable, which
+    // may be smaller. Two numbers because the ``共 N 组`` label should
+    // reflect the true fan-out count (e.g. 21 cameras), even when the
+    // per-frames drill in _summarize_dir ran out of shared budget and
+    // couldn't populate thumbs for every element.
+    | { kind: "ok"; groups: NestedGroup[]; totalGroupCount: number }
     | { kind: "err"; message: string }
   >({ kind: "loading" });
 
@@ -2344,6 +2358,7 @@ function NestedFrameSequencePreview({
         const summary = await getHandleSummary(handleId);
         if (cancelled) return;
         const entries = summary.fields.entries ?? [];
+        const totalGroupCount = entries.filter((e) => e.is_dir).length;
         const groups: NestedGroup[] = entries
           .filter((e) => e.is_dir)
           .sort((a, b) => compareNameNumeric(a.name, b.name))
@@ -2360,9 +2375,13 @@ function NestedFrameSequencePreview({
             );
             let files: string[];
             let pathPrefix: string;
+            let totalImageCount: number;
             if (direct.length > 0) {
               files = direct.map((c) => c.name).sort(compareNameNumeric);
               pathPrefix = "";
+              // Element-level entry_count includes non-image siblings;
+              // fall back to the returned image count when it isn't set.
+              totalImageCount = e.entry_count ?? files.length;
             } else {
               const framesDir = (e.children ?? []).find(
                 (c) => c.is_dir && c.name === "frames",
@@ -2372,11 +2391,15 @@ function NestedFrameSequencePreview({
               );
               files = nested.map((c) => c.name).sort(compareNameNumeric);
               pathPrefix = framesDir ? "frames/" : "";
+              // The drilled ``frames/`` dir only contains images, so its
+              // ``entry_count`` is the true frame count even when the
+              // ``children`` list was capped at _FRAMES_DRILL_CAP.
+              totalImageCount = framesDir?.entry_count ?? files.length;
             }
-            return { name: e.name, imageFiles: files, pathPrefix };
+            return { name: e.name, imageFiles: files, pathPrefix, totalImageCount };
           })
           .filter((g) => g.imageFiles.length > 0);
-        setState({ kind: "ok", groups });
+        setState({ kind: "ok", groups, totalGroupCount });
       } catch (e) {
         if (cancelled) return;
         setState({ kind: "err", message: (e as Error).message });
@@ -2429,11 +2452,14 @@ function NestedFrameSequencePreview({
   }
 
   const visibleGroups = state.groups.slice(0, NESTED_OUTER_CARDS);
-  const hiddenGroups = Math.max(0, state.groups.length - visibleGroups.length);
+  const hiddenGroups = Math.max(
+    0,
+    state.totalGroupCount - visibleGroups.length,
+  );
   return (
     <div
       data-hl-nested-strip=""
-      data-hl-group-count={state.groups.length}
+      data-hl-group-count={state.totalGroupCount}
       style={{
         ...PREVIEW_SHELL,
         display: "flex",
@@ -2476,7 +2502,7 @@ function NestedFrameSequencePreview({
         {hiddenGroups > 0 && (
           <span style={{ opacity: 0.7 }}>+{hiddenGroups} 隐藏</span>
         )}
-        <span data-hl-group-count-label="">共 {state.groups.length} 组</span>
+        <span data-hl-group-count-label="">共 {state.totalGroupCount} 组</span>
       </div>
     </div>
   );
@@ -2503,7 +2529,7 @@ function NestedGroupCard({
     <button
       type="button"
       onClick={onClick}
-      title={`${group.name} · ${group.imageFiles.length} images (click to expand)`}
+      title={`${group.name} · ${group.totalImageCount} images (click to expand)`}
       data-hl-group-card={group.name}
       className="nodrag nopan"
       style={{
@@ -2573,7 +2599,7 @@ function NestedGroupCard({
             letterSpacing: "0.02em",
           }}
         >
-          {group.imageFiles.length}
+          {group.totalImageCount}
         </div>
       </div>
       <div
