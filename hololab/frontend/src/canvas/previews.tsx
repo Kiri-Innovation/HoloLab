@@ -2874,14 +2874,36 @@ interface ColmapCamsPreviewProps {
 
 function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const sentRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [handshaken, setHandshaken] = useState(false);
+  const [activated, setActivated] = useState(false);
+
+  // Deactivate on click-outside or Esc.
+  useEffect(() => {
+    if (!activated) return;
+    function onDown(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setActivated(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setActivated(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [activated]);
 
   useEffect(() => {
     sentRef.current = false;
     setError(null);
     setHandshaken(false);
+    setActivated(false);
 
     const ctl = new AbortController();
 
@@ -2938,7 +2960,7 @@ function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
   }, [baseUrl]);
 
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={wrapperRef} style={{ position: "relative" }}>
       <iframe
         ref={iframeRef}
         // ``?embed=1`` hides ColmapUtil's InitiationPage / sidebar /
@@ -2954,7 +2976,9 @@ function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
         style={{
           width: "100%",
           height: COLMAP_IFRAME_HEIGHT,
-          border: "1px solid var(--border-strong)",
+          border: activated
+            ? "1.5px solid var(--accent)"
+            : "1px solid var(--border-strong)",
           borderRadius: "var(--radius-sm)",
           background: "#000",
           display: "block",
@@ -2978,6 +3002,21 @@ function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
         >
           {error ? `load failed — ${error}` : "loading viewer…"}
         </div>
+      )}
+      {/* Transparent shield — blocks wheel/hover passthrough when inactive.
+          Sits above the loading overlay (z:10 vs nothing) so the first
+          click on a loaded viewer activates rather than firing into the iframe. */}
+      {handshaken && !error && !activated && (
+        <div
+          onClick={() => setActivated(true)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 10,
+            cursor: "default",
+            background: "transparent",
+          }}
+        />
       )}
     </div>
   );
