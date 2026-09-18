@@ -98,7 +98,7 @@ Cobrowser host ── confirmation card ── Cocoder tab opens file
 
 ## User flow
 
-1. Open a workflow in Flops Cobrowser (`http://…:8828/#w=…`). The
+1. Open a workflow in Flops Cobrowser (`http://…:8828/w/<workflow_id>`). The
    `flopsAvailable()` check returns true, so:
    * the NodeSettingsDrawer shows an extra **Flops executor id**
      field;

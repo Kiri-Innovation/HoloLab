@@ -209,7 +209,7 @@ curl -s $HOLO/api/workflows/$WID | jq '.graph.topology_text'
 ### 4. Inventory + clean up run artifacts
 
 Old runs' output directories can accumulate on disk. The Artifacts API
-mirrors what the web ``#artifacts`` page does: list, check liveness,
+mirrors what the web ``/artifacts`` page does: list, check liveness,
 delete.
 
 ```bash

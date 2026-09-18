@@ -95,51 +95,97 @@ function mintId(prefix: string): string {
   return `${prefix}${Date.now().toString(36)}${(ID_COUNTER++).toString(36)}`;
 }
 
-// Tiny hash-router: three top-level screens.
-//   "gallery"          — landing page (route `/` or empty hash)
-//   "artifacts"        — cleanup / inventory page (`#artifacts`)
-//   { workflowId: id } — canvas view for one workflow (`#w={id}`)
-// No router library — a hashchange listener + a switch is clearer than
-// pulling in react-router for three states.
+// Tiny path-router: three top-level screens.
+//   ``/``               — landing page (Gallery)
+//   ``/artifacts``      — cleanup / inventory page
+//   ``/w/<id>``         — canvas view for one workflow
+//
+// Path routing (not hash) because:
+//   * ``#w=<id>`` is a URL *fragment*, which the server never sees.
+//     Users pasting a workflow URL into a doc or bookmark had a
+//     50/50 chance of losing the fragment depending on how the paste
+//     tool sanitises it.
+//   * Fragments also confused users into thinking the workflow id
+//     was cross-tab state — every tab shares localStorage but the
+//     hash is per-tab; the misperception was that opening a second
+//     tab would move the first one. It doesn't (fragments are
+//     per-tab), but path URLs eliminate the ambiguity by looking
+//     like real, independent pages.
+//
+// The server-side SPA fallback (see ``spa_staticfiles.py`` on the
+// gateway) hands any non-asset, non-API path back to ``index.html`` so
+// a page refresh or a fresh tab on ``/w/<id>`` boots straight into the
+// canvas.
+//
+// No router library — a popstate listener + a switch is ~40 lines and
+// makes the SPA fallback contract explicit. react-router would double
+// the bundle size for three routes.
 type Route =
   | { kind: "gallery" }
   | { kind: "artifacts" }
   | { kind: "canvas"; workflowId: string };
 
 function parseRoute(): Route {
-  const hash = window.location.hash;
-  if (hash.startsWith("#artifacts")) return { kind: "artifacts" };
-  const m = /#w=([^&]+)/.exec(hash);
+  const path = window.location.pathname;
+  if (path === "/artifacts" || path.startsWith("/artifacts/")) {
+    return { kind: "artifacts" };
+  }
+  // ``/w/<id>`` — id is anything up to the next ``/`` or the end.
+  const m = /^\/w\/([^/]+)/.exec(path);
   if (m) return { kind: "canvas", workflowId: decodeURIComponent(m[1]) };
   return { kind: "gallery" };
 }
 
+/** One-shot migration of legacy hash URLs to their path equivalents.
+ *
+ *  Old bookmarks and copy-paste artefacts still carry ``/#w=<id>`` or
+ *  ``/#artifacts``. Rewrite them via ``history.replaceState`` (no
+ *  extra history entry) so refresh / share still lands on the canvas.
+ *  Run once at module load, before the first ``parseRoute`` call.
+ */
+function migrateLegacyHash(): void {
+  const hash = window.location.hash;
+  if (!hash) return;
+  const target = (() => {
+    if (hash.startsWith("#artifacts")) return "/artifacts";
+    const m = /^#w=([^&]+)/.exec(hash);
+    if (m) return `/w/${encodeURIComponent(decodeURIComponent(m[1]))}`;
+    return null;
+  })();
+  if (target) {
+    window.history.replaceState(null, "", target);
+  }
+}
+migrateLegacyHash();
+
+/** ``pushState`` doesn't fire ``popstate`` — the browser only does
+ *  that for back/forward. Callers do it explicitly so the App-level
+ *  router refetches ``parseRoute()`` and re-renders.
+ */
+function pushPath(path: string): void {
+  window.history.pushState(null, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
 function navigateToGallery(): void {
-  // Clear the hash without reloading. Some browsers treat a bare "#"
-  // as still having a hash — set to "" via history.replaceState so the
-  // URL stays clean.
-  window.history.pushState(null, "", window.location.pathname);
-  // pushState doesn't fire hashchange; manually notify the App router.
-  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  pushPath("/");
 }
 
 function navigateToCanvas(workflowId: string): void {
-  window.location.hash = `w=${encodeURIComponent(workflowId)}`;
+  pushPath(`/w/${encodeURIComponent(workflowId)}`);
 }
 
 function navigateToArtifacts(): void {
-  window.location.hash = "artifacts";
+  pushPath("/artifacts");
 }
 
 export default function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute());
   useEffect(() => {
-    const onHash = () => setRoute(parseRoute());
-    window.addEventListener("hashchange", onHash);
-    window.addEventListener("popstate", onHash);
+    const onNav = () => setRoute(parseRoute());
+    window.addEventListener("popstate", onNav);
     return () => {
-      window.removeEventListener("hashchange", onHash);
-      window.removeEventListener("popstate", onHash);
+      window.removeEventListener("popstate", onNav);
     };
   }, []);
 
@@ -812,7 +858,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       graph: toGraph(),
     });
     setWorkflowId(result.workflow_id);
-    window.history.replaceState(null, "", `#w=${result.workflow_id}`);
+    window.history.replaceState(null, "", `/w/${encodeURIComponent(result.workflow_id)}`);
   }, [workflowId, workflowName, toGraph]);
 
   // --- autosave ---------------------------------------------------------
@@ -868,7 +914,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     onSaved: (wid) => {
       if (workflowId !== wid) {
         setWorkflowId(wid);
-        window.history.replaceState(null, "", `#w=${wid}`);
+        window.history.replaceState(null, "", `/w/${encodeURIComponent(wid)}`);
       }
     },
   });
@@ -969,7 +1015,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       setWorkflowName(w.name);
       fromGraph(w.graph);
       setLatestSnapshotGraph(null); // reset until hydration fills it in
-      window.history.replaceState(null, "", `#w=${w.workflow_id}`);
+      window.history.replaceState(null, "", `/w/${encodeURIComponent(w.workflow_id)}`);
 
       // Draft-view "carry the last run" hydration (ComfyUI-style):
       // seed ``runtimeByGraphNode`` and ``previewsByGraphNode`` from
@@ -1313,6 +1359,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               onOpenSnapshot={(sid) => void onOpenSnapshot(sid)}
               currentSnapshotId={viewingSnapshot?.snapshot_id ?? null}
               draftDiff={draftDiff}
+              onSnapshotDeleted={(sid) => {
+                // If the operator deleted the run they were viewing,
+                // drop the read-only canvas state and fall back to the
+                // draft — otherwise SnapshotCanvas would keep trying
+                // to render a snapshot the backend no longer has.
+                if (viewingSnapshot?.snapshot_id === sid) {
+                  onExitSnapshot();
+                }
+              }}
             />
           </div>
           </>

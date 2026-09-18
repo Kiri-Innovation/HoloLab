@@ -2,11 +2,11 @@
 //
 // Figma-shaped: a card grid of every workflow, plus a "+ New workflow"
 // affordance and a rename-in-place on each card. Clicking a card
-// navigates to `#w={id}` which the App-level router flips into the
+// navigates to `/w/{id}` which the App-level router flips into the
 // existing canvas view (see App.tsx).
 //
-// Deliberately no client-side router library — the whole thing is
-// `window.location.hash`.
+// Deliberately no client-side router library — a popstate listener +
+// pathname switch beats pulling in react-router for three screens.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { WorkflowSummary } from "./api";
@@ -20,7 +20,7 @@ const CARD_MIN_WIDTH = 260;
 
 export interface GalleryProps {
   // Fired when the user picks a card or hits + New. The router (App)
-  // maps this to a hash change so the browser back button works.
+  // maps this to a ``pushState('/w/…')`` so the browser back button works.
   onOpen: (workflowId: string) => void;
   // Fired when the user clicks the "Artifacts" link in the header. The
   // page-level nav is a peer of the workflow gallery — cleanup of past
