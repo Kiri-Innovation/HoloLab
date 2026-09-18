@@ -55,6 +55,8 @@ import {
   saveWorkflow,
 } from "./api";
 import { tagsCompatible } from "./tags";
+import { diffGraphs } from "./canvas/diffGraphs";
+import type { DiffItem } from "./canvas/diffGraphs";
 import {
   AlgorithmNode,
   PREVIEW_TOGGLE_EVENT,
@@ -157,23 +159,6 @@ export default function App() {
       />
     </ReactFlowProvider>
   );
-}
-
-// Canonical structural fingerprint of a graph — strips cosmetic fields
-// (position, preview_open) and produces a stable JSON string for equality
-// checks. Used by the draft-modified badge.
-function graphStructuralKey(g: WorkflowGraph): string {
-  const nodes = [...g.nodes]
-    .sort((a, b) => a.id.localeCompare(b.id))
-    .map(({ id, algorithm_name, algorithm_version, params, assigned_node_id }) => ({
-      id,
-      algorithm_name,
-      algorithm_version,
-      params,
-      assigned_node_id,
-    }));
-  const edges = [...g.edges].sort((a, b) => a.id.localeCompare(b.id));
-  return JSON.stringify({ nodes, edges });
 }
 
 interface AppInnerProps {
@@ -430,7 +415,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<AlgorithmNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   // Frozen graph from the most-recent snapshot. Null when no snapshot exists
-  // yet. Used by isDraftModified to show the "已修改 · 运行将创建新快照" badge.
+  // yet. Used by draftDiff to populate the "草稿有结构改动" sentinel row.
   const [latestSnapshotGraph, setLatestSnapshotGraph] = useState<WorkflowGraph | null>(
     null,
   );
@@ -832,14 +817,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     return JSON.stringify({ name: workflowName, graph: toGraph() });
   }, [catalog.length, viewingSnapshot, workflowName, toGraph]);
 
-  // True when the in-memory draft graph structurally differs from the latest
-  // snapshot (structural = nodes/algorithm/params/assigned_node_id + edges;
-  // position and preview_open are cosmetic and don't count as changes).
-  const isDraftModified = useMemo(
+  // Structural diff between in-memory draft and the latest snapshot. Empty
+  // when no snapshot exists yet or when the draft matches (structural only —
+  // position / preview_open excluded). Passed to RunsPanel to drive both the
+  // sentinel row visibility and the "检查" modal content.
+  const draftDiff = useMemo<DiffItem[]>(
     () =>
-      workflowId !== null &&
-      latestSnapshotGraph !== null &&
-      graphStructuralKey(toGraph()) !== graphStructuralKey(latestSnapshotGraph),
+      workflowId !== null && latestSnapshotGraph !== null
+        ? diffGraphs(toGraph(), latestSnapshotGraph)
+        : [],
     [workflowId, latestSnapshotGraph, toGraph],
   );
 
@@ -1309,7 +1295,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               workflowId={workflowId}
               onOpenSnapshot={(sid) => void onOpenSnapshot(sid)}
               currentSnapshotId={viewingSnapshot?.snapshot_id ?? null}
-              draftModified={isDraftModified}
+              draftDiff={draftDiff}
             />
           </div>
           </>

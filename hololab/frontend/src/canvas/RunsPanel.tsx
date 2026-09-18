@@ -9,11 +9,13 @@
 // to the compute node card so both live surfaces (nodes + runs) sit in
 // one column instead of fighting the canvas for space.
 
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useState } from "react";
 import type { RunSummaryRow } from "../wire";
 import { ApiError, listWorkflowRuns } from "../api";
 import { stateColour } from "./AlgorithmNode";
 import { CONTROL_STYLE } from "../ui/controlStyles";
+import type { DiffItem } from "./diffGraphs";
 
 export interface RunsPanelProps {
   workflowId: string;
@@ -24,17 +26,17 @@ export interface RunsPanelProps {
   // Which snapshot (if any) is currently open on the canvas — the panel
   // highlights its row and shows a "当前" chip so the context is obvious.
   currentSnapshotId: string | null;
-  // True when the in-memory draft has structural changes vs the latest
-  // snapshot that haven't been run yet. Adds a synthetic "草稿有结构改动"
-  // sentinel row at the top of the list (not a real run row).
-  draftModified?: boolean;
+  // Structural diff between the in-memory draft and the latest snapshot.
+  // Empty when no snapshot exists yet or when the draft matches. Non-empty
+  // → sentinel row + "检查" button appear at the top of the list.
+  draftDiff?: DiffItem[];
 }
 
 export function RunsPanel({
   workflowId,
   onOpenSnapshot,
   currentSnapshotId,
-  draftModified = false,
+  draftDiff = [],
 }: RunsPanelProps) {
   const [runs, setRuns] = useState<RunSummaryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +88,7 @@ export function RunsPanel({
         runs={runs}
         currentSnapshotId={currentSnapshotId}
         onOpen={onOpenSnapshot}
-        draftModified={draftModified}
+        draftDiff={draftDiff}
       />
     </div>
   );
@@ -135,13 +137,15 @@ function RunListView({
   runs,
   currentSnapshotId,
   onOpen,
-  draftModified,
+  draftDiff,
 }: {
   runs: RunSummaryRow[] | null;
   currentSnapshotId: string | null;
   onOpen: (snapshotId: string) => void;
-  draftModified?: boolean;
+  draftDiff: DiffItem[];
 }) {
+  const [diffModalOpen, setDiffModalOpen] = useState(false);
+
   if (runs === null) {
     return (
       <div style={{ padding: 14, color: "var(--text-subtle)", fontSize: "var(--fs-sm)" }}>
@@ -166,7 +170,7 @@ function RunListView({
   }
   return (
     <div style={{ overflow: "auto", flex: 1 }}>
-      {draftModified && (
+      {draftDiff.length > 0 && (
         <div
           data-hl-draft-modified-row=""
           title="The draft has structural changes (nodes / params / edges / assigned node) not yet captured in a snapshot."
@@ -189,12 +193,35 @@ function RunListView({
               flexShrink: 0,
             }}
           />
-          <div>
+          <div style={{ flex: 1 }}>
             <span style={{ fontWeight: 600, color: "var(--text)" }}>草稿有结构改动</span>
             <span style={{ marginLeft: 5, color: "var(--text-muted)" }}>· 待运行</span>
           </div>
+          <button
+            type="button"
+            data-hl-check-diff=""
+            onClick={() => setDiffModalOpen(true)}
+            style={{
+              padding: "2px 8px",
+              fontSize: "var(--fs-xs)",
+              background: "none",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm, 4px)",
+              cursor: "pointer",
+              color: "var(--text-muted)",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            }}
+          >
+            检查
+          </button>
         </div>
       )}
+      {diffModalOpen &&
+        createPortal(
+          <DraftDiffModal items={draftDiff} onClose={() => setDiffModalOpen(false)} />,
+          document.body,
+        )}
       {runs.map((r) => {
         const active = r.snapshot_id === currentSnapshotId;
         return (
@@ -313,6 +340,133 @@ function RunListView({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function DraftDiffModal({
+  items,
+  onClose,
+}: {
+  items: DiffItem[];
+  onClose: () => void;
+}) {
+  // Close on Escape key.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      data-hl-draft-diff-modal=""
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0, 0, 0, 0.72)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        style={{
+          background: "var(--bg-elevated, var(--surface-2, #1c1c1e))",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-md, 8px)",
+          width: "min(540px, 92vw)",
+          maxHeight: "70vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0, 0, 0, 0.55)",
+        }}
+      >
+        {/* header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "16px 20px 12px",
+            borderBottom: "1px solid var(--border)",
+            gap: 12,
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 2,
+              background: "var(--warning, #c8a200)",
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: "var(--fs-sm)", color: "var(--text)" }}>
+              草稿结构改动
+            </div>
+            <div style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)", marginTop: 2 }}>
+              {items.length} 项改动 · 相较最新快照
+            </div>
+          </div>
+          <button
+            type="button"
+            data-hl-draft-diff-close=""
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--text-muted)",
+              fontSize: 16,
+              padding: "2px 6px",
+              lineHeight: 1,
+              borderRadius: "var(--radius-sm, 4px)",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+        {/* diff list */}
+        <div style={{ overflow: "auto", padding: "4px 0" }}>
+          {items.length === 0 ? (
+            <div
+              style={{
+                padding: "14px 20px",
+                color: "var(--text-muted)",
+                fontSize: "var(--fs-sm)",
+              }}
+            >
+              无法计算差异详情。
+            </div>
+          ) : (
+            items.map((item, i) => (
+              <div
+                key={i}
+                data-hl-diff-item=""
+                style={{
+                  padding: "7px 20px",
+                  fontSize: "var(--fs-xs)",
+                  fontFamily: "var(--font-mono)",
+                  color: "var(--text-body)",
+                  borderBottom:
+                    i < items.length - 1 ? "1px solid var(--border-subtle)" : "none",
+                  lineHeight: 1.6,
+                  wordBreak: "break-all",
+                }}
+              >
+                {item.description}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
