@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import type { CatalogPack, ComputeNode } from "../wire";
 import { flopsAvailable, flopsShowDocument } from "../flops";
 import { FlopsExecutorGuide } from "./FlopsExecutorGuide";
+import { SourceErrorCallout } from "./SourceErrorCallout";
 
 export interface OpenSourceButtonProps {
   pack: CatalogPack;
@@ -32,11 +33,51 @@ export interface OpenSourceButtonProps {
   onDark?: boolean;
 }
 
+type Callout = { title: string; detail?: string };
+
 type Status =
   | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "ok" }
-  | { kind: "err"; msg: string };
+  | { kind: "err"; msg: string; callout?: Callout };
+
+function reasonToCallout(
+  reason: string | undefined,
+  target: string,
+  nodeLabel: string,
+): Callout {
+  switch (reason) {
+    case "not-found":
+      return { title: `File not found on ${nodeLabel}`, detail: target };
+    case "outside-roots":
+      return {
+        title: "Not inside a Cocoder workspace root",
+        detail: "Add this path's parent to your Cocoder workspace roots.",
+      };
+    case "declined":
+      return { title: "Cancelled — click again to retry" };
+    case "busy":
+      return {
+        title: "Another confirmation is pending",
+        detail: "Wait a moment, then retry.",
+      };
+    case "timeout":
+      return { title: "Confirmation timed out — click again to retry" };
+    case "forbidden":
+      return {
+        title: "Cocoder blocked this origin",
+        detail: "Check the browser console.",
+      };
+    case "invalid-path":
+      return { title: "Invalid path", detail: target };
+    case "unavailable":
+    case "bad-response":
+    case "error":
+      return { title: "Cocoder internal error", detail: "Check Cocoder logs." };
+    default:
+      return { title: reason ?? "Failed to open in Cocoder" };
+  }
+}
 
 /** Compact 12×12 ``</>`` glyph — vector code icon in the lucide style. */
 function CodeGlyph({ colour }: { colour: string }) {
@@ -166,13 +207,20 @@ export function OpenSourceButton({
     e.stopPropagation();
     const isModified = e.metaKey || e.ctrlKey;
     const target = isModified ? codeTarget : manifestTarget;
-    if (!configured || !target) {
+    if (!configured) {
       setShowGuide(true);
+      setStatus({ kind: "err", msg: "flops_executor_id not set" });
+      return;
+    }
+    if (!target) {
+      setShowGuide(false);
       setStatus({
         kind: "err",
-        msg: !configured
-          ? "flops_executor_id not set"
-          : "source directory unknown",
+        msg: "source path unknown",
+        callout: {
+          title: "Source path unknown",
+          detail: "No manifest_path on this node — reconnect or update the pack.",
+        },
       });
       return;
     }
@@ -185,13 +233,15 @@ export function OpenSourceButton({
       if (r.success) {
         setStatus({ kind: "ok" });
       } else {
-        setStatus({ kind: "err", msg: r.reason ?? "unknown error" });
+        setStatus({
+          kind: "err",
+          msg: r.reason ?? "unknown error",
+          callout: reasonToCallout(r.reason, target, nodeLabel),
+        });
       }
     } catch (err) {
-      setStatus({
-        kind: "err",
-        msg: (err as Error).message || "call failed",
-      });
+      const msg = (err as Error).message || "call failed";
+      setStatus({ kind: "err", msg, callout: { title: msg } });
     }
   };
 
@@ -261,6 +311,13 @@ export function OpenSourceButton({
       </button>
       {showGuide && (
         <FlopsExecutorGuide nodeLabel={nodeLabel} variant="header" />
+      )}
+      {status.kind === "err" && status.callout && !showGuide && (
+        <SourceErrorCallout
+          title={status.callout.title}
+          detail={status.callout.detail}
+          variant="header"
+        />
       )}
     </span>
   );

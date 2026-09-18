@@ -26,6 +26,7 @@ import { useEffect, useState } from "react";
 import type { ComputeNode } from "../wire";
 import { flopsAvailable, flopsShowDocument } from "../flops";
 import { FlopsExecutorGuide } from "./FlopsExecutorGuide";
+import { SourceErrorCallout } from "./SourceErrorCallout";
 
 export interface OpenInCocoderButtonProps {
   /** Producing node's local absolute path (from ``HandleInfo.absolute_path``). */
@@ -44,11 +45,50 @@ export interface OpenInCocoderButtonProps {
   onDark?: boolean;
 }
 
+type Callout = { title: string; detail?: string };
+
 type Status =
   | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "ok" }
-  | { kind: "err"; msg: string };
+  | { kind: "err"; msg: string; callout?: Callout };
+
+function reasonToCallout(
+  reason: string | undefined,
+  path: string,
+): Callout {
+  switch (reason) {
+    case "not-found":
+      return { title: "File not found on this device", detail: path };
+    case "outside-roots":
+      return {
+        title: "Not inside a Cocoder workspace root",
+        detail: "Add this path's parent to your Cocoder workspace roots.",
+      };
+    case "declined":
+      return { title: "Cancelled — click again to retry" };
+    case "busy":
+      return {
+        title: "Another confirmation is pending",
+        detail: "Wait a moment, then retry.",
+      };
+    case "timeout":
+      return { title: "Confirmation timed out — click again to retry" };
+    case "forbidden":
+      return {
+        title: "Cocoder blocked this origin",
+        detail: "Check the browser console.",
+      };
+    case "invalid-path":
+      return { title: "Invalid path", detail: path };
+    case "unavailable":
+    case "bad-response":
+    case "error":
+      return { title: "Cocoder internal error", detail: "Check Cocoder logs." };
+    default:
+      return { title: reason ?? "Failed to open in Cocoder" };
+  }
+}
 
 /** Best-effort humanisation of the API's ``reason`` codes. See
  *  ``cobrowser-web-api.md`` §4.2 for the source of truth.
@@ -136,13 +176,15 @@ export function OpenInCocoderButton({
       if (r.success) {
         setStatus({ kind: "ok" });
       } else {
-        setStatus({ kind: "err", msg: reasonToMessage(r.reason) });
+        setStatus({
+          kind: "err",
+          msg: reasonToMessage(r.reason),
+          callout: reasonToCallout(r.reason, path),
+        });
       }
     } catch (err) {
-      setStatus({
-        kind: "err",
-        msg: (err as Error).message || "call failed",
-      });
+      const msg = (err as Error).message || "call failed";
+      setStatus({ kind: "err", msg, callout: { title: msg } });
     }
   };
 
@@ -212,6 +254,12 @@ export function OpenInCocoderButton({
         {icon}
       </button>
       {showGuide && <FlopsExecutorGuide nodeLabel={nodeLabel} />}
+      {status.kind === "err" && status.callout && !showGuide && (
+        <SourceErrorCallout
+          title={status.callout.title}
+          detail={status.callout.detail}
+        />
+      )}
     </span>
   );
 }
