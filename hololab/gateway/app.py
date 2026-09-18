@@ -19,7 +19,6 @@ from typing import Any
 import aiosqlite
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
-from hololab.gateway.spa_staticfiles import SPAStaticFiles
 
 from hololab import PROTOCOL_V_MAX, PROTOCOL_V_MIN
 from hololab.gateway.execution import (
@@ -45,6 +44,8 @@ from hololab.gateway.models import (
     OverviewResponse,
     RestoreResult,
     RunSummary,
+    SnapshotDeleteResult,
+    SnapshotDeletionPreview,
     WorkflowDeleteResult,
     WorkflowRunResult,
     WorkflowSaveResult,
@@ -68,6 +69,7 @@ from hololab.gateway.registry import (
     mark_stuck_jobs_interrupted,
     reset_all_online_flags,
 )
+from hololab.gateway.spa_staticfiles import SPAStaticFiles
 from hololab.gateway.workflows import (
     PackHandle,
     WorkflowGraph,
@@ -1578,6 +1580,37 @@ def _mount_routes(app: FastAPI) -> None:
             "restored_from_snapshot_id": snapshot_id,
             "updated_ts": row.updated_ts,
         }
+
+    @app.get(
+        "/api/snapshots/{snapshot_id}/deletion-preview",
+        response_model=SnapshotDeletionPreview,
+        tags=["runs"],
+        summary=(
+            "Ref-counted impact preview: how many artifacts a snapshot-delete "
+            "would physically remove vs keep (still shared)."
+        ),
+    )
+    async def snapshot_deletion_preview(snapshot_id: str) -> dict[str, Any]:
+        from hololab.gateway.snapshot_delete import compute_impact, impact_to_json
+
+        impact = await compute_impact(app, snapshot_id)
+        if impact is None:
+            raise HTTPException(status_code=404, detail="snapshot not found")
+        return impact_to_json(impact)
+
+    @app.delete(
+        "/api/snapshots/{snapshot_id}",
+        response_model=SnapshotDeleteResult,
+        tags=["runs"],
+        summary=(
+            "Delete a run: ref-counted physical delete of its exclusive "
+            "artifacts (shared artifacts stay); orphaned jobs purged."
+        ),
+    )
+    async def delete_snapshot_route(snapshot_id: str) -> dict[str, Any]:
+        from hololab.gateway.snapshot_delete import delete_snapshot
+
+        return await delete_snapshot(app, snapshot_id)
 
     @app.post(
         "/api/snapshots/{snapshot_id}/rerun-from/{graph_node_id}",

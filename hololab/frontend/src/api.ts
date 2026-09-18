@@ -10,6 +10,8 @@ import type {
   LogTail,
   NodeEffectiveConfig,
   RunSummaryRow,
+  SnapshotDeleteResult,
+  SnapshotDeletionPreview,
   SnapshotDetail,
   WorkflowGraph,
 } from "./wire";
@@ -138,6 +140,25 @@ export const listWorkflowRuns = (workflow_id: string) =>
 
 export const getSnapshot = (snapshot_id: string) =>
   fetch(`/api/snapshots/${snapshot_id}`).then(json<SnapshotDetail>);
+
+// Read-only preview: how a would-be snapshot-delete would resolve
+// under the ref-counting rule (kept vs removed artifacts, freed bytes,
+// blocking live jobs). Powers the confirm modal on Run History's
+// right-click "delete run + artifacts" menu.
+export const previewSnapshotDeletion = (snapshot_id: string) =>
+  fetch(`/api/snapshots/${snapshot_id}/deletion-preview`).then(
+    json<SnapshotDeletionPreview>,
+  );
+
+// Fire the delete. Idempotent: unknown snapshot returns
+// ``{state: "gone"}``. Refuses with 409 if any attributed job is still
+// non-terminal (pending / assigned / running) — the caller should
+// surface the ``live_jobs`` list from the error detail and suggest
+// cancelling the run first.
+export const deleteSnapshot = (snapshot_id: string) =>
+  fetch(`/api/snapshots/${snapshot_id}`, { method: "DELETE" }).then(
+    json<SnapshotDeleteResult>,
+  );
 
 export const restoreFromSnapshot = (workflow_id: string, snapshot_id: string) =>
   fetch(
@@ -315,7 +336,7 @@ export const patchNodeConfig = (
 
 // -- artifacts ---------------------------------------------------------------
 //
-// The Artifacts page (``#artifacts``) hits these to render the inventory and
+// The Artifacts page (``/artifacts``) hits these to render the inventory and
 // drive per-row / bulk cleanup. The gateway keeps handles in its DB; the
 // files themselves live on the producing node. State is either a DB-cheap
 // bucket (``pending`` / ``deleted``) or, when the user opts into a live

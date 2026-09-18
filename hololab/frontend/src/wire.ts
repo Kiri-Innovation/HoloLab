@@ -367,6 +367,40 @@ export interface SnapshotDetail {
   jobs: SnapshotJob[];
 }
 
+// GET /api/snapshots/{sid}/deletion-preview — impact of a would-be delete.
+// ``blocked`` = a job is still non-terminal; the DELETE endpoint will 409.
+// Powers the confirmation modal on the Run History right-click menu so the
+// operator sees "N artifacts kept (still shared), K to be removed, B bytes
+// freed" before committing.
+export interface SnapshotDeletionPreview {
+  snapshot_id: string;
+  workflow_id: string;
+  job_count: number;
+  live_jobs: { job_id: string; state: string; algorithm_name: string }[];
+  blocked: boolean;
+  artifacts: {
+    exclusive_count: number;
+    shared_count: number;
+    exclusive_bytes: number;
+  };
+  jobs: { exclusive_count: number; shared_count: number };
+}
+
+// DELETE /api/snapshots/{sid} — response. ``state: "gone"`` means the row
+// was already deleted (idempotent second click / two-tab race). Otherwise
+// ``state: "deleted"`` and the counters describe the ref-count outcome.
+export interface SnapshotDeleteResult {
+  snapshot_id: string;
+  workflow_id?: string | null;
+  state: "deleted" | "gone";
+  jobs_removed?: number;
+  jobs_kept_shared?: number;
+  artifacts_removed_from_disk?: number;
+  artifacts_tombstoned_only?: number;
+  artifacts_kept_shared?: number;
+  freed_bytes?: number;
+}
+
 // GET /api/jobs/{job_id}/log — mirrors ``LogTail`` in gateway/models.py.
 // The panel's log viewer asks for a big-but-bounded tail (~10k lines) and
 // the server returns them in append order (oldest first) so an auto-scroll

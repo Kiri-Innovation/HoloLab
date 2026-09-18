@@ -347,6 +347,22 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         >
           {pack.name}
         </div>
+        {arrayedOn && (
+          <span
+            title="并行化 — 框架为每个数组元素起一个 sub-job"
+            style={{
+              flex: "0 0 auto",
+              fontSize: "var(--fs-xs)",
+              color: "var(--text-muted)",
+              fontFamily: "var(--font-sans)",
+              fontWeight: "var(--fw-normal)",
+              letterSpacing: 0,
+              whiteSpace: "nowrap",
+            }}
+          >
+            (arrayed)
+          </span>
+        )}
         <div
           style={{
             flex: "0 0 auto",
@@ -544,24 +560,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             title={statusTitle}
           >
             {progressLabel}
-          </span>
-        )}
-        {arrayedOn && (
-          <span
-            data-hl-arrayed-badge=""
-            title="并行处理数组输入 — 运行时框架为每个数组元素起一个 sub-job"
-            style={{
-              color: "var(--warning, #c8a200)",
-              border: "1px solid var(--warning, #c8a200)",
-              borderRadius: "var(--radius-sm)",
-              padding: "0 var(--space-1)",
-              fontWeight: "var(--fw-semibold)",
-              letterSpacing: "0.04em",
-              lineHeight: 1.4,
-              whiteSpace: "nowrap",
-            }}
-          >
-            arr
           </span>
         )}
         {previewables.length > 0 && (

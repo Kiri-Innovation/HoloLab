@@ -553,6 +553,67 @@ class RestoreResult(BaseModel):
     updated_ts: float
 
 
+class SnapshotDeletionArtifactCounts(BaseModel):
+    """Ref-counted artifact breakdown for a snapshot-delete preview."""
+
+    exclusive_count: int = Field(
+        description="Artifacts referenced ONLY by this snapshot — will be rm'd."
+    )
+    shared_count: int = Field(
+        description="Artifacts still referenced by another snapshot — will be kept."
+    )
+    exclusive_bytes: int = Field(
+        description="Sum of registered ``size_bytes`` for the exclusive set."
+    )
+
+
+class SnapshotDeletionJobCounts(BaseModel):
+    exclusive_count: int = Field(
+        description="Attributed jobs orphaned by the delete — their rows are purged."
+    )
+    shared_count: int = Field(
+        description="Attributed jobs still referenced elsewhere — jobs kept."
+    )
+
+
+class SnapshotDeletionLiveJob(BaseModel):
+    job_id: str
+    state: str
+    algorithm_name: str
+
+
+class SnapshotDeletionPreview(BaseModel):
+    """``GET /api/snapshots/{sid}/deletion-preview`` payload."""
+
+    snapshot_id: str
+    workflow_id: str
+    job_count: int
+    live_jobs: list[SnapshotDeletionLiveJob] = Field(
+        default_factory=list,
+        description=(
+            "Non-terminal (pending/assigned/running) jobs attributed to this "
+            "snapshot. When non-empty the DELETE endpoint returns 409."
+        ),
+    )
+    blocked: bool = Field(description="True iff any ``live_jobs`` present.")
+    artifacts: SnapshotDeletionArtifactCounts
+    jobs: SnapshotDeletionJobCounts
+
+
+class SnapshotDeleteResult(BaseModel):
+    """``DELETE /api/snapshots/{sid}`` payload."""
+
+    snapshot_id: str
+    workflow_id: str | None = None
+    state: str = Field(examples=["deleted", "gone"])
+    jobs_removed: int = 0
+    jobs_kept_shared: int = 0
+    artifacts_removed_from_disk: int = 0
+    artifacts_tombstoned_only: int = 0
+    artifacts_kept_shared: int = 0
+    freed_bytes: int = 0
+
+
 # ---------------------------------------------------------------------------
 # Overview — the "one call, tell me what's happening" endpoint
 # ---------------------------------------------------------------------------
