@@ -486,16 +486,51 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     return m;
   }, [catalog]);
 
+  // ``pendingRemeasureRef`` is declared up here (before every useEffect
+  // that seeds it) so its scope covers both the catalog-refresh effect
+  // below and the ``fromGraph`` hydrator further down. Drained by the
+  // effect that calls ``updateNodeInternals`` — see the block comment
+  // there for the failure mode this backstops.
+  const pendingRemeasureRef = useRef<string[]>([]);
+
   // Refresh AlgorithmNode.data.pack when the catalog changes so signatures
   // stay accurate after a pack edit.
+  //
+  // Identity preservation is load-bearing here. ``refreshCatalog`` fires on
+  // every WS ``node_online`` / ``node_offline`` (App.tsx:345), which mints
+  // fresh CatalogPack objects even when nothing structurally changed. If
+  // this effect naively creates a new node identity for every pack lookup,
+  // xyflow's ``adoptUserNodes`` re-inits the internal node and — if the
+  // browser's ResizeObserver hasn't ticked yet — resets ``handleBounds`` to
+  // undefined, silently dropping every edge attached to those handles. See
+  // the block comment above ``pendingRemeasureRef`` for the full sequence;
+  // the user hit this as "刷新后中间的连线都没了". Guard by comparing
+  // ``manifest_hash`` (the manifest's SHA — a stable content id): unchanged
+  // hash means the exec / inputs / outputs shape is identical, so there's
+  // no reason to churn identity, and any node_ids drift for the "open in
+  // source" fallback is acceptably stale. When the hash DOES change (real
+  // pack edit), we churn AND seed ``pendingRemeasureRef`` so the effect
+  // below re-parses handle positions for the affected nodes.
   useEffect(() => {
-    setNodes((current) =>
-      current.map((n) => {
+    setNodes((current) => {
+      const remeasure: string[] = [];
+      const next = current.map((n) => {
         const key = `${n.data.pack.name}@${n.data.pack.version}`;
         const fresh = catalogByKey.get(key);
-        return fresh ? { ...n, data: { ...n.data, pack: fresh } } : n;
-      }),
-    );
+        if (!fresh || fresh.manifest_hash === n.data.pack.manifest_hash) {
+          return n;
+        }
+        remeasure.push(n.id);
+        return { ...n, data: { ...n.data, pack: fresh } };
+      });
+      if (remeasure.length > 0) {
+        pendingRemeasureRef.current = [
+          ...pendingRemeasureRef.current,
+          ...remeasure,
+        ];
+      }
+      return next;
+    });
   }, [catalogByKey, setNodes]);
 
   // Compute-node lookup keyed by node_id. Shared with AlgorithmNode via
@@ -910,8 +945,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // re-parse handles from the DOM. ``useUpdateNodeInternals`` schedules
   // an rAF that queries each node's DOM element and calls the store's
   // ``updateNodeInternals`` — idempotent when handleBounds is already
-  // correct, restorative when it's ``undefined``.
-  const pendingRemeasureRef = useRef<string[]>([]);
+  // correct, restorative when it's ``undefined``. ``pendingRemeasureRef``
+  // itself is declared earlier so the catalog-refresh effect can seed it
+  // too when a real pack edit forces identity churn.
   useEffect(() => {
     const ids = pendingRemeasureRef.current;
     if (ids.length === 0) return;

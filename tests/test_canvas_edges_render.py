@@ -56,12 +56,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 APP_TSX = REPO_ROOT / "hololab" / "frontend" / "src" / "App.tsx"
-ALGORITHM_NODE_TSX = (
-    REPO_ROOT / "hololab" / "frontend" / "src" / "canvas" / "AlgorithmNode.tsx"
-)
-CANVAS_CONTEXT_TS = (
-    REPO_ROOT / "hololab" / "frontend" / "src" / "canvas" / "CanvasContext.ts"
-)
+ALGORITHM_NODE_TSX = REPO_ROOT / "hololab" / "frontend" / "src" / "canvas" / "AlgorithmNode.tsx"
+CANVAS_CONTEXT_TS = REPO_ROOT / "hololab" / "frontend" / "src" / "canvas" / "CanvasContext.ts"
 
 
 # ---------------------------------------------------------------------------
@@ -103,9 +99,7 @@ def test_algorithm_node_reads_context(readonly: bool = False) -> None:
     # off the ``data`` object (which would signal the buggy pattern).
     # Match the multi-line destructuring block that opens with
     # ``} = data as`` to bound the check.
-    destructure_match = re.search(
-        r"=\s*data\s+as\s+AlgorithmNodeData[^;]*;", body, flags=re.DOTALL
-    )
+    destructure_match = re.search(r"=\s*data\s+as\s+AlgorithmNodeData[^;]*;", body, flags=re.DOTALL)
     assert destructure_match, "could not locate the AlgorithmNode data destructure"
     inside = destructure_match.group(0)
     for offender in ("workflow_id", "computeNodesById"):
@@ -150,6 +144,45 @@ def test_from_graph_forces_node_internal_remeasurement() -> None:
         "App.tsx should call updateNodeInternals(nodeIds) — synchronous in "
         "fromGraph is a no-op, but the useEffect that drains "
         "pendingRemeasureRef must invoke it."
+    )
+
+
+def test_catalog_refresh_preserves_node_identity_when_hash_matches() -> None:
+    """The catalog-refresh ``useEffect`` must skip identity update when the
+    pack's ``manifest_hash`` is unchanged.
+
+    ``refreshCatalog`` is invoked on every WS ``node_online`` /
+    ``node_offline`` (App.tsx:345). Each call mints fresh CatalogPack
+    objects even when nothing structurally changed. Without a hash-guard,
+    the effect creates a new node identity for every pack lookup on every
+    catalog refresh → xyflow re-adopts every node → if the initial
+    ResizeObserver hasn't ticked yet, ``handleBounds`` reset ends up
+    ``undefined`` and edges silently disappear. This is the "intermittent
+    edges gone after refresh" bug users reported.
+
+    We assert on the source shape rather than mounting the whole app —
+    the runtime behaviour is a race, but the SOURCE guard is
+    deterministic. If a future refactor drops the hash check, this test
+    fires immediately.
+    """
+
+    body = APP_TSX.read_text(encoding="utf-8")
+    # The catalog-refresh effect calls ``catalogByKey.get`` per node.
+    assert "catalogByKey.get" in body, (
+        "could not locate the catalog-refresh call — has the effect "
+        "been renamed? Update this test to match."
+    )
+    # The specific guard clause: skip identity update when the manifest
+    # hash matches. Grep the file for the exact expression — a whitespace
+    # variant is fine, but the semantic ``manifest_hash === ... .manifest_hash``
+    # equality has to be present in the same file.
+    assert re.search(r"manifest_hash\s*===\s*[^;]*?\.manifest_hash", body), (
+        "catalog-refresh effect must gate the identity update on "
+        "``manifest_hash`` equality — without it, every WS "
+        "node_online/node_offline refetches the catalog, mints fresh "
+        "pack objects, and churns every node identity (races the initial "
+        "ResizeObserver tick, drops edges). See the block comment on the "
+        "effect for the full failure mode."
     )
 
 
@@ -229,9 +262,7 @@ def playwright_page():
 
 
 def _get_api_edges(page, workflow_id: str) -> list[str]:
-    resp = page.request.get(
-        f"http://{GATEWAY_HOST}:{GATEWAY_PORT}/api/workflows/{workflow_id}"
-    )
+    resp = page.request.get(f"http://{GATEWAY_HOST}:{GATEWAY_PORT}/api/workflows/{workflow_id}")
     assert resp.ok, f"REST GET failed: {resp.status} {resp.status_text}"
     payload = resp.json()
     return [e["id"] for e in payload["graph"]["edges"]]
@@ -270,6 +301,5 @@ def test_all_edges_render_on_cold_load(playwright_page) -> None:
     )
     missing = set(api_edges) - set(dom_edges)
     assert not missing, (
-        f"edges in REST but missing from DOM: {sorted(missing)}. "
-        f"api={api_edges}, dom={dom_edges}"
+        f"edges in REST but missing from DOM: {sorted(missing)}. api={api_edges}, dom={dom_edges}"
     )
