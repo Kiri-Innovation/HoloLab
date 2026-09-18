@@ -368,6 +368,14 @@ templated. Preview generation is the pack's responsibility.
 
 #### Tag-driven preview inference (the usual case)
 
+**Design principle: previews are chosen by the output's *type*
+(tags + arrayed-ness), not by the pack.** A per-pack `preview:` block
+is an escape hatch reserved for the rare case where the type's generic
+viewer misses something pack-specific. If two packs emit the same type
+(e.g. one produces `arrayed<frame_sequence>` by regrouping, the other
+by fan-out extraction), they get the *same* viewer with zero
+per-pack effort — which is the whole point of typed ports.
+
 Most packs should NOT declare a per-output `preview:` block. The
 gateway keeps a **tag → viewer registry** (see
 `hololab/gateway/tag_viewers.py`, `TAG_VIEWER_REGISTRY`); when a
@@ -405,11 +413,40 @@ cards. Clicking a card opens the raw PNG in a zoomable overlay
 (Esc/← to close). Adopt the same pattern for any tag whose "one entry
 is representative" default isn't true.
 
+**Arrayed viewers.** A tag family can register a *pair* of viewers —
+one for the scalar `T`, one for `arrayed<T>` — since the arrayed form
+adds an outer directory layer (`<parent>/<element>/<file>`) that the
+scalar viewer wouldn't handle. `frame_sequence` is the canonical pair:
+
+* scalar `frame_sequence` → `FrameStripPreview` (probes
+  `frames/frame_XXXXXX.png`);
+* `arrayed<frame_sequence>` → `NestedFrameSequencePreview` — a
+  two-level fan showing up to 3 outer group cards (each a mini
+  fanned stack of the group's first 3 thumbnails + a corner badge for
+  the group's total image count) with a `共 M 组` label; click a group
+  card to drill down into that group as a `FrameStripPreview`-style
+  strip.
+
+The dispatch key is the port's effective `arrayed` state — computed
+per-node as `port.arrayed || (pack.arrayable && node.arrayed_toggle)`.
+Both `frame-extraction[arrayed_toggle=true]` (per-camera groups) and
+`regroup-by-frame` (per-frame groups) resolve to `arrayed<
+frame_sequence>` and automatically share the nested viewer with no
+per-pack preview declaration.
+
+Data path for `NestedFrameSequencePreview`: a single
+`GET /api/handles/{id}/summary`. The server-side enrichment
+(`handle_summary._list_dir_children`) attaches immediate `children`
+to each directory entry so the frontend gets the per-group image list
+without an extra listing round-trip. Only ~9 thumbnails (3 groups × 3
+thumbs) are loaded up front; the drill-down loads at most
+`STRIP_MAX_CARDS` more. No probes.
+
 #### Basic-info fallback (no viewer + resolved handle)
 
 Packs whose tags don't map to any viewer (typical for intermediate
-utility outputs — `stg-train.model_dir`, `regroup-by-frame.by_frame`,
-`colmap-assemble.colmap`, …) previously showed **no expand caret** on
+utility outputs — `stg-train.model_dir`, `colmap-assemble.colmap`, …)
+previously showed **no expand caret** on
 the canvas node: the operator had to open the Artifacts panel to see
 what got produced. As of this build the caret appears whenever the
 pack declares `preview` **or** the latest run resolved a handle for

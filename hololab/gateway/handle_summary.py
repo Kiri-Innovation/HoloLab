@@ -34,6 +34,12 @@ _MAX_HEADER_BYTES = 256 * 1024
 # dir doesn't hand back 10k rows.
 _MAX_DIR_ENTRIES = 100
 
+# Per-``frames/`` cap for the 2nd-level drill (see _summarize_dir). The
+# nested frame_sequence viewer shows at most 3 mini thumbnails per
+# element card, so 8 is a comfortable ceiling and keeps the payload
+# small even when a dir has thousands of frames.
+_FRAMES_DRILL_CAP = 8
+
 
 def summarize_handle(handle: Handle) -> dict[str, Any]:
     """Return a summary dict for one handle.
@@ -327,6 +333,28 @@ def _summarize_dir(path: Path, _handle: Handle) -> dict[str, Any]:
             if child.is_dir() and children_budget > 0:
                 entry["children"] = _list_dir_children(child, children_budget)
                 children_budget -= len(entry["children"])
+                # ``frame_sequence`` extension: the pack contract wraps
+                # the images in a ``frames/`` subdir
+                # (``<element>/frames/<image>``, both
+                # ``frame-extraction`` and ``regroup-by-frame``). Drill
+                # ONE more level into any such subdir so the
+                # ``NestedFrameSequencePreview`` viewer can pick
+                # thumbnails without another fetch. Capped
+                # (_FRAMES_DRILL_CAP) per element so a 500-frame
+                # sequence doesn't blow the shared budget — the viewer
+                # only ever shows the first few thumbs anyway.
+                if children_budget > 0:
+                    for gc in entry["children"]:
+                        if (
+                            gc.get("is_dir")
+                            and gc.get("name") == "frames"
+                            and children_budget > 0
+                        ):
+                            drill_cap = min(_FRAMES_DRILL_CAP, children_budget)
+                            gc["children"] = _list_dir_children(
+                                child / "frames", drill_cap
+                            )
+                            children_budget -= len(gc["children"])
             entries.append(entry)
         fields["entry_count"] = total
         fields["total_size_bytes"] = total_size

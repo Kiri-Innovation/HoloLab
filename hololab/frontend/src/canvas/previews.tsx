@@ -82,6 +82,13 @@ export interface PreviewProps {
   // viewer instead of the "first frame only" image viewer that the
   // registry falls back to.
   tags?: string[];
+  // Effective ``arrayed`` state of the port on this graph node
+  // (manifest declaration OR pack.arrayable ∧ node.arrayed_toggle;
+  // see ``effectivePortArrayed`` in ``tags.ts``). Preview routing
+  // dispatches on ``arrayed<T>`` vs scalar ``T`` for tag families
+  // that have a dedicated nested viewer (``arrayed<frame_sequence>``
+  // → ``NestedFrameSequencePreview``).
+  arrayed?: boolean;
 }
 
 export function Preview({
@@ -92,19 +99,23 @@ export function Preview({
   absolutePath,
   producingNode,
   tags,
+  arrayed,
 }: PreviewProps) {
-  // Tag-driven override: a ``frame_sequence`` (dir of ``frames/frame_XXXXXX.png``)
-  // ships from the gateway with ``viewer: "image"`` pointing at the
-  // first frame — a legacy default that hides the fact this is a
-  // sequence. Route to the stacked-strip viewer so the operator sees
-  // the whole thing (count, dims, sample thumbs) at a glance without
-  // waiting on the video-grid transcode path.
+  // Tag-driven routing takes precedence over ``spec.viewer``. A
+  // ``frame_sequence`` scalar ships from the gateway with
+  // ``viewer: "image"`` pointing at the first frame — a legacy default
+  // that hides the sequence shape. Its arrayed form goes one level
+  // deeper: ``<parent>/<element>/<file>``. Both families have generic
+  // per-type viewers so packs don't need to reinvent them.
   if (
     tags &&
     tags.includes("frame_sequence") &&
     storage === "dir"
   ) {
-    return <FrameStripPreview baseUrl={baseUrl} handleId={handleId} />;
+    if (arrayed) {
+      return <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />;
+    }
+    return <FrameStripPreview baseUrl={baseUrl} />;
   }
 
   // Resolve the final URL once so each viewer has a plain string to work with.
@@ -1947,10 +1958,9 @@ function sampleIndices(n: number, k: number): number[] {
 
 interface FrameStripProps {
   baseUrl: string;
-  handleId?: string;
 }
 
-function FrameStripPreview({ baseUrl, handleId }: FrameStripProps) {
+function FrameStripPreview({ baseUrl }: FrameStripProps) {
   const [nodeRoot, dirSub] = useMemo(() => splitProxyBase(baseUrl), [baseUrl]);
   const dirBase = baseUrl.replace(/\/$/, "");
 
@@ -1966,8 +1976,7 @@ function FrameStripPreview({ baseUrl, handleId }: FrameStripProps) {
 
   const [state, setState] = useState<
     | { kind: "loading" }
-    | { kind: "seq"; count: number; width: number | null; height: number | null }
-    | { kind: "transposed"; frameDirs: HandleSummaryEntry[]; camCount: number }
+    | { kind: "ok"; count: number; width: number | null; height: number | null }
     | { kind: "err"; message: string }
   >({ kind: "loading" });
 
@@ -1975,43 +1984,15 @@ function FrameStripPreview({ baseUrl, handleId }: FrameStripProps) {
     const abort = new AbortController();
     (async () => {
       try {
-        // Try to detect the layout from the handle summary when an ID is
-        // available. A regroup-by-frame output has no ``frames/`` subdir —
-        // top-level entries are frame-id dirs, each containing per-camera
-        // images. Fall back to sequential probe when unavailable or
-        // inconclusive.
-        if (handleId) {
-          try {
-            const summary = await getHandleSummary(handleId);
-            const entries = summary.fields.entries ?? [];
-            const hasFramesDir = entries.some(e => e.is_dir && e.name === "frames");
-            if (!hasFramesDir) {
-              const dirEntries = entries
-                .filter(e => e.is_dir)
-                .sort((a, b) => a.name.localeCompare(b.name));
-              const withImages = dirEntries.filter(e =>
-                e.children?.some(c => !c.is_dir && /\.(png|jpg|jpeg)$/i.test(c.name))
-              );
-              if (withImages.length > 0) {
-                const camCount = withImages.reduce(
-                  (max, d) => Math.max(max, d.children?.filter(c => !c.is_dir).length ?? 0),
-                  0,
-                );
-                setState({ kind: "transposed", frameDirs: withImages, camCount });
-                return;
-              }
-            }
-          } catch {
-            // summary unavailable — fall through to probe
-          }
-        }
-        // Sequential layout: probe frame_XXXXXX.png
+        // Kick both probes in parallel — the count walk hits ~10-30
+        // sequential 1-byte GETs, so overlapping the (single) IHDR
+        // fetch under it costs us nothing.
         const [count, dims] = await Promise.all([
           probeFrameCount(rawFrameUrl, abort.signal),
           fetchPngDims(rawFrameUrl(0), abort.signal),
         ]);
         setState({
-          kind: "seq",
+          kind: "ok",
           count,
           width: dims?.width ?? null,
           height: dims?.height ?? null,
@@ -2022,7 +2003,7 @@ function FrameStripPreview({ baseUrl, handleId }: FrameStripProps) {
       }
     })();
     return () => abort.abort();
-  }, [rawFrameUrl, handleId]);
+  }, [rawFrameUrl]);
 
   const [zoomIdx, setZoomIdx] = useState<number | null>(null);
   useEffect(() => {
@@ -2048,150 +2029,6 @@ function FrameStripPreview({ baseUrl, handleId }: FrameStripProps) {
       </div>
     );
   }
-
-  // Transposed layout: one dir per frame, camera images inside.
-  if (state.kind === "transposed") {
-    const sampledIndices = sampleIndices(state.frameDirs.length, STRIP_MAX_CARDS);
-    const sampledDirs = sampledIndices.map(i => state.frameDirs[i]);
-    const hiddenCount = Math.max(0, state.frameDirs.length - sampledDirs.length);
-    const stripWidth =
-      sampledDirs.length === 0
-        ? 0
-        : STRIP_TILE_W + (sampledDirs.length - 1) * (STRIP_TILE_W - STRIP_OVERLAP);
-    const zoomedDir = zoomIdx !== null ? (state.frameDirs[zoomIdx] ?? null) : null;
-    const zoomedFirstCam = zoomedDir?.children?.find(c => !c.is_dir) ?? null;
-    return (
-      <div
-        data-hl-frame-strip=""
-        data-hl-frame-count={state.frameDirs.length}
-        data-hl-frame-layout="transposed"
-        style={{
-          ...PREVIEW_SHELL,
-          display: "flex",
-          flexDirection: "column",
-          gap: 6,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            position: "relative",
-            height: STRIP_TILE_H + 4,
-            width: "100%",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              position: "relative",
-              width: stripWidth,
-              height: STRIP_TILE_H,
-              maxWidth: "100%",
-            }}
-          >
-            {sampledDirs.map((frameDir, i) => {
-              const firstCam = frameDir.children?.find(c => !c.is_dir);
-              const isLast = i === sampledDirs.length - 1;
-              const dirIdx = sampledIndices[i];
-              return (
-                <button
-                  type="button"
-                  key={frameDir.name}
-                  data-hl-frame-card={dirIdx}
-                  title={`${frameDir.name} (frame ${dirIdx + 1} of ${state.frameDirs.length})`}
-                  onClick={() => setZoomIdx(dirIdx)}
-                  className="nodrag nopan"
-                  style={{
-                    position: "absolute",
-                    left: i * (STRIP_TILE_W - STRIP_OVERLAP),
-                    top: 0,
-                    width: STRIP_TILE_W,
-                    height: STRIP_TILE_H,
-                    padding: 0,
-                    background: "#000",
-                    border: "1px solid rgba(255,255,255,0.18)",
-                    borderRadius: "var(--radius-sm)",
-                    overflow: "hidden",
-                    cursor: "zoom-in",
-                    zIndex: i + 1,
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.35)",
-                  }}
-                >
-                  {firstCam && (
-                    <img
-                      src={`${nodeRoot}/_thumb/${STRIP_THUMB_W}x${STRIP_THUMB_H}/${dirSub}/${encodeURIComponent(frameDir.name)}/${encodeURIComponent(firstCam.name)}?at=0`}
-                      alt={frameDir.name}
-                      loading="lazy"
-                      style={{
-                        display: "block",
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        pointerEvents: "none",
-                      }}
-                    />
-                  )}
-                  {isLast && hiddenCount > 0 && (
-                    <div
-                      data-hl-frame-more=""
-                      style={{
-                        position: "absolute",
-                        inset: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: "rgba(0,0,0,0.55)",
-                        color: "#fff",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        fontFamily: "var(--font-mono)",
-                        letterSpacing: "0.02em",
-                        pointerEvents: "none",
-                      }}
-                    >
-                      +{hiddenCount}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 11,
-            color: "var(--inverse-muted)",
-            fontFamily: "var(--font-mono)",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          <span data-hl-frame-count-label="">
-            {state.frameDirs.length} frames
-          </span>
-          {state.camCount > 0 && (
-            <>
-              <span aria-hidden style={{ opacity: 0.5 }}>·</span>
-              <span>{state.camCount} cams</span>
-            </>
-          )}
-        </div>
-        {zoomIdx !== null && zoomedDir && zoomedFirstCam && (
-          <FrameZoomOverlay
-            url={`${dirBase}/${encodeURIComponent(zoomedDir.name)}/${encodeURIComponent(zoomedFirstCam.name)}`}
-            index={zoomIdx}
-            total={state.frameDirs.length}
-            onClose={() => setZoomIdx(null)}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Sequential layout: frames/frame_XXXXXX.png
   if (state.count === 0) {
     return (
       <div style={PREVIEW_SHELL}>
@@ -2410,6 +2247,529 @@ function FrameZoomOverlay({
       >
         frame {index} / {total - 1}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// NestedFrameSequencePreview: viewer for ``arrayed<frame_sequence>``.
+//
+// Layout on disk: ``<parent>/<element>/<image>``. Each element is a
+// directory of image files; the two current producers are
+// ``frame-extraction[arrayed]`` (element = camera, dir = per-frame
+// PNGs) and ``regroup-by-frame`` (element = frame, dir = per-camera
+// PNGs).  Both are the same type, so both share this viewer.
+//
+// Main view
+// ~~~~~~~~~
+//   * Up to ``NESTED_OUTER_CARDS`` outer group cards; each card is a
+//     fanned stack of the group's first ``NESTED_INNER_THUMBS``
+//     thumbnails + a corner badge showing the group's total image
+//     count.
+//   * A single line at the bottom-right reads ``共 M 组`` for the total
+//     group count.
+//   * Click a card → drill down into that group as a
+//     ``FrameStripPreview``-style strip (sampled thumbs across the
+//     group, zoom-on-click, back button).
+//
+// Data path
+// ~~~~~~~~~
+//   Single ``GET /api/handles/{id}/summary``. The server enriches
+//   directory entries with immediate ``children``
+//   (``handle_summary._list_dir_children``), so we get the per-group
+//   image list without any extra listing round trips. Thumbnails go
+//   through the node fileserver's ``/_thumb`` endpoint (same route
+//   FrameStripPreview + VideoGrid use).
+//
+// Perf
+// ~~~~
+//   Main view fires at most ``NESTED_OUTER_CARDS × NESTED_INNER_THUMBS``
+//   (= 9) thumbnail GETs. The drill-down fires up to ``STRIP_MAX_CARDS``
+//   more. No probes, no full listings — one summary + a handful of tiny
+//   image responses.
+// ---------------------------------------------------------------------------
+
+interface NestedFrameSequenceProps {
+  baseUrl: string;
+  handleId?: string;
+}
+
+interface NestedGroup {
+  name: string;
+  imageFiles: string[]; // sorted, image-only file names
+  // Extra path segments between the element dir and each image file.
+  // Empty string for the flat ``<element>/<image>`` layout; ``frames/``
+  // for the pack-convention ``<element>/frames/<image>`` layout. Always
+  // ends with ``/`` when non-empty so URL composition is unconditional.
+  pathPrefix: string;
+}
+
+const NESTED_OUTER_CARDS = 3;
+const NESTED_INNER_THUMBS = 3;
+
+const NESTED_MINI_W = 72;
+const NESTED_MINI_H = Math.round((NESTED_MINI_W * 9) / 16); // 41
+const NESTED_MINI_OVERLAP = 32;
+const NESTED_MINI_THUMB_W = NESTED_MINI_W * 2;
+const NESTED_MINI_THUMB_H = NESTED_MINI_H * 2;
+
+const NESTED_IMG_RE = /\.(png|jpe?g|webp|bmp)$/i;
+
+/** Zero-pad-aware compare so ``frame_2`` sorts before ``frame_10``. */
+function compareNameNumeric(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function NestedFrameSequencePreview({
+  baseUrl,
+  handleId,
+}: NestedFrameSequenceProps) {
+  const [nodeRoot, dirSub] = useMemo(() => splitProxyBase(baseUrl), [baseUrl]);
+  const dirBase = baseUrl.replace(/\/$/, "");
+
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ok"; groups: NestedGroup[] }
+    | { kind: "err"; message: string }
+  >({ kind: "loading" });
+
+  useEffect(() => {
+    if (!handleId) {
+      setState({ kind: "err", message: "handle id required" });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const summary = await getHandleSummary(handleId);
+        if (cancelled) return;
+        const entries = summary.fields.entries ?? [];
+        const groups: NestedGroup[] = entries
+          .filter((e) => e.is_dir)
+          .sort((a, b) => compareNameNumeric(a.name, b.name))
+          .map((e) => {
+            // arrayed<frame_sequence> can put images either directly
+            // under the element (``<element>/<image>``) or one deeper
+            // inside a ``frames/`` subdir (``<element>/frames/<image>``,
+            // the current frame-extraction + regroup-by-frame
+            // convention). The server enriches both cases into
+            // ``children`` / ``children[].children`` so we handle them
+            // with the same walker.
+            const direct = (e.children ?? []).filter(
+              (c) => !c.is_dir && NESTED_IMG_RE.test(c.name),
+            );
+            let files: string[];
+            let pathPrefix: string;
+            if (direct.length > 0) {
+              files = direct.map((c) => c.name).sort(compareNameNumeric);
+              pathPrefix = "";
+            } else {
+              const framesDir = (e.children ?? []).find(
+                (c) => c.is_dir && c.name === "frames",
+              );
+              const nested = (framesDir?.children ?? []).filter(
+                (c) => !c.is_dir && NESTED_IMG_RE.test(c.name),
+              );
+              files = nested.map((c) => c.name).sort(compareNameNumeric);
+              pathPrefix = framesDir ? "frames/" : "";
+            }
+            return { name: e.name, imageFiles: files, pathPrefix };
+          })
+          .filter((g) => g.imageFiles.length > 0);
+        setState({ kind: "ok", groups });
+      } catch (e) {
+        if (cancelled) return;
+        setState({ kind: "err", message: (e as Error).message });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [handleId]);
+
+  const [detailGroup, setDetailGroup] = useState<string | null>(null);
+
+  if (state.kind === "loading") {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text="reading grouped frames…" kind="loading" />
+      </div>
+    );
+  }
+  if (state.kind === "err") {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text={`summary failed: ${state.message}`} kind="error" />
+      </div>
+    );
+  }
+  if (state.groups.length === 0) {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text="no groups with images" kind="info" />
+      </div>
+    );
+  }
+
+  const activeGroup =
+    detailGroup !== null
+      ? (state.groups.find((g) => g.name === detailGroup) ?? null)
+      : null;
+
+  if (activeGroup) {
+    return (
+      <NestedGroupDetail
+        group={activeGroup}
+        nodeRoot={nodeRoot}
+        dirSub={dirSub}
+        dirBase={dirBase}
+        onBack={() => setDetailGroup(null)}
+      />
+    );
+  }
+
+  const visibleGroups = state.groups.slice(0, NESTED_OUTER_CARDS);
+  const hiddenGroups = Math.max(0, state.groups.length - visibleGroups.length);
+  return (
+    <div
+      data-hl-nested-strip=""
+      data-hl-group-count={state.groups.length}
+      style={{
+        ...PREVIEW_SHELL,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+        }}
+      >
+        {visibleGroups.map((g) => (
+          <NestedGroupCard
+            key={g.name}
+            group={g}
+            nodeRoot={nodeRoot}
+            dirSub={dirSub}
+            onClick={() => setDetailGroup(g.name)}
+          />
+        ))}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 11,
+          color: "var(--inverse-muted)",
+          fontFamily: "var(--font-mono)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {hiddenGroups > 0 && (
+          <span style={{ opacity: 0.7 }}>+{hiddenGroups} 隐藏</span>
+        )}
+        <span data-hl-group-count-label="">共 {state.groups.length} 组</span>
+      </div>
+    </div>
+  );
+}
+
+function NestedGroupCard({
+  group,
+  nodeRoot,
+  dirSub,
+  onClick,
+}: {
+  group: NestedGroup;
+  nodeRoot: string;
+  dirSub: string;
+  onClick: () => void;
+}) {
+  const thumbs = group.imageFiles.slice(0, NESTED_INNER_THUMBS);
+  const stackWidth =
+    thumbs.length === 0
+      ? NESTED_MINI_W
+      : NESTED_MINI_W +
+        (thumbs.length - 1) * (NESTED_MINI_W - NESTED_MINI_OVERLAP);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`${group.name} · ${group.imageFiles.length} images (click to expand)`}
+      data-hl-group-card={group.name}
+      className="nodrag nopan"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        padding: 0,
+        background: "transparent",
+        border: "none",
+        cursor: "zoom-in",
+        color: "inherit",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          width: stackWidth,
+          height: NESTED_MINI_H,
+        }}
+      >
+        {thumbs.map((imgName, i) => (
+          <div
+            key={imgName}
+            style={{
+              position: "absolute",
+              left: i * (NESTED_MINI_W - NESTED_MINI_OVERLAP),
+              top: 0,
+              width: NESTED_MINI_W,
+              height: NESTED_MINI_H,
+              background: "#000",
+              border: "1px solid rgba(255,255,255,0.18)",
+              borderRadius: "var(--radius-sm)",
+              overflow: "hidden",
+              zIndex: i + 1,
+              boxShadow: "0 1px 2px rgba(0,0,0,0.35)",
+            }}
+          >
+            <img
+              src={`${nodeRoot}/_thumb/${NESTED_MINI_THUMB_W}x${NESTED_MINI_THUMB_H}/${dirSub}/${encodeURIComponent(group.name)}/${group.pathPrefix}${encodeURIComponent(imgName)}?at=0`}
+              alt={imgName}
+              loading="lazy"
+              style={{
+                display: "block",
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                pointerEvents: "none",
+              }}
+            />
+          </div>
+        ))}
+        <div
+          data-hl-group-badge=""
+          style={{
+            position: "absolute",
+            top: 2,
+            right: 2,
+            padding: "1px 5px",
+            background: "rgba(0,0,0,0.7)",
+            color: "#fff",
+            fontSize: 10,
+            fontFamily: "var(--font-mono)",
+            fontWeight: 600,
+            borderRadius: "var(--radius-pill)",
+            zIndex: thumbs.length + 1,
+            pointerEvents: "none",
+            letterSpacing: "0.02em",
+          }}
+        >
+          {group.imageFiles.length}
+        </div>
+      </div>
+      <div
+        style={{
+          fontSize: 10,
+          color: "var(--inverse-muted)",
+          fontFamily: "var(--font-mono)",
+          fontVariantNumeric: "tabular-nums",
+          textAlign: "left",
+          maxWidth: stackWidth,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {group.name}
+      </div>
+    </button>
+  );
+}
+
+function NestedGroupDetail({
+  group,
+  nodeRoot,
+  dirSub,
+  dirBase,
+  onBack,
+}: {
+  group: NestedGroup;
+  nodeRoot: string;
+  dirSub: string;
+  dirBase: string;
+  onBack: () => void;
+}) {
+  const sampledIndices = sampleIndices(group.imageFiles.length, STRIP_MAX_CARDS);
+  const sampled = sampledIndices.map((i) => group.imageFiles[i]);
+  const hiddenCount = Math.max(0, group.imageFiles.length - sampled.length);
+  const stripWidth =
+    sampled.length === 0
+      ? 0
+      : STRIP_TILE_W + (sampled.length - 1) * (STRIP_TILE_W - STRIP_OVERLAP);
+  const [zoomIdx, setZoomIdx] = useState<number | null>(null);
+  useEffect(() => {
+    if (zoomIdx === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoomIdx(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomIdx]);
+  const zoomedName = zoomIdx !== null ? group.imageFiles[zoomIdx] : null;
+  return (
+    <div
+      data-hl-group-detail={group.name}
+      style={{
+        ...PREVIEW_SHELL,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button
+          type="button"
+          onClick={onBack}
+          className="nodrag nopan"
+          title="back to groups"
+          data-hl-group-back=""
+          style={{
+            padding: "2px 8px",
+            background: "transparent",
+            color: "var(--inverse-muted)",
+            border: "1px solid rgba(255,255,255,0.24)",
+            borderRadius: "var(--radius-pill)",
+            fontSize: 10,
+            fontFamily: "var(--font-sans)",
+            cursor: "pointer",
+            lineHeight: 1,
+          }}
+        >
+          ← 返回组
+        </button>
+        <span
+          style={{
+            fontSize: 11,
+            color: "var(--text-on-dark)",
+            fontFamily: "var(--font-mono)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {group.name}
+        </span>
+      </div>
+      <div
+        style={{
+          position: "relative",
+          height: STRIP_TILE_H + 4,
+          width: "100%",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            position: "relative",
+            width: stripWidth,
+            height: STRIP_TILE_H,
+            maxWidth: "100%",
+          }}
+        >
+          {sampled.map((imgName, i) => {
+            const isLast = i === sampled.length - 1;
+            const imgIdx = sampledIndices[i];
+            return (
+              <button
+                type="button"
+                key={imgName}
+                onClick={() => setZoomIdx(imgIdx)}
+                data-hl-frame-card={imgIdx}
+                title={`${imgName} (${imgIdx + 1} of ${group.imageFiles.length})`}
+                className="nodrag nopan"
+                style={{
+                  position: "absolute",
+                  left: i * (STRIP_TILE_W - STRIP_OVERLAP),
+                  top: 0,
+                  width: STRIP_TILE_W,
+                  height: STRIP_TILE_H,
+                  padding: 0,
+                  background: "#000",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  borderRadius: "var(--radius-sm)",
+                  overflow: "hidden",
+                  cursor: "zoom-in",
+                  zIndex: i + 1,
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.35)",
+                }}
+              >
+                <img
+                  src={`${nodeRoot}/_thumb/${STRIP_THUMB_W}x${STRIP_THUMB_H}/${dirSub}/${encodeURIComponent(group.name)}/${group.pathPrefix}${encodeURIComponent(imgName)}?at=0`}
+                  alt={imgName}
+                  loading="lazy"
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    pointerEvents: "none",
+                  }}
+                />
+                {isLast && hiddenCount > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "rgba(0,0,0,0.55)",
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      fontFamily: "var(--font-mono)",
+                      letterSpacing: "0.02em",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    +{hiddenCount}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 11,
+          color: "var(--inverse-muted)",
+          fontFamily: "var(--font-mono)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        <span>{group.imageFiles.length} images</span>
+      </div>
+      {zoomIdx !== null && zoomedName && (
+        <FrameZoomOverlay
+          url={`${dirBase}/${encodeURIComponent(group.name)}/${group.pathPrefix}${encodeURIComponent(zoomedName)}`}
+          index={zoomIdx}
+          total={group.imageFiles.length}
+          onClose={() => setZoomIdx(null)}
+        />
+      )}
     </div>
   );
 }

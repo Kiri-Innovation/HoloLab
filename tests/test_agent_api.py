@@ -611,6 +611,60 @@ def test_handle_summary_arrayed_layout_exposes_children(tmp_path: Path) -> None:
             assert leaf["size_bytes"] == 42
 
 
+def test_handle_summary_frames_subdir_gets_second_level_drill(
+    tmp_path: Path,
+) -> None:
+    """arrayed<frame_sequence> wraps images in a ``frames/`` subdir
+    (``<element>/frames/<image>``, both ``frame-extraction`` and
+    ``regroup-by-frame``). The dir summary drills one more level into
+    any such subdir so ``NestedFrameSequencePreview`` can pick
+    thumbnails without an extra fetch per element.
+    """
+
+    app = create_app(db_path=tmp_path / "sumf.sqlite")
+    with TestClient(app) as client:
+        d = tmp_path / "by_frame"
+        d.mkdir()
+        # Two element dirs, each with a ``frames/`` subdir holding
+        # per-camera images (regroup-by-frame's transposed layout).
+        for frame in ("frame_000000", "frame_000001"):
+            f = d / frame / "frames"
+            f.mkdir(parents=True)
+            for cam in ("cam00", "cam01"):
+                (f / f"{cam}.png").write_bytes(b"\x89PNG" + b"\x00" * 20)
+
+        async def _seed() -> None:
+            await client.app.state.handles.register(
+                Handle(
+                    handle_id="h-nest",
+                    node_id="node-a",
+                    storage="dir",
+                    tags=["frame_sequence"],
+                    path=str(d),
+                    size_bytes=None,
+                    output_port_name="by_frame",
+                )
+            )
+
+        client.portal.call(_seed)
+
+        body = client.get("/api/handles/h-nest/summary").json()
+        entries = {e["name"]: e for e in body["fields"]["entries"]}
+        assert set(entries) == {"frame_000000", "frame_000001"}
+        for entry in entries.values():
+            assert entry["is_dir"] is True
+            children = {c["name"]: c for c in entry["children"]}
+            assert "frames" in children
+            frames = children["frames"]
+            assert frames["is_dir"] is True
+            # 2nd-level drill exposes the per-camera image files.
+            leaf_names = {c["name"] for c in frames["children"]}
+            assert leaf_names == {"cam00.png", "cam01.png"}
+            for leaf in frames["children"]:
+                assert leaf["is_dir"] is False
+                assert leaf["size_bytes"] > 0
+
+
 def test_handle_summary_unknown_returns_gracefully(tmp_path: Path) -> None:
     app = create_app(db_path=tmp_path / "sumu.sqlite")
     with TestClient(app) as client:

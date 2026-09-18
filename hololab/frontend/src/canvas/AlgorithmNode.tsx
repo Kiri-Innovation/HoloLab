@@ -670,6 +670,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                         computeNodesById?.[target.node_id] ?? null
                       }
                       tags={port.tags}
+                      arrayed={effectivePortArrayed(
+                        port.arrayed,
+                        pack.arrayable,
+                        arrayed_toggle,
+                      )}
                     />
                   </>
                 );
