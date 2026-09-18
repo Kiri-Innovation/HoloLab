@@ -104,7 +104,7 @@ export function Preview({
     tags.includes("frame_sequence") &&
     storage === "dir"
   ) {
-    return <FrameStripPreview baseUrl={baseUrl} />;
+    return <FrameStripPreview baseUrl={baseUrl} handleId={handleId} />;
   }
 
   // Resolve the final URL once so each viewer has a plain string to work with.
@@ -1947,9 +1947,10 @@ function sampleIndices(n: number, k: number): number[] {
 
 interface FrameStripProps {
   baseUrl: string;
+  handleId?: string;
 }
 
-function FrameStripPreview({ baseUrl }: FrameStripProps) {
+function FrameStripPreview({ baseUrl, handleId }: FrameStripProps) {
   const [nodeRoot, dirSub] = useMemo(() => splitProxyBase(baseUrl), [baseUrl]);
   const dirBase = baseUrl.replace(/\/$/, "");
 
@@ -1965,7 +1966,8 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
 
   const [state, setState] = useState<
     | { kind: "loading" }
-    | { kind: "ok"; count: number; width: number | null; height: number | null }
+    | { kind: "seq"; count: number; width: number | null; height: number | null }
+    | { kind: "transposed"; frameDirs: HandleSummaryEntry[]; camCount: number }
     | { kind: "err"; message: string }
   >({ kind: "loading" });
 
@@ -1973,15 +1975,43 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
     const abort = new AbortController();
     (async () => {
       try {
-        // Kick both probes in parallel — the count walk hits ~10-30
-        // sequential 1-byte GETs, so overlapping the (single) IHDR
-        // fetch under it costs us nothing.
+        // Try to detect the layout from the handle summary when an ID is
+        // available. A regroup-by-frame output has no ``frames/`` subdir —
+        // top-level entries are frame-id dirs, each containing per-camera
+        // images. Fall back to sequential probe when unavailable or
+        // inconclusive.
+        if (handleId) {
+          try {
+            const summary = await getHandleSummary(handleId);
+            const entries = summary.fields.entries ?? [];
+            const hasFramesDir = entries.some(e => e.is_dir && e.name === "frames");
+            if (!hasFramesDir) {
+              const dirEntries = entries
+                .filter(e => e.is_dir)
+                .sort((a, b) => a.name.localeCompare(b.name));
+              const withImages = dirEntries.filter(e =>
+                e.children?.some(c => !c.is_dir && /\.(png|jpg|jpeg)$/i.test(c.name))
+              );
+              if (withImages.length > 0) {
+                const camCount = withImages.reduce(
+                  (max, d) => Math.max(max, d.children?.filter(c => !c.is_dir).length ?? 0),
+                  0,
+                );
+                setState({ kind: "transposed", frameDirs: withImages, camCount });
+                return;
+              }
+            }
+          } catch {
+            // summary unavailable — fall through to probe
+          }
+        }
+        // Sequential layout: probe frame_XXXXXX.png
         const [count, dims] = await Promise.all([
           probeFrameCount(rawFrameUrl, abort.signal),
           fetchPngDims(rawFrameUrl(0), abort.signal),
         ]);
         setState({
-          kind: "ok",
+          kind: "seq",
           count,
           width: dims?.width ?? null,
           height: dims?.height ?? null,
@@ -1992,7 +2022,7 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
       }
     })();
     return () => abort.abort();
-  }, [rawFrameUrl]);
+  }, [rawFrameUrl, handleId]);
 
   const [zoomIdx, setZoomIdx] = useState<number | null>(null);
   useEffect(() => {
@@ -2018,6 +2048,150 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
       </div>
     );
   }
+
+  // Transposed layout: one dir per frame, camera images inside.
+  if (state.kind === "transposed") {
+    const sampledIndices = sampleIndices(state.frameDirs.length, STRIP_MAX_CARDS);
+    const sampledDirs = sampledIndices.map(i => state.frameDirs[i]);
+    const hiddenCount = Math.max(0, state.frameDirs.length - sampledDirs.length);
+    const stripWidth =
+      sampledDirs.length === 0
+        ? 0
+        : STRIP_TILE_W + (sampledDirs.length - 1) * (STRIP_TILE_W - STRIP_OVERLAP);
+    const zoomedDir = zoomIdx !== null ? (state.frameDirs[zoomIdx] ?? null) : null;
+    const zoomedFirstCam = zoomedDir?.children?.find(c => !c.is_dir) ?? null;
+    return (
+      <div
+        data-hl-frame-strip=""
+        data-hl-frame-count={state.frameDirs.length}
+        data-hl-frame-layout="transposed"
+        style={{
+          ...PREVIEW_SHELL,
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            position: "relative",
+            height: STRIP_TILE_H + 4,
+            width: "100%",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              width: stripWidth,
+              height: STRIP_TILE_H,
+              maxWidth: "100%",
+            }}
+          >
+            {sampledDirs.map((frameDir, i) => {
+              const firstCam = frameDir.children?.find(c => !c.is_dir);
+              const isLast = i === sampledDirs.length - 1;
+              const dirIdx = sampledIndices[i];
+              return (
+                <button
+                  type="button"
+                  key={frameDir.name}
+                  data-hl-frame-card={dirIdx}
+                  title={`${frameDir.name} (frame ${dirIdx + 1} of ${state.frameDirs.length})`}
+                  onClick={() => setZoomIdx(dirIdx)}
+                  className="nodrag nopan"
+                  style={{
+                    position: "absolute",
+                    left: i * (STRIP_TILE_W - STRIP_OVERLAP),
+                    top: 0,
+                    width: STRIP_TILE_W,
+                    height: STRIP_TILE_H,
+                    padding: 0,
+                    background: "#000",
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    borderRadius: "var(--radius-sm)",
+                    overflow: "hidden",
+                    cursor: "zoom-in",
+                    zIndex: i + 1,
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.35)",
+                  }}
+                >
+                  {firstCam && (
+                    <img
+                      src={`${nodeRoot}/_thumb/${STRIP_THUMB_W}x${STRIP_THUMB_H}/${dirSub}/${encodeURIComponent(frameDir.name)}/${encodeURIComponent(firstCam.name)}?at=0`}
+                      alt={frameDir.name}
+                      loading="lazy"
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  )}
+                  {isLast && hiddenCount > 0 && (
+                    <div
+                      data-hl-frame-more=""
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "rgba(0,0,0,0.55)",
+                        color: "#fff",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        fontFamily: "var(--font-mono)",
+                        letterSpacing: "0.02em",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      +{hiddenCount}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 11,
+            color: "var(--inverse-muted)",
+            fontFamily: "var(--font-mono)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          <span data-hl-frame-count-label="">
+            {state.frameDirs.length} frames
+          </span>
+          {state.camCount > 0 && (
+            <>
+              <span aria-hidden style={{ opacity: 0.5 }}>·</span>
+              <span>{state.camCount} cams</span>
+            </>
+          )}
+        </div>
+        {zoomIdx !== null && zoomedDir && zoomedFirstCam && (
+          <FrameZoomOverlay
+            url={`${dirBase}/${encodeURIComponent(zoomedDir.name)}/${encodeURIComponent(zoomedFirstCam.name)}`}
+            index={zoomIdx}
+            total={state.frameDirs.length}
+            onClose={() => setZoomIdx(null)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Sequential layout: frames/frame_XXXXXX.png
   if (state.count === 0) {
     return (
       <div style={PREVIEW_SHELL}>

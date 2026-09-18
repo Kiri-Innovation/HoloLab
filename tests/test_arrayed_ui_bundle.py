@@ -70,22 +70,21 @@ def test_inspector_hint_mentions_element_id_layout(bundle_js: str) -> None:
 
 
 def test_arrayed_badge_data_attr(bundle_js: str) -> None:
-    """Header chip carries ``data-hl-arrayed-badge`` when the node is arrayed."""
-    assert "data-hl-arrayed-badge" in bundle_js
+    """Header badge is present when the node is arrayed.
+
+    The M7 redesign replaced the ``data-hl-arrayed-badge`` chip with an
+    inline span showing 「(arrayed)」 in the header.
+    """
+    assert "(arrayed)" in bundle_js
 
 
 def test_arrayed_badge_label(bundle_js: str) -> None:
-    """Badge label uses a stable text token 「arr」 so tests + docs can pin it.
+    """Badge label uses the stable text token 「(arrayed)」.
 
-    The redesign in 163387e moved the badge from the header (「[N]」) to
-    a compact chip in the footer (「arr」) to free header real estate
-    for the pack name + action icons. The token itself still needs to
-    be stable so E2E hooks and this test can grep for it.
+    The redesign replaced the former ``data-hl-arrayed-badge`` chip (which
+    showed 「arr」) with a plain inline span carrying the text 「(arrayed)」.
     """
-    assert "data-hl-arrayed-badge" in bundle_js
-    # The label appears inside the chip; grep for the exact token used
-    # in the AlgorithmNode source ("arr" as the chip content).
-    assert "arr" in bundle_js
+    assert "(arrayed)" in bundle_js
 
 
 # ---------------------------------------------------------------------------
