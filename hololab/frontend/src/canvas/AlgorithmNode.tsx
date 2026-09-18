@@ -5,16 +5,16 @@
 // dataset attributes. The App-level onConnect validator reads those tags to
 // enforce tag compatibility at edge-drawing time.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type {
   CatalogPack,
-  ComputeNode,
   InputPortSpec,
   OutputPortSpec,
   PortSpec,
 } from "../wire";
 import { effectivePortArrayed, firstTagColour } from "../tags";
+import { useCanvasContext } from "./CanvasContext";
 import { CopyRefButton } from "./CopyRefButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { OpenSourceButton } from "./OpenSourceButton";
@@ -71,12 +71,6 @@ export interface PreviewTarget {
 export interface AlgorithmNodeData extends Record<string, unknown> {
   pack: CatalogPack;
   assigned_node_id: string | null;
-  // The parent workflow's id. Threaded through so the card-header ⧉
-  // can emit a ``hololab://graph-node/<workflow_id>/<graph_node_id>``
-  // reference (graph node id alone is only unique inside its workflow).
-  // Snapshot canvas passes its snapshot's workflow_id; draft canvas
-  // passes the currently-open workflow_id.
-  workflow_id?: string | null;
   runtime?: NodeRuntime;
   // Resolved preview URLs for each output port that has a preview
   // declaration AND has produced a handle. Key is the output port name.
@@ -84,12 +78,6 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   // Frontend-only: which preview drawer is expanded, if any. The node
   // grows a slot below its body when set. ``null`` = collapsed.
   previewOpen?: string | null;
-  // Compute-node map keyed by ``node_id``. The preview drawer's
-  // "Open in Cocoder" button looks up the producing node here to
-  // resolve ``flops_executor_id`` at render time — that way a
-  // NodeSettingsDrawer edit is visible in the drawer immediately,
-  // without a workflow autosave round-trip.
-  computeNodesById?: Record<string, ComputeNode>;
   // Optional per-node toggle. When supplied, the expand caret calls this
   // callback instead of dispatching PREVIEW_TOGGLE_EVENT — used by the
   // read-only snapshot canvas so its toggles stay local to that view
@@ -101,6 +89,12 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   // draft). Draft canvas leaves it undefined.
   readOnly?: boolean;
 }
+
+// NOTE: ``workflow_id`` and ``computeNodesById`` are NOT on the node data.
+// They live in ``CanvasContext`` because they're canvas-wide, not per-node —
+// baking them into ``data`` caused xyflow's ``adoptUserNodes`` to re-init
+// every node whenever a WS event refreshed compute nodes, occasionally
+// clearing ``handleBounds`` mid-hydration and dropping edges.
 
 // Flat, restrained palette. Same colours reused across the AlgorithmNode
 // badge, the Jobs panel row, and the workflow-run summary counter so a
@@ -224,15 +218,14 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const {
     pack,
     assigned_node_id,
-    workflow_id: workflowId,
     runtime,
     previews,
     previewOpen,
     onPreviewToggle,
-    computeNodesById,
     readOnly,
     arrayed_toggle,
   } = data as AlgorithmNodeData & { arrayed_toggle?: boolean };
+  const { workflow_id: workflowId, computeNodesById } = useCanvasContext();
   const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
   const inputEntries = Object.entries(pack.inputs);
   const outputEntries = Object.entries(pack.outputs);
@@ -253,6 +246,24 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     expanded ? previewables.find((p) => p.name === expanded) ?? null : null;
   const runInFlight =
     runState === "pending" || runState === "assigned" || runState === "running";
+
+  const [runClickPending, setRunClickPending] = useState(false);
+  const [runErrorMsg, setRunErrorMsg] = useState<string | null>(null);
+
+  const handleRunClick = async () => {
+    if (runInFlight || runClickPending) return;
+    setRunClickPending(true);
+    setRunErrorMsg(null);
+    try {
+      await dispatchRunNode(id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setRunErrorMsg(msg);
+      setTimeout(() => setRunErrorMsg(null), 4000);
+    } finally {
+      setRunClickPending(false);
+    }
+  };
 
   const assignedComputeNode =
     assigned_node_id ? computeNodesById?.[assigned_node_id] ?? null : null;
@@ -302,6 +313,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           alignItems: "center",
           gap: "var(--space-2)",
           minHeight: 32,
+          position: "relative",
         }}
       >
         <span
@@ -359,7 +371,38 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
               size="xs"
             />
           )}
+          {!readOnly && (
+            <RunButton
+              pending={runClickPending}
+              inFlight={runInFlight}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRunClick();
+              }}
+            />
+          )}
         </div>
+        {runErrorMsg && (
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              right: "var(--space-2)",
+              zIndex: 10,
+              marginTop: 2,
+              background: "var(--status-failed)",
+              color: "#fff",
+              fontSize: "var(--fs-xs)",
+              padding: "2px var(--space-2)",
+              borderRadius: "var(--radius-sm)",
+              maxWidth: 200,
+              wordBreak: "break-word",
+              pointerEvents: "none",
+            }}
+          >
+            {runErrorMsg}
+          </div>
+        )}
       </div>
 
       {/* BODY — inputs left column, outputs right column, independent stacks */}
@@ -634,6 +677,55 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Play button placed at the far-right of the header — triggers a single-node
+ *  dispatch. Slightly larger / more prominent than the icon-only utility buttons
+ *  because "run" is the primary action on a node. */
+function RunButton({
+  pending,
+  inFlight,
+  onClick,
+}: {
+  pending: boolean;
+  inFlight: boolean;
+  onClick: (e: React.MouseEvent) => void;
+}) {
+  const busy = pending || inFlight;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      title={
+        inFlight
+          ? "running…"
+          : pending
+            ? "dispatching…"
+            : "run this node"
+      }
+      style={{
+        border: "1px solid var(--border-strong)",
+        background: busy ? "var(--surface-3)" : "var(--surface-raised)",
+        color: busy ? "var(--text-muted)" : "var(--text)",
+        width: 20,
+        height: 20,
+        borderRadius: "var(--radius-sm)",
+        cursor: busy ? "default" : "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 9,
+        lineHeight: 1,
+        padding: 0,
+        flexShrink: 0,
+        opacity: busy ? 0.5 : 1,
+        transition: "opacity var(--dur-fast) var(--ease)",
+      }}
+    >
+      {pending ? "…" : "▶"}
+    </button>
   );
 }
 

@@ -19,6 +19,7 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
+  useUpdateNodeInternals,
   type Connection,
   type Edge,
   type Node,
@@ -69,6 +70,7 @@ import {
 } from "./canvas/AlgorithmNode";
 import { Artifacts } from "./Artifacts";
 import { Gallery } from "./Gallery";
+import { CanvasContext } from "./canvas/CanvasContext";
 import { PackPalette } from "./canvas/PackPalette";
 import { ComputeNodesPanel } from "./canvas/ComputeNodesPanel";
 import { MinimapToggleButton } from "./canvas/MinimapToggleButton";
@@ -460,6 +462,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   >(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<AlgorithmNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  // Imperative "re-measure this node" — used defensively after graph
+  // hydration to nudge xyflow into re-parsing handle positions even
+  // when the DOM element's dimensions didn't change (e.g. a fresh
+  // page load whose initial adopt-then-adopt sequence races the
+  // ResizeObserver's first callback and leaves ``handleBounds``
+  // stuck at ``undefined``). Cheap: it just schedules a rAF that
+  // measures the still-existing DOM. See canvas/CanvasContext.ts
+  // for the full failure-mode notes.
+  const updateNodeInternals = useUpdateNodeInternals();
   // Frozen graph from the most-recent snapshot. Null when no snapshot exists
   // yet. Used by draftDiff to populate the "草稿有结构改动" sentinel row.
   const [latestSnapshotGraph, setLatestSnapshotGraph] = useState<WorkflowGraph | null>(
@@ -487,19 +498,33 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     );
   }, [catalogByKey, setNodes]);
 
-  // Push job runtime + resolved previews + workflow_id into each node's
-  // data. This drives the status badge, expand caret, inline preview
-  // surface, and the card-header ⧉'s graph-node ref (which needs the
-  // parent workflow id to form a resolvable token).
-  // Map form of the compute-nodes list, kept memoised so the sync
-  // effect below can pass identity-stable data down into node.data
-  // (avoids re-renders on every catalog poll when nothing changed).
+  // Compute-node lookup keyed by node_id. Shared with AlgorithmNode via
+  // ``CanvasContext`` — deliberately NOT baked into per-node ``data``
+  // because a WS-triggered compute-nodes refresh would then force every
+  // node object to be recreated. That churn used to race with the
+  // initial ResizeObserver measurement pass: xyflow's ``adoptUserNodes``
+  // resets ``handleBounds`` for any userNode without ``measured``, and
+  // if the reset landed before the browser had measured the DOM, edges
+  // attached to those handles silently disappeared (only nodes whose
+  // dimensions later changed — e.g. drawer open/close — recovered on
+  // the next resize tick). Context reads stay fresh without touching
+  // node identities. See ``canvas/CanvasContext.ts``.
   const computeNodesById = useMemo<Record<string, ComputeNode>>(() => {
     const out: Record<string, ComputeNode> = {};
     for (const cn of computeNodes) out[cn.node_id] = cn;
     return out;
   }, [computeNodes]);
 
+  const canvasContextValue = useMemo(
+    () => ({ workflow_id: workflowId, computeNodesById }),
+    [workflowId, computeNodesById],
+  );
+
+  // Push job runtime + resolved previews + previewOpen into each node's
+  // data. This drives the status badge, expand caret, and inline preview
+  // surface. Nodes whose relevant fields haven't changed keep their
+  // identity so xyflow doesn't have to re-adopt them (see the
+  // ``handleBounds``-reset failure mode above).
   useEffect(() => {
     setNodes((current) =>
       current.map((n) => {
@@ -507,14 +532,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const rt = runtimeByGraphNode[n.id];
         const pv = previewsByGraphNode[n.id];
         const po = previewOpenByGraphNode[n.id] ?? null;
-        const wid = workflowId ?? null;
-        const cnbi = computeNodesById;
         if (
           rt === d.runtime &&
           pv === d.previews &&
-          po === (d.previewOpen ?? null) &&
-          wid === (d.workflow_id ?? null) &&
-          cnbi === d.computeNodesById
+          po === (d.previewOpen ?? null)
         ) {
           return n;
         }
@@ -525,20 +546,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             runtime: rt,
             previews: pv,
             previewOpen: po,
-            workflow_id: wid,
-            computeNodesById: cnbi,
           },
         };
       }),
     );
-  }, [
-    runtimeByGraphNode,
-    previewsByGraphNode,
-    previewOpenByGraphNode,
-    workflowId,
-    computeNodesById,
-    setNodes,
-  ]);
+  }, [runtimeByGraphNode, previewsByGraphNode, previewOpenByGraphNode, setNodes]);
 
   // Bridge the AlgorithmNode's expand caret (fires a DOM CustomEvent) back
   // into App-level state. We do it this way because xyflow's nodeTypes
@@ -819,29 +831,28 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         }
         return next;
       });
-      setNodes(
-        graph.nodes
-          .map((gn) => {
-            const pack = catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`);
-            if (!pack) return null;
-            const node: Node<AlgorithmNodeData> = {
-              id: gn.id,
-              type: "algorithm",
-              position: gn.position,
-              data: {
-                pack,
-                assigned_node_id: gn.assigned_node_id,
-                ...({ params: gn.params } as object),
-                ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
-                runtime: runtimeByGraphNode[gn.id],
-                previews: previewsByGraphNode[gn.id],
-                previewOpen: previewOpenByGraphNode[gn.id] ?? null,
-              },
-            };
-            return node;
-          })
-          .filter(Boolean) as Node<AlgorithmNodeData>[],
-      );
+      const hydratedNodes = graph.nodes
+        .map((gn) => {
+          const pack = catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`);
+          if (!pack) return null;
+          const node: Node<AlgorithmNodeData> = {
+            id: gn.id,
+            type: "algorithm",
+            position: gn.position,
+            data: {
+              pack,
+              assigned_node_id: gn.assigned_node_id,
+              ...({ params: gn.params } as object),
+              ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
+              runtime: runtimeByGraphNode[gn.id],
+              previews: previewsByGraphNode[gn.id],
+              previewOpen: previewOpenByGraphNode[gn.id] ?? null,
+            },
+          };
+          return node;
+        })
+        .filter(Boolean) as Node<AlgorithmNodeData>[];
+      setNodes(hydratedNodes);
       setEdges(
         graph.edges.map((ge) => ({
           id: ge.id,
@@ -852,6 +863,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           style: { strokeWidth: 2 },
         })),
       );
+      // Defensive re-measure kick — see the useEffect below. We
+      // record which node ids just got hydrated so the effect knows
+      // to call ``updateNodeInternals`` on them once the DOM has
+      // been updated. (Calling it synchronously here would find no
+      // matching DOM nodes because the setNodes commit hasn't
+      // happened yet.)
+      pendingRemeasureRef.current = hydratedNodes.map((n) => n.id);
     },
     [
       catalogByKey,
@@ -862,6 +880,44 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       previewOpenByGraphNode,
     ],
   );
+
+  // Force xyflow to re-parse handle positions after every hydration.
+  //
+  // Failure mode this closes off: xyflow's ``adoptUserNodes`` resets
+  // ``handleBounds`` to ``undefined`` whenever the userNode identity
+  // changes and the userNode has no ``measured`` field yet. During
+  // cold-load the sequence is:
+  //   1. ``fromGraph`` sets 11 fresh nodes (no measured).
+  //   2. The runtime-sync ``useEffect`` fires with drawer-open state
+  //      and creates new object identities for the ``preview_open``
+  //      nodes (src, fx in the classic STG shape).
+  //   3. Both adoptions run before the browser's initial
+  //      ResizeObserver tick.
+  //   4. RO's tick fires, sets handleBounds on the internal nodes,
+  //      applyNodeChanges backfills ``measured`` on the React user
+  //      nodes.
+  //   5. If step 3 raced ahead of step 4, ``handleBounds`` ends up
+  //      undefined on the 9 nodes whose dimensions never changed
+  //      (drawer-closed → same 220×N as before → RO doesn't refire),
+  //      and edges attached to their handles silently drop out via
+  //      ``getEdgePosition``.
+  //
+  // Reproduction: ~1/30 cold-loads on a 4× CPU-throttled headless
+  // Chromium — matches the "经常" (often) intermittency the user
+  // reported on the ``classic STG (arrayed)`` workflow (14 edges → 1).
+  //
+  // The fix: after each fromGraph, explicitly force xyflow to
+  // re-parse handles from the DOM. ``useUpdateNodeInternals`` schedules
+  // an rAF that queries each node's DOM element and calls the store's
+  // ``updateNodeInternals`` — idempotent when handleBounds is already
+  // correct, restorative when it's ``undefined``.
+  const pendingRemeasureRef = useRef<string[]>([]);
+  useEffect(() => {
+    const ids = pendingRemeasureRef.current;
+    if (ids.length === 0) return;
+    pendingRemeasureRef.current = [];
+    updateNodeInternals(ids);
+  }, [nodes, updateNodeInternals]);
 
   // --- toolbar handlers -------------------------------------------------
   const onSave = useCallback(async () => {
@@ -1245,6 +1301,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         onDrop={onDrop}
         style={{ gridArea: "mid", position: "relative", overflow: "hidden" }}
       >
+        <CanvasContext.Provider value={canvasContextValue}>
         {viewingSnapshot ? (
           <>
             <SnapshotBanner
@@ -1263,7 +1320,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               catalog={catalog}
               selectedGraphNodeId={snapshotSelectedGraphNodeId}
               onSelectionChange={setSnapshotSelectedGraphNodeId}
-              computeNodesById={computeNodesById}
             />
           </>
         ) : (
@@ -1297,6 +1353,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             <Background gap={20} color="var(--rf-grid)" />
           </ReactFlow>
         )}
+        </CanvasContext.Provider>
         {snapshotError && (
           <div
             style={{
