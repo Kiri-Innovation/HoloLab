@@ -1,0 +1,160 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-triangulate
+version: 0.1.0
+description: >
+  Triangulate 3D points from images + KNOWN camera poses. Consumes a
+  ``colmap-cams`` handle (cameras.txt + images.txt) plus a
+  ``frame_sequence`` of that frame's images, runs COLMAP
+  ``point_triangulator`` with frozen intrinsics, and emits
+  ``colmap-points`` (points3D.txt). ``arrayable: true`` — one shard per
+  frame when the operator turns the checkbox on.
+category: "reconstruction/colmap"
+
+docs: |
+  Same underlying primitive as ``rig-group-triangulation`` — both invoke
+  ``colmap point_triangulator`` with intrinsics frozen and a reprojection
+  filter — but the two packs sit at different points in the workflow:
+
+  | | ``colmap-triangulate`` (this pack) | ``rig-group-triangulation`` |
+  |---|---|---|
+  | Purpose | **Production** STG pipeline stage | **Experiment** with rig-calibration recipes |
+  | Camera pose source | ``colmap-cams`` from an upstream SfM node (per-frame poses that vary over time) | ``rig_extrinsics`` from a solved static rig calibration JSON |
+  | Fan-out model | ``arrayable: true`` — framework dispatches one shard per frame | Whole-array in one process with an internal thread pool |
+  | Coordinate frame | Whatever the SfM produced (per-frame world) | Static rig frame shared across all groups |
+
+  Both packs stay because they answer different questions ("given
+  already-solved poses, materialize the point cloud" vs "how well does
+  this candidate rig calibration triangulate?"). The user's product code
+  wants the deterministic production wrapper.
+
+  Prior model wiring: each shard reads ``cameras.txt`` + ``images.txt``
+  from the ``cams`` input verbatim, touches an empty ``points3D.txt`` for
+  the prior directory, extracts features on the shard's images, matches
+  exhaustively, then runs ``point_triangulator`` with intrinsics frozen
+  and a 4 px default reprojection filter (the validated flag set from
+  ``rig_triangulate.py``).
+
+  Output layout::
+
+      output/
+        points3D.txt
+
+  Downstream (``stg-train`` etc.) reads ``points3D.txt`` alongside the
+  original ``cameras.txt``/``images.txt`` from the ``colmap-cams`` handle.
+
+# arrayable=true → the frontend shows the "并行处理数组输入" checkbox;
+# when on, the scheduler fans out one shard per element of the arrayed
+# inputs (each shard gets one frame's ``cams`` + ``frames`` element).
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    description: "Known camera poses (cameras.txt + images.txt) — the SfM output."
+  frames:
+    tags: [frame_sequence]
+    description: "This frame's per-camera images to triangulate against `cams`."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  max_image_size:
+    type: int
+    default: 2400
+    min: 512
+    description: "SIFT downscale cap."
+  max_num_features:
+    type: int
+    default: 4096
+    min: 512
+    description: "SIFT feature cap per image."
+  filter_max_reproj_error:
+    type: float
+    default: 4.0
+    min: 0.1
+    description: "point_triangulator reprojection filter (px)."
+
+outputs:
+  points:
+    tags: [colmap-points]
+    description: "COLMAP text-format points3D.txt (no cameras/images — they came from `cams`)."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    CAMS_DIR="{{ inputs.cams }}"
+    IMG_DIR="{{ inputs.frames }}/frames"
+    OUT="{{ outputs.points }}"
+    DB="{{ scratch_dir }}/database.db"
+    PRIOR="{{ scratch_dir }}/prior"
+    SPARSE="{{ scratch_dir }}/sparse"
+
+    if [ ! -f "$CAMS_DIR/cameras.txt" ] || [ ! -f "$CAMS_DIR/images.txt" ]; then
+      echo "ERROR: cams input missing cameras.txt / images.txt under $CAMS_DIR" >&2
+      exit 2
+    fi
+    if [ ! -d "$IMG_DIR" ]; then
+      echo "ERROR: frames input missing frames/ subdir: $IMG_DIR" >&2
+      exit 2
+    fi
+
+    mkdir -p "$OUT" "$PRIOR" "$SPARSE"
+
+    # Prior = the caller's cameras.txt + images.txt + an empty points3D.txt
+    # (COLMAP's point_triangulator refuses to start without the file).
+    cp "$CAMS_DIR/cameras.txt" "$PRIOR/cameras.txt"
+    cp "$CAMS_DIR/images.txt"  "$PRIOR/images.txt"
+    : > "$PRIOR/points3D.txt"
+
+    echo "[colmap-triangulate] feature_extractor"
+    colmap feature_extractor \
+      --database_path "$DB" \
+      --image_path "$IMG_DIR" \
+      --SiftExtraction.max_image_size {{ params.max_image_size }} \
+      --SiftExtraction.max_num_features {{ params.max_num_features }} \
+      --SiftExtraction.use_gpu {{ params.use_gpu }}
+
+    echo "[colmap-triangulate] exhaustive_matcher"
+    colmap exhaustive_matcher \
+      --database_path "$DB" \
+      --SiftMatching.use_gpu {{ params.use_gpu }} \
+      --SiftMatching.guided_matching 1
+
+    echo "[colmap-triangulate] point_triangulator (frozen intrinsics)"
+    colmap point_triangulator \
+      --database_path "$DB" \
+      --image_path "$IMG_DIR" \
+      --input_path "$PRIOR" \
+      --output_path "$SPARSE" \
+      --clear_points 1 \
+      --Mapper.num_threads 1 \
+      --Mapper.ba_refine_focal_length 0 \
+      --Mapper.ba_refine_principal_point 0 \
+      --Mapper.ba_refine_extra_params 0 \
+      --Mapper.filter_max_reproj_error {{ params.filter_max_reproj_error }}
+
+    echo "[colmap-triangulate] model_converter → TXT"
+    colmap model_converter \
+      --input_path "$SPARSE" \
+      --output_path "$OUT" \
+      --output_type TXT
+
+    # Cams came from upstream; downstream keeps reading them from ``cams``.
+    rm -f "$OUT/cameras.txt" "$OUT/images.txt"
+
+    test -s "$OUT/points3D.txt" || { echo "no points3D.txt produced" >&2; exit 4; }
+    echo "[colmap-triangulate] done → $OUT"
+
+idempotency:
+  marker: "{{ outputs.points }}/.hololab-done"

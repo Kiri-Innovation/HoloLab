@@ -1,0 +1,132 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-sfm-cams-only
+version: 0.1.0
+description: >
+  Run COLMAP Structure-from-Motion on a ``frame_sequence`` and emit ONLY the
+  cameras + images (``colmap-cams``) — no per-scene points. Feeds
+  ``colmap-triangulate`` which consumes ``colmap-cams`` + per-frame images
+  to produce time-varying ``colmap-points``.
+category: "reconstruction/colmap"
+
+docs: |
+  Wrapper around the vanilla COLMAP CLI: ``feature_extractor`` +
+  ``exhaustive_matcher`` + ``mapper``. Takes the reconstructed sparse
+  model 0 (the largest connected component), converts to text, and
+  publishes ``cameras.txt`` + ``images.txt`` under the output. The
+  ``points3D.txt`` produced by ``mapper`` is intentionally discarded —
+  this pack's contract is *poses only*.
+
+  ### When to use this vs alternatives
+
+  * **``colmap-sfm-cams-only`` (this pack) + ``colmap-triangulate``** — the
+    canonical STG production pipeline: static rig-of-many-cams, run SfM on
+    one representative frame to solve camera poses, then triangulate every
+    frame independently against those known poses. Deterministic, fan-out
+    friendly.
+  * **``rig-group-triangulation``** — a *different* pack for the
+    calibration-experimentation workflow: poses come from a pre-solved rig
+    calibration JSON (``rig_extrinsics`` tag), grouping is time-bucketed
+    (``rig_groups`` tag), whole-array in one process. See its ``docs`` for
+    why the surfaces don't collapse into one pack.
+
+  Output layout::
+
+      output/
+        cameras.txt
+        images.txt
+
+  The ``colmap-triangulate`` pack expects this exact layout on its
+  ``cams`` input.
+
+inputs:
+  frames:
+    tags: [frame_sequence]
+    description: "One camera's (or one time-slice's) images — an SfM-runnable set."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  max_image_size:
+    type: int
+    default: 2400
+    min: 512
+    description: "SIFT downscale cap (--SiftExtraction.max_image_size)."
+  max_num_features:
+    type: int
+    default: 4096
+    min: 512
+    description: "SIFT feature cap per image."
+
+outputs:
+  cams:
+    tags: [colmap-cams]
+    description: "COLMAP text-format cameras.txt + images.txt (no points3D)."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false  # falls back to CPU if use_gpu=0
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    IMG_DIR="{{ inputs.frames }}/frames"
+    OUT="{{ outputs.cams }}"
+    DB="{{ scratch_dir }}/database.db"
+    SPARSE_ROOT="{{ scratch_dir }}/sparse"
+
+    if [ ! -d "$IMG_DIR" ]; then
+      echo "ERROR: input frames handle missing frames/ subdir: $IMG_DIR" >&2
+      exit 2
+    fi
+
+    mkdir -p "$OUT" "$SPARSE_ROOT"
+
+    echo "[colmap-sfm-cams-only] feature_extractor"
+    colmap feature_extractor \
+      --database_path "$DB" \
+      --image_path "$IMG_DIR" \
+      --SiftExtraction.max_image_size {{ params.max_image_size }} \
+      --SiftExtraction.max_num_features {{ params.max_num_features }} \
+      --SiftExtraction.use_gpu {{ params.use_gpu }}
+
+    echo "[colmap-sfm-cams-only] exhaustive_matcher"
+    colmap exhaustive_matcher \
+      --database_path "$DB" \
+      --SiftMatching.use_gpu {{ params.use_gpu }} \
+      --SiftMatching.guided_matching 1
+
+    echo "[colmap-sfm-cams-only] mapper"
+    colmap mapper \
+      --database_path "$DB" \
+      --image_path "$IMG_DIR" \
+      --output_path "$SPARSE_ROOT"
+
+    # Mapper writes models 0/, 1/, ... — take model 0 (largest).
+    MODEL0="$SPARSE_ROOT/0"
+    if [ ! -d "$MODEL0" ]; then
+      echo "ERROR: COLMAP mapper produced no reconstruction under $SPARSE_ROOT" >&2
+      exit 3
+    fi
+
+    echo "[colmap-sfm-cams-only] model_converter → TXT"
+    colmap model_converter \
+      --input_path "$MODEL0" \
+      --output_path "$OUT" \
+      --output_type TXT
+
+    # points3D.txt is not part of this pack's contract — discard.
+    rm -f "$OUT/points3D.txt"
+
+    test -s "$OUT/cameras.txt" || { echo "no cameras.txt produced" >&2; exit 4; }
+    test -s "$OUT/images.txt"  || { echo "no images.txt produced" >&2; exit 4; }
+    echo "[colmap-sfm-cams-only] done → $OUT"
+
+idempotency:
+  marker: "{{ outputs.cams }}/.hololab-done"
