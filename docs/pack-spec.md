@@ -434,6 +434,22 @@ Both `frame-extraction[arrayed_toggle=true]` (per-camera groups) and
 frame_sequence>` and automatically share the nested viewer with no
 per-pack preview declaration.
 
+**Arrayed fallback — pager over the scalar viewer.** When a tag family
+has a scalar viewer but *no* dedicated `arrayed<T>` viewer, the
+frontend wraps the scalar in `ArrayedPaginator` (`previews.tsx`)
+instead of falling back to the basic-info card: a compact
+`‹ name (i/N) ›` row at the top, then the scalar viewer mounted
+against the currently-selected element's subdirectory
+(`<baseUrl>/<element>`). ArrowLeft/Right advance the pager while the
+drawer is hovered. This is the current wiring for `colmap-points` —
+`colmap-triangulate[arrayed]` fans out one `points3D.txt` per frame
+and the operator flips through them via the pager while the
+`ColmapPointsPreview` iframe re-injects the new file. Any tag that
+declares a scalar viewer via the routing table gets this fallback for
+free; opt in to a bespoke arrayed viewer (like
+`NestedFrameSequencePreview`) only when the pager would drop
+information the operator needs to see at a glance across elements.
+
 Data path for `NestedFrameSequencePreview`: a single
 `GET /api/handles/{id}/summary`. The server-side enrichment
 (`handle_summary._list_dir_children`) attaches immediate `children`
@@ -460,6 +476,15 @@ files and hauling a large runtime submodule into HoloLab's own bundle.
   `${baseUrl}/{name}` plus a synthetic empty `points3D.txt` header
   (poses-only pack — ColmapUtil's loader mandates all three files but
   gracefully renders zero points).
+* `colmap-points` → `ColmapPointsPreview` reuses the same
+  `Colmap3DPreview` iframe/handshake plumbing with the *reverse*
+  substitution: real `points3D.txt` from `${baseUrl}/`, synthetic
+  empty `cameras.txt` + `images.txt` (points-only pack — the naked
+  point cloud renders without camera frustums, which is the right
+  shape for `colmap-triangulate`'s output). The scalar viewer is
+  registered even though the current producer (`colmap-triangulate`
+  with `arrayable: true`) only fans out; the arrayed fallback above
+  gets the pager for free from that single scalar registration.
 
 The iframe's sandbox is `allow-scripts allow-same-origin` since the
 viewer needs JS and its own asset chunks resolve same-origin (via

@@ -188,6 +188,7 @@ interface ExpandablePort {
 const FRONTEND_VIEWER_TAGS = new Set<string>([
   "frame_sequence",
   "colmap-cams",
+  "colmap-points",
 ]);
 
 function hasFrontendViewerTag(tags: string[] | undefined): boolean {

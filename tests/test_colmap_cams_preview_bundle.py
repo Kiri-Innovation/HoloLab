@@ -59,6 +59,24 @@ def test_bundle_contains_colmap_cams_tag_routing() -> None:
     )
 
 
+def test_bundle_contains_colmap_points_tag_routing() -> None:
+    """Same guard for ``colmap-points`` — the tag needs to appear in
+    the Preview dispatch intercept AND the FRONTEND_VIEWER_TAGS set.
+    Losing either drops the caret from ``colmap-triangulate`` /
+    ``colmap-assemble.points_by_frame`` outputs on any rolling upgrade.
+    """
+
+    js_path = _find_dist_js()
+    if js_path is None:
+        pytest.skip("frontend dist not built — run `npm run build` first")
+    js = js_path.read_text(encoding="utf-8", errors="replace")
+    hits = js.count("colmap-points")
+    assert hits >= 2, (
+        f"expected >=2 occurrences of 'colmap-points' in the built bundle "
+        f"(Preview intercept + FRONTEND_VIEWER_TAGS promotion), found {hits}"
+    )
+
+
 def test_bundle_iframes_vendored_colmaputil() -> None:
     """ColmapCamsPreview must point the iframe at the vendored build.
     Sits inside the bundled JS as a literal string — url computed at

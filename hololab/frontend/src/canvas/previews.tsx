@@ -137,6 +137,30 @@ export function Preview({
   ) {
     return <ColmapCamsPreview baseUrl={baseUrl} />;
   }
+  // ``colmap-points`` — triangulated point cloud (points3D.txt in a
+  // dir handle). Same iframe/ColmapUtil pipeline as colmap-cams but
+  // the reverse file-substitution: real points, empty cameras/images.
+  // The arrayed form (one shard per frame from colmap-triangulate[
+  // arrayed]) has no dedicated array viewer; ArrayedPaginator wraps
+  // the scalar version below with a top pager row.
+  if (
+    tags &&
+    tags.includes("colmap-points") &&
+    storage === "dir"
+  ) {
+    if (arrayed) {
+      return (
+        <ArrayedPaginator
+          baseUrl={baseUrl}
+          handleId={handleId}
+          renderScalar={(elementBaseUrl) => (
+            <ColmapPointsPreview baseUrl={elementBaseUrl} />
+          )}
+        />
+      );
+    }
+    return <ColmapPointsPreview baseUrl={baseUrl} />;
+  }
 
   // No tag intercept matched and the caller didn't hand us a spec.
   // Happens when a port has a frontend-driven tag (e.g. colmap-cams)
@@ -2837,20 +2861,25 @@ function NestedGroupDetail({
 }
 
 // ---------------------------------------------------------------------------
-// ColmapCamsPreview — 3D COLMAP viewer for ``colmap-cams`` dir handles.
+// Colmap3DPreview — 3D COLMAP viewer for ``colmap-*`` dir handles.
 //
-// Rendered by the parent as ``<iframe src="/colmaputil/index.html?embed=1">``,
-// pointing at the vendored ColmapUtil build under
-// ``public/colmaputil/``. Data flow:
+// Rendered as ``<iframe src="/colmaputil/index.html?embed=1">`` pointing
+// at the vendored ColmapUtil build under ``public/colmaputil/``. Data flow:
 //
 //   1. iframe boots, posts ``{type: 'colmap-ready'}`` to parent.
-//   2. parent fetches ``cameras.txt`` + ``images.txt`` from the proxy
+//   2. parent fetches whichever of ``cameras.txt`` / ``images.txt`` /
+//      ``points3D.txt`` the ``fetchFiles`` prop names from the proxy
 //      base URL (already same-origin via the /proxy mount).
 //   3. parent posts ``{type: 'colmap-load-files', files: [...]}``
-//      including a synthetic empty ``points3D.txt`` header (poses-only
-//      pack — ColmapUtil's loader mandates the file, so we hand it a
-//      zero-points scaffold and the visualizer renders 0 points +
-//      all cameras which is exactly the poses-only shape we want).
+//      substituting an empty-header scaffold for any of the three that
+//      isn't in ``fetchFiles`` (ColmapUtil's loader mandates all three
+//      files, but happily renders "0 of X" when one side is empty).
+//
+// Two producing tags use it via wrapper components:
+//   * ``colmap-cams`` — SfM poses only (cameras.txt+images.txt real,
+//     points empty) → all cameras, 0 points.
+//   * ``colmap-points`` — triangulated points only (points3D.txt real,
+//     cameras/images empty) → 0 cameras, N points as a naked cloud.
 //
 // See ``docs/pack-spec.md#Previews`` for the architecture rationale
 // and ``public/colmaputil/HOLOLAB_VENDORED.md`` for the refresh
@@ -2859,20 +2888,41 @@ function NestedGroupDetail({
 
 const COLMAP_IFRAME_HEIGHT = 260;
 
-// Minimal header-only points3D.txt — matches the format
-// ``model_converter --output_type TXT`` emits for empty reconstructions.
-// Kept as a constant so the empty scaffold is byte-identical across
-// preview mounts (helps any downstream caching in ColmapUtil).
+// Empty scaffolds — model_converter --output_type TXT emits headers of
+// this shape for a reconstruction with zero of the given entity. Kept
+// as constants so the byte pattern is stable across preview mounts.
+const COLMAP_EMPTY_CAMERAS =
+  "# Camera list with one line of data per camera:\n" +
+  "#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n" +
+  "# Number of cameras: 0\n";
+const COLMAP_EMPTY_IMAGES =
+  "# Image list with two lines of data per image:\n" +
+  "#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n" +
+  "#   POINTS2D[] as (X, Y, POINT3D_ID)\n" +
+  "# Number of images: 0, mean observations per image: 0\n";
 const COLMAP_EMPTY_POINTS3D =
   "# 3D point list with one line of data per point:\n" +
   "#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n" +
   "# Number of points: 0, mean track length: 0\n";
 
-interface ColmapCamsPreviewProps {
+type ColmapFileName = "cameras.txt" | "images.txt" | "points3D.txt";
+
+const COLMAP_EMPTY: Record<ColmapFileName, string> = {
+  "cameras.txt": COLMAP_EMPTY_CAMERAS,
+  "images.txt": COLMAP_EMPTY_IMAGES,
+  "points3D.txt": COLMAP_EMPTY_POINTS3D,
+};
+
+interface Colmap3DPreviewProps {
   baseUrl: string;
+  // Subset of {cameras.txt, images.txt, points3D.txt} the caller wants
+  // fetched from ``baseUrl``. The remainder is substituted with the
+  // empty-header scaffold so ColmapUtil's loader still gets all three.
+  fetchFiles: readonly ColmapFileName[];
+  title: string;
 }
 
-function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
+function Colmap3DPreview({ baseUrl, fetchFiles, title }: Colmap3DPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const sentRef = useRef(false);
@@ -2899,6 +2949,7 @@ function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
     };
   }, []);
 
+  const fetchKey = fetchFiles.join(",");
   useEffect(() => {
     sentRef.current = false;
     setError(null);
@@ -2911,28 +2962,25 @@ function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
       if (sentRef.current) return;
       const dirBase = baseUrl.replace(/\/$/, "");
       try {
-        const [camerasRes, imagesRes] = await Promise.all([
-          fetch(`${dirBase}/cameras.txt`, { signal: ctl.signal }),
-          fetch(`${dirBase}/images.txt`, { signal: ctl.signal }),
-        ]);
-        if (!camerasRes.ok) throw new Error(`cameras.txt: HTTP ${camerasRes.status}`);
-        if (!imagesRes.ok) throw new Error(`images.txt: HTTP ${imagesRes.status}`);
-        const [camerasBlob, imagesBlob] = await Promise.all([
-          camerasRes.blob(),
-          imagesRes.blob(),
-        ]);
+        const fetchedBlobs = await Promise.all(
+          fetchFiles.map(async (name) => {
+            const r = await fetch(`${dirBase}/${name}`, { signal: ctl.signal });
+            if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+            return [name, await r.blob()] as const;
+          }),
+        );
         if (ctl.signal.aborted) return;
-        const pointsBlob = new Blob([COLMAP_EMPTY_POINTS3D], { type: "text/plain" });
+        const fetched = new Map(fetchedBlobs);
+        const files = (["cameras.txt", "images.txt", "points3D.txt"] as const).map(
+          (name) => ({
+            name,
+            blob:
+              fetched.get(name) ??
+              new Blob([COLMAP_EMPTY[name]], { type: "text/plain" }),
+          }),
+        );
         target.postMessage(
-          {
-            type: "colmap-load-files",
-            files: [
-              { name: "cameras.txt", blob: camerasBlob },
-              { name: "images.txt", blob: imagesBlob },
-              { name: "points3D.txt", blob: pointsBlob },
-            ],
-            name: "sfm",
-          },
+          { type: "colmap-load-files", files, name: "sfm" },
           "*",
         );
         sentRef.current = true;
@@ -2957,7 +3005,7 @@ function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
       ctl.abort();
       window.removeEventListener("message", onMessage);
     };
-  }, [baseUrl]);
+  }, [baseUrl, fetchKey]);
 
   return (
     <div ref={wrapperRef} style={{ position: "relative" }}>
@@ -2968,7 +3016,7 @@ function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
         // EmbedDataListener which broadcasts ``colmap-ready`` on
         // mount so we know when it's safe to postMessage.
         src="/colmaputil/index.html?embed=1"
-        title="colmap-cams viewer"
+        title={title}
         // allow-scripts: viewer needs JS. allow-same-origin: served
         // from same origin (vite proxy in dev, SPA mount in prod) so
         // its own asset chunks resolve without a cross-origin dance.
@@ -3020,4 +3068,255 @@ function ColmapCamsPreview({ baseUrl }: ColmapCamsPreviewProps) {
       )}
     </div>
   );
+}
+
+const COLMAP_CAMS_FETCH = ["cameras.txt", "images.txt"] as const;
+const COLMAP_POINTS_FETCH = ["points3D.txt"] as const;
+
+function ColmapCamsPreview({ baseUrl }: { baseUrl: string }) {
+  return (
+    <Colmap3DPreview
+      baseUrl={baseUrl}
+      fetchFiles={COLMAP_CAMS_FETCH}
+      title="colmap-cams viewer"
+    />
+  );
+}
+
+function ColmapPointsPreview({ baseUrl }: { baseUrl: string }) {
+  return (
+    <Colmap3DPreview
+      baseUrl={baseUrl}
+      fetchFiles={COLMAP_POINTS_FETCH}
+      title="colmap-points viewer"
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ArrayedPaginator — top pager row + scalar viewer of the selected element.
+//
+// The default frontend policy is "predefine a scalar viewer for tag T; if
+// no arrayed<T> viewer exists, wrap the scalar one with this paginator."
+// See ``docs/pack-spec.md#Previews`` — this is the generic escape hatch so
+// arrayed outputs are never left previewless.
+//
+// Data flow
+// ~~~~~~~~~
+//   * Single ``GET /api/handles/{id}/summary`` gives the top-level entries;
+//     each ``is_dir`` entry is one array element. Sorted zero-pad-aware
+//     (``frame_9`` < ``frame_10``) so the pager order matches on-disk.
+//   * The selected element's ``baseUrl`` is composed as ``<baseUrl>/<name>``;
+//     the scalar viewer sees exactly the URL it would see for a scalar
+//     handle pointing at that subdir.
+//
+// UI
+// ~~
+//   * ‹ prev · current name (i / N) · next ›  — tokens + double-theme
+//     compliant. Compact enough to sit above a 260-px iframe without
+//     eating vertical room.
+//   * ArrowLeft / ArrowRight while hovered advance the pager.
+//   * Mounting a fresh scalar with a new baseUrl re-runs its data effect,
+//     which is fine — the iframe stays put and just receives new files.
+// ---------------------------------------------------------------------------
+
+interface ArrayedPaginatorProps {
+  baseUrl: string;
+  handleId?: string;
+  renderScalar: (elementBaseUrl: string) => React.ReactNode;
+}
+
+function ArrayedPaginator({
+  baseUrl,
+  handleId,
+  renderScalar,
+}: ArrayedPaginatorProps) {
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ok"; elements: string[] }
+    | { kind: "err"; message: string }
+  >({ kind: "loading" });
+  const [idx, setIdx] = useState(0);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (!handleId) {
+      setState({ kind: "err", message: "handle id required" });
+      return;
+    }
+    let cancelled = false;
+    setState({ kind: "loading" });
+    setIdx(0);
+    (async () => {
+      try {
+        const summary = await getHandleSummary(handleId);
+        if (cancelled) return;
+        const entries = summary.fields.entries ?? [];
+        const names = entries
+          .filter((e) => e.is_dir && !e.name.startsWith("."))
+          .map((e) => e.name)
+          .sort(compareNameNumeric);
+        setState({ kind: "ok", elements: names });
+      } catch (e) {
+        if (cancelled) return;
+        setState({ kind: "err", message: (e as Error).message });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [handleId]);
+
+  const total = state.kind === "ok" ? state.elements.length : 0;
+  const move = useCallback(
+    (delta: number) => {
+      if (total <= 0) return;
+      setIdx((prev) => (prev + delta + total) % total);
+    },
+    [total],
+  );
+
+  useEffect(() => {
+    if (!hovered) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowLeft") {
+        move(-1);
+        e.preventDefault();
+      } else if (e.key === "ArrowRight") {
+        move(1);
+        e.preventDefault();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [hovered, move]);
+
+  if (state.kind === "loading") {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text="reading elements…" kind="loading" />
+      </div>
+    );
+  }
+  if (state.kind === "err") {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text={`summary failed: ${state.message}`} kind="error" />
+      </div>
+    );
+  }
+  if (state.elements.length === 0) {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text="no elements" kind="info" />
+      </div>
+    );
+  }
+
+  const safeIdx = Math.min(idx, state.elements.length - 1);
+  const currentName = state.elements[safeIdx];
+  const dirBase = baseUrl.replace(/\/$/, "");
+  const elementUrl = `${dirBase}/${encodePathSegments(currentName)}`;
+  const isSingle = state.elements.length === 1;
+
+  return (
+    <div
+      ref={wrapperRef}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      data-hl-arrayed-paginator=""
+      data-hl-arrayed-count={state.elements.length}
+      style={{
+        ...PREVIEW_SHELL,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          fontSize: 11,
+          fontFamily: "var(--font-mono)",
+          fontVariantNumeric: "tabular-nums",
+          color: "var(--text-on-dark)",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => move(-1)}
+          disabled={isSingle}
+          aria-label="previous element"
+          className="nodrag nopan"
+          style={pagerBtnStyle(isSingle)}
+        >
+          ‹
+        </button>
+        <div
+          title={currentName}
+          data-hl-arrayed-current={currentName}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "baseline",
+            gap: 8,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              minWidth: 0,
+            }}
+          >
+            {currentName}
+          </span>
+          <span style={{ color: "var(--inverse-muted)" }}>
+            {safeIdx + 1} / {state.elements.length}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => move(1)}
+          disabled={isSingle}
+          aria-label="next element"
+          className="nodrag nopan"
+          style={pagerBtnStyle(isSingle)}
+        >
+          ›
+        </button>
+      </div>
+      {/* Keying by element name so React remounts the scalar viewer on
+          selection change — cheap, and avoids stale-fetch races inside
+          the wrapped viewer's own useEffect. */}
+      <div key={currentName}>{renderScalar(elementUrl)}</div>
+    </div>
+  );
+}
+
+function pagerBtnStyle(disabled: boolean): React.CSSProperties {
+  return {
+    appearance: "none",
+    border: "1px solid var(--border-strong)",
+    background: "transparent",
+    color: disabled ? "var(--inverse-muted)" : "var(--text-on-dark)",
+    borderRadius: "var(--radius-sm)",
+    width: 22,
+    height: 20,
+    lineHeight: "18px",
+    padding: 0,
+    fontFamily: "inherit",
+    fontSize: 13,
+    cursor: disabled ? "default" : "pointer",
+    opacity: disabled ? 0.4 : 1,
+  };
 }
