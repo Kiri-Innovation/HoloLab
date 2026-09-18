@@ -195,7 +195,7 @@ function RunListView({
           />
           <div style={{ flex: 1 }}>
             <span style={{ fontWeight: 600, color: "var(--text)" }}>草稿有结构改动</span>
-            <span style={{ marginLeft: 5, color: "var(--text-muted)" }}>· 待运行</span>
+            <span style={{ marginLeft: 5, color: "var(--text-muted)" }}>· 运行将创建新快照</span>
           </div>
           <button
             type="button"

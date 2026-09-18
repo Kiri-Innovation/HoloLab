@@ -57,9 +57,9 @@ def test_structural_change_label(bundle_js: str) -> None:
     assert "草稿有结构改动" in bundle_js
 
 
-def test_pending_run_copy(bundle_js: str) -> None:
-    """Sentinel sub-label: 「待运行」."""
-    assert "待运行" in bundle_js
+def test_fork_consequence_copy(bundle_js: str) -> None:
+    """Sentinel sub-label states the consequence: 「运行将创建新快照」."""
+    assert "运行将创建新快照" in bundle_js
 
 
 # ---------------------------------------------------------------------------
