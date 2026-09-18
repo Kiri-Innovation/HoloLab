@@ -9,6 +9,7 @@ description: >
   ``point_triangulator`` with frozen intrinsics, and emits
   ``colmap-points`` (points3D.txt). ``arrayable: true`` — one shard per
   frame when the operator turns the checkbox on.
+source_entry: triangulate.py
 category: "reconstruction/colmap"
 
 docs: |
@@ -28,12 +29,24 @@ docs: |
   this candidate rig calibration triangulate?"). The user's product code
   wants the deterministic production wrapper.
 
-  Prior model wiring: each shard reads ``cameras.txt`` + ``images.txt``
-  from the ``cams`` input verbatim, touches an empty ``points3D.txt`` for
-  the prior directory, extracts features on the shard's images, matches
-  exhaustively, then runs ``point_triangulator`` with intrinsics frozen
-  and a 4 px default reprojection filter (the validated flag set from
-  ``rig_triangulate.py``).
+  ### Rig-consistency fix (COLMAP 3.11+)
+
+  ``point_triangulator``'s ``Reconstruction::Load(database_cache)`` checks
+  ``existing_frame.RigId() == frame.RigId()`` on every frame. Under the
+  default one-rig-per-camera / one-frame-per-image convention that reduces
+  to *"for each DB ``image_id`` X, the prior's ``image_id`` X must reference
+  the same ``camera_id``."* SQLite auto-increments IDs in row-insertion
+  order and the extractor's reader threads insert in a non-deterministic
+  order, so mechanically copying the SfM's ``cameras.txt`` / ``images.txt``
+  into the prior fails on most shards (and even the SfM's own shard, by
+  luck alone).
+
+  ``triangulate.py`` follows the same pattern as ``rig_triangulate.py``:
+  run ``feature_extractor`` first, query the fresh DB's assigned
+  ``(image_id, name, camera_id)``, then synthesise a prior model whose IDs
+  are aligned with the DB by construction — intrinsics and poses looked up
+  from the SfM output via the per-camera key extracted from the resolved
+  image path (grandparent folder in the ``regroup-by-frame`` layout).
 
   Output layout::
 
@@ -93,76 +106,15 @@ runtime:
 exec:
   shell: |
     set -euo pipefail
-    CAMS_DIR="{{ inputs.cams }}"
-    IMG_DIR="{{ inputs.frames }}/frames"
-    OUT="{{ outputs.points }}"
-    DB="{{ scratch_dir }}/database.db"
-    PRIOR="{{ scratch_dir }}/prior"
-    SPARSE="{{ scratch_dir }}/sparse"
-
-    if [ ! -f "$CAMS_DIR/cameras.txt" ] || [ ! -f "$CAMS_DIR/images.txt" ]; then
-      echo "ERROR: cams input missing cameras.txt / images.txt under $CAMS_DIR" >&2
-      exit 2
-    fi
-    if [ ! -d "$IMG_DIR" ]; then
-      echo "ERROR: frames input missing frames/ subdir: $IMG_DIR" >&2
-      exit 2
-    fi
-
-    mkdir -p "$OUT" "$PRIOR" "$SPARSE"
-
-    # Prior = the caller's cameras.txt + images.txt + an empty points3D.txt
-    # (COLMAP's point_triangulator refuses to start without the file).
-    # DELIBERATELY don't ship rigs.txt/frames.txt from the SfM run: COLMAP
-    # 3.11+ enforces ``existing_frame.RigId() == frame.RigId()`` — the SfM's
-    # rig assignments are for the SfM's DB, and we're building a fresh DB
-    # here (each shard has different pixel content for frames != 0, so the
-    # SfM's descriptors don't apply). Without a prior rig assignment,
-    # feature_extractor's default one-camera-per-image rigs win and the
-    # check passes.
-    cp "$CAMS_DIR/cameras.txt" "$PRIOR/cameras.txt"
-    cp "$CAMS_DIR/images.txt"  "$PRIOR/images.txt"
-    : > "$PRIOR/points3D.txt"
-
-    echo "[colmap-triangulate] feature_extractor"
-    colmap feature_extractor \
-      --database_path "$DB" \
-      --image_path "$IMG_DIR" \
-      --SiftExtraction.max_image_size {{ params.max_image_size }} \
-      --SiftExtraction.max_num_features {{ params.max_num_features }} \
-      --FeatureExtraction.use_gpu {{ params.use_gpu }}
-
-    echo "[colmap-triangulate] exhaustive_matcher"
-    colmap exhaustive_matcher \
-      --database_path "$DB" \
-      --FeatureMatching.use_gpu {{ params.use_gpu }} \
-      --FeatureMatching.guided_matching 1
-
-    echo "[colmap-triangulate] point_triangulator (frozen intrinsics)"
-    colmap point_triangulator \
-      --database_path "$DB" \
-      --image_path "$IMG_DIR" \
-      --input_path "$PRIOR" \
-      --output_path "$SPARSE" \
-      --clear_points 1 \
-      --Mapper.num_threads 1 \
-      --Mapper.ba_refine_focal_length 0 \
-      --Mapper.ba_refine_principal_point 0 \
-      --Mapper.ba_refine_extra_params 0 \
-      --Mapper.filter_max_reproj_error {{ params.filter_max_reproj_error }}
-
-    echo "[colmap-triangulate] model_converter → TXT"
-    colmap model_converter \
-      --input_path "$SPARSE" \
-      --output_path "$OUT" \
-      --output_type TXT
-
-    # Cams came from upstream; downstream keeps reading them from ``cams``.
-    rm -f "$OUT/cameras.txt" "$OUT/images.txt"
-
-    test -s "$OUT/points3D.txt" || { echo "no points3D.txt produced" >&2; exit 4; }
-    echo "[colmap-triangulate] done → $OUT"
+    python "{{ pack_dir }}/triangulate.py" \
+      --cams "{{ inputs.cams }}" \
+      --image-path "{{ inputs.frames }}/frames" \
+      --output "{{ outputs.points }}" \
+      --scratch "{{ scratch_dir }}" \
+      --use-gpu {{ params.use_gpu }} \
+      --max-image-size {{ params.max_image_size }} \
+      --max-num-features {{ params.max_num_features }} \
+      --filter-max-reproj-error {{ params.filter_max_reproj_error }}
 
 idempotency:
   marker: "{{ outputs.points }}/.hololab-done"
-
