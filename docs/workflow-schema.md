@@ -136,6 +136,26 @@ what a downstream job would actually consume? If yes → structural
 (V8 says "change on the draft → re-run Forks a new snapshot"). If no
 → cosmetic (change is safe to persist without invalidating history).
 
+### Draft-modified badge
+
+The canvas toolbar compares the in-memory draft graph against the frozen graph
+of the workflow's most recent snapshot (structural fields only — `position` and
+`preview_open` are excluded). When they differ it shows a small badge near the
+Run button:
+
+> **已修改 · 运行将创建新快照**
+
+The badge is purely informational — it does not change what Run does. Fork
+semantics already guarantee that a structurally different draft will always
+produce a new snapshot. The badge just surfaces this consequence proactively so
+the operator isn't surprised to see a new snapshot row after editing the graph.
+
+The comparison runs entirely in the frontend (`graphStructuralKey` in
+`App.tsx`); no new backend field or API call is needed. The badge disappears
+automatically as soon as a successful Run completes (the new snapshot graph is
+stored in `latestSnapshotGraph`) or when the workflow is reloaded (the
+hydration block sets it from the first run in `listWorkflowRuns`).
+
 ### Cosmetic patch endpoints
 
 Two endpoints let clients update cosmetic fields without touching the

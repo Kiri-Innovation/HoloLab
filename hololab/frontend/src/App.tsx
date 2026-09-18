@@ -159,6 +159,23 @@ export default function App() {
   );
 }
 
+// Canonical structural fingerprint of a graph — strips cosmetic fields
+// (position, preview_open) and produces a stable JSON string for equality
+// checks. Used by the draft-modified badge.
+function graphStructuralKey(g: WorkflowGraph): string {
+  const nodes = [...g.nodes]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map(({ id, algorithm_name, algorithm_version, params, assigned_node_id }) => ({
+      id,
+      algorithm_name,
+      algorithm_version,
+      params,
+      assigned_node_id,
+    }));
+  const edges = [...g.edges].sort((a, b) => a.id.localeCompare(b.id));
+  return JSON.stringify({ nodes, edges });
+}
+
 interface AppInnerProps {
   // The workflow the router asked us to open. On mount we fetch it and
   // populate the canvas; if the id is unknown we surface an inline
@@ -412,6 +429,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   >(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<AlgorithmNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  // Frozen graph from the most-recent snapshot. Null when no snapshot exists
+  // yet. Used by isDraftModified to show the "已修改 · 运行将创建新快照" badge.
+  const [latestSnapshotGraph, setLatestSnapshotGraph] = useState<WorkflowGraph | null>(
+    null,
+  );
 
   const catalogByKey = useMemo(() => {
     const m = new Map<string, CatalogPack>();
@@ -810,6 +832,17 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     return JSON.stringify({ name: workflowName, graph: toGraph() });
   }, [catalog.length, viewingSnapshot, workflowName, toGraph]);
 
+  // True when the in-memory draft graph structurally differs from the latest
+  // snapshot (structural = nodes/algorithm/params/assigned_node_id + edges;
+  // position and preview_open are cosmetic and don't count as changes).
+  const isDraftModified = useMemo(
+    () =>
+      workflowId !== null &&
+      latestSnapshotGraph !== null &&
+      graphStructuralKey(toGraph()) !== graphStructuralKey(latestSnapshotGraph),
+    [workflowId, latestSnapshotGraph, toGraph],
+  );
+
   const autosave = useDraftAutosave({
     serialisedSnapshot: autosaveSnapshot,
     enabled: !viewingSnapshot,
@@ -853,7 +886,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           })
         ).workflow_id;
       setWorkflowId(wid);
-      await runWorkflow(wid);
+      const runResult = await runWorkflow(wid);
+      // Snapshot was just created from the current draft. Fetch the
+      // frozen graph so the draft-modified badge clears immediately
+      // after a successful run.
+      void getSnapshot(runResult.snapshot_id).then(
+        (snap) => setLatestSnapshotGraph(snap.graph),
+      ).catch(() => {/* best-effort; hydration on next load will fix */});
     } catch (e) {
       if (
         e instanceof ApiError &&
@@ -926,6 +965,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       setWorkflowId(w.workflow_id);
       setWorkflowName(w.name);
       fromGraph(w.graph);
+      setLatestSnapshotGraph(null); // reset until hydration fills it in
       window.history.replaceState(null, "", `#w=${w.workflow_id}`);
 
       // Draft-view "carry the last run" hydration (ComfyUI-style):
@@ -963,8 +1003,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           const doneFilledGnids = new Set<string>();
           const anyFilledGnids = new Set<string>();
           const MAX_RUNS_TO_WALK = 8;
+          let seenFirstSnap = false;
           for (const run of runs.slice(0, MAX_RUNS_TO_WALK)) {
             const snap = await getSnapshot(run.snapshot_id);
+            // runs is newest-first; the very first snapshot we fetch is
+            // the latest one — store its graph for the draft-modified badge.
+            if (!seenFirstSnap) {
+              setLatestSnapshotGraph(snap.graph);
+              seenFirstSnap = true;
+            }
             // Inside one snapshot the jobs come oldest-first; iterate
             // newest-first so a later done attempt at the same slot
             // wins over an earlier failed one.
@@ -1103,6 +1150,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           onExitToGallery={onExitToGallery}
           saveStatus={autosave.status}
           onSaveRetry={autosave.save}
+          draftModified={isDraftModified}
         />
       </div>
 

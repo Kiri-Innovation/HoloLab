@@ -29,6 +29,10 @@ export interface WorkflowToolbarProps {
   // Autosave status + retry hook (see ``useDraftAutosave``).
   saveStatus: SaveStatus;
   onSaveRetry: () => Promise<void>;
+  // True when the in-memory draft structurally differs from the latest
+  // snapshot. Renders a badge near the Run button to signal that clicking
+  // Run will Fork a new snapshot. Hidden when false.
+  draftModified?: boolean;
 }
 
 export function WorkflowToolbar({
@@ -42,6 +46,7 @@ export function WorkflowToolbar({
   onExitToGallery,
   saveStatus,
   onSaveRetry,
+  draftModified = false,
 }: WorkflowToolbarProps) {
   const [message, setMessage] = useState<string>("");
   const [messageColour, setMessageColour] = useState<string>("var(--text-muted)");
@@ -179,6 +184,19 @@ export function WorkflowToolbar({
           void onSaveRetry();
         }}
       />
+      {draftModified && (
+        <span
+          data-hl-draft-modified=""
+          title="Draft has structural changes since the last snapshot. Running will fork a new snapshot."
+          style={{
+            fontSize: "var(--fs-xs)",
+            color: "var(--warning, #c8a200)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          已修改 · 运行将创建新快照
+        </span>
+      )}
       <button
         style={{ ...PRIMARY_CONTROL_STYLE, opacity: running ? 0.7 : 1 }}
         onClick={doRun}
