@@ -47,11 +47,19 @@ class RenderContext:
     scratch_dir: str = ""
     job_id: str = ""
     workflow_id: str = ""
+    # Populated only for shard jobs (arrayed<T> fan-out). Exposes
+    # ``{{ shard.element_id }}`` and ``{{ shard.index }}`` to the pack's
+    # shell so a per-shard log line or debug artifact can be labelled
+    # with its element. Empty strings for non-shard jobs — templates
+    # that reference them on a non-shard job intentionally fail loud
+    # (StrictUndefined semantics) so a pack doesn't silently mislabel.
+    shard_element_id: str = ""
+    shard_index: int = 0
 
     def to_bindings(self) -> dict[str, Any]:
         """Flatten to Jinja2 context (nested dicts for dot access)."""
 
-        return {
+        bindings: dict[str, Any] = {
             "inputs": dict(self.inputs),
             "outputs": dict(self.outputs),
             "params": dict(self.params),
@@ -61,6 +69,15 @@ class RenderContext:
             "job_id": self.job_id,
             "workflow_id": self.workflow_id,
         }
+        # Only expose ``shard.*`` when it's meaningful. StrictUndefined
+        # turns a stray ``{{ shard.element_id }}`` on a non-shard job
+        # into an explicit template error rather than an empty string.
+        if self.shard_element_id:
+            bindings["shard"] = {
+                "element_id": self.shard_element_id,
+                "index": self.shard_index,
+            }
+        return bindings
 
 
 # ``StrictUndefined`` turns typos into loud errors ("params.foo is undefined")
@@ -136,14 +153,34 @@ def render_manifest(manifest: Manifest, ctx: RenderContext) -> RenderedManifest:
 
 
 def rendered_output_paths(
-    manifest: Manifest, workspace_root: Path, workflow_id: str, job_id: str
+    manifest: Manifest,
+    workspace_root: Path,
+    workflow_id: str,
+    job_id: str,
+    *,
+    shard_output_prefix: str | None = None,
+    shard_element_id: str | None = None,
 ) -> dict[str, str]:
     """Compute the conventional output directory for each declared output.
 
-    The convention is ``{workspace_root}/w/{workflow_id}/j/{job_id}/{output_name}/``.
-    Node materializes these before executing the command; the manifest sees
-    them via ``outputs.<name>``.
+    Regular jobs land at ``{workspace_root}/w/{workflow_id}/j/{job_id}/{output_name}/``.
+
+    Shard jobs (arrayed<T> fan-out, both shard args set) redirect their
+    outputs to ``{shard_output_prefix}/{output_name}/{shard_element_id}/``
+    — the parent job's workspace, keyed by element. All shards writing
+    into the same parent workspace makes the parent's aggregate output
+    directory ``{shard_output_prefix}/{output_name}/`` naturally
+    accumulate every element's subdir as shards complete; the gateway
+    then registers one output handle pointing at that parent aggregate
+    dir. See docs/pack-spec.md#arrayed-and-arrayable.
+
+    Node materializes these before executing the command; the manifest
+    sees them via ``outputs.<name>``.
     """
+
+    if shard_output_prefix is not None and shard_element_id is not None:
+        base = Path(shard_output_prefix)
+        return {name: str(base / name / shard_element_id) for name in manifest.outputs}
 
     base = workspace_root / "w" / workflow_id / "j" / job_id
     return {name: str(base / name) for name in manifest.outputs}

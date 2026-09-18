@@ -333,6 +333,35 @@ MIGRATIONS.append(
 )
 
 
+# V10: arrayed<T> fan-out — a graph node whose pack is ``arrayable`` and
+# whose ``arrayed_toggle`` is on becomes one *parent* job + N *shard* jobs,
+# one per element of its arrayed inputs. Both new columns are additive and
+# NULL for every existing row (regular non-fan-out jobs).
+#
+# ``parent_job_id``  — set on shard jobs; points at the parent job row.
+#                       NULL on parent jobs and on regular jobs.
+# ``shard_element_id`` — set on shard jobs; the sorted subdir name
+#                       (element key) this shard is processing.
+#
+# The parent job never dispatches to a compute node — the framework runs it
+# as a coordinator that fans-out to shards and aggregates their registered
+# handles into one parent output handle. Sequential in v1 (parallelism knob
+# is a follow-up).
+#
+# Indexed on parent_job_id so the "shards of this parent" query the
+# scheduler runs on every fan-in doesn't scan the whole table.
+MIGRATIONS.append(
+    (
+        10,
+        """
+        ALTER TABLE jobs ADD COLUMN parent_job_id TEXT;
+        ALTER TABLE jobs ADD COLUMN shard_element_id TEXT;
+        CREATE INDEX IF NOT EXISTS ix_jobs_parent ON jobs(parent_job_id);
+        """,
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

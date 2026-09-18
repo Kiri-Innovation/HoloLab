@@ -29,7 +29,6 @@ from hololab.gateway.tag_viewers import (
     infer_preview_for_output,
 )
 
-
 # ---------------------------------------------------------------------------
 # summarize_handle — pure function on a Handle + real file on disk.
 # ---------------------------------------------------------------------------

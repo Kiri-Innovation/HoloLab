@@ -595,8 +595,9 @@ class JobsStore:
                     (job_id, snapshot_id, workflow_id, node_id, graph_node_id,
                      algorithm_name, algorithm_version, params_json, input_handles_json,
                      state, progress_current, progress_total, fail_reason, fail_exit_code,
-                     fail_message, created_ts, updated_ts, reused_from_job_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     fail_message, created_ts, updated_ts, reused_from_job_id,
+                     parent_job_id, shard_element_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job.job_id,
@@ -617,6 +618,8 @@ class JobsStore:
                     job.created_ts,
                     job.updated_ts,
                     job.reused_from_job_id,
+                    job.parent_job_id,
+                    job.shard_element_id,
                 ),
             )
             await conn.execute(
@@ -703,7 +706,8 @@ class JobsStore:
                 SELECT job_id, snapshot_id, workflow_id, node_id, graph_node_id,
                        algorithm_name, algorithm_version, params_json, input_handles_json,
                        state, progress_current, progress_total, fail_reason, fail_exit_code,
-                       fail_message, created_ts, updated_ts, reused_from_job_id
+                       fail_message, created_ts, updated_ts, reused_from_job_id,
+                       parent_job_id, shard_element_id
                 FROM jobs WHERE job_id=?
                 """,
                 (job_id,),
@@ -732,7 +736,65 @@ class JobsStore:
             created_ts=row[15],
             updated_ts=row[16],
             reused_from_job_id=row[17],
+            parent_job_id=row[18],
+            shard_element_id=row[19],
         )
+
+    async def list_shards_of(self, parent_job_id: str) -> list[Job]:  # noqa: F821
+        """Return every shard job attributed to the given parent, oldest first.
+
+        Used by the fan-in step of arrayed<T> fan-out to collect all shard
+        outputs before registering the aggregate parent handle. Ordered by
+        ``created_ts`` so the shard list mirrors the sequential dispatch
+        order the scheduler produced.
+        """
+
+        from hololab.gateway.jobs import Job, JobState
+        from hololab.protocol.messages import JobFailReason
+
+        async with (
+            self._db.read() as conn,
+            conn.execute(
+                """
+                SELECT job_id, snapshot_id, workflow_id, node_id, graph_node_id,
+                       algorithm_name, algorithm_version, params_json, input_handles_json,
+                       state, progress_current, progress_total, fail_reason, fail_exit_code,
+                       fail_message, created_ts, updated_ts, reused_from_job_id,
+                       parent_job_id, shard_element_id
+                FROM jobs
+                WHERE parent_job_id=?
+                ORDER BY created_ts ASC
+                """,
+                (parent_job_id,),
+            ) as cur,
+        ):
+            rows = await cur.fetchall()
+
+        return [
+            Job(
+                job_id=r[0],
+                snapshot_id=r[1],
+                workflow_id=r[2],
+                node_id=r[3],
+                graph_node_id=r[4],
+                algorithm_name=r[5],
+                algorithm_version=r[6],
+                params=json.loads(r[7]),
+                input_handles=json.loads(r[8]),
+                state=JobState(r[9]),
+                progress_current=r[10],
+                progress_total=r[11],
+                fail_reason=JobFailReason(r[12]) if r[12] else None,
+                fail_exit_code=r[13],
+                fail_message=r[14],
+                created_ts=r[15],
+                updated_ts=r[16],
+                reused_from_job_id=r[17],
+                parent_job_id=r[18],
+                shard_element_id=r[19],
+            )
+            for r in rows
+        ]
 
     async def list_recent(
         self,

@@ -10,6 +10,15 @@ runs one snapshot per call; multiple runs against the same gateway are fine
 because each ``run_snapshot`` is a bounded coroutine and holds no global
 state beyond the DB writes it makes.
 
+arrayed<T> fan-out (M3): when a graph node's pack is ``arrayable`` and the
+per-node ``arrayed_toggle`` is on, the executor forks the single dispatch
+into N sequential shard jobs — one per element of the arrayed inputs —
+under a coordinator "parent" job. All shards write into the parent's
+workspace keyed by element_id, so the aggregate output directory grows
+naturally as shards complete; the gateway registers one output handle
+per port pointing at the aggregate dir. v1 is sequential + all-or-nothing:
+any shard failure marks the parent failed and skips remaining shards.
+
 Not covered here (see ``docs/workflow-schema.md#non-goals``): parallel
 branches, retries, rerun-with-changes.
 """
@@ -17,22 +26,25 @@ branches, retries, rerun-with-changes.
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
 
-from hololab.gateway.handles import HandleBook
+from hololab.gateway.handles import Handle, HandleBook
 from hololab.gateway.hub import FrontendHub
 from hololab.gateway.jobs import Job, JobState, JobStateMachine, event_from_transition
 from hololab.gateway.registry import JobsStore, NodeRegistry, SnapshotJobsStore
 from hololab.gateway.workflows import (
     GraphNode,
     WorkflowGraph,
+    effective_port_arrayed,
     topological_order,
 )
 from hololab.logging import get_logger
-from hololab.protocol import JobAssign, encode
+from hololab.protocol import JobAssign, JobFailReason, encode
 
 log = get_logger("gateway.exec")
 
@@ -72,6 +84,15 @@ async def run_snapshot(
     hub: FrontendHub = app.state.hub
     snapshot_jobs: SnapshotJobsStore = app.state.snapshot_jobs
 
+    # Lazy pack-catalog lookup — we only need it to check arrayable + per-port
+    # arrayed flags for fan-out decisions. Built once per run, keyed by
+    # (name, version), pointing at the raw catalog dicts. The catalog only
+    # sees currently-connected nodes, which is exactly what snapshot
+    # validation already required upstream.
+    catalog_by_key: dict[tuple[str, str], dict[str, Any]] = {
+        (c["name"], c["version"]): c for c in registry.catalog_json()
+    }
+
     skip = set(skip_graph_nodes or ())
     outputs_by_graph_node: dict[str, dict[str, str]] = dict(seed_outputs or {})
     job_ids: list[str] = []
@@ -85,6 +106,28 @@ async def run_snapshot(
             input_handles = _wire_inputs(gnode, graph, outputs_by_graph_node)
         except WorkflowRunError:
             raise
+
+        pack_entry = catalog_by_key.get((gnode.algorithm_name, gnode.algorithm_version))
+        needs_fanout = bool(
+            gnode.arrayed_toggle
+            and pack_entry is not None
+            and pack_entry.get("arrayable", False)
+        )
+
+        if needs_fanout:
+            parent_job_id, parent_outputs = await _run_fanout_node(
+                app,
+                snapshot_id=snapshot_id,
+                workflow_id=workflow_id,
+                gnode=gnode,
+                pack_entry=pack_entry,
+                input_handles=input_handles,
+                job_timeout_s=job_timeout_s,
+            )
+            job_ids.append(parent_job_id)
+            await snapshot_jobs.attribute(snapshot_id, parent_job_id, graph_node_id)
+            outputs_by_graph_node[graph_node_id] = parent_outputs
+            continue
 
         job_id = await _dispatch_job(
             registry=registry,
@@ -115,6 +158,375 @@ async def run_snapshot(
         outputs_by_graph_node[graph_node_id] = await _collect_output_handles(handles, job_id)
 
     return job_ids
+
+
+# ---------------------------------------------------------------------------
+# arrayed<T> fan-out (M3)
+# ---------------------------------------------------------------------------
+
+
+async def _run_fanout_node(
+    app: FastAPI,
+    *,
+    snapshot_id: str,
+    workflow_id: str,
+    gnode: GraphNode,
+    pack_entry: dict[str, Any],
+    input_handles: dict[str, str],
+    job_timeout_s: float,
+) -> tuple[str, dict[str, str]]:
+    """Execute one arrayable graph node via sequential shard fan-out.
+
+    Returns ``(parent_job_id, {port -> aggregate_handle_id})``. The parent
+    row is created in PENDING → RUNNING → DONE|FAILED. Shard rows carry
+    ``parent_job_id`` + ``shard_element_id``; each writes into the parent's
+    workspace at ``{parent_ws}/{port}/{element_id}/``.
+
+    Failure model (v1): sequential + all-or-nothing. If a shard fails, we
+    do not create the remaining shards, mark the parent FAILED with a
+    reason that names the failing element, and raise ``WorkflowRunError``.
+    """
+
+    registry: NodeRegistry = app.state.registry
+    store: JobsStore = app.state.jobs_store
+    handles: HandleBook = app.state.handles
+    hub: FrontendHub = app.state.hub
+
+    assert gnode.assigned_node_id is not None
+    session = registry.get_session(gnode.assigned_node_id)
+    if session is None:
+        raise WorkflowRunError(
+            f"assigned compute node {gnode.assigned_node_id!r} is no longer connected"
+        )
+    if session.workspace_root is None:
+        raise WorkflowRunError(
+            f"compute node {gnode.assigned_node_id!r} has no known workspace_root — "
+            "cannot compute shard output prefix for fan-out"
+        )
+
+    # -- Classify inputs: arrayed vs scalar --------------------------------
+    pack_inputs: dict[str, dict[str, Any]] = pack_entry.get("inputs", {})
+    pack_outputs: dict[str, dict[str, Any]] = pack_entry.get("outputs", {})
+    arrayable = bool(pack_entry.get("arrayable", False))
+
+    arrayed_input_ports = [
+        port
+        for port, spec in pack_inputs.items()
+        if effective_port_arrayed(bool(spec.get("arrayed", False)), arrayable, True)
+    ]
+    if not arrayed_input_ports:
+        # An arrayable node with the toggle on but no arrayed inputs — no
+        # element set to iterate. Treat as a validation error rather than
+        # silently produce zero shards.
+        raise WorkflowRunError(
+            f"graph node {gnode.id!r} has arrayed_toggle on but its pack "
+            f"declares no arrayed inputs — nothing to fan out over"
+        )
+
+    # -- Discover element set from every arrayed input ---------------------
+    element_ids = await _discover_element_ids(
+        handles=handles,
+        input_handles=input_handles,
+        arrayed_input_ports=arrayed_input_ports,
+    )
+
+    # -- Create the parent job row (coordinator, no dispatch) --------------
+    parent_job = Job(
+        job_id=str(uuid.uuid4()),
+        workflow_id=workflow_id,
+        snapshot_id=snapshot_id,
+        algorithm_name=gnode.algorithm_name,
+        algorithm_version=gnode.algorithm_version,
+        params=dict(gnode.params),
+        input_handles=input_handles,
+        graph_node_id=gnode.id,
+        state=JobState.PENDING,
+        node_id=session.node_id,
+    )
+    await store.create(parent_job)
+    _push_update(hub, parent_job)
+
+    # Parent workspace path — shards write into
+    # ``{parent_ws}/{port}/{element_id}/`` via the shard_output_prefix override.
+    parent_ws = str(
+        Path(session.workspace_root) / "w" / workflow_id / "j" / parent_job.job_id
+    )
+
+    log.info(
+        "fanout begin",
+        parent_job_id=parent_job.job_id,
+        graph_node=gnode.id,
+        pack=f"{gnode.algorithm_name}@{gnode.algorithm_version}",
+        element_count=len(element_ids),
+        compute_node=session.node_id,
+    )
+
+    # Transition parent to RUNNING so the frontend sees a live indicator
+    # while shards execute. We use ASSIGNED as an intermediate since the
+    # state machine requires it.
+    parent_assigned = JobStateMachine.transition(
+        parent_job, JobState.ASSIGNED, node_id=session.node_id
+    )
+    _, payload = event_from_transition(parent_job, parent_assigned)
+    await store.update(parent_assigned, "transition:assigned", payload)
+    _push_update(hub, parent_assigned)
+    parent_running = JobStateMachine.transition(parent_assigned, JobState.RUNNING)
+    _, payload = event_from_transition(parent_assigned, parent_running)
+    await store.update(parent_running, "transition:running", payload)
+    _push_update(hub, parent_running)
+
+    # -- Dispatch shards sequentially --------------------------------------
+    for idx, element_id in enumerate(element_ids):
+        shard_inputs = await _shard_input_handles(
+            handles=handles,
+            input_handles=input_handles,
+            arrayed_input_ports=arrayed_input_ports,
+            element_id=element_id,
+            producer_node_id=session.node_id,
+        )
+        shard_job_id = await _dispatch_shard(
+            registry=registry,
+            store=store,
+            hub=hub,
+            snapshot_id=snapshot_id,
+            workflow_id=workflow_id,
+            gnode=gnode,
+            parent_job_id=parent_job.job_id,
+            shard_element_id=element_id,
+            shard_input_handles=shard_inputs,
+            shard_output_prefix=parent_ws,
+        )
+        final = await _await_job_terminal(store, shard_job_id, timeout_s=job_timeout_s)
+        if final.state is not JobState.DONE:
+            reason = f"shard {idx} (element {element_id!r}) finished {final.state.value}"
+            if final.fail_message:
+                reason += f": {final.fail_message}"
+            await _mark_parent_failed(store, hub, parent_running, reason=reason)
+            raise WorkflowRunError(
+                f"fanout for graph node {gnode.id!r}: {reason}"
+            )
+
+    # -- Fan-in: register one aggregate output handle per output port ------
+    parent_outputs: dict[str, str] = {}
+    for port_name, spec in pack_outputs.items():
+        aggregate_path = str(Path(parent_ws) / port_name)
+        try:
+            size_bytes = _dir_size_bytes(Path(aggregate_path))
+        except OSError:
+            size_bytes = None
+        aggregate = Handle(
+            handle_id=str(uuid.uuid4()),
+            node_id=session.node_id,
+            storage=spec.get("storage", "dir"),
+            tags=list(spec.get("tags", [])),
+            path=aggregate_path,
+            size_bytes=size_bytes,
+            job_id=parent_job.job_id,
+            output_port_name=port_name,
+        )
+        await handles.register(aggregate)
+        parent_outputs[port_name] = aggregate.handle_id
+
+    # -- Parent → DONE ------------------------------------------------------
+    parent_done = JobStateMachine.transition(parent_running, JobState.DONE)
+    _, payload = event_from_transition(parent_running, parent_done)
+    await store.update(parent_done, "transition:done", payload)
+    _push_update(hub, parent_done)
+    log.info(
+        "fanout done",
+        parent_job_id=parent_job.job_id,
+        graph_node=gnode.id,
+        element_count=len(element_ids),
+    )
+    return parent_job.job_id, parent_outputs
+
+
+async def _discover_element_ids(
+    *,
+    handles: HandleBook,
+    input_handles: dict[str, str],
+    arrayed_input_ports: list[str],
+) -> list[str]:
+    """Return the sorted element list. Rejects mismatched sets across ports."""
+
+    sets_by_port: dict[str, list[str]] = {}
+    for port in arrayed_input_ports:
+        handle_id = input_handles.get(port)
+        if handle_id is None:
+            raise WorkflowRunError(
+                f"arrayed input {port!r} is not wired — cannot enumerate elements"
+            )
+        h = await handles.get(handle_id)
+        if h is None:
+            raise WorkflowRunError(
+                f"arrayed input handle {handle_id!r} for port {port!r} is not registered"
+            )
+        try:
+            entries = sorted(os.listdir(h.path))
+        except OSError as exc:
+            raise WorkflowRunError(
+                f"cannot list arrayed input {port!r} ({h.path}): {exc}"
+            ) from exc
+        sets_by_port[port] = entries
+
+    reference_port, reference = next(iter(sets_by_port.items()))
+    for port, entries in sets_by_port.items():
+        if entries != reference:
+            raise WorkflowRunError(
+                f"arrayed inputs disagree on element set: {reference_port!r}={reference} "
+                f"vs {port!r}={entries}"
+            )
+    return reference
+
+
+async def _shard_input_handles(
+    *,
+    handles: HandleBook,
+    input_handles: dict[str, str],
+    arrayed_input_ports: list[str],
+    element_id: str,
+    producer_node_id: str,
+) -> dict[str, str]:
+    """Build one shard's ``input_handles`` map.
+
+    For each arrayed input port we register a *synthetic sub-handle* whose
+    path is the parent handle's path joined with the element_id. Same-node
+    handle_locate short-circuits to the local path, so no cross-node
+    transport is needed. Non-arrayed inputs are passed through unchanged.
+
+    The synthetic handle rows are transient bookkeeping — they inherit tags
+    and storage from the parent handle. They are not registered against any
+    job (``job_id`` NULL) so they don't pollute per-job artifact accounting.
+    """
+
+    shard_inputs: dict[str, str] = {}
+    for port, handle_id in input_handles.items():
+        if port not in arrayed_input_ports:
+            shard_inputs[port] = handle_id
+            continue
+        parent_handle = await handles.get(handle_id)
+        if parent_handle is None:
+            raise WorkflowRunError(
+                f"arrayed input handle {handle_id!r} for port {port!r} not registered"
+            )
+        sub_path = str(Path(parent_handle.path) / element_id)
+        sub_handle = Handle(
+            handle_id=str(uuid.uuid4()),
+            node_id=producer_node_id,
+            storage=parent_handle.storage,
+            tags=list(parent_handle.tags),
+            path=sub_path,
+            size_bytes=None,
+            job_id=None,
+            output_port_name=None,
+        )
+        await handles.register(sub_handle)
+        shard_inputs[port] = sub_handle.handle_id
+    return shard_inputs
+
+
+async def _dispatch_shard(
+    *,
+    registry: NodeRegistry,
+    store: JobsStore,
+    hub: FrontendHub,
+    snapshot_id: str,
+    workflow_id: str,
+    gnode: GraphNode,
+    parent_job_id: str,
+    shard_element_id: str,
+    shard_input_handles: dict[str, str],
+    shard_output_prefix: str,
+) -> str:
+    """Create one shard job row and send its JobAssign to the compute node."""
+
+    assert gnode.assigned_node_id is not None
+    session = registry.get_session(gnode.assigned_node_id)
+    if session is None:
+        raise WorkflowRunError(
+            f"assigned compute node {gnode.assigned_node_id!r} dropped mid-fanout"
+        )
+
+    shard = Job(
+        job_id=str(uuid.uuid4()),
+        workflow_id=workflow_id,
+        snapshot_id=snapshot_id,
+        algorithm_name=gnode.algorithm_name,
+        algorithm_version=gnode.algorithm_version,
+        params=dict(gnode.params),
+        input_handles=shard_input_handles,
+        graph_node_id=gnode.id,
+        parent_job_id=parent_job_id,
+        shard_element_id=shard_element_id,
+    )
+    await store.create(shard)
+    _push_update(hub, shard)
+
+    assigned = JobStateMachine.transition(shard, JobState.ASSIGNED, node_id=session.node_id)
+    kind, payload = event_from_transition(shard, assigned)
+    await store.update(assigned, kind, payload)
+    _push_update(hub, assigned)
+
+    assign_msg = JobAssign(
+        job_id=assigned.job_id,
+        workflow_id=assigned.workflow_id,
+        algorithm_name=assigned.algorithm_name,
+        algorithm_version=assigned.algorithm_version,
+        params=assigned.params,
+        input_handles=assigned.input_handles,
+        graph_node_id=assigned.graph_node_id,
+        shard_element_id=shard_element_id,
+        shard_output_prefix=shard_output_prefix,
+    )
+    frame = encode("job_assign", assign_msg, v=session.protocol_v)
+    async with session.send_lock:
+        await session.ws.send_text(frame)
+
+    log.info(
+        "shard dispatched",
+        parent_job_id=parent_job_id,
+        shard_job_id=assigned.job_id,
+        element_id=shard_element_id,
+    )
+    return assigned.job_id
+
+
+async def _mark_parent_failed(
+    store: JobsStore,
+    hub: FrontendHub,
+    parent_running: Job,
+    *,
+    reason: str,
+) -> None:
+    """Transition a parent job to FAILED when a shard fails."""
+
+    parent_failed = JobStateMachine.transition(
+        parent_running,
+        JobState.FAILED,
+        fail_reason=JobFailReason.USER_ERROR,
+        fail_message=reason,
+    )
+    _, payload = event_from_transition(parent_running, parent_failed)
+    await store.update(parent_failed, "transition:failed", payload)
+    _push_update(hub, parent_failed)
+
+
+def _dir_size_bytes(path: Path) -> int | None:
+    """Best-effort directory-size walker for the aggregate handle's registration."""
+
+    if not path.exists():
+        return None
+    total = 0
+    try:
+        for root, _dirs, files in os.walk(path, followlinks=False):
+            for name in files:
+                try:
+                    total += Path(root, name).stat().st_size
+                except OSError:
+                    pass
+    except OSError:
+        return None
+    return total
 
 
 async def _resolve_origin_job_id(store: JobsStore, job: dict) -> str:

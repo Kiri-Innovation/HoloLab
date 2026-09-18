@@ -166,6 +166,20 @@ class JobAssign(BaseModel):
 
     ``graph_node_id`` names the workflow-graph node this job realizes
     (see docs/workflow-schema.md). Ad-hoc single-job triggers leave it None.
+
+    Shard fields (``shard_element_id`` + ``shard_output_prefix``) are
+    populated by arrayed<T> fan-out. When both are set:
+      * ``shard_element_id`` names the element this shard is processing
+        (e.g. ``cam_A``) — exposed to the pack's shell as
+        ``{{ shard.element_id }}``.
+      * ``shard_output_prefix`` is the parent job's workspace
+        (``{ws}/w/{workflow_id}/j/{parent_job_id}``). The node writes
+        this shard's outputs to ``{shard_output_prefix}/{port}/{shard_element_id}/``
+        instead of the shard-job's own workspace, so the parent's
+        aggregate output directory naturally accumulates every element's
+        subdirectory as shards complete.
+    Both NULL for regular (non-fan-out) jobs. See docs/pack-spec.md
+    #arrayed-and-arrayable.
     """
 
     job_id: str
@@ -175,6 +189,8 @@ class JobAssign(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
     input_handles: dict[str, str] = Field(default_factory=dict)  # port name → handle_id
     graph_node_id: str | None = None
+    shard_element_id: str | None = None
+    shard_output_prefix: str | None = None
     # The gateway does not tell the node the input file paths. The node resolves
     # them via handle_locate — locally first, cross-node later.
 

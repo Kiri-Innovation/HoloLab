@@ -1010,6 +1010,10 @@ class NodeRuntime:
             self._config.workspace_root,
             assign.workflow_id,
             assign.job_id,
+            # Shard jobs redirect their outputs into the parent's workspace
+            # keyed by element_id — see docs/pack-spec.md#arrayed-and-arrayable.
+            shard_output_prefix=assign.shard_output_prefix,
+            shard_element_id=assign.shard_element_id,
         )
         # Pre-create the destination for each output. For ``storage: dir`` the
         # output path itself is a directory (mkdir it). For ``storage: file``
@@ -1039,6 +1043,10 @@ class NodeRuntime:
             scratch_dir=scratch,
             job_id=assign.job_id,
             workflow_id=assign.workflow_id,
+            # ``shard.*`` template bindings for arrayed<T> shard jobs.
+            # Empty when this isn't a shard — see RenderContext.to_bindings.
+            shard_element_id=assign.shard_element_id or "",
+            shard_index=0,  # index isn't relayed on the wire; not needed today.
         )
 
         try:

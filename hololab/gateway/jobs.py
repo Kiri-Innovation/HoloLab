@@ -119,6 +119,15 @@ class Job:
     # the executor does NOT dispatch this job — it's already done at
     # creation time and downstream reads the old outputs through it.
     reused_from_job_id: str | None = None
+    # Set on *shard* jobs (arrayed<T> fan-out) — points at the parent
+    # job that coordinates this shard's siblings. NULL on parent jobs
+    # and on all regular (non-fan-out) jobs. See docs/pack-spec.md
+    # #arrayed-and-arrayable.
+    parent_job_id: str | None = None
+    # Set on shard jobs — the sorted subdir name (element key) this
+    # shard is processing (e.g. ``cam_A`` for a per-camera fan-out).
+    # NULL on parent + regular jobs.
+    shard_element_id: str | None = None
 
 
 class IllegalTransition(RuntimeError):
@@ -182,6 +191,8 @@ class JobStateMachine:
             created_ts=job.created_ts,
             updated_ts=time.time(),
             reused_from_job_id=job.reused_from_job_id,
+            parent_job_id=job.parent_job_id,
+            shard_element_id=job.shard_element_id,
         )
         return new
 
