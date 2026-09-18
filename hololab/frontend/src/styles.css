@@ -301,17 +301,31 @@ a:hover { text-decoration: underline; }
   opacity: 1;
 }
 
-/* Pop state: short-span edge expanded upward.
+/* Pop state: chip lifted above the wire with a down-pointing anchor.
+   Used by two flows:
+     * Short-span edges (data-dot + hover/select): dot expands upward
+       so the user can read the full label without the chip overlapping
+       adjacent cards. Fixed 28 px lift.
+     * Long-span edges whose midpoint is covered by a node card
+       (data-covered): auto-triggered avoidance; lift is dynamic via
+       --pop-lift so the chip actually escapes the covering node.
    z-index: 10 places the chip above node cards (which have z-index: auto
    within .react-flow__renderer's stacking context).
-   animation handles the pop-in; transform transition (defined on base
-   class) handles the smooth exit when [data-pop] is removed. */
+   The pop-in animation only runs for the dot→pop transition; the
+   auto-covered case skips it so quiet chips don't flash on every render. */
 .hl-edge-chip[data-pop] {
-  transform: translate(-50%, calc(-50% - 28px));
+  transform: translate(-50%, calc(-50% - var(--pop-lift, 28px)));
   overflow: visible;
   z-index: 10;
   opacity: 1;
+}
+.hl-edge-chip[data-dot][data-pop] {
   animation: hl-chip-pop var(--dur-fast) var(--ease) both;
+}
+/* Auto-avoidance keeps the chip quiet (matches the long-edge default
+   opacity) so it doesn't shout unless the user hovers or selects. */
+.hl-edge-chip[data-covered]:not(:hover):not([data-selected]) {
+  opacity: 0.72;
 }
 /* Down-pointing arrow tail: rotated square whose bottom-right corner
    shows below the chip, matching the chip's border and background. */
