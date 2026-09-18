@@ -127,6 +127,7 @@ after that snapshot was taken:
 | `algorithm_name` / `algorithm_version` | Structural | No | pack identity determines execution semantics |
 | `params` | Structural | No | feeds executor, defines data lineage identity |
 | `assigned_node_id` | Structural | No | physical producer; changing it changes lineage identity (Q2) |
+| `arrayed_toggle` | Structural | No | flips ports of an `arrayable` pack to arrayed cardinality → different sub-job fan-out and different aggregate output handle (see [pack-spec.md#arrayed-and-arrayable](pack-spec.md#arrayed-and-arrayable)) |
 | edges (source / target / handles) | Structural | No | data routing; changing them is a Fork |
 | `position` | Cosmetic | Yes | canvas coordinate; doesn't affect any job |
 | `preview_open` | Cosmetic | Yes | observer state (which drawer is expanded); doesn't affect any job |

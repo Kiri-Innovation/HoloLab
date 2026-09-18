@@ -486,10 +486,100 @@ authored for the main experimental machine. Third-party or portable
 packs should still prefer `{{ pack_dir }}` (or accept path params) —
 the polymorphic pack_dirs contract supports both styles.
 
+## Writing an arrayable pack
+
+An **arrayable** pack tells the framework "my exec is data-parallel over
+its arrayed inputs — dispatch one shard per element." When the operator
+turns on the "并行处理数组输入" checkbox on a node instance of your pack,
+the scheduler mints one parent coordinator job plus N shard jobs. Each
+shard runs your exec against one element of the arrayed inputs; the
+framework aggregates their outputs into an arrayed output handle
+automatically.
+
+Three things you must do:
+
+1. **Declare `arrayable: true`** at the top level of your manifest. That
+   surfaces the checkbox in the Inspector.
+2. **Keep your exec strictly per-shard**. No shared state across shards,
+   no coordination, no appending to shared files. The framework routes
+   each shard's outputs into a distinct per-element subdirectory; two
+   shards writing to the same path is a bug your pack owns.
+3. **Do NOT declare `arrayed: true` on the port that gets fanned out**.
+   The framework computes effective arrayed at wire time as
+   `port.arrayed OR (pack.arrayable AND node.arrayed_toggle)`; when the
+   checkbox is on, your non-arrayed input ports flip to arrayed
+   automatically. Ports that should ALWAYS be arrayed regardless (e.g.
+   `video-array-source.videos_dir`) belong on non-arrayable packs.
+
+Available template bindings inside the shell for shard jobs:
+
+```
+{{ shard.element_id }}    — the element key this shard is processing
+{{ shard.index }}         — 0-based ordinal (sorted element order)
+```
+
+Both are exposed only for shard runs; StrictUndefined turns a stray
+reference on a non-shard run into a template error rather than a silent
+mislabelling — safe to sprinkle only where they're actually needed.
+
+Output layout your shell writes to (same `{{ outputs.<port> }}` template
+you already use — the framework routes it):
+
+```
+{{ outputs.<port> }}      — resolves to
+                            {parent_workspace}/<port>/{shard.element_id}/
+```
+
+Just write to `{{ outputs.frames }}/...` as usual. The framework computes
+the shard-specific path and pre-creates the directory. When the parent
+job fans in, its output handle for `<port>` points at
+`{parent_workspace}/<port>/`, which naturally contains every element's
+subdirectory.
+
+Failure model (v1: sequential, all-or-nothing):
+
+- Any shard failure marks the parent FAILED with a fail_message naming
+  the failing `element_id` and shard index (0-based). Remaining shards
+  are not dispatched.
+- Retries and partial-success recovery are follow-ups; if you need
+  per-shard retry today, do it inside your shell.
+
+Concrete example — an arrayable frame extractor:
+
+```yaml
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: frame-extraction
+version: 0.1.0
+arrayable: true
+
+inputs:
+  video_dir:
+    tags: [video-source]              # arrayed=false in manifest
+                                      # → flips to arrayed at toggle time
+outputs:
+  frame_sequence:
+    tags: [frame_sequence]            # arrayed=false in manifest
+                                      # → flips to arrayed at toggle time
+runtime:
+  env: kiri
+exec:
+  shell: |
+    # Each shard sees ONE video dir at {{ inputs.video_dir }} and writes
+    # {{ outputs.frame_sequence }}/frames/frame_XXXXXX.png. No branching
+    # on shard.element_id needed — the framework routes I/O for you.
+    VIDEO=$(find "{{ inputs.video_dir }}" -maxdepth 1 -type f | head -1)
+    python {{ pack_dir }}/extract_frames.py "$VIDEO" -o "{{ outputs.frame_sequence }}"
+```
+
+When the operator turns off the checkbox, the same pack works as a
+plain per-video extractor — no branching required.
+
 ## Where to look
 
 - Schema — `hololab/manifest/schema.py::Manifest`
 - Scanner — `hololab/node/packs.py::scan_packs`, `scan_multi_packs`
 - Node config — `hololab/node/config.py::NodeConfig`
 - Full pack spec — [`pack-spec.md`](pack-spec.md)
+- Arrayed<T> type system — [`pack-spec.md`](pack-spec.md#arrayed-and-arrayable)
 - Cobrowser "Jump to source" — [`cobrowser-integration.md`](cobrowser-integration.md)

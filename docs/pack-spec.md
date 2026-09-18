@@ -199,6 +199,88 @@ outputs:
 `storage` is **not** part of edge compatibility. Two ports with matching
 tags are always compatible, regardless of storage form.
 
+### `arrayed` and `arrayable`
+
+An `arrayed<T>` is *a directory whose immediate subdirectories are elements
+of type T*. Element ids are the sorted subdirectory names. Two independent
+flags control whether a port carries one:
+
+- Per-port **`arrayed: <bool>`** — the manifest declares the port's default
+  cardinality. Example: `video-array-source.videos_dir` is intrinsically
+  arrayed (`tags: [video-source], arrayed: true`).
+- Per-pack **`arrayable: <bool>`** — the pack's exec is data-parallel over
+  its arrayed inputs. When true the canvas shows a "并行处理数组输入"
+  checkbox on each instance of the pack; when the operator turns it on,
+  every port that manifest-defaults to non-arrayed is treated as arrayed
+  and the scheduler fan-outs one sub-job (a *shard*) per element.
+
+Edge compatibility is `tags overlap AND arrayed cardinality matches`. No
+implicit scalar↔array broadcasting — wire an `arrayfy` node when you need
+to promote a scalar to an array.
+
+Shard mechanics (v1: sequential; parallelism knob is a follow-up):
+
+- Framework mints one parent job (coordinator, no compute-node dispatch)
+  plus N shard jobs, one per element of the arrayed inputs.
+- Each shard writes its outputs to `{parent_workspace}/{port}/{element_id}/`
+  instead of its own workspace (via a `shard_output_prefix` on `JobAssign`).
+  Aggregation is automatic: after all shards finish, the framework registers
+  one parent output handle per port pointing at `{parent_workspace}/{port}/`.
+- Failure is all-or-nothing: any shard failure marks the parent FAILED with
+  a fail message naming the element id and shard index, and the scheduler
+  does not create the remaining shards.
+
+The pack shell may reference `{{ shard.element_id }}` and `{{ shard.index }}`
+when executing as a shard; these expand to empty for non-shard runs (Jinja2
+StrictUndefined turns a stray reference into a loud error, so a template that
+accidentally uses `shard.*` on a non-shard run fails fast).
+
+The `arrayable: true` contract obligates the pack author to promise **no
+cross-shard state or data exchange** — the framework has no way to enforce
+this (shell can do anything), but violating it produces subtle bugs.
+
+### The `int` scalar handle type
+
+An `int` handle is `storage: file` + `tags: [int]` + a plain-text file
+whose sole content is one base-10 integer (trailing newline is fine).
+Producers use `echo N > "{{ outputs.n }}"`, consumers `n=$(cat "{{ inputs.n }}")`.
+`GET /api/handles/{id}/summary` returns `{"kind": "scalar-int", "fields":
+{"value": <int>}}` so the preview drawer shows the number without a bytes
+download; parse failures surface as `fields.error` + `fields.raw`.
+
+Introduced by the arrayed<T> type system so nodes like `array-length`
+(`arrayed<T> → int`) can flow counts into `arrayfy` (`T + int → arrayed<T>`).
+
+### Generic ports via `any` + `tags_from`
+
+Utility packs that operate over *any* element type (`arrayfy`,
+`get-index`, `array-length`) declare their generic input as `tags: [any]`,
+which matches any downstream/upstream port at edge time. To make the
+propagated element type flow through, the pack's *output* declares
+`tags_from: <input_port_name>` — at validation time the framework walks
+the wire back through the referenced input to the ultimate concrete
+producer and adopts its tag set as the effective output tag set. Cycles
+collapse to `[any]` (safety net).
+
+Example — `arrayfy` (`T + int → arrayed<T>`):
+
+```yaml
+inputs:
+  data:
+    tags: [any]
+  count:
+    tags: [int]
+outputs:
+  out:
+    tags: [any]
+    arrayed: true
+    tags_from: data   # ← output element type = whatever's wired into `data`
+```
+
+When nothing is wired into `data` yet, `arrayfy.out` stays `[any]` so the
+canvas remains permissive during graph construction; once `data` is wired,
+mismatched downstream types are surfaced by snapshot validation.
+
 ### Params — scalar knobs, distinct from ports
 
 Params are typed scalars — `int`, `float`, `bool`, `string`, `enum`. They

@@ -29,6 +29,26 @@ contains one directory per workflow-run, sub-divided by job:
 
 The gateway records **absolute** paths in the `handles` table. The preview proxy strips the workspace-root prefix to compute `/proxy/{node_id}/{sub}` URLs; the node's file server resolves the sub-path back against its known roots.
 
+## Handle shapes on disk
+
+The `handles.storage` column is a transport hint that drives what the file server does when a cross-node consumer materializes the handle:
+
+- **`storage: dir`** (default) — the handle path is a directory; cross-node fetch tarballs the tree. Used by every "reconstruction output" pack (colmap, frame_sequence, splatv model directories, arrayed<T> handles).
+- **`storage: file`** — the handle path is a single file; cross-node fetch is one HTTP GET.
+
+### `int` scalar handles
+
+Introduced by the arrayed<T> type system so nodes like `array-length` can flow counts into `arrayfy` and `get-index`.
+
+- `storage: file`, `tags: [int]`, content = a plain-text base-10 integer (trailing whitespace/newline OK)
+- Producer shell: `echo N > "{{ outputs.n }}"`
+- Consumer shell: `n=$(cat "{{ inputs.n }}")`
+- `GET /api/handles/{id}/summary` returns `{"kind": "scalar-int", "fields": {"value": <int>}}` so the preview drawer shows the number without a bytes download; parse failures surface as `fields.error` + `fields.raw`.
+
+### `arrayed<T>` handles
+
+An arrayed<T> handle is a `storage: dir` handle whose immediate subdirectories are elements of type T. Element ids are the sorted subdir names. Framework fan-out for arrayable packs writes each shard's outputs to `{parent_workspace}/{port}/{element_id}/`; the aggregate parent handle points at `{parent_workspace}/{port}/`. See [pack-spec.md#arrayed-and-arrayable](pack-spec.md#arrayed-and-arrayable).
+
 ## Deletion and the preview drawer
 
 `DELETE /api/artifacts/{handle_id}` (invoked from the Artifacts panel or via API) removes the on-disk file **and** stamps `deleted_ts` on the handle row — the record survives so history / lineage stays intact. `GET /api/handles/{id}` returns the row with `deleted_ts` set, and the canvas preview drawer keys off it:
@@ -38,6 +58,41 @@ The gateway records **absolute** paths in the `handles` table. The preview proxy
 - The read-only snapshot view (`SnapshotCanvas`) hides the Run button — re-running from a frozen past snapshot has no clean meaning; the operator returns to the draft to trigger a new run.
 
 External deletion (`rm` on the file system without going through the API) leaves `deleted_ts = null`, so the drawer still tries to render the preview and the browser paints its native "no source" state. That's an existing edge case; the primary UX path (Artifacts panel deletion) is now covered.
+
+## Ref-counted run deletion
+
+The Run History panel exposes a right-click **"删除这个 run 及其产物"** action on every row. The endpoint pair behind it is:
+
+* `GET /api/snapshots/{sid}/deletion-preview` — read-only impact preview.
+* `DELETE /api/snapshots/{sid}` — commit the delete.
+
+The confirm modal fires the preview first so the copy is quantitative: **"K 个产物将被删除 · 保留 N 个 (仍被别的 run 引用) · 释放约 B 字节."** The delete only proceeds after the operator clicks "确认删除".
+
+### The rule
+
+An artifact `H` is produced by exactly one job `J`. Under the V8 lineage-first model (`docs/workflow-schema.md`) a single job can be attributed to **many** snapshots — Continue extends a snapshot with a new attribution; Fork inherits the parent snapshot's un-forked attributions into a child snapshot. `snapshot_jobs` is the many-to-many bridge.
+
+When we delete snapshot `S`, for each job `J` attributed to `S`:
+
+| Case | Definition | On-disk effect |
+|---|---|---|
+| **Exclusive** | `S` is the ONLY row in `snapshot_jobs` for `J` | `J`'s handles get physically deleted via the producing node (`artifact_delete_req`) and tombstoned (`deleted_ts` stamped). `J` itself + its `job_events` / `job_logs` are purged (FK CASCADE). |
+| **Shared** | `J` still has at least one other `snapshot_jobs` row | Nothing on disk changes. Only `S`'s own attribution row is dropped (FK CASCADE from `snapshots`). Handle row keeps `deleted_ts = NULL`. `J` stays. |
+
+The rule is enforced in `hololab/gateway/snapshot_delete.py`; the invariant is verified by `tests/test_snapshot_delete.py::test_delete_shared_artifact_keeps_file_on_disk` (two snapshots share an artifact → deleting one keeps the file) and `::test_delete_last_reference_removes_file_and_tombstones` (deleting the last remaining reference DOES rm + tombstone).
+
+### Refusal case
+
+If any job attributed to `S` is in a non-terminal state (`pending` / `assigned` / `running`), the DELETE endpoint returns **409** with a `{message, live_jobs}` detail payload. The confirm modal renders the live-jobs list and disables its "确认删除" button — the operator must cancel the run first. Auto-cancel is not attempted because job cancellation across offline nodes isn't robust yet; we surface the choice explicitly.
+
+### Idempotency + edge cases
+
+* **Two tabs racing on the same delete**: the second `DELETE` receives `200 {state: "gone"}` instead of an error. The frontend just refreshes its list.
+* **Preview on unknown snapshot**: `404` (distinguishes "exists but empty" from "gone").
+* **Producer node offline**: the delete still succeeds; each affected handle is tombstoned (`deleted_ts` set) so the Artifacts page hides the row. When the node comes back online the on-disk bytes are stranded — `hololab workspace prune` is the future cleanup path (see below).
+* **Path outside current workspace roots** (post workspace-root move): same as offline — tombstone-only, delete succeeds.
+* **Deleting the run you're viewing**: `App.tsx` clears `viewingSnapshot` when the panel signals a successful delete, dropping the canvas back to the draft.
+* **`snapshots.parent_snapshot_id` on forked children**: nulled out when the parent is deleted (the column has no FK constraint, so we do it in the same transaction) — the UI won't render "forked from &lt;deleted-uuid&gt;" dead links.
 
 ## Configuring the workspace root
 
