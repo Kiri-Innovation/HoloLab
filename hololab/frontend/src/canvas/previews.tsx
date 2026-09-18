@@ -76,6 +76,12 @@ export interface PreviewProps {
   // ``flops_executor_id`` at render time and know which node to
   // name in the "not configured" guide text.
   producingNode?: ComputeNode | null;
+  // Port tags (from OutputPortSpec.tags). Lets the frontend pick a
+  // richer viewer than the tag-registry default when the shape is
+  // known — e.g. a ``frame_sequence`` dir gets the stacked-strip
+  // viewer instead of the "first frame only" image viewer that the
+  // registry falls back to.
+  tags?: string[];
 }
 
 export function Preview({
@@ -85,7 +91,22 @@ export function Preview({
   handleId,
   absolutePath,
   producingNode,
+  tags,
 }: PreviewProps) {
+  // Tag-driven override: a ``frame_sequence`` (dir of ``frames/frame_XXXXXX.png``)
+  // ships from the gateway with ``viewer: "image"`` pointing at the
+  // first frame — a legacy default that hides the fact this is a
+  // sequence. Route to the stacked-strip viewer so the operator sees
+  // the whole thing (count, dims, sample thumbs) at a glance without
+  // waiting on the video-grid transcode path.
+  if (
+    tags &&
+    tags.includes("frame_sequence") &&
+    storage === "dir"
+  ) {
+    return <FrameStripPreview baseUrl={baseUrl} />;
+  }
+
   // Resolve the final URL once so each viewer has a plain string to work with.
   const url =
     storage === "dir" && spec.member && spec.viewer !== "video-grid"
@@ -1443,4 +1464,472 @@ function splitProxyBase(url: string): [string, string] {
   if (m) return [m[1], m[2]];
   const idx = url.lastIndexOf("/");
   return idx > 0 ? [url.slice(0, idx), url.slice(idx + 1)] : [url, ""];
+}
+
+// ---------------------------------------------------------------------------
+// FrameStripPreview: dense stack for a ``frame_sequence`` dir.
+//
+// Layout: N overlapping cards laid out in a single row (like a fanned
+// stack of playing cards), followed by a ``count · WxH`` metadata line.
+// No scrollbar — the canvas viewport already fights scroll events, and
+// the ask was a small at-a-glance affordance, not a paged gallery.
+//
+// Data path
+// ~~~~~~~~~
+//   Frame filenames follow the pack contract: ``frames/frame_{i:06d}.png``
+//   where ``i`` runs 0..N-1 contiguously. We don't need a directory
+//   listing — we probe.
+//
+//   * Count: exponential-then-binary probe using Range-GET on
+//     ``frames/frame_{i:06d}.png`` (bytes=0-0 → 206 exists / 404 absent).
+//     Range-GET is used instead of HEAD because the node fileserver's
+//     catch-all only registers ``@app.get("/{sub:path}")`` — HEAD
+//     returns 404. Also cheaper than a full GET.
+//   * First-frame dims: one 32-byte Range-GET, then parse the PNG IHDR.
+//   * Thumbnails: reuse the existing ``/_thumb/{W}x{H}/{sub}?at=0``
+//     endpoint. ffmpeg accepts PNG input; ``at=0`` is a no-op on stills.
+//     Node caches by (path, mtime, dims, at) so revisits are free.
+//
+// Sampled indices
+// ~~~~~~~~~~~~~~~
+//   With N total frames and STRIP_MAX_CARDS visible cards, we sample
+//   evenly across the sequence rather than showing only the first few
+//   — a viewer that always shows frames 0..5 of a 500-frame clip is
+//   misleading. The last card sample is always the terminal frame, so
+//   "how does the tail look" is answerable at a glance.
+// ---------------------------------------------------------------------------
+
+// Cap for the visible cards. Six matches the ~340 px expand-slot width
+// at the chosen tile dims + overlap. Bumping this without also
+// widening the node would just clip the tail.
+const STRIP_MAX_CARDS = 6;
+
+// Card dims (CSS px). 16:9 to mirror the video-grid tile shape and to
+// match how source frames usually land (1920×1080, 1280×720, …). The
+// server letterboxes non-16:9 sources — same as the grid tile does.
+const STRIP_TILE_W = 96;
+const STRIP_TILE_H = Math.round((STRIP_TILE_W * 9) / 16); // 54
+
+// Overlap per adjacent card (CSS px). ``STRIP_TILE_W - STRIP_OVERLAP`` is
+// how much of each earlier card is still visible under its neighbour.
+// 32 px lets six cards fit in ~416 px total, leaving room for the +N
+// badge and border.
+const STRIP_OVERLAP = 32;
+
+// Server-side thumb dims. 2× the CSS size so retina panels stay crisp;
+// still tiny (~5-8 KiB each) versus the 1-3 MiB raw PNG.
+const STRIP_THUMB_W = STRIP_TILE_W * 2;
+const STRIP_THUMB_H = STRIP_TILE_H * 2;
+
+// Upper bound for the count probe. Frame filenames are 6-digit padded
+// (``frame_999999.png`` is the pack's implicit ceiling), so this cap
+// mostly exists to bound the worst case when a future pack starts
+// dropping many more frames than we've seen.
+const STRIP_COUNT_MAX = 200_000;
+
+/** Pad a 0-indexed frame number to the 6-digit form the pack writes. */
+function frameName(idx: number): string {
+  return `frame_${idx.toString().padStart(6, "0")}.png`;
+}
+
+/** Range-GET the first byte of a sub-path — 206 iff it exists.
+ *
+ *  We use this instead of ``HEAD`` because the node fileserver only
+ *  registers the catch-all under ``@app.get(...)`` — HEAD hits FastAPI's
+ *  default and comes back 404 for every path. A 1-byte Range GET is
+ *  ~free (the server never sends more than the requested byte) and
+ *  survives whether or not the intermediate proxy rewrites HEAD.
+ */
+async function probeExists(url: string, signal: AbortSignal): Promise<boolean> {
+  const r = await fetch(url, {
+    method: "GET",
+    headers: { Range: "bytes=0-0" },
+    signal,
+  });
+  return r.status === 206 || r.ok;
+}
+
+/** Find the number of frames by exponential-then-binary probe.
+ *
+ *  Exponential phase doubles the probe index until we hit an absence
+ *  (or the guard cap). Binary phase then narrows to the exact
+ *  transition. Worst case for a 50-frame sequence: ~11 requests. For a
+ *  10k sequence: ~27 requests. All fetches are 1-byte Range-GETs so
+ *  the total bytes moved is negligible.
+ *
+ *  Assumes the ``frame_XXXXXX.png`` sequence is contiguous from index
+ *  0 — that's the pack contract. A hole in the middle would fool this,
+ *  but the pack never writes one.
+ */
+async function probeFrameCount(
+  frameUrl: (idx: number) => string,
+  signal: AbortSignal,
+): Promise<number> {
+  // Empty dir guard: if frame 0 is missing we're not looking at a
+  // frame_sequence layout at all, so bail with 0.
+  if (!(await probeExists(frameUrl(0), signal))) return 0;
+
+  // Exponential phase: 1, 2, 4, 8, … until a probe misses.
+  let lo = 0;
+  let hi = 1;
+  while (hi < STRIP_COUNT_MAX) {
+    if (!(await probeExists(frameUrl(hi), signal))) break;
+    lo = hi;
+    hi = Math.min(hi * 2, STRIP_COUNT_MAX);
+  }
+  if (hi === STRIP_COUNT_MAX && (await probeExists(frameUrl(hi), signal))) {
+    // Sequence exceeded the guard cap — return the cap; the strip will
+    // show it as ``≥ STRIP_COUNT_MAX``.
+    return STRIP_COUNT_MAX + 1;
+  }
+
+  // Binary phase: [lo, hi) with lo known-exists, hi known-absent.
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >>> 1;
+    if (await probeExists(frameUrl(mid), signal)) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+  return lo + 1;
+}
+
+/** Fetch the first 32 bytes of a PNG and parse the IHDR width/height. */
+async function fetchPngDims(
+  url: string,
+  signal: AbortSignal,
+): Promise<{ width: number; height: number } | null> {
+  const r = await fetch(url, {
+    method: "GET",
+    headers: { Range: "bytes=0-31" },
+    signal,
+  });
+  if (!r.ok && r.status !== 206) return null;
+  const buf = new Uint8Array(await r.arrayBuffer());
+  if (buf.byteLength < 24) return null;
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  // PNG magic ``89 50 4E 47 0D 0A 1A 0A``.
+  if (
+    dv.getUint32(0) !== 0x89504e47 ||
+    dv.getUint32(4) !== 0x0d0a1a0a
+  ) {
+    return null;
+  }
+  // IHDR always begins at offset 16 for a valid PNG (4 length + 4 type
+  // + 4 width + 4 height at the start of the chunk data).
+  const width = dv.getUint32(16);
+  const height = dv.getUint32(20);
+  return { width, height };
+}
+
+/** Pick ``k`` evenly-spaced indices from ``[0, n-1]`` inclusive at both ends.
+ *
+ *  Always returns unique, ascending indices. When ``n <= k`` the result
+ *  is ``[0..n-1]``.
+ */
+function sampleIndices(n: number, k: number): number[] {
+  if (n <= 0) return [];
+  if (n <= k) return Array.from({ length: n }, (_, i) => i);
+  const out: number[] = [];
+  for (let i = 0; i < k; i += 1) {
+    const idx = Math.round((i * (n - 1)) / (k - 1));
+    if (out.length === 0 || out[out.length - 1] !== idx) out.push(idx);
+  }
+  return out;
+}
+
+interface FrameStripProps {
+  baseUrl: string;
+}
+
+function FrameStripPreview({ baseUrl }: FrameStripProps) {
+  const [nodeRoot, dirSub] = useMemo(() => splitProxyBase(baseUrl), [baseUrl]);
+  const dirBase = baseUrl.replace(/\/$/, "");
+
+  const rawFrameUrl = useCallback(
+    (idx: number) => `${dirBase}/frames/${frameName(idx)}`,
+    [dirBase],
+  );
+  const thumbUrl = useCallback(
+    (idx: number) =>
+      `${nodeRoot}/_thumb/${STRIP_THUMB_W}x${STRIP_THUMB_H}/${dirSub}/frames/${frameName(idx)}?at=0`,
+    [nodeRoot, dirSub],
+  );
+
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ok"; count: number; width: number | null; height: number | null }
+    | { kind: "err"; message: string }
+  >({ kind: "loading" });
+
+  useEffect(() => {
+    const abort = new AbortController();
+    (async () => {
+      try {
+        // Kick both probes in parallel — the count walk hits ~10-30
+        // sequential 1-byte GETs, so overlapping the (single) IHDR
+        // fetch under it costs us nothing.
+        const [count, dims] = await Promise.all([
+          probeFrameCount(rawFrameUrl, abort.signal),
+          fetchPngDims(rawFrameUrl(0), abort.signal),
+        ]);
+        setState({
+          kind: "ok",
+          count,
+          width: dims?.width ?? null,
+          height: dims?.height ?? null,
+        });
+      } catch (e) {
+        if (abort.signal.aborted) return;
+        setState({ kind: "err", message: (e as Error).message });
+      }
+    })();
+    return () => abort.abort();
+  }, [rawFrameUrl]);
+
+  const [zoomIdx, setZoomIdx] = useState<number | null>(null);
+  useEffect(() => {
+    if (zoomIdx === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoomIdx(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomIdx]);
+
+  if (state.kind === "loading") {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text="reading frame sequence…" kind="loading" />
+      </div>
+    );
+  }
+  if (state.kind === "err") {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text={`probe failed: ${state.message}`} kind="error" />
+      </div>
+    );
+  }
+  if (state.count === 0) {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text="no frames under frames/" kind="info" />
+      </div>
+    );
+  }
+
+  const sampled = sampleIndices(state.count, STRIP_MAX_CARDS);
+  const hiddenCount = Math.max(0, state.count - sampled.length);
+  const dimsLabel =
+    state.width && state.height ? `${state.width}×${state.height}` : null;
+  const stripWidth =
+    sampled.length === 0
+      ? 0
+      : STRIP_TILE_W + (sampled.length - 1) * (STRIP_TILE_W - STRIP_OVERLAP);
+
+  return (
+    <div
+      data-hl-frame-strip=""
+      data-hl-frame-count={state.count}
+      style={{
+        ...PREVIEW_SHELL,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          height: STRIP_TILE_H + 4,
+          width: "100%",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            position: "relative",
+            width: stripWidth,
+            height: STRIP_TILE_H,
+            maxWidth: "100%",
+          }}
+        >
+          {sampled.map((frameIdx, i) => {
+            const isLast = i === sampled.length - 1;
+            return (
+              <button
+                type="button"
+                key={frameIdx}
+                data-hl-frame-card={frameIdx}
+                title={`frame ${frameIdx} of ${state.count}`}
+                onClick={() => setZoomIdx(frameIdx)}
+                className="nodrag nopan"
+                style={{
+                  position: "absolute",
+                  left: i * (STRIP_TILE_W - STRIP_OVERLAP),
+                  top: 0,
+                  width: STRIP_TILE_W,
+                  height: STRIP_TILE_H,
+                  padding: 0,
+                  background: "#000",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  borderRadius: "var(--radius-sm)",
+                  overflow: "hidden",
+                  cursor: "zoom-in",
+                  // Later cards paint on top so the fan reads left→right.
+                  zIndex: i + 1,
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.35)",
+                }}
+              >
+                <img
+                  src={thumbUrl(frameIdx)}
+                  alt={`frame ${frameIdx}`}
+                  loading="lazy"
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    pointerEvents: "none",
+                  }}
+                />
+                {isLast && hiddenCount > 0 && (
+                  <div
+                    data-hl-frame-more=""
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "rgba(0,0,0,0.55)",
+                      color: "#fff",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      fontFamily: "var(--font-mono)",
+                      letterSpacing: "0.02em",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    +{hiddenCount}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 11,
+          color: "var(--inverse-muted)",
+          fontFamily: "var(--font-mono)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        <span data-hl-frame-count-label="">
+          {state.count > STRIP_COUNT_MAX ? `≥${STRIP_COUNT_MAX}` : state.count} frames
+        </span>
+        {dimsLabel && (
+          <>
+            <span aria-hidden style={{ opacity: 0.5 }}>·</span>
+            <span>{dimsLabel}</span>
+          </>
+        )}
+      </div>
+      {zoomIdx !== null && (
+        <FrameZoomOverlay
+          url={rawFrameUrl(zoomIdx)}
+          index={zoomIdx}
+          total={state.count}
+          onClose={() => setZoomIdx(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function FrameZoomOverlay({
+  url,
+  index,
+  total,
+  onClose,
+}: {
+  url: string;
+  index: number;
+  total: number;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      data-hl-frame-zoom=""
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: "#000",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 10,
+      }}
+    >
+      <img
+        src={url}
+        alt={`frame ${index}`}
+        style={{
+          display: "block",
+          maxWidth: "100%",
+          maxHeight: "100%",
+          objectFit: "contain",
+        }}
+      />
+      <button
+        type="button"
+        onClick={onClose}
+        title="back to strip (Esc)"
+        data-hl-frame-zoom-back=""
+        className="nodrag nopan"
+        style={{
+          position: "absolute",
+          top: 6,
+          left: 6,
+          height: 24,
+          padding: "0 10px",
+          background: "rgba(0,0,0,0.55)",
+          color: "#fff",
+          border: "1px solid rgba(255,255,255,0.18)",
+          borderRadius: "var(--radius-pill)",
+          fontSize: 11,
+          fontWeight: 500,
+          cursor: "pointer",
+          backdropFilter: "blur(2px)",
+        }}
+      >
+        ← back
+      </button>
+      <div
+        style={{
+          position: "absolute",
+          top: 6,
+          right: 6,
+          padding: "2px 8px",
+          background: "rgba(0,0,0,0.55)",
+          color: "#fff",
+          border: "1px solid rgba(255,255,255,0.18)",
+          borderRadius: "var(--radius-pill)",
+          fontSize: 10,
+          fontFamily: "var(--font-mono)",
+        }}
+      >
+        frame {index} / {total - 1}
+      </div>
+    </div>
+  );
 }

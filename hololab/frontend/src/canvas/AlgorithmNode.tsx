@@ -534,6 +534,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                     producingNode={
                       computeNodesById?.[target.node_id] ?? null
                     }
+                    tags={port.tags}
                   />
                 </>
               );

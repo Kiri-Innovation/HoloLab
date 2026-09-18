@@ -310,6 +310,19 @@ outputs:
 Explicit `preview:` on an output port still wins if declared; use
 that only when the tag-driven default isn't right for your pack.
 
+**Frontend viewer overrides.** A tag can also drive a richer *frontend*
+viewer than the registry's declared choice. `frame_sequence` is the
+canonical example: the registry pins it to the plain `image` viewer
+(showing only `frames/frame_000000.png`), but when the frontend sees
+that tag on a dir-storage handle it swaps in the stacked-strip viewer
+(`FrameStripPreview` in `previews.tsx`) — a fanned overlap of ~6 sample
+thumbs plus a `count · WxH` metadata line. The sample indices are
+evenly spaced across the full sequence so the tail is always visible;
+the last card overlays a `+N` badge when the run has more frames than
+cards. Clicking a card opens the raw PNG in a zoomable overlay
+(Esc/← to close). Adopt the same pattern for any tag whose "one entry
+is representative" default isn't true.
+
 ### Progress
 
 ```yaml
