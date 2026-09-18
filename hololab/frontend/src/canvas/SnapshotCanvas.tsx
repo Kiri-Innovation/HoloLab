@@ -51,6 +51,7 @@ import {
   type PreviewTarget,
 } from "./AlgorithmNode";
 import { MinimapToggleButton } from "./MinimapToggleButton";
+import { aggregateJobsToRuntime } from "./nodeRuntime";
 
 const NODE_TYPES = { algorithm: AlgorithmNode };
 
@@ -79,13 +80,29 @@ export function SnapshotCanvas({
     return m;
   }, [catalog]);
 
+  // Preview-job picker: for a fan-out slot (parent + N shards on the
+  // same graph_node_id) prefer the parent so the drawer resolves the
+  // aggregated arrayed<T> output, not one shard's slice. list_by_snapshot
+  // orders jobs by created_ts ASC and the parent is created before its
+  // shards, so first-write-wins here picks the parent.
   const jobsByGraphNodeId = useMemo(() => {
     const m = new Map<string, SnapshotJob>();
     for (const j of snapshot.jobs) {
-      if (j.graph_node_id) m.set(j.graph_node_id, j);
+      if (!j.graph_node_id) continue;
+      if (m.has(j.graph_node_id)) continue;
+      m.set(j.graph_node_id, j);
     }
     return m;
   }, [snapshot.jobs]);
+
+  // Node runtime = aggregate over all jobs for the slot (any-failed →
+  // failed; any-in-flight → running; all-done → done). Without this,
+  // a single failed shard would silently disappear if some later shard
+  // for the same slot overwrote it via last-write-wins.
+  const runtimeByGraphNodeId = useMemo(
+    () => aggregateJobsToRuntime(snapshot.jobs),
+    [snapshot.jobs],
+  );
 
   // Local preview state. Resolved on snapshot change from each job's
   // output_handles; toggle state is a plain map. Both are local (not
@@ -207,15 +224,7 @@ export function SnapshotCanvas({
       const pack =
         catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`) ??
         stubPack(gn.algorithm_name, gn.algorithm_version);
-      const job = jobsByGraphNodeId.get(gn.id) ?? null;
-      const runtime: NodeRuntime | undefined = job
-        ? {
-            state: job.state,
-            progress: job.progress ?? null,
-            fail_reason: job.fail_reason ?? null,
-            job_id: job.job_id,
-          }
-        : undefined;
+      const runtime: NodeRuntime | undefined = runtimeByGraphNodeId[gn.id];
       return {
         id: gn.id,
         type: "algorithm",
@@ -255,7 +264,7 @@ export function SnapshotCanvas({
   }, [
     snapshot,
     catalogByKey,
-    jobsByGraphNodeId,
+    runtimeByGraphNodeId,
     previewsByGraphNode,
     previewOpenByGraphNode,
     togglePreview,

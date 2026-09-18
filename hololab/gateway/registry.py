@@ -1072,17 +1072,31 @@ class SnapshotJobsStore:
         """Return the ``job_id`` attributed to ``graph_node_id`` in this
         snapshot, or ``None`` if that slot is empty.
 
-        The Continue/Fork dispatcher calls this as the first thing it
-        does when receiving a "dispatch node X" request: a non-None
-        result means the slot is taken → Fork; None → Continue.
+        Used both by the Continue/Fork dispatcher (non-None → slot
+        taken → Fork; None → Continue) and by upstream input resolution
+        (looks up ``handles.list_by_job(job_id)`` to bind an edge's
+        source handle to its concrete artifact).
+
+        Fan-out safety: an arrayed<T> slot has one parent + N shard
+        rows all attributed to the same (snapshot_id, graph_node_id).
+        The parent produces the fanned-in arrayed<T> output; each
+        shard produces only its per-element slice. Downstream input
+        resolution needs the parent's job_id so
+        ``handles.list_by_job`` returns the aggregated output, not a
+        single shard's slice. We rank rows by
+        ``jobs.parent_job_id IS NULL`` (parent first) with the newest
+        parent winning ties by ``created_ts``.
         """
 
         async with (
             self._db.read() as conn,
             conn.execute(
                 """
-                SELECT job_id FROM snapshot_jobs
-                WHERE snapshot_id = ? AND graph_node_id = ?
+                SELECT sj.job_id
+                FROM snapshot_jobs sj
+                JOIN jobs j ON j.job_id = sj.job_id
+                WHERE sj.snapshot_id = ? AND sj.graph_node_id = ?
+                ORDER BY (j.parent_job_id IS NULL) DESC, j.created_ts DESC
                 LIMIT 1
                 """,
                 (snapshot_id, graph_node_id),

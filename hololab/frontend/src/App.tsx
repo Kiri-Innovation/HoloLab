@@ -38,6 +38,7 @@ import type {
   NodeOfflinePayload,
   NodeOnlinePayload,
   SnapshotDetail,
+  SnapshotJob,
   WorkflowGraph,
 } from "./wire";
 import {
@@ -71,6 +72,7 @@ import {
 import { Artifacts } from "./Artifacts";
 import { Gallery } from "./Gallery";
 import { CanvasContext } from "./canvas/CanvasContext";
+import { aggregateJobsToRuntime } from "./canvas/nodeRuntime";
 import { PackPalette } from "./canvas/PackPalette";
 import { ComputeNodesPanel } from "./canvas/ComputeNodesPanel";
 import { MinimapToggleButton } from "./canvas/MinimapToggleButton";
@@ -90,6 +92,25 @@ import {
 } from "./canvas/RecentJobsPanel";
 
 const NODE_TYPES = { algorithm: AlgorithmNode };
+
+// Cheap value-level equality for the aggregated NodeRuntime so the
+// setNodes runtime-sync effect can keep node identity stable across
+// WS updates that don't actually move a node's state — reference
+// equality alone would fail because runtimeByGraphNode is a fresh
+// useMemo output on every job_update tick (see canvas/nodeRuntime.ts
+// for the aggregation).
+function runtimeEqual(a: NodeRuntime | undefined, b: NodeRuntime | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.state !== b.state) return false;
+  if (a.job_id !== b.job_id) return false;
+  if ((a.fail_reason ?? null) !== (b.fail_reason ?? null)) return false;
+  const ap = a.progress ?? null;
+  const bp = b.progress ?? null;
+  if (ap === bp) return true;
+  if (!ap || !bp) return false;
+  return ap.current === bp.current && ap.total === bp.total;
+}
 
 // A workflow-scoped id counter, distinct from xyflow's internal instance ids.
 let ID_COUNTER = 1;
@@ -235,14 +256,26 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [connected, setConnected] = useState(false);
   const [running, setRunning] = useState(false);
 
-  // Two indices over job runtime state:
-  //   - runtimeByGraphNode:  graph_node_id → latest NodeRuntime
-  //     (drives the coloured badge on each canvas node)
-  //   - jobsById:            job_id → RecentJobRow
-  //     (drives the RecentJobsPanel + the workflow-run summary chip)
-  const [runtimeByGraphNode, setRuntimeByGraphNode] = useState<
-    Record<string, NodeRuntime>
-  >({});
+  // Job runtime state — split by scope so a node's status dot only ever
+  // reflects the snapshot the canvas is currently showing (draft view =
+  // latest snapshot; snapshot view = viewingSnapshot). A flat
+  // graph_node_id → NodeRuntime map couldn't represent that: it collapsed
+  // multiple runs of the same slot into one identity, and the
+  // last-write-wins order was the API's row order — so an older failed
+  // job would silently overwrite the current snapshot's done job (see
+  // canvas/nodeRuntime.ts for the failure mode + aggregation rules).
+  //
+  //   - latestSnapshotJobs: the SnapshotJob rows for the workflow's most
+  //     recent snapshot. Seeded on workflow open, kept live via WS
+  //     job_update patches into this array.
+  //   - runtimeByGraphNode: derived (useMemo) — group by graph_node_id
+  //     and aggregate for arrayed<T> fan-out (any-failed → failed;
+  //     any-in-flight → running; all-done → done). Used only for driving
+  //     the badge/progress display on canvas nodes.
+  //   - jobsById: job_id → RecentJobRow — a flat feed for the
+  //     RecentJobsPanel + workflow-run summary chip. Spans all
+  //     snapshots on purpose; it's the "recent activity" surface.
+  const [latestSnapshotJobs, setLatestSnapshotJobs] = useState<SnapshotJob[]>([]);
   const [jobsById, setJobsById] = useState<Record<string, RecentJobRow>>({});
 
   // Preview state, keyed by graph node id:
@@ -289,21 +322,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           }
           return next;
         });
-        // Also seed per-graph-node runtime for anything workflow-scoped.
-        setRuntimeByGraphNode((prev) => {
-          const next = { ...prev };
-          for (const j of summaries) {
-            if (j.graph_node_id) {
-              next[j.graph_node_id] = {
-                state: j.state,
-                progress: j.progress,
-                fail_reason: j.fail_reason,
-                job_id: j.job_id,
-              };
-            }
-          }
-          return next;
-        });
+        // Deliberately does NOT seed per-graph-node runtime here. The
+        // /api/jobs feed spans every snapshot for the workflow, and
+        // last-write-wins on graph_node_id lets an older failed job
+        // overwrite the current snapshot's done attribution — that was
+        // the "canvas red but Run History current is green" bug.
+        // Node runtime is derived elsewhere from the visible snapshot's
+        // jobs only; the RecentJobsPanel is what wants the flat feed.
       })
       .catch(() => {
         /* ignore — first paint keeps working with empty state */
@@ -385,18 +410,24 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           return { ...prev, [p.job_id]: next };
         });
 
-        // Map onto the canvas node via graph_node_id.
-        if (p.graph_node_id) {
-          setRuntimeByGraphNode((prev) => ({
-            ...prev,
-            [p.graph_node_id!]: {
-              state: p.state,
-              progress: p.progress ?? null,
-              fail_reason: p.fail?.reason ?? null,
-              job_id: p.job_id,
-            },
-          }));
-        }
+        // Merge into the visible snapshot's jobs array so the derived
+        // runtimeByGraphNode picks up the state change. If the job isn't
+        // in the array (e.g. it belongs to a not-yet-fetched snapshot),
+        // the update drops silently — the useEffect that (re)fetches
+        // latestSnapshotJobs on latestSnapshotId change will pick up
+        // the up-to-date state once the snapshot detail lands.
+        setLatestSnapshotJobs((prev) => {
+          const idx = prev.findIndex((j) => j.job_id === p.job_id);
+          if (idx < 0) return prev;
+          const next = prev.slice();
+          next[idx] = {
+            ...next[idx],
+            state: p.state,
+            progress: p.progress ?? next[idx].progress ?? null,
+            fail_reason: p.fail?.reason ?? next[idx].fail_reason ?? null,
+          };
+          return next;
+        });
 
         // On the terminal transition to done, the gateway includes
         // output_handles in the frame. Resolve each to a preview target
@@ -482,6 +513,40 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // Incremented after every single-node dispatch so RunsPanel re-fetches its
   // list and shows the new snapshot row without requiring a manual Refresh.
   const [runsPanelRefreshToken, setRunsPanelRefreshToken] = useState(0);
+
+  // Node runtime = aggregate of the visible snapshot's jobs (draft view →
+  // latest snapshot; snapshot view → viewingSnapshot). Fan-out aggregation
+  // lives in canvas/nodeRuntime.ts. Memoised so the setNodes runtime-sync
+  // effect only fires when the underlying jobs actually change.
+  const runtimeByGraphNode = useMemo(
+    () => aggregateJobsToRuntime(viewingSnapshot?.jobs ?? latestSnapshotJobs),
+    [viewingSnapshot, latestSnapshotJobs],
+  );
+
+  // Keep latestSnapshotJobs synced with latestSnapshotId. Covers both
+  // page-load hydration and the single-node-dispatch case where the
+  // handler bumps latestSnapshotId to a freshly-created snapshot: without
+  // this fetch, WS updates for the new jobs would drop silently (nothing
+  // to find-by-job_id in the array) and the node would keep the previous
+  // snapshot's aggregate state.
+  useEffect(() => {
+    if (!latestSnapshotId) {
+      setLatestSnapshotJobs([]);
+      return;
+    }
+    let cancelled = false;
+    void getSnapshot(latestSnapshotId)
+      .then((snap) => {
+        if (cancelled) return;
+        setLatestSnapshotJobs(snap.jobs);
+      })
+      .catch(() => {
+        /* leave prior jobs in place — WS updates still apply */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [latestSnapshotId]);
 
   const catalogByKey = useMemo(() => {
     const m = new Map<string, CatalogPack>();
@@ -570,8 +635,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const rt = runtimeByGraphNode[n.id];
         const pv = previewsByGraphNode[n.id];
         const po = previewOpenByGraphNode[n.id] ?? null;
+        // Value-level runtime compare so a WS update that keeps a node's
+        // aggregate state unchanged doesn't mint a new node identity —
+        // xyflow's adoptUserNodes would otherwise reset handleBounds and
+        // drop edges (see canvas/CanvasContext.ts for the failure mode).
+        // runtimeByGraphNode is a fresh useMemo output on every WS
+        // update so reference equality alone would churn every node.
         if (
-          rt === d.runtime &&
+          runtimeEqual(rt, d.runtime) &&
           pv === d.previews &&
           po === (d.previewOpen ?? null)
         ) {
@@ -1132,97 +1203,65 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       window.history.replaceState(null, "", `/w/${encodeURIComponent(w.workflow_id)}`);
 
       // Draft-view "carry the last run" hydration (ComfyUI-style):
-      // seed ``runtimeByGraphNode`` and ``previewsByGraphNode`` from
-      // the workflow's most recent snapshot so opening a workflow that
-      // has a prior run shows the state badge + preview caret on each
-      // node without having to look at the snapshot view.
+      // seed ``latestSnapshotId`` (→ jobs via the sync useEffect) and
+      // ``previewsByGraphNode`` from the workflow's snapshots so
+      // opening a workflow with prior runs shows the state badge +
+      // preview caret without having to look at the snapshot view.
       // Live WS ``job_update`` frames still take precedence — this is
       // strictly a cold-start hydration.
       //
-      // Fork/Continue awareness: the newest snapshot may be a Fork
-      // that only holds the freshly-produced graph node — its parent
-      // snapshot still has the not-forked slots filled. We walk newest
-      // → older by consulting ``listWorkflowRuns`` (already sorted
-      // newest-first) and greedily fill each graph_node_id's first
-      // hit. This mirrors "show the most recent artifact at each
-      // canvas slot" without needing a parent chain walker per row.
+      // Fork/Continue awareness (previews only): the newest snapshot may
+      // be a Fork that only holds the freshly-produced graph node — its
+      // parent still has the not-forked slots filled. We walk newest →
+      // older via ``listWorkflowRuns`` (sorted newest-first) and greedily
+      // fill each (graph_node_id, port) preview from the freshest ``done``
+      // attribution. Node RUNTIME (dot colour) is NOT unioned across
+      // snapshots — see ``latestSnapshotJobs`` for the snapshot-scoped
+      // source of truth. That split fixes the "canvas red but latest
+      // run green" bug where a prior failed run overwrote current-done
+      // state via last-write-wins on graph_node_id.
       void (async () => {
         try {
           const runs = await listWorkflowRuns(w.workflow_id);
           if (!runs || runs.length === 0) return;
 
-          const nextRuntime: Record<string, NodeRuntime> = {};
           const perGraphPreviewWork: Array<{
             graphNodeId: string;
             portName: string;
             handleId: string;
           }> = [];
-          // Union across runs newest-first. For each graph_node_id we
-          // pick the freshest ``done`` attribution we can find (so a
-          // failed retry on the newest snapshot doesn't hide an
-          // earlier successful run's preview). Cap the number of runs
-          // we visit so pathological workflows with hundreds of
-          // snapshots don't spam the API on open.
           const doneFilledGnids = new Set<string>();
-          const anyFilledGnids = new Set<string>();
           const MAX_RUNS_TO_WALK = 8;
           let seenFirstSnap = false;
           for (const run of runs.slice(0, MAX_RUNS_TO_WALK)) {
             const snap = await getSnapshot(run.snapshot_id);
             // runs is newest-first; the very first snapshot we fetch is
-            // the latest one — store its graph for the draft-modified badge.
+            // the latest one — its graph drives the draft-modified badge
+            // and its jobs drive node runtime.
             if (!seenFirstSnap) {
               setLatestSnapshotGraph(snap.graph);
               setLatestSnapshotId(run.snapshot_id);
+              // Seed jobs directly to avoid the sync useEffect issuing a
+              // duplicate fetch for the same snapshot on cold-start.
+              setLatestSnapshotJobs(snap.jobs);
               seenFirstSnap = true;
             }
-            // Inside one snapshot the jobs come oldest-first; iterate
-            // newest-first so a later done attempt at the same slot
-            // wins over an earlier failed one.
             for (const job of [...snap.jobs].reverse()) {
               const gnid = job.graph_node_id;
               if (!gnid) continue;
-              const isDone = job.state === "done";
-              // Skip if we've already filled with a done attribution
-              // — done wins forever once we have one. A non-done slot
-              // gets upgraded if a done job for the same gnid shows
-              // up later in the walk.
+              if (job.state !== "done") continue;
               if (doneFilledGnids.has(gnid)) continue;
-              if (anyFilledGnids.has(gnid) && !isDone) continue;
-              anyFilledGnids.add(gnid);
-              if (isDone) doneFilledGnids.add(gnid);
-              nextRuntime[gnid] = {
-                state: job.state,
-                progress: job.progress ?? null,
-                fail_reason: job.fail_reason ?? null,
-                job_id: job.job_id,
-              };
-              // Only a done job carries preview-worthy output_handles;
-              // failed / cancelled slots stay preview-less.
-              if (isDone) {
-                for (const [portName, handleId] of Object.entries(
-                  job.output_handles ?? {},
-                )) {
-                  perGraphPreviewWork.push({
-                    graphNodeId: gnid,
-                    portName,
-                    handleId,
-                  });
-                }
+              doneFilledGnids.add(gnid);
+              for (const [portName, handleId] of Object.entries(
+                job.output_handles ?? {},
+              )) {
+                perGraphPreviewWork.push({
+                  graphNodeId: gnid,
+                  portName,
+                  handleId,
+                });
               }
             }
-          }
-          if (Object.keys(nextRuntime).length > 0) {
-            // Merge on top of anything the live-jobs seed may have
-            // written already — live wins if it exists, this fills
-            // the gaps the live feed doesn't cover for a stale run.
-            setRuntimeByGraphNode((prev) => {
-              const next = { ...nextRuntime };
-              for (const [k, v] of Object.entries(prev)) {
-                if (v) next[k] = v;
-              }
-              return next;
-            });
           }
           if (perGraphPreviewWork.length > 0) {
             const resolved = await Promise.all(
