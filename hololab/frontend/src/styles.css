@@ -381,6 +381,12 @@ a:hover { text-decoration: underline; }
   transform: translate(0, -50%);
 }
 
+/* Arrayed frame background: match the inner card's surface token so the
+   frame reads as a node extension that floats above the canvas, not a
+   mid-tone slab that blends into it. The inline style carries surface-alt;
+   override here so AlgorithmNode.tsx stays untouched. */
+.hl-arrayed-frame { background: var(--surface-2) !important; }
+
 /* Arrayed frame: the card is wrapped in a 5px-inset frame (plus 1px
    frame border) so handles need an extra 6px outward shift to land on
    the frame's outer border rather than the inner card's. Two-class
