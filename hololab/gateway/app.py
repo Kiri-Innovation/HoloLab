@@ -773,6 +773,11 @@ def _mount_routes(app: FastAPI) -> None:
             # ``window.flops.showDocument`` directly. See
             # docs/cobrowser-integration.md.
             "absolute_path": handle.path,
+            # Tombstone timestamp — non-null means the artifact was
+            # cleaned via DELETE /api/artifacts/{handle_id}. The preview
+            # drawer keys off this to skip the <video>/<img> fetch and
+            # render a "cleaned" placeholder instead of a broken frame.
+            "deleted_ts": handle.deleted_ts,
         }
 
     @app.get(

@@ -161,6 +161,7 @@ export function SnapshotCanvas({
               proxy_url: info.proxy_url,
               storage: info.storage as "dir" | "file",
               absolute_path: info.absolute_path,
+              deleted: info.deleted_ts !== null,
             },
           };
         } catch (err) {
@@ -242,6 +243,11 @@ export function SnapshotCanvas({
           computeNodesById,
           onPreviewToggle: (portName: string | null) =>
             togglePreview(gn.id, portName),
+          // Snapshot view is read-only — "run this node" from a frozen
+          // past snapshot has no clean meaning (it would create a new
+          // run on the current draft head, not resurrect this snapshot).
+          // The Run button in PreviewPlaceholder hides on this flag.
+          readOnly: true,
         },
       };
     });

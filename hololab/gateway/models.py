@@ -219,6 +219,16 @@ class HandleInfo(BaseModel):
             "See docs/cobrowser-integration.md."
         ),
     )
+    deleted_ts: float | None = Field(
+        default=None,
+        description=(
+            "Unix-seconds timestamp when this handle was tombstoned via "
+            "DELETE /api/artifacts/{handle_id}. Non-null ⇒ on-disk file is "
+            "gone; the preview drawer skips the <video>/<img> fetch and "
+            "renders the 'artifact cleaned' placeholder + a run-this-node "
+            "button instead of a broken preview. See docs/artifacts.md."
+        ),
+    )
 
 
 class HandleSummary(BaseModel):

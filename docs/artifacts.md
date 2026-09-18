@@ -29,6 +29,16 @@ contains one directory per workflow-run, sub-divided by job:
 
 The gateway records **absolute** paths in the `handles` table. The preview proxy strips the workspace-root prefix to compute `/proxy/{node_id}/{sub}` URLs; the node's file server resolves the sub-path back against its known roots.
 
+## Deletion and the preview drawer
+
+`DELETE /api/artifacts/{handle_id}` (invoked from the Artifacts panel or via API) removes the on-disk file **and** stamps `deleted_ts` on the handle row — the record survives so history / lineage stays intact. `GET /api/handles/{id}` returns the row with `deleted_ts` set, and the canvas preview drawer keys off it:
+
+- `deleted_ts !== null` → drawer shows the **"产物已被清理"** placeholder + a **Run this node** button (uses the existing `POST /api/workflows/{wid}/dispatch/{gnid}` Continue/Fork endpoint). No `<video>` / `<img>` fetch is issued, so there is no broken-frame flash and no 404 on the proxy URL.
+- Handle was never produced (no run yet for that graph node) → drawer shows the **"尚未运行"** placeholder + the same Run button.
+- The read-only snapshot view (`SnapshotCanvas`) hides the Run button — re-running from a frozen past snapshot has no clean meaning; the operator returns to the draft to trigger a new run.
+
+External deletion (`rm` on the file system without going through the API) leaves `deleted_ts = null`, so the drawer still tries to render the preview and the browser paints its native "no source" state. That's an existing edge case; the primary UX path (Artifacts panel deletion) is now covered.
+
 ## Configuring the workspace root
 
 ### Precedence

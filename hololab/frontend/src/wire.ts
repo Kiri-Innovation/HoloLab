@@ -189,6 +189,11 @@ export interface HandleInfo {
   proxy_url: string;
   // Producing node's local absolute path — see HandleSummary above.
   absolute_path: string;
+  // Non-null timestamp when the artifact was tombstoned via
+  // DELETE /api/artifacts/{id}. The preview drawer skips the
+  // <video>/<img> fetch and renders a "cleaned" placeholder instead
+  // of a broken frame. See docs/artifacts.md.
+  deleted_ts: number | null;
 }
 
 // ---------------------------------------------------------------------------

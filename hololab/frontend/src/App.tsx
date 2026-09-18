@@ -41,6 +41,7 @@ import type {
 } from "./wire";
 import {
   ApiError,
+  dispatchNode,
   getComputeNodes,
   getHandle,
   getPackCatalog,
@@ -57,10 +58,12 @@ import { tagsCompatible } from "./tags";
 import {
   AlgorithmNode,
   PREVIEW_TOGGLE_EVENT,
+  RUN_NODE_EVENT,
   type AlgorithmNodeData,
   type NodeRuntime,
   type PreviewTarget,
   type PreviewToggleDetail,
+  type RunNodeDetail,
 } from "./canvas/AlgorithmNode";
 import { Artifacts } from "./Artifacts";
 import { Gallery } from "./Gallery";
@@ -374,6 +377,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 proxy_url: info.proxy_url,
                 storage: info.storage as "dir" | "file",
                 absolute_path: info.absolute_path,
+                deleted: info.deleted_ts !== null,
               };
             }
             if (Object.keys(targets).length === 0) return;
@@ -510,6 +514,31 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     };
     window.addEventListener(PREVIEW_TOGGLE_EVENT, onToggle);
     return () => window.removeEventListener(PREVIEW_TOGGLE_EVENT, onToggle);
+  }, []);
+
+  // Bridge the preview placeholder's "run this node" button. Uses the
+  // V8 Continue-or-Fork dispatch endpoint — no new semantics: if the
+  // graph node has no artifact yet in the latest snapshot the server
+  // Continues; otherwise it Forks. When no workflow is loaded (fresh
+  // palette drop, no save yet) we reject so the placeholder can show
+  // an error instead of silently doing nothing.
+  useEffect(() => {
+    const onRun = (evt: Event) => {
+      const { graph_node_id, resolve, reject } = (
+        evt as CustomEvent<RunNodeDetail>
+      ).detail;
+      const wid = workflowIdRef.current;
+      if (!wid) {
+        reject("save the workflow first (no workflow_id yet)");
+        return;
+      }
+      dispatchNode(wid, graph_node_id).then(
+        () => resolve(),
+        (err: Error) => reject(err.message || "dispatch failed"),
+      );
+    };
+    window.addEventListener(RUN_NODE_EVENT, onRun);
+    return () => window.removeEventListener(RUN_NODE_EVENT, onRun);
   }, []);
 
   // Mirror workflowId into a ref so the toggle listener (registered
@@ -1006,6 +1035,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 proxy_url: r.info.proxy_url,
                 storage: r.info.storage as "dir" | "file",
                 absolute_path: r.info.absolute_path,
+                deleted: r.info.deleted_ts !== null,
               };
             }
             setPreviewsByGraphNode((prev) => {

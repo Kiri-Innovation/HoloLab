@@ -5,6 +5,7 @@
 // dataset attributes. The App-level onConnect validator reads those tags to
 // enforce tag compatibility at edge-drawing time.
 
+import { useMemo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type {
   CatalogPack,
@@ -18,6 +19,7 @@ import { CopyRefButton } from "./CopyRefButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { OpenSourceButton } from "./OpenSourceButton";
 import { Preview } from "./previews";
+import { PreviewPlaceholder } from "./PreviewPlaceholder";
 
 // The port label shown on the canvas is the port's tag (its object type).
 // The internal port variable name (which the pack's shell template uses) is
@@ -66,6 +68,11 @@ export interface PreviewTarget {
   // button — a proxy URL wouldn't do because Cobrowser opens LOCAL
   // files. See docs/cobrowser-integration.md.
   absolute_path: string;
+  // Mirrors HandleInfo.deleted_ts !== null. When true the on-disk
+  // artifact was tombstoned; render the "cleaned" placeholder + Run
+  // button instead of a <video>/<img> that would 404. See
+  // docs/artifacts.md.
+  deleted: boolean;
 }
 
 export interface AlgorithmNodeData extends Record<string, unknown> {
@@ -95,6 +102,11 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   // read-only snapshot canvas so its toggles stay local to that view
   // instead of leaking into App's draft-scoped preview state.
   onPreviewToggle?: (port_name: string | null) => void;
+  // Read-only rendering — snapshot canvas sets this so the drawer's
+  // "run this node" button doesn't show (dispatching from a frozen
+  // past snapshot has no clean meaning; the user re-runs from the
+  // draft). Draft canvas leaves it undefined.
+  readOnly?: boolean;
 }
 
 // Flat, restrained palette. Same colours reused across the AlgorithmNode
@@ -130,18 +142,27 @@ const ROW: React.CSSProperties = {
 const NODE_WIDTH = 220;
 const NODE_WIDTH_EXPANDED = 340; // wider slot so previews have room to breathe
 
-// A previewable output = an output port that (a) has a preview declaration in
-// the manifest and (b) has produced a handle we've resolved a proxy URL for.
-// The node header shows an expand caret when this list is non-empty.
+// A previewable output = an output port that has a preview declaration
+// in the manifest. The caret shows whenever the pack has ANY such port,
+// even if no run has resolved a handle yet — clicking still opens the
+// drawer, which renders a "never-ran" placeholder + Run button so the
+// operator can trigger the first run in place.
+//
+// The optional ``target`` field carries the resolved handle when the
+// job has produced one; when absent (or when target.deleted is true)
+// the drawer swaps in PreviewPlaceholder.
 function previewableOutputs(
   pack: CatalogPack,
   previews: Record<string, PreviewTarget> | undefined,
-): Array<{ name: string; spec: OutputPortSpec; target: PreviewTarget }> {
-  if (!previews) return [];
-  const out: Array<{ name: string; spec: OutputPortSpec; target: PreviewTarget }> = [];
+): Array<{ name: string; spec: OutputPortSpec; target: PreviewTarget | null }> {
+  const out: Array<{
+    name: string;
+    spec: OutputPortSpec;
+    target: PreviewTarget | null;
+  }> = [];
   for (const [name, spec] of Object.entries(pack.outputs)) {
-    const target = previews[name];
-    if (spec.preview && target) out.push({ name, spec, target });
+    if (!spec.preview) continue;
+    out.push({ name, spec, target: previews?.[name] ?? null });
   }
   return out;
 }
@@ -165,6 +186,34 @@ function dispatchToggle(graph_node_id: string, port_name: string | null): void {
   );
 }
 
+// Same event-bridge pattern as PREVIEW_TOGGLE_EVENT — App listens and
+// calls dispatchNode(workflow_id, graph_node_id). The event carries a
+// resolver so the placeholder can await success/failure and show a
+// local status without threading a callback prop through xyflow's
+// nodeTypes registry. Only fires from the draft canvas — snapshot
+// canvas sets ``readOnly`` so the button never renders.
+export const RUN_NODE_EVENT = "hololab-run-node";
+
+export interface RunNodeDetail {
+  graph_node_id: string;
+  resolve: () => void;
+  reject: (msg: string) => void;
+}
+
+function dispatchRunNode(graph_node_id: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    window.dispatchEvent(
+      new CustomEvent<RunNodeDetail>(RUN_NODE_EVENT, {
+        detail: {
+          graph_node_id,
+          resolve,
+          reject: (msg) => reject(new Error(msg)),
+        },
+      }),
+    );
+  });
+}
+
 export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const {
     pack,
@@ -175,6 +224,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     previewOpen,
     onPreviewToggle,
     computeNodesById,
+    readOnly,
   } = data as AlgorithmNodeData;
   const inputEntries = Object.entries(pack.inputs);
   const outputEntries = Object.entries(pack.outputs);
@@ -182,8 +232,20 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const runState = runtime?.state;
   const runColour = stateColour(runState);
   const previewables = previewableOutputs(pack, previews);
-  const expanded = previewOpen && previews?.[previewOpen] ? previewOpen : null;
+  // Expand a port so long as it is previewable (has a preview spec on
+  // the pack). The drawer decides at render time whether to show the
+  // real Preview, the never-ran placeholder, or the cleaned placeholder.
+  const previewableNames = useMemo(
+    () => new Set(previewables.map((p) => p.name)),
+    [previewables],
+  );
+  const expanded =
+    previewOpen && previewableNames.has(previewOpen) ? previewOpen : null;
   const width = expanded ? NODE_WIDTH_EXPANDED : NODE_WIDTH;
+  const currentPreview =
+    expanded ? previewables.find((p) => p.name === expanded) ?? null : null;
+  const runInFlight =
+    runState === "pending" || runState === "assigned" || runState === "running";
 
   return (
     <div
@@ -402,7 +464,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         })}
       </div>
 
-      {expanded && previews && (
+      {expanded && currentPreview && (
         <div
           // ``nodrag``: keep pointer gestures inside the drawer local —
           // clicking a video tile, dragging the shared playback bar's
@@ -427,50 +489,73 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           }}
         >
           {(() => {
-            const port = pack.outputs[expanded];
-            const target = previews[expanded];
-            if (!port?.preview || !target) return null;
-            return (
-              <>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    marginBottom: 6,
-                    fontSize: 10,
-                    color: "var(--inverse-muted)",
-                  }}
-                >
-                  <span style={{ flex: 1 }}>
-                    {pack.name} · {expanded}
-                  </span>
-                  <OpenInCocoderButton
-                    path={target.absolute_path}
-                    computeNode={
+            const { name, spec: port, target } = currentPreview;
+            // Route: live preview when we have a non-deleted target;
+            // otherwise the placeholder tells the operator why (never
+            // ran vs cleaned) and offers Run this node.
+            const showRealPreview = target !== null && !target.deleted;
+            if (showRealPreview && target && port.preview) {
+              return (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      marginBottom: 6,
+                      fontSize: 10,
+                      color: "var(--inverse-muted)",
+                    }}
+                  >
+                    <span style={{ flex: 1 }}>
+                      {pack.name} · {name}
+                    </span>
+                    <OpenInCocoderButton
+                      path={target.absolute_path}
+                      computeNode={
+                        computeNodesById?.[target.node_id] ?? null
+                      }
+                      onDark
+                    />
+                    <CopyRefButton
+                      kind="handle"
+                      id={target.handle_id}
+                      comment={`${pack.name} · ${name} output`}
+                      size="xs"
+                      onDark
+                    />
+                  </div>
+                  <Preview
+                    spec={port.preview}
+                    baseUrl={target.proxy_url}
+                    storage={target.storage}
+                    handleId={target.handle_id}
+                    absolutePath={target.absolute_path}
+                    producingNode={
                       computeNodesById?.[target.node_id] ?? null
                     }
-                    onDark
                   />
-                  <CopyRefButton
-                    kind="handle"
-                    id={target.handle_id}
-                    comment={`${pack.name} · ${expanded} output`}
-                    size="xs"
-                    onDark
-                  />
-                </div>
-                <Preview
-                  spec={port.preview}
-                  baseUrl={target.proxy_url}
-                  storage={target.storage}
-                  handleId={target.handle_id}
-                  absolutePath={target.absolute_path}
-                  producingNode={
-                    computeNodesById?.[target.node_id] ?? null
-                  }
-                />
-              </>
+                </>
+              );
+            }
+            // Placeholder classification: a tombstoned handle is
+            // definitely "cleaned"; otherwise if the last job reached
+            // done but no live target exists the handle was cleaned
+            // externally / before we could load it → also "cleaned";
+            // else the node genuinely has no run yet.
+            const kind =
+              target?.deleted || runState === "done" ? "cleaned" : "never-ran";
+            return (
+              <PreviewPlaceholder
+                kind={kind}
+                packName={pack.name}
+                portName={name}
+                running={runInFlight}
+                readOnly={readOnly}
+                onRun={
+                  readOnly ? undefined : () => dispatchRunNode(id)
+                }
+              />
             );
           })()}
         </div>
