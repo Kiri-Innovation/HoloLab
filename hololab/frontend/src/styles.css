@@ -229,13 +229,78 @@ a:hover { text-decoration: underline; }
   stroke: var(--rf-edge-strong);
   stroke-width: 2.2;
 }
-/* Typed-edge chip lives in a portal at canvas root, not inside the
-   edge SVG group — so the parent-edge :hover selector above can't
-   reach it. Boost the chip itself on its own hover instead. */
+/* ---- Typed-edge chip ----------------------------------------------- */
+/* The chip lives in an EdgeLabelRenderer portal outside the SVG edge
+   group, so the parent-edge :hover selector above can't reach it.
+   All visual properties live here (not inline) so dot-mode CSS rules
+   can override them without fighting inline-style specificity. */
+.hl-edge-chip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: all;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  cursor: pointer;
+  opacity: 0.72;
+  transition:
+    max-width 120ms var(--ease),
+    height 120ms var(--ease),
+    border-radius 120ms var(--ease),
+    padding 120ms var(--ease),
+    opacity var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
 .hl-edge-chip:hover {
   opacity: 1;
   border-color: var(--border-strong);
   color: var(--text-body);
+}
+.hl-edge-chip[data-selected] {
+  opacity: 1;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Dot mode: short-span edge — chip collapses to a small circle so it
+   doesn't overflow onto adjacent node cards. Expanded by CSS :hover on
+   the chip itself (edge SVG hover is handled by JS → removes data-dot).
+   Explicit width keeps the dot from shrinking below 8px (text-indent
+   tricks collapse shrink-to-fit to near-zero on absolutely positioned
+   elements with overflow: hidden). */
+.hl-edge-chip[data-dot] {
+  width: 8px;
+  max-width: 8px;
+  height: 8px;
+  padding: 0;
+  border-radius: 50%;
+  color: transparent;
+  /* transparent outline expands click/hover hit area without affecting layout */
+  outline: 8px solid transparent;
+}
+.hl-edge-chip[data-dot]:hover {
+  width: auto;
+  max-width: 160px;
+  height: 18px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  outline: none;
 }
 .react-flow__handle {
   border: 1px solid var(--surface);

@@ -7,17 +7,21 @@
 //     inspector). The label string is computed by the enclosing canvas
 //     and stashed on ``edge.data`` so this component stays a pure
 //     renderer (no catalog lookups here).
-//   * Default weight is deliberately quiet — a low-contrast chip a
-//     touch smaller than a port label. Selection and hover both bump
-//     opacity/border so the chip pops without ever getting loud.
-//   * Selection restyles the wire itself (stroke, colour) so a click
-//     communicates the edge is the current subject — the pattern
-//     matches the node's blue-outline-on-select.
+//   * Long-span edges (dx ≥ DOT_THRESHOLD) show a quiet full chip at
+//     all times; hover and selection bump it to full opacity/accent.
+//   * Short-span edges (near-vertical wires) collapse to an 8 px dot
+//     so the chip doesn't overflow onto adjacent node cards. The dot
+//     expands on chip hover (:hover CSS) or when the SVG edge path is
+//     hovered (JS state) or when the edge is selected.
+//
+// All chip visual properties live in styles.css (.hl-edge-chip) so the
+// dot-mode attribute selectors can override them without fighting
+// inline-style specificity.
 //
 // The edge type name is registered on both the draft and snapshot
 // ReactFlow instances via ``edgeTypes = { typed: TypedEdge }``.
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -32,38 +36,12 @@ export interface TypedEdgeData extends Record<string, unknown> {
   labelLong?: string;
 }
 
-const CHIP: React.CSSProperties = {
-  position: "absolute",
-  transform: "translate(-50%, -50%)",
-  pointerEvents: "all",
-  padding: "1px 6px",
-  borderRadius: "var(--radius-pill)",
-  background: "var(--surface-2)",
-  border: "1px solid var(--border-subtle)",
-  color: "var(--text-muted)",
-  fontSize: "var(--fs-micro)",
-  fontFamily: "var(--font-mono)",
-  fontWeight: 500,
-  letterSpacing: "0.01em",
-  lineHeight: 1.4,
-  whiteSpace: "nowrap",
-  maxWidth: 140,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  userSelect: "none",
-  // Quiet by default so overlapping wires don't produce a wall of chips.
-  // Selection promotes to full opacity below.
-  opacity: 0.72,
-  transition:
-    "opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
-};
-
-const CHIP_SELECTED: React.CSSProperties = {
-  opacity: 1,
-  background: "var(--accent-soft)",
-  color: "var(--accent)",
-  borderColor: "var(--accent)",
-};
+// EdgeLabelRenderer renders inside the viewport's CSS transform, so the
+// chip's CSS pixels are in graph-coordinate units (same space as
+// sourceX/targetX).  We compare dx directly to the chip's maxWidth
+// (140 px) plus a margin; below this the chip would overflow onto the
+// adjacent node cards at any zoom level.
+const DOT_THRESHOLD = 160;
 
 const STROKE_DEFAULT = 2;
 const STROKE_SELECTED = 3;
@@ -85,6 +63,10 @@ function TypedEdgeInner({
   markerEnd,
   onSelect,
 }: TypedEdgeProps) {
+  // Track edge-path hover so the dot expands even before the user
+  // reaches the tiny chip (via a 20 px transparent hit path below).
+  const [edgeHovered, setEdgeHovered] = useState(false);
+
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -100,6 +82,13 @@ function TypedEdgeInner({
 
   const stroke = selected ? "var(--accent)" : "var(--rf-edge, var(--border-strong))";
   const strokeWidth = selected ? STROKE_SELECTED : STROKE_DEFAULT;
+
+  // Dot mode: short-span edge and not currently expanded.
+  // Chip-hover expansion is handled purely by CSS [data-dot]:hover so
+  // it needs no JS state; edge-path hover and selection remove data-dot
+  // via React to trigger the same expanded appearance.
+  const useDot = label !== "" && Math.abs(targetX - sourceX) < DOT_THRESHOLD;
+  const dotCollapsed = useDot && !selected && !edgeHovered;
 
   // The chip sits in an EdgeLabelRenderer portal — clicks on it do NOT
   // bubble to the underlying SVG edge, so xyflow's built-in
@@ -122,20 +111,25 @@ function TypedEdgeInner({
         markerEnd={markerEnd}
         style={{ stroke, strokeWidth, transition: "stroke var(--dur-fast) var(--ease)" }}
       />
+      {/* Transparent fat path — 20 px hit area so the user can hover the
+          wire without pixel-hunting; triggers the dot → chip expansion. */}
+      <path
+        d={path}
+        strokeWidth={20}
+        stroke="transparent"
+        fill="none"
+        onMouseEnter={() => setEdgeHovered(true)}
+        onMouseLeave={() => setEdgeHovered(false)}
+      />
       {label && (
         <EdgeLabelRenderer>
           <div
             className="hl-edge-chip"
             data-selected={selected ? "" : undefined}
+            data-dot={dotCollapsed ? "" : undefined}
             title={labelLong}
             onClick={onChipClick}
-            style={{
-              ...CHIP,
-              left: labelX,
-              top: labelY,
-              cursor: "pointer",
-              ...(selected ? CHIP_SELECTED : {}),
-            }}
+            style={{ left: labelX, top: labelY }}
           >
             {label}
           </div>
