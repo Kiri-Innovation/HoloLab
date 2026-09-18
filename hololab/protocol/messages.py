@@ -466,6 +466,13 @@ class JobUpdate(BaseModel):
     algorithm_name: str
     algorithm_version: str
     graph_node_id: str | None = None
+    # The snapshot this job belongs to. Present for every workflow-driven
+    # job (fan-out parent + shards + regular). Null only for ad-hoc jobs
+    # from POST /api/jobs/run. The frontend uses it to gate upserts into
+    # ``latestSnapshotJobs`` — without it, shard rows created after the
+    # snapshot detail fetch have no anchor to attribute updates to, so
+    # WS ``job_update`` frames for those shards previously dropped.
+    snapshot_id: str | None = None
     output_handles: dict[str, str] | None = None
     progress: JobProgress | None = None
     fail: JobFail | None = None

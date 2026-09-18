@@ -291,6 +291,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // having to re-register the listener each time workflowId changes.
   // Set below in the workflowId useEffect.
   const workflowIdRef = useRef<string | null>(null);
+  // Mirrors ``latestSnapshotId`` so the WS ``job_update`` handler —
+  // registered once at mount — can gate upserts into
+  // ``latestSnapshotJobs`` by snapshot without re-subscribing on every
+  // dispatch. See the handler in the WS effect below for the fan-out
+  // shard timing this closes off.
+  const latestSnapshotIdRef = useRef<string | null>(null);
   const [previewOpenByGraphNode, setPreviewOpenByGraphNode] = useState<
     Record<string, string | null>
   >({});
@@ -410,24 +416,75 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           return { ...prev, [p.job_id]: next };
         });
 
-        // Merge into the visible snapshot's jobs array so the derived
-        // runtimeByGraphNode picks up the state change. If the job isn't
-        // in the array (e.g. it belongs to a not-yet-fetched snapshot),
-        // the update drops silently — the useEffect that (re)fetches
-        // latestSnapshotJobs on latestSnapshotId change will pick up
-        // the up-to-date state once the snapshot detail lands.
-        setLatestSnapshotJobs((prev) => {
-          const idx = prev.findIndex((j) => j.job_id === p.job_id);
-          if (idx < 0) return prev;
-          const next = prev.slice();
-          next[idx] = {
-            ...next[idx],
-            state: p.state,
-            progress: p.progress ?? next[idx].progress ?? null,
-            fail_reason: p.fail?.reason ?? next[idx].fail_reason ?? null,
-          };
-          return next;
-        });
+        // Upsert into the visible snapshot's jobs array so the derived
+        // runtimeByGraphNode picks up the state change.
+        //
+        // Why upsert (not just "patch if found"): the fan-out dispatch
+        // path creates shard job rows serially in a background task
+        // AFTER ``dispatch_single_node`` returns (see
+        // ``execution.py:_execute_fanout_body`` — ``_dispatch_shard`` is
+        // called per element inside the loop, each triggering a fresh
+        // WS ``job_update``). The frontend's ``[latestSnapshotId]``
+        // effect kicks off ``getSnapshot`` at endpoint-return time; any
+        // shard whose row didn't exist yet when that snapshot detail
+        // was read has no anchor for a ``findIndex`` — under the old
+        // find-then-patch rule those updates dropped silently, and the
+        // node's status dot stayed on the previous aggregate until the
+        // user reloaded the page (the "节点运行完了不会立刻在画布上
+        // 更新" bug). Upsert with a ``workflow_id`` + ``snapshot_id``
+        // gate keeps cross-snapshot leaks out — a stale WS frame from
+        // another snapshot of the same workflow (or a different
+        // workflow entirely) is dropped instead of appended, so the
+        // "canvas red but latest run green" collision the
+        // snapshot-scoped design fixed doesn't regress.
+        if (
+          p.workflow_id === workflowIdRef.current &&
+          p.snapshot_id &&
+          p.snapshot_id === latestSnapshotIdRef.current
+        ) {
+          setLatestSnapshotJobs((prev) => {
+            const idx = prev.findIndex((j) => j.job_id === p.job_id);
+            if (idx >= 0) {
+              const next = prev.slice();
+              next[idx] = {
+                ...next[idx],
+                state: p.state,
+                progress: p.progress ?? next[idx].progress ?? null,
+                fail_reason: p.fail?.reason ?? next[idx].fail_reason ?? null,
+                output_handles:
+                  p.output_handles ?? next[idx].output_handles ?? null,
+              };
+              return next;
+            }
+            // Append — a shard (or otherwise new) job whose row wasn't
+            // in the initial snapshot fetch. Fields the ``JobUpdate``
+            // payload doesn't carry (params, input_handles, timestamps,
+            // etc.) default to empty; the aggregator in
+            // canvas/nodeRuntime.ts only reads state / progress /
+            // fail_reason / graph_node_id / job_id from each row, so
+            // the partial shape is safe for driving the canvas badge.
+            const now = Date.now() / 1000;
+            const appended: SnapshotJob = {
+              job_id: p.job_id,
+              workflow_id: p.workflow_id,
+              node_id: null,
+              graph_node_id: p.graph_node_id,
+              algorithm_name: p.algorithm_name,
+              algorithm_version: p.algorithm_version,
+              state: p.state,
+              progress: p.progress ?? null,
+              fail_reason: p.fail?.reason ?? null,
+              fail_exit_code: p.fail?.exit_code ?? null,
+              fail_message: p.fail?.message ?? null,
+              params: {},
+              input_handles: {},
+              output_handles: p.output_handles ?? null,
+              created_ts: now,
+              updated_ts: now,
+            };
+            return prev.concat(appended);
+          });
+        }
 
         // On the terminal transition to done, the gateway includes
         // output_handles in the frame. Resolve each to a preview target
@@ -525,20 +582,39 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   // Keep latestSnapshotJobs synced with latestSnapshotId. Covers both
   // page-load hydration and the single-node-dispatch case where the
-  // handler bumps latestSnapshotId to a freshly-created snapshot: without
-  // this fetch, WS updates for the new jobs would drop silently (nothing
-  // to find-by-job_id in the array) and the node would keep the previous
-  // snapshot's aggregate state.
+  // handler bumps latestSnapshotId to a freshly-created snapshot.
+  //
+  // The ref update below runs first so a WS ``job_update`` arriving
+  // between the state commit and the fetch's return knows which
+  // snapshot the array now represents — without it, an upsert would
+  // either drop (stale ref = prior snapshot) or leak (ref never
+  // moved). Clearing the array before the fetch keeps stale rows
+  // from a previous snapshot out of the merge window: they'd
+  // otherwise be preserved as "not in fetch" entries.
+  //
+  // Merge on fetch (not overwrite) protects against the narrow race
+  // where a background-created shard's WS frame arrives before the
+  // fetch's DB read caught the same shard row: without the merge,
+  // the fetch would replace the WS-appended row with a shard-less
+  // snapshot and, absent another WS frame for that shard, the node
+  // would show a stale sub-state (e.g. shard-pending seen via WS,
+  // never re-fetched because we already have the id).
   useEffect(() => {
-    if (!latestSnapshotId) {
-      setLatestSnapshotJobs([]);
-      return;
-    }
+    latestSnapshotIdRef.current = latestSnapshotId;
+    setLatestSnapshotJobs([]);
+    if (!latestSnapshotId) return;
     let cancelled = false;
     void getSnapshot(latestSnapshotId)
       .then((snap) => {
         if (cancelled) return;
-        setLatestSnapshotJobs(snap.jobs);
+        setLatestSnapshotJobs((prev) => {
+          const byId = new Map<string, SnapshotJob>();
+          for (const j of snap.jobs) byId.set(j.job_id, j);
+          for (const j of prev) {
+            if (!byId.has(j.job_id)) byId.set(j.job_id, j);
+          }
+          return Array.from(byId.values());
+        });
       })
       .catch(() => {
         /* leave prior jobs in place — WS updates still apply */

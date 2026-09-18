@@ -48,6 +48,13 @@ export interface JobUpdatePayload {
   // Populated for workflow-driven jobs; null for ad-hoc /api/jobs/run triggers.
   // The frontend uses this to key runtime state by canvas node id.
   graph_node_id: string | null;
+  // The snapshot this job belongs to. Present for every workflow-driven
+  // job (fan-out parent + shards + regular). Null only for ad-hoc jobs.
+  // The canvas ``job_update`` handler filters upserts into
+  // ``latestSnapshotJobs`` by this — the identifier is what lets a
+  // background-created shard's first ``pending`` frame arrive at the
+  // frontend and know it belongs to the current snapshot.
+  snapshot_id?: string | null;
   // Only populated on the terminal transition to done — maps
   // output_port_name -> handle_id. Feeds the in-canvas preview drawer.
   output_handles?: Record<string, string> | null;

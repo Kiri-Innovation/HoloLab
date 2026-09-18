@@ -3062,6 +3062,7 @@ def _push_job_update(
         algorithm_name=job.algorithm_name,
         algorithm_version=job.algorithm_version,
         graph_node_id=job.graph_node_id,
+        snapshot_id=job.snapshot_id,
         output_handles=output_handles,
         progress=(
             JobProgress(

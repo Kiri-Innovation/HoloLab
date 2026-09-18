@@ -132,12 +132,26 @@ def test_app_uses_aggregate_helper_for_runtime() -> None:
     )
 
 
-def test_app_ws_update_merges_into_latest_snapshot_jobs() -> None:
-    """WS ``job_update`` must patch ``latestSnapshotJobs`` in place (find
-    by ``job_id`` → replace), NOT write to a flat runtime map. The find
-    step is what confines updates to the visible snapshot: an update for
-    a job that isn't in the array (e.g. a not-yet-fetched new snapshot's
-    jobs) drops silently, waiting for the ``latestSnapshotId`` re-fetch.
+def test_app_ws_update_upserts_into_latest_snapshot_jobs() -> None:
+    """WS ``job_update`` must upsert into ``latestSnapshotJobs``: find by
+    ``job_id`` → replace on hit, append on miss.
+
+    Why upsert and not "patch only if found": the fan-out dispatch path
+    (``execution.py:_execute_fanout_body``) creates shard job rows in a
+    background task, serially, AFTER ``dispatch_single_node`` has
+    returned. The frontend's ``[latestSnapshotId]`` effect fires
+    ``getSnapshot`` at endpoint-return time, so the initial fetch sees
+    only the parent job; every shard's first WS frame arrives with no
+    row to find. Under a find-only rule those frames dropped silently
+    and the node's dot stayed on the previous aggregate until reload —
+    the "节点运行完了不会立刻在画布上更新" bug this test defends against.
+
+    Snapshot scoping (the invariant the previous find-only rule was
+    accidentally enforcing via array membership) is now explicit: the
+    upsert is gated by ``workflow_id`` and ``snapshot_id`` matching the
+    currently-tracked latest snapshot, so a stale frame from another
+    snapshot of the same workflow (or a different workflow entirely)
+    is dropped instead of appended.
     """
 
     body = APP_TSX.read_text(encoding="utf-8")
@@ -145,15 +159,36 @@ def test_app_ws_update_merges_into_latest_snapshot_jobs() -> None:
         "App.tsx must have a setLatestSnapshotJobs updater in the "
         "WS handler for job_update to reflect on the canvas."
     )
-    # The find-by-job_id pattern that keeps the update snapshot-scoped.
+    # findIndex-then-replace-or-append is the upsert pattern.
     assert re.search(
         r"findIndex\(\s*\(\s*j\s*\)\s*=>\s*j\.job_id\s*===\s*p\.job_id\s*\)",
         body,
     ), (
-        "WS job_update must find the job in latestSnapshotJobs by job_id "
-        "and only patch when it's a hit — the miss path is what keeps a "
-        "stale WS frame from a different snapshot from leaking into "
+        "WS job_update must locate the job in latestSnapshotJobs by "
+        "job_id — the found index gates the replace-vs-append branch."
+    )
+    # And the miss branch appends (not returns prev), so shard job
+    # rows created after the initial getSnapshot fetch still populate.
+    # ``prev.concat`` is the append operator we use for the SnapshotJob;
+    # a bare ``return prev`` in the miss path would regress the bug.
+    assert "prev.concat(" in body, (
+        "WS job_update must append newly-observed jobs (via "
+        "``prev.concat(...)``) when findIndex misses — otherwise "
+        "fan-out shards created after the snapshot fetch stay invisible "
+        "to the aggregator until the user reloads the page."
+    )
+    # Snapshot-scoping is now explicit rather than implicit via array
+    # membership: workflow_id + snapshot_id both must match the current
+    # tracked snapshot before we touch the array.
+    assert re.search(r"workflowIdRef\.current", body), (
+        "WS job_update must gate the upsert on workflowIdRef.current — "
+        "otherwise a stale frame from a different workflow leaks into "
         "the current view."
+    )
+    assert re.search(r"latestSnapshotIdRef\.current", body), (
+        "WS job_update must gate the upsert on latestSnapshotIdRef.current — "
+        "otherwise a stale frame from a different snapshot of the same "
+        "workflow leaks in and poisons the aggregate."
     )
 
 
