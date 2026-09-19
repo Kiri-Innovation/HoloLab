@@ -33,7 +33,23 @@ export class ApiError extends Error {
   status: number;
   detail: unknown;
   constructor(status: number, detail: unknown) {
-    super(`HTTP ${status}`);
+    // FastAPI wraps HTTPException detail in {"detail": "..."}. Surface it
+    // as the error message so callers using err.message get human-readable
+    // text instead of the bare "HTTP 400" / "HTTP 500" status string.
+    let msg: string;
+    if (typeof detail === "string") {
+      msg = detail;
+    } else if (
+      detail !== null &&
+      typeof detail === "object" &&
+      "detail" in (detail as object) &&
+      typeof (detail as Record<string, unknown>).detail === "string"
+    ) {
+      msg = (detail as Record<string, unknown>).detail as string;
+    } else {
+      msg = `HTTP ${status}`;
+    }
+    super(msg);
     this.status = status;
     this.detail = detail;
   }
