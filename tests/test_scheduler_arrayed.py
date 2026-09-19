@@ -161,12 +161,82 @@ async def test_discover_element_ids_rejects_mismatched_sets(tmp_path: Path) -> N
     h2 = Handle(handle_id="h2", node_id="n", storage="dir", tags=["t"], path=str(r2))
     await book.register(h1)
     await book.register(h2)
-    with pytest.raises(WorkflowRunError, match="disagree on element set"):
+    with pytest.raises(WorkflowRunError, match="disagree on element set") as ei:
         await _discover_element_ids(
             handles=book,
             input_handles={"a": "h1", "b": "h2"},
             arrayed_input_ports=["a", "b"],
         )
+    msg = str(ei.value)
+    # New error message shape (post image-undistort spec): must list both
+    # cardinalities AND surface the specific missing element on each side,
+    # not just dump the full lists.
+    assert "'a' has 2 element(s)" in msg, msg
+    assert "'b' has 2 element(s)" in msg, msg
+    assert "only in 'a': ['cam_B']" in msg, msg
+    assert "only in 'b': ['cam_Z']" in msg, msg
+
+
+@pytest.mark.asyncio
+async def test_discover_element_ids_length_mismatch_readable(tmp_path: Path) -> None:
+    """N=21 vs N=20 (the exact spec case for image-undistort's paired inputs) —
+    the error must lead with counts + only-in-A/only-in-B, not dump 41 names."""
+    db = await open_database(tmp_path / "db.sqlite")
+    book = HandleBook(db)
+    r1 = tmp_path / "cams"
+    r1.mkdir()
+    for i in range(21):
+        (r1 / f"cam_{i:02d}").mkdir()
+    r2 = tmp_path / "imgs"
+    r2.mkdir()
+    for i in range(20):  # one short
+        (r2 / f"cam_{i:02d}").mkdir()
+    h1 = Handle(handle_id="hc", node_id="n", storage="dir", tags=["t"], path=str(r1))
+    h2 = Handle(handle_id="hi", node_id="n", storage="dir", tags=["t"], path=str(r2))
+    await book.register(h1)
+    await book.register(h2)
+    with pytest.raises(WorkflowRunError) as ei:
+        await _discover_element_ids(
+            handles=book,
+            input_handles={"cams": "hc", "images": "hi"},
+            arrayed_input_ports=["cams", "images"],
+        )
+    msg = str(ei.value)
+    assert "'cams' has 21 element(s)" in msg
+    assert "'images' has 20 element(s)" in msg
+    assert "only in 'cams': ['cam_20']" in msg
+    # 20 elements agree — none only-in-images.
+    assert "only in 'images'" not in msg
+
+
+@pytest.mark.asyncio
+async def test_discover_element_ids_diff_caps_large_lists(tmp_path: Path) -> None:
+    """20-element diff on one side gets capped at 5 with a `(+N more)` tail."""
+    db = await open_database(tmp_path / "db.sqlite")
+    book = HandleBook(db)
+    r1 = tmp_path / "a"
+    r1.mkdir()
+    for i in range(30):
+        (r1 / f"e{i:03d}").mkdir()
+    r2 = tmp_path / "b"
+    r2.mkdir()
+    for i in range(10):
+        (r2 / f"e{i:03d}").mkdir()
+    h1 = Handle(handle_id="hh1", node_id="n", storage="dir", tags=["t"], path=str(r1))
+    h2 = Handle(handle_id="hh2", node_id="n", storage="dir", tags=["t"], path=str(r2))
+    await book.register(h1)
+    await book.register(h2)
+    with pytest.raises(WorkflowRunError) as ei:
+        await _discover_element_ids(
+            handles=book,
+            input_handles={"a": "hh1", "b": "hh2"},
+            arrayed_input_ports=["a", "b"],
+        )
+    msg = str(ei.value)
+    assert "'a' has 30 element(s)" in msg
+    assert "'b' has 10 element(s)" in msg
+    # 20 elements only-in-a; cap=5 → "(+15 more)"
+    assert "(+15 more)" in msg
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,89 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-split
+version: 0.1.0
+description: >
+  Explode a ``colmap-cams`` handle (cameras.txt + images.txt) into three
+  typed views: pinhole intrinsics, lens distortion, and per-image poses.
+  Losslessly reconstructible into the original COLMAP camera model
+  (2D point observations from images.txt are dropped — this is a
+  *poses-only* view of the extrinsics).
+source_entry: split.py
+category: "reconstruction/colmap"
+
+docs: |
+  COLMAP crams the pinhole part and the distortion part of a camera into
+  a single line in ``cameras.txt`` (e.g. OPENCV = ``[fx, fy, cx, cy, k1,
+  k2, p1, p2]``). That's convenient for the COLMAP tools but hostile to
+  the canvas: distortion and intrinsics can't be independently inspected,
+  reused, or wired into other typed nodes. This pack does the *logical*
+  split into three well-typed outputs.
+
+  ### Output tags
+
+  * ``camera-intrinsics`` — the pinhole part (``fx, fy, cx, cy, width,
+    height`` + source COLMAP model name for lossless roundtrip). For
+    ``SIMPLE_*`` models with a single focal, ``fx == fy == f``.
+  * ``camera-distortion`` — the lens-correction tail params. Order and
+    count are defined by the COLMAP model:
+      * ``SIMPLE_PINHOLE`` / ``PINHOLE``: ``[]``
+      * ``SIMPLE_RADIAL``: ``[k]``
+      * ``RADIAL``: ``[k1, k2]``
+      * ``OPENCV``: ``[k1, k2, p1, p2]``
+      * ``OPENCV_FISHEYE``: ``[k1, k2, k3, k4]``
+      * ``FULL_OPENCV``: ``[k1, k2, p1, p2, k3, k4, k5, k6]``
+      * ``FOV``: ``[omega]``
+      * ``SIMPLE_RADIAL_FISHEYE``: ``[k]``
+      * ``RADIAL_FISHEYE``: ``[k1, k2]``
+      * ``THIN_PRISM_FISHEYE``: ``[k1, k2, p1, p2, k3, k4, sx1, sy1]``
+  * ``camera-poses`` — ``(image_id, camera_id, name, q, t)`` per image.
+    ``q = [qw, qx, qy, qz]`` matches COLMAP's ordering; ``t = [tx, ty, tz]``.
+
+  ### Reconstruction
+
+  ``image-undistort`` (this pack's typical downstream) reassembles a
+  COLMAP-compatible ``cameras.txt`` by matching ``camera_id`` across the
+  two files and concatenating the intrinsics' pinhole prefix (3 or 4
+  numbers, depending on the model) with the distortion tail.
+
+  ### Fan-out
+
+  ``arrayable: true`` — when the workflow fans out an
+  ``arrayed<colmap-cams>`` on this node, each shard emits one scalar
+  triple, which the framework aggregates back into three
+  ``arrayed<T>`` outputs (one per port).
+
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    description: "A colmap-cams handle (cameras.txt + images.txt)."
+
+outputs:
+  intrinsics:
+    tags: [camera-intrinsics]
+    description: "Pinhole part of every camera (JSON dict of {cameras: [...]})."
+  distortion:
+    tags: [camera-distortion]
+    description: "Distortion tail params per camera (JSON dict of {cameras: [...]})."
+  poses:
+    tags: [camera-poses]
+    description: "Per-image (image_id, camera_id, name, q, t) — JSON dict of {images: [...]}."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/split.py" \
+      --cams "{{ inputs.cams }}" \
+      --intrinsics-out "{{ outputs.intrinsics }}" \
+      --distortion-out "{{ outputs.distortion }}" \
+      --poses-out "{{ outputs.poses }}"
+
+idempotency:
+  marker: "{{ outputs.intrinsics }}/.hololab-done"

@@ -439,10 +439,37 @@ async def _discover_element_ids(
     for port, entries in sets_by_port.items():
         if entries != reference:
             raise WorkflowRunError(
-                f"arrayed inputs disagree on element set: {reference_port!r}={reference} "
-                f"vs {port!r}={entries}"
+                "arrayed inputs disagree on element set: "
+                + _format_element_set_mismatch(reference_port, reference, port, entries)
             )
     return reference
+
+
+def _format_element_set_mismatch(
+    ref_port: str, ref: list[str], other_port: str, other: list[str], *, cap: int = 5
+) -> str:
+    """Human-scannable diff — leads with cardinality, then first-N symmetric diff.
+
+    A cams=100 vs images=99 mismatch dumping 199 names each side is unreadable,
+    so we surface (a) both counts, (b) the first `cap` names present on one
+    side but not the other, plus a "(+N more)" tail when the diff overflows.
+    """
+    ref_set, other_set = set(ref), set(other)
+    only_ref = sorted(ref_set - other_set)
+    only_other = sorted(other_set - ref_set)
+    parts = [
+        f"{ref_port!r} has {len(ref)} element(s)",
+        f"{other_port!r} has {len(other)} element(s)",
+    ]
+    if only_ref:
+        head = ", ".join(repr(x) for x in only_ref[:cap])
+        tail = f" (+{len(only_ref) - cap} more)" if len(only_ref) > cap else ""
+        parts.append(f"only in {ref_port!r}: [{head}{tail}]")
+    if only_other:
+        head = ", ".join(repr(x) for x in only_other[:cap])
+        tail = f" (+{len(only_other) - cap} more)" if len(only_other) > cap else ""
+        parts.append(f"only in {other_port!r}: [{head}{tail}]")
+    return "; ".join(parts)
 
 
 async def _shard_input_handles(
