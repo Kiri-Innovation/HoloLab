@@ -218,7 +218,12 @@ async def _prepare_fanout(
     arrayed_input_ports = [
         port
         for port, spec in pack_inputs.items()
-        if effective_port_arrayed(bool(spec.get("arrayed", False)), arrayable, True)
+        if effective_port_arrayed(
+            bool(spec.get("arrayed", False)),
+            arrayable,
+            True,
+            port_scalar=bool(spec.get("scalar", False)),
+        )
     ]
     if not arrayed_input_ports:
         raise WorkflowRunError(

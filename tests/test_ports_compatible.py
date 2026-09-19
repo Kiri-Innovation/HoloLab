@@ -116,7 +116,7 @@ def test_graph_node_arrayed_toggle_roundtrips() -> None:
 def _pk(inputs: dict, outputs: dict, arrayable: bool = False) -> PackHandle:
     return PackHandle(
         inputs={
-            n: InputPortView(tags=tuple(spec["tags"]), required=True, arrayed=spec.get("arrayed", False))
+            n: InputPortView(tags=tuple(spec["tags"]), required=True, arrayed=spec.get("arrayed", False), scalar=spec.get("scalar", False))
             for n, spec in inputs.items()
         },
         outputs={

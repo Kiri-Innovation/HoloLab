@@ -67,11 +67,14 @@ def test_image_undistort_shape() -> None:
     assert m.name == "image-undistort"
     assert m.version == "0.2.0"
     assert m.arrayable is True
-    # Two scalar-per-shard inputs — cameras.txt + a frame_sequence.
+    # cameras: scalar-locked — must NOT participate in the fan-out zip;
+    # the framework broadcasts the single cameras.txt to every shard.
     assert m.inputs["cameras"].tags == ["colmap-cameras-txt"]
+    assert m.inputs["cameras"].scalar is True
     assert m.inputs["cameras"].arrayed is False
+    # images: fan-out driver — one shard per element (no scalar lock).
     assert m.inputs["images"].tags == ["frame_sequence"]
-    assert m.inputs["images"].arrayed is False
+    assert m.inputs["images"].scalar is False
     # Two outputs — renamed to und_cameras / und_images so the canvas label
     # reads "und.und_cameras" and "und.und_images" (port id == display name).
     assert m.outputs["und_cameras"].tags == ["colmap-cameras-txt"]
@@ -92,6 +95,10 @@ def test_colmap_triangulate_v030_shape() -> None:
     assert m.inputs["images"].tags == ["frame_sequence"]
     for p in ("cameras", "poses", "images"):
         assert m.inputs[p].arrayed is False, p
+    # poses is scalar-locked — shared across all camera shards (broadcast).
+    assert m.inputs["poses"].scalar is True
+    assert m.inputs["cameras"].scalar is False
+    assert m.inputs["images"].scalar is False
     # Output shape is identical to @0.2.0 so colmap-assemble @0.2.0 still consumes it.
     assert m.outputs["frame"].tags == ["colmap-frame"]
     assert m.outputs["frame"].arrayed is False

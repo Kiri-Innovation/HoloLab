@@ -62,10 +62,15 @@ arrayable: true
 inputs:
   cameras:
     tags: [colmap-cameras-txt]
-    description: "COLMAP-native cameras.txt (the full camera model, incl. distortion)."
+    scalar: true
+    description: >
+      COLMAP-native cameras.txt (full model incl. distortion). Scalar — this
+      single file is broadcast to every shard; it does NOT participate in the
+      fan-out zip. Declare ``scalar: true`` so the framework never tries to
+      enumerate its subdirectories as fan-out elements.
   images:
     tags: [frame_sequence]
-    description: "Per-cam distorted images to undistort. Filenames map 1:1 into the output."
+    description: "Per-cam distorted images to undistort. Fan-out driver — one shard per element."
 
 params:
   blank_pixels:

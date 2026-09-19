@@ -52,10 +52,14 @@ arrayable: true
 inputs:
   cameras:
     tags: [colmap-cameras-txt]
-    description: "PINHOLE cameras.txt from image-undistort (one shared rig intrinsic)."
+    description: "PINHOLE cameras.txt from image-undistort (per-shard, arrayed fan-out)."
   poses:
     tags: [colmap-images-txt]
-    description: "Per-image poses from colmap-split. Names must match the images dir."
+    scalar: true
+    description: >
+      Per-image poses from colmap-split. Scalar — one shared poses file is
+      broadcast to every shard. Declare ``scalar: true`` so the toggle does
+      not try to enumerate subdirectories in this handle.
   images:
     tags: [frame_sequence]
     description: "Undistorted per-cam images to triangulate against `cameras`+`poses`."

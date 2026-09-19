@@ -434,6 +434,7 @@ class InputPortView:
     tags: tuple[str, ...]
     required: bool
     arrayed: bool
+    scalar: bool = False
 
 
 @dataclass(frozen=True)
@@ -507,16 +508,25 @@ def ports_compatible(
     return tags_compatible(src_tags, tgt_tags)
 
 
-def effective_port_arrayed(port_arrayed: bool, pack_arrayable: bool, node_toggle: bool) -> bool:
+def effective_port_arrayed(
+    port_arrayed: bool,
+    pack_arrayable: bool,
+    node_toggle: bool,
+    port_scalar: bool = False,
+) -> bool:
     """Compute the runtime ``arrayed`` state of one port on one graph node.
 
-    Rule: ``manifest declaration OR (pack.arrayable AND node.arrayed_toggle)``.
-    A port that is arrayed in the manifest is always arrayed regardless of
-    the toggle (e.g. ``video-array-source.videos_dir``). Ports that default
-    to non-arrayed on an arrayable pack flip when the operator turns on
-    the checkbox.
+    Rule:
+    * ``port_scalar`` (manifest ``scalar: true``) wins unconditionally —
+      the port is always non-arrayed and broadcasts its scalar value to
+      every fan-out shard regardless of the toggle.
+    * Otherwise: ``manifest arrayed OR (pack.arrayable AND node.arrayed_toggle)``.
+      A port declared ``arrayed: true`` in the manifest is always arrayed.
+      Ports that default to non-arrayed on an arrayable pack flip when the
+      operator turns on the checkbox.
     """
-
+    if port_scalar:
+        return False
     return port_arrayed or (pack_arrayable and node_toggle)
 
 
@@ -678,7 +688,9 @@ def validate_snapshot(
         # Effective arrayed state — the manifest default OR-ed with the
         # pack.arrayable × node.arrayed_toggle override.
         src_arr = effective_port_arrayed(src_out.arrayed, src_pack.arrayable, src.arrayed_toggle)
-        tgt_arr = effective_port_arrayed(tgt_in.arrayed, tgt_pack.arrayable, tgt.arrayed_toggle)
+        tgt_arr = effective_port_arrayed(
+            tgt_in.arrayed, tgt_pack.arrayable, tgt.arrayed_toggle, port_scalar=tgt_in.scalar
+        )
         # Effective tag sets — outputs may declare ``tags_from`` to inherit
         # from their pack's connected input (arrayfy / get-index generics).
         src_tags = effective_output_tags(

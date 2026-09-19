@@ -65,6 +65,13 @@ class InputSpec(BaseModel):
 
     Backward-compatible legacy fields (``type``, ``optional``) are accepted
     but no longer participate in validation — they are recorded and ignored.
+
+    ``scalar`` pins this port to non-arrayed **regardless** of the node's
+    ``arrayed_toggle``. Use it on ports that receive a single shared value
+    (e.g. a cameras.txt that is broadcast to every shard) when the node is
+    otherwise arrayable. Without ``scalar: true``, the toggle would flip the
+    port to arrayed and the framework would try to enumerate subdirectories in
+    the handle, finding 0 elements and raising an element-set mismatch error.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -74,6 +81,7 @@ class InputSpec(BaseModel):
     storage: StorageForm = StorageForm.DIR
     description: str | None = None
     arrayed: bool = False
+    scalar: bool = False
 
     @model_validator(mode="after")
     def _tags_non_empty(self) -> InputSpec:
