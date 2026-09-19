@@ -3,55 +3,49 @@ kind: Algorithm
 name: colmap-split
 version: 0.1.0
 description: >
-  Explode a ``colmap-cams`` handle (cameras.txt + images.txt) into three
-  typed views: pinhole intrinsics, lens distortion, and per-image poses.
-  Losslessly reconstructible into the original COLMAP camera model
-  (2D point observations from images.txt are dropped — this is a
-  *poses-only* view of the extrinsics).
+  Explode a ``colmap-cams`` handle into two independently-wire-able
+  COLMAP-native text files: ``cameras.txt`` (the full camera model,
+  intrinsics + distortion together per COLMAP's schema) and
+  ``images.txt`` (per-image poses, with 2D observation lines left empty).
+  Every downstream consumer stays inside the COLMAP text format — no
+  intermediate JSON, no proprietary schema.
 source_entry: split.py
 category: "reconstruction/colmap"
 
 docs: |
-  COLMAP crams the pinhole part and the distortion part of a camera into
-  a single line in ``cameras.txt`` (e.g. OPENCV = ``[fx, fy, cx, cy, k1,
-  k2, p1, p2]``). That's convenient for the COLMAP tools but hostile to
-  the canvas: distortion and intrinsics can't be independently inspected,
-  reused, or wired into other typed nodes. This pack does the *logical*
-  split into three well-typed outputs.
+  The interchange format across this repo's colmap-* packs is
+  **COLMAP-native text**. That's what ``colmap`` itself reads and
+  writes; keeping the split's outputs in that format means every
+  file can be spot-checked with ``colmap model_converter`` or dropped
+  into any COLMAP-aware tool without a bespoke reader.
+
+  ### Why not split intrinsics away from distortion?
+
+  COLMAP's ``cameras.txt`` line **is** the camera model: e.g.
+  ``1 OPENCV 2704 2028 fx fy cx cy k1 k2 p1 p2`` packs the pinhole part
+  and the distortion coefficients into one row because the OPENCV model
+  is that whole thing. Splitting them further would invent a schema that
+  no COLMAP tool understands. If you need the two pieces logically
+  separated on the canvas, do it visually — but the on-disk bytes stay
+  COLMAP-textual.
 
   ### Output tags
 
-  * ``camera-intrinsics`` — the pinhole part (``fx, fy, cx, cy, width,
-    height`` + source COLMAP model name for lossless roundtrip). For
-    ``SIMPLE_*`` models with a single focal, ``fx == fy == f``.
-  * ``camera-distortion`` — the lens-correction tail params. Order and
-    count are defined by the COLMAP model:
-      * ``SIMPLE_PINHOLE`` / ``PINHOLE``: ``[]``
-      * ``SIMPLE_RADIAL``: ``[k]``
-      * ``RADIAL``: ``[k1, k2]``
-      * ``OPENCV``: ``[k1, k2, p1, p2]``
-      * ``OPENCV_FISHEYE``: ``[k1, k2, k3, k4]``
-      * ``FULL_OPENCV``: ``[k1, k2, p1, p2, k3, k4, k5, k6]``
-      * ``FOV``: ``[omega]``
-      * ``SIMPLE_RADIAL_FISHEYE``: ``[k]``
-      * ``RADIAL_FISHEYE``: ``[k1, k2]``
-      * ``THIN_PRISM_FISHEYE``: ``[k1, k2, p1, p2, k3, k4, sx1, sy1]``
-  * ``camera-poses`` — ``(image_id, camera_id, name, q, t)`` per image.
-    ``q = [qw, qx, qy, qz]`` matches COLMAP's ordering; ``t = [tx, ty, tz]``.
-
-  ### Reconstruction
-
-  ``image-undistort`` (this pack's typical downstream) reassembles a
-  COLMAP-compatible ``cameras.txt`` by matching ``camera_id`` across the
-  two files and concatenating the intrinsics' pinhole prefix (3 or 4
-  numbers, depending on the model) with the distortion tail.
+  * ``colmap-cameras-txt`` — a handle whose payload is one file,
+    ``cameras.txt``, byte-equal to the input's ``cameras.txt``.
+  * ``colmap-images-txt`` — a handle whose payload is one file,
+    ``images.txt``. Format is standard COLMAP: for each image, one
+    header line ``IMAGE_ID QW QX QY QZ TX TY TZ CAMERA_ID NAME``
+    followed by an empty observations line. **We drop the 2D
+    observations** — this is a poses-only view; if you need the
+    full point tracks, wire the ``colmap-cams`` handle directly.
 
   ### Fan-out
 
-  ``arrayable: true`` — when the workflow fans out an
-  ``arrayed<colmap-cams>`` on this node, each shard emits one scalar
-  triple, which the framework aggregates back into three
-  ``arrayed<T>`` outputs (one per port).
+  ``arrayable: true`` — an ``arrayed<colmap-cams>`` fans out one
+  shard per element and the framework aggregates the two scalar
+  outputs back into ``arrayed<colmap-cameras-txt>`` +
+  ``arrayed<colmap-images-txt>``.
 
 arrayable: true
 
@@ -61,15 +55,12 @@ inputs:
     description: "A colmap-cams handle (cameras.txt + images.txt)."
 
 outputs:
-  intrinsics:
-    tags: [camera-intrinsics]
-    description: "Pinhole part of every camera (JSON dict of {cameras: [...]})."
-  distortion:
-    tags: [camera-distortion]
-    description: "Distortion tail params per camera (JSON dict of {cameras: [...]})."
+  cameras:
+    tags: [colmap-cameras-txt]
+    description: "Full camera model in COLMAP text format (cameras.txt, unchanged)."
   poses:
-    tags: [camera-poses]
-    description: "Per-image (image_id, camera_id, name, q, t) — JSON dict of {images: [...]}."
+    tags: [colmap-images-txt]
+    description: "Per-image poses in COLMAP text format (images.txt, 2D observations stripped)."
 
 runtime:
   env: kiri
@@ -81,9 +72,8 @@ exec:
     set -euo pipefail
     python "{{ pack_dir }}/split.py" \
       --cams "{{ inputs.cams }}" \
-      --intrinsics-out "{{ outputs.intrinsics }}" \
-      --distortion-out "{{ outputs.distortion }}" \
+      --cameras-out "{{ outputs.cameras }}" \
       --poses-out "{{ outputs.poses }}"
 
 idempotency:
-  marker: "{{ outputs.intrinsics }}/.hololab-done"
+  marker: "{{ outputs.cameras }}/.hololab-done"

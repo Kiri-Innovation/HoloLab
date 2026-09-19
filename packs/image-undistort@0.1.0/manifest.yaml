@@ -3,69 +3,58 @@ kind: Algorithm
 name: image-undistort
 version: 0.1.0
 description: >
-  Undistort a ``frame_sequence`` using a paired
-  ``camera-intrinsics`` + ``camera-distortion``. Emits a PINHOLE
-  ``camera-intrinsics`` and an undistorted ``frame_sequence``. All three
-  inputs are scalar per invocation — batch processing is the framework's
-  job via the ``arrayed_toggle`` fan-out, not this pack's.
+  Undistort a ``frame_sequence`` using a paired ``colmap-cameras-txt``
+  (COLMAP's native cameras.txt — model + intrinsics + distortion in one
+  file). Emits a PINHOLE ``colmap-cameras-txt`` and an undistorted
+  ``frame_sequence``. Scalar-per-invocation; batch is the framework's
+  job via ``arrayed_toggle`` fan-out.
 source_entry: undistort.py
 category: "reconstruction/colmap"
 
 docs: |
-  Wraps COLMAP's ``image_undistorter``. The interesting bit is *typed
-  inputs*: instead of consuming a monolithic ``colmap-cams`` handle, this
-  pack takes the intrinsics and the distortion as two separate typed
-  ports. That's what makes ``colmap-split`` actually useful — the
-  distortion output is literally what gets consumed here.
+  Thin wrapper around ``colmap image_undistorter``. The whole point of
+  the ``colmap-split`` → ``image-undistort`` pipeline is that the two
+  packs stay inside COLMAP's own text format — no JSON reassembly layer.
+  This pack's script just:
+
+  1. Hardlinks the input images into a clean scratch dir with flat names
+     (COLMAP resolves symlinks while walking ``--image_path``, which
+     otherwise pushes ``image_undistorter`` outputs out of the deliverable
+     — see colmap-triangulate@0.2.0's ``triangulate.py:15-22`` for the
+     detailed failure trace).
+  2. Writes a scratch sparse model that has the input's ``cameras.txt``
+     copied verbatim plus a synthesised identity ``images.txt`` (undistortion
+     is *intrinsic* — extrinsics don't move pixels, so identity poses give
+     bit-identical output to real ones).
+  3. Runs ``colmap image_undistorter --output_type COLMAP``.
+  4. Publishes the PINHOLE ``cameras.txt`` it emits and the undistorted
+     images as this pack's two outputs.
 
   ### Fan-out contract (single-frame vs paired-arrays)
 
-  The pack itself only knows how to undistort **one** (intrinsics,
-  distortion, images) triple per invocation — there's no ``for image in
-  images_array`` loop in the script. To process N frames the workflow
-  wires ``arrayed<T>`` sources into each input and enables
-  ``arrayed_toggle`` on the node; the framework then:
+  The script only knows how to undistort **one** (cameras.txt, images)
+  pair per invocation — there's no ``for frame in frames`` loop. To
+  process N frames the workflow wires ``arrayed<T>`` sources into each
+  input and enables ``arrayed_toggle``; the framework then:
 
-  1. Zips the three inputs by ``element_id`` (subdirectory name in each
+  1. Zips the two inputs by ``element_id`` (subdir name in each
      arrayed<T> parent). ``hololab/gateway/execution.py::_discover_element_ids``
      enforces set equality and raises ``WorkflowRunError`` with a
-     length-and-diff summary when they disagree ("intrinsics has 21
-     element(s); images has 20 element(s); only in 'intrinsics': ['cam_20']").
-  2. Dispatches one shard per element, each seeing scalar handles at
-     ``inputs.intrinsics`` / ``inputs.distortion`` / ``inputs.images``.
+     length-and-diff summary when they disagree ("'cameras' has 21
+     element(s); 'images' has 20 element(s); only in 'cameras': ['cam_20']").
+  2. Dispatches one shard per element, each seeing scalar handles on
+     ``inputs.cameras`` / ``inputs.images``.
 
-  If the same intrinsics + distortion apply to every image element
-  (i.e. one shared camera model across time), broadcast them with
-  ``arrayfy`` to the same element count as ``images``.
-
-  ### How the split maps to the COLMAP call
-
-  ``recombine_cameras_txt`` (in ``undistort.py``) matches ``camera_id``
-  across the intrinsics and distortion JSON files, then rebuilds the
-  original COLMAP ``cameras.txt`` line by concatenating the model's
-  pinhole prefix (``[f, cx, cy]`` or ``[fx, fy, cx, cy]``) with the
-  distortion tail. ``image_undistorter`` then needs a matching
-  ``images.txt`` — which we synthesise with identity poses (undistortion
-  is *intrinsic*; extrinsics don't affect the pixel remap), because
-  poses are not part of this pack's typed inputs.
-
-  Output layout::
-
-      pinhole/                       # tag: camera-intrinsics
-        intrinsics.json              # PINHOLE model + undistorted fx,fy,cx,cy,W,H
-      undistorted/                   # tag: frame_sequence
-        frames/
-          <cam>.<ext>                # image_undistorter output, cropped
+  If the same cameras.txt applies to every image element (i.e. one shared
+  camera model across time), broadcast it with ``arrayfy`` to the same
+  element count as ``images``.
 
 arrayable: true
 
 inputs:
-  intrinsics:
-    tags: [camera-intrinsics]
-    description: "Pinhole part of the shared camera (from colmap-split)."
-  distortion:
-    tags: [camera-distortion]
-    description: "Distortion tail of the shared camera (from colmap-split)."
+  cameras:
+    tags: [colmap-cameras-txt]
+    description: "COLMAP-native cameras.txt (the full camera model, incl. distortion)."
   images:
     tags: [frame_sequence]
     description: "Per-cam distorted images to undistort. Filenames map 1:1 into the output."
@@ -81,9 +70,9 @@ params:
       out invalid regions; 1 keeps the original size and fills with black.
 
 outputs:
-  pinhole:
-    tags: [camera-intrinsics]
-    description: "The PINHOLE model produced by image_undistorter (fx,fy,cx,cy adjusted, distortion dropped)."
+  cameras:
+    tags: [colmap-cameras-txt]
+    description: "PINHOLE cameras.txt emitted by image_undistorter (fx,fy,cx,cy adjusted for the crop)."
   undistorted:
     tags: [frame_sequence]
     description: "Undistorted images, one per input image, at the PINHOLE resolution."
@@ -97,13 +86,12 @@ exec:
   shell: |
     set -euo pipefail
     python "{{ pack_dir }}/undistort.py" \
-      --intrinsics "{{ inputs.intrinsics }}" \
-      --distortion "{{ inputs.distortion }}" \
+      --cameras "{{ inputs.cameras }}" \
       --images "{{ inputs.images }}" \
-      --pinhole-out "{{ outputs.pinhole }}" \
+      --cameras-out "{{ outputs.cameras }}" \
       --undistorted-out "{{ outputs.undistorted }}" \
       --scratch "{{ scratch_dir }}" \
       --blank-pixels {{ params.blank_pixels }}
 
 idempotency:
-  marker: "{{ outputs.pinhole }}/.hololab-done"
+  marker: "{{ outputs.cameras }}/.hololab-done"

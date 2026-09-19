@@ -1,0 +1,116 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-triangulate
+version: 0.3.0
+description: >
+  Per-frame COLMAP triangulate against **already-undistorted** PINHOLE
+  poses. Consumes ``colmap-cameras-txt`` (PINHOLE, from image-undistort)
+  + ``colmap-images-txt`` (per-image poses, from colmap-split) + a
+  ``frame_sequence`` of undistorted images. No inline ``image_undistorter``
+  — that step has been externalised into ``image-undistort``. Output is a
+  self-contained ``colmap-frame`` (sparse/0/ + images/), same shape as
+  the v0.2.0 output so downstream ``colmap-assemble`` still consumes it
+  unchanged.
+source_entry: triangulate.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### v0.3.0 vs v0.2.0
+
+  Both invoke ``colmap point_triangulator`` per shard against a fresh DB
+  built from the shard's images. The difference is what's presumed
+  already done:
+
+  |                          | v0.2.0                                                    | v0.3.0 (this pack)                                        |
+  |--------------------------|-----------------------------------------------------------|-----------------------------------------------------------|
+  | Camera model input tag   | ``colmap-cams`` (single handle w/ cameras.txt+images.txt) | ``colmap-cameras-txt`` + ``colmap-images-txt`` (typed)    |
+  | Camera model on wire     | OPENCV (SfM's native)                                     | PINHOLE (already undistorted by ``image-undistort``)      |
+  | Image input              | Raw distorted frames from ``regroup-by-frame``            | Undistorted frames from ``image-undistort``               |
+  | Inline undistort         | Runs ``colmap image_undistorter`` after triangulate       | **Removed** — inputs are already PINHOLE                  |
+  | Output                   | ``colmap-frame`` (sparse/0/ + images/)                    | Same                                                      |
+
+  ### Rig-consistency fix (COLMAP 3.11+)
+
+  Same trick as v0.2.0: run ``feature_extractor`` first with matching
+  ``--single_camera 1 --camera_model PINHOLE``, query the fresh DB's
+  ``(image_id, name, camera_id)``, then synthesise a prior whose IDs are
+  aligned with the DB by construction. Intrinsics come from the input
+  ``cameras.txt`` (one PINHOLE camera; ``single_camera=1`` at the SfM
+  stage guarantees that shape); poses from ``images.txt``, matched by
+  the per-camera key extracted from the image name (flat ``<cam>.<ext>``
+  after ``image-undistort`` — cam_key = stem).
+
+  ### Fan-out (three arrayed inputs, zipped by element_id)
+
+  ``arrayable: true``. Under ``arrayed_toggle=true`` the framework zips
+  ``cameras``, ``poses``, and ``images`` by element_id via
+  ``hololab/gateway/execution.py::_discover_element_ids``. Same
+  intrinsics+poses shared across time = broadcast with ``arrayfy``.
+
+arrayable: true
+
+inputs:
+  cameras:
+    tags: [colmap-cameras-txt]
+    description: "PINHOLE cameras.txt from image-undistort (one shared rig intrinsic)."
+  poses:
+    tags: [colmap-images-txt]
+    description: "Per-image poses from colmap-split. Names must match the images dir."
+  images:
+    tags: [frame_sequence]
+    description: "Undistorted per-cam images to triangulate against `cameras`+`poses`."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  max_image_size:
+    type: int
+    default: 3200
+    min: 512
+    description: "SIFT downscale cap."
+  max_num_features:
+    type: int
+    default: 8192
+    min: 512
+    description: "SIFT feature cap per image."
+  filter_max_reproj_error:
+    type: float
+    default: 4.0
+    min: 0.1
+    description: "point_triangulator reprojection filter (px). Matches COLMAP default."
+
+outputs:
+  frame:
+    tags: [colmap-frame]
+    description: >
+      Self-contained per-frame COLMAP directory: ``sparse/0/`` (PINHOLE
+      cameras + images + points3D, both .bin and .txt) plus ``images/``
+      symlinked from the input undistorted frames. Ready for
+      ``colmap-assemble`` to fan-in into a ``colmap`` container.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/triangulate.py" \
+      --cameras "{{ inputs.cameras }}" \
+      --poses "{{ inputs.poses }}" \
+      --images "{{ inputs.images }}/frames" \
+      --output "{{ outputs.frame }}" \
+      --scratch "{{ scratch_dir }}" \
+      --use-gpu {{ params.use_gpu }} \
+      --max-image-size {{ params.max_image_size }} \
+      --max-num-features {{ params.max_num_features }} \
+      --filter-max-reproj-error {{ params.filter_max_reproj_error }}
+
+idempotency:
+  marker: "{{ outputs.frame }}/.hololab-done"
