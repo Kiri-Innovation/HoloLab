@@ -385,6 +385,11 @@ export interface SnapshotJob {
   // "reused" instead of "done".
   reused_from_job_id?: string | null;
   started_ts?: number | null;
+  // Fan-out linkage: set on shard jobs, null on the parent and non-fan-out
+  // jobs. Used by aggregateJobsToRuntime to exclude the parent coordinator
+  // from the shard count/progress so "100/100" is shown instead of "101/101".
+  parent_job_id?: string | null;
+  shard_element_id?: string | null;
   created_ts: number;
   updated_ts: number;
 }

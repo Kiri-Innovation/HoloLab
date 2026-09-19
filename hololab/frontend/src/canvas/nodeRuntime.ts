@@ -57,8 +57,13 @@ function aggregateProgress(
   if (jobs.length === 1) {
     return jobs[0].progress ?? null;
   }
-  const done = jobs.filter((j) => j.state === "done").length;
-  return { current: done, total: jobs.length };
+  // Fan-out: some jobs carry parent_job_id (they are shards). Count only
+  // shards so a 100-frame fan-out shows 100/100, not 101/101. The parent
+  // coordinator job is excluded; its "done" state is not a shard completion.
+  const shards = jobs.filter((j) => j.parent_job_id != null);
+  const counted = shards.length > 0 ? shards : jobs;
+  const done = counted.filter((j) => j.state === "done").length;
+  return { current: done, total: counted.length };
 }
 
 function pickRepresentativeJob(jobs: readonly SnapshotJob[]): SnapshotJob {

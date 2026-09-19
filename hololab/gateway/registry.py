@@ -908,7 +908,8 @@ class JobsStore:
                        j.fail_reason, j.fail_exit_code, j.fail_message,
                        j.params_json, j.input_handles_json,
                        j.created_ts, j.updated_ts,
-                       j.reused_from_job_id, j.started_ts
+                       j.reused_from_job_id, j.started_ts,
+                       j.parent_job_id, j.shard_element_id
                 FROM snapshot_jobs sj
                 JOIN jobs j ON j.job_id = sj.job_id
                 WHERE sj.snapshot_id = ?
@@ -919,7 +920,8 @@ class JobsStore:
                        j.fail_reason, j.fail_exit_code, j.fail_message,
                        j.params_json, j.input_handles_json,
                        j.created_ts, j.updated_ts,
-                       j.reused_from_job_id, j.started_ts
+                       j.reused_from_job_id, j.started_ts,
+                       j.parent_job_id, j.shard_element_id
                 FROM jobs j
                 WHERE j.snapshot_id = ?
                   AND j.state != 'done'
@@ -1006,6 +1008,8 @@ class JobsStore:
                 ),
                 "reused_from_job_id": r[16],
                 "started_ts": r[17],
+                "parent_job_id": r[18],
+                "shard_element_id": r[19],
                 "created_ts": r[14],
                 "updated_ts": r[15],
             }

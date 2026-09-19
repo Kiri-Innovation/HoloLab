@@ -571,10 +571,10 @@ function GroupJobRow({
 }) {
   const state = aggregateGroupState(parent, shards);
   const elapsed = groupElapsed(parent, shards, state, now);
-  const doneCount =
-    (parent.state === "done" ? 1 : 0) +
-    shards.filter((s) => s.state === "done").length;
-  const total = shards.length + 1;
+  // Count only shards: parent coordinator is not an element of the array.
+  // 100 shards → ×100  100/100, not ×101  101/101.
+  const doneCount = shards.filter((s) => s.state === "done").length;
+  const total = shards.length;
   const visibleShards = showAllShards
     ? shards
     : shards.slice(0, SHARDS_INITIAL_LIMIT);
