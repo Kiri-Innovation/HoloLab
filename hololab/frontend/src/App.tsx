@@ -900,13 +900,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         srcOut?.arrayed,
         src.pack.arrayable,
         (srcNode?.data as { arrayed_toggle?: boolean } | undefined)?.arrayed_toggle,
+        srcOut?.scalar,
       );
       const tgtArrayed = effectivePortArrayed(
         tgtIn?.arrayed,
         tgt.pack.arrayable,
         (tgtNode?.data as { arrayed_toggle?: boolean } | undefined)?.arrayed_toggle,
+        tgtIn?.scalar,
       );
-      if (!portsCompatible(srcTags, srcArrayed, tgtTags, tgtArrayed)) {
+      if (!portsCompatible(srcTags, srcArrayed, tgtTags, tgtArrayed, tgtIn?.scalar)) {
         // Flash a message via console for MVP; a toast is a follow-up.
         const srcLabel = srcArrayed ? `arrayed<${srcTags.join(",")}>` : srcTags.join(",");
         const tgtLabel = tgtArrayed ? `arrayed<${tgtTags.join(",")}>` : tgtTags.join(",");

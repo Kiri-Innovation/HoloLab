@@ -120,7 +120,7 @@ def _pk(inputs: dict, outputs: dict, arrayable: bool = False) -> PackHandle:
             for n, spec in inputs.items()
         },
         outputs={
-            n: OutputPortView(tags=tuple(spec["tags"]), arrayed=spec.get("arrayed", False))
+            n: OutputPortView(tags=tuple(spec["tags"]), arrayed=spec.get("arrayed", False), scalar=spec.get("scalar", False))
             for n, spec in outputs.items()
         },
         arrayable=arrayable,
@@ -203,6 +203,94 @@ def test_validate_arrayable_toggle_promotes_scalar_port_to_arrayed() -> None:
         # is arrayable — the per-node toggle should flip the port to arrayed.
         ("dst", "0.1.0"): _pk(
             {"i": {"tags": ["video-source"], "arrayed": False}},
+            {"out": {"tags": ["x"]}},
+            arrayable=True,
+        ),
+    }
+    issues = validate_snapshot(
+        graph,
+        packs_by_key=packs,
+        online_node_ids={"node"},
+        packs_offered_by_node={"node": {("src", "0.1.0"), ("dst", "0.1.0")}},
+    )
+    edge_issues = [i for i in issues if i.where.startswith("edge:")]
+    assert edge_issues == [], edge_issues
+
+
+def test_scalar_output_to_arrayed_input_rejected() -> None:
+    """scalar: true output → arrayed input must be rejected with a specific message."""
+    graph = WorkflowGraph(
+        nodes=[
+            GraphNode(id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node"),
+            GraphNode(
+                id="b",
+                algorithm_name="dst",
+                algorithm_version="0.1.0",
+                assigned_node_id="node",
+                arrayed_toggle=True,
+            ),
+        ],
+        edges=[GraphEdge(id="e", source="a", sourceHandle="o", target="b", targetHandle="i")],
+    )
+    packs = {
+        ("src", "0.1.0"): _pk({}, {"o": {"tags": ["colmap-cameras-txt"], "scalar": True}}),
+        ("dst", "0.1.0"): _pk(
+            {"i": {"tags": ["colmap-cameras-txt"], "arrayed": False}},
+            {"out": {"tags": ["x"]}},
+            arrayable=True,
+        ),
+    }
+    issues = validate_snapshot(
+        graph,
+        packs_by_key=packs,
+        online_node_ids={"node"},
+        packs_offered_by_node={"node": {("src", "0.1.0"), ("dst", "0.1.0")}},
+    )
+    edge_issues = [i for i in issues if i.where.startswith("edge:")]
+    assert edge_issues, "expected validation issue for scalar output → arrayed input"
+    assert any("scalar output" in i.message for i in edge_issues), edge_issues
+
+
+def test_arrayed_output_to_scalar_input_allowed() -> None:
+    """arrayed output → scalar: true input must be accepted (broadcast semantic)."""
+    graph = WorkflowGraph(
+        nodes=[
+            GraphNode(id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node", arrayed_toggle=True),
+            GraphNode(id="b", algorithm_name="dst", algorithm_version="0.1.0", assigned_node_id="node", arrayed_toggle=True),
+        ],
+        edges=[GraphEdge(id="e", source="a", sourceHandle="o", target="b", targetHandle="i")],
+    )
+    packs = {
+        ("src", "0.1.0"): _pk({}, {"o": {"tags": ["colmap-cameras-txt"]}}, arrayable=True),
+        ("dst", "0.1.0"): _pk(
+            {"i": {"tags": ["colmap-cameras-txt"], "scalar": True}},
+            {"out": {"tags": ["x"]}},
+            arrayable=True,
+        ),
+    }
+    issues = validate_snapshot(
+        graph,
+        packs_by_key=packs,
+        online_node_ids={"node"},
+        packs_offered_by_node={"node": {("src", "0.1.0"), ("dst", "0.1.0")}},
+    )
+    edge_issues = [i for i in issues if i.where.startswith("edge:")]
+    assert edge_issues == [], edge_issues
+
+
+def test_scalar_output_to_scalar_input_allowed() -> None:
+    """scalar: true output → scalar: true input: both non-arrayed, always OK."""
+    graph = WorkflowGraph(
+        nodes=[
+            GraphNode(id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node", arrayed_toggle=True),
+            GraphNode(id="b", algorithm_name="dst", algorithm_version="0.1.0", assigned_node_id="node", arrayed_toggle=True),
+        ],
+        edges=[GraphEdge(id="e", source="a", sourceHandle="o", target="b", targetHandle="i")],
+    )
+    packs = {
+        ("src", "0.1.0"): _pk({}, {"o": {"tags": ["colmap-cameras-txt"], "scalar": True}}, arrayable=True),
+        ("dst", "0.1.0"): _pk(
+            {"i": {"tags": ["colmap-cameras-txt"], "scalar": True}},
             {"out": {"tags": ["x"]}},
             arrayable=True,
         ),

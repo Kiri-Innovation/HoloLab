@@ -1319,6 +1319,7 @@ def _mount_routes(app: FastAPI) -> None:
                         tags=tuple(i["tags"]),
                         required=bool(i.get("required", True)),
                         arrayed=bool(i.get("arrayed", False)),
+                        scalar=bool(i.get("scalar", False)),
                     )
                     for n, i in entry["inputs"].items()
                 },
@@ -1327,6 +1328,7 @@ def _mount_routes(app: FastAPI) -> None:
                         tags=tuple(o["tags"]),
                         arrayed=bool(o.get("arrayed", False)),
                         tags_from=o.get("tags_from"),
+                        scalar=bool(o.get("scalar", False)),
                     )
                     for n, o in entry["outputs"].items()
                 },

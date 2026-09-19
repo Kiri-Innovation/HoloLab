@@ -476,6 +476,7 @@ class NodeRegistry:
                                 "storage": s.storage.value,
                                 "description": s.description,
                                 "arrayed": s.arrayed,
+                                "scalar": s.scalar,
                             }
                             for n, s in manifest.inputs.items()
                         }
@@ -489,6 +490,7 @@ class NodeRegistry:
                                 "storage": s.storage.value,
                                 "description": s.description,
                                 "arrayed": s.arrayed,
+                                "scalar": s.scalar,
                                 "tags_from": s.tags_from,
                                 # Tag → viewer inference: if the manifest
                                 # didn't declare an explicit ``preview:``

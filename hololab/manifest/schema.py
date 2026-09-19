@@ -128,6 +128,14 @@ class OutputSpec(BaseModel):
     ``arrayed`` marks the port as producing an ``arrayed<T>`` value; same
     per-node override rule as inputs (see :class:`InputSpec` docstring).
 
+    ``scalar`` pins this port to non-arrayed **regardless** of the node's
+    ``arrayed_toggle``. Use it on outputs that always produce a single item
+    per invocation — even when the pack fans out, each shard's output is one
+    item, and the framework aggregates them into ``arrayed<T>`` at the parent
+    level. Canvas validation will reject an edge from a ``scalar: true`` output
+    to any input that would be arrayed (fan-out participant without
+    ``scalar: true``), catching "0-element zip" errors before runtime.
+
     ``tags_from`` names one of this pack's input ports whose effective
     tags this output should mirror. Used by generic utility packs
     (``arrayfy``, ``get-index``) whose element type is determined by
@@ -142,6 +150,7 @@ class OutputSpec(BaseModel):
     description: str | None = None
     preview: OutputPreview | None = None
     arrayed: bool = False
+    scalar: bool = False
     tags_from: str | None = None
 
     @model_validator(mode="after")

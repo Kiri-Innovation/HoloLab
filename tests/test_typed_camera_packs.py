@@ -59,6 +59,9 @@ def test_colmap_split_shape() -> None:
     assert m.outputs["poses"].tags == ["colmap-images-txt"]
     for p in ("cameras", "poses"):
         assert m.outputs[p].arrayed is False
+        # scalar: true — each invocation produces one file; connecting to an
+        # arrayed (fan-out) input port is rejected at canvas validation time.
+        assert m.outputs[p].scalar is True, p
     assert m.source_entry == "split.py"
 
 

@@ -57,10 +57,17 @@ inputs:
 outputs:
   cameras:
     tags: [colmap-cameras-txt]
-    description: "Full camera model in COLMAP text format (cameras.txt, unchanged)."
+    scalar: true
+    description: >
+      Full camera model in COLMAP text format (cameras.txt, unchanged). Scalar
+      — each invocation produces one cameras.txt; the framework aggregates shards
+      into ``arrayed<colmap-cameras-txt>`` when fan-out is enabled.
   poses:
     tags: [colmap-images-txt]
-    description: "Per-image poses in COLMAP text format (images.txt, 2D observations stripped)."
+    scalar: true
+    description: >
+      Per-image poses in COLMAP text format (images.txt, 2D observations
+      stripped). Scalar — same aggregation logic as ``cameras``.
 
 runtime:
   env: kiri

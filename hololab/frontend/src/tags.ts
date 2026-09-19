@@ -15,30 +15,34 @@ export function tagsCompatible(a: string[], b: string[]): boolean {
 }
 
 // Full edge compatibility: tags overlap AND arrayed cardinality matches.
-// ``arrayed<T>`` connects only to ``arrayed<T>``; ``T`` connects only to
-// ``T``. Use an explicit ``arrayfy`` node to promote a scalar into an
-// array (no implicit broadcasting — the graph should show the promotion).
+// Asymmetric exception: arrayed source → explicit scalar target is allowed
+// (the scalar port broadcasts the full parent handle to every shard).
+// A scalar source (portScalar=true → srcArrayed=false) into an arrayed
+// target is rejected — the fan-out zip would find 0 sub-elements.
 export function portsCompatible(
   srcTags: string[],
   srcArrayed: boolean,
   tgtTags: string[],
   tgtArrayed: boolean,
+  tgtScalar?: boolean,
 ): boolean {
-  if (srcArrayed !== tgtArrayed) return false;
+  if (srcArrayed !== tgtArrayed) {
+    // Allow arrayed source → explicit scalar target (broadcast semantic).
+    if (!(srcArrayed && tgtScalar)) return false;
+  }
   return tagsCompatible(srcTags, tgtTags);
 }
 
 // Compute the effective ``arrayed`` state of one port on one graph node.
-// Rule: manifest declaration OR (pack.arrayable AND node.arrayed_toggle).
-// A port that is arrayed in the manifest stays arrayed regardless of the
-// per-node checkbox (e.g. ``video-array-source.videos_dir``); ports that
-// default to non-arrayed on an arrayable pack flip when the operator
-// turns on the toggle.
+// Rule: ``portScalar`` wins unconditionally (always non-arrayed); otherwise
+// manifest declaration OR (pack.arrayable AND node.arrayed_toggle).
 export function effectivePortArrayed(
   portArrayed: boolean | undefined,
   packArrayable: boolean | undefined,
   nodeToggle: boolean | undefined,
+  portScalar?: boolean,
 ): boolean {
+  if (portScalar) return false;
   return Boolean(portArrayed) || (Boolean(packArrayable) && Boolean(nodeToggle));
 }
 

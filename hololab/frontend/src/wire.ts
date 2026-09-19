@@ -108,6 +108,11 @@ export interface PortSpec {
   // declare this at manifest time; arrayable packs get it flipped per
   // graph node by ``GraphNode.arrayed_toggle``. See docs/pack-spec.md.
   arrayed?: boolean;
+  // When true, the port is always non-arrayed regardless of the node's
+  // arrayed_toggle. On outputs: each invocation produces one item (the
+  // framework aggregates shards). On inputs: the port receives the full
+  // broadcast handle, not a per-element shard subdir.
+  scalar?: boolean;
 }
 
 export interface OutputPreviewSpec {

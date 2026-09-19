@@ -446,6 +446,7 @@ class OutputPortView:
     # Name of an input port on the same pack whose (effective) tags this
     # output mirrors. None → this port's declared ``tags`` are authoritative.
     tags_from: str | None = None
+    scalar: bool = False
 
 
 @dataclass(frozen=True)
@@ -493,18 +494,27 @@ def ports_compatible(
     src_arrayed: bool,
     tgt_tags: list[str],
     tgt_arrayed: bool,
+    tgt_scalar: bool = False,
 ) -> bool:
     """Full edge compatibility: tag overlap AND arrayed cardinality match.
 
     * ``any`` on either side matches every tag (utility packs like
       ``arrayfy`` / ``get-index`` operate over any element type).
-    * Cardinality is strict: ``arrayed<T>`` only connects to ``arrayed<T>``;
-      ``T`` only connects to ``T``. Use an explicit ``arrayfy`` node to
-      broadcast a scalar into an array.
+    * Cardinality is strict with one asymmetric exception:
+      - ``T`` → ``T`` and ``arrayed<T>`` → ``arrayed<T>`` are always valid.
+      - ``arrayed<T>`` → ``scalar-locked T`` (``tgt_scalar=True``) is **allowed**:
+        the scalar port broadcasts the full parent handle to every shard.
+      - ``scalar<T>`` (``src_arrayed=False`` via ``scalar: true``) → ``arrayed<T>``
+        is **rejected**: the fan-out zip would find 0 sub-elements.
+      Use an explicit ``arrayfy`` node to promote a non-scalar source into
+      an array.
     """
 
     if src_arrayed != tgt_arrayed:
-        return False
+        # Exception: arrayed source into an explicit scalar target is a broadcast
+        # — the scalar input receives the full parent handle, not a shard subdir.
+        if not (src_arrayed and tgt_scalar):
+            return False
     return tags_compatible(src_tags, tgt_tags)
 
 
@@ -686,8 +696,12 @@ def validate_snapshot(
         src_out = src_pack.outputs[edge.sourceHandle]
         tgt_in = tgt_pack.inputs[edge.targetHandle]
         # Effective arrayed state — the manifest default OR-ed with the
-        # pack.arrayable × node.arrayed_toggle override.
-        src_arr = effective_port_arrayed(src_out.arrayed, src_pack.arrayable, src.arrayed_toggle)
+        # pack.arrayable × node.arrayed_toggle override.  ``scalar: true``
+        # wins unconditionally on either side.
+        src_arr = effective_port_arrayed(
+            src_out.arrayed, src_pack.arrayable, src.arrayed_toggle,
+            port_scalar=src_out.scalar,
+        )
         tgt_arr = effective_port_arrayed(
             tgt_in.arrayed, tgt_pack.arrayable, tgt.arrayed_toggle, port_scalar=tgt_in.scalar
         )
@@ -697,14 +711,23 @@ def validate_snapshot(
             src, src_pack, edge.sourceHandle, graph, node_by_id, packs_by_key
         )
         tgt_tags = list(tgt_in.tags)
-        if not ports_compatible(src_tags, src_arr, tgt_tags, tgt_arr):
+        if not ports_compatible(src_tags, src_arr, tgt_tags, tgt_arr, tgt_scalar=tgt_in.scalar):
             if src_arr != tgt_arr:
-                msg = (
-                    f"arrayed cardinality mismatch: source is "
-                    f"{'arrayed<' + ','.join(src_tags) + '>' if src_arr else ','.join(src_tags)}"
-                    f", target expects "
-                    f"{'arrayed<' + ','.join(tgt_tags) + '>' if tgt_arr else ','.join(tgt_tags)}"
-                )
+                if src_out.scalar and tgt_arr:
+                    msg = (
+                        f"`{src.algorithm_name}.{edge.sourceHandle}` is a scalar output "
+                        f"(scalar: true) — it always produces one item per invocation; "
+                        f"`{tgt.algorithm_name}.{edge.targetHandle}` participates in "
+                        f"fan-out (arrayed). Declare `scalar: true` on the target input "
+                        f"to receive the broadcast, or wire it to a non-arrayed target."
+                    )
+                else:
+                    msg = (
+                        f"arrayed cardinality mismatch: source is "
+                        f"{'arrayed<' + ','.join(src_tags) + '>' if src_arr else ','.join(src_tags)}"
+                        f", target expects "
+                        f"{'arrayed<' + ','.join(tgt_tags) + '>' if tgt_arr else ','.join(tgt_tags)}"
+                    )
             else:
                 msg = f"tag mismatch: {src_tags} vs {tgt_tags} have no overlap"
             issues.append(ValidationIssue(where=f"edge:{edge.id}", message=msg))
