@@ -239,6 +239,39 @@ older attributions for the not-forked slots because the hydration
 greedy-fills each graph node id's first hit across the walked runs.
 Live WS `job_update` frames always win over hydration.
 
+## Edge interaction
+
+Edges on the canvas are first-class objects: they carry the data type
+flowing between two ports and can be selected in their own right.
+
+- **Type chip** — each edge renders a small chip near its midpoint
+  showing the source port's effective type in the same vocabulary the
+  node port dots use (a tag like `frame_sequence` or its arrayed form
+  `arrayed<frame_sequence>`). The chip is deliberately quiet
+  (translucent, small mono) so a canvas with many overlapping wires
+  doesn't turn into a wall of labels; hover or selection promotes it.
+  When the source port declares `tags_from`, the label follows the
+  wire back to the ultimate producer (see `effectiveOutputType` in
+  `hololab/frontend/src/canvas/edgeLabels.ts` — mirrors the backend's
+  `effective_output_tags` in `hololab/gateway/workflows.py`).
+- **Selection** — clicking the wire or the chip selects the edge:
+  stroke thickens to the accent colour and the chip lights up. Node
+  selection and edge selection are mutually exclusive (xyflow's
+  default), so the bottom inspector never shows both at once.
+- **Edge inspector** — with an edge selected, the bottom slot swaps
+  from `NodeInspector` to `EdgeInspector`. It shows the type chip
+  large, the flow (source_node.port → target_node.port), and — when
+  the source has already produced an artifact — reuses the same
+  tag → viewer routing from `previews.tsx` that node preview drawers
+  use (no viewer logic is duplicated). The header carries the
+  "Open in Cocoder" and CopyRef affordances just like the node drawer.
+  Both the draft and the read-only snapshot canvas share this
+  inspector; the only difference is where the source handle id comes
+  from (`previewsByGraphNode` vs `SnapshotJob.output_handles`).
+- **What it doesn't do** — clicking an edge does not open a preview
+  drawer *on the node*, and it does not affect dispatch. It's an
+  inspection affordance, not a structural change.
+
 ## Reference types (`hololab://` scheme)
 
 Four canvas-visible object families all get first-class references so
