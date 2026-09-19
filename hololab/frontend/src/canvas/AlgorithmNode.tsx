@@ -189,6 +189,7 @@ const FRONTEND_VIEWER_TAGS = new Set<string>([
   "frame_sequence",
   "colmap-cams",
   "colmap-points",
+  "colmap-frame",
 ]);
 
 function hasFrontendViewerTag(tags: string[] | undefined): boolean {

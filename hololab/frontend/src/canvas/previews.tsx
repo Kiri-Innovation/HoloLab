@@ -161,6 +161,32 @@ export function Preview({
     }
     return <ColmapPointsPreview baseUrl={baseUrl} />;
   }
+  // ``colmap-frame`` — self-contained COLMAP frame: sparse/0/{cameras,
+  // images,points3D}.{bin,txt} + images/ (undistorted). Produced by
+  // colmap-triangulate@0.3.0 as one element per frame in an arrayed
+  // handle. The full triple-fetch (cameras+images+points3D) gives
+  // genuine frustum wireframes on top of the triangulated point cloud —
+  // a richer view than colmap-points (which only has points). The
+  // arrayed form wraps the scalar viewer with ArrayedPaginator so the
+  // user can page through frames.
+  if (
+    tags &&
+    tags.includes("colmap-frame") &&
+    storage === "dir"
+  ) {
+    if (arrayed) {
+      return (
+        <ArrayedPaginator
+          baseUrl={baseUrl}
+          handleId={handleId}
+          renderScalar={(elementBaseUrl) => (
+            <ColmapFramePreview baseUrl={elementBaseUrl} />
+          )}
+        />
+      );
+    }
+    return <ColmapFramePreview baseUrl={baseUrl} />;
+  }
 
   // No tag intercept matched and the caller didn't hand us a spec.
   // Happens when a port has a frontend-driven tag (e.g. colmap-cams)
@@ -470,9 +496,11 @@ function summariseListing(summary: HandleSummary): {
       }
       // Fallback for a dir with several files inside — show the dir
       // itself with a count so the row still fits one line.
+      // If leaf count is 0 (all children are sub-dirs), show "dir"
+      // rather than the misleading "0 files".
       rows.push({
         name: e.name,
-        sizeLabel: `${leaves.length} files`,
+        sizeLabel: leaves.length > 0 ? `${leaves.length} files` : "dir",
         isDir: true,
       });
       continue;
@@ -3072,6 +3100,7 @@ function Colmap3DPreview({ baseUrl, fetchFiles, title }: Colmap3DPreviewProps) {
 
 const COLMAP_CAMS_FETCH = ["cameras.txt", "images.txt"] as const;
 const COLMAP_POINTS_FETCH = ["points3D.txt"] as const;
+const COLMAP_FRAME_FETCH = ["cameras.txt", "images.txt", "points3D.txt"] as const;
 
 function ColmapCamsPreview({ baseUrl }: { baseUrl: string }) {
   return (
@@ -3089,6 +3118,16 @@ function ColmapPointsPreview({ baseUrl }: { baseUrl: string }) {
       baseUrl={baseUrl}
       fetchFiles={COLMAP_POINTS_FETCH}
       title="colmap-points viewer"
+    />
+  );
+}
+
+function ColmapFramePreview({ baseUrl }: { baseUrl: string }) {
+  return (
+    <Colmap3DPreview
+      baseUrl={baseUrl}
+      fetchFiles={COLMAP_FRAME_FETCH}
+      title="colmap-frame viewer"
     />
   );
 }

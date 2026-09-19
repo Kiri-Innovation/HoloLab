@@ -112,3 +112,21 @@ def test_vendored_colmaputil_dist_is_present() -> None:
         "vendored ColmapUtil dist wasn't built with base=/colmaputil/ — "
         "run `npm run build:embed` in ColmapUtil before re-vendoring"
     )
+
+
+def test_bundle_contains_colmap_frame_tag_routing() -> None:
+    """``colmap-frame`` must appear in the bundle at both routing sites:
+    the Preview dispatch intercept (previews.tsx) and FRONTEND_VIEWER_TAGS
+    (AlgorithmNode.tsx). Two hits minimum — losing either silently drops
+    the caret or the 3D viewer for colmap-triangulate@0.3.0 output frames.
+    """
+
+    js_path = _find_dist_js()
+    if js_path is None:
+        pytest.skip("frontend dist not built — run `npm run build` first")
+    js = js_path.read_text(encoding="utf-8", errors="replace")
+    hits = js.count("colmap-frame")
+    assert hits >= 2, (
+        f"expected >=2 occurrences of 'colmap-frame' in the built bundle "
+        f"(Preview intercept + FRONTEND_VIEWER_TAGS promotion), found {hits}"
+    )
