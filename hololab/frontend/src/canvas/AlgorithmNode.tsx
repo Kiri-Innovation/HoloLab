@@ -190,6 +190,10 @@ const FRONTEND_VIEWER_TAGS = new Set<string>([
   "colmap-cams",
   "colmap-points",
   "colmap-frame",
+  // Rig chain — iframe/ColmapUtil previews. rig_extrinsics is the
+  // post-BA rig model; rig_points4d is the per-group triangulation.
+  "rig_extrinsics",
+  "rig_points4d",
 ]);
 
 function hasFrontendViewerTag(tags: string[] | undefined): boolean {

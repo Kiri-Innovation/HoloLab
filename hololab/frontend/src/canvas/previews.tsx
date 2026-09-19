@@ -187,6 +187,30 @@ export function Preview({
     }
     return <ColmapFramePreview baseUrl={baseUrl} />;
   }
+  // ``rig_extrinsics`` — rig-calibration ships a COLMAP model at
+  // ``sparse_phase2_txt/{cameras,images,points3D}.txt`` (post phase-2
+  // BA, converted to text). Reuses Colmap3DPreview to show the 7-cam
+  // frustums + triangulated points that the mapper produced.
+  if (
+    tags &&
+    tags.includes("rig_extrinsics") &&
+    storage === "dir"
+  ) {
+    return <RigExtrinsicsPreview baseUrl={baseUrl} />;
+  }
+  // ``rig_points4d`` — rig-group-triangulation ships one COLMAP model
+  // per time-group under ``work/group_NNNN/text/``. The top-level dir
+  // isn't an arrayed handle (it's a scalar dir with per-group subdirs),
+  // so ArrayedPaginator doesn't fit; this viewer reads
+  // ``groups_manifest.json`` for the group list and pages through the
+  // per-group models.
+  if (
+    tags &&
+    tags.includes("rig_points4d") &&
+    storage === "dir"
+  ) {
+    return <RigPoints4dPreview baseUrl={baseUrl} />;
+  }
 
   // No tag intercept matched and the caller didn't hand us a spec.
   // Happens when a port has a frontend-driven tag (e.g. colmap-cams)
@@ -3129,6 +3153,196 @@ function ColmapFramePreview({ baseUrl }: { baseUrl: string }) {
       fetchFiles={COLMAP_FRAME_FETCH}
       title="colmap-frame viewer"
     />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Rig previews — thin wrappers over Colmap3DPreview for outputs shaped by
+// the rig calibration / triangulation packs.
+// ---------------------------------------------------------------------------
+
+// rig-calibration puts its COLMAP model at ``sparse_phase2_txt/`` after
+// the phase-2 bundle_adjuster + model_converter. Adjust the base URL
+// once and hand the standard triple-fetch to Colmap3DPreview.
+function RigExtrinsicsPreview({ baseUrl }: { baseUrl: string }) {
+  const sparseBase = `${baseUrl.replace(/\/$/, "")}/sparse_phase2_txt`;
+  return (
+    <Colmap3DPreview
+      baseUrl={sparseBase}
+      fetchFiles={COLMAP_FRAME_FETCH}
+      title="rig-calibration viewer"
+    />
+  );
+}
+
+// rig-group-triangulation ships ``groups_manifest.json`` listing every
+// group + its ``work/group_NNNN/text/`` COLMAP model. A group is only
+// meaningful together with its timestamp/point count so the pager row
+// shows both; ``failed`` groups from the manifest are dropped since they
+// have no model to render.
+interface RigGroupMeta {
+  index: number;
+  t_center_ns?: number;
+  registered_images?: number;
+  points3D?: number;
+}
+interface RigGroupsManifest {
+  groups?: RigGroupMeta[];
+  failed?: number[];
+}
+
+function RigPoints4dPreview({ baseUrl }: { baseUrl: string }) {
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ok"; groups: RigGroupMeta[] }
+    | { kind: "err"; message: string }
+  >({ kind: "loading" });
+  const [idx, setIdx] = useState(0);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    const ctl = new AbortController();
+    setState({ kind: "loading" });
+    setIdx(0);
+    (async () => {
+      try {
+        const dirBase = baseUrl.replace(/\/$/, "");
+        const r = await fetch(`${dirBase}/groups_manifest.json`, {
+          signal: ctl.signal,
+        });
+        if (!r.ok) throw new Error(`groups_manifest.json: HTTP ${r.status}`);
+        const parsed = (await r.json()) as RigGroupsManifest;
+        const groups = (parsed.groups ?? []).filter(
+          (g) => typeof g.index === "number",
+        );
+        if (ctl.signal.aborted) return;
+        setState({ kind: "ok", groups });
+      } catch (e) {
+        if ((e as Error).name === "AbortError") return;
+        setState({ kind: "err", message: (e as Error).message });
+      }
+    })();
+    return () => ctl.abort();
+  }, [baseUrl]);
+
+  const total = state.kind === "ok" ? state.groups.length : 0;
+  const move = useCallback(
+    (delta: number) => {
+      if (total <= 0) return;
+      setIdx((prev) => (prev + delta + total) % total);
+    },
+    [total],
+  );
+
+  useEffect(() => {
+    if (!hovered) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowLeft") {
+        move(-1);
+        e.preventDefault();
+      } else if (e.key === "ArrowRight") {
+        move(1);
+        e.preventDefault();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [hovered, move]);
+
+  if (state.kind === "loading") {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text="reading groups_manifest.json…" kind="loading" />
+      </div>
+    );
+  }
+  if (state.kind === "err") {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text={`groups load failed: ${state.message}`} kind="error" />
+      </div>
+    );
+  }
+  if (state.groups.length === 0) {
+    return (
+      <div style={PREVIEW_SHELL}>
+        <Status text="no groups" kind="info" />
+      </div>
+    );
+  }
+
+  const safeIdx = Math.min(idx, state.groups.length - 1);
+  const group = state.groups[safeIdx];
+  const groupTag = `group_${String(group.index).padStart(4, "0")}`;
+  const groupBase = `${baseUrl.replace(/\/$/, "")}/work/${groupTag}/text`;
+  const points = group.points3D ?? 0;
+  const cams = group.registered_images ?? 0;
+  const detail = `${cams} cams · ${points} pts`;
+
+  return (
+    <div
+      ref={wrapperRef}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          padding: "0 0 var(--space-1) 0",
+          fontSize: 11,
+          color: "var(--inverse-muted)",
+          fontFamily: "var(--font-mono)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => move(-1)}
+          className="nodrag nopan"
+          style={{
+            background: "transparent",
+            border: "1px solid var(--border-strong)",
+            color: "var(--text-on-dark)",
+            padding: "1px 6px",
+            borderRadius: "var(--radius-sm)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+          aria-label="previous group"
+        >
+          ‹
+        </button>
+        <span>
+          {groupTag} ({safeIdx + 1}/{state.groups.length}) · {detail}
+        </span>
+        <button
+          type="button"
+          onClick={() => move(1)}
+          className="nodrag nopan"
+          style={{
+            background: "transparent",
+            border: "1px solid var(--border-strong)",
+            color: "var(--text-on-dark)",
+            padding: "1px 6px",
+            borderRadius: "var(--radius-sm)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+          aria-label="next group"
+        >
+          ›
+        </button>
+      </div>
+      <Colmap3DPreview
+        baseUrl={groupBase}
+        fetchFiles={COLMAP_FRAME_FETCH}
+        title="rig-points4d viewer"
+      />
+    </div>
   );
 }
 
