@@ -63,21 +63,21 @@ def test_colmap_split_shape() -> None:
 
 
 def test_image_undistort_shape() -> None:
-    m, _ = load_manifest(PACKS_ROOT / "image-undistort@0.1.0" / "manifest.yaml")
+    m, _ = load_manifest(PACKS_ROOT / "image-undistort@0.2.0" / "manifest.yaml")
     assert m.name == "image-undistort"
-    assert m.version == "0.1.0"
+    assert m.version == "0.2.0"
     assert m.arrayable is True
     # Two scalar-per-shard inputs — cameras.txt + a frame_sequence.
     assert m.inputs["cameras"].tags == ["colmap-cameras-txt"]
     assert m.inputs["cameras"].arrayed is False
     assert m.inputs["images"].tags == ["frame_sequence"]
     assert m.inputs["images"].arrayed is False
-    # Two outputs — PINHOLE camera + undistorted image dir.
-    assert m.outputs["cameras"].tags == ["colmap-cameras-txt"]
-    assert m.outputs["undistorted"].tags == ["frame_sequence"]
+    # Two outputs — renamed to und_cameras / und_images so the canvas label
+    # reads "und.und_cameras" and "und.und_images" (port id == display name).
+    assert m.outputs["und_cameras"].tags == ["colmap-cameras-txt"]
+    assert m.outputs["und_images"].tags == ["frame_sequence"]
     assert m.source_entry == "undistort.py"
-    # Docs must cite the framework-level zip contract so an operator wiring
-    # the node knows arrayfy is required for scalar broadcast into arrays.
+    # Docs must cite the framework-level zip contract.
     assert m.docs and "_discover_element_ids" in m.docs
 
 

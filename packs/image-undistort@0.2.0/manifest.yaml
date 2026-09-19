@@ -1,0 +1,105 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: image-undistort
+version: 0.2.0
+description: >
+  Undistort a ``frame_sequence`` using a paired ``colmap-cameras-txt``
+  (COLMAP's native cameras.txt — model + intrinsics + distortion in one
+  file). Emits a PINHOLE ``colmap-cameras-txt`` (``und_cameras``) and
+  an undistorted ``frame_sequence`` (``und_images``). Scalar-per-invocation;
+  batch is the framework's job via ``arrayed_toggle`` fan-out.
+source_entry: undistort.py
+category: "reconstruction/colmap"
+
+docs: |
+  Thin wrapper around ``colmap image_undistorter``. The whole point of
+  the ``colmap-split`` → ``image-undistort`` pipeline is that the two
+  packs stay inside COLMAP's own text format — no JSON reassembly layer.
+  This pack's script just:
+
+  1. Hardlinks the input images into a clean scratch dir with flat names
+     (COLMAP resolves symlinks while walking ``--image_path``, which
+     otherwise pushes ``image_undistorter`` outputs out of the deliverable
+     — see colmap-triangulate@0.2.0's ``triangulate.py:15-22`` for the
+     detailed failure trace).
+  2. Writes a scratch sparse model that has the input's ``cameras.txt``
+     copied verbatim plus a synthesised identity ``images.txt`` (undistortion
+     is *intrinsic* — extrinsics don't move pixels, so identity poses give
+     bit-identical output to real ones).
+  3. Runs ``colmap image_undistorter --output_type COLMAP``.
+  4. Publishes the PINHOLE ``cameras.txt`` it emits and the undistorted
+     images as ``und_cameras`` and ``und_images``.
+
+  ### Output naming (v0.2.0 vs v0.1.0)
+
+  ``cameras`` / ``undistorted`` renamed to ``und_cameras`` / ``und_images``
+  so the canvas shows the source (``und.``) in the port label rather than
+  the generic receiver name. HoloLab port ids are the display label;
+  there is no separate display-name field.
+
+  ### Fan-out contract (single-frame vs paired-arrays)
+
+  The script only knows how to undistort **one** (cameras.txt, images)
+  pair per invocation — there's no ``for frame in frames`` loop. To
+  process N frames the workflow wires ``arrayed<T>`` sources into each
+  input and enables ``arrayed_toggle``; the framework then:
+
+  1. Zips the two inputs by ``element_id`` (subdir name in each
+     arrayed<T> parent). ``hololab/gateway/execution.py::_discover_element_ids``
+     enforces set equality and raises ``WorkflowRunError`` with a
+     length-and-diff summary when they disagree ("'cameras' has 21
+     element(s); 'images' has 20 element(s); only in 'cameras': ['cam_20']").
+  2. Dispatches one shard per element, each seeing scalar handles on
+     ``inputs.cameras`` / ``inputs.images``.
+
+  If the same cameras.txt applies to every image element (i.e. one shared
+  camera model across time), the scalar ``cameras`` output from
+  ``colmap-split`` broadcasts automatically to every shard without an
+  explicit ``arrayfy`` node.
+
+arrayable: true
+
+inputs:
+  cameras:
+    tags: [colmap-cameras-txt]
+    description: "COLMAP-native cameras.txt (the full camera model, incl. distortion)."
+  images:
+    tags: [frame_sequence]
+    description: "Per-cam distorted images to undistort. Filenames map 1:1 into the output."
+
+params:
+  blank_pixels:
+    type: int
+    default: 0
+    min: 0
+    max: 1
+    description: >
+      Pass-through to ``image_undistorter --blank_pixels``. 0 (default) crops
+      out invalid regions; 1 keeps the original size and fills with black.
+
+outputs:
+  und_cameras:
+    tags: [colmap-cameras-txt]
+    description: "PINHOLE cameras.txt emitted by image_undistorter (fx,fy,cx,cy adjusted for the crop)."
+  und_images:
+    tags: [frame_sequence]
+    description: "Undistorted images, one per input image, at the PINHOLE resolution."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/undistort.py" \
+      --cameras "{{ inputs.cameras }}" \
+      --images "{{ inputs.images }}" \
+      --cameras-out "{{ outputs.und_cameras }}" \
+      --undistorted-out "{{ outputs.und_images }}" \
+      --scratch "{{ scratch_dir }}" \
+      --blank-pixels {{ params.blank_pixels }}
+
+idempotency:
+  marker: "{{ outputs.und_cameras }}/.hololab-done"
