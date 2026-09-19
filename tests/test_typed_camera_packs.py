@@ -39,6 +39,10 @@ def _load_module(name: str, path: Path):
 
 
 split_mod = _load_module("_split_mod", PACKS_ROOT / "colmap-split@0.1.0" / "split.py")
+split_v020_mod = _load_module("_split_v020_mod", PACKS_ROOT / "colmap-split@0.2.0" / "split.py")
+undistort_v020_mod = _load_module(
+    "_undistort_v020_mod", PACKS_ROOT / "image-undistort@0.2.0" / "undistort.py"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +50,7 @@ split_mod = _load_module("_split_mod", PACKS_ROOT / "colmap-split@0.1.0" / "spli
 # ---------------------------------------------------------------------------
 
 
-def test_colmap_split_shape() -> None:
+def test_colmap_split_v010_shape() -> None:
     m, _ = load_manifest(PACKS_ROOT / "colmap-split@0.1.0" / "manifest.yaml")
     assert m.name == "colmap-split"
     assert m.version == "0.1.0"
@@ -223,3 +227,183 @@ def test_split_output_colmap_roundtrips_through_model_converter(
     # Byproducts image_undistorter cares about should exist.
     assert (bin_out / "cameras.bin").is_file()
     assert (bin_out / "images.bin").is_file()
+
+
+# ---------------------------------------------------------------------------
+# colmap-split@0.2.0 — shape
+# ---------------------------------------------------------------------------
+
+
+def test_colmap_split_v020_shape() -> None:
+    m, _ = load_manifest(PACKS_ROOT / "colmap-split@0.2.0" / "manifest.yaml")
+    assert m.name == "colmap-split"
+    assert m.version == "0.2.0"
+    assert m.arrayable is True
+    assert m.inputs["cams"].tags == ["colmap-cams"]
+    assert m.inputs["cams"].arrayed is False
+    # Three outputs: PINHOLE txt + distortion JSON + poses txt.
+    assert m.outputs["pinhole_intrinsics"].tags == ["colmap-cameras-txt"]
+    assert m.outputs["distortion"].tags == ["camera-distortion-json"]
+    assert m.outputs["poses"].tags == ["colmap-images-txt"]
+    for p in ("pinhole_intrinsics", "distortion", "poses"):
+        assert m.outputs[p].arrayed is False, p
+    assert m.source_entry == "split.py"
+
+
+def test_image_undistort_v020_shape() -> None:
+    m, _ = load_manifest(PACKS_ROOT / "image-undistort@0.2.0" / "manifest.yaml")
+    assert m.name == "image-undistort"
+    assert m.version == "0.2.0"
+    assert m.arrayable is True
+    # Three typed inputs.
+    assert m.inputs["pinhole_intrinsics"].tags == ["colmap-cameras-txt"]
+    assert m.inputs["pinhole_intrinsics"].arrayed is False
+    assert m.inputs["distortion"].tags == ["camera-distortion-json"]
+    assert m.inputs["distortion"].arrayed is False
+    assert m.inputs["images"].tags == ["frame_sequence"]
+    assert m.inputs["images"].arrayed is False
+    # Outputs unchanged from @0.1.0.
+    assert m.outputs["cameras"].tags == ["colmap-cameras-txt"]
+    assert m.outputs["undistorted"].tags == ["frame_sequence"]
+    assert m.source_entry == "undistort.py"
+    assert m.docs and "_discover_element_ids" in m.docs
+
+
+# ---------------------------------------------------------------------------
+# colmap-split@0.2.0 — behaviour: split + reassembly roundtrip
+# ---------------------------------------------------------------------------
+
+
+def _split_v020_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
+    src = tmp_path / "cams"
+    src.mkdir()
+    (src / "cameras.txt").write_text(_SFM_FIXTURE_CAMERAS)
+    (src / "images.txt").write_text(_SFM_FIXTURE_IMAGES)
+    ph_out = tmp_path / "out_pinhole"
+    dist_out = tmp_path / "out_dist"
+    poses_out = tmp_path / "out_poses"
+    argv = [
+        "split.py",
+        "--cams", str(src),
+        "--pinhole-intrinsics-out", str(ph_out),
+        "--distortion-out", str(dist_out),
+        "--poses-out", str(poses_out),
+    ]
+    old_argv = sys.argv
+    sys.argv = argv
+    try:
+        rc = split_v020_mod.main()
+    finally:
+        sys.argv = old_argv
+    assert rc == 0
+    return ph_out, dist_out, poses_out
+
+
+def test_split_v020_pinhole_cameras_is_pinhole(tmp_path: Path) -> None:
+    """pinhole_intrinsics output must be COLMAP PINHOLE — no distortion model."""
+    ph_out, _, _ = _split_v020_fixture(tmp_path)
+    body = (ph_out / "cameras.txt").read_text()
+    data_lines = [ln for ln in body.splitlines() if ln and not ln.startswith("#")]
+    assert len(data_lines) == 1
+    parts = data_lines[0].split()
+    assert parts[1] == "PINHOLE"
+    # 4 params: fx fy cx cy
+    assert len(parts) == 8, parts  # id model W H fx fy cx cy
+
+
+def test_split_v020_distortion_json_opencv_params(tmp_path: Path) -> None:
+    """distortion JSON must carry model='OPENCV' and the four distortion coefficients."""
+    import json
+
+    _, dist_out, _ = _split_v020_fixture(tmp_path)
+    data = json.loads((dist_out / "distortion.json").read_text())
+    assert data["schema_version"] == 1
+    cam = data["cameras"][0]
+    assert cam["camera_id"] == 1
+    assert cam["model"] == "OPENCV"
+    k1, k2, p1, p2 = cam["params"]
+    assert pytest.approx(k1, rel=1e-6) == 0.00279
+    assert pytest.approx(k2, rel=1e-6) == 0.00080
+    assert pytest.approx(p1, rel=1e-6) == -7.4e-05
+    assert pytest.approx(p2, rel=1e-6) == 0.00016
+
+
+def test_split_v020_poses_observations_stripped(tmp_path: Path) -> None:
+    _, _, poses_out = _split_v020_fixture(tmp_path)
+    body = (poses_out / "images.txt").read_text()
+    non_blank = [ln for ln in body.splitlines() if ln and not ln.startswith("#")]
+    assert len(non_blank) == 2
+
+
+def test_split_v020_roundtrip_opencv(tmp_path: Path) -> None:
+    """split → reassemble → params numerically equal to the original OPENCV entry."""
+    ph_out, dist_out, _ = _split_v020_fixture(tmp_path)
+    reassembled = tmp_path / "reassembled.txt"
+    undistort_v020_mod.reassemble_cameras_txt(
+        ph_out / "cameras.txt",
+        dist_out / "distortion.json",
+        reassembled,
+    )
+    expected_params = [1462.10, 1454.28, 1352.0, 1014.0, 0.00279, 0.00080, -7.4e-05, 0.00016]
+    for ln in reassembled.read_text().splitlines():
+        if not ln or ln.startswith("#"):
+            continue
+        parts = ln.split()
+        assert parts[1] == "OPENCV", f"model should be OPENCV, got {parts[1]}"
+        params = [float(p) for p in parts[4:]]
+        assert params == pytest.approx(expected_params, rel=1e-6), params
+
+
+def test_split_v020_roundtrip_simple_opencv(tmp_path: Path) -> None:
+    """SIMPLE_OPENCV (single focal length) roundtrips correctly via normalisation."""
+    import json
+
+    src = tmp_path / "cams"
+    src.mkdir()
+    # SIMPLE_OPENCV: f cx cy k1 k2 p1 p2 (7 params, 3 pinhole)
+    (src / "cameras.txt").write_text(
+        "1 SIMPLE_OPENCV 1920 1080 800.5 960 540 0.01 -0.003 0.0001 -0.0002\n"
+    )
+    (src / "images.txt").write_text("1 1 0 0 0 0 0 0 1 a.png\n\n")
+    ph_out = tmp_path / "ph"
+    dist_out = tmp_path / "dist"
+    poses_out = tmp_path / "poses"
+    sys.argv = [
+        "split.py",
+        "--cams", str(src),
+        "--pinhole-intrinsics-out", str(ph_out),
+        "--distortion-out", str(dist_out),
+        "--poses-out", str(poses_out),
+    ]
+    rc = split_v020_mod.main()
+    assert rc == 0
+
+    # Pinhole line must be PINHOLE with fx=fy=f.
+    ph_line = next(
+        ln for ln in (ph_out / "cameras.txt").read_text().splitlines()
+        if ln and not ln.startswith("#")
+    )
+    ph_parts = ph_line.split()
+    assert ph_parts[1] == "PINHOLE"
+    assert pytest.approx(float(ph_parts[4])) == 800.5  # fx
+    assert pytest.approx(float(ph_parts[5])) == 800.5  # fy = fx = f
+
+    # Distortion JSON.
+    dist = json.loads((dist_out / "distortion.json").read_text())
+    assert dist["cameras"][0]["model"] == "SIMPLE_OPENCV"
+    assert len(dist["cameras"][0]["params"]) == 4
+
+    # Reassembly.
+    reassembled = tmp_path / "r.txt"
+    undistort_v020_mod.reassemble_cameras_txt(
+        ph_out / "cameras.txt", dist_out / "distortion.json", reassembled
+    )
+    r_line = next(
+        ln for ln in reassembled.read_text().splitlines()
+        if ln and not ln.startswith("#")
+    )
+    r_parts = r_line.split()
+    assert r_parts[1] == "SIMPLE_OPENCV"
+    params = [float(p) for p in r_parts[4:]]
+    expected = [800.5, 960.0, 540.0, 0.01, -0.003, 0.0001, -0.0002]
+    assert params == pytest.approx(expected, rel=1e-6)
