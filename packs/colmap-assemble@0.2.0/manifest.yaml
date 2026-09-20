@@ -3,14 +3,32 @@ kind: Algorithm
 name: colmap-assemble
 version: 0.2.0
 description: >
-  Assemble an ``arrayed<colmap-frame>`` (per-frame COLMAP directories with
-  PINHOLE cameras + undistorted images) into the ``colmap_N/`` container
-  layout that ``stg-train`` and every other consumer of the ``colmap`` tag
-  expects.
+  **DEPRECATED (2026-09-20)** — kept only for historical workflows already
+  wiring the retired ``colmap-frame`` tag. New graphs must wire
+  ``colmap-triangulate@0.4.0`` (which emits ``arrayed<colmap>``) directly
+  into ``stg-train@0.2.0``, whose exec now contains the equivalent
+  symlink-into-``colmap_{i}/`` glue. Rationale: HoloLab data types describe
+  *semantics*, not filesystem shape; the container layout is an STG-specific
+  quirk and belongs inside the STG consumer's exec, not as a standalone
+  reshape node.
+
+  (Original description) Assemble an ``arrayed<colmap-frame>`` (per-frame
+  COLMAP directories with PINHOLE cameras + undistorted images) into the
+  ``colmap_N/`` container layout that ``stg-train`` and every other consumer
+  of the ``colmap`` tag expects.
 source_entry: assemble.py
 category: "reconstruction/colmap"
 
 docs: |
+  **⚠ DEPRECATED — do not wire this pack in new workflows.** Superseded by
+  the direct edge ``colmap-triangulate@0.4.0.frame`` →
+  ``stg-train@0.2.0.colmap_frames``; the container glue is now inside
+  ``stg-train``'s exec (see its manifest ``Glue`` section). The pack files
+  are retained only so historical snapshots keep validating; the palette
+  should hide anything whose description starts with "DEPRECATED".
+
+  ---
+
   Whole-array assembler. For every element ``i`` (sorted-order) of the
   ``arrayed<colmap-frame>`` input, writes a ``colmap_{i}/`` subdirectory
   into the output that STG's dataset reader can load verbatim::

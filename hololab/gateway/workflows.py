@@ -510,11 +510,10 @@ def ports_compatible(
       an array.
     """
 
-    if src_arrayed != tgt_arrayed:
-        # Exception: arrayed source into an explicit scalar target is a broadcast
-        # — the scalar input receives the full parent handle, not a shard subdir.
-        if not (src_arrayed and tgt_scalar):
-            return False
+    # Exception: arrayed source into an explicit scalar target is a broadcast
+    # — the scalar input receives the full parent handle, not a shard subdir.
+    if src_arrayed != tgt_arrayed and not (src_arrayed and tgt_scalar):
+        return False
     return tags_compatible(src_tags, tgt_tags)
 
 

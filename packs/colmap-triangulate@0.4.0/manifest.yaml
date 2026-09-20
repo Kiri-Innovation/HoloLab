@@ -1,0 +1,138 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-triangulate
+version: 0.4.0
+description: >
+  Per-frame COLMAP triangulate against **already-undistorted** PINHOLE poses.
+  Same script as v0.3.0; the only difference is the output tag: the
+  self-contained per-frame directory is now typed as **``colmap``** (arrayed
+  fan-out semantics — one element = one sparse/0 + images pair) rather than
+  the retired ``colmap-frame``. Consumes ``colmap-cameras-txt`` (PINHOLE,
+  from image-undistort) + ``colmap-images-txt`` (per-image poses, from
+  colmap-split) + a ``frame_sequence`` of undistorted images.
+source_entry: triangulate.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### v0.4.0 vs v0.3.0
+
+  Structurally identical — same ``triangulate.py``, same on-disk output
+  layout (``sparse/0/`` + ``images/``). The change is nominal: the output
+  tag ``colmap-frame`` was retired in favour of **``colmap``**, taking
+  advantage of the naming slot freed by ``colmap-assemble`` (which is now
+  deprecated — downstream consumers glue ``arrayed<colmap>`` → their
+  bespoke container layout inside their own exec, per the "no filesystem-
+  shape data types, only semantic types" principle).
+
+      arrayed<colmap>  (this pack, arrayed_toggle=true, one element per frame)
+          │
+          └─→ stg-train@0.2.0.colmap_frames   (glues to colmap_{i}/sparse/0)
+
+  ### v0.3.0 vs v0.2.0 (unchanged from v0.3.0 docs)
+
+  Both invoke ``colmap point_triangulator`` per shard against a fresh DB
+  built from the shard's images. The difference from v0.2.0 is what's
+  presumed already done:
+
+  |                          | v0.2.0                                                    | v0.3.0 / v0.4.0                                           |
+  |--------------------------|-----------------------------------------------------------|-----------------------------------------------------------|
+  | Camera model input tag   | ``colmap-cams`` (single handle w/ cameras.txt+images.txt) | ``colmap-cameras-txt`` + ``colmap-images-txt`` (typed)    |
+  | Camera model on wire     | OPENCV (SfM's native)                                     | PINHOLE (already undistorted by ``image-undistort``)      |
+  | Image input              | Raw distorted frames from ``regroup-by-frame``            | Undistorted frames from ``image-undistort``               |
+  | Inline undistort         | Runs ``colmap image_undistorter`` after triangulate       | **Removed** — inputs are already PINHOLE                  |
+  | Output tag               | ``colmap-frame``                                          | v0.3.0: ``colmap-frame``; v0.4.0: **``colmap``**          |
+
+  ### Rig-consistency fix (COLMAP 3.11+)
+
+  Same trick as v0.2.0/v0.3.0: run ``feature_extractor`` first with matching
+  ``--single_camera 1 --camera_model PINHOLE``, query the fresh DB's
+  ``(image_id, name, camera_id)``, then synthesise a prior whose IDs are
+  aligned with the DB by construction. Intrinsics come from the input
+  ``cameras.txt`` (one PINHOLE camera; ``single_camera=1`` at the SfM
+  stage guarantees that shape); poses from ``images.txt``, matched by
+  the per-camera key extracted from the image name (flat ``<cam>.<ext>``
+  after ``image-undistort`` — cam_key = stem).
+
+  ### Fan-out (three inputs, zipped by element_id)
+
+  ``arrayable: true``. Under ``arrayed_toggle=true`` the framework zips
+  ``cameras`` and ``images`` by element_id via
+  ``hololab/gateway/execution.py::_discover_element_ids``; ``poses`` is
+  ``scalar: true`` and broadcasts. The output — one ``colmap`` element
+  per shard — becomes an ``arrayed<colmap>`` at the parent handle.
+
+arrayable: true
+
+inputs:
+  cameras:
+    tags: [colmap-cameras-txt]
+    description: "PINHOLE cameras.txt from image-undistort (per-shard, arrayed fan-out)."
+  poses:
+    tags: [colmap-images-txt]
+    scalar: true
+    description: >
+      Per-image poses from colmap-split. Scalar — one shared poses file is
+      broadcast to every shard. Declare ``scalar: true`` so the toggle does
+      not try to enumerate subdirectories in this handle.
+  images:
+    tags: [frame_sequence]
+    description: "Undistorted per-cam images to triangulate against `cameras`+`poses`."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  max_image_size:
+    type: int
+    default: 3200
+    min: 512
+    description: "SIFT downscale cap."
+  max_num_features:
+    type: int
+    default: 8192
+    min: 512
+    description: "SIFT feature cap per image."
+  filter_max_reproj_error:
+    type: float
+    default: 4.0
+    min: 0.1
+    description: "point_triangulator reprojection filter (px). Matches COLMAP default."
+
+outputs:
+  frame:
+    tags: [colmap]
+    scalar: true
+    description: >
+      Self-contained per-frame COLMAP directory: ``sparse/0/`` (PINHOLE
+      cameras + images + points3D, both .bin and .txt) plus ``images/``
+      symlinked from the input undistorted frames. Scalar per invocation;
+      the framework aggregates shards into ``arrayed<colmap>`` at the
+      parent handle. Consumed directly by ``stg-train@0.2.0`` (which glues
+      the arrayed elements into the ``colmap_{i}/sparse/0`` layout STG's
+      dataset reader expects — no more standalone ``colmap-assemble``).
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/triangulate.py" \
+      --cameras "{{ inputs.cameras }}" \
+      --poses "{{ inputs.poses }}" \
+      --images "{{ inputs.images }}/frames" \
+      --output "{{ outputs.frame }}" \
+      --scratch "{{ scratch_dir }}" \
+      --use-gpu {{ params.use_gpu }} \
+      --max-image-size {{ params.max_image_size }} \
+      --max-num-features {{ params.max_num_features }} \
+      --filter-max-reproj-error {{ params.filter_max_reproj_error }}
+
+idempotency:
+  marker: "{{ outputs.frame }}/.hololab-done"

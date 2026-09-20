@@ -130,3 +130,24 @@ def test_bundle_contains_colmap_frame_tag_routing() -> None:
         f"expected >=2 occurrences of 'colmap-frame' in the built bundle "
         f"(Preview intercept + FRONTEND_VIEWER_TAGS promotion), found {hits}"
     )
+
+
+def test_bundle_contains_colmap_tag_routing() -> None:
+    """``colmap`` (the v0.4.0 rename of colmap-frame) must appear at both
+    routing sites too — same rationale, for colmap-triangulate@0.4.0."""
+
+    js_path = _find_dist_js()
+    if js_path is None:
+        pytest.skip("frontend dist not built — run `npm run build` first")
+    js = js_path.read_text(encoding="utf-8", errors="replace")
+    # The intercept-clause literal in previews.tsx (``tags.includes("colmap")``)
+    # and the FRONTEND_VIEWER_TAGS entry both emit the exact string
+    # ``"colmap"`` — but ``"colmap-frame"``/``"colmap-cams"``/etc. contain
+    # it as a substring, so we count with the trailing quote to isolate
+    # the bare tag. Two hits minimum.
+    hits = js.count('"colmap"')
+    assert hits >= 2, (
+        f"expected >=2 occurrences of '\"colmap\"' (quoted, bare tag) in the "
+        f"built bundle (Preview intercept + FRONTEND_VIEWER_TAGS promotion), "
+        f"found {hits}"
+    )

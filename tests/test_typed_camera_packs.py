@@ -107,6 +107,30 @@ def test_colmap_triangulate_v030_shape() -> None:
     assert m.outputs["frame"].arrayed is False
 
 
+def test_colmap_triangulate_v040_shape() -> None:
+    """v0.4.0 keeps the v0.3.0 script + input topology but renames the output
+    tag ``colmap-frame`` → ``colmap`` (assemble is deprecated; downstream
+    consumers glue arrayed<colmap> → their bespoke container in their own
+    exec). Output is ``scalar: true`` so scalar-to-arrayed edge validation
+    catches misuse before runtime."""
+    m, _ = load_manifest(PACKS_ROOT / "colmap-triangulate@0.4.0" / "manifest.yaml")
+    assert m.name == "colmap-triangulate"
+    assert m.version == "0.4.0"
+    assert m.arrayable is True
+    # Inputs unchanged from v0.3.0.
+    assert m.inputs["cameras"].tags == ["colmap-cameras-txt"]
+    assert m.inputs["poses"].tags == ["colmap-images-txt"]
+    assert m.inputs["images"].tags == ["frame_sequence"]
+    assert m.inputs["poses"].scalar is True
+    # Output tag renamed; scalar: true so each invocation → one element.
+    assert m.outputs["frame"].tags == ["colmap"]
+    assert m.outputs["frame"].arrayed is False
+    assert m.outputs["frame"].scalar is True
+    # Script reuse — same triangulate.py copied from @0.3.0.
+    assert m.source_entry == "triangulate.py"
+    assert (PACKS_ROOT / "colmap-triangulate@0.4.0" / m.source_entry).is_file()
+
+
 # ---------------------------------------------------------------------------
 # split.py — text-native output
 # ---------------------------------------------------------------------------

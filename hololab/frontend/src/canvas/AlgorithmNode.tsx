@@ -189,6 +189,9 @@ const FRONTEND_VIEWER_TAGS = new Set<string>([
   "frame_sequence",
   "colmap-cams",
   "colmap-points",
+  // ``colmap`` is the current tag (colmap-triangulate@0.4.0+); ``colmap-frame``
+  // is retained for the legacy @0.3.0 output. Both route to ColmapFramePreview.
+  "colmap",
   "colmap-frame",
   // Rig chain — iframe/ColmapUtil previews. rig_extrinsics is the
   // post-BA rig model; rig_points4d is the per-group triangulation.

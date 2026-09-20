@@ -161,17 +161,18 @@ export function Preview({
     }
     return <ColmapPointsPreview baseUrl={baseUrl} />;
   }
-  // ``colmap-frame`` — self-contained COLMAP frame: sparse/0/{cameras,
-  // images,points3D}.{bin,txt} + images/ (undistorted). Produced by
-  // colmap-triangulate@0.3.0 as one element per frame in an arrayed
-  // handle. The full triple-fetch (cameras+images+points3D) gives
-  // genuine frustum wireframes on top of the triangulated point cloud —
-  // a richer view than colmap-points (which only has points). The
-  // arrayed form wraps the scalar viewer with ArrayedPaginator so the
-  // user can page through frames.
+  // ``colmap`` / ``colmap-frame`` — self-contained COLMAP frame: sparse/0/
+  // {cameras,images,points3D}.{bin,txt} + images/ (undistorted). Emitted by
+  // ``colmap-triangulate@0.4.0`` as ``colmap`` (arrayed<colmap> under
+  // fan-out) and by @0.3.0 as the legacy ``colmap-frame``. Both tags are
+  // accepted so historical @0.3.0 handles still preview. The full triple-
+  // fetch (cameras+images+points3D) gives genuine frustum wireframes on
+  // top of the triangulated point cloud — a richer view than colmap-points
+  // (which only has points). The arrayed form wraps the scalar viewer with
+  // ArrayedPaginator so the user can page through frames.
   if (
     tags &&
-    tags.includes("colmap-frame") &&
+    (tags.includes("colmap") || tags.includes("colmap-frame")) &&
     storage === "dir"
   ) {
     if (arrayed) {
@@ -211,15 +212,29 @@ export function Preview({
   ) {
     return <RigPoints4dPreview baseUrl={baseUrl} />;
   }
-  // ``rig_timeline`` — rig-frame-extraction@0.1.1 exposure-timeline
-  // figure. Shows the static PNG with a corner link to the interactive
-  // HTML (plotly) for hover tooltips + zoom.
+  // ``rig_timeline`` — the exposure-timeline diagnostic figure produced
+  // by ``rig-temporal-grouping@0.1.1`` (previously briefly emitted by
+  // ``rig-frame-extraction@0.1.1``; moved because the bucket edges only
+  // become real data once grouping has run). Shows the static PNG with a
+  // corner link to the interactive HTML (plotly) for hover tooltips + zoom.
   if (
     tags &&
     tags.includes("rig_timeline") &&
     storage === "dir"
   ) {
     return <RigTimelinePreview baseUrl={baseUrl} />;
+  }
+  // ``rig_frames`` — per-alias JPEG tree produced by
+  // ``rig-frame-extraction`` and passed through by ``rig-temporal-grouping``.
+  // Layout: ``<parent>/<alias>/NNNNNN.jpg`` — the classic
+  // ``arrayed<frame_sequence>`` shape that ``NestedFrameSequencePreview``
+  // handles natively (with element = alias, image = frame).
+  if (
+    tags &&
+    tags.includes("rig_frames") &&
+    storage === "dir"
+  ) {
+    return <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />;
   }
   // ``rig_capture`` — rig-capture-source's per-alias camera dirs
   // (``camN/<orig-timestamp>.mp4`` + sidecars). Renders a
@@ -3221,14 +3236,16 @@ function ColmapPointsPreview({ baseUrl }: { baseUrl: string }) {
 }
 
 function ColmapFramePreview({ baseUrl }: { baseUrl: string }) {
-  // triangulate@0.3.0 stores the COLMAP model under sparse/0/ inside each
-  // frame element directory — adjust the base before the standard triple-fetch.
+  // triangulate @0.3.0 / @0.4.0 store the COLMAP model under sparse/0/
+  // inside each frame element directory — adjust the base before the
+  // standard triple-fetch. Naming kept as ``ColmapFramePreview`` for
+  // historical parity even though @0.4.0 emits the ``colmap`` tag.
   const sparseBase = `${baseUrl.replace(/\/$/, "")}/sparse/0`;
   return (
     <Colmap3DPreview
       baseUrl={sparseBase}
       fetchFiles={COLMAP_FRAME_FETCH}
-      title="colmap-frame viewer"
+      title="colmap frame viewer"
     />
   );
 }
