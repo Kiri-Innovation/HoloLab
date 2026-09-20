@@ -4,7 +4,7 @@
 // dedicated "view log" icon on the row opens the log viewer so a red dot
 // no longer means "guess what went wrong". See JobLogModal.tsx.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cancelAllJobs, cancelJob } from "../api";
 import type { NodeRuntime } from "./AlgorithmNode";
 import { stateColour } from "./AlgorithmNode";
@@ -167,8 +167,33 @@ function buildEntries(rows: RecentJobRow[]): Entry[] {
   for (const [parentId, shards] of shardsByParent) {
     const parent = parents.get(parentId);
     if (!parent) {
-      // Orphan shards — render each as a single row rather than losing them.
-      for (const s of shards) entries.push({ kind: "single", job: s });
+      // Parent fell outside the API fetch window (e.g. limit=200 but many
+      // other jobs pushed it out). Synthesise a lightweight placeholder so
+      // the shards still collapse under a single row rather than flooding
+      // the flat list. job_id is the real parent ID so stop / log calls
+      // route correctly to the actual DB row.
+      if (shards.length === 0) continue;
+      const anyS = shards[0];
+      let synthState = "done";
+      for (const s of shards) {
+        if (s.state === "failed") { synthState = "failed"; break; }
+        if (IN_FLIGHT.has(s.state)) synthState = "running";
+      }
+      const minTs = shards.reduce((m, s) => Math.min(m, s.created_ts), Infinity);
+      const maxTs = shards.reduce((m, s) => Math.max(m, s.updated_ts), 0);
+      const synthetic: RecentJobRow = {
+        job_id: parentId,
+        algorithm_name: anyS.algorithm_name,
+        algorithm_version: anyS.algorithm_version,
+        state: synthState,
+        graph_node_id: anyS.graph_node_id,
+        progress: null,
+        created_ts: minTs - 0.001,
+        updated_ts: maxTs,
+        fail_reason: null,
+        expected_shards: null,
+      };
+      entries.push({ kind: "group", parent: synthetic, shards, sortTs: minTs - 0.001 });
       continue;
     }
     groupedParentIds.add(parentId);
@@ -225,14 +250,17 @@ export function RecentJobsPanel({
   currentWorkflowId,
 }: RecentJobsPanelProps) {
   // Scope to the currently-loaded workflow when one is selected; otherwise
-  // just show the newest handful across everything.
-  const scoped = currentWorkflowId
-    ? jobs.filter((j) => j.job_id && jobIsInWorkflow(j, currentWorkflowId))
-    : jobs;
+  // just show the newest handful across everything. Memoised so the
+  // stable reference lets the auto-expand effect fire only on real changes.
   // Cap by ENTRY count after grouping (25 entries), not by raw row count —
   // otherwise a fan-out with 21 shards would eat the whole panel budget
   // even though it collapses to a single row.
-  const entries = buildEntries(scoped).slice(0, 25);
+  const entries = useMemo(() => {
+    const scoped = currentWorkflowId
+      ? jobs.filter((j) => j.job_id && jobIsInWorkflow(j, currentWorkflowId))
+      : jobs;
+    return buildEntries(scoped).slice(0, 25);
+  }, [jobs, currentWorkflowId]);
 
   // Live clock — ticks every second while anything on-screen is running
   // (single rows OR any job inside a group). Interval tears down when
@@ -271,6 +299,28 @@ export function RecentJobsPanel({
   const [expandedShardLists, setExpandedShardLists] = useState<Set<string>>(
     () => new Set(),
   );
+
+  // Auto-expand groups that contain failed shards, once per group so a
+  // manual collapse is not immediately undone. Runs whenever entries change.
+  const autoExpandedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    setExpandedGroups((prev) => {
+      let next = prev;
+      for (const entry of entries) {
+        if (entry.kind !== "group") continue;
+        const pid = entry.parent.job_id;
+        if (autoExpandedRef.current.has(pid)) continue;
+        const hasFailed = entry.shards.some((s) => s.state === "failed");
+        if (!hasFailed) continue;
+        autoExpandedRef.current.add(pid);
+        if (!next.has(pid)) {
+          next = new Set(next);
+          next.add(pid);
+        }
+      }
+      return next;
+    });
+  }, [entries]);
 
   // Which job's log viewer is open. We keep the primer (algo name, state,
   // elapsed) alongside so the modal header renders before the /api/jobs/
@@ -402,17 +452,16 @@ export function RecentJobsPanel({
                 error: null,
               })
             }
-            title={`Stop every live job (${liveCount})`}
+            title={`Stop all live jobs (${liveCount})`}
             style={{
               marginLeft: "auto",
               display: "inline-flex",
               alignItems: "center",
-              gap: 6,
-              padding: "3px 8px",
+              gap: 4,
+              padding: "2px 6px",
               fontSize: 10,
-              fontWeight: 600,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
+              fontWeight: 500,
+              whiteSpace: "nowrap",
               color: "var(--error, #e05a5a)",
               background: "transparent",
               border: "1px solid var(--border)",
@@ -431,15 +480,15 @@ export function RecentJobsPanel({
             }}
           >
             <svg
-              width="9"
-              height="9"
+              width="8"
+              height="8"
               viewBox="0 0 10 10"
               fill="currentColor"
               aria-hidden
             >
               <rect x="1" y="1" width="8" height="8" rx="1" />
             </svg>
-            Stop all · {liveCount}
+            {liveCount}
           </button>
         )}
       </div>
@@ -1000,6 +1049,7 @@ function GroupJobRow({
   // Count only shards: parent coordinator is not an element of the array.
   // 100 shards → ×100  100/100, not ×101  101/101.
   const doneCount = shards.filter((s) => s.state === "done").length;
+  const failedShardCount = shards.filter((s) => s.state === "failed").length;
   // Prefer the parent's planned shard count (``expected_shards``, set once
   // at fan-out start) over the row-count of already-created shards. Shards
   // are dispatched lazily — one at a time as the previous finishes — so
@@ -1017,6 +1067,16 @@ function GroupJobRow({
   const hiddenCount = shards.length - visibleShards.length;
   const groupStoppable = STOPPABLE.has(state);
   const parentPending = pendingIds.has(parent.job_id);
+  // In the expanded view, failed shards float to the top so the operator
+  // doesn't have to scroll past done rows to find the broken one.
+  const visibleShardsOrdered =
+    expanded && failedShardCount > 0
+      ? [...visibleShards].sort((a, b) => {
+          const af = a.state === "failed" ? 0 : 1;
+          const bf = b.state === "failed" ? 0 : 1;
+          return af - bf;
+        })
+      : visibleShards;
 
   return (
     <>
@@ -1091,9 +1151,18 @@ function GroupJobRow({
             fontFamily: "var(--font-mono)",
             fontSize: "var(--fs-xs)",
             fontVariantNumeric: "tabular-nums",
+            whiteSpace: "nowrap",
           }}
         >
           {`${doneCount}/${total}`}
+          {!expanded && failedShardCount > 0 && (
+            <span
+              style={{ color: "var(--error, #e05a5a)", marginLeft: 4 }}
+              title={`${failedShardCount} shard${failedShardCount > 1 ? "s" : ""} failed — click to expand`}
+            >
+              {`✗${failedShardCount}`}
+            </span>
+          )}
         </div>
         <div
           style={{
@@ -1148,7 +1217,7 @@ function GroupJobRow({
       </div>
       {expanded && (
         <>
-          {visibleShards.map((s) => (
+          {visibleShardsOrdered.map((s) => (
             <SingleJobRow
               key={s.job_id}
               job={s}
