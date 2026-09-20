@@ -1,0 +1,87 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: regroup
+version: 0.2.0
+description: >
+  Generic N-D permutation over an arrayed<arrayed<T>> tree. Reorders the
+  outer/inner axes of a multi-dim arrayed handle by any permutation of
+  its dim labels. Successor to ``regroup-by-frame@0.1.0`` — no longer
+  bakes in ``frame`` / ``camera`` names or ``frames/`` subdir convention.
+source_entry: regroup.py
+category: "utility/arrayed"
+
+docs: |
+  Reorder the axes of an arrayed<arrayed<T>> handle.
+
+  **Params control the permutation.** ``input_dims`` names the axes as
+  they appear on the source (outer first); ``output_dims`` names the
+  desired axes on the target (outer first). Both lists MUST be
+  permutations of the same set — a typo like `[cam, frame]` → `[time, cam]`
+  fails loud at pack start, not at first missing file.
+
+  **Directory names.** The v0.2 pack writes leaf dirs as
+  ``<dim_label>_<idx:04d>`` (e.g. ``frame_0000/camera_0000/``) — the
+  index comes from the sorted position of each element on the source
+  side. Source filename stems are no longer echoed into the target,
+  which drops the hidden ``frame_XXXXXX`` convention from the classic
+  ``regroup-by-frame`` pack.
+
+  **Symlinks, not copies.** N leaves → N ``os.symlink`` calls to the
+  resolved source paths. Idempotent: an existing symlink at the target
+  is unlinked first.
+
+  Example — 2-D transpose (camera × frame → frame × camera):
+  ```
+  input_dims:  [camera, frame]
+  output_dims: [frame, camera]
+  input:  <root>/cam_A/frame_000000/ …
+  output: <root>/frame_0000/camera_0000/ …
+  ```
+
+  1-D identity works too (single-element list on both sides). >2 dims
+  are supported by the implementation but capped at 2 by the manifest
+  schema until we ship UI for wider trees.
+
+inputs:
+  in:
+    tags: [any]
+    arrayed: true
+    dim_labels: ["", ""]  # 2-D — actual labels come from params.input_dims
+    description: "arrayed<arrayed<T>> input tree, outer-first."
+
+outputs:
+  out:
+    tags: [any]
+    arrayed: true
+    dim_labels: ["", ""]  # 2-D — actual labels come from params.output_dims
+    tags_from: in
+    description: >
+      arrayed<arrayed<T>> permuted view. Element tags inherit from the
+      wired input via ``tags_from``.
+
+params:
+  input_dims:
+    type: "list[str]"
+    default: ["camera", "frame"]
+    description: >
+      Names of the source axes, outer first. Must be a permutation of
+      ``output_dims``.
+  output_dims:
+    type: "list[str]"
+    default: ["frame", "camera"]
+    description: >
+      Desired axes on the target, outer first.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/regroup.py" \
+      --input "{{ inputs.in }}" \
+      --output "{{ outputs.out }}" \
+      --input-dims '{{ params.input_dims | tojson }}' \
+      --output-dims '{{ params.output_dims | tojson }}'

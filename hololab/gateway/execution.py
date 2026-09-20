@@ -240,10 +240,17 @@ async def _prepare_fanout(
             f"declares no arrayed inputs — nothing to fan out over"
         )
 
+    # Depth per port — from manifest ``dim_labels`` when present, else 1
+    # (legacy single-layer arrayed).
+    port_depths = {
+        port: (len(pack_inputs[port].get("dim_labels") or []) or 1)
+        for port in arrayed_input_ports
+    }
     element_ids = await _discover_element_ids(
         handles=handles,
         input_handles=input_handles,
         arrayed_input_ports=arrayed_input_ports,
+        port_depths=port_depths,
     )
 
     parent_job = Job(
