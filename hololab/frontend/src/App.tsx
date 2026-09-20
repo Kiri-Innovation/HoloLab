@@ -960,6 +960,41 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const rfWrapper = useRef<HTMLDivElement>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
+  // --- dynamic minZoom: fit the full node chain horizontally ----------
+  const [dynamicMinZoom, setDynamicMinZoom] = useState<number>(0.05);
+  const minZoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const computeMinZoom = useCallback(() => {
+    if (!rfWrapper.current || nodes.length === 0) return;
+    const vpWidth = rfWrapper.current.getBoundingClientRect().width;
+    if (vpWidth <= 0) return;
+    let xMin = Infinity, xMax = -Infinity;
+    for (const n of nodes) {
+      const w = (n.measured as { width?: number } | undefined)?.width ?? 200;
+      if (n.position.x < xMin) xMin = n.position.x;
+      if (n.position.x + w > xMax) xMax = n.position.x + w;
+    }
+    const contentWidth = xMax - xMin;
+    if (!isFinite(contentWidth) || contentWidth <= 0) return;
+    const fitWidth = (vpWidth - 40) / contentWidth;
+    setDynamicMinZoom(Math.max(0.05, Math.min(0.5, fitWidth * 0.9)));
+  }, [nodes]);
+
+  const scheduleMinZoom = useCallback(() => {
+    if (minZoomTimerRef.current) clearTimeout(minZoomTimerRef.current);
+    minZoomTimerRef.current = setTimeout(computeMinZoom, 200);
+  }, [computeMinZoom]);
+
+  useEffect(() => { scheduleMinZoom(); }, [nodes, scheduleMinZoom]);
+
+  useEffect(() => {
+    const el = rfWrapper.current;
+    if (!el) return;
+    const ro = new ResizeObserver(scheduleMinZoom);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [scheduleMinZoom]);
+
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
@@ -1754,6 +1789,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             onConnect={onConnect}
             onInit={setRfInstance}
             fitView
+            minZoom={dynamicMinZoom}
             proOptions={{ hideAttribution: true }}
           >
             <Controls />
