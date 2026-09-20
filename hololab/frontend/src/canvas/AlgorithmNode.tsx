@@ -194,6 +194,8 @@ const FRONTEND_VIEWER_TAGS = new Set<string>([
   // post-BA rig model; rig_points4d is the per-group triangulation.
   "rig_extrinsics",
   "rig_points4d",
+  // Exposure-timeline diagnostic figure from rig-frame-extraction@0.1.1.
+  "rig_timeline",
 ]);
 
 function hasFrontendViewerTag(tags: string[] | undefined): boolean {

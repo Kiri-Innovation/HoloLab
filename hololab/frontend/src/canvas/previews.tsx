@@ -211,6 +211,16 @@ export function Preview({
   ) {
     return <RigPoints4dPreview baseUrl={baseUrl} />;
   }
+  // ``rig_timeline`` — rig-frame-extraction@0.1.1 exposure-timeline
+  // figure. Shows the static PNG with a corner link to the interactive
+  // HTML (plotly) for hover tooltips + zoom.
+  if (
+    tags &&
+    tags.includes("rig_timeline") &&
+    storage === "dir"
+  ) {
+    return <RigTimelinePreview baseUrl={baseUrl} />;
+  }
 
   // No tag intercept matched and the caller didn't hand us a spec.
   // Happens when a port has a frontend-driven tag (e.g. colmap-cams)
@@ -3147,9 +3157,12 @@ function ColmapPointsPreview({ baseUrl }: { baseUrl: string }) {
 }
 
 function ColmapFramePreview({ baseUrl }: { baseUrl: string }) {
+  // triangulate@0.3.0 stores the COLMAP model under sparse/0/ inside each
+  // frame element directory — adjust the base before the standard triple-fetch.
+  const sparseBase = `${baseUrl.replace(/\/$/, "")}/sparse/0`;
   return (
     <Colmap3DPreview
-      baseUrl={baseUrl}
+      baseUrl={sparseBase}
       fetchFiles={COLMAP_FRAME_FETCH}
       title="colmap-frame viewer"
     />
@@ -3342,6 +3355,54 @@ function RigPoints4dPreview({ baseUrl }: { baseUrl: string }) {
         fetchFiles={COLMAP_FRAME_FETCH}
         title="rig-points4d viewer"
       />
+    </div>
+  );
+}
+
+// rig-frame-extraction@0.1.1 ships the exposure-timeline PNG/HTML pair as
+// a soft second output. The preview is the static ``_full`` PNG (never
+// obstructive, always renders inside the node card); the interactive
+// plotly HTML is one click away via the corner link — new tab so the
+// canvas doesn't get scrolled/refreshed.
+function RigTimelinePreview({ baseUrl }: { baseUrl: string }) {
+  const dir = baseUrl.replace(/\/$/, "");
+  const pngUrl = `${dir}/exposure_timeline_full.png`;
+  const htmlUrl = `${dir}/exposure_timeline_zoom.html`;
+  return (
+    <div style={{ ...PREVIEW_SHELL, position: "relative" }}>
+      <img
+        src={pngUrl}
+        alt="exposure timeline (full public overlap window)"
+        style={{
+          display: "block",
+          margin: "0 auto",
+          maxWidth: "100%",
+          maxHeight: 260,
+          borderRadius: "var(--radius-sm)",
+        }}
+      />
+      <a
+        href={htmlUrl}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="nodrag nopan"
+        title="open interactive zoom timeline (plotly HTML) in a new tab"
+        style={{
+          position: "absolute",
+          top: 6,
+          right: 8,
+          background: "rgba(0,0,0,0.55)",
+          color: "var(--text-on-dark)",
+          textDecoration: "none",
+          fontSize: 10,
+          fontFamily: "var(--font-mono)",
+          padding: "2px 6px",
+          borderRadius: "var(--radius-sm)",
+          border: "1px solid var(--border-strong)",
+        }}
+      >
+        interactive ↗
+      </a>
     </div>
   );
 }
