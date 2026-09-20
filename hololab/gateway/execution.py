@@ -483,9 +483,7 @@ def _list_subdirs(path: str, *, port: str) -> list[str]:
     try:
         with os.scandir(path) as it:
             return sorted(
-                e.name
-                for e in it
-                if not e.name.startswith(".") and e.is_dir(follow_symlinks=True)
+                e.name for e in it if not e.name.startswith(".") and e.is_dir(follow_symlinks=True)
             )
     except OSError as exc:
         raise WorkflowRunError(f"cannot list arrayed input {port!r} ({path}): {exc}") from exc

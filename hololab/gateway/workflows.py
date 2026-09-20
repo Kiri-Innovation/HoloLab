@@ -488,16 +488,10 @@ ANY_TAG = "any"
 # into a consumer on the other without an explicit conversion node.
 # ``image_sequence`` is the rename of ``frame_sequence``; both accepted during
 # the migration window so pre-migration handles keep working.
-_TAG_ALIAS_GROUPS: tuple[frozenset[str], ...] = (
-    frozenset({"image_sequence", "frame_sequence"}),
-)
+_TAG_ALIAS_GROUPS: tuple[frozenset[str], ...] = (frozenset({"image_sequence", "frame_sequence"}),)
 
 # Pre-computed mapping tag → canonical representative (min of the group).
-_TAG_CANONICAL: dict[str, str] = {
-    tag: min(group)
-    for group in _TAG_ALIAS_GROUPS
-    for tag in group
-}
+_TAG_CANONICAL: dict[str, str] = {tag: min(group) for group in _TAG_ALIAS_GROUPS for tag in group}
 
 
 def _canonical_tags(tags: list[str]) -> set[str]:
