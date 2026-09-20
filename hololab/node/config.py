@@ -134,6 +134,17 @@ class NodeConfig(BaseModel):
     conda_bin: str = "conda"
     envs: dict[str, str] = Field(default_factory=dict)  # logical name → prefix path
 
+    # Machine-wide cap on how many jobs this node runs concurrently. The
+    # gateway schedules a per-node-per-fanout cap via ``GraphNode.parallelism``;
+    # this daemon-side cap is the hard ceiling that protects the box's
+    # GPU/CPU/RAM from a mis-configured graph or from many workflows
+    # dispatching against the same node at once. 0 = unlimited (preserves
+    # historical behavior; every accepted ``job_assign`` spawns
+    # immediately). Effective concurrency for one fan-out is
+    # ``min(graph_node.parallelism, max_concurrent_jobs)`` when this is
+    # non-zero.
+    max_concurrent_jobs: int = Field(default=0, ge=0)
+
     # Cobrowser integration — the Flops device id for this compute node.
     # When the HoloLab UI runs inside the Flops built-in browser, the
     # "Open in Cocoder" button feeds this to ``window.flops.showDocument``

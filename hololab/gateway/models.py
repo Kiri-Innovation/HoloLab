@@ -354,6 +354,10 @@ class GraphNodeOut(BaseModel):
     # promotes non-arrayed ports to arrayed at wire time and fan-outs at
     # dispatch time. See docs/pack-spec.md#arrayed-and-arrayable.
     arrayed_toggle: bool = False
+    # Structural — upper bound on concurrent shard dispatch for this node's
+    # fan-out. Default 1 = serial (pre-pool behavior). See GraphNode in
+    # gateway/workflows.py for the full semantics.
+    parallelism: int = Field(default=1, ge=1)
     # Cosmetic — persisted with the workflow graph so the frontend can
     # hydrate its preview-drawer state without a separate round-trip.
     # See docs/workflow-schema.md for the cosmetic/structural boundary.

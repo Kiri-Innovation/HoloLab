@@ -10,14 +10,22 @@ runs one snapshot per call; multiple runs against the same gateway are fine
 because each ``run_snapshot`` is a bounded coroutine and holds no global
 state beyond the DB writes it makes.
 
-arrayed<T> fan-out (M3): when a graph node's pack is ``arrayable`` and the
+arrayed<T> fan-out: when a graph node's pack is ``arrayable`` and the
 per-node ``arrayed_toggle`` is on, the executor forks the single dispatch
-into N sequential shard jobs — one per element of the arrayed inputs —
-under a coordinator "parent" job. All shards write into the parent's
-workspace keyed by element_id, so the aggregate output directory grows
-naturally as shards complete; the gateway registers one output handle
-per port pointing at the aggregate dir. v1 is sequential + all-or-nothing:
-any shard failure marks the parent failed and skips remaining shards.
+into N shard jobs — one per element of the arrayed inputs — under a
+coordinator "parent" job. All shards write into the parent's workspace
+keyed by element_id, so the aggregate output directory grows naturally
+as shards complete; the gateway registers one output handle per port
+pointing at the aggregate dir.
+
+Concurrency inside a fan-out is bounded by ``GraphNode.parallelism``
+(default 1 = serial). Every shard row is created in ``PENDING`` upfront
+so the snapshot detail endpoint sees the full row set from the first
+frame; dispatch then goes through ``asyncio.Semaphore(parallelism)`` and
+``asyncio.gather(..., return_exceptions=True)`` — one shard's failure
+does NOT short-circuit the pool. The parent is marked ``FAILED`` once,
+after every shard has reached a terminal state, so downstream nodes are
+never triggered by a partially-succeeded fan-out.
 
 Not covered here (see ``docs/workflow-schema.md#non-goals``): parallel
 branches, retries, rerun-with-changes.
@@ -285,11 +293,24 @@ async def _execute_fanout_body(
     plan: _FanoutPlan,
     job_timeout_s: float,
 ) -> dict[str, str]:
-    """Run the shard loop for a prepared fan-out. Returns
+    """Run the shard pool for a prepared fan-out. Returns
     ``{port -> aggregate_handle_id}``. Transitions the parent job
     PENDING → ASSIGNED → RUNNING → DONE|FAILED. Raises
-    :class:`WorkflowRunError` on shard failure (parent already marked
-    FAILED before the raise).
+    :class:`WorkflowRunError` on any shard failure — after every shard has
+    reached a terminal state, so a stragglers-still-running node cannot
+    leak past the raise.
+
+    Two phases:
+
+    1. **Row creation** — every shard's ``jobs`` row is written in
+       ``PENDING`` upfront (matches ``expected_shards`` semantics, gives
+       the snapshot detail endpoint / RecentJobsPanel the full row set
+       from the first frame). No ``JobAssign`` frames are sent yet.
+    2. **Bounded dispatch** — an ``asyncio.Semaphore(parallelism)`` gates
+       how many shards are ASSIGNED + in flight at once. All shards run
+       through :func:`asyncio.gather` with ``return_exceptions=True`` so
+       one failure does NOT short-circuit the pool (fail-fast v2 concern);
+       the parent is marked FAILED once after every shard is terminal.
     """
 
     registry: NodeRegistry = app.state.registry
@@ -308,6 +329,8 @@ async def _execute_fanout_body(
     await store.update(parent_running, "transition:running", payload)
     _push_update(hub, parent_running)
 
+    # -- Phase 1: create every shard row upfront in PENDING ------------------
+    shards: list[tuple[int, str, Job]] = []  # (idx, element_id, shard_job)
     for idx, element_id in enumerate(plan.element_ids):
         shard_inputs = await _shard_input_handles(
             handles=handles,
@@ -316,8 +339,7 @@ async def _execute_fanout_body(
             element_id=element_id,
             producer_node_id=plan.session_node_id,
         )
-        shard_job_id = await _dispatch_shard(
-            registry=registry,
+        shard = await _create_shard_row(
             store=store,
             hub=hub,
             snapshot_id=snapshot_id,
@@ -326,15 +348,59 @@ async def _execute_fanout_body(
             parent_job_id=plan.parent_job.job_id,
             shard_element_id=element_id,
             shard_input_handles=shard_inputs,
-            shard_output_prefix=plan.parent_ws,
         )
-        final = await _await_job_terminal(store, shard_job_id, timeout_s=job_timeout_s)
+        shards.append((idx, element_id, shard))
+
+    # -- Phase 2: bounded-concurrent dispatch --------------------------------
+    parallelism = max(1, int(getattr(gnode, "parallelism", 1) or 1))
+    sem = asyncio.Semaphore(parallelism)
+
+    async def _run_one(idx: int, element_id: str, shard: Job) -> tuple[int, str, Job]:
+        async with sem:
+            await _dispatch_prepared_shard(
+                registry=registry,
+                store=store,
+                hub=hub,
+                gnode=gnode,
+                shard=shard,
+                shard_element_id=element_id,
+                shard_output_prefix=plan.parent_ws,
+            )
+            final = await _await_job_terminal(store, shard.job_id, timeout_s=job_timeout_s)
+            return (idx, element_id, final)
+
+    log.info(
+        "fanout dispatch pool",
+        parent_job_id=plan.parent_job.job_id,
+        graph_node=gnode.id,
+        shard_count=len(shards),
+        parallelism=parallelism,
+    )
+    results = await asyncio.gather(
+        *(_run_one(i, eid, s) for (i, eid, s) in shards),
+        return_exceptions=True,
+    )
+
+    # Collect every failure before marking the parent — we do not fail-fast
+    # (v1 semantics per product spec). Truncate the reason to keep the DB
+    # column bounded when a very wide fan-out fails wholesale.
+    failures: list[str] = []
+    for r in results:
+        if isinstance(r, BaseException):
+            failures.append(f"shard raised: {r!r}")
+            continue
+        idx, element_id, final = r
         if final.state is not JobState.DONE:
-            reason = f"shard {idx} (element {element_id!r}) finished {final.state.value}"
+            msg = f"shard {idx} (element {element_id!r}) finished {final.state.value}"
             if final.fail_message:
-                reason += f": {final.fail_message}"
-            await _mark_parent_failed(store, hub, parent_running, reason=reason)
-            raise WorkflowRunError(f"fanout for graph node {gnode.id!r}: {reason}")
+                msg += f": {final.fail_message}"
+            failures.append(msg)
+    if failures:
+        reason = "; ".join(failures[:5])
+        if len(failures) > 5:
+            reason += f"; +{len(failures) - 5} more"
+        await _mark_parent_failed(store, hub, parent_running, reason=reason)
+        raise WorkflowRunError(f"fanout for graph node {gnode.id!r}: {reason}")
 
     parent_outputs: dict[str, str] = {}
     for port_name, spec in plan.pack_outputs.items():
@@ -527,9 +593,8 @@ async def _shard_input_handles(
     return shard_inputs
 
 
-async def _dispatch_shard(
+async def _create_shard_row(
     *,
-    registry: NodeRegistry,
     store: JobsStore,
     hub: FrontendHub,
     snapshot_id: str,
@@ -538,16 +603,14 @@ async def _dispatch_shard(
     parent_job_id: str,
     shard_element_id: str,
     shard_input_handles: dict[str, str],
-    shard_output_prefix: str,
-) -> str:
-    """Create one shard job row and send its JobAssign to the compute node."""
+) -> Job:
+    """Create one shard job row in ``PENDING``. No transition, no send.
 
-    assert gnode.assigned_node_id is not None
-    session = registry.get_session(gnode.assigned_node_id)
-    if session is None:
-        raise WorkflowRunError(
-            f"assigned compute node {gnode.assigned_node_id!r} dropped mid-fanout"
-        )
+    Split out from :func:`_dispatch_prepared_shard` so a bounded-concurrent
+    fan-out can materialise every shard row upfront (giving the snapshot
+    detail endpoint / RecentJobsPanel the full row set from t=0) and then
+    stagger the ASSIGNED transitions through a semaphore.
+    """
 
     shard = Job(
         job_id=str(uuid.uuid4()),
@@ -563,6 +626,31 @@ async def _dispatch_shard(
     )
     await store.create(shard)
     _push_update(hub, shard)
+    return shard
+
+
+async def _dispatch_prepared_shard(
+    *,
+    registry: NodeRegistry,
+    store: JobsStore,
+    hub: FrontendHub,
+    gnode: GraphNode,
+    shard: Job,
+    shard_element_id: str,
+    shard_output_prefix: str,
+) -> None:
+    """Transition an already-created shard PENDING → ASSIGNED and send its
+    :class:`JobAssign` frame to the compute node. The compute-node session
+    is re-looked-up here (not passed in) so a session drop mid-fanout
+    surfaces as a per-shard failure rather than a wholesale crash.
+    """
+
+    assert gnode.assigned_node_id is not None
+    session = registry.get_session(gnode.assigned_node_id)
+    if session is None:
+        raise WorkflowRunError(
+            f"assigned compute node {gnode.assigned_node_id!r} dropped mid-fanout"
+        )
 
     assigned = JobStateMachine.transition(shard, JobState.ASSIGNED, node_id=session.node_id)
     kind, payload = event_from_transition(shard, assigned)
@@ -586,11 +674,10 @@ async def _dispatch_shard(
 
     log.info(
         "shard dispatched",
-        parent_job_id=parent_job_id,
+        parent_job_id=shard.parent_job_id,
         shard_job_id=assigned.job_id,
         element_id=shard_element_id,
     )
-    return assigned.job_id
 
 
 async def _mark_parent_failed(

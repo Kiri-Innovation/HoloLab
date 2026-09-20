@@ -43,8 +43,9 @@ class GraphNode(BaseModel):
 
     * **Structural** — anything that affects a job's execution or its
       data lineage identity: ``algorithm_name``, ``algorithm_version``,
-      ``params``, ``assigned_node_id``, ``arrayed_toggle``, plus the
-      edges named on the surrounding :class:`WorkflowGraph`. These are
+      ``params``, ``assigned_node_id``, ``arrayed_toggle``,
+      ``parallelism``, plus the edges named on the surrounding
+      :class:`WorkflowGraph`. These are
       IMMUTABLE inside a snapshot; a re-run that changes any of them
       Forks the snapshot (V8 model).
 
@@ -70,6 +71,13 @@ class GraphNode(BaseModel):
     # arrayed inputs. Default False keeps the pre-arrayed behavior for
     # every existing node. See docs/pack-spec.md#arrayed-and-arrayable.
     arrayed_toggle: bool = False
+    # Structural — upper bound on the number of shards this node's fan-out
+    # dispatches concurrently. Effective concurrency = min(parallelism,
+    # node daemon's max_concurrent_jobs). Default 1 preserves the pre-pool
+    # serial dispatch. Only meaningful when ``arrayed_toggle`` is True on
+    # an ``arrayable`` pack. Framework-level knob — deliberately not in
+    # ``params`` so it never collides with pack-authored parameter names.
+    parallelism: int = Field(default=1, ge=1)
     # Cosmetic — the name of the output port whose preview drawer is
     # currently expanded, or ``None`` when the drawer is closed.
     # Nullable so old graph JSON blobs (produced before this field

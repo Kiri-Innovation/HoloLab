@@ -288,12 +288,46 @@ export function NodeInspector({
                   <div style={{ fontWeight: 500 }}>并行处理数组输入</div>
                   <div style={{ ...HINT, marginTop: 2 }}>
                     勾选后此节点的输入/输出端口变为 <code>arrayed&lt;T&gt;</code>；
-                    运行时框架对每个数组元素起一个 sub-job（v1 顺序执行），
+                    运行时框架对每个数组元素起一个 sub-job，
                     产物聚合在 <code>{"{parent}/{port}/{element_id}/"}</code>。
                   </div>
                 </div>
               </label>
             </div>
+            {selected.arrayed_toggle ? (
+              <div style={FIELD}>
+                <div style={LABEL}>
+                  <span>并行执行数</span>
+                  <span style={TAG}>structural</span>
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  max={8}
+                  step={1}
+                  data-hl-parallelism=""
+                  value={Math.max(1, Math.min(8, Number(selected.parallelism ?? 1)))}
+                  onChange={(e) => {
+                    const raw = Number(e.target.value);
+                    const clamped = Number.isFinite(raw)
+                      ? Math.max(1, Math.min(8, Math.round(raw)))
+                      : 1;
+                    onChange({ parallelism: clamped });
+                  }}
+                  style={{
+                    width: 72,
+                    fontFamily: "var(--font-mono)",
+                    fontVariantNumeric: "tabular-nums",
+                    textAlign: "right",
+                  }}
+                />
+                <div style={{ ...HINT, marginTop: 4 }}>
+                  同时派发的 shard 上限（1–8，默认 1 = 串行）。
+                  实际并发 = min(本值, 节点守护进程 <code>max_concurrent_jobs</code>)。
+                  改动会 Fork 新的快照。
+                </div>
+              </div>
+            ) : null}
           </>
         )}
 

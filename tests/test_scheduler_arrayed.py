@@ -329,9 +329,12 @@ async def _drive_shards(
 ) -> asyncio.Task[None]:
     """Poll for shard jobs and transition each through ASSIGNED→RUNNING→DONE.
 
-    Drives sequentially in the order shards appear in the jobs table so the
-    scheduler's ``_await_job_terminal`` unblocks. Returns the background
-    task so tests can await its completion.
+    Drives in the order shards appear in the jobs table so the scheduler's
+    ``_await_job_terminal`` calls unblock. When ``fail_at_index`` is set,
+    only that shard is marked FAILED — every other shard is still driven
+    to DONE (matches the no-fail-fast gather-all executor semantics; the
+    parent is failed by the executor once every shard is terminal).
+    Returns the background task so tests can await its completion.
     """
 
     store = client_app.state.jobs_store
@@ -339,7 +342,7 @@ async def _drive_shards(
 
     async def _loop() -> None:
         # Bounded so a test bug doesn't hang forever.
-        for _ in range(200):
+        for _ in range(400):
             rows = await store.list_recent(limit=200, order="asc")
             for r in rows:
                 jid = r["job_id"]
@@ -368,7 +371,7 @@ async def _drive_shards(
                     )
                     kind, payload = event_from_transition(running, failed)
                     await store.update(failed, kind, payload)
-                    return
+                    continue  # keep driving remaining shards — no fail-fast
                 done = JobStateMachine.transition(running, JobState.DONE)
                 kind, payload = event_from_transition(running, done)
                 await store.update(done, kind, payload)
@@ -611,12 +614,19 @@ async def test_fanout_shard_failure_marks_parent_failed(tmp_path: Path) -> None:
         with pytest.raises(WorkflowRunError, match="shard 1"):
             client.portal.call(_drive_and_run)
 
-        # Only 2 shards should have been dispatched (0=cam_A done, 1=cam_B
-        # failed) — the third element is never created.
+        # Gather-all semantics: every shard row is created upfront and
+        # every shard runs to a terminal state before the parent is
+        # marked FAILED. cam_A completes, cam_B fails, cam_C completes.
         rows = client.portal.call(lambda: app.state.jobs_store.list_recent(100, order="asc"))
         shard_rows = [r for r in rows if r["graph_node_id"] == "fan"]
-        # 1 parent + 2 shards. Third (cam_C) skipped.
-        assert len(shard_rows) == 3
+        # 1 parent + 3 shards (upfront row creation).
+        assert len(shard_rows) == 4
+        by_state: dict[str, int] = {}
+        for r in shard_rows:
+            by_state[r["state"]] = by_state.get(r["state"], 0) + 1
+        # 1 parent failed, 1 shard failed, 2 shards done.
+        assert by_state.get("failed") == 2, by_state
+        assert by_state.get("done") == 2, by_state
 
 
 # ---------------------------------------------------------------------------

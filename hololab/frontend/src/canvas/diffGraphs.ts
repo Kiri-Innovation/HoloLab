@@ -77,6 +77,17 @@ export function diffGraphs(draft: WorkflowGraph, snap: WorkflowGraph): DiffItem[
       });
     }
 
+    // parallelism — structural (bounds fan-out shard concurrency). Old
+    // snapshots predate this field; treat missing as 1 so the diff only
+    // fires when the draft moves off the default.
+    const dPar = Math.max(1, Number(dn.parallelism ?? 1));
+    const sPar = Math.max(1, Number(sn.parallelism ?? 1));
+    if (dPar !== sPar) {
+      items.push({
+        description: `节点 ${label} 并行执行数: ${sPar} → ${dPar}`,
+      });
+    }
+
     const dp = dn.params ?? {};
     const sp = sn.params ?? {};
     const keys = new Set([...Object.keys(dp), ...Object.keys(sp)]);

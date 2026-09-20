@@ -313,6 +313,11 @@ export interface GraphNode {
   // dispatch time. Default false leaves pre-arrayed behavior intact.
   // See docs/pack-spec.md#arrayed-and-arrayable.
   arrayed_toggle?: boolean;
+  // Structural — upper bound on concurrent shard dispatch for this
+  // node's fan-out. Default 1 = serial (pre-pool behavior). Effective
+  // concurrency = min(parallelism, node daemon max_concurrent_jobs).
+  // Only meaningful when arrayed_toggle is true on an arrayable pack.
+  parallelism?: number;
   // Cosmetic (observer-only) field. Name of the output port whose
   // preview drawer is expanded; null when the drawer is closed.
   // Never affects dispatch — see the cosmetic/structural table in

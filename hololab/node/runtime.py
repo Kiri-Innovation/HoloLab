@@ -123,6 +123,19 @@ class NodeRuntime:
         self._jobs: dict[str, asyncio.Task[None]] = {}
         self._cancel_events: dict[str, asyncio.Event] = {}
 
+        # Global cap on concurrent subprocess execution. Sized at startup
+        # from ``NodeConfig.max_concurrent_jobs`` — asyncio.Semaphore has
+        # no resize, so hot-swapping the config field only takes effect on
+        # daemon restart. ``None`` = unbounded (historical behavior when
+        # the field is 0). Acquired *after* ``job_ack`` inside
+        # :meth:`_run_job` so gateway assignment tracking stays snappy;
+        # the wait shows up on the frontend as "assigned" without a
+        # progress bar until the semaphore admits the job.
+        cap = self._config.max_concurrent_jobs
+        self._exec_semaphore: asyncio.Semaphore | None = (
+            asyncio.Semaphore(cap) if cap and cap > 0 else None
+        )
+
         # In-flight ws + protocol version once connected.
         self._ws: websockets.WebSocketClientProtocol | None = None
         self._protocol_v = PROTOCOL_V_MAX
@@ -1086,12 +1099,21 @@ class NodeRuntime:
         )
 
         try:
-            result = await run_subprocess(
-                plan,
-                on_log=on_log,
-                on_progress=on_progress,
-                cancel_event=cancel_event,
-            )
+            if self._exec_semaphore is not None:
+                async with self._exec_semaphore:
+                    result = await run_subprocess(
+                        plan,
+                        on_log=on_log,
+                        on_progress=on_progress,
+                        cancel_event=cancel_event,
+                    )
+            else:
+                result = await run_subprocess(
+                    plan,
+                    on_log=on_log,
+                    on_progress=on_progress,
+                    cancel_event=cancel_event,
+                )
         finally:
             flush_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):

@@ -1088,7 +1088,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         data: {
           pack,
           assigned_node_id: pack.node_ids[0] ?? null, // default to the first eligible
-          ...({ arrayed_toggle: false } as object),
+          ...({ arrayed_toggle: false, parallelism: 1 } as object),
         },
       };
       setNodes((ns) => ns.concat(node));
@@ -1335,6 +1335,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                   ...(patch.arrayed_toggle !== undefined
                     ? { arrayed_toggle: patch.arrayed_toggle }
                     : {}),
+                  ...(patch.parallelism !== undefined
+                    ? { parallelism: patch.parallelism }
+                    : {}),
                 },
               }
             : n,
@@ -1369,6 +1372,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const d = n.data as AlgorithmNodeData & {
           params?: Record<string, unknown>;
           arrayed_toggle?: boolean;
+          parallelism?: number;
         };
         return {
           id: n.id,
@@ -1379,6 +1383,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           assigned_node_id: d.assigned_node_id,
           // Structural — see docs/pack-spec.md#arrayed-and-arrayable.
           arrayed_toggle: Boolean(d.arrayed_toggle),
+          // Structural — bounded parallel shard dispatch (default 1).
+          parallelism: Math.max(1, Number(d.parallelism ?? 1)),
           // Cosmetic — persisted with the workflow so it survives
           // refresh + cross-device browsing (the whole point of the
           // "not localStorage" decision).
@@ -1423,6 +1429,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               assigned_node_id: gn.assigned_node_id,
               ...({ params: gn.params } as object),
               ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
+              ...({ parallelism: gn.parallelism ?? 1 } as object),
               runtime: runtimeByGraphNode[gn.id],
               previews: previewsByGraphNode[gn.id],
               previewOpen: previewOpenByGraphNode[gn.id] ?? null,
@@ -2027,6 +2034,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                     arrayed_toggle?: boolean;
                   }
                 ).arrayed_toggle,
+              ),
+              parallelism: Math.max(
+                1,
+                Number(
+                  (
+                    selectedNode.data as AlgorithmNodeData & {
+                      parallelism?: number;
+                    }
+                  ).parallelism ?? 1,
+                ),
               ),
             }
           : null
