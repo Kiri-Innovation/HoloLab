@@ -3070,6 +3070,131 @@ function NestedGroupDetail({
 
 const COLMAP_IFRAME_HEIGHT = 260;
 
+// Frustum image-plane thumbnails. ColmapUtil clamps its internal texture
+// to ``FRUSTUM_TEXTURE_MAX_DIM = 96`` px (config.js), so anything ≥ 96 on
+// the long edge is functionally equivalent once rendered — the extra
+// pixels only serve to make the decoded ImageBitmap look less blocky if
+// the user zooms the iframe. 256 keeps per-frame payload around
+// ~200 KB total (~10 KB × 21 cams at JPEG q3) without wasting bandwidth
+// on pixels the frustum will discard anyway.
+const FRUSTUM_THUMB_LONG_EDGE = 256;
+// Cap simultaneous thumb GETs so a 21-cam frame doesn't monopolise the
+// HTTP/1.1 origin's parallel-request budget while other previews on the
+// same canvas are still loading. Six mirrors the browser's typical
+// per-origin cap and matches ``STRIP_THUMB`` fetch batching elsewhere.
+const FRUSTUM_THUMB_FETCH_CONCURRENCY = 6;
+
+/** Parse the first ``CAMERA_ID MODEL WIDTH HEIGHT PARAMS…`` line of a
+ *  COLMAP ``cameras.txt`` blob. Used to size the frustum thumbnails to the
+ *  source image aspect so ``_thumb``'s letterbox pad shrinks to a hair
+ *  (otherwise a square target on a 4:3 source paints black bars into the
+ *  frustum plane at 96 px, which reads as UI grime).
+ *
+ *  All PINHOLE-undistorted frames share one camera model in practice, so
+ *  the first entry is representative; return ``null`` when we can't parse
+ *  and the caller falls back to a square request.
+ */
+function parseColmapFirstCameraDims(
+  text: string,
+): { width: number; height: number } | null {
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const parts = line.split(/\s+/);
+    if (parts.length < 4) return null;
+    const w = Number.parseInt(parts[2], 10);
+    const h = Number.parseInt(parts[3], 10);
+    if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+      return { width: w, height: h };
+    }
+    return null;
+  }
+  return null;
+}
+
+/** Extract image NAMEs from a COLMAP ``images.txt`` blob. Format has two
+ *  data lines per image: pose (``IMAGE_ID QW…TZ CAMERA_ID NAME``) then
+ *  ``POINTS2D[]``. Skip comment/blank lines; NAME is the last token on
+ *  every even-index data line (0, 2, 4…). NAMEs never contain whitespace
+ *  in COLMAP outputs, so last-token is safe.
+ */
+function parseColmapImageNames(text: string): string[] {
+  const names: string[] = [];
+  let dataIdx = 0;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    if ((dataIdx & 1) === 0) {
+      const parts = line.split(/\s+/);
+      const name = parts[parts.length - 1];
+      if (name) names.push(name);
+    }
+    dataIdx++;
+  }
+  return names;
+}
+
+/** Bounded-parallel map. Preserves input order in the output. Rejects on
+ *  the first worker error so an ``AbortController`` cancel unwinds cleanly.
+ */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, idx: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const idx = cursor++;
+      results[idx] = await fn(items[idx], idx);
+    }
+  }
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    worker,
+  );
+  await Promise.all(workers);
+  return results;
+}
+
+/** Fetch per-camera thumbnails through the node's ``_thumb`` endpoint and
+ *  return a Blob per NAME (``null`` for entries that 404 or fail — the
+ *  frustum for that camera stays untextured in ColmapUtil, matching the
+ *  behaviour when the image was never sent). ``imagesBaseUrl`` is a
+ *  ``/proxy/{node}/…/images`` URL rooted at the same origin as the .txt
+ *  fetches; we split off the ``/_thumb/`` sibling and hand ffmpeg a path
+ *  that follows the ``images/`` symlink to the undistort output.
+ */
+async function fetchFrustumThumbnails(
+  imagesBaseUrl: string,
+  names: readonly string[],
+  thumbDims: { width: number; height: number },
+  signal: AbortSignal,
+): Promise<Array<{ name: string; blob: Blob } | null>> {
+  const [nodeRoot, imagesSub] = splitProxyBase(imagesBaseUrl);
+  const dims = `${thumbDims.width}x${thumbDims.height}`;
+  return mapWithConcurrency(names, FRUSTUM_THUMB_FETCH_CONCURRENCY, async (name) => {
+    // ``_thumb`` accepts PNG/JPEG stills at any depth under the workspace
+    // root, follows the ``images/`` symlink, and caches per (path,mtime,
+    // dims,at). Path-segment-encode the NAME so ``+`` / spaces survive.
+    const encoded = name
+      .split("/")
+      .map((seg) => encodeURIComponent(seg))
+      .join("/");
+    const url = `${nodeRoot}/_thumb/${dims}/${imagesSub}/${encoded}?at=0`;
+    try {
+      const r = await fetch(url, { signal });
+      if (!r.ok) return null;
+      const blob = await r.blob();
+      return { name, blob };
+    } catch (e) {
+      if ((e as Error).name === "AbortError") throw e;
+      return null;
+    }
+  });
+}
+
 // Empty scaffolds — model_converter --output_type TXT emits headers of
 // this shape for a reconstruction with zero of the given entity. Kept
 // as constants so the byte pattern is stable across preview mounts.
@@ -3102,9 +3227,21 @@ interface Colmap3DPreviewProps {
   // empty-header scaffold so ColmapUtil's loader still gets all three.
   fetchFiles: readonly ColmapFileName[];
   title: string;
+  // Optional ``/proxy/{node}/…/images`` URL. When set (and cameras+images
+  // are among ``fetchFiles``) we side-load JPEG thumbnails of every NAME
+  // in images.txt so ColmapUtil's ``makeFolderImageResolver`` picks them
+  // up and textures the frustum image planes. Without it, frustums render
+  // as empty wireframes (the wireframe-only mode used by cams/points
+  // previews where no per-image raster is available).
+  imagesBaseUrl?: string;
 }
 
-function Colmap3DPreview({ baseUrl, fetchFiles, title }: Colmap3DPreviewProps) {
+function Colmap3DPreview({
+  baseUrl,
+  fetchFiles,
+  title,
+  imagesBaseUrl,
+}: Colmap3DPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const sentRef = useRef(false);
@@ -3172,14 +3309,50 @@ function Colmap3DPreview({ baseUrl, fetchFiles, title }: Colmap3DPreviewProps) {
         );
         if (ctl.signal.aborted) return;
         const fetched = new Map(fetchedBlobs);
-        const files = (["cameras.txt", "images.txt", "points3D.txt"] as const).map(
-          (name) => ({
-            name,
-            blob:
-              fetched.get(name) ??
-              new Blob([COLMAP_EMPTY[name]], { type: "text/plain" }),
-          }),
-        );
+        const files: Array<{ name: string; blob: Blob }> = (
+          ["cameras.txt", "images.txt", "points3D.txt"] as const
+        ).map((name) => ({
+          name,
+          blob:
+            fetched.get(name) ??
+            new Blob([COLMAP_EMPTY[name]], { type: "text/plain" }),
+        }));
+
+        // Side-load per-camera thumbnails when the caller supplied an
+        // images dir. ``makeFolderImageResolver`` inside ColmapUtil scans
+        // the file map for image-extension entries and keys them by path
+        // suffix, so appending ``{name: "cam01.png", blob: <jpeg bytes>}``
+        // is enough — no ColmapUtil-side message change. Aborted request
+        // aborts propagate through ``mapWithConcurrency``; per-image 4xx
+        // /5xx degrades to a wireframe frustum for that camera only.
+        const camerasBlob = fetched.get("cameras.txt");
+        const imagesBlob = fetched.get("images.txt");
+        if (imagesBaseUrl && camerasBlob && imagesBlob) {
+          const [camsText, imgsText] = await Promise.all([
+            camerasBlob.text(),
+            imagesBlob.text(),
+          ]);
+          if (ctl.signal.aborted) return;
+          const names = parseColmapImageNames(imgsText);
+          if (names.length > 0) {
+            const camDims = parseColmapFirstCameraDims(camsText);
+            const long = FRUSTUM_THUMB_LONG_EDGE;
+            const thumbDims = camDims
+              ? camDims.width >= camDims.height
+                ? { width: long, height: Math.max(1, Math.round((long * camDims.height) / camDims.width)) }
+                : { width: Math.max(1, Math.round((long * camDims.width) / camDims.height)), height: long }
+              : { width: long, height: long };
+            const thumbs = await fetchFrustumThumbnails(
+              imagesBaseUrl,
+              names,
+              thumbDims,
+              ctl.signal,
+            );
+            if (ctl.signal.aborted) return;
+            for (const t of thumbs) if (t) files.push(t);
+          }
+        }
+
         target.postMessage(
           { type: "colmap-load-files", files, name: "sfm" },
           "*",
@@ -3206,7 +3379,7 @@ function Colmap3DPreview({ baseUrl, fetchFiles, title }: Colmap3DPreviewProps) {
       ctl.abort();
       window.removeEventListener("message", onMessage);
     };
-  }, [baseUrl, fetchKey]);
+  }, [baseUrl, fetchKey, imagesBaseUrl]);
 
   return (
     <div ref={wrapperRef} style={{ position: "relative" }}>
@@ -3300,12 +3473,19 @@ function ColmapFramePreview({ baseUrl }: { baseUrl: string }) {
   // inside each frame element directory — adjust the base before the
   // standard triple-fetch. Naming kept as ``ColmapFramePreview`` for
   // historical parity even though @0.4.0 emits the ``colmap`` tag.
-  const sparseBase = `${baseUrl.replace(/\/$/, "")}/sparse/0`;
+  const trimmed = baseUrl.replace(/\/$/, "");
+  const sparseBase = `${trimmed}/sparse/0`;
+  // ``images/`` inside the frame element is a symlink into the
+  // image-undistort output — the node fileserver follows it at serve time,
+  // and ``_thumb`` accepts PNG stills so ffmpeg produces a compressed
+  // JPEG per camera at request time (see ``fetchFrustumThumbnails``).
+  const imagesBase = `${trimmed}/images`;
   return (
     <Colmap3DPreview
       baseUrl={sparseBase}
       fetchFiles={COLMAP_FRAME_FETCH}
       title="colmap frame viewer"
+      imagesBaseUrl={imagesBase}
     />
   );
 }
