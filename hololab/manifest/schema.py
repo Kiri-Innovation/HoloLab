@@ -18,13 +18,23 @@ API_VERSION = "hololab.dev/v1"
 
 
 class ParamType(str, Enum):
-    """Closed set of parameter types (scalars only; ports are typed by tag)."""
+    """Closed set of parameter types.
+
+    Scalars plus a small list wrapper: ``list[str]`` for structural knobs
+    like ``regroup.input_dims`` where the value is a small ordered list
+    of dim labels. Ports are still typed by tag; params never carry tags.
+    """
 
     INT = "int"
     FLOAT = "float"
     BOOL = "bool"
     STRING = "string"
     ENUM = "enum"
+    # Small ordered list of strings — used by structural knobs like
+    # ``regroup.input_dims`` / ``regroup.output_dims`` that name arrayed
+    # layers. Not a general-purpose "any-typed list" — keep to str for
+    # now so the NodeInspector's ``DimListEditor`` widget stays simple.
+    LIST_STR = "list[str]"
 
 
 class StorageForm(str, Enum):
@@ -82,11 +92,29 @@ class InputSpec(BaseModel):
     description: str | None = None
     arrayed: bool = False
     scalar: bool = False
+    # Per-dimension semantic labels for arrayed ports, **outer dim first**.
+    # ``["frame","camera"]`` = 2-D ``arrayed<arrayed<T>>``. ``len(dim_labels)``
+    # is the arrayed depth. Empty list = "1-D arrayed if ``arrayed=true``,
+    # else scalar" (legacy).
+    dim_labels: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _tags_non_empty(self) -> InputSpec:
         if not self.tags:
             raise ValueError("input port must declare at least one tag (object type)")
+        return self
+
+    @model_validator(mode="after")
+    def _dim_labels_consistent(self) -> InputSpec:
+        if len(self.dim_labels) > 2:
+            raise ValueError(
+                "dim_labels currently supports at most 2 layers "
+                f"(got {len(self.dim_labels)} — {self.dim_labels!r})"
+            )
+        if self.dim_labels and not self.arrayed:
+            raise ValueError("dim_labels declared but arrayed is false — set arrayed: true")
+        if self.dim_labels and self.scalar:
+            raise ValueError("dim_labels + scalar are mutually exclusive")
         return self
 
 
@@ -152,11 +180,25 @@ class OutputSpec(BaseModel):
     arrayed: bool = False
     scalar: bool = False
     tags_from: str | None = None
+    dim_labels: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _tags_non_empty(self) -> OutputSpec:
         if not self.tags:
             raise ValueError("output port must declare at least one tag (object type)")
+        return self
+
+    @model_validator(mode="after")
+    def _dim_labels_consistent(self) -> OutputSpec:
+        if len(self.dim_labels) > 2:
+            raise ValueError(
+                "dim_labels currently supports at most 2 layers "
+                f"(got {len(self.dim_labels)} — {self.dim_labels!r})"
+            )
+        if self.dim_labels and not self.arrayed:
+            raise ValueError("dim_labels declared but arrayed is false — set arrayed: true")
+        if self.dim_labels and self.scalar:
+            raise ValueError("dim_labels + scalar are mutually exclusive")
         return self
 
 
@@ -181,6 +223,22 @@ class ParamSpec(BaseModel):
     def _check_enum(self) -> ParamSpec:
         if self.type is ParamType.ENUM and not self.values:
             raise ValueError("param of type 'enum' must declare 'values'")
+        return self
+
+    @model_validator(mode="after")
+    def _check_list_str_default(self) -> ParamSpec:
+        if (
+            self.type is ParamType.LIST_STR
+            and self.default is not None
+            and (
+                not isinstance(self.default, list)
+                or not all(isinstance(v, str) for v in self.default)
+            )
+        ):
+            raise ValueError(
+                "param of type 'list[str]' must have a list-of-strings default "
+                f"(got {type(self.default).__name__}: {self.default!r})"
+            )
         return self
 
 

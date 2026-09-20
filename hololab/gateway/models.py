@@ -135,6 +135,8 @@ class PortSpecOut(BaseModel):
     storage: str = "dir"
     description: str | None = None
     arrayed: bool = False
+    scalar: bool = False
+    dim_labels: list[str] = Field(default_factory=list)
 
 
 class OutputPortSpecOut(BaseModel):
@@ -145,7 +147,9 @@ class OutputPortSpecOut(BaseModel):
     description: str | None = None
     preview: dict[str, Any] | None = None
     arrayed: bool = False
+    scalar: bool = False
     tags_from: str | None = None
+    dim_labels: list[str] = Field(default_factory=list)
 
 
 class ParamSpecOut(BaseModel):
@@ -269,6 +273,27 @@ class HandleSummary(BaseModel):
     fields: dict[str, Any] = Field(
         default_factory=dict,
         description="Kind-specific structured metadata; empty for 'unknown'.",
+    )
+    element_count: int | None = Field(
+        default=None,
+        description=(
+            "Top-level element count when the handle is arrayed (dir with "
+            "one subdir per element). Fills the edge chip's ``[N]``. Null "
+            "when the handle isn't arrayed or the server didn't compute it."
+        ),
+    )
+    internal_count: int | None = Field(
+        default=None,
+        description=(
+            "Tag-specific inner count — the ``(N)`` next to the chip's "
+            "``[N]``. Meaning is per-tag (cameras.txt rows, points3D rows, "
+            "splatv camera_count). Sampled from the FIRST element of an "
+            "arrayed handle only; never walked."
+        ),
+    )
+    internal_count_kind: str | None = Field(
+        default=None,
+        description="Human-readable name for :attr:`internal_count`; null when unset.",
     )
 
 
