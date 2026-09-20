@@ -3409,8 +3409,11 @@ function Colmap3DPreview({
   const [handshaken, setHandshaken] = useState(false);
   const [activated, setActivated] = useState(false);
   // Deferred loading indicator for data swaps *after* the boot handshake.
-  // Set true only if a payload fetch takes >200 ms (cache-hit swaps are
-  // < 20 ms so this never fires for prefetched neighbours — no flash).
+  // Set true only if a payload fetch takes >500 ms; cache-hit swaps are
+  // < 20 ms and even brief network fetches (~200-400 ms) usually finish
+  // before the timer fires, so this never renders for the typical
+  // paginate walk. Higher-than-200 ms threshold matches the user's
+  // request that even brief cache misses shouldn't flash a chip.
   const [swapLoading, setSwapLoading] = useState(false);
 
   // Push canvas-zoom → iframe render resolution (debounced 200 ms).
@@ -3469,15 +3472,17 @@ function Colmap3DPreview({
 
   // Effect B — post the payload whenever the request tuple changes (and
   // the iframe is ready to receive). Cache-hit swaps resolve within a
-  // microtask and the 200 ms loading-indicator timer never fires, so the
-  // flip is perceptually instant. Cache misses degrade to a subtle
-  // indicator without unmounting the iframe.
+  // microtask, and even a brief cache miss usually completes well under
+  // the 500 ms indicator threshold — so the flip is perceptually silent
+  // unless a genuinely slow fetch (network hiccup, big shard behind the
+  // prefetch window) drags on.  Cache misses that DO cross the threshold
+  // degrade to a subtle corner chip without unmounting the iframe.
   const fetchKey = fetchFiles.join(",");
   useEffect(() => {
     if (!handshaken) return;
     setError(null);
     const ctl = new AbortController();
-    const showT = window.setTimeout(() => setSwapLoading(true), 200);
+    const showT = window.setTimeout(() => setSwapLoading(true), 500);
     (async () => {
       try {
         const payload = await loadColmapPayload(
@@ -3909,15 +3914,20 @@ function prefetchColmapPoints(elementUrl: string): void {
   }).catch(() => {});
 }
 
+// Prefetch scheduling. ``requestIdleCallback`` was the original policy —
+// wait until the tab is idle so the ±3 warmup doesn't compete with the
+// current frame's render. In practice this made rapid paginate walks
+// suffer: the tab is never idle while the user is clicking, so idle
+// callbacks queue up and the cache never gets ahead. A tiny fixed
+// timeout fires just after the render tick (browser has finished paint)
+// and reliably wins the race against the next click, so a user
+// hammering Next never outpaces the prefetch beyond a single page.
 function scheduleIdle(fn: () => void): number {
-  return typeof requestIdleCallback !== "undefined"
-    ? requestIdleCallback(fn)
-    : window.setTimeout(fn, 50);
+  return window.setTimeout(fn, 50);
 }
 
 function cancelIdle(id: number): void {
-  if (typeof cancelIdleCallback !== "undefined") cancelIdleCallback(id);
-  else clearTimeout(id);
+  clearTimeout(id);
 }
 
 // ---------------------------------------------------------------------------
