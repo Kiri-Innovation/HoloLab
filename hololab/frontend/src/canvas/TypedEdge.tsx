@@ -238,6 +238,7 @@ function TypedEdgeInner({
     if (!edgeType) return { label: baseLabel, labelLong: baseLabelLong };
     const enriched: EdgeType = {
       ...edgeType,
+      dimSizes: facts?.dimSizes ?? edgeType.dimSizes,
       elementCount: facts?.elementCount ?? edgeType.elementCount,
       innerElementCount:
         facts?.innerElementCount ?? edgeType.innerElementCount,

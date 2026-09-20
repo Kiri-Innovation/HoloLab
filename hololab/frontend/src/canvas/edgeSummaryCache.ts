@@ -19,6 +19,9 @@ export interface EdgeSummaryFacts {
   /** Inner element count for the first outer element when the server
    *  enriched ``fields.entries[].children`` (2-D arrayed only). */
   innerElementCount?: number;
+  /** Per-dimension sizes from ``dim_sizes``, outer first. Supersedes
+   *  ``elementCount`` / ``innerElementCount`` when present. */
+  dimSizes?: number[];
 }
 
 // Two parallel maps so ``peek`` can answer without observing an in-
@@ -30,30 +33,39 @@ const resolved = new Map<string, EdgeSummaryFacts>();
 
 function factsFromSummary(s: HandleSummary): EdgeSummaryFacts {
   const facts: EdgeSummaryFacts = {};
-  const explicitElementCount = s.element_count;
-  if (typeof explicitElementCount === "number") {
-    facts.elementCount = explicitElementCount;
-  } else if (Array.isArray(s.fields.entries)) {
-    // Legacy backend hasn't set ``element_count`` — infer it from the
-    // top-level entry list (arrayed handles are dirs whose children are
-    // element dirs). Only trust when the payload isn't truncated so we
-    // don't chip a false ``[8]`` when the real count is 100.
-    if (!s.fields.truncated) {
-      const dirs = s.fields.entries.filter((e) => e.is_dir).length;
-      if (dirs > 0) facts.elementCount = dirs;
+
+  // dim_sizes is the authoritative multi-dim count source. Backfill the
+  // legacy scalar fields so callers that only inspect elementCount still
+  // get the right value for the common 1-D case.
+  if (Array.isArray(s.dim_sizes) && s.dim_sizes.length > 0) {
+    facts.dimSizes = s.dim_sizes as number[];
+    facts.elementCount = s.dim_sizes[0];
+    if (s.dim_sizes.length > 1) facts.innerElementCount = s.dim_sizes[1];
+  } else {
+    // Legacy path: backend predates dim_sizes.
+    const explicitElementCount = s.element_count;
+    if (typeof explicitElementCount === "number") {
+      facts.elementCount = explicitElementCount;
+    } else if (Array.isArray(s.fields.entries)) {
+      // Older backend hasn't set element_count — infer from top-level
+      // dir list. Only trust when the payload isn't truncated.
+      if (!s.fields.truncated) {
+        const dirs = s.fields.entries.filter((e) => e.is_dir).length;
+        if (dirs > 0) facts.elementCount = dirs;
+      }
+    }
+    // Second dim: first element's entry_count from the server drill.
+    const firstDir = s.fields.entries?.find((e) => e.is_dir);
+    if (firstDir?.entry_count != null) {
+      facts.innerElementCount = firstDir.entry_count;
     }
   }
+
   if (typeof s.internal_count === "number") {
     facts.internalCount = s.internal_count;
     if (typeof s.internal_count_kind === "string") {
       facts.internalCountKind = s.internal_count_kind;
     }
-  }
-  // Second dim: look at the first element's ``entry_count`` — the server
-  // enriches one level down, which is exactly the 2-D case's inner dim.
-  const firstDir = s.fields.entries?.find((e) => e.is_dir);
-  if (firstDir?.entry_count != null) {
-    facts.innerElementCount = firstDir.entry_count;
   }
   return facts;
 }

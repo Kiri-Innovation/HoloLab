@@ -15,16 +15,14 @@
 // via ``formatTypeLabel``.
 //
 // Chip display rules (see design contract):
-//   * ``T``                     — scalar, no counts
-//   * ``T(N)``                  — scalar with tag-specific inner count
-//   * ``T[N]``                  — 1-D arrayed, element count = N
-//   * ``T[?]``                  — 1-D arrayed, count unknown (no handle yet)
-//   * ``T[F][C]``               — 2-D arrayed, F outer × C inner (outer first)
-//   * ``T(N)[N]``               — inner count + outer array size can coexist
-//
-// The dim-labels themselves stay off the chip (would blow the horizontal
-// budget) and live only in the tooltip / long label so hovering reads out
-// ``arrayed<frame,camera> of image`` in full.
+//   * ``T``                      — scalar, no counts
+//   * ``T(N)``                   — scalar with tag-specific inner count
+//   * ``T[N]``                   — 1-D arrayed, unlabeled
+//   * ``T[label:N]``             — 1-D arrayed, dim label present
+//   * ``T[?]``                   — 1-D arrayed, count unknown (no handle yet)
+//   * ``T[F][C]``                — 2-D arrayed, unlabeled (outer first)
+//   * ``T[label1:F][label2:C]``  — 2-D arrayed, with dim labels
+//   * ``T(N)[label:N]``          — internal count + labeled array size
 
 import type { CatalogPack, GraphEdge, GraphNode } from "../wire";
 import { effectivePortArrayed, effectivePortDimLabels } from "../tags";
@@ -41,6 +39,10 @@ export interface EdgeType {
   /** Second-level element count when we've drilled far enough (e.g.
    *  a summary that enriched one level of ``children``). */
   innerElementCount?: number;
+  /** Per-dimension sizes from the server's ``dim_sizes`` field, outer
+   *  first. Supersedes ``elementCount`` / ``innerElementCount`` when
+   *  present. Index 0 maps to ``dimLabels[0]``, etc. */
+  dimSizes?: number[];
   /** Tag-specific inner count (cameras.txt row count, etc.). */
   internalCount?: number;
   internalCountKind?: string;
@@ -119,11 +121,12 @@ function baseChipTag(t: EdgeType): string {
 
 /** Compact label suitable for an edge chip. Composes:
  *
- *    <base>            scalar, no counts
- *    <base>(N)         scalar + internal count
- *    <base>[N]         1-D arrayed
- *    <base>(N)[N]      inner count + array size
- *    <base>[F][C]      2-D arrayed
+ *    <base>                  scalar, no counts
+ *    <base>(N)               scalar + internal count
+ *    <base>[N]               1-D arrayed, unlabeled
+ *    <base>[label:N]         1-D arrayed, dim label present
+ *    <base>[F][C]            2-D arrayed, unlabeled
+ *    <base>[l1:F][l2:C]      2-D arrayed, with dim labels
  *
  *  Unknown array sizes render as ``[?]`` so the shape stays visible even
  *  when the handle hasn't materialised yet. */
@@ -133,15 +136,22 @@ export function formatTypeLabel(t: EdgeType): string {
   if (t.internalCount != null) {
     s += `(${t.internalCount})`;
   }
-  // First array dim → t.elementCount; second → t.innerElementCount;
-  // deeper dims (rare) render as [?] because we don't fetch that deep.
   if (t.dimLabels.length > 0 || t.arrayed) {
     const depth = Math.max(t.dimLabels.length, t.arrayed ? 1 : 0);
     for (let i = 0; i < depth; i++) {
+      // dimSizes is the authoritative source; fall back to the legacy
+      // scalar fields for handles that predate the dim_sizes payload.
       let n: number | undefined;
-      if (i === 0) n = t.elementCount;
-      else if (i === 1) n = t.innerElementCount;
-      s += n != null ? `[${n}]` : "[?]";
+      if (t.dimSizes && i < t.dimSizes.length) {
+        n = t.dimSizes[i];
+      } else if (i === 0) {
+        n = t.elementCount;
+      } else if (i === 1) {
+        n = t.innerElementCount;
+      }
+      const label = t.dimLabels[i] ?? "";
+      const nStr = n != null ? String(n) : "?";
+      s += label ? `[${label}:${nStr}]` : `[${nStr}]`;
     }
   }
   return s;
@@ -169,11 +179,19 @@ export function formatTypeLabelLong(t: EdgeType): string {
     const kind = t.internalCountKind ?? "count";
     s += ` · ${t.internalCount} ${kind}`;
   }
-  if (t.elementCount != null) {
-    s += ` · ${t.elementCount} outer`;
-  }
-  if (t.innerElementCount != null) {
-    s += `, ${t.innerElementCount} inner`;
+  if (t.dimSizes && t.dimSizes.length > 0) {
+    const parts = t.dimSizes.map((n, i) => {
+      const lbl = t.dimLabels[i] ?? "";
+      return lbl ? `${n} ${lbl}` : String(n);
+    });
+    s += ` · ${parts.join(", ")}`;
+  } else {
+    if (t.elementCount != null) {
+      s += ` · ${t.elementCount} outer`;
+    }
+    if (t.innerElementCount != null) {
+      s += `, ${t.innerElementCount} inner`;
+    }
   }
   return s;
 }

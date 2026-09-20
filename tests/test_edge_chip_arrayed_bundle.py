@@ -41,10 +41,15 @@ def test_chip_placeholder_for_unknown_size(bundle_js: str) -> None:
     """The chip must emit ``[?]`` when arrayed depth is known but the
     element count isn't (handle not resolved yet). Losing this makes
     the chip flip between naked ``T`` and ``T[100]`` on hover — the
-    user never sees the arrayed shape upfront."""
+    user never sees the arrayed shape upfront.
 
-    assert '"[?]"' in bundle_js or "'[?]'" in bundle_js, (
-        "formatTypeLabel must emit ``[?]`` for unknown element counts"
+    Since the labeled-bracket refactor, the ``?`` is built dynamically
+    via the sentinel ``"?"`` combined into a template literal — the
+    literal ``"[?]"`` no longer appears verbatim in the bundle but the
+    sentinel string does."""
+
+    assert '"?"' in bundle_js or "'?'" in bundle_js, (
+        "formatTypeLabel must use a '?' sentinel for unknown element counts"
     )
 
 
@@ -125,4 +130,32 @@ def test_dim_list_editor_present(bundle_js: str) -> None:
     )
     assert '"list[str]"' in bundle_js or "'list[str]'" in bundle_js, (
         "NodeInspector must dispatch on the list[str] param type"
+    )
+
+
+def test_dim_sizes_wire_key_present(bundle_js: str) -> None:
+    """The ``dim_sizes`` field from ``HandleSummary`` must survive
+    minification so the edge summary cache can read it from the server
+    payload.  Missing this means chips always fall back to the legacy
+    ``element_count`` path and never render ``[label:N]`` notation."""
+
+    assert "dim_sizes" in bundle_js, (
+        "edgeSummaryCache must consume ``dim_sizes`` from HandleSummary"
+    )
+
+
+def test_chip_labeled_bracket_format(bundle_js: str) -> None:
+    """When a dim label is present, the chip must render ``[label:N]``
+    rather than bare ``[N]``.  The colon separator between label and
+    count must be assembled in the bundle — the template literal
+    ``[${label}:${n}]`` or its minified concatenation equivalent."""
+
+    # The minifier preserves template literals in ESM output:
+    # s?`[${s}:${a}]`:`[${a}]`  → the colon sits between two template
+    # substitutions inside square brackets.  Accept either the backtick
+    # form or a string-concatenation equivalent.
+    has_template = "`:${" in bundle_js or ":${" in bundle_js
+    has_concat = '":"+' in bundle_js or '+":" +' in bundle_js or '+ ":"' in bundle_js
+    assert has_template or has_concat, (
+        "formatTypeLabel must assemble [label:N] brackets with a colon separator"
     )

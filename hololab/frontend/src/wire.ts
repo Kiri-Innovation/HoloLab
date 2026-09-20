@@ -191,6 +191,11 @@ export interface HandleSummary {
   // it out ("7 cameras", "1024 points"). Null when unknown / unavailable.
   internal_count?: number | null;
   internal_count_kind?: string | null;
+  // Per-dimension element counts, outer-first. Length matches the port's
+  // arrayed depth: ``[100]`` for 1-D, ``[100, 21]`` for 2-D. Supersedes
+  // ``element_count`` for multi-dim handles so the chip can render
+  // ``image[frame:100][cam:21]``. Null when scalar or not yet computed.
+  dim_sizes?: number[] | null;
 }
 
 export interface OutputPortSpec extends PortSpec {
