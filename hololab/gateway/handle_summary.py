@@ -345,24 +345,16 @@ def _summarize_dir(path: Path, _handle: Handle) -> dict[str, Any]:
                 # only ever shows the first few thumbs anyway.
                 if children_budget > 0:
                     for gc in entry["children"]:
-                        if (
-                            gc.get("is_dir")
-                            and gc.get("name") == "frames"
-                            and children_budget > 0
-                        ):
+                        if gc.get("is_dir") and gc.get("name") == "frames" and children_budget > 0:
                             drill_cap = min(_FRAMES_DRILL_CAP, children_budget)
-                            gc["children"] = _list_dir_children(
-                                child / "frames", drill_cap
-                            )
+                            gc["children"] = _list_dir_children(child / "frames", drill_cap)
                             children_budget -= len(gc["children"])
                             # ``entry_count`` on the drilled dir carries
                             # the true item count even when the children
                             # list is capped, so the nested viewer's
                             # per-group badge shows the real frame count
                             # (e.g. 100) rather than the drill cap (8).
-                            gc["entry_count"] = _count_dir_entries(
-                                child / "frames"
-                            )
+                            gc["entry_count"] = _count_dir_entries(child / "frames")
             entries.append(entry)
         fields["entry_count"] = total
         fields["total_size_bytes"] = total_size

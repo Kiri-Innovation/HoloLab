@@ -504,7 +504,9 @@ def pack_validate(pack_dir: Path) -> None:
     typer.echo(f"  hash:       {sha}")
     typer.echo(f"  env:        {manifest.runtime.env}")
     typer.echo(f"  category:   {'/'.join(manifest.category) if manifest.category else '(unset)'}")
-    typer.echo(f"  docs:       {f'yes ({len(manifest.docs.splitlines())} lines)' if manifest.docs else '(unset)'}")
+    typer.echo(
+        f"  docs:       {f'yes ({len(manifest.docs.splitlines())} lines)' if manifest.docs else '(unset)'}"
+    )
     typer.echo(f"  inputs:     {list(manifest.inputs)}")
     typer.echo(f"  outputs:    {list(manifest.outputs)}")
     typer.echo(f"  previews:   {len(manifest.previews)}")

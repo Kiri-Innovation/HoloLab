@@ -187,9 +187,7 @@ async def proxy_get(node_id: str, path: str, request: Request, registry: NodeReg
             await upstream.aclose()
 
     response_headers = {
-        k: v
-        for k, v in upstream.headers.items()
-        if k.lower() in _PASSTHROUGH_RESPONSE_HEADERS
+        k: v for k, v in upstream.headers.items() if k.lower() in _PASSTHROUGH_RESPONSE_HEADERS
     }
 
     return StreamingResponse(

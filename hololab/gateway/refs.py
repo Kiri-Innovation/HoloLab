@@ -174,8 +174,7 @@ def parse_ref(raw: str) -> Ref:
     if kind in _INDEX_KINDS:
         if ident:
             raise RefParseError(
-                f"reference kind {kind!r} is an index and must not carry an id, "
-                f"got {text!r}"
+                f"reference kind {kind!r} is an index and must not carry an id, got {text!r}"
             )
         return Ref(kind=kind, id="", comment=comment)
 
@@ -198,9 +197,7 @@ def format_ref(kind: str, ident: str, comment: str | None = None) -> str:
         raise RefParseError(f"unknown kind {kind!r}")
     if kind in _INDEX_KINDS:
         if ident:
-            raise RefParseError(
-                f"index kind {kind!r} must not carry an id, got {ident!r}"
-            )
+            raise RefParseError(f"index kind {kind!r} must not carry an id, got {ident!r}")
         base = f"{_SCHEME_PREFIX}{kind}"
     else:
         _validate_id(kind, ident)
@@ -220,9 +217,7 @@ def split_graph_node_id(ident: str) -> tuple[str, str]:
     """
 
     if "/" not in ident:
-        raise RefParseError(
-            f"graph-node id must be <workflow_uuid>/<graph_node_id>, got {ident!r}"
-        )
+        raise RefParseError(f"graph-node id must be <workflow_uuid>/<graph_node_id>, got {ident!r}")
     wid, _, gnid = ident.partition("/")
     if not _UUID_RE.match(wid):
         raise RefParseError(f"graph-node workflow id must be a UUID, got {wid!r}")

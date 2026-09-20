@@ -1061,9 +1061,7 @@ def _mount_routes(app: FastAPI) -> None:
             draft = await workflows_store.get_draft(workflow_id)
             if draft is None:
                 raise HTTPException(status_code=404, detail="workflow not found")
-            gnode = next(
-                (n for n in draft.graph.nodes if n.id == graph_node_id), None
-            )
+            gnode = next((n for n in draft.graph.nodes if n.id == graph_node_id), None)
             if gnode is None:
                 raise HTTPException(
                     status_code=404,
@@ -1103,8 +1101,10 @@ def _mount_routes(app: FastAPI) -> None:
             latest_snapshot_id: str | None = None
             latest_snapshot_created_ts: float | None = None
 
-            async with app.state.db.read() as conn, conn.execute(
-                """
+            async with (
+                app.state.db.read() as conn,
+                conn.execute(
+                    """
                     SELECT sj.job_id, sj.snapshot_id, s.created_ts
                     FROM snapshot_jobs sj
                     JOIN snapshots s ON s.snapshot_id = sj.snapshot_id
@@ -1113,8 +1113,9 @@ def _mount_routes(app: FastAPI) -> None:
                     ORDER BY s.created_ts DESC
                     LIMIT 1
                     """,
-                (workflow_id, graph_node_id),
-            ) as cur:
+                    (workflow_id, graph_node_id),
+                ) as cur,
+            ):
                 row = await cur.fetchone()
                 if row is not None:
                     latest_job_id = row[0]
@@ -1151,14 +1152,10 @@ def _mount_routes(app: FastAPI) -> None:
                 ),  # POST — Continue or Fork onto the latest snapshot
             }
             if latest_snapshot_id is not None:
-                related_gnode["latest_run"] = (
-                    f"/api/snapshots/{latest_snapshot_id}"
-                )
+                related_gnode["latest_run"] = f"/api/snapshots/{latest_snapshot_id}"
             if latest_job_id is not None:
                 related_gnode["latest_job"] = f"/api/jobs/{latest_job_id}"
-                related_gnode["latest_job_log"] = (
-                    f"/api/jobs/{latest_job_id}/log"
-                )
+                related_gnode["latest_job_log"] = f"/api/jobs/{latest_job_id}/log"
 
             return {
                 "kind": "graph-node",
@@ -1988,9 +1985,7 @@ def _mount_routes(app: FastAPI) -> None:
     @app.patch(
         "/api/workflows/{workflow_id}/graph-nodes/{graph_node_id}/cosmetic",
         tags=["workflows"],
-        summary=(
-            "Update cosmetic fields (preview_open / position) on one graph node."
-        ),
+        summary=("Update cosmetic fields (preview_open / position) on one graph node."),
     )
     async def patch_workflow_graph_node_cosmetic(
         workflow_id: str,
@@ -2018,43 +2013,42 @@ def _mount_routes(app: FastAPI) -> None:
         # ``Database.write`` already serialises through the writer queue,
         # so consecutive writes below are ordered without an explicit
         # lock; readers use the WAL reader connection.
-        async with app.state.db.read() as conn, conn.execute(
-            "SELECT draft_json FROM workflows WHERE workflow_id=?",
-            (workflow_id,),
-        ) as cur:
+        async with (
+            app.state.db.read() as conn,
+            conn.execute(
+                "SELECT draft_json FROM workflows WHERE workflow_id=?",
+                (workflow_id,),
+            ) as cur,
+        ):
             row = await cur.fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="workflow not found")
-        new_draft_json = _apply_cosmetic_to_graph_json(
-            row[0], graph_node_id, validated
-        )
+        new_draft_json = _apply_cosmetic_to_graph_json(row[0], graph_node_id, validated)
 
         async def _write_draft(conn: aiosqlite.Connection) -> None:
             await conn.execute(
-                "UPDATE workflows SET draft_json=?, updated_ts=? "
-                "WHERE workflow_id=?",
+                "UPDATE workflows SET draft_json=?, updated_ts=? WHERE workflow_id=?",
                 (new_draft_json, time.time(), workflow_id),
             )
 
         await app.state.db.write(_write_draft)
 
         # Mirror to the latest snapshot (if the workflow has any).
-        snapshots = await workflows_store.list_snapshots_for_workflow(
-            workflow_id
-        )
+        snapshots = await workflows_store.list_snapshots_for_workflow(workflow_id)
         mirrored_to: str | None = None
         if snapshots:
             latest_snapshot = snapshots[0]
-            async with app.state.db.read() as conn, conn.execute(
-                "SELECT graph_json FROM snapshots WHERE snapshot_id=?",
-                (latest_snapshot.snapshot_id,),
-            ) as cur:
+            async with (
+                app.state.db.read() as conn,
+                conn.execute(
+                    "SELECT graph_json FROM snapshots WHERE snapshot_id=?",
+                    (latest_snapshot.snapshot_id,),
+                ) as cur,
+            ):
                 srow = await cur.fetchone()
             if srow is not None:
                 try:
-                    new_snap_json = _apply_cosmetic_to_graph_json(
-                        srow[0], graph_node_id, validated
-                    )
+                    new_snap_json = _apply_cosmetic_to_graph_json(srow[0], graph_node_id, validated)
                 except HTTPException:
                     # Snapshot's frozen graph may not contain this
                     # graph_node_id (draft was edited to add nodes
@@ -2062,10 +2056,10 @@ def _mount_routes(app: FastAPI) -> None:
                     # draft update above already succeeded.
                     new_snap_json = None
                 if new_snap_json is not None:
+
                     async def _write_snap(conn: aiosqlite.Connection) -> None:
                         await conn.execute(
-                            "UPDATE snapshots SET graph_json=? "
-                            "WHERE snapshot_id=?",
+                            "UPDATE snapshots SET graph_json=? WHERE snapshot_id=?",
                             (new_snap_json, latest_snapshot.snapshot_id),
                         )
 
@@ -2102,16 +2096,17 @@ def _mount_routes(app: FastAPI) -> None:
 
         validated = _validate_cosmetic_patch(patch)
 
-        async with app.state.db.read() as conn, conn.execute(
-            "SELECT graph_json FROM snapshots WHERE snapshot_id=?",
-            (snapshot_id,),
-        ) as cur:
+        async with (
+            app.state.db.read() as conn,
+            conn.execute(
+                "SELECT graph_json FROM snapshots WHERE snapshot_id=?",
+                (snapshot_id,),
+            ) as cur,
+        ):
             row = await cur.fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="snapshot not found")
-        new_json = _apply_cosmetic_to_graph_json(
-            row[0], graph_node_id, validated
-        )
+        new_json = _apply_cosmetic_to_graph_json(row[0], graph_node_id, validated)
 
         async def _write(conn: aiosqlite.Connection) -> None:
             await conn.execute(
@@ -2886,9 +2881,7 @@ async def _dispatch_node_frame(
         # ``run_snapshot``).
         if new.snapshot_id and new.graph_node_id:
             snapshot_jobs_store: SnapshotJobsStore = app.state.snapshot_jobs
-            await snapshot_jobs_store.attribute(
-                new.snapshot_id, new.job_id, new.graph_node_id
-            )
+            await snapshot_jobs_store.attribute(new.snapshot_id, new.job_id, new.graph_node_id)
         # Fetch the handles this job registered and include them on the
         # done broadcast so the frontend's preview drawer can open without
         # a follow-up REST round trip.

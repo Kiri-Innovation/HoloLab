@@ -270,9 +270,7 @@ def _parse_thumb_dims(dims: str) -> tuple[int, int]:
     except ValueError as exc:
         raise ValueError(f"invalid thumb dims {dims!r}: not integers") from exc
     if w <= 0 or h <= 0 or w > _THUMB_MAX_DIM or h > _THUMB_MAX_DIM:
-        raise ValueError(
-            f"invalid thumb dims {w}x{h}: must be 1..{_THUMB_MAX_DIM} on each axis"
-        )
+        raise ValueError(f"invalid thumb dims {w}x{h}: must be 1..{_THUMB_MAX_DIM} on each axis")
     return w, h
 
 
@@ -327,10 +325,14 @@ async def _thumb_response(
     if not is_still_image:
         cmd += ["-ss", f"{at:.3f}"]
     cmd += [
-        "-i", str(video),
-        "-frames:v", "1",
-        "-vf", vf,
-        "-q:v", "3",
+        "-i",
+        str(video),
+        "-frames:v",
+        "1",
+        "-vf",
+        vf,
+        "-q:v",
+        "3",
         "-y",
         str(tmp_path),
     ]
@@ -442,16 +444,25 @@ async def _preview_response(
     cmd = [
         ffmpeg,
         "-nostdin",
-        "-loglevel", "error",
-        "-i", str(video),
-        "-vf", vf,
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-profile:v", "baseline",
-        "-pix_fmt", "yuv420p",
-        "-crf", "28",
+        "-loglevel",
+        "error",
+        "-i",
+        str(video),
+        "-vf",
+        vf,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-profile:v",
+        "baseline",
+        "-pix_fmt",
+        "yuv420p",
+        "-crf",
+        "28",
         "-an",
-        "-movflags", "+faststart",
+        "-movflags",
+        "+faststart",
         "-y",
         str(tmp_path),
     ]

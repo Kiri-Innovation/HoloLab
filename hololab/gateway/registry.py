@@ -223,9 +223,7 @@ class NodeRegistry:
             packs_dir=packs_dir,
             # Multi-pack-source: prefer the modern list; fall back to
             # wrapping a legacy scalar so the wire remains consistent.
-            pack_dirs=list(pack_dirs)
-            if pack_dirs
-            else ([packs_dir] if packs_dir else []),
+            pack_dirs=list(pack_dirs) if pack_dirs else ([packs_dir] if packs_dir else []),
             token_issued=token_issued,
         )
         # If there was an old session for this node_id, drop it silently — the
@@ -1064,9 +1062,7 @@ class SnapshotJobsStore:
 
         await self._db.write(_write)
 
-    async def attribute_many(
-        self, snapshot_id: str, rows: list[tuple[str, str]]
-    ) -> None:
+    async def attribute_many(self, snapshot_id: str, rows: list[tuple[str, str]]) -> None:
         """Bulk-insert (job_id, graph_node_id) pairs into one snapshot.
 
         Used at Fork time to promote every "inherited" attribution from
@@ -1144,9 +1140,7 @@ class SnapshotJobsStore:
             rows = await cur.fetchall()
         return [{"job_id": r[0], "graph_node_id": r[1]} for r in rows]
 
-    async def get_latest_snapshot_for_workflow(
-        self, workflow_id: str
-    ) -> str | None:
+    async def get_latest_snapshot_for_workflow(self, workflow_id: str) -> str | None:
         """Return the newest snapshot id for the given workflow, or None.
 
         Used by the "dispatch single node" endpoint when the caller

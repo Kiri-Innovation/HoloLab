@@ -548,12 +548,12 @@ def effective_port_arrayed(
 
 
 def effective_output_tags(
-    node: "GraphNode",
-    pack: "PackHandle",
+    node: GraphNode,
+    pack: PackHandle,
     port_name: str,
-    graph: "WorkflowGraph",
-    node_by_id: dict[str, "GraphNode"],
-    packs_by_key: dict[tuple[str, str], "PackHandle"],
+    graph: WorkflowGraph,
+    node_by_id: dict[str, GraphNode],
+    packs_by_key: dict[tuple[str, str], PackHandle],
     _visited: set[tuple[str, str]] | None = None,
 ) -> list[str]:
     """Resolve an output port's effective tag set, following ``tags_from``.
@@ -703,10 +703,12 @@ def validate_snapshot(
         src_out = src_pack.outputs[edge.sourceHandle]
         tgt_in = tgt_pack.inputs[edge.targetHandle]
         # Effective arrayed state — the manifest default OR-ed with the
-        # pack.arrayable × node.arrayed_toggle override.  ``scalar: true``
-        # wins unconditionally on either side.
+        # pack.arrayable AND-ed with node.arrayed_toggle override.
+        # ``scalar: true`` wins unconditionally on either side.
         src_arr = effective_port_arrayed(
-            src_out.arrayed, src_pack.arrayable, src.arrayed_toggle,
+            src_out.arrayed,
+            src_pack.arrayable,
+            src.arrayed_toggle,
             port_scalar=src_out.scalar,
         )
         tgt_arr = effective_port_arrayed(

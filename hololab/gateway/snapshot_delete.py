@@ -108,8 +108,10 @@ async def compute_impact(app: FastAPI, snapshot_id: str) -> DeletionImpact | Non
     # non-done attempts that only carry the legacy ``jobs.snapshot_id``.
     # We match the same UNION the run view uses so the impact preview
     # doesn't disagree with what the user sees on screen.
-    async with db.read() as conn, conn.execute(
-        """
+    async with (
+        db.read() as conn,
+        conn.execute(
+            """
             SELECT job_id, state, algorithm_name FROM (
                 SELECT j.job_id, j.state, j.algorithm_name
                   FROM snapshot_jobs sj
@@ -127,8 +129,9 @@ async def compute_impact(app: FastAPI, snapshot_id: str) -> DeletionImpact | Non
                    )
             )
             """,
-        (snapshot_id, snapshot_id, snapshot_id),
-    ) as cur:
+            (snapshot_id, snapshot_id, snapshot_id),
+        ) as cur,
+    ):
         job_rows = await cur.fetchall()
 
     all_job_ids = [r[0] for r in job_rows]
@@ -224,9 +227,7 @@ async def delete_snapshot(app: FastAPI, snapshot_id: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=409,
             detail={
-                "message": (
-                    "snapshot has live jobs — cancel the run first, then delete"
-                ),
+                "message": ("snapshot has live jobs — cancel the run first, then delete"),
                 "live_jobs": impact.live_jobs,
             },
         )

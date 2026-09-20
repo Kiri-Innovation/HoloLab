@@ -67,6 +67,10 @@ fmt-check: ## Verify formatting without changing files.
 .PHONY: check
 check: lint fmt-check test ## The full CI-equivalent gate.
 
+.PHONY: install-hooks
+install-hooks: ## Point git at .githooks/ (auto-runs ruff on staged .py at commit).
+	git config core.hooksPath .githooks
+
 .PHONY: smoke
 smoke: ## POST the demo-echo pack and print the resulting job.
 	@JOB=$$(curl -sS -X POST $(GATEWAY_URL)/api/jobs/run \

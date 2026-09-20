@@ -396,9 +396,7 @@ class Manifest(BaseModel):
             if not seg:
                 raise ValueError("category segments must be non-empty")
             if any(c not in allowed for c in seg):
-                raise ValueError(
-                    f"category segment {seg!r} must be lowercase [a-z0-9_-]+"
-                )
+                raise ValueError(f"category segment {seg!r} must be lowercase [a-z0-9_-]+")
         return segments
 
     @field_validator("version")

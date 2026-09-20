@@ -593,9 +593,7 @@ class SnapshotDeletionJobCounts(BaseModel):
     exclusive_count: int = Field(
         description="Attributed jobs orphaned by the delete — their rows are purged."
     )
-    shared_count: int = Field(
-        description="Attributed jobs still referenced elsewhere — jobs kept."
-    )
+    shared_count: int = Field(description="Attributed jobs still referenced elsewhere — jobs kept.")
 
 
 class SnapshotDeletionLiveJob(BaseModel):

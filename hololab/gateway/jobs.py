@@ -211,7 +211,9 @@ class JobStateMachine:
             shard_element_id=job.shard_element_id,
             # First RUNNING transition stamps the start time; preserve it on
             # all subsequent transitions (done, failed, etc.).
-            started_ts=now if target is JobState.RUNNING and job.started_ts is None else job.started_ts,
+            started_ts=now
+            if target is JobState.RUNNING and job.started_ts is None
+            else job.started_ts,
             expected_shards=job.expected_shards,
         )
         return new

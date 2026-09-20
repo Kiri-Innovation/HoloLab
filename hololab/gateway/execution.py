@@ -34,6 +34,7 @@ branches, retries, rerun-with-changes.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import uuid
 from dataclasses import dataclass
@@ -709,10 +710,8 @@ def _dir_size_bytes(path: Path) -> int | None:
     try:
         for root, _dirs, files in os.walk(path, followlinks=False):
             for name in files:
-                try:
+                with contextlib.suppress(OSError):
                     total += Path(root, name).stat().st_size
-                except OSError:
-                    pass
     except OSError:
         return None
     return total

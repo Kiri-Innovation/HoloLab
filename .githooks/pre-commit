@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Auto-lint & format staged Python files.
+#
+# Enable once per clone:
+#     git config core.hooksPath .githooks
+# or run: make install-hooks
+set -euo pipefail
+
+STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM -z | tr '\0' '\n' | grep -E '\.py$' || true)
+if [ -z "$STAGED_PY" ]; then
+    exit 0
+fi
+
+if ! command -v ruff >/dev/null 2>&1; then
+    echo "pre-commit: ruff not on PATH — skipping (install with 'pip install -e \".[dev]\"')" >&2
+    exit 0
+fi
+
+echo "$STAGED_PY" | xargs ruff check --fix --exit-zero
+echo "$STAGED_PY" | xargs ruff format
+echo "$STAGED_PY" | xargs git add --
+
+if ! echo "$STAGED_PY" | xargs ruff check; then
+    echo "pre-commit: ruff check still has errors after --fix — commit aborted." >&2
+    exit 1
+fi
