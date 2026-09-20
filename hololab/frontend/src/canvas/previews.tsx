@@ -3073,6 +3073,12 @@ function Colmap3DPreview({ baseUrl, fetchFiles, title }: Colmap3DPreviewProps) {
 
   // Deactivate on click-outside or Esc — always live, setActivated(false)
   // is a no-op when already inactive so there's no conditional guard.
+  //
+  // Must use capture phase (true) because xyflow nodes use d3-drag which calls
+  // stopImmediatePropagation() on mousedown, killing all bubble-phase listeners
+  // before they reach the document. Capture fires top-down before d3-drag's
+  // handler, so it cannot be suppressed. Only nodrag elements bypass d3-drag
+  // (that's why the drawer blank space worked but canvas/other nodes didn't).
   useEffect(() => {
     function onDown(e: MouseEvent) {
       if (!wrapperRef.current || wrapperRef.current.contains(e.target as Node))
@@ -3082,10 +3088,10 @@ function Colmap3DPreview({ baseUrl, fetchFiles, title }: Colmap3DPreviewProps) {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setActivated(false);
     }
-    document.addEventListener("mousedown", onDown);
+    document.addEventListener("mousedown", onDown, true);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("mousedown", onDown, true);
       document.removeEventListener("keydown", onKey);
     };
   }, []);
