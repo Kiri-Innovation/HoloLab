@@ -44,7 +44,7 @@ def strip_observations(source: Path, dest: Path) -> tuple[int, int]:
         lines.append("")
         kept_headers += 1
         try:
-            _obs_line = next(it)  # noqa: F841 — intentionally discarded
+            _obs_line = next(it)
         except StopIteration:
             break
     dest.write_text("\n".join(lines) + "\n")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Transpose arrayed<frame_sequence> from (camera × frame) to (frame × camera).
+"""Transpose arrayed<frame_sequence> from (camera x frame) to (frame x camera).
 
 Input layout:  ``<input>/<cam_id>/frames/frame_XXXXXX.<ext>``
 Output layout: ``<output>/<frame_key>/frames/<cam_id>.<ext>``
@@ -7,7 +7,7 @@ Output layout: ``<output>/<frame_key>/frames/<cam_id>.<ext>``
 ``frame_key`` is the frame filename stem preserved verbatim (e.g.
 ``frame_000000``), so element order lines up with the source frame indices.
 
-Symlinks — never copies — so 21 cams × 400 frames stays cheap on disk.
+Symlinks — never copies — so 21 cams x 400 frames stays cheap on disk.
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ def main() -> int:
             total_links += 1
 
     print(
-        f"regroup-by-frame: {len(cam_dirs)} cams × {len(frames_seen)} frames "
+        f"regroup-by-frame: {len(cam_dirs)} cams x {len(frames_seen)} frames "
         f"= {total_links} symlinks"
     )
     return 0

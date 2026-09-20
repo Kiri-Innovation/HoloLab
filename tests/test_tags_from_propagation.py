@@ -164,8 +164,7 @@ def test_tags_from_falls_back_to_any_when_input_unwired() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_arrayfy_output_propagates_matching_tag(  # noqa: D401
-) -> None:
+def test_arrayfy_output_propagates_matching_tag() -> None:
     """src produces frame_sequence → arrayfy.out effective tag = frame_sequence
     → downstream expecting frame_sequence connects cleanly."""
     graph = _fanout_graph(sink_tags=("frame_sequence",))
