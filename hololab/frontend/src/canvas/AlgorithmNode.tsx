@@ -197,10 +197,14 @@ const FRONTEND_VIEWER_TAGS = new Set<string>([
   // post-BA rig model; rig_points4d is the per-group triangulation.
   "rig_extrinsics",
   "rig_points4d",
-  // Exposure-timeline diagnostic figure from rig-frame-extraction@0.1.1.
+  // Exposure-timeline diagnostic figure (moved from rig-frame-extraction to
+  // rig-temporal-grouping@0.1.1, where the buckets are actual data).
   "rig_timeline",
   // rig-capture-source's per-alias camera dirs — 7-tile video grid.
   "rig_capture",
+  // Per-alias JPEG tree from rig-frame-extraction / rig-temporal-grouping.
+  // Rendered as arrayed<frame_sequence> via NestedFrameSequencePreview.
+  "rig_frames",
 ]);
 
 function hasFrontendViewerTag(tags: string[] | undefined): boolean {
