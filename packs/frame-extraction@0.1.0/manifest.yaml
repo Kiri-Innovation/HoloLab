@@ -33,8 +33,13 @@ docs: |
   - **Output:** ``frame_sequence`` — directory containing ``frames/``.
     When arrayed, the parent job's aggregate output is
     ``arrayed<frame_sequence>`` with one element per camera.
-  - ``skip`` and ``max_frames`` control how much of the video is
-    extracted; HDR (HLG / PQ) videos are tonemapped to sRGB automatically.
+  - **Frame selection:** ``start_frame`` / ``end_frame`` define the
+    source-index window (half-open ``[start, end)``); ``skip`` is the
+    stride *within* that window; ``max_frames`` is an absolute cap on
+    the output count. All four mirror the STG ``pre_no_prior`` recipe.
+  - **Spatial downsample:** ``max_width`` shrinks wider frames to that
+    width preserving aspect ratio (never upscales). 0 = keep native.
+  - HDR (HLG / PQ) videos are tonemapped to sRGB automatically.
 
   Ships with HoloLab (no algorithm repo required). Downstream MegaSaM
   (``frames-to-camera-track``) consumes this handle directly — no
@@ -56,7 +61,35 @@ params:
     type: int
     default: 1
     min: 1
-    description: "Extract every Nth frame (--skip)."
+    description: "Extract every Nth frame within the [start, end) window."
+
+  max_width:
+    type: int
+    default: 0
+    min: 0
+    description: >
+      Downscale to this max width in px (aspect-preserved); 0 = keep native
+      resolution. Only ever downscales — a video narrower than this passes
+      through untouched. Mirrors ``SpacetimeGaussians/script/pre_no_prior.py``
+      ``--max_width`` semantics.
+
+  start_frame:
+    type: int
+    default: 0
+    min: 0
+    description: >
+      Source-frame index (0-based, inclusive) window start. Mirrors STG
+      ``--startframe``. Combines with ``skip``: after seeking to ``start_frame``
+      we pick every ``skip``-th frame from there.
+
+  end_frame:
+    type: int
+    default: 0
+    min: 0
+    description: >
+      Source-frame index (0-based, exclusive) window end; 0 = no end, extract
+      to video tail. Mirrors STG ``--endframe``. Must be > ``start_frame`` when
+      set.
 
 outputs:
   frame_sequence:
@@ -109,6 +142,9 @@ exec:
     python {{ pack_dir }}/extract_frames.py "$VIDEO" \
       --skip {{ params.skip }} \
       --max-frames {{ params.max_frames }} \
+      --max-width {{ params.max_width }} \
+      --start-frame {{ params.start_frame }} \
+      --end-frame {{ params.end_frame }} \
       -o "$OUT"
 
     # Sanity gate: frames/ must exist and be non-empty.

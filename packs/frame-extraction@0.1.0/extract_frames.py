@@ -19,32 +19,50 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import cv2
-import numpy as np
-from tqdm import tqdm
+if TYPE_CHECKING:
+    import numpy as np
 
-# BT.2020 → BT.709 primaries conversion (Rec.709/sRGB uses BT.709 primaries).
-# iPhone HEVC is HLG / BT.2020; downstream PIL/cv2/sRGB display chains
-# interpret pixels as sRGB, so skipping OETF inversion + gamut mapping
-# yields washed-out, greenish-yellow output. Standard matrix per Rec.709.
-_BT2020_TO_BT709 = np.array(
-    [
-        [1.6604910, -0.5876411, -0.0728499],
-        [-0.1245504, 1.1328999, -0.0083494],
-        [-0.0181508, -0.1005789, 1.1187297],
-    ],
-    dtype=np.float32,
-)
+# cv2 / numpy / tqdm are imported lazily inside the HDR tonemap and the
+# extraction driver — they aren't needed for argument-parsing, the pure-Python
+# ``_build_select_expr`` helper, or the SDR-passthrough happy path. Keeping
+# module-level imports narrow means unit tests can load this module in
+# environments without OpenCV installed.
+
+
+def _bt2020_to_bt709_matrix() -> np.ndarray:
+    """BT.2020 → BT.709 primaries conversion matrix (Rec.709/sRGB uses BT.709).
+
+    iPhone HEVC is HLG / BT.2020; downstream PIL/cv2/sRGB display chains
+    interpret pixels as sRGB, so skipping OETF inversion + gamut mapping
+    yields washed-out, greenish-yellow output. Standard matrix per Rec.709.
+    """
+    import numpy as np
+
+    return np.array(
+        [
+            [1.6604910, -0.5876411, -0.0728499],
+            [-0.1245504, 1.1328999, -0.0083494],
+            [-0.0181508, -0.1005789, 1.1187297],
+        ],
+        dtype=np.float32,
+    )
 
 
 def _detect_hdr_transfer(video_path: Path) -> str | None:
     """Detect HDR transfer characteristic; returns 'hlg' / 'pq' / None (SDR)."""
     try:
         cmd = [
-            "ffprobe", "-v", "error", "-select_streams", "v:0",
-            "-show_entries", "stream=color_transfer",
-            "-of", "default=noprint_wrappers=1:nokey=1",
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=color_transfer",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
             str(video_path),
         ]
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=15).stdout.strip().lower()
@@ -63,6 +81,8 @@ def _hdr_bt2020_to_srgb_uint8(rgb16: np.ndarray, transfer: str) -> np.ndarray:
     Input: (H,W,3) uint16, BT.2020 primaries, HLG (arib-std-b67) or PQ
     (smpte2084) OETF/EOTF. Output: (H,W,3) uint8 sRGB.
     """
+    import numpy as np
+
     e = rgb16.astype(np.float32) / 65535.0
 
     if transfer == "hlg":
@@ -88,7 +108,7 @@ def _hdr_bt2020_to_srgb_uint8(rgb16: np.ndarray, transfer: str) -> np.ndarray:
     else:
         scene = e
 
-    linear_709 = scene @ _BT2020_TO_BT709.T
+    linear_709 = scene @ _bt2020_to_bt709_matrix().T
     linear_709 = np.clip(linear_709, 0.0, 1.0)
 
     # sRGB OETF (IEC 61966-2-1): linear → sRGB encoded.
@@ -101,13 +121,49 @@ def _hdr_bt2020_to_srgb_uint8(rgb16: np.ndarray, transfer: str) -> np.ndarray:
     return np.clip(srgb * 255.0, 0.0, 255.0).astype(np.uint8)
 
 
+def _build_select_expr(start_frame: int, end_frame: int, frame_skip: int) -> str | None:
+    """Build the ffmpeg ``select`` filter expression for window + skip stride.
+
+    Semantics mirror ``SpacetimeGaussians/script/pre_n3d.py::extractframes``:
+    the window ``[start_frame, end_frame)`` is applied in source-frame-index
+    space (0-based), and the stride picks every ``frame_skip``-th frame
+    counted from ``start_frame`` (so ``start=3, skip=2`` yields n=3,5,7…).
+
+    ``end_frame=0`` means "no upper bound"; ``start_frame=0`` means "from
+    the beginning". Returns ``None`` when nothing needs filtering (skip=1,
+    full window) so the caller can skip the ``-vf select`` altogether and
+    stay on the fast passthrough path.
+    """
+    parts: list[str] = []
+    if start_frame > 0:
+        parts.append(f"gte(n,{start_frame})")
+    if end_frame > 0:
+        parts.append(f"lt(n,{end_frame})")
+    if frame_skip > 1:
+        # Stride counted from start_frame so window-first-frame is always kept.
+        parts.append(f"not(mod(n-{start_frame},{frame_skip}))")
+    return "*".join(parts) if parts else None
+
+
 def extract_frames(
     video_path: Path,
     output_dir: Path,
     frame_skip: int = 1,
     max_frames: int | None = None,
+    max_width: int | None = None,
+    start_frame: int = 0,
+    end_frame: int | None = None,
 ) -> int:
     """Decode ``video_path`` into ``output_dir/frames/frame_XXXXXX.png``.
+
+    Extra params (all match STG pre_no_prior semantics):
+      * ``max_width``    downscale to this pixel width (aspect-preserved);
+                         ``None`` / ``0`` = keep native resolution.
+                         Only ever downscales — a video narrower than
+                         ``max_width`` passes through untouched.
+      * ``start_frame``  source-index (inclusive) window start.
+      * ``end_frame``    source-index (exclusive) window end;
+                         ``None`` / ``0`` = no end, extract to video tail.
 
     Idempotent: if ``frames/`` already contains ``frame_*.png``, returns the
     existing count without re-decoding — delete the directory to force a
@@ -116,6 +172,13 @@ def extract_frames(
     frames_dir = output_dir / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
 
+    # Normalize sentinel zeros to None so downstream logic is uniform.
+    max_width_val = max_width if (max_width or 0) > 0 else None
+    end_frame_val = end_frame if (end_frame or 0) > 0 else None
+
+    if end_frame_val is not None and start_frame >= end_frame_val:
+        raise ValueError(f"start_frame ({start_frame}) must be < end_frame ({end_frame_val})")
+
     existing = list(frames_dir.glob("frame_*.png"))
     if existing:
         print(f"   ✓ frames/ 已有 {len(existing)} 帧，跳过抽帧")
@@ -123,16 +186,21 @@ def extract_frames(
 
     # ffprobe for metadata (avoids cv2 HEVC 10-bit decode bugs).
     ffprobe_cmd = [
-        "ffprobe", "-v", "error", "-select_streams", "v:0",
-        "-show_entries", "stream=nb_frames,r_frame_rate",
-        "-of", "default=noprint_wrappers=1", str(video_path),
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=nb_frames,r_frame_rate",
+        "-of",
+        "default=noprint_wrappers=1",
+        str(video_path),
     ]
     total_frames: int | None = None
     fps = 30.0
     try:
-        ffprobe_out = subprocess.run(
-            ffprobe_cmd, capture_output=True, text=True, timeout=15
-        ).stdout
+        ffprobe_out = subprocess.run(ffprobe_cmd, capture_output=True, text=True, timeout=15).stdout
         for line in ffprobe_out.splitlines():
             if line.startswith("r_frame_rate="):
                 num, den = line.split("=")[1].split("/")
@@ -143,12 +211,19 @@ def extract_frames(
     except Exception:
         pass
 
-    print(f"   视频: {video_path.name} · fps={fps:.2f}"
-          + (f" · 总帧={total_frames}" if total_frames else ""))
+    print(
+        f"   视频: {video_path.name} · fps={fps:.2f}"
+        + (f" · 总帧={total_frames}" if total_frames else "")
+    )
+    if start_frame > 0 or end_frame_val is not None:
+        end_str = str(end_frame_val) if end_frame_val is not None else "end"
+        print(f"   帧窗口: [{start_frame}, {end_str})")
     if frame_skip > 1:
         print(f"   跳帧: 每 {frame_skip} 帧取 1 帧")
     if max_frames:
         print(f"   上限: {max_frames} 帧")
+    if max_width_val is not None:
+        print(f"   下采样上限宽: {max_width_val}px（保持宽高比，仅缩小）")
 
     # HDR detection: iPhone HEVC is often HLG + BT.2020. Raw ffmpeg→PNG
     # skips OETF inversion and gamut mapping, so PNGs look washed out.
@@ -157,12 +232,32 @@ def extract_frames(
     if hdr_transfer:
         print(f"   ⚠ HDR (transfer={hdr_transfer}) → 做 HDR→SDR tonemap")
 
+    # Compose the -vf filter chain: select (window+stride) → scale (max_width).
+    # Order matters: filter frames first, then downscale the survivors.
+    filters: list[str] = []
+    select_expr = _build_select_expr(start_frame, end_frame_val or 0, frame_skip)
+    if select_expr is not None:
+        # Escape commas in the expression for ffmpeg's filter parser.
+        filters.append(f"select='{select_expr.replace(',', chr(92) + ',')}'")
+    if max_width_val is not None:
+        # min(iw,W) mirrors the original ``if frame.shape[1] > max_width`` guard —
+        # never upscale. ``-2`` on height auto-computes preserving aspect ratio.
+        filters.append(f"scale='min(iw\\,{max_width_val})':-2:flags=lanczos")
+
     cmd = [
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-i", str(video_path),
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(video_path),
     ]
-    if frame_skip > 1:
-        cmd += ["-vf", "select='not(mod(n\\," + str(frame_skip) + "))'", "-vsync", "vfr"]
+    if filters:
+        cmd += ["-vf", ",".join(filters)]
+    if select_expr is not None:
+        # ``select`` produces non-monotonic PTS; vfr keeps them 1:1 with frames.
+        cmd += ["-vsync", "vfr"]
     if max_frames:
         cmd += ["-frames:v", str(max_frames)]
     if hdr_transfer:
@@ -174,6 +269,10 @@ def extract_frames(
 
     subprocess.run(cmd, check=True)
 
+    # Heavy deps imported lazily so unit tests (window/scale expr checks) can
+    # exercise this module without OpenCV / numpy present in the venv.
+    from tqdm import tqdm
+
     tmp_files = sorted(frames_dir.glob("tmp_frame_*.png"))
     saved = 0
     desc = "抽帧+HDR tonemap" if hdr_transfer else "抽帧"
@@ -181,6 +280,9 @@ def extract_frames(
         for src in tmp_files:
             dst = frames_dir / f"frame_{saved:06d}.png"
             if hdr_transfer:
+                import cv2
+                import numpy as np
+
                 img16_bgr = cv2.imread(str(src), cv2.IMREAD_UNCHANGED)
                 if img16_bgr is None or img16_bgr.dtype != np.uint16:
                     raise RuntimeError(
@@ -205,16 +307,44 @@ def main() -> int:
     )
     parser.add_argument("video", type=str, help="输入视频路径。")
     parser.add_argument(
-        "-o", "--output", type=str, required=True,
+        "-o",
+        "--output",
+        type=str,
+        required=True,
         help="输出目录; 帧写入 <output>/frames/。",
     )
     parser.add_argument(
-        "--skip", type=int, default=1,
-        help="每 N 帧提取一帧 (默认 1 = 全部)。",
+        "--skip",
+        type=int,
+        default=1,
+        help="每 N 帧提取一帧 (默认 1 = 全部)。窗口内的步长。",
     )
     parser.add_argument(
-        "--max-frames", type=int, default=None,
+        "--max-frames",
+        type=int,
+        default=None,
         help="最多提取帧数 (与 --skip 叠加; 默认无上限)。",
+    )
+    parser.add_argument(
+        "--max-width",
+        type=int,
+        default=0,
+        help=(
+            "空间下采样上限宽 (px)。输入更宽时按比例缩到该宽度；"
+            "0 或未设 = 保持原分辨率。对齐 STG pre_no_prior.py 语义。"
+        ),
+    )
+    parser.add_argument(
+        "--start-frame",
+        type=int,
+        default=0,
+        help="源帧窗口起点 (0-based, 含)。对齐 STG --startframe。",
+    )
+    parser.add_argument(
+        "--end-frame",
+        type=int,
+        default=0,
+        help=("源帧窗口终点 (0-based, 不含)。0 = 无终点，抽到视频尾。对齐 STG --endframe。"),
     )
     args = parser.parse_args()
 
@@ -227,12 +357,19 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[ITER 1/1] 抽帧: {video_path}")
-    n = extract_frames(
-        video_path,
-        output_dir,
-        frame_skip=args.skip,
-        max_frames=args.max_frames,
-    )
+    try:
+        n = extract_frames(
+            video_path,
+            output_dir,
+            frame_skip=args.skip,
+            max_frames=args.max_frames,
+            max_width=args.max_width,
+            start_frame=args.start_frame,
+            end_frame=args.end_frame,
+        )
+    except ValueError as exc:
+        print(f"✗ 参数错误: {exc}", file=sys.stderr)
+        return 2
     print(f"✓ 抽出 {n} 帧 → {output_dir / 'frames'}")
     return 0
 
