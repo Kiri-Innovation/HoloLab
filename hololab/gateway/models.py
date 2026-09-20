@@ -542,6 +542,10 @@ class SnapshotJobOut(BaseModel):
             "that were dispatched normally."
         ),
     )
+    started_ts: float | None = None
+    parent_job_id: str | None = None
+    shard_element_id: str | None = None
+    expected_shards: int | None = None
     created_ts: float
     updated_ts: float
 
