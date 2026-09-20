@@ -243,8 +243,7 @@ async def _prepare_fanout(
     # Depth per port — from manifest ``dim_labels`` when present, else 1
     # (legacy single-layer arrayed).
     port_depths = {
-        port: (len(pack_inputs[port].get("dim_labels") or []) or 1)
-        for port in arrayed_input_ports
+        port: (len(pack_inputs[port].get("dim_labels") or []) or 1) for port in arrayed_input_ports
     }
     element_ids = await _discover_element_ids(
         handles=handles,
