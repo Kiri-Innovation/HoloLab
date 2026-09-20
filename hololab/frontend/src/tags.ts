@@ -46,6 +46,29 @@ export function effectivePortArrayed(
   return Boolean(portArrayed) || (Boolean(packArrayable) && Boolean(nodeToggle));
 }
 
+// Effective dim-label list for one port on one graph node. Depth =
+// list length. Empty = scalar. For arrayable packs promoted via
+// ``arrayed_toggle`` (no manifest declaration), the promotion adds one
+// unlabeled level at the outer end so callers still know "there is a
+// dim here, just no name for it". Manifest declarations with
+// ``dim_labels`` win as-is.
+export function effectivePortDimLabels(
+  portArrayed: boolean | undefined,
+  portDimLabels: string[] | undefined,
+  packArrayable: boolean | undefined,
+  nodeToggle: boolean | undefined,
+  portScalar?: boolean,
+): string[] {
+  if (portScalar) return [];
+  const arrayed = Boolean(portArrayed) || (Boolean(packArrayable) && Boolean(nodeToggle));
+  if (!arrayed) return [];
+  const declared = portDimLabels ?? [];
+  if (declared.length > 0) return declared.slice();
+  // Legacy bool ``arrayed=true`` with no dim_labels — one unlabeled level.
+  // Or arrayable-pack promotion where the manifest is silent — same.
+  return [""];
+}
+
 // Deterministic pastel per tag for the port dot colour. Same tag → same colour
 // across every pack in the palette so the eye can quickly spot compatible
 // ports.

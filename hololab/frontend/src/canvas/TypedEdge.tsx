@@ -29,7 +29,7 @@
 // The edge type name is registered on both the draft and snapshot
 // ReactFlow instances via ``edgeTypes = { typed: TypedEdge }``.
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -39,12 +39,30 @@ import {
   type EdgeProps,
   type ReactFlowState,
 } from "@xyflow/react";
+import type { EdgeType } from "./edgeLabels";
+import { formatTypeLabel, formatTypeLabelLong } from "./edgeLabels";
+import {
+  loadEdgeSummaryFacts,
+  peekEdgeSummaryFacts,
+  type EdgeSummaryFacts,
+} from "./edgeSummaryCache";
 
 export interface TypedEdgeData extends Record<string, unknown> {
-  /** Compact chip label (e.g. ``frame_sequence`` or ``arrayed<frame_sequence>``). */
+  /** Compact chip label without runtime counts (e.g. ``colmap`` or
+   *  ``colmap[?]``). TypedEdge re-formats with counts once hovered. */
   label?: string;
   /** Full label for the hover title so a truncated chip stays discoverable. */
   labelLong?: string;
+  /** Full type descriptor (tags + arrayed depth + dim labels). Needed
+   *  by TypedEdge to re-compose the label with the runtime numbers
+   *  once ``loadEdgeSummaryFacts`` returns. */
+  edgeType?: EdgeType;
+  /** Source handle id, when the producing job has emitted an output
+   *  handle for this edge. Present in both draft (resolved from
+   *  ``previewsByGraphNode``) and snapshot (from ``output_handles``)
+   *  views. Absent when the source hasn't produced a handle yet — the
+   *  chip stays at ``[?]``. */
+  handleId?: string | null;
 }
 
 // EdgeLabelRenderer renders inside the viewport's CSS transform, so the
@@ -179,8 +197,59 @@ function TypedEdgeInner({
   });
 
   const d = data as TypedEdgeData | undefined;
-  const label = d?.label ?? "";
-  const labelLong = d?.labelLong ?? label;
+  const baseLabel = d?.label ?? "";
+  const baseLabelLong = d?.labelLong ?? baseLabel;
+  const edgeType = d?.edgeType;
+  const handleId = d?.handleId ?? null;
+
+  // Cached summary facts. Seeded synchronously from the module-level
+  // cache so a re-mounted edge (theme flip, panel resize) reuses the
+  // last resolved value without re-fetching or reflashing to ``[?]``.
+  const [facts, setFacts] = useState<EdgeSummaryFacts | undefined>(() =>
+    handleId ? peekEdgeSummaryFacts(handleId) : undefined,
+  );
+
+  // Reset the cached facts when the underlying handle changes (edge
+  // re-wire, snapshot switch). A stale ``elementCount`` from the old
+  // handle would otherwise stick to the new one until first hover.
+  useEffect(() => {
+    setFacts(handleId ? peekEdgeSummaryFacts(handleId) : undefined);
+  }, [handleId]);
+
+  // Kick off the fetch the first time the edge is hovered — but only
+  // when the source handle actually exists. Deduped by
+  // ``loadEdgeSummaryFacts`` so a wildly re-hovered edge fires one HTTP
+  // request over the session. Ignored errors resolve to empty facts.
+  useEffect(() => {
+    if (!edgeHovered || !handleId || facts !== undefined) return;
+    let cancelled = false;
+    loadEdgeSummaryFacts(handleId).then((next) => {
+      if (!cancelled) setFacts(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [edgeHovered, handleId, facts]);
+
+  // Compose the chip and tooltip strings. When ``edgeType`` is missing
+  // (older edges built before we started stashing it) fall back to the
+  // pre-formatted ``label`` — no runtime numbers, but nothing regresses.
+  const { label, labelLong } = useMemo(() => {
+    if (!edgeType) return { label: baseLabel, labelLong: baseLabelLong };
+    const enriched: EdgeType = {
+      ...edgeType,
+      elementCount: facts?.elementCount ?? edgeType.elementCount,
+      innerElementCount:
+        facts?.innerElementCount ?? edgeType.innerElementCount,
+      internalCount: facts?.internalCount ?? edgeType.internalCount,
+      internalCountKind:
+        facts?.internalCountKind ?? edgeType.internalCountKind,
+    };
+    return {
+      label: formatTypeLabel(enriched),
+      labelLong: formatTypeLabelLong(enriched),
+    };
+  }, [edgeType, facts, baseLabel, baseLabelLong]);
 
   const stroke = selected ? "var(--accent)" : "var(--rf-edge, var(--border-strong))";
   const strokeWidth = selected ? STROKE_SELECTED : STROKE_DEFAULT;

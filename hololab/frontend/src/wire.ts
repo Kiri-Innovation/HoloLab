@@ -114,6 +114,14 @@ export interface PortSpec {
   // declare this at manifest time; arrayable packs get it flipped per
   // graph node by ``GraphNode.arrayed_toggle``. See docs/pack-spec.md.
   arrayed?: boolean;
+  // Per-dimension semantic labels for arrayed ports. Outer dim first.
+  // ``["frame","camera"]`` = 2-D arrayed<arrayed<T>> where the outer
+  // element is a frame and the inner element is a camera. Length must
+  // equal the actual arrayed depth (``arrayed=true`` + ``dim_labels=["frame"]``
+  // = 1-D). Optional so pre-migration manifests keep working — chip
+  // shows ``[N]`` per depth level, empty label = size only, no label.
+  // See docs/pack-spec.md#dim-labels.
+  dim_labels?: string[];
   // When true, the port is always non-arrayed regardless of the node's
   // arrayed_toggle. On outputs: each invocation produces one item (the
   // framework aggregates shards). On inputs: the port receives the full
@@ -173,6 +181,16 @@ export interface HandleSummary {
     // Passthrough for other kinds.
     [k: string]: unknown;
   };
+  // Number of top-level elements when the handle is arrayed (dir with
+  // one subdir per element). Fills the edge chip's ``[N]`` size. Null
+  // when the handle isn't arrayed or the server hasn't computed it.
+  element_count?: number | null;
+  // Tag-specific "inside one element" count — the ``(N)`` on the chip
+  // (e.g. camera count in a ``colmap-cameras-txt`` file). Meaning is
+  // per-tag; ``internal_count_kind`` names it so the tooltip can spell
+  // it out ("7 cameras", "1024 points"). Null when unknown / unavailable.
+  internal_count?: number | null;
+  internal_count_kind?: string | null;
 }
 
 export interface OutputPortSpec extends PortSpec {

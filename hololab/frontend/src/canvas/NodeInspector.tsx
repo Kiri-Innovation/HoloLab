@@ -15,6 +15,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { CatalogPack, ComputeNode, GraphNode } from "../wire";
 import { MarkdownView } from "../ui/MarkdownView";
 import { Modal } from "../ui/Modal";
+import { DimListEditor } from "./DimListEditor";
 
 export interface NodeInspectorProps {
   selected: GraphNode | null;
@@ -338,6 +339,67 @@ export function NodeInspector({
           </div>
         ) : (
           Object.entries(pack.params).map(([name, spec]) => {
+            // list[str] gets the DimListEditor: pack authors mark ordered-
+            // label params (regroup's ``input_dims`` / ``output_dims``)
+            // with this type so the inspector can render a proper editor
+            // instead of a comma-separated string blob in a text input.
+            // Passive permutation hint when ``output_dims`` doesn't match
+            // ``input_dims`` — the backend enforces, this is just early
+            // signal for the operator.
+            if (spec.type === "list[str]" || spec.type === "list<str>") {
+              const raw =
+                (selected.params[name] as unknown) ??
+                (spec.default as unknown) ??
+                [];
+              const arr = Array.isArray(raw)
+                ? raw.map((v) => String(v ?? ""))
+                : [];
+              const otherName =
+                name === "output_dims"
+                  ? "input_dims"
+                  : name === "input_dims"
+                    ? "output_dims"
+                    : null;
+              // Only apply the permutation-hint when this looks like the
+              // regroup pattern (both params exist AND we're editing
+              // output_dims) — comparing input_dims to output_dims in
+              // both directions would double-warn.
+              const matchAgainst =
+                otherName === "input_dims" && pack.params[otherName]
+                  ? (
+                      (selected.params[otherName] as unknown) ??
+                      (pack.params[otherName].default as unknown) ??
+                      []
+                    )
+                  : undefined;
+              const matchArr =
+                Array.isArray(matchAgainst)
+                  ? matchAgainst.map((v) => String(v ?? ""))
+                  : undefined;
+              return (
+                <div key={name} style={FIELD}>
+                  <div style={LABEL}>
+                    <code style={{ fontFamily: "var(--font-mono)" }}>{name}</code>
+                    <span style={TAG}>{spec.type}</span>
+                    {spec.optional ? (
+                      <span style={{ ...TAG, color: "var(--text-subtle)" }}>optional</span>
+                    ) : null}
+                  </div>
+                  <DimListEditor
+                    value={arr}
+                    onChange={(next) =>
+                      onChange({
+                        params: { ...selected.params, [name]: next },
+                      })
+                    }
+                    matchAgainst={matchArr}
+                    ariaName={name}
+                    placeholder="dim label"
+                  />
+                  {spec.description && <div style={HINT}>{spec.description}</div>}
+                </div>
+              );
+            }
             const current =
               (selected.params[name] as string | number | boolean | undefined) ??
               (spec.default as string | number | boolean | undefined) ??

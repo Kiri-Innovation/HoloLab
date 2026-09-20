@@ -10,15 +10,40 @@
 // to ``any`` via the visited set.
 //
 // The result is the same shape ``AlgorithmNode``'s port dot + node badge
-// already use: a tag list plus the effective ``arrayed`` flag. Callers
-// format both into a chip string via ``formatTypeLabel``.
+// already use: a tag list plus the effective ``arrayed`` flag PLUS the
+// dim-label list (outer→inner). Callers format both into a chip string
+// via ``formatTypeLabel``.
+//
+// Chip display rules (see design contract):
+//   * ``T``                     — scalar, no counts
+//   * ``T(N)``                  — scalar with tag-specific inner count
+//   * ``T[N]``                  — 1-D arrayed, element count = N
+//   * ``T[?]``                  — 1-D arrayed, count unknown (no handle yet)
+//   * ``T[F][C]``               — 2-D arrayed, F outer × C inner (outer first)
+//   * ``T(N)[N]``               — inner count + outer array size can coexist
+//
+// The dim-labels themselves stay off the chip (would blow the horizontal
+// budget) and live only in the tooltip / long label so hovering reads out
+// ``arrayed<frame,camera> of image`` in full.
 
 import type { CatalogPack, GraphEdge, GraphNode } from "../wire";
-import { effectivePortArrayed } from "../tags";
+import { effectivePortArrayed, effectivePortDimLabels } from "../tags";
 
 export interface EdgeType {
   tags: string[];
   arrayed: boolean;
+  /** Per-dimension labels, outer-first. Length = arrayed depth. Empty
+   *  when scalar. An unlabeled dim is the empty string ``""``. */
+  dimLabels: string[];
+  /** Runtime counts. Populated by TypedEdge after a handle-summary
+   *  fetch; undefined = "unknown". Never populated at layout time. */
+  elementCount?: number;
+  /** Second-level element count when we've drilled far enough (e.g.
+   *  a summary that enriched one level of ``children``). */
+  innerElementCount?: number;
+  /** Tag-specific inner count (cameras.txt row count, etc.). */
+  internalCount?: number;
+  internalCountKind?: string;
 }
 
 /** Resolve a source port's effective type by walking ``tags_from`` when
@@ -35,28 +60,30 @@ export function effectiveOutputType(
   visited: Set<string> = new Set(),
 ): EdgeType {
   const key = `${nodeId}::${portName}`;
-  if (visited.has(key)) return { tags: ["any"], arrayed: false };
+  if (visited.has(key)) return { tags: ["any"], arrayed: false, dimLabels: [] };
   visited.add(key);
 
   const node = ctx.nodes.find((n) => n.id === nodeId);
-  if (!node) return { tags: [], arrayed: false };
+  if (!node) return { tags: [], arrayed: false, dimLabels: [] };
   const pack = ctx.catalogByKey.get(
     `${node.algorithm_name}@${node.algorithm_version}`,
   );
-  if (!pack) return { tags: [], arrayed: false };
+  if (!pack) return { tags: [], arrayed: false, dimLabels: [] };
 
   const port = pack.outputs[portName];
-  if (!port) return { tags: [], arrayed: false };
+  if (!port) return { tags: [], arrayed: false, dimLabels: [] };
 
   const nodeArrayed = Boolean(node.arrayed_toggle);
-  const arrayed = effectivePortArrayed(
+  const arrayed = effectivePortArrayed(port.arrayed, pack.arrayable, nodeArrayed);
+  const dimLabels = effectivePortDimLabels(
     port.arrayed,
+    port.dim_labels,
     pack.arrayable,
     nodeArrayed,
   );
 
   if (!port.tags_from) {
-    return { tags: [...port.tags], arrayed };
+    return { tags: [...port.tags], arrayed, dimLabels };
   }
 
   // Follow the wire back — find the edge feeding the referenced input
@@ -66,7 +93,7 @@ export function effectiveOutputType(
   const feeder = ctx.edges.find(
     (e) => e.target === nodeId && e.targetHandle === upstreamInput,
   );
-  if (!feeder) return { tags: [...port.tags], arrayed };
+  if (!feeder) return { tags: [...port.tags], arrayed, dimLabels };
 
   const upstream = effectiveOutputType(
     feeder.source,
@@ -79,22 +106,74 @@ export function effectiveOutputType(
   // input; get-index does the opposite). Tags themselves come from
   // upstream so ``arrayfy<video-source> → arrayed<video-source>`` reads
   // right on the wire.
-  return { tags: upstream.tags, arrayed };
+  return { tags: upstream.tags, arrayed, dimLabels };
 }
 
-/** Compact label suitable for an edge chip. Long tag lists collapse to
- *  the first tag + "…" so the chip doesn't stretch across the canvas. */
-export function formatTypeLabel(t: EdgeType): string {
+/** Base tag string used on the chip (compact form). Empty tag list
+ *  degrades to ``"?"``; longer lists collapse to ``first+N`` so the
+ *  chip stays bounded. */
+function baseChipTag(t: EdgeType): string {
   if (t.tags.length === 0) return "?";
-  const inner = t.tags.length <= 1 ? t.tags[0] : `${t.tags[0]}+${t.tags.length - 1}`;
-  return t.arrayed ? `arrayed<${inner}>` : inner;
+  return t.tags.length <= 1 ? t.tags[0] : `${t.tags[0]}+${t.tags.length - 1}`;
 }
 
-/** Full human-readable form (with the full tag list) — used for the
- *  hover title and for the inspector's larger heading where truncation
- *  isn't a concern. */
+/** Compact label suitable for an edge chip. Composes:
+ *
+ *    <base>            scalar, no counts
+ *    <base>(N)         scalar + internal count
+ *    <base>[N]         1-D arrayed
+ *    <base>(N)[N]      inner count + array size
+ *    <base>[F][C]      2-D arrayed
+ *
+ *  Unknown array sizes render as ``[?]`` so the shape stays visible even
+ *  when the handle hasn't materialised yet. */
+export function formatTypeLabel(t: EdgeType): string {
+  const base = baseChipTag(t);
+  let s = base;
+  if (t.internalCount != null) {
+    s += `(${t.internalCount})`;
+  }
+  // First array dim → t.elementCount; second → t.innerElementCount;
+  // deeper dims (rare) render as [?] because we don't fetch that deep.
+  if (t.dimLabels.length > 0 || t.arrayed) {
+    const depth = Math.max(t.dimLabels.length, t.arrayed ? 1 : 0);
+    for (let i = 0; i < depth; i++) {
+      let n: number | undefined;
+      if (i === 0) n = t.elementCount;
+      else if (i === 1) n = t.innerElementCount;
+      s += n != null ? `[${n}]` : "[?]";
+    }
+  }
+  return s;
+}
+
+/** Full human-readable form (with the full tag list and dim labels) —
+ *  used for the hover title / tooltip. Empty dim label renders as
+ *  ``arrayed<T>`` (old-style) rather than ``arrayed<> of T``. */
 export function formatTypeLabelLong(t: EdgeType): string {
   if (t.tags.length === 0) return "unknown";
   const inner = t.tags.join(",");
-  return t.arrayed ? `arrayed<${inner}>` : inner;
+  const labels = t.dimLabels.filter((l) => l && l.length > 0);
+  let s: string;
+  if (t.dimLabels.length === 0 && !t.arrayed) {
+    s = inner;
+  } else if (labels.length === 0) {
+    // arrayed but no dim names — legacy form.
+    const wraps = Math.max(t.dimLabels.length, t.arrayed ? 1 : 0);
+    s = inner;
+    for (let i = 0; i < wraps; i++) s = `arrayed<${s}>`;
+  } else {
+    s = `arrayed<${labels.join(",")}> of ${inner}`;
+  }
+  if (t.internalCount != null) {
+    const kind = t.internalCountKind ?? "count";
+    s += ` · ${t.internalCount} ${kind}`;
+  }
+  if (t.elementCount != null) {
+    s += ` · ${t.elementCount} outer`;
+  }
+  if (t.innerElementCount != null) {
+    s += `, ${t.innerElementCount} inner`;
+  }
+  return s;
 }

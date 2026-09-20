@@ -13,7 +13,7 @@ import type {
   OutputPortSpec,
   PortSpec,
 } from "../wire";
-import { effectivePortArrayed, firstTagColour } from "../tags";
+import { effectivePortArrayed, effectivePortDimLabels, firstTagColour } from "../tags";
 import { useCanvasContext } from "./CanvasContext";
 import { CopyRefButton } from "./CopyRefButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
@@ -203,6 +203,9 @@ interface ExpandablePort {
 // caret because this promotion looks at the port's ``tags`` directly.
 const FRONTEND_VIEWER_TAGS = new Set<string>([
   "frame_sequence",
+  // Structural rename — see previews.tsx for the routing pair. Both
+  // tags accepted so a rolling migration doesn't drop the caret.
+  "image_sequence",
   "colmap-cams",
   "colmap-points",
   // ``colmap`` is the current tag (colmap-triangulate@0.4.0+); ``colmap-frame``
@@ -742,6 +745,12 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                         pack.arrayable,
                         arrayed_toggle,
                       )}
+                      dimLabels={effectivePortDimLabels(
+                        port.arrayed,
+                        port.dim_labels,
+                        pack.arrayable,
+                        arrayed_toggle,
+                      )}
                     />
                   </>
                 );
@@ -805,6 +814,12 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                     tags={port.tags}
                     arrayed={effectivePortArrayed(
                       port.arrayed,
+                      pack.arrayable,
+                      arrayed_toggle,
+                    )}
+                    dimLabels={effectivePortDimLabels(
+                      port.arrayed,
+                      port.dim_labels,
                       pack.arrayable,
                       arrayed_toggle,
                     )}

@@ -107,6 +107,14 @@ export interface PreviewProps {
   // that have a dedicated nested viewer (``arrayed<frame_sequence>``
   // → ``NestedFrameSequencePreview``).
   arrayed?: boolean;
+  // Per-dimension labels (outer→inner), when the port declares them.
+  // Length = arrayed depth: ``["frame"]`` = 1-D, ``["frame","camera"]``
+  // = 2-D. Undefined = legacy port that hasn't set ``dim_labels`` yet;
+  // the paginator falls back to single-level. Only affects paginator
+  // routing (recursive nesting for depth ≥ 2 with a generic scalar
+  // viewer); tag-specific viewers like NestedFrameSequencePreview stay
+  // in their own path.
+  dimLabels?: string[];
   // Partial-preview payload — set by the drawer when the arrayed
   // parent's aggregate handle hasn't landed yet but at least one shard
   // has finished. ArrayedPaginator uses this instead of fetching the
@@ -123,6 +131,7 @@ export function Preview({
   producingNode,
   tags,
   arrayed,
+  dimLabels,
   partial,
 }: PreviewProps) {
   // Tag-driven routing takes precedence over ``spec.viewer``. A
@@ -131,9 +140,14 @@ export function Preview({
   // that hides the sequence shape. Its arrayed form goes one level
   // deeper: ``<parent>/<element>/<file>``. Both families have generic
   // per-type viewers so packs don't need to reinvent them.
+  // ``image_sequence`` is the tag rename for the structural "one dir of
+  // sequenced images" type (formerly ``frame_sequence``, which mixed
+  // structural + domain semantics). Both accepted here so pre-migration
+  // handles preview identically. Prefer emitting ``image_sequence`` from
+  // new packs; a follow-up migration removes ``frame_sequence`` entirely.
   if (
     tags &&
-    tags.includes("frame_sequence") &&
+    (tags.includes("image_sequence") || tags.includes("frame_sequence")) &&
     storage === "dir"
   ) {
     if (arrayed) {
@@ -171,6 +185,7 @@ export function Preview({
           baseUrl={baseUrl}
           handleId={handleId}
           partial={partial}
+          dimLabels={dimLabels}
           renderScalar={(elementBaseUrl) => (
             <ColmapPointsPreview baseUrl={elementBaseUrl} />
           )}
@@ -199,6 +214,7 @@ export function Preview({
           baseUrl={baseUrl}
           handleId={handleId}
           partial={partial}
+          dimLabels={dimLabels}
           renderScalar={(elementBaseUrl) => (
             <ColmapFramePreview baseUrl={elementBaseUrl} />
           )}
@@ -3768,6 +3784,24 @@ interface ArrayedPaginatorProps {
   // the ``i / total`` pager text so operators see "3 / 100" instead
   // of "3 / 3" while shards trickle in.
   partial?: PartialArrayedInfo;
+  // Per-dimension labels (outer→inner). Length ≥ 2 promotes the
+  // paginator into nested mode: an inner ArrayedPaginator wraps the
+  // caller's scalar viewer and pages through the selected outer
+  // element's sub-elements. Length 0/1 keeps the flat single-level
+  // behaviour. Server-enriched ``children`` in the top summary carry
+  // the inner names one level deep, so nested mode composes the inner
+  // element URL without a second network round trip.
+  dimLabels?: string[];
+  // Breadcrumb parents fed by the outer paginator when this instance
+  // is the inner level. Rendered ahead of this level's pager label so
+  // the operator sees the full path ``frame_0000 / camera_0000`` at
+  // the top instead of just the leaf. Empty at the outermost level.
+  breadcrumb?: string[];
+  // Pre-computed element list — populated by the outer paginator's
+  // sub-element walk (from the summary's ``children`` field). Skips
+  // the inner fetch, since summary-of-a-subdir isn't a separate REST
+  // endpoint. Absent at the outermost level → normal summary fetch.
+  elementsOverride?: string[];
 }
 
 function ArrayedPaginator({
@@ -3775,17 +3809,37 @@ function ArrayedPaginator({
   handleId,
   renderScalar,
   partial,
+  dimLabels,
+  breadcrumb,
+  elementsOverride,
 }: ArrayedPaginatorProps) {
+  // Track children *by outer element name* so nested-mode inner
+  // paginator receives the correct list per selection. Populated only
+  // when depth ≥ 2 at the outer level; empty otherwise.
   const [state, setState] = useState<
     | { kind: "loading" }
-    | { kind: "ok"; elements: string[]; elementUrls?: string[]; expectedTotal?: number }
+    | {
+        kind: "ok";
+        elements: string[];
+        elementUrls?: string[];
+        expectedTotal?: number;
+        innerByElement?: Record<string, string[]>;
+      }
     | { kind: "err"; message: string }
   >({ kind: "loading" });
   const [idx, setIdx] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
+  const nested = (dimLabels?.length ?? 0) >= 2;
 
   useEffect(() => {
+    // Element list handed in by an outer paginator — skip the fetch
+    // entirely, we're the inner level of a nested paginator.
+    if (elementsOverride) {
+      setState({ kind: "ok", elements: elementsOverride });
+      setIdx((prev) => (prev >= elementsOverride.length ? 0 : prev));
+      return;
+    }
     // Partial mode short-circuits the summary fetch — the drawer has
     // already resolved per-shard handles, so we render directly from
     // the caller-provided element list.
@@ -3813,11 +3867,25 @@ function ArrayedPaginator({
         const summary = await getHandleSummary(handleId);
         if (cancelled) return;
         const entries = summary.fields.entries ?? [];
-        const names = entries
+        const elementDirs = entries
           .filter((e) => e.is_dir && !e.name.startsWith("."))
-          .map((e) => e.name)
-          .sort(compareNameNumeric);
-        setState({ kind: "ok", elements: names });
+          .sort((a, b) => compareNameNumeric(a.name, b.name));
+        const names = elementDirs.map((e) => e.name);
+        // Depth ≥ 2: precompute inner element lists from the summary's
+        // enriched ``children`` (server already drilled one level).
+        // Depth 1 leaves innerByElement undefined so nothing changes
+        // for the vast majority of arrayed handles.
+        let innerByElement: Record<string, string[]> | undefined;
+        if (nested) {
+          innerByElement = {};
+          for (const e of elementDirs) {
+            const kids = (e.children ?? [])
+              .filter((c) => c.is_dir && !c.name.startsWith("."))
+              .sort((a, b) => compareNameNumeric(a.name, b.name));
+            innerByElement[e.name] = kids.map((k) => k.name);
+          }
+        }
+        setState({ kind: "ok", elements: names, innerByElement });
       } catch (e) {
         if (cancelled) return;
         setState({ kind: "err", message: (e as Error).message });
@@ -3826,7 +3894,7 @@ function ArrayedPaginator({
     return () => {
       cancelled = true;
     };
-  }, [handleId, partial]);
+  }, [handleId, partial, elementsOverride, nested]);
 
   const total = state.kind === "ok" ? state.elements.length : 0;
   const move = useCallback(
@@ -3887,6 +3955,18 @@ function ArrayedPaginator({
   // partial mode, and the known element count in normal mode.
   const totalDisplay = state.expectedTotal ?? state.elements.length;
   const isPartial = state.expectedTotal !== undefined;
+  // Dim label for this level — used to prefix the pager label ("frame:")
+  // and to make the wrapping div carry the label as a data attr for
+  // bundle inspection / e2e hooks. First entry of ``dimLabels`` since
+  // outer→inner.
+  const thisDimLabel = dimLabels && dimLabels.length > 0 ? dimLabels[0] : "";
+  const breadcrumbParts = [...(breadcrumb ?? [])];
+  if (nested) {
+    // At the outer level of a 2-D paginator, keep the outer name in
+    // the breadcrumb passed down to the inner paginator so its label
+    // shows the full path.
+    breadcrumbParts.push(currentName);
+  }
 
   return (
     <div
@@ -3897,6 +3977,9 @@ function ArrayedPaginator({
       data-hl-arrayed-count={state.elements.length}
       data-hl-arrayed-partial={isPartial ? "" : undefined}
       data-hl-arrayed-expected={state.expectedTotal ?? undefined}
+      data-hl-arrayed-dim-label={thisDimLabel || undefined}
+      data-hl-arrayed-depth={nested ? 2 : 1}
+      data-hl-arrayed-breadcrumb={(breadcrumb ?? []).join(" / ") || undefined}
       style={{
         ...PREVIEW_SHELL,
         display: "flex",
@@ -3973,10 +4056,47 @@ function ArrayedPaginator({
           ›
         </button>
       </div>
+      {/* Breadcrumb — shown only when we're the inner level of a
+          nested paginator; leading crumbs give the outer path. */}
+      {(breadcrumb ?? []).length > 0 && (
+        <div
+          data-hl-arrayed-breadcrumb-row=""
+          style={{
+            fontSize: 10,
+            fontFamily: "var(--font-mono)",
+            color: "var(--inverse-muted)",
+            display: "flex",
+            gap: 4,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {(breadcrumb ?? []).map((crumb, i, arr) => (
+            <Fragment key={`${i}-${crumb}`}>
+              <span>{crumb}</span>
+              {i < arr.length - 1 && <span style={{ opacity: 0.5 }}>/</span>}
+            </Fragment>
+          ))}
+        </div>
+      )}
       {/* Keying by element name so React remounts the scalar viewer on
           selection change — cheap, and avoids stale-fetch races inside
-          the wrapped viewer's own useEffect. */}
-      <div key={currentName}>{renderScalar(elementUrl)}</div>
+          the wrapped viewer's own useEffect. In nested mode wrap the
+          scalar with a second paginator for the current outer element's
+          inner children. */}
+      <div key={currentName}>
+        {nested ? (
+          <ArrayedPaginator
+            baseUrl={elementUrl}
+            renderScalar={renderScalar}
+            elementsOverride={state.innerByElement?.[currentName] ?? []}
+            dimLabels={dimLabels?.slice(1)}
+            breadcrumb={breadcrumbParts}
+          />
+        ) : (
+          renderScalar(elementUrl)
+        )}
+      </div>
     </div>
   );
 }

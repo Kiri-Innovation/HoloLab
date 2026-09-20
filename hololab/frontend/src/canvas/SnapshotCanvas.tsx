@@ -264,6 +264,12 @@ export function SnapshotCanvas({
         edges: snapshot.graph.edges,
         catalogByKey,
       });
+      // Snapshot mode: the source handle id is frozen in the job row's
+      // output_handles map (null when the source job didn't run or
+      // didn't emit an output). TypedEdge uses this to lazy-load
+      // summary facts on hover.
+      const srcJob = snapshot.jobs.find((j) => j.graph_node_id === e.source);
+      const handleId = srcJob?.output_handles?.[e.sourceHandle] ?? null;
       return {
         id: e.id,
         source: e.source,
@@ -275,6 +281,8 @@ export function SnapshotCanvas({
         data: {
           label: formatTypeLabel(type),
           labelLong: formatTypeLabelLong(type),
+          edgeType: type,
+          handleId,
         },
       };
     });

@@ -1135,11 +1135,30 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       });
       const label = formatTypeLabel(t);
       const labelLong = formatTypeLabelLong(t);
+      const sourceHandleName = e.sourceHandle ?? "";
+      const handleId =
+        previewsByGraphNode[e.source]?.[sourceHandleName]?.handle_id ?? null;
       const prev = e.data as TypedEdgeData | undefined;
-      if (prev?.label === label && prev.labelLong === labelLong) return e;
-      return { ...e, data: { ...(prev ?? {}), label, labelLong } };
+      if (
+        prev?.label === label &&
+        prev.labelLong === labelLong &&
+        prev.handleId === handleId &&
+        prev.edgeType === t
+      ) {
+        return e;
+      }
+      return {
+        ...e,
+        data: {
+          ...(prev ?? {}),
+          label,
+          labelLong,
+          edgeType: t,
+          handleId,
+        },
+      };
     });
-  }, [edges, nodes, catalogByKey]);
+  }, [edges, nodes, catalogByKey, previewsByGraphNode]);
 
   // Snapshot-mode counterparts. Derived from viewingSnapshot +
   // snapshotSelectedGraphNodeId so the read-only inspector reflects
