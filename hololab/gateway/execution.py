@@ -248,6 +248,10 @@ async def _prepare_fanout(
         graph_node_id=gnode.id,
         state=JobState.PENDING,
         node_id=session.node_id,
+        # Planned shard count — frozen at the moment fan-out begins so the
+        # frontend's progress denominator is the plan, not the lazily-
+        # created row-count that grows as shards are dispatched.
+        expected_shards=len(element_ids),
     )
     await store.create(parent_job)
     _push_update(hub, parent_job)

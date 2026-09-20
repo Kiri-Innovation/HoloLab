@@ -55,15 +55,35 @@ function aggregateProgress(
   jobs: readonly SnapshotJob[],
 ): { current: number; total: number } | null {
   if (jobs.length === 1) {
-    return jobs[0].progress ?? null;
+    // A lone fan-out parent (no shard rows have arrived yet, or the
+    // snapshot pre-dates the shards' pending frames) still carries the
+    // planned shard count on ``expected_shards``. Render 0/N immediately
+    // instead of the parent's own null/1 progress so the node footer
+    // shows "0/100" from the very first pending frame.
+    const only = jobs[0];
+    if (only.expected_shards != null && only.expected_shards > 0) {
+      return { current: 0, total: only.expected_shards };
+    }
+    return only.progress ?? null;
   }
   // Fan-out: some jobs carry parent_job_id (they are shards). Count only
-  // shards so a 100-frame fan-out shows 100/100, not 101/101. The parent
+  // shards so a 100-frame fan-out shows N/100, not (N+1)/(N+2). The parent
   // coordinator job is excluded; its "done" state is not a shard completion.
   const shards = jobs.filter((j) => j.parent_job_id != null);
   const counted = shards.length > 0 ? shards : jobs;
   const done = counted.filter((j) => j.state === "done").length;
-  return { current: done, total: counted.length };
+  // Prefer the parent's planned shard count over the row-count of already-
+  // created shards. Fan-out is lazy: shard N+1 is only created after shard
+  // N completes, so ``counted.length`` grows with progress and would show
+  // a moving denominator (``20/22 → 21/23 → … → 101/101``, the bug this
+  // field was introduced to fix). ``expected_shards`` is set once at
+  // fan-out start and is stable for the run's lifetime.
+  const parent = jobs.find((j) => j.parent_job_id == null && j.expected_shards != null);
+  const total =
+    parent?.expected_shards != null && parent.expected_shards > 0
+      ? parent.expected_shards
+      : counted.length;
+  return { current: done, total };
 }
 
 function pickRepresentativeJob(jobs: readonly SnapshotJob[]): SnapshotJob {

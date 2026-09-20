@@ -304,6 +304,10 @@ class JobRow(BaseModel):
     # the display label for each shard's expanded sub-row.
     parent_job_id: str | None = None
     shard_element_id: str | None = None
+    # Non-null on the fan-out *parent* row — the planned shard count fixed
+    # at fan-out start. Frontend uses it as the progress denominator so
+    # the display doesn't grow as lazily-created shard rows arrive.
+    expected_shards: int | None = None
 
 
 class JobDetail(JobRow):

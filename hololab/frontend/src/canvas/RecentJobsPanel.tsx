@@ -25,6 +25,11 @@ export interface RecentJobRow {
   // its shards into a single Recent Jobs entry.
   parent_job_id?: string | null;
   shard_element_id?: string | null;
+  // Set on the fan-out *parent* row — the planned shard count fixed at
+  // fan-out start. Panel prefers this over ``shards.length`` so ``×N``
+  // and ``n/N`` show the planned total (e.g. ×100) from the first frame
+  // instead of drifting up as lazily-created shard rows arrive.
+  expected_shards?: number | null;
   fail_reason?: string | null;
 }
 
@@ -574,7 +579,17 @@ function GroupJobRow({
   // Count only shards: parent coordinator is not an element of the array.
   // 100 shards → ×100  100/100, not ×101  101/101.
   const doneCount = shards.filter((s) => s.state === "done").length;
-  const total = shards.length;
+  // Prefer the parent's planned shard count (``expected_shards``, set once
+  // at fan-out start) over the row-count of already-created shards. Shards
+  // are dispatched lazily — one at a time as the previous finishes — so
+  // counting rows makes the denominator grow with progress (``×22 → ×23 →
+  // … → ×101`` for a 100-shard fan-out). ``expected_shards`` freezes it
+  // at 100 from the first frame. Falls back to ``shards.length`` for
+  // rows loaded from a pre-V13 gateway.
+  const total =
+    parent.expected_shards != null && parent.expected_shards > 0
+      ? parent.expected_shards
+      : shards.length;
   const visibleShards = showAllShards
     ? shards
     : shards.slice(0, SHARDS_INITIAL_LIMIT);

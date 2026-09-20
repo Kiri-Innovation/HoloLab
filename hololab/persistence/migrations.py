@@ -390,6 +390,24 @@ MIGRATIONS.append(
 )
 
 
+# V13 — planned shard count on fan-out parent jobs. Set once at fan-out
+# start (element list enumerated, before the first shard is dispatched)
+# and never mutated. NULL on shards + regular jobs + on pre-V13 parents
+# loaded from an older gateway. Fixes the "progress n / n+2 grows to
+# 101/101" bug where the frontend derived ``total`` from the row-count of
+# jobs that already exist — shards are lazily created, so the denominator
+# grew as new shards were dispatched. With ``expected_shards`` the total
+# is a plan, not an observation.
+MIGRATIONS.append(
+    (
+        13,
+        """
+        ALTER TABLE jobs ADD COLUMN expected_shards INTEGER;
+        """,
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

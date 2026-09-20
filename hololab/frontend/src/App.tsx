@@ -424,6 +424,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             parent_job_id: existing?.parent_job_id ?? p.parent_job_id ?? null,
             shard_element_id:
               existing?.shard_element_id ?? p.shard_element_id ?? null,
+            // Planned shard count — sticky, set once on the parent at
+            // fan-out start. Preserve across frames so a later WS update
+            // (which omits it on shards) doesn't null it out.
+            expected_shards:
+              existing?.expected_shards ?? p.expected_shards ?? null,
           };
           // Preserve workflow_id (carried on the wire but not on the panel row shape).
           (next as unknown as { workflow_id?: string }).workflow_id =
@@ -469,6 +474,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 fail_reason: p.fail?.reason ?? next[idx].fail_reason ?? null,
                 output_handles:
                   p.output_handles ?? next[idx].output_handles ?? null,
+                // Sticky like ``parent_job_id``. Preserve so a later
+                // shard-authored frame (which omits it) doesn't overwrite
+                // the parent's planned count.
+                expected_shards:
+                  next[idx].expected_shards ?? p.expected_shards ?? null,
               };
               return next;
             }
@@ -477,8 +487,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             // payload doesn't carry (params, input_handles, timestamps,
             // etc.) default to empty; the aggregator in
             // canvas/nodeRuntime.ts only reads state / progress /
-            // fail_reason / graph_node_id / job_id from each row, so
-            // the partial shape is safe for driving the canvas badge.
+            // fail_reason / graph_node_id / job_id / parent_job_id /
+            // expected_shards from each row, so the partial shape is
+            // safe for driving the canvas badge.
+            //
+            // ``parent_job_id`` MUST be propagated here — without it the
+            // aggregator's shard filter (``.parent_job_id != null``)
+            // misses this appended shard, falls back to counting all
+            // rows, and the denominator inflates by +1 (parent). This
+            // was the second half of the "n/n+2 growing" bug.
             const now = Date.now() / 1000;
             const appended: SnapshotJob = {
               job_id: p.job_id,
@@ -495,6 +512,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               params: {},
               input_handles: {},
               output_handles: p.output_handles ?? null,
+              parent_job_id: p.parent_job_id ?? null,
+              shard_element_id: p.shard_element_id ?? null,
+              expected_shards: p.expected_shards ?? null,
               created_ts: now,
               updated_ts: now,
             };
@@ -1996,6 +2016,7 @@ function jobToRow(j: JobSummary): RecentJobRow {
     started_ts: j.started_ts ?? null,
     parent_job_id: j.parent_job_id ?? null,
     shard_element_id: j.shard_element_id ?? null,
+    expected_shards: j.expected_shards ?? null,
     fail_reason: j.fail_reason,
   };
   (row as unknown as { workflow_id?: string }).workflow_id = j.workflow_id;

@@ -65,6 +65,11 @@ export interface JobUpdatePayload {
   // can collapse each parent + its shards into a single group row.
   parent_job_id?: string | null;
   shard_element_id?: string | null;
+  // Set on the fan-out *parent* row — the planned shard count fixed at
+  // fan-out start, before the first shard exists. Frontend uses it as the
+  // progress denominator so the display doesn't drift up as new shard
+  // rows arrive (lazy creation would otherwise inflate the total).
+  expected_shards?: number | null;
 }
 
 // GET /api/jobs — same shape as JobUpdatePayload plus workflow bookkeeping.
@@ -83,6 +88,7 @@ export interface JobSummary {
   started_ts?: number | null;
   parent_job_id?: string | null;
   shard_element_id?: string | null;
+  expected_shards?: number | null;
 }
 export interface LogChunkPayload {
   job_id: string;
@@ -390,6 +396,11 @@ export interface SnapshotJob {
   // from the shard count/progress so "100/100" is shown instead of "101/101".
   parent_job_id?: string | null;
   shard_element_id?: string | null;
+  // Planned shard count on the fan-out *parent* row. Frontend prefers this
+  // over ``shards.length`` so the progress denominator is fixed from the
+  // first frame (shards are lazily created — counting rows would inflate
+  // the total as new ones arrive).
+  expected_shards?: number | null;
   created_ts: number;
   updated_ts: number;
 }

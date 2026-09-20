@@ -134,6 +134,15 @@ class Job:
     # frontend uses this for live elapsed-time display without relying
     # on ``updated_ts``, which only changes when a WS event fires.
     started_ts: float | None = None
+    # Set on *parent* jobs at fan-out start (element list enumerated,
+    # before the first shard is dispatched). The planned shard count —
+    # constant for the life of the fan-out. NULL on shards + regular jobs
+    # and on pre-V13 parent rows loaded from an older gateway. Frontend
+    # progress uses this as ``total`` so the "n / n+2 growing to 101/101"
+    # display bug (lazy shard creation inflates the row-count denominator)
+    # is impossible: total is the planned element count, fixed from the
+    # first ``pending`` frame.
+    expected_shards: int | None = None
 
 
 class IllegalTransition(RuntimeError):
@@ -203,6 +212,7 @@ class JobStateMachine:
             # First RUNNING transition stamps the start time; preserve it on
             # all subsequent transitions (done, failed, etc.).
             started_ts=now if target is JobState.RUNNING and job.started_ts is None else job.started_ts,
+            expected_shards=job.expected_shards,
         )
         return new
 

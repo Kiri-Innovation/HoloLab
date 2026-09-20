@@ -484,6 +484,12 @@ class JobUpdate(BaseModel):
     # parent + regular jobs. Used as the display label for a group's
     # expanded shard rows.
     shard_element_id: str | None = None
+    # Populated on parent jobs at fan-out start (element list enumerated,
+    # before the first shard is dispatched). The planned shard count —
+    # constant for the fan-out's lifetime. Frontend progress uses it as
+    # ``total`` so the display doesn't inflate as lazily-created shard
+    # rows arrive.
+    expected_shards: int | None = None
 
 
 class LogChunk(BaseModel):
