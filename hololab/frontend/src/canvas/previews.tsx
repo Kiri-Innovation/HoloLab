@@ -2522,37 +2522,6 @@ const NESTED_MINI_THUMB_H = NESTED_MINI_H * 2;
 
 const NESTED_IMG_RE = /\.(png|jpe?g|webp|bmp)$/i;
 
-// The node fileserver's ``/_thumb`` route shells out to
-// ``ffmpeg -ss 0 -i <file> …``.  On a JPEG that seek lands past the
-// single-image stream's zero-duration, ffmpeg encodes nothing, the
-// tmp file is never written, and the route 500s — even though the
-// raw JPEG served from ``/proxy/.../<file>.jpg`` is fine (rig frames
-// are per-alias JPEGs and hit this every time).  Until the backend
-// grows an image-input branch that skips ``-ss``, JPEGs bypass the
-// thumb pipeline and stream the raw file; other formats keep the
-// existing ffmpeg-scaled thumb path so the PNG-based
-// frame-extraction[arrayed] preview stays fast.  Callers already
-// clip the tile with ``object-fit: cover`` so the intrinsic
-// dimensions on the wire don't matter for layout.
-function _isJpegName(name: string): boolean {
-  return /\.jpe?g$/i.test(name);
-}
-function nestedTileSrc(
-  nodeRoot: string,
-  dirSub: string,
-  groupName: string,
-  pathPrefix: string,
-  imgName: string,
-  thumbW: number,
-  thumbH: number,
-): string {
-  const memberSub = `${dirSub}/${encodeURIComponent(groupName)}/${pathPrefix}${encodeURIComponent(imgName)}`;
-  if (_isJpegName(imgName)) {
-    return `${nodeRoot}/${memberSub}`;
-  }
-  return `${nodeRoot}/_thumb/${thumbW}x${thumbH}/${memberSub}?at=0`;
-}
-
 /** Zero-pad-aware compare so ``frame_2`` sorts before ``frame_10``. */
 function compareNameNumeric(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
@@ -2800,15 +2769,12 @@ function NestedGroupCard({
             }}
           >
             <img
-              src={nestedTileSrc(
-                nodeRoot,
-                dirSub,
-                group.name,
-                group.pathPrefix,
-                imgName,
-                NESTED_MINI_THUMB_W,
-                NESTED_MINI_THUMB_H,
-              )}
+              // Depends on the fileserver's still-image branch in
+              // ``_thumb_response`` (dropping ``-ss`` for jpg/png/…):
+              // before that landed a JPEG tile 500'd here. If a future
+              // roll-back breaks that assumption, this URL 500s and
+              // the tile paints empty — coupling point is intentional.
+              src={`${nodeRoot}/_thumb/${NESTED_MINI_THUMB_W}x${NESTED_MINI_THUMB_H}/${dirSub}/${encodeURIComponent(group.name)}/${group.pathPrefix}${encodeURIComponent(imgName)}?at=0`}
               alt={imgName}
               loading="lazy"
               style={{
@@ -2979,15 +2945,10 @@ function NestedGroupDetail({
                 }}
               >
                 <img
-                  src={nestedTileSrc(
-                    nodeRoot,
-                    dirSub,
-                    group.name,
-                    group.pathPrefix,
-                    imgName,
-                    STRIP_THUMB_W,
-                    STRIP_THUMB_H,
-                  )}
+                  // Same fileserver still-image-branch dependency as the
+                  // outer card thumb above — keep the two call sites in
+                  // sync if the URL scheme moves.
+                  src={`${nodeRoot}/_thumb/${STRIP_THUMB_W}x${STRIP_THUMB_H}/${dirSub}/${encodeURIComponent(group.name)}/${group.pathPrefix}${encodeURIComponent(imgName)}?at=0`}
                   alt={imgName}
                   loading="lazy"
                   style={{
