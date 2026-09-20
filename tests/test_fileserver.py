@@ -170,6 +170,52 @@ def test_thumb_missing_file_404(tmp_path: Path) -> None:
         assert r.status_code == 404
 
 
+def _make_tiny_jpeg(path: Path) -> None:
+    """Encode a 4x4 solid-colour JPEG via ffmpeg — cheap seed for the
+    still-image thumb path.
+
+    Motivation: JPEG demuxers report duration 0, so the earlier
+    ``ffmpeg -ss 0 -i <jpg>`` path silently emitted zero bytes (rc=0,
+    tmp file missing → 500 for the caller). The still-image branch of
+    ``_thumb_response`` drops ``-ss`` for these inputs, and this test
+    is the regression pin.
+    """
+
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        pytest.skip("ffmpeg not available")
+    cmd = [
+        ffmpeg,
+        "-nostdin",
+        "-loglevel", "error",
+        "-f", "lavfi",
+        "-i", "color=c=red:s=4x4:d=1:r=1",
+        "-frames:v", "1",
+        "-q:v", "3",
+        "-y",
+        str(path),
+    ]
+    subprocess.run(cmd, check=True)
+
+
+def test_thumb_still_image_jpeg(tmp_path: Path) -> None:
+    """Regression: JPEG inputs used to 500 because the video-style
+    ``-ss 0`` seek encoded zero frames. The still-image branch skips
+    ``-ss`` and returns a real thumbnail JPEG."""
+
+    src = tmp_path / "frame.jpg"
+    _make_tiny_jpeg(src)
+    app = create_fileserver_app(workspace_root=tmp_path)
+    with TestClient(app) as client:
+        r = client.get("/_thumb/64x36/frame.jpg", params={"at": 0.0})
+        assert r.status_code == 200, r.text
+        assert r.headers["content-type"] == "image/jpeg"
+        assert r.content[:2] == b"\xff\xd8"
+        cache_dir = tmp_path / ".hololab-thumbs"
+        assert cache_dir.is_dir()
+        assert len(list(cache_dir.glob("*.jpg"))) == 1
+
+
 # ---------------------------------------------------------------------------
 # Preview (low-res proxy MP4) endpoint
 # ---------------------------------------------------------------------------

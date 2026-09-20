@@ -49,6 +49,13 @@ _INMEM_TAR_LIMIT_BYTES = 32 * 1024 * 1024  # 32 MiB
 _THUMB_MAX_DIM = 1024
 _THUMB_CACHE_DIRNAME = ".hololab-thumbs"
 
+# Extensions ``_thumb_response`` treats as still images: ffmpeg is called
+# **without** ``-ss`` because a still image's demuxer reports duration 0,
+# so seeking to any positive offset (or even 0) lands past the single
+# available frame and yields an empty output file. Anything not on this
+# list is assumed to be a video and keeps the seek-based path.
+_STILL_IMAGE_EXTS = frozenset({".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"})
+
 # Preview MP4 (low-res proxy for grid tiles). Same dim guardrail as
 # thumbs; also cap frame-rate so a mistyped URL can't ask for 240 fps
 # transcoding of a 20-minute clip.
@@ -309,11 +316,17 @@ async def _thumb_response(
         f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
         f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"
     )
-    cmd = [
-        ffmpeg,
-        "-nostdin",
-        "-loglevel", "error",
-        "-ss", f"{at:.3f}",
+    # Still-image inputs (JPEG/PNG/…) MUST skip ``-ss``: their demuxer
+    # reports duration 0, so any seek lands past the sole available frame
+    # and ffmpeg silently writes zero bytes (rc=0, empty output → caller
+    # 500s). Detect by extension since the fileserver already trusts
+    # extensions elsewhere (thumb/preview endpoint fan-out). Videos keep
+    # the seek-based path so /_thumb still costs only one decoded frame.
+    is_still_image = video.suffix.lower() in _STILL_IMAGE_EXTS
+    cmd = [ffmpeg, "-nostdin", "-loglevel", "error"]
+    if not is_still_image:
+        cmd += ["-ss", f"{at:.3f}"]
+    cmd += [
         "-i", str(video),
         "-frames:v", "1",
         "-vf", vf,
