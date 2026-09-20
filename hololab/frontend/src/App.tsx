@@ -36,6 +36,7 @@ import type {
   GraphNode as GraphNodeModel,
   JobSummary,
   JobUpdatePayload,
+  NodeMetrics,
   NodeOfflinePayload,
   NodeOnlinePayload,
   SnapshotDetail,
@@ -47,6 +48,7 @@ import {
   dispatchNode,
   getComputeNodes,
   getHandle,
+  getMetricsHistory,
   getPackCatalog,
   getRecentJobs,
   getSnapshot,
@@ -80,6 +82,7 @@ import { PackPalette } from "./canvas/PackPalette";
 import { ComputeNodesPanel } from "./canvas/ComputeNodesPanel";
 import { MinimapToggleButton } from "./canvas/MinimapToggleButton";
 import { NodeInspector } from "./canvas/NodeInspector";
+import { NodeMetricsPanel, METRICS_HISTORY_LIMIT } from "./canvas/NodeMetricsPanel";
 import { EdgeInspector } from "./canvas/EdgeInspector";
 import { TypedEdge, type TypedEdgeData } from "./canvas/TypedEdge";
 import {
@@ -266,6 +269,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [connected, setConnected] = useState(false);
   const [running, setRunning] = useState(false);
 
+  // Per-node rolling metric history for the "server pulse" panel that
+  // fills the inspector's empty state. Seeded from the gateway's
+  // in-memory buffer on mount and topped up in real time from WS
+  // ``node_metrics`` frames. Bounded per node so a long session doesn't
+  // grow this map unboundedly — cap matches the gateway ring.
+  const [metricsByNode, setMetricsByNode] = useState<Record<string, NodeMetrics[]>>(
+    {},
+  );
+
   // Job runtime state — split by scope so a node's status dot only ever
   // reflects the snapshot the canvas is currently showing (draft view =
   // latest snapshot; snapshot view = viewingSnapshot). A flat
@@ -363,6 +375,19 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       });
   }, []);
 
+  // Seed the pulse panel with whatever history the gateway already
+  // buffered so the sparklines aren't empty on first paint. The WS
+  // subscription below tops this up in real time.
+  useEffect(() => {
+    void getMetricsHistory()
+      .then((resp) => {
+        setMetricsByNode(resp.nodes ?? {});
+      })
+      .catch(() => {
+        /* ignore — WS will populate on the next sample */
+      });
+  }, []);
+
   // --- WS subscription ---------------------------------------------------
   useEffect(() => {
     const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -404,6 +429,23 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           const _p = env.payload as NodeOfflinePayload;
           void _p;
         }
+      } else if (env.kind === "node_metrics") {
+        // Live per-node CPU / mem / GPU sample. Append into the bounded
+        // ring for this node; the pulse panel derives sparklines
+        // straight off this state. Skip frames without a node_id (the
+        // gateway always stamps one on rebroadcast, but be defensive).
+        const p = env.payload as NodeMetrics;
+        if (!p.node_id) return;
+        const nid = p.node_id;
+        setMetricsByNode((prev) => {
+          const cur = prev[nid] ?? [];
+          const next = cur.concat(p);
+          const trimmed =
+            next.length > METRICS_HISTORY_LIMIT
+              ? next.slice(next.length - METRICS_HISTORY_LIMIT)
+              : next;
+          return { ...prev, [nid]: trimmed };
+        });
       } else if (env.kind === "job_update") {
         const p = env.payload as JobUpdatePayload;
 
@@ -2028,6 +2070,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       job={snapshotSelectedJob}
       onRerunFromHere={onRerunFromHere}
     />
+  ) : !selectedNode ? (
+    // Nothing selected on the draft canvas — show live server pulse
+    // instead of a blank placeholder so the operator can gauge cluster
+    // load while planning the next run.
+    <NodeMetricsPanel nodes={computeNodes} metricsByNode={metricsByNode} />
   ) : (
     <NodeInspector
       selected={

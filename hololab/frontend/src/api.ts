@@ -9,6 +9,7 @@ import type {
   JobDetail,
   LogTail,
   NodeEffectiveConfig,
+  NodeMetrics,
   RunSummaryRow,
   SnapshotDeleteResult,
   SnapshotDeletionPreview,
@@ -62,6 +63,22 @@ export const getPackCatalog = () =>
 
 export const getComputeNodes = () =>
   fetch("/api/nodes").then(json<ComputeNode[]>);
+
+// Rolling per-node CPU / mem / GPU history for the pulse panel. ``since``
+// (seconds since epoch) narrows the reply to samples newer than the
+// cutoff — useful after a WS reconnect to avoid re-downloading the full
+// hour when the browser only needs the last few seconds.
+export interface MetricsHistoryResponse {
+  sample_interval_s: number;
+  nodes: Record<string, NodeMetrics[]>;
+}
+
+export const getMetricsHistory = (since?: number) => {
+  const qs = since !== undefined ? `?since=${encodeURIComponent(String(since))}` : "";
+  return fetch(`/api/nodes/metrics/history${qs}`).then(
+    json<MetricsHistoryResponse>,
+  );
+};
 
 export const getRecentJobs = () =>
   fetch("/api/jobs").then(json<Array<Record<string, unknown>>>);

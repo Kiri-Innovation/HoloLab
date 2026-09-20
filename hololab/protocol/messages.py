@@ -146,6 +146,40 @@ class Heartbeat(BaseModel):
     gpu_util: float | None = None
 
 
+class GpuMetricSample(BaseModel):
+    """One GPU's live utilization sample.
+
+    Every scalar may be None when the value couldn't be parsed off
+    ``nvidia-smi`` output — the frontend treats it as a gap in the
+    corresponding sparkline rather than as zero.
+    """
+
+    index: int
+    util_percent: float | None = None
+    mem_used_mb: float | None = None
+    mem_total_mb: float | None = None
+    name: str | None = None
+
+
+class NodeMetrics(BaseModel):
+    """Live resource sample the node samples every few seconds.
+
+    Sent node → gateway on the metrics interval; the gateway stamps
+    ``node_id`` and rebroadcasts it as-is to every frontend so the
+    "server pulse" panel can chart CPU / mem / GPU util / VRAM in
+    real time. Each scalar is optional — a missing ``nvidia-smi``,
+    unreadable ``/proc/stat``, or a non-Linux host still yields a
+    valid sample, just with None where the probe failed.
+    """
+
+    ts: float
+    node_id: str | None = None  # gateway-stamped on rebroadcast to frontends
+    cpu_percent: float | None = None
+    mem_used_gb: float | None = None
+    mem_total_gb: float | None = None
+    gpus: list[GpuMetricSample] = Field(default_factory=list)
+
+
 class PacksUpdated(BaseModel):
     """Node → Gateway: full replacement of this node's pack inventory.
 

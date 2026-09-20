@@ -190,11 +190,18 @@ class NodeRuntime:
         sweep_task = asyncio.create_task(
             self._scratch_sweep_loop(), name="hololab-node-scratch-sweep"
         )
+        # Resource sampler pushes ``node_metrics`` frames to the gateway
+        # every few seconds so the frontend's "server pulse" panel can
+        # chart CPU / mem / GPU utilisation without hitting the node
+        # directly. Runs continuously; ``_safe_send`` swallows sends
+        # made while the WS is momentarily down. See
+        # :mod:`hololab.node.metrics`.
+        metrics_task = asyncio.create_task(self._metrics_loop(), name="hololab-node-metrics")
 
         try:
             await self._connect_loop()
         finally:
-            for t in (self._fs_task, self._watch_task, sweep_task):
+            for t in (self._fs_task, self._watch_task, sweep_task, metrics_task):
                 if t is None:
                     continue
                 t.cancel()
@@ -496,6 +503,29 @@ class NodeRuntime:
             except Exception as exc:
                 log.warning("heartbeat send failed", error=str(exc))
                 return
+
+    async def _metrics_loop(self) -> None:
+        """Sample CPU / mem / GPUs on a fixed cadence and push to gateway.
+
+        Runs for the lifetime of the daemon process regardless of WS
+        state — samples during a disconnect are silently dropped by
+        ``_safe_send`` and the buffer resumes on the next reconnect.
+        Individual probe failures never break the loop; the sampler
+        already returns ``None`` for fields whose OS interface is
+        missing (non-Linux ``/proc``, absent ``nvidia-smi``, …).
+        """
+
+        from hololab.node.metrics import METRICS_INTERVAL_SECONDS, sample_once
+
+        while True:
+            try:
+                sample = await sample_once()
+                await self._safe_send("node_metrics", sample)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                log.debug("metrics sample failed", error=str(exc))
+            await asyncio.sleep(METRICS_INTERVAL_SECONDS)
 
     # -- scratch lifecycle ---------------------------------------------------
 

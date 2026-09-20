@@ -271,6 +271,31 @@ export interface HandleInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Live compute-node metrics (WS node_metrics + GET /api/nodes/metrics/history)
+// ---------------------------------------------------------------------------
+
+export interface GpuMetricSample {
+  index: number;
+  util_percent: number | null;
+  mem_used_mb: number | null;
+  mem_total_mb: number | null;
+  name: string | null;
+}
+
+// One resource sample. Every scalar is optional: when the node's
+// probe can't read /proc/stat, /proc/meminfo, or nvidia-smi (missing
+// binary, non-Linux, etc.) the corresponding field is null so the
+// sparkline can skip the dot rather than plotting a fake zero.
+export interface NodeMetrics {
+  ts: number;
+  node_id: string | null;
+  cpu_percent: number | null;
+  mem_used_gb: number | null;
+  mem_total_gb: number | null;
+  gpus: GpuMetricSample[];
+}
+
+// ---------------------------------------------------------------------------
 // Compute nodes (GET /api/nodes)
 // ---------------------------------------------------------------------------
 
