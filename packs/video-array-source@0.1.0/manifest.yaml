@@ -56,10 +56,12 @@ outputs:
   videos_dir:
     tags: [video-source]
     arrayed: true
+    dim_labels: ["cam"]
     description: >
       arrayed<video-source> — one subdirectory per source video, subdir
       named after the video's stem, containing the video symlink under
-      its original basename.
+      its original basename. Outer dim = per-camera (one clip per rig
+      camera); handle summary reports ``dim_sizes=[N_cam]``.
 
 runtime:
   env: kiri

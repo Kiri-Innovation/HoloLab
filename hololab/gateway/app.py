@@ -31,6 +31,13 @@ from hololab.gateway.execution import (
 from hololab.gateway.handles import Handle, HandleBook
 from hololab.gateway.hub import FrontendHub
 from hololab.gateway.jobs import Job, JobState, JobStateMachine, event_from_transition
+from hololab.gateway.metrics import (
+    DEFAULT_SAMPLE_INTERVAL_S as METRICS_SAMPLE_INTERVAL_S,
+)
+from hololab.gateway.metrics import (
+    MetricsStore,
+    metrics_to_dict,
+)
 from hololab.gateway.models import (
     HandleInfo as HandleInfoOut,
 )
@@ -100,6 +107,7 @@ from hololab.protocol import (
     NodeConfigGetResp,
     NodeConfigSetReq,
     NodeConfigSetResp,
+    NodeMetrics,
     NodeOffline,
     NodeOnline,
     PacksUpdated,
@@ -153,6 +161,12 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
         app.state.handles = HandleBook(db)
         app.state.workflows = WorkflowStore(db)
         app.state.hub = FrontendHub()
+        # In-memory rolling metrics per compute node — powers the
+        # "server pulse" panel that fills the inspector when the
+        # canvas selection is empty. Deliberately not persisted to
+        # SQLite; a gateway restart re-fills the buffer from live
+        # traffic within a minute. See hololab/gateway/metrics.py.
+        app.state.metrics = MetricsStore()
         # Correlation futures for gateway↔node request/response frames.
         # Keys: req_id (str); values: the future the REST handler awaits.
         # Populated when the gateway sends a request frame, drained by
@@ -354,6 +368,28 @@ def _mount_routes(app: FastAPI) -> None:
     async def list_nodes() -> list[dict[str, Any]]:
         registry: NodeRegistry = app.state.registry
         return await registry.as_summary_json()
+
+    @app.get(
+        "/api/nodes/metrics/history",
+        tags=["nodes"],
+        summary="Rolling CPU / memory / GPU history for every known compute node.",
+    )
+    async def get_metrics_history(since: float | None = None) -> dict[str, Any]:
+        """Return one hour of fine-grained samples for the pulse panel.
+
+        Every buffered node appears as a key in ``nodes``, mapped to
+        its oldest-first list of samples. ``since`` (seconds since the
+        epoch) narrows the response to samples strictly newer than the
+        cutoff — the frontend uses this to catch up after a WS reconnect
+        without re-downloading the entire hour.
+        """
+
+        metrics: MetricsStore = app.state.metrics
+        raw = metrics.all_history(since=since)
+        return {
+            "sample_interval_s": METRICS_SAMPLE_INTERVAL_S,
+            "nodes": {nid: [metrics_to_dict(s) for s in samples] for nid, samples in raw.items()},
+        }
 
     @app.get(
         "/api/nodes/{node_id}/config",
@@ -815,7 +851,22 @@ def _mount_routes(app: FastAPI) -> None:
         sub = strip_workspace_prefix(session, handle.path)
         proxy_url = f"/proxy/{handle.node_id}/{sub.lstrip('/')}"
 
-        summary = summarize_handle(handle)
+        # Look up depth from the producing pack's output port so
+        # ``summarize_handle`` walks the right number of levels. Best-effort:
+        # if the pack/session isn't around, depth stays None and the summary
+        # falls back to the scalar element_count (no ``dim_sizes``).
+        depth: int | None = None
+        if handle.job_id and handle.output_port_name:
+            jobs_store: JobsStore = app.state.jobs_store
+            job = await jobs_store.get(handle.job_id)
+            if job is not None:
+                dim_labels = registry.get_output_dim_labels(
+                    job.algorithm_name, job.algorithm_version, handle.output_port_name
+                )
+                if dim_labels is not None:
+                    depth = len(dim_labels)
+
+        summary = summarize_handle(handle, depth=depth)
         return {
             "handle_id": handle.handle_id,
             "kind": summary["kind"],
@@ -826,6 +877,7 @@ def _mount_routes(app: FastAPI) -> None:
             "absolute_path": handle.path,
             "fields": summary.get("fields", {}),
             "element_count": summary.get("element_count"),
+            "dim_sizes": summary.get("dim_sizes"),
             "internal_count": summary.get("internal_count"),
             "internal_count_kind": summary.get("internal_count_kind"),
         }
@@ -2732,6 +2784,17 @@ async def _dispatch_node_frame(
     if kind == "heartbeat":
         assert isinstance(payload, Heartbeat)
         session.last_heartbeat_ts = time.time()
+        return
+
+    if kind == "node_metrics":
+        assert isinstance(payload, NodeMetrics)
+        metrics: MetricsStore = app.state.metrics
+        stamped = metrics.record(session.node_id, payload)
+        # Rebroadcast to every connected frontend so the "server pulse"
+        # panel updates in real time. The stamped copy carries node_id
+        # in the payload so subscribers can key without inspecting the
+        # envelope.
+        hub.broadcast(encode("node_metrics", stamped, v=session.protocol_v))
         return
 
     if kind in ("node_config_get_resp", "node_config_set_resp"):

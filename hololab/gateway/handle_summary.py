@@ -42,7 +42,7 @@ _MAX_DIR_ENTRIES = 100
 _FRAMES_DRILL_CAP = 8
 
 
-def summarize_handle(handle: Handle) -> dict[str, Any]:
+def summarize_handle(handle: Handle, *, depth: int | None = None) -> dict[str, Any]:
     """Return a summary dict for one handle.
 
     Dispatch order (see :func:`_dispatch_summary`):
@@ -56,14 +56,20 @@ def summarize_handle(handle: Handle) -> dict[str, Any]:
 
     On top of kind + fields we also try to fill:
         * ``element_count`` — subdir count on dir handles (edge chip ``[N]``).
+        * ``dim_sizes`` — per-dim element counts, outer dim first
+          (``[100, 21]`` for a 2-D frame x cam handle). Computed only when
+          the caller supplies ``depth`` (from the producing port's
+          ``dim_labels`` length); walks the tree ``depth`` levels reporting
+          the branching factor at each. ``depth=0`` marks the handle scalar
+          and always yields ``dim_sizes=null``.
         * ``internal_count`` + ``internal_count_kind`` — tag-specific
           inside-one-element number via :mod:`hololab.gateway.tag_probes`;
-          sampled from the FIRST element of an arrayed handle only.
+          sampled from the FIRST leaf of an arrayed handle.
     """
 
     path = Path(handle.path)
     base = _dispatch_summary(handle, path)
-    _annotate_element_and_internal_counts(base, handle, path)
+    _annotate_element_and_internal_counts(base, handle, path, depth=depth)
     return base
 
 
@@ -91,21 +97,35 @@ def _dispatch_summary(handle: Handle, path: Path) -> dict[str, Any]:
 
 
 def _annotate_element_and_internal_counts(
-    result: dict[str, Any], handle: Handle, path: Path
+    result: dict[str, Any],
+    handle: Handle,
+    path: Path,
+    *,
+    depth: int | None = None,
 ) -> None:
-    """Fill ``element_count`` + ``internal_count`` + ``internal_count_kind``.
+    """Fill ``element_count`` + ``dim_sizes`` + ``internal_count`` + kind.
 
     ``element_count`` counts immediate non-dot subdirs on dir handles. The
     frontend uses it to render the edge chip's ``[N]``; whether the port
     is *treated* as arrayed is the graph edge's business.
 
-    ``internal_count`` samples the FIRST element of an arrayed dir handle
-    (deterministic sorted order) or the handle root itself when the handle
-    isn't multi-element. Splatv's ``fields.camera_count`` is mirrored up
-    so the wire contract is uniform.
+    ``dim_sizes`` (when ``depth`` is supplied) walks ``depth`` levels of
+    subdirs, one branching factor per level, outer dim first. It requires
+    the tree to be uniform at every level (every leaf-of-level has the
+    same subdir count) — non-uniform trees yield ``dim_sizes=null`` rather
+    than a lie. ``depth=0`` marks a scalar handle and always yields null.
+    When set, ``dim_sizes[0]`` equals ``element_count`` by construction.
+
+    ``internal_count`` samples the FIRST leaf of an arrayed dir handle
+    (deterministic sorted order) descended ``depth`` levels, or the
+    handle root itself when the handle isn't multi-element. Splatv's
+    ``fields.camera_count`` is mirrored up so the wire contract is
+    uniform.
     """
     element_count: int | None = None
     sample_path: Path = path
+    dim_sizes: list[int] | None = None
+
     if handle.storage == "dir" and path.is_dir():
         try:
             children = sorted(
@@ -116,6 +136,11 @@ def _annotate_element_and_internal_counts(
                 sample_path = children[0]
         except OSError:
             element_count = None
+
+        if depth is not None and depth >= 1:
+            dim_sizes, leaf = _measure_dim_sizes(path, depth)
+            if leaf is not None:
+                sample_path = leaf
 
     fields = result.get("fields") or {}
     if result.get("kind") == "splatv" and isinstance(fields.get("camera_count"), int):
@@ -129,6 +154,47 @@ def _annotate_element_and_internal_counts(
 
     if element_count:
         result["element_count"] = element_count
+    if dim_sizes is not None:
+        result["dim_sizes"] = dim_sizes
+
+
+def _measure_dim_sizes(root: Path, depth: int) -> tuple[list[int] | None, Path | None]:
+    """Walk ``depth`` levels of subdirs, returning (sizes-per-level, sample leaf).
+
+    The tree must be *uniform* — every dir at level ``k`` needs the same
+    subdir count — otherwise a single number per level would misrepresent
+    the shape. On non-uniform trees we return ``(None, None)`` so the
+    caller emits no ``dim_sizes`` at all rather than an averaged lie.
+
+    The sample-leaf return is the first path reached at level ``depth``
+    (sorted alphabetically at each hop), used to drive the tag probe on
+    the actual leaf rather than the arrayed root.
+    """
+
+    sizes: list[int] = []
+    current: list[Path] = [root]
+    sample: Path | None = None
+    for _ in range(depth):
+        next_layer: list[Path] = []
+        per_dir: int | None = None
+        for parent in current:
+            try:
+                kids = sorted(
+                    c for c in parent.iterdir() if not c.name.startswith(".") and c.is_dir()
+                )
+            except OSError:
+                return None, None
+            if per_dir is None:
+                per_dir = len(kids)
+            elif per_dir != len(kids):
+                return None, None
+            next_layer.extend(kids)
+        if per_dir is None or per_dir == 0:
+            return None, None
+        sizes.append(per_dir)
+        current = next_layer
+        sample = next_layer[0]
+    return sizes, sample
 
 
 # ---------------------------------------------------------------------------

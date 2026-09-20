@@ -62,9 +62,9 @@ def test_regroup_by_frame_shape() -> None:
     # Whole-array operation — NOT arrayable (framework passes the arrayed
     # dir path as-is; the pack does the transpose in one process).
     assert m.arrayable is False
-    assert m.inputs["by_cam"].tags == ["frame_sequence"]
+    assert m.inputs["by_cam"].tags == ["image_sequence"]
     assert m.inputs["by_cam"].arrayed is True
-    assert m.outputs["by_frame"].tags == ["frame_sequence"]
+    assert m.outputs["by_frame"].tags == ["image_sequence"]
     assert m.outputs["by_frame"].arrayed is True
 
 

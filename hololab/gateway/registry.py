@@ -302,6 +302,53 @@ class NodeRegistry:
                     return session
         return None
 
+    def get_output_dim_labels(
+        self, algorithm_name: str, algorithm_version: str, output_port_name: str
+    ) -> list[str] | None:
+        """Return the declared ``dim_labels`` for one output port.
+
+        Returns ``None`` when the pack isn't available on any live session
+        (offline node, pack removed), or when the port isn't declared, or
+        when the manifest file can't be loaded. Callers should treat that
+        as "unknown depth" — not "scalar".
+
+        Used by the handle-summary endpoint to compute how many levels
+        deep to walk when reporting ``dim_sizes``.
+        """
+
+        from pathlib import Path as _Path
+
+        from hololab.manifest import load_manifest
+
+        legacy_root = _Path.cwd() / "packs"
+        for session in self._sessions.values():
+            for pk in session.packs:
+                if pk.name != algorithm_name or pk.version != algorithm_version:
+                    continue
+                candidates: list[_Path] = []
+                if pk.manifest_path:
+                    candidates.append(_Path(pk.manifest_path))
+                if pk.source_dir:
+                    sd = _Path(pk.source_dir)
+                    if sd.is_file():
+                        candidates.append(sd)
+                    else:
+                        candidates.append(sd / "manifest.yaml")
+                for root in [*list(session.pack_dirs), str(legacy_root)]:
+                    candidates.append(_Path(root) / f"{pk.name}@{pk.version}" / "manifest.yaml")
+                for p in candidates:
+                    if not p.is_file():
+                        continue
+                    try:
+                        manifest, _sha = load_manifest(p)
+                    except Exception:
+                        continue
+                    port = manifest.outputs.get(output_port_name)
+                    if port is None:
+                        return None
+                    return list(port.dim_labels)
+        return None
+
     async def as_summary_json(self) -> list[dict[str, Any]]:
         """Cheap dump of currently-connected nodes for the frontend."""
 

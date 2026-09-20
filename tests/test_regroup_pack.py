@@ -215,3 +215,80 @@ def test_handle_summary_scalar_dir_has_no_element_count(tmp_path: Path) -> None:
     assert "element_count" not in res
     assert res["internal_count"] == 1
     assert res["internal_count_kind"] == "cameras"
+
+
+def test_handle_summary_dim_sizes_2d(tmp_path: Path) -> None:
+    """Depth-2 walk on a uniform 2-D tree yields ``[outer, inner]``.
+
+    Also samples the leaf for the tag probe — the ``cameras.txt`` must
+    live under the *inner* leaf, not the outer element, to be found.
+    """
+    from hololab.gateway.handle_summary import summarize_handle
+    from hololab.gateway.handles import Handle
+
+    root = tmp_path / "arr"
+    for f in range(4):
+        for c in range(3):
+            leaf = root / f"frame_{f:04d}" / f"cam_{c:04d}"
+            leaf.mkdir(parents=True)
+            (leaf / "cameras.txt").write_text("# hdr\n1 x\n2 x\n3 x\n")
+    h = Handle(
+        handle_id="h3",
+        node_id="n3",
+        storage="dir",
+        tags=["colmap-cameras-txt"],
+        path=str(root),
+    )
+    res = summarize_handle(h, depth=2)
+    assert res["dim_sizes"] == [4, 3]
+    assert res["element_count"] == 4
+    assert res["internal_count"] == 3
+    assert res["internal_count_kind"] == "cameras"
+
+
+def test_handle_summary_dim_sizes_1d(tmp_path: Path) -> None:
+    from hololab.gateway.handle_summary import summarize_handle
+    from hololab.gateway.handles import Handle
+
+    root = tmp_path / "arr"
+    for i in range(5):
+        (root / f"e_{i:04d}").mkdir(parents=True)
+    h = Handle(handle_id="h4", node_id="n4", storage="dir", tags=[], path=str(root))
+    res = summarize_handle(h, depth=1)
+    assert res["dim_sizes"] == [5]
+    assert res["element_count"] == 5
+
+
+def test_handle_summary_dim_sizes_scalar(tmp_path: Path) -> None:
+    """``depth=0`` (or a scalar-shaped tree) yields ``dim_sizes=null``."""
+    from hololab.gateway.handle_summary import summarize_handle
+    from hololab.gateway.handles import Handle
+
+    scalar = tmp_path / "s"
+    scalar.mkdir()
+    (scalar / "cameras.txt").write_text("1 x\n")
+    h = Handle(
+        handle_id="h5",
+        node_id="n5",
+        storage="dir",
+        tags=["colmap-cameras-txt"],
+        path=str(scalar),
+    )
+    res = summarize_handle(h, depth=0)
+    assert "dim_sizes" not in res
+    assert "element_count" not in res
+
+
+def test_handle_summary_dim_sizes_rejects_ragged(tmp_path: Path) -> None:
+    """A non-uniform 2-D tree yields ``dim_sizes=null`` — no averaged lie."""
+    from hololab.gateway.handle_summary import summarize_handle
+    from hololab.gateway.handles import Handle
+
+    root = tmp_path / "arr"
+    (root / "f_0000" / "c_0000").mkdir(parents=True)
+    (root / "f_0000" / "c_0001").mkdir(parents=True)
+    (root / "f_0001" / "c_0000").mkdir(parents=True)  # one child, not two
+    h = Handle(handle_id="h6", node_id="n6", storage="dir", tags=[], path=str(root))
+    res = summarize_handle(h, depth=2)
+    assert "dim_sizes" not in res
+    assert res["element_count"] == 2  # top-level is still 2

@@ -57,7 +57,7 @@ docs: |
 
 inputs:
   frames:
-    tags: [frame_sequence]
+    tags: [image_sequence]
     description: "One camera's (or one time-slice's) images — an SfM-runnable set."
 
 params:

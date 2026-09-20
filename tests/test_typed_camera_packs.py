@@ -76,12 +76,12 @@ def test_image_undistort_shape() -> None:
     assert m.inputs["cameras"].scalar is True
     assert m.inputs["cameras"].arrayed is False
     # images: fan-out driver — one shard per element (no scalar lock).
-    assert m.inputs["images"].tags == ["frame_sequence"]
+    assert m.inputs["images"].tags == ["image_sequence"]
     assert m.inputs["images"].scalar is False
     # Two outputs — renamed to und_cameras / und_images so the canvas label
     # reads "und.und_cameras" and "und.und_images" (port id == display name).
     assert m.outputs["und_cameras"].tags == ["colmap-cameras-txt"]
-    assert m.outputs["und_images"].tags == ["frame_sequence"]
+    assert m.outputs["und_images"].tags == ["image_sequence"]
     assert m.source_entry == "undistort.py"
     # Docs must cite the framework-level zip contract.
     assert m.docs and "_discover_element_ids" in m.docs
@@ -95,7 +95,7 @@ def test_colmap_triangulate_v030_shape() -> None:
     # Three typed inputs (no monolithic colmap-cams anymore).
     assert m.inputs["cameras"].tags == ["colmap-cameras-txt"]
     assert m.inputs["poses"].tags == ["colmap-images-txt"]
-    assert m.inputs["images"].tags == ["frame_sequence"]
+    assert m.inputs["images"].tags == ["image_sequence"]
     for p in ("cameras", "poses", "images"):
         assert m.inputs[p].arrayed is False, p
     # poses is scalar-locked — shared across all camera shards (broadcast).
@@ -120,7 +120,7 @@ def test_colmap_triangulate_v040_shape() -> None:
     # Inputs unchanged from v0.3.0.
     assert m.inputs["cameras"].tags == ["colmap-cameras-txt"]
     assert m.inputs["poses"].tags == ["colmap-images-txt"]
-    assert m.inputs["images"].tags == ["frame_sequence"]
+    assert m.inputs["images"].tags == ["image_sequence"]
     assert m.inputs["poses"].scalar is True
     # Output tag renamed; scalar: true so each invocation → one element.
     assert m.outputs["frame"].tags == ["colmap"]
@@ -197,9 +197,7 @@ def test_split_images_txt_drops_observations(tmp_path: Path) -> None:
             f"observation token {stray!r} leaked past the second pose"
         )
     # Only pose headers survive — 2 non-blank non-comment lines.
-    non_blank_data_lines = [
-        line for line in body.splitlines() if line and not line.startswith("#")
-    ]
+    non_blank_data_lines = [line for line in body.splitlines() if line and not line.startswith("#")]
     assert len(non_blank_data_lines) == 2, non_blank_data_lines
 
 

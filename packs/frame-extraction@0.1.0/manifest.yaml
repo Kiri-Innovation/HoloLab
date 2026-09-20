@@ -60,11 +60,13 @@ params:
 
 outputs:
   frame_sequence:
-    tags: [frame_sequence]
+    tags: [image_sequence]
     description: >
       Directory containing ``frames/frame_XXXXXX.png``. Consumed by
       ``frames-to-camera-track`` and any other algorithm that needs an
-      ordered image sequence.
+      ordered image sequence. Port name stays ``frame_sequence`` for
+      wiring stability; the tag is the modern ``image_sequence``
+      (alias-compatible with the retired ``frame_sequence`` tag).
 
 runtime:
   env: kiri

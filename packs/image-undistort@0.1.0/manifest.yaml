@@ -56,7 +56,7 @@ inputs:
     tags: [colmap-cameras-txt]
     description: "COLMAP-native cameras.txt (the full camera model, incl. distortion)."
   images:
-    tags: [frame_sequence]
+    tags: [image_sequence]
     description: "Per-cam distorted images to undistort. Filenames map 1:1 into the output."
 
 params:
@@ -74,7 +74,7 @@ outputs:
     tags: [colmap-cameras-txt]
     description: "PINHOLE cameras.txt emitted by image_undistorter (fx,fy,cx,cy adjusted for the crop)."
   undistorted:
-    tags: [frame_sequence]
+    tags: [image_sequence]
     description: "Undistorted images, one per input image, at the PINHOLE resolution."
 
 runtime:

@@ -47,15 +47,17 @@ docs: |
 
 inputs:
   by_cam:
-    tags: [frame_sequence]
+    tags: [image_sequence]
     arrayed: true
-    description: "arrayed<frame_sequence>: each element = one camera's frames."
+    dim_labels: ["cam"]
+    description: "arrayed<image_sequence>: each element = one camera's frames."
 
 outputs:
   by_frame:
-    tags: [frame_sequence]
+    tags: [image_sequence]
     arrayed: true
-    description: "arrayed<frame_sequence>: each element = one frame's cameras."
+    dim_labels: ["frame"]
+    description: "arrayed<image_sequence>: each element = one frame's cameras."
 
 runtime:
   env: kiri

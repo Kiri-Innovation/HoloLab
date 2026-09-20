@@ -87,7 +87,7 @@ inputs:
     tags: [colmap-cams]
     description: "Known camera poses (cameras.txt + images.txt, OPENCV model) — the SfM output."
   frames:
-    tags: [frame_sequence]
+    tags: [image_sequence]
     description: "This frame's per-camera images to triangulate against `cams`."
 
 params:

@@ -279,7 +279,19 @@ class HandleSummary(BaseModel):
         description=(
             "Top-level element count when the handle is arrayed (dir with "
             "one subdir per element). Fills the edge chip's ``[N]``. Null "
-            "when the handle isn't arrayed or the server didn't compute it."
+            "when the handle isn't arrayed or the server didn't compute it. "
+            "Equal to ``dim_sizes[0]`` when both are set — retained as the "
+            "existing single-dim wire contract."
+        ),
+    )
+    dim_sizes: list[int] | None = Field(
+        default=None,
+        description=(
+            "Per-dimension element counts for arrayed handles, outer dim "
+            "first (e.g. ``[100, 21]`` for a frame x cam handle). Length "
+            "matches the port's ``dim_labels`` — walked ``len(dim_labels)`` "
+            "levels deep and reports the branching factor at each level. "
+            "Single-layer handles get ``[N]``; scalar handles get null."
         ),
     )
     internal_count: int | None = Field(

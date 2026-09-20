@@ -37,7 +37,7 @@ def test_colmap_sfm_cams_only_shape_v020() -> None:
     m = _load("colmap-sfm-cams-only", "0.2.0")
     assert m.version == "0.2.0"
     assert m.arrayable is False  # SfM is a whole-sequence solve, not per-shard.
-    assert m.inputs["frames"].tags == ["frame_sequence"]
+    assert m.inputs["frames"].tags == ["image_sequence"]
     assert m.inputs["frames"].arrayed is False
     assert m.outputs["cams"].tags == ["colmap-cams"]
     assert m.outputs["cams"].arrayed is False
@@ -59,7 +59,7 @@ def test_colmap_triangulate_shape_v020() -> None:
     assert m.arrayable is True  # framework fans out one shard per element.
     assert m.inputs["cams"].tags == ["colmap-cams"]
     assert m.inputs["cams"].arrayed is False
-    assert m.inputs["frames"].tags == ["frame_sequence"]
+    assert m.inputs["frames"].tags == ["image_sequence"]
     assert m.inputs["frames"].arrayed is False
     # v0.2.0 output is a self-contained per-frame COLMAP dir (sparse/0 + images/).
     assert m.outputs["frame"].tags == ["colmap-frame"]
@@ -116,7 +116,7 @@ def test_colmap_pack_category_v020(pack_name: str) -> None:
 def test_colmap_sfm_cams_only_shape_v010() -> None:
     m = _load("colmap-sfm-cams-only", "0.1.0")
     assert m.arrayable is False
-    assert m.inputs["frames"].tags == ["frame_sequence"]
+    assert m.inputs["frames"].tags == ["image_sequence"]
     assert m.outputs["cams"].tags == ["colmap-cams"]
 
 
@@ -124,7 +124,7 @@ def test_colmap_triangulate_shape_v010() -> None:
     m = _load("colmap-triangulate", "0.1.0")
     assert m.arrayable is True
     assert m.inputs["cams"].tags == ["colmap-cams"]
-    assert m.inputs["frames"].tags == ["frame_sequence"]
+    assert m.inputs["frames"].tags == ["image_sequence"]
     # v0.1.0 emitted only points3D.
     assert m.outputs["points"].tags == ["colmap-points"]
 
@@ -135,5 +135,5 @@ def test_colmap_assemble_shape_v010() -> None:
     assert m.inputs["cams"].tags == ["colmap-cams"]
     assert m.inputs["cams"].arrayed is True
     assert m.inputs["points"].tags == ["colmap-points"]
-    assert m.inputs["frames"].tags == ["frame_sequence"]
+    assert m.inputs["frames"].tags == ["image_sequence"]
     assert m.outputs["colmap"].tags == ["colmap"]
