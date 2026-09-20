@@ -984,6 +984,15 @@ class JobsStore:
         Filters (all optional) are AND-composed. ``order`` is "desc"
         (newest first, default — matches the panel + Gallery) or "asc"
         (oldest first, useful for agents walking a workflow's history).
+
+        ``state`` accepts an exact state string (``pending`` / ``running``
+        / ``done`` / etc.) OR the alias ``"live"``, which expands to the
+        union ``(pending, assigned, running, orphaned)`` — the same set
+        the cancel-all endpoint targets. The alias exists because
+        ``?state=running`` on its own misses ``assigned`` and
+        ``orphaned`` rows, producing the "UI shows a running shard but
+        ``?state=running`` returns 0" query-inconsistency operators
+        hit during cancel storms.
         """
 
         clauses: list[str] = []
@@ -991,7 +1000,9 @@ class JobsStore:
         if workflow_id:
             clauses.append("workflow_id=?")
             params.append(workflow_id)
-        if state:
+        if state == "live":
+            clauses.append("state IN ('pending', 'assigned', 'running', 'orphaned')")
+        elif state:
             clauses.append("state=?")
             params.append(state)
         if algorithm_name:

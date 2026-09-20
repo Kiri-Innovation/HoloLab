@@ -506,3 +506,44 @@ def test_batch_cancel_dedupes_parent_and_shards(tmp_path: Path) -> None:
             "s0",
             "s1",
         ]
+
+
+# ---------------------------------------------------------------------------
+# state=live query alias
+# ---------------------------------------------------------------------------
+
+
+def test_state_live_alias_returns_all_live_states(tmp_path: Path) -> None:
+    """``GET /api/jobs?state=live`` returns the four-state union
+    (pending, assigned, running, orphaned) — same set the cancel-all
+    endpoint targets. Fixes the ``?state=running`` returning 0 while
+    the UI shows in-flight rows confusion that operators hit during
+    cancel storms (assigned + orphaned rows were invisible to the
+    strict ``state=running`` filter).
+    """
+
+    app = create_app(db_path=tmp_path / "state-live.sqlite")
+    with TestClient(app) as client:
+
+        async def _seed() -> None:
+            await _mk_job(client, job_id="j-pending", state=JobState.PENDING)
+            await _mk_job(client, job_id="j-assigned", state=JobState.ASSIGNED)
+            await _mk_job(client, job_id="j-running", state=JobState.RUNNING)
+            await _mk_job(client, job_id="j-orphaned", state=JobState.ORPHANED)
+            await _mk_job(client, job_id="j-done", state=JobState.DONE)
+            await _mk_job(client, job_id="j-failed", state=JobState.FAILED)
+            await _mk_job(client, job_id="j-cancelled", state=JobState.CANCELLED)
+
+        client.portal.call(_seed)
+
+        r = client.get("/api/jobs?state=live&limit=100")
+        assert r.status_code == 200, r.text
+        rows = r.json()
+        ids = {row["job_id"] for row in rows}
+        assert ids == {"j-pending", "j-assigned", "j-running", "j-orphaned"}
+        # None of the terminal rows leaked in.
+        assert not any(row["state"] in ("done", "failed", "cancelled") for row in rows)
+
+        # A strict single-state filter still works alongside the alias.
+        r_running = client.get("/api/jobs?state=running&limit=100")
+        assert {row["job_id"] for row in r_running.json()} == {"j-running"}

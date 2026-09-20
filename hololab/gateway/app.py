@@ -2393,7 +2393,18 @@ def _mount_routes(app: FastAPI) -> None:
         order: str = "desc",
     ) -> list[dict[str, Any]]:
         """Filters (all optional) AND-compose. ``order=asc|desc`` (default
-        desc = newest first, matching the panel + Gallery)."""
+        desc = newest first, matching the panel + Gallery).
+
+        ``state`` accepts a single state value (``pending``, ``running``,
+        ``done``, ``failed``, ``cancelled``, ``orphaned``, ``interrupted``,
+        ``assigned``) OR the alias ``live`` — which expands to the
+        four-state union (pending, assigned, running, orphaned), the
+        same set the cancel-all endpoint targets. Prefer ``state=live``
+        over ``state=running`` when the operator wants "everything not
+        yet terminal"; ``state=running`` alone misses assigned +
+        orphaned rows and appears to disagree with the RecentJobs UI
+        during cancel storms.
+        """
 
         store: JobsStore = app.state.jobs_store
         return await store.list_recent(
@@ -2557,9 +2568,7 @@ def _mount_routes(app: FastAPI) -> None:
         registry: NodeRegistry = app.state.registry
         hub: FrontendHub = app.state.hub
 
-        live: list[dict[str, Any]] = []
-        for state in _LIVE_JOB_STATES:
-            live.extend(await store.list_recent(limit=500, state=state))
+        live = await store.list_recent(limit=500, state="live")
         live = [r for r in live if r.get("node_id") == node_id]
         return await _cancel_many_by_rows(registry, store, hub, live)
 
@@ -2569,9 +2578,7 @@ def _mount_routes(app: FastAPI) -> None:
         registry: NodeRegistry = app.state.registry
         hub: FrontendHub = app.state.hub
 
-        live: list[dict[str, Any]] = []
-        for state in _LIVE_JOB_STATES:
-            live.extend(await store.list_recent(limit=500, state=state))
+        live = await store.list_recent(limit=500, state="live")
         return await _cancel_many_by_rows(registry, store, hub, live)
 
     @app.get("/proxy/{node_id}/{path:path}")
