@@ -277,6 +277,16 @@ a:hover { text-decoration: underline; }
   color: var(--accent);
   border-color: var(--accent);
 }
+/* Hover or selection lifts the 140 px cap so the full label is readable.
+   Guarded by :not([data-dot]) so this CSS rule never fires on the collapsed
+   dot — dot expansion is JS-driven (removes [data-dot] before the chip
+   becomes visible) which avoids a race between CSS and the React state
+   update. The existing transition: max-width 120ms animates the expansion;
+   the centered transform keeps the pill anchored to the wire midpoint. */
+.hl-edge-chip:not([data-dot]):hover,
+.hl-edge-chip:not([data-dot])[data-selected] {
+  max-width: 400px;
+}
 
 /* Dot mode: short-span edge — chip collapses to a small circle so it
    doesn't overflow onto adjacent node cards. All expansion is JS-driven
