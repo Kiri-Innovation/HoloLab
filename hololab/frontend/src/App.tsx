@@ -74,6 +74,7 @@ import { Artifacts } from "./Artifacts";
 import { Gallery } from "./Gallery";
 import { CanvasContext } from "./canvas/CanvasContext";
 import { aggregateJobsToRuntime } from "./canvas/nodeRuntime";
+import { MobileShell, useIsMobilePortrait } from "./canvas/MobileShell";
 import { PackPalette } from "./canvas/PackPalette";
 import { ComputeNodesPanel } from "./canvas/ComputeNodesPanel";
 import { MinimapToggleButton } from "./canvas/MinimapToggleButton";
@@ -1699,76 +1700,36 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalog, initialWorkflowId]);
 
-  return (
-    <div
-      className="hl-app-shell hl-workspace"
-      style={{
-        display: "grid",
-        gridTemplateRows: `auto minmax(0, 1fr) 6px ${bottomDock.value}px`,
-        gridTemplateColumns: `${leftDock.value}px 6px minmax(0, 1fr) 6px ${rightDock.value}px`,
-        gridTemplateAreas: `
-          "top top top top top"
-          "left left-split mid right-split right"
-          "bottom-split bottom-split bottom-split bottom-split bottom-split"
-          "bottom bottom bottom bottom bottom"
-        `,
-        height: "100vh",
-        background: "var(--bg)",
-        color: "var(--text-body)",
-      }}
-    >
-      <div className="hl-topbar" style={{ gridArea: "top" }}>
-        <WorkflowToolbar
-          workflowId={workflowId}
-          name={workflowName}
-          connected={connected}
-          running={running}
-          summary={workflowId ? runSummary : null}
-          onNameChange={setWorkflowName}
-          onRun={onRun}
-          onExitToGallery={onExitToGallery}
-          saveStatus={autosave.status}
-          onSaveRetry={autosave.save}
-        />
-      </div>
+  const isMobile = useIsMobilePortrait();
 
-      <aside
-        className="hl-panel"
-        style={{
-          gridArea: "left",
-          borderRight: "none",
-          background: "var(--surface)",
-          overflow: "hidden",
-        }}
-      >
-        <PackPalette catalog={catalog} onRefresh={refreshCatalog} />
-      </aside>
+  // Slot subtrees — shared by the desktop grid and the mobile tab shell
+  // so the two layouts render the exact same panel components (no cloned
+  // mobile variants). The desktop grid still owns its splitters and grid
+  // areas; the mobile shell just consumes these five slots verbatim.
+  const topbarSlot = (
+    <WorkflowToolbar
+      workflowId={workflowId}
+      name={workflowName}
+      connected={connected}
+      running={running}
+      summary={workflowId ? runSummary : null}
+      onNameChange={setWorkflowName}
+      onRun={onRun}
+      onExitToGallery={onExitToGallery}
+      saveStatus={autosave.status}
+      onSaveRetry={autosave.save}
+    />
+  );
 
-      <div style={{ gridArea: "left-split", minHeight: 0 }}>
-        <Splitter
-          label="Resize packs panel"
-          onResize={leftDock.resize}
-          onReset={leftDock.reset}
-          orientation="vertical"
-        />
-      </div>
-
-      <main
-        ref={rfWrapper}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-        style={{ gridArea: "mid", position: "relative", overflow: "hidden" }}
-      >
-        <CanvasContext.Provider value={canvasContextValue}>
+  const canvasContentSlot = (
+    <>
+      <CanvasContext.Provider value={canvasContextValue}>
         {viewingSnapshot ? (
           <>
             <SnapshotBanner
               snapshot={viewingSnapshot}
               onBack={onExitSnapshot}
               onRestored={() => {
-                // After restoring: reload the draft AND exit snapshot
-                // mode so the user lands directly on the freshly-cloned
-                // editable graph.
                 if (workflowId) void onLoad(workflowId);
                 onExitSnapshot();
               }}
@@ -1796,11 +1757,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             proOptions={{ hideAttribution: true }}
           >
             <Controls />
-            {/* The MiniMap (also position=bottom-right, ~150px tall) would
-                otherwise sit on top of this button and hide the very
-                control the user needs to collapse it. When open, lift
-                the toggle Panel by minimap-height + gap so it stacks
-                cleanly above the map. */}
             <Panel
               position="bottom-right"
               style={{ marginBottom: minimapOpen ? 158 : 0 }}
@@ -1814,26 +1770,179 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             <Background gap={20} color="var(--rf-grid)" />
           </ReactFlow>
         )}
-        </CanvasContext.Provider>
-        {snapshotError && (
+      </CanvasContext.Provider>
+      {snapshotError && (
+        <div
+          style={{
+            position: "absolute",
+            top: 12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "var(--error)",
+            color: "var(--accent-fg)",
+            padding: "6px 12px",
+            borderRadius: "var(--radius-sm)",
+            fontSize: "var(--fs-xs)",
+            boxShadow: "var(--shadow-2)",
+            zIndex: 10,
+          }}
+        >
+          {snapshotError}
+        </div>
+      )}
+    </>
+  );
+
+  const packsSlot = <PackPalette catalog={catalog} onRefresh={refreshCatalog} />;
+  const nodesSlot = <ComputeNodesPanel nodes={computeNodes} />;
+  const runsSlot = workflowId ? (
+    <RunsPanel
+      workflowId={workflowId}
+      onOpenSnapshot={(sid) => void onOpenSnapshot(sid)}
+      currentSnapshotId={viewingSnapshot?.snapshot_id ?? latestSnapshotId}
+      draftDiff={draftDiff}
+      refreshSignal={runsPanelRefreshToken}
+      onSnapshotDeleted={(sid) => {
+        if (viewingSnapshot?.snapshot_id === sid) {
+          onExitSnapshot();
+        }
+      }}
+    />
+  ) : null;
+  const jobsSlot = (
+    <RecentJobsPanel
+      jobs={workflowJobs}
+      onSelectGraphNode={onSelectGraphNode}
+      currentWorkflowId={workflowId}
+    />
+  );
+  const inspectorSlot = edgeInspectorProps ? (
+    <EdgeInspector {...edgeInspectorProps} />
+  ) : viewingSnapshot ? (
+    <SnapshotNodeInspector
+      graphNodeId={snapshotSelectedGraphNodeId}
+      pack={snapshotSelectedPack}
+      job={snapshotSelectedJob}
+      onRerunFromHere={onRerunFromHere}
+    />
+  ) : (
+    <NodeInspector
+      selected={
+        selectedNode
+          ? {
+              id: selectedNode.id,
+              algorithm_name: selectedNode.data.pack.name,
+              algorithm_version: selectedNode.data.pack.version,
+              position: {
+                x: selectedNode.position.x,
+                y: selectedNode.position.y,
+              },
+              params:
+                (
+                  selectedNode.data as AlgorithmNodeData & {
+                    params?: Record<string, unknown>;
+                  }
+                ).params ?? {},
+              assigned_node_id: selectedNode.data.assigned_node_id,
+              arrayed_toggle: Boolean(
+                (
+                  selectedNode.data as AlgorithmNodeData & {
+                    arrayed_toggle?: boolean;
+                  }
+                ).arrayed_toggle,
+              ),
+            }
+          : null
+      }
+      pack={selectedNode ? selectedNode.data.pack : null}
+      computeNodes={computeNodes}
+      onChange={onInspectorChange}
+      onDelete={onInspectorDelete}
+    />
+  );
+
+  // Mobile portrait: swap to the tab shell. Above the 900px breakpoint
+  // ``isMobile`` is always false so this branch is dead code for
+  // desktop — no CSS or grid changes leak into the wide layout.
+  if (isMobile) {
+    const mobileSelectionId =
+      viewingSnapshot
+        ? snapshotSelectedGraphNodeId ?? snapshotSelectedEdgeId ?? null
+        : selectedNode?.id ?? selectedEdge?.id ?? null;
+    return (
+      <MobileShell
+        topbar={topbarSlot}
+        canvas={
           <div
-            style={{
-              position: "absolute",
-              top: 12,
-              left: "50%",
-              transform: "translateX(-50%)",
-              background: "var(--error)",
-              color: "var(--accent-fg)",
-              padding: "6px 12px",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "var(--fs-xs)",
-              boxShadow: "var(--shadow-2)",
-              zIndex: 10,
-            }}
+            ref={rfWrapper}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+            style={{ position: "absolute", inset: 0 }}
           >
-            {snapshotError}
+            {canvasContentSlot}
           </div>
-        )}
+        }
+        packs={packsSlot}
+        nodes={nodesSlot}
+        runs={runsSlot}
+        jobs={jobsSlot}
+        inspect={inspectorSlot}
+        selectionId={mobileSelectionId}
+        latestSnapshotId={latestSnapshotId}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="hl-app-shell hl-workspace"
+      style={{
+        display: "grid",
+        gridTemplateRows: `auto minmax(0, 1fr) 6px ${bottomDock.value}px`,
+        gridTemplateColumns: `${leftDock.value}px 6px minmax(0, 1fr) 6px ${rightDock.value}px`,
+        gridTemplateAreas: `
+          "top top top top top"
+          "left left-split mid right-split right"
+          "bottom-split bottom-split bottom-split bottom-split bottom-split"
+          "bottom bottom bottom bottom bottom"
+        `,
+        height: "100vh",
+        background: "var(--bg)",
+        color: "var(--text-body)",
+      }}
+    >
+      <div className="hl-topbar" style={{ gridArea: "top" }}>
+        {topbarSlot}
+      </div>
+
+      <aside
+        className="hl-panel"
+        style={{
+          gridArea: "left",
+          borderRight: "none",
+          background: "var(--surface)",
+          overflow: "hidden",
+        }}
+      >
+        {packsSlot}
+      </aside>
+
+      <div style={{ gridArea: "left-split", minHeight: 0 }}>
+        <Splitter
+          label="Resize packs panel"
+          onResize={leftDock.resize}
+          onReset={leftDock.reset}
+          orientation="vertical"
+        />
+      </div>
+
+      <main
+        ref={rfWrapper}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        style={{ gridArea: "mid", position: "relative", overflow: "hidden" }}
+      >
+        {canvasContentSlot}
       </main>
 
       <div style={{ gridArea: "right-split", minHeight: 0 }}>
@@ -1869,10 +1978,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             : "1fr",
         }}
       >
-        <div style={{ minHeight: 0, overflow: "auto" }}>
-          <ComputeNodesPanel nodes={computeNodes} />
-        </div>
-        {workflowId && (
+        <div style={{ minHeight: 0, overflow: "auto" }}>{nodesSlot}</div>
+        {runsSlot && (
           <>
             <Splitter
               label="Resize compute nodes and run history"
@@ -1880,31 +1987,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               onReset={rightSplit.reset}
               orientation="horizontal"
             />
-          <div
-            style={{
-              minHeight: 0,
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <RunsPanel
-              workflowId={workflowId}
-              onOpenSnapshot={(sid) => void onOpenSnapshot(sid)}
-              currentSnapshotId={viewingSnapshot?.snapshot_id ?? latestSnapshotId}
-              draftDiff={draftDiff}
-              refreshSignal={runsPanelRefreshToken}
-              onSnapshotDeleted={(sid) => {
-                // If the operator deleted the run they were viewing,
-                // drop the read-only canvas state and fall back to the
-                // draft — otherwise SnapshotCanvas would keep trying
-                // to render a snapshot the backend no longer has.
-                if (viewingSnapshot?.snapshot_id === sid) {
-                  onExitSnapshot();
-                }
+            <div
+              style={{
+                minHeight: 0,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
               }}
-            />
-          </div>
+            >
+              {runsSlot}
+            </div>
           </>
         )}
       </aside>
@@ -1931,57 +2023,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           gridTemplateColumns: `minmax(240px, 1fr) 6px ${bottomSplit.value}px`,
         }}
       >
-        <div style={{ overflow: "hidden" }}>
-          {edgeInspectorProps ? (
-            // Edge selected → swap the bottom slot into edge mode. Same
-            // container, different content. Node selection is mutually
-            // exclusive with edge selection (xyflow's default behaviour),
-            // so this branch reliably wins when the operator clicked a
-            // wire.
-            <EdgeInspector {...edgeInspectorProps} />
-          ) : viewingSnapshot ? (
-            <SnapshotNodeInspector
-              graphNodeId={snapshotSelectedGraphNodeId}
-              pack={snapshotSelectedPack}
-              job={snapshotSelectedJob}
-              onRerunFromHere={onRerunFromHere}
-            />
-          ) : (
-            <NodeInspector
-              selected={
-                selectedNode
-                  ? {
-                      id: selectedNode.id,
-                      algorithm_name: selectedNode.data.pack.name,
-                      algorithm_version: selectedNode.data.pack.version,
-                      position: {
-                        x: selectedNode.position.x,
-                        y: selectedNode.position.y,
-                      },
-                      params:
-                        (
-                          selectedNode.data as AlgorithmNodeData & {
-                            params?: Record<string, unknown>;
-                          }
-                        ).params ?? {},
-                      assigned_node_id: selectedNode.data.assigned_node_id,
-                      arrayed_toggle: Boolean(
-                        (
-                          selectedNode.data as AlgorithmNodeData & {
-                            arrayed_toggle?: boolean;
-                          }
-                        ).arrayed_toggle,
-                      ),
-                    }
-                  : null
-              }
-              pack={selectedNode ? selectedNode.data.pack : null}
-              computeNodes={computeNodes}
-              onChange={onInspectorChange}
-              onDelete={onInspectorDelete}
-            />
-          )}
-        </div>
+        <div style={{ overflow: "hidden" }}>{inspectorSlot}</div>
         <Splitter
           label="Resize inspector and recent jobs"
           onResize={bottomSplit.resize}
@@ -1989,13 +2031,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           orientation="vertical"
           reverse
         />
-        <div style={{ minWidth: 0, overflow: "hidden" }}>
-          <RecentJobsPanel
-            jobs={workflowJobs}
-            onSelectGraphNode={onSelectGraphNode}
-            currentWorkflowId={workflowId}
-          />
-        </div>
+        <div style={{ minWidth: 0, overflow: "hidden" }}>{jobsSlot}</div>
       </section>
     </div>
   );
