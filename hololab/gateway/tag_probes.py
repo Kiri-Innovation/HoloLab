@@ -41,12 +41,46 @@ class ProbeResult:
 ProbeFn = Callable[[Path], ProbeResult | None]
 
 
-def _probe_colmap_cameras_txt(path: Path) -> ProbeResult | None:
-    """Count camera rows in ``cameras.txt``.
+def _parse_colmap_header_count(txt: Path, keyword: str) -> int | None:
+    """Parse ``# <keyword> N`` from a COLMAP text file header.
 
-    COLMAP's cameras.txt is one camera per non-comment non-blank line.
-    Path can be either the file itself or a directory containing it
-    (element root convention: ``<element>/cameras.txt``).
+    COLMAP always writes a comment like::
+
+        # Number of images: 21, mean observations per image: 1912.4
+        # Number of cameras: 3
+        # Number of points: 6685, mean track length: 5.7
+
+    Returns the integer N, or None if not found or file unreadable.
+    Stops reading after the header block (first non-comment non-blank line).
+    """
+    if not txt.is_file():
+        return None
+    try:
+        with txt.open("r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                s = line.strip()
+                if not s:
+                    continue
+                if not s.startswith("#"):
+                    break
+                if keyword in s:
+                    try:
+                        part = s.split(keyword)[1].split(",")[0].strip()
+                        return int(part)
+                    except (ValueError, IndexError):
+                        pass
+    except OSError:
+        return None
+    return None
+
+
+def _probe_colmap_cameras_txt(path: Path) -> ProbeResult | None:
+    """Count camera model rows in ``cameras.txt``.
+
+    COLMAP's cameras.txt has one row per distinct camera *model* (not per
+    physical camera). After image-undistort this is typically 1 (shared
+    PINHOLE model for all cameras). ``kind="cam models"`` disambiguates
+    from view count so the tooltip reads ``1 cam models``, not ``1 cameras``.
     """
     txt = path / "cameras.txt" if path.is_dir() else path
     if not txt.is_file():
@@ -61,7 +95,7 @@ def _probe_colmap_cameras_txt(path: Path) -> ProbeResult | None:
                 count += 1
     except OSError:
         return None
-    return ProbeResult(count=count, kind="cameras")
+    return ProbeResult(count=count, kind="cam models")
 
 
 def _probe_colmap_points_txt(path: Path) -> ProbeResult | None:
@@ -82,11 +116,60 @@ def _probe_colmap_points_txt(path: Path) -> ProbeResult | None:
     return ProbeResult(count=count, kind="points")
 
 
+def _probe_colmap_images_txt(path: Path) -> ProbeResult | None:
+    """Count image views in ``images.txt`` via COLMAP header comment.
+
+    ``images.txt`` always opens with ``# Number of images: N`` which is the
+    authoritative count regardless of whether observation lines are blank
+    (colmap-split output) or populated (sfm output).
+    """
+    txt = path / "images.txt" if path.is_dir() else path
+    n = _parse_colmap_header_count(txt, "Number of images:")
+    if n is not None:
+        return ProbeResult(count=n, kind="views")
+    return None
+
+
+def _probe_colmap_cams(path: Path) -> ProbeResult | None:
+    """Count calibrated views in a colmap-cams bundle (cameras + images).
+
+    The sfm-cams-only output dir contains ``cameras.txt`` (intrinsics,
+    often 1 shared model) and ``images.txt`` (one pose per view). The
+    view count from ``images.txt`` is the most useful number — it tells
+    how many physical cameras were calibrated.
+    """
+    txt = path / "images.txt" if path.is_dir() else path
+    n = _parse_colmap_header_count(txt, "Number of images:")
+    if n is not None:
+        return ProbeResult(count=n, kind="views")
+    return None
+
+
+def _probe_colmap(path: Path) -> ProbeResult | None:
+    """Count 3-D points in a per-frame COLMAP reconstruction directory.
+
+    ``colmap-triangulate`` outputs ``sparse/0/{cameras,images,points3D}.txt``.
+    Points count is the unique piece of information this handle adds on top
+    of the cameras/images already visible on other edges in the same frame.
+    """
+    for candidate in (
+        path / "sparse" / "0" / "points3D.txt",
+        path / "points3D.txt",
+    ):
+        n = _parse_colmap_header_count(candidate, "Number of points:")
+        if n is not None:
+            return ProbeResult(count=n, kind="points")
+    return None
+
+
 # Tag → probe function. First match wins when a handle carries multiple
 # tags. Keep tags here in the same casing they appear in manifests.
 _REGISTRY: dict[str, ProbeFn] = {
     "colmap-cameras-txt": _probe_colmap_cameras_txt,
     "colmap-points-txt": _probe_colmap_points_txt,
+    "colmap-images-txt": _probe_colmap_images_txt,
+    "colmap-cams": _probe_colmap_cams,
+    "colmap": _probe_colmap,
 }
 
 

@@ -140,8 +140,8 @@ def test_regroup_is_idempotent(tmp_path: Path) -> None:
 
 
 def test_tag_probe_colmap_cameras_txt_counts_non_comment_rows(tmp_path: Path) -> None:
-    """The cameras.txt probe counts data rows, skipping ``#`` comments
-    and blank lines. This is what the edge chip shows as ``(N cameras)``."""
+    """cameras.txt probe counts data rows; kind is ``cam models`` (not
+    ``cameras``) to disambiguate from view count in the tooltip."""
     from hololab.gateway.tag_probes import internal_count_for
 
     elem = tmp_path / "element"
@@ -156,7 +156,79 @@ def test_tag_probe_colmap_cameras_txt_counts_non_comment_rows(tmp_path: Path) ->
     res = internal_count_for(["colmap-cameras-txt"], elem)
     assert res is not None
     assert res.count == 3
-    assert res.kind == "cameras"
+    assert res.kind == "cam models"
+
+
+def test_tag_probe_colmap_images_txt_parses_header_comment(tmp_path: Path) -> None:
+    """images.txt probe reads ``# Number of images: N`` from the COLMAP header.
+
+    This works for both split output (blank obs lines) and full SfM output
+    (non-blank obs lines) since the header comment is always authoritative.
+    """
+    from hololab.gateway.tag_probes import internal_count_for
+
+    elem = tmp_path / "poses"
+    elem.mkdir()
+    (elem / "images.txt").write_text(
+        "# Image list with two lines of data per image:\n"
+        "#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n"
+        "# Number of images: 21, mean observations per image: 1912.4\n"
+        "1 1.0 0.0 0.0 0.0 0.0 0.0 0.0 1 cam00.png\n"
+    )
+    res = internal_count_for(["colmap-images-txt"], elem)
+    assert res is not None
+    assert res.count == 21
+    assert res.kind == "views"
+
+
+def test_tag_probe_colmap_cams_reads_view_count_from_images_txt(tmp_path: Path) -> None:
+    """colmap-cams probe extracts view count from ``images.txt`` comment.
+
+    The SfM output dir has both cameras.txt (intrinsics, often 1 shared
+    model) and images.txt (one pose per physical camera view). The view
+    count is more useful on the chip than the model count.
+    """
+    from hololab.gateway.tag_probes import internal_count_for
+
+    elem = tmp_path / "cams"
+    elem.mkdir()
+    (elem / "cameras.txt").write_text("# cams\n1 PINHOLE 100 100 50 50 50 50\n")
+    (elem / "images.txt").write_text(
+        "# Image list with two lines of data per image:\n"
+        "# Number of images: 3\n"
+        "1 1.0 0.0 0.0 0.0 0.0 0.0 0.0 1 cam0.png\n"
+    )
+    res = internal_count_for(["colmap-cams"], elem)
+    assert res is not None
+    assert res.count == 3
+    assert res.kind == "views"
+
+
+def test_tag_probe_colmap_reads_point_count_from_sparse(tmp_path: Path) -> None:
+    """colmap probe reads 3-D point count from ``sparse/0/points3D.txt`` header."""
+    from hololab.gateway.tag_probes import internal_count_for
+
+    elem = tmp_path / "frame"
+    (elem / "sparse" / "0").mkdir(parents=True)
+    (elem / "sparse" / "0" / "points3D.txt").write_text(
+        "# 3D point list with one line of data per point:\n"
+        "# Number of points: 6685, mean track length: 5.7\n"
+        "1 0.1 0.2 0.3 255 0 0 0.5 1 0\n"
+    )
+    res = internal_count_for(["colmap"], elem)
+    assert res is not None
+    assert res.count == 6685
+    assert res.kind == "points"
+
+
+def test_tag_probe_colmap_probe_returns_none_when_no_sparse(tmp_path: Path) -> None:
+    """colmap probe returns None when neither sparse/0/points3D.txt nor
+    points3D.txt exists at the root — no count, no badge."""
+    from hololab.gateway.tag_probes import internal_count_for
+
+    elem = tmp_path / "frame"
+    elem.mkdir()
+    assert internal_count_for(["colmap"], elem) is None
 
 
 def test_tag_probe_returns_none_for_unregistered_tag(tmp_path: Path) -> None:
@@ -188,7 +260,7 @@ def test_handle_summary_annotates_element_count_and_internal_count(tmp_path: Pat
     res = summarize_handle(h)
     assert res["element_count"] == 3
     assert res["internal_count"] == 2
-    assert res["internal_count_kind"] == "cameras"
+    assert res["internal_count_kind"] == "cam models"
 
 
 def test_handle_summary_scalar_dir_has_no_element_count(tmp_path: Path) -> None:
@@ -214,7 +286,7 @@ def test_handle_summary_scalar_dir_has_no_element_count(tmp_path: Path) -> None:
     res = summarize_handle(h)
     assert "element_count" not in res
     assert res["internal_count"] == 1
-    assert res["internal_count_kind"] == "cameras"
+    assert res["internal_count_kind"] == "cam models"
 
 
 def test_handle_summary_dim_sizes_2d(tmp_path: Path) -> None:
@@ -243,7 +315,7 @@ def test_handle_summary_dim_sizes_2d(tmp_path: Path) -> None:
     assert res["dim_sizes"] == [4, 3]
     assert res["element_count"] == 4
     assert res["internal_count"] == 3
-    assert res["internal_count_kind"] == "cameras"
+    assert res["internal_count_kind"] == "cam models"
 
 
 def test_handle_summary_dim_sizes_1d(tmp_path: Path) -> None:
