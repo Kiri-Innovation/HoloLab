@@ -58,9 +58,16 @@ def test_output_spec_accepts_empty_dim_labels_when_arrayed() -> None:
     assert spec.dim_labels == []
 
 
-def test_input_spec_rejects_dim_labels_without_arrayed() -> None:
-    with pytest.raises(ValueError, match="dim_labels declared but arrayed"):
-        InputSpec(tags=["x"], arrayed=False, dim_labels=["dim1"])
+def test_input_spec_accepts_dim_labels_without_arrayed() -> None:
+    """Post-relaxation: non-arrayed inputs may declare dim_labels.
+
+    Semantics: labels describe the aggregate view the port sees at runtime.
+    For an arrayable pack, a per-shard-scalar input still sees an
+    ``arrayed<T>`` aggregate; ``dim_labels`` names its dims. The old
+    validator forbade this — now allowed.
+    """
+    spec = InputSpec(tags=["x"], arrayed=False, dim_labels=["dim1"])
+    assert spec.dim_labels == ["dim1"]
 
 
 def test_output_spec_rejects_dim_labels_over_two_layers() -> None:
@@ -68,9 +75,16 @@ def test_output_spec_rejects_dim_labels_over_two_layers() -> None:
         OutputSpec(tags=["x"], arrayed=True, dim_labels=["a", "b", "c"])
 
 
-def test_input_spec_rejects_dim_labels_with_scalar() -> None:
-    with pytest.raises(ValueError, match="mutually exclusive"):
-        InputSpec(tags=["x"], arrayed=True, scalar=True, dim_labels=["dim"])
+def test_input_spec_accepts_dim_labels_with_scalar() -> None:
+    """Post-relaxation: ``scalar: true`` + dim_labels is allowed too.
+
+    Same rationale as the non-arrayed case: the aggregate handle after
+    framework arrayable wrapping is arrayed<T>; the ``scalar: true`` port
+    inside the shard sees the broadcast, but the aggregate outer dim
+    still deserves a label.
+    """
+    spec = InputSpec(tags=["x"], arrayed=True, scalar=True, dim_labels=["dim"])
+    assert spec.dim_labels == ["dim"]
 
 
 # ---------------------------------------------------------------------------

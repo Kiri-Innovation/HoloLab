@@ -114,3 +114,88 @@ def internal_count_for(tags: list[str], sample_path: Path) -> ProbeResult | None
         if res is not None:
             return res
     return None
+
+
+# ---------------------------------------------------------------------------
+# Content-dim registry — for tags whose semantic type carries intrinsic
+# enumeration layers *inside* the leaf (e.g. ``image_sequence`` is a
+# sequence of files under ``frames/`` — one intrinsic dim beyond whatever
+# arrayed wrapping the port has). Consumed by
+# ``handle_summary._measure_dim_sizes`` to compute ``dim_sizes[k:]`` for
+# labels beyond the physical dir depth.
+#
+# Contract: a content-dim probe takes the concrete leaf path (after the
+# walker has descended the physical dir layers) and returns
+# ``list[int]`` — the sizes of the intrinsic content dims in the same
+# outer-first order the port's ``dim_labels`` declares them.
+# ``None`` means "probe failed / not applicable"; the annotator drops
+# ``dim_sizes`` entirely in that case (never emits a partial lie).
+# ---------------------------------------------------------------------------
+
+
+ContentDimProbeFn = Callable[[Path], list[int] | None]
+
+
+def _probe_image_sequence_content_dims(path: Path) -> list[int] | None:
+    """One intrinsic dim: count image files under ``<leaf>/frames/``.
+
+    ``image_sequence`` is by convention ``<leaf>/frames/frame_XXXXXX.png``
+    (post-``regroup-by-frame`` the leaf-inside files are per-camera
+    ``cam_YY.png`` — same layer, different naming).
+    """
+    frames = path / "frames"
+    if not frames.is_dir():
+        return None
+    try:
+        n = sum(1 for c in frames.iterdir() if not c.name.startswith(".") and c.is_file())
+    except OSError:
+        return None
+    return [n]
+
+
+# tag → (content_dim_count, probe_fn). Content dim count = number of
+# intrinsic layers the tag adds on top of whatever dir depth the port's
+# arrayed/wrap declaration produces.
+_CONTENT_DIM_REGISTRY: dict[str, tuple[int, ContentDimProbeFn]] = {
+    "image_sequence": (1, _probe_image_sequence_content_dims),
+    # ``frame_sequence`` alias kept alongside so pre-migration handles
+    # still get inner-dim probing without needing to canonicalize tags
+    # at the summary layer.
+    "frame_sequence": (1, _probe_image_sequence_content_dims),
+}
+
+
+def content_dim_count_for(tags: list[str]) -> int:
+    """Return the intrinsic content-dim count for the first matching tag.
+
+    Zero when no tag on the handle carries content dims (colmap bundles,
+    single-file handles, video-source, …). The summary uses this to split
+    ``dim_labels`` between physical dir layers and content probes:
+
+        dir_depth = len(dim_labels) - content_dim_count_for(tags)
+    """
+    for tag in tags:
+        entry = _CONTENT_DIM_REGISTRY.get(tag)
+        if entry is not None:
+            return entry[0]
+    return 0
+
+
+def probe_content_dims(tags: list[str], sample_path: Path) -> list[int] | None:
+    """Run the first matching tag's content-dim probe against ``sample_path``.
+
+    Returns the list of intrinsic-dim sizes (outer-first), or ``None`` if
+    the tag isn't registered OR the probe couldn't read the expected
+    shape (in which case the caller drops ``dim_sizes`` — no partial
+    reports).
+    """
+    for tag in tags:
+        entry = _CONTENT_DIM_REGISTRY.get(tag)
+        if entry is None:
+            continue
+        _n, probe = entry
+        try:
+            return probe(sample_path)
+        except OSError:
+            return None
+    return None

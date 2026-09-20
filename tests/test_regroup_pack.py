@@ -292,3 +292,122 @@ def test_handle_summary_dim_sizes_rejects_ragged(tmp_path: Path) -> None:
     res = summarize_handle(h, depth=2)
     assert "dim_sizes" not in res
     assert res["element_count"] == 2  # top-level is still 2
+
+
+# ---------------------------------------------------------------------------
+# Content-dim probes — the arrayable-wrap semantic addition. When a tag
+# carries an intrinsic content dim (image_sequence's ``frames/`` sequence),
+# summary splits declared depth into (outer dir layers) + (content probe).
+# ---------------------------------------------------------------------------
+
+
+def test_content_dim_registry_image_sequence(tmp_path: Path) -> None:
+    """image_sequence's content probe reports the file count under ``frames/``."""
+    from hololab.gateway.tag_probes import content_dim_count_for, probe_content_dims
+
+    leaf = tmp_path / "elem"
+    (leaf / "frames").mkdir(parents=True)
+    for i in range(5):
+        (leaf / "frames" / f"frame_{i:06d}.png").write_bytes(b"")
+
+    assert content_dim_count_for(["image_sequence"]) == 1
+    assert content_dim_count_for(["frame_sequence"]) == 1  # alias
+    assert content_dim_count_for(["colmap"]) == 0
+
+    assert probe_content_dims(["image_sequence"], leaf) == [5]
+    assert probe_content_dims(["colmap"], leaf) is None
+    # Non-image_sequence path with no frames/ → None (drops dim_sizes upstream).
+    assert probe_content_dims(["image_sequence"], tmp_path) is None
+
+
+def test_handle_summary_dim_sizes_image_sequence_2d(tmp_path: Path) -> None:
+    """arrayable-wrap image_sequence: dim_labels=["frame","cam"] with depth=2.
+
+    Physical layout matches ``image-undistort.und_images``:
+    ``<frame_XXX>/frames/<cam_YY>.png``. Walker walks 1 dir level (frame),
+    then image_sequence probe counts files under frames/ (cam count).
+    """
+    from hololab.gateway.handle_summary import summarize_handle
+    from hololab.gateway.handles import Handle
+
+    root = tmp_path / "arr"
+    for f in range(3):
+        for c in range(4):
+            (root / f"frame_{f:04d}" / "frames").mkdir(parents=True, exist_ok=True)
+            (root / f"frame_{f:04d}" / "frames" / f"cam_{c:02d}.png").write_bytes(b"")
+    h = Handle(
+        handle_id="hh",
+        node_id="n",
+        storage="dir",
+        tags=["image_sequence"],
+        path=str(root),
+    )
+    res = summarize_handle(h, depth=2)
+    assert res["dim_sizes"] == [3, 4]
+    assert res["element_count"] == 3
+
+
+def test_handle_summary_dim_sizes_image_sequence_1d(tmp_path: Path) -> None:
+    """image_sequence with only the wrap layer (depth=1) still probes ``frames/``
+    but only when the caller says depth=2. With depth=1 and image_sequence, the
+    walker uses dir_depth = 1 - 1 = 0 (no dir walk, only content probe).
+
+    Matches a non-arrayable single image_sequence handle (rare — mostly for
+    the frame-extraction per-shard leaf viewed by itself).
+    """
+    from hololab.gateway.handle_summary import summarize_handle
+    from hololab.gateway.handles import Handle
+
+    scalar_seq = tmp_path / "seq"
+    (scalar_seq / "frames").mkdir(parents=True)
+    for i in range(7):
+        (scalar_seq / "frames" / f"f_{i:04d}.png").write_bytes(b"")
+    h = Handle(
+        handle_id="hh2",
+        node_id="n",
+        storage="dir",
+        tags=["image_sequence"],
+        path=str(scalar_seq),
+    )
+    res = summarize_handle(h, depth=1)
+    assert res["dim_sizes"] == [7]
+
+
+def test_handle_summary_dim_sizes_image_sequence_missing_frames_dir(tmp_path: Path) -> None:
+    """Probe returns None when ``frames/`` is missing at the leaf — annotator
+    drops ``dim_sizes`` entirely rather than emitting a partial [outer, ?]."""
+    from hololab.gateway.handle_summary import summarize_handle
+    from hololab.gateway.handles import Handle
+
+    root = tmp_path / "arr"
+    for f in range(3):
+        (root / f"frame_{f:04d}").mkdir(parents=True)
+        # No frames/ subdir — image_sequence content probe will fail.
+    h = Handle(
+        handle_id="hh3",
+        node_id="n",
+        storage="dir",
+        tags=["image_sequence"],
+        path=str(root),
+    )
+    res = summarize_handle(h, depth=2)
+    assert "dim_sizes" not in res
+    assert res["element_count"] == 3  # element_count fallback stays
+
+
+def test_schema_allows_dim_labels_on_scalar_ports() -> None:
+    """Post-relaxation: scalar/non-arrayed ports may declare dim_labels.
+
+    Describes the aggregate view after framework arrayable wrapping.
+    Locks the schema change so a future validator tighten-up doesn't
+    silently break arrayable-wrapped chip labels.
+    """
+    from hololab.manifest.schema import InputSpec, OutputSpec
+
+    # Scalar output with dim_labels — used by colmap-triangulate.frame.
+    out = OutputSpec(tags=["colmap"], scalar=True, dim_labels=["frame"])
+    assert out.dim_labels == ["frame"]
+
+    # Non-arrayed input with dim_labels — describes aggregate under toggle.
+    inp = InputSpec(tags=["image_sequence"], dim_labels=["frame", "cam"])
+    assert inp.dim_labels == ["frame", "cam"]

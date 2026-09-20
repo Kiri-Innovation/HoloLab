@@ -105,6 +105,10 @@ outputs:
   frame:
     tags: [colmap]
     scalar: true
+    # Scalar per-shard; framework wraps → arrayed<colmap>. The colmap
+    # tag is a scalar bundle (no intrinsic content dim), so labels = just
+    # the wrap dim = per-frame. Summary reports ``dim_sizes=[N_frame]``.
+    dim_labels: ["frame"]
     description: >
       Self-contained per-frame COLMAP directory: ``sparse/0/`` (PINHOLE
       cameras + images + points3D, both .bin and .txt) plus ``images/``

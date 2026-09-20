@@ -25,7 +25,11 @@ from pathlib import Path
 from typing import Any
 
 from hololab.gateway.handles import Handle
-from hololab.gateway.tag_probes import internal_count_for
+from hololab.gateway.tag_probes import (
+    content_dim_count_for,
+    internal_count_for,
+    probe_content_dims,
+)
 
 # Cap what we read from a single file. Splatv headers are ~74 KiB on
 # real STG models; 256 KiB is comfortable overhead and still trivial.
@@ -138,7 +142,7 @@ def _annotate_element_and_internal_counts(
             element_count = None
 
         if depth is not None and depth >= 1:
-            dim_sizes, leaf = _measure_dim_sizes(path, depth)
+            dim_sizes, leaf = _measure_dim_sizes(path, depth, list(handle.tags))
             if leaf is not None:
                 sample_path = leaf
 
@@ -158,23 +162,39 @@ def _annotate_element_and_internal_counts(
         result["dim_sizes"] = dim_sizes
 
 
-def _measure_dim_sizes(root: Path, depth: int) -> tuple[list[int] | None, Path | None]:
-    """Walk ``depth`` levels of subdirs, returning (sizes-per-level, sample leaf).
+def _measure_dim_sizes(
+    root: Path, depth: int, tags: list[str]
+) -> tuple[list[int] | None, Path | None]:
+    """Compute ``dim_sizes`` for an arrayed/arrayable-wrapped handle.
 
-    The tree must be *uniform* — every dir at level ``k`` needs the same
-    subdir count — otherwise a single number per level would misrepresent
-    the shape. On non-uniform trees we return ``(None, None)`` so the
-    caller emits no ``dim_sizes`` at all rather than an averaged lie.
+    ``depth`` is the total ``len(dim_labels)`` declared on the producing
+    port. It is split into two phases:
 
-    The sample-leaf return is the first path reached at level ``depth``
-    (sorted alphabetically at each hop), used to drive the tag probe on
-    the actual leaf rather than the arrayed root.
+        dir_depth = depth - content_dim_count_for(tags)
+        content_dims = depth - dir_depth   # remainder handled by tag probe
+
+    Phase 1 walks ``dir_depth`` subdir layers, enforcing uniformity at
+    every level (a ragged tree yields ``None`` — no averaged lies).
+    Phase 2 hands the leaf reached in phase 1 to
+    :func:`tag_probes.probe_content_dims` for the tag's intrinsic
+    layers (e.g. ``image_sequence`` counts files under ``frames/``).
+
+    Returns ``(sizes, sample_leaf)`` where ``sample_leaf`` is the path
+    used for the tag_probes internal_count sniff (the phase-1 leaf, or
+    ``None`` when the walk fails).
     """
+
+    tag_content_dims = content_dim_count_for(tags)
+    dir_depth = depth - tag_content_dims
+    if dir_depth < 0:
+        # Malformed: pack declared fewer dims than the tag's intrinsic
+        # layers demand. Refuse to guess.
+        return None, None
 
     sizes: list[int] = []
     current: list[Path] = [root]
     sample: Path | None = None
-    for _ in range(depth):
+    for _ in range(dir_depth):
         next_layer: list[Path] = []
         per_dir: int | None = None
         for parent in current:
@@ -194,6 +214,14 @@ def _measure_dim_sizes(root: Path, depth: int) -> tuple[list[int] | None, Path |
         sizes.append(per_dir)
         current = next_layer
         sample = next_layer[0]
+
+    if tag_content_dims > 0:
+        probe_root = sample if sample is not None else root
+        content = probe_content_dims(tags, probe_root)
+        if content is None or len(content) != tag_content_dims or any(n <= 0 for n in content):
+            return None, sample
+        sizes.extend(content)
+
     return sizes, sample
 
 

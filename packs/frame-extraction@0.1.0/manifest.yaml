@@ -61,6 +61,12 @@ params:
 outputs:
   frame_sequence:
     tags: [image_sequence]
+    # Scalar per-shard: script writes ONE frame_sequence (frames/*.png).
+    # Under arrayable_toggle the framework wraps N shards → arrayed<image_sequence>;
+    # ``dim_labels`` names the aggregate view: outer wrap = per-camera (one
+    # shard per camera clip), inner content = per-frame (files under
+    # ``frames/``). Handle summary reports ``dim_sizes=[N_cam, N_frame]``.
+    dim_labels: ["cam", "frame"]
     description: >
       Directory containing ``frames/frame_XXXXXX.png``. Consumed by
       ``frames-to-camera-track`` and any other algorithm that needs an

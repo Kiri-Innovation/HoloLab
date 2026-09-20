@@ -92,10 +92,20 @@ class InputSpec(BaseModel):
     description: str | None = None
     arrayed: bool = False
     scalar: bool = False
-    # Per-dimension semantic labels for arrayed ports, **outer dim first**.
-    # ``["frame","camera"]`` = 2-D ``arrayed<arrayed<T>>``. ``len(dim_labels)``
-    # is the arrayed depth. Empty list = "1-D arrayed if ``arrayed=true``,
-    # else scalar" (legacy).
+    # Per-dimension semantic labels for the AGGREGATE handle this port sees,
+    # **outer dim first**. Applies at three levels:
+    #   * ``arrayed=true``: labels describe the arrayed<...> dims the pack
+    #     itself emits/consumes. ``["frame","camera"]`` = 2-D
+    #     ``arrayed<arrayed<T>>``.
+    #   * ``scalar=true`` (or default per-shard) on an ``arrayable`` pack:
+    #     the framework wraps N shards into ``arrayed<T>`` at the aggregate,
+    #     so the FIRST label names that wrap dim (usually the enumeration
+    #     axis of the driving arrayed input). Remaining labels are
+    #     tag-intrinsic content dims resolved via
+    #     :mod:`hololab.gateway.tag_probes` (e.g. ``image_sequence`` adds
+    #     one inner dim = files under ``frames/``).
+    #   * ``scalar=true`` on a non-arrayable pack: labels are pure content
+    #     dims (no wrap layer added).
     dim_labels: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -111,10 +121,6 @@ class InputSpec(BaseModel):
                 "dim_labels currently supports at most 2 layers "
                 f"(got {len(self.dim_labels)} — {self.dim_labels!r})"
             )
-        if self.dim_labels and not self.arrayed:
-            raise ValueError("dim_labels declared but arrayed is false — set arrayed: true")
-        if self.dim_labels and self.scalar:
-            raise ValueError("dim_labels + scalar are mutually exclusive")
         return self
 
 
@@ -180,6 +186,10 @@ class OutputSpec(BaseModel):
     arrayed: bool = False
     scalar: bool = False
     tags_from: str | None = None
+    # Aggregate-dim labels (see InputSpec.dim_labels docstring). Allowed on
+    # scalar/per-shard outputs of arrayable packs — those get wrapped into
+    # ``arrayed<T>`` by the framework at aggregation time and the first
+    # label names the wrap dim.
     dim_labels: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -195,10 +205,6 @@ class OutputSpec(BaseModel):
                 "dim_labels currently supports at most 2 layers "
                 f"(got {len(self.dim_labels)} — {self.dim_labels!r})"
             )
-        if self.dim_labels and not self.arrayed:
-            raise ValueError("dim_labels declared but arrayed is false — set arrayed: true")
-        if self.dim_labels and self.scalar:
-            raise ValueError("dim_labels + scalar are mutually exclusive")
         return self
 
 

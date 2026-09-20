@@ -85,9 +85,19 @@ params:
 outputs:
   und_cameras:
     tags: [colmap-cameras-txt]
+    # Scalar per-shard (one cameras.txt per frame). Under arrayable_toggle
+    # the framework wraps N shards → arrayed<colmap-cameras-txt>; the
+    # wrap dim is per-frame. No intrinsic content dim (cameras.txt is
+    # scalar-shape). Summary reports ``dim_sizes=[N_frame]``.
+    dim_labels: ["frame"]
     description: "PINHOLE cameras.txt emitted by image_undistorter (fx,fy,cx,cy adjusted for the crop)."
   und_images:
     tags: [image_sequence]
+    # Scalar per-shard (one image_sequence per frame, containing per-cam
+    # images under ``frames/``). Framework wraps → aggregate has two dims:
+    # wrap = per-frame, content = per-cam. Summary reports
+    # ``dim_sizes=[N_frame, N_cam]``.
+    dim_labels: ["frame", "cam"]
     description: "Undistorted images, one per input image, at the PINHOLE resolution."
 
 runtime:
