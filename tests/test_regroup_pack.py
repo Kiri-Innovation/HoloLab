@@ -302,7 +302,7 @@ def test_handle_summary_dim_sizes_rejects_ragged(tmp_path: Path) -> None:
 
 
 def test_content_dim_registry_image_sequence(tmp_path: Path) -> None:
-    """image_sequence's content probe reports the file count under ``frames/``."""
+    """``image`` content probe reports the file count under ``frames/``."""
     from hololab.gateway.tag_probes import content_dim_count_for, probe_content_dims
 
     leaf = tmp_path / "elem"
@@ -310,14 +310,15 @@ def test_content_dim_registry_image_sequence(tmp_path: Path) -> None:
     for i in range(5):
         (leaf / "frames" / f"frame_{i:06d}.png").write_bytes(b"")
 
-    assert content_dim_count_for(["image_sequence"]) == 1
+    assert content_dim_count_for(["image"]) == 1
+    assert content_dim_count_for(["image_sequence"]) == 1  # alias
     assert content_dim_count_for(["frame_sequence"]) == 1  # alias
     assert content_dim_count_for(["colmap"]) == 0
 
-    assert probe_content_dims(["image_sequence"], leaf) == [5]
+    assert probe_content_dims(["image"], leaf) == [5]
     assert probe_content_dims(["colmap"], leaf) is None
-    # Non-image_sequence path with no frames/ → None (drops dim_sizes upstream).
-    assert probe_content_dims(["image_sequence"], tmp_path) is None
+    # image path with no frames/ → None (drops dim_sizes upstream).
+    assert probe_content_dims(["image"], tmp_path) is None
 
 
 def test_handle_summary_dim_sizes_image_sequence_2d(tmp_path: Path) -> None:
@@ -339,7 +340,7 @@ def test_handle_summary_dim_sizes_image_sequence_2d(tmp_path: Path) -> None:
         handle_id="hh",
         node_id="n",
         storage="dir",
-        tags=["image_sequence"],
+        tags=["image"],
         path=str(root),
     )
     res = summarize_handle(h, depth=2)
@@ -366,7 +367,7 @@ def test_handle_summary_dim_sizes_image_sequence_1d(tmp_path: Path) -> None:
         handle_id="hh2",
         node_id="n",
         storage="dir",
-        tags=["image_sequence"],
+        tags=["image"],
         path=str(scalar_seq),
     )
     res = summarize_handle(h, depth=1)
@@ -387,7 +388,7 @@ def test_handle_summary_dim_sizes_image_sequence_missing_frames_dir(tmp_path: Pa
         handle_id="hh3",
         node_id="n",
         storage="dir",
-        tags=["image_sequence"],
+        tags=["image"],
         path=str(root),
     )
     res = summarize_handle(h, depth=2)
@@ -409,5 +410,5 @@ def test_schema_allows_dim_labels_on_scalar_ports() -> None:
     assert out.dim_labels == ["frame"]
 
     # Non-arrayed input with dim_labels — describes aggregate under toggle.
-    inp = InputSpec(tags=["image_sequence"], dim_labels=["frame", "cam"])
+    inp = InputSpec(tags=["image"], dim_labels=["frame", "cam"])
     assert inp.dim_labels == ["frame", "cam"]

@@ -157,10 +157,9 @@ def _probe_image_sequence_content_dims(path: Path) -> list[int] | None:
 # intrinsic layers the tag adds on top of whatever dir depth the port's
 # arrayed/wrap declaration produces.
 _CONTENT_DIM_REGISTRY: dict[str, tuple[int, ContentDimProbeFn]] = {
+    "image": (1, _probe_image_sequence_content_dims),
+    # Aliases retained for backward compat with pre-migration handles.
     "image_sequence": (1, _probe_image_sequence_content_dims),
-    # ``frame_sequence`` alias kept alongside so pre-migration handles
-    # still get inner-dim probing without needing to canonicalize tags
-    # at the summary layer.
     "frame_sequence": (1, _probe_image_sequence_content_dims),
 }
 

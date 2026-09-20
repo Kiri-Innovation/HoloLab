@@ -61,7 +61,7 @@ inputs:
       broadcast to every shard. Declare ``scalar: true`` so the toggle does
       not try to enumerate subdirectories in this handle.
   images:
-    tags: [image_sequence]
+    tags: [image]
     description: "Undistorted per-cam images to triangulate against `cameras`+`poses`."
 
 params:

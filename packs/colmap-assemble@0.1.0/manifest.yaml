@@ -51,10 +51,10 @@ inputs:
     arrayed: true
     description: "arrayed<colmap-points> — one COLMAP points3D per frame (from colmap-triangulate[arrayed])."
   frames:
-    tags: [image_sequence]
+    tags: [image]
     arrayed: true
     dim_labels: ["frame"]
-    description: "arrayed<image_sequence> — one image_sequence per frame (from regroup-by-frame), providing the raw images STG needs to render supervisory views."
+    description: "arrayed<image> — one image per frame (from regroup-by-frame), providing the raw images STG needs to render supervisory views."
 
 outputs:
   colmap:

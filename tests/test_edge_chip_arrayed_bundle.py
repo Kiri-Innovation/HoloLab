@@ -105,17 +105,19 @@ def test_arrayed_paginator_carries_depth_and_breadcrumb_attrs(bundle_js: str) ->
     )
 
 
-def test_image_sequence_tag_routed(bundle_js: str) -> None:
-    """The ``image_sequence`` tag rename must ship as a routing key so
-    freshly emitted handles preview identically to the legacy
-    ``frame_sequence`` tag they replace."""
+def test_image_tag_routed(bundle_js: str) -> None:
+    """The canonical ``image`` tag and its aliases must all ship as routing
+    keys in the bundle so both new and legacy handles preview correctly."""
 
-    assert '"image_sequence"' in bundle_js or "'image_sequence'" in bundle_js, (
-        "Preview() must route on the image_sequence tag"
+    assert '"image"' in bundle_js or "'image'" in bundle_js, (
+        "Preview() must route on the canonical image tag"
     )
-    # Legacy alias still present so pre-migration handles keep working.
+    # Aliases retained so pre-migration handles keep working.
+    assert '"image_sequence"' in bundle_js or "'image_sequence'" in bundle_js, (
+        "image_sequence alias must remain for backward compat"
+    )
     assert '"frame_sequence"' in bundle_js or "'frame_sequence'" in bundle_js, (
-        "frame_sequence alias must remain until the migration completes"
+        "frame_sequence alias must remain for backward compat"
     )
 
 

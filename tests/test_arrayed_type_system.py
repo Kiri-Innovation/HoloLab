@@ -11,8 +11,8 @@ Locks the four contracts introduced by the arrayed type-system step:
 3. **N-layer ``_discover_element_ids``** — depth 1 → flat names, depth 2
    → outer/inner joined by ``/``. Cross-port depth mismatch rejected
    upfront.
-4. **``image_sequence`` ↔ ``frame_sequence`` alias** — a producer on the
-   legacy tag wires cleanly into a consumer on the new tag.
+4. **``image`` ↔ ``image_sequence`` ↔ ``frame_sequence`` alias** — a producer on
+   any of these tags wires cleanly into a consumer on any other.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ from hololab.persistence.db import open_database
 
 def test_input_spec_accepts_two_layer_dim_labels() -> None:
     spec = InputSpec(
-        tags=["frame_sequence"],
+        tags=["image"],
         arrayed=True,
         dim_labels=["frame", "camera"],
     )
@@ -244,19 +244,23 @@ async def test_discover_element_ids_depth_mismatch_rejected(tmp_path: Path) -> N
 
 
 # ---------------------------------------------------------------------------
-# 4) image_sequence ↔ frame_sequence alias
+# 4) image ↔ image_sequence ↔ frame_sequence alias group
 # ---------------------------------------------------------------------------
 
 
-def test_tags_compatible_treats_image_sequence_as_frame_sequence() -> None:
+def test_tags_compatible_treats_image_as_image_sequence_and_frame_sequence() -> None:
+    assert tags_compatible(["image"], ["image_sequence"])
+    assert tags_compatible(["image"], ["frame_sequence"])
+    assert tags_compatible(["image_sequence"], ["image"])
     assert tags_compatible(["image_sequence"], ["frame_sequence"])
+    assert tags_compatible(["frame_sequence"], ["image"])
     assert tags_compatible(["frame_sequence"], ["image_sequence"])
 
 
 def test_tags_compatible_alias_does_not_leak_across_groups() -> None:
     """Alias unification must be strictly within declared groups — a
-    made-up tag doesn't suddenly match ``image_sequence``."""
-    assert not tags_compatible(["random-tag"], ["image_sequence"])
+    made-up tag doesn't suddenly match ``image``."""
+    assert not tags_compatible(["random-tag"], ["image"])
 
 
 # ---------------------------------------------------------------------------

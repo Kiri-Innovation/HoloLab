@@ -58,9 +58,9 @@ TAG_VIEWER_REGISTRY: dict[str, OutputPreview] = {
     # wants a sequence of images (MegaSaM tracker, future re-runs of
     # other trackers). The default viewer just shows the first frame;
     # promoting it to a proper image-grid viewer is a follow-up.
-    # ``image_sequence`` is the preferred new name; ``frame_sequence`` is
-    # kept as an alias entry so pre-migration handles still preview through
-    # the same viewer. Edge-compat unification lives in workflows.py:TAG_ALIASES.
+    # ``image`` is the canonical tag; ``image_sequence`` / ``frame_sequence``
+    # are aliases retained so pre-migration handles still preview correctly.
+    "image": OutputPreview(viewer="image", member="frames/frame_000000.png"),
     "image_sequence": OutputPreview(viewer="image", member="frames/frame_000000.png"),
     "frame_sequence": OutputPreview(viewer="image", member="frames/frame_000000.png"),
     # Scalar ``int`` handle — a small plain-text file whose sole content

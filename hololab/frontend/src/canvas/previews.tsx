@@ -140,14 +140,12 @@ export function Preview({
   // that hides the sequence shape. Its arrayed form goes one level
   // deeper: ``<parent>/<element>/<file>``. Both families have generic
   // per-type viewers so packs don't need to reinvent them.
-  // ``image_sequence`` is the tag rename for the structural "one dir of
-  // sequenced images" type (formerly ``frame_sequence``, which mixed
-  // structural + domain semantics). Both accepted here so pre-migration
-  // handles preview identically. Prefer emitting ``image_sequence`` from
-  // new packs; a follow-up migration removes ``frame_sequence`` entirely.
+  // ``image`` is the canonical tag for "one dir of sequenced images".
+  // ``image_sequence`` and ``frame_sequence`` are aliases kept for
+  // backward compat with pre-migration handles.
   if (
     tags &&
-    (tags.includes("image_sequence") || tags.includes("frame_sequence")) &&
+    (tags.includes("image") || tags.includes("image_sequence") || tags.includes("frame_sequence")) &&
     storage === "dir"
   ) {
     if (arrayed) {

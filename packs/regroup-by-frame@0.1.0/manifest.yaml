@@ -47,7 +47,7 @@ docs: |
 
 inputs:
   by_cam:
-    tags: [image_sequence]
+    tags: [image]
     arrayed: true
     # Aggregate = arrayed<image_sequence>: outer subdir = per-camera, inner
     # content = per-frame (files under each cam's ``frames/``). Summary
@@ -57,7 +57,7 @@ inputs:
 
 outputs:
   by_frame:
-    tags: [image_sequence]
+    tags: [image]
     arrayed: true
     # Transposed: outer subdir = per-frame, inner content = per-camera
     # (files under each frame's ``frames/``). Summary reports

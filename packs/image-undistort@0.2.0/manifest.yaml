@@ -69,7 +69,7 @@ inputs:
       fan-out zip. Declare ``scalar: true`` so the framework never tries to
       enumerate its subdirectories as fan-out elements.
   images:
-    tags: [image_sequence]
+    tags: [image]
     description: "Per-cam distorted images to undistort. Fan-out driver — one shard per element."
 
 params:
@@ -92,8 +92,8 @@ outputs:
     dim_labels: ["frame"]
     description: "PINHOLE cameras.txt emitted by image_undistorter (fx,fy,cx,cy adjusted for the crop)."
   und_images:
-    tags: [image_sequence]
-    # Scalar per-shard (one image_sequence per frame, containing per-cam
+    tags: [image]
+    # Scalar per-shard (one image per frame, containing per-cam
     # images under ``frames/``). Framework wraps → aggregate has two dims:
     # wrap = per-frame, content = per-cam. Summary reports
     # ``dim_sizes=[N_frame, N_cam]``.
