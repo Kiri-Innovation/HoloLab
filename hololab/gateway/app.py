@@ -2494,8 +2494,6 @@ def _mount_routes(app: FastAPI) -> None:
 
     @app.post("/api/jobs/{job_id}/cancel")
     async def cancel_job(job_id: str) -> dict[str, Any]:
-        from hololab.protocol import JobCancel  # local import to avoid unused
-
         registry: NodeRegistry = app.state.registry
         store: JobsStore = app.state.jobs_store
         hub: FrontendHub = app.state.hub
@@ -2503,26 +2501,48 @@ def _mount_routes(app: FastAPI) -> None:
         job = await store.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
-        if job.node_id is None:
-            raise HTTPException(status_code=409, detail="job has no assigned node")
 
-        session = registry.get_session(job.node_id)
-        if session is not None:
-            frame = encode("job_cancel", JobCancel(job_id=job_id), v=session.protocol_v)
-            async with session.send_lock:
-                await session.ws.send_text(frame)
+        result = await _cancel_one_job(registry, store, hub, job)
+        cascaded = await _cascade_cancel_shards(registry, store, hub, job)
+        return {
+            "job_id": job_id,
+            "state": result["state"],
+            "already_terminal": result["already_terminal"],
+            "cascaded": cascaded,
+        }
 
-        # Optimistic transition — the node will confirm via job_fail(cancelled).
-        try:
-            new_job = JobStateMachine.transition(
-                job, JobState.CANCELLED, fail_reason=JobFailReason.CANCELLED
-            )
-        except Exception as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        kind, payload = event_from_transition(job, new_job)
-        await store.update(new_job, kind, payload)
-        _push_job_update(hub, new_job)
-        return {"job_id": job_id, "state": new_job.state.value}
+    @app.post("/api/snapshots/{snapshot_id}/cancel-jobs")
+    async def cancel_snapshot_jobs(snapshot_id: str) -> dict[str, Any]:
+        store: JobsStore = app.state.jobs_store
+        registry: NodeRegistry = app.state.registry
+        hub: FrontendHub = app.state.hub
+
+        rows = await store.list_by_snapshot(snapshot_id)
+        live = [r for r in rows if r["state"] in _LIVE_JOB_STATES]
+        return await _cancel_many_by_rows(registry, store, hub, live)
+
+    @app.post("/api/nodes/{node_id}/cancel-jobs")
+    async def cancel_node_jobs(node_id: str) -> dict[str, Any]:
+        store: JobsStore = app.state.jobs_store
+        registry: NodeRegistry = app.state.registry
+        hub: FrontendHub = app.state.hub
+
+        live: list[dict[str, Any]] = []
+        for state in _LIVE_JOB_STATES:
+            live.extend(await store.list_recent(limit=500, state=state))
+        live = [r for r in live if r.get("node_id") == node_id]
+        return await _cancel_many_by_rows(registry, store, hub, live)
+
+    @app.post("/api/jobs/cancel-all")
+    async def cancel_all_jobs() -> dict[str, Any]:
+        store: JobsStore = app.state.jobs_store
+        registry: NodeRegistry = app.state.registry
+        hub: FrontendHub = app.state.hub
+
+        live: list[dict[str, Any]] = []
+        for state in _LIVE_JOB_STATES:
+            live.extend(await store.list_recent(limit=500, state=state))
+        return await _cancel_many_by_rows(registry, store, hub, live)
 
     @app.get("/proxy/{node_id}/{path:path}")
     async def proxy(node_id: str, path: str, request: Request) -> Any:
@@ -3174,6 +3194,113 @@ async def _list_consumer_jobs(store: JobsStore, handle_id: str) -> list[Job]:
         if handle_id in (job.input_handles or {}).values():
             result.append(job)
     return result
+
+
+# States a cancel is legally allowed to target. Superset of
+# :data:`snapshot_delete._LIVE_JOB_STATES` by one: an ``orphaned`` job
+# (WS session dropped, subprocess *may* still be alive on the node) is
+# also a valid cancel target — the node reconciler resolves the actual
+# process fate when it reconnects.
+_LIVE_JOB_STATES: tuple[str, ...] = ("pending", "assigned", "running", "orphaned")
+
+
+async def _cancel_one_job(
+    registry: NodeRegistry,
+    store: JobsStore,
+    hub: FrontendHub,
+    job: Job,
+) -> dict[str, Any]:
+    """Transition one job to CANCELLED + best-effort signal its node.
+
+    Idempotent — a job already in a terminal state returns ``already_terminal=True``
+    with its current state, no error. A live PENDING row without a
+    ``node_id`` yet (dispatched but pre-assign) still gets its DB row
+    flipped so the DAG loop's ``_await_job_terminal`` unblocks; there's
+    no node to signal in that window.
+
+    Returns ``{"state": ..., "already_terminal": bool}``.
+    """
+
+    from hololab.protocol import JobCancel
+
+    if not JobStateMachine.can_transition(job.state, JobState.CANCELLED):
+        # Terminal — treat as no-op. Snapshot-delete-style graceful idempotency.
+        return {"state": job.state.value, "already_terminal": True}
+
+    if job.node_id is not None:
+        session = registry.get_session(job.node_id)
+        if session is not None:
+            frame = encode("job_cancel", JobCancel(job_id=job.job_id), v=session.protocol_v)
+            async with session.send_lock:
+                await session.ws.send_text(frame)
+
+    new_job = JobStateMachine.transition(
+        job, JobState.CANCELLED, fail_reason=JobFailReason.CANCELLED
+    )
+    kind, payload = event_from_transition(job, new_job)
+    await store.update(new_job, kind, payload)
+    _push_job_update(hub, new_job)
+    return {"state": new_job.state.value, "already_terminal": False}
+
+
+async def _cascade_cancel_shards(
+    registry: NodeRegistry,
+    store: JobsStore,
+    hub: FrontendHub,
+    parent: Job,
+) -> list[str]:
+    """If ``parent`` is a fan-out coordinator, cancel every live shard.
+
+    A fan-out coordinator is a job with any rows in ``jobs.parent_job_id
+    = self.job_id``. The parent itself never runs a subprocess — it just
+    orchestrates the shard pool. Cancelling only the parent row would
+    leave live shards behind. See ``execution._execute_fanout_body``.
+
+    Sibling branches (other graph nodes in the same snapshot) are
+    unaffected. Downstream jobs of the parent do not exist yet — the
+    ``run_snapshot`` loop only creates them after the parent hits DONE.
+    """
+
+    shards = await store.list_shards_of(parent.job_id)
+    cascaded: list[str] = []
+    for shard in shards:
+        if shard.state.value not in _LIVE_JOB_STATES:
+            continue
+        result = await _cancel_one_job(registry, store, hub, shard)
+        if not result["already_terminal"]:
+            cascaded.append(shard.job_id)
+    return cascaded
+
+
+async def _cancel_many_by_rows(
+    registry: NodeRegistry,
+    store: JobsStore,
+    hub: FrontendHub,
+    rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Cancel a list of live-job rows. De-duplicates via a seen-set so a
+    parent + its shards handed in together don't get signalled twice.
+    """
+
+    cancelled: list[str] = []
+    seen: set[str] = set()
+    for r in rows:
+        job_id = r["job_id"]
+        if job_id in seen:
+            continue
+        seen.add(job_id)
+        job = await store.get(job_id)
+        if job is None:
+            continue
+        result = await _cancel_one_job(registry, store, hub, job)
+        if result["already_terminal"]:
+            continue
+        cancelled.append(job_id)
+        for shard_id in await _cascade_cancel_shards(registry, store, hub, job):
+            if shard_id not in seen:
+                seen.add(shard_id)
+                cancelled.append(shard_id)
+    return {"cancelled": cancelled, "count": len(cancelled)}
 
 
 def _push_job_update(

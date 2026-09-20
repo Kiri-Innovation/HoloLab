@@ -5,6 +5,7 @@
 // no longer means "guess what went wrong". See JobLogModal.tsx.
 
 import { useEffect, useRef, useState } from "react";
+import { cancelAllJobs, cancelJob } from "../api";
 import type { NodeRuntime } from "./AlgorithmNode";
 import { stateColour } from "./AlgorithmNode";
 import { CopyRefButton } from "./CopyRefButton";
@@ -45,8 +46,10 @@ const CARD: React.CSSProperties = {
   fontSize: "var(--fs-sm)",
   color: "var(--text-body)",
   display: "grid",
-  // dot · title · progress · elapsed · [log-btn] · [copy-ref]
-  gridTemplateColumns: "10px 1fr auto auto auto auto",
+  // dot · title · progress · elapsed · [stop-btn] · [log-btn] · [copy-ref]
+  // The stop column reserves its width unconditionally so terminal rows
+  // don't shift the log + copy buttons leftward.
+  gridTemplateColumns: "10px 1fr auto auto auto auto auto",
   gap: 10,
   alignItems: "center",
   cursor: "pointer",
@@ -85,6 +88,12 @@ type GroupEntry = {
 type Entry = SingleEntry | GroupEntry;
 
 const IN_FLIGHT = new Set(["running", "assigned", "pending"]);
+
+// States a stop button can act on. Superset of ``IN_FLIGHT`` by one:
+// ``orphaned`` is a live job whose WS session dropped but whose
+// subprocess may still be running on the node — cancelling it is still
+// legal and matches the gateway's ``_LIVE_JOB_STATES``.
+const STOPPABLE = new Set(["running", "assigned", "pending", "orphaned"]);
 
 // Same aggregation rule as ``aggregateJobsToRuntime`` (canvas node
 // status). Kept local because the shape here is RecentJobRow[] rather
@@ -194,6 +203,22 @@ function buildEntries(rows: RecentJobRow[]): Entry[] {
 
 const SHARDS_INITIAL_LIMIT = 5;
 
+// Count of jobs (parent + shards flattened) whose state is in ``STOPPABLE``
+// across the currently-visible ``Entry[]``. Drives whether the "stop all"
+// affordance surfaces at all — the header stays clean at rest.
+function countStoppable(entries: Entry[]): number {
+  let n = 0;
+  for (const e of entries) {
+    if (e.kind === "single") {
+      if (STOPPABLE.has(e.job.state)) n++;
+      continue;
+    }
+    if (STOPPABLE.has(e.parent.state)) n++;
+    for (const s of e.shards) if (STOPPABLE.has(s.state)) n++;
+  }
+  return n;
+}
+
 export function RecentJobsPanel({
   jobs,
   onSelectGraphNode,
@@ -261,6 +286,71 @@ export function RecentJobsPanel({
     };
   } | null>(null);
 
+  // In-flight stop requests. The optimistic gateway transition + WS
+  // ``job_update`` broadcast will typically flip the row to
+  // ``cancelled`` inside a frame; the pending marker keeps the button
+  // disabled during that window so an over-eager operator doesn't
+  // double-fire (which the server would treat as idempotent anyway,
+  // but a spinner-less flash reads as "did anything happen").
+  const [pendingStops, setPendingStops] = useState<Set<string>>(
+    () => new Set(),
+  );
+  // Danger-action confirm state for "stop all live jobs in view".
+  const [stopAllConfirm, setStopAllConfirm] = useState<{
+    count: number;
+    running: boolean;
+    error: string | null;
+  } | null>(null);
+
+  const liveCount = countStoppable(entries);
+
+  const handleRequestStop = async (
+    job: RecentJobRow,
+    aggregateLabel?: string,
+  ) => {
+    if (pendingStops.has(job.job_id)) return;
+    setPendingStops((prev) => {
+      const next = new Set(prev);
+      next.add(job.job_id);
+      return next;
+    });
+    try {
+      const result = await cancelJob(job.job_id);
+      for (const shardId of result.cascaded) {
+        setPendingStops((prev) => {
+          const next = new Set(prev);
+          next.add(shardId);
+          return next;
+        });
+      }
+    } catch (err) {
+      // A cancel that reaches the server logs there. Client-side we
+      // undo the pending marker so the button re-enables — the operator
+      // sees the error dot back and can retry. Deliberately silent in
+      // the UI: the button title already carried the affordance.
+      console.warn("cancel failed", aggregateLabel ?? job.job_id, err);
+      setPendingStops((prev) => {
+        const next = new Set(prev);
+        next.delete(job.job_id);
+        return next;
+      });
+    }
+  };
+
+  const handleConfirmStopAll = async () => {
+    if (!stopAllConfirm) return;
+    setStopAllConfirm({ ...stopAllConfirm, running: true, error: null });
+    try {
+      await cancelAllJobs();
+      setStopAllConfirm(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStopAllConfirm((prev) =>
+        prev ? { ...prev, running: false, error: msg } : prev,
+      );
+    }
+  };
+
   return (
     <div
       style={{
@@ -283,13 +373,15 @@ export function RecentJobsPanel({
           position: "sticky",
           top: 0,
           zIndex: 1,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
         }}
       >
-        Recent jobs
+        <span>Recent jobs</span>
         {currentWorkflowId && (
           <span
             style={{
-              marginLeft: 8,
               fontWeight: 400,
               textTransform: "none",
               letterSpacing: 0,
@@ -298,6 +390,57 @@ export function RecentJobsPanel({
           >
             · current workflow
           </span>
+        )}
+        {liveCount > 0 && (
+          <button
+            type="button"
+            data-hl-stop-all=""
+            onClick={() =>
+              setStopAllConfirm({
+                count: liveCount,
+                running: false,
+                error: null,
+              })
+            }
+            title={`Stop every live job (${liveCount})`}
+            style={{
+              marginLeft: "auto",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "3px 8px",
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--error, #e05a5a)",
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              cursor: "pointer",
+              transition:
+                "background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--error-soft)";
+              e.currentTarget.style.borderColor = "var(--error, #e05a5a)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.borderColor = "var(--border)";
+            }}
+          >
+            <svg
+              width="9"
+              height="9"
+              viewBox="0 0 10 10"
+              fill="currentColor"
+              aria-hidden
+            >
+              <rect x="1" y="1" width="8" height="8" rx="1" />
+            </svg>
+            Stop all · {liveCount}
+          </button>
         )}
       </div>
       {entries.length === 0 && (
@@ -316,6 +459,8 @@ export function RecentJobsPanel({
               now={now}
               onSelectGraphNode={onSelectGraphNode}
               onOpenLog={setOpenLog}
+              onRequestStop={handleRequestStop}
+              pending={pendingStops.has(entry.job.job_id)}
             />
           );
         }
@@ -344,6 +489,8 @@ export function RecentJobsPanel({
             }
             onSelectGraphNode={onSelectGraphNode}
             onOpenLog={setOpenLog}
+            onRequestStop={handleRequestStop}
+            pendingIds={pendingStops}
           />
         );
       })}
@@ -352,6 +499,174 @@ export function RecentJobsPanel({
         primer={openLog?.primer ?? null}
         onClose={() => setOpenLog(null)}
       />
+      {stopAllConfirm && (
+        <StopAllConfirmModal
+          count={stopAllConfirm.count}
+          running={stopAllConfirm.running}
+          error={stopAllConfirm.error}
+          onCancel={() => setStopAllConfirm(null)}
+          onConfirm={handleConfirmStopAll}
+        />
+      )}
+    </div>
+  );
+}
+
+// Danger-action modal for "stop every live job". Mirrors the visual
+// language of DeleteConfirmModal in RunsPanel (light-weight overlay,
+// error-tone confirm button) so this reads as a first-class danger
+// action without pulling that whole component in. ESC cancels while
+// idle; clicking the backdrop cancels while idle.
+function StopAllConfirmModal({
+  count,
+  running,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  count: number;
+  running: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !running) onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel, running]);
+
+  return (
+    <div
+      data-hl-stop-all-modal=""
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0, 0, 0, 0.72)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 10001,
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !running) onCancel();
+      }}
+    >
+      <div
+        style={{
+          background: "var(--bg-elevated, var(--surface-2, #1c1c1e))",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-md, 8px)",
+          width: "min(420px, 92vw)",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0, 0, 0, 0.55)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "16px 20px 12px",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 2,
+              background: "var(--error, #e05a5a)",
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ flex: 1 }}>
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: "var(--fs-sm)",
+                color: "var(--text)",
+              }}
+            >
+              停止全部正在跑的 job
+            </div>
+            <div
+              style={{
+                fontSize: "var(--fs-xs)",
+                color: "var(--text-muted)",
+                marginTop: 2,
+              }}
+            >
+              共 {count} 个：SIGTERM 之后 30 秒 SIGKILL，产物目录保留但会标为 incomplete。
+            </div>
+          </div>
+        </div>
+        {error && (
+          <div
+            style={{
+              margin: "10px 20px 0",
+              color: "var(--error)",
+              fontSize: "var(--fs-xs)",
+              background: "var(--error-soft)",
+              padding: "8px 10px",
+              borderRadius: "var(--radius-sm, 4px)",
+            }}
+          >
+            {error}
+          </div>
+        )}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            padding: "16px 20px",
+            borderTop: "1px solid var(--border)",
+          }}
+        >
+          <button
+            type="button"
+            data-hl-stop-all-cancel=""
+            onClick={onCancel}
+            disabled={running}
+            style={{
+              padding: "6px 14px",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--surface)",
+              color: "var(--text)",
+              fontSize: "var(--fs-xs)",
+              fontWeight: 500,
+              cursor: running ? "not-allowed" : "pointer",
+              opacity: running ? 0.55 : 1,
+            }}
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            data-hl-stop-all-confirm=""
+            onClick={onConfirm}
+            disabled={running}
+            style={{
+              padding: "6px 14px",
+              border: "1px solid var(--error, #e05a5a)",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--error, #e05a5a)",
+              color: "white",
+              fontSize: "var(--fs-xs)",
+              fontWeight: 600,
+              cursor: running ? "not-allowed" : "pointer",
+              opacity: running ? 0.55 : 1,
+            }}
+          >
+            {running ? "停止中…" : `确认停止 ${count} 个`}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -426,6 +741,92 @@ function ViewLogButton({
   );
 }
 
+// Icon button that cancels a running / assigned / pending / orphaned
+// job. Same size + hover treatment as ViewLogButton so the two sit as
+// visual siblings at the row tail. Terminal rows render a fixed-size
+// placeholder (empty span) so the grid columns don't reflow when a job
+// finishes — the log + copy buttons stay put.
+function StopButton({
+  onClick,
+  disabled,
+  title,
+  danger,
+}: {
+  onClick: (e: React.MouseEvent) => void;
+  disabled?: boolean;
+  title?: string;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title ?? "Stop this job"}
+      aria-label="Stop job"
+      data-hl-stop-job=""
+      style={{
+        width: "var(--control-h-sm)",
+        height: "var(--control-h-sm)",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-sm)",
+        background: "var(--surface)",
+        color: danger ? "var(--error, #e05a5a)" : "var(--text-muted)",
+        cursor: disabled ? "not-allowed" : "pointer",
+        padding: 0,
+        opacity: disabled ? 0.55 : 1,
+        transition:
+          "background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
+      }}
+      onMouseEnter={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.background = "var(--error-soft)";
+        e.currentTarget.style.color = "var(--error, #e05a5a)";
+        e.currentTarget.style.borderColor = "var(--error, #e05a5a)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "var(--surface)";
+        e.currentTarget.style.color = danger
+          ? "var(--error, #e05a5a)"
+          : "var(--text-muted)";
+        e.currentTarget.style.borderColor = "var(--border)";
+      }}
+    >
+      {/* Solid square glyph — matches the "stop" idiom on media players
+          and reads clearly at 10px even against a colour-shifted hover
+          background. currentColor for two-theme support. */}
+      <svg
+        width="10"
+        height="10"
+        viewBox="0 0 10 10"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <rect x="1" y="1" width="8" height="8" rx="1" />
+      </svg>
+    </button>
+  );
+}
+
+// Fixed-size placeholder rendered where a StopButton would sit for
+// terminal rows. Keeps the grid columns aligned so the tail-buttons
+// don't shift as jobs finish.
+function StopSlotPlaceholder() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: "inline-block",
+        width: "var(--control-h-sm)",
+        height: "var(--control-h-sm)",
+      }}
+    />
+  );
+}
+
 // State + primer shape shared between the panel and row components.
 type OpenLogState = {
   jobId: string;
@@ -447,6 +848,8 @@ function SingleJobRow({
   now,
   onSelectGraphNode,
   onOpenLog,
+  onRequestStop,
+  pending,
   label,
   indent,
 }: {
@@ -454,6 +857,8 @@ function SingleJobRow({
   now: number;
   onSelectGraphNode: (graphNodeId: string) => void;
   onOpenLog: SetOpenLog;
+  onRequestStop: (job: RecentJobRow, aggregateLabel?: string) => void;
+  pending: boolean;
   label?: string;
   indent?: boolean;
 }) {
@@ -522,6 +927,18 @@ function SingleJobRow({
       >
         {elapsedFor(job, now)}
       </div>
+      {STOPPABLE.has(job.state) ? (
+        <StopButton
+          onClick={(e) => {
+            e.stopPropagation();
+            onRequestStop(job);
+          }}
+          disabled={pending}
+          title={pending ? "Stopping…" : `Stop ${job.algorithm_name}`}
+        />
+      ) : (
+        <StopSlotPlaceholder />
+      )}
       <ViewLogButton
         onClick={(e) => {
           e.stopPropagation();
@@ -563,6 +980,8 @@ function GroupJobRow({
   onShowAllShards,
   onSelectGraphNode,
   onOpenLog,
+  onRequestStop,
+  pendingIds,
 }: {
   parent: RecentJobRow;
   shards: RecentJobRow[];
@@ -573,6 +992,8 @@ function GroupJobRow({
   onShowAllShards: () => void;
   onSelectGraphNode: (graphNodeId: string) => void;
   onOpenLog: SetOpenLog;
+  onRequestStop: (job: RecentJobRow, aggregateLabel?: string) => void;
+  pendingIds: Set<string>;
 }) {
   const state = aggregateGroupState(parent, shards);
   const elapsed = groupElapsed(parent, shards, state, now);
@@ -594,6 +1015,8 @@ function GroupJobRow({
     ? shards
     : shards.slice(0, SHARDS_INITIAL_LIMIT);
   const hiddenCount = shards.length - visibleShards.length;
+  const groupStoppable = STOPPABLE.has(state);
+  const parentPending = pendingIds.has(parent.job_id);
 
   return (
     <>
@@ -681,6 +1104,25 @@ function GroupJobRow({
         >
           {elapsed}
         </div>
+        {groupStoppable ? (
+          <StopButton
+            onClick={(e) => {
+              e.stopPropagation();
+              onRequestStop(
+                parent,
+                `${parent.algorithm_name} ×${total}`,
+              );
+            }}
+            disabled={parentPending}
+            title={
+              parentPending
+                ? "Stopping…"
+                : `Stop ${parent.algorithm_name} ×${total} (cascades to all live shards)`
+            }
+          />
+        ) : (
+          <StopSlotPlaceholder />
+        )}
         <ViewLogButton
           onClick={(e) => {
             e.stopPropagation();
@@ -713,6 +1155,8 @@ function GroupJobRow({
               now={now}
               onSelectGraphNode={onSelectGraphNode}
               onOpenLog={onOpenLog}
+              onRequestStop={onRequestStop}
+              pending={pendingIds.has(s.job_id)}
               label={s.shard_element_id ?? s.job_id.slice(0, 8)}
               indent
             />

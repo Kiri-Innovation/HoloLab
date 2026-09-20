@@ -104,6 +104,44 @@ export const tailJobLog = (
   ).then(json<LogTail>);
 };
 
+// Cancel a live job. Idempotent — returns the current state even when
+// the job is already terminal (``already_terminal: true``). For a
+// fan-out parent the server cascades to every live shard and lists
+// their ids in ``cascaded``.
+export interface CancelJobResult {
+  job_id: string;
+  state: string;
+  already_terminal: boolean;
+  cascaded: string[];
+}
+
+export const cancelJob = (job_id: string) =>
+  fetch(`/api/jobs/${encodeURIComponent(job_id)}/cancel`, {
+    method: "POST",
+  }).then(json<CancelJobResult>);
+
+export interface CancelBatchResult {
+  cancelled: string[];
+  count: number;
+}
+
+export const cancelSnapshotJobs = (snapshot_id: string) =>
+  fetch(
+    `/api/snapshots/${encodeURIComponent(snapshot_id)}/cancel-jobs`,
+    { method: "POST" },
+  ).then(json<CancelBatchResult>);
+
+export const cancelNodeJobs = (node_id: string) =>
+  fetch(
+    `/api/nodes/${encodeURIComponent(node_id)}/cancel-jobs`,
+    { method: "POST" },
+  ).then(json<CancelBatchResult>);
+
+export const cancelAllJobs = () =>
+  fetch(`/api/jobs/cancel-all`, { method: "POST" }).then(
+    json<CancelBatchResult>,
+  );
+
 export const getHandle = (handle_id: string) =>
   fetch(`/api/handles/${handle_id}`).then(json<HandleInfo>);
 
