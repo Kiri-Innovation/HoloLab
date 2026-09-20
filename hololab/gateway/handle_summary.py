@@ -153,8 +153,13 @@ def _annotate_element_and_internal_counts(
     else:
         probe = internal_count_for(list(handle.tags), sample_path)
         if probe is not None:
-            result["internal_count"] = probe.count
-            result["internal_count_kind"] = probe.kind
+            if probe.items:
+                result["internal_count_items"] = [
+                    {"label": it.label, "value": it.value} for it in probe.items
+                ]
+            else:
+                result["internal_count"] = probe.count
+                result["internal_count_kind"] = probe.kind
 
     if element_count:
         result["element_count"] = element_count

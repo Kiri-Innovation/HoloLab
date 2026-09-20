@@ -140,9 +140,12 @@ def test_regroup_is_idempotent(tmp_path: Path) -> None:
 
 
 def test_tag_probe_colmap_cameras_txt_counts_non_comment_rows(tmp_path: Path) -> None:
-    """cameras.txt probe counts data rows; kind is ``cam models`` (not
-    ``cameras``) to disambiguate from view count in the tooltip."""
-    from hololab.gateway.tag_probes import internal_count_for
+    """cameras.txt probe counts data rows and returns a ``model`` labeled item.
+
+    ``label="model"`` disambiguates camera-model count (typically 1 shared
+    PINHOLE after undistort) from view count so the chip reads ``model:1``.
+    """
+    from hololab.gateway.tag_probes import ProbeItem, internal_count_for
 
     elem = tmp_path / "element"
     elem.mkdir()
@@ -157,6 +160,7 @@ def test_tag_probe_colmap_cameras_txt_counts_non_comment_rows(tmp_path: Path) ->
     assert res is not None
     assert res.count == 3
     assert res.kind == "cam models"
+    assert res.items == (ProbeItem("model", 3),)
 
 
 def test_tag_probe_colmap_images_txt_parses_header_comment(tmp_path: Path) -> None:
@@ -164,8 +168,9 @@ def test_tag_probe_colmap_images_txt_parses_header_comment(tmp_path: Path) -> No
 
     This works for both split output (blank obs lines) and full SfM output
     (non-blank obs lines) since the header comment is always authoritative.
+    Returns a ``view`` labeled item.
     """
-    from hololab.gateway.tag_probes import internal_count_for
+    from hololab.gateway.tag_probes import ProbeItem, internal_count_for
 
     elem = tmp_path / "poses"
     elem.mkdir()
@@ -179,16 +184,17 @@ def test_tag_probe_colmap_images_txt_parses_header_comment(tmp_path: Path) -> No
     assert res is not None
     assert res.count == 21
     assert res.kind == "views"
+    assert res.items == (ProbeItem("view", 21),)
 
 
 def test_tag_probe_colmap_cams_reads_view_count_from_images_txt(tmp_path: Path) -> None:
     """colmap-cams probe extracts view count from ``images.txt`` comment.
 
     The SfM output dir has both cameras.txt (intrinsics, often 1 shared
-    model) and images.txt (one pose per physical camera view). The view
-    count is more useful on the chip than the model count.
+    model) and images.txt (one pose per physical camera view). Returns a
+    ``cam`` labeled item conveying "physical cameras calibrated".
     """
-    from hololab.gateway.tag_probes import internal_count_for
+    from hololab.gateway.tag_probes import ProbeItem, internal_count_for
 
     elem = tmp_path / "cams"
     elem.mkdir()
@@ -202,11 +208,16 @@ def test_tag_probe_colmap_cams_reads_view_count_from_images_txt(tmp_path: Path) 
     assert res is not None
     assert res.count == 3
     assert res.kind == "views"
+    assert res.items == (ProbeItem("cam", 3),)
 
 
 def test_tag_probe_colmap_reads_point_count_from_sparse(tmp_path: Path) -> None:
-    """colmap probe reads 3-D point count from ``sparse/0/points3D.txt`` header."""
-    from hololab.gateway.tag_probes import internal_count_for
+    """colmap probe reads 3-D point count from ``sparse/0/points3D.txt`` header.
+
+    When only points3D.txt is present (no images.txt), the result has a
+    single ``point`` item. ``count`` reflects the point value for compat.
+    """
+    from hololab.gateway.tag_probes import ProbeItem, internal_count_for
 
     elem = tmp_path / "frame"
     (elem / "sparse" / "0").mkdir(parents=True)
@@ -219,6 +230,7 @@ def test_tag_probe_colmap_reads_point_count_from_sparse(tmp_path: Path) -> None:
     assert res is not None
     assert res.count == 6685
     assert res.kind == "points"
+    assert res.items == (ProbeItem("point", 6685),)
 
 
 def test_tag_probe_colmap_probe_returns_none_when_no_sparse(tmp_path: Path) -> None:
@@ -231,6 +243,51 @@ def test_tag_probe_colmap_probe_returns_none_when_no_sparse(tmp_path: Path) -> N
     assert internal_count_for(["colmap"], elem) is None
 
 
+def test_tag_probe_colmap_returns_cam_and_point_items(tmp_path: Path) -> None:
+    """colmap probe returns two items — ``cam:N point:M`` — when both
+    ``images.txt`` and ``points3D.txt`` are present in ``sparse/0/``.
+
+    This is the canonical case rendered on the chip as ``colmap(cam:21 point:6685)``.
+    """
+    from hololab.gateway.tag_probes import ProbeItem, internal_count_for
+
+    elem = tmp_path / "frame"
+    (elem / "sparse" / "0").mkdir(parents=True)
+    (elem / "sparse" / "0" / "images.txt").write_text(
+        "# Number of images: 21, mean observations per image: 1912.4\n"
+        "1 1.0 0.0 0.0 0.0 0.0 0.0 0.0 1 cam00.png\n"
+    )
+    (elem / "sparse" / "0" / "points3D.txt").write_text(
+        "# Number of points: 6685, mean track length: 5.7\n1 0.1 0.2 0.3 255 0 0 0.5 1 0\n"
+    )
+    res = internal_count_for(["colmap"], elem)
+    assert res is not None
+    assert res.items == (ProbeItem("cam", 21), ProbeItem("point", 6685))
+    assert res.count == 21  # first item (cam) as legacy scalar
+
+
+def test_tag_probe_colmap_includes_zero_point_item_for_frontend_filtering(
+    tmp_path: Path,
+) -> None:
+    """colmap probe includes a ``point:0`` item even when point count is zero.
+
+    The backend always emits the item; the frontend suppresses value=0
+    so the chip shows only ``cam:5`` rather than ``cam:5 point:0``.
+    """
+    from hololab.gateway.tag_probes import ProbeItem, internal_count_for
+
+    elem = tmp_path / "frame"
+    (elem / "sparse" / "0").mkdir(parents=True)
+    (elem / "sparse" / "0" / "images.txt").write_text(
+        "# Number of images: 5\n1 1.0 0.0 0.0 0.0 0.0 0.0 0.0 1 cam00.png\n"
+    )
+    (elem / "sparse" / "0" / "points3D.txt").write_text("# Number of points: 0\n")
+    res = internal_count_for(["colmap"], elem)
+    assert res is not None
+    assert ProbeItem("cam", 5) in res.items
+    assert ProbeItem("point", 0) in res.items
+
+
 def test_tag_probe_returns_none_for_unregistered_tag(tmp_path: Path) -> None:
     from hololab.gateway.tag_probes import internal_count_for
 
@@ -241,7 +298,7 @@ def test_tag_probe_returns_none_for_unregistered_tag(tmp_path: Path) -> None:
 def test_handle_summary_annotates_element_count_and_internal_count(tmp_path: Path) -> None:
     """End-to-end wire: an arrayed dir handle whose first element carries
     a probeable ``cameras.txt`` must surface both ``element_count`` (top
-    level) and ``internal_count`` (from the sampled first element)."""
+    level) and ``internal_count_items`` (from the sampled first element)."""
     from hololab.gateway.handle_summary import summarize_handle
     from hololab.gateway.handles import Handle
 
@@ -259,8 +316,7 @@ def test_handle_summary_annotates_element_count_and_internal_count(tmp_path: Pat
     )
     res = summarize_handle(h)
     assert res["element_count"] == 3
-    assert res["internal_count"] == 2
-    assert res["internal_count_kind"] == "cam models"
+    assert res["internal_count_items"] == [{"label": "model", "value": 2}]
 
 
 def test_handle_summary_scalar_dir_has_no_element_count(tmp_path: Path) -> None:
@@ -285,8 +341,7 @@ def test_handle_summary_scalar_dir_has_no_element_count(tmp_path: Path) -> None:
     )
     res = summarize_handle(h)
     assert "element_count" not in res
-    assert res["internal_count"] == 1
-    assert res["internal_count_kind"] == "cam models"
+    assert res["internal_count_items"] == [{"label": "model", "value": 1}]
 
 
 def test_handle_summary_dim_sizes_2d(tmp_path: Path) -> None:
@@ -314,8 +369,7 @@ def test_handle_summary_dim_sizes_2d(tmp_path: Path) -> None:
     res = summarize_handle(h, depth=2)
     assert res["dim_sizes"] == [4, 3]
     assert res["element_count"] == 4
-    assert res["internal_count"] == 3
-    assert res["internal_count_kind"] == "cam models"
+    assert res["internal_count_items"] == [{"label": "model", "value": 3}]
 
 
 def test_handle_summary_dim_sizes_1d(tmp_path: Path) -> None:

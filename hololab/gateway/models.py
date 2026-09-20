@@ -307,6 +307,15 @@ class HandleSummary(BaseModel):
         default=None,
         description="Human-readable name for :attr:`internal_count`; null when unset.",
     )
+    internal_count_items: list[dict[str, Any]] | None = Field(
+        default=None,
+        description=(
+            "Multi-value labeled internal counts. Supersedes ``internal_count`` "
+            "when present. Each item: ``{label: str, value: int}`` (e.g. "
+            "``{'label': 'cam', 'value': 21}``). Frontend renders "
+            "``(cam:21 point:6685)``; items with value=0 are suppressed."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------

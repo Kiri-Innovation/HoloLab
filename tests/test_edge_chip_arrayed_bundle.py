@@ -146,6 +146,31 @@ def test_dim_sizes_wire_key_present(bundle_js: str) -> None:
     )
 
 
+def test_internal_count_items_wire_key_present(bundle_js: str) -> None:
+    """The ``internal_count_items`` field must survive minification so the
+    edge summary cache can decode multi-value labeled counts from the server.
+    Missing this means colmap chips always fall back to the legacy scalar
+    ``internal_count`` path and never render ``(cam:21 point:6685)``."""
+
+    assert "internal_count_items" in bundle_js, (
+        "edgeSummaryCache must consume ``internal_count_items`` from HandleSummary"
+    )
+
+
+def test_chip_filters_zero_value_items(bundle_js: str) -> None:
+    """The chip formatter must suppress items with value=0.
+
+    The backend always includes ``point:0`` in ``internal_count_items``
+    when the triangulation produced no points. The frontend must filter
+    so the chip shows ``colmap(cam:5)`` not ``colmap(cam:5 point:0)``.
+
+    The ``!== 0`` guard on the item filter must be present in the bundle."""
+
+    assert "!== 0" in bundle_js or "!==0" in bundle_js, (
+        "formatTypeLabel must filter internal_count_items with value !== 0"
+    )
+
+
 def test_chip_labeled_bracket_format(bundle_js: str) -> None:
     """When a dim label is present, the chip must render ``[label:N]``
     rather than bare ``[N]``.  The colon separator between label and

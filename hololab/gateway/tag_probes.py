@@ -5,15 +5,15 @@ Handle summaries carry two "how many" numbers on the wire:
 * ``element_count`` — top-level shard count for an arrayed handle
   (``arrayed<T>`` = dir whose immediate subdirs are elements). Computed
   by walking the handle's root once.
-* ``internal_count`` — a tag-specific *inside-one-element* count. What
-  it means depends on the tag: ``colmap-cameras-txt`` → cameras.txt row
-  count; ``colmap-points-txt`` → points3D.txt row count; ``splatv`` →
-  the ``camera_count`` already parsed out of the header.
+* ``internal_count_items`` — a tag-specific list of labeled values, one
+  per meaningful metric inside one element (e.g. ``colmap`` → ``cam:21``
+  + ``point:6685``). Supersedes the older scalar ``internal_count`` /
+  ``internal_count_kind`` pair (still emitted for splatv and any tag
+  that hasn't migrated yet).
 
-This module is the registry that maps tag names to probe callables and
-their ``internal_count_kind`` label ("cameras", "points", …). Sibling
-of :mod:`hololab.gateway.tag_viewers` (which maps tags to viewers) — same
-"lookup by tag" pattern, but for a different UI concern.
+This module is the registry that maps tag names to probe callables.
+Sibling of :mod:`hololab.gateway.tag_viewers` (which maps tags to
+viewers) — same "lookup by tag" pattern, but for a different UI concern.
 
 Probes MUST be cheap. A probe running against a live production handle
 should not open more than a couple of files. When in doubt, sample the
@@ -28,14 +28,30 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
+class ProbeItem:
+    """One labeled value within a multi-item probe result.
+
+    The chip renders ``label:value``; the frontend suppresses items
+    whose value is 0 so empty categories stay invisible.
+    """
+
+    label: str
+    value: int
+
+
+@dataclass(frozen=True)
 class ProbeResult:
-    """One probe's answer: ``(count, kind)``.
+    """One probe's answer.
 
     ``kind`` is the noun the tooltip uses ("7 cameras", "1024 points").
+    When ``items`` is non-empty the chip renders ``(label:value …)`` for
+    each item with value ≠ 0; ``count`` / ``kind`` are kept for backward
+    compatibility with callers that predate the multi-item upgrade.
     """
 
     count: int
     kind: str
+    items: tuple[ProbeItem, ...] = ()
 
 
 ProbeFn = Callable[[Path], ProbeResult | None]
@@ -79,8 +95,8 @@ def _probe_colmap_cameras_txt(path: Path) -> ProbeResult | None:
 
     COLMAP's cameras.txt has one row per distinct camera *model* (not per
     physical camera). After image-undistort this is typically 1 (shared
-    PINHOLE model for all cameras). ``kind="cam models"`` disambiguates
-    from view count so the tooltip reads ``1 cam models``, not ``1 cameras``.
+    PINHOLE model for all cameras). ``label="model"`` disambiguates from
+    view count so the chip reads ``model:1``, not ``cam:1``.
     """
     txt = path / "cameras.txt" if path.is_dir() else path
     if not txt.is_file():
@@ -95,7 +111,7 @@ def _probe_colmap_cameras_txt(path: Path) -> ProbeResult | None:
                 count += 1
     except OSError:
         return None
-    return ProbeResult(count=count, kind="cam models")
+    return ProbeResult(count=count, kind="cam models", items=(ProbeItem("model", count),))
 
 
 def _probe_colmap_points_txt(path: Path) -> ProbeResult | None:
@@ -113,7 +129,7 @@ def _probe_colmap_points_txt(path: Path) -> ProbeResult | None:
                 count += 1
     except OSError:
         return None
-    return ProbeResult(count=count, kind="points")
+    return ProbeResult(count=count, kind="points", items=(ProbeItem("point", count),))
 
 
 def _probe_colmap_images_txt(path: Path) -> ProbeResult | None:
@@ -126,7 +142,7 @@ def _probe_colmap_images_txt(path: Path) -> ProbeResult | None:
     txt = path / "images.txt" if path.is_dir() else path
     n = _parse_colmap_header_count(txt, "Number of images:")
     if n is not None:
-        return ProbeResult(count=n, kind="views")
+        return ProbeResult(count=n, kind="views", items=(ProbeItem("view", n),))
     return None
 
 
@@ -136,30 +152,56 @@ def _probe_colmap_cams(path: Path) -> ProbeResult | None:
     The sfm-cams-only output dir contains ``cameras.txt`` (intrinsics,
     often 1 shared model) and ``images.txt`` (one pose per view). The
     view count from ``images.txt`` is the most useful number — it tells
-    how many physical cameras were calibrated.
+    how many physical cameras were calibrated. ``label="cam"`` conveys
+    "physical cameras" rather than "camera models".
     """
     txt = path / "images.txt" if path.is_dir() else path
     n = _parse_colmap_header_count(txt, "Number of images:")
     if n is not None:
-        return ProbeResult(count=n, kind="views")
+        return ProbeResult(count=n, kind="views", items=(ProbeItem("cam", n),))
     return None
 
 
 def _probe_colmap(path: Path) -> ProbeResult | None:
-    """Count 3-D points in a per-frame COLMAP reconstruction directory.
+    """Dual-metric probe for a per-frame COLMAP reconstruction directory.
 
     ``colmap-triangulate`` outputs ``sparse/0/{cameras,images,points3D}.txt``.
-    Points count is the unique piece of information this handle adds on top
-    of the cameras/images already visible on other edges in the same frame.
+    Returns two labeled items when both files are readable:
+
+    * ``cam:N``   — view count from ``images.txt`` header (physical cameras)
+    * ``point:M`` — 3-D point count from ``points3D.txt`` header
+
+    Items with value 0 are included so the frontend can decide whether to
+    suppress them (it always hides value=0 items by convention).
+    Returns None only when neither file is found.
     """
+    sparse0 = path / "sparse" / "0"
+    recon_root = sparse0 if sparse0.is_dir() else path
+
+    cam_n = _parse_colmap_header_count(recon_root / "images.txt", "Number of images:")
+
+    point_n: int | None = None
     for candidate in (
         path / "sparse" / "0" / "points3D.txt",
         path / "points3D.txt",
     ):
         n = _parse_colmap_header_count(candidate, "Number of points:")
         if n is not None:
-            return ProbeResult(count=n, kind="points")
-    return None
+            point_n = n
+            break
+
+    if cam_n is None and point_n is None:
+        return None
+
+    items: list[ProbeItem] = []
+    if cam_n is not None:
+        items.append(ProbeItem("cam", cam_n))
+    if point_n is not None:
+        items.append(ProbeItem("point", point_n))
+
+    first_val = cam_n if cam_n is not None else point_n
+    assert first_val is not None
+    return ProbeResult(count=first_val, kind="points", items=tuple(items))
 
 
 # Tag → probe function. First match wins when a handle carries multiple
