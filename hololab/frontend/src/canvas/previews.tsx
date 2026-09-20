@@ -186,6 +186,7 @@ export function Preview({
           handleId={handleId}
           partial={partial}
           dimLabels={dimLabels}
+          prefetchElement={prefetchColmapPoints}
           renderScalar={(elementBaseUrl) => (
             <ColmapPointsPreview baseUrl={elementBaseUrl} />
           )}
@@ -215,6 +216,7 @@ export function Preview({
           handleId={handleId}
           partial={partial}
           dimLabels={dimLabels}
+          prefetchElement={prefetchColmapFrame}
           renderScalar={(elementBaseUrl) => (
             <ColmapFramePreview baseUrl={elementBaseUrl} />
           )}
@@ -3745,6 +3747,52 @@ function RigTimelinePreview({ baseUrl }: { baseUrl: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// ±3 neighbour prefetch helpers.
+//
+// When the user turns a page in ArrayedPaginator the browser must fetch
+// COLMAP text files before the iframe can render.  Issuing those fetches
+// in idle time while the current page is visible means the HTTP cache is
+// warm by the time the user clicks — the scalar viewer's fetch resolves
+// instantly with no loading flash.
+//
+// _prefetchedUrls: session-scoped dedup set; capped at 60 entries (oldest
+// 10 evicted when the cap is reached).
+// ---------------------------------------------------------------------------
+
+const _prefetchedUrls = new Set<string>();
+const PREFETCH_URL_CAP = 60;
+
+function _warmUrl(url: string): void {
+  if (_prefetchedUrls.has(url)) return;
+  if (_prefetchedUrls.size >= PREFETCH_URL_CAP) {
+    const iter = _prefetchedUrls.values();
+    for (let i = 0; i < 10; i++) _prefetchedUrls.delete(iter.next().value!);
+  }
+  _prefetchedUrls.add(url);
+  fetch(url).catch(() => {});
+}
+
+function prefetchColmapFrame(elementUrl: string): void {
+  const base = elementUrl.replace(/\/$/, "") + "/sparse/0";
+  for (const name of COLMAP_FRAME_FETCH) _warmUrl(`${base}/${name}`);
+}
+
+function prefetchColmapPoints(elementUrl: string): void {
+  _warmUrl(elementUrl.replace(/\/$/, "") + "/points3D.txt");
+}
+
+function scheduleIdle(fn: () => void): number {
+  return typeof requestIdleCallback !== "undefined"
+    ? requestIdleCallback(fn)
+    : window.setTimeout(fn, 50);
+}
+
+function cancelIdle(id: number): void {
+  if (typeof cancelIdleCallback !== "undefined") cancelIdleCallback(id);
+  else clearTimeout(id);
+}
+
+// ---------------------------------------------------------------------------
 // ArrayedPaginator — top pager row + scalar viewer of the selected element.
 //
 // The default frontend policy is "predefine a scalar viewer for tag T; if
@@ -3784,6 +3832,12 @@ interface ArrayedPaginatorProps {
   // the ``i / total`` pager text so operators see "3 / 100" instead
   // of "3 / 3" while shards trickle in.
   partial?: PartialArrayedInfo;
+  // Called idle-time for the ±3 element URLs around the current page so
+  // the browser HTTP cache is warm before the user flips to that page.
+  // Pass a viewer-specific function (``prefetchColmapFrame`` etc); omit
+  // for viewers whose data can't be trivially pre-fetched.  Not called
+  // in partial mode (shard URLs may not be stable yet).
+  prefetchElement?: (elementUrl: string) => void;
   // Per-dimension labels (outer→inner). Length ≥ 2 promotes the
   // paginator into nested mode: an inner ArrayedPaginator wraps the
   // caller's scalar viewer and pages through the selected outer
@@ -3812,6 +3866,7 @@ function ArrayedPaginator({
   dimLabels,
   breadcrumb,
   elementsOverride,
+  prefetchElement,
 }: ArrayedPaginatorProps) {
   // Track children *by outer element name* so nested-mode inner
   // paginator receives the correct list per selection. Populated only
@@ -3829,6 +3884,7 @@ function ArrayedPaginator({
   >({ kind: "loading" });
   const [idx, setIdx] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const prefetchIdleRef = useRef<number | null>(null);
   const [hovered, setHovered] = useState(false);
   const nested = (dimLabels?.length ?? 0) >= 2;
 
@@ -3919,6 +3975,35 @@ function ArrayedPaginator({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [hovered, move]);
+
+  // Idle-time ±3 prefetch.  Reschedule on every page change so the window
+  // always tracks the current index.  Skipped in partial mode (shard URLs
+  // are ephemeral) and when no prefetch callback is wired.
+  useEffect(() => {
+    if (!prefetchElement || state.kind !== "ok" || partial || state.elements.length <= 1) return;
+    const elements = state.elements;
+    const elementUrls = (state as { elementUrls?: string[] }).elementUrls;
+    const total = elements.length;
+    const cur = Math.min(idx, total - 1);
+    const dBase = baseUrl.replace(/\/$/, "");
+
+    if (prefetchIdleRef.current !== null) cancelIdle(prefetchIdleRef.current);
+    prefetchIdleRef.current = scheduleIdle(() => {
+      for (let d = -3; d <= 3; d++) {
+        if (d === 0) continue;
+        const ni = (cur + d + total) % total;
+        const nUrl = elementUrls?.[ni] ?? `${dBase}/${encodePathSegments(elements[ni])}`;
+        prefetchElement(nUrl);
+      }
+      prefetchIdleRef.current = null;
+    });
+    return () => {
+      if (prefetchIdleRef.current !== null) {
+        cancelIdle(prefetchIdleRef.current);
+        prefetchIdleRef.current = null;
+      }
+    };
+  }, [idx, state, prefetchElement, partial, baseUrl]);
 
   if (state.kind === "loading") {
     return (
