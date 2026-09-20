@@ -221,6 +221,38 @@ export function Preview({
   ) {
     return <RigTimelinePreview baseUrl={baseUrl} />;
   }
+  // ``rig_capture`` — rig-capture-source's per-alias camera dirs
+  // (``camN/<orig-timestamp>.mp4`` + sidecars). Renders a
+  // multi-camera video grid on the video-array-source pattern, with
+  // one tile per rig camera labelled by its alias.
+  if (
+    tags &&
+    tags.includes("rig_capture") &&
+    storage === "dir"
+  ) {
+    if (!handleId) {
+      return (
+        <div style={PREVIEW_SHELL}>
+          <Status text="rig-capture preview needs a handle id" kind="error" />
+        </div>
+      );
+    }
+    return (
+      <VideoGridPreview
+        baseUrl={baseUrl}
+        handleId={handleId}
+        // ``filterEntries`` already flattens ``<alias>/<file>``, drops
+        // the top-level ``manifest.json``/``rig_map.json``/``set_name.txt``
+        // via ``isVideoName``, and drops per-alias ``*.jsonl`` sidecars for
+        // the same reason. No explicit glob needed.
+        memberGlob={undefined}
+        dirAbsolutePath={absolutePath}
+        producingNode={producingNode}
+        // Alias is the first path segment (``cam0/2026-…mp4`` → ``cam0``).
+        entryLabel={(name) => name.split("/", 1)[0] || null}
+      />
+    );
+  }
 
   // No tag intercept matched and the caller didn't hand us a spec.
   // Happens when a port has a frontend-driven tag (e.g. colmap-cams)
@@ -979,6 +1011,13 @@ interface VideoGridProps {
   // zoom overlay simply hides the button in that case.
   dirAbsolutePath?: string;
   producingNode?: ComputeNode | null;
+  // Optional per-tile label — the returned string is drawn as a small
+  // bottom-left pill on top of the video thumbnail. Used by
+  // rig-capture-source's preview to surface the alias (``cam0``) up
+  // top instead of the raw ``<alias>/<orig-timestamp>.mp4`` string
+  // that ends up in the tooltip. Default (undefined / null return) =
+  // no label overlay, preserving the video-array-source look.
+  entryLabel?: (name: string) => string | null;
 }
 
 // Gap between tiles (CSS px). Kept small so a dense 5×5 layout doesn't
@@ -1266,6 +1305,7 @@ function VideoGridPreview({
   memberGlob,
   dirAbsolutePath,
   producingNode,
+  entryLabel,
 }: VideoGridProps) {
   const [state, setState] = useState<
     { kind: "loading" } | { kind: "ok"; summary: HandleSummary } | { kind: "err"; message: string }
@@ -1390,6 +1430,7 @@ function VideoGridPreview({
               isMaster={zoomedIdx === null && idx === 0}
               sync={sync}
               onZoom={() => setZoomedIdx(idx)}
+              label={entryLabel ? entryLabel(entry.name) : null}
             />
           ))}
         </div>
@@ -1415,9 +1456,11 @@ interface TileProps {
   isMaster: boolean;
   sync: VideoArraySync;
   onZoom: () => void;
+  // Optional pill drawn bottom-left. See ``VideoGridProps.entryLabel``.
+  label?: string | null;
 }
 
-function VideoTile({ baseUrl, entry, isMaster, sync, onZoom }: TileProps) {
+function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label }: TileProps) {
   // Build the same-origin URLs. ``baseUrl`` is the dir's ``/proxy/{node}/{sub}``.
   // Thumb + preview endpoints are separate node routes rooted at the
   // same ``/proxy/{node}`` prefix.
@@ -1501,6 +1544,27 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom }: TileProps) {
           pointerEvents: "none",
         }}
       />
+      {label && (
+        <div
+          data-hl-tile-label={label}
+          style={{
+            position: "absolute",
+            bottom: 4,
+            left: 4,
+            padding: "1px 6px",
+            background: "rgba(0,0,0,0.55)",
+            color: "#fff",
+            fontSize: 10,
+            fontFamily: "var(--font-mono)",
+            fontWeight: 600,
+            letterSpacing: "0.02em",
+            borderRadius: "var(--radius-sm)",
+            pointerEvents: "none",
+          }}
+        >
+          {label}
+        </div>
+      )}
     </div>
   );
 }

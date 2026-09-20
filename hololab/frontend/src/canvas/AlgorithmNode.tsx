@@ -196,6 +196,8 @@ const FRONTEND_VIEWER_TAGS = new Set<string>([
   "rig_points4d",
   // Exposure-timeline diagnostic figure from rig-frame-extraction@0.1.1.
   "rig_timeline",
+  // rig-capture-source's per-alias camera dirs — 7-tile video grid.
+  "rig_capture",
 ]);
 
 function hasFrontendViewerTag(tags: string[] | undefined): boolean {
