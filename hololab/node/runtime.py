@@ -88,6 +88,15 @@ _LOCATE_ATTEMPT_TIMEOUT_S = 4.0
 _LOCATE_BACKOFF_START_S = 1.0
 _LOCATE_BACKOFF_CAP_S = 4.0
 
+# Handle-locate result cache — same handle_id gets asked for N times
+# during a fan-out (each shard walks its input list; a scalar upstream
+# handle is shared across every shard). Without a cache each shard
+# burns a round-trip, and a momentarily-unhealthy gateway takes N
+# concurrent retry storms instead of just one. Node-local, TTL-based;
+# see ``_locate_handle_cached`` for the single-flight coalescing that
+# rides on top.
+_LOCATE_CACHE_TTL_S = 300.0
+
 # Batch log lines every N seconds to keep the WS gentle.
 LOG_FLUSH_INTERVAL = 0.5
 
@@ -164,6 +173,20 @@ class NodeRuntime:
         # A locate is 1:1 request/response and we don't issue two concurrent
         # locates for the same handle within one job, so this is sufficient.
         self._pending_locates: dict[str, asyncio.Future[HandleLocateResp]] = {}
+
+        # Cache of successful locate responses, keyed by handle_id.
+        # Values are ``(resp, expiry_ts)``. TTL-only invalidation —
+        # handles are effectively immutable once produced and the
+        # producer node's advertised URL rarely changes; a genuinely
+        # stale entry surfaces as an HTTP 404 during the subsequent
+        # fetch, which the shard reports as a real business error.
+        # See ``_locate_handle_cached``.
+        self._locate_cache: dict[str, tuple[HandleLocateResp, float]] = {}
+        # Single-flight map: when two shards ask for the same handle
+        # at the same instant they share one round-trip. Populated
+        # for the duration of the retry loop; cleared as soon as the
+        # cache lands the answer.
+        self._locate_inflight: dict[str, asyncio.Future[HandleLocateResp]] = {}
 
         # File server task + its owning ServeHandle. We hold the handle
         # so a live workspace-root change can call ``stop()`` to release
@@ -419,6 +442,13 @@ class NodeRuntime:
             # the new multi-pack-source protocol.
             packs_dir=str(self._config.pack_dirs[0]) if self._config.pack_dirs else None,
             pack_dirs=[str(p) for p in self._config.pack_dirs],
+            # Jobs currently in our live map. Sent so the gateway can
+            # reconcile against DB rows it marked ``orphaned`` when it
+            # restarted, hoisting the ones we're still running back to
+            # ``running`` instead of finalising them to ``interrupted``.
+            # Empty on a fresh daemon boot — the gateway then falls back
+            # to its grace-window sweeper for stragglers.
+            running_jobs=list(self._jobs.keys()),
         )
         await self._send("register", reg)
 
@@ -1315,7 +1345,7 @@ class NodeRuntime:
                 resolved[port] = handle_id
                 continue
 
-            resp = await self._locate_handle(handle_id)
+            resp = await self._locate_handle_cached(handle_id)
             if resp.not_found:
                 raise _HandleResolutionError(f"unknown handle {handle_id!r}")
 
@@ -1333,6 +1363,61 @@ class NodeRuntime:
             resolved[port] = str(local_dest)
 
         return resolved
+
+    async def _locate_handle_cached(self, handle_id: str) -> HandleLocateResp:
+        """Cached, single-flight wrapper around ``_locate_handle``.
+
+        Fan-outs commonly walk N shards where every shard's input list
+        names the same scalar upstream handle. Without a cache each
+        shard runs its own round-trip; with a cache each *unique*
+        handle_id costs one round-trip per node per TTL window
+        regardless of consumer count. That is:
+
+        * a first hit for handle H populates the cache; peer shards
+          reuse the entry without going to the wire;
+        * concurrent first-hits from N shards on the same handle share
+          one in-flight future (``_locate_inflight``) so we don't
+          fan out into N parallel gateway requests either;
+        * ``not_found`` and errors are NOT cached — real business
+          answers (unknown handle) may be transient during node
+          startup ordering, and the retry loop should get a fresh
+          answer next time.
+        """
+
+        # Fast path: unexpired cache entry.
+        now = time.monotonic()
+        cached = self._locate_cache.get(handle_id)
+        if cached is not None and cached[1] > now:
+            return cached[0]
+
+        # Single-flight: if someone else is already resolving this
+        # handle, wait on their future.
+        inflight = self._locate_inflight.get(handle_id)
+        if inflight is not None:
+            return await inflight
+
+        loop = asyncio.get_event_loop()
+        my_fut: asyncio.Future[HandleLocateResp] = loop.create_future()
+        self._locate_inflight[handle_id] = my_fut
+        try:
+            try:
+                resp = await self._locate_handle(handle_id)
+            except BaseException as exc:
+                # Propagate to concurrent waiters so they don't hang.
+                if not my_fut.done():
+                    my_fut.set_exception(exc)
+                raise
+            # Only cache authoritative "found" answers — never cache
+            # ``not_found`` (may flip once producer node registers) or
+            # partial responses.
+            if not resp.not_found and (resp.local_path or resp.http_url):
+                expiry = time.monotonic() + _LOCATE_CACHE_TTL_S
+                self._locate_cache[handle_id] = (resp, expiry)
+            if not my_fut.done():
+                my_fut.set_result(resp)
+            return resp
+        finally:
+            self._locate_inflight.pop(handle_id, None)
 
     async def _locate_handle(self, handle_id: str) -> HandleLocateResp:
         """Send a locate request and await the gateway's response.

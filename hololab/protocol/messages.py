@@ -107,6 +107,14 @@ class Register(BaseModel):
     # custom pack source without vendoring — see
     # docs/writing-a-pack.md.
     pack_dirs: list[str] = Field(default_factory=list)
+    # Job IDs the node currently has running (i.e. still in its live
+    # ``self._jobs`` map). Sent so the gateway can reconcile after a
+    # restart: any DB row this node still claims stays ``running``
+    # instead of being finalised to ``interrupted``. Empty on a fresh
+    # daemon boot. Older nodes that predate this field send an empty
+    # list; the gateway degrades gracefully (grace-window sweeper
+    # still finalises stragglers).
+    running_jobs: list[str] = Field(default_factory=list)
 
 
 class RegisterOk(BaseModel):

@@ -1,9 +1,10 @@
-"""Rerun-from-node + interrupted-job semantics.
+"""Rerun-from-node + orphaned/interrupted-job semantics.
 
 Covers:
   * JobState.INTERRUPTED is terminal (no outbound transitions).
-  * ``mark_stuck_jobs_interrupted`` flips pending/assigned/running/orphaned
-    jobs to interrupted on gateway restart, leaves terminal jobs alone.
+  * ``mark_stuck_jobs_orphaned`` (gateway startup) flips assigned/running
+    jobs to ``orphaned`` so the register-time reconciler can hoist them
+    back to ``running``; ``pending`` and terminal jobs are left alone.
   * ``downstream_closure`` returns start + transitive downstream.
   * ``POST /api/snapshots/{sid}/rerun-from/{gid}`` — happy path (reused
     upstream + re-executed downstream) plus 404/400 rejection paths.
@@ -20,7 +21,7 @@ from fastapi.testclient import TestClient
 from hololab.gateway.app import create_app
 from hololab.gateway.handles import Handle
 from hololab.gateway.jobs import IllegalTransition, Job, JobState, JobStateMachine
-from hololab.gateway.registry import NodeSession, mark_stuck_jobs_interrupted
+from hololab.gateway.registry import NodeSession, mark_stuck_jobs_orphaned
 from hololab.gateway.workflows import GraphEdge, GraphNode, WorkflowGraph, downstream_closure
 from hololab.persistence.db import open_database
 from hololab.protocol.messages import GpuInfo
@@ -64,19 +65,41 @@ def test_running_can_transition_to_interrupted() -> None:
     assert new.state is JobState.INTERRUPTED
 
 
+def test_orphaned_can_transition_to_done() -> None:
+    """Reconciliation relies on ``orphaned → done`` being legal so a
+    terminal frame that races past the register-time hoist still
+    lands cleanly instead of being rejected as illegal."""
+
+    job = Job(
+        job_id="j",
+        workflow_id="w",
+        snapshot_id="s",
+        algorithm_name="demo-echo",
+        algorithm_version="0.1.0",
+        state=JobState.ORPHANED,
+    )
+    new = JobStateMachine.transition(job, JobState.DONE)
+    assert new.state is JobState.DONE
+
+
 # ---------------------------------------------------------------------------
 # Startup sweep
 # ---------------------------------------------------------------------------
 
 
-async def test_mark_stuck_jobs_interrupted_flips_non_terminal(tmp_path: Path) -> None:
-    """pending/assigned/running/orphaned → interrupted; terminals untouched."""
+async def test_mark_stuck_jobs_orphaned_flips_in_flight_only(tmp_path: Path) -> None:
+    """assigned/running → orphaned; pending, orphaned, and terminals untouched.
+
+    ``pending`` is deliberately left alone (it wasn't in-flight, just
+    queued — the scheduler picks it up on the next tick). ``orphaned``
+    rows from before the restart also stay as-is; the sweeper's grace
+    window is the only path that flips them further.
+    """
 
     import time as _time
 
     db = await open_database(tmp_path / "sweep.sqlite")
     try:
-        # Seed one job per state — including terminals which must stay.
         rows = [
             ("pj", "pending"),
             ("aj", "assigned"),
@@ -99,8 +122,9 @@ async def test_mark_stuck_jobs_interrupted_flips_non_terminal(tmp_path: Path) ->
 
         await db.write(_seed)
 
-        n = await mark_stuck_jobs_interrupted(db)
-        assert n == 4  # pending + assigned + running + orphaned
+        n = await mark_stuck_jobs_orphaned(db)
+        # assigned + running flip; pending/orphaned/terminals untouched.
+        assert n == 2
 
         async with (
             db.read() as conn,
@@ -109,23 +133,23 @@ async def test_mark_stuck_jobs_interrupted_flips_non_terminal(tmp_path: Path) ->
             after = {jid: state for jid, state in await cur.fetchall()}
 
         assert after == {
-            "aj": "interrupted",
+            "aj": "orphaned",
             "cj": "cancelled",
             "dj": "done",
             "fj": "failed",
             "ij": "interrupted",
-            "oj": "interrupted",
-            "pj": "interrupted",
-            "rj": "interrupted",
+            "oj": "orphaned",
+            "pj": "pending",  # <-- deliberately preserved
+            "rj": "orphaned",
         }
     finally:
         await db.close()
 
 
-async def test_mark_stuck_jobs_interrupted_noop_on_clean_db(tmp_path: Path) -> None:
+async def test_mark_stuck_jobs_orphaned_noop_on_clean_db(tmp_path: Path) -> None:
     db = await open_database(tmp_path / "clean.sqlite")
     try:
-        assert await mark_stuck_jobs_interrupted(db) == 0
+        assert await mark_stuck_jobs_orphaned(db) == 0
     finally:
         await db.close()
 
@@ -394,9 +418,7 @@ def test_rerun_from_a_previous_rerun_resolves_origin_handles(tmp_path: Path) -> 
         # background dispatch.
         async def _build_snap2() -> str:
             wf_id = "55555555-5555-5555-5555-555555555555"
-            snap = await client.app.state.workflows.create_snapshot(
-                workflow_id=wf_id, graph=graph
-            )
+            snap = await client.app.state.workflows.create_snapshot(workflow_id=wf_id, graph=graph)
             # Reused rows for n1/n2 — point at the original snap1 jobs.
             for gid in ("n1", "n2"):
                 await client.app.state.jobs_store.create(

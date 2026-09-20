@@ -581,31 +581,89 @@ async def reset_all_online_flags(db: Database) -> None:
     await db.write(_write)
 
 
-async def mark_stuck_jobs_interrupted(db: Database) -> int:
-    """Mark any non-terminal job as ``interrupted`` on gateway startup.
+async def mark_stuck_jobs_orphaned(db: Database) -> int:
+    """Mark ``assigned`` / ``running`` jobs as ``orphaned`` on gateway startup.
 
-    Rationale: when the gateway restarts, we lose all the in-memory
-    session state for jobs that were pending/assigned/running. Their
-    subprocesses may or may not still exist on the node, but there's no
-    reliable protocol to reconcile — the safest thing is to declare
-    them terminal in the ``interrupted`` bucket and let the user
-    ``rerun-from`` if they want to continue. Without this the UI shows
-    misleading eternal-blue "running" nodes even though nothing is
-    actually running.
+    Rationale: the gateway loses in-memory session state on restart,
+    but the node's subprocess is a separate process and typically
+    survives. Historically we marked every in-flight row ``interrupted``
+    (terminal, no coming back) and lost work by the shovelful during
+    dev-time gateway bounces. Now we mark them ``orphaned`` — a
+    recoverable state — and rely on two reconciliation paths to finalise:
+
+    * ``_handle_node_socket`` matches the node's live ``running_jobs``
+      against our ``orphaned`` rows at register time and hoists still-
+      alive ones back to ``running`` (and non-claimed ones to
+      ``interrupted``, since if the node's daemon doesn't remember
+      running them their terminal frames were lost).
+    * A background sweeper finalises any ``orphaned`` row whose
+      owning node hasn't reconnected within ``ORPHAN_GRACE_S`` seconds.
+
+    ``pending`` rows are deliberately left alone: they weren't in-flight,
+    they were just queued. The scheduler picks them up again on next
+    tick; forcing them to ``interrupted`` used to make queue-during-crash
+    dispatches vanish, which was another slice of the same problem.
 
     Returns the number of rows flipped. Called from ``_startup`` before
-    the heartbeat sweeper starts; safe to run on an already-clean DB.
+    the sweeper starts; safe to run on an already-clean DB.
     """
 
-    non_terminal = ("pending", "assigned", "running", "orphaned")
+    reclaimable = ("assigned", "running")
 
     async def _write(conn: aiosqlite.Connection) -> int:
-        placeholders = ",".join("?" for _ in non_terminal)
+        placeholders = ",".join("?" for _ in reclaimable)
         cur = await conn.execute(
-            f"UPDATE jobs SET state='interrupted', updated_ts=? WHERE state IN ({placeholders})",
-            (time.time(), *non_terminal),
+            f"UPDATE jobs SET state='orphaned', updated_ts=? WHERE state IN ({placeholders})",
+            (time.time(), *reclaimable),
         )
         return cur.rowcount or 0
+
+    return await db.write(_write)
+
+
+async def finalize_stale_orphaned_jobs(
+    db: Database,
+    *,
+    cutoff_ts: float,
+    exclude_node_ids: set[str] | None = None,
+) -> list[str]:
+    """Sweep ``orphaned`` rows whose owner never came back to ``interrupted``.
+
+    A grace-window sweeper — call this periodically from the gateway
+    main loop. ``cutoff_ts`` is the age boundary: any ``orphaned`` row
+    whose ``updated_ts`` is older than this gets flipped to
+    ``interrupted``. ``exclude_node_ids`` names nodes that ARE currently
+    connected (recently reconciled at register time); the sweeper
+    skips their orphans so a slow reconcile doesn't race the sweeper.
+
+    Returns the job_ids that were finalised so the caller can broadcast
+    ``job_update`` frames for each — the frontend needs to flip its dot
+    from orphaned-blue to interrupted-grey.
+    """
+
+    async def _write(conn: aiosqlite.Connection) -> list[str]:
+        # First: collect the ids we're about to flip (SQLite doesn't
+        # give us RETURNING in the version we support).
+        where = "state='orphaned' AND updated_ts < ?"
+        params: list[Any] = [cutoff_ts]
+        if exclude_node_ids:
+            placeholders = ",".join("?" for _ in exclude_node_ids)
+            where += f" AND (node_id IS NULL OR node_id NOT IN ({placeholders}))"
+            params.extend(exclude_node_ids)
+        async with conn.execute(
+            f"SELECT job_id FROM jobs WHERE {where}",
+            params,
+        ) as cur:
+            ids = [row[0] for row in await cur.fetchall()]
+        if not ids:
+            return []
+        now = time.time()
+        placeholders = ",".join("?" for _ in ids)
+        await conn.execute(
+            (f"UPDATE jobs SET state='interrupted', updated_ts=? WHERE job_id IN ({placeholders})"),
+            (now, *ids),
+        )
+        return ids
 
     return await db.write(_write)
 
@@ -821,6 +879,65 @@ class JobsStore:
                 ORDER BY created_ts ASC
                 """,
                 (parent_job_id,),
+            ) as cur,
+        ):
+            rows = await cur.fetchall()
+
+        return [
+            Job(
+                job_id=r[0],
+                snapshot_id=r[1],
+                workflow_id=r[2],
+                node_id=r[3],
+                graph_node_id=r[4],
+                algorithm_name=r[5],
+                algorithm_version=r[6],
+                params=json.loads(r[7]),
+                input_handles=json.loads(r[8]),
+                state=JobState(r[9]),
+                progress_current=r[10],
+                progress_total=r[11],
+                fail_reason=JobFailReason(r[12]) if r[12] else None,
+                fail_exit_code=r[13],
+                fail_message=r[14],
+                created_ts=r[15],
+                updated_ts=r[16],
+                reused_from_job_id=r[17],
+                parent_job_id=r[18],
+                shard_element_id=r[19],
+                started_ts=r[20],
+                expected_shards=r[21],
+            )
+            for r in rows
+        ]
+
+    async def list_orphaned_for_node(self, node_id: str) -> list[Job]:  # noqa: F821
+        """Return every ``orphaned`` job owned by the given node.
+
+        Used at register-time reconciliation to match the node's live
+        ``running_jobs`` claim against DB rows that were flipped to
+        ``orphaned`` at gateway startup. Result order matches
+        ``created_ts`` ASC so the caller processes shards in dispatch
+        order — useful for logs but not semantically required.
+        """
+
+        from hololab.gateway.jobs import Job, JobState
+        from hololab.protocol.messages import JobFailReason
+
+        async with (
+            self._db.read() as conn,
+            conn.execute(
+                """
+                SELECT job_id, snapshot_id, workflow_id, node_id, graph_node_id,
+                       algorithm_name, algorithm_version, params_json, input_handles_json,
+                       state, progress_current, progress_total, fail_reason, fail_exit_code,
+                       fail_message, created_ts, updated_ts, reused_from_job_id,
+                       parent_job_id, shard_element_id, started_ts, expected_shards
+                FROM jobs
+                WHERE state='orphaned' AND node_id=?
+                ORDER BY created_ts ASC
+                """,
+                (node_id,),
             ) as cur,
         ):
             rows = await cur.fetchall()

@@ -77,7 +77,20 @@ _LEGAL: dict[JobState, frozenset[JobState]] = {
         }
     ),
     JobState.ORPHANED: frozenset(
-        {JobState.RUNNING, JobState.FAILED, JobState.CANCELLED, JobState.INTERRUPTED}
+        # DONE is included so a job that completed while the gateway
+        # was down (its terminal frame arrived just after the register
+        # reconciliation window closed) can still transition normally
+        # instead of being rejected. The register-time reconciler
+        # normally hoists orphans to RUNNING first, but a race where
+        # the node's terminal frame lands before that hoist would
+        # otherwise fail closed.
+        {
+            JobState.RUNNING,
+            JobState.DONE,
+            JobState.FAILED,
+            JobState.CANCELLED,
+            JobState.INTERRUPTED,
+        }
     ),
     JobState.DONE: frozenset(),
     JobState.FAILED: frozenset(),

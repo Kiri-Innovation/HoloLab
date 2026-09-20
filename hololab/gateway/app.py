@@ -73,7 +73,8 @@ from hololab.gateway.registry import (
     NodeAuthError,
     NodeRegistry,
     SnapshotJobsStore,
-    mark_stuck_jobs_interrupted,
+    finalize_stale_orphaned_jobs,
+    mark_stuck_jobs_orphaned,
     reset_all_online_flags,
 )
 from hololab.gateway.spa_staticfiles import SPAStaticFiles
@@ -126,6 +127,16 @@ log = get_logger("gateway")
 HEARTBEAT_DEAD_SECONDS = 45.0
 HEARTBEAT_SWEEP_INTERVAL = 5.0
 
+# Orphan-finaliser grace window — how long an ``orphaned`` row can sit
+# in the DB before the sweeper flips it to ``interrupted``. Sized to
+# cover a slow node restart on top of a gateway restart: the operator
+# doesn't lose recoverable work just because their node daemon took
+# 90 seconds to come back. The finaliser also holds off entirely for
+# the first ``ORPHAN_GRACE_S`` seconds after gateway startup so it
+# doesn't race the initial reconnect wave.
+ORPHAN_GRACE_S = 300.0
+ORPHAN_FINALIZER_INTERVAL_S = 30.0
+
 
 def create_app(*, db_path: Path | None = None) -> FastAPI:
     """Construct the FastAPI app. Called by CLI or tests.
@@ -145,13 +156,27 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
         path = db_path or gateway_sqlite_path()
         db = await open_database(path)
         await reset_all_online_flags(db)
-        # Any job that was in-flight when the previous gateway process
-        # died can't be reconciled — flip it to ``interrupted`` before
-        # the frontend or API sees it, so the UI never shows a fake
-        # eternal-blue running node. See jobs.py for the state semantics.
-        interrupted_count = await mark_stuck_jobs_interrupted(db)
-        if interrupted_count:
-            log.info("startup sweep marked jobs as interrupted", count=interrupted_count)
+        # Any job that was in-flight when the previous gateway died
+        # gets a *recoverable* ``orphaned`` marker so the register-
+        # time reconciler can hoist it back to ``running`` if the
+        # node's subprocess is still alive. The historic behaviour
+        # (mark every in-flight row ``interrupted`` immediately) blew
+        # away work by the shovelful on dev-time bounces. Finalisation
+        # of stragglers now lives in the background ``_orphan_finalizer``
+        # task below — see also ``mark_stuck_jobs_orphaned``.
+        orphaned_count = await mark_stuck_jobs_orphaned(db)
+        if orphaned_count:
+            log.info(
+                "startup sweep marked in-flight jobs as orphaned "
+                "(reconciled on node reconnect; finalized after grace window)",
+                count=orphaned_count,
+            )
+        # Record the startup wallclock so the finaliser can hold off
+        # for at least ``ORPHAN_GRACE_S`` seconds before touching any
+        # orphaned rows. Nodes reconnect asynchronously — bouncing the
+        # UI to "interrupted" a heartbeat later would be exactly the
+        # kind of destructive default we're fixing.
+        app.state.gateway_started_ts = time.time()
 
         app.state.db = db
         app.state.registry = NodeRegistry(db)
@@ -178,6 +203,9 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
         app.state.heartbeat_task = asyncio.create_task(
             _heartbeat_sweeper(app), name="hololab-heartbeat-sweeper"
         )
+        app.state.orphan_finalizer_task = asyncio.create_task(
+            _orphan_finalizer(app), name="hololab-orphan-finalizer"
+        )
         log.info(
             "gateway started",
             db=str(path),
@@ -186,11 +214,12 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
 
     @app.on_event("shutdown")
     async def _shutdown() -> None:
-        task = getattr(app.state, "heartbeat_task", None)
-        if task is not None:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+        for attr in ("heartbeat_task", "orphan_finalizer_task"):
+            task = getattr(app.state, attr, None)
+            if task is not None:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
         db = getattr(app.state, "db", None)
         if db is not None:
             await db.close()
@@ -880,6 +909,7 @@ def _mount_routes(app: FastAPI) -> None:
             "dim_sizes": summary.get("dim_sizes"),
             "internal_count": summary.get("internal_count"),
             "internal_count_kind": summary.get("internal_count_kind"),
+            "internal_count_items": summary.get("internal_count_items"),
         }
 
     @app.get(
@@ -2661,6 +2691,13 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
             )
         )
 
+        # Reconcile any DB rows this node still owns that we flipped to
+        # ``orphaned`` on gateway startup. We do this AFTER emitting
+        # ``node_online`` so a frontend watching a live workflow
+        # already sees the node dot flip green before its orphaned
+        # shard dots start refilling with real state.
+        await _reconcile_orphaned_on_register(store, hub, session, payload.running_jobs)
+
         # Step 2: process subsequent frames until disconnect.
         while True:
             raw = await ws.receive_text()
@@ -3130,6 +3167,68 @@ async def _heartbeat_sweeper(app: FastAPI) -> None:
                     await session.ws.close()
 
 
+async def _orphan_finalizer(app: FastAPI) -> None:
+    """Periodically finalise stale ``orphaned`` rows to ``interrupted``.
+
+    Startup marks previously-in-flight rows ``orphaned`` (recoverable);
+    the register handler hoists any the reconnecting node still claims
+    back to ``running``. Whatever's left after ``ORPHAN_GRACE_S`` of
+    sitting in ``orphaned`` really is lost — the owner didn't come
+    back, or came back but didn't claim it — and gets finalised here
+    so the UI stops showing eternal-blue-orphan dots.
+
+    Held off entirely for the first ``ORPHAN_GRACE_S`` seconds after
+    gateway startup so the initial reconnect wave (which may span
+    tens of seconds when several nodes are involved) isn't raced by
+    the sweeper. Currently-connected nodes are excluded from the
+    sweep so a slow reconcile in ``_handle_node_socket`` can't be
+    outrun by the sweeper's SQL update.
+    """
+
+    hub: FrontendHub = app.state.hub
+    store: JobsStore = app.state.jobs_store
+    registry: NodeRegistry = app.state.registry
+    db = app.state.db
+
+    while True:
+        await asyncio.sleep(ORPHAN_FINALIZER_INTERVAL_S)
+
+        now = time.time()
+        started_ts = getattr(app.state, "gateway_started_ts", now)
+        if now - started_ts < ORPHAN_GRACE_S:
+            # Still in the post-startup grace window; nodes are
+            # likely still reconnecting. Leave orphans as-is.
+            continue
+
+        cutoff = now - ORPHAN_GRACE_S
+        connected_node_ids = {s.node_id for s in registry.all_sessions()}
+        try:
+            finalized = await finalize_stale_orphaned_jobs(
+                db, cutoff_ts=cutoff, exclude_node_ids=connected_node_ids
+            )
+        except Exception as exc:
+            log.warning("orphan finaliser failed", error=str(exc))
+            continue
+
+        if not finalized:
+            continue
+
+        log.info(
+            "orphan finaliser flipped rows to interrupted",
+            count=len(finalized),
+            grace_s=ORPHAN_GRACE_S,
+        )
+        # Broadcast a job_update for each so frontends can flip the
+        # dot without a page refresh. We refetch to get the post-
+        # update state; a missing job (e.g. deleted meanwhile) is
+        # silently skipped.
+        for job_id in finalized:
+            job = await store.get(job_id)
+            if job is None:
+                continue
+            _push_job_update(hub, job)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -3301,6 +3400,81 @@ async def _cancel_many_by_rows(
                 seen.add(shard_id)
                 cancelled.append(shard_id)
     return {"cancelled": cancelled, "count": len(cancelled)}
+
+
+async def _reconcile_orphaned_on_register(
+    store: JobsStore,
+    hub: FrontendHub,
+    session: Any,
+    running_jobs: list[str],
+) -> None:
+    """Match a reconnecting node's live jobs against DB-side orphans.
+
+    Called from ``_handle_node_socket`` right after ``register_ok`` and
+    the ``node_online`` broadcast. For every orphaned row that names
+    this node as its owner:
+
+    * If the node still lists the job in ``running_jobs`` → transition
+      ``orphaned → running``. The subprocess survived the gateway
+      restart; progress + log frames will resume normally, and the
+      terminal ``job_done`` / ``job_fail`` frame is legal from
+      ``running`` per the state machine.
+    * If the node does NOT list it → the node's daemon either
+      restarted itself (self._jobs is empty) or the task cleaned up
+      normally during our downtime. Either way the terminal frame
+      was lost and we cannot resume. Flip to ``interrupted`` so the
+      UI stops showing a phantom "running" dot.
+
+    Broadcasts one ``job_update`` per transition so frontends can
+    react without polling.
+    """
+
+    from hololab.gateway.jobs import (
+        IllegalTransition,
+        JobState,
+        JobStateMachine,
+        event_from_transition,
+    )
+
+    orphans = await store.list_orphaned_for_node(session.node_id)
+    if not orphans:
+        return
+
+    claimed = set(running_jobs or ())
+    hoisted = 0
+    finalised = 0
+    for job in orphans:
+        target = JobState.RUNNING if job.job_id in claimed else JobState.INTERRUPTED
+        try:
+            new = JobStateMachine.transition(job, target)
+        except IllegalTransition as exc:
+            # Terminal state races (e.g. cancel landed between
+            # startup-orphan and register) — log and skip; the DB
+            # already reflects the authoritative outcome.
+            log.info(
+                "reconcile skipped by state machine",
+                job_id=job.job_id,
+                from_state=job.state.value,
+                to_state=target.value,
+                reason=str(exc),
+            )
+            continue
+        kind_ev, ev_payload = event_from_transition(job, new)
+        await store.update(new, kind_ev, ev_payload)
+        _push_job_update(hub, new)
+        if target is JobState.RUNNING:
+            hoisted += 1
+        else:
+            finalised += 1
+
+    if hoisted or finalised:
+        log.info(
+            "reconciled orphaned jobs at register time",
+            node_id=session.node_id,
+            hoisted_to_running=hoisted,
+            finalised_to_interrupted=finalised,
+            total_orphans=len(orphans),
+        )
 
 
 def _push_job_update(
