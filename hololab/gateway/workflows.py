@@ -443,6 +443,7 @@ class InputPortView:
     required: bool
     arrayed: bool
     scalar: bool = False
+    dim_labels: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -455,6 +456,7 @@ class OutputPortView:
     # output mirrors. None → this port's declared ``tags`` are authoritative.
     tags_from: str | None = None
     scalar: bool = False
+    dim_labels: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -482,6 +484,26 @@ class ValidationIssue:
 
 ANY_TAG = "any"
 
+# Tags that are structural synonyms.  A producer on either tag wires cleanly
+# into a consumer on the other without an explicit conversion node.
+# ``image_sequence`` is the rename of ``frame_sequence``; both accepted during
+# the migration window so pre-migration handles keep working.
+_TAG_ALIAS_GROUPS: tuple[frozenset[str], ...] = (
+    frozenset({"image_sequence", "frame_sequence"}),
+)
+
+# Pre-computed mapping tag → canonical representative (min of the group).
+_TAG_CANONICAL: dict[str, str] = {
+    tag: min(group)
+    for group in _TAG_ALIAS_GROUPS
+    for tag in group
+}
+
+
+def _canonical_tags(tags: list[str]) -> set[str]:
+    """Expand each tag to its canonical form for alias-aware intersection."""
+    return {_TAG_CANONICAL.get(t, t) for t in tags}
+
 
 def tags_compatible(a: list[str], b: list[str]) -> bool:
     """Two tag sets are compatible iff they share at least one tag OR
@@ -490,11 +512,15 @@ def tags_compatible(a: list[str], b: list[str]) -> bool:
     Kept as a public helper for callers that already computed effective
     tag sets and want a pure set-overlap check. Snapshot validation uses
     :func:`ports_compatible` which additionally checks arrayed cardinality.
+
+    Alias groups (e.g. ``image_sequence`` ↔ ``frame_sequence``) are
+    treated as identical: a producer on either tag matches a consumer on
+    the other without an explicit conversion node.
     """
 
     if ANY_TAG in a or ANY_TAG in b:
         return True
-    return bool(set(a) & set(b))
+    return bool(_canonical_tags(a) & _canonical_tags(b))
 
 
 def ports_compatible(
@@ -503,6 +529,8 @@ def ports_compatible(
     tgt_tags: list[str],
     tgt_arrayed: bool,
     tgt_scalar: bool = False,
+    src_dim_labels: list[str] | None = None,
+    tgt_dim_labels: list[str] | None = None,
 ) -> bool:
     """Full edge compatibility: tag overlap AND arrayed cardinality match.
 
@@ -516,12 +544,27 @@ def ports_compatible(
         is **rejected**: the fan-out zip would find 0 sub-elements.
       Use an explicit ``arrayfy`` node to promote a non-scalar source into
       an array.
+    * When ``src_dim_labels`` / ``tgt_dim_labels`` are both supplied and both
+      sides are arrayed→arrayed, the arrayed depth (number of dim labels, or 1
+      for a legacy empty list) must match, and every non-empty per-layer label
+      pair must agree (empty label = wildcard that matches any same-depth label).
     """
 
     # Exception: arrayed source into an explicit scalar target is a broadcast
     # — the scalar input receives the full parent handle, not a shard subdir.
     if src_arrayed != tgt_arrayed and not (src_arrayed and tgt_scalar):
         return False
+    # Dim-label depth + label check (arrayed→arrayed only; broadcast skips).
+    if src_arrayed and tgt_arrayed and src_dim_labels is not None and tgt_dim_labels is not None:
+        src_depth = len(src_dim_labels) or 1
+        tgt_depth = len(tgt_dim_labels) or 1
+        if src_depth != tgt_depth:
+            return False
+        a_labels = src_dim_labels if src_dim_labels else [""]
+        b_labels = tgt_dim_labels if tgt_dim_labels else [""]
+        for s, t in zip(a_labels, b_labels):
+            if s and t and s != t:
+                return False
     return tags_compatible(src_tags, tgt_tags)
 
 
@@ -720,7 +763,15 @@ def validate_snapshot(
             src, src_pack, edge.sourceHandle, graph, node_by_id, packs_by_key
         )
         tgt_tags = list(tgt_in.tags)
-        if not ports_compatible(src_tags, src_arr, tgt_tags, tgt_arr, tgt_scalar=tgt_in.scalar):
+        if not ports_compatible(
+            src_tags,
+            src_arr,
+            tgt_tags,
+            tgt_arr,
+            tgt_scalar=tgt_in.scalar,
+            src_dim_labels=list(src_out.dim_labels) if src_arr else None,
+            tgt_dim_labels=list(tgt_in.dim_labels) if tgt_arr else None,
+        ):
             if src_arr != tgt_arr:
                 if src_out.scalar and tgt_arr:
                     msg = (

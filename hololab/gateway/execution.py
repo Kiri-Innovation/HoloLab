@@ -478,13 +478,47 @@ async def _run_fanout_node(
     return plan.parent_job.job_id, outputs
 
 
+def _list_subdirs(path: str, *, port: str) -> list[str]:
+    """List sorted immediate subdir names, excluding dotfiles."""
+    try:
+        with os.scandir(path) as it:
+            return sorted(
+                e.name
+                for e in it
+                if not e.name.startswith(".") and e.is_dir(follow_symlinks=True)
+            )
+    except OSError as exc:
+        raise WorkflowRunError(f"cannot list arrayed input {port!r} ({path}): {exc}") from exc
+
+
+def _enumerate_depth(root: str, depth: int, *, port: str) -> list[str]:
+    """Recurse ``depth`` levels below ``root``; return joined element paths.
+
+    Depth 1 → ``["cam_A", ...]`` (legacy 1-D). Depth 2 →
+    ``["frame_0000/camera_0000", ...]`` — outer first, matching
+    ``dim_labels``. Empty inner set drops silently; cross-port set
+    comparison catches the asymmetry.
+    """
+    if depth <= 0:
+        return [""]
+    if depth == 1:
+        return _list_subdirs(root, port=port)
+    outer = _list_subdirs(root, port=port)
+    joined: list[str] = []
+    for name in outer:
+        for sub in _enumerate_depth(os.path.join(root, name), depth - 1, port=port):
+            joined.append(f"{name}/{sub}" if sub else name)
+    return joined
+
+
 async def _discover_element_ids(
     *,
     handles: HandleBook,
     input_handles: dict[str, str],
     arrayed_input_ports: list[str],
+    port_depths: dict[str, int] | None = None,
 ) -> list[str]:
-    """Return the sorted element list. Rejects mismatched sets across ports.
+    """Return the sorted flat element-path list. Rejects mismatched sets.
 
     Element candidates = **subdirectory entries only, excluding dotfiles**.
     Hidden files the framework itself writes (``.hololab-done`` idempotency
@@ -492,7 +526,24 @@ async def _discover_element_ids(
     in a producer's output dir but must not be dispatched as shards.
     Files that aren't directories are also excluded — an arrayed<T> element
     is by definition a subdir (the T's on-disk form is a directory).
+
+    ``port_depths`` maps each arrayed port to its effective arrayed depth
+    (``len(dim_labels)`` or 1 when arrayed with no labels). Omitted →
+    every port at depth 1 (pre-N-D behavior). For depth > 1, each
+    element is the ``/``-joined path from the port's handle root down to
+    a leaf subdir, outer first. Cross-port depth mismatch is rejected
+    upfront because zipping element sets of different shapes is undefined.
     """
+    depths = dict(port_depths or {})
+    for port in arrayed_input_ports:
+        depths.setdefault(port, 1)
+    distinct_depths = {depths[p] for p in arrayed_input_ports}
+    if len(distinct_depths) > 1:
+        raise WorkflowRunError(
+            "arrayed inputs disagree on depth: "
+            + ", ".join(f"{p!r}=depth {depths[p]}" for p in arrayed_input_ports)
+            + " — cannot zip element sets of different shapes"
+        )
 
     sets_by_port: dict[str, list[str]] = {}
     for port in arrayed_input_ports:
@@ -506,16 +557,7 @@ async def _discover_element_ids(
             raise WorkflowRunError(
                 f"arrayed input handle {handle_id!r} for port {port!r} is not registered"
             )
-        try:
-            with os.scandir(h.path) as it:
-                entries = sorted(
-                    e.name
-                    for e in it
-                    if not e.name.startswith(".") and e.is_dir(follow_symlinks=True)
-                )
-        except OSError as exc:
-            raise WorkflowRunError(f"cannot list arrayed input {port!r} ({h.path}): {exc}") from exc
-        sets_by_port[port] = entries
+        sets_by_port[port] = _enumerate_depth(h.path, depths[port], port=port)
 
     reference_port, reference = next(iter(sets_by_port.items()))
     for port, entries in sets_by_port.items():

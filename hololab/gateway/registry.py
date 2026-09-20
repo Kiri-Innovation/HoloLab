@@ -475,6 +475,7 @@ class NodeRegistry:
                                 "description": s.description,
                                 "arrayed": s.arrayed,
                                 "scalar": s.scalar,
+                                "dim_labels": list(s.dim_labels),
                             }
                             for n, s in manifest.inputs.items()
                         }
@@ -490,6 +491,7 @@ class NodeRegistry:
                                 "arrayed": s.arrayed,
                                 "scalar": s.scalar,
                                 "tags_from": s.tags_from,
+                                "dim_labels": list(s.dim_labels),
                                 # Tag → viewer inference: if the manifest
                                 # didn't declare an explicit ``preview:``
                                 # block, look at the port's tags and

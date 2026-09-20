@@ -32,10 +32,17 @@ from pathlib import Path
 def cam_key(image_name: str) -> str:
     """Per-camera key from a COLMAP-stored image name.
 
-    Under this pack's contract the images are the flat undistorted files
-    ``image-undistort`` emits (``cam01.png`` etc.), so key = stem.
-    Also tolerates the resolved-symlink shape ``.../<cam>/frames/<file>``
-    for forward compat with any producer that keeps that layout.
+    Contract (no filename-prefix assumption — key comes from *directory
+    structure*, not string parsing):
+
+    * Primary path: flat undistorted layout from ``image-undistort``
+      (``<shard>/frames/<cam>.png``) — key = file stem.
+    * Legacy tolerance: resolved-symlink shape ``.../<cam>/frames/<file>``
+      (per-camera-per-frame from ``regroup-by-frame@0.1.0``) — grandparent
+      name is the cam key. Kept so older snapshots keep replaying.
+
+    No dependency on ``frame_`` / ``camera_`` / any other prefix — the
+    key is whatever the directory structure names the camera.
     """
     p = Path(image_name)
     if p.parent.name == "frames":

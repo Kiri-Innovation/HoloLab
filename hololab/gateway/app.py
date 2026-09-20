@@ -825,6 +825,9 @@ def _mount_routes(app: FastAPI) -> None:
             "proxy_url": proxy_url,
             "absolute_path": handle.path,
             "fields": summary.get("fields", {}),
+            "element_count": summary.get("element_count"),
+            "internal_count": summary.get("internal_count"),
+            "internal_count_kind": summary.get("internal_count_kind"),
         }
 
     @app.get(
@@ -1317,6 +1320,7 @@ def _mount_routes(app: FastAPI) -> None:
                         required=bool(i.get("required", True)),
                         arrayed=bool(i.get("arrayed", False)),
                         scalar=bool(i.get("scalar", False)),
+                        dim_labels=tuple(i.get("dim_labels", []) or []),
                     )
                     for n, i in entry["inputs"].items()
                 },
@@ -1326,6 +1330,7 @@ def _mount_routes(app: FastAPI) -> None:
                         arrayed=bool(o.get("arrayed", False)),
                         tags_from=o.get("tags_from"),
                         scalar=bool(o.get("scalar", False)),
+                        dim_labels=tuple(o.get("dim_labels", []) or []),
                     )
                     for n, o in entry["outputs"].items()
                 },

@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from hololab.gateway.handles import Handle
+from hololab.gateway.tag_probes import internal_count_for
 
 # Cap what we read from a single file. Splatv headers are ~74 KiB on
 # real STG models; 256 KiB is comfortable overhead and still trivial.
@@ -44,7 +45,7 @@ _FRAMES_DRILL_CAP = 8
 def summarize_handle(handle: Handle) -> dict[str, Any]:
     """Return a summary dict for one handle.
 
-    Dispatch order:
+    Dispatch order (see :func:`_dispatch_summary`):
         * tag contains ``int`` + storage=file → scalar-int (parse text)
         * ``storage="dir"``            → directory listing
         * tag contains ``splatv``      → splatv header parse
@@ -52,14 +53,23 @@ def summarize_handle(handle: Handle) -> dict[str, Any]:
         * suffix ``.png/.jpg/.jpeg``   → image (structural fields only)
         * suffix ``.txt/.log/.json``   → text preview (first N lines)
         * everything else              → ``kind="unknown"``, size only
+
+    On top of kind + fields we also try to fill:
+        * ``element_count`` — subdir count on dir handles (edge chip ``[N]``).
+        * ``internal_count`` + ``internal_count_kind`` — tag-specific
+          inside-one-element number via :mod:`hololab.gateway.tag_probes`;
+          sampled from the FIRST element of an arrayed handle only.
     """
 
     path = Path(handle.path)
+    base = _dispatch_summary(handle, path)
+    _annotate_element_and_internal_counts(base, handle, path)
+    return base
 
-    # ``int`` scalar handles — a small plain-text file whose sole content
-    # is a base-10 integer. Introduced by the arrayed<T> type system so
-    # nodes like ``array-length`` can flow counts into ``arrayfy``. See
-    # docs/pack-spec.md#int-scalar-handles.
+
+def _dispatch_summary(handle: Handle, path: Path) -> dict[str, Any]:
+    """Original kind/fields dispatch — split out so annotators layer on top."""
+
     if "int" in handle.tags and handle.storage == "file":
         return _summarize_int(path, handle)
 
@@ -78,6 +88,47 @@ def summarize_handle(handle: Handle) -> dict[str, Any]:
         return _summarize_text(path, handle)
 
     return {"kind": "unknown", "fields": {}}
+
+
+def _annotate_element_and_internal_counts(
+    result: dict[str, Any], handle: Handle, path: Path
+) -> None:
+    """Fill ``element_count`` + ``internal_count`` + ``internal_count_kind``.
+
+    ``element_count`` counts immediate non-dot subdirs on dir handles. The
+    frontend uses it to render the edge chip's ``[N]``; whether the port
+    is *treated* as arrayed is the graph edge's business.
+
+    ``internal_count`` samples the FIRST element of an arrayed dir handle
+    (deterministic sorted order) or the handle root itself when the handle
+    isn't multi-element. Splatv's ``fields.camera_count`` is mirrored up
+    so the wire contract is uniform.
+    """
+    element_count: int | None = None
+    sample_path: Path = path
+    if handle.storage == "dir" and path.is_dir():
+        try:
+            children = sorted(
+                c for c in path.iterdir() if not c.name.startswith(".") and c.is_dir()
+            )
+            element_count = len(children)
+            if children:
+                sample_path = children[0]
+        except OSError:
+            element_count = None
+
+    fields = result.get("fields") or {}
+    if result.get("kind") == "splatv" and isinstance(fields.get("camera_count"), int):
+        result["internal_count"] = int(fields["camera_count"])
+        result["internal_count_kind"] = "cameras"
+    else:
+        probe = internal_count_for(list(handle.tags), sample_path)
+        if probe is not None:
+            result["internal_count"] = probe.count
+            result["internal_count_kind"] = probe.kind
+
+    if element_count is not None:
+        result["element_count"] = element_count
 
 
 # ---------------------------------------------------------------------------

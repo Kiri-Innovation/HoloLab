@@ -3,9 +3,12 @@ kind: Algorithm
 name: regroup-by-frame
 version: 0.1.0
 description: >
-  Transpose ``arrayed<frame_sequence>`` from (camera × frame) layout to
-  (frame × camera) layout. Consumes N cameras' extracted frames; emits
-  M frames each holding one image per camera.
+  **DEPRECATED** — kept for snapshot replay of existing workflows. New
+  workflows should use ``regroup@0.2.0`` (generic N-D dim permutation
+  with ``<dim_label>_<idx:04d>`` naming, no source-stem echo).
+  Transposes ``arrayed<frame_sequence>`` from (camera x frame) to
+  (frame x camera) at the file level, echoing source filename stems as
+  element ids.
 source_entry: regroup.py
 category: "utility/arrayed"
 
