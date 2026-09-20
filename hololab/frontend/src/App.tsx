@@ -667,6 +667,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     void getSnapshot(latestSnapshotId)
       .then((snap) => {
         if (cancelled) return;
+        // Update the frozen graph so draftDiff clears immediately after any
+        // run (dispatchNode or runWorkflow) without requiring a page refresh.
+        setLatestSnapshotGraph(snap.graph);
         setLatestSnapshotJobs((prev) => {
           const byId = new Map<string, SnapshotJob>();
           for (const j of snap.jobs) byId.set(j.job_id, j);
