@@ -364,12 +364,43 @@ async def _execute_fanout_body(
 
     async def _run_one(idx: int, element_id: str, shard: Job) -> tuple[int, str, Job]:
         async with sem:
+            # Between phase 1 (shard created PENDING) and now, the parent
+            # or this shard may have been cancelled by an API call. Read
+            # both back from the DB before dispatching — otherwise a
+            # stale in-memory ``shard`` (still PENDING) would drive a
+            # PENDING→ASSIGNED transition that overwrites the CANCELLED
+            # state the cancel API just wrote. That was the "cancel-all
+            # doesn't stop the loop, new colmap keeps spawning" bug.
+            shard_now = await store.get(shard.job_id)
+            if shard_now is None:
+                return (idx, element_id, shard)
+            if shard_now.state != JobState.PENDING:
+                # Cascade already flipped this row (or somebody cancelled
+                # this shard directly). Do not dispatch.
+                return (idx, element_id, shard_now)
+            parent_now = await store.get(plan.parent_job.job_id)
+            if parent_now is not None and parent_now.state == JobState.CANCELLED:
+                # Parent was cancelled during dispatch. Flip this pending
+                # shard to CANCELLED so downstream aggregation and the
+                # snapshot detail endpoint see a coherent terminal state
+                # rather than a permanent PENDING row.
+                if JobStateMachine.can_transition(shard_now.state, JobState.CANCELLED):
+                    cancelled = JobStateMachine.transition(
+                        shard_now,
+                        JobState.CANCELLED,
+                        fail_reason=JobFailReason.CANCELLED,
+                    )
+                    _, payload = event_from_transition(shard_now, cancelled)
+                    await store.update(cancelled, "transition:cancelled", payload)
+                    _push_update(hub, cancelled)
+                    return (idx, element_id, cancelled)
+                return (idx, element_id, shard_now)
             await _dispatch_prepared_shard(
                 registry=registry,
                 store=store,
                 hub=hub,
                 gnode=gnode,
-                shard=shard,
+                shard=shard_now,
                 shard_element_id=element_id,
                 shard_output_prefix=plan.parent_ws,
             )
@@ -388,9 +419,23 @@ async def _execute_fanout_body(
         return_exceptions=True,
     )
 
+    # If the parent was cancelled by an API call while dispatch was in
+    # flight, the parent row is already CANCELLED in the DB. Do NOT try
+    # to flip it to DONE or FAILED — that would (a) illegally re-open a
+    # terminal state or (b) overwrite the operator's cancel decision.
+    # Still raise so ``run_snapshot`` halts downstream nodes rather than
+    # feeding them a partial aggregate.
+    parent_check = await store.get(plan.parent_job.job_id)
+    if parent_check is not None and parent_check.state is JobState.CANCELLED:
+        raise WorkflowRunError(f"fanout for graph node {gnode.id!r}: cancelled by operator")
+
     # Collect every failure before marking the parent — we do not fail-fast
     # (v1 semantics per product spec). Truncate the reason to keep the DB
     # column bounded when a very wide fan-out fails wholesale.
+    # ``CANCELLED`` shards from an operator cancel are not counted as
+    # shard-authored failures; the parent-check above short-circuits that
+    # case, so any remaining CANCELLED here means a per-shard cancel that
+    # the operator wanted logged rather than eaten.
     failures: list[str] = []
     for r in results:
         if isinstance(r, BaseException):

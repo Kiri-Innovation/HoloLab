@@ -36,6 +36,7 @@ from hololab.manifest.render import (
 from hololab.node.config import NodeConfig, write_node_config
 from hololab.node.executor import ExecPlan, run_subprocess
 from hololab.node.fileserver import ServeHandle, create_fileserver_app
+from hololab.node.orphan_cleanup import cleanup_workspace_orphans
 from hololab.node.packs import LoadedPack, scan_multi_packs
 from hololab.protocol import (
     ArtifactDeleteReq,
@@ -212,6 +213,18 @@ class NodeRuntime:
             count=len(self._packs),
             roots=[str(p) for p in self._config.pack_dirs],
         )
+
+        # Reap workspace-scoped orphan processes left behind by a previous
+        # daemon session (crash / restart / SIGKILL after a cancel storm).
+        # Scoped by /proc/{pid}/cwd, so only processes whose cwd is under
+        # our workspace_root(s) are signalled — no wildcard pkill.
+        orphaned = cleanup_workspace_orphans(self._all_workspace_roots())
+        if orphaned:
+            log.warning(
+                "orphan cleanup: reaped previous-session subprocesses",
+                count=len(orphaned),
+                pids=orphaned,
+            )
 
         # File server runs as a separate task so a live config-set can
         # cancel and restart it with new roots without touching the
