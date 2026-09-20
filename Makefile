@@ -68,7 +68,7 @@ fmt-check: ## Verify formatting without changing files.
 check: lint fmt-check test ## The full CI-equivalent gate.
 
 .PHONY: install-hooks
-install-hooks: ## Point git at .githooks/ (auto-runs ruff on staged .py at commit).
+install-hooks: ## Point git at .githooks/ (pre-commit: ruff; commit-msg: rejects AI attribution).
 	git config core.hooksPath .githooks
 
 .PHONY: smoke

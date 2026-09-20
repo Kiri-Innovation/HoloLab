@@ -15,6 +15,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Reject AI attribution in commits
+        run: |
+          BEFORE="${{ github.event.before }}"
+          RANGE="${BEFORE}..${{ github.sha }}"
+          if [ -z "$BEFORE" ] || ! git rev-parse --quiet --verify "$BEFORE" 2>/dev/null; then
+            RANGE="HEAD"
+          fi
+          FOUND=$(git log --format=%B "$RANGE" | grep -inE "co-authored-by:.*claude|generated with .*claude|noreply@anthropic\.com" || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::commit message contains AI attribution — please rewrite commits"
+            printf '%s\n' "$FOUND"
+            exit 1
+          fi
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:

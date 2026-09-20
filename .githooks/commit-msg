@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Reject commit messages that contain AI attribution.
+#
+# Enable once per clone:
+#     git config core.hooksPath .githooks
+# or run: make install-hooks
+set -euo pipefail
+
+MSG_FILE="${1:?commit-msg: missing message file argument}"
+
+FOUND=$(grep -inE "co-authored-by:.*claude|generated with .*claude|noreply@anthropic\.com" "$MSG_FILE" || true)
+if [ -n "$FOUND" ]; then
+    echo "commit-msg: commit message contains AI attribution — please remove:" >&2
+    printf '%s\n' "$FOUND" >&2
+    exit 1
+fi
