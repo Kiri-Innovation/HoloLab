@@ -562,7 +562,7 @@ def ports_compatible(
             return False
         a_labels = src_dim_labels if src_dim_labels else [""]
         b_labels = tgt_dim_labels if tgt_dim_labels else [""]
-        for s, t in zip(a_labels, b_labels):
+        for s, t in zip(a_labels, b_labels, strict=True):
             if s and t and s != t:
                 return False
     return tags_compatible(src_tags, tgt_tags)
