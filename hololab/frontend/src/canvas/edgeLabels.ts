@@ -46,6 +46,9 @@ export interface EdgeType {
   /** Tag-specific inner count (cameras.txt row count, etc.). */
   internalCount?: number;
   internalCountKind?: string;
+  /** Multi-value labeled counts — supersedes internalCount when present.
+   *  Items with value=0 are suppressed by the chip formatter. */
+  internalCountItems?: Array<{ label: string; value: number }>;
 }
 
 /** Resolve a source port's effective type by walking ``tags_from`` when
@@ -133,7 +136,12 @@ function baseChipTag(t: EdgeType): string {
 export function formatTypeLabel(t: EdgeType): string {
   const base = baseChipTag(t);
   let s = base;
-  if (t.internalCount != null) {
+  if (t.internalCountItems && t.internalCountItems.length > 0) {
+    const visible = t.internalCountItems.filter((x) => x.value !== 0);
+    if (visible.length > 0) {
+      s += `(${visible.map((x) => `${x.label}:${x.value}`).join(" ")})`;
+    }
+  } else if (t.internalCount != null) {
     s += `(${t.internalCount})`;
   }
   if (t.dimLabels.length > 0 || t.arrayed) {
@@ -175,7 +183,12 @@ export function formatTypeLabelLong(t: EdgeType): string {
   } else {
     s = `arrayed<${labels.join(",")}> of ${inner}`;
   }
-  if (t.internalCount != null) {
+  if (t.internalCountItems && t.internalCountItems.length > 0) {
+    const visible = t.internalCountItems.filter((x) => x.value !== 0);
+    if (visible.length > 0) {
+      s += ` · ${visible.map((x) => `${x.label}:${x.value}`).join(", ")}`;
+    }
+  } else if (t.internalCount != null) {
     const kind = t.internalCountKind ?? "count";
     s += ` · ${t.internalCount} ${kind}`;
   }

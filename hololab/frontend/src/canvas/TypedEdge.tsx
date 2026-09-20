@@ -245,6 +245,8 @@ function TypedEdgeInner({
       internalCount: facts?.internalCount ?? edgeType.internalCount,
       internalCountKind:
         facts?.internalCountKind ?? edgeType.internalCountKind,
+      internalCountItems:
+        facts?.internalCountItems ?? edgeType.internalCountItems,
     };
     return {
       label: formatTypeLabel(enriched),

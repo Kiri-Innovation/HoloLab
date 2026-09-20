@@ -191,6 +191,10 @@ export interface HandleSummary {
   // it out ("7 cameras", "1024 points"). Null when unknown / unavailable.
   internal_count?: number | null;
   internal_count_kind?: string | null;
+  // Multi-value labeled counts — supersedes internal_count when present.
+  // Each item: { label: string; value: number }. Frontend suppresses
+  // items with value=0 (e.g. ``colmap`` with no 3-D points yet).
+  internal_count_items?: Array<{ label: string; value: number }> | null;
   // Per-dimension element counts, outer-first. Length matches the port's
   // arrayed depth: ``[100]`` for 1-D, ``[100, 21]`` for 2-D. Supersedes
   // ``element_count`` for multi-dim handles so the chip can render

@@ -16,6 +16,9 @@ export interface EdgeSummaryFacts {
   elementCount?: number;
   internalCount?: number;
   internalCountKind?: string;
+  /** Multi-value labeled counts. Supersedes internalCount when present.
+   *  Items with value=0 are rendered but hidden by the chip formatter. */
+  internalCountItems?: Array<{ label: string; value: number }>;
   /** Inner element count for the first outer element when the server
    *  enriched ``fields.entries[].children`` (2-D arrayed only). */
   innerElementCount?: number;
@@ -61,7 +64,9 @@ function factsFromSummary(s: HandleSummary): EdgeSummaryFacts {
     }
   }
 
-  if (typeof s.internal_count === "number") {
+  if (Array.isArray(s.internal_count_items) && s.internal_count_items.length > 0) {
+    facts.internalCountItems = s.internal_count_items as Array<{ label: string; value: number }>;
+  } else if (typeof s.internal_count === "number") {
     facts.internalCount = s.internal_count;
     if (typeof s.internal_count_kind === "string") {
       facts.internalCountKind = s.internal_count_kind;
