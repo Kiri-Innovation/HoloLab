@@ -10,6 +10,7 @@
 //   * Sized to fit within the AlgorithmNode's expand slot without a modal.
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useStore } from "@xyflow/react";
 import { getHandleSummary } from "../api";
 import type {
   ComputeNode,
@@ -3110,6 +3111,19 @@ function Colmap3DPreview({ baseUrl, fetchFiles, title }: Colmap3DPreviewProps) {
   const [error, setError] = useState<string | null>(null);
   const [handshaken, setHandshaken] = useState(false);
   const [activated, setActivated] = useState(false);
+
+  // Push canvas-zoom → iframe render resolution (debounced 200 ms).
+  const zoom = useStore((s) => s.transform[2]);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const cw = iframeRef.current?.contentWindow;
+      if (!cw) return;
+      cw.postMessage({ type: "set-render-scale", scale: zoomRef.current }, "*");
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [zoom]);
 
   // Deactivate on click-outside or Esc — always live, setActivated(false)
   // is a no-op when already inactive so there's no conditional guard.
