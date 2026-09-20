@@ -77,6 +77,17 @@ HEARTBEAT_INTERVAL = 15.0
 RECONNECT_BASE_DELAY = 1.0
 RECONNECT_MAX_DELAY = 30.0
 
+# Handle-locate retry policy — gateway restarts drop the WS mid-flight
+# and the pending response never arrives. Rather than surface that to
+# the shard as a permanent failure, we retry a bounded number of times
+# with exponential backoff. Sized so a normal ~5-10s dev-time restart
+# lands inside the retry window, but a genuinely-dead gateway still
+# fails within ~30s instead of hanging the pipeline indefinitely.
+_LOCATE_MAX_ATTEMPTS = 5
+_LOCATE_ATTEMPT_TIMEOUT_S = 4.0
+_LOCATE_BACKOFF_START_S = 1.0
+_LOCATE_BACKOFF_CAP_S = 4.0
+
 # Batch log lines every N seconds to keep the WS gentle.
 LOG_FLUSH_INTERVAL = 0.5
 
@@ -142,6 +153,12 @@ class NodeRuntime:
         self._node_id = config.node_id
         self._node_token = config.node_token
         self._send_lock = asyncio.Lock()
+
+        # Set once the handshake completes on a fresh WS, cleared as
+        # soon as the session loop unwinds. Retry-aware call sites
+        # (``_locate_handle``) block on it to avoid writing into a
+        # half-open socket while the connect loop is reconnecting.
+        self._ws_ready = asyncio.Event()
 
         # Outstanding handle_locate requests, keyed by handle_id.
         # A locate is 1:1 request/response and we don't issue two concurrent
@@ -358,6 +375,11 @@ class NodeRuntime:
                 log.warning("session error", error=str(exc), exc_info=True)
             finally:
                 self._ws = None
+                # Belt-and-braces: ``_session_loop`` clears this on
+                # normal teardown, but if the failure happened before
+                # ``_handshake`` reached ``set()`` we still need to
+                # keep the event clear so retry-aware writers block.
+                self._ws_ready.clear()
 
             await asyncio.sleep(delay)
             delay = min(delay * 2, RECONNECT_MAX_DELAY)
@@ -449,6 +471,12 @@ class NodeRuntime:
             protocol_v=payload.protocol_v,
         )
 
+        # Post-handshake: the WS is fully established and the gateway
+        # has accepted our identity. Release any retry-aware call sites
+        # (``_locate_handle``) that were blocked waiting for a live
+        # session across a gateway restart.
+        self._ws_ready.set()
+
     async def _session_loop(self) -> None:
         """Heartbeat + incoming frame dispatch, in parallel."""
 
@@ -490,6 +518,11 @@ class NodeRuntime:
                 else:
                     log.debug("unhandled frame", kind=env.kind)
         finally:
+            # Session teardown: block retry-aware writers until the
+            # connect loop finishes its next handshake. Otherwise a
+            # locate that fires between disconnect and reconnect would
+            # try to send on the dead WS and burn an attempt.
+            self._ws_ready.clear()
             heart.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await heart
@@ -1302,21 +1335,92 @@ class NodeRuntime:
         return resolved
 
     async def _locate_handle(self, handle_id: str) -> HandleLocateResp:
-        """Send a locate request and await the gateway's response."""
+        """Send a locate request and await the gateway's response.
+
+        The gateway is a shared, restartable process (we bounce it
+        several times a day during development). A restart drops the
+        WS mid-request and the pending response never arrives — the
+        original one-shot 30s wait then surfaced as a hard failure
+        and marked the shard permanently failed. That's now the
+        exception, not the rule: this method retries a bounded number
+        of times, waiting for the connect loop to finish its next
+        handshake between attempts. Only after ``_LOCATE_MAX_ATTEMPTS``
+        of continuous unreachability (~30s of wallclock) do we surface
+        a hard failure — and with a message that names "gateway
+        unreachable" so operators can tell that apart from a genuine
+        "unknown handle" business error.
+
+        Retryable outcomes:
+          * no live WS session (waiting for reconnect timed out),
+          * ``_send`` raised because the socket closed under us,
+          * the response future timed out (session died mid-request).
+
+        Non-retryable outcomes bubble immediately: e.g. the gateway
+        responded with ``not_found`` — that's a real business error
+        and hammering the retry loop wouldn't change the answer.
+        """
 
         loop = asyncio.get_event_loop()
-        fut: asyncio.Future[HandleLocateResp] = loop.create_future()
-        # We use handle_id as the correlation key; the runtime never issues two
-        # concurrent locates for the same handle within one job.
-        self._pending_locates[handle_id] = fut
-        try:
-            await self._send("handle_locate_req", HandleLocateReq(handle_id=handle_id))
-            return await asyncio.wait_for(fut, timeout=30.0)
-        except asyncio.TimeoutError as exc:
-            self._pending_locates.pop(handle_id, None)
-            raise _HandleResolutionError(
-                f"gateway did not respond to locate {handle_id!r}"
-            ) from exc
+        delay = _LOCATE_BACKOFF_START_S
+        last_kind = "unknown"
+        last_detail = ""
+
+        for attempt in range(1, _LOCATE_MAX_ATTEMPTS + 1):
+            # Block until we have a healthy session or the wait itself
+            # times out. A short cap per attempt keeps a *permanently*
+            # dead gateway from stalling us for the whole retry budget
+            # on a single ``wait``.
+            try:
+                await asyncio.wait_for(self._ws_ready.wait(), timeout=_LOCATE_ATTEMPT_TIMEOUT_S)
+            except asyncio.TimeoutError:
+                last_kind, last_detail = (
+                    "no-connection",
+                    f"waited {_LOCATE_ATTEMPT_TIMEOUT_S:.0f}s for reconnect",
+                )
+            else:
+                fut: asyncio.Future[HandleLocateResp] = loop.create_future()
+                # ``handle_id`` is the correlation key. On retry we
+                # register a fresh future under the same key — any
+                # late response from a prior attempt then still
+                # resolves the current wait (same handle, same
+                # answer), which is a harmless race.
+                self._pending_locates[handle_id] = fut
+                try:
+                    try:
+                        await self._send("handle_locate_req", HandleLocateReq(handle_id=handle_id))
+                    except (RuntimeError, ConnectionClosed, OSError) as exc:
+                        # ``RuntimeError`` covers "no gateway connection"
+                        # raised by ``_send`` when the WS flipped to
+                        # ``None`` between our ``_ws_ready`` check and
+                        # this write. All three are transport-class.
+                        last_kind, last_detail = "send-failed", type(exc).__name__
+                    else:
+                        try:
+                            return await asyncio.wait_for(fut, timeout=_LOCATE_ATTEMPT_TIMEOUT_S)
+                        except asyncio.TimeoutError:
+                            last_kind, last_detail = (
+                                "no-response",
+                                f"waited {_LOCATE_ATTEMPT_TIMEOUT_S:.0f}s after send",
+                            )
+                finally:
+                    self._pending_locates.pop(handle_id, None)
+
+            if attempt < _LOCATE_MAX_ATTEMPTS:
+                log.debug(
+                    "locate retry",
+                    handle_id=handle_id,
+                    attempt=attempt,
+                    delay_s=delay,
+                    last=f"{last_kind}: {last_detail}",
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2.0, _LOCATE_BACKOFF_CAP_S)
+
+        raise _HandleResolutionError(
+            f"gateway unreachable while locating handle {handle_id!r} "
+            f"(gave up after {_LOCATE_MAX_ATTEMPTS} attempts; "
+            f"last: {last_kind}: {last_detail})"
+        )
 
     async def _fetch_remote_handle(self, handle_id: str, url: str, storage: str) -> Path:
         """Cross-node materialization: pull the artifact into local workspace.

@@ -28,13 +28,7 @@ import pytest
 
 
 def _find_dist_js() -> Path | None:
-    dist = (
-        Path(__file__).resolve().parent.parent
-        / "hololab"
-        / "frontend"
-        / "dist"
-        / "assets"
-    )
+    dist = Path(__file__).resolve().parent.parent / "hololab" / "frontend" / "dist" / "assets"
     if not dist.is_dir():
         return None
     matches = sorted(dist.glob("index-*.js"))
@@ -111,3 +105,19 @@ def test_modal_truncated_hint_data_attr(bundle_js: str) -> None:
     """The truncated-tail footer hint carries ``data-hl-job-log-truncated``."""
 
     assert "data-hl-job-log-truncated" in bundle_js
+
+
+def test_modal_empty_state_carries_data_attr(bundle_js: str) -> None:
+    """The empty-body placeholder carries ``data-hl-job-log-empty`` so an
+    E2E probe can distinguish "no logs, framework failure" (renders
+    fail_message inline) from "no logs, still loading" (spinner text).
+
+    Guard against the specific regression this attribute was added
+    for: a shard whose ``handle_locate`` failed at the framework layer
+    has zero log lines but a populated ``fail_message`` — the modal
+    used to render only "No log lines yet…" and hide the actual
+    reason behind the compact banner. The empty-state branch now
+    always renders the fail_message when present.
+    """
+
+    assert "data-hl-job-log-empty" in bundle_js

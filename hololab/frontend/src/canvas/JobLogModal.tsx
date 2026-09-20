@@ -422,14 +422,41 @@ export function JobLogModal({ jobId, primer, onClose }: JobLogModalProps) {
           )}
           {lines && lines.length === 0 && !loading && !error && (
             <div
+              data-hl-job-log-empty=""
               style={{
                 padding: "var(--space-4)",
                 color: "var(--inverse-muted)",
                 fontFamily: "var(--font-sans)",
               }}
             >
-              No log lines yet. The job may not have written anything to
-              stdout/stderr, or its output was rotated off the tail.
+              {failMessage ? (
+                <>
+                  {/* Framework-level failure (e.g. input handle resolution)
+                      never let the pack process start writing, so the log
+                      is legitimately empty. Surface the fail_message here
+                      too — the compact banner above is easy to miss, and
+                      operators clicking "view log" want the reason inline
+                      with the log area they're staring at. */}
+                  <div style={{ marginBottom: "var(--space-2)" }}>
+                    Job failed before writing any log output.
+                  </div>
+                  <div
+                    style={{
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--text-on-dark)",
+                    }}
+                  >
+                    {failMessage}
+                  </div>
+                </>
+              ) : (
+                <>
+                  No log lines yet. The job may not have written anything to
+                  stdout/stderr, or its output was rotated off the tail.
+                </>
+              )}
             </div>
           )}
           {lines && lines.length > 0 && <LogBody lines={lines} />}
