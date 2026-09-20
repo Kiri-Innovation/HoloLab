@@ -66,6 +66,7 @@ import {
   RUN_NODE_EVENT,
   type AlgorithmNodeData,
   type NodeRuntime,
+  type PreviewShard,
   type PreviewTarget,
   type PreviewToggleDetail,
   type RunNodeDetail,
@@ -290,10 +291,22 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // Preview state, keyed by graph node id:
   //   * previewsByGraphNode: resolved proxy URLs for each output port that
   //     produced a handle AND has a preview declaration.
+  //   * previewShardsByGraphNode: partial-preview data for arrayed nodes
+  //     while fanout is in progress. Each entry = one done shard's output
+  //     handle for a port; the aggregate parent handle lands in
+  //     previewsByGraphNode above only after every shard finishes, so
+  //     without this map arrayed drawers show nothing (or, worse, the
+  //     last-shard's element dir mistaken for the aggregate — subdirs
+  //     ``images``/``sparse`` treated as elements). The drawer picks
+  //     partial mode when previewsByGraphNode has no target yet but a
+  //     shard array is non-empty.
   //   * previewOpenByGraphNode: which drawer is currently expanded per node
   //     (null / missing = collapsed).
   const [previewsByGraphNode, setPreviewsByGraphNode] = useState<
     Record<string, Record<string, PreviewTarget>>
+  >({});
+  const [previewShardsByGraphNode, setPreviewShardsByGraphNode] = useState<
+    Record<string, Record<string, PreviewShard[]>>
   >({});
   // Held on a ref so the PREVIEW_TOGGLE_EVENT listener can read the
   // *current* workflow id when persisting a user toggle, without
@@ -527,9 +540,24 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         // output_handles in the frame. Resolve each to a preview target
         // (proxy URL + storage form) via /api/handles/{id}. The result
         // powers the in-canvas expand drawer for viewer-declared ports.
+        //
+        // Shard vs parent routing: fan-out shard jobs also fire ``done``
+        // frames carrying their own graph_node_id + output_handles, but
+        // each shard's ``frame`` handle points at ONE element dir
+        // (``<parent_ws>/frame/<element_id>/``), not the aggregate. If
+        // we let those overwrite ``previewsByGraphNode[gnid][port]``,
+        // the ArrayedPaginator opens that element dir and treats its
+        // internal subdirs (``images``, ``sparse``) as "elements" —
+        // hence the "images 1/2 + HTTP 404 images.txt" bug during
+        // triangulate fanouts. Route shards into
+        // ``previewShardsByGraphNode`` instead; the drawer picks
+        // partial mode from there while ``previewsByGraphNode`` waits
+        // for the parent's aggregate.
         if (p.state === "done" && p.graph_node_id && p.output_handles) {
           const gnid = p.graph_node_id;
           const handles = p.output_handles;
+          const shardEl = p.shard_element_id ?? null;
+          const isShard = p.parent_job_id != null && shardEl != null;
           void Promise.all(
             Object.entries(handles).map(async ([port_name, handle_id]) => {
               try {
@@ -541,6 +569,35 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               }
             }),
           ).then((resolved) => {
+            if (isShard && shardEl) {
+              setPreviewShardsByGraphNode((prev) => {
+                const gn = { ...(prev[gnid] ?? {}) };
+                let changed = false;
+                for (const r of resolved) {
+                  if (!r) continue;
+                  const [port_name, info] = r;
+                  const port = gn[port_name] ? [...gn[port_name]] : [];
+                  if (port.some((e) => e.element_id === shardEl)) continue;
+                  port.push({
+                    element_id: shardEl,
+                    handle_id: info.handle_id,
+                    proxy_url: info.proxy_url,
+                    storage: info.storage as "dir" | "file",
+                  });
+                  port.sort((a, b) =>
+                    a.element_id.localeCompare(b.element_id, undefined, {
+                      numeric: true,
+                      sensitivity: "base",
+                    }),
+                  );
+                  gn[port_name] = port;
+                  changed = true;
+                }
+                if (!changed) return prev;
+                return { ...prev, [gnid]: gn };
+              });
+              return;
+            }
             const targets: Record<string, PreviewTarget> = {};
             for (const r of resolved) {
               if (!r) continue;
@@ -794,6 +851,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const d = n.data as AlgorithmNodeData;
         const rt = runtimeByGraphNode[n.id];
         const pv = previewsByGraphNode[n.id];
+        const ps = previewShardsByGraphNode[n.id];
         const po = previewOpenByGraphNode[n.id] ?? null;
         // Value-level runtime compare so a WS update that keeps a node's
         // aggregate state unchanged doesn't mint a new node identity —
@@ -804,6 +862,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         if (
           runtimeEqual(rt, d.runtime) &&
           pv === d.previews &&
+          ps === d.previewShards &&
           po === (d.previewOpen ?? null)
         ) {
           return n;
@@ -814,12 +873,19 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             ...n.data,
             runtime: rt,
             previews: pv,
+            previewShards: ps,
             previewOpen: po,
           },
         };
       }),
     );
-  }, [runtimeByGraphNode, previewsByGraphNode, previewOpenByGraphNode, setNodes]);
+  }, [
+    runtimeByGraphNode,
+    previewsByGraphNode,
+    previewShardsByGraphNode,
+    previewOpenByGraphNode,
+    setNodes,
+  ]);
 
   // Bridge the AlgorithmNode's expand caret (fires a DOM CustomEvent) back
   // into App-level state. We do it this way because xyflow's nodeTypes
@@ -1633,6 +1699,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             portName: string;
             handleId: string;
           }> = [];
+          const perShardPreviewWork: Array<{
+            graphNodeId: string;
+            portName: string;
+            handleId: string;
+            elementId: string;
+          }> = [];
           const doneFilledGnids = new Set<string>();
           const MAX_RUNS_TO_WALK = 8;
           let seenFirstSnap = false;
@@ -1658,10 +1730,31 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             // aggregate — NestedFrameSequencePreview shows "共 N 组"
             // instead of collapsing to one shard's view. See
             // SnapshotCanvas.jobsByGraphNodeId for the mirror comment.
+            //
+            // Shards (``parent_job_id`` set) are excluded from the
+            // aggregate slot for the same reason as the WS handler
+            // above — their handle points at ONE element dir, not the
+            // aggregate — and are seeded into the partial-shard slot
+            // instead so mid-fanout hydration can drive partial preview.
             for (const job of snap.jobs) {
               const gnid = job.graph_node_id;
               if (!gnid) continue;
               if (job.state !== "done") continue;
+              const shardEl = job.shard_element_id ?? null;
+              const isShard = job.parent_job_id != null && shardEl != null;
+              if (isShard) {
+                for (const [portName, handleId] of Object.entries(
+                  job.output_handles ?? {},
+                )) {
+                  perShardPreviewWork.push({
+                    graphNodeId: gnid,
+                    portName,
+                    handleId,
+                    elementId: shardEl,
+                  });
+                }
+                continue;
+              }
               if (doneFilledGnids.has(gnid)) continue;
               doneFilledGnids.add(gnid);
               for (const [portName, handleId] of Object.entries(
@@ -1705,6 +1798,54 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 string,
                 Record<string, PreviewTarget>
               > = { ...targets };
+              for (const [k, v] of Object.entries(prev)) {
+                next[k] = { ...(next[k] ?? {}), ...v };
+              }
+              return next;
+            });
+          }
+          if (perShardPreviewWork.length > 0) {
+            const resolvedShards = await Promise.all(
+              perShardPreviewWork.map(async (item) => {
+                try {
+                  const info = await getHandle(item.handleId);
+                  return { ...item, info };
+                } catch {
+                  return null;
+                }
+              }),
+            );
+            const shardTargets: Record<
+              string,
+              Record<string, PreviewShard[]>
+            > = {};
+            for (const r of resolvedShards) {
+              if (!r) continue;
+              const gn = (shardTargets[r.graphNodeId] ??= {});
+              const port = (gn[r.portName] ??= []);
+              if (port.some((e) => e.element_id === r.elementId)) continue;
+              port.push({
+                element_id: r.elementId,
+                handle_id: r.info.handle_id,
+                proxy_url: r.info.proxy_url,
+                storage: r.info.storage as "dir" | "file",
+              });
+            }
+            for (const gn of Object.values(shardTargets)) {
+              for (const port of Object.values(gn)) {
+                port.sort((a, b) =>
+                  a.element_id.localeCompare(b.element_id, undefined, {
+                    numeric: true,
+                    sensitivity: "base",
+                  }),
+                );
+              }
+            }
+            setPreviewShardsByGraphNode((prev) => {
+              const next: Record<
+                string,
+                Record<string, PreviewShard[]>
+              > = { ...shardTargets };
               for (const [k, v] of Object.entries(prev)) {
                 next[k] = { ...(next[k] ?? {}), ...v };
               }

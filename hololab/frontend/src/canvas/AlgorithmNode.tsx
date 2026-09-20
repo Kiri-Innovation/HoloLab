@@ -43,6 +43,18 @@ export interface NodeRuntime {
   job_id?: string;
 }
 
+// One resolved shard preview — populated while an arrayed node's fanout is
+// still in progress. Each done shard registers its own output_handles map
+// keyed by port; App resolves each to a proxy_url. The drawer switches to
+// partial mode (ArrayedPaginator ``partial={…}``) when the aggregate parent
+// hasn't landed a target in ``previews`` yet but this array is non-empty.
+export interface PreviewShard {
+  element_id: string;
+  handle_id: string;
+  proxy_url: string;
+  storage: "dir" | "file";
+}
+
 // One resolved preview target — the App fetches this via the /api/handles/{id}
 // lookup after a done job_update carries an output_handles map. Kept on
 // node data so re-renders don't re-fetch. See App.tsx for the flow.
@@ -75,6 +87,10 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   // Resolved preview URLs for each output port that has a preview
   // declaration AND has produced a handle. Key is the output port name.
   previews?: Record<string, PreviewTarget>;
+  // Per-port list of shard previews, for arrayed nodes mid-fanout.
+  // Populated as each shard completes; consumed by the drawer when the
+  // aggregate target isn't in ``previews`` yet.
+  previewShards?: Record<string, PreviewShard[]>;
   // Frontend-only: which preview drawer is expanded, if any. The node
   // grows a slot below its body when set. ``null`` = collapsed.
   previewOpen?: string | null;
@@ -205,6 +221,10 @@ const FRONTEND_VIEWER_TAGS = new Set<string>([
   // Per-alias JPEG tree from rig-frame-extraction / rig-temporal-grouping.
   // Rendered as arrayed<frame_sequence> via NestedFrameSequencePreview.
   "rig_frames",
+  // Per-group directory tree from rig-temporal-grouping@0.1.2 — element =
+  // one time bucket, children = the participating aliases' JPEGs. Same
+  // NestedFrameSequencePreview shape (element/image tree).
+  "rig_frames_grouped",
 ]);
 
 function hasFrontendViewerTag(tags: string[] | undefined): boolean {
@@ -289,6 +309,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     assigned_node_id,
     runtime,
     previews,
+    previewShards,
     previewOpen,
     onPreviewToggle,
     readOnly,
@@ -732,6 +753,68 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                     handleId={target.handle_id}
                     storage={target.storage}
                     absolutePath={target.absolute_path}
+                  />
+                </>
+              );
+            }
+            // Partial preview: no aggregate target yet, but the arrayed
+            // fanout has completed at least one shard for this port.
+            // Route to Preview() with ``partial={…}`` so ArrayedPaginator
+            // pages through the done shards while the parent job is
+            // still running. Total is the parent's expected_shards
+            // (via ``runtime.progress.total``) so the pager shows
+            // ``i / expected`` instead of ``i / done_so_far``.
+            const shardsForPort = previewShards?.[name] ?? [];
+            const partialAvailable =
+              expandKind === "viewer" && !target && shardsForPort.length > 0;
+            if (partialAvailable) {
+              const expectedTotal = runtime?.progress?.total ?? undefined;
+              return (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      marginBottom: 6,
+                      fontSize: 10,
+                      color: "var(--inverse-muted)",
+                    }}
+                  >
+                    <span style={{ flex: 1 }}>
+                      {pack.name} · {name}
+                    </span>
+                    <span
+                      title="fanout in progress — showing completed shards only"
+                      style={{
+                        padding: "1px 6px",
+                        borderRadius: "var(--radius-pill)",
+                        border: "1px solid var(--border-strong)",
+                        fontSize: 9,
+                        fontFamily: "var(--font-mono)",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      partial
+                    </span>
+                  </div>
+                  <Preview
+                    spec={port.preview ?? undefined}
+                    baseUrl=""
+                    storage="dir"
+                    tags={port.tags}
+                    arrayed={effectivePortArrayed(
+                      port.arrayed,
+                      pack.arrayable,
+                      arrayed_toggle,
+                    )}
+                    partial={{
+                      elements: shardsForPort.map((s) => ({
+                        element_id: s.element_id,
+                        proxy_url: s.proxy_url,
+                      })),
+                      expectedTotal,
+                    }}
                   />
                 </>
               );

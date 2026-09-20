@@ -56,6 +56,16 @@ function Status({ text, kind }: { text: string; kind: "loading" | "error" | "inf
 // Entry point — dispatch on the viewer name.
 // ---------------------------------------------------------------------------
 
+// Per-element data for partial-mode arrayed previews (fanout still in
+// progress). Each entry is one done shard's own proxy URL — points at
+// ``<parent_ws>/<port>/<element_id>/``, which is exactly the URL the
+// scalar viewer expects for that element. ``expectedTotal`` is the
+// parent's planned shard count, used for the pager's ``i / total`` text.
+export interface PartialArrayedInfo {
+  elements: { element_id: string; proxy_url: string }[];
+  expectedTotal?: number;
+}
+
 export interface PreviewProps {
   // The pack's declared viewer spec. Optional because some viewers are
   // tag-driven from the frontend and don't need one (see the tag
@@ -96,6 +106,11 @@ export interface PreviewProps {
   // that have a dedicated nested viewer (``arrayed<frame_sequence>``
   // → ``NestedFrameSequencePreview``).
   arrayed?: boolean;
+  // Partial-preview payload — set by the drawer when the arrayed
+  // parent's aggregate handle hasn't landed yet but at least one shard
+  // has finished. ArrayedPaginator uses this instead of fetching the
+  // aggregate summary. Ignored by scalar / non-arrayed viewers.
+  partial?: PartialArrayedInfo;
 }
 
 export function Preview({
@@ -107,6 +122,7 @@ export function Preview({
   producingNode,
   tags,
   arrayed,
+  partial,
 }: PreviewProps) {
   // Tag-driven routing takes precedence over ``spec.viewer``. A
   // ``frame_sequence`` scalar ships from the gateway with
@@ -153,6 +169,7 @@ export function Preview({
         <ArrayedPaginator
           baseUrl={baseUrl}
           handleId={handleId}
+          partial={partial}
           renderScalar={(elementBaseUrl) => (
             <ColmapPointsPreview baseUrl={elementBaseUrl} />
           )}
@@ -180,6 +197,7 @@ export function Preview({
         <ArrayedPaginator
           baseUrl={baseUrl}
           handleId={handleId}
+          partial={partial}
           renderScalar={(elementBaseUrl) => (
             <ColmapFramePreview baseUrl={elementBaseUrl} />
           )}
@@ -232,6 +250,20 @@ export function Preview({
   if (
     tags &&
     tags.includes("rig_frames") &&
+    storage === "dir"
+  ) {
+    return <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />;
+  }
+  // ``rig_frames_grouped`` — per-bucket directory tree from
+  // rig-temporal-grouping@0.1.2. Layout ``<parent>/gNNNNNN/<alias>.jpg`` +
+  // ``<parent>/gNNNNNN/group.json`` — same ``arrayed<frame_sequence>``
+  // shape (element = group dir, image children = the participating cams),
+  // so the existing viewer paints one card per group with a stack of
+  // its cameras' thumbnails.  ``group.json`` sits next to the JPEGs and
+  // is ignored by ``NESTED_IMG_RE``.
+  if (
+    tags &&
+    tags.includes("rig_frames_grouped") &&
     storage === "dir"
   ) {
     return <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />;
@@ -3533,16 +3565,26 @@ interface ArrayedPaginatorProps {
   baseUrl: string;
   handleId?: string;
   renderScalar: (elementBaseUrl: string) => React.ReactNode;
+  // Partial mode — provided by the drawer while a fan-out is still in
+  // progress. When set, the paginator skips the aggregate-handle
+  // summary fetch entirely and pages through the given done shards.
+  // Each element carries its own ``proxy_url`` (the shard's output
+  // handle URL, which is exactly ``<parent_ws>/<port>/<element_id>/``
+  // — the URL the scalar viewer expects). ``expectedTotal`` drives
+  // the ``i / total`` pager text so operators see "3 / 100" instead
+  // of "3 / 3" while shards trickle in.
+  partial?: PartialArrayedInfo;
 }
 
 function ArrayedPaginator({
   baseUrl,
   handleId,
   renderScalar,
+  partial,
 }: ArrayedPaginatorProps) {
   const [state, setState] = useState<
     | { kind: "loading" }
-    | { kind: "ok"; elements: string[] }
+    | { kind: "ok"; elements: string[]; elementUrls?: string[]; expectedTotal?: number }
     | { kind: "err"; message: string }
   >({ kind: "loading" });
   const [idx, setIdx] = useState(0);
@@ -3550,6 +3592,21 @@ function ArrayedPaginator({
   const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
+    // Partial mode short-circuits the summary fetch — the drawer has
+    // already resolved per-shard handles, so we render directly from
+    // the caller-provided element list.
+    if (partial) {
+      setState({
+        kind: "ok",
+        elements: partial.elements.map((e) => e.element_id),
+        elementUrls: partial.elements.map((e) => e.proxy_url),
+        expectedTotal: partial.expectedTotal,
+      });
+      setIdx((prev) =>
+        prev >= partial.elements.length ? 0 : prev,
+      );
+      return;
+    }
     if (!handleId) {
       setState({ kind: "err", message: "handle id required" });
       return;
@@ -3575,7 +3632,7 @@ function ArrayedPaginator({
     return () => {
       cancelled = true;
     };
-  }, [handleId]);
+  }, [handleId, partial]);
 
   const total = state.kind === "ok" ? state.elements.length : 0;
   const move = useCallback(
@@ -3626,8 +3683,16 @@ function ArrayedPaginator({
   const safeIdx = Math.min(idx, state.elements.length - 1);
   const currentName = state.elements[safeIdx];
   const dirBase = baseUrl.replace(/\/$/, "");
-  const elementUrl = `${dirBase}/${encodePathSegments(currentName)}`;
+  // Partial mode carries per-element proxy URLs; scalar mode composes
+  // the element URL from the aggregate handle's baseUrl + element name.
+  const elementUrl =
+    state.elementUrls?.[safeIdx] ??
+    `${dirBase}/${encodePathSegments(currentName)}`;
   const isSingle = state.elements.length === 1;
+  // Pager total shows expected count (parent's expected_shards) in
+  // partial mode, and the known element count in normal mode.
+  const totalDisplay = state.expectedTotal ?? state.elements.length;
+  const isPartial = state.expectedTotal !== undefined;
 
   return (
     <div
@@ -3636,6 +3701,8 @@ function ArrayedPaginator({
       onMouseLeave={() => setHovered(false)}
       data-hl-arrayed-paginator=""
       data-hl-arrayed-count={state.elements.length}
+      data-hl-arrayed-partial={isPartial ? "" : undefined}
+      data-hl-arrayed-expected={state.expectedTotal ?? undefined}
       style={{
         ...PREVIEW_SHELL,
         display: "flex",
@@ -3690,7 +3757,15 @@ function ArrayedPaginator({
             {currentName}
           </span>
           <span style={{ color: "var(--inverse-muted)" }}>
-            {safeIdx + 1} / {state.elements.length}
+            {safeIdx + 1} / {totalDisplay}
+            {isPartial && (
+              <span
+                title="fanout in progress — showing completed shards only"
+                style={{ marginLeft: 6, opacity: 0.85 }}
+              >
+                (partial)
+              </span>
+            )}
           </span>
         </div>
         <button
