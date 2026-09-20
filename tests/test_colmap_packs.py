@@ -137,3 +137,63 @@ def test_colmap_assemble_shape_v010() -> None:
     assert m.inputs["points"].tags == ["colmap-points"]
     assert m.inputs["frames"].tags == ["image"]
     assert m.outputs["colmap"].tags == ["colmap"]
+
+
+# ---------------------------------------------------------------------------
+# @0.5.0 — strict mirror of STG's getcolmapsinglen3d. Distorted-domain
+# feature extract + per-image OPENCV cameras + BA-free intrinsics + inline
+# image_undistorter. See manifest docs for the full v0.4.0 -> v0.5.0 diff.
+# ---------------------------------------------------------------------------
+
+
+def test_colmap_triangulate_shape_v050() -> None:
+    m = _load("colmap-triangulate", "0.5.0")
+    assert m.version == "0.5.0"
+    assert m.arrayable is True
+    # Inputs rolled back to the OPENCV bundle (colmap-cams) + raw distorted frames.
+    assert m.inputs["cams"].tags == ["colmap-cams"]
+    assert m.inputs["cams"].scalar is True, "cams must broadcast to every shard"
+    assert m.inputs["frames"].tags == ["image"]
+    assert m.inputs["frames"].arrayed is False
+    # Output still colmap tag; downstream stg-train stays wired.
+    assert m.outputs["frame"].tags == ["colmap"]
+    assert m.outputs["frame"].scalar is True
+    # Only knob is use_gpu — SIFT caps / reproj filter removed (STG doesn't set them).
+    assert set(m.params.keys()) == {"use_gpu"}, (
+        f"@0.5.0 only exposes use_gpu; got {sorted(m.params)}"
+    )
+    assert m.source_entry == "triangulate.py"
+    assert (PACKS_ROOT / "colmap-triangulate@0.5.0" / m.source_entry).is_file()
+    assert (PACKS_ROOT / "colmap-triangulate@0.5.0" / "colmap_db.py").is_file(), (
+        "vendored COLMAP DB helper must ship with the pack"
+    )
+
+
+def test_colmap_triangulate_v050_shell_matches_stg_flags() -> None:
+    """The shell wraps triangulate.py — the flag choices live in the script.
+
+    Lock that the script-level knobs match STG's helper3dg.py exactly:
+    * only ba_global_function_tolerance=0.000001 on point_triangulator
+    * no --ImageReader.single_camera / --camera_model on feature_extractor
+      (DB is pre-populated; the extractor only attaches features)
+    * no --clear_points, no --filter_max_reproj_error, no --ba_refine_*=0
+    """
+    script = (PACKS_ROOT / "colmap-triangulate@0.5.0" / "triangulate.py").read_text()
+    assert "ba_global_function_tolerance=0.000001" in script
+    for banned in ("ba_refine_focal_length", "ba_refine_principal_point", "ba_refine_extra_params"):
+        assert banned not in script, f"@0.5.0 must not pass --{banned}"
+    assert "--ImageReader.single_camera" not in script
+    assert "--ImageReader.camera_model" not in script
+    # Match the actual CLI flag (docstring / comments may mention the name).
+    assert "--Mapper.filter_max_reproj_error" not in script
+    assert '"--clear_points"' not in script
+    assert "prefill_db" in script and "add_camera" in script
+
+
+def test_colmap_triangulate_v050_docs_flag_upstream_mirror() -> None:
+    m = _load("colmap-triangulate", "0.5.0")
+    assert m.docs and "helper3dg.py" in m.docs, (
+        "@0.5.0 docs must credit the upstream reference so the semantic "
+        "contract is discoverable from the manifest alone"
+    )
+    assert "pre_no_prior.py" in m.docs
