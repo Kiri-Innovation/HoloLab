@@ -30,6 +30,11 @@ docs: |
   * SIFT defaults raised to COLMAP defaults (8192 features, 3200 px cap)
     — the v0.1.0 defaults (2048 / 2400) were the surface of an unrelated
     smoke-run and shipped as prod by accident.
+  * GPU-option name auto-detection: COLMAP 3.13+ renamed
+    ``SiftExtraction.use_gpu`` → ``FeatureExtraction.use_gpu`` (PR #3465).
+    The shell probes ``feature_extractor -h`` to pick the right one, so
+    the pack runs against COLMAP 3.12 and 3.13+ alike. Mirrors
+    ``SpacetimeGaussians/thirdparty/gaussian_splatting/convert.py:49-56``.
 
   ### When to use this vs alternatives
 
@@ -47,13 +52,15 @@ docs: |
   Output layout::
 
       output/
-        cameras.txt   # 1 OPENCV entry (single_camera=1)
-        images.txt    # N rig-cam poses
+        cameras.txt    # 1 OPENCV entry (single_camera=1)
+        images.txt     # N rig-cam poses
+        points3D.txt   # ref-frame SfM point cloud (kept — STG uses it)
 
-  The ``colmap-triangulate`` pack expects this exact layout on its
-  ``cams`` input and re-runs ``feature_extractor`` in the same
-  single-camera / OPENCV mode so DB image IDs / camera IDs align with
-  the prior it constructs.
+  The ``colmap-triangulate`` pack expects this layout on its ``cams``
+  input and re-runs ``feature_extractor`` in the same single-camera /
+  OPENCV mode so DB image IDs / camera IDs align with the prior it
+  constructs. It reads ``cameras.txt`` + ``images.txt``; ``points3D.txt``
+  is a bonus for downstream densification / training paths.
 
 inputs:
   frames:
@@ -107,6 +114,19 @@ exec:
 
     mkdir -p "$OUT" "$SPARSE_ROOT"
 
+    # COLMAP 3.13+ renamed SiftExtraction.use_gpu → FeatureExtraction.use_gpu
+    # (and SiftMatching → FeatureMatching), see PR #3465 / official changelog.
+    # Probe the CLI help to stay compatible with both — mirrors the helper in
+    # SpacetimeGaussians/thirdparty/gaussian_splatting/convert.py:49-56.
+    if colmap feature_extractor -h 2>&1 | grep -q 'FeatureExtraction.use_gpu'; then
+      GPU_OPT_EXTRACT=FeatureExtraction.use_gpu
+      GPU_OPT_MATCH=FeatureMatching.use_gpu
+    else
+      GPU_OPT_EXTRACT=SiftExtraction.use_gpu
+      GPU_OPT_MATCH=SiftMatching.use_gpu
+    fi
+    echo "[colmap-sfm-cams-only] GPU option: --$GPU_OPT_EXTRACT / --$GPU_OPT_MATCH"
+
     echo "[colmap-sfm-cams-only] feature_extractor (single_camera=1, OPENCV)"
     colmap feature_extractor \
       --database_path "$DB" \
@@ -115,12 +135,12 @@ exec:
       --ImageReader.camera_model OPENCV \
       --SiftExtraction.max_image_size {{ params.max_image_size }} \
       --SiftExtraction.max_num_features {{ params.max_num_features }} \
-      --FeatureExtraction.use_gpu {{ params.use_gpu }}
+      --"$GPU_OPT_EXTRACT" {{ params.use_gpu }}
 
     echo "[colmap-sfm-cams-only] exhaustive_matcher"
     colmap exhaustive_matcher \
       --database_path "$DB" \
-      --FeatureMatching.use_gpu {{ params.use_gpu }}
+      --"$GPU_OPT_MATCH" {{ params.use_gpu }}
 
     echo "[colmap-sfm-cams-only] mapper (ba_global_function_tolerance=1e-6)"
     colmap mapper \
@@ -142,17 +162,20 @@ exec:
       --output_path "$OUT" \
       --output_type TXT
 
-    # points3D.txt is not part of this pack's contract — discard.
-    # rigs.txt / frames.txt (COLMAP 3.11+) also stripped: shipping the
+    # Keep points3D.txt — the ref-frame SfM point cloud is preserved so
+    # downstream algorithms (STG training, densification prep) can consume
+    # it, mirroring the original ``pre_no_prior`` layout.
+    # rigs.txt / frames.txt (COLMAP 3.11+) still stripped: shipping the
     # SfM's rig assignments into a downstream ``colmap-triangulate``'s
     # prior trips the ``existing_frame.RigId() == frame.RigId()`` check
     # in database_cache.cc:165 (the fresh feature_extractor's per-image
     # default rigs won't match the SfM's grouped rigs). Without a prior
     # rig assignment the downstream defaults win and the check passes.
-    rm -f "$OUT/points3D.txt" "$OUT/rigs.txt" "$OUT/frames.txt"
+    rm -f "$OUT/rigs.txt" "$OUT/frames.txt"
 
-    test -s "$OUT/cameras.txt" || { echo "no cameras.txt produced" >&2; exit 4; }
-    test -s "$OUT/images.txt"  || { echo "no images.txt produced" >&2; exit 4; }
+    test -s "$OUT/cameras.txt"  || { echo "no cameras.txt produced" >&2; exit 4; }
+    test -s "$OUT/images.txt"   || { echo "no images.txt produced" >&2; exit 4; }
+    test -s "$OUT/points3D.txt" || { echo "no points3D.txt produced" >&2; exit 4; }
     echo "[colmap-sfm-cams-only] done → $OUT"
 
 idempotency:
