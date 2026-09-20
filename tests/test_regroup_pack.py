@@ -189,3 +189,29 @@ def test_handle_summary_annotates_element_count_and_internal_count(tmp_path: Pat
     assert res["element_count"] == 3
     assert res["internal_count"] == 2
     assert res["internal_count_kind"] == "cameras"
+
+
+def test_handle_summary_scalar_dir_has_no_element_count(tmp_path: Path) -> None:
+    """A scalar dir handle (files only, no subdirs) must return element_count=null.
+
+    ``colmap-split.cameras`` is a plain dir containing ``cameras.txt`` — no
+    element subdirs. The UI must receive ``null`` (absent key) so the edge
+    chip shows no ``[N]`` badge, not ``[0]``.
+    """
+    from hololab.gateway.handle_summary import summarize_handle
+    from hololab.gateway.handles import Handle
+
+    scalar_dir = tmp_path / "cameras_out"
+    scalar_dir.mkdir()
+    (scalar_dir / "cameras.txt").write_text("1 PINHOLE 1024 768 500 500 512 384\n")
+    h = Handle(
+        handle_id="h2",
+        node_id="n2",
+        storage="dir",
+        tags=["colmap-cameras-txt"],
+        path=str(scalar_dir),
+    )
+    res = summarize_handle(h)
+    assert "element_count" not in res
+    assert res["internal_count"] == 1
+    assert res["internal_count_kind"] == "cameras"

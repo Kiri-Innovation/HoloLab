@@ -127,7 +127,7 @@ def _annotate_element_and_internal_counts(
             result["internal_count"] = probe.count
             result["internal_count_kind"] = probe.kind
 
-    if element_count is not None:
+    if element_count:
         result["element_count"] = element_count
 
 
