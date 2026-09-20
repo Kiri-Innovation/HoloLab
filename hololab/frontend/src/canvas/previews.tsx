@@ -3238,6 +3238,143 @@ const COLMAP_EMPTY: Record<ColmapFileName, string> = {
   "points3D.txt": COLMAP_EMPTY_POINTS3D,
 };
 
+// ---------------------------------------------------------------------------
+// Content LRU. Full COLMAP payloads (three .txt blobs + optional per-camera
+// thumbnails, ready to postMessage) keyed by request tuple. On paginator
+// flips into a prefetched neighbour, Colmap3DPreview hits the map and posts
+// the payload synchronously — zero network, zero re-parse — so the iframe
+// swaps frame content without a loading flash.
+//
+// Prior iteration primed only the browser HTTP cache; that shaved TTFB
+// but still forced the iframe through a full fetch + parse + texture-
+// upload cycle on flip.  A parsed-and-ready payload skips all of that.
+//
+// Capacity budget for the arrayed<colmap> worst case: ~4.5 MB images.txt +
+// ~0.9 MB points3D.txt + ~0.2 KB cameras.txt + ~300 KB thumbs ≈ 5.7 MB per
+// frame. Ten entries ≈ 60 MB — well below any modern renderer's heap and
+// far less than the raw-image alternative (2688×2015 PNG × 21 ≈ 100–200 MB
+// per frame). Cams/points previews weigh far less so a mixed cache is fine
+// under the same cap. Evict oldest on overflow so a long paginate walk
+// never grows unbounded.
+// ---------------------------------------------------------------------------
+
+interface ColmapPayload {
+  files: Array<{ name: string; blob: Blob }>;
+}
+
+interface ColmapPayloadReq {
+  baseUrl: string;
+  fetchFiles: readonly ColmapFileName[];
+  imagesBaseUrl?: string;
+}
+
+const COLMAP_PAYLOAD_CACHE_CAP = 10;
+const _colmapPayloadCache = new Map<string, Promise<ColmapPayload>>();
+
+function _payloadKey(req: ColmapPayloadReq): string {
+  return `${req.baseUrl}|${req.fetchFiles.join(",")}|${req.imagesBaseUrl ?? ""}`;
+}
+
+async function _fetchColmapPayloadNetwork(
+  req: ColmapPayloadReq,
+): Promise<ColmapPayload> {
+  const dirBase = req.baseUrl.replace(/\/$/, "");
+  const fetchedBlobs = await Promise.all(
+    req.fetchFiles.map(async (name) => {
+      const r = await fetch(`${dirBase}/${name}`);
+      if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+      return [name, await r.blob()] as const;
+    }),
+  );
+  const fetched = new Map(fetchedBlobs);
+  const files: Array<{ name: string; blob: Blob }> = (
+    ["cameras.txt", "images.txt", "points3D.txt"] as const
+  ).map((name) => ({
+    name,
+    blob:
+      fetched.get(name) ??
+      new Blob([COLMAP_EMPTY[name]], { type: "text/plain" }),
+  }));
+
+  const camerasBlob = fetched.get("cameras.txt");
+  const imagesBlob = fetched.get("images.txt");
+  if (req.imagesBaseUrl && camerasBlob && imagesBlob) {
+    const [camsText, imgsText] = await Promise.all([
+      camerasBlob.text(),
+      imagesBlob.text(),
+    ]);
+    const names = parseColmapImageNames(imgsText);
+    if (names.length > 0) {
+      const camDims = parseColmapFirstCameraDims(camsText);
+      const long = FRUSTUM_THUMB_LONG_EDGE;
+      const thumbDims = camDims
+        ? camDims.width >= camDims.height
+          ? { width: long, height: Math.max(1, Math.round((long * camDims.height) / camDims.width)) }
+          : { width: Math.max(1, Math.round((long * camDims.width) / camDims.height)), height: long }
+        : { width: long, height: long };
+      // Cache promise is shared across callers so individual aborts must
+      // not cancel the in-flight fetch — a prefetch racing the user's
+      // click still needs to land. Feed ``fetchFrustumThumbnails`` a
+      // signal that never fires.
+      const neverAbort = new AbortController().signal;
+      const thumbs = await fetchFrustumThumbnails(
+        req.imagesBaseUrl,
+        names,
+        thumbDims,
+        neverAbort,
+      );
+      for (const t of thumbs) if (t) files.push(t);
+    }
+  }
+  return { files };
+}
+
+/** Return the payload for ``req``, hitting the LRU cache on repeat calls
+ *  or in-flight prefetches. On failure the entry is evicted so the next
+ *  attempt retries; success stays cached until LRU-evicted at
+ *  ``COLMAP_PAYLOAD_CACHE_CAP``.
+ *
+ *  ``signal`` only surfaces caller-side abort at await time; the
+ *  underlying fetch is not cancelled (see comment above on shared
+ *  promises).  Callers await the returned promise and observe an
+ *  AbortError if they've unmounted mid-flight, letting the fetch
+ *  complete into the cache regardless — so a prefetch that races the
+ *  user click still populates for the next flip.
+ */
+function loadColmapPayload(
+  req: ColmapPayloadReq,
+  signal?: AbortSignal,
+): Promise<ColmapPayload> {
+  const key = _payloadKey(req);
+  let p = _colmapPayloadCache.get(key);
+  if (p) {
+    // LRU refresh: re-inserting moves the key to the Map iteration end so
+    // eviction targets genuinely-cold entries.
+    _colmapPayloadCache.delete(key);
+    _colmapPayloadCache.set(key, p);
+  } else {
+    const created = _fetchColmapPayloadNetwork(req).catch((e) => {
+      // Drop a poisoned entry so the next paginate attempt refetches.
+      if (_colmapPayloadCache.get(key) === created) _colmapPayloadCache.delete(key);
+      throw e;
+    });
+    p = created;
+    _colmapPayloadCache.set(key, p);
+    while (_colmapPayloadCache.size > COLMAP_PAYLOAD_CACHE_CAP) {
+      const oldest = _colmapPayloadCache.keys().next().value as string | undefined;
+      if (oldest === undefined || oldest === key) break;
+      _colmapPayloadCache.delete(oldest);
+    }
+  }
+  if (signal) {
+    return p.then((v) => {
+      if (signal.aborted) throw new DOMException("aborted", "AbortError");
+      return v;
+    });
+  }
+  return p;
+}
+
 interface Colmap3DPreviewProps {
   baseUrl: string;
   // Subset of {cameras.txt, images.txt, points3D.txt} the caller wants
@@ -3262,10 +3399,19 @@ function Colmap3DPreview({
 }: Colmap3DPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const sentRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  // ``handshaken`` is monotonic — the iframe stays mounted across
+  // paginator flips (see ArrayedPaginator: no per-page key on the scalar
+  // wrapper), so ColmapUtil boots once and posts ``colmap-ready`` exactly
+  // once. Subsequent baseUrl changes hot-swap via postMessage without
+  // remount. Once true it stays true; used only to gate the initial data
+  // send (waiting for the receiver to exist) and to hide the boot overlay.
   const [handshaken, setHandshaken] = useState(false);
   const [activated, setActivated] = useState(false);
+  // Deferred loading indicator for data swaps *after* the boot handshake.
+  // Set true only if a payload fetch takes >200 ms (cache-hit swaps are
+  // < 20 ms so this never fires for prefetched neighbours — no flash).
+  const [swapLoading, setSwapLoading] = useState(false);
 
   // Push canvas-zoom → iframe render resolution (debounced 200 ms).
   const zoom = useStore((s) => s.transform[2]);
@@ -3305,99 +3451,59 @@ function Colmap3DPreview({
     };
   }, []);
 
-  const fetchKey = fetchFiles.join(",");
+  // Effect A — handshake listener, mounted once. ``colmap-ready`` is
+  // broadcast by ColmapUtil's EmbedDataListener at iframe boot; since the
+  // iframe is now stable across paginator flips (no per-page remount),
+  // this listener fires exactly once and ``handshaken`` becomes
+  // monotonically true.
   useEffect(() => {
-    sentRef.current = false;
-    setError(null);
-    setHandshaken(false);
-    setActivated(false);
-
-    const ctl = new AbortController();
-
-    async function sendSparse(target: Window) {
-      if (sentRef.current) return;
-      const dirBase = baseUrl.replace(/\/$/, "");
-      try {
-        const fetchedBlobs = await Promise.all(
-          fetchFiles.map(async (name) => {
-            const r = await fetch(`${dirBase}/${name}`, { signal: ctl.signal });
-            if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
-            return [name, await r.blob()] as const;
-          }),
-        );
-        if (ctl.signal.aborted) return;
-        const fetched = new Map(fetchedBlobs);
-        const files: Array<{ name: string; blob: Blob }> = (
-          ["cameras.txt", "images.txt", "points3D.txt"] as const
-        ).map((name) => ({
-          name,
-          blob:
-            fetched.get(name) ??
-            new Blob([COLMAP_EMPTY[name]], { type: "text/plain" }),
-        }));
-
-        // Side-load per-camera thumbnails when the caller supplied an
-        // images dir. ``makeFolderImageResolver`` inside ColmapUtil scans
-        // the file map for image-extension entries and keys them by path
-        // suffix, so appending ``{name: "cam01.png", blob: <jpeg bytes>}``
-        // is enough — no ColmapUtil-side message change. Aborted request
-        // aborts propagate through ``mapWithConcurrency``; per-image 4xx
-        // /5xx degrades to a wireframe frustum for that camera only.
-        const camerasBlob = fetched.get("cameras.txt");
-        const imagesBlob = fetched.get("images.txt");
-        if (imagesBaseUrl && camerasBlob && imagesBlob) {
-          const [camsText, imgsText] = await Promise.all([
-            camerasBlob.text(),
-            imagesBlob.text(),
-          ]);
-          if (ctl.signal.aborted) return;
-          const names = parseColmapImageNames(imgsText);
-          if (names.length > 0) {
-            const camDims = parseColmapFirstCameraDims(camsText);
-            const long = FRUSTUM_THUMB_LONG_EDGE;
-            const thumbDims = camDims
-              ? camDims.width >= camDims.height
-                ? { width: long, height: Math.max(1, Math.round((long * camDims.height) / camDims.width)) }
-                : { width: Math.max(1, Math.round((long * camDims.width) / camDims.height)), height: long }
-              : { width: long, height: long };
-            const thumbs = await fetchFrustumThumbnails(
-              imagesBaseUrl,
-              names,
-              thumbDims,
-              ctl.signal,
-            );
-            if (ctl.signal.aborted) return;
-            for (const t of thumbs) if (t) files.push(t);
-          }
-        }
-
-        target.postMessage(
-          { type: "colmap-load-files", files, name: "sfm" },
-          "*",
-        );
-        sentRef.current = true;
-      } catch (e) {
-        if ((e as Error).name === "AbortError") return;
-        setError((e as Error).message);
-      }
-    }
-
     function onMessage(e: MessageEvent) {
       const iframe = iframeRef.current;
       if (!iframe || e.source !== iframe.contentWindow) return;
       const d = e.data as { type?: string } | null;
-      if (!d || typeof d !== "object") return;
-      if (d.type === "colmap-ready") {
-        setHandshaken(true);
-        sendSparse(iframe.contentWindow as Window);
-      }
+      if (d?.type === "colmap-ready") setHandshaken(true);
     }
     window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  // Effect B — post the payload whenever the request tuple changes (and
+  // the iframe is ready to receive). Cache-hit swaps resolve within a
+  // microtask and the 200 ms loading-indicator timer never fires, so the
+  // flip is perceptually instant. Cache misses degrade to a subtle
+  // indicator without unmounting the iframe.
+  const fetchKey = fetchFiles.join(",");
+  useEffect(() => {
+    if (!handshaken) return;
+    setError(null);
+    const ctl = new AbortController();
+    const showT = window.setTimeout(() => setSwapLoading(true), 200);
+    (async () => {
+      try {
+        const payload = await loadColmapPayload(
+          { baseUrl, fetchFiles, imagesBaseUrl },
+          ctl.signal,
+        );
+        if (ctl.signal.aborted) return;
+        const target = iframeRef.current?.contentWindow;
+        if (!target) return;
+        target.postMessage(
+          { type: "colmap-load-files", files: payload.files, name: "sfm" },
+          "*",
+        );
+      } catch (e) {
+        if ((e as Error).name === "AbortError") return;
+        setError((e as Error).message);
+      } finally {
+        window.clearTimeout(showT);
+        setSwapLoading(false);
+      }
+    })();
     return () => {
       ctl.abort();
-      window.removeEventListener("message", onMessage);
+      window.clearTimeout(showT);
     };
-  }, [baseUrl, fetchKey, imagesBaseUrl]);
+  }, [baseUrl, fetchKey, imagesBaseUrl, handshaken]);
 
   return (
     <div ref={wrapperRef} style={{ position: "relative" }}>
@@ -3441,6 +3547,29 @@ function Colmap3DPreview({
           }}
         >
           {error ? `load failed — ${error}` : "loading viewer…"}
+        </div>
+      )}
+      {/* Post-boot data-swap indicator — a tiny corner chip so a cache
+          miss doesn't hide the previous frame like the full boot overlay
+          does. Cache hits leave ``swapLoading`` false so nothing renders
+          and the flip is silent. */}
+      {handshaken && !error && swapLoading && (
+        <div
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 6,
+            zIndex: 11,
+            padding: "2px 6px",
+            fontSize: 10,
+            borderRadius: "var(--radius-sm)",
+            background: "rgba(0,0,0,0.55)",
+            color: "var(--text-on-dark)",
+            pointerEvents: "none",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          loading…
         </div>
       )}
       {/* Transparent shield — blocks wheel/hover passthrough when inactive.
@@ -3749,36 +3878,35 @@ function RigTimelinePreview({ baseUrl }: { baseUrl: string }) {
 // ---------------------------------------------------------------------------
 // ±3 neighbour prefetch helpers.
 //
-// When the user turns a page in ArrayedPaginator the browser must fetch
-// COLMAP text files before the iframe can render.  Issuing those fetches
-// in idle time while the current page is visible means the HTTP cache is
-// warm by the time the user clicks — the scalar viewer's fetch resolves
-// instantly with no loading flash.
-//
-// _prefetchedUrls: session-scoped dedup set; capped at 60 entries (oldest
-// 10 evicted when the cap is reached).
+// When the user turns a page in ArrayedPaginator, the scalar viewer must
+// have its data on hand before it can render.  Idle-time prefetch on the
+// ±3 neighbours means a common paginate walk always finds its next
+// destination already parsed in ``_colmapPayloadCache`` — the flip posts
+// synchronously and no loading indicator fires.
 // ---------------------------------------------------------------------------
 
-const _prefetchedUrls = new Set<string>();
-const PREFETCH_URL_CAP = 60;
-
-function _warmUrl(url: string): void {
-  if (_prefetchedUrls.has(url)) return;
-  if (_prefetchedUrls.size >= PREFETCH_URL_CAP) {
-    const iter = _prefetchedUrls.values();
-    for (let i = 0; i < 10; i++) _prefetchedUrls.delete(iter.next().value!);
-  }
-  _prefetchedUrls.add(url);
-  fetch(url).catch(() => {});
-}
-
+// Prefetchers are content-level — they populate the in-memory
+// ``_colmapPayloadCache`` with a full postMessage-ready payload
+// (parsed .txt blobs + thumbnails) so a paginator flip into a
+// prefetched neighbour resolves synchronously without any network or
+// re-parse round-trip. Composed URLs must match exactly what the
+// wrapper components (``ColmapFramePreview`` / ``ColmapPointsPreview``)
+// hand to ``Colmap3DPreview`` — otherwise cache keys diverge and the
+// flip pays a cold-fetch penalty.
 function prefetchColmapFrame(elementUrl: string): void {
-  const base = elementUrl.replace(/\/$/, "") + "/sparse/0";
-  for (const name of COLMAP_FRAME_FETCH) _warmUrl(`${base}/${name}`);
+  const trimmed = elementUrl.replace(/\/$/, "");
+  void loadColmapPayload({
+    baseUrl: `${trimmed}/sparse/0`,
+    fetchFiles: COLMAP_FRAME_FETCH,
+    imagesBaseUrl: `${trimmed}/images`,
+  }).catch(() => {});
 }
 
 function prefetchColmapPoints(elementUrl: string): void {
-  _warmUrl(elementUrl.replace(/\/$/, "") + "/points3D.txt");
+  void loadColmapPayload({
+    baseUrl: elementUrl.replace(/\/$/, ""),
+    fetchFiles: COLMAP_POINTS_FETCH,
+  }).catch(() => {});
 }
 
 function scheduleIdle(fn: () => void): number {
@@ -4164,12 +4292,17 @@ function ArrayedPaginator({
           ))}
         </div>
       )}
-      {/* Keying by element name so React remounts the scalar viewer on
-          selection change — cheap, and avoids stale-fetch races inside
-          the wrapped viewer's own useEffect. In nested mode wrap the
-          scalar with a second paginator for the current outer element's
-          inner children. */}
-      <div key={currentName}>
+      {/* No per-element key — the scalar viewer stays mounted across
+          selection changes so heavyweight children (Colmap3DPreview's
+          iframe, WebGL context, etc.) don't reboot on every flip.
+          Wrappers absorb the new ``baseUrl`` prop and hot-swap their
+          content via their own useEffect; stale-fetch races are the
+          child's responsibility, and Colmap3DPreview handles them via
+          AbortController + shared cache-promise semantics. In nested
+          mode the same rule applies — the inner ArrayedPaginator sees
+          new ``elementsOverride`` and refreshes its own state without a
+          remount. */}
+      <div>
         {nested ? (
           <ArrayedPaginator
             baseUrl={elementUrl}
