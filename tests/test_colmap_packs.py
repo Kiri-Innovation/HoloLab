@@ -287,6 +287,42 @@ def test_resolve_sfm_key_symlink_style_sfm_name() -> None:
     assert sk.resolve_sfm_key("cam_0002.png", sfm, idx) == "cam02"
 
 
+def test_cam_key_flatten_migrated_sfm_name() -> None:
+    """Regression: post-``155b736`` (flatten migration) SfM's ``images.txt``
+    NAME resolves through the symlink to ``<cam>/<basename>`` — no
+    ``frames/`` bucket. ``cam_key`` must return the parent dir (``cam00``),
+    not the file stem (``frame_000000``); otherwise all 21 SfM entries
+    collapse onto the single per-frame basename and the resolver has
+    only one key to work with (the exact failure mode the classic STG
+    workflow tripped on 2026-09-21).
+    """
+    sk = _load_sfm_key_module()
+    name = "../../../c7540592/frame_sequence/cam00/frame_000000.png"
+    assert sk.cam_key(name) == "cam00"
+    # And critically: 21 different cam dirs → 21 distinct keys, not one.
+    sfm_names = [f"../../../c7540592/frame_sequence/cam{i:02d}/frame_000000.png" for i in range(21)]
+    sfm_keys = [sk.cam_key(n) for n in sfm_names]
+    assert len(set(sfm_keys)) == 21, (
+        "flatten-migrated SfM NAMEs must produce 21 distinct cam_keys, not collapse "
+        f"to a single basename; got {sorted(set(sfm_keys))}"
+    )
+
+
+def test_resolve_sfm_key_flatten_migrated_symlink_shape_end_to_end() -> None:
+    """End-to-end pairing: 21 flatten-migrated SfM entries + regroup-style
+    staged names → every staged image resolves via the numeric fallback.
+    This is the real classic-STG shape a tri shard sees.
+    """
+    sk = _load_sfm_key_module()
+    sfm_names = [f"../../../c7540592/frame_sequence/cam{i:02d}/frame_000000.png" for i in range(21)]
+    sfm = _fake_sfm([sk.cam_key(n) for n in sfm_names])
+    idx = sk.build_numeric_sfm_index(sfm)
+    assert idx is not None, "21 distinct trailing integers must build a full index"
+    for i in range(21):
+        staged = f"cam_{i:04d}.png"
+        assert sk.resolve_sfm_key(staged, sfm, idx) == f"cam{i:02d}", staged
+
+
 def test_resolve_sfm_key_returns_none_on_no_match() -> None:
     """Genuine miss (no direct match, no numeric equivalent) returns None
     — caller decides how to surface the diagnostic.

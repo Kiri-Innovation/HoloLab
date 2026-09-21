@@ -6,9 +6,14 @@ stdlib). Runtime behaviour is unchanged — ``triangulate.py`` re-exports.
 
 The regression this file addresses (2026-09): ``regroup@0.2.0`` renames
 flat leaves to ``<label>_<idx:04d>``, so a per-frame dir holds
-``cam_0000.png``. SfM's ``images.txt`` NAME resolves via the
-``<cam>/frames/<file>`` layout to ``cam00`` (grandparent). Direct
-stem comparison misses (``cam_0000`` ≠ ``cam00``) → all 100 shards fail.
+``cam_0000.png``. SfM's ``images.txt`` NAME resolves through a symlink
+into the fx output — post-``155b736`` (flatten migration) that path is
+``<cam>/<basename>``; pre-flatten it was ``<cam>/frames/<basename>``.
+Direct stem comparison misses in every case (``cam_0000`` ≠ ``cam00``),
+and if ``cam_key`` returns the basename instead of the cam dir then all
+21 SfM entries collapse to the same key (they all share the per-frame
+basename ``frame_000000``) — leaving a 1-entry pose index and 100/100
+shards failing at the second image.
 """
 
 from __future__ import annotations
@@ -21,12 +26,24 @@ from pathlib import Path
 def cam_key(image_name: str) -> str:
     """Per-camera key from a COLMAP-stored image name.
 
-    * flat: ``cam01.png`` -> ``cam01`` (stem).
-    * resolved-symlink: ``.../<cam>/frames/<basename>`` -> ``<cam>`` (grandparent).
+    Three input shapes are recognised:
+
+    * **Bare flat name** (staged scratch or single-camera legacy):
+      ``cam01.png`` → ``cam01`` (file stem).
+    * **Post-flatten path** (fx@0.1.0 after the ``155b736`` flatten
+      migration): ``.../<cam>/<basename>`` → ``<cam>`` (parent dir).
+      This is what a symlink-through resolves to for the current
+      ``frame-extraction`` output layout.
+    * **Legacy nested path** (pre-flatten): ``.../<cam>/frames/<basename>``
+      → ``<cam>`` (grandparent). Kept so triangulation still works
+      against SfM handles produced before the migration.
     """
     p = Path(image_name)
     if p.parent.name == "frames":
         return p.parent.parent.name
+    parent = p.parent.name
+    if parent and parent not in {".", ".."}:
+        return parent
     return p.stem
 
 
