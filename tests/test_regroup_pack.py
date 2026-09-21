@@ -522,6 +522,113 @@ def test_handle_summary_dim_sizes_image_sequence_missing_frames_dir(tmp_path: Pa
     assert res["element_count"] == 3  # element_count fallback stays
 
 
+# ---------------------------------------------------------------------------
+# Structural equivalence audit — regroup-by-frame@0.1.0 vs regroup@0.2.0
+# ---------------------------------------------------------------------------
+#
+# These tests document that the two packs are NOT equivalent for the current
+# main-chain input (frame-extraction arrayed<image_sequence>).
+#
+# regroup-by-frame@0.1.0 — file-level transpose:
+#   Iterates individual PNGs inside each cam's ``frames/`` and groups them
+#   by frame key under new per-frame ``frames/`` dirs. Produces
+#   arrayed<image_sequence> with the layout colmap-triangulate expects.
+#
+# regroup@0.2.0 — dir-level transpose (arrayed<arrayed<T>>):
+#   Treats inner *subdirectories* as the leaf T. With frame-extraction
+#   output the only inner subdir per cam is ``frames/`` itself, so axis-1
+#   collapses to a single element — not N per-frame elements.
+#
+# Wiring regroup@0.2.0 into the current main chain is blocked until the
+# upstream produces a proper depth-2 dir tree (``<cam>/<frame_dir>/``).
+
+_RBF_SCRIPT = (
+    Path(__file__).resolve().parents[1] / "packs" / "regroup-by-frame@0.1.0" / "regroup.py"
+)
+
+
+def _mk_image_sequence_tree(root: Path, cams: list[str], n_frames: int) -> None:
+    """frame-extraction-style arrayed<image_sequence>: <cam>/frames/frame_XXXXXX.png."""
+    for cam in cams:
+        frames_dir = root / cam / "frames"
+        frames_dir.mkdir(parents=True)
+        for i in range(n_frames):
+            (frames_dir / f"frame_{i:06d}.png").write_bytes(f"{cam}/{i}".encode())
+
+
+def _run_rbf(input_root: Path, output_root: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            str(_RBF_SCRIPT),
+            "--input",
+            str(input_root),
+            "--output",
+            str(output_root),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_regroup_by_frame_transposes_image_sequence(tmp_path: Path) -> None:
+    """regroup-by-frame@0.1.0 iterates individual PNGs at the file level.
+
+    Input:  <cam>/frames/frame_XXXXXX.png   (frame-extraction output)
+    Output: <frame_key>/frames/<cam>.png    (colmap-triangulate-ready)
+
+    Each output element is an image_sequence with the ``frames/`` convention.
+    colmap-triangulate accesses ``--image-path <element>/frames/``.
+    """
+    in_root = tmp_path / "in"
+    _mk_image_sequence_tree(in_root, ["cam_A", "cam_B"], n_frames=3)
+    out = tmp_path / "out_rbf"
+    _run_rbf(in_root, out)
+
+    outer = sorted(p.name for p in out.iterdir() if not p.name.startswith("."))
+    assert len(outer) == 3, f"expected 3 per-frame elements, got {outer}"
+    assert outer[0] == "frame_000000"
+
+    frames_dir = out / "frame_000000" / "frames"
+    assert frames_dir.is_dir()
+    assert (frames_dir / "cam_A.png").is_symlink()
+    assert (frames_dir / "cam_B.png").is_symlink()
+    assert (frames_dir / "cam_A.png").read_bytes() == b"cam_A/0"
+
+
+def test_regroup_v020_misinterprets_image_sequence_input(tmp_path: Path) -> None:
+    """regroup@0.2.0 is a dir-level tool — NOT equivalent to regroup-by-frame
+    for arrayed<image_sequence> input (current frame-extraction output).
+
+    With input_dims=["cam","frame"] on a frame-extraction tree, the pack
+    finds only ONE inner subdir per cam (the ``frames/`` directory itself),
+    so the output has one outer 'frame' element instead of N.
+
+    The output also lacks the per-frame image_sequence layout that
+    colmap-triangulate expects (``<element>/frames/<cam>.png``).
+    """
+    in_root = tmp_path / "in"
+    _mk_image_sequence_tree(in_root, ["cam_A", "cam_B"], n_frames=3)
+    out = tmp_path / "out_v020"
+    _run(in_root, out, ["cam", "frame"], ["frame", "cam"])
+
+    # v0.2.0 treats the single "frames" subdir as axis-1's sole element:
+    # collapses to 1 outer element, NOT 3 per-frame elements.
+    outer = sorted(p.name for p in out.iterdir() if not p.name.startswith("."))
+    assert outer == ["frame_0000"], (
+        f"expected single 'frame_0000' (frames/ dir misread as axis element); got {outer}"
+    )
+
+    # Each inner element symlinks to the whole frames/ dir — not a per-frame
+    # image_sequence, so --image-path <element>/frames/ would fail.
+    inner = sorted(p.name for p in (out / "frame_0000").iterdir() if p.is_symlink() or p.is_dir())
+    assert inner == ["cam_0000", "cam_0001"]
+
+    target = (out / "frame_0000" / "cam_0000").resolve()
+    assert target.name == "frames", f"leaf resolves to {target.name!r}, expected 'frames'"
+
+
 def test_schema_allows_dim_labels_on_scalar_ports() -> None:
     """Post-relaxation: scalar/non-arrayed ports may declare dim_labels.
 
