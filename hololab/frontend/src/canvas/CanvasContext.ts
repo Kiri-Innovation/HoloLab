@@ -28,11 +28,22 @@ export interface CanvasContextValue {
   // drawer's "Open in Cocoder" button to resolve
   // ``flops_executor_id`` at render time.
   computeNodesById: Record<string, ComputeNode>;
+  // True while the initial cold-load hydration (runs list → snapshot
+  // jobs → getHandle batch) is still in flight. AlgorithmNode reads
+  // this to suppress the terminal "尚未运行 / 产物已被清理" verdicts
+  // until we have enough data to make a real call — otherwise a stale
+  // ``preview_open`` slot on a persisted graph would flash both wrong
+  // conclusions on every cold load (target=null + runState=undefined
+  // → "never-ran"; then jobs land, runState="done" but handles still
+  // pending → "cleaned"; then handles land → real preview). See the
+  // block comment on the placeholder computation in AlgorithmNode.tsx.
+  hydrating: boolean;
 }
 
 const DEFAULT: CanvasContextValue = {
   workflow_id: null,
   computeNodesById: {},
+  hydrating: false,
 };
 
 export const CanvasContext = createContext<CanvasContextValue>(DEFAULT);

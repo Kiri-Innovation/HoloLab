@@ -402,7 +402,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     staleness,
     arrayed_toggle,
   } = data as AlgorithmNodeData & { arrayed_toggle?: boolean };
-  const { workflow_id: workflowId, computeNodesById } = useCanvasContext();
+  const { workflow_id: workflowId, computeNodesById, hydrating } = useCanvasContext();
   const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
   const inputEntries = Object.entries(pack.inputs);
   const outputEntries = Object.entries(pack.outputs);
@@ -974,8 +974,31 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             }
             // Placeholder for viewer-kind with no/deleted handle, and
             // info-kind with no handle yet (never ran).
-            const placeholderKind =
-              target?.deleted || runState === "done" ? "cleaned" : "never-ran";
+            //
+            // "Not ready" gating: don't flash a terminal verdict until we
+            // have data that supports one. Two windows to cover:
+            //
+            //   * ``hydrating`` (from CanvasContext) — the App's initial
+            //     cold-load chain (listWorkflowRuns → getSnapshot →
+            //     getHandle batch) is still in flight. Persisted
+            //     ``preview_open`` slots would otherwise flash "尚未运行"
+            //     before jobs arrive, then "产物已被清理" between jobs
+            //     landing (runState="done") and the handle batch
+            //     resolving (target=null → treated as tombstoned).
+            //   * ``runState === "done" && !target`` — post-hydration
+            //     WS "done" frame arrived but the async getHandle
+            //     hasn't resolved yet. Same "cleaned" flash on live
+            //     runs; same fix.
+            //
+            // Once neither window applies, the terminal branch below
+            // fires: ``target?.deleted`` → cleaned (real tombstone),
+            // else → never-ran (no done job, no handle).
+            const notReady = hydrating || (runState === "done" && !target);
+            const placeholderKind = notReady
+              ? "loading"
+              : target?.deleted
+                ? "cleaned"
+                : "never-ran";
             return (
               <PreviewPlaceholder
                 kind={placeholderKind}

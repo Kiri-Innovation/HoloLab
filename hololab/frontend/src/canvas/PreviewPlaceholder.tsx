@@ -1,9 +1,14 @@
 // Empty-state placeholder for the AlgorithmNode preview drawer.
 //
-// Two states — both wear the same dark-shell chrome the real viewers
+// Three states — all wear the same dark-shell chrome the real viewers
 // use (see PREVIEW_SHELL in previews.tsx) so a switch from placeholder
 // to real preview doesn't shift layout:
 //
+//   * loading    → "读取中…" — non-committal placeholder shown while
+//                  we're still fetching the data that would let us
+//                  make a real call (see AlgorithmNode.tsx for the
+//                  gate). No Run button here — the operator doesn't
+//                  yet know if the node needs running.
 //   * never-ran  → "尚未运行 (never run)" + Run this node button.
 //   * cleaned    → "产物已被清理 (artifact cleaned)" + Run this node
 //                  button. Fires when the job ran once but its output
@@ -19,7 +24,7 @@
 
 import { useState } from "react";
 
-export type PlaceholderKind = "never-ran" | "cleaned";
+export type PlaceholderKind = "never-ran" | "cleaned" | "loading";
 
 export interface PreviewPlaceholderProps {
   kind: PlaceholderKind;
@@ -95,6 +100,12 @@ function content(kind: PlaceholderKind, portName: string): {
   title: string;
   detail: string;
 } {
+  if (kind === "loading") {
+    return {
+      title: "读取中…",
+      detail: `正在读取 ${portName} 的产物信息。`,
+    };
+  }
   if (kind === "cleaned") {
     return {
       title: "产物已被清理",
@@ -126,6 +137,10 @@ export function PreviewPlaceholder({
     : dispatchState.kind === "sending"
       ? "分派中…"
       : "▶ 运行本节点";
+  // The "loading" kind is a non-committal placeholder — we don't yet
+  // know if the node needs running, so suppress the Run button. The
+  // real placeholder + button reappears once the fetch resolves.
+  const showButton = kind !== "loading";
 
   const onClick = async () => {
     if (!onRun || buttonBusy) return;
@@ -148,9 +163,9 @@ export function PreviewPlaceholder({
       data-hl-port={portName}
       style={SHELL}
     >
-      <div style={TITLE}>{title}</div>
+      <div style={{ ...TITLE, color: kind === "loading" ? "var(--info)" : TITLE.color }}>{title}</div>
       <div style={SUB}>{detail}</div>
-      {!readOnly && onRun && (
+      {showButton && !readOnly && onRun && (
         <button
           type="button"
           onClick={onClick}

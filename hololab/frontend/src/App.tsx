@@ -346,9 +346,23 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // dispatch. See the handler in the WS effect below for the fan-out
   // shard timing this closes off.
   const latestSnapshotIdRef = useRef<string | null>(null);
+  // Set by ``onLoad`` right before it seeds jobs directly from its own
+  // ``getSnapshot`` result. Read by the ``latestSnapshotId`` sync
+  // effect so it can skip re-fetching the same snapshot on cold-start.
+  // Cleared after one use. Any subsequent latestSnapshotId change (a
+  // run-then-dispatch, a WS-triggered snapshot bump) falls through to
+  // the effect's normal fetch.
+  const seededSnapshotIdRef = useRef<string | null>(null);
   const [previewOpenByGraphNode, setPreviewOpenByGraphNode] = useState<
     Record<string, string | null>
   >({});
+  // True from the moment ``onLoad`` starts the runs → snapshot → handle
+  // fan-out until the full batch commits. Fed to AlgorithmNode via
+  // CanvasContext so open-drawer nodes render a neutral "loading"
+  // placeholder during that window instead of the flicker sequence
+  // "尚未运行 → 产物已被清理 → 蓝色 loading" the persisted
+  // ``preview_open`` slot produced on every cold load.
+  const [hydrating, setHydrating] = useState<boolean>(false);
 
   const refreshCatalog = useCallback(async () => {
     try {
@@ -806,8 +820,21 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // never re-fetched because we already have the id).
   useEffect(() => {
     latestSnapshotIdRef.current = latestSnapshotId;
+    if (!latestSnapshotId) {
+      setLatestSnapshotJobs([]);
+      return;
+    }
+    // Cold-load skip: onLoad's hydration loop already fetched this
+    // snapshot and seeded jobs. Firing another getSnapshot here would
+    // (a) clear the seeded jobs, then (b) issue a duplicate network
+    // request. Consume the ref and short-circuit. The seeded jobs
+    // remain in place; WS ``job_update`` frames still apply via the
+    // handler in the ws-effect below.
+    if (seededSnapshotIdRef.current === latestSnapshotId) {
+      seededSnapshotIdRef.current = null;
+      return;
+    }
     setLatestSnapshotJobs([]);
-    if (!latestSnapshotId) return;
     let cancelled = false;
     void getSnapshot(latestSnapshotId)
       .then((snap) => {
@@ -903,8 +930,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   }, [computeNodes]);
 
   const canvasContextValue = useMemo(
-    () => ({ workflow_id: workflowId, computeNodesById }),
-    [workflowId, computeNodesById],
+    () => ({ workflow_id: workflowId, computeNodesById, hydrating }),
+    [workflowId, computeNodesById, hydrating],
   );
 
   // Push job runtime + resolved previews + previewOpen into each node's
@@ -1829,6 +1856,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const onLoad = useCallback(
     async (id: string) => {
+      // Flip hydrating BEFORE fromGraph so the very first render that
+      // opens persisted ``preview_open`` drawers sees the flag set —
+      // otherwise the initial paint (with empty runtime/previews) would
+      // still flash the terminal placeholders for one frame.
+      setHydrating(true);
       const w = await getWorkflow(id);
       setWorkflowId(w.workflow_id);
       setWorkflowName(w.name);
@@ -1858,7 +1890,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       void (async () => {
         try {
           const runs = await listWorkflowRuns(w.workflow_id);
-          if (!runs || runs.length === 0) return;
+          if (!runs || runs.length === 0) {
+            // No prior runs → nothing to hydrate; clear the flag so
+            // AlgorithmNode falls through to the terminal "尚未运行"
+            // for genuine never-ran nodes.
+            setHydrating(false);
+            return;
+          }
 
           const perGraphPreviewWork: Array<{
             graphNodeId: string;
@@ -1881,9 +1919,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             // and its jobs drive node runtime.
             if (!seenFirstSnap) {
               setLatestSnapshotGraph(snap.graph);
+              // Stamp the seed ref BEFORE flipping the id so the sync
+              // effect (which fires as soon as ``latestSnapshotId`` changes)
+              // reads the seeded id on its first tick and short-circuits.
+              // Without this the effect at ~L807 clears seeded jobs and
+              // refires ``getSnapshot(latestSnapshotId)`` — the 9th
+              // snapshot request in a 8-run walk.
+              seededSnapshotIdRef.current = run.snapshot_id;
               setLatestSnapshotId(run.snapshot_id);
-              // Seed jobs directly to avoid the sync useEffect issuing a
-              // duplicate fetch for the same snapshot on cold-start.
               setLatestSnapshotJobs(snap.jobs);
               seenFirstSnap = true;
             }
@@ -2024,6 +2067,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           }
         } catch (err) {
           console.warn("draft-view hydration failed", err);
+        } finally {
+          // Terminal verdicts (尚未运行 / 产物已被清理) are now safe to
+          // show: either all handles resolved into ``previews`` or the
+          // batch failed and we've logged it. The AlgorithmNode-level
+          // ``runState === "done" && !target`` check still covers the
+          // per-node WS window post-hydration.
+          setHydrating(false);
         }
       })();
     },
