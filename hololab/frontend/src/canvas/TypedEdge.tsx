@@ -238,6 +238,13 @@ function TypedEdgeInner({
     if (!edgeType) return { label: baseLabel, labelLong: baseLabelLong };
     const enriched: EdgeType = {
       ...edgeType,
+      // Runtime dim_labels from the handle summary overrides the static
+      // catalog value.  Generic ports (regroup.out) have dim_labels=[]
+      // in the catalog; the summary carries the resolved param value.
+      dimLabels:
+        facts?.dimLabels && facts.dimLabels.length > 0
+          ? facts.dimLabels
+          : edgeType.dimLabels,
       dimSizes: facts?.dimSizes ?? edgeType.dimSizes,
       elementCount: facts?.elementCount ?? edgeType.elementCount,
       innerElementCount:

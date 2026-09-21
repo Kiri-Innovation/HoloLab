@@ -25,6 +25,11 @@ export interface EdgeSummaryFacts {
   /** Per-dimension sizes from ``dim_sizes``, outer first. Supersedes
    *  ``elementCount`` / ``innerElementCount`` when present. */
   dimSizes?: number[];
+  /** Runtime-resolved dim labels from ``HandleSummary.dim_labels``.
+   *  Overrides the static catalog labels in TypedEdge — critical for
+   *  generic ports like ``regroup.out`` where the catalog has ``[]``
+   *  and the actual labels come from the job's ``output_dims`` param. */
+  dimLabels?: string[];
 }
 
 // Two parallel maps so ``peek`` can answer without observing an in-
@@ -62,6 +67,10 @@ function factsFromSummary(s: HandleSummary): EdgeSummaryFacts {
     if (firstDir?.entry_count != null) {
       facts.innerElementCount = firstDir.entry_count;
     }
+  }
+
+  if (Array.isArray(s.dim_labels) && s.dim_labels.length > 0) {
+    facts.dimLabels = s.dim_labels as string[];
   }
 
   if (Array.isArray(s.internal_count_items) && s.internal_count_items.length > 0) {

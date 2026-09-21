@@ -186,3 +186,26 @@ def test_chip_labeled_bracket_format(bundle_js: str) -> None:
     assert has_template or has_concat, (
         "formatTypeLabel must assemble [label:N] brackets with a colon separator"
     )
+
+
+def test_dim_labels_from_catalog_key_present(bundle_js: str) -> None:
+    """The ``dim_labels_from`` field from ``OutputPortSpec`` must survive
+    minification.  ``effectiveOutputType`` uses it to resolve dim labels
+    from the node's ``params`` dict at layout time — before any handle
+    exists.  Missing this means generic ports (e.g. ``regroup.out``) can
+    never show more than one bracket in the pre-hover state."""
+
+    assert "dim_labels_from" in bundle_js, (
+        "effectiveOutputType must read ``dim_labels_from`` from OutputPortSpec"
+    )
+
+
+def test_dim_labels_summary_key_present(bundle_js: str) -> None:
+    """The ``dim_labels`` field on ``HandleSummary`` must be consumed by
+    ``edgeSummaryCache`` so that a post-hover chip for a generic port
+    (``regroup.out``) shows the actual param-resolved labels rather than
+    the static catalog placeholder ``[]``."""
+
+    assert "dim_labels" in bundle_js, (
+        "edgeSummaryCache must consume ``dim_labels`` from HandleSummary"
+    )

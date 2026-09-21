@@ -85,12 +85,22 @@ export function effectiveOutputType(
 
   const nodeArrayed = Boolean(node.arrayed_toggle);
   const arrayed = effectivePortArrayed(port.arrayed, pack.arrayable, nodeArrayed);
-  const dimLabels = effectivePortDimLabels(
+  let dimLabels = effectivePortDimLabels(
     port.arrayed,
     port.dim_labels,
     pack.arrayable,
     nodeArrayed,
   );
+  // When the port declares dim_labels_from, the actual labels come from a
+  // list[str] param (e.g. regroup.out → output_dims).  Resolve from the
+  // node's configured params so the chip shows the right label names before
+  // any handle exists (pre-hover fallback uses the param default).
+  if (port.dim_labels_from) {
+    const pv = node.params[port.dim_labels_from];
+    if (Array.isArray(pv) && pv.every((v) => typeof v === "string")) {
+      dimLabels = pv as string[];
+    }
+  }
 
   if (!port.tags_from) {
     return { tags: [...port.tags], arrayed, dimLabels };
@@ -149,8 +159,14 @@ export function formatTypeLabel(t: EdgeType): string {
   } else if (t.internalCount != null) {
     s += `(${t.internalCount})`;
   }
-  if (t.dimLabels.length > 0 || t.arrayed) {
-    const depth = Math.max(t.dimLabels.length, t.arrayed ? 1 : 0);
+  if (t.dimLabels.length > 0 || t.arrayed || (t.dimSizes && t.dimSizes.length > 0)) {
+    // dimSizes.length is a floor: if the summary reports more dims than the
+    // static labels (stale catalog), still render the right bracket count.
+    const depth = Math.max(
+      t.dimLabels.length,
+      t.arrayed ? 1 : 0,
+      t.dimSizes?.length ?? 0,
+    );
     // Render inner→outer: start from the deepest dim (highest index).
     for (let i = depth - 1; i >= 0; i--) {
       // dimSizes is the authoritative source; fall back to legacy scalar

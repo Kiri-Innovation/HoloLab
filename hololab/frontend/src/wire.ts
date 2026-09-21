@@ -214,6 +214,13 @@ export interface OutputPortSpec extends PortSpec {
   // ``get-index``) where the element type is decided by the caller's
   // wiring. Null for packs whose output tags are self-contained.
   tags_from?: string | null;
+  // Name of a ``list[str]`` param whose runtime value gives the dim
+  // labels for this output (e.g. ``regroup.out`` → ``"output_dims"``).
+  // Null for packs whose dim labels are statically declared in the
+  // manifest. When non-null the frontend looks up
+  // ``GraphNode.params[dim_labels_from]`` to determine the label list
+  // before any handle materialises.
+  dim_labels_from?: string | null;
 }
 
 export interface InputPortSpec extends PortSpec {
