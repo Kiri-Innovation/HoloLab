@@ -914,10 +914,20 @@ def _topology_text(graph: WorkflowGraph, labels: dict[str, str]) -> str:
         # Standalone nodes — just list them.
         return "\n".join(f"[isolated] {labels[n.id]}" for n in graph.nodes)
 
+    # Drop edges whose source or target was deleted from graph.nodes without
+    # cascading the deletion to the edge list.  This can happen when a node
+    # is removed on the frontend and the PUT payload arrives with the edge
+    # still in the array (race, partial save, or legacy import).
+    # topological_order already guards this way (line 414); we mirror it here.
+    valid_edges = [e for e in graph.edges if e.source in labels and e.target in labels]
+    if not valid_edges:
+        # All edges are dangling — fall back to isolated-node listing.
+        return "\n".join(f"[isolated] {labels[n.id]}" for n in graph.nodes)
+
     # Build adjacency once so we can spot linear chains.
     outgoing: dict[str, list[GraphEdge]] = defaultdict(list)
     incoming: dict[str, list[GraphEdge]] = defaultdict(list)
-    for e in graph.edges:
+    for e in valid_edges:
         outgoing[e.source].append(e)
         incoming[e.target].append(e)
 
@@ -937,17 +947,19 @@ def _topology_text(graph: WorkflowGraph, labels: dict[str, str]) -> str:
                 out_edges = outgoing.get(cur, [])
                 if first:
                     if out_edges:
-                        parts.append(f"{labels[cur]}[{out_edges[0].sourceHandle}]")
+                        parts.append(f"{labels.get(cur, cur)}[{out_edges[0].sourceHandle}]")
                     else:
-                        parts.append(labels[cur])
+                        parts.append(labels.get(cur, cur))
                     first = False
                 else:
                     in_edges = incoming.get(cur, [])
                     in_port = in_edges[0].targetHandle if in_edges else "?"
                     if out_edges:
-                        parts.append(f"{labels[cur]}[{in_port} → {out_edges[0].sourceHandle}]")
+                        parts.append(
+                            f"{labels.get(cur, cur)}[{in_port} → {out_edges[0].sourceHandle}]"
+                        )
                     else:
-                        parts.append(f"{labels[cur]}[{in_port}]")
+                        parts.append(f"{labels.get(cur, cur)}[{in_port}]")
                 if not out_edges:
                     break
                 cur = out_edges[0].target
@@ -958,11 +970,11 @@ def _topology_text(graph: WorkflowGraph, labels: dict[str, str]) -> str:
         order = topological_order(graph)
         node_order = {nid: i for i, nid in enumerate(order)}
         edges_sorted = sorted(
-            graph.edges,
+            valid_edges,
             key=lambda e: (node_order.get(e.source, 1_000_000), e.sourceHandle),
         )
     except GraphCycle:
-        edges_sorted = list(graph.edges)
+        edges_sorted = list(valid_edges)
     lines = []
     for e in edges_sorted:
         lines.append(

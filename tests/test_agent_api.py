@@ -26,7 +26,13 @@ from fastapi.testclient import TestClient
 from hololab.gateway.app import create_app
 from hololab.gateway.handles import Handle
 from hololab.gateway.jobs import Job, JobState
-from hololab.gateway.workflows import GraphEdge, GraphNode, WorkflowGraph
+from hololab.gateway.workflows import (
+    GraphEdge,
+    GraphNode,
+    WorkflowGraph,
+    _mermaid_labels,
+    _topology_text,
+)
 
 # ---------------------------------------------------------------------------
 # Seeding helpers — same shape as the run-history tests
@@ -388,6 +394,78 @@ def test_snapshot_detail_graph_also_agent_shaped(tmp_path: Path) -> None:
         body = client.get(f"/api/snapshots/{snap_id}").json()
         assert body["graph"]["is_dag"] is True
         assert body["graph"]["topology_text"]
+
+
+def test_topology_text_tolerates_dangling_edge_references() -> None:
+    """Regression: _topology_text must not raise KeyError when an edge
+    references a node that is no longer in graph.nodes.
+
+    This happens when a node is deleted on the frontend but the DELETE
+    payload doesn't cascade to the edges array (race, partial save, or
+    legacy import).  The linear-chain walk previously did ``labels[cur]``
+    with a bare dict access; once ``cur`` became a dangling target the
+    lookup crashed with KeyError.  topological_order already silently drops
+    dangling edges (line 414 guard); _topology_text must match that behaviour.
+    """
+
+    # Three nodes: A → B → (ghost), where 'ghost' is the deleted node that
+    # still appears as an edge target.
+    nodes = [
+        GraphNode(id="A", algorithm_name="source-pack", algorithm_version="0.1.0"),
+        GraphNode(id="B", algorithm_name="mid-pack", algorithm_version="0.1.0"),
+    ]
+    edges = [
+        GraphEdge(id="e1", source="A", sourceHandle="out", target="B", targetHandle="in"),
+        GraphEdge(id="e2", source="B", sourceHandle="out", target="ghost", targetHandle="in"),
+    ]
+    graph = WorkflowGraph(nodes=nodes, edges=edges)
+    labels = _mermaid_labels(graph)
+
+    # Must not raise.
+    text = _topology_text(graph, labels)
+
+    # The two real nodes must appear in the output; the dangling target is
+    # silently dropped so the agent gets a useful (if incomplete) topology.
+    assert "source-pack" in text
+    assert "mid-pack" in text
+    assert "ghost" not in text
+
+
+def test_agent_api_returns_200_for_workflow_with_dangling_edges(tmp_path: Path) -> None:
+    """GET /api/workflows/{id} must return 200 even when graph.edges contains
+    references to deleted nodes.  Before the fix this produced a 500 with
+    KeyError: '<node-id>' from _topology_text's linear-chain walk.
+    """
+
+    dangling_graph = WorkflowGraph(
+        nodes=[
+            GraphNode(id="n1", algorithm_name="source-pack", algorithm_version="0.1.0"),
+            GraphNode(id="n2", algorithm_name="mid-pack", algorithm_version="0.1.0"),
+        ],
+        edges=[
+            GraphEdge(id="e1", source="n1", sourceHandle="out", target="n2", targetHandle="in"),
+            # n3 was deleted; the edge pointing to it was not cleaned up.
+            GraphEdge(
+                id="e2", source="n2", sourceHandle="out", target="n3-deleted", targetHandle="in"
+            ),
+        ],
+    )
+
+    app = create_app(db_path=tmp_path / "dangling.sqlite")
+    with TestClient(app) as client:
+
+        async def _seed() -> None:
+            await client.app.state.workflows.save_draft(
+                workflow_id="wf-dangling", name="dangling-edge-repro", graph=dangling_graph
+            )
+
+        client.portal.call(_seed)
+
+        r = client.get("/api/workflows/wf-dangling")
+        assert r.status_code == 200, r.text
+        g = r.json()["graph"]
+        assert "source-pack" in g["topology_text"]
+        assert "mid-pack" in g["topology_text"]
 
 
 # ---------------------------------------------------------------------------
