@@ -15,19 +15,36 @@
 // where one shard failed and the rest succeeded, whether the node's
 // status dot goes red or green becomes a race with SQLite's row ordering.
 //
-// Aggregation rules (matches operator intuition — one bad shard poisons
-// the whole node):
+// Aggregation rules — "live progress trumps stale failure"
+// --------------------------------------------------------
 //
-//   1. Any ``failed`` job → node state ``failed``.
-//   2. Else any job still ``running`` / ``assigned`` / ``pending`` →
-//      node state ``running`` (something is in flight).
+// Priority order (first match wins):
+//
+//   1. Any job still ``running`` / ``assigned`` / ``pending`` →
+//      node state ``running``. Something is in flight, so the aggregate
+//      is NOT a terminal verdict yet; showing red would panic the user
+//      into thinking a run they just kicked off is already dead when
+//      really it's 2/100 and climbing. Failed shards from earlier in
+//      the same fan-out are still reported via ``fail_reason`` on the
+//      first failed job, but they don't override live progress.
+//   2. Else any job ``failed`` → node state ``failed`` (terminal, at
+//      least one shard died and nothing is running to redeem it).
 //   3. Else all jobs ``done`` → node state ``done``.
 //   4. Else fall back to the first non-done state — covers ``cancelled``
 //      / ``orphaned`` mixes that don't fit the happy path.
 //
+// This inverts the earlier "any-failed → failed" short-circuit. Motivation
+// (2026-09-21): a fan-out with 8 shards failed + 3 running + 96 pending
+// was rendering the node card red before the run had even settled, so
+// operators watching a fresh dispatch saw "红色 = 完蛋" while the progress
+// footer was ticking ``2/100``. Prioritising in-flight preserves the
+// terminal-failed signal for terminated runs (nothing running → failed
+// wins as before) while keeping the live view honest about progress.
+//
 // Progress for a fan-out node is ``done_shards / total_shards``. For a
 // single-job node it's the job's own progress. fail_reason is inherited
-// from the first failed job when the aggregate is ``failed``.
+// from the first failed job whenever any shard failed — surfaced through
+// the status-dot tooltip even when the aggregate state is ``running``.
 
 import type { SnapshotJob } from "../wire";
 import type { NodeRuntime } from "./AlgorithmNode";
@@ -45,8 +62,8 @@ function aggregateStates(jobs: readonly SnapshotJob[]): string {
     else if (IN_FLIGHT_STATES.has(j.state)) hasInFlight = true;
     if (j.state !== "done" && firstNonDone === null) firstNonDone = j.state;
   }
-  if (hasFailed) return "failed";
   if (hasInFlight) return "running";
+  if (hasFailed) return "failed";
   if (allDone) return "done";
   return firstNonDone ?? "done";
 }
@@ -87,16 +104,17 @@ function aggregateProgress(
 }
 
 function pickRepresentativeJob(jobs: readonly SnapshotJob[]): SnapshotJob {
-  // For the failed aggregate we surface the first failed job (so the
-  // status tooltip shows that failure's reason). Otherwise use the
-  // oldest job — for a fan-out the parent is created before its shards
+  // Oldest job — for a fan-out the parent is created before its shards
   // and list_by_snapshot orders by created_ts, so index 0 is the parent
   // and runtime.job_id points at the coordinating job (matters for the
   // run-log affordance). Callers relying on job_id for artifact
   // resolution go through the backend's get_job_at, which also prefers
-  // parent.
-  const failed = jobs.find((j) => j.state === "failed");
-  if (failed) return failed;
+  // parent. Under the previous failed-first priority this function
+  // preferred the failed shard so the tooltip's ``fail_reason`` came from
+  // it; the new priority pipes ``fail_reason`` through
+  // ``aggregateJobsToRuntime`` directly (see below), so the representative
+  // can stay on the parent regardless of state — the tooltip still shows
+  // the first shard failure even when the aggregate is ``running``.
   return jobs[0];
 }
 
@@ -114,7 +132,13 @@ export function aggregateJobsToRuntime(
   for (const [gnid, gjs] of grouped) {
     const state = aggregateStates(gjs);
     const rep = pickRepresentativeJob(gjs);
-    const failedJob = state === "failed" ? gjs.find((j) => j.state === "failed") : undefined;
+    // Surface the first failed job's reason even when the aggregate is
+    // ``running`` — the status-dot tooltip then reads "running · <reason>"
+    // so the operator can still see that some earlier shard blew up
+    // while the fan-out continues. Once the aggregate settles to
+    // ``failed``, this is the same reason surfaced by the terminal
+    // verdict.
+    const failedJob = gjs.find((j) => j.state === "failed");
     out[gnid] = {
       state,
       progress: aggregateProgress(gjs),

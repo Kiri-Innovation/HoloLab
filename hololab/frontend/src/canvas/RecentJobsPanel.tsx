@@ -96,10 +96,13 @@ const IN_FLIGHT = new Set(["running", "assigned", "pending"]);
 const STOPPABLE = new Set(["running", "assigned", "pending", "orphaned"]);
 
 // Same aggregation rule as ``aggregateJobsToRuntime`` (canvas node
-// status). Kept local because the shape here is RecentJobRow[] rather
-// than SnapshotJob[]; extracting a shared helper would force both files
-// to depend on a union type they otherwise don't need. If a third
-// caller shows up, promote to a shared utility.
+// status): in-flight beats failed so a fresh fan-out with a couple of
+// early shard failures still reads as "running" while the rest of the
+// shards complete. Once nothing is in flight, failed wins (terminal).
+// Kept local because the shape here is RecentJobRow[] rather than
+// SnapshotJob[]; extracting a shared helper would force both files to
+// depend on a union type they otherwise don't need. If a third caller
+// shows up, promote to a shared utility.
 function aggregateGroupState(parent: RecentJobRow, shards: RecentJobRow[]): string {
   const all = [parent, ...shards];
   let hasFailed = false;
@@ -112,8 +115,8 @@ function aggregateGroupState(parent: RecentJobRow, shards: RecentJobRow[]): stri
     else if (IN_FLIGHT.has(j.state)) hasInFlight = true;
     if (j.state !== "done" && firstNonDone === null) firstNonDone = j.state;
   }
-  if (hasFailed) return "failed";
   if (hasInFlight) return "running";
+  if (hasFailed) return "failed";
   if (allDone) return "done";
   return firstNonDone ?? "done";
 }
@@ -174,11 +177,22 @@ function buildEntries(rows: RecentJobRow[]): Entry[] {
       // route correctly to the actual DB row.
       if (shards.length === 0) continue;
       const anyS = shards[0];
-      let synthState = "done";
+      // Match the "in-flight beats failed" priority used everywhere
+      // else in the aggregator (see aggregateGroupState above): a fresh
+      // fan-out with some early failures + still-running shards reads
+      // as "running", not "failed", so a busy synthetic parent row
+      // doesn't panic the user with red while shards are still ticking.
+      let hasFailed = false;
+      let hasInFlight = false;
       for (const s of shards) {
-        if (s.state === "failed") { synthState = "failed"; break; }
-        if (IN_FLIGHT.has(s.state)) synthState = "running";
+        if (s.state === "failed") hasFailed = true;
+        else if (IN_FLIGHT.has(s.state)) hasInFlight = true;
       }
+      const synthState = hasInFlight
+        ? "running"
+        : hasFailed
+          ? "failed"
+          : "done";
       const minTs = shards.reduce((m, s) => Math.min(m, s.created_ts), Infinity);
       const maxTs = shards.reduce((m, s) => Math.max(m, s.updated_ts), 0);
       const synthetic: RecentJobRow = {

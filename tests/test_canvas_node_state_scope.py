@@ -22,8 +22,11 @@ The fix (see canvas/nodeRuntime.ts + App.tsx + SnapshotCanvas.tsx):
 * Node runtime is DERIVED from the visible snapshot's ``jobs`` array —
   ``viewingSnapshot?.jobs ?? latestSnapshotJobs`` — via
   ``aggregateJobsToRuntime`` in canvas/nodeRuntime.ts.
-* Aggregation rules for fan-out: any-failed → failed; any-in-flight →
-  running; all-done → done.
+* Aggregation rules for fan-out (2026-09 update — priority inverted so
+  live progress isn't masked by stale failure): any-in-flight → running;
+  else any-failed → failed; else all-done → done. The ``running`` case
+  still surfaces the first failed shard's reason via ``fail_reason`` so
+  the tooltip reads "running · <reason>", but the node border stays live.
 * WS ``job_update`` merges into ``latestSnapshotJobs`` in place; the
   useMemo picks up the change and re-aggregates.
 * The old flat map is gone — the getRecentJobs mount seed no longer
@@ -66,12 +69,18 @@ def test_node_runtime_module_exists_and_exports_aggregator() -> None:
 
 
 def test_aggregation_rules_present() -> None:
-    """The fan-out aggregation rules the user specified:
-    any-failed → failed; any-in-flight → running; all-done → done.
+    """The fan-out aggregation states are all handled:
+    running / assigned / pending / failed / done.
+
+    Priority order is asserted in the vitest sibling
+    ``nodeRuntime.test.ts`` (behaviour test, not source-shape test): the
+    invariant that in-flight beats failed lives there because a regex
+    over the source would ossify the exact if-order syntax without
+    catching whether the semantics actually match.
     """
 
     body = NODE_RUNTIME_TS.read_text(encoding="utf-8")
-    # Failed short-circuit.
+    # Failed handled.
     assert re.search(r'"failed"', body), "failed state must be emitted"
     assert re.search(r'\.state\s*===\s*"failed"', body), (
         "aggregator must check state === 'failed' explicitly"
@@ -81,6 +90,25 @@ def test_aggregation_rules_present() -> None:
         assert f'"{s}"' in body, f"in-flight state {s!r} missing from aggregator"
     # Done rollup.
     assert re.search(r'"done"', body), "done state must be emitted"
+    # The in-flight branch must execute BEFORE the failed branch — this is
+    # the 2026-09 priority change ("live progress trumps stale failure"),
+    # kept as a source-shape assertion because a regression to the old
+    # ``if (hasFailed) return "failed"; if (hasInFlight) return "running";``
+    # ordering wouldn't crash a test suite that doesn't hit the mixed
+    # in-flight+failed shape — the vitest sibling covers behaviour but
+    # this pytest guards the syntactic ordering that ships to prod.
+    in_flight_return = body.find('if (hasInFlight) return "running";')
+    failed_return = body.find('if (hasFailed) return "failed";')
+    assert in_flight_return > 0 and failed_return > 0, (
+        "expected explicit priority branches for hasInFlight and hasFailed "
+        "in canvas/nodeRuntime.ts — did the aggregator get refactored?"
+    )
+    assert in_flight_return < failed_return, (
+        "in-flight branch must come before failed branch in "
+        "canvas/nodeRuntime.ts aggregator — otherwise a fan-out with early "
+        "shard failures + shards still running paints the node red while "
+        "progress ticks up, exactly the bug this priority swap fixed."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +281,9 @@ def test_snapshot_canvas_uses_aggregate_helper() -> None:
     """Snapshot view has the same collision problem — a fan-out slot's
     22 jobs collapse into one Map slot via last-write-wins. Must use the
     same helper so open-a-historical-run also shows the aggregated node
-    state and one failed shard poisons the whole node red.
+    state. For terminated runs (no in-flight jobs) the aggregator's
+    terminal branch still surfaces failed shards as red — the priority
+    swap only affects the live case where something is still running.
     """
 
     body = SNAPSHOT_CANVAS_TSX.read_text(encoding="utf-8")
