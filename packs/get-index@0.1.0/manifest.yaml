@@ -35,6 +35,14 @@ outputs:
   item:
     tags: [any]
     tags_from: arr
+    # Derive the output's arrayed shape from the wired input, dropping
+    # the outermost dim (get-index picks one element of that axis).
+    # ``arrayed<arrayed<image>>[frame,cam]`` → ``arrayed<image>[cam]``;
+    # ``arrayed<image>[cam]`` → scalar ``image``. Gateway + frontend both
+    # walk the wire to resolve this at display time — see
+    # :func:`hololab.gateway.workflows.effective_output_dim_labels`.
+    dim_labels_from_input: arr
+    dim_labels_drop_outer: 1
     description: "The idx-th element of arr, symlinked."
 
 runtime:

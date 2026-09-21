@@ -55,6 +55,11 @@ def test_get_index_shape_with_idx_param() -> None:
     assert m.outputs["item"].tags == ["any"]
     assert m.outputs["item"].arrayed is False
     assert m.outputs["item"].tags_from == "arr"
+    # get-index collapses the OUTER dim of the wired arrayed input. The
+    # declarative derivation lets gateway + frontend both resolve the
+    # displayed dim_labels without the pack author re-declaring them.
+    assert m.outputs["item"].dim_labels_from_input == "arr"
+    assert m.outputs["item"].dim_labels_drop_outer == 1
 
 
 def test_regroup_by_frame_shape() -> None:

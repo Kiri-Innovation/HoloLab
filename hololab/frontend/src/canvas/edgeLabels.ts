@@ -84,7 +84,7 @@ export function effectiveOutputType(
   if (!port) return { tags: [], arrayed: false, dimLabels: [] };
 
   const nodeArrayed = Boolean(node.arrayed_toggle);
-  const arrayed = effectivePortArrayed(port.arrayed, pack.arrayable, nodeArrayed);
+  let arrayed = effectivePortArrayed(port.arrayed, pack.arrayable, nodeArrayed);
   let dimLabels = effectivePortDimLabels(
     port.arrayed,
     port.dim_labels,
@@ -99,6 +99,38 @@ export function effectiveOutputType(
     const pv = node.params[port.dim_labels_from];
     if (Array.isArray(pv) && pv.every((v) => typeof v === "string")) {
       dimLabels = pv as string[];
+    }
+  }
+  // When the port declares dim_labels_from_input, walk the wire back to the
+  // upstream output and inherit its dim_labels minus ``dim_labels_drop_outer``
+  // outer layers. Matches the backend resolver in workflows.py. On any
+  // unresolvable hop (no wire, missing catalog entry) fall through to the
+  // declared labels — pre-run scalar rendering is preferable to a wrong shape.
+  if (port.dim_labels_from_input) {
+    const feeder = ctx.edges.find(
+      (e) => e.target === nodeId && e.targetHandle === port.dim_labels_from_input,
+    );
+    if (feeder) {
+      const upstream = effectiveOutputType(
+        feeder.source,
+        feeder.sourceHandle,
+        ctx,
+        visited,
+      );
+      const drop = Math.max(0, port.dim_labels_drop_outer ?? 0);
+      const derived =
+        drop >= upstream.dimLabels.length ? [] : upstream.dimLabels.slice(drop);
+      dimLabels = derived;
+      // Arrayed cardinality mirrors the derived shape: a drop that
+      // collapses the outermost layer must also flip the port to scalar
+      // when nothing is left, or else the chip would render an unlabeled
+      // ``[?]`` bracket for a value that is genuinely a single element.
+      arrayed = derived.length > 0;
+    } else {
+      // No wire yet — leave labels off entirely; the chip degrades to
+      // the scalar form until the graph is connected.
+      dimLabels = [];
+      arrayed = false;
     }
   }
 

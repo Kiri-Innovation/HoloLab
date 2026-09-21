@@ -221,6 +221,18 @@ export interface OutputPortSpec extends PortSpec {
   // ``GraphNode.params[dim_labels_from]`` to determine the label list
   // before any handle materialises.
   dim_labels_from?: string | null;
+  // Names an INPUT port on the SAME pack whose effective dim_labels
+  // this output inherits (minus ``dim_labels_drop_outer`` outer layers).
+  // Used by element-access packs (``get-index``) whose output tree
+  // mirrors the input tree with the outermost layer collapsed. When
+  // non-null the frontend walks the wire back to the upstream producer
+  // (same recursion tags_from does) and drops the outer N labels.
+  dim_labels_from_input?: string | null;
+  // Number of outer dim layers to drop from the ``dim_labels_from_input``
+  // source. Zero-index-aware: 0 = passthrough; 1 = ``get-index`` (picks
+  // one element from the outermost dim). Ignored when
+  // ``dim_labels_from_input`` is unset.
+  dim_labels_drop_outer?: number | null;
 }
 
 export interface InputPortSpec extends PortSpec {

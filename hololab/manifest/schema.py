@@ -197,6 +197,21 @@ class OutputSpec(BaseModel):
     # fixed at pack-authoring time.  Gateway resolves this from the
     # producing job's params dict when building handle chip metadata.
     dim_labels_from: str | None = None
+    # Names an INPUT port on the same pack whose effective dim_labels
+    # this output inherits (minus ``dim_labels_drop_outer`` outer layers).
+    # Used by element-access packs (``get-index``) whose output dim
+    # structure mirrors the input tree with the outermost layer collapsed
+    # — the framework resolves the upstream producer's effective labels
+    # by walking the wire, so downstream consumers see the reduced
+    # ``arrayed<T>`` structure without the pack author re-declaring it.
+    # Mutually exclusive with ``dim_labels_from``.
+    dim_labels_from_input: str | None = None
+    # Number of OUTER dim layers to drop when deriving from
+    # ``dim_labels_from_input``. Zero-index-aware: 0 means "same shape as
+    # input" (a passthrough / slice-in-place). ``get-index`` sets this to
+    # 1 (collapses the outermost dim by picking one element). Ignored
+    # when ``dim_labels_from_input`` is unset.
+    dim_labels_drop_outer: int = 0
 
     @model_validator(mode="after")
     def _tags_non_empty(self) -> OutputSpec:
@@ -210,6 +225,24 @@ class OutputSpec(BaseModel):
             raise ValueError(
                 "dim_labels currently supports at most 2 layers "
                 f"(got {len(self.dim_labels)} — {self.dim_labels!r})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _derived_dims_consistent(self) -> OutputSpec:
+        if self.dim_labels_from_input is not None and self.dim_labels_from is not None:
+            raise ValueError(
+                "dim_labels_from_input and dim_labels_from are mutually exclusive "
+                "(pick one source: input-port derivation vs. params key)"
+            )
+        if self.dim_labels_drop_outer < 0:
+            raise ValueError(
+                f"dim_labels_drop_outer must be >= 0 (got {self.dim_labels_drop_outer})"
+            )
+        if self.dim_labels_from_input is None and self.dim_labels_drop_outer != 0:
+            raise ValueError(
+                "dim_labels_drop_outer is only meaningful with dim_labels_from_input; "
+                "leave it at 0 or set the input source"
             )
         return self
 
@@ -422,6 +455,15 @@ class Manifest(BaseModel):
                 raise ValueError(
                     f"output port {out_name!r} has tags_from={spec.tags_from!r} "
                     f"which is not a declared input port on this pack"
+                )
+            if (
+                spec.dim_labels_from_input is not None
+                and spec.dim_labels_from_input not in input_names
+            ):
+                raise ValueError(
+                    f"output port {out_name!r} has dim_labels_from_input="
+                    f"{spec.dim_labels_from_input!r} which is not a declared "
+                    f"input port on this pack"
                 )
         return self
 

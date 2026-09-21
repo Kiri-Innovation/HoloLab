@@ -457,6 +457,14 @@ class OutputPortView:
     tags_from: str | None = None
     scalar: bool = False
     dim_labels: tuple[str, ...] = ()
+    # Names a params key whose runtime value (list[str]) overrides
+    # ``dim_labels`` at display time (e.g. ``regroup.out`` → ``output_dims``).
+    dim_labels_from: str | None = None
+    # Names an INPUT port on the same pack whose effective dim_labels
+    # this output inherits (minus ``dim_labels_drop_outer`` outer layers).
+    # See :class:`OutputSpec` for semantics.
+    dim_labels_from_input: str | None = None
+    dim_labels_drop_outer: int = 0
 
 
 @dataclass(frozen=True)
@@ -640,6 +648,76 @@ def effective_output_tags(
     return list(port.tags)
 
 
+def effective_output_dim_labels(
+    node: GraphNode,
+    pack: PackHandle,
+    port_name: str,
+    graph: WorkflowGraph,
+    node_by_id: dict[str, GraphNode],
+    packs_by_key: dict[tuple[str, str], PackHandle],
+    _visited: set[tuple[str, str]] | None = None,
+) -> list[str] | None:
+    """Resolve an output port's runtime dim_labels, following declarations.
+
+    Precedence, in order:
+      * ``dim_labels_from`` (a params key on the same node) — read the
+        node's ``params[<key>]`` list[str] and use it verbatim.
+      * ``dim_labels_from_input`` (an input port on the same node) —
+        walk the wire feeding that input, recurse to the upstream output,
+        then drop ``dim_labels_drop_outer`` outer layers.
+      * declared ``dim_labels`` on the port — used as-is.
+
+    Returns ``None`` when the port's derivation source is present but
+    unresolvable (missing wire, upstream not in the graph, cycle). That
+    signals "don't display labels yet" rather than a fabricated shape —
+    the frontend then leaves the dim brackets off until real handles
+    land, matching the "no half-baked [?] chips" policy.
+
+    Cycles collapse to ``None`` — the graph should be a DAG but propagation
+    cycles (illegal manifest referencing itself, etc.) are still guarded.
+    """
+
+    visited: set[tuple[str, str]] = set() if _visited is None else _visited
+    key = (node.id, port_name)
+    if key in visited:
+        return None
+    visited.add(key)
+
+    port = pack.outputs.get(port_name)
+    if port is None:
+        return None
+
+    if port.dim_labels_from:
+        raw = node.params.get(port.dim_labels_from)
+        if isinstance(raw, list) and all(isinstance(x, str) and x for x in raw):
+            return list(raw)
+        return list(port.dim_labels)
+
+    if port.dim_labels_from_input:
+        upstream_input = port.dim_labels_from_input
+        for edge in graph.edges:
+            if edge.target != node.id or edge.targetHandle != upstream_input:
+                continue
+            up = node_by_id.get(edge.source)
+            if up is None:
+                return None
+            up_pack = packs_by_key.get((up.algorithm_name, up.algorithm_version))
+            if up_pack is None:
+                return None
+            upstream_labels = effective_output_dim_labels(
+                up, up_pack, edge.sourceHandle, graph, node_by_id, packs_by_key, visited
+            )
+            if upstream_labels is None:
+                return None
+            drop = max(0, port.dim_labels_drop_outer)
+            if drop >= len(upstream_labels):
+                return []
+            return list(upstream_labels[drop:])
+        return None
+
+    return list(port.dim_labels)
+
+
 def packs_by_key_from_catalog(
     catalog: list[dict[str, Any]] | dict[tuple[str, str], dict[str, Any]],
 ) -> dict[tuple[str, str], PackHandle]:
@@ -675,6 +753,9 @@ def packs_by_key_from_catalog(
                     tags_from=o.get("tags_from"),
                     scalar=bool(o.get("scalar", False)),
                     dim_labels=tuple(o.get("dim_labels", []) or []),
+                    dim_labels_from=o.get("dim_labels_from"),
+                    dim_labels_from_input=o.get("dim_labels_from_input"),
+                    dim_labels_drop_outer=int(o.get("dim_labels_drop_outer") or 0),
                 )
                 for n, o in entry["outputs"].items()
             },

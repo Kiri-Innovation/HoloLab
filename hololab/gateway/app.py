@@ -2985,6 +2985,7 @@ async def _resolve_handle_display_meta(
     )
 
     port_spec: Any = None
+    job: Any = None
     if handle.job_id and handle.output_port_name:
         job = await jobs_store.get(handle.job_id)
         if job is not None:
@@ -2996,13 +2997,80 @@ async def _resolve_handle_display_meta(
     preview = infer_preview_for_output(explicit_preview, resolved_tags)
 
     raw_dim_labels = list(port_spec.dim_labels) if port_spec is not None else None
-    if port_spec is not None and port_spec.dim_labels_from:
-        # port_spec is non-None only when job is non-None (same lookup path)
-        dynamic = job.params.get(port_spec.dim_labels_from)  # type: ignore[possibly-undefined]
+    if port_spec is not None and port_spec.dim_labels_from and job is not None:
+        dynamic = job.params.get(port_spec.dim_labels_from)
         if isinstance(dynamic, list) and all(isinstance(x, str) and x for x in dynamic):
             raw_dim_labels = list(dynamic)
+    if (
+        port_spec is not None
+        and port_spec.dim_labels_from_input
+        and job is not None
+        and handle.output_port_name is not None
+    ):
+        derived = await _resolve_derived_dim_labels(
+            job,
+            handle.output_port_name,
+            registry=registry,
+            workflows=workflows,
+        )
+        # None = source declared but unresolvable (no snapshot, missing wire,
+        # …). Prefer showing NO dims over guessing — matches the "no half-baked
+        # [?] chips at cold load" policy.
+        raw_dim_labels = derived
     dim_labels, dim_sizes = dim_info_for_handle(handle, dim_labels=raw_dim_labels)
     return preview, dim_labels, dim_sizes, resolved_tags
+
+
+async def _resolve_derived_dim_labels(
+    job: Any,
+    output_port_name: str,
+    *,
+    registry: NodeRegistry,
+    workflows: WorkflowStore,
+) -> list[str] | None:
+    """Walk the workflow snapshot to resolve ``dim_labels_from_input`` derivations.
+
+    Loads the snapshot/draft graph the job belongs to, indexes the pack
+    catalog, and delegates to
+    :func:`hololab.gateway.workflows.effective_output_dim_labels` which
+    recursively resolves upstream labels and applies ``drop_outer``.
+
+    Returns ``None`` when any hop is missing (no snapshot on job, node
+    absent from graph, pack offline, wire not yet connected). The caller
+    then leaves labels off entirely so the chip shows the scalar form
+    rather than a fabricated shape.
+    """
+
+    from hololab.gateway.workflows import (
+        effective_output_dim_labels,
+        packs_by_key_from_catalog,
+    )
+
+    graph = None
+    if job.snapshot_id:
+        snap = await workflows.get_snapshot(job.snapshot_id)
+        if snap is not None:
+            graph = snap.graph
+    if graph is None and job.workflow_id:
+        draft = await workflows.get_draft(job.workflow_id)
+        if draft is not None:
+            graph = draft.graph
+    if graph is None or job.graph_node_id is None:
+        return None
+
+    node_by_id = {n.id: n for n in graph.nodes}
+    graph_node = node_by_id.get(job.graph_node_id)
+    if graph_node is None:
+        return None
+
+    packs_by_key = packs_by_key_from_catalog(registry.catalog_json())
+    pack = packs_by_key.get((graph_node.algorithm_name, graph_node.algorithm_version))
+    if pack is None:
+        return None
+
+    return effective_output_dim_labels(
+        graph_node, pack, output_port_name, graph, node_by_id, packs_by_key
+    )
 
 
 def _artifact_row_to_json(row: Any) -> dict[str, Any]:

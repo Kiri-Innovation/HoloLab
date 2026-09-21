@@ -551,6 +551,8 @@ class NodeRegistry:
                                 "tags_from": s.tags_from,
                                 "dim_labels": list(s.dim_labels),
                                 "dim_labels_from": s.dim_labels_from,
+                                "dim_labels_from_input": s.dim_labels_from_input,
+                                "dim_labels_drop_outer": s.dim_labels_drop_outer,
                                 # Tag → viewer inference: if the manifest
                                 # didn't declare an explicit ``preview:``
                                 # block, look at the port's tags and
