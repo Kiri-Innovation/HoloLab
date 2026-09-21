@@ -2130,13 +2130,26 @@ function frameName(idx: number): string {
  *  default and comes back 404 for every path. A 1-byte Range GET is
  *  ~free (the server never sends more than the requested byte) and
  *  survives whether or not the intermediate proxy rewrites HEAD.
+ *
+ *  Probe requests fire in bursts (frame_sequence counters walk ~30 of
+ *  these against one dir at mount time). The default ``resilientFetch``
+ *  budget of 6 retries × 30 s makes a genuine transient blip during a
+ *  page refresh mushroom into a 3-minute retry storm. We cap probes
+ *  to 2 total attempts with tight backoff — a probe is naturally
+ *  cheap to re-fire from the caller if the whole preview mounts anew,
+ *  so we don't need the "long retry until the gateway comes back"
+ *  budget here.
  */
 async function probeExists(url: string, signal: AbortSignal): Promise<boolean> {
-  const r = await resilientFetch(url, {
-    method: "GET",
-    headers: { Range: "bytes=0-0" },
-    signal,
-  });
+  const r = await resilientFetch(
+    url,
+    {
+      method: "GET",
+      headers: { Range: "bytes=0-0" },
+      signal,
+    },
+    { retries: 2, baseDelayMs: 200, maxDelayMs: 800 },
+  );
   return r.status === 206 || r.ok;
 }
 
@@ -2191,11 +2204,17 @@ async function fetchPngDims(
   url: string,
   signal: AbortSignal,
 ): Promise<{ width: number; height: number } | null> {
-  const r = await resilientFetch(url, {
-    method: "GET",
-    headers: { Range: "bytes=0-31" },
-    signal,
-  });
+  // Same rationale as ``probeExists`` — bursty cheap probe, no need
+  // for the default 30 s retry budget.
+  const r = await resilientFetch(
+    url,
+    {
+      method: "GET",
+      headers: { Range: "bytes=0-31" },
+      signal,
+    },
+    { retries: 2, baseDelayMs: 200, maxDelayMs: 800 },
+  );
   if (!r.ok && r.status !== 206) return null;
   const buf = new Uint8Array(await r.arrayBuffer());
   if (buf.byteLength < 24) return null;
@@ -3249,7 +3268,15 @@ async function fetchFrustumThumbnails(
       .join("/");
     const url = `${nodeRoot}/_thumb/${dims}/${imagesSub}/${encoded}?at=0`;
     try {
-      const r = await resilientFetch(url, { signal });
+      // Thumb blobs are inherently disposable: a failed camera stays
+      // un-textured in ColmapUtil (see docstring). Keep the retry
+      // budget short so a page refresh with a transient server hiccup
+      // doesn't stall for 30 s per missing camera before rendering.
+      const r = await resilientFetch(
+        url,
+        { signal },
+        { retries: 2, baseDelayMs: 200, maxDelayMs: 800 },
+      );
       if (!r.ok) return null;
       const blob = await r.blob();
       return { name, blob };

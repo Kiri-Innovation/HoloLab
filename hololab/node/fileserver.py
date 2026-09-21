@@ -28,6 +28,7 @@ fallback plan.
 from __future__ import annotations
 
 import asyncio
+import email.utils
 import hashlib
 import io
 import os
@@ -36,8 +37,8 @@ import tarfile
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 # Cap in-memory tarball size for the streaming path. Above this we fall back
 # to a spooled temporary file so a huge directory doesn't OOM the node.
@@ -71,6 +72,24 @@ _PREVIEW_CACHE_DIRNAME = ".hololab-previews"
 _PREVIEW_TRANSCODE_CONCURRENCY = 4
 _preview_semaphore: asyncio.Semaphore | None = None
 
+# Same idea for /_thumb: without a cap, a browser refresh that fans out
+# 200 thumbnail requests spawned ~30 concurrent ffmpeg processes and
+# pushed /api latency from ~5 ms to ~400 ms (measured on the actual
+# workspace). Keeping the ceiling at 4 makes cache misses linearise
+# behind CPU rather than trampling every other request. Cache hits
+# never take the semaphore — they short-circuit above (see
+# ``_thumb_response``).
+_THUMB_EXTRACT_CONCURRENCY = 4
+_thumb_semaphore: asyncio.Semaphore | None = None
+
+# Browser cache TTL for thumb responses. Short enough that a
+# regenerated source video (mtime change) still refreshes visibly
+# within a minute even though the *URL* doesn't carry mtime, long
+# enough that hammering F5 costs zero server work. The ETag/304 path
+# handles the > TTL revalidation case.
+_THUMB_CLIENT_CACHE_SECONDS = 60
+_PREVIEW_CLIENT_CACHE_SECONDS = 300
+
 
 def _get_preview_semaphore() -> asyncio.Semaphore:
     """Lazily allocate the transcode semaphore so it binds to the
@@ -81,6 +100,76 @@ def _get_preview_semaphore() -> asyncio.Semaphore:
     if _preview_semaphore is None:
         _preview_semaphore = asyncio.Semaphore(_PREVIEW_TRANSCODE_CONCURRENCY)
     return _preview_semaphore
+
+
+def _get_thumb_semaphore() -> asyncio.Semaphore:
+    """Lazily allocate the thumb-extract semaphore (same pattern as
+    :func:`_get_preview_semaphore`).
+    """
+
+    global _thumb_semaphore
+    if _thumb_semaphore is None:
+        _thumb_semaphore = asyncio.Semaphore(_THUMB_EXTRACT_CONCURRENCY)
+    return _thumb_semaphore
+
+
+def _cache_headers(*, max_age: int, etag: str, mtime_ns: int) -> dict[str, str]:
+    """Return the header set for cached preview / thumb responses.
+
+    ``Cache-Control`` lets the browser reuse a same-URL image on
+    refresh for ``max_age`` seconds with zero server touch (this is
+    the single biggest lever for the "F5 blows everything up"
+    complaint). After that the browser revalidates with
+    ``If-None-Match`` / ``If-Modified-Since`` and we return 304
+    without spawning ffmpeg — see ``_conditional_304``.
+    """
+
+    return {
+        "Cache-Control": f"public, max-age={max_age}",
+        "ETag": f'"{etag}"',
+        "Last-Modified": email.utils.formatdate(mtime_ns / 1_000_000_000, usegmt=True),
+    }
+
+
+def _conditional_304(
+    *,
+    etag: str,
+    mtime_ns: int,
+    if_none_match: str | None,
+    if_modified_since: str | None,
+) -> Response | None:
+    """If the client already holds a fresh copy, return a 304 short-circuit.
+
+    Cheap check-then-skip: we compute the digest / mtime for the cache
+    lookup anyway, so serving the 304 path is essentially free. The
+    frontend refreshes hundreds of same-URL thumbs on reload — a
+    single request each returning 304 keeps ffmpeg off the CPU
+    entirely on the hot path.
+    """
+
+    quoted = f'"{etag}"'
+    if if_none_match:
+        # Standard says the client MAY send comma-separated ETags. We
+        # accept an exact match on any of them.
+        for tag in (t.strip() for t in if_none_match.split(",")):
+            if tag == quoted or tag == "*":
+                return Response(
+                    status_code=304,
+                    headers={"ETag": quoted},
+                )
+    if if_modified_since:
+        try:
+            since = email.utils.parsedate_to_datetime(if_modified_since).timestamp()
+        except (TypeError, ValueError):
+            since = None
+        # Truncate to whole seconds — HTTP dates have 1s resolution
+        # and we don't want a spurious miss on the sub-second tail.
+        if since is not None and mtime_ns // 1_000_000_000 <= int(since):
+            return Response(
+                status_code=304,
+                headers={"ETag": quoted},
+            )
+    return None
 
 
 def create_fileserver_app(
@@ -179,6 +268,8 @@ def create_fileserver_app(
         dims: str,
         sub: str,
         at: float = Query(default=1.0, ge=0.0, le=3600.0),
+        if_none_match: str | None = Header(default=None, alias="if-none-match"),
+        if_modified_since: str | None = Header(default=None, alias="if-modified-since"),
     ):
         try:
             width, height = _parse_thumb_dims(dims)
@@ -193,8 +284,15 @@ def create_fileserver_app(
         if not target.is_file():
             raise HTTPException(status_code=404, detail="not a file")
 
-        thumb = await _thumb_response(target, width, height, at, cache_root=primary)
-        return thumb
+        return await _thumb_response(
+            target,
+            width,
+            height,
+            at,
+            cache_root=primary,
+            if_none_match=if_none_match,
+            if_modified_since=if_modified_since,
+        )
 
     # Video-preview endpoint. Same shape as ``/_thumb`` but returns a
     # small H.264-baseline MP4 that the frontend can stream inside a
@@ -211,6 +309,8 @@ def create_fileserver_app(
         dims: str,
         sub: str,
         fps: int = Query(default=15, ge=1, le=_PREVIEW_MAX_FPS),
+        if_none_match: str | None = Header(default=None, alias="if-none-match"),
+        if_modified_since: str | None = Header(default=None, alias="if-modified-since"),
     ):
         try:
             width, height = _parse_preview_dims(dims)
@@ -225,7 +325,15 @@ def create_fileserver_app(
         if not target.is_file():
             raise HTTPException(status_code=404, detail="not a file")
 
-        return await _preview_response(target, width, height, fps, cache_root=primary)
+        return await _preview_response(
+            target,
+            width,
+            height,
+            fps,
+            cache_root=primary,
+            if_none_match=if_none_match,
+            if_modified_since=if_modified_since,
+        )
 
     # Response type is intentionally omitted from the annotation: FastAPI
     # can't build a schema from a union of Response subclasses (each has its
@@ -275,15 +383,28 @@ def _parse_thumb_dims(dims: str) -> tuple[int, int]:
 
 
 async def _thumb_response(
-    video: Path, width: int, height: int, at: float, *, cache_root: Path
-) -> FileResponse:
+    video: Path,
+    width: int,
+    height: int,
+    at: float,
+    *,
+    cache_root: Path,
+    if_none_match: str | None = None,
+    if_modified_since: str | None = None,
+) -> Response:
     """Return a JPEG frame of ``video`` at ``at`` seconds, resized to fit
     ``width``x``height`` (aspect preserved, letterbox padded).
 
     Caches results keyed by (path, mtime_ns, w, h, at). Cache misses shell
-    out to ffmpeg with ``-frames:v 1 -update 1`` to write exactly one JPEG.
-    Missing ffmpeg → 501 so the frontend can degrade gracefully to a
-    browser-side ``<video>`` poster.
+    out to ffmpeg with ``-frames:v 1 -update 1`` to write exactly one JPEG,
+    gated by :func:`_get_thumb_semaphore` so a page refresh that fans out
+    N tiles doesn't spawn N processes at once. Missing ffmpeg → 501 so the
+    frontend can degrade gracefully to a browser-side ``<video>`` poster.
+
+    On a conditional refresh (browser sends ``If-None-Match`` /
+    ``If-Modified-Since``) we short-circuit with 304 before touching the
+    cache lookup — cheap and it's the difference between "F5 spam"
+    costing a stat + hash and costing an ffmpeg spawn.
     """
 
     ffmpeg = shutil.which("ffmpeg")
@@ -297,11 +418,30 @@ async def _thumb_response(
 
     key_material = f"{video.resolve()}|{stat.st_mtime_ns}|{width}x{height}|{at:.3f}".encode()
     digest = hashlib.sha256(key_material).hexdigest()[:32]
+
+    # Conditional-request short-circuit: the ETag is a pure function of
+    # the cache key, so once the client has seen this JPEG once we can
+    # answer 304 without touching disk.
+    not_modified = _conditional_304(
+        etag=digest,
+        mtime_ns=stat.st_mtime_ns,
+        if_none_match=if_none_match,
+        if_modified_since=if_modified_since,
+    )
+    if not_modified is not None:
+        return not_modified
+
     cache_dir = cache_root / _THUMB_CACHE_DIRNAME
     cache_path = cache_dir / f"{digest}.jpg"
 
+    cache_headers = _cache_headers(
+        max_age=_THUMB_CLIENT_CACHE_SECONDS,
+        etag=digest,
+        mtime_ns=stat.st_mtime_ns,
+    )
+
     if cache_path.is_file() and cache_path.stat().st_size > 0:
-        return FileResponse(cache_path, media_type="image/jpeg")
+        return FileResponse(cache_path, media_type="image/jpeg", headers=cache_headers)
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     tmp_path = cache_path.with_suffix(".tmp.jpg")
@@ -336,12 +476,25 @@ async def _thumb_response(
         "-y",
         str(tmp_path),
     ]
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    _, err = await proc.communicate()
+
+    sem = _get_thumb_semaphore()
+    async with sem:
+        # Re-check the cache under the semaphore in case a peer request
+        # already wrote it while we were waiting for our slot — the same
+        # trick ``_preview_response`` uses. On a 200-tile refresh with
+        # duplicate URLs (posters + retries) this saves the redundant
+        # ffmpeg fan-out.
+        if cache_path.is_file() and cache_path.stat().st_size > 0:
+            tmp_path.unlink(missing_ok=True)
+            return FileResponse(cache_path, media_type="image/jpeg", headers=cache_headers)
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, err = await proc.communicate()
+
     if proc.returncode != 0 or not tmp_path.is_file() or tmp_path.stat().st_size == 0:
         tmp_path.unlink(missing_ok=True)
         detail = (err or b"").decode("utf-8", errors="replace")[:400] or "ffmpeg failed"
@@ -351,7 +504,7 @@ async def _thumb_response(
     # generated the same key would just clobber with an identical byte
     # sequence, so no locking needed.
     tmp_path.replace(cache_path)
-    return FileResponse(cache_path, media_type="image/jpeg")
+    return FileResponse(cache_path, media_type="image/jpeg", headers=cache_headers)
 
 
 def _parse_preview_dims(dims: str) -> tuple[int, int]:
@@ -376,8 +529,15 @@ def _parse_preview_dims(dims: str) -> tuple[int, int]:
 
 
 async def _preview_response(
-    video: Path, width: int, height: int, fps: int, *, cache_root: Path
-) -> FileResponse:
+    video: Path,
+    width: int,
+    height: int,
+    fps: int,
+    *,
+    cache_root: Path,
+    if_none_match: str | None = None,
+    if_modified_since: str | None = None,
+) -> Response:
     """Return a small H.264-baseline MP4 of ``video`` scaled to fit
     ``width``x``height`` at ``fps`` frames per second.
 
@@ -403,11 +563,27 @@ async def _preview_response(
 
     key_material = f"{video.resolve()}|{stat.st_mtime_ns}|{width}x{height}|fps={fps}".encode()
     digest = hashlib.sha256(key_material).hexdigest()[:32]
+
+    not_modified = _conditional_304(
+        etag=digest,
+        mtime_ns=stat.st_mtime_ns,
+        if_none_match=if_none_match,
+        if_modified_since=if_modified_since,
+    )
+    if not_modified is not None:
+        return not_modified
+
     cache_dir = cache_root / _PREVIEW_CACHE_DIRNAME
     cache_path = cache_dir / f"{digest}.mp4"
 
+    cache_headers = _cache_headers(
+        max_age=_PREVIEW_CLIENT_CACHE_SECONDS,
+        etag=digest,
+        mtime_ns=stat.st_mtime_ns,
+    )
+
     if cache_path.is_file() and cache_path.stat().st_size > 0:
-        return FileResponse(cache_path, media_type="video/mp4")
+        return FileResponse(cache_path, media_type="video/mp4", headers=cache_headers)
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     # Unique tmp name so two concurrent transcodes on the same key don't
@@ -474,7 +650,7 @@ async def _preview_response(
         # redundant ffmpeg spawn under contention.
         if cache_path.is_file() and cache_path.stat().st_size > 0:
             tmp_path.unlink(missing_ok=True)
-            return FileResponse(cache_path, media_type="video/mp4")
+            return FileResponse(cache_path, media_type="video/mp4", headers=cache_headers)
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -489,7 +665,7 @@ async def _preview_response(
         raise HTTPException(status_code=500, detail=f"preview transcode failed: {detail}")
 
     tmp_path.replace(cache_path)
-    return FileResponse(cache_path, media_type="video/mp4")
+    return FileResponse(cache_path, media_type="video/mp4", headers=cache_headers)
 
 
 async def _tar_response(dir_path: Path) -> StreamingResponse:

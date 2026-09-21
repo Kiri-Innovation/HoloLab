@@ -106,10 +106,14 @@ def _make_tiny_mp4(path: Path) -> None:
     cmd = [
         ffmpeg,
         "-nostdin",
-        "-loglevel", "error",
-        "-f", "lavfi",
-        "-i", "color=c=blue:s=64x48:d=1:r=10",
-        "-pix_fmt", "yuv420p",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=blue:s=64x48:d=1:r=10",
+        "-pix_fmt",
+        "yuv420p",
         "-y",
         str(path),
     ]
@@ -187,11 +191,16 @@ def _make_tiny_jpeg(path: Path) -> None:
     cmd = [
         ffmpeg,
         "-nostdin",
-        "-loglevel", "error",
-        "-f", "lavfi",
-        "-i", "color=c=red:s=4x4:d=1:r=1",
-        "-frames:v", "1",
-        "-q:v", "3",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=red:s=4x4:d=1:r=1",
+        "-frames:v",
+        "1",
+        "-q:v",
+        "3",
         "-y",
         str(path),
     ]
@@ -260,9 +269,18 @@ def test_preview_preserves_source_duration(tmp_path: Path) -> None:
     source = tmp_path / "src.mp4"
     subprocess.run(
         [
-            ffmpeg, "-nostdin", "-loglevel", "error",
-            "-f", "lavfi", "-i", "color=c=red:s=128x72:d=2:r=30",
-            "-pix_fmt", "yuv420p", "-y", str(source),
+            ffmpeg,
+            "-nostdin",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red:s=128x72:d=2:r=30",
+            "-pix_fmt",
+            "yuv420p",
+            "-y",
+            str(source),
         ],
         check=True,
     )
@@ -277,13 +295,20 @@ def test_preview_preserves_source_duration(tmp_path: Path) -> None:
 
         probe = subprocess.run(
             [
-                ffprobe, "-v", "error",
-                "-show_entries", "format=duration",
-                "-show_entries", "stream=nb_frames,avg_frame_rate",
-                "-of", "default=noprint_wrappers=1:nokey=1",
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-show_entries",
+                "stream=nb_frames,avg_frame_rate",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
                 str(out_path),
             ],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
         )
         lines = [ln for ln in probe.stdout.strip().splitlines() if ln]
         # Order (ffprobe emits stream entries then format):
@@ -299,9 +324,7 @@ def test_preview_preserves_source_duration(tmp_path: Path) -> None:
         f"rate={rate}, nb_frames={nb_frames}"
     )
     # At fps=15 for a 2 s clip we expect exactly 30 frames.
-    assert nb_frames == 30, (
-        f"frame count off: {nb_frames} (expected 30 @ 15 fps x 2 s)"
-    )
+    assert nb_frames == 30, f"frame count off: {nb_frames} (expected 30 @ 15 fps x 2 s)"
 
 
 def test_preview_cached_on_second_hit(tmp_path: Path) -> None:
@@ -365,3 +388,189 @@ def test_preview_cache_key_includes_dims_and_fps(tmp_path: Path) -> None:
         assert client.get("/_preview/64x36/clip.mp4", params={"fps": 15}).status_code == 200
         cache_dir = tmp_path / ".hololab-previews"
         assert len(list(cache_dir.glob("*.mp4"))) == 3
+
+
+# ---------------------------------------------------------------------------
+# Caching headers + conditional-request short-circuits
+#
+# The "F5 spam" pathology: 200 same-URL thumb requests on refresh used to
+# spawn ~30 ffmpeg processes and starve /api. The fix has two legs:
+#   * per-response ``Cache-Control`` + ``ETag`` + ``Last-Modified`` so the
+#     browser reuses its own cache on same-URL refreshes,
+#   * 304 short-circuit when the browser revalidates so a stale cache
+#     round-trips without touching ffmpeg or the disk cache.
+# These tests pin both.
+# ---------------------------------------------------------------------------
+
+
+def test_thumb_response_has_cache_headers(tmp_path: Path) -> None:
+    video = tmp_path / "clip.mp4"
+    _make_tiny_mp4(video)
+    app = create_fileserver_app(workspace_root=tmp_path)
+    with TestClient(app) as client:
+        r = client.get("/_thumb/64x36/clip.mp4", params={"at": 0.0})
+        assert r.status_code == 200, r.text
+        cc = r.headers.get("cache-control", "")
+        assert "public" in cc and "max-age=" in cc, cc
+        assert r.headers.get("etag", "").startswith('"'), r.headers.get("etag")
+        assert r.headers.get("last-modified"), "last-modified must be present"
+
+
+def test_thumb_if_none_match_returns_304(tmp_path: Path) -> None:
+    """Same-URL refresh once the client already has the ETag: server
+    must 304 without invoking ffmpeg or reading the cache file."""
+
+    video = tmp_path / "clip.mp4"
+    _make_tiny_mp4(video)
+    app = create_fileserver_app(workspace_root=tmp_path)
+    with TestClient(app) as client:
+        r1 = client.get("/_thumb/64x36/clip.mp4", params={"at": 0.0})
+        assert r1.status_code == 200
+        etag = r1.headers["etag"]
+        r2 = client.get(
+            "/_thumb/64x36/clip.mp4",
+            params={"at": 0.0},
+            headers={"If-None-Match": etag},
+        )
+        assert r2.status_code == 304
+        # 304 must carry no body.
+        assert r2.content == b""
+        # And it must echo the ETag so the browser can keep the entry.
+        assert r2.headers.get("etag") == etag
+
+
+def test_thumb_if_modified_since_returns_304(tmp_path: Path) -> None:
+    """Second refresh with ``If-Modified-Since`` set to the response's
+    ``Last-Modified``: 304, no body."""
+
+    video = tmp_path / "clip.mp4"
+    _make_tiny_mp4(video)
+    app = create_fileserver_app(workspace_root=tmp_path)
+    with TestClient(app) as client:
+        r1 = client.get("/_thumb/64x36/clip.mp4", params={"at": 0.0})
+        assert r1.status_code == 200
+        last_mod = r1.headers["last-modified"]
+        r2 = client.get(
+            "/_thumb/64x36/clip.mp4",
+            params={"at": 0.0},
+            headers={"If-Modified-Since": last_mod},
+        )
+        assert r2.status_code == 304
+        assert r2.content == b""
+
+
+def test_thumb_stale_etag_does_not_hit_304(tmp_path: Path) -> None:
+    """Old ETag from a previous mtime must NOT match — the server must
+    serve the fresh JPEG, not a stale 304."""
+
+    video = tmp_path / "clip.mp4"
+    _make_tiny_mp4(video)
+    app = create_fileserver_app(workspace_root=tmp_path)
+    with TestClient(app) as client:
+        r = client.get(
+            "/_thumb/64x36/clip.mp4",
+            params={"at": 0.0},
+            headers={"If-None-Match": '"deadbeef-not-the-real-tag"'},
+        )
+        assert r.status_code == 200, r.text
+        assert r.content[:2] == b"\xff\xd8"
+
+
+def test_preview_response_has_cache_headers(tmp_path: Path) -> None:
+    video = tmp_path / "clip.mp4"
+    _make_tiny_mp4(video)
+    app = create_fileserver_app(workspace_root=tmp_path)
+    with TestClient(app) as client:
+        r = client.get("/_preview/64x36/clip.mp4", params={"fps": 10})
+        assert r.status_code == 200, r.text
+        cc = r.headers.get("cache-control", "")
+        assert "public" in cc and "max-age=" in cc, cc
+        assert r.headers.get("etag", "").startswith('"'), r.headers.get("etag")
+
+
+def test_preview_if_none_match_returns_304(tmp_path: Path) -> None:
+    video = tmp_path / "clip.mp4"
+    _make_tiny_mp4(video)
+    app = create_fileserver_app(workspace_root=tmp_path)
+    with TestClient(app) as client:
+        r1 = client.get("/_preview/64x36/clip.mp4", params={"fps": 10})
+        assert r1.status_code == 200
+        etag = r1.headers["etag"]
+        r2 = client.get(
+            "/_preview/64x36/clip.mp4",
+            params={"fps": 10},
+            headers={"If-None-Match": etag},
+        )
+        assert r2.status_code == 304
+        assert r2.content == b""
+
+
+def test_thumb_extract_concurrency_capped(tmp_path: Path) -> None:
+    """Cache misses must serialise behind
+    :data:`~hololab.node.fileserver._THUMB_EXTRACT_CONCURRENCY` — the
+    guard against the "F5 spawns 30 ffmpegs" pathology. We patch
+    ``asyncio.create_subprocess_exec`` to observe peak concurrency and
+    hit the endpoint from a small in-memory async client.
+    """
+
+    import asyncio
+    import contextlib
+
+    from httpx import ASGITransport, AsyncClient
+
+    from hololab.node import fileserver as fs
+
+    video = tmp_path / "clip.mp4"
+    _make_tiny_mp4(video)
+    # Force a fresh semaphore bound to this test's event loop.
+    fs._thumb_semaphore = None
+
+    active = 0
+    peak = 0
+
+    real_exec = asyncio.create_subprocess_exec
+
+    async def spying_exec(*args: object, **kwargs: object):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        try:
+            # Hold the slot briefly so concurrent callers pile up on the
+            # semaphore — otherwise the first spawn returns before the
+            # rest arrive and we'd observe peak=1 even with no limit.
+            await asyncio.sleep(0.05)
+            return await real_exec(*args, **kwargs)  # type: ignore[misc]
+        finally:
+            active -= 1
+
+    app = create_fileserver_app(workspace_root=tmp_path)
+
+    async def run() -> None:
+        with contextlib.suppress(Exception):
+            pass
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            # 16 distinct sub-second offsets → 16 distinct cache keys → 16
+            # cache misses that all have to pass through ffmpeg. Keep the
+            # offsets inside the source's 1 s duration.
+            tasks = [
+                client.get(
+                    "/_thumb/64x36/clip.mp4",
+                    params={"at": round(0.05 + i * 0.05, 3)},
+                )
+                for i in range(16)
+            ]
+            results = await asyncio.gather(*tasks)
+            for r in results:
+                assert r.status_code == 200, r.text
+
+    original = asyncio.create_subprocess_exec
+    asyncio.create_subprocess_exec = spying_exec  # type: ignore[assignment]
+    try:
+        asyncio.run(run())
+    finally:
+        asyncio.create_subprocess_exec = original  # type: ignore[assignment]
+
+    assert peak <= fs._THUMB_EXTRACT_CONCURRENCY, (
+        f"thumb ffmpeg peak {peak} exceeded cap {fs._THUMB_EXTRACT_CONCURRENCY}"
+    )
