@@ -3,51 +3,73 @@ kind: Algorithm
 name: regroup
 version: 0.2.0
 description: >
-  Generic N-D permutation over an arrayed<arrayed<T>> tree. Reorders the
+  Generic N-D permutation over a tag-typed arrayed tree. Reorders the
   outer/inner axes of a multi-dim arrayed handle by any permutation of
-  its dim labels. Successor to ``regroup-by-frame@0.1.0`` — no longer
-  bakes in ``frame`` / ``camera`` names or ``frames/`` subdir convention.
+  its dim labels. Content-dim aware: for ``image_sequence`` inputs
+  (``content_dims=1``) the innermost dim is enumerated per T-type
+  (files under ``frames/``) rather than as a physical subdir layer —
+  which is what the ``frame-extraction`` → ``colmap-triangulate`` main
+  chain requires. Successor to ``regroup-by-frame@0.1.0``.
 source_entry: regroup.py
 category: "utility/arrayed"
 
 docs: |
-  Reorder the axes of an arrayed<arrayed<T>> handle.
+  Reorder the axes of an arrayed<T> handle over any tag-typed leaf T.
 
-  **Params control the permutation.** ``input_dims`` names the axes as
-  they appear on the source (outer first); ``output_dims`` names the
-  desired axes on the target (outer first). Both lists MUST be
-  permutations of the same set — a typo like `[cam, frame]` → `[time, cam]`
-  fails loud at pack start, not at first missing file.
+  **Params control the permutation + tag semantics.**
+  ``input_dims`` / ``output_dims`` name the axes outer-first; both must be
+  permutations of the same label set — a typo (``[cam,frame]`` →
+  ``[time,cam]``) fails loud at pack start.
+  ``content_dims`` says how many of the innermost dims are enumerated
+  via the leaf T-type's content rules (default 0 = every dim is a
+  physical subdir; 1 = image_sequence-style, innermost dim = files under
+  ``<leaf>/frames/``). Matches the framework's tag-driven element
+  enumeration in :mod:`hololab.gateway.tag_probes`.
 
-  **Directory names.** The v0.2 pack writes leaf dirs as
-  ``<dim_label>_<idx:04d>`` (e.g. ``frame_0000/camera_0000/``) — the
-  index comes from the sorted position of each element on the source
-  side. Source filename stems are no longer echoed into the target,
-  which drops the hidden ``frame_XXXXXX`` convention from the classic
-  ``regroup-by-frame`` pack.
+  **Directory + file names.** Physical dir layers use
+  ``<dim_label>_<idx:04d>``. The image_sequence content layer writes
+  ``<parent>/frames/<inner_label>_<idx:04d><ext>`` where ``<ext>`` is
+  the source file's suffix. Source filename stems are NOT echoed into
+  the target — indices come from the sorted position of each element
+  on the source side.
 
   **Symlinks, not copies.** N leaves → N ``os.symlink`` calls to the
-  resolved source paths. Idempotent: an existing symlink at the target
-  is unlinked first.
+  resolved source paths. Idempotent: existing symlinks are unlinked
+  first.
 
-  Example — 2-D transpose (camera × frame → frame × camera):
+  Example — 2-D transpose on ``arrayed<arrayed<colmap>>`` (dirs at both
+  levels; ``content_dims=0``):
   ```
-  input_dims:  [camera, frame]
-  output_dims: [frame, camera]
-  input:  <root>/cam_A/frame_000000/ …
-  output: <root>/frame_0000/camera_0000/ …
+  input_dims:   [camera, frame]
+  output_dims:  [frame, camera]
+  content_dims: 0
+  input:  <root>/cam_A/frame_000000/{sparse/,cameras.bin,...}
+  output: <root>/frame_0000/camera_0000/ → symlink to source dir
   ```
 
-  1-D identity works too (single-element list on both sides). >2 dims
-  are supported by the implementation but capped at 2 by the manifest
-  schema until we ship UI for wider trees.
+  Example — 2-D transpose on ``arrayed<image_sequence>`` (the main-chain
+  ``frame-extraction`` → ``colmap-triangulate`` shape; ``content_dims=1``):
+  ```
+  input_dims:   [cam, frame]
+  output_dims:  [frame, cam]
+  content_dims: 1
+  input:  <root>/cam00/frames/frame_000000.png
+  output: <root>/frame_0000/frames/cam_0000.png
+  ```
+  Output leaves keep the ``frames/`` convention so downstream
+  ``colmap-triangulate`` (which does ``--image-path <element>/frames/``)
+  can consume them without further reshape. Filenames differ from
+  ``regroup-by-frame@0.1.0`` (source-stem echo vs. ``<label>_<idx>``);
+  ``colmap-triangulate``'s ``cam_key(name)`` derives the key from the
+  file stem, so it stays consistent as long as both SfM and triangulate
+  read from the same regroup output.
 
 inputs:
   in:
     tags: [any]
     arrayed: true
     dim_labels: ["", ""]  # 2-D — actual labels come from params.input_dims
-    description: "arrayed<arrayed<T>> input tree, outer-first."
+    description: "Tag-typed arrayed input tree, outer-first."
 
 outputs:
   out:
@@ -56,21 +78,31 @@ outputs:
     dim_labels: ["", ""]  # 2-D — actual labels come from params.output_dims
     tags_from: in
     description: >
-      arrayed<arrayed<T>> permuted view. Element tags inherit from the
-      wired input via ``tags_from``.
+      Permuted view. Element tags inherit from the wired input via
+      ``tags_from``, so the T-type structure is preserved end-to-end.
 
 params:
   input_dims:
     type: "list[str]"
-    default: ["camera", "frame"]
+    default: ["cam", "frame"]
     description: >
       Names of the source axes, outer first. Must be a permutation of
       ``output_dims``.
   output_dims:
     type: "list[str]"
-    default: ["frame", "camera"]
+    default: ["frame", "cam"]
     description: >
       Desired axes on the target, outer first.
+  content_dims:
+    type: int
+    default: 0
+    min: 0
+    max: 1
+    description: >
+      How many of the innermost dims are enumerated via T-type content
+      rules (0 = generic dir tree, every axis is a physical subdir; 1 =
+      image_sequence, innermost axis = files under ``frames/``). Set to
+      1 when the input carries the ``image`` tag family.
 
 runtime:
   env: kiri
@@ -84,4 +116,5 @@ exec:
       --input "{{ inputs.in }}" \
       --output "{{ outputs.out }}" \
       --input-dims '{{ params.input_dims | tojson }}' \
-      --output-dims '{{ params.output_dims | tojson }}'
+      --output-dims '{{ params.output_dims | tojson }}' \
+      --content-dims {{ params.content_dims }}

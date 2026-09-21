@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _PACK_DIR = Path(__file__).resolve().parents[1] / "packs" / "regroup@0.2.0"
 _SCRIPT = _PACK_DIR / "regroup.py"
 
@@ -21,6 +23,7 @@ def _run(
     input_dims: list[str],
     output_dims: list[str],
     *,
+    content_dims: int = 0,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -35,6 +38,8 @@ def _run(
             json.dumps(input_dims),
             "--output-dims",
             json.dumps(output_dims),
+            "--content-dims",
+            str(content_dims),
         ],
         check=check,
         capture_output=True,
@@ -523,24 +528,22 @@ def test_handle_summary_dim_sizes_image_sequence_missing_frames_dir(tmp_path: Pa
 
 
 # ---------------------------------------------------------------------------
-# Structural equivalence audit — regroup-by-frame@0.1.0 vs regroup@0.2.0
+# Structural equivalence — regroup-by-frame@0.1.0 vs regroup@0.2.0
 # ---------------------------------------------------------------------------
 #
-# These tests document that the two packs are NOT equivalent for the current
-# main-chain input (frame-extraction arrayed<image_sequence>).
-#
-# regroup-by-frame@0.1.0 — file-level transpose:
+# regroup-by-frame@0.1.0 — file-level transpose over arrayed<image_sequence>:
 #   Iterates individual PNGs inside each cam's ``frames/`` and groups them
-#   by frame key under new per-frame ``frames/`` dirs. Produces
-#   arrayed<image_sequence> with the layout colmap-triangulate expects.
+#   by source frame stem under new per-frame ``frames/`` dirs. Filenames
+#   echo the source cam dir name (``cam00.png``).
 #
-# regroup@0.2.0 — dir-level transpose (arrayed<arrayed<T>>):
-#   Treats inner *subdirectories* as the leaf T. With frame-extraction
-#   output the only inner subdir per cam is ``frames/`` itself, so axis-1
-#   collapses to a single element — not N per-frame elements.
+# regroup@0.2.0 — tag-aware transpose:
+#   * content_dims=0 → dir-level, arrayed<arrayed<T>>, T is a dir (colmap).
+#   * content_dims=1 → image_sequence: same file-level regroup as the
+#     legacy pack, differing only in leaf naming (``<label>_<idx:04d>``
+#     vs source-stem echo).
 #
-# Wiring regroup@0.2.0 into the current main chain is blocked until the
-# upstream produces a proper depth-2 dir tree (``<cam>/<frame_dir>/``).
+# See ``test_regroup_v020_matches_regroup_by_frame_structure_when_content_dims_1``
+# for the equivalence proof (structure identical modulo naming).
 
 _RBF_SCRIPT = (
     Path(__file__).resolve().parents[1] / "packs" / "regroup-by-frame@0.1.0" / "regroup.py"
@@ -597,36 +600,129 @@ def test_regroup_by_frame_transposes_image_sequence(tmp_path: Path) -> None:
     assert (frames_dir / "cam_A.png").read_bytes() == b"cam_A/0"
 
 
-def test_regroup_v020_misinterprets_image_sequence_input(tmp_path: Path) -> None:
-    """regroup@0.2.0 is a dir-level tool — NOT equivalent to regroup-by-frame
-    for arrayed<image_sequence> input (current frame-extraction output).
-
-    With input_dims=["cam","frame"] on a frame-extraction tree, the pack
-    finds only ONE inner subdir per cam (the ``frames/`` directory itself),
-    so the output has one outer 'frame' element instead of N.
-
-    The output also lacks the per-frame image_sequence layout that
-    colmap-triangulate expects (``<element>/frames/<cam>.png``).
+def test_regroup_v020_misinterprets_image_sequence_when_content_dims_0(
+    tmp_path: Path,
+) -> None:
+    """Default ``content_dims=0`` treats ``frames/`` as a plain subdir —
+    wrong shape for image_sequence input. Documents that callers MUST
+    pass ``content_dims=1`` when the input carries the ``image`` tag
+    family (the pack has no auto-detection).
     """
     in_root = tmp_path / "in"
     _mk_image_sequence_tree(in_root, ["cam_A", "cam_B"], n_frames=3)
     out = tmp_path / "out_v020"
-    _run(in_root, out, ["cam", "frame"], ["frame", "cam"])
+    _run(in_root, out, ["cam", "frame"], ["frame", "cam"], content_dims=0)
 
-    # v0.2.0 treats the single "frames" subdir as axis-1's sole element:
-    # collapses to 1 outer element, NOT 3 per-frame elements.
     outer = sorted(p.name for p in out.iterdir() if not p.name.startswith("."))
     assert outer == ["frame_0000"], (
-        f"expected single 'frame_0000' (frames/ dir misread as axis element); got {outer}"
+        f"content_dims=0 folds all frames into one; got {outer} — pass content_dims=1"
     )
 
-    # Each inner element symlinks to the whole frames/ dir — not a per-frame
-    # image_sequence, so --image-path <element>/frames/ would fail.
-    inner = sorted(p.name for p in (out / "frame_0000").iterdir() if p.is_symlink() or p.is_dir())
-    assert inner == ["cam_0000", "cam_0001"]
 
-    target = (out / "frame_0000" / "cam_0000").resolve()
-    assert target.name == "frames", f"leaf resolves to {target.name!r}, expected 'frames'"
+def test_regroup_v020_matches_regroup_by_frame_structure_when_content_dims_1(
+    tmp_path: Path,
+) -> None:
+    """With ``content_dims=1``, regroup@0.2.0 is structurally equivalent to
+    regroup-by-frame@0.1.0.
+
+    Both produce ``<frame_dir>/frames/<cam_file>.png`` per-frame elements
+    that colmap-triangulate (``--image-path <element>/frames``) can consume.
+    The only difference is leaf naming: regroup-by-frame echoes source
+    stems (``cam00.png``); regroup@0.2.0 uses ``<label>_<idx:04d>``
+    (``cam_0000.png``). Same file count, same cam-key derivability from
+    stems.
+    """
+    in_root = tmp_path / "in"
+    _mk_image_sequence_tree(in_root, ["cam00", "cam01", "cam02"], n_frames=4)
+
+    out_rbf = tmp_path / "out_rbf"
+    _run_rbf(in_root, out_rbf)
+
+    out_v020 = tmp_path / "out_v020"
+    _run(in_root, out_v020, ["cam", "frame"], ["frame", "cam"], content_dims=1)
+
+    rbf_frames = sorted(p.name for p in out_rbf.iterdir() if not p.name.startswith("."))
+    v020_frames = sorted(p.name for p in out_v020.iterdir() if not p.name.startswith("."))
+    assert len(rbf_frames) == len(v020_frames) == 4
+
+    rbf_cams = sorted((out_rbf / rbf_frames[0] / "frames").iterdir())
+    v020_cams = sorted((out_v020 / v020_frames[0] / "frames").iterdir())
+    assert len(rbf_cams) == len(v020_cams) == 3
+    assert [c.name for c in v020_cams] == ["cam_0000.png", "cam_0001.png", "cam_0002.png"]
+    assert [c.name for c in rbf_cams] == ["cam00.png", "cam01.png", "cam02.png"]
+
+    # And the actual bytes match — position [0][0] in both is the same source file.
+    assert rbf_cams[0].read_bytes() == v020_cams[0].read_bytes() == b"cam00/0"
+
+
+def test_regroup_v020_content_dims_1_transpose_correctness(tmp_path: Path) -> None:
+    """Every (cam_idx, frame_idx) source leaf lands at the correct
+    (frame_idx, cam_idx) target — the transpose is faithful.
+
+    Uses source-encoded payload bytes (``"<cam>/<frame_idx>"``) so a
+    permutation bug that mixed axes would fail on read-back.
+    """
+    in_root = tmp_path / "in"
+    _mk_image_sequence_tree(in_root, ["cam00", "cam01", "cam02"], n_frames=3)
+
+    out = tmp_path / "out"
+    _run(in_root, out, ["cam", "frame"], ["frame", "cam"], content_dims=1)
+
+    # source (cam00, frame_000001.png) → target (frame_0001, cam_0000.png)
+    assert (out / "frame_0001" / "frames" / "cam_0000.png").read_bytes() == b"cam00/1"
+    # source (cam02, frame_000002.png) → target (frame_0002, cam_0002.png)
+    assert (out / "frame_0002" / "frames" / "cam_0002.png").read_bytes() == b"cam02/2"
+
+
+def test_regroup_v020_content_dims_1_extension_preserved(tmp_path: Path) -> None:
+    """Source file extension is preserved in the target — a ``.jpg`` input
+    yields ``cam_XXXX.jpg`` (colmap image reader keys off the extension)."""
+    in_root = tmp_path / "in"
+    for cam in ("cam_A", "cam_B"):
+        (in_root / cam / "frames").mkdir(parents=True)
+        (in_root / cam / "frames" / "frame_000000.jpg").write_bytes(b"j")
+    out = tmp_path / "out"
+    _run(in_root, out, ["cam", "frame"], ["frame", "cam"], content_dims=1)
+    assert (out / "frame_0000" / "frames" / "cam_0000.jpg").is_symlink()
+
+
+def test_regroup_v020_content_dims_1_matches_real_fx_output_shape(tmp_path: Path) -> None:
+    """Real-data smoke test against the 3711480d workflow's frame-extraction
+    aggregate (21 cams x 100 frames). Skips cleanly if that output isn't on
+    disk (e.g. the artifact was pruned).
+
+    Verifies the tag-aware transpose produces the correct element counts
+    and per-frame layout that colmap-triangulate expects.
+    """
+    fx_path = Path(
+        "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/"
+        "3711480d-e858-453c-bf5b-76af602e9805/j/"
+        "0521da34-6dfa-450b-a83a-a7efec6fbcc4/frame_sequence"
+    )
+    if not fx_path.is_dir():
+        pytest.skip(f"real fx output not present at {fx_path}")
+
+    cams = sorted(p.name for p in fx_path.iterdir() if p.is_dir())
+    assert len(cams) == 21, f"expected 21 cams in fx aggregate, got {len(cams)}"
+    frames_per_cam = sum(1 for _ in (fx_path / cams[0] / "frames").iterdir())
+    assert frames_per_cam == 100, f"expected 100 frames per cam, got {frames_per_cam}"
+
+    out = tmp_path / "regrouped"
+    _run(fx_path, out, ["cam", "frame"], ["frame", "cam"], content_dims=1)
+
+    outer = sorted(p.name for p in out.iterdir() if not p.name.startswith("."))
+    assert len(outer) == 100
+    assert outer[0] == "frame_0000" and outer[-1] == "frame_0099"
+
+    first_cams = sorted((out / outer[0] / "frames").iterdir())
+    assert len(first_cams) == 21
+    assert [c.name for c in first_cams[:3]] == [
+        "cam_0000.png",
+        "cam_0001.png",
+        "cam_0002.png",
+    ]
+    # Symlinks resolve to real source PNGs.
+    assert first_cams[0].resolve() == (fx_path / "cam00" / "frames" / "frame_000000.png").resolve()
 
 
 def test_schema_allows_dim_labels_on_scalar_ports() -> None:
