@@ -49,6 +49,18 @@ Rules of thumb:
 - **Looking at what ran** → **snapshot + jobs** (`GET /api/snapshots/{id}`)
 - **Getting the outputs of a run** → job's `output_handles`, then `GET /api/handles/{id}/summary` or download via `proxy_url`
 - **Restoring past params to try again** → `POST /api/workflows/{id}/restore-from-snapshot/{sid}`
+- **Running just one node, or "from here down"** → body on `/run` (see [Run modes](#run-just-one-node-or-just-from-a-node-downward))
+- **Stopping something** → cancel by job / snapshot / node / everywhere (see [Cancel a run](#cancel-a-run-single-job-whole-snapshot-whole-node-everything))
+
+**Lineage / V8 snapshot model.** A single graph node can belong to multiple
+snapshots without duplication: attribution rows in `snapshot_jobs` bridge
+reused work into new snapshots. When you Fork (dispatch a node that already
+has a produced artifact in the base snapshot), a child snapshot is created
+with `parent_snapshot_id` set; upstream attributions are inherited, the
+target node + its downstream drop out, and a new job runs at the fork
+point. When you Continue (dispatch a node with an empty slot), the base
+snapshot is extended in place — no new snapshot id. Both cases produce
+one `job_id`; long-poll the snapshot to wait for it.
 
 ---
 
@@ -177,6 +189,69 @@ If you need the bytes: `curl -s $HOLO<proxy_url>` (the URL is in the
 handle summary response). Only download when the artifact's value is
 literally the bytes.
 
+### 1a. Run just one node, or just "from a node downward"
+
+The UI has **"▶ Run this node"** and **"Rerun from here"** buttons on
+every node card. Agents drive both through **the same** `/run` endpoint
+by passing a JSON body — no separate URL to memorise, matching the button
+you'd click.
+
+```bash
+# One node — Continue-or-Fork on the workflow's latest snapshot.
+# Use this when you tweaked one param and want to see the result without
+# re-running everything upstream. Upstream must already be produced.
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"node_id": "tri"}' \
+  $HOLO/api/workflows/$WID/run | jq .
+# → {workflow_id, snapshot_id, job_id, operation:"continue"|"fork", mode:"node",
+#    parent_snapshot_id?, forked_at?}
+
+# From here down — reuse everything upstream, re-execute this node + its
+# transitive downstream. Requires a prior completed snapshot to reuse from.
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"from_node_id": "stg-train"}' \
+  $HOLO/api/workflows/$WID/run | jq .
+# → {workflow_id, mode:"from_node", original_snapshot_id, new_snapshot_id,
+#    rerun_from_graph_node_id, rerun_graph_node_ids[], reused_graph_node_ids[],
+#    reused_job_ids[]}
+```
+
+**Which mode?**
+
+| Want | Body | Snapshot behaviour |
+|---|---|---|
+| Just run this one node | `{"node_id": "X"}` | Continue on latest (or Fork if slot's already produced) |
+| Rerun X + everything downstream, keep upstream | `{"from_node_id": "X"}` | New child snapshot; upstream inherited |
+| Run the whole graph | `{}` (or omit body) | New snapshot, all nodes fresh |
+
+**Follow-up** — every mode returns a `snapshot_id`; long-poll it exactly
+like a full run:
+
+```bash
+curl -s "$HOLO/api/snapshots/$SNAP?wait_for_state=done&timeout=1800"
+```
+
+**Explicit base snapshot** — pass `"base_snapshot_id": "<sid>"` alongside
+`node_id` or `from_node_id` to target a specific snapshot instead of the
+workflow's head. Useful when you want to Fork off a historical run without
+first restoring the draft.
+
+**Errors you'll see:**
+- `400 upstream graph node 'X' has no produced artifact in this snapshot` —
+  the mode-`node_id` slot needs its inputs already produced. Run upstream
+  first, or use `{"from_node_id": "..."}` on an earlier node.
+- `400 cannot use from_node_id on a workflow with no prior snapshot` — run
+  the whole workflow once, then rerun-from works.
+- `400 assigned compute node 'X' is not online` — the pack lives on a node
+  that isn't currently connected. Check `GET /api/nodes`.
+
+**Lower-level equivalents** (identical semantics; use only if you're
+already scripting against them):
+- `POST /api/workflows/{id}/dispatch/{graph_node_id}?base_snapshot_id=…`
+  — same as `{"node_id": "..."}` on `/run`.
+- `POST /api/snapshots/{sid}/rerun-from/{graph_node_id}` — same as
+  `{"from_node_id": "..."}` but you name the base snapshot explicitly.
+
 ### 2. Debug a failed run
 
 ```bash
@@ -190,6 +265,51 @@ curl -s "$HOLO/api/jobs/$JOB_ID/log?tail=200&stream=stderr" \
 
 `?stream=both` interleaves stdout+stderr in insertion order. `truncated:
 true` means there are older lines you didn't get — bump `tail`.
+
+### 2a. Cancel a run (single job, whole snapshot, whole node, everything)
+
+Cancels are idempotent — retrying a cancel on an already-terminal job is
+a no-op. Cascades to shard children for fan-out jobs. Use the narrowest
+scope that fits:
+
+```bash
+# One job (and its shard children if any).
+curl -s -X POST $HOLO/api/jobs/$JOB_ID/cancel | jq .
+# → {cancelled: [job_ids...], already_terminal: [...]}
+
+# Every live job in one run (pending, assigned, running, orphaned).
+curl -s -X POST $HOLO/api/snapshots/$SNAP/cancel-jobs | jq .
+
+# Every live job on one compute node (e.g. before restarting it).
+curl -s -X POST $HOLO/api/nodes/$NODE_ID/cancel-jobs | jq .
+
+# Panic button — everything not-yet-terminal, across all workflows.
+curl -s -X POST $HOLO/api/jobs/cancel-all | jq .
+```
+
+**Finding what to cancel** — `GET /api/jobs?state=live` returns the same
+four-state union (pending + assigned + running + orphaned) that the
+cancel endpoints target; use it before the panic button so you know what
+you're about to stop.
+
+### 2b. Annotate a run (star + Markdown note)
+
+Non-destructive metadata a run picks up over time — the Runs panel's ⭐
+button and note editor. Both fields are optional; absent fields on the
+PATCH are left unchanged.
+
+```bash
+# Star a run.
+curl -s -X PATCH -H 'Content-Type: application/json' \
+  -d '{"favorite": true}' \
+  $HOLO/api/workflows/$WID/runs/$SNAP | jq .
+
+# Attach a Markdown note (empty string or null clears it).
+curl -s -X PATCH -H 'Content-Type: application/json' \
+  -d '{"note": "baseline for the tri-plane ablation"}' \
+  $HOLO/api/workflows/$WID/runs/$SNAP | jq .
+# → {snapshot_id, favorite, note}
+```
 
 ### 3. Clone past params into the current draft
 
@@ -305,6 +425,37 @@ Even then: `GET /api/handles/{id}/summary` first — the header metadata
 tells you if the artifact is well-formed (correct dims, expected count).
 Only reach for a rendered view when a human needs to judge *quality*.
 
+**Handle summary shape** — one call, self-describing:
+
+```
+{
+  handle_id, storage, tags,
+  kind:                 "splatv"|"video"|"image"|"text"|"dir"|"scalar-int"|"unknown",
+  fields:               { …kind-specific structural data (see below)… },
+  element_count:        N,                    // arrayed dir handles: outer subdir count
+  dim_labels:           ["frames","cams"],    // from the producing port's dim_labels[_from]
+  dim_sizes:            [100, 21],            // measured per-dim; walks depth = len(dim_labels)
+  internal_count:       602112,               // tag-specific inside one element
+  internal_count_kind:  "gaussian",           // what internal_count is counting
+  internal_count_items: [...],                // per-element internal counts (arrayed)
+  preview:              {viewer, member?},    // hint the UI uses; agents can ignore
+  proxy_url:            "/proxy/node-a/…",
+  absolute_path:        "/…/artifact-root",
+  size_bytes:           N
+}
+```
+
+Per-kind `fields` payloads: `splatv{gaussian_count, camera_count, magic_hex,
+texture_width}`, `image{width, height, mode}`, `video{duration, codec, fps}`,
+`text{lines[], truncated}`, `dir{entries[], truncated}`, `scalar-int{value}`.
+Handles with `dim_labels=null` are scalar; the frontend then falls back to a
+single-level render. On parse failure the same shape drops to
+`kind:"unknown"` with size only — never a 500.
+
+**Tag naming note.** Image handles now carry `tags: ["image"]` (was
+previously the pack-specific tag). If you're grepping the API for image
+outputs, prefer `tags` contains `"image"` over sniffing the file suffix.
+
 ---
 
 ## Do / Don't
@@ -313,11 +464,14 @@ Only reach for a rendered view when a human needs to judge *quality*.
 - Start with `GET /api/overview` — one call, full picture.
 - Use `?wait_for_state=done&timeout=1800` instead of a polling loop.
 - Filter `/api/jobs` with `?workflow_id=&state=&algorithm_name=` — don't page through 200 unfiltered.
+- Use `state=live` (= pending+assigned+running+orphaned) instead of `state=running` when you mean "everything not yet terminal" — matches what the cancel endpoints target.
 - Trust `topology_text` and `is_dag` when reasoning about a graph.
-- Read `handle summary` before downloading bytes.
+- Read `handle summary` before downloading bytes; check `dim_sizes` × `internal_count` before rendering.
+- Prefer the `/run` body (`node_id` / `from_node_id`) over the lower-level dispatch / rerun-from URLs — same semantics, one URL to remember.
 
 **Don't**
 - Spin your own polling loop on `/api/jobs/{id}` — use the long-poll.
+- POST an unknown body to `/api/workflows/{id}/run` — the endpoint only recognises `{node_id?, from_node_id?, base_snapshot_id?}` and rejects extras with 422. Empty body ⇒ whole-graph run.
 - `DELETE /api/workflows/{id}` to "reset" — use `restore-from-snapshot` instead so past runs remain queryable.
 - Screenshot the browser UI to understand a graph — the JSON above is more compact and reliable.
 - Download handle bytes for metadata questions — use `/summary`.
@@ -327,37 +481,68 @@ Only reach for a rendered view when a human needs to judge *quality*.
 
 ## Reference: minimum endpoint set
 
-The endpoints an agent actually uses. `GET` is safe, `POST/DELETE` mutate.
+The endpoints an agent actually uses. `GET` is safe, `POST/PATCH/DELETE` mutate.
 
 ```
+Meta
 GET  /api/health                                       — liveness + version
 GET  /api/overview                                     — one-call system snapshot
-GET  /api/nodes                                        — connected compute nodes
-GET  /api/pack-catalog                                 — packs with port/param signatures
+GET  /api/resolve?ref=hololab://…                      — resolve any hololab:// ref → resource + related URLs
 
+Compute nodes
+GET  /api/nodes                                        — connected compute nodes
+GET  /api/nodes/metrics/history?since=…                — rolling CPU/GPU/mem history per node
+PATCH /api/nodes/{node_id}/config                      — hot-reload node config (workspace_root, pack_dirs, …)
+POST /api/nodes/{node_id}/cancel-jobs                  — cancel every live job on one node
+
+Packs
+GET  /api/pack-catalog                                 — packs with port/param signatures (per-connected-node)
+GET  /api/packs                                        — every pack ever seen (persistent, across restarts)
+
+Workflows (drafts)
 GET  /api/workflows                                    — list drafts + last_run rollups
 GET  /api/workflows/{id}                               — one draft (agent-shaped graph)
-POST /api/workflows                                    — create/update draft
-DELETE /api/workflows/{id}                             — delete draft (keeps jobs + handles; snapshots are cascaded)
-POST /api/workflows/{id}/run                           — snapshot + run in background
+POST /api/workflows                                    — create/update draft (body: {name, graph, workflow_id?})
+DELETE /api/workflows/{id}                             — delete draft (past snapshots + jobs preserved)
 
-GET  /api/workflows/{id}/runs                          — list past snapshots
+Running the graph
+POST /api/workflows/{id}/run                           — run whole graph, or `{"node_id"}` / `{"from_node_id"}` / `{"base_snapshot_id"}`
+POST /api/workflows/{id}/dispatch/{graph_node_id}?base_snapshot_id=…
+                                                       — lower-level Continue-or-Fork of one node
+POST /api/snapshots/{sid}/rerun-from/{graph_node_id}   — lower-level: reuse upstream, rerun this + downstream
+
+Runs (snapshots)
+GET  /api/workflows/{id}/runs                          — list past snapshots + state rollups
 GET  /api/snapshots/{id}                               — frozen graph + jobs
-GET  /api/snapshots/{id}?wait_for_state=done&timeout=… — long-poll to completion
+GET  /api/snapshots/{id}?wait_for_state=done&timeout=… — long-poll (max timeout=1800)
+GET  /api/snapshots/{id}/deletion-preview              — ref-counted impact of a delete (before you do it)
+DELETE /api/snapshots/{id}                             — delete one run + its exclusive artifacts
+PATCH /api/workflows/{id}/runs/{sid}                   — annotate: {favorite?, note?}
 POST /api/workflows/{id}/restore-from-snapshot/{sid}   — clone past params to draft
+PATCH /api/workflows/{id}/graph-nodes/{gnode}/cosmetic — draft: {preview_open?, position?}
+PATCH /api/snapshots/{sid}/graph-nodes/{gnode}/cosmetic — snapshot-only cosmetic
 
-GET  /api/jobs?workflow_id=&state=&algorithm_name=     — filtered job list
+Jobs
+GET  /api/jobs?workflow_id=&state=&algorithm_name=&limit=&order=asc|desc
+                                                       — filtered list; `state=live` = pending+assigned+running+orphaned
 GET  /api/jobs/{id}                                    — one job detail
-GET  /api/jobs/{id}/log?tail=&stream=                  — persisted stdout/stderr tail
+GET  /api/jobs/{id}/log?tail=&stream=stdout|stderr|both
+                                                       — persisted stdout/stderr tail
+POST /api/jobs/{id}/cancel                             — cancel one job (idempotent; cascades to shards)
+POST /api/snapshots/{sid}/cancel-jobs                  — cancel every live job in one run
+POST /api/jobs/cancel-all                              — panic button: everything live everywhere
+POST /api/jobs/run                                     — ad-hoc single-job trigger (no graph)
 
-GET  /api/handles/{id}                                 — handle metadata + proxy_url
-GET  /api/handles/{id}/summary                         — server-parsed metadata (splatv/video/image/text/dir)
+Handles / artifacts
+GET  /api/handles/{id}                                 — handle metadata + proxy_url (+dim_labels, dim_sizes)
+GET  /api/handles/{id}/summary                         — server-parsed metadata (see kinds below)
 GET  /proxy/{node_id}/{sub_path}                       — stream bytes (last resort)
-
-GET  /api/artifacts?workflow_id=&state=&check=1        — handle inventory with optional liveness
+GET  /api/artifacts?workflow_id=&snapshot_id=&job_id=&node_id=&state=&check=1&limit=
+                                                       — handle inventory with optional liveness
 GET  /api/artifacts/summary                            — bytes on disk grouped by workflow
+GET  /api/artifacts/{handle_id}/lineage                — provenance DAG (ancestors + descendants)
 DELETE /api/artifacts/{handle_id}                      — remove one artifact from disk
-POST /api/artifacts/delete-bulk                        — bulk cleanup (workflow scope, only_dead flag)
+POST /api/artifacts/delete-bulk                        — bulk cleanup (workflow_id OR snapshot_id, `only_dead`)
 ```
 
 The full OpenAPI spec is at `GET /openapi.json` — pydantic-typed response

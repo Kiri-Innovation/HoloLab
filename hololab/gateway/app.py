@@ -54,7 +54,6 @@ from hololab.gateway.models import (
     SnapshotDeleteResult,
     SnapshotDeletionPreview,
     WorkflowDeleteResult,
-    WorkflowRunResult,
     WorkflowSaveResult,
 )
 from hololab.gateway.models import (
@@ -1388,18 +1387,113 @@ def _mount_routes(app: FastAPI) -> None:
 
     @app.post(
         "/api/workflows/{workflow_id}/run",
-        response_model=WorkflowRunResult,
         tags=["runs"],
-        summary="Snapshot the current draft and start execution in the background.",
+        summary=(
+            "Snapshot the current draft and start execution — whole graph, "
+            "one node (node_id), or from a node downward (from_node_id)."
+        ),
     )
-    async def run_workflow(workflow_id: str) -> dict[str, Any]:
-        """Snapshot the current draft, validate, then execute in the background.
+    async def run_workflow(workflow_id: str, request: Request) -> dict[str, Any]:
+        """Trigger execution against the draft. Three modes on one endpoint.
 
-        Returns immediately with the snapshot id + list of jobs the executor
-        will create. Job progress flows to subscribed frontends via the
-        existing ``job_update`` broadcast.
+        Body (all optional; empty body ⇒ whole-graph run):
+          * ``node_id``: run just this one graph node (Continue-or-Fork on
+            the workflow's latest snapshot; identical semantics to the
+            "▶ Run this node" button and ``POST /api/workflows/{id}/dispatch/{node}``).
+          * ``from_node_id``: rerun this node + everything downstream,
+            reusing upstream outputs from the latest snapshot (identical
+            to the "Rerun from here" button and
+            ``POST /api/snapshots/{sid}/rerun-from/{node}``). Requires a
+            prior snapshot to reuse from.
+          * ``base_snapshot_id``: override the "latest snapshot" default
+            for either single-node mode. Ignored on a whole-graph run.
+
+        Returns immediately with the ids the executor will operate on.
+        Job progress flows to subscribed frontends via the existing
+        ``job_update`` broadcast, and long-poll ``GET /api/snapshots/{id}?
+        wait_for_state=done`` on the returned snapshot to wait for
+        completion.
+
+        Response shape depends on ``mode``:
+          * ``mode="graph"`` (default): ``{workflow_id, snapshot_id, node_count, mode}``
+          * ``mode="node"``: ``{workflow_id, snapshot_id, job_id, operation, mode,
+            parent_snapshot_id?, forked_at?}``
+          * ``mode="from_node"``: ``{workflow_id, original_snapshot_id,
+            new_snapshot_id, rerun_from_graph_node_id, rerun_graph_node_ids,
+            reused_graph_node_ids, reused_job_ids, mode}``
         """
 
+        try:
+            body: dict[str, Any] = await request.json()
+        except Exception:
+            body = {}
+        if not isinstance(body, dict):
+            raise HTTPException(
+                status_code=422, detail="request body must be a JSON object or empty"
+            )
+
+        node_id = body.get("node_id")
+        from_node_id = body.get("from_node_id")
+        base_snapshot_id = body.get("base_snapshot_id")
+
+        if node_id is not None and from_node_id is not None:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "specify at most one of `node_id` (run one node) or "
+                    "`from_node_id` (rerun this node + downstream); got both"
+                ),
+            )
+
+        # -- Single-node dispatch (Continue-or-Fork on latest snapshot). ------
+        if node_id is not None:
+            if not isinstance(node_id, str) or not node_id:
+                raise HTTPException(status_code=422, detail="`node_id` must be a non-empty string")
+            row = await app.state.workflows.get_draft(workflow_id)
+            if row is None:
+                raise HTTPException(status_code=404, detail="workflow not found")
+            base = base_snapshot_id
+            if base is None:
+                snapshot_jobs_store: SnapshotJobsStore = app.state.snapshot_jobs
+                base = await snapshot_jobs_store.get_latest_snapshot_for_workflow(workflow_id)
+            try:
+                result = await dispatch_graph_node(
+                    app,
+                    workflow_id=workflow_id,
+                    graph=row.graph,
+                    graph_node_id=node_id,
+                    base_snapshot_id=base,
+                )
+            except DispatchError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            return {"workflow_id": workflow_id, "mode": "node", **result}
+
+        # -- From-node rerun (reuse upstream, re-execute this + downstream). --
+        if from_node_id is not None:
+            if not isinstance(from_node_id, str) or not from_node_id:
+                raise HTTPException(
+                    status_code=422, detail="`from_node_id` must be a non-empty string"
+                )
+            snapshot_jobs_store = app.state.snapshot_jobs
+            base = base_snapshot_id or await snapshot_jobs_store.get_latest_snapshot_for_workflow(
+                workflow_id
+            )
+            if base is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "cannot use `from_node_id` on a workflow with no prior "
+                        "snapshot — run the whole workflow once first, or use "
+                        "`node_id` instead (Continue on a fresh snapshot)"
+                    ),
+                )
+            # Route through the tested rerun-from endpoint implementation.
+            # rerun_from_node returns 404 for missing snapshot / node; those
+            # bubble through because the helper raises HTTPException itself.
+            result = await rerun_from_node(base, from_node_id)
+            return {"workflow_id": workflow_id, "mode": "from_node", **result}
+
+        # -- Whole-graph run (original behaviour). ----------------------------
         row = await app.state.workflows.get_draft(workflow_id)
         if row is None:
             raise HTTPException(status_code=404, detail="workflow not found")
@@ -1480,6 +1574,7 @@ def _mount_routes(app: FastAPI) -> None:
             "workflow_id": workflow_id,
             "snapshot_id": snapshot.snapshot_id,
             "node_count": len(snapshot.graph.nodes),
+            "mode": "graph",
         }
 
     @app.get(
