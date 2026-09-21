@@ -882,6 +882,7 @@ def _mount_routes(app: FastAPI) -> None:
 
         book: HandleBook = app.state.handles
         registry: NodeRegistry = app.state.registry
+        jobs_store: JobsStore = app.state.jobs_store
         handle = await book.get(handle_id)
         if handle is None:
             raise HTTPException(status_code=404, detail="handle not found")
@@ -898,7 +899,6 @@ def _mount_routes(app: FastAPI) -> None:
         # falls back to the scalar element_count (no ``dim_sizes``).
         depth: int | None = None
         if handle.job_id and handle.output_port_name:
-            jobs_store: JobsStore = app.state.jobs_store
             job = await jobs_store.get(handle.job_id)
             if job is not None:
                 dim_labels = registry.get_output_dim_labels(

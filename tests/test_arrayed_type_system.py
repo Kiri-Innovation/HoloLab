@@ -295,5 +295,5 @@ def test_regroup_v020_manifest_declares_2d_dim_labels_and_list_str_params() -> N
     assert m["outputs"]["out"]["tags_from"] == "in"
     assert m["params"]["input_dims"]["type"] == "list[str]"
     assert m["params"]["output_dims"]["type"] == "list[str]"
-    assert m["params"]["input_dims"]["default"] == ["camera", "frame"]
-    assert m["params"]["output_dims"]["default"] == ["frame", "camera"]
+    assert m["params"]["input_dims"]["default"] == ["cam", "frame"]
+    assert m["params"]["output_dims"]["default"] == ["frame", "cam"]
