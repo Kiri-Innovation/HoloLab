@@ -1,6 +1,12 @@
 // Thin REST client. All calls are same-origin — in dev, Vite proxies /api and
 // /proxy to the gateway on :8828 (see vite.config.ts).
+//
+// Every helper here routes through ``resilientFetch`` — that layer retries
+// transient network / 5xx failures on idempotent methods so a brief gateway
+// restart no longer leaves cards in a permanent error state. ``json<T>``
+// still turns 4xx business errors into ``ApiError`` unchanged. See ``net.ts``.
 
+import { resilientFetch } from "./net";
 import type {
   CatalogPack,
   ComputeNode,
@@ -59,10 +65,10 @@ export class ApiError extends Error {
 // -- catalog / online state --------------------------------------------------
 
 export const getPackCatalog = () =>
-  fetch("/api/pack-catalog").then(json<CatalogPack[]>);
+  resilientFetch("/api/pack-catalog").then(json<CatalogPack[]>);
 
 export const getComputeNodes = () =>
-  fetch("/api/nodes").then(json<ComputeNode[]>);
+  resilientFetch("/api/nodes").then(json<ComputeNode[]>);
 
 // Rolling per-node CPU / mem / GPU history for the pulse panel. ``since``
 // (seconds since epoch) narrows the reply to samples newer than the
@@ -75,18 +81,18 @@ export interface MetricsHistoryResponse {
 
 export const getMetricsHistory = (since?: number) => {
   const qs = since !== undefined ? `?since=${encodeURIComponent(String(since))}` : "";
-  return fetch(`/api/nodes/metrics/history${qs}`).then(
+  return resilientFetch(`/api/nodes/metrics/history${qs}`).then(
     json<MetricsHistoryResponse>,
   );
 };
 
 export const getRecentJobs = () =>
-  fetch("/api/jobs").then(json<Array<Record<string, unknown>>>);
+  resilientFetch("/api/jobs").then(json<Array<Record<string, unknown>>>);
 
 // Job detail — used by the log viewer to enrich the RecentJobRow with the
 // bigger ``fail_message`` blob (the panel row only carries ``fail_reason``).
 export const getJob = (job_id: string) =>
-  fetch(`/api/jobs/${encodeURIComponent(job_id)}`).then(json<JobDetail>);
+  resilientFetch(`/api/jobs/${encodeURIComponent(job_id)}`).then(json<JobDetail>);
 
 // Tail persisted stdout / stderr for one job. Default tail is high (10k)
 // because most jobs write far less than that and the endpoint pulls one
@@ -99,7 +105,7 @@ export const tailJobLog = (
   if (opts?.tail !== undefined) p.set("tail", String(opts.tail));
   if (opts?.stream) p.set("stream", opts.stream);
   const qs = p.toString();
-  return fetch(
+  return resilientFetch(
     `/api/jobs/${encodeURIComponent(job_id)}/log${qs ? "?" + qs : ""}`,
   ).then(json<LogTail>);
 };
@@ -116,7 +122,7 @@ export interface CancelJobResult {
 }
 
 export const cancelJob = (job_id: string) =>
-  fetch(`/api/jobs/${encodeURIComponent(job_id)}/cancel`, {
+  resilientFetch(`/api/jobs/${encodeURIComponent(job_id)}/cancel`, {
     method: "POST",
   }).then(json<CancelJobResult>);
 
@@ -126,27 +132,27 @@ export interface CancelBatchResult {
 }
 
 export const cancelSnapshotJobs = (snapshot_id: string) =>
-  fetch(
+  resilientFetch(
     `/api/snapshots/${encodeURIComponent(snapshot_id)}/cancel-jobs`,
     { method: "POST" },
   ).then(json<CancelBatchResult>);
 
 export const cancelNodeJobs = (node_id: string) =>
-  fetch(
+  resilientFetch(
     `/api/nodes/${encodeURIComponent(node_id)}/cancel-jobs`,
     { method: "POST" },
   ).then(json<CancelBatchResult>);
 
 export const cancelAllJobs = () =>
-  fetch(`/api/jobs/cancel-all`, { method: "POST" }).then(
+  resilientFetch(`/api/jobs/cancel-all`, { method: "POST" }).then(
     json<CancelBatchResult>,
   );
 
 export const getHandle = (handle_id: string) =>
-  fetch(`/api/handles/${handle_id}`).then(json<HandleInfo>);
+  resilientFetch(`/api/handles/${handle_id}`).then(json<HandleInfo>);
 
 export const getHandleSummary = (handle_id: string) =>
-  fetch(`/api/handles/${handle_id}/summary`).then(json<HandleSummary>);
+  resilientFetch(`/api/handles/${handle_id}/summary`).then(json<HandleSummary>);
 
 // -- workflows ---------------------------------------------------------------
 
@@ -170,10 +176,10 @@ export interface WorkflowSummary {
 }
 
 export const listWorkflows = () =>
-  fetch("/api/workflows").then(json<WorkflowSummary[]>);
+  resilientFetch("/api/workflows").then(json<WorkflowSummary[]>);
 
 export const getWorkflow = (workflow_id: string) =>
-  fetch(`/api/workflows/${workflow_id}`).then(
+  resilientFetch(`/api/workflows/${workflow_id}`).then(
     json<{
       workflow_id: string;
       name: string;
@@ -188,47 +194,47 @@ export const saveWorkflow = (body: {
   name: string;
   graph: WorkflowGraph;
 }) =>
-  fetch("/api/workflows", {
+  resilientFetch("/api/workflows", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }).then(json<{ workflow_id: string; name: string; updated_ts: number }>);
 
 export const deleteWorkflow = (workflow_id: string) =>
-  fetch(`/api/workflows/${workflow_id}`, { method: "DELETE" }).then(
+  resilientFetch(`/api/workflows/${workflow_id}`, { method: "DELETE" }).then(
     json<{ workflow_id: string; state: string }>,
   );
 
 export const runWorkflow = (workflow_id: string) =>
-  fetch(`/api/workflows/${workflow_id}/run`, { method: "POST" }).then(
+  resilientFetch(`/api/workflows/${workflow_id}/run`, { method: "POST" }).then(
     json<{ workflow_id: string; snapshot_id: string; node_count: number }>,
   );
 
 // -- run history --------------------------------------------------------------
 
 export const listWorkflowRuns = (workflow_id: string) =>
-  fetch(`/api/workflows/${workflow_id}/runs`).then(json<RunSummaryRow[]>);
+  resilientFetch(`/api/workflows/${workflow_id}/runs`).then(json<RunSummaryRow[]>);
 
 export const patchRun = (
   workflow_id: string,
   snapshot_id: string,
   patch: { favorite?: boolean; note?: string | null },
 ) =>
-  fetch(`/api/workflows/${workflow_id}/runs/${snapshot_id}`, {
+  resilientFetch(`/api/workflows/${workflow_id}/runs/${snapshot_id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   }).then(json<{ snapshot_id: string; favorite: boolean; note: string | null }>);
 
 export const getSnapshot = (snapshot_id: string) =>
-  fetch(`/api/snapshots/${snapshot_id}`).then(json<SnapshotDetail>);
+  resilientFetch(`/api/snapshots/${snapshot_id}`).then(json<SnapshotDetail>);
 
 // Read-only preview: how a would-be snapshot-delete would resolve
 // under the ref-counting rule (kept vs removed artifacts, freed bytes,
 // blocking live jobs). Powers the confirm modal on Run History's
 // right-click "delete run + artifacts" menu.
 export const previewSnapshotDeletion = (snapshot_id: string) =>
-  fetch(`/api/snapshots/${snapshot_id}/deletion-preview`).then(
+  resilientFetch(`/api/snapshots/${snapshot_id}/deletion-preview`).then(
     json<SnapshotDeletionPreview>,
   );
 
@@ -238,12 +244,12 @@ export const previewSnapshotDeletion = (snapshot_id: string) =>
 // surface the ``live_jobs`` list from the error detail and suggest
 // cancelling the run first.
 export const deleteSnapshot = (snapshot_id: string) =>
-  fetch(`/api/snapshots/${snapshot_id}`, { method: "DELETE" }).then(
+  resilientFetch(`/api/snapshots/${snapshot_id}`, { method: "DELETE" }).then(
     json<SnapshotDeleteResult>,
   );
 
 export const restoreFromSnapshot = (workflow_id: string, snapshot_id: string) =>
-  fetch(
+  resilientFetch(
     `/api/workflows/${workflow_id}/restore-from-snapshot/${snapshot_id}`,
     { method: "POST" },
   ).then(
@@ -256,7 +262,7 @@ export const restoreFromSnapshot = (workflow_id: string, snapshot_id: string) =>
   );
 
 export const rerunFromNode = (snapshot_id: string, graph_node_id: string) =>
-  fetch(
+  resilientFetch(
     `/api/snapshots/${snapshot_id}/rerun-from/${encodeURIComponent(graph_node_id)}`,
     { method: "POST" },
   ).then(
@@ -282,7 +288,7 @@ export const patchWorkflowGraphNodeCosmetic = (
   graph_node_id: string,
   patch: { preview_open?: string | null; position?: { x: number; y: number } },
 ) =>
-  fetch(
+  resilientFetch(
     `/api/workflows/${workflow_id}/graph-nodes/${encodeURIComponent(graph_node_id)}/cosmetic`,
     {
       method: "PATCH",
@@ -306,7 +312,7 @@ export const patchSnapshotGraphNodeCosmetic = (
   graph_node_id: string,
   patch: { preview_open?: string | null; position?: { x: number; y: number } },
 ) =>
-  fetch(
+  resilientFetch(
     `/api/snapshots/${snapshot_id}/graph-nodes/${encodeURIComponent(graph_node_id)}/cosmetic`,
     {
       method: "PATCH",
@@ -334,7 +340,7 @@ export const dispatchNode = (
   const qs = opts?.base_snapshot_id
     ? `?base_snapshot_id=${encodeURIComponent(opts.base_snapshot_id)}`
     : "";
-  return fetch(
+  return resilientFetch(
     `/api/workflows/${workflow_id}/dispatch/${encodeURIComponent(graph_node_id)}${qs}`,
     { method: "POST" },
   ).then(
@@ -357,7 +363,7 @@ export const getArtifactLineage = (
   if (opts?.direction) q.set("direction", opts.direction);
   if (opts?.max_depth) q.set("max_depth", String(opts.max_depth));
   const qs = q.toString();
-  return fetch(
+  return resilientFetch(
     `/api/artifacts/${encodeURIComponent(handle_id)}/lineage${qs ? "?" + qs : ""}`,
   ).then(
     json<{
@@ -392,7 +398,7 @@ export const getArtifactLineage = (
 // roots, node_name, advertised_url).
 
 export const getNodeConfig = (node_id: string) =>
-  fetch(`/api/nodes/${node_id}/config`).then(
+  resilientFetch(`/api/nodes/${node_id}/config`).then(
     json<{ node_id: string; config: NodeEffectiveConfig }>,
   );
 
@@ -410,7 +416,7 @@ export const patchNodeConfig = (
     >
   >,
 ) =>
-  fetch(`/api/nodes/${node_id}/config`, {
+  resilientFetch(`/api/nodes/${node_id}/config`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ patch }),
@@ -491,16 +497,16 @@ export const listArtifacts = (opts?: {
   if (opts?.check) p.set("check", "1");
   if (opts?.limit !== undefined) p.set("limit", String(opts.limit));
   const qs = p.toString();
-  return fetch(`/api/artifacts${qs ? "?" + qs : ""}`).then(
+  return resilientFetch(`/api/artifacts${qs ? "?" + qs : ""}`).then(
     json<ArtifactListResponse>,
   );
 };
 
 export const getArtifactsSummary = () =>
-  fetch("/api/artifacts/summary").then(json<ArtifactSummary>);
+  resilientFetch("/api/artifacts/summary").then(json<ArtifactSummary>);
 
 export const deleteArtifact = (handle_id: string) =>
-  fetch(`/api/artifacts/${handle_id}`, { method: "DELETE" }).then(
+  resilientFetch(`/api/artifacts/${handle_id}`, { method: "DELETE" }).then(
     json<{ handle_id: string; state: string; freed_bytes: number | null }>,
   );
 
@@ -509,7 +515,7 @@ export const bulkDeleteArtifacts = (body: {
   snapshot_id?: string;
   only_dead?: boolean;
 }) =>
-  fetch("/api/artifacts/delete-bulk", {
+  resilientFetch("/api/artifacts/delete-bulk", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

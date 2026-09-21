@@ -12,6 +12,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@xyflow/react";
 import { getHandleSummary } from "../api";
+import { resilientFetch, useReconnectTick, useRetryTick } from "../net";
+import { RetryLink } from "../RetryLink";
 import type {
   ComputeNode,
   HandleSummary,
@@ -425,9 +427,12 @@ export function BasicInfoPreview({
     | { kind: "ok"; summary: HandleSummary }
     | { kind: "err"; message: string }
   >({ kind: "loading" });
+  const reconnectTick = useReconnectTick();
+  const retry = useRetryTick();
 
   useEffect(() => {
     let cancelled = false;
+    setState({ kind: "loading" });
     (async () => {
       try {
         const summary = await getHandleSummary(handleId);
@@ -439,7 +444,7 @@ export function BasicInfoPreview({
     return () => {
       cancelled = true;
     };
-  }, [handleId]);
+  }, [handleId, reconnectTick, retry.tick]);
 
   const rows: Array<{ label: string; value: string; mono?: boolean }> = [];
   rows.push({ label: "path", value: absolutePath, mono: true });
@@ -533,6 +538,7 @@ export function BasicInfoPreview({
       {state.kind === "err" && (
         <div style={{ fontSize: 10, color: "var(--error)" }}>
           summary failed: {state.message}
+          <RetryLink onRetry={retry.bump} />
         </div>
       )}
       {listing && listing.rows.length > 0 && (
@@ -694,13 +700,16 @@ function TextPreview({ url }: { url: string }) {
   const [state, setState] = useState<
     { kind: "loading" } | { kind: "ok"; body: string; truncated: boolean } | { kind: "err"; message: string }
   >({ kind: "loading" });
+  const reconnectTick = useReconnectTick();
+  const retry = useRetryTick();
 
   useEffect(() => {
     let cancelled = false;
+    setState({ kind: "loading" });
     (async () => {
       try {
         // Range request to cap the download volume at TEXT_MAX_BYTES.
-        const r = await fetch(url, {
+        const r = await resilientFetch(url, {
           headers: { Range: `bytes=0-${TEXT_MAX_BYTES - 1}` },
         });
         if (!r.ok && r.status !== 206) {
@@ -721,13 +730,16 @@ function TextPreview({ url }: { url: string }) {
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, reconnectTick, retry.tick]);
 
   if (state.kind === "loading") return <div style={PREVIEW_SHELL}><Status text="loading…" kind="loading" /></div>;
   if (state.kind === "err")
     return (
       <div style={PREVIEW_SHELL}>
         <Status text={`load failed: ${state.message}`} kind="error" />
+        <div style={{ textAlign: "center", marginTop: 4 }}>
+          <RetryLink onRetry={retry.bump} />
+        </div>
       </div>
     );
   return (
@@ -785,7 +797,7 @@ async function fetchSplatvHeader(url: string): Promise<SplatvHeader> {
   // ~74 KiB we've observed on real STG models; the fallback re-fetches
   // more if the header claims otherwise.
   const HEAD_PROBE = 128 * 1024;
-  const r1 = await fetch(url, { headers: { Range: `bytes=0-${HEAD_PROBE - 1}` } });
+  const r1 = await resilientFetch(url, { headers: { Range: `bytes=0-${HEAD_PROBE - 1}` } });
   if (!r1.ok && r1.status !== 206) throw new Error(`HTTP ${r1.status}`);
   let buf = new Uint8Array(await r1.arrayBuffer());
 
@@ -795,7 +807,7 @@ async function fetchSplatvHeader(url: string): Promise<SplatvHeader> {
 
   if (8 + jsonLen > buf.byteLength) {
     // The header is bigger than our probe — re-fetch the exact range.
-    const r2 = await fetch(url, { headers: { Range: `bytes=0-${8 + jsonLen - 1}` } });
+    const r2 = await resilientFetch(url, { headers: { Range: `bytes=0-${8 + jsonLen - 1}` } });
     if (!r2.ok && r2.status !== 206) throw new Error(`HTTP ${r2.status}`);
     buf = new Uint8Array(await r2.arrayBuffer());
   }
@@ -864,9 +876,12 @@ function SplatvPreview({ url }: { url: string }) {
     | { kind: "ok"; header: SplatvHeader }
     | { kind: "err"; message: string }
   >({ kind: "loading" });
+  const reconnectTick = useReconnectTick();
+  const retry = useRetryTick();
 
   useEffect(() => {
     let cancelled = false;
+    setState({ kind: "loading" });
     (async () => {
       try {
         const header = await fetchSplatvHeader(url);
@@ -878,13 +893,16 @@ function SplatvPreview({ url }: { url: string }) {
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, reconnectTick, retry.tick]);
 
   if (state.kind === "loading") return <div style={PREVIEW_SHELL}><Status text="decoding splatv header…" kind="loading" /></div>;
   if (state.kind === "err")
     return (
       <div style={PREVIEW_SHELL}>
         <Status text={`load failed: ${state.message}`} kind="error" />
+        <div style={{ textAlign: "center", marginTop: 4 }}>
+          <RetryLink onRetry={retry.bump} />
+        </div>
       </div>
     );
 
@@ -1374,9 +1392,12 @@ function VideoGridPreview({
   const [state, setState] = useState<
     { kind: "loading" } | { kind: "ok"; summary: HandleSummary } | { kind: "err"; message: string }
   >({ kind: "loading" });
+  const reconnectTick = useReconnectTick();
+  const retry = useRetryTick();
 
   useEffect(() => {
     let cancelled = false;
+    setState({ kind: "loading" });
     (async () => {
       try {
         const summary = await getHandleSummary(handleId);
@@ -1388,7 +1409,7 @@ function VideoGridPreview({
     return () => {
       cancelled = true;
     };
-  }, [handleId]);
+  }, [handleId, reconnectTick, retry.tick]);
 
   const videoEntries = useMemo(() => {
     if (state.kind !== "ok") return [];
@@ -1433,6 +1454,9 @@ function VideoGridPreview({
     return (
       <div style={PREVIEW_SHELL}>
         <Status text={`load failed: ${state.message}`} kind="error" />
+        <div style={{ textAlign: "center", marginTop: 4 }}>
+          <RetryLink onRetry={retry.bump} />
+        </div>
       </div>
     );
   }
@@ -2108,7 +2132,7 @@ function frameName(idx: number): string {
  *  survives whether or not the intermediate proxy rewrites HEAD.
  */
 async function probeExists(url: string, signal: AbortSignal): Promise<boolean> {
-  const r = await fetch(url, {
+  const r = await resilientFetch(url, {
     method: "GET",
     headers: { Range: "bytes=0-0" },
     signal,
@@ -2167,7 +2191,7 @@ async function fetchPngDims(
   url: string,
   signal: AbortSignal,
 ): Promise<{ width: number; height: number } | null> {
-  const r = await fetch(url, {
+  const r = await resilientFetch(url, {
     method: "GET",
     headers: { Range: "bytes=0-31" },
     signal,
@@ -2226,8 +2250,11 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
     | { kind: "err"; message: string }
   >({ kind: "loading" });
 
+  const reconnectTick = useReconnectTick();
+  const retry = useRetryTick();
   useEffect(() => {
     const abort = new AbortController();
+    setState({ kind: "loading" });
     (async () => {
       try {
         // Probe the two candidate locations in parallel — one of them
@@ -2255,7 +2282,7 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
       }
     })();
     return () => abort.abort();
-  }, [dirBase]);
+  }, [dirBase, reconnectTick, retry.tick]);
 
   const pathPrefix = state.kind === "ok" ? state.pathPrefix : "";
   const rawFrameUrl = useCallback(
@@ -2289,6 +2316,9 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
     return (
       <div style={PREVIEW_SHELL}>
         <Status text={`probe failed: ${state.message}`} kind="error" />
+        <div style={{ textAlign: "center", marginTop: 4 }}>
+          <RetryLink onRetry={retry.bump} />
+        </div>
       </div>
     );
   }
@@ -2609,6 +2639,8 @@ function NestedFrameSequencePreview({
     | { kind: "ok"; groups: NestedGroup[]; totalGroupCount: number }
     | { kind: "err"; message: string }
   >({ kind: "loading" });
+  const reconnectTick = useReconnectTick();
+  const retry = useRetryTick();
 
   useEffect(() => {
     if (!handleId) {
@@ -2616,6 +2648,7 @@ function NestedFrameSequencePreview({
       return;
     }
     let cancelled = false;
+    setState({ kind: "loading" });
     (async () => {
       try {
         const summary = await getHandleSummary(handleId);
@@ -2671,7 +2704,7 @@ function NestedFrameSequencePreview({
     return () => {
       cancelled = true;
     };
-  }, [handleId]);
+  }, [handleId, reconnectTick, retry.tick]);
 
   const [detailGroup, setDetailGroup] = useState<string | null>(null);
 
@@ -2686,6 +2719,9 @@ function NestedFrameSequencePreview({
     return (
       <div style={PREVIEW_SHELL}>
         <Status text={`summary failed: ${state.message}`} kind="error" />
+        <div style={{ textAlign: "center", marginTop: 4 }}>
+          <RetryLink onRetry={retry.bump} />
+        </div>
       </div>
     );
   }
@@ -3213,7 +3249,7 @@ async function fetchFrustumThumbnails(
       .join("/");
     const url = `${nodeRoot}/_thumb/${dims}/${imagesSub}/${encoded}?at=0`;
     try {
-      const r = await fetch(url, { signal });
+      const r = await resilientFetch(url, { signal });
       if (!r.ok) return null;
       const blob = await r.blob();
       return { name, blob };
@@ -3292,7 +3328,7 @@ async function _fetchColmapPayloadNetwork(
   const dirBase = req.baseUrl.replace(/\/$/, "");
   const fetchedBlobs = await Promise.all(
     req.fetchFiles.map(async (name) => {
-      const r = await fetch(`${dirBase}/${name}`);
+      const r = await resilientFetch(`${dirBase}/${name}`);
       if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
       return [name, await r.blob()] as const;
     }),
@@ -3411,6 +3447,8 @@ function Colmap3DPreview({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const reconnectTick = useReconnectTick();
+  const retry = useRetryTick();
   // ``handshaken`` is monotonic — the iframe stays mounted across
   // paginator flips (see ArrayedPaginator: no per-page key on the scalar
   // wrapper), so ColmapUtil boots once and posts ``colmap-ready`` exactly
@@ -3519,7 +3557,31 @@ function Colmap3DPreview({
       ctl.abort();
       window.clearTimeout(showT);
     };
-  }, [baseUrl, fetchKey, imagesBaseUrl, handshaken]);
+  }, [baseUrl, fetchKey, imagesBaseUrl, handshaken, reconnectTick, retry.tick]);
+
+  // If the iframe's own boot fetch (``/colmaputil/index.html`` +
+  // chunks) died during a gateway restart it never posts
+  // ``colmap-ready`` — the overlay is then permanently stuck on
+  // "loading viewer…". On a true reconnect (or the user's retry click),
+  // force the iframe to reload so ColmapUtil re-fetches its bundle and
+  // re-hands the handshake.
+  useEffect(() => {
+    if (handshaken) return;
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    // Skip the first paint (reconnectTick=0 & tick=0) — that's the
+    // normal boot, not a recovery attempt.
+    if (reconnectTick === 0 && retry.tick === 0) return;
+    // Reassigning ``src`` re-triggers the load, even for the same URL.
+    // ``sandbox`` stays as-is; only the network fetch needs replaying.
+    const src = iframe.src;
+    iframe.src = "about:blank";
+    // Rebind on the next tick so the browser sees a real navigation.
+    const t = window.setTimeout(() => {
+      if (iframeRef.current) iframeRef.current.src = src;
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [reconnectTick, retry.tick, handshaken]);
 
   return (
     <div ref={wrapperRef} style={{ position: "relative" }}>
@@ -3552,17 +3614,27 @@ function Colmap3DPreview({
             position: "absolute",
             inset: 0,
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
+            gap: 4,
             background: "rgba(0,0,0,0.55)",
             color: error ? "var(--status-failed)" : "var(--text-on-dark)",
             fontSize: 11,
+            // The text stays click-through so it doesn't steal wheel /
+            // drag events from the viewer beneath; the retry chip below
+            // opts back in.
             pointerEvents: "none",
             padding: "0 var(--space-2)",
             textAlign: "center",
           }}
         >
-          {error ? `load failed — ${error}` : "loading viewer…"}
+          <div>{error ? `load failed — ${error}` : "loading viewer…"}</div>
+          {error && (
+            <div style={{ pointerEvents: "auto" }}>
+              <RetryLink onRetry={retry.bump} />
+            </div>
+          )}
         </div>
       )}
       {/* Post-boot data-swap indicator — a tiny corner chip so a cache
@@ -3697,6 +3769,8 @@ function RigPoints4dPreview({ baseUrl }: { baseUrl: string }) {
   const [idx, setIdx] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
+  const reconnectTick = useReconnectTick();
+  const retry = useRetryTick();
 
   useEffect(() => {
     const ctl = new AbortController();
@@ -3705,7 +3779,7 @@ function RigPoints4dPreview({ baseUrl }: { baseUrl: string }) {
     (async () => {
       try {
         const dirBase = baseUrl.replace(/\/$/, "");
-        const r = await fetch(`${dirBase}/groups_manifest.json`, {
+        const r = await resilientFetch(`${dirBase}/groups_manifest.json`, {
           signal: ctl.signal,
         });
         if (!r.ok) throw new Error(`groups_manifest.json: HTTP ${r.status}`);
@@ -3721,7 +3795,7 @@ function RigPoints4dPreview({ baseUrl }: { baseUrl: string }) {
       }
     })();
     return () => ctl.abort();
-  }, [baseUrl]);
+  }, [baseUrl, reconnectTick, retry.tick]);
 
   const total = state.kind === "ok" ? state.groups.length : 0;
   const move = useCallback(
@@ -3758,6 +3832,9 @@ function RigPoints4dPreview({ baseUrl }: { baseUrl: string }) {
     return (
       <div style={PREVIEW_SHELL}>
         <Status text={`groups load failed: ${state.message}`} kind="error" />
+        <div style={{ textAlign: "center", marginTop: 4 }}>
+          <RetryLink onRetry={retry.bump} />
+        </div>
       </div>
     );
   }
@@ -4036,6 +4113,8 @@ function ArrayedPaginator({
   const prefetchIdleRef = useRef<number | null>(null);
   const [hovered, setHovered] = useState(false);
   const nested = (dimLabels?.length ?? 0) >= 2;
+  const reconnectTick = useReconnectTick();
+  const retry = useRetryTick();
 
   useEffect(() => {
     // Element list handed in by an outer paginator — skip the fetch
@@ -4099,7 +4178,7 @@ function ArrayedPaginator({
     return () => {
       cancelled = true;
     };
-  }, [handleId, partial, elementsOverride, nested]);
+  }, [handleId, partial, elementsOverride, nested, reconnectTick, retry.tick]);
 
   const total = state.kind === "ok" ? state.elements.length : 0;
   const move = useCallback(
@@ -4165,6 +4244,9 @@ function ArrayedPaginator({
     return (
       <div style={PREVIEW_SHELL}>
         <Status text={`summary failed: ${state.message}`} kind="error" />
+        <div style={{ textAlign: "center", marginTop: 4 }}>
+          <RetryLink onRetry={retry.bump} />
+        </div>
       </div>
     );
   }

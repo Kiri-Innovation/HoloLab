@@ -228,13 +228,17 @@ def test_app_refetches_snapshot_when_latest_id_changes() -> None:
             i += 1
         arg = body[start : i - 1]
         idx = i
+        # Accept ``latestSnapshotId`` as any dep in the array — extra deps
+        # only broaden when the refetch fires (e.g. ``reconnectTick`` after
+        # a WS reconnect); the load-bearing invariant is that a fresh id
+        # still triggers it.
         if "getSnapshot(latestSnapshotId)" in arg and re.search(
-            r"\[\s*latestSnapshotId\s*\]\s*$", arg.strip()
+            r"\[[^\]]*\blatestSnapshotId\b[^\]]*\]\s*$", arg.strip()
         ):
             matched = True
             break
     assert matched, (
-        "no useEffect(..., [latestSnapshotId]) that calls "
+        "no useEffect(..., [..., latestSnapshotId, ...]) that calls "
         "getSnapshot(latestSnapshotId) — this is what refreshes the jobs "
         "array after single-node dispatch bumps the id."
     )

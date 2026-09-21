@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { WorkflowSummary } from "./api";
-import { ApiError, deleteWorkflow, listWorkflows, saveWorkflow } from "./api";
+import { ApiError, deleteWorkflow, getWorkflow, listWorkflows, saveWorkflow } from "./api";
 import { stateColour } from "./canvas/AlgorithmNode";
 import { CopyRefButton } from "./canvas/CopyRefButton";
 import { ThemeToggle } from "./theme/ThemeToggle";
@@ -70,7 +70,7 @@ export function Gallery({ onOpen, onOpenArtifacts }: GalleryProps) {
       if (!trimmed || trimmed === row.name) return;
       // We don't have the graph body here (list endpoint is lightweight);
       // fetch just what we need to preserve on rename.
-      const detail = await (await fetch(`/api/workflows/${row.workflow_id}`)).json();
+      const detail = await getWorkflow(row.workflow_id);
       await saveWorkflow({
         workflow_id: row.workflow_id,
         name: trimmed,

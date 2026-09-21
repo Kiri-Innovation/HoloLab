@@ -35,6 +35,10 @@ node_modules/
 *.tsbuildinfo
 *.log
 
+# Playwright e2e artifacts (traces + screenshots on failure)
+hololab/frontend/test-results/
+hololab/frontend/playwright-report/
+
 # IDE
 .idea/
 .vscode/

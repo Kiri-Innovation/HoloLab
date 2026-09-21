@@ -82,6 +82,7 @@ import {
 } from "./canvas/AlgorithmNode";
 import { Artifacts } from "./Artifacts";
 import { Gallery } from "./Gallery";
+import { netBus, useReconnectTick } from "./net";
 import { CanvasContext } from "./canvas/CanvasContext";
 import { aggregateJobsToRuntime } from "./canvas/nodeRuntime";
 import { MobileShell, useIsMobilePortrait } from "./canvas/MobileShell";
@@ -270,6 +271,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const bottomSplit = useResizableSlot("hl-layout-bottom-split", 340, 240, 720);
   const [minimapOpen, setMinimapOpen] = useState(false);
 
+  // Bumped by the WS lifecycle on true reconnects (previously connected →
+  // dropped → back). Included in every mount-hydration effect's deps below
+  // so a brief gateway restart no longer leaves cards latched in an error
+  // state whose ``[handleId]`` / ``[latestSnapshotId]`` deps never change.
+  // See ``net.ts`` for the emit semantics; the WS onopen wiring is below.
+  const reconnectTick = useReconnectTick();
+
   // --- catalog + compute nodes -------------------------------------------
   const [catalog, setCatalog] = useState<CatalogPack[]>([]);
   const [computeNodes, setComputeNodes] = useState<ComputeNode[]>([]);
@@ -354,7 +362,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   useEffect(() => {
     void refreshCatalog();
-  }, [refreshCatalog]);
+    // reconnectTick bump = network came back after a drop; re-hydrate.
+  }, [refreshCatalog, reconnectTick]);
 
   // On first mount, seed the jobs table from REST so a page refresh doesn't
   // clear the recent-runs view.
@@ -380,7 +389,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       .catch(() => {
         /* ignore — first paint keeps working with empty state */
       });
-  }, []);
+  }, [reconnectTick]);
 
   // Seed the pulse panel with whatever history the gateway already
   // buffered so the sparklines aren't empty on first paint. The WS
@@ -393,7 +402,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       .catch(() => {
         /* ignore — WS will populate on the next sample */
       });
-  }, []);
+  }, [reconnectTick]);
 
   // --- WS subscription ---------------------------------------------------
   useEffect(() => {
@@ -408,9 +417,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       ws.onopen = () => {
         setConnected(true);
         backoff = 1000;
+        // netBus.markConnected only emits ``reconnect`` on a true
+        // reconnect (previously connected → dropped → back), so first
+        // page-load doesn't cause a redundant re-hydration burst.
+        netBus.markConnected();
       };
       ws.onclose = () => {
         setConnected(false);
+        netBus.markDisconnected();
         if (!closed) window.setTimeout(connect, backoff);
         backoff = Math.min(backoff * 2, 30000);
       };
@@ -816,7 +830,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     return () => {
       cancelled = true;
     };
-  }, [latestSnapshotId]);
+  }, [latestSnapshotId, reconnectTick]);
 
   const catalogByKey = useMemo(() => {
     const m = new Map<string, CatalogPack>();
@@ -2028,9 +2042,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       console.warn("could not open workflow", initialWorkflowId, err);
     });
     // onLoad is stable enough for our purposes; catalog-length gate above
-    // gives us the "wait for packs" behaviour.
+    // gives us the "wait for packs" behaviour. reconnectTick makes the
+    // cold-load throw retry when the network comes back after a longer
+    // outage than ``resilientFetch``'s inline retry window covered.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog, initialWorkflowId]);
+  }, [catalog, initialWorkflowId, reconnectTick]);
 
   const isMobile = useIsMobilePortrait();
 
