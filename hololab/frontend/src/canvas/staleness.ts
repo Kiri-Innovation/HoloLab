@@ -12,33 +12,45 @@
 // forks a new snapshot; unchanged structural fields on an existing slot
 // → Continue. See gateway/execution.py::dispatch_graph_node.
 //
-// Two kinds of staleness are surfaced:
+// Three kinds of staleness are surfaced:
 //
-//   self_dirty      — this node's own config diverged from the snapshot,
-//                     OR the snapshot has no fresh output for it (never
-//                     ran, failed, cancelled, orphaned, or brand-new).
-//   upstream_dirty  — this node itself matches the snapshot and has a
-//                     ``done`` output, but at least one ancestor is
-//                     self_dirty/upstream_dirty. The output is built
-//                     on now-outdated inputs.
+//   self_dirty          — this node's own config diverged from the
+//                         snapshot, OR the snapshot has no fresh output
+//                         for it (never ran, failed, cancelled,
+//                         orphaned, or brand-new).
+//   upstream_dirty      — this node itself matches the snapshot and has
+//                         a ``done`` output, but at least one ancestor
+//                         is self_dirty/upstream_dirty. The output is
+//                         built on now-outdated inputs.
+//   inflight_old_params — a job for this node is still running (or
+//                         pending/assigned), but the draft has been
+//                         edited since that job was dispatched, so the
+//                         command line in flight is using the OLD
+//                         params. Rerunning after it lands is required
+//                         to apply the current draft. Motivating case
+//                         (2026-09-21): operator saw ``use_gpu=1`` in
+//                         the config drawer while the running shard was
+//                         invoked with ``--use-gpu 0``; the running job
+//                         froze params at snapshot time, the draft
+//                         changed after, and the UI gave no signal that
+//                         the two had diverged.
 //
-// Nodes currently in-flight (pending/assigned/running) are neither —
-// their existing status dot already tells the whole story; a badge on
-// top would just be noise. Same for the snapshot canvas: it never
-// receives ``staleness`` in its node data (SnapshotCanvas builds nodes
-// independently), and AlgorithmNode double-guards on ``readOnly``.
+// The snapshot canvas never receives ``staleness`` in its node data
+// (SnapshotCanvas builds nodes independently), and AlgorithmNode
+// double-guards on ``readOnly``.
 
-import type { GraphEdge, GraphNode, WorkflowGraph } from "../wire";
+import type { GraphEdge, GraphNode, SnapshotJob, WorkflowGraph } from "../wire";
 import type { NodeRuntime } from "./AlgorithmNode";
 
 const IN_FLIGHT = new Set(["pending", "assigned", "running"]);
 
 export interface NodeStaleness {
-  kind: "self_dirty" | "upstream_dirty";
+  kind: "self_dirty" | "upstream_dirty" | "inflight_old_params";
   // Human-readable one-line explanation for the ``title`` tooltip on
   // the badge. For self_dirty this enumerates the actual changes
   // (params, algorithm version, edges, …) so the operator can tell
-  // which edit forces a rerun.
+  // which edit forces a rerun. For inflight_old_params it also names
+  // the snapshot id short-hash the in-flight job is running against.
   title: string;
 }
 
@@ -57,6 +69,44 @@ function inboundSet(edges: readonly GraphEdge[], target: string): string {
   return keys.join("|");
 }
 
+// Structural comparison of the draft node against a *frozen* baseline.
+// Extracted from selfDirtyReasons so the in-flight-drift check
+// (frozen = the SnapshotJob's ``params`` / algorithm at dispatch) can
+// reuse the exact same rules as the snapshot-vs-draft check — the two
+// must agree on what "materially changed" means, otherwise the amber
+// badge and the inflight-old-params chip could disagree and the
+// operator would have to guess which one is authoritative.
+function paramsAndAlgoReasons(
+  dn: GraphNode,
+  frozen: {
+    algorithm_name: string;
+    algorithm_version: string;
+    params: Record<string, unknown>;
+  },
+): string[] {
+  const reasons: string[] = [];
+  if (
+    dn.algorithm_name !== frozen.algorithm_name ||
+    dn.algorithm_version !== frozen.algorithm_version
+  ) {
+    reasons.push(
+      `算法已更改: ${frozen.algorithm_name}@${frozen.algorithm_version} → ${dn.algorithm_name}@${dn.algorithm_version}`,
+    );
+  }
+  const dp = dn.params ?? {};
+  const sp = frozen.params ?? {};
+  const keys = new Set([...Object.keys(dp), ...Object.keys(sp)]);
+  const changedParams: string[] = [];
+  for (const k of keys) {
+    if (JSON.stringify(dp[k]) !== JSON.stringify(sp[k])) changedParams.push(k);
+  }
+  if (changedParams.length > 0) {
+    changedParams.sort();
+    reasons.push(`参数已改: ${changedParams.join(", ")}`);
+  }
+  return reasons;
+}
+
 function selfDirtyReasons(
   dn: GraphNode,
   sn: GraphNode | null,
@@ -66,15 +116,11 @@ function selfDirtyReasons(
   if (sn == null) {
     return ["快照中不存在此节点（新增/未参与上次运行）"];
   }
-  const reasons: string[] = [];
-  if (
-    dn.algorithm_name !== sn.algorithm_name ||
-    dn.algorithm_version !== sn.algorithm_version
-  ) {
-    reasons.push(
-      `算法已更改: ${sn.algorithm_name}@${sn.algorithm_version} → ${dn.algorithm_name}@${dn.algorithm_version}`,
-    );
-  }
+  const reasons: string[] = paramsAndAlgoReasons(dn, {
+    algorithm_name: sn.algorithm_name,
+    algorithm_version: sn.algorithm_version,
+    params: sn.params ?? {},
+  });
   if ((dn.assigned_node_id ?? null) !== (sn.assigned_node_id ?? null)) {
     reasons.push("执行节点已更改");
   }
@@ -85,22 +131,29 @@ function selfDirtyReasons(
   const sPar = Math.max(1, Number(sn.parallelism ?? 1));
   if (dPar !== sPar) reasons.push(`并行度: ${sPar} → ${dPar}`);
 
-  const dp = dn.params ?? {};
-  const sp = sn.params ?? {};
-  const keys = new Set([...Object.keys(dp), ...Object.keys(sp)]);
-  const changedParams: string[] = [];
-  for (const k of keys) {
-    if (JSON.stringify(dp[k]) !== JSON.stringify(sp[k])) changedParams.push(k);
-  }
-  if (changedParams.length > 0) {
-    changedParams.sort();
-    reasons.push(`参数已改: ${changedParams.join(", ")}`);
-  }
-
   if (inboundSet(draftEdges, dn.id) !== inboundSet(snapEdges, sn.id)) {
     reasons.push("输入连线已改");
   }
   return reasons;
+}
+
+// The oldest in-flight job for one graph node — for a fan-out this is
+// the parent coordinator (created before its shards), matching what
+// pickRepresentativeJob returns in nodeRuntime.ts. All shards in a
+// fan-out share the parent's ``params`` (fan-out doesn't re-parameterise
+// per shard), so any one in-flight job is enough to answer "what params
+// is the live run using?" — we prefer the parent for stability.
+function oldestInFlightJob(
+  jobs: readonly SnapshotJob[],
+  gnid: string,
+): SnapshotJob | null {
+  let best: SnapshotJob | null = null;
+  for (const j of jobs) {
+    if (j.graph_node_id !== gnid) continue;
+    if (!IN_FLIGHT.has(j.state)) continue;
+    if (best == null || j.created_ts < best.created_ts) best = j;
+  }
+  return best;
 }
 
 // Predecessor map keyed by node id. Empty list for source-only nodes.
@@ -149,6 +202,12 @@ export function computeStaleness(
   draft: WorkflowGraph,
   snap: WorkflowGraph | null,
   runtimes: Readonly<Record<string, NodeRuntime | undefined>>,
+  // Live snapshot jobs — used only to answer "for nodes that are still
+  // in-flight, do the frozen params on the running job match the draft?"
+  // Optional (defaults to []) because the read-only snapshot canvas
+  // never asks about drift and older call sites shouldn't need to
+  // thread this arg through just to satisfy the signature.
+  snapshotJobs: readonly SnapshotJob[] = [],
 ): Record<string, NodeStaleness | null> {
   const out: Record<string, NodeStaleness | null> = {};
   const snapById = new Map<string, GraphNode>(
@@ -164,6 +223,30 @@ export function computeStaleness(
     if (!dn) continue;
     const rt = runtimes[id];
     if (rt && IN_FLIGHT.has(rt.state)) {
+      // In-flight: the status dot already tells the state story, but
+      // the operator can't see whether the running job's frozen params
+      // match the current draft. Compare against the oldest in-flight
+      // job (parent for fan-outs); flag drift if algorithm or params
+      // moved since dispatch. Edges/parallelism aren't compared here
+      // because a running job's snapshot has already captured its edge
+      // topology — the draft-vs-snapshot edge diff is already reported
+      // by the sibling amber badge once the job lands.
+      const inflightJob = oldestInFlightJob(snapshotJobs, id);
+      if (inflightJob != null) {
+        const driftReasons = paramsAndAlgoReasons(dn, {
+          algorithm_name: inflightJob.algorithm_name,
+          algorithm_version: inflightJob.algorithm_version,
+          params: inflightJob.params ?? {},
+        });
+        if (driftReasons.length > 0) {
+          const jobShort = inflightJob.job_id.slice(0, 7);
+          out[id] = {
+            kind: "inflight_old_params",
+            title: `正在跑的 job 使用旧参数（job ${jobShort}）· ${driftReasons.join(" · ")} · 完成后需重新运行以应用当前草稿`,
+          };
+          continue;
+        }
+      }
       out[id] = null;
       continue;
     }

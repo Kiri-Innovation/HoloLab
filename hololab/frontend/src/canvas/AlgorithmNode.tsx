@@ -514,7 +514,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
               : "none",
           }}
         />
-        {!readOnly && staleness && (
+        {!readOnly && staleness && staleness.kind !== "inflight_old_params" && (
           <span
             data-hl-node-stale={staleness.kind}
             title={`结果陈旧 · ${staleness.title}${staleness.kind === "self_dirty" ? " · 点击 ▶ 从此节点重跑" : ""}`}
@@ -531,6 +531,39 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
               boxSizing: "border-box",
             }}
           />
+        )}
+        {!readOnly && staleness?.kind === "inflight_old_params" && (
+          // A chip (not a dot) because the case is louder than "your
+          // draft has drifted from the last snapshot" — the operator's
+          // running command is *right now* using params they don't see
+          // in the config drawer. See canvas/staleness.ts for the
+          // motivating incident. Filled warning chip with the literal
+          // text ``旧参数`` so the meaning doesn't rely on iconography;
+          // the tooltip carries the specific reasons and the job id.
+          <span
+            data-hl-node-stale="inflight_old_params"
+            title={staleness.title}
+            style={{
+              flex: "0 0 auto",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 3,
+              padding: "0 var(--space-1)",
+              height: 16,
+              borderRadius: "var(--radius-pill)",
+              background: "var(--warning-soft)",
+              border: "1px solid var(--warning)",
+              color: "var(--warning)",
+              fontSize: "var(--fs-xs)",
+              fontWeight: "var(--fw-semibold)",
+              lineHeight: 1,
+              whiteSpace: "nowrap",
+              boxSizing: "border-box",
+            }}
+          >
+            <span aria-hidden="true" style={{ fontWeight: "var(--fw-bold)" }}>!</span>
+            旧参数
+          </span>
         )}
         <div
           title={`${pack.name} v${pack.version}`}

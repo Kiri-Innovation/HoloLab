@@ -1695,9 +1695,18 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const stalenessByGraphNode = useMemo<Record<string, NodeStaleness | null>>(
     () =>
       workflowId !== null
-        ? computeStaleness(toGraph(), latestSnapshotGraph, runtimeByGraphNode)
+        ? computeStaleness(
+            toGraph(),
+            latestSnapshotGraph,
+            runtimeByGraphNode,
+            // Latest snapshot's live job rows: needed for the
+            // ``inflight_old_params`` branch, which compares the
+            // frozen params on the running job against the current
+            // draft. See canvas/staleness.ts for the motivating case.
+            latestSnapshotJobs,
+          )
         : {},
-    [workflowId, latestSnapshotGraph, runtimeByGraphNode, toGraph],
+    [workflowId, latestSnapshotGraph, runtimeByGraphNode, latestSnapshotJobs, toGraph],
   );
 
   // Push the computed staleness onto each node's data. Kept in a
