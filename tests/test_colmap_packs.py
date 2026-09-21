@@ -13,6 +13,8 @@ so bumping the pack doesn't disturb them).
 
 from __future__ import annotations
 
+import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
@@ -20,6 +22,25 @@ import pytest
 from hololab.manifest import load_manifest
 
 PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
+
+
+def _load_sfm_key_module():
+    """Import ``sfm_key.py`` from colmap-triangulate@0.5.0 as a module.
+
+    Filesystem import so the test doesn't need the pack on sys.path. The
+    helper is deliberately numpy-free — resolver logic ships in its own
+    file (``sfm_key.py``) precisely so tests can exercise it without the
+    kiri runtime env.
+    """
+    pack_dir = PACKS_ROOT / "colmap-triangulate@0.5.0"
+    src = pack_dir / "sfm_key.py"
+    if str(pack_dir) not in sys.path:
+        sys.path.insert(0, str(pack_dir))
+    spec = importlib.util.spec_from_file_location("sfm_key_v050", src)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def _load(name: str, version: str = "0.2.0"):
@@ -197,3 +218,105 @@ def test_colmap_triangulate_v050_docs_flag_upstream_mirror() -> None:
         "contract is discoverable from the manifest alone"
     )
     assert "pre_no_prior.py" in m.docs
+
+
+# ---------------------------------------------------------------------------
+# @0.5.0 — SfM key resolution: staged filename → SfM pose key. This is the
+# load-bearing lookup that had 100/100 shards failing when regroup@0.2.0's
+# indexed leaf names (``cam_0000.png``) collided with SfM's ``cam00`` keys.
+# ---------------------------------------------------------------------------
+
+
+def _fake_sfm(keys: list[str]) -> dict[str, object]:
+    """Sentinel pose values — the resolver only inspects the key set, so
+    tests avoid dragging numpy into the assertion path.
+    """
+    return {k: object() for k in keys}
+
+
+def test_resolve_sfm_key_direct_stem_match_wins() -> None:
+    """Legacy ``regroup-by-frame`` chain: staged files preserve the SfM cam
+    key as their stem (``cam00.png``). Direct match must be preferred over
+    numeric fallback so any weird numeric collision can't override it.
+    """
+    sk = _load_sfm_key_module()
+    sfm = _fake_sfm([f"cam{i:02d}" for i in range(21)])
+    idx = sk.build_numeric_sfm_index(sfm)
+    assert sk.resolve_sfm_key("cam00.png", sfm, idx) == "cam00"
+    assert sk.resolve_sfm_key("cam20.png", sfm, idx) == "cam20"
+
+
+def test_resolve_sfm_key_regroup_v020_naming_via_numeric_fallback() -> None:
+    """The regression fix: ``cam_0000.png`` (regroup@0.2.0 flat output) must
+    match SfM's ``cam00`` via trailing-integer equivalence.
+    """
+    sk = _load_sfm_key_module()
+    sfm = _fake_sfm([f"cam{i:02d}" for i in range(21)])
+    idx = sk.build_numeric_sfm_index(sfm)
+    assert sk.resolve_sfm_key("cam_0000.png", sfm, idx) == "cam00"
+    assert sk.resolve_sfm_key("cam_0004.png", sfm, idx) == "cam04"
+    assert sk.resolve_sfm_key("cam_0020.png", sfm, idx) == "cam20"
+
+
+def test_resolve_sfm_key_symmetric_naming_still_works() -> None:
+    """If a future SfM run keys images as ``cam_0000`` too, direct match
+    handles it — numeric fallback never fires.
+    """
+    sk = _load_sfm_key_module()
+    sfm = _fake_sfm([f"cam_{i:04d}" for i in range(3)])
+    idx = sk.build_numeric_sfm_index(sfm)
+    assert sk.resolve_sfm_key("cam_0000.png", sfm, idx) == "cam_0000"
+
+
+def test_resolve_sfm_key_symlink_style_sfm_name() -> None:
+    """SfM's ``images.txt`` NAME resolves through ``<cam>/frames/<file>``;
+    the cam_key grandparent walk picks ``cam04``. Staged file names still
+    resolve to that key via numeric fallback.
+    """
+    sk = _load_sfm_key_module()
+    # Simulate SfM keys built via cam_key(...) on symlink-shape names.
+    sfm_names = [
+        f"../../../job/frame_sequence/cam{i:02d}/frames/frame_000000.png" for i in range(3)
+    ]
+    sfm = _fake_sfm([sk.cam_key(n) for n in sfm_names])
+    assert set(sfm) == {"cam00", "cam01", "cam02"}
+    idx = sk.build_numeric_sfm_index(sfm)
+    assert sk.resolve_sfm_key("cam_0000.png", sfm, idx) == "cam00"
+    assert sk.resolve_sfm_key("cam_0002.png", sfm, idx) == "cam02"
+
+
+def test_resolve_sfm_key_returns_none_on_no_match() -> None:
+    """Genuine miss (no direct match, no numeric equivalent) returns None
+    — caller decides how to surface the diagnostic.
+    """
+    sk = _load_sfm_key_module()
+    sfm = _fake_sfm(["cam00", "cam01"])
+    idx = sk.build_numeric_sfm_index(sfm)
+    assert sk.resolve_sfm_key("cam_0099.png", sfm, idx) is None
+    assert sk.resolve_sfm_key("bogus.png", sfm, idx) is None
+
+
+def test_resolve_sfm_key_ambiguous_sfm_disables_fallback() -> None:
+    """If two SfM keys share the same trailing integer (``a01`` + ``b01``),
+    the numeric index refuses to build and fallback stays disabled — better
+    to fail loud than silently pick one.
+    """
+    sk = _load_sfm_key_module()
+    sfm = _fake_sfm(["a01", "b01"])
+    assert sk.build_numeric_sfm_index(sfm) is None
+    # Direct match still works.
+    assert sk.resolve_sfm_key("a01.png", sfm, None) == "a01"
+    # Numeric fallback disabled — regroup-style name can't resolve.
+    assert sk.resolve_sfm_key("cam_0001.png", sfm, None) is None
+
+
+def test_resolve_sfm_key_multi_digit_indexes_are_handled() -> None:
+    """21 cams (2-digit) vs regroup's 4-digit width both parse to the same
+    integers — trailing digits are the identity, padding width is not.
+    """
+    sk = _load_sfm_key_module()
+    assert sk.numeric_suffix("cam00") == 0
+    assert sk.numeric_suffix("cam_0000") == 0
+    assert sk.numeric_suffix("cam99") == 99
+    assert sk.numeric_suffix("cam_0099") == 99
+    assert sk.numeric_suffix("cam") is None

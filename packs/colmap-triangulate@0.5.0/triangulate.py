@@ -46,18 +46,11 @@ from colmap_db import (  # noqa: E402
     export_manual_rigs_frames_txt,
     repair_frames_if_needed,
 )
-
-
-def cam_key(image_name: str) -> str:
-    """Per-camera key from a COLMAP-stored image name.
-
-    * flat: ``cam01.png`` -> ``cam01`` (stem).
-    * resolved-symlink: ``.../<cam>/frames/<basename>`` -> ``<cam>`` (grandparent).
-    """
-    p = Path(image_name)
-    if p.parent.name == "frames":
-        return p.parent.parent.name
-    return p.stem
+from sfm_key import (  # noqa: E402
+    build_numeric_sfm_index,
+    cam_key,
+    resolve_sfm_key,
+)
 
 
 def parse_cameras_txt(path: Path) -> dict[int, tuple[str, int, int, list[float]]]:
@@ -167,17 +160,21 @@ def prefill_db(
     cameras_txt_lines: list[str] = []
     images_txt_lines: list[str] = []
 
+    numeric_index = build_numeric_sfm_index(sfm_pose_by_key)
+    resolved: list[tuple[str, str]] = []
     con = sqlite3.connect(str(db_path))
     try:
         for i, name in enumerate(image_names):
-            key = cam_key(name)
-            pose = sfm_pose_by_key.get(key)
-            if pose is None:
+            resolved_key = resolve_sfm_key(name, sfm_pose_by_key, numeric_index)
+            if resolved_key is None:
                 raise SystemExit(
-                    f"no SfM pose for cam key {key!r} (staged image {name!r}). "
-                    f"Available keys: {sorted(sfm_pose_by_key)}"
+                    f"no SfM pose for staged image {name!r} "
+                    f"(direct stem {cam_key(name)!r} not found; numeric fallback "
+                    f"{'unavailable — ambiguous SfM keys' if numeric_index is None else 'no match'}). "
+                    f"Available SfM keys: {sorted(sfm_pose_by_key)}"
                 )
-            qvec, tvec = pose
+            qvec, tvec = sfm_pose_by_key[resolved_key]
+            resolved.append((name, resolved_key))
             im_id = i + 1
             cam_id = add_camera(con, CAMERA_MODEL_OPENCV, width, height, params_arr)
             add_image(con, name=name, camera_id=cam_id, prior_q=qvec, prior_t=tvec, image_id=im_id)
@@ -197,6 +194,16 @@ def prefill_db(
     (manual_dir / "images.txt").write_text("".join(images_txt_lines))
     (manual_dir / "cameras.txt").write_text("".join(cameras_txt_lines))
     (manual_dir / "points3D.txt").write_text("")
+
+    fallback_hits = sum(1 for name, key in resolved if cam_key(name) != key)
+    if fallback_hits:
+        preview = ", ".join(f"{name}→{key}" for name, key in resolved[:3])
+        more = f" (+{len(resolved) - 3} more)" if len(resolved) > 3 else ""
+        print(
+            f"[colmap-triangulate/0.5] staged→SfM key mapping "
+            f"({fallback_hits}/{len(resolved)} via numeric fallback): {preview}{more}",
+            flush=True,
+        )
 
 
 def run(cmd: list, step: str) -> None:
