@@ -1,6 +1,6 @@
 // Autosave status pill — replaces the classic "Save" button.
 //
-// Five states drive the visual + click behaviour:
+// Six states drive the visual + click behaviour:
 //
 //   idle     — never dirty; empty pill, no action.
 //   unsaved  — user edited; save is scheduled. Neutral surface.
@@ -8,6 +8,7 @@
 //   saved    — last save succeeded. Success-tone chip (subtle).
 //   error    — last save failed. Error-tone chip; click retries.
 //   offline  — browser offline; will save on reconnect.
+//   conflict — server rejected save (409); reload to reconcile.
 //
 // Flat, no gradients, no glow — matches the app's stated visual
 // language. State difference comes from background/text colour only,
@@ -73,6 +74,18 @@ function styleFor(status: SaveStatus): Style | null {
         fg: "var(--text-muted)",
         border: "1px solid var(--border)",
         label: "Offline · Waiting",
+        interactive: false,
+      };
+    case "conflict":
+      // Someone else wrote a newer version. Retrying without a page
+      // reload just re-fires the same 409, so the pill is not
+      // clickable — recovery is a reload (or a Force-save UX we
+      // haven't built yet).
+      return {
+        bg: "var(--error-soft, var(--surface-alt))",
+        fg: "var(--error)",
+        border: "1px solid var(--error)",
+        label: "Conflict · Reload to sync",
         interactive: false,
       };
   }

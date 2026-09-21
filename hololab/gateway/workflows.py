@@ -21,7 +21,10 @@ from typing import Any
 import aiosqlite
 from pydantic import BaseModel, ConfigDict, Field
 
+from hololab.logging import get_logger
 from hololab.persistence.db import Database
+
+log = get_logger("gateway.workflows")
 
 # ---------------------------------------------------------------------------
 # Graph model
@@ -137,6 +140,26 @@ class WorkflowRow:
     updated_ts: float
 
 
+class WorkflowConflict(Exception):
+    """Raised by :meth:`WorkflowStore.save_draft` when ``base_updated_ts`` does
+    not match the persisted row's ``updated_ts``.
+
+    Concurrent-edit guard: a client that read the draft at ``updated_ts=A``
+    must include ``base_updated_ts=A`` on save. If someone else (another tab,
+    an agent, a curl command) has since bumped the row to ``updated_ts=B``,
+    this exception fires with ``current`` carrying the fresh row so the
+    endpoint can surface both versions and the client can decide.
+    """
+
+    def __init__(self, *, current: WorkflowRow, base_updated_ts: float) -> None:
+        self.current = current
+        self.base_updated_ts = base_updated_ts
+        super().__init__(
+            f"workflow {current.workflow_id!r} was modified concurrently "
+            f"(client base_updated_ts={base_updated_ts}, current updated_ts={current.updated_ts})"
+        )
+
+
 @dataclass
 class SnapshotRow:
     snapshot_id: str
@@ -161,15 +184,50 @@ class WorkflowStore:
     # -- drafts --------------------------------------------------------------
 
     async def save_draft(
-        self, *, workflow_id: str | None, name: str, graph: WorkflowGraph
+        self,
+        *,
+        workflow_id: str | None,
+        name: str,
+        graph: WorkflowGraph,
+        base_updated_ts: float | None = None,
     ) -> WorkflowRow:
-        """Upsert a workflow draft. Returns the persisted row."""
+        """Upsert a workflow draft. Returns the persisted row.
+
+        Optimistic-lock semantics:
+
+        * ``base_updated_ts=None`` — legacy last-write-wins mode. Kept as
+          the default so older clients (scripts, agents, curl one-liners)
+          still work. A warning is logged at INFO so we can spot who's
+          bypassing the check and migrate them.
+        * ``base_updated_ts=<ts>`` — save only if the row's persisted
+          ``updated_ts`` matches. On mismatch, :class:`WorkflowConflict`
+          fires with the current row attached, and the endpoint renders
+          409 so the client can reconcile instead of silently clobbering
+          the other tab / agent's edits.
+
+        The check + write is atomic under a single ``self._db.write``
+        because the DB serialises writers; the read-modify-write happens
+        inside one transaction, so two racing saves can't both pass the
+        base-check.
+        """
 
         wid = workflow_id or str(uuid.uuid4())
         graph_json = graph.model_dump_json()
         now = time.time()
+        conflict_row: WorkflowRow | None = None
 
         async def _write(conn: aiosqlite.Connection) -> None:
+            nonlocal conflict_row
+            if base_updated_ts is not None:
+                async with conn.execute(
+                    "SELECT updated_ts FROM workflows WHERE workflow_id=?", (wid,)
+                ) as cur:
+                    existing = await cur.fetchone()
+                if existing is not None and existing[0] != base_updated_ts:
+                    # Read the full row while still inside the write txn so
+                    # the client's 409 body carries a consistent snapshot.
+                    conflict_row = await self._read_row(conn, wid)
+                    return
             await conn.execute(
                 """
                 INSERT INTO workflows (workflow_id, name, draft_json, updated_ts, created_ts)
@@ -183,9 +241,38 @@ class WorkflowStore:
             )
 
         await self._db.write(_write)
+        if conflict_row is not None:
+            raise WorkflowConflict(
+                current=conflict_row,
+                base_updated_ts=base_updated_ts,  # type: ignore[arg-type]
+            )
+        if base_updated_ts is None and workflow_id is not None:
+            log.info(
+                "workflow save without base_updated_ts",
+                workflow_id=wid,
+                note="concurrent-edit guard bypassed; migrate the client to send base_updated_ts",
+            )
         row = await self.get_draft(wid)
         assert row is not None
         return row
+
+    @staticmethod
+    async def _read_row(conn: aiosqlite.Connection, workflow_id: str) -> WorkflowRow | None:
+        async with conn.execute(
+            "SELECT workflow_id, name, draft_json, created_ts, updated_ts "
+            "FROM workflows WHERE workflow_id=?",
+            (workflow_id,),
+        ) as cur:
+            row = await cur.fetchone()
+        if row is None:
+            return None
+        return WorkflowRow(
+            workflow_id=row[0],
+            name=row[1],
+            graph=WorkflowGraph.model_validate_json(row[2]),
+            created_ts=row[3],
+            updated_ts=row[4],
+        )
 
     async def get_draft(self, workflow_id: str) -> WorkflowRow | None:
         async with (

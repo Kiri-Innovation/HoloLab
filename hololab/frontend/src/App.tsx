@@ -713,6 +713,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // --- workflow model ---------------------------------------------------
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [workflowName, setWorkflowName] = useState<string>("untitled");
+  // The ``updated_ts`` we last observed for this draft — seeded on load
+  // and bumped on every successful save. Fed into the autosave hook as
+  // the optimistic-lock base so a stale tab can't clobber a concurrent
+  // writer's edits (see ``useDraftAutosave``).
+  const [workflowUpdatedTs, setWorkflowUpdatedTs] = useState<number | undefined>(
+    undefined,
+  );
   // The past run (if any) the user has opened on the canvas via the
   // Runs panel. When non-null the middle column swaps from the editable
   // draft ReactFlow to a read-only SnapshotCanvas and a "read-only" banner
@@ -1649,10 +1656,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       workflow_id: workflowId ?? undefined,
       name: workflowName || "untitled",
       graph: toGraph(),
+      base_updated_ts: workflowUpdatedTs,
     });
     setWorkflowId(result.workflow_id);
+    setWorkflowUpdatedTs(result.updated_ts);
     window.history.replaceState(null, "", `/w/${encodeURIComponent(result.workflow_id)}`);
-  }, [workflowId, workflowName, toGraph]);
+  }, [workflowId, workflowName, workflowUpdatedTs, toGraph]);
 
   // --- autosave ---------------------------------------------------------
   //
@@ -1767,27 +1776,51 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const autosave = useDraftAutosave({
     serialisedSnapshot: autosaveSnapshot,
     enabled: !viewingSnapshot,
-    save: async () => {
+    initialBaseUpdatedTs: workflowUpdatedTs,
+    save: async (baseTs) => {
       const result = await saveWorkflow({
         workflow_id: workflowId ?? undefined,
         name: workflowName || "untitled",
         graph: toGraph(),
+        base_updated_ts: baseTs,
       });
-      return { workflow_id: result.workflow_id };
+      return { workflow_id: result.workflow_id, updated_ts: result.updated_ts };
     },
-    beaconBody: () => ({
+    beaconBody: (baseTs) => ({
       url: "/api/workflows",
       body: JSON.stringify({
         workflow_id: workflowId ?? undefined,
         name: workflowName || "untitled",
         graph: toGraph(),
+        base_updated_ts: baseTs,
       }),
     }),
-    onSaved: (wid) => {
+    onSaved: (wid, updatedTs) => {
       if (workflowId !== wid) {
         setWorkflowId(wid);
         window.history.replaceState(null, "", `/w/${encodeURIComponent(wid)}`);
       }
+      setWorkflowUpdatedTs(updatedTs);
+    },
+    onConflict: (detail) => {
+      // Someone else (another tab, an agent, curl) has written a
+      // newer version. Don't clobber their edits — surface the
+      // situation and let the user decide. A page reload re-fetches
+      // the fresh draft; the toolbar's "conflict" pill is the UI
+      // affordance for that recovery step.
+      console.error(
+        "[autosave] workflow was modified concurrently — reload to see the fresh graph",
+        {
+          base_updated_ts: detail.base_updated_ts,
+          current_updated_ts: detail.current.updated_ts,
+        },
+      );
+      window.alert(
+        "This workflow was modified in another tab (or by an agent) after " +
+          "you opened it. Reload the page to see the fresh version; your " +
+          "unsaved edits will be lost. (Save is parked until you reload " +
+          "to protect the other writer's changes.)",
+      );
     },
   });
 
@@ -1893,6 +1926,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       const w = await getWorkflow(id);
       setWorkflowId(w.workflow_id);
       setWorkflowName(w.name);
+      setWorkflowUpdatedTs(w.updated_ts);
       fromGraph(w.graph);
       setLatestSnapshotGraph(null);
       setLatestSnapshotId(null); // both reset until hydration fills them in

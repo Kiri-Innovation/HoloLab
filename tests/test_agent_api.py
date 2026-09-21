@@ -873,5 +873,101 @@ def test_handle_summary_unknown_returns_gracefully(tmp_path: Path) -> None:
         assert body["fields"] == {}
 
 
+# ---------------------------------------------------------------------------
+# POST /api/workflows optimistic-lock — end-to-end conflict semantics
+# ---------------------------------------------------------------------------
+
+
+def _minimal_graph_body(name: str = "w") -> dict[str, object]:
+    return {
+        "name": name,
+        "graph": {"nodes": [], "edges": []},
+    }
+
+
+def test_save_workflow_conflict_returns_409_with_current_row(tmp_path: Path) -> None:
+    """POST /api/workflows with a stale ``base_updated_ts`` → 409 + current row.
+
+    Reproduces the "stale Chrome tab autosaves over an agent's edit" bug:
+    Tab A opens draft at ts=T0, agent bumps to ts=T1, Tab A's autosave fires
+    with base=T0 → server refuses with 409 and returns the T1 row so the
+    tab can reconcile instead of clobbering.
+    """
+    app = create_app(db_path=tmp_path / "olock.sqlite")
+    with TestClient(app) as client:
+        # First save creates the row and returns updated_ts=T0.
+        r0 = client.post("/api/workflows", json=_minimal_graph_body("w"))
+        assert r0.status_code == 200, r0.text
+        wid = r0.json()["workflow_id"]
+        t0 = r0.json()["updated_ts"]
+
+        # Agent (or another tab) bumps the row → ts moves to T1.
+        r1 = client.post(
+            "/api/workflows",
+            json={"workflow_id": wid, "name": "by-agent", "graph": {"nodes": [], "edges": []}},
+        )
+        assert r1.status_code == 200
+        t1 = r1.json()["updated_ts"]
+        assert t1 >= t0
+
+        # Stale tab (still holding t0) tries to save → 409.
+        r2 = client.post(
+            "/api/workflows",
+            json={
+                "workflow_id": wid,
+                "name": "by-stale-tab",
+                "graph": {"nodes": [], "edges": []},
+                "base_updated_ts": t0,
+            },
+        )
+        assert r2.status_code == 409, r2.text
+        detail = r2.json()["detail"]
+        assert detail["code"] == "workflow_conflict"
+        assert detail["base_updated_ts"] == t0
+        assert detail["current"]["name"] == "by-agent"
+        assert detail["current"]["updated_ts"] == t1
+
+        # The row must NOT reflect the stale save.
+        r3 = client.get(f"/api/workflows/{wid}")
+        assert r3.status_code == 200
+        assert r3.json()["name"] == "by-agent"
+
+
+def test_save_workflow_with_matching_base_ts_proceeds(tmp_path: Path) -> None:
+    """POST with a matching ``base_updated_ts`` succeeds and returns the new ts."""
+    app = create_app(db_path=tmp_path / "olock-ok.sqlite")
+    with TestClient(app) as client:
+        r0 = client.post("/api/workflows", json=_minimal_graph_body("w"))
+        wid = r0.json()["workflow_id"]
+        t0 = r0.json()["updated_ts"]
+
+        r1 = client.post(
+            "/api/workflows",
+            json={
+                "workflow_id": wid,
+                "name": "w-renamed",
+                "graph": {"nodes": [], "edges": []},
+                "base_updated_ts": t0,
+            },
+        )
+        assert r1.status_code == 200, r1.text
+        assert r1.json()["updated_ts"] >= t0
+
+
+def test_save_workflow_rejects_non_numeric_base_ts(tmp_path: Path) -> None:
+    """Bad ``base_updated_ts`` type is a 400, not a 500."""
+    app = create_app(db_path=tmp_path / "olock-bad.sqlite")
+    with TestClient(app) as client:
+        r = client.post(
+            "/api/workflows",
+            json={
+                "name": "w",
+                "graph": {"nodes": [], "edges": []},
+                "base_updated_ts": "not-a-number",
+            },
+        )
+        assert r.status_code == 400, r.text
+
+
 # Silence "unused" warning for helper that's here for readability.
 _ = asyncio

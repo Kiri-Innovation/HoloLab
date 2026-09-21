@@ -237,12 +237,41 @@ export const saveWorkflow = (body: {
   workflow_id?: string;
   name: string;
   graph: WorkflowGraph;
+  // Optimistic-lock guard: the ``updated_ts`` the caller last saw. When
+  // present, the gateway rejects the save with 409 if the persisted row
+  // has moved past it (see ``WorkflowConflict`` server-side). Omit for
+  // new drafts and for callers that intentionally opt out of the guard.
+  base_updated_ts?: number;
 }) =>
   resilientFetch("/api/workflows", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }).then(json<{ workflow_id: string; name: string; updated_ts: number }>);
+
+// Body shape the gateway returns inside a 409 ``ApiError.detail``. Surfaced
+// through ``useDraftAutosave`` so the UI can pop a resolve-conflict dialog.
+export interface WorkflowConflictDetail {
+  code: "workflow_conflict";
+  message: string;
+  base_updated_ts: number;
+  current: {
+    workflow_id: string;
+    name: string;
+    graph: WorkflowGraph;
+    created_ts: number;
+    updated_ts: number;
+  };
+}
+
+export function isWorkflowConflict(
+  err: unknown,
+): err is ApiError & { detail: WorkflowConflictDetail } {
+  if (!(err instanceof ApiError)) return false;
+  if (err.status !== 409) return false;
+  const d = err.detail as { code?: unknown } | null;
+  return !!d && typeof d === "object" && d.code === "workflow_conflict";
+}
 
 export const deleteWorkflow = (workflow_id: string) =>
   resilientFetch(`/api/workflows/${workflow_id}`, { method: "DELETE" }).then(

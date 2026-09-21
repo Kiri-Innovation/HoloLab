@@ -79,6 +79,7 @@ from hololab.gateway.registry import (
 from hololab.gateway.spa_staticfiles import SPAStaticFiles
 from hololab.gateway.workflows import (
     PackHandle,
+    WorkflowConflict,
     WorkflowGraph,
     WorkflowStore,
     agent_graph_dict,
@@ -1354,7 +1355,16 @@ def _mount_routes(app: FastAPI) -> None:
         summary="Create or update a workflow draft.",
     )
     async def save_workflow(body: dict[str, Any]) -> dict[str, Any]:
-        """Upsert a draft. Body: ``{workflow_id?, name, graph}``."""
+        """Upsert a draft. Body: ``{workflow_id?, name, graph, base_updated_ts?}``.
+
+        ``base_updated_ts`` (optional) is the ``updated_ts`` the client last
+        observed. When present and the persisted row has moved past it, the
+        endpoint returns **409** with the current row so the client can
+        reconcile instead of clobbering a concurrent edit — the "stale
+        Chrome tab autosaved over an agent's edit" bug that reappeared in
+        practice. Omitting it keeps the legacy last-write-wins path (a
+        warning is logged server-side; safe for one-off scripts/agents).
+        """
 
         try:
             name = body["name"]
@@ -1366,9 +1376,47 @@ def _mount_routes(app: FastAPI) -> None:
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"invalid graph: {exc}") from exc
 
-        row = await app.state.workflows.save_draft(
-            workflow_id=body.get("workflow_id"), name=name, graph=graph
-        )
+        base_ts_raw = body.get("base_updated_ts")
+        base_ts: float | None
+        if base_ts_raw is None:
+            base_ts = None
+        elif isinstance(base_ts_raw, int | float):
+            base_ts = float(base_ts_raw)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="base_updated_ts must be a number if provided",
+            )
+
+        try:
+            row = await app.state.workflows.save_draft(
+                workflow_id=body.get("workflow_id"),
+                name=name,
+                graph=graph,
+                base_updated_ts=base_ts,
+            )
+        except WorkflowConflict as conflict:
+            current = conflict.current
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "workflow_conflict",
+                    "message": (
+                        "workflow was modified concurrently — reload the current "
+                        "version before saving so your edits don't clobber the other "
+                        "writer's changes"
+                    ),
+                    "base_updated_ts": conflict.base_updated_ts,
+                    "current": {
+                        "workflow_id": current.workflow_id,
+                        "name": current.name,
+                        "graph": current.graph.model_dump(mode="json"),
+                        "created_ts": current.created_ts,
+                        "updated_ts": current.updated_ts,
+                    },
+                },
+            ) from conflict
+
         return {
             "workflow_id": row.workflow_id,
             "name": row.name,
