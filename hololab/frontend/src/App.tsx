@@ -1214,17 +1214,24 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // is preserved when the label didn't change so xyflow doesn't churn.
   const displayEdges = useMemo(() => {
     if (edges.length === 0) return edges;
-    const graphNodes = nodes.map((n) => ({
-      id: n.id,
-      algorithm_name: n.data.pack.name,
-      algorithm_version: n.data.pack.version,
-      position: n.position,
-      params: {},
-      assigned_node_id: n.data.assigned_node_id,
-      arrayed_toggle: Boolean(
-        (n.data as AlgorithmNodeData & { arrayed_toggle?: boolean }).arrayed_toggle,
-      ),
-    }));
+    const graphNodes = nodes.map((n) => {
+      const d = n.data as AlgorithmNodeData & {
+        params?: Record<string, unknown>;
+        arrayed_toggle?: boolean;
+      };
+      return {
+        id: n.id,
+        algorithm_name: n.data.pack.name,
+        algorithm_version: n.data.pack.version,
+        position: n.position,
+        // Real params — effectiveOutputType reads dim_labels_from here
+        // (e.g. regroup.out → output_dims) so the chip renders the
+        // right labels before any handle summary lands.
+        params: d.params ?? {},
+        assigned_node_id: n.data.assigned_node_id,
+        arrayed_toggle: Boolean(d.arrayed_toggle),
+      };
+    });
     const graphEdges = edges.map((e) => ({
       id: e.id,
       source: e.source,
@@ -1361,17 +1368,21 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     // Rebuild GraphNode/Edge shape for effectiveOutputType (matches
     // displayEdges above; kept inline because the args differ enough
     // that pulling into a helper wouldn't pay for itself).
-    const graphNodes = nodes.map((n) => ({
-      id: n.id,
-      algorithm_name: n.data.pack.name,
-      algorithm_version: n.data.pack.version,
-      position: n.position,
-      params: {},
-      assigned_node_id: n.data.assigned_node_id,
-      arrayed_toggle: Boolean(
-        (n.data as AlgorithmNodeData & { arrayed_toggle?: boolean }).arrayed_toggle,
-      ),
-    }));
+    const graphNodes = nodes.map((n) => {
+      const d = n.data as AlgorithmNodeData & {
+        params?: Record<string, unknown>;
+        arrayed_toggle?: boolean;
+      };
+      return {
+        id: n.id,
+        algorithm_name: n.data.pack.name,
+        algorithm_version: n.data.pack.version,
+        position: n.position,
+        params: d.params ?? {},
+        assigned_node_id: n.data.assigned_node_id,
+        arrayed_toggle: Boolean(d.arrayed_toggle),
+      };
+    });
     const graphEdges = edges.map((e) => ({
       id: e.id,
       source: e.source,

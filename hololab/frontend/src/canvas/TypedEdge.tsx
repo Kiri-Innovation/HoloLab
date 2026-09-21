@@ -216,12 +216,14 @@ function TypedEdgeInner({
     setFacts(handleId ? peekEdgeSummaryFacts(handleId) : undefined);
   }, [handleId]);
 
-  // Kick off the fetch the first time the edge is hovered — but only
-  // when the source handle actually exists. Deduped by
-  // ``loadEdgeSummaryFacts`` so a wildly re-hovered edge fires one HTTP
-  // request over the session. Ignored errors resolve to empty facts.
+  // Proactively load the summary as soon as the source handle exists —
+  // hover should be a pure CSS change, not a request trigger. Deduped
+  // + bounded by ``getHandleSummary`` (pLimit(8) + session cache in
+  // api.ts) so N edges mounting together fan out at most 8 in-flight
+  // and repeat mounts pay zero HTTP cost. Failures resolve to ``{}``
+  // silently so the chip degrades to ``[?]`` instead of retry-storming.
   useEffect(() => {
-    if (!edgeHovered || !handleId || facts !== undefined) return;
+    if (!handleId || facts !== undefined) return;
     let cancelled = false;
     loadEdgeSummaryFacts(handleId).then((next) => {
       if (!cancelled) setFacts(next);
@@ -229,7 +231,7 @@ function TypedEdgeInner({
     return () => {
       cancelled = true;
     };
-  }, [edgeHovered, handleId, facts]);
+  }, [handleId, facts]);
 
   // Compose the chip and tooltip strings. When ``edgeType`` is missing
   // (older edges built before we started stashing it) fall back to the

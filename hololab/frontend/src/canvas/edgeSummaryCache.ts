@@ -1,9 +1,12 @@
-// Per-handle summary cache used by TypedEdge on hover.
+// Per-handle summary cache used by TypedEdge.
 //
-// We hit ``GET /api/handles/{id}/summary`` only when the mouse actually
-// hovers an edge whose source handle exists — no upfront load, no per-
-// frame refetch. Successful summaries are pinned for the session so a
-// second hover across the same edge is instant.
+// TypedEdge fires ``GET /api/handles/{id}/summary`` as soon as its
+// source handle exists — hover is a pure CSS change, not a request
+// trigger. Bounded + deduped by ``api.getHandleSummary`` (pLimit(8) +
+// session cache) so N edges mounting together fan out at most 8
+// in-flight requests and a re-mount pays zero HTTP cost. Successful
+// summaries are pinned for the session; failures resolve to ``{}``
+// silently so the chip degrades to ``[?]`` without retry-storming.
 //
 // A single ``element_count`` / ``internal_count`` payload per handle is
 // enough for the chip; more expensive drill-downs (per-element inner
