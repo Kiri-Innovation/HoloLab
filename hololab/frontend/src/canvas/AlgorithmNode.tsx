@@ -335,19 +335,57 @@ export interface RunNodeDetail {
   graph_node_id: string;
   resolve: () => void;
   reject: (msg: string) => void;
+  // Flipped to true by the App-level listener the moment it accepts the
+  // event. Lets ``dispatchRunNode`` distinguish "no listener registered"
+  // (App tree not mounted, or an unmount race) from "listener accepted
+  // but the fetch is still in flight". Without it, a click before the
+  // useEffect that registers ``onRun`` runs would leave the button
+  // pinned in "…" forever because resolve/reject would never fire.
+  handled?: boolean;
 }
+
+// Hard ceiling on how long we'll wait for the App-level listener to
+// resolve/reject. Covers the "dispatchNode() promise never settles"
+// deadlock — a hung fetch, an unresponsive gateway, or a listener that
+// forgets to call the callbacks. 20s is generous vs. the P99 dispatch
+// (<200ms) and short enough that a user staring at "…" gives up before
+// this fires.
+const DISPATCH_TIMEOUT_MS = 20_000;
 
 function dispatchRunNode(graph_node_id: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    window.dispatchEvent(
-      new CustomEvent<RunNodeDetail>(RUN_NODE_EVENT, {
-        detail: {
-          graph_node_id,
-          resolve,
-          reject: (msg) => reject(new Error(msg)),
-        },
-      }),
+    let settled = false;
+    let timer: number | null = null;
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) window.clearTimeout(timer);
+      fn();
+    };
+    const detail: RunNodeDetail = {
+      graph_node_id,
+      resolve: () => settle(resolve),
+      reject: (msg) => settle(() => reject(new Error(msg))),
+      handled: false,
+    };
+    timer = window.setTimeout(
+      () =>
+        settle(() =>
+          reject(new Error(`dispatch timed out after ${DISPATCH_TIMEOUT_MS / 1000}s`)),
+        ),
+      DISPATCH_TIMEOUT_MS,
     );
+    window.dispatchEvent(new CustomEvent<RunNodeDetail>(RUN_NODE_EVENT, { detail }));
+    // Synchronous window.dispatchEvent has already run every listener by
+    // the time we get here. If none flipped ``handled`` the App-level
+    // ``onRun`` isn't wired — better to surface that as a clear "reload
+    // the page" error than leave the button spinning until the 20s
+    // timeout fires.
+    if (!detail.handled) {
+      settle(() =>
+        reject(new Error("no run handler registered — reload the page")),
+      );
+    }
   });
 }
 
@@ -401,7 +439,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setRunErrorMsg(msg);
-      setTimeout(() => setRunErrorMsg(null), 4000);
+      // 8 s so the longer messages ("dispatch timed out after 20s",
+      // "no run handler registered — reload the page") stay long enough
+      // for a user to actually read and act on. Short 4-word errors
+      // still clear on their own — this is a maximum, not a minimum.
+      setTimeout(() => setRunErrorMsg(null), 8000);
     } finally {
       setRunClickPending(false);
     }

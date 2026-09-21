@@ -980,22 +980,33 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // an error instead of silently doing nothing.
   useEffect(() => {
     const onRun = (evt: Event) => {
-      const { graph_node_id, resolve, reject } = (
-        evt as CustomEvent<RunNodeDetail>
-      ).detail;
+      const detail = (evt as CustomEvent<RunNodeDetail>).detail;
+      // Ack the event synchronously so ``dispatchRunNode`` can tell "no
+      // listener registered" (would silently hang) from "listener took
+      // over but the fetch is still pending". See RunNodeDetail.handled.
+      detail.handled = true;
+      const { graph_node_id, resolve, reject } = detail;
       const wid = workflowIdRef.current;
       if (!wid) {
         reject("save the workflow first (no workflow_id yet)");
         return;
       }
-      dispatchNode(wid, graph_node_id).then(
-        (result) => {
-          setLatestSnapshotId(result.snapshot_id);
-          setRunsPanelRefreshToken((t) => t + 1);
-          resolve();
-        },
-        (err: Error) => reject(err.message || "dispatch failed"),
-      );
+      // Guard against ``dispatchNode`` throwing synchronously (URL
+      // construction, non-fetch network stacks): without this, the
+      // promise would never resolve and the caller's button would hang
+      // until the dispatchRunNode timeout kicks in.
+      try {
+        dispatchNode(wid, graph_node_id).then(
+          (result) => {
+            setLatestSnapshotId(result.snapshot_id);
+            setRunsPanelRefreshToken((t) => t + 1);
+            resolve();
+          },
+          (err: Error) => reject(err?.message || "dispatch failed"),
+        );
+      } catch (err) {
+        reject(err instanceof Error ? err.message : String(err));
+      }
     };
     window.addEventListener(RUN_NODE_EVENT, onRun);
     return () => window.removeEventListener(RUN_NODE_EVENT, onRun);
