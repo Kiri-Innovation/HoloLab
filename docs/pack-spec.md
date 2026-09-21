@@ -239,6 +239,24 @@ The `arrayable: true` contract obligates the pack author to promise **no
 cross-shard state or data exchange** — the framework has no way to enforce
 this (shell can do anything), but violating it produces subtle bugs.
 
+**Per-port `scalar: true`** — an escape hatch for ports whose cardinality
+should stay fixed no matter what the pack-level toggle does:
+
+- On an **input**, `scalar: true` means *broadcast*: every shard receives
+  the full parent handle (not an element sub-handle). Use it for bundles
+  that every shard needs whole — e.g. an SfM `cams` model that pairs with
+  every per-frame image group.
+- On an **output**, `scalar: true` means *one item per invocation*. On a
+  non-fan-out invocation that's one item total; on a fan-out invocation
+  it's one item **per shard**, and the framework aggregates the N items
+  into an `arrayed<T>` at the parent job (the `{parent_workspace}/{port}/`
+  directory populated by shard subdirs). Downstream nodes see an
+  arrayed<T> handle — declare its shape via `dim_labels` on the output.
+  Example: `colmap-triangulate.frame` is `scalar: true` (one COLMAP dir
+  per shard) with `dim_labels: [frame]`; feeding it into
+  `stg-train.colmap_frames` (`arrayed: true, dim_labels: [frame]`) is a
+  valid edge because the parent aggregate is arrayed<colmap>.
+
 ### The `int` scalar handle type
 
 An `int` handle is `storage: file` + `tags: [int]` + a plain-text file

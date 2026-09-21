@@ -577,20 +577,32 @@ def effective_port_arrayed(
     pack_arrayable: bool,
     node_toggle: bool,
     port_scalar: bool = False,
+    *,
+    is_output: bool = False,
 ) -> bool:
     """Compute the runtime ``arrayed`` state of one port on one graph node.
 
     Rule:
-    * ``port_scalar`` (manifest ``scalar: true``) wins unconditionally —
-      the port is always non-arrayed and broadcasts its scalar value to
-      every fan-out shard regardless of the toggle.
+    * ``port_scalar`` (manifest ``scalar: true``) on an **input** port —
+      always non-arrayed; the port broadcasts its scalar value to every
+      fan-out shard regardless of the toggle.
+    * ``port_scalar`` on an **output** port of a **fan-out node**
+      (``pack.arrayable`` AND ``node.arrayed_toggle``) — the port produces
+      one item *per shard*, and the framework aggregates the N shards into
+      an ``arrayed<T>`` handle at the parent job (see
+      ``execution._execute_fanout_body``: the parent-level output path is
+      ``{parent_ws}/{port}/`` and every shard writes into
+      ``.../{element_id}/``). Downstream nodes see an arrayed handle, so
+      the validator must treat this as arrayed too.
+    * ``port_scalar`` on an output port of a non-fan-out node — one item
+      per invocation, non-arrayed.
     * Otherwise: ``manifest arrayed OR (pack.arrayable AND node.arrayed_toggle)``.
       A port declared ``arrayed: true`` in the manifest is always arrayed.
       Ports that default to non-arrayed on an arrayable pack flip when the
       operator turns on the checkbox.
     """
     if port_scalar:
-        return False
+        return bool(is_output and pack_arrayable and node_toggle)
     return port_arrayed or (pack_arrayable and node_toggle)
 
 
@@ -929,12 +941,15 @@ def validate_snapshot(
         tgt_in = tgt_pack.inputs[edge.targetHandle]
         # Effective arrayed state — the manifest default OR-ed with the
         # pack.arrayable AND-ed with node.arrayed_toggle override.
-        # ``scalar: true`` wins unconditionally on either side.
+        # ``scalar: true`` on an input broadcasts (non-arrayed). On an
+        # output of a fan-out node it aggregates to arrayed<T> at the
+        # parent — see ``effective_port_arrayed``.
         src_arr = effective_port_arrayed(
             src_out.arrayed,
             src_pack.arrayable,
             src.arrayed_toggle,
             port_scalar=src_out.scalar,
+            is_output=True,
         )
         tgt_arr = effective_port_arrayed(
             tgt_in.arrayed, tgt_pack.arrayable, tgt.arrayed_toggle, port_scalar=tgt_in.scalar

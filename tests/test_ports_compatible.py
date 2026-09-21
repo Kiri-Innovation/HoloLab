@@ -81,6 +81,29 @@ def test_effective_arrayed_toggle_ignored_on_non_arrayable_pack() -> None:
     assert not effective_port_arrayed(False, False, True)
 
 
+def test_effective_arrayed_scalar_output_of_fanout_node_aggregates() -> None:
+    # ``scalar: true`` on an output port of a fan-out node
+    # (arrayable + toggle on) aggregates to arrayed<T> at the parent job.
+    # The runtime already treats this port as arrayed downstream
+    # (execution._execute_fanout_body registers a parent handle whose
+    # path is ``{parent_ws}/{port}/`` populated with one subdir per
+    # shard); the validator must agree.
+    assert effective_port_arrayed(False, True, True, port_scalar=True, is_output=True)
+    # Same port on a fan-out node with toggle off is a single scalar
+    # invocation — non-arrayed, no aggregation.
+    assert not effective_port_arrayed(False, True, False, port_scalar=True, is_output=True)
+    # Non-arrayable pack: no shards, no aggregation, scalar stays scalar.
+    assert not effective_port_arrayed(False, False, True, port_scalar=True, is_output=True)
+
+
+def test_effective_arrayed_scalar_input_always_broadcasts() -> None:
+    # ``scalar: true`` on an input port is always non-arrayed regardless
+    # of pack arrayability — that's the broadcast contract for cams-style
+    # scalar bundles fed into every fan-out shard.
+    assert not effective_port_arrayed(False, True, True, port_scalar=True)
+    assert not effective_port_arrayed(True, True, True, port_scalar=True)
+
+
 # ---------------------------------------------------------------------------
 # GraphNode.arrayed_toggle — structural field, default False, JSON roundtrip.
 # ---------------------------------------------------------------------------
@@ -116,11 +139,20 @@ def test_graph_node_arrayed_toggle_roundtrips() -> None:
 def _pk(inputs: dict, outputs: dict, arrayable: bool = False) -> PackHandle:
     return PackHandle(
         inputs={
-            n: InputPortView(tags=tuple(spec["tags"]), required=True, arrayed=spec.get("arrayed", False), scalar=spec.get("scalar", False))
+            n: InputPortView(
+                tags=tuple(spec["tags"]),
+                required=True,
+                arrayed=spec.get("arrayed", False),
+                scalar=spec.get("scalar", False),
+            )
             for n, spec in inputs.items()
         },
         outputs={
-            n: OutputPortView(tags=tuple(spec["tags"]), arrayed=spec.get("arrayed", False), scalar=spec.get("scalar", False))
+            n: OutputPortView(
+                tags=tuple(spec["tags"]),
+                arrayed=spec.get("arrayed", False),
+                scalar=spec.get("scalar", False),
+            )
             for n, spec in outputs.items()
         },
         arrayable=arrayable,
@@ -148,7 +180,9 @@ def test_validate_flags_arrayed_scalar_edge() -> None:
     )
     packs = {
         ("src", "0.1.0"): _pk({}, {"o": {"tags": ["video-source"], "arrayed": True}}),
-        ("dst", "0.1.0"): _pk({"i": {"tags": ["video-source"], "arrayed": False}}, {"out": {"tags": ["x"]}}),
+        ("dst", "0.1.0"): _pk(
+            {"i": {"tags": ["video-source"], "arrayed": False}}, {"out": {"tags": ["x"]}}
+        ),
     }
     issues = validate_snapshot(
         graph,
@@ -163,14 +197,20 @@ def test_validate_accepts_arrayed_arrayed_edge() -> None:
     """arrayed → arrayed on the same base tag: no issue."""
     graph = WorkflowGraph(
         nodes=[
-            GraphNode(id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node"),
-            GraphNode(id="b", algorithm_name="dst", algorithm_version="0.1.0", assigned_node_id="node"),
+            GraphNode(
+                id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node"
+            ),
+            GraphNode(
+                id="b", algorithm_name="dst", algorithm_version="0.1.0", assigned_node_id="node"
+            ),
         ],
         edges=[GraphEdge(id="e", source="a", sourceHandle="o", target="b", targetHandle="i")],
     )
     packs = {
         ("src", "0.1.0"): _pk({}, {"o": {"tags": ["video-source"], "arrayed": True}}),
-        ("dst", "0.1.0"): _pk({"i": {"tags": ["video-source"], "arrayed": True}}, {"out": {"tags": ["x"]}}),
+        ("dst", "0.1.0"): _pk(
+            {"i": {"tags": ["video-source"], "arrayed": True}}, {"out": {"tags": ["x"]}}
+        ),
     }
     issues = validate_snapshot(
         graph,
@@ -186,7 +226,9 @@ def test_validate_arrayable_toggle_promotes_scalar_port_to_arrayed() -> None:
     """An arrayable consumer with the toggle on accepts an arrayed producer."""
     graph = WorkflowGraph(
         nodes=[
-            GraphNode(id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node"),
+            GraphNode(
+                id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node"
+            ),
             GraphNode(
                 id="b",
                 algorithm_name="dst",
@@ -221,7 +263,9 @@ def test_scalar_output_to_arrayed_input_rejected() -> None:
     """scalar: true output → arrayed input must be rejected with a specific message."""
     graph = WorkflowGraph(
         nodes=[
-            GraphNode(id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node"),
+            GraphNode(
+                id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node"
+            ),
             GraphNode(
                 id="b",
                 algorithm_name="dst",
@@ -251,12 +295,126 @@ def test_scalar_output_to_arrayed_input_rejected() -> None:
     assert any("scalar output" in i.message for i in edge_issues), edge_issues
 
 
+def test_fanout_scalar_output_to_arrayed_input_allowed() -> None:
+    """Fan-out node's ``scalar: true`` output aggregates to arrayed<T> at the
+    parent job — the framework registers a parent handle whose path is a
+    directory of per-shard subdirs. The validator must accept an edge from
+    that aggregate into a downstream arrayed input.
+
+    Regression: the previous rule made ``scalar: true`` unconditionally
+    non-arrayed and rejected the ``colmap-triangulate.frame → stg-train.colmap_frames``
+    edge with a 422, blocking the whole per-frame COLMAP → 4DGS pipeline.
+    """
+    graph = WorkflowGraph(
+        nodes=[
+            # Source: arrayable pack with fan-out on. Emits one T per shard;
+            # framework aggregates N shards into arrayed<T> at the parent.
+            GraphNode(
+                id="a",
+                algorithm_name="src",
+                algorithm_version="0.1.0",
+                assigned_node_id="node",
+                arrayed_toggle=True,
+            ),
+            # Target: non-arrayable pack whose input is intrinsically arrayed
+            # (the "consume the whole arrayed<T> in one invocation" shape
+            # — e.g. stg-train's colmap_frames).
+            GraphNode(
+                id="b",
+                algorithm_name="dst",
+                algorithm_version="0.1.0",
+                assigned_node_id="node",
+            ),
+        ],
+        edges=[GraphEdge(id="e", source="a", sourceHandle="o", target="b", targetHandle="i")],
+    )
+    packs = {
+        ("src", "0.1.0"): _pk(
+            {},
+            {"o": {"tags": ["colmap"], "scalar": True}},
+            arrayable=True,
+        ),
+        ("dst", "0.1.0"): _pk(
+            {"i": {"tags": ["colmap"], "arrayed": True}},
+            {"out": {"tags": ["x"]}},
+        ),
+    }
+    issues = validate_snapshot(
+        graph,
+        packs_by_key=packs,
+        online_node_ids={"node"},
+        packs_offered_by_node={"node": {("src", "0.1.0"), ("dst", "0.1.0")}},
+    )
+    edge_issues = [i for i in issues if i.where.startswith("edge:")]
+    assert edge_issues == [], edge_issues
+
+
+def test_fanout_off_scalar_output_to_arrayed_input_still_rejected() -> None:
+    """Same source pack as the fan-out test, but with ``arrayed_toggle=False``.
+
+    Without the toggle the pack runs as a single invocation and its scalar
+    output stays scalar — feeding it into an arrayed input must still fail
+    (no implicit broadcast on scalar-output side).
+    """
+    graph = WorkflowGraph(
+        nodes=[
+            GraphNode(
+                id="a",
+                algorithm_name="src",
+                algorithm_version="0.1.0",
+                assigned_node_id="node",
+                # Fan-out OFF — one invocation, one scalar output.
+                arrayed_toggle=False,
+            ),
+            GraphNode(
+                id="b",
+                algorithm_name="dst",
+                algorithm_version="0.1.0",
+                assigned_node_id="node",
+            ),
+        ],
+        edges=[GraphEdge(id="e", source="a", sourceHandle="o", target="b", targetHandle="i")],
+    )
+    packs = {
+        ("src", "0.1.0"): _pk(
+            {},
+            {"o": {"tags": ["colmap"], "scalar": True}},
+            arrayable=True,
+        ),
+        ("dst", "0.1.0"): _pk(
+            {"i": {"tags": ["colmap"], "arrayed": True}},
+            {"out": {"tags": ["x"]}},
+        ),
+    }
+    issues = validate_snapshot(
+        graph,
+        packs_by_key=packs,
+        online_node_ids={"node"},
+        packs_offered_by_node={"node": {("src", "0.1.0"), ("dst", "0.1.0")}},
+    )
+    edge_issues = [i for i in issues if i.where.startswith("edge:")]
+    assert edge_issues, "expected validation issue when fan-out is off"
+    assert any("scalar output" in i.message for i in edge_issues), edge_issues
+
+
 def test_arrayed_output_to_scalar_input_allowed() -> None:
     """arrayed output → scalar: true input must be accepted (broadcast semantic)."""
     graph = WorkflowGraph(
         nodes=[
-            GraphNode(id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node", arrayed_toggle=True),
-            GraphNode(id="b", algorithm_name="dst", algorithm_version="0.1.0", assigned_node_id="node", arrayed_toggle=True),
+            GraphNode(
+                id="a",
+                algorithm_name="src",
+                algorithm_version="0.1.0",
+                assigned_node_id="node",
+                arrayed_toggle=True,
+            ),
+            GraphNode(
+                id="b",
+                algorithm_name="dst",
+                algorithm_version="0.1.0",
+                assigned_node_id="node",
+                arrayed_toggle=True,
+            ),
         ],
         edges=[GraphEdge(id="e", source="a", sourceHandle="o", target="b", targetHandle="i")],
     )
@@ -282,13 +440,27 @@ def test_scalar_output_to_scalar_input_allowed() -> None:
     """scalar: true output → scalar: true input: both non-arrayed, always OK."""
     graph = WorkflowGraph(
         nodes=[
-            GraphNode(id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node", arrayed_toggle=True),
-            GraphNode(id="b", algorithm_name="dst", algorithm_version="0.1.0", assigned_node_id="node", arrayed_toggle=True),
+            GraphNode(
+                id="a",
+                algorithm_name="src",
+                algorithm_version="0.1.0",
+                assigned_node_id="node",
+                arrayed_toggle=True,
+            ),
+            GraphNode(
+                id="b",
+                algorithm_name="dst",
+                algorithm_version="0.1.0",
+                assigned_node_id="node",
+                arrayed_toggle=True,
+            ),
         ],
         edges=[GraphEdge(id="e", source="a", sourceHandle="o", target="b", targetHandle="i")],
     )
     packs = {
-        ("src", "0.1.0"): _pk({}, {"o": {"tags": ["colmap-cameras-txt"], "scalar": True}}, arrayable=True),
+        ("src", "0.1.0"): _pk(
+            {}, {"o": {"tags": ["colmap-cameras-txt"], "scalar": True}}, arrayable=True
+        ),
         ("dst", "0.1.0"): _pk(
             {"i": {"tags": ["colmap-cameras-txt"], "scalar": True}},
             {"out": {"tags": ["x"]}},
@@ -308,8 +480,12 @@ def test_scalar_output_to_scalar_input_allowed() -> None:
 def test_validate_any_tag_wildcard_accepts_frame_sequence() -> None:
     graph = WorkflowGraph(
         nodes=[
-            GraphNode(id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node"),
-            GraphNode(id="b", algorithm_name="dst", algorithm_version="0.1.0", assigned_node_id="node"),
+            GraphNode(
+                id="a", algorithm_name="src", algorithm_version="0.1.0", assigned_node_id="node"
+            ),
+            GraphNode(
+                id="b", algorithm_name="dst", algorithm_version="0.1.0", assigned_node_id="node"
+            ),
         ],
         edges=[GraphEdge(id="e", source="a", sourceHandle="o", target="b", targetHandle="i")],
     )
