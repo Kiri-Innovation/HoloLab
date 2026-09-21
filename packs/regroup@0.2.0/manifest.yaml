@@ -5,11 +5,13 @@ version: 0.2.0
 description: >
   Generic N-D permutation over a tag-typed arrayed tree. Reorders the
   outer/inner axes of a multi-dim arrayed handle by any permutation of
-  its dim labels. Content-dim aware: for ``image_sequence`` inputs
+  its dim labels. Content-dim aware: for ``image`` inputs
   (``content_dims=1``) the innermost dim is enumerated per T-type
-  (files under ``frames/``) rather than as a physical subdir layer —
-  which is what the ``frame-extraction`` → ``colmap-triangulate`` main
-  chain requires. Successor to ``regroup-by-frame@0.1.0``.
+  (image files directly under the element dir) rather than as a
+  physical subdir layer — which is what the ``frame-extraction`` →
+  ``colmap-triangulate`` main chain requires. Legacy ``frames/`` wrapper
+  is still consumed on the input side. Successor to
+  ``regroup-by-frame@0.1.0``.
 source_entry: regroup.py
 category: "utility/arrayed"
 
@@ -22,16 +24,19 @@ docs: |
   ``[time,cam]``) fails loud at pack start.
   ``content_dims`` says how many of the innermost dims are enumerated
   via the leaf T-type's content rules (default 0 = every dim is a
-  physical subdir; 1 = image_sequence-style, innermost dim = files under
-  ``<leaf>/frames/``). Matches the framework's tag-driven element
+  physical subdir; 1 = image-style, innermost dim = image files directly
+  under the element dir). Matches the framework's tag-driven element
   enumeration in :mod:`hololab.gateway.tag_probes`.
 
   **Directory + file names.** Physical dir layers use
-  ``<dim_label>_<idx:04d>``. The image_sequence content layer writes
-  ``<parent>/frames/<inner_label>_<idx:04d><ext>`` where ``<ext>`` is
-  the source file's suffix. Source filename stems are NOT echoed into
-  the target — indices come from the sorted position of each element
-  on the source side.
+  ``<dim_label>_<idx:04d>``. The image content layer writes
+  ``<parent>/<inner_label>_<idx:04d><ext>`` — one file per innermost
+  index, no ``frames/`` wrapper. ``<ext>`` is the source file's
+  suffix. Source filename stems are NOT echoed into the target —
+  indices come from the sorted position of each element on the source
+  side. On the read side both the new flat layout AND the legacy
+  ``<leaf>/frames/`` layout are accepted so pre-migration inputs
+  continue to regroup cleanly.
 
   **Symlinks, not copies.** N leaves → N ``os.symlink`` calls to the
   resolved source paths. Idempotent: existing symlinks are unlinked
@@ -47,22 +52,19 @@ docs: |
   output: <root>/frame_0000/camera_0000/ → symlink to source dir
   ```
 
-  Example — 2-D transpose on ``arrayed<image_sequence>`` (the main-chain
+  Example — 2-D transpose on ``arrayed<arrayed<image>>`` (the main-chain
   ``frame-extraction`` → ``colmap-triangulate`` shape; ``content_dims=1``):
   ```
   input_dims:   [cam, frame]
   output_dims:  [frame, cam]
   content_dims: 1
-  input:  <root>/cam00/frames/frame_000000.png
-  output: <root>/frame_0000/frames/cam_0000.png
+  input:  <root>/cam00/frame_000000.png       (new layout)
+       or <root>/cam00/frames/frame_000000.png (legacy input accepted)
+  output: <root>/frame_0000/cam_0000.png       (always new layout — no frames/)
   ```
-  Output leaves keep the ``frames/`` convention so downstream
-  ``colmap-triangulate`` (which does ``--image-path <element>/frames/``)
-  can consume them without further reshape. Filenames differ from
-  ``regroup-by-frame@0.1.0`` (source-stem echo vs. ``<label>_<idx>``);
-  ``colmap-triangulate``'s ``cam_key(name)`` derives the key from the
-  file stem, so it stays consistent as long as both SfM and triangulate
-  read from the same regroup output.
+  Downstream ``colmap-triangulate`` consumes the element dir directly
+  (no ``frames/`` subdir). ``cam_key`` derives from the file stem, so
+  keys stay consistent between SfM and triangulate.
 
 inputs:
   in:
@@ -101,8 +103,9 @@ params:
     description: >
       How many of the innermost dims are enumerated via T-type content
       rules (0 = generic dir tree, every axis is a physical subdir; 1 =
-      image_sequence, innermost axis = files under ``frames/``). Set to
-      1 when the input carries the ``image`` tag family.
+      image, innermost axis = image files directly under the element dir
+      — legacy ``frames/`` wrapper is still read on input). Set to 1
+      when the input carries the ``image`` tag family.
 
 runtime:
   env: kiri

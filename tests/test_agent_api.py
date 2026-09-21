@@ -692,11 +692,13 @@ def test_handle_summary_arrayed_layout_exposes_children(tmp_path: Path) -> None:
 def test_handle_summary_frames_subdir_gets_second_level_drill(
     tmp_path: Path,
 ) -> None:
-    """arrayed<frame_sequence> wraps images in a ``frames/`` subdir
-    (``<element>/frames/<image>``, both ``frame-extraction`` and
-    ``regroup-by-frame``). The dir summary drills one more level into
-    any such subdir so ``NestedFrameSequencePreview`` can pick
-    thumbnails without an extra fetch per element.
+    """Legacy ``arrayed<image>`` wraps images in a ``frames/`` subdir
+    (``<element>/frames/<image>``, pre flatten-migration
+    ``frame-extraction`` / ``regroup-by-frame``). The dir summary drills
+    one more level into any such subdir so ``NestedFrameSequencePreview``
+    can pick thumbnails without an extra fetch per element. Kept as a
+    read-side backward-compat contract even though new producers write
+    files directly at the element root.
     """
 
     app = create_app(db_path=tmp_path / "sumf.sqlite")
@@ -748,6 +750,57 @@ def test_handle_summary_frames_subdir_gets_second_level_drill(
             # case is exercised by ``test_handle_summary_frames_drill_
             # entry_count_survives_cap``.
             assert frames["entry_count"] == 2
+
+
+def test_handle_summary_flat_element_dir_caps_image_children(
+    tmp_path: Path,
+) -> None:
+    """Post-flatten ``arrayed<arrayed<image>>`` puts image files directly
+    under each element dir (no ``frames/`` wrapper). The summary caps
+    the per-element children at _FRAMES_DRILL_CAP and sets
+    ``entry_count`` on the element itself so NestedFrameSequence
+    Preview's card badge still shows the real count.
+    """
+
+    from hololab.gateway.handle_summary import _FRAMES_DRILL_CAP
+
+    app = create_app(db_path=tmp_path / "sumflat.sqlite")
+    with TestClient(app) as client:
+        d = tmp_path / "by_frame_flat"
+        d.mkdir()
+        n_frames = _FRAMES_DRILL_CAP * 3 + 1
+        # Two per-frame elements, each holding many per-cam PNGs
+        # directly at the element root (the new layout).
+        for frame in ("frame_0000", "frame_0001"):
+            e = d / frame
+            e.mkdir()
+            for i in range(n_frames):
+                (e / f"cam_{i:04d}.png").write_bytes(b"\x89PNG" + b"\x00" * 20)
+
+        async def _seed() -> None:
+            await client.app.state.handles.register(
+                Handle(
+                    handle_id="h-flat",
+                    node_id="node-a",
+                    storage="dir",
+                    tags=["image"],
+                    path=str(d),
+                    size_bytes=None,
+                    output_port_name="by_frame",
+                )
+            )
+
+        client.portal.call(_seed)
+
+        body = client.get("/api/handles/h-flat/summary").json()
+        entries = {e["name"]: e for e in body["fields"]["entries"]}
+        for entry in entries.values():
+            assert entry["is_dir"] is True
+            # Element children are the image files directly (no frames/).
+            assert all(not c["is_dir"] for c in entry["children"])
+            # Capped at _FRAMES_DRILL_CAP but entry_count carries the truth.
+            assert len(entry["children"]) == _FRAMES_DRILL_CAP
+            assert entry["entry_count"] == n_frames
 
 
 def test_handle_summary_frames_drill_entry_count_survives_cap(

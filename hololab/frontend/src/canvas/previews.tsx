@@ -2214,19 +2214,15 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
   const [nodeRoot, dirSub] = useMemo(() => splitProxyBase(baseUrl), [baseUrl]);
   const dirBase = baseUrl.replace(/\/$/, "");
 
-  const rawFrameUrl = useCallback(
-    (idx: number) => `${dirBase}/frames/${frameName(idx)}`,
-    [dirBase],
-  );
-  const thumbUrl = useCallback(
-    (idx: number) =>
-      `${nodeRoot}/_thumb/${STRIP_THUMB_W}x${STRIP_THUMB_H}/${dirSub}/frames/${frameName(idx)}?at=0`,
-    [nodeRoot, dirSub],
-  );
-
+  // Post flatten migration: image files sit directly under the handle
+  // root; legacy handles keep them under ``frames/``. We probe frame 0
+  // at both locations and pick whichever answers, then use the same
+  // prefix for the count walk + thumb URLs. Empty prefix on flat
+  // handles, ``frames/`` on legacy — that's the only structural
+  // difference the viewer needs to handle.
   const [state, setState] = useState<
     | { kind: "loading" }
-    | { kind: "ok"; count: number; width: number | null; height: number | null }
+    | { kind: "ok"; count: number; width: number | null; height: number | null; pathPrefix: string }
     | { kind: "err"; message: string }
   >({ kind: "loading" });
 
@@ -2234,18 +2230,24 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
     const abort = new AbortController();
     (async () => {
       try {
-        // Kick both probes in parallel — the count walk hits ~10-30
-        // sequential 1-byte GETs, so overlapping the (single) IHDR
-        // fetch under it costs us nothing.
+        // Probe the two candidate locations in parallel — one of them
+        // costs one 1-byte GET, the other errors out (also 1 request).
+        const [flatExists, legacyExists] = await Promise.all([
+          probeExists(`${dirBase}/${frameName(0)}`, abort.signal),
+          probeExists(`${dirBase}/frames/${frameName(0)}`, abort.signal),
+        ]);
+        const pathPrefix = flatExists ? "" : legacyExists ? "frames/" : "";
+        const rawUrl = (idx: number) => `${dirBase}/${pathPrefix}${frameName(idx)}`;
         const [count, dims] = await Promise.all([
-          probeFrameCount(rawFrameUrl, abort.signal),
-          fetchPngDims(rawFrameUrl(0), abort.signal),
+          probeFrameCount(rawUrl, abort.signal),
+          fetchPngDims(rawUrl(0), abort.signal),
         ]);
         setState({
           kind: "ok",
           count,
           width: dims?.width ?? null,
           height: dims?.height ?? null,
+          pathPrefix,
         });
       } catch (e) {
         if (abort.signal.aborted) return;
@@ -2253,7 +2255,18 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
       }
     })();
     return () => abort.abort();
-  }, [rawFrameUrl]);
+  }, [dirBase]);
+
+  const pathPrefix = state.kind === "ok" ? state.pathPrefix : "";
+  const rawFrameUrl = useCallback(
+    (idx: number) => `${dirBase}/${pathPrefix}${frameName(idx)}`,
+    [dirBase, pathPrefix],
+  );
+  const thumbUrl = useCallback(
+    (idx: number) =>
+      `${nodeRoot}/_thumb/${STRIP_THUMB_W}x${STRIP_THUMB_H}/${dirSub}/${pathPrefix}${frameName(idx)}?at=0`,
+    [nodeRoot, dirSub, pathPrefix],
+  );
 
   const [zoomIdx, setZoomIdx] = useState<number | null>(null);
   useEffect(() => {
@@ -2282,7 +2295,7 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
   if (state.count === 0) {
     return (
       <div style={PREVIEW_SHELL}>
-        <Status text="no frames under frames/" kind="info" />
+        <Status text="no frame_XXXXXX.png found" kind="info" />
       </div>
     );
   }

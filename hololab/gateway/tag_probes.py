@@ -262,18 +262,29 @@ ContentDimProbeFn = Callable[[Path], list[int] | None]
 
 
 def _probe_image_sequence_content_dims(path: Path) -> list[int] | None:
-    """One intrinsic dim: count image files under ``<leaf>/frames/``.
+    """One intrinsic dim: count image files inside the element leaf.
 
-    ``image_sequence`` is by convention ``<leaf>/frames/frame_XXXXXX.png``
-    (post-``regroup-by-frame`` the leaf-inside files are per-camera
-    ``cam_YY.png`` — same layer, different naming).
+    New layout (post frames/ removal): the element leaf IS the sequence —
+    image files live directly under ``<leaf>/`` (``<leaf>/frame_XXXXXX.png``
+    from frame-extraction, or ``<leaf>/cam_YYYY.png`` from the
+    ``arrayed<arrayed<image>>`` transpose). Legacy layout kept the images
+    one level down under ``<leaf>/frames/`` — still probed as a fallback
+    so pre-migration handles keep reporting ``dim_sizes`` correctly.
     """
+    try:
+        direct = sum(1 for c in path.iterdir() if not c.name.startswith(".") and c.is_file())
+    except OSError:
+        return None
+    if direct > 0:
+        return [direct]
     frames = path / "frames"
     if not frames.is_dir():
         return None
     try:
         n = sum(1 for c in frames.iterdir() if not c.name.startswith(".") and c.is_file())
     except OSError:
+        return None
+    if n == 0:
         return None
     return [n]
 

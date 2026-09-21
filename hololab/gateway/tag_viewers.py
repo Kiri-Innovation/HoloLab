@@ -53,14 +53,16 @@ TAG_VIEWER_REGISTRY: dict[str, OutputPreview] = {
     # already keys on the ``splatv`` tag, so packs that produce it
     # don't need to repeat themselves.
     "splatv": OutputPreview(viewer="splatv"),
-    # Ordered frame sequence (``frames/frame_XXXXXX.png``) — the abstract
-    # object shared between the frame extractor and any consumer that
-    # wants a sequence of images (MegaSaM tracker, future re-runs of
-    # other trackers). The default viewer just shows the first frame;
-    # promoting it to a proper image-grid viewer is a follow-up.
-    # ``image`` is the canonical tag; ``image_sequence`` / ``frame_sequence``
-    # are aliases retained so pre-migration handles still preview correctly.
-    "image": OutputPreview(viewer="image", member="frames/frame_000000.png"),
+    # Ordered image sequence — the abstract object shared between the
+    # frame extractor and any consumer that wants a sequence of images
+    # (MegaSaM tracker, future re-runs of other trackers). Post the
+    # flatten migration, files sit directly under the element dir
+    # (``<element>/frame_XXXXXX.png``); the aliases keep the legacy
+    # ``frames/`` path so pre-migration handles still resolve. The
+    # frontend's ``FrameStripPreview`` also falls back between the two
+    # layouts, so a wrong static member here just picks a suboptimal
+    # first frame — never breaks the viewer.
+    "image": OutputPreview(viewer="image", member="frame_000000.png"),
     "image_sequence": OutputPreview(viewer="image", member="frames/frame_000000.png"),
     "frame_sequence": OutputPreview(viewer="image", member="frames/frame_000000.png"),
     # Scalar ``int`` handle — a small plain-text file whose sole content

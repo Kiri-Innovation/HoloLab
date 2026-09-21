@@ -95,7 +95,10 @@ def main() -> int:
         "--images",
         type=Path,
         required=True,
-        help="frame_sequence handle (must contain frames/ subdir).",
+        help=(
+            "image handle: element dir holding image files directly "
+            "(new layout) or inside a legacy ``frames/`` subdir."
+        ),
     )
     ap.add_argument(
         "--cameras-out", type=Path, required=True, help="Output for the PINHOLE colmap-cameras-txt."
@@ -111,12 +114,20 @@ def main() -> int:
     args = ap.parse_args()
 
     source_cameras_txt = args.cameras / "cameras.txt"
-    images_dir = args.images / "frames"
+    # Flatten migration: prefer files at the handle root; fall back to
+    # the legacy ``frames/`` subdir so pre-migration handles still work.
+    if any(p.is_file() and not p.name.startswith(".") for p in args.images.iterdir()):
+        images_dir = args.images
+    else:
+        images_dir = args.images / "frames"
     if not source_cameras_txt.is_file():
         print(f"ERROR: missing cameras.txt at {source_cameras_txt}", file=sys.stderr)
         return 2
     if not images_dir.is_dir():
-        print(f"ERROR: images handle missing frames/ subdir: {images_dir}", file=sys.stderr)
+        print(
+            f"ERROR: images handle has no image files at root or frames/ subdir: {args.images}",
+            file=sys.stderr,
+        )
         return 2
 
     args.cameras_out.mkdir(parents=True, exist_ok=True)
@@ -183,18 +194,23 @@ def main() -> int:
         return 3
     shutil.copyfile(pinhole_cameras, args.cameras_out / "cameras.txt")
 
-    # Publish undistorted images at the frame_sequence layout the rest of the
-    # ecosystem expects: <handle>/frames/<name>.
-    out_frames = args.undistorted_out / "frames"
-    if out_frames.exists():
-        shutil.rmtree(out_frames)
-    out_frames.mkdir(parents=True)
+    # Publish undistorted images at the flatten-migration layout: files
+    # sit directly under <handle>/ (no ``frames/`` wrapper).
+    out_root = args.undistorted_out
+    # Wipe any stale legacy ``frames/`` from a re-run before flatten.
+    legacy_frames = out_root / "frames"
+    if legacy_frames.is_dir():
+        shutil.rmtree(legacy_frames)
+    for stale in out_root.glob("*"):
+        if stale.is_file() and not stale.name.startswith("."):
+            stale.unlink()
+    out_root.mkdir(parents=True, exist_ok=True)
     src_images = scratch_output / "images"
     n_out = 0
     for src in sorted(src_images.iterdir()):
         if not src.is_file():
             continue
-        dst = out_frames / src.name
+        dst = out_root / src.name
         try:
             os.link(src, dst)
         except OSError:

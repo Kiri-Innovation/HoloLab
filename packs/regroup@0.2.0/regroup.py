@@ -3,9 +3,8 @@
 
 Reorders the axes of a multi-dim arrayed handle by a caller-supplied
 permutation of dim labels. Handles both physical directory layers AND
-the intrinsic content dims of the leaf type T (e.g. ``image_sequence``
-= ``<leaf>/frames/frame_XXXXXX.png`` — one intrinsic content dim
-enumerated as files under ``frames/``).
+the intrinsic content dims of the leaf type T (e.g. an ``image`` element
+= ONE file — the sequence lives at the innermost arrayed layer).
 
 Content-dim awareness is opt-in via ``--content-dims N``:
 
@@ -13,13 +12,15 @@ Content-dim awareness is opt-in via ``--content-dims N``:
   Same as the original v0.2.0 shape. Suitable for ``arrayed<arrayed<T>>``
   where T is itself a directory (e.g. ``colmap`` with ``sparse/0/``,
   ``cameras.bin``, ...) and each inner "axis element" is a subdir.
-* ``1`` — the innermost dim is enumerated per ``image_sequence`` rules
-  (files under ``<leaf>/frames/``), mirroring
-  :func:`hololab.gateway.tag_probes.probe_content_dims` for the ``image``
-  tag family. Output preserves the T-type layout at each leaf:
-  ``<outer_dir>/frames/<inner_label>_<idx:04d><ext>``.
+* ``1`` — the innermost dim is enumerated per ``image`` rules
+  (image files directly under ``<leaf>/``; legacy ``<leaf>/frames/``
+  layout is still accepted so pre-flatten artifacts stay consumable),
+  mirroring :func:`hololab.gateway.tag_probes.probe_content_dims` for
+  the ``image`` tag family. Output places the T-type leaves as
+  ``<outer_dir>/<inner_label>_<idx:04d><ext>`` — one file per innermost
+  index, no ``frames/`` wrapper.
 
-The pack keeps its stdlib-only surface — the ``image_sequence`` rule is
+The pack keeps its stdlib-only surface — the ``image`` rule is
 duplicated here rather than imported. Adding a new content-dim tag
 family means teaching both places.
 
@@ -29,7 +30,8 @@ Contract
 Input: first ``(D - C)`` outer dims are physical subdirs sorted by
 :func:`Path.iterdir`; last ``C`` inner dims are enumerated per T-type.
 Output: same shape — first ``(D - C)`` are ``<label>_<idx:04d>`` physical
-dirs, last ``C`` are the T-type's content layer.
+dirs, last ``C`` are the T-type's content layer (image files directly
+under the innermost dir when C=1).
 
 Symlinks — never copies. Idempotent (existing links unlinked first).
 
@@ -38,9 +40,10 @@ Validation
 
 * ``input_dims`` and ``output_dims`` must be the same set of strings.
 * ``content_dims`` must satisfy ``0 <= content_dims <= 1`` (only
-  ``image_sequence``-style single content dim is supported today).
+  ``image``-style single content dim is supported today).
 * Depth of the source tree must equal ``len(input_dims) - content_dims``
-  physical layers, terminating in a ``frames/`` dir when ``content_dims=1``.
+  physical layers; for ``content_dims=1`` the leaf must contain image
+  files directly (new layout) OR a ``frames/`` subdir with them (legacy).
 
 Only depends on the stdlib.
 """
@@ -62,11 +65,21 @@ def _list_subdirs_sorted(root: Path) -> list[str]:
 
 
 def _list_content_files_sorted(root: Path) -> list[Path]:
-    """image_sequence content probe: files directly under ``<root>/frames/``.
+    """``image`` content probe: image files inside the element leaf.
+
+    New layout: files sit directly under ``<root>/`` (post frames/ removal).
+    Legacy layout: files were nested one level down under ``<root>/frames/``.
+    We prefer the new layout when present, falling back to the legacy
+    ``frames/`` subdir so pre-flatten inputs still regroup cleanly.
 
     Mirrors :func:`hololab.gateway.tag_probes._probe_image_sequence_content_dims`
     — the pack keeps this local so ``regroup.py`` stays stdlib-only.
     """
+    if not root.is_dir():
+        return []
+    direct = sorted(f for f in root.iterdir() if f.is_file() and not f.name.startswith("."))
+    if direct:
+        return direct
     frames = root / "frames"
     if not frames.is_dir():
         return []
@@ -161,10 +174,10 @@ def _target_path(
 ) -> Path:
     """Compose the target path per output T-type.
 
-    Physical dir layers use ``<label>_<idx:04d>``; the ``image_sequence``
-    content layer materializes the innermost element as a file under
-    ``<parent>/frames/`` with the same ``<label>_<idx:04d>`` stem and
-    the source file's extension.
+    Physical dir layers use ``<label>_<idx:04d>``; the ``image``
+    content layer materializes the innermost element as a file directly
+    under the innermost dir with a ``<label>_<idx:04d>`` stem and the
+    source file's extension. No ``frames/`` wrapper.
     """
     dir_depth = len(output_dims) - content_dims
     target = output_root
@@ -175,7 +188,7 @@ def _target_path(
     if content_dims == 1:
         label = output_dims[-1]
         idx = tgt_indices[-1]
-        return target / "frames" / f"{label}_{idx:04d}{leaf_ext}"
+        return target / f"{label}_{idx:04d}{leaf_ext}"
     raise NotImplementedError(f"content_dims={content_dims} not supported")
 
 
@@ -286,7 +299,7 @@ def main() -> int:
     axes_str = " x ".join(
         f"{name}[{len(values)}]" for name, values in zip(input_dims, axis_values, strict=True)
     )
-    kind = "generic dir-tree" if content_dims == 0 else "image_sequence (frames/*)"
+    kind = "generic dir-tree" if content_dims == 0 else "image (flat files)"
     print(f"regroup ({kind}): {axes_str} = {total_links} leaves, {input_dims!r} → {output_dims!r}")
     return 0
 

@@ -159,7 +159,7 @@ def test_max_width_downscales_only_when_wider(synthetic_video: Path, tmp_path: P
     out = tmp_path / "downscale"
     n = mod.extract_frames(synthetic_video, out, max_width=200)
     assert n > 0
-    first = sorted((out / "frames").glob("frame_*.png"))[0]
+    first = sorted(out.glob("frame_*.png"))[0]
     probed_w = subprocess.run(
         [
             "ffprobe",
@@ -185,7 +185,7 @@ def test_max_width_passthrough_when_input_narrower(synthetic_video: Path, tmp_pa
     mod = _load_extract_frames_module()
     out = tmp_path / "passthrough"
     mod.extract_frames(synthetic_video, out, max_width=9999)
-    first = sorted((out / "frames").glob("frame_*.png"))[0]
+    first = sorted(out.glob("frame_*.png"))[0]
     probed_w = subprocess.run(
         [
             "ffprobe",

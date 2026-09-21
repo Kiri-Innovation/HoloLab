@@ -432,14 +432,17 @@ def test_handle_summary_dim_sizes_rejects_ragged(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_content_dim_registry_image_sequence(tmp_path: Path) -> None:
-    """``image`` content probe reports the file count under ``frames/``."""
+def test_content_dim_registry_image_flat_layout(tmp_path: Path) -> None:
+    """New (flat) ``image`` probe: image files sit directly under the
+    element leaf; probe reports their count. Registry counts stay 1
+    (one intrinsic dim) regardless of physical wrapping.
+    """
     from hololab.gateway.tag_probes import content_dim_count_for, probe_content_dims
 
     leaf = tmp_path / "elem"
-    (leaf / "frames").mkdir(parents=True)
+    leaf.mkdir()
     for i in range(5):
-        (leaf / "frames" / f"frame_{i:06d}.png").write_bytes(b"")
+        (leaf / f"frame_{i:06d}.png").write_bytes(b"")
 
     assert content_dim_count_for(["image"]) == 1
     assert content_dim_count_for(["image_sequence"]) == 1  # alias
@@ -448,25 +451,41 @@ def test_content_dim_registry_image_sequence(tmp_path: Path) -> None:
 
     assert probe_content_dims(["image"], leaf) == [5]
     assert probe_content_dims(["colmap"], leaf) is None
-    # image path with no frames/ → None (drops dim_sizes upstream).
-    assert probe_content_dims(["image"], tmp_path) is None
 
 
-def test_handle_summary_dim_sizes_image_sequence_2d(tmp_path: Path) -> None:
-    """arrayable-wrap image_sequence: dim_labels=["frame","cam"] with depth=2.
+def test_content_dim_registry_image_legacy_frames_dir(tmp_path: Path) -> None:
+    """Backward compat: pre-flatten handles with ``<leaf>/frames/<file>``
+    still yield a correct content-dim count so old artifacts keep
+    reporting ``dim_sizes``.
+    """
+    from hololab.gateway.tag_probes import probe_content_dims
 
-    Physical layout matches ``image-undistort.und_images``:
-    ``<frame_XXX>/frames/<cam_YY>.png``. Walker walks 1 dir level (frame),
-    then image_sequence probe counts files under frames/ (cam count).
+    leaf = tmp_path / "elem"
+    (leaf / "frames").mkdir(parents=True)
+    for i in range(5):
+        (leaf / "frames" / f"frame_{i:06d}.png").write_bytes(b"")
+
+    assert probe_content_dims(["image"], leaf) == [5]
+    # An empty root with no files and no frames/ → None (drops dim_sizes).
+    assert probe_content_dims(["image"], tmp_path / "empty") is None
+
+
+def test_handle_summary_dim_sizes_image_2d_flat(tmp_path: Path) -> None:
+    """arrayable-wrap ``image`` (flat, new layout): dim_labels=["frame","cam"]
+    with depth=2 and files directly under each element dir.
+
+    Walker walks 1 dir level (frame), then ``image`` probe counts files
+    directly under each element (cam count).
     """
     from hololab.gateway.handle_summary import summarize_handle
     from hololab.gateway.handles import Handle
 
     root = tmp_path / "arr"
     for f in range(3):
+        elem = root / f"frame_{f:04d}"
+        elem.mkdir(parents=True, exist_ok=True)
         for c in range(4):
-            (root / f"frame_{f:04d}" / "frames").mkdir(parents=True, exist_ok=True)
-            (root / f"frame_{f:04d}" / "frames" / f"cam_{c:02d}.png").write_bytes(b"")
+            (elem / f"cam_{c:04d}.png").write_bytes(b"")
     h = Handle(
         handle_id="hh",
         node_id="n",
@@ -479,21 +498,42 @@ def test_handle_summary_dim_sizes_image_sequence_2d(tmp_path: Path) -> None:
     assert res["element_count"] == 3
 
 
-def test_handle_summary_dim_sizes_image_sequence_1d(tmp_path: Path) -> None:
-    """image_sequence with only the wrap layer (depth=1) still probes ``frames/``
-    but only when the caller says depth=2. With depth=1 and image_sequence, the
-    walker uses dir_depth = 1 - 1 = 0 (no dir walk, only content probe).
+def test_handle_summary_dim_sizes_image_2d_legacy_frames_dir(tmp_path: Path) -> None:
+    """Legacy handles still report dim_sizes: files under
+    ``<frame_XXXX>/frames/<cam_YY>.png``. Backward compat contract.
+    """
+    from hololab.gateway.handle_summary import summarize_handle
+    from hololab.gateway.handles import Handle
 
-    Matches a non-arrayable single image_sequence handle (rare — mostly for
-    the frame-extraction per-shard leaf viewed by itself).
+    root = tmp_path / "arr"
+    for f in range(3):
+        for c in range(4):
+            (root / f"frame_{f:04d}" / "frames").mkdir(parents=True, exist_ok=True)
+            (root / f"frame_{f:04d}" / "frames" / f"cam_{c:02d}.png").write_bytes(b"")
+    h = Handle(
+        handle_id="hhl",
+        node_id="n",
+        storage="dir",
+        tags=["image"],
+        path=str(root),
+    )
+    res = summarize_handle(h, depth=2)
+    assert res["dim_sizes"] == [3, 4]
+    assert res["element_count"] == 3
+
+
+def test_handle_summary_dim_sizes_image_1d_flat(tmp_path: Path) -> None:
+    """Single-shard ``image`` (depth=1): the handle IS the arrayed<image>
+    sequence — files ``frame_XXXXXX.png`` at the root, no ``frames/``.
+    Walker uses dir_depth = 1 - 1 = 0 (no dir walk, only content probe).
     """
     from hololab.gateway.handle_summary import summarize_handle
     from hololab.gateway.handles import Handle
 
     scalar_seq = tmp_path / "seq"
-    (scalar_seq / "frames").mkdir(parents=True)
+    scalar_seq.mkdir()
     for i in range(7):
-        (scalar_seq / "frames" / f"f_{i:04d}.png").write_bytes(b"")
+        (scalar_seq / f"f_{i:04d}.png").write_bytes(b"")
     h = Handle(
         handle_id="hh2",
         node_id="n",
@@ -505,16 +545,54 @@ def test_handle_summary_dim_sizes_image_sequence_1d(tmp_path: Path) -> None:
     assert res["dim_sizes"] == [7]
 
 
-def test_handle_summary_dim_sizes_image_sequence_missing_frames_dir(tmp_path: Path) -> None:
-    """Probe returns None when ``frames/`` is missing at the leaf — annotator
-    drops ``dim_sizes`` entirely rather than emitting a partial [outer, ?]."""
+def test_summarize_dir_caps_flat_image_children(tmp_path: Path) -> None:
+    """Post-flatten ``arrayed<arrayed<image>>``: image files sit directly
+    under each element (no ``frames/``). The per-element listing must be
+    capped and ``entry_count`` set so NestedFrameSequencePreview's card
+    badge shows the true count even when children were truncated.
+
+    Direct call on ``_summarize_dir`` avoids the app layer while the
+    surrounding gateway rewire lands in another branch.
+    """
+    from hololab.gateway.handle_summary import _FRAMES_DRILL_CAP, _summarize_dir
+    from hololab.gateway.handles import Handle
+
+    root = tmp_path / "by_frame_flat"
+    root.mkdir()
+    n_frames = _FRAMES_DRILL_CAP * 3 + 1
+    for frame in ("frame_0000", "frame_0001"):
+        e = root / frame
+        e.mkdir()
+        for i in range(n_frames):
+            (e / f"cam_{i:04d}.png").write_bytes(b"\x89PNG" + b"\x00" * 20)
+    handle = Handle(
+        handle_id="h-flat",
+        node_id="n",
+        storage="dir",
+        tags=["image"],
+        path=str(root),
+    )
+    res = _summarize_dir(root, handle)
+    entries = res["fields"]["entries"]
+    assert len(entries) == 2
+    for entry in entries:
+        assert entry["is_dir"] is True
+        assert all(not c["is_dir"] for c in entry["children"])
+        assert len(entry["children"]) == _FRAMES_DRILL_CAP
+        assert entry["entry_count"] == n_frames
+
+
+def test_handle_summary_dim_sizes_image_missing_files(tmp_path: Path) -> None:
+    """Probe returns None when the element has no image files and no
+    legacy ``frames/`` — annotator drops ``dim_sizes`` rather than
+    emitting a partial [outer, ?]."""
     from hololab.gateway.handle_summary import summarize_handle
     from hololab.gateway.handles import Handle
 
     root = tmp_path / "arr"
     for f in range(3):
         (root / f"frame_{f:04d}").mkdir(parents=True)
-        # No frames/ subdir — image_sequence content probe will fail.
+        # Empty element — no files at root, no frames/ subdir.
     h = Handle(
         handle_id="hh3",
         node_id="n",
@@ -578,11 +656,11 @@ def _run_rbf(input_root: Path, output_root: Path) -> subprocess.CompletedProcess
 def test_regroup_by_frame_transposes_image_sequence(tmp_path: Path) -> None:
     """regroup-by-frame@0.1.0 iterates individual PNGs at the file level.
 
-    Input:  <cam>/frames/frame_XXXXXX.png   (frame-extraction output)
-    Output: <frame_key>/frames/<cam>.png    (colmap-triangulate-ready)
+    Input:  <cam>/frames/frame_XXXXXX.png   (legacy frame-extraction shape)
+    Output: <frame_key>/frames/<cam>.png    (legacy colmap-triangulate shape)
 
-    Each output element is an image_sequence with the ``frames/`` convention.
-    colmap-triangulate accesses ``--image-path <element>/frames/``.
+    The DEPRECATED @0.1.0 pack keeps the old ``frames/`` convention on both
+    sides. New producers use the flat layout; consumers accept both.
     """
     in_root = tmp_path / "in"
     _mk_image_sequence_tree(in_root, ["cam_A", "cam_B"], n_frames=3)
@@ -619,18 +697,19 @@ def test_regroup_v020_misinterprets_image_sequence_when_content_dims_0(
     )
 
 
-def test_regroup_v020_matches_regroup_by_frame_structure_when_content_dims_1(
+def test_regroup_v020_matches_regroup_by_frame_element_count(
     tmp_path: Path,
 ) -> None:
-    """With ``content_dims=1``, regroup@0.2.0 is structurally equivalent to
-    regroup-by-frame@0.1.0.
+    """With ``content_dims=1``, regroup@0.2.0 produces the same per-frame
+    element count as regroup-by-frame@0.1.0, but at a flatter layout.
 
-    Both produce ``<frame_dir>/frames/<cam_file>.png`` per-frame elements
-    that colmap-triangulate (``--image-path <element>/frames``) can consume.
-    The only difference is leaf naming: regroup-by-frame echoes source
-    stems (``cam00.png``); regroup@0.2.0 uses ``<label>_<idx:04d>``
-    (``cam_0000.png``). Same file count, same cam-key derivability from
-    stems.
+    * regroup-by-frame@0.1.0: ``<frame_dir>/frames/<cam>.png`` (legacy).
+    * regroup@0.2.0:          ``<frame_dir>/<cam>.png``         (flat).
+
+    Filenames also differ: legacy echoes source stems (``cam00.png``);
+    v0.2.0 uses ``<label>_<idx:04d>`` (``cam_0000.png``). Same file
+    count, same per-frame group set — downstream colmap-triangulate
+    now consumes the shard root directly (auto-detects both layouts).
     """
     in_root = tmp_path / "in"
     _mk_image_sequence_tree(in_root, ["cam00", "cam01", "cam02"], n_frames=4)
@@ -646,7 +725,7 @@ def test_regroup_v020_matches_regroup_by_frame_structure_when_content_dims_1(
     assert len(rbf_frames) == len(v020_frames) == 4
 
     rbf_cams = sorted((out_rbf / rbf_frames[0] / "frames").iterdir())
-    v020_cams = sorted((out_v020 / v020_frames[0] / "frames").iterdir())
+    v020_cams = sorted(f for f in (out_v020 / v020_frames[0]).iterdir() if f.is_symlink())
     assert len(rbf_cams) == len(v020_cams) == 3
     assert [c.name for c in v020_cams] == ["cam_0000.png", "cam_0001.png", "cam_0002.png"]
     assert [c.name for c in rbf_cams] == ["cam00.png", "cam01.png", "cam02.png"]
@@ -669,9 +748,9 @@ def test_regroup_v020_content_dims_1_transpose_correctness(tmp_path: Path) -> No
     _run(in_root, out, ["cam", "frame"], ["frame", "cam"], content_dims=1)
 
     # source (cam00, frame_000001.png) → target (frame_0001, cam_0000.png)
-    assert (out / "frame_0001" / "frames" / "cam_0000.png").read_bytes() == b"cam00/1"
+    assert (out / "frame_0001" / "cam_0000.png").read_bytes() == b"cam00/1"
     # source (cam02, frame_000002.png) → target (frame_0002, cam_0002.png)
-    assert (out / "frame_0002" / "frames" / "cam_0002.png").read_bytes() == b"cam02/2"
+    assert (out / "frame_0002" / "cam_0002.png").read_bytes() == b"cam02/2"
 
 
 def test_regroup_v020_content_dims_1_extension_preserved(tmp_path: Path) -> None:
@@ -679,11 +758,26 @@ def test_regroup_v020_content_dims_1_extension_preserved(tmp_path: Path) -> None
     yields ``cam_XXXX.jpg`` (colmap image reader keys off the extension)."""
     in_root = tmp_path / "in"
     for cam in ("cam_A", "cam_B"):
-        (in_root / cam / "frames").mkdir(parents=True)
-        (in_root / cam / "frames" / "frame_000000.jpg").write_bytes(b"j")
+        (in_root / cam).mkdir(parents=True)
+        (in_root / cam / "frame_000000.jpg").write_bytes(b"j")
     out = tmp_path / "out"
     _run(in_root, out, ["cam", "frame"], ["frame", "cam"], content_dims=1)
-    assert (out / "frame_0000" / "frames" / "cam_0000.jpg").is_symlink()
+    assert (out / "frame_0000" / "cam_0000.jpg").is_symlink()
+
+
+def test_regroup_v020_content_dims_1_accepts_legacy_frames_input(tmp_path: Path) -> None:
+    """Backward compat: pre-flatten input (files under ``<cam>/frames/``)
+    still regroups correctly — output stays flat (new layout).
+    """
+    in_root = tmp_path / "in"
+    _mk_image_sequence_tree(in_root, ["cam00", "cam01"], n_frames=2)  # writes frames/
+    out = tmp_path / "out"
+    _run(in_root, out, ["cam", "frame"], ["frame", "cam"], content_dims=1)
+
+    assert (out / "frame_0000" / "cam_0000.png").is_symlink()
+    assert (out / "frame_0001" / "cam_0001.png").read_bytes() == b"cam01/1"
+    # No legacy ``frames/`` wrapper on the output side.
+    assert not (out / "frame_0000" / "frames").exists()
 
 
 def test_regroup_v020_content_dims_1_matches_real_fx_output_shape(tmp_path: Path) -> None:
@@ -714,14 +808,18 @@ def test_regroup_v020_content_dims_1_matches_real_fx_output_shape(tmp_path: Path
     assert len(outer) == 100
     assert outer[0] == "frame_0000" and outer[-1] == "frame_0099"
 
-    first_cams = sorted((out / outer[0] / "frames").iterdir())
+    # Flat output: image files sit directly under each frame_XXXX dir
+    # (no ``frames/`` wrapper post the flatten migration).
+    first_cams = sorted(f for f in (out / outer[0]).iterdir() if f.is_symlink())
     assert len(first_cams) == 21
     assert [c.name for c in first_cams[:3]] == [
         "cam_0000.png",
         "cam_0001.png",
         "cam_0002.png",
     ]
-    # Symlinks resolve to real source PNGs.
+    # Symlinks resolve to real source PNGs. Real fx aggregate on disk
+    # was produced by the legacy pack version so its per-cam layout is
+    # still ``<cam>/frames/<file>`` — regroup's read side auto-detects.
     assert first_cams[0].resolve() == (fx_path / "cam00" / "frames" / "frame_000000.png").resolve()
 
 

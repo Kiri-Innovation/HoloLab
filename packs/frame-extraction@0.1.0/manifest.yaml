@@ -23,16 +23,19 @@ arrayable: true
 
 docs: |
   Frame extractor node. Takes a video and writes ``frame_XXXXXX.png``
-  into ``<output>/frames/``, plus a ``frame_sequence``-tagged handle
-  downstream consumers pick up automatically.
+  directly into ``<output>/`` (post flatten migration — no ``frames/``
+  subdir), plus an ``image``-tagged handle downstream consumers pick up
+  automatically.
 
   - **Input:** ``video_dir`` from ``single-video-source`` (scalar
     ``video-source``) — or ``video-array-source`` (``arrayed<video-source>``)
     when the "并行处理数组输入" checkbox is on. Each shard sees a directory
     containing one video.
-  - **Output:** ``frame_sequence`` — directory containing ``frames/``.
-    When arrayed, the parent job's aggregate output is
-    ``arrayed<frame_sequence>`` with one element per camera.
+  - **Output:** ``image`` — one shard's output IS the ``arrayed<image>``
+    sequence (files ``frame_XXXXXX.png`` sit at the handle root, no
+    ``frames/`` wrapper). Under arrayable_toggle the aggregate becomes
+    ``arrayed<arrayed<image>>`` with ``dim_labels=[cam,frame]`` — outer
+    = per-camera shard dir, inner = per-frame file.
   - **Frame selection:** ``start_frame`` / ``end_frame`` define the
     source-index window (half-open ``[start, end)``); ``skip`` is the
     stride *within* that window; ``max_frames`` is an absolute cap on
@@ -94,18 +97,21 @@ params:
 outputs:
   frame_sequence:
     tags: [image]
-    # Scalar per-shard: script writes ONE image (frames/*.png).
-    # Under arrayable_toggle the framework wraps N shards → arrayed<image>;
-    # ``dim_labels`` names the aggregate view: outer wrap = per-camera (one
-    # shard per camera clip), inner content = per-frame (files under
-    # ``frames/``). Handle summary reports ``dim_sizes=[N_cam, N_frame]``.
+    # Per-shard the script writes an ``arrayed<image>`` sequence — files
+    # ``frame_XXXXXX.png`` sit directly at the handle root (no ``frames/``
+    # subdir since the flatten migration). Under arrayable_toggle the
+    # framework wraps N shards → ``arrayed<arrayed<image>>``; ``dim_labels``
+    # names the aggregate view: outer wrap = per-camera shard dir, inner
+    # content = per-frame image file. Handle summary reports
+    # ``dim_sizes=[N_cam, N_frame]``.
     dim_labels: ["cam", "frame"]
     description: >
-      Directory containing ``frames/frame_XXXXXX.png``. Consumed by
-      ``frames-to-camera-track`` and any other algorithm that needs an
-      ordered image sequence. Port name stays ``frame_sequence`` for
-      wiring stability; the tag is the canonical ``image``
-      (alias-compatible with ``image_sequence`` / ``frame_sequence``).
+      Directory containing ``frame_XXXXXX.png`` files at its root (no
+      ``frames/`` wrapper). Consumed by ``frames-to-camera-track`` and
+      any other algorithm that needs an ordered image sequence. Port
+      name stays ``frame_sequence`` for wiring stability; the tag is
+      the canonical ``image`` (alias-compatible with ``image_sequence`` /
+      ``frame_sequence``).
 
 runtime:
   env: kiri
@@ -147,10 +153,9 @@ exec:
       --end-frame {{ params.end_frame }} \
       -o "$OUT"
 
-    # Sanity gate: frames/ must exist and be non-empty.
-    test -d "$OUT/frames" || { echo "missing frames/" >&2; exit 3; }
-    if ! ls "$OUT/frames"/frame_*.png >/dev/null 2>&1; then
-      echo "no frame_*.png under frames/" >&2
+    # Sanity gate: at least one frame_*.png must sit directly under $OUT.
+    if ! ls "$OUT"/frame_*.png >/dev/null 2>&1; then
+      echo "no frame_*.png under $OUT" >&2
       exit 4
     fi
 
@@ -163,4 +168,4 @@ progress:
 previews:
   - id: first_frame
     type: image
-    path: "{{ outputs.frame_sequence }}/frames/frame_000000.png"
+    path: "{{ outputs.frame_sequence }}/frame_000000.png"

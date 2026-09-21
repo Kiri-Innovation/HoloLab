@@ -154,7 +154,11 @@ def extract_frames(
     start_frame: int = 0,
     end_frame: int | None = None,
 ) -> int:
-    """Decode ``video_path`` into ``output_dir/frames/frame_XXXXXX.png``.
+    """Decode ``video_path`` into ``output_dir/frame_XXXXXX.png``.
+
+    Per the flatten migration the shard IS the ``arrayed<image>`` — image
+    files land directly under ``output_dir`` with no intermediate
+    ``frames/`` wrapper.
 
     Extra params (all match STG pre_no_prior semantics):
       * ``max_width``    downscale to this pixel width (aspect-preserved);
@@ -165,11 +169,11 @@ def extract_frames(
       * ``end_frame``    source-index (exclusive) window end;
                          ``None`` / ``0`` = no end, extract to video tail.
 
-    Idempotent: if ``frames/`` already contains ``frame_*.png``, returns the
-    existing count without re-decoding — delete the directory to force a
-    re-extract.
+    Idempotent: if ``frame_*.png`` already sit under ``output_dir``,
+    return the existing count without re-decoding — delete them to force
+    a re-extract.
     """
-    frames_dir = output_dir / "frames"
+    frames_dir = output_dir
     frames_dir.mkdir(parents=True, exist_ok=True)
 
     # Normalize sentinel zeros to None so downstream logic is uniform.
@@ -181,7 +185,7 @@ def extract_frames(
 
     existing = list(frames_dir.glob("frame_*.png"))
     if existing:
-        print(f"   ✓ frames/ 已有 {len(existing)} 帧，跳过抽帧")
+        print(f"   ✓ 已有 {len(existing)} 帧，跳过抽帧")
         return len(existing)
 
     # ffprobe for metadata (avoids cv2 HEVC 10-bit decode bugs).
@@ -303,7 +307,7 @@ def extract_frames(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="从视频抽帧到 <output>/frames/ (frame_XXXXXX.png)。"
+        description="从视频抽帧到 <output>/frame_XXXXXX.png (flatten migration: no frames/)。"
     )
     parser.add_argument("video", type=str, help="输入视频路径。")
     parser.add_argument(
@@ -311,7 +315,7 @@ def main() -> int:
         "--output",
         type=str,
         required=True,
-        help="输出目录; 帧写入 <output>/frames/。",
+        help="输出目录; 帧直接写入 <output>/frame_XXXXXX.png。",
     )
     parser.add_argument(
         "--skip",
@@ -370,7 +374,7 @@ def main() -> int:
     except ValueError as exc:
         print(f"✗ 参数错误: {exc}", file=sys.stderr)
         return 2
-    print(f"✓ 抽出 {n} 帧 → {output_dir / 'frames'}")
+    print(f"✓ 抽出 {n} 帧 → {output_dir}")
     return 0
 
 

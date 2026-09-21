@@ -20,6 +20,7 @@ parse in pure Python. If those deps are added later, extend
 from __future__ import annotations
 
 import json
+import re
 import struct
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,8 @@ from hololab.gateway.tag_probes import (
     internal_count_for,
     probe_content_dims,
 )
+
+_IMAGE_SUFFIX_RE = re.compile(r"\.(png|jpe?g|webp|bmp|gif)$", re.IGNORECASE)
 
 # Cap what we read from a single file. Splatv headers are ~74 KiB on
 # real STG models; 256 KiB is comfortable overhead and still trivial.
@@ -481,23 +484,42 @@ def _summarize_dir(path: Path, _handle: Handle) -> dict[str, Any]:
             # a viewer needs to build per-element URLs, without a
             # dedicated per-subdir endpoint or client-side probes.
             if child.is_dir() and children_budget > 0:
-                entry["children"] = _list_dir_children(child, children_budget)
+                # Post-migration ``arrayed<image>`` puts image files
+                # directly under each element (no ``frames/`` wrapper).
+                # An element dir can now hold hundreds of thumbnails, so
+                # cap that per-element listing the same way the legacy
+                # ``frames/`` drill does — otherwise 21 cams x 100 frames
+                # would exhaust the shared budget on the first element.
+                # Non-image element dirs (colmap frames, video shards,
+                # …) stay uncapped since they only hold a handful of
+                # top-level entries.
+                drill_cap = min(_FRAMES_DRILL_CAP, children_budget)
+                child_children = _list_dir_children(child, children_budget)
+                looks_image_heavy = any(
+                    not gc.get("is_dir") and _IMAGE_SUFFIX_RE.search(gc.get("name", ""))
+                    for gc in child_children
+                )
+                if looks_image_heavy and len(child_children) > drill_cap:
+                    entry["children"] = child_children[:drill_cap]
+                    entry["entry_count"] = _count_dir_entries(child)
+                else:
+                    entry["children"] = child_children
+                    if looks_image_heavy:
+                        # Set entry_count uniformly so NestedFrameSequence
+                        # Preview's badge doesn't need to distinguish
+                        # "capped" vs "small" cases on the wire.
+                        entry["entry_count"] = _count_dir_entries(child)
                 children_budget -= len(entry["children"])
-                # ``frame_sequence`` extension: the pack contract wraps
-                # the images in a ``frames/`` subdir
-                # (``<element>/frames/<image>``, both
-                # ``frame-extraction`` and ``regroup-by-frame``). Drill
-                # ONE more level into any such subdir so the
-                # ``NestedFrameSequencePreview`` viewer can pick
-                # thumbnails without another fetch. Capped
-                # (_FRAMES_DRILL_CAP) per element so a 500-frame
-                # sequence doesn't blow the shared budget — the viewer
-                # only ever shows the first few thumbs anyway.
+                # Legacy ``frames/`` drill: pre-migration handles wrap
+                # images in ``<element>/frames/<image>``. Kept so old
+                # artifacts still preview after the flatten migration.
+                # NestedFrameSequencePreview already handles both
+                # layouts on the frontend.
                 if children_budget > 0:
                     for gc in entry["children"]:
                         if gc.get("is_dir") and gc.get("name") == "frames" and children_budget > 0:
-                            drill_cap = min(_FRAMES_DRILL_CAP, children_budget)
-                            gc["children"] = _list_dir_children(child / "frames", drill_cap)
+                            legacy_cap = min(_FRAMES_DRILL_CAP, children_budget)
+                            gc["children"] = _list_dir_children(child / "frames", legacy_cap)
                             children_budget -= len(gc["children"])
                             # ``entry_count`` on the drilled dir carries
                             # the true item count even when the children

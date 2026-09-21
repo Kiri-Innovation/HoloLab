@@ -135,7 +135,7 @@ exec:
     set -euo pipefail
     python "{{ pack_dir }}/triangulate.py" \
       --cams "{{ inputs.cams }}" \
-      --image-path "{{ inputs.frames }}/frames" \
+      --image-path "{{ inputs.frames }}" \
       --output "{{ outputs.frame }}" \
       --scratch "{{ scratch_dir }}" \
       --use-gpu {{ params.use_gpu }}

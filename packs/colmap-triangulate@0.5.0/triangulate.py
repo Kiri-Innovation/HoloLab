@@ -230,7 +230,12 @@ def main() -> int:
         "--image-path",
         type=Path,
         required=True,
-        help="This frame's per-camera image directory (from regroup-by-frame).",
+        help=(
+            "This frame's per-camera image directory. Accepts either the "
+            "new flat layout (files directly under the handle root) or "
+            "the legacy ``<handle>/frames/`` layout — the script picks "
+            "whichever holds image files."
+        ),
     )
     ap.add_argument(
         "--output",
@@ -254,6 +259,20 @@ def main() -> int:
         print(f"ERROR: image path is not a directory: {args.image_path}", file=sys.stderr)
         return 2
 
+    # Flatten migration: prefer files at the handle root; fall back to
+    # the legacy ``frames/`` subdir so pre-migration artifacts still
+    # triangulate.
+    has_direct_files = any(
+        p.is_file() and not p.name.startswith(".") for p in args.image_path.iterdir()
+    )
+    image_source = args.image_path if has_direct_files else args.image_path / "frames"
+    if not image_source.is_dir():
+        print(
+            f"ERROR: no image files at {args.image_path} or its frames/ subdir",
+            file=sys.stderr,
+        )
+        return 2
+
     args.output.mkdir(parents=True, exist_ok=True)
     args.scratch.mkdir(parents=True, exist_ok=True)
 
@@ -269,7 +288,7 @@ def main() -> int:
         shutil.rmtree(manual)
 
     # 1. Stage images into flat scratch/input/.
-    image_names = stage_scratch_input(args.image_path, scratch_input)
+    image_names = stage_scratch_input(image_source, scratch_input)
 
     # 2. Parse SfM outputs, index poses by cam key.
     sfm_cams = parse_cameras_txt(cams_txt)

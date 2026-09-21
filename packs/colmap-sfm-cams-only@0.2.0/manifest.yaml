@@ -102,13 +102,21 @@ runtime:
 exec:
   shell: |
     set -euo pipefail
-    IMG_DIR="{{ inputs.frames }}/frames"
+    FRAMES_HANDLE="{{ inputs.frames }}"
     OUT="{{ outputs.cams }}"
     DB="{{ scratch_dir }}/database.db"
     SPARSE_ROOT="{{ scratch_dir }}/sparse"
 
-    if [ ! -d "$IMG_DIR" ]; then
-      echo "ERROR: input frames handle missing frames/ subdir: $IMG_DIR" >&2
+    # Flatten migration: image files live directly under the handle root.
+    # Legacy layout stashed them under ``<handle>/frames/`` — accept both.
+    if compgen -G "$FRAMES_HANDLE"/*.png > /dev/null || \
+       compgen -G "$FRAMES_HANDLE"/*.jpg > /dev/null || \
+       compgen -G "$FRAMES_HANDLE"/*.jpeg > /dev/null; then
+      IMG_DIR="$FRAMES_HANDLE"
+    elif [ -d "$FRAMES_HANDLE/frames" ]; then
+      IMG_DIR="$FRAMES_HANDLE/frames"
+    else
+      echo "ERROR: no images at $FRAMES_HANDLE or its frames/ subdir" >&2
       exit 2
     fi
 
