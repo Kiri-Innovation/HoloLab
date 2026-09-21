@@ -65,6 +65,35 @@ class WorkflowRunError(RuntimeError):
     """Raised for run-time problems (upstream failed, node dropped, timeout)."""
 
 
+def merged_params_with_defaults(
+    gnode_params: dict[str, Any] | None,
+    pack_entry: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Merge manifest ``params:`` defaults with ``gnode.params`` (gnode wins).
+
+    A workflow draft records only the params the operator has touched. When
+    the manifest evolves (e.g. ``frame-extraction`` gaining
+    ``max_width`` / ``start_frame`` / ``end_frame`` after the workflow
+    was saved), the shard's Jinja2 template renders under
+    ``StrictUndefined`` and dies on ``{{ params.<new_key> }}`` — a stale
+    workflow that never gained the new keys can no longer run.
+
+    Merging manifest defaults into the effective params at dispatch time
+    keeps the shard renderable across pack evolution without asking the
+    operator to re-save every workflow when a pack adds a knob. The
+    ``gnode.params`` still wins on any key it defines, so user overrides
+    are preserved verbatim.
+    """
+
+    defaults: dict[str, Any] = {}
+    if pack_entry is not None:
+        for name, spec in (pack_entry.get("params") or {}).items():
+            if isinstance(spec, dict) and "default" in spec:
+                defaults[name] = spec["default"]
+    defaults.update(gnode_params or {})
+    return defaults
+
+
 async def run_snapshot(
     app: FastAPI,
     *,
@@ -147,6 +176,7 @@ async def run_snapshot(
             workflow_id=workflow_id,
             gnode=gnode,
             input_handles=input_handles,
+            pack_entry=pack_entry,
         )
         job_ids.append(job_id)
 
@@ -254,13 +284,14 @@ async def _prepare_fanout(
         port_depths=port_depths,
     )
 
+    effective_params = merged_params_with_defaults(gnode.params, pack_entry)
     parent_job = Job(
         job_id=str(uuid.uuid4()),
         workflow_id=workflow_id,
         snapshot_id=snapshot_id,
         algorithm_name=gnode.algorithm_name,
         algorithm_version=gnode.algorithm_version,
-        params=dict(gnode.params),
+        params=effective_params,
         input_handles=input_handles,
         graph_node_id=gnode.id,
         state=JobState.PENDING,
@@ -357,6 +388,7 @@ async def _execute_fanout_body(
             parent_job_id=plan.parent_job.job_id,
             shard_element_id=element_id,
             shard_input_handles=shard_inputs,
+            params=plan.parent_job.params,
         )
         shards.append((idx, element_id, shard))
 
@@ -714,6 +746,7 @@ async def _create_shard_row(
     parent_job_id: str,
     shard_element_id: str,
     shard_input_handles: dict[str, str],
+    params: dict[str, Any],
 ) -> Job:
     """Create one shard job row in ``PENDING``. No transition, no send.
 
@@ -721,6 +754,11 @@ async def _create_shard_row(
     fan-out can materialise every shard row upfront (giving the snapshot
     detail endpoint / RecentJobsPanel the full row set from t=0) and then
     stagger the ASSIGNED transitions through a semaphore.
+
+    ``params`` is the parent job's already-merged effective params — see
+    :func:`merged_params_with_defaults`. Passed explicitly so every shard
+    inherits the same rendered params as its parent (bypasses the stale-
+    workflow gap where ``gnode.params`` still lacks manifest defaults).
     """
 
     shard = Job(
@@ -729,7 +767,7 @@ async def _create_shard_row(
         snapshot_id=snapshot_id,
         algorithm_name=gnode.algorithm_name,
         algorithm_version=gnode.algorithm_version,
-        params=dict(gnode.params),
+        params=dict(params),
         input_handles=shard_input_handles,
         graph_node_id=gnode.id,
         parent_job_id=parent_job_id,
@@ -945,8 +983,14 @@ async def _dispatch_job(
     workflow_id: str,
     gnode: GraphNode,
     input_handles: dict[str, str],
+    pack_entry: dict[str, Any] | None = None,
 ) -> str:
-    """Create + assign + send job_assign. Returns the newly minted job id."""
+    """Create + assign + send job_assign. Returns the newly minted job id.
+
+    ``pack_entry`` is the catalog entry for ``gnode``'s pack; when
+    provided, manifest ``params:`` defaults are merged in for any keys
+    the workflow draft doesn't set (:func:`merged_params_with_defaults`).
+    """
 
     assert gnode.assigned_node_id is not None
     session = registry.get_session(gnode.assigned_node_id)
@@ -961,7 +1005,7 @@ async def _dispatch_job(
         snapshot_id=snapshot_id,
         algorithm_name=gnode.algorithm_name,
         algorithm_version=gnode.algorithm_version,
-        params=dict(gnode.params),
+        params=merged_params_with_defaults(gnode.params, pack_entry),
         input_handles=input_handles,
         graph_node_id=gnode.id,
     )
@@ -1257,6 +1301,7 @@ async def dispatch_graph_node(
             workflow_id=workflow_id,
             gnode=gnode,
             input_handles=input_handles,
+            pack_entry=pack_entry,
         )
 
     result: dict[str, Any] = {
