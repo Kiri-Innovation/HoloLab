@@ -9,9 +9,8 @@ Each shard replays the exact per-frame recipe from
       -> repair frames/rigs (COLMAP 3.11+)
       -> exhaustive_matcher
       -> point_triangulator (only --Mapper.ba_global_function_tolerance=0.000001;
-         given-pose triangulator — poses fixed, intrinsics fixed
-         (--refine_intrinsics defaults to 0 and this version never sets it,
-         mirroring STG's pre_no_prior recipe))
+         given-pose triangulator — poses stay fixed, intrinsics stay fixed
+         unless --refine-intrinsics is passed, mirroring STG)
       -> image_undistorter (OPENCV -> PINHOLE + undistorted images/)
       -> move sparse/*.bin into sparse/0/ and write TXT mirror
 
@@ -202,14 +201,14 @@ def prefill_db(
         preview = ", ".join(f"{name}→{key}" for name, key in resolved[:3])
         more = f" (+{len(resolved) - 3} more)" if len(resolved) > 3 else ""
         print(
-            f"[colmap-triangulate/0.5] staged→SfM key mapping "
+            f"[colmap-triangulate/0.6] staged→SfM key mapping "
             f"({fallback_hits}/{len(resolved)} via numeric fallback): {preview}{more}",
             flush=True,
         )
 
 
 def run(cmd: list, step: str) -> None:
-    print(f"[colmap-triangulate/0.5] {step}", flush=True)
+    print(f"[colmap-triangulate/0.6] {step}", flush=True)
     subprocess.run([str(x) for x in cmd], check=True)
 
 
@@ -236,6 +235,19 @@ def main() -> int:
         help="colmap-cams handle from SfM (cameras.txt OPENCV + images.txt with poses).",
     )
     ap.add_argument(
+        "--refine-intrinsics",
+        type=int,
+        choices=(0, 1),
+        default=0,
+        help=(
+            "1 = refine per-image camera intrinsics during triangulation "
+            "(focal length + distortion; principal point stays fixed). "
+            "0 (default) mirrors the original STG recipe, which leaves "
+            "COLMAP's --refine_intrinsics at its default of 0. Shell "
+            "template renders 0/1 from the bool manifest param."
+        ),
+    )
+    ap.add_argument(
         "--image-path",
         type=Path,
         required=True,
@@ -255,6 +267,7 @@ def main() -> int:
     ap.add_argument("--scratch", type=Path, required=True)
     ap.add_argument("--use-gpu", type=int, default=1)
     args = ap.parse_args()
+    refine_intrinsics = bool(args.refine_intrinsics)
 
     cams_txt = args.cams / "cameras.txt"
     imgs_txt = args.cams / "images.txt"
@@ -346,28 +359,31 @@ def main() -> int:
     )
 
     # 7. point_triangulator — ONLY --Mapper.ba_global_function_tolerance=0.000001
-    #    (helper3dg.py:470-471). Given-pose triangulator: poses stay fixed,
-    #    and intrinsics stay fixed too because COLMAP's --refine_intrinsics
-    #    defaults to 0 and this version never sets it (mirroring STG's
-    #    pre_no_prior). The --Mapper.ba_refine_* flags @0.4.0 set are inert
-    #    inside point_triangulator (they're Mapper options), so their absence
-    #    changes nothing. No --clear_points, no --filter_max_reproj_error.
-    #    If you need intrinsic refinement, use @0.6.0's ``refine_intrinsics``.
+    #    (helper3dg.py:470-471), plus --refine_intrinsics only when the operator
+    #    opts in. This call is a **given-pose triangulator**: it reads poses from
+    #    the input model and never adjusts them; COLMAP's own --refine_intrinsics
+    #    defaults to 0 (off), so by default intrinsics stay fixed too — matching
+    #    the original STG recipe. No --clear_points, no --filter_max_reproj_error.
+    pt_cmd = [
+        "colmap",
+        "point_triangulator",
+        "--database_path",
+        db,
+        "--image_path",
+        scratch_input,
+        "--input_path",
+        manual,
+        "--output_path",
+        distorted_sparse,
+        "--Mapper.ba_global_function_tolerance=0.000001",
+    ]
+    if refine_intrinsics:
+        pt_cmd.append("--refine_intrinsics")
+        pt_cmd.append("1")
     run(
-        [
-            "colmap",
-            "point_triangulator",
-            "--database_path",
-            db,
-            "--image_path",
-            scratch_input,
-            "--input_path",
-            manual,
-            "--output_path",
-            distorted_sparse,
-            "--Mapper.ba_global_function_tolerance=0.000001",
-        ],
-        "point_triangulator (BA global tol 1e-6, poses fixed, intrinsics fixed)",
+        pt_cmd,
+        "point_triangulator (BA global tol 1e-6, poses fixed"
+        + (", intrinsics refined)" if refine_intrinsics else ", intrinsics fixed)"),
     )
 
     # 8. image_undistorter — mirror helper3dg.py:479-480. No --blank_pixels
@@ -447,7 +463,7 @@ def main() -> int:
         print(f"ERROR: undistorted images/ is empty: {args.output / 'images'}", file=sys.stderr)
         return 4
 
-    print(f"[colmap-triangulate/0.5] done -> {args.output}", flush=True)
+    print(f"[colmap-triangulate/0.6] done -> {args.output}", flush=True)
     return 0
 
 

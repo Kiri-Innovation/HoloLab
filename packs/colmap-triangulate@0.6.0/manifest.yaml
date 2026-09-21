@@ -1,0 +1,216 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-triangulate
+version: 0.6.0
+description: >
+  Per-frame triangulator — mirrors STG's ``getcolmapsinglen3d``
+  (SpacetimeGaussians helper3dg.py:440-503). This node is a
+  **given-pose triangulator**, not a SfM solver: poses come in from the
+  ``cams`` input and are **held fixed** end-to-end; only the 3D points
+  (and, optionally, per-image intrinsics) are optimised. Each shard:
+  pre-fill DB with per-image OPENCV cameras + priors → feature_extractor
+  (DB-driven, no --single_camera) → exhaustive_matcher → point_triangulator
+  → image_undistorter to PINHOLE. Output tag is ``colmap`` (self-contained
+  sparse/0/ + images/); one shard per frame under ``arrayed_toggle``.
+source_entry: triangulate.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### What this node actually does (and does not)
+
+  ``point_triangulator`` — the load-bearing COLMAP call — is a
+  **given-pose triangulator**. It reads the poses out of the input
+  ``images.txt`` / ``images.bin`` and **never adjusts them**. Its BA
+  step optimises the 3D points and — if ``--refine_intrinsics 1`` —
+  the per-image intrinsics (focal + distortion; principal point stays
+  fixed by construction, per COLMAP's help text). It does **not** run
+  camera-pose refinement — that lives in ``colmap bundle_adjuster`` /
+  ``colmap mapper``, which are separate binaries with different code
+  paths.
+
+  Grounded fact (checked against ``colmap point_triangulator -h`` on
+  COLMAP 3.13.0):
+
+      --refine_intrinsics arg (=0)
+        Whether to refine the intrinsics of the cameras
+        (fixing the principal point)
+
+  Default is 0 → intrinsics are frozen. The knob is exposed here as
+  ``params.refine_intrinsics`` (default ``false``) so downstream
+  experiments can flip it without patching the pack. **The default is
+  off** — same as vanilla STG's ``pre_no_prior`` recipe (which never
+  passes the flag either), so a v0.6.0 shard with defaults produces
+  numerically the same output a v0.5.0 shard does.
+
+  **Do not** confuse this knob with ``--Mapper.ba_refine_focal_length``
+  / ``--Mapper.ba_refine_principal_point`` / ``--Mapper.ba_refine_extra_params``
+  — those are ``Mapper`` options. ``point_triangulator`` and ``mapper``
+  share the same command-line schema but run different code paths;
+  ``Mapper.ba_refine_*`` flags are silently ignored inside
+  ``point_triangulator``. The only real intrinsic-refinement switch on
+  this binary is ``--refine_intrinsics``.
+
+  ### v0.6.0 vs v0.5.0
+
+  |                        | v0.5.0                                                       | v0.6.0                                                       |
+  |------------------------|--------------------------------------------------------------|--------------------------------------------------------------|
+  | Params                 | ``use_gpu``                                                  | ``use_gpu`` + **``refine_intrinsics`` (bool, default off)**  |
+  | Intrinsics refinement  | Off (implicit — flag never passed)                           | Off by default; opt-in via param                             |
+  | Pose refinement        | **Not offered by ``point_triangulator``** — external ``bundle_adjuster`` would be needed | Same — poses are always frozen |
+  | Point cloud            | Freshly triangulated each shard                              | Same                                                         |
+  | Docstrings / manifest  | Historically claimed "BA is free to refine per-image intrinsic" — that was **inaccurate** (flag defaults to 0, we never set it) | Corrected: `point_triangulator` freezes poses, freezes intrinsics unless ``refine_intrinsics=true`` |
+
+  The behaviour of v0.5.0 with ``refine_intrinsics=false`` (its only
+  mode) is bit-for-bit identical to v0.6.0 with the same setting;
+  v0.6.0's fresh capability is the ability to opt into intrinsic
+  refinement without editing the pack.
+
+  ### v0.5.0 vs v0.4.0 (retained for archaeology)
+
+  v0.4.0 restructured the pipeline to work in the **PINHOLE / already-
+  undistorted** domain: SfM → static image-undistort → per-frame triangulate
+  against PINHOLE poses. v0.5.0 rolled that back and re-aligned with the
+  original STG ``pre_no_prior`` recipe:
+
+  |                              | v0.4.0                                                   | v0.5.0                                                       |
+  |------------------------------|----------------------------------------------------------|--------------------------------------------------------------|
+  | Feature-extract domain       | undistorted PINHOLE frames                               | **raw distorted OPENCV frames** (matches helper3dg.py:456)   |
+  | Camera model on wire         | PINHOLE (single_camera=1)                                | **per-image OPENCV** (each image gets its own row)           |
+  | Prior source                 | fresh DB → aligned prior from DB IDs                     | **DB pre-fill (COLMAPDatabase.add_camera per image)** — mirrors ``pre_no_prior.py:77-142`` |
+  | point_triangulator flags     | ``--clear_points 1 --Mapper.ba_refine_focal_length 0 --Mapper.ba_refine_principal_point 0 --Mapper.ba_refine_extra_params 0 --Mapper.filter_max_reproj_error 4.0`` | **only** ``--Mapper.ba_global_function_tolerance=0.000001`` — matches helper3dg.py:470-471 |
+  | Undistort location           | separate ``image-undistort@0.2.0`` node, before triangulate | **inline, after triangulate** — matches helper3dg.py:479-480 |
+  | Input tags                   | ``colmap-cameras-txt`` (PINHOLE) + ``colmap-images-txt`` + ``image`` (undistorted) | ``colmap-cams`` (OPENCV bundle, scalar) + ``image`` (raw distorted, arrayed) |
+  | Output tag                   | ``colmap``                                               | ``colmap`` (unchanged)                                       |
+
+  (The v0.4.0-only ``Mapper.ba_refine_*=0`` flags were also inert —
+  same shared-schema-but-different-code-path story — but they made
+  the intent visible, which is why v0.5.0's silent removal was
+  legible only in hindsight.)
+
+  ### DB pre-fill (the load-bearing shape difference)
+
+  ``prefill_db`` in ``triangulate.py`` runs before ``feature_extractor`` and
+  writes one OPENCV camera row per staged image (all sharing the SfM's
+  single-camera intrinsic), each image with its per-cam ``prior_q`` /
+  ``prior_t`` from the SfM's ``images.txt``. ``image_id`` is assigned
+  ``i+1`` in staged-name order, matching ``convert_selected_cam_matrix_to_colmapdb``.
+  ``feature_extractor`` then walks ``--image_path``, finds each image by
+  ``name`` in the DB, and attaches keypoints to the pre-existing rows
+  without inserting a new camera — so BA sees **N distinct OPENCV
+  cameras**. With ``refine_intrinsics=false`` (default) those rows
+  stay bit-for-bit identical to the priors; with
+  ``refine_intrinsics=true`` each row's focal+distortion can drift
+  independently (principal point stays fixed).
+
+  ### COLMAP 3.11+ frames/rigs handling
+
+  After ``feature_extractor``, the DB's ``frames`` / ``frame_data`` /
+  ``rigs`` tables may be inconsistent with the pre-populated ``images``.
+  ``colmap_db.py::repair_frames_if_needed`` rebuilds them from the
+  ``images`` + ``rigs`` state; ``export_manual_rigs_frames_txt`` then
+  writes matching ``manual/rigs.txt`` + ``manual/frames.txt`` so
+  ``point_triangulator``'s ``Reconstruction::Load`` reads a consistent
+  view. Both helpers are vendored (with attribution) from
+  ``SpacetimeGaussians/thirdparty/colmap/pre_colmap.py``.
+
+  ### Fan-out contract
+
+  ``arrayable: true``. Under ``arrayed_toggle=true`` the framework
+  dispatches one shard per element of the ``frames`` input (typically
+  one shard per frame after ``regroup-by-frame``). The ``cams`` input is
+  ``scalar: true`` — the same SfM output is broadcast to every shard.
+  Output aggregates into ``arrayed<colmap>`` at the parent handle;
+  ``stg-train`` glues the elements into ``colmap_{i}/`` per its dataset
+  reader convention.
+
+  Output layout (one shard)::
+
+      output/                        # tag: colmap
+        sparse/0/
+          cameras.bin / .txt         # PINHOLE (poses frozen; focals only differ
+                                     # from SfM if refine_intrinsics=true)
+          images.bin  / .txt         # poses bit-for-bit == input priors
+          points3D.bin / .txt        # freshly triangulated
+        images/
+          <cam>.<ext>                # undistorted
+
+  ### Alternative packs (why not one Frankenstein)
+
+  * ``rig-group-triangulation`` — poses from a pre-solved rig calibration
+    JSON (whole-array, one process). Use for calibration experiments; not
+    a drop-in for the ``colmap-cams`` -> ``colmap-triangulate`` production
+    chain.
+  * ``image-undistort@0.2.0`` — static undistort of a full camera set with
+    identity poses. Still ships for consumers that want a standalone
+    intrinsic-transform node; **not used** in the STG main pipeline.
+  * If you actually need to **re-optimise poses**, that is a separate
+    step: ``colmap bundle_adjuster`` (or ``colmap mapper``) applied
+    after triangulation. This pack deliberately does not fold that in
+    — the STG recipe treats SfM's poses as ground truth for the
+    triangulation stage.
+
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    scalar: true
+    description: >
+      SfM output as one COLMAP-native bundle (cameras.txt OPENCV + images.txt
+      poses). Scalar — broadcast to every shard. Must have exactly one
+      OPENCV camera row (single_camera=1 at the SfM stage).
+  frames:
+    tags: [image]
+    description: "This frame's per-camera raw distorted images. Fan-out driver."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  refine_intrinsics:
+    type: bool
+    default: false
+    description: >
+      Optimise per-image camera intrinsics (focal length + distortion;
+      principal point stays fixed — that constraint is baked into
+      ``point_triangulator`` and cannot be overridden). Off by default,
+      matching vanilla STG's ``pre_no_prior`` recipe (which never sets
+      the flag, so the COLMAP default of 0 applies). Does **not** touch
+      camera poses — ``point_triangulator`` freezes those unconditionally.
+      Passes ``--refine_intrinsics 1`` to COLMAP when true.
+
+outputs:
+  frame:
+    tags: [colmap]
+    scalar: true
+    dim_labels: ["frame"]
+    description: >
+      Self-contained per-frame COLMAP dir (sparse/0/ + images/). PINHOLE
+      camera model. Poses in ``images.txt`` are bit-for-bit identical to
+      the SfM priors (``point_triangulator`` never refines poses). Focal
+      length in ``cameras.txt`` matches the SfM intrinsic unless
+      ``refine_intrinsics=true``. Scalar per invocation; framework wraps
+      N shards into arrayed<colmap>.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/triangulate.py" \
+      --cams "{{ inputs.cams }}" \
+      --image-path "{{ inputs.frames }}" \
+      --output "{{ outputs.frame }}" \
+      --scratch "{{ scratch_dir }}" \
+      --use-gpu {{ params.use_gpu }} \
+      --refine-intrinsics {{ params.refine_intrinsics | int }}
+
+idempotency:
+  marker: "{{ outputs.frame }}/.hololab-done"

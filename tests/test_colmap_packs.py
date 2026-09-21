@@ -161,9 +161,11 @@ def test_colmap_assemble_shape_v010() -> None:
 
 
 # ---------------------------------------------------------------------------
-# @0.5.0 — strict mirror of STG's getcolmapsinglen3d. Distorted-domain
-# feature extract + per-image OPENCV cameras + BA-free intrinsics + inline
-# image_undistorter. See manifest docs for the full v0.4.0 -> v0.5.0 diff.
+# @0.5.0 — mirror of STG's getcolmapsinglen3d. Distorted-domain feature
+# extract + per-image OPENCV cameras; intrinsics stay fixed (given-pose
+# triangulator; --refine_intrinsics defaults to 0 and this version never
+# sets it) + inline image_undistorter. See manifest docs for the full
+# v0.4.0 -> v0.5.0 diff.
 # ---------------------------------------------------------------------------
 
 
@@ -320,3 +322,88 @@ def test_resolve_sfm_key_multi_digit_indexes_are_handled() -> None:
     assert sk.numeric_suffix("cam99") == 99
     assert sk.numeric_suffix("cam_0099") == 99
     assert sk.numeric_suffix("cam") is None
+
+
+# ---------------------------------------------------------------------------
+# @0.6.0 — @0.5.0 + opt-in ``refine_intrinsics`` bool param. Semantically
+# identical to @0.5.0 when the param is left at its default (false); the
+# opt-in appends ``--refine_intrinsics 1`` to the point_triangulator call.
+# ---------------------------------------------------------------------------
+
+
+def test_colmap_triangulate_shape_v060() -> None:
+    m = _load("colmap-triangulate", "0.6.0")
+    assert m.version == "0.6.0"
+    assert m.arrayable is True
+    # Same wire shape as @0.5.0 — this bump is purely a param addition.
+    assert m.inputs["cams"].tags == ["colmap-cams"]
+    assert m.inputs["cams"].scalar is True
+    assert m.inputs["frames"].tags == ["image"]
+    assert m.inputs["frames"].arrayed is False
+    assert m.outputs["frame"].tags == ["colmap"]
+    assert m.outputs["frame"].scalar is True
+    assert set(m.params.keys()) == {"use_gpu", "refine_intrinsics"}
+    ri = m.params["refine_intrinsics"]
+    assert ri.type.value == "bool", f"expected bool param; got {ri.type}"
+    assert ri.default is False, f"refine_intrinsics must default OFF; got {ri.default!r}"
+    assert m.source_entry == "triangulate.py"
+    assert (PACKS_ROOT / "colmap-triangulate@0.6.0" / m.source_entry).is_file()
+    # Vendored helpers must ship alongside — pack is self-contained.
+    assert (PACKS_ROOT / "colmap-triangulate@0.6.0" / "colmap_db.py").is_file()
+    assert (PACKS_ROOT / "colmap-triangulate@0.6.0" / "sfm_key.py").is_file()
+
+
+def test_colmap_triangulate_v060_shell_wires_refine_intrinsics_bool_to_int() -> None:
+    """The shell renders ``params.refine_intrinsics | int`` as 0/1 so the
+    Python side can accept it as an ``int``. If either side drifts (e.g.
+    triangulate.py switches back to ``store_true``), COLMAP invocation
+    breaks silently at shard-dispatch time — assert both halves here.
+    """
+    m = _load("colmap-triangulate", "0.6.0")
+    assert "--refine-intrinsics {{ params.refine_intrinsics | int }}" in m.exec.shell
+
+    script = (PACKS_ROOT / "colmap-triangulate@0.6.0" / "triangulate.py").read_text()
+    # store_true would reject the rendered "0" / "1" tail.
+    assert 'action="store_true"' not in script, (
+        "argparse must accept an int value to match the shell's "
+        "``--refine-intrinsics {int}`` rendering"
+    )
+    assert "choices=(0, 1)" in script
+    # The load-bearing conditional: pass the flag only when the operator opted in.
+    assert "if refine_intrinsics:" in script
+    assert '"--refine_intrinsics"' in script
+
+
+def test_colmap_triangulate_v060_off_by_default_matches_v050_command() -> None:
+    """``refine_intrinsics=false`` (default) must produce a point_triangulator
+    command that does NOT include ``--refine_intrinsics``, matching @0.5.0
+    bit-for-bit. Regression guard: the opt-in must be strictly opt-in.
+    """
+    script = (PACKS_ROOT / "colmap-triangulate@0.6.0" / "triangulate.py").read_text()
+    # The append happens inside ``if refine_intrinsics:``; assert the string
+    # ``pt_cmd.append("--refine_intrinsics")`` doesn't appear unconditionally.
+    # Cheap structural check: it must be preceded by the guard.
+    idx = script.index('pt_cmd.append("--refine_intrinsics")')
+    prefix = script[max(0, idx - 200) : idx]
+    assert "if refine_intrinsics:" in prefix, (
+        "--refine_intrinsics must be appended only inside the "
+        "if-refine_intrinsics guard so default OFF matches @0.5.0"
+    )
+
+
+def test_colmap_triangulate_v060_docs_correct_ba_behavior() -> None:
+    """The @0.6.0 docs must state ``point_triangulator`` is a given-pose
+    triangulator and mention the ``--refine_intrinsics arg (=0)`` COLMAP
+    default. This lets a future reader hitting a "wait, do poses drift?"
+    question find the answer inside the manifest.
+    """
+    m = _load("colmap-triangulate", "0.6.0")
+    docs = (m.docs or "") + " " + (m.description or "")
+    assert "given-pose triangulator" in docs.lower()
+    assert "refine_intrinsics" in docs
+    # Grounded quote from ``colmap point_triangulator -h`` — the doc pins
+    # its factual claim to a checkable source rather than restating it.
+    assert "refine_intrinsics arg (=0)" in docs, (
+        "@0.6.0 docs must cite the COLMAP CLI help so the claim is verifiable"
+    )
+    assert "held fixed" in docs or "poses fixed" in docs.lower() or "freezes poses" in docs

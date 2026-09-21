@@ -7,7 +7,10 @@ per shard:
     feature_extractor (single_camera=1, OPENCV)
       -> rewrite prior IDs to match fresh DB
       -> exhaustive_matcher
-      -> point_triangulator (BA global tol 1e-6, intrinsics not frozen)
+      -> point_triangulator (BA global tol 1e-6; given-pose, intrinsics
+         fixed too — --refine_intrinsics defaults to 0, never set here.
+         Erratum: earlier docstring claimed intrinsics were refined; see
+         manifest doc-erratum block for the correction.)
       -> image_undistorter (OPENCV -> PINHOLE + undistorted images/)
 
 The two subtleties worth spelling out:
@@ -273,9 +276,13 @@ def main() -> int:
         "exhaustive_matcher",
     )
 
-    # No frozen-intrinsics flags — mirrors helper3dg.py:465-466 which only
-    # sets the BA tolerance. Per-frame BA is then free to refine intrinsics
-    # slightly, matching STG's own behavior.
+    # No --Mapper.ba_refine_*=0 flags — mirrors helper3dg.py:465-466 which
+    # only sets the BA tolerance. NB: those Mapper flags are inert inside
+    # point_triangulator anyway (they're Mapper options). Intrinsics stay
+    # fixed here because COLMAP's --refine_intrinsics defaults to 0 and we
+    # never set it — matching STG's actual behaviour. Earlier comments in
+    # this file claimed BA was refining intrinsics; see the manifest
+    # doc-erratum block for the correction.
     run(
         [
             "colmap",
@@ -294,7 +301,7 @@ def main() -> int:
             "--Mapper.filter_max_reproj_error",
             args.filter_max_reproj_error,
         ],
-        "point_triangulator (BA global tol 1e-6, intrinsics free)",
+        "point_triangulator (BA global tol 1e-6, poses fixed, intrinsics fixed)",
     )
 
     # image_undistorter reads the OPENCV sparse model + raw images and

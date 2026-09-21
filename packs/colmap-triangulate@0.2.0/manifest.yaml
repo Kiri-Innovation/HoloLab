@@ -38,9 +38,13 @@ docs: |
      SfM's OPENCV intrinsics + this frame's per-rig-cam poses (looked up
      by the ``grandparent-folder`` cam key).
   3. ``exhaustive_matcher`` (no ``guided_matching`` — original doesn't set it).
-  4. ``point_triangulator --Mapper.ba_global_function_tolerance=0.000001``
-     (intrinsics are *not* frozen — the original allows BA to refine them
-     per frame, mirroring that here).
+  4. ``point_triangulator --Mapper.ba_global_function_tolerance=0.000001``.
+     (**Doc erratum**: earlier revisions claimed BA was free to refine
+     per-image intrinsics here. That was inaccurate — ``point_triangulator``
+     is a given-pose triangulator: poses stay fixed unconditionally, and
+     intrinsics stay fixed unless ``--refine_intrinsics 1`` is passed.
+     This pack never passes the flag, so COLMAP's default of 0 applies.
+     See @0.6.0 for the opt-in ``refine_intrinsics`` knob.)
   5. ``image_undistorter --output_type COLMAP`` converts the OPENCV model
      + raw images into PINHOLE cameras.bin + undistorted images/. This is
      the step that makes the STG dataset reader (`dataset_readers.py:156`
