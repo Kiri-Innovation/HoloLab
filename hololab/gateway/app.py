@@ -833,12 +833,12 @@ def _mount_routes(app: FastAPI) -> None:
         sub = strip_workspace_prefix(session, handle.path)
         proxy_url = f"/proxy/{handle.node_id}/{sub.lstrip('/')}"
 
-        # Read-time ``tags_from`` resolution — legacy handles registered
-        # before the write-time resolver shipped still have raw ``[any]``
-        # in the DB. The frontend keys viewer routing off runtime tags, so
-        # rewriting on read keeps existing artifacts previewable without a
-        # re-run. Fast path returns raw tags for concrete-tag handles.
-        resolved_tags = await _resolve_handle_tags(
+        # Resolve tags + preview + dims in one pass — the drawer needs all
+        # three at open time so a generic port (``regroup.out``: raw
+        # ``["any"]`` + no explicit ``preview:``) still lands on the right
+        # viewer. See ``_resolve_handle_display_meta`` for the precedence
+        # order and legacy-handle rationale.
+        preview, dim_labels, dim_sizes, resolved_tags = await _resolve_handle_display_meta(
             handle, registry=registry, jobs_store=jobs_store, workflows=app.state.workflows
         )
 
@@ -860,6 +860,9 @@ def _mount_routes(app: FastAPI) -> None:
             # drawer keys off this to skip the <video>/<img> fetch and
             # render a "cleaned" placeholder instead of a broken frame.
             "deleted_ts": handle.deleted_ts,
+            "preview": preview,
+            "dim_labels": dim_labels,
+            "dim_sizes": dim_sizes,
         }
 
     @app.get(
@@ -893,27 +896,20 @@ def _mount_routes(app: FastAPI) -> None:
         sub = strip_workspace_prefix(session, handle.path)
         proxy_url = f"/proxy/{handle.node_id}/{sub.lstrip('/')}"
 
-        # Look up depth from the producing pack's output port so
-        # ``summarize_handle`` walks the right number of levels. Best-effort:
-        # if the pack/session isn't around, depth stays None and the summary
-        # falls back to the scalar element_count (no ``dim_sizes``).
-        depth: int | None = None
-        if handle.job_id and handle.output_port_name:
-            job = await jobs_store.get(handle.job_id)
-            if job is not None:
-                dim_labels = registry.get_output_dim_labels(
-                    job.algorithm_name, job.algorithm_version, handle.output_port_name
-                )
-                if dim_labels is not None:
-                    depth = len(dim_labels)
-
-        # Same read-time ``tags_from`` resolution as ``get_handle`` — see the
-        # comment there for the legacy-handle rationale.
-        resolved_tags = await _resolve_handle_tags(
+        # Same shared resolution as ``get_handle`` — dim_labels drives the
+        # summary walk depth; preview + resolved_tags ride along so the
+        # summary response carries the same drawer hints as the info one.
+        preview, dim_labels, dim_sizes, resolved_tags = await _resolve_handle_display_meta(
             handle, registry=registry, jobs_store=jobs_store, workflows=app.state.workflows
         )
+        depth = len(dim_labels) if dim_labels else None
 
         summary = summarize_handle(handle, depth=depth)
+        # summarize_handle also computes ``dim_sizes`` internally via the
+        # same helper — prefer the summary's value (it saw the exact same
+        # tree walk we asked for) and only fall back to the display-meta
+        # copy when summary skipped the walk (e.g. file-storage handle).
+        summary_dim_sizes = summary.get("dim_sizes")
         return {
             "handle_id": handle.handle_id,
             "kind": summary["kind"],
@@ -924,10 +920,12 @@ def _mount_routes(app: FastAPI) -> None:
             "absolute_path": handle.path,
             "fields": summary.get("fields", {}),
             "element_count": summary.get("element_count"),
-            "dim_sizes": summary.get("dim_sizes"),
+            "dim_sizes": summary_dim_sizes if summary_dim_sizes is not None else dim_sizes,
             "internal_count": summary.get("internal_count"),
             "internal_count_kind": summary.get("internal_count_kind"),
             "internal_count_items": summary.get("internal_count_items"),
+            "preview": preview,
+            "dim_labels": dim_labels,
         }
 
     @app.get(
@@ -2851,6 +2849,60 @@ async def _resolve_handle_tags(
         port_name=handle.output_port_name,
         raw_tags=list(handle.tags),
     )
+
+
+async def _resolve_handle_display_meta(
+    handle: Handle,
+    *,
+    registry: NodeRegistry,
+    jobs_store: JobsStore,
+    workflows: WorkflowStore,
+) -> tuple[Any, list[str] | None, list[int] | None, list[str]]:
+    """Compute (preview, dim_labels, dim_sizes, resolved_tags) in one pass.
+
+    Shared by ``/api/handles/{id}`` and ``/api/handles/{id}/summary`` so
+    the frontend gets the same resolved preview + dims from either
+    endpoint. The preview walks precedence:
+
+        explicit manifest ``preview:`` block ─► TAG_VIEWER_REGISTRY[tag]
+        (see ``hololab.gateway.tag_viewers.infer_preview_for_output``)
+
+    dims come from the producing port's ``dim_labels`` (via
+    :meth:`NodeRegistry.get_output_port_spec` — one manifest load, both
+    fields) + a filesystem walk (:func:`dim_info_for_handle`, same
+    helper the summary endpoint uses).
+
+    All fields are best-effort: legacy handles with no ``job_id`` (or a
+    handle whose producing job was pruned) get ``preview=None`` +
+    ``dim_labels=None``, and the caller falls back to whatever the
+    catalog spec + static tags say.
+
+    Return type on ``preview`` is ``Any`` to avoid importing the manifest
+    schema into this module's top-level; the ``HandleInfo`` / ``HandleSummary``
+    response models own the concrete ``OutputPreview`` type.
+    """
+
+    from hololab.gateway.handle_summary import dim_info_for_handle
+    from hololab.gateway.tag_viewers import infer_preview_for_output
+
+    resolved_tags = await _resolve_handle_tags(
+        handle, registry=registry, jobs_store=jobs_store, workflows=workflows
+    )
+
+    port_spec: Any = None
+    if handle.job_id and handle.output_port_name:
+        job = await jobs_store.get(handle.job_id)
+        if job is not None:
+            port_spec = registry.get_output_port_spec(
+                job.algorithm_name, job.algorithm_version, handle.output_port_name
+            )
+
+    explicit_preview = port_spec.preview if port_spec is not None else None
+    preview = infer_preview_for_output(explicit_preview, resolved_tags)
+
+    raw_dim_labels = list(port_spec.dim_labels) if port_spec is not None else None
+    dim_labels, dim_sizes = dim_info_for_handle(handle, dim_labels=raw_dim_labels)
+    return preview, dim_labels, dim_sizes, resolved_tags
 
 
 def _artifact_row_to_json(row: Any) -> dict[str, Any]:

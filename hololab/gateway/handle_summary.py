@@ -49,6 +49,35 @@ _MAX_DIR_ENTRIES = 100
 _FRAMES_DRILL_CAP = 8
 
 
+def dim_info_for_handle(
+    handle: Handle, *, dim_labels: list[str] | None
+) -> tuple[list[str] | None, list[int] | None]:
+    """Return ``(dim_labels, dim_sizes)`` for one handle.
+
+    Callers pass ``dim_labels`` from the producing port (looked up via
+    ``NodeRegistry.get_output_port_spec``). ``dim_sizes`` is measured by
+    walking the tree ``len(dim_labels)`` levels using the same helper
+    ``summarize_handle`` uses — so ``/api/handles/{id}`` and
+    ``/api/handles/{id}/summary`` share one implementation.
+
+    Returns ``(None, None)`` when the producing port has no declared
+    dims, or when the handle isn't a dir on disk. Returns
+    ``(dim_labels, None)`` when the tree exists but the walk fails
+    (ragged layers, permission errors) — the frontend then falls back
+    to single-level.
+    """
+
+    if not dim_labels:
+        return None, None
+    if handle.storage != "dir":
+        return dim_labels, None
+    path = Path(handle.path)
+    if not path.is_dir():
+        return dim_labels, None
+    sizes, _sample = _measure_dim_sizes(path, len(dim_labels), list(handle.tags))
+    return dim_labels, sizes
+
+
 def summarize_handle(handle: Handle, *, depth: int | None = None) -> dict[str, Any]:
     """Return a summary dict for one handle.
 

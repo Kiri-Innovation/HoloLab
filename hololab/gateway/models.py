@@ -16,6 +16,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from hololab.manifest.schema import OutputPreview
+
 # ---------------------------------------------------------------------------
 # Meta / health
 # ---------------------------------------------------------------------------
@@ -244,6 +246,34 @@ class HandleInfo(BaseModel):
             "button instead of a broken preview. See docs/artifacts.md."
         ),
     )
+    preview: OutputPreview | None = Field(
+        default=None,
+        description=(
+            "Resolved preview spec: the pack's explicit ``preview:`` block if "
+            "declared, otherwise the entry inferred from the (resolved) tags "
+            "via ``TAG_VIEWER_REGISTRY``. Frontend keys drawer promotion off "
+            "this — a generic ``regroup.out`` handle wired from an ``image`` "
+            "source lands here as ``{viewer: image, member: frame_000000.png}`` "
+            "so its drawer opens as a viewer instead of the basic-info fallback."
+        ),
+    )
+    dim_labels: list[str] | None = Field(
+        default=None,
+        description=(
+            "Producing port's declared ``dim_labels`` (outer→inner). Length = "
+            "arrayed depth. Null when no producing port is known (legacy "
+            "handles pre-relocation) or the port declared none."
+        ),
+    )
+    dim_sizes: list[int] | None = Field(
+        default=None,
+        description=(
+            "Per-dim element counts, outer-first (e.g. ``[100, 21]``). Measured "
+            "by walking the handle's dir tree ``len(dim_labels)`` levels. Same "
+            "helper as the summary endpoint, so both fields stay consistent. "
+            "Null for scalar or file-storage handles, or ragged trees."
+        ),
+    )
 
 
 class HandleSummary(BaseModel):
@@ -314,6 +344,22 @@ class HandleSummary(BaseModel):
             "when present. Each item: ``{label: str, value: int}`` (e.g. "
             "``{'label': 'cam', 'value': 21}``). Frontend renders "
             "``(cam:21 point:6685)``; items with value=0 are suppressed."
+        ),
+    )
+    preview: OutputPreview | None = Field(
+        default=None,
+        description=(
+            "Same resolved preview spec as :attr:`HandleInfo.preview` — carried "
+            "on the summary too so agents can pick the right viewer without a "
+            "second /api/handles/{id} round trip."
+        ),
+    )
+    dim_labels: list[str] | None = Field(
+        default=None,
+        description=(
+            "Producing port's declared ``dim_labels`` (outer→inner). Same "
+            "field as :attr:`HandleInfo.dim_labels`; paired with ``dim_sizes`` "
+            "so the frontend can render ``[frame:100][cam:21]`` chips."
         ),
     )
 

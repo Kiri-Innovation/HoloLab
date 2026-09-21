@@ -124,3 +124,36 @@ def test_handle_lookup_returns_404_for_unknown_id(tmp_path: Path) -> None:
     with TestClient(app) as client:
         r = client.get("/api/handles/does-not-exist")
         assert r.status_code == 404
+
+
+def test_handle_lookup_returns_resolved_preview_and_dims(tmp_path: Path) -> None:
+    """Endpoint returns backend-resolved ``preview`` + ``dim_labels`` + ``dim_sizes``.
+
+    This is the field-bug guard: a generic port that stored ``["any"]`` +
+    no explicit preview in its manifest still had to yield a real
+    preview spec + dims on the response so the frontend drawer opens as
+    a viewer. Here we just verify the fields SHIP with sane defaults
+    (null for handles with no producing job on record) — the full
+    resolution semantics are covered by test_handle_display_meta.py
+    and test_handle_tag_resolution.py.
+    """
+
+    app = create_app(db_path=tmp_path / "test.sqlite")
+    with TestClient(app) as client:
+        handle = Handle(
+            handle_id="h-no-job",
+            node_id="unknown-node",
+            storage="file",
+            tags=["image"],
+            path="/some/path.png",
+        )
+        _register(client, handle)
+
+        r = client.get("/api/handles/h-no-job")
+        assert r.status_code == 200
+        body = r.json()
+        # No job_id on the handle -> port lookup skipped -> dim_labels null.
+        # But preview still resolves from the (raw) tag via TAG_VIEWER_REGISTRY.
+        assert body["preview"] == {"viewer": "image", "member": "frame_000000.png"}
+        assert body["dim_labels"] is None
+        assert body["dim_sizes"] is None

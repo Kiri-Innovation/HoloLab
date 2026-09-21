@@ -297,9 +297,19 @@ export function EdgeInspector({
             />
           </div>
           <div style={{ marginTop: -8 }}>
-            {showPreview && source.portSpec?.preview ? (
+            {showPreview && (info.preview || source.portSpec?.preview ||
+              info.tags.includes("image") ||
+              info.tags.includes("image_sequence") ||
+              info.tags.includes("frame_sequence") ||
+              source.portSpec?.tags.includes("frame_sequence")) ? (
+              // Prefer the backend-resolved ``info.preview`` (single
+              // source of truth from ``tag_viewers.py``). Fall back to
+              // the catalog's static spec for packs that declared
+              // ``preview:`` explicitly, and finally to a dummy image
+              // spec for frontend-driven tag intercepts that don't need
+              // a spec at all (Preview() dispatches on tags first).
               <Preview
-                spec={source.portSpec.preview}
+                spec={info.preview ?? source.portSpec?.preview ?? { viewer: "image", member: null }}
                 baseUrl={info.proxy_url}
                 storage={info.storage}
                 handleId={info.handle_id}
@@ -311,32 +321,13 @@ export function EdgeInspector({
                 // fed by an ``image`` source arrives here as ``["image"]``
                 // and picks the right viewer without a pack-level change.
                 // See AlgorithmNode.tsx for the identical fallback.
-                tags={info.tags.length > 0 ? info.tags : source.portSpec.tags}
-                arrayed={effectiveArrayed}
-              />
-            ) : showPreview && (
-                info.tags.includes("image") ||
-                info.tags.includes("image_sequence") ||
-                info.tags.includes("frame_sequence") ||
-                source.portSpec?.tags.includes("frame_sequence")
-              ) ? (
-              // Tag-routed viewers (frame_sequence family) don't need
-              // a preview spec — Preview dispatches on tags first.
-              // Passing a dummy spec keeps the signature simple; the
-              // spec is unused for this branch. Runtime handle tags
-              // are checked first so a generic ``tags_from`` port
-              // (e.g. ``regroup.out``) whose static declaration is
-              // ``[any]`` still routes correctly once the aggregate
-              // lands with resolved ``["image"]``.
-              <Preview
-                spec={{ viewer: "image", member: null }}
-                baseUrl={info.proxy_url}
-                storage={info.storage}
-                handleId={info.handle_id}
-                absolutePath={info.absolute_path}
-                producingNode={source.computeNode}
                 tags={info.tags.length > 0 ? info.tags : source.portSpec?.tags}
                 arrayed={effectiveArrayed}
+                dimLabels={
+                  info.dim_labels && info.dim_labels.length > 0
+                    ? info.dim_labels
+                    : undefined
+                }
               />
             ) : (
               <BasicInfoPreview

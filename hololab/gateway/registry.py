@@ -302,18 +302,20 @@ class NodeRegistry:
                     return session
         return None
 
-    def get_output_dim_labels(
+    def get_output_port_spec(
         self, algorithm_name: str, algorithm_version: str, output_port_name: str
-    ) -> list[str] | None:
-        """Return the declared ``dim_labels`` for one output port.
+    ) -> Any | None:
+        """Return the raw manifest ``OutputSpec`` for one output port.
 
-        Returns ``None`` when the pack isn't available on any live session
-        (offline node, pack removed), or when the port isn't declared, or
-        when the manifest file can't be loaded. Callers should treat that
-        as "unknown depth" — not "scalar".
+        Walks live sessions for a matching pack, loads its manifest.yaml,
+        and returns the declared output port. Returns ``None`` when the
+        pack isn't available on any live session (offline node, pack
+        removed), or when the port isn't declared, or when the manifest
+        file can't be loaded.
 
-        Used by the handle-summary endpoint to compute how many levels
-        deep to walk when reporting ``dim_sizes``.
+        Prefer this over the narrower :meth:`get_output_dim_labels` /
+        upcoming preview lookups — one manifest load, N fields for the
+        caller to read.
         """
 
         from pathlib import Path as _Path
@@ -343,11 +345,20 @@ class NodeRegistry:
                         manifest, _sha = load_manifest(p)
                     except Exception:
                         continue
-                    port = manifest.outputs.get(output_port_name)
-                    if port is None:
-                        return None
-                    return list(port.dim_labels)
+                    return manifest.outputs.get(output_port_name)
         return None
+
+    def get_output_dim_labels(
+        self, algorithm_name: str, algorithm_version: str, output_port_name: str
+    ) -> list[str] | None:
+        """Return the declared ``dim_labels`` for one output port.
+
+        Thin wrapper around :meth:`get_output_port_spec` — kept as the
+        stable name callers already use. See that method for lookup
+        semantics.
+        """
+        port = self.get_output_port_spec(algorithm_name, algorithm_version, output_port_name)
+        return list(port.dim_labels) if port is not None else None
 
     async def as_summary_json(self) -> list[dict[str, Any]]:
         """Cheap dump of currently-connected nodes for the frontend."""

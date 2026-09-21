@@ -660,6 +660,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 absolute_path: info.absolute_path,
                 deleted: info.deleted_ts !== null,
                 tags: info.tags,
+                preview: info.preview ?? null,
+                dim_labels: info.dim_labels ?? null,
+                dim_sizes: info.dim_sizes ?? null,
               };
             }
             if (Object.keys(targets).length === 0) return;
@@ -1930,6 +1933,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 absolute_path: r.info.absolute_path,
                 deleted: r.info.deleted_ts !== null,
                 tags: r.info.tags,
+                preview: r.info.preview ?? null,
+                dim_labels: r.info.dim_labels ?? null,
+                dim_sizes: r.info.dim_sizes ?? null,
               };
             }
             setPreviewsByGraphNode((prev) => {

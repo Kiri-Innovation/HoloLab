@@ -11,6 +11,7 @@ import type {
   CatalogPack,
   InputPortSpec,
   OutputPortSpec,
+  OutputPreviewSpec,
   PortSpec,
 } from "../wire";
 import { effectivePortArrayed, effectivePortDimLabels, firstTagColour } from "../tags";
@@ -88,6 +89,22 @@ export interface PreviewTarget {
   // array = handle carried no tags (shouldn't happen for real outputs
   // but tolerated).
   tags: string[];
+  // Backend-resolved preview spec: pack's explicit ``preview:`` if any,
+  // otherwise the tag-inferred default (``TAG_VIEWER_REGISTRY`` on the
+  // gateway). Null when neither matched. Frontend uses this as the
+  // single source of truth for drawer promotion — a generic port whose
+  // catalog spec has ``preview: null`` still gets a viewer as long as
+  // the runtime handle resolved a tag with a registered viewer.
+  preview: OutputPreviewSpec | null;
+  // Producing port's declared ``dim_labels`` (from the manifest as
+  // returned by the backend, not the catalog's static value). Length
+  // = arrayed depth. Prefer this over the catalog's ``dim_labels`` on
+  // generic ports whose static value is placeholder strings
+  // (``["", ""]``). Null when the backend didn't have a producing port.
+  dim_labels: string[] | null;
+  // Per-dim element counts, outer-first. Null for scalar / file-storage
+  // or when the walk couldn't produce a uniform shape.
+  dim_sizes: number[] | null;
 }
 
 export interface AlgorithmNodeData extends Record<string, unknown> {
@@ -261,7 +278,19 @@ function expandableOutputs(
   const out: ExpandablePort[] = [];
   for (const [name, spec] of Object.entries(pack.outputs)) {
     const target = previews?.[name] ?? null;
-    if (spec.preview || hasFrontendViewerTag(spec.tags)) {
+    // A port becomes a viewer when EITHER the pack pre-declared one, OR
+    // the pack's manifest tags map to a frontend intercept, OR the
+    // runtime handle resolved a preview / a frontend-viewer tag. The
+    // last clause is what makes generic ports (``regroup.out``:
+    // ``tags: [any]`` + ``preview: null`` at catalog time) still open
+    // as a viewer once their runtime tag lands as ``["image"]`` — the
+    // backend's ``tag_viewers`` resolver has already turned that into a
+    // real preview spec on ``target.preview``.
+    const staticViewer = spec.preview || hasFrontendViewerTag(spec.tags);
+    const runtimeViewer = Boolean(
+      target && (target.preview || hasFrontendViewerTag(target.tags)),
+    );
+    if (staticViewer || runtimeViewer) {
       out.push({ name, spec, target, kind: "viewer" });
     } else if (target) {
       out.push({ name, spec, target, kind: "info" });
@@ -762,12 +791,17 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   <>
                     {header}
                     <Preview
-                      // ``port.preview`` may be null when the viewer is
-                      // frontend-driven from tags alone (colmap-cams,
-                      // frame_sequence). Preview() intercepts by tag
-                      // before touching spec, so passing undefined is
-                      // safe. See PreviewProps in previews.tsx.
-                      spec={port.preview ?? undefined}
+                      // Prefer the runtime-resolved preview from the
+                      // handle response over the catalog's static
+                      // declaration. A ``regroup.out`` port declares
+                      // ``preview: null`` in the catalog (its element
+                      // type is only known at wire time), but the
+                      // backend's ``tag_viewers`` resolver turns the
+                      // resolved runtime tag into a real spec on
+                      // ``target.preview``. When neither is set the
+                      // tag intercepts in Preview() still handle
+                      // frontend-driven viewers by tag alone.
+                      spec={target.preview ?? port.preview ?? undefined}
                       baseUrl={target.proxy_url}
                       storage={target.storage}
                       handleId={target.handle_id}
@@ -793,12 +827,26 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                         pack.arrayable,
                         arrayed_toggle,
                       )}
-                      dimLabels={effectivePortDimLabels(
-                        port.arrayed,
-                        port.dim_labels,
-                        pack.arrayable,
-                        arrayed_toggle,
-                      )}
+                      // dim_labels: prefer the runtime value from the
+                      // backend (which read the producing port's real
+                      // manifest) over the catalog's static value. A
+                      // generic port declares placeholder labels
+                      // (``["", ""]``) so the paginator can't infer
+                      // depth from them alone; the backend fills in
+                      // the resolved labels for the ACTUAL producing
+                      // port when it can (regroup echoes the input's
+                      // dims). Fall back to the effective-static value
+                      // when the backend has nothing to add.
+                      dimLabels={
+                        (target.dim_labels && target.dim_labels.length > 0
+                          ? target.dim_labels
+                          : effectivePortDimLabels(
+                              port.arrayed,
+                              port.dim_labels,
+                              pack.arrayable,
+                              arrayed_toggle,
+                            ))
+                      }
                     />
                   </>
                 );

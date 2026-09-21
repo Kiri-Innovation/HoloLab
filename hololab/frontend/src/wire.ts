@@ -200,6 +200,11 @@ export interface HandleSummary {
   // ``element_count`` for multi-dim handles so the chip can render
   // ``image[frame:100][cam:21]``. Null when scalar or not yet computed.
   dim_sizes?: number[] | null;
+  // Same resolved preview + dim_labels the ``/api/handles/{id}`` endpoint
+  // returns — carried on the summary too so an agent picking the right
+  // viewer doesn't need a second round trip.
+  preview?: OutputPreviewSpec | null;
+  dim_labels?: string[] | null;
 }
 
 export interface OutputPortSpec extends PortSpec {
@@ -272,6 +277,25 @@ export interface HandleInfo {
   // <video>/<img> fetch and renders a "cleaned" placeholder instead
   // of a broken frame. See docs/artifacts.md.
   deleted_ts: number | null;
+  // Resolved preview spec — the pack's explicit ``preview:`` if any,
+  // otherwise the tag-registry inference from the runtime tags. Null
+  // when neither matched (no viewer for this handle). Frontend keys
+  // drawer promotion off this: a generic ``regroup.out`` handle wired
+  // from ``image`` lands with ``{viewer:"image", member:"frame_000000.png"}``,
+  // so its drawer opens as a viewer instead of the basic-info fallback.
+  // See ``hololab.gateway.tag_viewers.infer_preview_for_output``.
+  preview?: OutputPreviewSpec | null;
+  // Producing port's declared ``dim_labels`` (outer→inner). Length =
+  // arrayed depth: ``["frame"]`` = 1-D, ``["frame","cam"]`` = 2-D.
+  // Null for legacy handles (no producing port on record) or ports
+  // that declared none. Frontend prefers this over the catalog's
+  // static ``dim_labels`` because a generic port's static value can
+  // be placeholder strings (``["", ""]``).
+  dim_labels?: string[] | null;
+  // Per-dim element counts, outer-first (e.g. ``[100, 21]``). Measured
+  // by the same helper the summary endpoint uses. Null for scalar or
+  // file-storage handles, or ragged trees.
+  dim_sizes?: number[] | null;
 }
 
 // ---------------------------------------------------------------------------

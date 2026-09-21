@@ -185,6 +185,9 @@ export function SnapshotCanvas({
               absolute_path: info.absolute_path,
               deleted: info.deleted_ts !== null,
               tags: info.tags,
+              preview: info.preview ?? null,
+              dim_labels: info.dim_labels ?? null,
+              dim_sizes: info.dim_sizes ?? null,
             },
           };
         } catch (err) {
