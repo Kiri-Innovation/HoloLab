@@ -15,14 +15,18 @@
 // via ``formatTypeLabel``.
 //
 // Chip display rules (see design contract):
-//   * ``T``                      — scalar, no counts
-//   * ``T(N)``                   — scalar with tag-specific inner count
-//   * ``T[N]``                   — 1-D arrayed, unlabeled
-//   * ``T[label:N]``             — 1-D arrayed, dim label present
-//   * ``T[?]``                   — 1-D arrayed, count unknown (no handle yet)
-//   * ``T[F][C]``                — 2-D arrayed, unlabeled (outer first)
-//   * ``T[label1:F][label2:C]``  — 2-D arrayed, with dim labels
-//   * ``T(N)[label:N]``          — internal count + labeled array size
+//   * ``T``                          — scalar, no counts
+//   * ``T(N)``                       — scalar with tag-specific inner count
+//   * ``T[N]``                       — 1-D arrayed, unlabeled
+//   * ``T[label:N]``                 — 1-D arrayed, dim label present
+//   * ``T[?]``                       — 1-D arrayed, count unknown (no handle yet)
+//   * ``T[C][F]``                    — 2-D arrayed, unlabeled (inner→outer)
+//   * ``T[inner_label:C][outer_label:F]`` — 2-D labeled (inner→outer)
+//   * ``T(N)[label:N]``              — internal count + labeled array size
+//
+// Dimension order: backend data is outer-first (dimLabels[0] = outermost).
+// The chip renders inner-first (Python-convention: T[cam:21][frame:100])
+// so that the "element type" bracket sits closest to the tag name.
 
 import type { CatalogPack, GraphEdge, GraphNode } from "../wire";
 import { effectivePortArrayed, effectivePortDimLabels } from "../tags";
@@ -30,8 +34,9 @@ import { effectivePortArrayed, effectivePortDimLabels } from "../tags";
 export interface EdgeType {
   tags: string[];
   arrayed: boolean;
-  /** Per-dimension labels, outer-first. Length = arrayed depth. Empty
-   *  when scalar. An unlabeled dim is the empty string ``""``. */
+  /** Per-dimension labels, outer-first (mirrors backend storage order).
+   *  Length = arrayed depth. An unlabeled dim is the empty string ``""``.
+   *  Empty when scalar.  formatTypeLabel renders these inner→outer. */
   dimLabels: string[];
   /** Runtime counts. Populated by TypedEdge after a handle-summary
    *  fetch; undefined = "unknown". Never populated at layout time. */
@@ -124,15 +129,15 @@ function baseChipTag(t: EdgeType): string {
 
 /** Compact label suitable for an edge chip. Composes:
  *
- *    <base>                  scalar, no counts
- *    <base>(N)               scalar + internal count
- *    <base>[N]               1-D arrayed, unlabeled
- *    <base>[label:N]         1-D arrayed, dim label present
- *    <base>[F][C]            2-D arrayed, unlabeled
- *    <base>[l1:F][l2:C]      2-D arrayed, with dim labels
+ *    <base>                      scalar, no counts
+ *    <base>(N)                   scalar + internal count
+ *    <base>[N]                   1-D arrayed, unlabeled
+ *    <base>[label:N]             1-D arrayed, dim label present
+ *    <base>[C][F]                2-D arrayed, unlabeled (inner→outer)
+ *    <base>[l_inner:C][l_outer:F] 2-D labeled (inner→outer)
  *
- *  Unknown array sizes render as ``[?]`` so the shape stays visible even
- *  when the handle hasn't materialised yet. */
+ *  Dimensions render inner→outer (Python convention) even though the
+ *  backend stores them outer-first. Unknown array sizes use ``[?]``. */
 export function formatTypeLabel(t: EdgeType): string {
   const base = baseChipTag(t);
   let s = base;
@@ -146,9 +151,10 @@ export function formatTypeLabel(t: EdgeType): string {
   }
   if (t.dimLabels.length > 0 || t.arrayed) {
     const depth = Math.max(t.dimLabels.length, t.arrayed ? 1 : 0);
-    for (let i = 0; i < depth; i++) {
-      // dimSizes is the authoritative source; fall back to the legacy
-      // scalar fields for handles that predate the dim_sizes payload.
+    // Render inner→outer: start from the deepest dim (highest index).
+    for (let i = depth - 1; i >= 0; i--) {
+      // dimSizes is the authoritative source; fall back to legacy scalar
+      // fields for handles that predate the dim_sizes payload.
       let n: number | undefined;
       if (t.dimSizes && i < t.dimSizes.length) {
         n = t.dimSizes[i];
@@ -167,16 +173,18 @@ export function formatTypeLabel(t: EdgeType): string {
 
 /** Full human-readable form (with the full tag list and dim labels) —
  *  used for the hover title / tooltip. Empty dim label renders as
- *  ``arrayed<T>`` (old-style) rather than ``arrayed<> of T``. */
+ *  ``arrayed<T>`` (old-style) rather than ``arrayed<> of T``.
+ *  Dimension order matches the chip: inner→outer. */
 export function formatTypeLabelLong(t: EdgeType): string {
   if (t.tags.length === 0) return "unknown";
   const inner = t.tags.join(",");
-  const labels = t.dimLabels.filter((l) => l && l.length > 0);
+  // Filter to non-empty labels, then reverse to inner→outer display order.
+  const labels = t.dimLabels.filter((l) => l && l.length > 0).reverse();
   let s: string;
   if (t.dimLabels.length === 0 && !t.arrayed) {
     s = inner;
   } else if (labels.length === 0) {
-    // arrayed but no dim names — legacy form.
+    // arrayed but no dim names — legacy wrapping form.
     const wraps = Math.max(t.dimLabels.length, t.arrayed ? 1 : 0);
     s = inner;
     for (let i = 0; i < wraps; i++) s = `arrayed<${s}>`;
@@ -192,18 +200,22 @@ export function formatTypeLabelLong(t: EdgeType): string {
     const kind = t.internalCountKind ?? "count";
     s += ` · ${t.internalCount} ${kind}`;
   }
+  // Sizes also inner→outer to match chip order.
   if (t.dimSizes && t.dimSizes.length > 0) {
-    const parts = t.dimSizes.map((n, i) => {
+    const parts: string[] = [];
+    for (let i = t.dimSizes.length - 1; i >= 0; i--) {
       const lbl = t.dimLabels[i] ?? "";
-      return lbl ? `${n} ${lbl}` : String(n);
-    });
+      parts.push(lbl ? `${t.dimSizes[i]} ${lbl}` : String(t.dimSizes[i]));
+    }
     s += ` · ${parts.join(", ")}`;
   } else {
-    if (t.elementCount != null) {
-      s += ` · ${t.elementCount} outer`;
-    }
     if (t.innerElementCount != null) {
-      s += `, ${t.innerElementCount} inner`;
+      s += ` · ${t.innerElementCount} inner`;
+    }
+    if (t.elementCount != null) {
+      s += t.innerElementCount != null
+        ? `, ${t.elementCount} outer`
+        : ` · ${t.elementCount} outer`;
     }
   }
   return s;
