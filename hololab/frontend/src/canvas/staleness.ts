@@ -39,10 +39,59 @@
 // (SnapshotCanvas builds nodes independently), and AlgorithmNode
 // double-guards on ``readOnly``.
 
-import type { GraphEdge, GraphNode, SnapshotJob, WorkflowGraph } from "../wire";
+import type { CatalogPack, GraphEdge, GraphNode, SnapshotJob, WorkflowGraph } from "../wire";
 import type { NodeRuntime } from "./AlgorithmNode";
 
 const IN_FLIGHT = new Set(["pending", "assigned", "running"]);
+
+// Look up the manifest ``params:`` defaults for a pack version. Mirrors
+// the backend's ``merged_params_with_defaults`` (gateway/execution.py) so
+// the "unchanged by default-fill" invariant is enforced on both sides:
+//
+//   * At dispatch the gateway fills every manifest default the draft
+//     doesn't override into ``Job.params`` (and the snapshot's
+//     ``graph.nodes[i].params``), then renders the shard template
+//     against the merged dict — the workflow's canonical run params.
+//   * The draft on the canvas stays sparse (only keys the operator
+//     explicitly set), because autosave preserves what the user typed
+//     rather than what the pack would compute.
+//
+// Comparing the sparse draft directly against the merged snapshot as
+// the pre-normalisation code did (``for k in union(draft, snap): if
+// dp[k] !== sp[k] flag``) flagged every default-fill key as a change
+// on every cold load. Merging defaults into both sides here brings the
+// two into the same shape so the diff surfaces only real overrides
+// (``iterations: 500 → 50``) and hides the "same-as-default" noise
+// (``max_width: undefined → 0`` when the manifest default is ``0``).
+export type PackDefaults = (name: string, version: string) => Record<string, unknown>;
+
+// Build a PackDefaults closure over a catalog map. Missing packs return
+// an empty defaults dict — the compare then falls back to the raw
+// draft-vs-frozen diff for that node (unchanged legacy behaviour), so a
+// catalog that hasn't hydrated yet doesn't produce a false-negative
+// where a real edit gets hidden. Callers should feed the same
+// ``catalogByKey`` the App uses for the palette / hydration so the
+// versions here match what a run would actually pull.
+export function packDefaultsFromCatalog(
+  catalogByKey: ReadonlyMap<string, CatalogPack>,
+): PackDefaults {
+  return (name, version) => {
+    const pack = catalogByKey.get(`${name}@${version}`);
+    if (!pack) return {};
+    const out: Record<string, unknown> = {};
+    for (const [k, spec] of Object.entries(pack.params)) {
+      if (spec && "default" in spec) out[k] = spec.default;
+    }
+    return out;
+  };
+}
+
+function mergedParams(
+  params: Record<string, unknown> | null | undefined,
+  defaults: Record<string, unknown>,
+): Record<string, unknown> {
+  return { ...defaults, ...(params ?? {}) };
+}
 
 export interface NodeStaleness {
   kind: "self_dirty" | "upstream_dirty" | "inflight_old_params";
@@ -83,6 +132,7 @@ function paramsAndAlgoReasons(
     algorithm_version: string;
     params: Record<string, unknown>;
   },
+  packDefaults: PackDefaults,
 ): string[] {
   const reasons: string[] = [];
   if (
@@ -93,8 +143,15 @@ function paramsAndAlgoReasons(
       `算法已更改: ${frozen.algorithm_name}@${frozen.algorithm_version} → ${dn.algorithm_name}@${dn.algorithm_version}`,
     );
   }
-  const dp = dn.params ?? {};
-  const sp = frozen.params ?? {};
+  // Normalise both sides against manifest defaults before diffing so a
+  // draft the operator hasn't touched compares equal to the dispatch-
+  // merged snapshot params for the same pack version. Each side uses
+  // its OWN pack version's defaults — a version diff is already flagged
+  // above, and using the wrong side's defaults would hide legitimate
+  // param changes newer versions introduced. See ``packDefaultsFromCatalog``
+  // for the mirror against gateway/execution.py:merged_params_with_defaults.
+  const dp = mergedParams(dn.params, packDefaults(dn.algorithm_name, dn.algorithm_version));
+  const sp = mergedParams(frozen.params, packDefaults(frozen.algorithm_name, frozen.algorithm_version));
   const keys = new Set([...Object.keys(dp), ...Object.keys(sp)]);
   const changedParams: string[] = [];
   for (const k of keys) {
@@ -112,6 +169,7 @@ function selfDirtyReasons(
   sn: GraphNode | null,
   draftEdges: readonly GraphEdge[],
   snapEdges: readonly GraphEdge[],
+  packDefaults: PackDefaults,
 ): string[] {
   if (sn == null) {
     return ["快照中不存在此节点（新增/未参与上次运行）"];
@@ -120,7 +178,7 @@ function selfDirtyReasons(
     algorithm_name: sn.algorithm_name,
     algorithm_version: sn.algorithm_version,
     params: sn.params ?? {},
-  });
+  }, packDefaults);
   if ((dn.assigned_node_id ?? null) !== (sn.assigned_node_id ?? null)) {
     reasons.push("执行节点已更改");
   }
@@ -208,6 +266,14 @@ export function computeStaleness(
   // never asks about drift and older call sites shouldn't need to
   // thread this arg through just to satisfy the signature.
   snapshotJobs: readonly SnapshotJob[] = [],
+  // Manifest defaults lookup — mirrors the gateway's dispatch-time
+  // ``merged_params_with_defaults`` so a sparse draft (only operator-
+  // touched keys) compares equal to the dispatch-merged snapshot
+  // params when nothing was actually changed. Default returns an empty
+  // dict, which reproduces the pre-normalisation compare — legacy call
+  // sites keep working, just with the same false positives they had
+  // before. Real call sites should pass ``packDefaultsFromCatalog``.
+  packDefaults: PackDefaults = () => ({}),
 ): Record<string, NodeStaleness | null> {
   const out: Record<string, NodeStaleness | null> = {};
   const snapById = new Map<string, GraphNode>(
@@ -233,11 +299,18 @@ export function computeStaleness(
       // by the sibling amber badge once the job lands.
       const inflightJob = oldestInFlightJob(snapshotJobs, id);
       if (inflightJob != null) {
+        // The frozen ``Job.params`` on the dispatched row is ALREADY
+        // merged with manifest defaults (gateway/execution.py at Job
+        // creation). The draft on the canvas is not. paramsAndAlgoReasons
+        // normalises both with ``packDefaults`` so a running job whose
+        // draft the operator hasn't touched compares equal to the
+        // frozen row and the ``inflight_old_params`` chip doesn't fire
+        // spuriously.
         const driftReasons = paramsAndAlgoReasons(dn, {
           algorithm_name: inflightJob.algorithm_name,
           algorithm_version: inflightJob.algorithm_version,
           params: inflightJob.params ?? {},
-        });
+        }, packDefaults);
         if (driftReasons.length > 0) {
           const jobShort = inflightJob.job_id.slice(0, 7);
           out[id] = {
@@ -256,7 +329,7 @@ export function computeStaleness(
     // reset). We still gate on runtime.state === "done" to decide "does
     // this node have any fresh output right now".
     const sn = snap ? (snapById.get(id) ?? null) : null;
-    const selfReasons = selfDirtyReasons(dn, sn, draft.edges, snapEdges);
+    const selfReasons = selfDirtyReasons(dn, sn, draft.edges, snapEdges, packDefaults);
     const hasDoneOutput = rt?.state === "done";
     if (!hasDoneOutput && selfReasons.length === 0) {
       // Config matches the snapshot but the output isn't fresh — the

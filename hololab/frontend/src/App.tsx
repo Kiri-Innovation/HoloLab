@@ -65,6 +65,7 @@ import type { DiffItem } from "./canvas/diffGraphs";
 import {
   computeStaleness,
   earliestDirtyId,
+  packDefaultsFromCatalog,
   staleCount,
   stalenessEqual,
   type NodeStaleness,
@@ -1679,9 +1680,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const draftDiff = useMemo<DiffItem[]>(
     () =>
       workflowId !== null && latestSnapshotGraph !== null
-        ? diffGraphs(toGraph(), latestSnapshotGraph)
+        ? diffGraphs(toGraph(), latestSnapshotGraph, packDefaultsFromCatalog(catalogByKey))
         : [],
-    [workflowId, latestSnapshotGraph, toGraph],
+    [workflowId, latestSnapshotGraph, toGraph, catalogByKey],
   );
 
   // Per-node result staleness. Rules and rationale live in
@@ -1704,9 +1705,17 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             // frozen params on the running job against the current
             // draft. See canvas/staleness.ts for the motivating case.
             latestSnapshotJobs,
+            // Manifest defaults lookup so the compare normalises the
+            // sparse draft against the dispatch-merged snapshot params
+            // (mirror of gateway/execution.py:merged_params_with_defaults).
+            // Without this, every default-fill key the gateway adds at
+            // dispatch (fx.max_width, stg.iterations, …) shows up as a
+            // "参数已改" false positive on a run whose current draft the
+            // operator hasn't touched.
+            packDefaultsFromCatalog(catalogByKey),
           )
         : {},
-    [workflowId, latestSnapshotGraph, runtimeByGraphNode, latestSnapshotJobs, toGraph],
+    [workflowId, latestSnapshotGraph, runtimeByGraphNode, latestSnapshotJobs, toGraph, catalogByKey],
   );
 
   // Push the computed staleness onto each node's data. Kept in a

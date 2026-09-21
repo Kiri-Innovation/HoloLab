@@ -9,9 +9,9 @@
 // we didn't accidentally make every running node loud).
 
 import { describe, expect, it } from "vitest";
-import type { GraphNode, SnapshotJob, WorkflowGraph } from "../wire";
+import type { CatalogPack, GraphNode, SnapshotJob, WorkflowGraph } from "../wire";
 import type { NodeRuntime } from "./AlgorithmNode";
-import { computeStaleness } from "./staleness";
+import { computeStaleness, packDefaultsFromCatalog } from "./staleness";
 
 function mkNode(over: Partial<GraphNode> & { id: string }): GraphNode {
   return {
@@ -150,5 +150,145 @@ describe("computeStaleness — inflight_old_params", () => {
     const runtimes: Record<string, NodeRuntime> = { n: { state: "done" } };
     const s = computeStaleness(draft, snap, runtimes).n;
     expect(s?.kind).toBe("self_dirty");
+  });
+});
+
+// Motivating case (2026-09-21): after commit 6717ce9 the gateway merges
+// manifest defaults into ``Job.params`` at dispatch, and the resulting
+// snapshot ``graph.nodes[i].params`` carries the full merged dict.
+// The canvas draft stays sparse — autosave writes only operator-touched
+// keys. Without normalisation the compare fired "参数已改: max_width,
+// start_frame, end_frame" on every cold load of a just-successfully-run
+// workflow, because those keys live in the snapshot but not the draft.
+describe("computeStaleness — manifest default-fill normalisation", () => {
+  function mkPack(over: Partial<CatalogPack> & { name: string; version: string; params: CatalogPack["params"] }): CatalogPack {
+    return {
+      name: over.name,
+      version: over.version,
+      manifest_hash: over.manifest_hash ?? "h",
+      node_ids: [],
+      description: null,
+      category: [],
+      docs: null,
+      source_entry: null,
+      manifest_path: null,
+      source_dir: null,
+      inputs: {},
+      outputs: {},
+      params: over.params,
+      arrayable: false,
+    };
+  }
+
+  it("sparse draft vs dispatch-merged snapshot (all defaults) → no self_dirty", () => {
+    // Draft has only the operator-touched keys; snapshot has those plus
+    // every manifest default (backend merges at dispatch). The two
+    // must compare equal — the merged snapshot values ARE the
+    // manifest defaults, so a rerun from the sparse draft would
+    // produce bit-for-bit the same command line.
+    const draft = mkGraph([
+      mkNode({ id: "fx", algorithm_name: "frame-extraction", params: { max_frames: 100, skip: 0 } }),
+    ]);
+    const snap = mkGraph([
+      mkNode({
+        id: "fx",
+        algorithm_name: "frame-extraction",
+        params: { max_frames: 100, skip: 0, max_width: 0, start_frame: 0, end_frame: 0 },
+      }),
+    ]);
+    const runtimes: Record<string, NodeRuntime> = { fx: { state: "done" } };
+    const catalog = new Map<string, CatalogPack>([
+      [
+        "frame-extraction@0.1.0",
+        mkPack({
+          name: "frame-extraction",
+          version: "0.1.0",
+          params: {
+            max_frames: { type: "int", default: 50, description: null, optional: true },
+            skip: { type: "int", default: 1, description: null, optional: true },
+            max_width: { type: "int", default: 0, description: null, optional: true },
+            start_frame: { type: "int", default: 0, description: null, optional: true },
+            end_frame: { type: "int", default: 0, description: null, optional: true },
+          },
+        }),
+      ],
+    ]);
+    const out = computeStaleness(draft, snap, runtimes, [], packDefaultsFromCatalog(catalog));
+    expect(out.fx).toBeNull();
+  });
+
+  it("real override differing from default → self_dirty (draft = {} merges to default 500; snap has 50)", () => {
+    // The counter-case: draft is empty, snap has iterations=50. When
+    // we merge the draft with defaults it becomes iterations=500;
+    // that DOES differ from the snapshot's 50, so we must still
+    // flag it. Guards against the fix over-hiding.
+    const draft = mkGraph([mkNode({ id: "stg", algorithm_name: "stg-train", params: {} })]);
+    const snap = mkGraph([
+      mkNode({ id: "stg", algorithm_name: "stg-train", params: { iterations: 50 } }),
+    ]);
+    const runtimes: Record<string, NodeRuntime> = { stg: { state: "done" } };
+    const catalog = new Map<string, CatalogPack>([
+      [
+        "stg-train@0.1.0",
+        mkPack({
+          name: "stg-train",
+          version: "0.1.0",
+          params: { iterations: { type: "int", default: 500, description: null, optional: true } },
+        }),
+      ],
+    ]);
+    const out = computeStaleness(draft, snap, runtimes, [], packDefaultsFromCatalog(catalog));
+    expect(out.stg?.kind).toBe("self_dirty");
+    expect(out.stg?.title).toContain("iterations");
+  });
+
+  it("missing pack in catalog → falls back to raw compare (no crash)", () => {
+    // A pack the catalog hasn't hydrated yet: defaults resolve to
+    // ``{}`` and the compare degrades to the pre-normalisation
+    // behaviour. Better a legacy false-positive than a false-negative
+    // that hides a real edit.
+    const draft = mkGraph([mkNode({ id: "n", params: { a: 1 } })]);
+    const snap = mkGraph([mkNode({ id: "n", params: { a: 1, b: 2 } })]);
+    const runtimes: Record<string, NodeRuntime> = { n: { state: "done" } };
+    const emptyCatalog = new Map<string, CatalogPack>();
+    const out = computeStaleness(draft, snap, runtimes, [], packDefaultsFromCatalog(emptyCatalog));
+    expect(out.n?.kind).toBe("self_dirty");
+    expect(out.n?.title).toContain("b");
+  });
+
+  it("inflight_old_params also normalises against dispatch-merged Job.params", () => {
+    // Dispatch merges defaults into Job.params (execution.py). If the
+    // draft is sparse and the operator hasn't touched anything, the
+    // "running job uses OLD params" chip must stay silent.
+    const draft = mkGraph([mkNode({ id: "fx", algorithm_name: "frame-extraction", params: { max_frames: 100 } })]);
+    const snap = mkGraph([mkNode({ id: "fx", algorithm_name: "frame-extraction", params: { max_frames: 100 } })]);
+    const runtimes: Record<string, NodeRuntime> = { fx: { state: "running" } };
+    const jobs: SnapshotJob[] = [
+      mkJob({
+        job_id: "j",
+        graph_node_id: "fx",
+        algorithm_name: "frame-extraction",
+        state: "running",
+        params: { max_frames: 100, skip: 1, max_width: 0, start_frame: 0, end_frame: 0 },
+      }),
+    ];
+    const catalog = new Map<string, CatalogPack>([
+      [
+        "frame-extraction@0.1.0",
+        mkPack({
+          name: "frame-extraction",
+          version: "0.1.0",
+          params: {
+            max_frames: { type: "int", default: 50, description: null, optional: true },
+            skip: { type: "int", default: 1, description: null, optional: true },
+            max_width: { type: "int", default: 0, description: null, optional: true },
+            start_frame: { type: "int", default: 0, description: null, optional: true },
+            end_frame: { type: "int", default: 0, description: null, optional: true },
+          },
+        }),
+      ],
+    ]);
+    const out = computeStaleness(draft, snap, runtimes, jobs, packDefaultsFromCatalog(catalog));
+    expect(out.fx).toBeNull();
   });
 });

@@ -5,9 +5,17 @@
 // docs/workflow-schema.md.
 
 import type { WorkflowGraph, GraphNode, GraphEdge } from "../wire";
+import type { PackDefaults } from "./staleness";
 
 export interface DiffItem {
   description: string;
+}
+
+function mergedParams(
+  params: Record<string, unknown> | null | undefined,
+  defaults: Record<string, unknown>,
+): Record<string, unknown> {
+  return { ...defaults, ...(params ?? {}) };
 }
 
 // Stable structural fingerprint of one edge — used for set membership.
@@ -20,7 +28,17 @@ function nodeName(n: GraphNode): string {
   return n.algorithm_name;
 }
 
-export function diffGraphs(draft: WorkflowGraph, snap: WorkflowGraph): DiffItem[] {
+export function diffGraphs(
+  draft: WorkflowGraph,
+  snap: WorkflowGraph,
+  // Manifest defaults lookup — same normalisation staleness.ts applies
+  // for the badge (see the block comment there). Passing this keeps
+  // the "结构改动" sentinel row and the per-node amber badge in
+  // lockstep: neither fires on a pure default-fill difference. Default
+  // returns ``{}`` so legacy callers reproduce the pre-normalisation
+  // compare exactly.
+  packDefaults: PackDefaults = () => ({}),
+): DiffItem[] {
   const items: DiffItem[] = [];
 
   const snapById = new Map<string, GraphNode>(snap.nodes.map((n) => [n.id, n]));
@@ -88,8 +106,12 @@ export function diffGraphs(draft: WorkflowGraph, snap: WorkflowGraph): DiffItem[
       });
     }
 
-    const dp = dn.params ?? {};
-    const sp = sn.params ?? {};
+    // Normalise both sides with their own version's manifest defaults
+    // — a sparse-vs-dispatch-merged shape difference is not a real
+    // change and shouldn't show up as "参数 X: (未设置) → 0". See the
+    // block comment above ``packDefaults``.
+    const dp = mergedParams(dn.params, packDefaults(dn.algorithm_name, dn.algorithm_version));
+    const sp = mergedParams(sn.params, packDefaults(sn.algorithm_name, sn.algorithm_version));
     const keys = new Set([...Object.keys(dp), ...Object.keys(sp)]);
     for (const key of [...keys].sort()) {
       const dv = dp[key];
