@@ -15,6 +15,7 @@ import type {
 } from "../wire";
 import { effectivePortArrayed, effectivePortDimLabels, firstTagColour } from "../tags";
 import { useCanvasContext } from "./CanvasContext";
+import type { NodeStaleness } from "./staleness";
 import { CopyRefButton } from "./CopyRefButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { OpenSourceButton } from "./OpenSourceButton";
@@ -104,6 +105,12 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   // past snapshot has no clean meaning; the user re-runs from the
   // draft). Draft canvas leaves it undefined.
   readOnly?: boolean;
+  // Result-staleness badge state — driven by canvas/staleness.ts against
+  // the latest snapshot graph. ``null`` (or omitted) means fresh /
+  // in-flight — the existing status dot already tells the story and no
+  // amber badge is drawn. Only ever populated on the draft canvas; the
+  // snapshot canvas leaves this undefined so history mode stays quiet.
+  staleness?: NodeStaleness | null;
 }
 
 // NOTE: ``workflow_id`` and ``computeNodesById`` are NOT on the node data.
@@ -316,6 +323,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     previewOpen,
     onPreviewToggle,
     readOnly,
+    staleness,
     arrayed_toggle,
   } = data as AlgorithmNodeData & { arrayed_toggle?: boolean };
   const { workflow_id: workflowId, computeNodesById } = useCanvasContext();
@@ -426,6 +434,24 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
               : "none",
           }}
         />
+        {!readOnly && staleness && (
+          <span
+            data-hl-node-stale={staleness.kind}
+            title={`结果陈旧 · ${staleness.title}${staleness.kind === "self_dirty" ? " · 点击 ▶ 从此节点重跑" : ""}`}
+            style={{
+              flex: "0 0 auto",
+              width: 8,
+              height: 8,
+              borderRadius: "var(--radius-pill)",
+              // Filled amber = this node's own config diverged. Hollow
+              // ring = only the inputs upstream changed; the operator
+              // usually wants to jump to the upstream node first.
+              background: staleness.kind === "self_dirty" ? "var(--warning)" : "transparent",
+              border: staleness.kind === "upstream_dirty" ? "1.5px solid var(--warning)" : "none",
+              boxSizing: "border-box",
+            }}
+          />
+        )}
         <div
           title={`${pack.name} v${pack.version}`}
           style={{
@@ -471,6 +497,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             <RunButton
               pending={runClickPending}
               inFlight={runInFlight}
+              stale={staleness?.kind === "self_dirty"}
               onClick={(e) => {
                 e.stopPropagation();
                 handleRunClick();
@@ -918,13 +945,20 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
 function RunButton({
   pending,
   inFlight,
+  stale,
   onClick,
 }: {
   pending: boolean;
   inFlight: boolean;
+  stale?: boolean;
   onClick: (e: React.MouseEvent) => void;
 }) {
   const busy = pending || inFlight;
+  // Amber-tinted border+background when this node is self-dirty so the
+  // affordance for "click here to refresh outputs" is visible without
+  // adding a separate button. Aligns with the staleness badge next to
+  // the pack name so the same visual language reads across the header.
+  const staleTint = Boolean(stale) && !busy;
   return (
     <button
       type="button"
@@ -935,12 +969,18 @@ function RunButton({
           ? "running…"
           : pending
             ? "dispatching…"
-            : "run this node"
+            : stale
+              ? "run this node · 结果陈旧，点击从此节点重跑"
+              : "run this node"
       }
       style={{
-        border: "1px solid var(--border-strong)",
-        background: busy ? "var(--surface-3)" : "var(--surface-raised)",
-        color: busy ? "var(--text-muted)" : "var(--text)",
+        border: `1px solid ${staleTint ? "var(--warning)" : "var(--border-strong)"}`,
+        background: busy
+          ? "var(--surface-3)"
+          : staleTint
+            ? "var(--warning-soft)"
+            : "var(--surface-raised)",
+        color: busy ? "var(--text-muted)" : staleTint ? "var(--warning)" : "var(--text)",
         width: 20,
         height: 20,
         borderRadius: "var(--radius-sm)",
@@ -953,7 +993,8 @@ function RunButton({
         padding: 0,
         flexShrink: 0,
         opacity: busy ? 0.5 : 1,
-        transition: "opacity var(--dur-fast) var(--ease)",
+        transition:
+          "opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
       }}
     >
       {pending ? "…" : "▶"}

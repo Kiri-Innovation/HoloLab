@@ -63,6 +63,13 @@ import { portsCompatible, effectivePortArrayed } from "./tags";
 import { diffGraphs } from "./canvas/diffGraphs";
 import type { DiffItem } from "./canvas/diffGraphs";
 import {
+  computeStaleness,
+  earliestDirtyId,
+  staleCount,
+  stalenessEqual,
+  type NodeStaleness,
+} from "./canvas/staleness";
+import {
   AlgorithmNode,
   PREVIEW_TOGGLE_EVENT,
   RUN_NODE_EVENT,
@@ -1610,6 +1617,68 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     [workflowId, latestSnapshotGraph, toGraph],
   );
 
+  // Per-node result staleness. Rules and rationale live in
+  // canvas/staleness.ts — same structural criteria diffGraphs already
+  // uses at the workflow scope, so the badge on a node card and the
+  // draft-diff sentinel row can't drift out of sync. Kept memoised so
+  // the runtime-sync effect below only mints new node identities when
+  // a node's staleness actually changes value. Empty {} when no
+  // workflow is open — the effect then leaves ``data.staleness``
+  // undefined and no badge draws.
+  const stalenessByGraphNode = useMemo<Record<string, NodeStaleness | null>>(
+    () =>
+      workflowId !== null
+        ? computeStaleness(toGraph(), latestSnapshotGraph, runtimeByGraphNode)
+        : {},
+    [workflowId, latestSnapshotGraph, runtimeByGraphNode, toGraph],
+  );
+
+  // Push the computed staleness onto each node's data. Kept in a
+  // dedicated effect (not folded into the runtime-sync effect above)
+  // because ``stalenessByGraphNode`` depends on ``toGraph``, which
+  // itself depends on ``nodes`` — putting the compute up-file next to
+  // the runtime memo would create a temporal-dead-zone loop.
+  // ``stalenessEqual`` prevents identity churn when a value-equal
+  // recomputation lands (drag / cosmetic edits re-derive the memo)
+  // — otherwise xyflow's ``adoptUserNodes`` would reset handleBounds
+  // and edges could disappear during hydration (see CanvasContext.ts
+  // for the failure mode).
+  useEffect(() => {
+    setNodes((current) =>
+      current.map((n) => {
+        const d = n.data as AlgorithmNodeData;
+        const next = stalenessByGraphNode[n.id] ?? null;
+        if (stalenessEqual(d.staleness ?? null, next)) return n;
+        return { ...n, data: { ...n.data, staleness: next } };
+      }),
+    );
+  }, [stalenessByGraphNode, setNodes]);
+
+  const staleTotal = useMemo(
+    () => (viewingSnapshot ? 0 : staleCount(stalenessByGraphNode)),
+    [viewingSnapshot, stalenessByGraphNode],
+  );
+
+  // Pan/zoom to the earliest topologically-dirty node — the "start
+  // rerunning here" jump. Also selects it so the inspector opens on
+  // that node and the accent border highlights the card. See
+  // canvas/staleness.ts::earliestDirtyId for the selection rule
+  // (self_dirty with no self_dirty ancestor).
+  const onLocateEarliestStale = useCallback(() => {
+    if (!rfInstance) return;
+    const target = earliestDirtyId(toGraph(), stalenessByGraphNode);
+    if (!target) return;
+    const nd = rfInstance.getNode(target);
+    if (!nd) return;
+    const width = (nd.measured as { width?: number } | undefined)?.width ?? 220;
+    const height = (nd.measured as { height?: number } | undefined)?.height ?? 100;
+    const cx = nd.position.x + width / 2;
+    const cy = nd.position.y + height / 2;
+    const zoom = Math.max(0.75, rfInstance.getZoom());
+    rfInstance.setCenter(cx, cy, { zoom, duration: 400 });
+    setNodes((cur) => cur.map((n) => ({ ...n, selected: n.id === target })));
+  }, [rfInstance, stalenessByGraphNode, toGraph, setNodes]);
+
   const autosave = useDraftAutosave({
     serialisedSnapshot: autosaveSnapshot,
     enabled: !viewingSnapshot,
@@ -1962,6 +2031,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       onExitToGallery={onExitToGallery}
       saveStatus={autosave.status}
       onSaveRetry={autosave.save}
+      staleCount={staleTotal}
+      onLocateEarliestStale={onLocateEarliestStale}
     />
   );
 

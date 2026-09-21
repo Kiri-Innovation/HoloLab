@@ -29,6 +29,13 @@ export interface WorkflowToolbarProps {
   // Autosave status + retry hook (see ``useDraftAutosave``).
   saveStatus: SaveStatus;
   onSaveRetry: () => Promise<void>;
+  // Count of draft nodes whose results are stale vs the latest
+  // snapshot — self_dirty + upstream_dirty combined. Zero when no
+  // workflow is open or when viewing a historical snapshot. Drives
+  // the "陈旧: N" chip; click pans to the earliest one. Same source
+  // of truth as the per-node amber badge (canvas/staleness.ts).
+  staleCount?: number;
+  onLocateEarliestStale?: () => void;
 }
 
 export function WorkflowToolbar({
@@ -42,6 +49,8 @@ export function WorkflowToolbar({
   onExitToGallery,
   saveStatus,
   onSaveRetry,
+  staleCount = 0,
+  onLocateEarliestStale,
 }: WorkflowToolbarProps) {
   const [message, setMessage] = useState<string>("");
   const [messageColour, setMessageColour] = useState<string>("var(--text-muted)");
@@ -155,6 +164,33 @@ export function WorkflowToolbar({
           <SummaryPip label={summary.pending} colour={STATE_COLOURS.pending} />
           <span style={{ color: "var(--text-subtle)" }}>of {summary.total}</span>
         </span>
+      )}
+      {staleCount > 0 && onLocateEarliestStale && (
+        <button
+          type="button"
+          onClick={onLocateEarliestStale}
+          title={`${staleCount} 个节点结果陈旧 · 点击定位到最早需重跑的节点`}
+          style={{
+            ...CHIP_STYLE,
+            gap: 6,
+            cursor: "pointer",
+            borderColor: "var(--warning)",
+            background: "var(--warning-soft)",
+            color: "var(--warning)",
+            fontWeight: "var(--fw-semibold)",
+          }}
+        >
+          <span
+            aria-hidden
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "var(--radius-pill)",
+              background: "var(--warning)",
+            }}
+          />
+          陈旧 {staleCount} · 定位
+        </button>
       )}
       <div style={{ flex: 1 }} />
       <span
