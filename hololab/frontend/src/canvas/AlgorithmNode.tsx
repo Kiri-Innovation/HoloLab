@@ -79,6 +79,15 @@ export interface PreviewTarget {
   // button instead of a <video>/<img> that would 404. See
   // docs/artifacts.md.
   deleted: boolean;
+  // Runtime-resolved tag list from the gateway's handle book (i.e.
+  // after ``tags_from`` propagation — a ``regroup.out`` handle wired
+  // from an ``image`` source lands here as ``["image"]``, not the
+  // manifest's raw ``["any"]``). Preview routing prefers this over the
+  // static ``port.tags`` from the catalog so the viewer picked matches
+  // the handle's actual data class, not its producing pack. Empty
+  // array = handle carried no tags (shouldn't happen for real outputs
+  // but tolerated).
+  tags: string[];
 }
 
 export interface AlgorithmNodeData extends Record<string, unknown> {
@@ -766,7 +775,19 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                       producingNode={
                         computeNodesById?.[target.node_id] ?? null
                       }
-                      tags={port.tags}
+                      // Tag-driven viewer routing: prefer the runtime
+                      // handle's tags (resolved via ``tags_from`` at
+                      // handle_register — see gateway/app.py) over the
+                      // catalog's static declaration. A ``regroup.out``
+                      // handle wired from an ``image`` source arrives
+                      // here as ``["image"]``, matching the image
+                      // preview; the raw ``port.tags`` would be
+                      // ``["any"]`` and skip every intercept in
+                      // previews.tsx. Fall back to ``port.tags`` for
+                      // legacy handles registered before the resolver
+                      // shipped (tags list still populated but never
+                      // rewritten).
+                      tags={target.tags.length > 0 ? target.tags : port.tags}
                       arrayed={effectivePortArrayed(
                         port.arrayed,
                         pack.arrayable,

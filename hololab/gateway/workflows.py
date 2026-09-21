@@ -640,6 +640,111 @@ def effective_output_tags(
     return list(port.tags)
 
 
+def packs_by_key_from_catalog(
+    catalog: list[dict[str, Any]] | dict[tuple[str, str], dict[str, Any]],
+) -> dict[tuple[str, str], PackHandle]:
+    """Build the ``PackHandle`` index used by validation + tag resolution.
+
+    Accepts either the raw list returned by ``NodeRegistry.catalog_json``
+    or a pre-keyed dict of the same entries. The tag-resolution helpers
+    take a ``PackHandle`` map; without this common builder every caller
+    would recopy the tuple-conversion boilerplate.
+    """
+
+    if isinstance(catalog, list):
+        entries = {(c["name"], c["version"]): c for c in catalog}
+    else:
+        entries = catalog
+
+    return {
+        key: PackHandle(
+            inputs={
+                n: InputPortView(
+                    tags=tuple(i["tags"]),
+                    required=bool(i.get("required", True)),
+                    arrayed=bool(i.get("arrayed", False)),
+                    scalar=bool(i.get("scalar", False)),
+                    dim_labels=tuple(i.get("dim_labels", []) or []),
+                )
+                for n, i in entry["inputs"].items()
+            },
+            outputs={
+                n: OutputPortView(
+                    tags=tuple(o["tags"]),
+                    arrayed=bool(o.get("arrayed", False)),
+                    tags_from=o.get("tags_from"),
+                    scalar=bool(o.get("scalar", False)),
+                    dim_labels=tuple(o.get("dim_labels", []) or []),
+                )
+                for n, o in entry["outputs"].items()
+            },
+            arrayable=bool(entry.get("arrayable", False)),
+        )
+        for key, entry in entries.items()
+    }
+
+
+async def resolve_handle_output_tags(
+    store: WorkflowStore,
+    packs_by_key: dict[tuple[str, str], PackHandle],
+    *,
+    snapshot_id: str | None,
+    workflow_id: str | None,
+    graph_node_id: str | None,
+    port_name: str | None,
+    raw_tags: list[str],
+) -> list[str]:
+    """Runtime tag resolution for one output-port handle.
+
+    Generic utility packs (regroup / arrayfy / get-index) declare their
+    output tags as ``[any]`` + ``tags_from: <input>`` so the effective
+    element type is decided by the caller's wiring. The registry's
+    catalog serves the manifest declaration verbatim, which leaves the
+    handle typed as ``any`` and hides its true class from downstream
+    tag-driven decisions (viewer registry, dim-size probes, chip labels).
+
+    This helper walks the workflow snapshot the same way validation
+    does — via :func:`effective_output_tags` — so ``handle_register``
+    and the fan-out aggregate path can store the *resolved* tags in the
+    handle book. All read paths (`GET /api/handles/{id}`, summary,
+    artifacts) then see runtime truth.
+
+    Best-effort semantics: any missing context (no snapshot/workflow,
+    node not in graph, pack not in catalog) → returns ``raw_tags``
+    unchanged so callers stay compatible. The fast path short-circuits
+    when ``raw_tags`` has no ``any`` wildcard, since only ``tags_from``
+    outputs put ``any`` on the wire; concrete tags are already truth.
+    """
+
+    if graph_node_id is None or port_name is None:
+        return raw_tags
+    if ANY_TAG not in raw_tags:
+        return raw_tags
+
+    graph = None
+    if snapshot_id:
+        snap = await store.get_snapshot(snapshot_id)
+        if snap is not None:
+            graph = snap.graph
+    if graph is None and workflow_id:
+        draft = await store.get_draft(workflow_id)
+        if draft is not None:
+            graph = draft.graph
+    if graph is None:
+        return raw_tags
+
+    node_by_id = {n.id: n for n in graph.nodes}
+    node = node_by_id.get(graph_node_id)
+    if node is None:
+        return raw_tags
+    pack = packs_by_key.get((node.algorithm_name, node.algorithm_version))
+    if pack is None:
+        return raw_tags
+
+    resolved = effective_output_tags(node, pack, port_name, graph, node_by_id, packs_by_key)
+    return resolved if resolved else raw_tags
+
+
 def validate_snapshot(
     graph: WorkflowGraph,
     *,

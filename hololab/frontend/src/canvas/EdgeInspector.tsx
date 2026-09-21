@@ -305,14 +305,29 @@ export function EdgeInspector({
                 handleId={info.handle_id}
                 absolutePath={info.absolute_path}
                 producingNode={source.computeNode}
-                tags={source.portSpec.tags}
+                // Prefer the runtime handle's tag list (resolved through
+                // ``tags_from`` at handle_register) over the manifest's
+                // static declaration — a generic ``regroup.out`` handle
+                // fed by an ``image`` source arrives here as ``["image"]``
+                // and picks the right viewer without a pack-level change.
+                // See AlgorithmNode.tsx for the identical fallback.
+                tags={info.tags.length > 0 ? info.tags : source.portSpec.tags}
                 arrayed={effectiveArrayed}
               />
-            ) : showPreview && source.portSpec?.tags.includes("frame_sequence") ? (
+            ) : showPreview && (
+                info.tags.includes("image") ||
+                info.tags.includes("image_sequence") ||
+                info.tags.includes("frame_sequence") ||
+                source.portSpec?.tags.includes("frame_sequence")
+              ) ? (
               // Tag-routed viewers (frame_sequence family) don't need
               // a preview spec — Preview dispatches on tags first.
               // Passing a dummy spec keeps the signature simple; the
-              // spec is unused for this branch.
+              // spec is unused for this branch. Runtime handle tags
+              // are checked first so a generic ``tags_from`` port
+              // (e.g. ``regroup.out``) whose static declaration is
+              // ``[any]`` still routes correctly once the aggregate
+              // lands with resolved ``["image"]``.
               <Preview
                 spec={{ viewer: "image", member: null }}
                 baseUrl={info.proxy_url}
@@ -320,7 +335,7 @@ export function EdgeInspector({
                 handleId={info.handle_id}
                 absolutePath={info.absolute_path}
                 producingNode={source.computeNode}
-                tags={source.portSpec.tags}
+                tags={info.tags.length > 0 ? info.tags : source.portSpec?.tags}
                 arrayed={effectiveArrayed}
               />
             ) : (

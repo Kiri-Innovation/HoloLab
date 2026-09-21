@@ -51,6 +51,8 @@ from hololab.gateway.workflows import (
     GraphNode,
     WorkflowGraph,
     effective_port_arrayed,
+    packs_by_key_from_catalog,
+    resolve_handle_output_tags,
     topological_order,
 )
 from hololab.logging import get_logger
@@ -454,6 +456,14 @@ async def _execute_fanout_body(
         await _mark_parent_failed(store, hub, parent_running, reason=reason)
         raise WorkflowRunError(f"fanout for graph node {gnode.id!r}: {reason}")
 
+    # Resolve ``tags_from`` for the aggregate handles the same way
+    # ``handle_register`` does for scalar outputs — otherwise a generic
+    # utility pack's arrayed aggregate (e.g. ``regroup.out``) lands in
+    # the handle book as ``["any"]`` and hides its runtime class from
+    # tag-driven consumers. One catalog snapshot is enough for all ports.
+    catalog_json = registry.catalog_json()
+    packs_by_key = packs_by_key_from_catalog(catalog_json)
+
     parent_outputs: dict[str, str] = {}
     for port_name, spec in plan.pack_outputs.items():
         aggregate_path = str(Path(plan.parent_ws) / port_name)
@@ -461,11 +471,20 @@ async def _execute_fanout_body(
             size_bytes = _dir_size_bytes(Path(aggregate_path))
         except OSError:
             size_bytes = None
+        resolved_tags = await resolve_handle_output_tags(
+            app.state.workflows,
+            packs_by_key,
+            snapshot_id=snapshot_id,
+            workflow_id=workflow_id,
+            graph_node_id=gnode.id,
+            port_name=port_name,
+            raw_tags=list(spec.get("tags", [])),
+        )
         aggregate = Handle(
             handle_id=str(uuid.uuid4()),
             node_id=plan.session_node_id,
             storage=spec.get("storage", "dir"),
-            tags=list(spec.get("tags", [])),
+            tags=resolved_tags,
             path=aggregate_path,
             size_bytes=size_bytes,
             job_id=plan.parent_job.job_id,

@@ -659,6 +659,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 storage: info.storage as "dir" | "file",
                 absolute_path: info.absolute_path,
                 deleted: info.deleted_ts !== null,
+                tags: info.tags,
               };
             }
             if (Object.keys(targets).length === 0) return;
@@ -1928,6 +1929,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 storage: r.info.storage as "dir" | "file",
                 absolute_path: r.info.absolute_path,
                 deleted: r.info.deleted_ts !== null,
+                tags: r.info.tags,
               };
             }
             setPreviewsByGraphNode((prev) => {

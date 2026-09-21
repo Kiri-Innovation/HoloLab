@@ -184,6 +184,7 @@ export function SnapshotCanvas({
               storage: info.storage as "dir" | "file",
               absolute_path: info.absolute_path,
               deleted: info.deleted_ts !== null,
+              tags: info.tags,
             },
           };
         } catch (err) {

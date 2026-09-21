@@ -84,6 +84,8 @@ from hololab.gateway.workflows import (
     WorkflowStore,
     agent_graph_dict,
     issues_to_json,
+    packs_by_key_from_catalog,
+    resolve_handle_output_tags,
     validate_snapshot,
 )
 from hololab.logging import get_logger
@@ -815,6 +817,7 @@ def _mount_routes(app: FastAPI) -> None:
 
         book: HandleBook = app.state.handles
         registry: NodeRegistry = app.state.registry
+        jobs_store: JobsStore = app.state.jobs_store
 
         handle = await book.get(handle_id)
         if handle is None:
@@ -830,11 +833,20 @@ def _mount_routes(app: FastAPI) -> None:
         sub = strip_workspace_prefix(session, handle.path)
         proxy_url = f"/proxy/{handle.node_id}/{sub.lstrip('/')}"
 
+        # Read-time ``tags_from`` resolution — legacy handles registered
+        # before the write-time resolver shipped still have raw ``[any]``
+        # in the DB. The frontend keys viewer routing off runtime tags, so
+        # rewriting on read keeps existing artifacts previewable without a
+        # re-run. Fast path returns raw tags for concrete-tag handles.
+        resolved_tags = await _resolve_handle_tags(
+            handle, registry=registry, jobs_store=jobs_store, workflows=app.state.workflows
+        )
+
         return {
             "handle_id": handle.handle_id,
             "node_id": handle.node_id,
             "storage": handle.storage,
-            "tags": handle.tags,
+            "tags": resolved_tags,
             "size_bytes": handle.size_bytes,
             "output_port_name": handle.output_port_name,
             "proxy_url": proxy_url,
@@ -895,11 +907,17 @@ def _mount_routes(app: FastAPI) -> None:
                 if dim_labels is not None:
                     depth = len(dim_labels)
 
+        # Same read-time ``tags_from`` resolution as ``get_handle`` — see the
+        # comment there for the legacy-handle rationale.
+        resolved_tags = await _resolve_handle_tags(
+            handle, registry=registry, jobs_store=jobs_store, workflows=app.state.workflows
+        )
+
         summary = summarize_handle(handle, depth=depth)
         return {
             "handle_id": handle.handle_id,
             "kind": summary["kind"],
-            "tags": handle.tags,
+            "tags": resolved_tags,
             "storage": handle.storage,
             "size_bytes": handle.size_bytes,
             "proxy_url": proxy_url,
@@ -2801,6 +2819,40 @@ async def _await_config_reply(
     )
 
 
+async def _resolve_handle_tags(
+    handle: Handle,
+    *,
+    registry: NodeRegistry,
+    jobs_store: JobsStore,
+    workflows: WorkflowStore,
+) -> list[str]:
+    """Best-effort ``tags_from`` resolution for one handle's read response.
+
+    Companion to the write-time resolver at ``handle_register`` — kept as a
+    read-time fallback so handles registered before that resolver shipped
+    (or under a since-deleted workflow) still surface concrete tags to the
+    frontend viewer registry. The workflow store + registry catalog only
+    fire when the raw tags carry ``any``; concrete-tag handles short-
+    circuit inside ``resolve_handle_output_tags`` with zero I/O.
+    """
+
+    if not handle.job_id or not handle.output_port_name:
+        return list(handle.tags)
+    job = await jobs_store.get(handle.job_id)
+    if job is None:
+        return list(handle.tags)
+    packs_by_key = packs_by_key_from_catalog(registry.catalog_json())
+    return await resolve_handle_output_tags(
+        workflows,
+        packs_by_key,
+        snapshot_id=job.snapshot_id,
+        workflow_id=job.workflow_id,
+        graph_node_id=job.graph_node_id,
+        port_name=handle.output_port_name,
+        raw_tags=list(handle.tags),
+    )
+
+
 def _artifact_row_to_json(row: Any) -> dict[str, Any]:
     """Flat row → dict — kept next to the Artifacts endpoints for locality.
 
@@ -3050,12 +3102,32 @@ async def _dispatch_node_frame(
 
     if kind == "handle_register":
         assert isinstance(payload, HandleRegister)
+        # Resolve ``tags_from`` at write time so the handle book stores runtime
+        # truth (e.g. ``regroup.out`` on an image-typed wire is stored as
+        # ``["image"]``, not the raw ``["any"]`` from the manifest). Any read
+        # path — GET /api/handles/{id}, /summary, artifacts — then sees the
+        # concrete class without recomputing. Skipped for concrete tags.
+        resolved_tags = payload.tags
+        if payload.job_id and payload.output_port_name:
+            job_row = await store.get(payload.job_id)
+            if job_row is not None:
+                catalog_json = registry.catalog_json()
+                packs_by_key = packs_by_key_from_catalog(catalog_json)
+                resolved_tags = await resolve_handle_output_tags(
+                    app.state.workflows,
+                    packs_by_key,
+                    snapshot_id=job_row.snapshot_id,
+                    workflow_id=job_row.workflow_id,
+                    graph_node_id=job_row.graph_node_id,
+                    port_name=payload.output_port_name,
+                    raw_tags=list(payload.tags),
+                )
         await handles.register(
             Handle(
                 handle_id=payload.handle_id,
                 node_id=payload.node_id,
                 storage=payload.storage,
-                tags=payload.tags,
+                tags=resolved_tags,
                 path=payload.path,
                 size_bytes=payload.size_bytes,
                 job_id=payload.job_id,
