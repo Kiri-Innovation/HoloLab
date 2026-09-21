@@ -191,6 +191,12 @@ class OutputSpec(BaseModel):
     # ``arrayed<T>`` by the framework at aggregation time and the first
     # label names the wrap dim.
     dim_labels: list[str] = Field(default_factory=list)
+    # Names a params key whose runtime value (a list[str]) overrides
+    # dim_labels at display time.  Used by reshape packs (e.g. regroup)
+    # whose output axis labels are caller-supplied via params rather than
+    # fixed at pack-authoring time.  Gateway resolves this from the
+    # producing job's params dict when building handle chip metadata.
+    dim_labels_from: str | None = None
 
     @model_validator(mode="after")
     def _tags_non_empty(self) -> OutputSpec:

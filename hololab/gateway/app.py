@@ -2901,6 +2901,11 @@ async def _resolve_handle_display_meta(
     preview = infer_preview_for_output(explicit_preview, resolved_tags)
 
     raw_dim_labels = list(port_spec.dim_labels) if port_spec is not None else None
+    if port_spec is not None and port_spec.dim_labels_from:
+        # port_spec is non-None only when job is non-None (same lookup path)
+        dynamic = job.params.get(port_spec.dim_labels_from)  # type: ignore[possibly-undefined]
+        if isinstance(dynamic, list) and all(isinstance(x, str) and x for x in dynamic):
+            raw_dim_labels = list(dynamic)
     dim_labels, dim_sizes = dim_info_for_handle(handle, dim_labels=raw_dim_labels)
     return preview, dim_labels, dim_sizes, resolved_tags
 

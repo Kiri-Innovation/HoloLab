@@ -77,7 +77,7 @@ outputs:
   out:
     tags: [any]
     arrayed: true
-    dim_labels: ["", ""]  # 2-D — actual labels come from params.output_dims
+    dim_labels_from: output_dims
     tags_from: in
     description: >
       Permuted view. Element tags inherit from the wired input via

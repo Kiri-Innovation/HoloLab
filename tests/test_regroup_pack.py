@@ -823,6 +823,17 @@ def test_regroup_v020_content_dims_1_matches_real_fx_output_shape(tmp_path: Path
     assert first_cams[0].resolve() == (fx_path / "cam00" / "frames" / "frame_000000.png").resolve()
 
 
+def test_schema_allows_dim_labels_from() -> None:
+    """``dim_labels_from`` names a params key whose value overrides dim_labels
+    at display time.  Used by regroup@0.2.0 whose output axes come from params.
+    """
+    from hololab.manifest.schema import OutputSpec
+
+    out = OutputSpec(tags=["any"], arrayed=True, dim_labels_from="output_dims")
+    assert out.dim_labels_from == "output_dims"
+    assert out.dim_labels == []  # no static fallback needed
+
+
 def test_schema_allows_dim_labels_on_scalar_ports() -> None:
     """Post-relaxation: scalar/non-arrayed ports may declare dim_labels.
 
