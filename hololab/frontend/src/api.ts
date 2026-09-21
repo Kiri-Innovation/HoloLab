@@ -6,7 +6,7 @@
 // restart no longer leaves cards in a permanent error state. ``json<T>``
 // still turns 4xx business errors into ``ApiError`` unchanged. See ``net.ts``.
 
-import { resilientFetch } from "./net";
+import { pLimit, resilientFetch } from "./net";
 import type {
   CatalogPack,
   ComputeNode,
@@ -148,11 +148,55 @@ export const cancelAllJobs = () =>
     json<CancelBatchResult>,
   );
 
-export const getHandle = (handle_id: string) =>
-  resilientFetch(`/api/handles/${handle_id}`).then(json<HandleInfo>);
+// Cold-start hydration walks up to 8 snapshots and can produce ~1000
+// unique ``getHandle`` targets (parents + per-shard). Firing them all
+// via ``Promise.all`` overflows Chrome's per-renderer pending-request
+// quota (``net::ERR_INSUFFICIENT_RESOURCES``), whereupon ``resilient
+// Fetch`` retries every failure 6x with exponential backoff and the
+// storm balloons to 4-5x its original size. Cap in-flight fetches
+// to a value below Chrome's ceiling; 8 lets us saturate the network
+// without tripping the resource throttle. See ``net.pLimit``.
+//
+// Per-id in-flight dedup + session cache absorb the natural
+// duplication that comes from walking N snapshots that share most of
+// their handle set — the same handle_id shouldn't cost 8 fetches.
+// HandleInfo/HandleSummary are stable per id (a handle's proxy_url,
+// tags, dim_labels are frozen at emit time), so a resolved response
+// is reusable for the lifetime of the tab.
+const HANDLE_FETCH_CONCURRENCY = 8;
+const _handleInfoCache = new Map<string, Promise<HandleInfo>>();
+const _handleSummaryCache = new Map<string, Promise<HandleSummary>>();
 
-export const getHandleSummary = (handle_id: string) =>
-  resilientFetch(`/api/handles/${handle_id}/summary`).then(json<HandleSummary>);
+const _fetchHandleLimited = pLimit(HANDLE_FETCH_CONCURRENCY, (handle_id: string) =>
+  resilientFetch(`/api/handles/${handle_id}`).then(json<HandleInfo>),
+);
+const _fetchHandleSummaryLimited = pLimit(
+  HANDLE_FETCH_CONCURRENCY,
+  (handle_id: string) =>
+    resilientFetch(`/api/handles/${handle_id}/summary`).then(json<HandleSummary>),
+);
+
+export const getHandle = (handle_id: string): Promise<HandleInfo> => {
+  const hit = _handleInfoCache.get(handle_id);
+  if (hit) return hit;
+  const p = _fetchHandleLimited(handle_id).catch((err) => {
+    _handleInfoCache.delete(handle_id);
+    throw err;
+  });
+  _handleInfoCache.set(handle_id, p);
+  return p;
+};
+
+export const getHandleSummary = (handle_id: string): Promise<HandleSummary> => {
+  const hit = _handleSummaryCache.get(handle_id);
+  if (hit) return hit;
+  const p = _fetchHandleSummaryLimited(handle_id).catch((err) => {
+    _handleSummaryCache.delete(handle_id);
+    throw err;
+  });
+  _handleSummaryCache.set(handle_id, p);
+  return p;
+};
 
 // -- workflows ---------------------------------------------------------------
 

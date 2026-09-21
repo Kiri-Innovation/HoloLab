@@ -244,6 +244,59 @@ class NetBus {
 export const netBus = new NetBus();
 
 // ---------------------------------------------------------------------------
+// pLimit — bounded-concurrency wrapper
+// ---------------------------------------------------------------------------
+//
+// A ``Promise.all(list.map(fetchOne))`` over hundreds of items fires every
+// request at once, which Chrome refuses with ``net::ERR_INSUFFICIENT_
+// RESOURCES`` once its per-renderer pending-request quota is exhausted.
+// ``resilientFetch`` then retries each of those failures 6x with
+// exponential backoff — a request storm that multiplies rather than
+// heals. Measured on the arrayed workflow's cold-start hydration: ~1000
+// unique ``getHandle`` targets fanned out to ~4000 network requests, of
+// which >60% failed on the client with the socket-exhaustion error and
+// the tail-latency success took ~17 s.
+//
+// ``pLimit`` caps the number of concurrent invocations so we stay below
+// Chrome's threshold. The wrapped function still returns a Promise —
+// callers don't need to know about the queue.
+export function pLimit<Args extends unknown[], R>(
+  concurrency: number,
+  fn: (...args: Args) => Promise<R>,
+): (...args: Args) => Promise<R> {
+  let inFlight = 0;
+  const queue: Array<() => void> = [];
+
+  const drain = () => {
+    while (inFlight < concurrency && queue.length > 0) {
+      const run = queue.shift();
+      run?.();
+    }
+  };
+
+  return (...args: Args) =>
+    new Promise<R>((resolve, reject) => {
+      const run = () => {
+        inFlight += 1;
+        fn(...args).then(
+          (v) => {
+            inFlight -= 1;
+            drain();
+            resolve(v);
+          },
+          (e) => {
+            inFlight -= 1;
+            drain();
+            reject(e);
+          },
+        );
+      };
+      queue.push(run);
+      drain();
+    });
+}
+
+// ---------------------------------------------------------------------------
 // React hooks
 // ---------------------------------------------------------------------------
 

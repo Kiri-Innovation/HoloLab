@@ -14,6 +14,7 @@ import {
   NetworkError,
   computeBackoffMs,
   netBus,
+  pLimit,
   resilientFetch,
 } from "./net";
 
@@ -196,5 +197,48 @@ describe("netBus reconnect semantics", () => {
     netBus.markDisconnected();
     netBus.markConnected();
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("pLimit — bounded concurrency", () => {
+  it("never runs more than ``concurrency`` invocations at once", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const wrapped = pLimit(3, async (i: number) => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      // A microtask yield is enough for pLimit's Promise machinery to
+      // dispatch further queued items; we don't need real timers.
+      await Promise.resolve();
+      await Promise.resolve();
+      inFlight -= 1;
+      return i;
+    });
+
+    const results = await Promise.all(
+      Array.from({ length: 50 }, (_, i) => wrapped(i)),
+    );
+    expect(results).toHaveLength(50);
+    expect(results[0]).toBe(0);
+    expect(results[49]).toBe(49);
+    expect(peak).toBeLessThanOrEqual(3);
+  });
+
+  it("propagates rejections without stalling later invocations", async () => {
+    const wrapped = pLimit(2, async (i: number) => {
+      if (i === 1) throw new Error("boom");
+      return i;
+    });
+
+    const settled = await Promise.allSettled([
+      wrapped(0),
+      wrapped(1),
+      wrapped(2),
+      wrapped(3),
+    ]);
+    expect(settled[0].status).toBe("fulfilled");
+    expect(settled[1].status).toBe("rejected");
+    expect(settled[2].status).toBe("fulfilled");
+    expect(settled[3].status).toBe("fulfilled");
   });
 });
