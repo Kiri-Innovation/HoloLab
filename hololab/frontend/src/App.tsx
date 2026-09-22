@@ -913,6 +913,17 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // there for the failure mode this backstops.
   const pendingRemeasureRef = useRef<string[]>([]);
 
+  // Last wire graph handed to ``fromGraph`` — retained so a subsequent
+  // catalog refresh can re-hydrate any nodes that were dropped because
+  // their pack wasn't in the catalog on first pass. Seeing this in the
+  // wild: a tab that opened before a freshly-shipped pack landed in the
+  // compute node's inventory silently drops those nodes at fromGraph;
+  // the edges attached to them then disappear from ReactFlow's internal
+  // graph. When ``packs_updated`` -> ``node_online`` broadcast fills
+  // the catalog moments later, the effect below re-runs fromGraph with
+  // this ref's wire and the dropped nodes + their edges come back.
+  const lastHydratedWireRef = useRef<WorkflowGraph | null>(null);
+
   // Refresh AlgorithmNode.data.pack when the catalog changes so signatures
   // stay accurate after a pack edit.
   //
@@ -1595,10 +1606,23 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         }
         return next;
       });
+      // Stash the wire graph for the catalog-change re-hydration effect
+      // below. If a subset of packs is missing at first-pass hydration
+      // (typical: this tab loaded before a newly-shipped pack landed in
+      // the compute node's inventory), the dropped nodes leave their
+      // edges dangling in ReactFlow — dropping the visible edge count.
+      // Once the WS ``node_online``/``packs_updated`` broadcast fills
+      // the catalog, the effect re-runs this hydrator with the same
+      // wire graph and the dropped nodes come back.
+      lastHydratedWireRef.current = graph;
+      const missingPacks: string[] = [];
       const hydratedNodes = graph.nodes
         .map((gn) => {
           const pack = catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`);
-          if (!pack) return null;
+          if (!pack) {
+            missingPacks.push(`${gn.algorithm_name}@${gn.algorithm_version}`);
+            return null;
+          }
           const node: Node<AlgorithmNodeData> = {
             id: gn.id,
             type: "algorithm",
@@ -1617,6 +1641,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           return node;
         })
         .filter(Boolean) as Node<AlgorithmNodeData>[];
+      if (missingPacks.length > 0) {
+        console.warn(
+          `fromGraph: dropped ${missingPacks.length} node(s) — pack(s) missing from catalog:`,
+          missingPacks,
+          "(will re-hydrate when catalog fills in)",
+        );
+      }
       setNodes(hydratedNodes);
       setEdges(
         graph.edges.map((ge) => ({
@@ -1646,6 +1677,38 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       previewOpenByGraphNode,
     ],
   );
+
+  // Self-healing re-hydration: when catalog changes, if the last wire
+  // graph had nodes referring to packs that were missing on first pass
+  // (silently dropped by ``fromGraph``'s ``return null`` at the pack
+  // lookup), and those packs are NOW in the catalog, re-run fromGraph
+  // so the dropped nodes + their edges come back. Without this, a tab
+  // that opened before a freshly-shipped pack landed silently renders
+  // an incomplete graph until the user hard-refreshes — the symptom
+  // the classic-STG (arrayed) workflow hit on 2026-09-22 after the
+  // type-system refactor added ``image-undistort@0.4.0`` +
+  // ``merge-colmap@0.3.0`` (14 wire edges → 2 rendered).
+  useEffect(() => {
+    const wire = lastHydratedWireRef.current;
+    if (!wire) return;
+    const referenced = wire.nodes.length;
+    if (referenced === 0) return;
+    // Count how many referenced packs resolve in the CURRENT catalog.
+    let resolvable = 0;
+    for (const gn of wire.nodes) {
+      if (catalogByKey.has(`${gn.algorithm_name}@${gn.algorithm_version}`)) {
+        resolvable += 1;
+      }
+    }
+    // Compare to how many nodes are currently in state. If the catalog
+    // now resolves more than what state carries, we dropped some — replay.
+    if (resolvable > nodes.length) {
+      console.info(
+        `catalog gained pack(s); re-hydrating (was ${nodes.length}, now can resolve ${resolvable})`,
+      );
+      fromGraph(wire);
+    }
+  }, [catalogByKey, fromGraph, nodes.length]);
 
   // Force xyflow to re-parse handle positions after every hydration.
   //
