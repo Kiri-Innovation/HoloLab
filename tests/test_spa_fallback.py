@@ -30,13 +30,7 @@ from hololab.gateway.app import create_app
 
 
 def _dist_index_bytes() -> bytes | None:
-    dist = (
-        Path(__file__).resolve().parent.parent
-        / "hololab"
-        / "frontend"
-        / "dist"
-        / "index.html"
-    )
+    dist = Path(__file__).resolve().parent.parent / "hololab" / "frontend" / "dist" / "index.html"
     if not dist.is_file():
         return None
     return dist.read_bytes()
@@ -57,7 +51,7 @@ def test_spa_fallback_workflow_path(client: TestClient) -> None:
     r = client.get("/w/whatever-id-not-on-disk")
     assert r.status_code == 200
     body = r.content
-    assert b"<div id=\"root\"></div>" in body or b'id="root"' in body
+    assert b'<div id="root"></div>' in body or b'id="root"' in body
 
 
 def test_spa_fallback_artifacts_path(client: TestClient) -> None:
@@ -86,6 +80,42 @@ def test_api_unknown_still_404(client: TestClient) -> None:
     # but 200 with HTML.
     assert r.status_code != 200
     assert not r.headers.get("content-type", "").startswith("text/html")
+
+
+def test_head_on_api_path_does_not_fall_back_to_html(client: TestClient) -> None:
+    """HEAD ``/api/pack-catalog`` must not return the SPA shell.
+
+    Regression for 2026-09-22: ``@app.get`` only registers GET on the
+    route; Starlette's default routing doesn't auto-inject HEAD. HEAD
+    requests to ``/api/*`` therefore fell through to ``SPAStaticFiles``,
+    which — seeing an extension-less unknown path — returned
+    ``index.html`` with 200 + ``content-type: text/html``. That masked
+    the wrong-method situation as "API returning HTML", led to a wrong
+    "gateway routing broken" diagnosis, and would blow up any JSON
+    client that happened to HEAD-probe an endpoint.
+
+    The fix (``spa_staticfiles._NON_SPA_PREFIXES``): paths under
+    ``api/``, ``ws/``, or ``proxy/`` skip the SPA fallback and return
+    the underlying 404 verbatim.
+    """
+    r = client.head("/api/pack-catalog")
+    assert r.status_code != 200 or not r.headers.get("content-type", "").startswith("text/html"), (
+        f"HEAD /api/pack-catalog returned {r.status_code} "
+        f"content-type={r.headers.get('content-type')!r} — SPA fallback leaked over an API path"
+    )
+
+
+def test_head_on_random_api_path_does_not_leak_html(client: TestClient) -> None:
+    """Same protection extended: any extension-less path under ``/api``,
+    ``/ws``, or ``/proxy`` must return a real 404 (not the SPA shell)
+    when nothing matches, so an operator running ``curl -sI`` sees the
+    true routing outcome rather than the SPA HTML shell.
+    """
+    for path in ("/api/does-not-exist", "/ws/nonexistent", "/proxy/whatever"):
+        r = client.head(path)
+        assert not r.headers.get("content-type", "").startswith("text/html"), (
+            f"HEAD {path} leaked HTML content-type ({r.headers.get('content-type')!r})"
+        )
 
 
 def test_index_html_still_at_root(client: TestClient) -> None:
