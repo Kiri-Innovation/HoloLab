@@ -192,6 +192,60 @@ def test_colmap_triangulate_v070_shape() -> None:
     )
 
 
+def test_image_undistort_v040_shape() -> None:
+    """``@0.4.0`` — bundle-in, bundle-out per user design.
+
+    ``cams`` is scalar broadcast from SfM (OPENCV); ``images`` is the
+    per-frame fan-out driver. Outputs are per-shard PINHOLE ``colmap-cams``
+    + undistorted images, aggregating into ``arrayed<colmap-cams>[frame]``
+    + ``arrayed<image>[frame]``.
+    """
+    m = _load("image-undistort", "0.4.0")
+    assert m.name == "image-undistort"
+    assert m.version == "0.4.0"
+    assert m.arrayable is True
+    assert m.inputs["cams"].tags == ["colmap-cams"]
+    assert m.inputs["cams"].scalar is True
+    assert m.inputs["images"].tags == ["image"]
+    assert m.inputs["images"].scalar is False
+    assert m.outputs["cams"].tags == ["colmap-cams"]
+    assert m.outputs["cams"].scalar is True
+    assert m.outputs["cams"].dim_labels == ["frame"]
+    assert m.outputs["images"].tags == ["image"]
+    assert m.outputs["images"].scalar is True
+    assert m.outputs["images"].dim_labels == ["frame"]
+    # Load-bearing behaviour: the script must rewrite images.txt NAMEs
+    # to match the shard's actual file basenames. Otherwise
+    # image_undistorter can't find the images.
+    script = (PACKS_ROOT / "image-undistort@0.4.0" / "undistort.py").read_text()
+    assert "stage_sparse_prior" in script
+    assert "row[9] = new_name" in script, script
+
+
+def test_merge_colmap_v030_arrayed_cams_shape() -> None:
+    """``@0.3.0`` — cams moves from scalar broadcast to arrayed fan-out participant.
+
+    Wires the per-frame PINHOLE bundle from ``image-undistort@0.4.0``.
+    Element-set zip across cams / points / images (all
+    ``arrayed<T>[frame]``) is what the framework's
+    ``_discover_element_ids`` will enforce.
+    """
+    m = _load("merge-colmap", "0.3.0")
+    assert m.arrayable is True
+    assert m.inputs["cams"].tags == ["colmap-cams"]
+    # No longer scalar — a fan-out participant zipped by frame element_id.
+    assert m.inputs["cams"].scalar is False
+    assert m.inputs["cams"].dim_labels == ["frame"]
+    assert m.inputs["points"].tags == ["point-cloud"]
+    assert m.inputs["points"].scalar is False
+    assert m.inputs["images"].tags == ["image"]
+    assert m.inputs["images"].required is False
+    assert m.inputs["images"].dim_labels == ["frame"]
+    assert m.outputs["folder"].tags == ["colmap-folder", "colmap"]
+    assert m.outputs["folder"].scalar is True
+    assert m.outputs["folder"].dim_labels == ["frame"]
+
+
 def test_image_undistort_v030_shape() -> None:
     """``@0.3.0`` — new per-cam intr + image typing."""
     m = _load("image-undistort", "0.3.0")

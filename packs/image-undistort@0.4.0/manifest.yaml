@@ -1,0 +1,145 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: image-undistort
+version: 0.4.0
+description: >
+  Undistort one frame's images via COLMAP's ``image_undistorter``, using
+  a scalar ``colmap-cams`` bundle (from ``colmap-sfm``) as the intrinsic
+  source. Bundle-in, bundle-out — outputs a fresh ``colmap-cams``
+  (PINHOLE) and the undistorted images.
+
+  Arrayable: fan out one shard per frame of the driving ``images`` input.
+  Each shard's ``cams`` output is a PINHOLE ``colmap-cams`` for that
+  frame; framework aggregates into ``arrayed<colmap-cams>[frame]``.
+source_entry: undistort.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### v0.4.0 vs v0.3.0
+
+  ``@0.3.0`` used the arrayed-``intr`` decomposition (paired
+  ``arrayed<intr> + arrayed<image>`` → same shape out). That form
+  respected the "types describe semantics" principle but forced
+  callers to insert a ``colmap-cam-decode`` node upstream just to
+  reach it.
+
+  ``@0.4.0`` moves to **bundle-in, bundle-out** per user design:
+
+  * ``cams``   — scalar ``colmap-cams`` broadcast (OPENCV, from
+                 ``colmap-sfm``). Same one used across every shard;
+                 the intrinsic is frame-independent.
+  * ``images`` — fan-out driver. Each shard is one frame's per-cam
+                 image directory.
+  * ``cams`` out — per-shard PINHOLE ``colmap-cams`` bundle. Aggregate
+                   handle is ``arrayed<colmap-cams>[frame]``. All shards'
+                   PINHOLE intrinsics are bit-identical (undistortion
+                   is intrinsic-only), so downstream can either
+                   ``get-index`` one element as scalar OR wire the
+                   aggregate into ``merge-colmap@0.3.0`` which accepts
+                   ``arrayed<colmap-cams>``.
+  * ``images`` out — per-shard undistorted image directory. Aggregate
+                     handle is ``arrayed<image>[frame]``.
+
+  ### Empirical basis for "und can eat sfm.cams directly"
+
+  Under our ``colmap-triangulate@0.7.0`` locked at ``refine_intrinsics=0``,
+  the DB-pre-filled intermediate model that ``point_triangulator``
+  writes has:
+
+  * cameras.txt: N OPENCV rows, one per staged image — but every row
+    is **bit-identical** to the SfM's single OPENCV row (same
+    ``fx fy cx cy k1 k2 p1 p2``).
+  * images.txt: same 21 poses as the SfM (``point_triangulator``
+    freezes poses unconditionally per COLMAP's contract) up to numpy
+    ↔ str round-trip precision noise at the 17th digit.
+
+  Confirmed by direct diff on real classic-STG data (2026-09-22).
+  So ``image_undistorter``'s output is bit-identical for pixels and
+  functionally identical for intrinsics whether we feed it the SfM's
+  1-row cameras.txt or the tri intermediate's 21-row (all identical)
+  cameras.txt. **Feeding SfM directly is legitimate + strictly less
+  redundant.**
+
+  Ordering-wise this pack still runs **after** triangulation in the
+  main chain — matching STG's helper3dg.py:479 sequence — because
+  the per-frame images to undistort are the same ones tri operates
+  on. The cams source, however, is SfM.
+
+  ### NAME rewrite (compat with regroup@0.2.0's ``cam_0000.png`` shape)
+
+  SfM's images.txt NAMEs point at the fx-time paths
+  (``../../../<uuid>/frame_sequence/cam00/frame_000000.png``). Each
+  shard's actual on-disk images come from regroup's per-frame layout
+  (``frame_XXXX/cam_0000.png..cam_0020.png``). The pack rewrites the
+  scratch sparse model's NAMEs to match the shard's actual file names
+  (via ``sfm_key.cam_key`` + trailing-integer numeric fallback — same
+  bridge ``colmap-triangulate@0.7.0`` and ``merge-colmap@0.2.0`` use),
+  so ``image_undistorter --image_path`` finds every image.
+
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    scalar: true
+    description: >
+      SfM ``colmap-cams`` bundle (cameras.txt OPENCV + images.txt with
+      21 poses referencing camera_id=1). Broadcast to every shard.
+      Must be a single-camera / OPENCV rig.
+  images:
+    tags: [image]
+    description: >
+      Per-frame image directory. Fan-out driver — one shard per element.
+      Element dir must contain the per-cam image files inline (regroup
+      @0.2.0's ``content_dims=1`` layout).
+
+params:
+  blank_pixels:
+    type: int
+    default: 0
+    min: 0
+    max: 1
+    description: >
+      Pass-through to ``image_undistorter --blank_pixels``. 0 (default)
+      crops out invalid regions; 1 keeps the original size and fills
+      with black.
+
+outputs:
+  cams:
+    tags: [colmap-cams]
+    scalar: true
+    dim_labels: ["frame"]
+    description: >
+      Per-shard PINHOLE ``colmap-cams`` bundle (cameras.txt PINHOLE +
+      images.txt with 21 poses). Framework aggregates into
+      ``arrayed<colmap-cams>[frame]``. All shards' bundles are
+      bit-identical (undistortion is intrinsic-only + poses come from
+      the scalar SfM broadcast); the redundancy is the cost of using
+      one arrayable pack for the whole per-frame und step.
+  images:
+    tags: [image]
+    scalar: true
+    dim_labels: ["frame"]
+    description: >
+      Per-shard undistorted images, at the PINHOLE resolution. Files
+      sit directly under the shard's element dir (post flatten
+      migration, no ``frames/`` wrapper).
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/undistort.py" \
+      --cams "{{ inputs.cams }}" \
+      --images "{{ inputs.images }}" \
+      --cams-out "{{ outputs.cams }}" \
+      --images-out "{{ outputs.images }}" \
+      --scratch "{{ scratch_dir }}" \
+      --blank-pixels {{ params.blank_pixels }}
+
+idempotency:
+  marker: "{{ outputs.cams }}/.hololab-done"
