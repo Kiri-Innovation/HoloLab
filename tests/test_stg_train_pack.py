@@ -1,4 +1,4 @@
-"""``stg-train@0.2.0`` — manifest params + exec.shell template.
+"""``stg-train@0.3.0`` — manifest params + exec.shell template.
 
 Locks the mapping between ``configs/n3d_full/sharp4dgs_export.json`` and the
 node-level knobs: every JSON key that STG's training parser accepts on the
@@ -9,6 +9,9 @@ The regression this guards against is the 56 GiB-cgroup OOM: the JSON ships
 ``resolution: 1`` (the only n3d_full config that does), and passing
 ``--resolution 2`` from the manifest brings the data-loader from ~68 GiB
 down to ~17 GiB.
+
+Also asserts the ``colmap_frames`` input tag is ``colmap-folder`` (the
+2026-09-22 type-system cleanup that dropped the retired-alias ``colmap``).
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ import pytest
 
 from hololab.manifest import RenderContext, load_manifest, render_manifest
 
-_MANIFEST = Path("/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/manifest.yaml")
+_MANIFEST = Path("/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/stg-train@0.3.0/manifest.yaml")
 _CONFIGPATH = Path(
     "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/configs/n3d_full/sharp4dgs_export.json"
 )
@@ -60,6 +63,20 @@ _JSON_TO_PARAM: dict[str, tuple[str, object]] = {
 def _load() -> object:
     manifest, _sha = load_manifest(_MANIFEST)
     return manifest
+
+
+def test_manifest_declares_v030_with_colmap_folder_input_tag() -> None:
+    """v0.3.0 replaces the retired ``colmap`` alias with ``colmap-folder``.
+
+    Locks the 2026-09-22 type-system cleanup: ``merge-colmap@0.4.0``
+    output ``[colmap-folder]`` must edge-match this pack's
+    ``colmap_frames`` input without any alias hack.
+    """
+    m = _load()
+    assert m.name == "stg-train"
+    assert m.version == "0.3.0"
+    assert m.inputs["colmap_frames"].tags == ["colmap-folder"]
+    assert m.inputs["colmap_frames"].arrayed is True
 
 
 def test_resolution_param_defaults_to_two_and_offers_downsample_ladder() -> None:

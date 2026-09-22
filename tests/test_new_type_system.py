@@ -246,6 +246,77 @@ def test_merge_colmap_v030_arrayed_cams_shape() -> None:
     assert m.outputs["folder"].dim_labels == ["frame"]
 
 
+def test_merge_colmap_v040_drops_colmap_compat_alias() -> None:
+    """``@0.4.0`` — same shape as ``@0.3.0`` but ``folder`` sheds the
+    ``colmap`` compat alias (2026-09-22 type-system cleanup).
+
+    The alias existed only to keep the edge into
+    ``stg-train@0.2.0.colmap_frames`` (which declared ``[colmap]``)
+    valid without a manifest bump on the consumer side.
+    ``stg-train@0.3.0`` now declares ``[colmap-folder]`` so the alias
+    is redundant.
+    """
+    m = _load("merge-colmap", "0.4.0")
+    assert m.name == "merge-colmap"
+    assert m.version == "0.4.0"
+    assert m.arrayable is True
+    # Inputs unchanged from @0.3.0.
+    assert m.inputs["cams"].tags == ["colmap-cams"]
+    assert m.inputs["cams"].scalar is False
+    assert m.inputs["cams"].dim_labels == ["frame"]
+    assert m.inputs["points"].tags == ["point-cloud"]
+    assert m.inputs["images"].tags == ["image"]
+    assert m.inputs["images"].required is False
+    # The whole point of @0.4.0: single-tag output.
+    assert m.outputs["folder"].tags == ["colmap-folder"]
+    assert m.outputs["folder"].scalar is True
+    assert m.outputs["folder"].dim_labels == ["frame"]
+
+
+def test_merge_v040_to_stg_v030_edge_accepted() -> None:
+    """The load-bearing wire: ``merge-colmap@0.4.0.folder`` →
+    ``stg-train@0.3.0.colmap_frames`` is edge-accepted on the clean
+    ``colmap-folder`` tag, without any alias hack.
+
+    stg-train lives outside ``packs/``; if the checkout is missing we
+    substitute the manifest surface the pack declares (input port
+    signature is what the edge rule reads).
+    """
+    from hololab.gateway.workflows import ports_compatible
+
+    m_merge = _load("merge-colmap", "0.4.0")
+    # Merge's ``folder`` is scalar-per-shard with dim_labels=["frame"];
+    # when the pack is arrayable + toggled on, the framework aggregates
+    # sibling shards into ``arrayed<colmap-folder>[frame]``. The wire
+    # arriving at ``stg.colmap_frames`` is therefore an arrayed handle.
+    src_tags = m_merge.outputs["folder"].tags
+    src_dim_labels = m_merge.outputs["folder"].dim_labels
+    # stg-train@0.3.0 declares this input directly:
+    tgt_tags = ["colmap-folder"]
+    tgt_dim_labels = ["frame"]
+    assert ports_compatible(
+        src_tags,
+        True,  # aggregate arrayed<colmap-folder>[frame]
+        tgt_tags,
+        True,
+        tgt_scalar=False,
+        src_dim_labels=src_dim_labels,
+        tgt_dim_labels=tgt_dim_labels,
+    )
+    # And the same wire is rejected when we pretend the alias is gone
+    # but stg still declares the old ``colmap`` tag — regression guard
+    # so nobody accidentally restores the alias.
+    assert not ports_compatible(
+        src_tags,
+        True,
+        ["colmap"],
+        True,
+        tgt_scalar=False,
+        src_dim_labels=src_dim_labels,
+        tgt_dim_labels=tgt_dim_labels,
+    )
+
+
 def test_image_undistort_v030_shape() -> None:
     """``@0.3.0`` — new per-cam intr + image typing."""
     m = _load("image-undistort", "0.3.0")

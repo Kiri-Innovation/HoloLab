@@ -1,0 +1,115 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: merge-colmap
+version: 0.4.0
+description: >
+  Per-frame ``colmap-folder`` assembly with all three inputs as fan-out
+  participants. Same shape as ``@0.3.0``; the only change is that the
+  ``folder`` output no longer carries the legacy ``colmap`` compat
+  alias — the tag list is now ``[colmap-folder]`` and downstream
+  consumers must declare ``colmap-folder`` on their input port.
+source_entry: merge.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### v0.4.0 vs v0.3.0
+
+  Type-system cleanup: the ``folder`` output tag list drops the
+  legacy ``colmap`` alias. ``@0.3.0`` shipped
+  ``tags: [colmap-folder, colmap]`` so the edge into
+  ``stg-train@0.2.0.colmap_frames`` (which declared ``[colmap]``)
+  would still validate without a manifest bump on the consumer side.
+  That was always a compat hack — one semantic type should surface
+  as one tag on the wire, not two aliases. ``stg-train@0.3.0``
+  declares ``colmap-folder`` on its input port and consumes the
+  ``@0.4.0`` output directly.
+
+  Existing chains that used ``@0.3.0`` with the alias keep working
+  against ``stg-train@0.2.0`` — this bump is opt-in, not a rug pull.
+  New graphs should wire ``@0.4.0`` → ``stg-train@0.3.0``.
+
+  ### Inputs
+
+  * ``cams``   — fan-out participant, ``arrayed<colmap-cams>[frame]``
+                 aggregate. Each shard sees one per-frame PINHOLE bundle.
+  * ``points`` — fan-out participant, ``arrayed<point-cloud>[frame]``.
+                 Each shard sees one per-frame point cloud.
+  * ``images`` — **optional** fan-out participant,
+                 ``arrayed<image>[frame]``. Wire for Mode B (with
+                 ``images/`` in the output); leave unwired for Mode A
+                 (sparse-only). Should typically be wired to the same
+                 und's ``images`` output so files match cams' images.txt
+                 NAMEs.
+
+  ### Outputs
+
+  ``folder`` — per-shard ``colmap-folder``; scalar per invocation,
+  wrap-dim ``["frame"]``; framework aggregates into
+  ``arrayed<colmap-folder>[frame]``.
+
+  ### NAME rewrite (same as 0.3.0)
+
+  The script rewrites images.txt NAMEs to flat basenames matching the
+  actual per-cam files under ``images/``. Not strictly required when
+  cams comes from ``image-undistort@0.4.0`` (that pack already
+  rewrites NAMEs), but the code path is preserved so this pack still
+  works when cams comes straight from SfM.
+
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    dim_labels: ["frame"]
+    description: >
+      Per-frame ``colmap-cams`` bundle (typically PINHOLE from
+      ``image-undistort@0.4.0``). Aggregate handle is
+      ``arrayed<colmap-cams>[frame]``; each shard sees one bundle.
+  points:
+    tags: [point-cloud]
+    description: >
+      Per-frame ``point-cloud``. Aggregate handle is
+      ``arrayed<point-cloud>[frame]``; each shard sees one frame's
+      ``points3D.txt``.
+  images:
+    tags: [image]
+    required: false
+    dim_labels: ["frame"]
+    description: >
+      Optional per-frame images. Aggregate handle is
+      ``arrayed<image>[frame]``; each shard's element dir holds the
+      cam-side image files inline. Wire for Mode B.
+
+outputs:
+  folder:
+    tags: [colmap-folder]
+    scalar: true
+    dim_labels: ["frame"]
+    description: >
+      Per-frame ``colmap-folder``. Framework aggregates into
+      ``arrayed<colmap-folder>[frame]``. Consumed by
+      ``stg-train@0.3.0.colmap_frames`` (also ``colmap-folder``).
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    {% if 'images' in inputs %}
+    python "{{ pack_dir }}/merge.py" \
+      --cams "{{ inputs.cams }}" \
+      --points "{{ inputs.points }}" \
+      --images "{{ inputs.images }}" \
+      --out "{{ outputs.folder }}"
+    {% else %}
+    python "{{ pack_dir }}/merge.py" \
+      --cams "{{ inputs.cams }}" \
+      --points "{{ inputs.points }}" \
+      --out "{{ outputs.folder }}"
+    {% endif %}
+
+idempotency:
+  marker: "{{ outputs.folder }}/.hololab-done"
