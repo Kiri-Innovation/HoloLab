@@ -1,0 +1,90 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: slice
+version: 0.1.0
+description: >
+  Take a contiguous slice of an ``arrayed<T>`` handle along its outermost
+  dim. Produces a same-shape ``arrayed<T>`` with fewer elements.
+source_entry: slice.py
+category: "utility/arrayed"
+
+docs: |
+  Interval selection on the outer arrayed dim — the ``arrayed<T>`` in,
+  ``arrayed<T>`` out cousin of ``get-index`` (which collapses that dim
+  to one element).
+
+  **Element order.** Enumerates immediate children of the arrayed dir
+  in ``sorted(os.listdir())`` order, matching the framework's fan-out
+  element ordering and ``get-index``'s pick order.
+
+  **Naming.** Selected elements are symlinked with their **original
+  names** preserved (not re-numbered). Downstream aggregation glue
+  consumes elements in sorted-name order, so the slice's own sort
+  order carries the container position; keeping original names retains
+  provenance (which source elements were picked) for debugging.
+
+  **Bounds.** ``start`` defaults to 0. ``end == -1`` (default) means
+  "to the end" (N). Both bounds are clamped to ``[0, N]``. An empty
+  slice after clamping errors out — the pack refuses to silently
+  produce a zero-element arrayed handle, since downstream fan-in almost
+  always breaks in that case and the failure mode should be loud.
+
+  ``step`` defaults to 1; ``step >= 1`` (no negative / zero step). A
+  ``step > 1`` decimates: ``start=0 end=100 step=2`` picks 50 elements.
+
+  Typical use: cut a 100-frame ``arrayed<colmap>`` down to the first
+  50 frames to keep an OOM-prone downstream (e.g. STG training)
+  within its cgroup memory budget.
+
+inputs:
+  in:
+    tags: [any]
+    arrayed: true
+    description: "Any arrayed<T> handle — the slice runs on its outer dim."
+
+params:
+  start:
+    type: int
+    default: 0
+    min: 0
+    description: "Inclusive start index (0-based). Clamped to [0, N]."
+  end:
+    type: int
+    default: -1
+    description: "Exclusive end index. -1 means N (to the end). Clamped to [0, N]."
+  step:
+    type: int
+    default: 1
+    min: 1
+    description: "Stride. 1 = keep every element in the interval; 2 = every other; ..."
+
+outputs:
+  out:
+    tags: [any]
+    arrayed: true
+    tags_from: in
+    # Slice preserves the arrayed shape — outermost dim stays present,
+    # just with fewer elements. ``drop_outer=0`` derives the full label
+    # set from the wired input (see :class:`OutputSpec` in
+    # ``manifest/schema.py``): "same shape as input, passthrough / slice
+    # -in-place". Element counts fall out of handle_summary at read time.
+    dim_labels_from_input: in
+    dim_labels_drop_outer: 0
+    description: >
+      Same T and same arrayed shape as ``in`` with fewer outer-dim elements.
+      Element names inherit from the picked source entries (no renumber).
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/slice.py" \
+      --input "{{ inputs.in }}" \
+      --output "{{ outputs.out }}" \
+      --start {{ params.start }} \
+      --end {{ params.end }} \
+      --step {{ params.step }}
