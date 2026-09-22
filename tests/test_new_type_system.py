@@ -261,6 +261,84 @@ def test_merge_colmap_v010_exec_shell_branches_on_images_wire() -> None:
     assert "/x/arr" in shell_b, shell_b
 
 
+def test_merge_colmap_v020_arrayable_shape() -> None:
+    """``@0.2.0`` — arrayable per-frame merge.
+
+    Points is the fan-out driver (arrayed<point-cloud>[frame]); cams is
+    the scalar broadcast; images is optional per-frame fan-out. Output
+    ``folder`` is scalar per shard with ``dim_labels=["frame"]`` so the
+    framework aggregates into ``arrayed<colmap-folder>[frame]`` — the
+    shape ``stg-train`` expects on ``colmap_frames``.
+    """
+    m = _load("merge-colmap", "0.2.0")
+    assert m.name == "merge-colmap"
+    assert m.version == "0.2.0"
+    assert m.arrayable is True
+
+    # cams: scalar broadcast — must never participate in the zip.
+    assert m.inputs["cams"].tags == ["colmap-cams"]
+    assert m.inputs["cams"].scalar is True
+    assert m.inputs["cams"].arrayed is False
+
+    # points: fan-out driver — no scalar lock, no explicit arrayed
+    # (arrayable + toggle promotes it at wire time).
+    assert m.inputs["points"].tags == ["point-cloud"]
+    assert m.inputs["points"].scalar is False
+    assert m.inputs["points"].arrayed is False
+
+    # images: optional fan-out participant. Same shape as points on the
+    # arrayable/toggle side (not scalar, not declared arrayed), with a
+    # dim_label so the chip reads ``[frame:N]`` when wired.
+    assert m.inputs["images"].tags == ["image"]
+    assert m.inputs["images"].required is False
+    assert m.inputs["images"].scalar is False
+    assert m.inputs["images"].dim_labels == ["frame"]
+
+    # folder: scalar per shard, wrap-dim ``frame`` — aggregate is
+    # ``arrayed<colmap-folder>[frame]``. Also carries the ``colmap``
+    # compat tag so ``stg-train@0.2.0.colmap_frames`` (which still
+    # declares ``[colmap]``) accepts the edge without a manifest bump.
+    assert m.outputs["folder"].tags == ["colmap-folder", "colmap"]
+    assert m.outputs["folder"].scalar is True
+    assert m.outputs["folder"].dim_labels == ["frame"]
+
+
+def test_merge_colmap_v020_exec_shell_branches_on_images_wire() -> None:
+    """Mode A vs Mode B shell branching survives the arrayable rewire.
+
+    The ``{% if 'images' in inputs %}`` construct must still render
+    correctly with only cams+points wired (Mode A) — regression guard
+    for a copy/paste that broke the Jinja branch during the @0.2.0
+    manifest port.
+    """
+    from hololab.manifest.render import RenderContext, render_manifest
+
+    m = _load("merge-colmap", "0.2.0")
+
+    ctx_a = RenderContext(
+        inputs={"cams": "/x/cams", "points": "/x/pts"},
+        outputs={"folder": "/x/out"},
+        pack_dir="/x/pack",
+        scratch_dir="/x/scr",
+        job_id="j",
+        workflow_id="w",
+    )
+    shell_a = render_manifest(m, ctx_a).shell
+    assert "--images" not in shell_a, shell_a
+
+    ctx_b = RenderContext(
+        inputs={"cams": "/x/cams", "points": "/x/pts", "images": "/x/arr"},
+        outputs={"folder": "/x/out"},
+        pack_dir="/x/pack",
+        scratch_dir="/x/scr",
+        job_id="j",
+        workflow_id="w",
+    )
+    shell_b = render_manifest(m, ctx_b).shell
+    assert "--images" in shell_b, shell_b
+    assert "/x/arr" in shell_b, shell_b
+
+
 def test_merge_colmap_v010_shape() -> None:
     """``merge-colmap@0.1.0`` — two modes via optional images input."""
     m = _load("merge-colmap", "0.1.0")
@@ -504,3 +582,161 @@ def test_merge_colmap_mode_b_with_images(tmp_path: Path) -> None:
         link = out / "images" / f"cam{i:02d}.png"
         assert link.is_symlink() or link.is_file()
         assert link.read_bytes() == real_files[i].read_bytes()
+
+
+# ---------------------------------------------------------------------------
+# merge-colmap @0.2.0 — arrayable script (single-shard invocation)
+# ---------------------------------------------------------------------------
+
+
+def test_merge_colmap_v020_mode_a_sparse_only(tmp_path: Path) -> None:
+    """@0.2.0 Mode A: no --images. Same behaviour as @0.1.0 Mode A — sparse only."""
+    mod = _load_module(
+        "_merge_v020_a",
+        PACKS_ROOT / "merge-colmap@0.2.0" / "merge.py",
+    )
+    cams = _fake_cams(tmp_path / "cams", 3)
+    points = tmp_path / "pts"
+    points.mkdir()
+    (points / "points3D.txt").write_text("# Number of points: 5\n1 0 0 0 255 0 0 0 1 0\n")
+    out = tmp_path / "out"
+
+    old = sys.argv
+    sys.argv = [
+        "merge.py",
+        "--cams",
+        str(cams),
+        "--points",
+        str(points),
+        "--out",
+        str(out),
+    ]
+    try:
+        assert mod.main() == 0
+    finally:
+        sys.argv = old
+    assert (out / "sparse" / "0" / "cameras.txt").is_file()
+    assert (out / "sparse" / "0" / "images.txt").is_file()
+    assert (out / "sparse" / "0" / "points3D.txt").is_file()
+    assert not (out / "images").exists()
+
+
+def test_merge_colmap_v020_mode_b_rewrites_names_to_flat_basenames(tmp_path: Path) -> None:
+    """@0.2.0 Mode B rewrites images.txt NAMEs so 21 poses referencing the same
+    per-frame basename (SfM NAMEs like ``.../cam00/frame_000000.png``) don't
+    collide in ``images/``.
+
+    Regression: the naive "publish under basename(NAME)" strategy inherited
+    from @0.1.0 collapses 21 poses onto one file, silently. Post-fix: each
+    pose's NAME is rewritten to ``<cam_key><ext>`` and images/ holds 21
+    unique files.
+    """
+    mod = _load_module(
+        "_merge_v020_b",
+        PACKS_ROOT / "merge-colmap@0.2.0" / "merge.py",
+    )
+
+    # SfM images.txt shape a single-frame rig produces: 21 poses whose
+    # NAMEs share the same per-frame basename but differ by cam parent.
+    cams_dir = tmp_path / "cams"
+    cams_dir.mkdir()
+    (cams_dir / "cameras.txt").write_text(_SFM_CAMERAS)
+    rows = ["# Image list\n", "# Number of images: 3\n"]
+    for i in range(3):
+        rows.append(
+            f"{i + 1} 0.99 0.01 0.02 0.03 {i}.0 0.0 0.0 1 "
+            f"../../../fake/frame_sequence/cam{i:02d}/frame_000000.png\n\n"
+        )
+    (cams_dir / "images.txt").write_text("".join(rows))
+    points = tmp_path / "pts"
+    points.mkdir()
+    (points / "points3D.txt").write_text("# Number of points: 5\n1 0 0 0 255 0 0 0 1 0\n")
+
+    # Per-shard image handle: 3 files inline (regroup@0.2.0 shape).
+    images_root = tmp_path / "images_shard"
+    images_root.mkdir()
+    for i in range(3):
+        (images_root / f"cam_{i:04d}.png").write_bytes(b"\x89PNG\r\n\x1a\n" + bytes([i]) * 16)
+
+    out = tmp_path / "out"
+    old = sys.argv
+    sys.argv = [
+        "merge.py",
+        "--cams",
+        str(cams_dir),
+        "--points",
+        str(points),
+        "--images",
+        str(images_root),
+        "--out",
+        str(out),
+    ]
+    try:
+        assert mod.main() == 0
+    finally:
+        sys.argv = old
+
+    # 3 unique files in images/, not 1.
+    linked = sorted(p.name for p in (out / "images").iterdir())
+    assert linked == ["cam00.png", "cam01.png", "cam02.png"], linked
+
+    # Each symlink's bytes trace back to the correct source cam via the
+    # numeric-suffix bridge (SfM cam00 ↔ regroup cam_0000).
+    for i in range(3):
+        link = out / "images" / f"cam{i:02d}.png"
+        assert link.read_bytes() == (images_root / f"cam_{i:04d}.png").read_bytes()
+
+    # images.txt is rewritten: NAME column contains the flat basenames,
+    # NOT the original SfM paths — otherwise downstream tools using
+    # ``image_path=images/`` can't resolve.
+    imgs_txt = (out / "sparse" / "0" / "images.txt").read_text()
+    for i in range(3):
+        assert f"cam{i:02d}.png" in imgs_txt, imgs_txt
+    assert "../../../fake" not in imgs_txt, imgs_txt
+
+
+def test_merge_colmap_v020_mode_b_matches_cam_key_via_numeric_fallback(tmp_path: Path) -> None:
+    """Regroup@0.2.0's ``cam_0000.png`` file must resolve to SfM's ``cam00`` NAME.
+
+    Same trailing-integer bridge that colmap-triangulate uses. This is
+    the exact live-fire failure mode we hit on real STG data (2026-09-22).
+    """
+    mod = _load_module(
+        "_merge_v020_bridge",
+        PACKS_ROOT / "merge-colmap@0.2.0" / "merge.py",
+    )
+    cams_dir = tmp_path / "cams"
+    cams_dir.mkdir()
+    (cams_dir / "cameras.txt").write_text(_SFM_CAMERAS)
+    (cams_dir / "images.txt").write_text(
+        "# Number of images: 1\n"
+        "1 1 0 0 0 0 0 0 1 ../../../c754/frame_sequence/cam04/frame_000000.png\n\n"
+    )
+    points = tmp_path / "pts"
+    points.mkdir()
+    (points / "points3D.txt").write_text("# Number of points: 5\n1 0 0 0 255 0 0 0 1 0\n")
+    images_root = tmp_path / "shard"
+    images_root.mkdir()
+    (images_root / "cam_0004.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"XXXX")
+
+    out = tmp_path / "out"
+    old = sys.argv
+    sys.argv = [
+        "merge.py",
+        "--cams",
+        str(cams_dir),
+        "--points",
+        str(points),
+        "--images",
+        str(images_root),
+        "--out",
+        str(out),
+    ]
+    try:
+        assert mod.main() == 0
+    finally:
+        sys.argv = old
+    linked = list((out / "images").iterdir())
+    assert len(linked) == 1
+    assert linked[0].name == "cam04.png"
+    assert linked[0].read_bytes() == (images_root / "cam_0004.png").read_bytes()

@@ -16,12 +16,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from hololab.manifest import RenderContext, load_manifest, render_manifest
 
 _MANIFEST = Path("/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/manifest.yaml")
 _CONFIGPATH = Path(
     "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/configs/n3d_full/sharp4dgs_export.json"
 )
+
+if not _MANIFEST.exists():
+    pytest.skip("needs SpacetimeGaussians checkout at local path", allow_module_level=True)
 
 
 # JSON key → (manifest param name, expected node default). Only keys that

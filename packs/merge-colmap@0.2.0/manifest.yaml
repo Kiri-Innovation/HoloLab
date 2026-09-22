@@ -1,0 +1,128 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: merge-colmap
+version: 0.2.0
+description: >
+  Assemble a per-frame ``colmap-folder`` from ``point-cloud`` (fan-out
+  driver) + ``colmap-cams`` (scalar broadcast) + optional per-frame
+  ``image`` handle. Framework wraps N shards into ``arrayed<colmap-folder>``
+  at the parent — the shape ``stg-train`` consumes as its per-frame
+  ``colmap_{i}/`` container.
+source_entry: merge.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### v0.2.0 vs v0.1.0
+
+  ``@0.1.0`` was a whole-array reshape: one process took one ``colmap-cams``,
+  one ``point-cloud``, and optionally one arrayed<image> and produced a
+  single ``colmap-folder``. That fits a "final single-model dataset"
+  workflow but leaves the classic STG chain — which needs **one folder
+  per frame** — with a shape mismatch (``arrayed<point-cloud>`` in ↛
+  ``arrayed<colmap-folder>`` out).
+
+  ``@0.2.0`` fixes that by turning the pack **arrayable**:
+
+  * ``points``  — fan-out driver (``arrayed<point-cloud>[frame]`` on the
+                  aggregate; each shard sees one frame's point cloud).
+  * ``cams``    — ``scalar: true`` broadcast (same SfM cams for every shard).
+  * ``images``  — fan-out participant, ``arrayed<image>[frame]`` on the
+                  aggregate. Optional (Mode A). Each shard's image handle
+                  holds all cams for one frame — matches the layout
+                  ``regroup@0.2.0`` produces with ``content_dims=1``.
+  * ``folder``  — ``scalar: true``, ``dim_labels: ["frame"]`` — one folder
+                  per shard; framework aggregates into
+                  ``arrayed<colmap-folder>[frame]``.
+
+  Each shard's script call is identical to @0.1.0 — no algorithmic change,
+  just the wire shape.
+
+  ### Fan-out zip (element_id contract)
+
+  Both ``points`` and ``images`` (when wired) enumerate element_ids by
+  their immediate subdir names. ``tri@0.7.0`` writes shards to
+  ``<parent>/points/frame_XXXX/`` and ``regroup@0.2.0`` with
+  ``content_dims=1`` writes ``<parent>/frame_XXXX/cam_YYYY.png`` — the
+  frame_XXXX layer is the same on both sides, so element-set equality
+  holds. Cross-port element-set mismatch is caught by the framework's
+  ``_discover_element_ids`` before any shard dispatches.
+
+  ### Modes
+
+  * **Mode A** (unwired ``images``): each shard's folder has
+    ``sparse/0/{cameras,images,points3D}.txt`` and no ``images/``.
+    Aggregate chip: ``colmap-folder[frame:100](pose:21 intr:1 pt:x)``.
+  * **Mode B** (wired ``images``): each shard's folder additionally
+    has ``images/`` populated by symlinks per NAME. Aggregate chip:
+    ``colmap-folder[frame:100](pose:21 intr:1 pt:x img:21)``.
+
+  ### Not-yet-supported
+
+  Multi-intrinsic cams (M > 1) — the merge script inherited from
+  @0.1.0 uses ``cameras.txt`` verbatim, so this works out of the box;
+  the docstring here just calls it out so anyone extending the pack
+  keeps the single-camera=1 SfM shape in mind.
+
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    scalar: true
+    description: "colmap-cams bundle (cameras.txt + images.txt). Broadcast to every shard."
+  points:
+    tags: [point-cloud]
+    description: >
+      Fan-out driver. Aggregate handle is ``arrayed<point-cloud>[frame]``;
+      each shard sees one frame's ``points3D.txt``.
+  images:
+    tags: [image]
+    required: false
+    dim_labels: ["frame"]
+    description: >
+      Optional fan-out participant. Aggregate handle is
+      ``arrayed<image>[frame]``; each shard's element dir holds the
+      cam-side image files inline (content_dims=1). Wire for Mode B;
+      leave unwired for Mode A (sparse-only).
+
+outputs:
+  folder:
+    tags: [colmap-folder, colmap]
+    scalar: true
+    dim_labels: ["frame"]
+    description: >
+      Per-frame ``colmap-folder``. Scalar per invocation; framework
+      wraps N shards into ``arrayed<colmap-folder>[frame]`` at the
+      parent job.
+
+      The output carries the ``colmap`` tag as a **compatibility
+      alias** so external consumers still declaring the legacy tag
+      (notably ``stg-train@0.2.0.colmap_frames``) accept the edge
+      without a manifest update on their side. Chip rendering
+      prefers the first tag — displays ``colmap-folder(pose:… img:…)``.
+      Same-key-set rule that ``get-index`` / ``arrayfy`` use to keep
+      generic utility packs wire-compatible with typed consumers.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    {% if 'images' in inputs %}
+    python "{{ pack_dir }}/merge.py" \
+      --cams "{{ inputs.cams }}" \
+      --points "{{ inputs.points }}" \
+      --images "{{ inputs.images }}" \
+      --out "{{ outputs.folder }}"
+    {% else %}
+    python "{{ pack_dir }}/merge.py" \
+      --cams "{{ inputs.cams }}" \
+      --points "{{ inputs.points }}" \
+      --out "{{ outputs.folder }}"
+    {% endif %}
+
+idempotency:
+  marker: "{{ outputs.folder }}/.hololab-done"
