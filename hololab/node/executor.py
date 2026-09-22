@@ -32,6 +32,15 @@ CANCEL_GRACE_SECONDS = 30.0
 # Number of stdout/stderr tail lines kept for job_fail messages.
 _TAIL_KEEP = 40
 
+# Chunk size for stream draining. Small enough that progress bars flush
+# per redraw, large enough to avoid syscall overhead in bulk log output.
+_STREAM_CHUNK = 4096
+# Emit a "line" even if we've seen no separator this long — protects
+# against a genuinely runaway single line (e.g. a binary blob written
+# to stdout) filling memory indefinitely. Sized well above any realistic
+# tqdm redraw block; a single stanza past this gets flushed as one line.
+_MAX_UNBROKEN_BYTES = 1024 * 1024  # 1 MiB
+
 
 @dataclass
 class ExecPlan:
@@ -103,25 +112,26 @@ async def run_subprocess(
     stdout_tail: deque[str] = deque(maxlen=_TAIL_KEEP)
     stderr_tail: deque[str] = deque(maxlen=_TAIL_KEEP)
 
+    def _emit_line(name: str, tail: deque[str], line: str) -> None:
+        tail.append(line)
+        on_log(name, line)
+        if progress_re is not None:
+            m = progress_re.search(line)
+            if m and len(m.groups()) >= 2:
+                try:
+                    cur = int(m.group(m.lastindex - 1 if m.lastindex else 1))
+                    tot = int(m.group(m.lastindex if m.lastindex else 2))
+                    on_progress(cur, tot)
+                except (TypeError, ValueError):
+                    pass
+
     async def _stream(reader: asyncio.StreamReader | None, name: str, tail: deque[str]) -> None:
-        if reader is None:
-            return
-        while True:
-            raw = await reader.readline()
-            if not raw:
-                break
-            line = raw.decode(errors="replace").rstrip("\r\n")
-            tail.append(line)
-            on_log(name, line)
-            if progress_re is not None:
-                m = progress_re.search(line)
-                if m and len(m.groups()) >= 2:
-                    try:
-                        cur = int(m.group(m.lastindex - 1 if m.lastindex else 1))
-                        tot = int(m.group(m.lastindex if m.lastindex else 2))
-                        on_progress(cur, tot)
-                    except (TypeError, ValueError):
-                        pass
+        await drain_stream(
+            reader,
+            name=name,
+            tail=tail,
+            emit=lambda n, t, line: _emit_line(n, t, line),
+        )
 
     stdout_task = asyncio.create_task(_stream(proc.stdout, "stdout", stdout_tail))
     stderr_task = asyncio.create_task(_stream(proc.stderr, "stderr", stderr_tail))
@@ -153,6 +163,65 @@ async def run_subprocess(
         stdout_tail=list(stdout_tail),
         stderr_tail=list(stderr_tail),
     )
+
+
+async def drain_stream(
+    reader: asyncio.StreamReader | None,
+    *,
+    name: str,
+    tail: deque[str],
+    emit: Callable[[str, deque[str], str], None],
+) -> None:
+    """Chunk-read a subprocess pipe, splitting on both ``\\n`` and ``\\r``.
+
+    tqdm-style progress bars rewrite the current terminal line with ``\\r``
+    (no ``\\n``), so many updates queue behind a single missing newline.
+    Naïve ``reader.readline()`` waits for ``\\n`` and blows past its
+    64 KiB default buffer with ``LimitOverrunError`` after ~1000 tqdm
+    ticks — which used to silently kill the job (the exception propagated
+    out of :func:`run_subprocess` and ``_run_job`` never sent a
+    ``job_fail`` frame; the gateway then held the job in ``running``
+    forever). Treating ``\\r`` as a separator keeps each progress
+    redraw as its own logical line and never exceeds the cap.
+
+    Never propagates exceptions: on error, drains the pipe silently so
+    :meth:`asyncio.subprocess.Process.wait` doesn't hang on a full pipe
+    buffer. Broken out as a module-level helper so tests can drive it
+    with a hand-built :class:`asyncio.StreamReader`.
+    """
+
+    if reader is None:
+        return
+    buf = bytearray()
+    try:
+        while True:
+            chunk = await reader.read(_STREAM_CHUNK)
+            if not chunk:
+                if buf:
+                    emit(name, tail, bytes(buf).decode(errors="replace"))
+                    buf.clear()
+                return
+            buf.extend(chunk)
+            # Drain every complete \n- or \r-delimited segment.
+            start = 0
+            for i, b in enumerate(buf):
+                if b == 0x0A or b == 0x0D:  # \n or \r
+                    emit(name, tail, bytes(buf[start:i]).decode(errors="replace"))
+                    start = i + 1
+            if start:
+                del buf[:start]
+            # Safety cap: if a single unbroken segment grew past the
+            # limit (binary output, no separators at all), flush it.
+            if len(buf) > _MAX_UNBROKEN_BYTES:
+                emit(name, tail, bytes(buf).decode(errors="replace"))
+                buf.clear()
+    except Exception as exc:
+        log.warning("stream reader error", stream=name, error=str(exc))
+        with contextlib.suppress(Exception):
+            while True:
+                remainder = await reader.read(_STREAM_CHUNK)
+                if not remainder:
+                    return
 
 
 async def _cancel_process(proc: asyncio.subprocess.Process) -> None:

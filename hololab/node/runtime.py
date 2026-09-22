@@ -34,7 +34,7 @@ from hololab.manifest.render import (
     rendered_scratch_dir,
 )
 from hololab.node.config import NodeConfig, write_node_config
-from hololab.node.executor import ExecPlan, run_subprocess
+from hololab.node.executor import ExecPlan, ExecResult, run_subprocess
 from hololab.node.fileserver import ServeHandle, create_fileserver_app
 from hololab.node.orphan_cleanup import cleanup_workspace_orphans
 from hololab.node.packs import LoadedPack, scan_multi_packs
@@ -1204,6 +1204,13 @@ class NodeRuntime:
             progress_regex=pack.manifest.progress.stdout_regex if pack.manifest.progress else None,
         )
 
+        # Belt-and-braces around run_subprocess: any exception here used
+        # to escape _run_job silently (the task's exception was never
+        # retrieved), leaving the job stuck in ``running`` forever and
+        # the compute subprocess orphaned. Now we always emit a
+        # ``job_fail`` and let the gateway close out the row.
+        exec_error: Exception | None = None
+        result: ExecResult | None = None
         try:
             if self._exec_semaphore is not None:
                 async with self._exec_semaphore:
@@ -1220,6 +1227,9 @@ class NodeRuntime:
                     on_progress=on_progress,
                     cancel_event=cancel_event,
                 )
+        except Exception as exc:
+            log.exception("run_subprocess raised", job_id=assign.job_id)
+            exec_error = exc
         finally:
             flush_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -1238,6 +1248,19 @@ class NodeRuntime:
                     "job_log", JobLog(job_id=assign.job_id, lines=stderr_lines, stream="stderr")
                 )
 
+        # Executor crashed before returning an ExecResult (never happened
+        # in normal operation — pre-fix it was the tqdm/LimitOverrunError
+        # path). Report and bail rather than let the exception silently
+        # tear down the task.
+        if exec_error is not None:
+            await self._send_job_fail(
+                assign.job_id,
+                JobFailReason.ALGO_ERROR,
+                message=f"executor internal error: {type(exec_error).__name__}: {exec_error}",
+            )
+            return
+
+        assert result is not None
         if result.cancelled:
             await self._send(
                 "job_fail",
