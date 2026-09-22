@@ -1202,6 +1202,7 @@ async def dispatch_graph_node(
     # -- Resolve inputs from the target snapshot's existing attributions ----
     input_handles = await _resolve_inputs_from_snapshot(
         app,
+        workflow_id=workflow_id,
         target_snapshot_id=target_snapshot_id,
         graph=graph,
         graph_node_id=graph_node_id,
@@ -1318,6 +1319,7 @@ async def dispatch_graph_node(
 async def _resolve_inputs_from_snapshot(
     app: FastAPI,
     *,
+    workflow_id: str,
     target_snapshot_id: str,
     graph: WorkflowGraph,
     graph_node_id: str,
@@ -1335,9 +1337,16 @@ async def _resolve_inputs_from_snapshot(
       3. Reading that job's registered output handles (via HandleBook)
          and picking the port named on the edge.
 
-    A missing attribution or a missing output raises DispatchError so
-    the endpoint layer can surface a human-readable "upstream X hasn't
-    produced Y yet" message.
+    A missing attribution raises DispatchError. Because a fan-out
+    parent's attribution row is only written *after* all its shards
+    complete (see ``_run_shards_in_background`` below), a downstream
+    dispatch that fires while the upstream is mid-fan-out lands in this
+    branch too — the shards are producing the artifact, just not
+    attributed yet. To distinguish "hasn't run" from "still running",
+    the miss branch checks ``SnapshotJobsStore.find_inflight_for_graph_node``
+    and rewrites the error with the in-flight state + shard progress
+    when a running parent is found. Operator then knows to wait, not
+    re-run.
     """
 
     snapshot_jobs: SnapshotJobsStore = app.state.snapshot_jobs
@@ -1350,6 +1359,27 @@ async def _resolve_inputs_from_snapshot(
         source_gnode = edge.source
         upstream_job_id = await snapshot_jobs.get_job_at(target_snapshot_id, source_gnode)
         if upstream_job_id is None:
+            inflight = await snapshot_jobs.find_inflight_for_graph_node(workflow_id, source_gnode)
+            if inflight is not None:
+                # Compose a shard-progress hint. ``progress_current`` /
+                # ``progress_total`` are the parent's aggregated shard
+                # counters; ``expected_shards`` is the plan set at
+                # fan-out start. Fall back to whichever fields the job
+                # row actually carries — a still-pending parent may
+                # have neither yet.
+                shards_done = inflight.get("progress_current")
+                shards_total = inflight.get("progress_total") or inflight.get("expected_shards")
+                if shards_done is not None and shards_total is not None:
+                    progress = f" ({shards_done}/{shards_total} shards done)"
+                elif shards_total is not None:
+                    progress = f" (0/{shards_total} shards done)"
+                else:
+                    progress = ""
+                raise DispatchError(
+                    f"upstream graph node {source_gnode!r} is still {inflight['state']}"
+                    f"{progress}; attribution is written after all shards finish — "
+                    f"wait for the fan-out to complete, then retry"
+                )
             raise DispatchError(
                 f"upstream graph node {source_gnode!r} has no produced artifact "
                 f"in this snapshot; run it first"

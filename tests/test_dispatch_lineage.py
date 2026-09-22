@@ -143,9 +143,7 @@ def test_dispatch_continues_when_slot_empty(tmp_path: Path) -> None:
             client, workflow_id=wid, graph=_linear_graph(), done_at=["A", "B"]
         )
 
-        r = client.post(
-            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
-        )
+        r = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["operation"] == "continue"
@@ -167,9 +165,7 @@ def test_dispatch_forks_when_slot_taken(tmp_path: Path) -> None:
             client, workflow_id=wid, graph=_linear_graph(), done_at=["A", "B", "C"]
         )
 
-        r = client.post(
-            f"/api/workflows/{wid}/dispatch/B", params={"base_snapshot_id": base}
-        )
+        r = client.post(f"/api/workflows/{wid}/dispatch/B", params={"base_snapshot_id": base})
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["operation"] == "fork"
@@ -231,11 +227,72 @@ def test_dispatch_missing_upstream_400(tmp_path: Path) -> None:
         base = _seed_snapshot_with_jobs(
             client, workflow_id=wid, graph=_linear_graph(), done_at=["A"]
         )
-        r = client.post(
-            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
-        )
+        r = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
         assert r.status_code == 400
         assert "B" in r.json()["detail"]
+
+
+def test_dispatch_missing_upstream_reports_inflight_when_running(tmp_path: Path) -> None:
+    """When the upstream is mid-fan-out (parent job running, attribution
+    not yet written), dispatching the downstream must say so instead of
+    the flat "no produced artifact; run it first".
+
+    Regression for 2026-09-22: a fan-out parent's ``snapshot_jobs``
+    attribution row is written only after all its shards complete
+    (``execution._run_shards_in_background`` tail). A downstream
+    dispatch fired during the fan-out window used to see the miss
+    branch and report "run it first" — accusatory since the user
+    already ran it, it's just still fanning out. Fix (this test):
+    on the miss branch, ``SnapshotJobsStore.find_inflight_for_graph_node``
+    is consulted and the message is rewritten with the job's state +
+    shard progress (``X/Y shards done``) so the operator waits
+    instead of retrying.
+    """
+
+    app = create_app(db_path=tmp_path / "inflight.sqlite")
+    with TestClient(app) as client:
+        _fake_online_node(client)
+        wid = "66666666-6666-6666-6666-666666666666"
+        base = _seed_snapshot_with_jobs(
+            client, workflow_id=wid, graph=_linear_graph(), done_at=["A"]
+        )
+
+        # Seed a running fan-out parent for B, attributed to the
+        # workflow but NOT (yet) to the snapshot — mirrors the state
+        # execution._run_shards_in_background leaves the world in
+        # between shard-1 dispatch and last-shard done.
+        async def _seed_running_b() -> None:
+            job = Job(
+                job_id="b-parent",
+                snapshot_id=base,
+                workflow_id=wid,
+                node_id="node-a",
+                graph_node_id="B",
+                algorithm_name="demo-echo",
+                algorithm_version="0.1.0",
+                params={},
+                input_handles={},
+                state=JobState.RUNNING,
+                # Aggregated shard progress on the parent — the store
+                # helper picks these up so the error message can be
+                # concrete.
+                progress_current=7,
+                progress_total=10,
+                expected_shards=10,
+            )
+            await client.app.state.jobs_store.create(job)
+
+        client.portal.call(_seed_running_b)
+
+        r = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        assert r.status_code == 400
+        detail = r.json()["detail"]
+        # Names the upstream, the running state, and the shard progress.
+        assert "'B'" in detail, detail
+        assert "running" in detail, detail
+        assert "7/10 shards" in detail, detail
+        # No longer says "run it first" — user should wait, not re-run.
+        assert "run it first" not in detail, detail
 
 
 def test_dispatch_unknown_graph_node_404(tmp_path: Path) -> None:
@@ -283,9 +340,7 @@ def test_lineage_ancestor_walk(tmp_path: Path) -> None:
             await client.app.state.workflows.save_draft(
                 workflow_id=wid, name="cc-e2e-lineage", graph=graph
             )
-            snap = await client.app.state.workflows.create_snapshot(
-                workflow_id=wid, graph=graph
-            )
+            snap = await client.app.state.workflows.create_snapshot(workflow_id=wid, graph=graph)
             for gid, upstream_port_map in [
                 ("A", {}),
                 ("B", {"in": "h-A"}),
@@ -342,9 +397,7 @@ def test_lineage_descendant_walk(tmp_path: Path) -> None:
             await client.app.state.workflows.save_draft(
                 workflow_id=wid, name="cc-e2e-desc", graph=graph
             )
-            snap = await client.app.state.workflows.create_snapshot(
-                workflow_id=wid, graph=graph
-            )
+            snap = await client.app.state.workflows.create_snapshot(workflow_id=wid, graph=graph)
             for gid, upstream_port_map in [
                 ("A", {}),
                 ("B", {"in": "h-A"}),
