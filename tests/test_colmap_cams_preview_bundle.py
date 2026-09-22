@@ -132,6 +132,50 @@ def test_bundle_contains_colmap_frame_tag_routing() -> None:
     )
 
 
+def test_bundle_contains_point_cloud_tag_routing() -> None:
+    """``point-cloud`` (2026-09-22 type-system refactor) must appear at
+    both routing sites: the Preview dispatch intercept (previews.tsx)
+    and FRONTEND_VIEWER_TAGS (AlgorithmNode.tsx). Two hits minimum.
+
+    Losing either silently drops the caret + 3D viewer from
+    ``colmap-sfm@0.3.0.points`` and ``colmap-triangulate@0.7.0.points``,
+    reverting them to the plain dir listing — the exact regression
+    the user reported on the tri.points expand on 2026-09-22.
+    """
+
+    js_path = _find_dist_js()
+    if js_path is None:
+        pytest.skip("frontend dist not built — run `npm run build` first")
+    js = js_path.read_text(encoding="utf-8", errors="replace")
+    hits = js.count("point-cloud")
+    assert hits >= 2, (
+        f"expected >=2 occurrences of 'point-cloud' in the built bundle "
+        f"(Preview intercept + FRONTEND_VIEWER_TAGS promotion), found {hits}"
+    )
+
+
+def test_bundle_contains_colmap_folder_tag_routing() -> None:
+    """``colmap-folder`` (2026-09-22 type-system refactor) must appear at
+    both routing sites: the Preview dispatch intercept (previews.tsx)
+    and FRONTEND_VIEWER_TAGS (AlgorithmNode.tsx). Two hits minimum.
+
+    Losing either drops the caret + 3D viewer from
+    ``merge-colmap@0.2.0/0.3.0.folder`` — the assembled per-frame
+    ``colmap-folder`` handles that stg-train consumes. Fatal for a
+    forensic look at what merge produced before dispatch.
+    """
+
+    js_path = _find_dist_js()
+    if js_path is None:
+        pytest.skip("frontend dist not built — run `npm run build` first")
+    js = js_path.read_text(encoding="utf-8", errors="replace")
+    hits = js.count("colmap-folder")
+    assert hits >= 2, (
+        f"expected >=2 occurrences of 'colmap-folder' in the built bundle "
+        f"(Preview intercept + FRONTEND_VIEWER_TAGS promotion), found {hits}"
+    )
+
+
 def test_bundle_contains_colmap_tag_routing() -> None:
     """``colmap`` (the v0.4.0 rename of colmap-frame) must appear at both
     routing sites too — same rationale, for colmap-triangulate@0.4.0."""

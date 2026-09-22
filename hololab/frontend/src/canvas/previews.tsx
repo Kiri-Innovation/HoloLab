@@ -168,15 +168,24 @@ export function Preview({
   ) {
     return <ColmapCamsPreview baseUrl={baseUrl} />;
   }
-  // ``colmap-points`` — triangulated point cloud (points3D.txt in a
-  // dir handle). Same iframe/ColmapUtil pipeline as colmap-cams but
-  // the reverse file-substitution: real points, empty cameras/images.
-  // The arrayed form (one shard per frame from colmap-triangulate[
-  // arrayed]) has no dedicated array viewer; ArrayedPaginator wraps
-  // the scalar version below with a top pager row.
+  // ``point-cloud`` (2026-09-22 type-system refactor) / ``colmap-points``
+  // (legacy) — triangulated point cloud (``points3D.txt`` in a dir
+  // handle). Same iframe/ColmapUtil pipeline as colmap-cams but the
+  // reverse file-substitution: real points, empty cameras/images.
+  //
+  // Producer surface:
+  //   * ``point-cloud`` — ``colmap-sfm@0.3.0.points`` (scalar) and
+  //     ``colmap-triangulate@0.7.0.points`` (aggregate:
+  //     ``arrayed<point-cloud>[frame]``).
+  //   * ``colmap-points`` — retired ``colmap-triangulate@0.1.0`` output;
+  //     kept in the intercept so historical snapshots still preview.
+  //
+  // The arrayed form uses ``ArrayedPaginator`` (same as the legacy
+  // ``colmap-points`` path did) so the user can page through per-frame
+  // clouds. Both tags route to the same ``ColmapPointsPreview``.
   if (
     tags &&
-    tags.includes("colmap-points") &&
+    (tags.includes("point-cloud") || tags.includes("colmap-points")) &&
     storage === "dir"
   ) {
     if (arrayed) {
@@ -195,18 +204,33 @@ export function Preview({
     }
     return <ColmapPointsPreview baseUrl={baseUrl} />;
   }
-  // ``colmap`` / ``colmap-frame`` — self-contained COLMAP frame: sparse/0/
-  // {cameras,images,points3D}.{bin,txt} + images/ (undistorted). Emitted by
-  // ``colmap-triangulate@0.4.0`` as ``colmap`` (arrayed<colmap> under
-  // fan-out) and by @0.3.0 as the legacy ``colmap-frame``. Both tags are
-  // accepted so historical @0.3.0 handles still preview. The full triple-
-  // fetch (cameras+images+points3D) gives genuine frustum wireframes on
-  // top of the triangulated point cloud — a richer view than colmap-points
-  // (which only has points). The arrayed form wraps the scalar viewer with
-  // ArrayedPaginator so the user can page through frames.
+  // ``colmap-folder`` (2026-09-22 type-system refactor) / ``colmap`` /
+  // ``colmap-frame`` (legacy) — self-contained COLMAP folder: sparse/0/
+  // {cameras,images,points3D}.{bin,txt} + optional images/ (undistorted).
+  //
+  // Producer surface:
+  //   * ``colmap-folder`` — ``merge-colmap@0.2.0/0.3.0.folder``
+  //     (aggregate: ``arrayed<colmap-folder>[frame]`` when merge is
+  //     arrayable at 0.2/0.3). Same on-disk shape as the legacy
+  //     ``colmap`` / ``colmap-frame`` handles so ``ColmapFramePreview``
+  //     (with its ``sparse/0/`` sub-path + ``images/`` frustum
+  //     thumbnails) is reused verbatim.
+  //   * ``colmap`` — ``colmap-triangulate@0.4.0+`` output (still emitted
+  //     as a compat alias by ``merge-colmap@0.2.0/0.3.0.folder`` so
+  //     ``stg-train@0.2.0.colmap_frames`` accepts the edge without a
+  //     manifest bump on its side).
+  //   * ``colmap-frame`` — retired ``colmap-triangulate@0.3.0`` output;
+  //     kept in the intercept so historical snapshots still preview.
+  //
+  // The full triple-fetch (cameras+images+points3D) gives genuine
+  // frustum wireframes on top of the triangulated point cloud —
+  // a richer view than the point-cloud viewer (which only has points).
+  // The arrayed form wraps the scalar viewer with ``ArrayedPaginator``.
   if (
     tags &&
-    (tags.includes("colmap") || tags.includes("colmap-frame")) &&
+    (tags.includes("colmap-folder") ||
+      tags.includes("colmap") ||
+      tags.includes("colmap-frame")) &&
     storage === "dir"
   ) {
     if (arrayed) {

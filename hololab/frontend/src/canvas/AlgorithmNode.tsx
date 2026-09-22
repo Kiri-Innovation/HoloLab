@@ -240,9 +240,19 @@ const FRONTEND_VIEWER_TAGS = new Set<string>([
   // tags accepted so a rolling migration doesn't drop the caret.
   "image_sequence",
   "colmap-cams",
+  // ``point-cloud`` is the 2026-09-22 type-system refactor's canonical
+  // tag for triangulated points; ``colmap-points`` was the retired
+  // predecessor (colmap-triangulate@0.1.0). Both route to
+  // ColmapPointsPreview in previews.tsx.
+  "point-cloud",
   "colmap-points",
-  // ``colmap`` is the current tag (colmap-triangulate@0.4.0+); ``colmap-frame``
-  // is retained for the legacy @0.3.0 output. Both route to ColmapFramePreview.
+  // ``colmap-folder`` is the 2026-09-22 refactor's canonical tag for a
+  // self-contained COLMAP folder (sparse/0/ + optional images/), emitted
+  // by merge-colmap@0.2.0/0.3.0 (which also carries ``colmap`` as a
+  // legacy compat alias so stg-train@0.2.0 accepts the edge without a
+  // manifest bump). ``colmap-frame`` is the retired
+  // colmap-triangulate@0.3.0 tag. All three route to ColmapFramePreview.
+  "colmap-folder",
   "colmap",
   "colmap-frame",
   // Rig chain — iframe/ColmapUtil previews. rig_extrinsics is the
