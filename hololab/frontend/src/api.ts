@@ -240,8 +240,16 @@ export const saveWorkflow = (body: {
   // Optimistic-lock guard: the ``updated_ts`` the caller last saw. When
   // present, the gateway rejects the save with 409 if the persisted row
   // has moved past it (see ``WorkflowConflict`` server-side). Omit for
-  // new drafts and for callers that intentionally opt out of the guard.
+  // brand-new drafts (no row yet).
   base_updated_ts?: number;
+  // Intentional unconditional write — skips the CAS. Reserved for
+  // trusted callers that mean to clobber (e.g. restore-from-snapshot).
+  // Browser clients should NOT send this; the app relies on the 428
+  // Precondition Required response to stop stale-bundle clobbers.
+  overwrite?: boolean;
+  // Opaque per-tab id. Echoed on the ``workflow_updated`` broadcast so
+  // the initiating tab ignores the round-trip of its own edit.
+  origin?: string;
 }) =>
   resilientFetch("/api/workflows", {
     method: "POST",
@@ -271,6 +279,34 @@ export function isWorkflowConflict(
   if (err.status !== 409) return false;
   const d = err.detail as { code?: unknown } | null;
   return !!d && typeof d === "object" && d.code === "workflow_conflict";
+}
+
+// Body shape the gateway returns inside a 428 ``ApiError.detail``. Fires
+// when a save on an existing workflow arrives without ``base_updated_ts``
+// (stale-bundle Chrome tab, unaware script). Surfaced through
+// ``useDraftAutosave`` so the UI can park autosave and prompt reload
+// instead of silently clobbering.
+export interface WorkflowPreconditionRequiredDetail {
+  code: "workflow_precondition_required";
+  message: string;
+  current: {
+    workflow_id: string;
+    name: string;
+    graph: WorkflowGraph;
+    created_ts: number;
+    updated_ts: number;
+  };
+}
+
+export function isWorkflowPreconditionRequired(
+  err: unknown,
+): err is ApiError & { detail: WorkflowPreconditionRequiredDetail } {
+  if (!(err instanceof ApiError)) return false;
+  if (err.status !== 428) return false;
+  const d = err.detail as { code?: unknown } | null;
+  return (
+    !!d && typeof d === "object" && d.code === "workflow_precondition_required"
+  );
 }
 
 export const deleteWorkflow = (workflow_id: string) =>

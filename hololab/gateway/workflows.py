@@ -160,6 +160,26 @@ class WorkflowConflict(Exception):
         )
 
 
+class WorkflowPreconditionRequired(Exception):
+    """Raised when an update to an existing draft omits ``base_updated_ts``.
+
+    Layer-2 of the "stop stale-tab clobber" defence: legacy clients (older
+    bundles, unaware scripts) used to slip through the optimistic-lock by
+    simply not sending ``base_updated_ts``, so the fresh row got clobbered
+    with 200-OK-and-a-warning. When ``require_base_updated_ts=True`` and
+    the row already exists, save_draft refuses instead — the endpoint
+    renders 428 Precondition Required so the client can pick up the
+    version-aware code path (or the explicit ``overwrite`` opt-out).
+    """
+
+    def __init__(self, *, current: WorkflowRow) -> None:
+        self.current = current
+        super().__init__(
+            f"workflow {current.workflow_id!r} exists but the save carried no "
+            "base_updated_ts; include it (or opt into unconditional overwrite)"
+        )
+
+
 @dataclass
 class SnapshotRow:
     snapshot_id: str
@@ -190,6 +210,7 @@ class WorkflowStore:
         name: str,
         graph: WorkflowGraph,
         base_updated_ts: float | None = None,
+        require_base_updated_ts: bool = False,
     ) -> WorkflowRow:
         """Upsert a workflow draft. Returns the persisted row.
 
@@ -197,8 +218,12 @@ class WorkflowStore:
 
         * ``base_updated_ts=None`` — legacy last-write-wins mode. Kept as
           the default so older clients (scripts, agents, curl one-liners)
-          still work. A warning is logged at INFO so we can spot who's
-          bypassing the check and migrate them.
+          still work at the store level. When ``require_base_updated_ts``
+          is True and the row already exists, this path raises
+          :class:`WorkflowPreconditionRequired` instead — the endpoint
+          uses that to render 428 for browser clients while still
+          leaving an explicit ``overwrite`` bypass for the trusted
+          restore-from-snapshot / rollback callers.
         * ``base_updated_ts=<ts>`` — save only if the row's persisted
           ``updated_ts`` matches. On mismatch, :class:`WorkflowConflict`
           fires with the current row attached, and the endpoint renders
@@ -215,19 +240,27 @@ class WorkflowStore:
         graph_json = graph.model_dump_json()
         now = time.time()
         conflict_row: WorkflowRow | None = None
+        precondition_row: WorkflowRow | None = None
 
         async def _write(conn: aiosqlite.Connection) -> None:
-            nonlocal conflict_row
-            if base_updated_ts is not None:
+            nonlocal conflict_row, precondition_row
+            need_existing_check = base_updated_ts is not None or require_base_updated_ts
+            if need_existing_check:
                 async with conn.execute(
                     "SELECT updated_ts FROM workflows WHERE workflow_id=?", (wid,)
                 ) as cur:
                     existing = await cur.fetchone()
-                if existing is not None and existing[0] != base_updated_ts:
-                    # Read the full row while still inside the write txn so
-                    # the client's 409 body carries a consistent snapshot.
-                    conflict_row = await self._read_row(conn, wid)
-                    return
+                if existing is not None:
+                    if base_updated_ts is None:
+                        # 428 path: caller demanded the CAS but sent nothing
+                        # to compare against, and a row exists → refuse.
+                        precondition_row = await self._read_row(conn, wid)
+                        return
+                    if existing[0] != base_updated_ts:
+                        # Read the full row while still inside the write txn
+                        # so the client's 409 body carries a consistent snapshot.
+                        conflict_row = await self._read_row(conn, wid)
+                        return
             await conn.execute(
                 """
                 INSERT INTO workflows (workflow_id, name, draft_json, updated_ts, created_ts)
@@ -241,12 +274,14 @@ class WorkflowStore:
             )
 
         await self._db.write(_write)
+        if precondition_row is not None:
+            raise WorkflowPreconditionRequired(current=precondition_row)
         if conflict_row is not None:
             raise WorkflowConflict(
                 current=conflict_row,
                 base_updated_ts=base_updated_ts,  # type: ignore[arg-type]
             )
-        if base_updated_ts is None and workflow_id is not None:
+        if base_updated_ts is None and workflow_id is not None and not require_base_updated_ts:
             log.info(
                 "workflow save without base_updated_ts",
                 workflow_id=wid,

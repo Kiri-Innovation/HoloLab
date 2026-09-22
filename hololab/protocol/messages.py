@@ -564,3 +564,24 @@ class NodeOffline(BaseModel):
 
     node_id: str
     reason: str  # "heartbeat_timeout" | "disconnect" | "shutdown"
+
+
+class WorkflowUpdated(BaseModel):
+    """Gateway → Frontend: a workflow draft was saved.
+
+    Fired every time ``POST /api/workflows`` commits a write (any caller —
+    another tab, an agent, a curl one-liner). Subscribed tabs use it to keep
+    the canvas in sync with server truth without polling: when the tab has
+    no local unsaved edits it fetches the fresh graph and re-hydrates
+    silently; when it has unsaved edits it parks autosave in a conflict
+    state so the user's changes don't clobber the other writer's.
+
+    ``origin`` echoes an opaque per-tab id the client sent alongside the
+    save; a tab ignores frames whose origin matches its own so it doesn't
+    re-hydrate on the round-trip of its own edit.
+    """
+
+    workflow_id: str
+    name: str
+    updated_ts: float
+    origin: str | None = None

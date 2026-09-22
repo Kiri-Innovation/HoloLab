@@ -1,9 +1,29 @@
 // Debounced draft autosave.
 //
 // Watches ``serialisedSnapshot`` (a stringified canonical form of the
-// draft — name + graph) and, when it changes, schedules a single
-// trailing save 800 ms later. Consecutive edits reset the timer so a
-// drag-heavy interaction only produces one save at the end.
+// draft — name + graph) and, when it differs from the last-known-clean
+// snapshot, schedules a single trailing save 800 ms later. Consecutive
+// edits reset the timer so a drag-heavy interaction only produces one
+// save at the end.
+//
+// Layers of the "no stale-tab clobber" defence this hook participates in:
+//
+//   1. Dirty diff — the hook compares the current serialised form against
+//      the last snapshot the caller marked clean (via ``markClean`` on
+//      hydration or on WS-driven remote-update sync). Autosave only
+//      fires when the strings actually differ, so hydration / catalog-
+//      churn / WS resync no longer misfires a save-of-nothing that
+//      could POST an in-memory graph on top of fresher truth.
+//   2. Optimistic-lock CAS — every save carries the last-observed
+//      ``base_updated_ts``. Server 409 → hook parks in ``conflict``.
+//   3. Precondition Required — a save on an existing row without a
+//      base_ts (stale bundle) returns 428; the hook also parks in
+//      ``conflict`` and fires ``onConflict`` with the current row so
+//      the caller can prompt reload.
+//   4. Remote-update push — the caller subscribes to
+//      ``workflow_updated`` WS frames and calls ``resync`` (silent
+//      sync when the tab was clean) or ``markConflict`` (dirty tab
+//      loses its autosave gate until the user resolves).
 //
 // Contract with the rest of the app:
 //
@@ -21,19 +41,15 @@
 //   * A ``beforeunload`` listener flushes any pending save with
 //     ``navigator.sendBeacon`` so a tab close in the debounce window
 //     doesn't drop the last edit.
-//
-// Concurrency: optimistic-lock via ``base_updated_ts``. Every save
-// carries the ``updated_ts`` we last observed; if the server has moved
-// past that, it returns 409 with the current row. The hook parks in
-// ``conflict`` status and fires ``onConflict``; further debounced saves
-// are suppressed until the caller resolves (typically: reload the page
-// so the tab hydrates the fresh row). This closes the multi-tab /
-// tab-vs-agent race where a stale in-memory graph silently clobbered
-// the truth on disk.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { isWorkflowConflict, type WorkflowConflictDetail } from "../api";
+import {
+  isWorkflowConflict,
+  isWorkflowPreconditionRequired,
+  type WorkflowConflictDetail,
+  type WorkflowPreconditionRequiredDetail,
+} from "../api";
 
 export type SaveStatus =
   | "idle" // never dirty / freshly hydrated
@@ -42,7 +58,16 @@ export type SaveStatus =
   | "saved" // last save succeeded
   | "error" // last save failed; retry on click
   | "offline" // navigator.onLine is false; will save on ``online``
-  | "conflict"; // server rejected save (409); autosave is parked
+  | "conflict"; // server rejected save (409 or 428); autosave is parked
+
+// Public payload the caller uses when a remote WS push tells us the row
+// moved on someone else's account. Same shape as the 409 detail so the
+// caller can hand it straight to the same reload UX.
+export interface RemoteUpdateInfo {
+  workflow_id: string;
+  updated_ts: number;
+  name: string;
+}
 
 export interface AutosaveHandle {
   status: SaveStatus;
@@ -50,6 +75,19 @@ export interface AutosaveHandle {
   // consumers who want a synchronous save (e.g. the Run button
   // pre-flighting before dispatch).
   save: () => Promise<void>;
+  // Imperative "the loaded state is now clean" — called after a
+  // hydration where the graph in memory matches server truth (initial
+  // load, workflow switch, WS-driven silent sync). Resets the hook to
+  // a fresh-mount state pinned at ``updatedTs``; the next serialised
+  // form the effect sees is stamped as the new baseline, so a user
+  // edit is the first thing that fires a save.
+  resync: (updatedTs: number | undefined) => void;
+  // Imperative "server has diverged and we can't merge" — called when
+  // the caller detects (via WS or otherwise) that the row moved on
+  // while this tab has unsaved edits. Parks the hook in ``conflict``
+  // and fires ``onConflict`` with the detail so the app can prompt
+  // reload / overwrite.
+  markConflict: (detail: WorkflowConflictDetail) => void;
 }
 
 const DEBOUNCE_MS = 800;
@@ -79,12 +117,14 @@ export function useDraftAutosave(opts: {
   // Called after a successful save so the caller can, for example,
   // update the URL hash with the minted workflow_id.
   onSaved?: (workflow_id: string, updated_ts: number) => void;
-  // Called when the server returns 409. The caller decides how to
-  // surface it (typically a modal with "reload" that fetches the
-  // fresh draft). Until the caller resolves it (by unmounting or
-  // remounting the hook with the fresh ``initialBaseUpdatedTs``),
-  // autosave stays parked in ``conflict``.
-  onConflict?: (detail: WorkflowConflictDetail) => void;
+  // Called when the server returns 409 or 428, OR when the caller
+  // pushes a ``markConflict`` in response to a WS ``workflow_updated``
+  // arriving on a dirty tab. Until the caller resolves it (typically
+  // by reloading the fresh draft), autosave stays parked in
+  // ``conflict``.
+  onConflict?: (
+    detail: WorkflowConflictDetail | WorkflowPreconditionRequiredDetail,
+  ) => void;
   // Initial ``updated_ts`` for the loaded draft, so the FIRST save
   // includes it. ``undefined`` means "this is a brand-new draft, no
   // guard yet" (first save will mint the row + a ts).
@@ -128,6 +168,17 @@ export function useDraftAutosave(opts: {
           console.warn("autosave conflict — server row has moved past ours", err);
           setStatus("conflict");
           opts.onConflict?.(err.detail);
+        } else if (isWorkflowPreconditionRequired(err)) {
+          // Legacy tab / stale bundle: we sent no base_updated_ts and
+          // the row exists. The server refused rather than clobber. Park
+          // in conflict so the pill goes red — the recovery path is a
+          // reload that re-hydrates the fresh draft and mints a base_ts.
+          console.warn(
+            "autosave rejected — save missed base_updated_ts on an existing row",
+            err,
+          );
+          setStatus("conflict");
+          opts.onConflict?.(err.detail);
         } else {
           console.warn("autosave failed", err);
           setStatus(navigator.onLine === false ? "offline" : "error");
@@ -146,8 +197,8 @@ export function useDraftAutosave(opts: {
   useEffect(() => {
     if (!opts.enabled) return;
     // In ``conflict`` we've been told our base is stale — retrying
-    // just re-fires the same 409. Park until the caller resolves it
-    // (usually by hydrating the fresh draft and remounting).
+    // just re-fires the same 409/428. Park until the caller resolves it
+    // (usually by hydrating the fresh draft and remounting / markClean).
     if (status === "conflict") return;
     if (opts.serialisedSnapshot === "") return;
     if (opts.serialisedSnapshot === lastSavedSerialised.current) return;
@@ -200,5 +251,26 @@ export function useDraftAutosave(opts: {
     return () => window.removeEventListener("online", onOnline);
   }, [status, doSave]);
 
-  return { status, save: doSave };
+  const resync = useCallback((updatedTs: number | undefined) => {
+    // Reset to fresh-mount state. Reusing the first-hydration guard in
+    // the effect above: the next non-empty serialised form the effect
+    // observes will be stamped as the new ``lastSavedSerialised`` and
+    // no save fires. Callers should call this BEFORE they mutate the
+    // draft state (so the effect's next tick reads the loaded state,
+    // not the previous workflow's).
+    lastSavedSerialised.current = "";
+    savedOnce.current = false;
+    baseUpdatedTs.current = updatedTs;
+    setStatus("idle");
+  }, []);
+
+  const markConflict = useCallback(
+    (detail: WorkflowConflictDetail) => {
+      setStatus("conflict");
+      opts.onConflict?.(detail);
+    },
+    [opts],
+  );
+
+  return { status, save: doSave, resync, markConflict };
 }

@@ -81,6 +81,7 @@ from hololab.gateway.workflows import (
     PackHandle,
     WorkflowConflict,
     WorkflowGraph,
+    WorkflowPreconditionRequired,
     WorkflowStore,
     agent_graph_dict,
     issues_to_json,
@@ -117,6 +118,7 @@ from hololab.protocol import (
     Register,
     RegisterErr,
     RegisterOk,
+    WorkflowUpdated,
     decode,
     encode,
     negotiate_version,
@@ -1355,15 +1357,30 @@ def _mount_routes(app: FastAPI) -> None:
         summary="Create or update a workflow draft.",
     )
     async def save_workflow(body: dict[str, Any]) -> dict[str, Any]:
-        """Upsert a draft. Body: ``{workflow_id?, name, graph, base_updated_ts?}``.
+        """Upsert a draft. Body: ``{workflow_id?, name, graph, base_updated_ts?, overwrite?, origin?}``.
 
-        ``base_updated_ts`` (optional) is the ``updated_ts`` the client last
-        observed. When present and the persisted row has moved past it, the
-        endpoint returns **409** with the current row so the client can
-        reconcile instead of clobbering a concurrent edit — the "stale
-        Chrome tab autosaved over an agent's edit" bug that reappeared in
-        practice. Omitting it keeps the legacy last-write-wins path (a
-        warning is logged server-side; safe for one-off scripts/agents).
+        Concurrency contract (see docs/workflow-schema.md#optimistic-lock):
+
+        * Mint (``workflow_id`` absent OR row does not yet exist): always
+          200, ``base_updated_ts`` optional.
+        * Update (``workflow_id`` names an existing row): **must** carry
+          ``base_updated_ts`` — the ``updated_ts`` the caller last observed.
+          - matches → 200, row is bumped.
+          - mismatches → 409 with the current row so the caller can
+            reconcile.
+          - absent → 428 Precondition Required, current row attached.
+            The old "no base_ts → warning + last-write-wins" leak that
+            let stale-bundle Chrome tabs and unaware scripts clobber
+            fresh edits is closed.
+        * Escape hatch for trusted, intentional overwrites (e.g. the
+          gateway's own restore-from-snapshot handler): send
+          ``overwrite: true`` — the CAS is skipped but the broadcast
+          still fires so live watchers re-hydrate.
+
+        On success the gateway also emits a ``workflow_updated`` frame on
+        the frontend WS so every open tab of this workflow can sync
+        without polling. ``origin`` (opaque per-tab id) is echoed on the
+        broadcast so the initiating tab ignores its own round-trip.
         """
 
         try:
@@ -1387,6 +1404,16 @@ def _mount_routes(app: FastAPI) -> None:
                 status_code=400,
                 detail="base_updated_ts must be a number if provided",
             )
+        overwrite = bool(body.get("overwrite", False))
+        origin_raw = body.get("origin")
+        origin: str | None = None
+        if origin_raw is not None:
+            if not isinstance(origin_raw, str):
+                raise HTTPException(
+                    status_code=400,
+                    detail="origin must be a string if provided",
+                )
+            origin = origin_raw
 
         try:
             row = await app.state.workflows.save_draft(
@@ -1394,6 +1421,7 @@ def _mount_routes(app: FastAPI) -> None:
                 name=name,
                 graph=graph,
                 base_updated_ts=base_ts,
+                require_base_updated_ts=not overwrite,
             )
         except WorkflowConflict as conflict:
             current = conflict.current
@@ -1416,6 +1444,45 @@ def _mount_routes(app: FastAPI) -> None:
                     },
                 },
             ) from conflict
+        except WorkflowPreconditionRequired as pr:
+            current = pr.current
+            raise HTTPException(
+                status_code=428,
+                detail={
+                    "code": "workflow_precondition_required",
+                    "message": (
+                        "workflow already exists and this save carried no "
+                        "base_updated_ts — thread the last observed updated_ts "
+                        "through to enable the concurrent-edit guard, or send "
+                        "'overwrite: true' for an intentional unconditional write"
+                    ),
+                    "current": {
+                        "workflow_id": current.workflow_id,
+                        "name": current.name,
+                        "graph": current.graph.model_dump(mode="json"),
+                        "created_ts": current.created_ts,
+                        "updated_ts": current.updated_ts,
+                    },
+                },
+            ) from pr
+
+        # Layer-3: push the update to every subscribed frontend. Same
+        # WS the canvas already uses for job/node events — no new socket,
+        # no polling. ``origin`` echoes back so the initiating tab knows
+        # to skip its own round-trip (the tab already ran the state
+        # transition locally via ``onSaved``).
+        hub: FrontendHub = app.state.hub
+        hub.broadcast(
+            encode(
+                "workflow_updated",
+                WorkflowUpdated(
+                    workflow_id=row.workflow_id,
+                    name=row.name,
+                    updated_ts=row.updated_ts,
+                    origin=origin,
+                ),
+            )
+        )
 
         return {
             "workflow_id": row.workflow_id,
@@ -1882,8 +1949,24 @@ def _mount_routes(app: FastAPI) -> None:
         if draft is None:
             raise HTTPException(status_code=404, detail="workflow not found")
 
+        # Intentional overwrite — the user explicitly asked to clone this
+        # snapshot's params back onto the draft, so skip the base_ts CAS.
         row = await app.state.workflows.save_draft(
             workflow_id=workflow_id, name=draft.name, graph=snap.graph
+        )
+        # Layer-3: broadcast so any live tab picks up the freshly-restored
+        # graph and re-hydrates its canvas without a manual reload.
+        hub: FrontendHub = app.state.hub
+        hub.broadcast(
+            encode(
+                "workflow_updated",
+                WorkflowUpdated(
+                    workflow_id=row.workflow_id,
+                    name=row.name,
+                    updated_ts=row.updated_ts,
+                    origin=None,
+                ),
+            )
         )
         return {
             "workflow_id": row.workflow_id,

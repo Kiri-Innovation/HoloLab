@@ -39,6 +39,17 @@ export interface NodeOfflinePayload {
   node_id: string;
   reason: string;
 }
+// ``workflow_updated`` — pushed by the gateway on every successful
+// ``POST /api/workflows``. Every open tab of the affected workflow
+// uses it to sync without polling; the initiating tab compares
+// ``origin`` against its own per-tab id and ignores the round-trip
+// of its own edit.
+export interface WorkflowUpdatedPayload {
+  workflow_id: string;
+  name: string;
+  updated_ts: number;
+  origin: string | null;
+}
 export interface JobUpdatePayload {
   job_id: string;
   state: string;

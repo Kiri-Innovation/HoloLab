@@ -15,6 +15,7 @@ from hololab.gateway.workflows import (
     PackHandle,
     WorkflowConflict,
     WorkflowGraph,
+    WorkflowPreconditionRequired,
     WorkflowStore,
     graph_from_json,
     graph_to_json,
@@ -399,5 +400,50 @@ async def test_save_draft_base_ts_ignored_for_new_workflow(tmp_path: Path) -> No
             base_updated_ts=123.456,  # never existed; no conflict
         )
         assert row.workflow_id == "00000000-0000-0000-0000-000000000000"
+    finally:
+        await db.close()
+
+
+async def test_save_draft_require_base_ts_raises_on_existing_row(tmp_path: Path) -> None:
+    """When ``require_base_updated_ts=True`` and the row exists, the store
+    refuses the update instead of quietly last-write-wins."""
+    db = await open_database(tmp_path / "wf.sqlite")
+    try:
+        store = WorkflowStore(db)
+        graph = _linear_chain(2)
+        first = await store.save_draft(workflow_id=None, name="w", graph=graph)
+        with pytest.raises(WorkflowPreconditionRequired) as ex:
+            await store.save_draft(
+                workflow_id=first.workflow_id,
+                name="stale",
+                graph=graph,
+                require_base_updated_ts=True,
+            )
+        assert ex.value.current.name == "w"
+        current = await store.get_draft(first.workflow_id)
+        assert current is not None
+        assert current.name == "w"
+    finally:
+        await db.close()
+
+
+async def test_save_draft_require_base_ts_allows_new_row(tmp_path: Path) -> None:
+    """``require_base_updated_ts=True`` still allows minting a brand-new row.
+
+    The gate only fires on an UPDATE where the row already exists — a
+    first save with a named workflow_id (e.g. the frontend hoisting the
+    minted id into the URL between page loads) must not 428.
+    """
+    db = await open_database(tmp_path / "wf.sqlite")
+    try:
+        store = WorkflowStore(db)
+        graph = _linear_chain(2)
+        row = await store.save_draft(
+            workflow_id="fresh-id",
+            name="w",
+            graph=graph,
+            require_base_updated_ts=True,
+        )
+        assert row.workflow_id == "fresh-id"
     finally:
         await db.close()

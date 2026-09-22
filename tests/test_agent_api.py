@@ -902,9 +902,17 @@ def test_save_workflow_conflict_returns_409_with_current_row(tmp_path: Path) -> 
         t0 = r0.json()["updated_ts"]
 
         # Agent (or another tab) bumps the row → ts moves to T1.
+        # Under the new 428 rule the update MUST carry either a
+        # base_updated_ts or an explicit overwrite flag; a well-behaved
+        # agent knows the current ts, so it threads it through.
         r1 = client.post(
             "/api/workflows",
-            json={"workflow_id": wid, "name": "by-agent", "graph": {"nodes": [], "edges": []}},
+            json={
+                "workflow_id": wid,
+                "name": "by-agent",
+                "graph": {"nodes": [], "edges": []},
+                "base_updated_ts": t0,
+            },
         )
         assert r1.status_code == 200
         t1 = r1.json()["updated_ts"]
@@ -964,6 +972,149 @@ def test_save_workflow_rejects_non_numeric_base_ts(tmp_path: Path) -> None:
                 "name": "w",
                 "graph": {"nodes": [], "edges": []},
                 "base_updated_ts": "not-a-number",
+            },
+        )
+        assert r.status_code == 400, r.text
+
+
+def test_save_workflow_update_without_base_ts_returns_428(tmp_path: Path) -> None:
+    """Layer-2: update on an existing row without ``base_updated_ts`` → 428.
+
+    Reproduces the "stale bundle Chrome tab clobbers fresh edits" bug:
+    a tab still running the pre-optimistic-lock code sends no
+    base_updated_ts. Previously the server logged a warning and let the
+    write clobber the row. Now the server refuses with 428 and returns
+    the current row, so the stale tab surfaces the conflict instead of
+    silently overwriting a fresh agent / other-tab edit.
+    """
+    app = create_app(db_path=tmp_path / "precond.sqlite")
+    with TestClient(app) as client:
+        r0 = client.post("/api/workflows", json=_minimal_graph_body("w"))
+        assert r0.status_code == 200
+        wid = r0.json()["workflow_id"]
+        t0 = r0.json()["updated_ts"]
+
+        # Stale bundle: no base_updated_ts on an update → 428.
+        r1 = client.post(
+            "/api/workflows",
+            json={
+                "workflow_id": wid,
+                "name": "by-stale-bundle",
+                "graph": {"nodes": [], "edges": []},
+            },
+        )
+        assert r1.status_code == 428, r1.text
+        detail = r1.json()["detail"]
+        assert detail["code"] == "workflow_precondition_required"
+        assert detail["current"]["name"] == "w"
+        assert detail["current"]["updated_ts"] == t0
+
+        # Row must be unchanged.
+        r2 = client.get(f"/api/workflows/{wid}")
+        assert r2.status_code == 200
+        assert r2.json()["name"] == "w"
+
+
+def test_save_workflow_overwrite_flag_bypasses_precondition(tmp_path: Path) -> None:
+    """``overwrite: true`` is the documented opt-out for trusted callers.
+
+    Scripts / agents that intentionally clobber (e.g. an ops tool restoring
+    a graph verbatim) don't need to thread base_updated_ts through; they
+    send ``overwrite: true`` and the CAS is skipped. The broadcast still
+    fires so live watchers re-hydrate — the opt-out doesn't silently hide
+    the write from other tabs.
+    """
+    app = create_app(db_path=tmp_path / "overwrite.sqlite")
+    with TestClient(app) as client:
+        r0 = client.post("/api/workflows", json=_minimal_graph_body("w"))
+        wid = r0.json()["workflow_id"]
+
+        r1 = client.post(
+            "/api/workflows",
+            json={
+                "workflow_id": wid,
+                "name": "clobber",
+                "graph": {"nodes": [], "edges": []},
+                "overwrite": True,
+            },
+        )
+        assert r1.status_code == 200, r1.text
+
+        r2 = client.get(f"/api/workflows/{wid}")
+        assert r2.json()["name"] == "clobber"
+
+
+def test_save_workflow_new_id_without_base_ts_is_allowed(tmp_path: Path) -> None:
+    """Minting a NEW workflow (workflow_id absent) does not require base_ts.
+
+    The 428 gate only fires on an UPDATE where the row already exists.
+    Fresh drafts (Gallery "new workflow" / a first-time script POST) go
+    through as 200 so we don't regress the create path.
+    """
+    app = create_app(db_path=tmp_path / "mint.sqlite")
+    with TestClient(app) as client:
+        r = client.post("/api/workflows", json=_minimal_graph_body("w"))
+        assert r.status_code == 200, r.text
+        assert r.json()["workflow_id"]
+
+
+def test_save_workflow_broadcasts_workflow_updated(tmp_path: Path) -> None:
+    """Layer-3: every successful save fires a ``workflow_updated`` broadcast.
+
+    Verifies the frontend-fanout hook — we don't spin up a real WS
+    client here; instead we monkey-patch ``FrontendHub.broadcast`` and
+    assert the envelope was enqueued with the expected payload
+    (workflow_id / updated_ts / echoed origin).
+    """
+    app = create_app(db_path=tmp_path / "broadcast.sqlite")
+    with TestClient(app) as client:
+        captured: list[str] = []
+        original_broadcast = app.state.hub.broadcast
+
+        def _capture(frame: str) -> None:
+            captured.append(frame)
+            original_broadcast(frame)
+
+        app.state.hub.broadcast = _capture  # type: ignore[assignment]
+
+        r0 = client.post(
+            "/api/workflows",
+            json={**_minimal_graph_body("w"), "origin": "tab-A"},
+        )
+        assert r0.status_code == 200
+
+        # Filter to workflow_updated frames — the same hub also carries
+        # node lifecycle events on other tests, but this test's DB is
+        # fresh and no nodes are registered.
+        wf_frames = []
+        for f in captured:
+            data = _json_loads(f)
+            if data.get("kind") == "workflow_updated":
+                wf_frames.append(data)
+        assert len(wf_frames) == 1
+        payload = wf_frames[0]["payload"]
+        assert payload["workflow_id"] == r0.json()["workflow_id"]
+        assert payload["updated_ts"] == r0.json()["updated_ts"]
+        assert payload["origin"] == "tab-A"
+        assert payload["name"] == "w"
+
+
+def _json_loads(raw: str) -> dict[str, object]:
+    import json as _json
+
+    return _json.loads(raw)
+
+
+def test_save_workflow_origin_type_validation(tmp_path: Path) -> None:
+    """A non-string ``origin`` field is a 400, not a 500."""
+    app = create_app(db_path=tmp_path / "origin-bad.sqlite")
+    with TestClient(app) as client:
+        r = client.post(
+            "/api/workflows",
+            json={
+                "name": "w",
+                "graph": {"nodes": [], "edges": []},
+                "origin": 123,
             },
         )
         assert r.status_code == 400, r.text

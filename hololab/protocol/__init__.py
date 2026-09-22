@@ -43,6 +43,7 @@ from hololab.protocol.messages import (
     Register,
     RegisterErr,
     RegisterOk,
+    WorkflowUpdated,
 )
 
 __all__ = [
@@ -79,6 +80,7 @@ __all__ = [
     "Register",
     "RegisterErr",
     "RegisterOk",
+    "WorkflowUpdated",
     "decode",
     "encode",
     "negotiate_version",
