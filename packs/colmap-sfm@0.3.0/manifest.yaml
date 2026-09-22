@@ -1,0 +1,186 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-sfm
+version: 0.3.0
+description: >
+  Run COLMAP Structure-from-Motion on a set of images and emit a
+  ``colmap-cams`` bundle (poses + intrinsics, no points) alongside a
+  separate ``point-cloud`` output. Renamed from ``colmap-sfm-cams-only``;
+  the "cams-only" wart is gone because points now leave through their
+  own port.
+category: "reconstruction/colmap"
+
+docs: |
+  Wrapper around the vanilla COLMAP CLI — ``feature_extractor`` +
+  ``exhaustive_matcher`` + ``mapper``. Same SIFT / matcher / BA config
+  as ``colmap-sfm-cams-only@0.2.0``; the only wire change is that the
+  reference-frame point cloud is exported on its own output port.
+
+  ### Type-system refactor (2026-09-22)
+
+  Under the new HoloLab type contract, the four COLMAP-flavour data
+  classes are declared separately so a downstream node can consume
+  exactly what it needs:
+
+  * ``colmap-cams``   — poses + intrinsics bundle (this pack's ``cams``).
+  * ``point-cloud``   — 3-D point cloud (this pack's ``points``).
+  * ``colmap-folder`` — full sparse folder (sparse/0/ + images/).
+                        Produced by ``merge-colmap``, not by this pack.
+  * ``image``         — image sequence(s).
+
+  The old ``colmap-cams`` tag (from @0.2.0) conflated "poses + intrinsics
+  + points" into a single directory; the ``sparse/0/points3D.txt`` under
+  the ``cams`` output was documented as a "bonus" downstream densifiers
+  happened to depend on. The 2026-09-22 refactor moves points onto their
+  own type; ``colmap-triangulate@0.7.0`` and ``merge-colmap@0.1.0``
+  consume them from the new ``points`` port.
+
+  ### What's baked in (unchanged from @0.2.0)
+
+  * ``feature_extractor --ImageReader.single_camera 1 --ImageReader.camera_model OPENCV``
+    — 21 rig cams share one OPENCV intrinsic. Mirrors
+    ``SpacetimeGaussians/thirdparty/gaussian_splatting/convert.py:65-66``.
+  * ``exhaustive_matcher`` (no ``guided_matching`` — original doesn't set it).
+  * ``mapper --Mapper.ba_global_function_tolerance=0.000001`` — tight
+    BA tolerance from the STG ``pre_no_prior`` recipe.
+  * SIFT defaults 8192 features, 3200 px cap.
+  * GPU-option name auto-detection for COLMAP 3.12 vs 3.13+.
+
+  Output layout::
+
+      cams/                              # tag: colmap-cams
+        cameras.txt    # 1 OPENCV entry (single_camera=1)
+        images.txt     # N rig-cam poses
+      points/                            # tag: point-cloud
+        points3D.txt   # ref-frame SfM point cloud
+
+  Downstream ``colmap-triangulate@0.7.0`` picks up ``cams`` for the
+  OPENCV prior; the ``points`` output feeds ``merge-colmap@0.1.0`` when
+  a full-folder assembly is required.
+
+inputs:
+  frames:
+    tags: [image]
+    description: "One camera's (or one time-slice's) images — an SfM-runnable set."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  max_image_size:
+    type: int
+    default: 3200
+    min: 512
+    description: "SIFT downscale cap (--SiftExtraction.max_image_size). Matches COLMAP default."
+  max_num_features:
+    type: int
+    default: 8192
+    min: 512
+    description: "SIFT feature cap per image. Matches COLMAP default."
+
+outputs:
+  cams:
+    tags: [colmap-cams]
+    description: >
+      COLMAP text-format cameras.txt + images.txt in the OPENCV model
+      (single shared rig intrinsic). No points3D.txt here — that
+      lives on the ``points`` output.
+  points:
+    tags: [point-cloud]
+    description: >
+      COLMAP text-format points3D.txt — reference-frame SfM point
+      cloud. Fed into ``merge-colmap`` (or any downstream densifier).
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    FRAMES_HANDLE="{{ inputs.frames }}"
+    OUT_CAMS="{{ outputs.cams }}"
+    OUT_POINTS="{{ outputs.points }}"
+    DB="{{ scratch_dir }}/database.db"
+    SPARSE_ROOT="{{ scratch_dir }}/sparse"
+
+    if compgen -G "$FRAMES_HANDLE"/*.png > /dev/null || \
+       compgen -G "$FRAMES_HANDLE"/*.jpg > /dev/null || \
+       compgen -G "$FRAMES_HANDLE"/*.jpeg > /dev/null; then
+      IMG_DIR="$FRAMES_HANDLE"
+    elif [ -d "$FRAMES_HANDLE/frames" ]; then
+      IMG_DIR="$FRAMES_HANDLE/frames"
+    else
+      echo "ERROR: no images at $FRAMES_HANDLE or its frames/ subdir" >&2
+      exit 2
+    fi
+
+    mkdir -p "$OUT_CAMS" "$OUT_POINTS" "$SPARSE_ROOT"
+
+    if colmap feature_extractor -h 2>&1 | grep -q 'FeatureExtraction.use_gpu'; then
+      GPU_OPT_EXTRACT=FeatureExtraction.use_gpu
+      GPU_OPT_MATCH=FeatureMatching.use_gpu
+    else
+      GPU_OPT_EXTRACT=SiftExtraction.use_gpu
+      GPU_OPT_MATCH=SiftMatching.use_gpu
+    fi
+    echo "[colmap-sfm/0.3.0] GPU option: --$GPU_OPT_EXTRACT / --$GPU_OPT_MATCH"
+
+    echo "[colmap-sfm/0.3.0] feature_extractor (single_camera=1, OPENCV)"
+    colmap feature_extractor \
+      --database_path "$DB" \
+      --image_path "$IMG_DIR" \
+      --ImageReader.single_camera 1 \
+      --ImageReader.camera_model OPENCV \
+      --SiftExtraction.max_image_size {{ params.max_image_size }} \
+      --SiftExtraction.max_num_features {{ params.max_num_features }} \
+      --"$GPU_OPT_EXTRACT" {{ params.use_gpu }}
+
+    echo "[colmap-sfm/0.3.0] exhaustive_matcher"
+    colmap exhaustive_matcher \
+      --database_path "$DB" \
+      --"$GPU_OPT_MATCH" {{ params.use_gpu }}
+
+    echo "[colmap-sfm/0.3.0] mapper (ba_global_function_tolerance=1e-6)"
+    colmap mapper \
+      --database_path "$DB" \
+      --image_path "$IMG_DIR" \
+      --output_path "$SPARSE_ROOT" \
+      --Mapper.ba_global_function_tolerance=0.000001
+
+    MODEL0="$SPARSE_ROOT/0"
+    if [ ! -d "$MODEL0" ]; then
+      echo "ERROR: COLMAP mapper produced no reconstruction under $SPARSE_ROOT" >&2
+      exit 3
+    fi
+
+    # Convert to TXT once into a scratch dir, then split cameras+images
+    # into ``cams/`` and points3D into ``points/``.
+    TXT_SCRATCH="{{ scratch_dir }}/txt"
+    mkdir -p "$TXT_SCRATCH"
+    echo "[colmap-sfm/0.3.0] model_converter → TXT"
+    colmap model_converter \
+      --input_path "$MODEL0" \
+      --output_path "$TXT_SCRATCH" \
+      --output_type TXT
+
+    # Same rigs/frames.txt strip as @0.2.0 — leaving them attached would
+    # trip downstream triangulate's DB-cache invariants.
+    rm -f "$TXT_SCRATCH/rigs.txt" "$TXT_SCRATCH/frames.txt"
+
+    cp -f "$TXT_SCRATCH/cameras.txt" "$OUT_CAMS/cameras.txt"
+    cp -f "$TXT_SCRATCH/images.txt"  "$OUT_CAMS/images.txt"
+    cp -f "$TXT_SCRATCH/points3D.txt" "$OUT_POINTS/points3D.txt"
+
+    test -s "$OUT_CAMS/cameras.txt"       || { echo "no cameras.txt produced" >&2; exit 4; }
+    test -s "$OUT_CAMS/images.txt"        || { echo "no images.txt produced" >&2; exit 4; }
+    test -s "$OUT_POINTS/points3D.txt"    || { echo "no points3D.txt produced" >&2; exit 4; }
+    echo "[colmap-sfm/0.3.0] done → cams:$OUT_CAMS points:$OUT_POINTS"
+
+idempotency:
+  marker: "{{ outputs.cams }}/.hololab-done"

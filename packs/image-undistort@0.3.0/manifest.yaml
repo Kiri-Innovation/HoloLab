@@ -1,0 +1,104 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: image-undistort
+version: 0.3.0
+description: >
+  Undistort one (``intr``, ``image``) pair via COLMAP's
+  ``image_undistorter``. Scalar-per-invocation; caller fans out by
+  wiring arrayed inputs.
+source_entry: undistort.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### Type-system refactor (2026-09-22)
+
+  ``@0.3.0`` retags the input / output shape onto the new type surface:
+
+  * Old (``@0.2.0``): ``colmap-cameras-txt`` (scalar bundle of many
+    intrinsic rows) + ``image`` → same shape out.
+  * New (``@0.3.0``): ``intr`` + ``image`` (both per-cam) → ``intr``
+    (PINHOLE) + ``image`` (undistorted). The pack is meant to be
+    driven by an arrayed<intr> + arrayed<image> pair — one shard per
+    camera, with the framework's element-set zip enforcing that both
+    arrays enumerate the same camera set.
+
+  The rest of the script is unchanged from ``@0.2.0``:
+
+  1. Hardlink the input image into a clean scratch dir with flat names
+     (COLMAP resolves symlinks while walking ``--image_path``, which
+     would otherwise push ``image_undistorter`` outputs outside the
+     deliverable).
+  2. Write a scratch sparse model with the input's ``cameras.txt``
+     copied verbatim plus a synthesised identity ``images.txt``
+     (undistortion is *intrinsic* — extrinsics don't move pixels, so
+     identity poses give bit-identical output to real ones).
+  3. Run ``colmap image_undistorter --output_type COLMAP``.
+  4. Publish the PINHOLE ``cameras.txt`` and the undistorted image.
+
+  ### Fan-out contract
+
+  Wire arrayed<intr> and arrayed<image> in and enable
+  ``arrayed_toggle``. The framework element-set-zips the two arrays by
+  subdir name (see ``_discover_element_ids`` in
+  ``hololab/gateway/execution.py``) and dispatches one shard per
+  matched element. Both inputs are declared ``scalar: false`` so both
+  participate in the zip.
+
+arrayable: true
+
+inputs:
+  intr:
+    tags: [intr]
+    description: >
+      Per-cam camera intrinsic (cameras.txt with one OPENCV row).
+      Fan-out participant — one shard per element of the array.
+  image:
+    tags: [image]
+    description: >
+      Per-cam image (or per-cam image sequence). Fan-out participant.
+
+params:
+  blank_pixels:
+    type: int
+    default: 0
+    min: 0
+    max: 1
+    description: >
+      Pass-through to ``image_undistorter --blank_pixels``. 0 (default)
+      crops out invalid regions; 1 keeps the original size and fills
+      with black.
+
+outputs:
+  intr:
+    tags: [intr]
+    scalar: true
+    dim_labels: ["cam"]
+    description: >
+      PINHOLE cameras.txt emitted by image_undistorter. Scalar per
+      shard; framework aggregates into arrayed<intr>.
+  image:
+    tags: [image]
+    scalar: true
+    dim_labels: ["cam"]
+    description: >
+      Undistorted image(s), at the PINHOLE resolution — files sit
+      directly under the handle root (post flatten migration).
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/undistort.py" \
+      --intr "{{ inputs.intr }}" \
+      --image "{{ inputs.image }}" \
+      --intr-out "{{ outputs.intr }}" \
+      --image-out "{{ outputs.image }}" \
+      --scratch "{{ scratch_dir }}" \
+      --blank-pixels {{ params.blank_pixels }}
+
+idempotency:
+  marker: "{{ outputs.intr }}/.hololab-done"

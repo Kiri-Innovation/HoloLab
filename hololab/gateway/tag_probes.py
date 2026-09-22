@@ -147,19 +147,140 @@ def _probe_colmap_images_txt(path: Path) -> ProbeResult | None:
 
 
 def _probe_colmap_cams(path: Path) -> ProbeResult | None:
-    """Count calibrated views in a colmap-cams bundle (cameras + images).
+    """Two-metric probe for a colmap-cams bundle (poses + intrinsics, no points).
 
-    The sfm-cams-only output dir contains ``cameras.txt`` (intrinsics,
-    often 1 shared model) and ``images.txt`` (one pose per view). The
-    view count from ``images.txt`` is the most useful number — it tells
-    how many physical cameras were calibrated. ``label="cam"`` conveys
-    "physical cameras" rather than "camera models".
+    The bundle dir contains ``cameras.txt`` (one row per distinct camera
+    intrinsic — often 1 shared OPENCV model) and ``images.txt`` (one row
+    per pose). Emits both counts so the chip reads
+    ``colmap-cams(pose:21 intr:1)``.
+
+    Note this tag deliberately does NOT include ``points3D.txt``: the
+    ``colmap-sfm`` node emits point clouds on a separate ``point-cloud``
+    port. Callers wanting a full sparse folder use ``colmap-folder``.
     """
-    txt = path / "images.txt" if path.is_dir() else path
-    n = _parse_colmap_header_count(txt, "Number of images:")
-    if n is not None:
-        return ProbeResult(count=n, kind="views", items=(ProbeItem("cam", n),))
+    if not path.is_dir():
+        return None
+    pose_n = _parse_colmap_header_count(path / "images.txt", "Number of images:")
+    intr_n = _count_colmap_cameras_rows(path / "cameras.txt")
+    if pose_n is None and intr_n is None:
+        return None
+    items: list[ProbeItem] = []
+    if pose_n is not None:
+        items.append(ProbeItem("pose", pose_n))
+    if intr_n is not None:
+        items.append(ProbeItem("intr", intr_n))
+    first_val = pose_n if pose_n is not None else intr_n
+    assert first_val is not None
+    return ProbeResult(count=first_val, kind="cams", items=tuple(items))
+
+
+def _count_colmap_cameras_rows(txt: Path) -> int | None:
+    """Count data rows in a COLMAP ``cameras.txt`` (one per camera intrinsic)."""
+    if not txt.is_file():
+        return None
+    try:
+        count = 0
+        with txt.open("r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                s = line.strip()
+                if not s or s.startswith("#"):
+                    continue
+                count += 1
+    except OSError:
+        return None
+    return count
+
+
+def _probe_point_cloud(path: Path) -> ProbeResult | None:
+    """Count 3-D points in a ``point-cloud`` handle.
+
+    Currently only COLMAP-text ``points3D.txt`` is recognised (native
+    format used by the ``colmap-sfm`` / ``colmap-triangulate`` chain).
+    A future ``.ply`` variant plugs in here — probe returns ``None`` when
+    no recognised file is present so callers degrade to size-only.
+    """
+    if not path.is_dir():
+        return None
+    for candidate in (path / "points3D.txt", path / "sparse" / "0" / "points3D.txt"):
+        n = _parse_colmap_header_count(candidate, "Number of points:")
+        if n is not None:
+            return ProbeResult(count=n, kind="points", items=(ProbeItem("pt", n),))
     return None
+
+
+def _probe_colmap_folder(path: Path) -> ProbeResult | None:
+    """Four-metric probe for a full ``colmap-folder`` handle.
+
+    Emits ``pose:N intr:M pt:X img:K`` where present:
+
+    * ``pose`` — rows in ``sparse/0/images.txt`` (or root ``images.txt``)
+    * ``intr`` — rows in ``sparse/0/cameras.txt``
+    * ``pt``   — rows in ``sparse/0/points3D.txt``
+    * ``img``  — files under ``images/`` (present for the "with images"
+                 assembly mode; absent for the sparse-only mode)
+
+    Items with 0 value are still reported so the frontend can suppress
+    zeros by its own convention; the whole probe returns ``None`` only
+    when none of the four are readable.
+    """
+    if not path.is_dir():
+        return None
+    sparse0 = path / "sparse" / "0"
+    recon_root = sparse0 if sparse0.is_dir() else path
+
+    pose_n = _parse_colmap_header_count(recon_root / "images.txt", "Number of images:")
+    intr_n = _count_colmap_cameras_rows(recon_root / "cameras.txt")
+    pt_n = _parse_colmap_header_count(recon_root / "points3D.txt", "Number of points:")
+
+    img_n: int | None = None
+    images_dir = path / "images"
+    if images_dir.is_dir():
+        try:
+            img_n = sum(
+                1 for c in images_dir.iterdir() if c.is_file() and not c.name.startswith(".")
+            )
+        except OSError:
+            img_n = None
+
+    if pose_n is None and intr_n is None and pt_n is None and img_n is None:
+        return None
+
+    items: list[ProbeItem] = []
+    for label, val in (("pose", pose_n), ("intr", intr_n), ("pt", pt_n), ("img", img_n)):
+        if val is not None:
+            items.append(ProbeItem(label, val))
+    first_val = next((v for v in (pose_n, intr_n, pt_n, img_n) if v is not None), 0)
+    return ProbeResult(count=first_val, kind="cams+points", items=tuple(items))
+
+
+def _probe_pose(path: Path) -> ProbeResult | None:
+    """Count pose rows in a ``pose`` handle (COLMAP ``images.txt`` fragment).
+
+    A ``pose`` element is one row of an ``images.txt`` file. The
+    per-element output of ``colmap-cam-decode`` is one such row per cam;
+    this probe surfaces ``pose:N`` for both the single-row leaf and any
+    accidental multi-row bundle (so a wrong tag choice is visible).
+    """
+    if not path.is_dir():
+        return None
+    n = _parse_colmap_header_count(path / "images.txt", "Number of images:")
+    if n is None:
+        return None
+    return ProbeResult(count=n, kind="poses", items=(ProbeItem("pose", n),))
+
+
+def _probe_intr(path: Path) -> ProbeResult | None:
+    """Count intrinsic rows in an ``intr`` handle (COLMAP ``cameras.txt`` fragment).
+
+    Analogue of :func:`_probe_pose`. One-row files render as ``intr:1``;
+    multi-row (a full rig) as ``intr:N``.
+    """
+    if not path.is_dir():
+        return None
+    n = _count_colmap_cameras_rows(path / "cameras.txt")
+    if n is None:
+        return None
+    return ProbeResult(count=n, kind="intrinsics", items=(ProbeItem("intr", n),))
 
 
 def _probe_colmap(path: Path) -> ProbeResult | None:
@@ -207,10 +328,23 @@ def _probe_colmap(path: Path) -> ProbeResult | None:
 # Tag → probe function. First match wins when a handle carries multiple
 # tags. Keep tags here in the same casing they appear in manifests.
 _REGISTRY: dict[str, ProbeFn] = {
+    # Legacy per-file tags (colmap-split era). Kept so historic handles
+    # still probe cleanly during replay.
     "colmap-cameras-txt": _probe_colmap_cameras_txt,
     "colmap-points-txt": _probe_colmap_points_txt,
     "colmap-images-txt": _probe_colmap_images_txt,
+    # New canonical type set (2026-09-22 refactor). ``colmap-cams`` no
+    # longer includes points; ``point-cloud`` is a separate type; the
+    # full-folder assembly gets ``colmap-folder``. See the type-system
+    # design in the 2026-09-22 refactor notes.
     "colmap-cams": _probe_colmap_cams,
+    "point-cloud": _probe_point_cloud,
+    "colmap-folder": _probe_colmap_folder,
+    "pose": _probe_pose,
+    "intr": _probe_intr,
+    # Legacy tag from colmap-triangulate@0.5.0..0.6.0 — a full self-contained
+    # per-frame folder. Superseded by ``colmap-folder`` in the new type
+    # system; kept in the registry so old handles still probe.
     "colmap": _probe_colmap,
 }
 

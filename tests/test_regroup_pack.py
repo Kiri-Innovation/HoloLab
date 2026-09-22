@@ -192,12 +192,12 @@ def test_tag_probe_colmap_images_txt_parses_header_comment(tmp_path: Path) -> No
     assert res.items == (ProbeItem("view", 21),)
 
 
-def test_tag_probe_colmap_cams_reads_view_count_from_images_txt(tmp_path: Path) -> None:
-    """colmap-cams probe extracts view count from ``images.txt`` comment.
+def test_tag_probe_colmap_cams_reads_pose_and_intr_counts(tmp_path: Path) -> None:
+    """colmap-cams probe emits ``pose:N intr:M`` (2026-09-22 refactor).
 
-    The SfM output dir has both cameras.txt (intrinsics, often 1 shared
-    model) and images.txt (one pose per physical camera view). Returns a
-    ``cam`` labeled item conveying "physical cameras calibrated".
+    Under the new type contract, ``colmap-cams`` is the poses + intrinsics
+    bundle (no points). Chip renders ``colmap-cams(pose:3 intr:1)`` — one
+    intrinsic shared across 3 poses is the canonical single_camera=1 shape.
     """
     from hololab.gateway.tag_probes import ProbeItem, internal_count_for
 
@@ -212,8 +212,8 @@ def test_tag_probe_colmap_cams_reads_view_count_from_images_txt(tmp_path: Path) 
     res = internal_count_for(["colmap-cams"], elem)
     assert res is not None
     assert res.count == 3
-    assert res.kind == "views"
-    assert res.items == (ProbeItem("cam", 3),)
+    assert res.kind == "cams"
+    assert res.items == (ProbeItem("pose", 3), ProbeItem("intr", 1))
 
 
 def test_tag_probe_colmap_reads_point_count_from_sparse(tmp_path: Path) -> None:

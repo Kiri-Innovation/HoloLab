@@ -1,0 +1,91 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: merge-colmap
+version: 0.1.0
+description: >
+  Assemble a ``colmap-folder`` from its parts. Two modes:
+  A (sparse-only) — ``colmap-cams`` + ``point-cloud`` → folder with
+  sparse/0/ populated; no images/ dir. B (with images) — same plus
+  ``arrayed<image>`` → folder with images/ populated by symlinks
+  matching the NAMEs referenced from ``images.txt``.
+source_entry: merge.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### Modes
+
+  * **Mode A — sparse-only.** Wire ``cams`` and ``points`` and leave
+    ``images`` unwired. The output has ``sparse/0/{cameras,images,
+    points3D}.txt`` but no ``images/`` directory. Chip reads
+    ``colmap-folder(pose:21, intr:1, pt:x)``.
+
+  * **Mode B — with images.** Wire ``cams``, ``points`` and ``images``.
+    The output additionally has ``images/`` populated by symlinking
+    each cam's image into place under the NAME referenced by
+    ``images.txt``. Chip reads ``colmap-folder(pose:21, intr:1, pt:x,
+    img:m)``.
+
+  The ``images`` input is declared ``required: false``. When unwired,
+  the pack skips the ``images/`` step. When wired it must be
+  ``arrayed<image>`` matching the pose set 1:1 by NAME.
+
+  ### Why symlinks
+
+  ``colmap-folder`` is a delivery format — every downstream consumer
+  reads it once and doesn't rewrite. Symlinking avoids copying
+  potentially hundreds of MB per assembly, at the cost of the target
+  path pinning the source alive. That's acceptable inside HoloLab's
+  artifact-tombstone model (deletion goes through the artifact
+  registry, which sees the whole subtree).
+
+  ### Not arrayable
+
+  Whole-array reshape — one process consumes the full arrayed<image>
+  input and writes N symlinks into a single output tree.
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    description: "Poses + intrinsics bundle."
+  points:
+    tags: [point-cloud]
+    description: "3-D point cloud (COLMAP points3D.txt)."
+  images:
+    tags: [image]
+    arrayed: true
+    required: false
+    dim_labels: ["cam"]
+    description: >
+      Optional arrayed<image> — one element per cam, matching poses by
+      NAME. Wire for Mode B; leave unwired for Mode A (sparse-only).
+
+outputs:
+  folder:
+    tags: [colmap-folder]
+    description: >
+      Full COLMAP folder: ``sparse/0/{cameras,images,points3D}.txt``
+      (+ optional ``images/`` when Mode B).
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    {% if 'images' in inputs %}
+    python "{{ pack_dir }}/merge.py" \
+      --cams "{{ inputs.cams }}" \
+      --points "{{ inputs.points }}" \
+      --images "{{ inputs.images }}" \
+      --out "{{ outputs.folder }}"
+    {% else %}
+    python "{{ pack_dir }}/merge.py" \
+      --cams "{{ inputs.cams }}" \
+      --points "{{ inputs.points }}" \
+      --out "{{ outputs.folder }}"
+    {% endif %}
+
+idempotency:
+  marker: "{{ outputs.folder }}/.hololab-done"

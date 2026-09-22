@@ -1,0 +1,90 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-cam-decode
+version: 0.1.0
+description: >
+  Explode a ``colmap-cams`` bundle (poses + intrinsics) into two arrayed
+  outputs — one ``pose`` per camera + one ``intr`` per camera — with
+  index alignment: element ``i`` on the ``poses`` output corresponds to
+  element ``i`` on the ``intrs`` output. When the input has a single
+  shared intrinsic (single_camera=1 rigs), that intrinsic is replicated
+  N times so both arrays have the same cardinality.
+source_entry: cam_decode.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### Purpose
+
+  ``colmap-cams`` packs 21 poses + 1 shared intrinsic into one bundle.
+  Downstream nodes that operate per-camera (``image-undistort``) want
+  the two decomposed with matching indices so a scalar zip can pair
+  each pose with its intrinsic. Doing that at the pack level here (a
+  cheap fan-out helper) keeps the wiring nodes on the canvas explicit
+  and typed.
+
+  ### Ordering contract
+
+  Element ordering is by NAME (COLMAP images.txt NAME field), sorted
+  lexicographically. The pack writes ``pose_000/``, ``pose_001/``, …
+  and ``intr_000/``, ``intr_001/``, … so element ``pose_i`` and
+  ``intr_i`` refer to the same physical camera.
+
+  **Do not** use COLMAP's IMAGE_ID as the index. IMAGE_ID is a DB
+  primary key set by ``feature_extractor`` at DB pre-fill time; it
+  doesn't reflect any physical camera ordering and can permute across
+  SfM re-runs. Sorting by NAME gives a stable, human-legible ordering
+  matching the camera dir names on disk.
+
+  ### Element layouts
+
+  * ``poses[i]/images.txt`` — one COLMAP images.txt row for camera i
+                              (pose only; observation line is empty).
+  * ``intrs[i]/cameras.txt`` — one COLMAP cameras.txt row.
+
+  Each element is a valid one-row COLMAP text file so downstream tools
+  that already speak the format (``image-undistort``, spot checks via
+  ``colmap model_converter``) accept them without translation.
+
+  ### Multi-intrinsic bundles
+
+  When the input has M distinct intrinsic rows (M > 1), each pose's
+  ``CAMERA_ID`` selects its intrinsic — the pack looks up that row and
+  writes it to the matching ``intrs[i]``. Element count on both arrays
+  equals the pose count; intrinsics are duplicated as needed so
+  ``intrs`` is index-aligned with ``poses``.
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    description: "colmap-cams bundle (cameras.txt + images.txt) to explode."
+
+outputs:
+  poses:
+    tags: [pose]
+    arrayed: true
+    dim_labels: ["cam"]
+    description: "arrayed<pose> — one pose element per camera, NAME-sorted."
+  intrs:
+    tags: [intr]
+    arrayed: true
+    dim_labels: ["cam"]
+    description: >
+      arrayed<intr> — one intr element per camera, index-aligned with
+      ``poses``. Replicated when the source bundle has fewer distinct
+      intrinsics than poses.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/cam_decode.py" \
+      --cams "{{ inputs.cams }}" \
+      --poses-out "{{ outputs.poses }}" \
+      --intrs-out "{{ outputs.intrs }}"
+
+idempotency:
+  marker: "{{ outputs.poses }}/.hololab-done"

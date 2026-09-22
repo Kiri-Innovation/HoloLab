@@ -1,0 +1,130 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-triangulate
+version: 0.7.0
+description: >
+  Per-frame triangulator — given fixed poses + intrinsics, solve the
+  3-D point cloud for one frame. Fan-outs one shard per element of
+  ``frames``; emits a ``point-cloud`` per shard. **No undistortion**:
+  ``@0.7.0`` splits the STG recipe so undistort lives in a separate
+  ``image-undistort`` step. Callers wanting the historical inline
+  behaviour should stay on ``colmap-triangulate@0.6.0``.
+source_entry: triangulate.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### Type-system refactor (2026-09-22)
+
+  Under the new type contract this pack does exactly one thing:
+  triangulation. Every other responsibility is on its own node:
+
+  * ``colmap-sfm@0.3.0``     — SfM solve (poses + intrinsics + first-frame points).
+  * ``image-undistort@0.3.0``— per-cam OPENCV → PINHOLE undistort.
+  * ``merge-colmap@0.1.0``   — pack the four artefacts into a ``colmap-folder``.
+
+  This node's input contract:
+
+  * ``cams``   — scalar ``colmap-cams`` bundle (broadcast to every shard).
+                 Must be a single-camera / OPENCV rig, per the SfM step.
+  * ``frames`` — per-frame images. Fan-out driver (one shard per element).
+
+  This node's output contract:
+
+  * ``points`` — freshly triangulated ``point-cloud`` for this shard.
+
+  Poses stay bit-for-bit identical to the SfM priors (``point_triangulator``
+  is a given-pose triangulator; it never adjusts poses). Intrinsics stay
+  fixed unless ``refine_intrinsics`` is set — but note that even when
+  refined, the drift stays inside the DB and is discarded, because this
+  pack no longer emits an intrinsics artefact. Set ``refine_intrinsics``
+  only when the caller intends to feed the refined intrinsics through a
+  companion path (currently unused).
+
+  ### Grounded fact (COLMAP 3.13.0 ``point_triangulator -h``)
+
+      --refine_intrinsics arg (=0)
+        Whether to refine the intrinsics of the cameras
+        (fixing the principal point)
+
+  The knob is exposed here as ``params.refine_intrinsics`` (default off).
+
+  ### What @0.7.0 removes vs @0.6.0
+
+  * The inline ``image_undistorter`` call.
+  * The ``images/`` and ``sparse/0/{cameras,images}.{bin,txt}`` outputs
+    (those live inside ``colmap-cams`` on the input side; the shard only
+    contributes new points).
+  * The output tag changes from ``colmap`` to ``point-cloud``.
+
+  ### DB pre-fill (unchanged from @0.5/0.6)
+
+  ``prefill_db`` writes one OPENCV camera row per staged image, each
+  with the SfM's shared intrinsic + this frame's per-cam
+  ``prior_q`` / ``prior_t``. ``feature_extractor`` then finds each image
+  by name and attaches keypoints without inserting a new camera — so
+  BA sees N distinct OPENCV cameras. With ``refine_intrinsics=false``
+  (default) those rows stay bit-for-bit identical to the priors.
+
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    scalar: true
+    description: >
+      SfM output as one COLMAP-native bundle (cameras.txt OPENCV +
+      images.txt poses). Scalar — broadcast to every shard. Must have
+      exactly one OPENCV camera row (single_camera=1 at the SfM stage).
+  frames:
+    tags: [image]
+    description: "This frame's per-camera raw distorted images. Fan-out driver."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  refine_intrinsics:
+    type: bool
+    default: false
+    description: >
+      Optimise per-image camera intrinsics (focal length + distortion;
+      principal point stays fixed — that constraint is baked into
+      ``point_triangulator`` and cannot be overridden). Off by default.
+      Does **not** touch camera poses — ``point_triangulator`` freezes
+      those unconditionally. Passes ``--refine_intrinsics 1`` to COLMAP
+      when true.
+
+outputs:
+  points:
+    tags: [point-cloud]
+    scalar: true
+    dim_labels: ["frame"]
+    description: >
+      Freshly triangulated 3-D points for this frame, as a COLMAP-text
+      ``points3D.txt``. Scalar per invocation; framework wraps N shards
+      into arrayed<point-cloud>. Distortion is baked into the input
+      intrinsics — points live in the raw OPENCV frame; use
+      ``image-undistort`` if you need PINHOLE-aligned imagery.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/triangulate.py" \
+      --cams "{{ inputs.cams }}" \
+      --image-path "{{ inputs.frames }}" \
+      --output "{{ outputs.points }}" \
+      --scratch "{{ scratch_dir }}" \
+      --use-gpu {{ params.use_gpu }} \
+      --refine-intrinsics {{ params.refine_intrinsics | int }}
+
+idempotency:
+  marker: "{{ outputs.points }}/.hololab-done"
