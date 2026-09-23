@@ -86,11 +86,24 @@ RECONNECT_MAX_DELAY = 30.0
 # shard as a permanent failure, we retry with exponential backoff.
 # Sized so a normal ~5-10s dev-time restart lands inside the retry
 # window and a busy-but-alive gateway (e.g. another workflow pinning
-# a core, batched writer-queue drain) also survives — total wallclock
-# budget ~60s. A genuinely-dead gateway still fails within that budget
-# instead of hanging the pipeline indefinitely.
+# a core, batched writer-queue drain) also survives.
+#
+# ``_LOCATE_ATTEMPT_TIMEOUT_S`` was 8s originally; live measurement
+# (2026-09-23) on a 100-shard image-undistort fan-out showed 55 retries
+# in a single 10-minute window when a prior fan-out's completion
+# tail (100 shard DB updates + WS broadcasts + WAL checkpoint) briefly
+# lagged the gateway's node-WS handler past 8s. Bumped to 15s so a
+# busy-but-alive gateway rides through without stampeding the retry
+# path. Backoff (1s → 4s cap) stays as-is: it kicks in after a
+# timeout, and pairing longer attempts with the same modest backoff
+# keeps the "immediate retry once the WS recovers" heuristic intact.
+#
+# Fail-fast budget when the gateway is genuinely dead: max_attempts
+# (6) x attempt_timeout (15s) + summed backoff (~15s) ~= 105s (was
+# ~63s). Acceptable — the registrar-side reconciliation still catches
+# a permanently-stranded shard on the next dispatcher tick.
 _LOCATE_MAX_ATTEMPTS = 6
-_LOCATE_ATTEMPT_TIMEOUT_S = 8.0
+_LOCATE_ATTEMPT_TIMEOUT_S = 15.0
 _LOCATE_BACKOFF_START_S = 1.0
 _LOCATE_BACKOFF_CAP_S = 4.0
 
