@@ -259,6 +259,19 @@ async def _run_all_in_one_async(
         port=port,
         log_level="info",
         access_log=False,
+        # Uvicorn defaults 20/20 (interval/pong-timeout) are too tight for
+        # the all-in-one topology: the local node runs in this same asyncio
+        # loop, so a fanout burst that briefly starves the loop also
+        # starves the WS pong handler and the server kills its own node's
+        # session. Observed live: a 100-shard image-undistort fanout hit
+        # ``received 1011 keepalive ping timeout`` at ~40 s of activity,
+        # dropping every un-dispatched shard. 30/90 gives the loop room
+        # to catch up under bursts; worst-case real-disconnect detection
+        # is now ~2 min (was ~40 s) — acceptable trade for the same-loop
+        # co-tenant model. Remote-node deployments still get bounded
+        # detection well under the ~5 min job-progress heartbeat.
+        ws_ping_interval=30.0,
+        ws_ping_timeout=90.0,
     )
     # We drive lifecycle ourselves, so tell uvicorn not to install its
     # own SIGINT/SIGTERM hooks (otherwise both fire on Ctrl+C and the
