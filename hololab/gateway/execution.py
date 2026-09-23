@@ -489,9 +489,11 @@ async def _execute_fanout_body(
     # case, so any remaining CANCELLED here means a per-shard cancel that
     # the operator wanted logged rather than eaten.
     failures: list[str] = []
+    shard_fail_reasons: list[JobFailReason] = []
     for r in results:
         if isinstance(r, BaseException):
             failures.append(f"shard raised: {r!r}")
+            shard_fail_reasons.append(JobFailReason.SYSTEM_ERROR)
             continue
         idx, element_id, final = r
         if final.state is not JobState.DONE:
@@ -499,11 +501,22 @@ async def _execute_fanout_body(
             if final.fail_message:
                 msg += f": {final.fail_message}"
             failures.append(msg)
+            if final.fail_reason is not None:
+                shard_fail_reasons.append(final.fail_reason)
     if failures:
         reason = "; ".join(failures[:5])
         if len(failures) > 5:
             reason += f"; +{len(failures) - 5} more"
-        await _mark_parent_failed(store, hub, parent_running, reason=reason)
+        # Preserve infra-class classification on the parent when every
+        # shard-authored failure was transport-class (gateway unreachable,
+        # peer 5xx, node crash). Mixed or user-authored failures fall back
+        # to USER_ERROR — the default aggregate reason. This keeps a
+        # briefly-starved gateway from painting a whole fan-out as
+        # "user error" in the run history + retry policy.
+        parent_reason = _aggregate_parent_fail_reason(shard_fail_reasons)
+        await _mark_parent_failed(
+            store, hub, parent_running, reason=reason, fail_reason=parent_reason
+        )
         raise WorkflowRunError(f"fanout for graph node {gnode.id!r}: {reason}")
 
     # Resolve ``tags_from`` for the aggregate handles the same way
@@ -958,18 +971,40 @@ async def _mark_parent_failed(
     parent_running: Job,
     *,
     reason: str,
+    fail_reason: JobFailReason = JobFailReason.USER_ERROR,
 ) -> None:
     """Transition a parent job to FAILED when a shard fails."""
 
     parent_failed = JobStateMachine.transition(
         parent_running,
         JobState.FAILED,
-        fail_reason=JobFailReason.USER_ERROR,
+        fail_reason=fail_reason,
         fail_message=reason,
     )
     _, payload = event_from_transition(parent_running, parent_failed)
     await store.update(parent_failed, "transition:failed", payload)
     _push_update(hub, parent_failed)
+
+
+def _aggregate_parent_fail_reason(shard_reasons: list[JobFailReason]) -> JobFailReason:
+    """Choose the parent's ``fail_reason`` from the shard-level reasons.
+
+    Rule: if every observed shard failure was infrastructure-class
+    (``SYSTEM_ERROR`` or ``OOM``), the parent inherits ``SYSTEM_ERROR``
+    — the workflow itself wasn't wrong, the plumbing was. Any user- or
+    algorithm-authored failure downgrades the aggregate to
+    ``USER_ERROR`` (the historical default) so operators aren't misled
+    into treating a real bad-input case as transient. An empty list
+    (shouldn't happen — we only call this when ``failures`` is
+    non-empty) also falls back to ``USER_ERROR``.
+    """
+
+    if not shard_reasons:
+        return JobFailReason.USER_ERROR
+    infra = {JobFailReason.SYSTEM_ERROR, JobFailReason.OOM}
+    if all(r in infra for r in shard_reasons):
+        return JobFailReason.SYSTEM_ERROR
+    return JobFailReason.USER_ERROR
 
 
 def _dir_size_bytes(path: Path) -> int | None:

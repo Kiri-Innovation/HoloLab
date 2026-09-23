@@ -283,3 +283,37 @@ def test_connection_closed_is_importable() -> None:
     the parent class a couple of releases back)."""
 
     assert issubclass(ConnectionClosedError, ConnectionClosed)
+
+
+@pytest.mark.asyncio
+async def test_locate_exhaustion_error_is_marked_transient() -> None:
+    """A gateway-unreachable exhaustion is *infrastructure*, not a user
+    mistake. The raised ``_HandleResolutionError`` must carry
+    ``transient=True`` so the outer shard-fail path maps it to
+    ``SYSTEM_ERROR`` rather than blaming the workflow author for a
+    briefly-starved gateway.
+    """
+
+    r = _fresh_runtime()
+    r._ws_ready.set()
+
+    async def fake_send(kind: str, payload: Any) -> None:
+        raise ConnectionClosedError(None, None)
+
+    r._send = fake_send  # type: ignore[assignment]
+
+    with pytest.raises(_HandleResolutionError) as excinfo:
+        await r._locate_handle("h1")
+
+    assert excinfo.value.transient is True
+
+
+def test_unknown_handle_error_is_not_transient() -> None:
+    """A `not_found` answer is a real business error — the workflow
+    references a handle the gateway does not know about. That is
+    ``USER_ERROR``-class, not infra, so ``transient`` must stay False
+    (the default) or the classifier will misroute it as transient.
+    """
+
+    err = _HandleResolutionError("unknown handle 'h1'")
+    assert err.transient is False

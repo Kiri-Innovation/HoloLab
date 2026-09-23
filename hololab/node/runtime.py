@@ -80,13 +80,17 @@ RECONNECT_BASE_DELAY = 1.0
 RECONNECT_MAX_DELAY = 30.0
 
 # Handle-locate retry policy — gateway restarts drop the WS mid-flight
-# and the pending response never arrives. Rather than surface that to
-# the shard as a permanent failure, we retry a bounded number of times
-# with exponential backoff. Sized so a normal ~5-10s dev-time restart
-# lands inside the retry window, but a genuinely-dead gateway still
-# fails within ~30s instead of hanging the pipeline indefinitely.
-_LOCATE_MAX_ATTEMPTS = 5
-_LOCATE_ATTEMPT_TIMEOUT_S = 4.0
+# and the pending response never arrives; and under CPU pressure the
+# gateway's node-WS handler (which dispatches frames serially) can lag
+# tens of seconds behind the wire. Rather than surface either to the
+# shard as a permanent failure, we retry with exponential backoff.
+# Sized so a normal ~5-10s dev-time restart lands inside the retry
+# window and a busy-but-alive gateway (e.g. another workflow pinning
+# a core, batched writer-queue drain) also survives — total wallclock
+# budget ~60s. A genuinely-dead gateway still fails within that budget
+# instead of hanging the pipeline indefinitely.
+_LOCATE_MAX_ATTEMPTS = 6
+_LOCATE_ATTEMPT_TIMEOUT_S = 8.0
 _LOCATE_BACKOFF_START_S = 1.0
 _LOCATE_BACKOFF_CAP_S = 4.0
 
@@ -1211,9 +1215,14 @@ class NodeRuntime:
         try:
             input_paths = await self._resolve_input_handles(assign.input_handles)
         except _HandleResolutionError as exc:
+            # Transport-class failures (gateway unreachable, peer 5xx)
+            # are infrastructure, not a bad workflow. Surface them as
+            # SYSTEM_ERROR so the UI + retry policy treat them the same
+            # as a node crash rather than blaming the user.
+            reason = JobFailReason.SYSTEM_ERROR if exc.transient else JobFailReason.USER_ERROR
             await self._send_job_fail(
                 assign.job_id,
-                JobFailReason.USER_ERROR,
+                reason,
                 message=f"input handle resolution failed: {exc}",
             )
             return
@@ -1683,7 +1692,8 @@ class NodeRuntime:
         raise _HandleResolutionError(
             f"gateway unreachable while locating handle {handle_id!r} "
             f"(gave up after {_LOCATE_MAX_ATTEMPTS} attempts; "
-            f"last: {last_kind}: {last_detail})"
+            f"last: {last_kind}: {last_detail})",
+            transient=True,
         )
 
     async def _fetch_remote_handle(self, handle_id: str, url: str, storage: str) -> Path:
@@ -1711,7 +1721,8 @@ class NodeRuntime:
                 response = await client.get(url)
                 if response.status_code != 200:
                     raise _HandleResolutionError(
-                        f"remote fetch of {handle_id!r} returned HTTP {response.status_code}"
+                        f"remote fetch of {handle_id!r} returned HTTP {response.status_code}",
+                        transient=response.status_code >= 500,
                     )
                 local_dest.write_bytes(response.content)
             return local_dest
@@ -1732,7 +1743,8 @@ class NodeRuntime:
         ):
             if response.status_code != 200:
                 raise _HandleResolutionError(
-                    f"remote tar fetch of {handle_id!r} returned HTTP {response.status_code}"
+                    f"remote tar fetch of {handle_id!r} returned HTTP {response.status_code}",
+                    transient=response.status_code >= 500,
                 )
             with tempfile.NamedTemporaryFile(suffix=".tar", delete=False) as tmp:
                 tmp_path = Path(tmp.name)
@@ -1759,7 +1771,18 @@ class NodeRuntime:
 
 
 class _HandleResolutionError(RuntimeError):
-    """Raised when an input handle cannot be turned into a local path."""
+    """Raised when an input handle cannot be turned into a local path.
+
+    ``transient=True`` marks the failure as infrastructure-class — the
+    gateway went unreachable, a peer node's file server returned 5xx,
+    a WS timed out. Callers surface those as ``SYSTEM_ERROR`` so the
+    UI colours + retry policy don't accuse the user of writing a bad
+    workflow when the plumbing was actually the problem.
+    """
+
+    def __init__(self, message: str, *, transient: bool = False) -> None:
+        super().__init__(message)
+        self.transient = transient
 
 
 def _looks_like_local_path(value: str) -> bool:
