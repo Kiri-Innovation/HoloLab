@@ -213,6 +213,67 @@ describe("aggregateJobsToRuntime — state priority", () => {
     expect(out.n.state).toBe("failed");
   });
 
+  it("multi-generation fan-out (rerun-from-node) scopes progress to newest parent", () => {
+    // Real bug shape (2026-09-23): a snapshot's ``tri`` graph_node
+    // accumulated three fan-out attempts — an earlier cancelled run
+    // (68 cancelled + 32 done shards), a middle cancelled run
+    // (100 cancelled), and a live re-run at 18/100. The node card
+    // rendered ``50/100`` (32 + 0 + 18 done shards summed across
+    // generations, denominator borrowed from any one parent's
+    // expected_shards) while the RecentJobsPanel — which groups by
+    // parent_job_id — showed the live ``18/100`` for the newest group.
+    // The two views disagreed by exactly the older runs' done count.
+    // Fix: scope to the newest top-level parent (by created_ts) and
+    // count only its shards.
+    const oldParent = mkJob({
+      job_id: "p_old",
+      state: "cancelled",
+      expected_shards: 100,
+      created_ts: 0,
+    });
+    const oldDoneShard = mkJob({
+      job_id: "s_old_done",
+      parent_job_id: "p_old",
+      state: "done",
+      created_ts: 1,
+    });
+    const oldCancelledShard = mkJob({
+      job_id: "s_old_cancel",
+      parent_job_id: "p_old",
+      state: "cancelled",
+      created_ts: 2,
+    });
+    const newParent = mkJob({
+      job_id: "p_new",
+      state: "running",
+      expected_shards: 100,
+      created_ts: 100,
+    });
+    const newDoneShard = mkJob({
+      job_id: "s_new_done",
+      parent_job_id: "p_new",
+      state: "done",
+      created_ts: 101,
+    });
+    const newRunningShard = mkJob({
+      job_id: "s_new_run",
+      parent_job_id: "p_new",
+      state: "running",
+      created_ts: 102,
+    });
+    const out = aggregateJobsToRuntime([
+      oldParent,
+      oldDoneShard,
+      oldCancelledShard,
+      newParent,
+      newDoneShard,
+      newRunningShard,
+    ]);
+    // Only the newest parent's one done shard counts, denominator is
+    // newParent.expected_shards. Old run's done shard is excluded.
+    expect(out.n.progress).toEqual({ current: 1, total: 100 });
+  });
+
   it("groups jobs by graph_node_id and aggregates each independently", () => {
     const a1 = mkJob({ job_id: "a1", graph_node_id: "A", state: "running", created_ts: 0 });
     const a2 = mkJob({ job_id: "a2", graph_node_id: "A", state: "failed", created_ts: 1 });

@@ -71,35 +71,52 @@ function aggregateStates(jobs: readonly SnapshotJob[]): string {
 function aggregateProgress(
   jobs: readonly SnapshotJob[],
 ): { current: number; total: number } | null {
-  if (jobs.length === 1) {
-    // A lone fan-out parent (no shard rows have arrived yet, or the
-    // snapshot pre-dates the shards' pending frames) still carries the
-    // planned shard count on ``expected_shards``. Render 0/N immediately
-    // instead of the parent's own null/1 progress so the node footer
-    // shows "0/100" from the very first pending frame.
-    const only = jobs[0];
-    if (only.expected_shards != null && only.expected_shards > 0) {
-      return { current: 0, total: only.expected_shards };
-    }
-    return only.progress ?? null;
+  // Scope to the newest generation. Under rerun-from-node a graph_node_id
+  // accumulates multiple top-level parents in a single snapshot — the
+  // cancelled attempts stay in ``snapshot_jobs`` (attributed at creation
+  // per cd61033) and their done shards attribute at completion — so a
+  // naive filter would sum done-shards across every generation. Concrete
+  // case: a fan-out with 32 done shards from an earlier cancelled run
+  // plus 18 done from the live re-run rendered ``50/100`` on the node
+  // card while the RecentJobsPanel (which groups by ``parent_job_id``)
+  // showed the live ``18/100`` — the two views for the same node
+  // disagreed by exactly the older run's done count.
+  //
+  // Fix: pick the newest top-level job (parent for a fan-out, or the
+  // lone job for a non-fan-out re-run) and count only its shards. This
+  // matches the panel's per-parent grouping so both surfaces agree.
+  const topLevel = jobs.filter((j) => j.parent_job_id == null);
+  if (topLevel.length === 0) {
+    // Only shards visible — shouldn't happen in practice because
+    // ``list_by_snapshot`` always returns the parent via the
+    // ``snapshot_jobs`` bridge. Fall back to counting what we have.
+    const done = jobs.filter((j) => j.state === "done").length;
+    return { current: done, total: jobs.length };
   }
-  // Fan-out: some jobs carry parent_job_id (they are shards). Count only
-  // shards so a 100-frame fan-out shows N/100, not (N+1)/(N+2). The parent
-  // coordinator job is excluded; its "done" state is not a shard completion.
-  const shards = jobs.filter((j) => j.parent_job_id != null);
-  const counted = shards.length > 0 ? shards : jobs;
-  const done = counted.filter((j) => j.state === "done").length;
+  const current = topLevel.reduce((a, b) =>
+    b.created_ts > a.created_ts ? b : a,
+  );
+  const shards = jobs.filter((j) => j.parent_job_id === current.job_id);
+  if (shards.length === 0) {
+    // Non-fan-out job, or a fan-out parent whose shards haven't been
+    // created yet. When ``expected_shards`` is planned, render 0/N right
+    // away so the footer doesn't blip through the parent's own ``null``
+    // or ``1/1`` before shards materialise.
+    if (current.expected_shards != null && current.expected_shards > 0) {
+      return { current: 0, total: current.expected_shards };
+    }
+    return current.progress ?? null;
+  }
+  const done = shards.filter((j) => j.state === "done").length;
   // Prefer the parent's planned shard count over the row-count of already-
-  // created shards. Fan-out is lazy: shard N+1 is only created after shard
-  // N completes, so ``counted.length`` grows with progress and would show
-  // a moving denominator (``20/22 → 21/23 → … → 101/101``, the bug this
-  // field was introduced to fix). ``expected_shards`` is set once at
-  // fan-out start and is stable for the run's lifetime.
-  const parent = jobs.find((j) => j.parent_job_id == null && j.expected_shards != null);
+  // created shards. Even though shards are pre-created upfront (2026-09-21
+  // refactor), ``expected_shards`` is still the authoritative denominator:
+  // it's frozen at fan-out start and can't drift if row-creation partially
+  // fails.
   const total =
-    parent?.expected_shards != null && parent.expected_shards > 0
-      ? parent.expected_shards
-      : counted.length;
+    current.expected_shards != null && current.expected_shards > 0
+      ? current.expected_shards
+      : shards.length;
   return { current: done, total };
 }
 
