@@ -761,6 +761,106 @@ class JobsStore:
 
         await self._db.write(_write)
 
+    async def create_many(self, jobs: list[Job]) -> None:  # noqa: F821
+        """Insert N jobs + their ``created`` events under one SQLite transaction.
+
+        Fan-out phase-1 (see :func:`hololab.gateway.execution._execute_fanout_body`)
+        materializes every shard row upfront so the snapshot detail endpoint
+        sees the full set from t=0. Serial :meth:`create` did that with N
+        writer-loop round-trips + N commits + N fsyncs — for a 100-shard
+        run that measured ~48 s of wall-clock, because every writer trip
+        interleaves with unrelated gateway work on the event loop.
+
+        This entry point coalesces those N transactions into one: the whole
+        list lands in a single ``BEGIN … COMMIT`` cycle with one fsync at
+        the tail. Semantics match :meth:`create` per-row (same SQL, same
+        columns, same ``snapshot_jobs`` back-attribution for rows that are
+        already DONE). An empty list is a no-op.
+        """
+
+        from hololab.gateway.jobs import Job, JobState  # local import to avoid cycle
+
+        if not jobs:
+            return
+        for job in jobs:
+            assert isinstance(job, Job)
+
+        async def _write(conn: aiosqlite.Connection) -> None:
+            # Compose (val_tuple, event_tuple, snapshot_attr_tuple_or_None)
+            # for every job so the loop body below stays flat.
+            job_rows: list[tuple] = []
+            event_rows: list[tuple] = []
+            attr_rows: list[tuple] = []
+            for job in jobs:
+                job_rows.append(
+                    (
+                        job.job_id,
+                        job.snapshot_id,
+                        job.workflow_id,
+                        job.node_id,
+                        job.graph_node_id,
+                        job.algorithm_name,
+                        job.algorithm_version,
+                        json.dumps(job.params),
+                        json.dumps(job.input_handles),
+                        job.state.value,
+                        job.progress_current,
+                        job.progress_total,
+                        job.fail_reason.value if job.fail_reason else None,
+                        job.fail_exit_code,
+                        job.fail_message,
+                        job.created_ts,
+                        job.updated_ts,
+                        job.reused_from_job_id,
+                        job.parent_job_id,
+                        job.shard_element_id,
+                        job.started_ts,
+                        job.expected_shards,
+                    )
+                )
+                event_rows.append(
+                    (
+                        job.job_id,
+                        "created",
+                        json.dumps({"state": job.state.value}),
+                        job.created_ts,
+                    )
+                )
+                if (
+                    job.state is JobState.DONE
+                    and job.snapshot_id is not None
+                    and job.graph_node_id is not None
+                ):
+                    attr_rows.append((job.snapshot_id, job.job_id, job.graph_node_id))
+
+            await conn.executemany(
+                """
+                INSERT INTO jobs
+                    (job_id, snapshot_id, workflow_id, node_id, graph_node_id,
+                     algorithm_name, algorithm_version, params_json, input_handles_json,
+                     state, progress_current, progress_total, fail_reason, fail_exit_code,
+                     fail_message, created_ts, updated_ts, reused_from_job_id,
+                     parent_job_id, shard_element_id, started_ts, expected_shards)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                job_rows,
+            )
+            await conn.executemany(
+                "INSERT INTO job_events (job_id, kind, payload_json, ts) VALUES (?, ?, ?, ?)",
+                event_rows,
+            )
+            if attr_rows:
+                await conn.executemany(
+                    """
+                    INSERT OR IGNORE INTO snapshot_jobs
+                        (snapshot_id, job_id, graph_node_id)
+                    VALUES (?, ?, ?)
+                    """,
+                    attr_rows,
+                )
+
+        await self._db.write(_write)
+
     async def update(self, job: Job, event_kind: str, event_payload_json: str) -> None:  # noqa: F821
         # V8 attribution: when a job transitions INTO done and has both
         # snapshot_id + graph_node_id, we also insert the snapshot_jobs

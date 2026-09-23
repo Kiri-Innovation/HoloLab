@@ -138,11 +138,7 @@ Idempotency: if `{output}/.done` exists **and** the input handle set matches wha
 
 ## Execution boundary (sacred)
 
-The node runtime **never** imports algorithm code. Every algorithm runs as a subprocess:
-
-```
-conda run -p <env_prefix> <shell command from manifest>
-```
+The node runtime **never** imports algorithm code. Every algorithm runs as a fresh subprocess.
 
 Why this is non-negotiable:
 
@@ -151,7 +147,27 @@ Why this is non-negotiable:
 - Node runtime dependencies stay light (see `pyproject.toml`) — critical for single-artifact distribution.
 - Same-language coupling would tempt "just import for the trivial case" — a slippery slope back to ComfyUI's env hell.
 
-Environment inheritance: node passes a **clean** `env={}` dict to `subprocess.Popen`, never mutating its own `os.environ`. `conda run` handles `LD_LIBRARY_PATH`, `CUDA_HOME`, etc. internally.
+Two spawn paths, both preserving the invariant:
+
+1. **Cached-env fast path (default)** — at daemon startup, `hololab.node.env_cache.warmup_env_cache` snapshots each configured conda env once via
+   ```
+   conda run -p <env_prefix> --no-capture-output python -c "json.dumps(dict(os.environ))"
+   ```
+   The resulting dict (`PATH`, `LD_LIBRARY_PATH`, `CUDA_HOME`, plus every `activate.d` export) is stored on `NodeRuntime._env_cache`. Every subsequent shard is spawned as
+   ```
+   bash -c "<shell command from manifest>"     # env=<cached dict>
+   ```
+   which skips `conda run` entirely. On a 100-shard lightweight fan-out this saves ~2 s / shard of framework tax (the `conda run` CLI bootstrap) — see `hololab/node/env_cache.py` for the mechanism.
+
+2. **`conda run` fallback** — used when `NodeConfig.use_env_cache` is disabled OR when a specific env's snapshot failed at startup (misconfigured prefix, `activate.d` error, timeout). Spawns
+   ```
+   conda run -p <env_prefix> --no-capture-output bash -lc "<shell command from manifest>"
+   ```
+   exactly as the pre-cache implementation did. This is the safety net; if the fast path ever starts producing a wrong env dict for a real env, flipping `use_env_cache: false` in the node config restores the historical behavior without a code change.
+
+Env inheritance in both paths: the node runtime passes an **explicit** `env=` dict to `subprocess.Popen` — either the pre-snapshotted one (fast) or the `_clean_env()` allow-list (fallback). It never propagates its own live `os.environ` into a child, and it never mutates its own env in place.
+
+Hot updates: the cached env dict is frozen at daemon start. Installing a new package into a running env (`conda install …` / `pip install …`) is **not** reflected in the cache — restart the node daemon so the snapshot re-runs. Documented on `NodeConfig.use_env_cache`.
 
 Cancellation:
 

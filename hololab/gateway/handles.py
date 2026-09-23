@@ -103,6 +103,63 @@ class HandleBook:
 
         await self._db.write(_write)
 
+    async def register_many(self, handles: list[Handle]) -> None:
+        """Insert N handles under one SQLite transaction. Idempotent per row.
+
+        Fan-out phase-1 mints one synthetic sub-handle per shard per arrayed
+        input port (see :func:`hololab.gateway.execution._shard_input_handles`).
+        For a 100-shard fan-out with 3 arrayed inputs that's 300 rows —
+        serial :meth:`register` did 300 writer-loop trips + 300 commits +
+        300 fsyncs, contributing most of the ~48 s phase-1 wall observed
+        in production. Batching drops that to a single ``BEGIN … COMMIT``.
+
+        Same INSERT-with-ON-CONFLICT-UPDATE semantics as :meth:`register`
+        per-row (a duplicate handle_id updates fields + clears
+        ``deleted_ts``). An empty list is a no-op.
+        """
+
+        if not handles:
+            return
+
+        async def _write(conn: aiosqlite.Connection) -> None:
+            rows = [
+                (
+                    h.handle_id,
+                    h.node_id,
+                    h.job_id,
+                    h.storage,
+                    json.dumps(h.tags),
+                    h.path,
+                    h.size_bytes,
+                    h.sha256,
+                    h.output_port_name,
+                    h.created_ts,
+                    h.deleted_ts,
+                )
+                for h in handles
+            ]
+            await conn.executemany(
+                """
+                INSERT INTO handles
+                    (handle_id, node_id, job_id, kind, tags_json, path, size_bytes, sha256,
+                     output_port_name, created_ts, deleted_ts)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(handle_id) DO UPDATE SET
+                    node_id=excluded.node_id,
+                    job_id=excluded.job_id,
+                    kind=excluded.kind,
+                    tags_json=excluded.tags_json,
+                    path=excluded.path,
+                    size_bytes=excluded.size_bytes,
+                    sha256=excluded.sha256,
+                    output_port_name=excluded.output_port_name,
+                    deleted_ts=NULL
+                """,
+                rows,
+            )
+
+        await self._db.write(_write)
+
     _COLS = (
         "handle_id, node_id, job_id, kind, tags_json, path, size_bytes, sha256, "
         "output_port_name, created_ts, deleted_ts"
