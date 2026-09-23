@@ -13,7 +13,7 @@
 // counts) come from the preview drawer's own summary fetch.
 
 import { getHandleSummary } from "../api";
-import type { HandleSummary } from "../wire";
+import type { HandleSummary, LatestOutputHandle } from "../wire";
 
 export interface EdgeSummaryFacts {
   elementCount?: number;
@@ -119,4 +119,42 @@ export function peekEdgeSummaryFacts(
 export function _resetEdgeSummaryCache(): void {
   pending.clear();
   resolved.clear();
+}
+
+/** Seed the cache from the backend's ``latest_run.output_handles``
+ *  payload — the compact chip-facts view that ships inline with every
+ *  graph GET (see ``latest_runs_for_workflow`` in gateway/workflows.py).
+ *
+ *  This closes the cold-load flicker where every mounted edge fired
+ *  ``getHandleSummary`` on its handle_id before the chip could render
+ *  counts; with a seeded cache the chip paints ``image[cam:21]``
+ *  synchronously on first render. Only seeds when the entry isn't
+ *  already resolved (we prefer a live fetch's fresher probe over the
+ *  backend's cached probe, though in practice they should agree).
+ */
+export function seedEdgeSummaryFacts(
+  handleId: string,
+  latest: LatestOutputHandle,
+): void {
+  if (resolved.has(handleId)) return;
+  const facts: EdgeSummaryFacts = {};
+  if (latest.dim_sizes && latest.dim_sizes.length > 0) {
+    facts.dimSizes = latest.dim_sizes;
+    facts.elementCount = latest.dim_sizes[0];
+    if (latest.dim_sizes.length > 1) facts.innerElementCount = latest.dim_sizes[1];
+  } else if (typeof latest.element_count === "number") {
+    facts.elementCount = latest.element_count;
+  }
+  if (latest.dim_labels && latest.dim_labels.length > 0) {
+    facts.dimLabels = latest.dim_labels;
+  }
+  if (latest.internal_count_items && latest.internal_count_items.length > 0) {
+    facts.internalCountItems = latest.internal_count_items;
+  } else if (typeof latest.internal_count === "number") {
+    facts.internalCount = latest.internal_count;
+    if (typeof latest.internal_count_kind === "string") {
+      facts.internalCountKind = latest.internal_count_kind;
+    }
+  }
+  resolved.set(handleId, facts);
 }

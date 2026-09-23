@@ -188,6 +188,13 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
         app.state.snapshot_jobs = SnapshotJobsStore(db)
         app.state.logs = LogStore(db)
         app.state.handles = HandleBook(db)
+        # Per-handle chip-facts memoize. Populated lazily on the first
+        # graph GET that names a given handle; invalidated on tombstone
+        # (see the two ``mark_deleted`` call sites below). See
+        # :class:`~hololab.gateway.handle_summary.HandleSummaryCache`.
+        from hololab.gateway.handle_summary import HandleSummaryCache
+
+        app.state.summary_cache = HandleSummaryCache()
         app.state.workflows = WorkflowStore(db)
         app.state.hub = FrontendHub()
         # In-memory rolling metrics per compute node — powers the
@@ -657,6 +664,7 @@ def _mount_routes(app: FastAPI) -> None:
         # externally, we just want to stop showing the dead rows" flow.
         if session is None:
             await book.mark_deleted(handle_id, ts=art.now_ts())
+            app.state.summary_cache.invalidate(handle_id)
             return {
                 "handle_id": handle_id,
                 "state": "deleted",
@@ -677,6 +685,7 @@ def _mount_routes(app: FastAPI) -> None:
             detail = str(exc.detail).lower() if exc.detail else ""
             if "not under any configured workspace root" in detail:
                 await book.mark_deleted(handle_id, ts=art.now_ts())
+                app.state.summary_cache.invalidate(handle_id)
                 return {
                     "handle_id": handle_id,
                     "state": "deleted",
@@ -689,6 +698,7 @@ def _mount_routes(app: FastAPI) -> None:
             raise
 
         await book.mark_deleted(handle_id, ts=art.now_ts())
+        app.state.summary_cache.invalidate(handle_id)
         return {
             "handle_id": handle_id,
             "state": "deleted",
@@ -777,6 +787,7 @@ def _mount_routes(app: FastAPI) -> None:
             try:
                 resp = await art.delete_artifact(app, session, h)
                 await book.mark_deleted(h.handle_id, ts=art.now_ts())
+                app.state.summary_cache.invalidate(h.handle_id)
                 total_freed += resp.get("freed_bytes") or 0
                 results.append(
                     {
@@ -984,13 +995,23 @@ def _mount_routes(app: FastAPI) -> None:
             row = await workflows_store.get_draft(parsed.id)
             if row is None:
                 raise HTTPException(status_code=404, detail="workflow not found")
+            packs_by_key = packs_by_key_from_catalog(registry.catalog_json())
+            from hololab.gateway.workflows import latest_runs_for_workflow
+
+            latest_runs = await latest_runs_for_workflow(
+                row.workflow_id,
+                db=app.state.db,
+                book=book,
+                registry=registry,
+                cache=app.state.summary_cache,
+            )
             return {
                 "kind": "workflow",
                 "ref": parsed.canonical(),
                 "resource": {
                     "workflow_id": row.workflow_id,
                     "name": row.name,
-                    "graph": agent_graph_dict(row.graph),
+                    "graph": agent_graph_dict(row.graph, packs_by_key, latest_runs=latest_runs),
                     "created_ts": row.created_ts,
                     "updated_ts": row.updated_ts,
                 },
@@ -1005,6 +1026,17 @@ def _mount_routes(app: FastAPI) -> None:
             if snap is None:
                 raise HTTPException(status_code=404, detail="snapshot not found")
             jobs = await jobs_store.list_by_snapshot(parsed.id)
+            packs_by_key = packs_by_key_from_catalog(registry.catalog_json())
+            from hololab.gateway.workflows import latest_runs_for_snapshot
+
+            latest_runs = await latest_runs_for_snapshot(
+                snap.snapshot_id,
+                snap.graph,
+                db=app.state.db,
+                book=book,
+                registry=registry,
+                cache=app.state.summary_cache,
+            )
             return {
                 "kind": "run",
                 "ref": parsed.canonical(),
@@ -1012,7 +1044,7 @@ def _mount_routes(app: FastAPI) -> None:
                     "snapshot_id": snap.snapshot_id,
                     "workflow_id": snap.workflow_id,
                     "created_ts": snap.created_ts,
-                    "graph": agent_graph_dict(snap.graph),
+                    "graph": agent_graph_dict(snap.graph, packs_by_key, latest_runs=latest_runs),
                     "jobs": jobs,
                 },
                 "related": {
@@ -1342,10 +1374,21 @@ def _mount_routes(app: FastAPI) -> None:
         row = await app.state.workflows.get_draft(workflow_id)
         if row is None:
             raise HTTPException(status_code=404, detail="workflow not found")
+        registry: NodeRegistry = app.state.registry
+        packs_by_key = packs_by_key_from_catalog(registry.catalog_json())
+        from hololab.gateway.workflows import latest_runs_for_workflow
+
+        latest_runs = await latest_runs_for_workflow(
+            workflow_id,
+            db=app.state.db,
+            book=app.state.handles,
+            registry=registry,
+            cache=app.state.summary_cache,
+        )
         return {
             "workflow_id": row.workflow_id,
             "name": row.name,
-            "graph": agent_graph_dict(row.graph),
+            "graph": agent_graph_dict(row.graph, packs_by_key, latest_runs=latest_runs),
             "created_ts": row.created_ts,
             "updated_ts": row.updated_ts,
         }
@@ -1908,11 +1951,23 @@ def _mount_routes(app: FastAPI) -> None:
                 poll_interval = min(poll_interval * 1.5, 2.0)
                 jobs = await store.list_by_snapshot(snapshot_id)
 
+        registry: NodeRegistry = app.state.registry
+        packs_by_key = packs_by_key_from_catalog(registry.catalog_json())
+        from hololab.gateway.workflows import latest_runs_for_snapshot
+
+        latest_runs = await latest_runs_for_snapshot(
+            snapshot_id,
+            snap.graph,
+            db=app.state.db,
+            book=app.state.handles,
+            registry=registry,
+            cache=app.state.summary_cache,
+        )
         return {
             "snapshot_id": snap.snapshot_id,
             "workflow_id": snap.workflow_id,
             "created_ts": snap.created_ts,
-            "graph": agent_graph_dict(snap.graph),
+            "graph": agent_graph_dict(snap.graph, packs_by_key, latest_runs=latest_runs),
             "jobs": jobs,
             "waited": waited,
             "wait_timed_out": wait_timed_out,

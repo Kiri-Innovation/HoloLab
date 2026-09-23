@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import re
 import struct
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -612,3 +613,121 @@ def _list_dir_children(path: Path, budget: int) -> list[dict[str, Any]]:
     except OSError:
         return []
     return out
+
+
+# ---------------------------------------------------------------------------
+# Per-handle chip-facts cache
+# ---------------------------------------------------------------------------
+
+
+# Compact fact set consumed by the edge chip and the graph endpoints'
+# ``latest_run.output_handles`` payload. Only the numeric probes the chip
+# actually reads — no entries[], no header bytes — so cache memory stays
+# tiny even on graphs with hundreds of handles.
+_CHIP_FACT_KEYS = (
+    "element_count",
+    "dim_sizes",
+    "internal_count",
+    "internal_count_kind",
+    "internal_count_items",
+)
+
+
+class HandleSummaryCache:
+    """Per-handle memoize of the chip-facts view of ``summarize_handle``.
+
+    A ``Handle`` is immutable after registration — the file on disk
+    doesn't change and the tags are frozen at ``handle_register`` time —
+    so we key strictly on ``handle_id`` with no TTL. The one thing that
+    invalidates an entry is a tombstone (``DELETE /api/artifacts/{id}``)
+    which pops the row via :meth:`invalidate`.
+
+    Cached shape is the same compact subset the frontend edge chip reads
+    (``element_count`` / ``dim_sizes`` / ``internal_count`` /
+    ``internal_count_kind`` / ``internal_count_items``) — the fields the
+    graph endpoints inline under ``latest_run.output_handles``. We do NOT
+    cache the full summary (``entries[]`` for dir listings, header bytes
+    for splatv/video) — those are on-demand via ``/api/handles/{id}/summary``
+    and would blow the memory budget on graphs with hundreds of handles.
+
+    Thread safety: the cache is read + written from the gateway's async
+    event loop, but ``summarize_handle`` may run under a threadpool
+    (blocking IO). A ``threading.Lock`` guards the dict so a two-worker
+    race doesn't double-set the same key with different values.
+    """
+
+    def __init__(self, *, max_entries: int = 4096) -> None:
+        self._store: dict[str, dict[str, Any]] = {}
+        self._lock = threading.Lock()
+        # Bounded so a long-lived gateway across thousands of workflow
+        # runs doesn't grow the cache without bound. FIFO eviction —
+        # LRU would need per-lookup writes and the cache is chip-facts
+        # only, so the working set is small and eviction is rare in
+        # practice. Motivating cap 4k = ~40 nodes/workflow x ~100
+        # active workflows before we start evicting.
+        self._max_entries = max_entries
+
+    def get_or_compute(
+        self,
+        handle: Handle,
+        *,
+        dim_labels: list[str] | None,
+    ) -> dict[str, Any]:
+        """Return the cached chip facts, computing + caching on miss.
+
+        ``dim_labels`` is the producing port's declared label list — the
+        same value the summary endpoint reads via
+        :meth:`NodeRegistry.get_output_port_spec`. Passed through so
+        ``dim_sizes`` measurement walks the right depth.
+        """
+
+        with self._lock:
+            hit = self._store.get(handle.handle_id)
+            if hit is not None:
+                return hit
+
+        depth = len(dim_labels) if dim_labels else None
+        full = summarize_handle(handle, depth=depth)
+        facts: dict[str, Any] = {}
+        for key in _CHIP_FACT_KEYS:
+            if key in full and full[key] is not None:
+                facts[key] = full[key]
+
+        with self._lock:
+            # Race: another worker may have populated the same key while
+            # we were probing. Trust the first writer (identical inputs
+            # produce identical outputs by construction) and drop our
+            # probe on the floor.
+            existing = self._store.get(handle.handle_id)
+            if existing is not None:
+                return existing
+            if len(self._store) >= self._max_entries:
+                # Simple FIFO: evict the oldest inserted key. dict
+                # preserves insertion order in Python 3.7+.
+                oldest = next(iter(self._store))
+                self._store.pop(oldest, None)
+            self._store[handle.handle_id] = facts
+            return facts
+
+    def invalidate(self, handle_id: str) -> None:
+        """Drop the cached entry for ``handle_id`` if present.
+
+        Called on artifact tombstone so the next chip render doesn't
+        surface counts for a file the operator just deleted. A missing
+        key is a no-op — the cache is best-effort, not authoritative.
+        """
+
+        with self._lock:
+            self._store.pop(handle_id, None)
+
+    def size(self) -> int:
+        """Test hook — number of cached entries."""
+
+        with self._lock:
+            return len(self._store)
+
+    def clear(self) -> None:
+        """Test hook — drop everything."""
+
+        with self._lock:
+            self._store.clear()

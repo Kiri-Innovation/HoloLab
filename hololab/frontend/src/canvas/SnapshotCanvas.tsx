@@ -56,6 +56,7 @@ import { MinimapToggleButton } from "./MinimapToggleButton";
 import { aggregateJobsToRuntime } from "./nodeRuntime";
 import { TypedEdge, type TypedEdgeData } from "./TypedEdge";
 import { effectiveOutputType, formatTypeLabel, formatTypeLabelLong } from "./edgeLabels";
+import { seedEdgeSummaryFacts } from "./edgeSummaryCache";
 
 const NODE_TYPES = { algorithm: AlgorithmNode };
 
@@ -142,6 +143,19 @@ export function SnapshotCanvas({
       if (raw) initialOpen[gn.id] = raw;
     }
     setPreviewOpenByGraphNode(initialOpen);
+    // Seed the edge-chip summary cache from the backend's inline
+    // ``latest_run.output_handles`` payload so the first paint of
+    // every chip carries the right ``image[cam:21]`` counts without a
+    // per-edge ``/api/handles/{id}/summary`` round-trip. Same idea as
+    // App.tsx's draft-canvas seed — kept here for read-only snapshot
+    // views which do their own hydration.
+    for (const gn of snapshot.graph.nodes) {
+      const outputs = gn.latest_run?.output_handles;
+      if (!outputs) continue;
+      for (const oh of Object.values(outputs)) {
+        seedEdgeSummaryFacts(oh.handle_id, oh);
+      }
+    }
 
     let cancelled = false;
 

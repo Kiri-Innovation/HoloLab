@@ -100,6 +100,7 @@ import {
   formatTypeLabel,
   formatTypeLabelLong,
 } from "./canvas/edgeLabels";
+import { seedEdgeSummaryFacts } from "./canvas/edgeSummaryCache";
 import { RunsPanel } from "./canvas/RunsPanel";
 import { useDraftAutosave } from "./canvas/useDraftAutosave";
 import { SnapshotBanner } from "./canvas/SnapshotBanner";
@@ -1615,6 +1616,21 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // the catalog, the effect re-runs this hydrator with the same
       // wire graph and the dropped nodes come back.
       lastHydratedWireRef.current = graph;
+      // Seed the edge-chip summary cache from the backend's inline
+      // ``latest_run.output_handles`` payload. Without this every
+      // mounted TypedEdge would fire a ``getHandleSummary`` round-trip
+      // before its chip could render ``image[cam:21]``; with the seed
+      // the chip paints synchronously on first render. Live handles
+      // that pop in later (a fresh run's ``output_handles`` frame)
+      // still go through the lazy fetch path — this seed only covers
+      // the cold-load initial paint.
+      for (const gn of graph.nodes) {
+        const outputs = gn.latest_run?.output_handles;
+        if (!outputs) continue;
+        for (const oh of Object.values(outputs)) {
+          seedEdgeSummaryFacts(oh.handle_id, oh);
+        }
+      }
       const missingPacks: string[] = [];
       const hydratedNodes = graph.nodes
         .map((gn) => {

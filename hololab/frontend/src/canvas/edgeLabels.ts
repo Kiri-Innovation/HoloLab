@@ -56,109 +56,160 @@ export interface EdgeType {
   internalCountItems?: Array<{ label: string; value: number }>;
 }
 
-/** Resolve a source port's effective type by walking ``tags_from`` when
- *  the pack declares it. Returns ``["any"]`` on cycles / unknown packs so
- *  the label degrades gracefully instead of throwing. */
+// Walk ``tags_from`` back to the ultimate producer. Independent from
+// the dim-labels walk (own visited set) — mirrors the backend's
+// ``effective_output_tags`` in workflows.py. Merging the two walks into
+// one visited set (as the earlier combined resolver did) polluted the
+// tag walk with hops the dim walk had already taken, so a ``get-index``
+// whose ``tags_from`` and ``dim_labels_from_input`` both point at
+// ``arr`` fell through the cycle guard and rendered ``any`` even though
+// the upstream was a concrete ``image``.
+function walkTags(
+  nodeId: string,
+  portName: string,
+  ctx: EdgeTypeCtx,
+  visited: Set<string>,
+): string[] {
+  const key = `${nodeId}::${portName}`;
+  if (visited.has(key)) return ["any"];
+  visited.add(key);
+  const node = ctx.nodes.find((n) => n.id === nodeId);
+  if (!node) return [];
+  const pack = ctx.catalogByKey.get(
+    `${node.algorithm_name}@${node.algorithm_version}`,
+  );
+  if (!pack) return [];
+  const port = pack.outputs[portName];
+  if (!port) return [];
+  if (!port.tags_from) return [...port.tags];
+  const feeder = ctx.edges.find(
+    (e) => e.target === nodeId && e.targetHandle === port.tags_from,
+  );
+  if (!feeder) return [...port.tags];
+  return walkTags(feeder.source, feeder.sourceHandle, ctx, visited);
+}
+
+// Walk ``dim_labels_from_input`` back to the ultimate producer. Own
+// visited set — see the header on walkTags.
+function walkDimLabels(
+  nodeId: string,
+  portName: string,
+  ctx: EdgeTypeCtx,
+  visited: Set<string>,
+): string[] | null {
+  const key = `${nodeId}::${portName}`;
+  if (visited.has(key)) return null;
+  visited.add(key);
+  const node = ctx.nodes.find((n) => n.id === nodeId);
+  if (!node) return null;
+  const pack = ctx.catalogByKey.get(
+    `${node.algorithm_name}@${node.algorithm_version}`,
+  );
+  if (!pack) return null;
+  const port = pack.outputs[portName];
+  if (!port) return null;
+
+  if (port.dim_labels_from) {
+    const pv = node.params[port.dim_labels_from];
+    if (Array.isArray(pv) && pv.every((v) => typeof v === "string")) {
+      return pv as string[];
+    }
+    return port.dim_labels ? [...port.dim_labels] : [];
+  }
+
+  if (port.dim_labels_from_input) {
+    const feeder = ctx.edges.find(
+      (e) => e.target === nodeId && e.targetHandle === port.dim_labels_from_input,
+    );
+    if (!feeder) return null;
+    const upstream = walkDimLabels(feeder.source, feeder.sourceHandle, ctx, visited);
+    if (upstream == null) return null;
+    const drop = Math.max(0, port.dim_labels_drop_outer ?? 0);
+    return drop >= upstream.length ? [] : upstream.slice(drop);
+  }
+
+  return port.dim_labels ? [...port.dim_labels] : [];
+}
+
+export interface EdgeTypeCtx {
+  nodes: readonly GraphNode[];
+  edges: readonly GraphEdge[];
+  catalogByKey: Map<string, CatalogPack>;
+}
+
+/** Resolve a source port's effective type. Prefers the backend's
+ *  ``resolved_outputs`` (populated on every graph GET — see
+ *  ``agent_graph_dict`` in gateway/workflows.py) so the frontend and
+ *  agents agree on the effective type without duplicating the resolver.
+ *  Falls back to a local walk for freshly-added palette drops that
+ *  haven't been round-tripped through autosave yet. */
 export function effectiveOutputType(
   nodeId: string,
   portName: string,
-  ctx: {
-    nodes: readonly GraphNode[];
-    edges: readonly GraphEdge[];
-    catalogByKey: Map<string, CatalogPack>;
-  },
-  visited: Set<string> = new Set(),
+  ctx: EdgeTypeCtx,
 ): EdgeType {
-  const key = `${nodeId}::${portName}`;
-  if (visited.has(key)) return { tags: ["any"], arrayed: false, dimLabels: [] };
-  visited.add(key);
-
   const node = ctx.nodes.find((n) => n.id === nodeId);
   if (!node) return { tags: [], arrayed: false, dimLabels: [] };
   const pack = ctx.catalogByKey.get(
     `${node.algorithm_name}@${node.algorithm_version}`,
   );
   if (!pack) return { tags: [], arrayed: false, dimLabels: [] };
-
   const port = pack.outputs[portName];
   if (!port) return { tags: [], arrayed: false, dimLabels: [] };
 
-  const nodeArrayed = Boolean(node.arrayed_toggle);
-  let arrayed = effectivePortArrayed(port.arrayed, pack.arrayable, nodeArrayed);
-  let dimLabels = effectivePortDimLabels(
-    port.arrayed,
-    port.dim_labels,
-    pack.arrayable,
-    nodeArrayed,
-  );
-  // When the port declares dim_labels_from, the actual labels come from a
-  // list[str] param (e.g. regroup.out → output_dims).  Resolve from the
-  // node's configured params so the chip shows the right label names before
-  // any handle exists (pre-hover fallback uses the param default).
-  if (port.dim_labels_from) {
-    const pv = node.params[port.dim_labels_from];
-    if (Array.isArray(pv) && pv.every((v) => typeof v === "string")) {
-      dimLabels = pv as string[];
-    }
+  // Fast path: backend already resolved this port. Trust it.
+  const resolved = node.resolved_outputs?.[portName];
+  if (resolved) {
+    return {
+      tags: [...resolved.tags],
+      arrayed: resolved.arrayed,
+      dimLabels: [...resolved.dim_labels],
+    };
   }
-  // When the port declares dim_labels_from_input, walk the wire back to the
-  // upstream output and inherit its dim_labels minus ``dim_labels_drop_outer``
-  // outer layers. Matches the backend resolver in workflows.py. On any
-  // unresolvable hop (no wire, missing catalog entry) fall through to the
-  // declared labels — pre-run scalar rendering is preferable to a wrong shape.
+
+  // Local mirror for pre-autosave state. Two independent walks so a
+  // port whose tags_from and dim_labels_from_input reference the same
+  // upstream input doesn't self-poison its own cycle guard.
+  const nodeArrayed = Boolean(node.arrayed_toggle);
+  const tags = port.tags_from
+    ? walkTags(nodeId, portName, ctx, new Set())
+    : [...port.tags];
+
+  let dimLabels: string[];
+  let arrayed = effectivePortArrayed(port.arrayed, pack.arrayable, nodeArrayed);
   if (port.dim_labels_from_input) {
-    const feeder = ctx.edges.find(
-      (e) => e.target === nodeId && e.targetHandle === port.dim_labels_from_input,
-    );
-    if (feeder) {
-      const upstream = effectiveOutputType(
-        feeder.source,
-        feeder.sourceHandle,
-        ctx,
-        visited,
-      );
-      const drop = Math.max(0, port.dim_labels_drop_outer ?? 0);
-      const derived =
-        drop >= upstream.dimLabels.length ? [] : upstream.dimLabels.slice(drop);
-      dimLabels = derived;
+    const walked = walkDimLabels(nodeId, portName, ctx, new Set());
+    if (walked != null) {
+      dimLabels = walked;
       // Arrayed cardinality mirrors the derived shape: a drop that
-      // collapses the outermost layer must also flip the port to scalar
-      // when nothing is left, or else the chip would render an unlabeled
-      // ``[?]`` bracket for a value that is genuinely a single element.
-      arrayed = derived.length > 0;
+      // collapses the outermost layer must also flip the port to scalar,
+      // else the chip would render an unlabeled ``[?]`` bracket for a
+      // value that is genuinely a single element.
+      arrayed = walked.length > 0;
     } else {
-      // No wire yet — leave labels off entirely; the chip degrades to
-      // the scalar form until the graph is connected.
       dimLabels = [];
       arrayed = false;
     }
+  } else if (port.dim_labels_from) {
+    const pv = node.params[port.dim_labels_from];
+    dimLabels = Array.isArray(pv) && pv.every((v) => typeof v === "string")
+      ? (pv as string[])
+      : effectivePortDimLabels(
+          port.arrayed,
+          port.dim_labels,
+          pack.arrayable,
+          nodeArrayed,
+        );
+  } else {
+    dimLabels = effectivePortDimLabels(
+      port.arrayed,
+      port.dim_labels,
+      pack.arrayable,
+      nodeArrayed,
+    );
   }
 
-  if (!port.tags_from) {
-    return { tags: [...port.tags], arrayed, dimLabels };
-  }
-
-  // Follow the wire back — find the edge feeding the referenced input
-  // port and recurse on its source. Missing wire → fall back to the
-  // declared tags rather than empty (the port still has a nominal type).
-  const upstreamInput = port.tags_from;
-  const feeder = ctx.edges.find(
-    (e) => e.target === nodeId && e.targetHandle === upstreamInput,
-  );
-  if (!feeder) return { tags: [...port.tags], arrayed, dimLabels };
-
-  const upstream = effectiveOutputType(
-    feeder.source,
-    feeder.sourceHandle,
-    ctx,
-    visited,
-  );
-  // Merge: mirror the upstream tags, keep OUR arrayed flag (an arrayfy
-  // node's whole point is to change the cardinality relative to its
-  // input; get-index does the opposite). Tags themselves come from
-  // upstream so ``arrayfy<video-source> → arrayed<video-source>`` reads
-  // right on the wire.
-  return { tags: upstream.tags, arrayed, dimLabels };
+  return { tags, arrayed, dimLabels };
 }
 
 /** Base tag string used on the chip (compact form). Empty tag list

@@ -407,6 +407,60 @@ export interface NodeEffectiveConfig {
 // Workflow graph (matches hololab/gateway/workflows.py WorkflowGraph)
 // ---------------------------------------------------------------------------
 
+// Per-output-port resolved type as returned by the backend on every
+// graph GET. The gateway runs the same three resolvers validation uses
+// at snapshot time (``effective_output_tags`` / ``effective_output_dim_labels``
+// / ``effective_port_arrayed`` in workflows.py) so this carries the
+// effective element type — not the manifest's raw ``["any"]`` — for
+// generic-utility ports (``arrayfy`` / ``get-index`` / ``regroup``). The
+// frontend edge chip reads this as ground truth so its resolver mirror
+// (``effectiveOutputType`` in edgeLabels.ts) only has to fire for
+// locally-mutated nodes that haven't been round-tripped through save
+// yet. Absent on freshly-added palette drops (no backend view exists
+// until autosave lands); the mirror kicks in for those.
+export interface ResolvedOutputPort {
+  tags: string[];
+  arrayed: boolean;
+  dim_labels: string[];
+}
+
+// One produced handle from a graph node's most recent run. The compact
+// chip-facts view the backend serves inline on the graph payload — see
+// ``latest_runs_for_workflow`` in gateway/workflows.py. Same shape the
+// frontend edge chip reads out of ``getHandleSummary`` — the intent is
+// that a cold canvas load doesn't need a per-edge summary round-trip
+// to render ``image[cam:21]``; the counts arrive with the graph itself.
+export interface LatestOutputHandle {
+  handle_id: string;
+  tags: string[];
+  dim_labels: string[] | null;
+  dim_sizes?: number[] | null;
+  element_count?: number | null;
+  internal_count?: number | null;
+  internal_count_kind?: string | null;
+  internal_count_items?: Array<{ label: string; value: number }> | null;
+  deleted: boolean;
+}
+
+// Most recent job attributed to a graph node — populated on every
+// workflow / snapshot / locate GET. Agents reading the graph get the
+// same "what did the last run produce here?" answer the canvas edge
+// chip does, no need to stitch snapshot + jobs + handles endpoints.
+// ``output_handles`` is keyed by port name (matches SnapshotJob.output_handles
+// on the wire, but with the chip facts inlined so no per-handle fetch
+// is needed for the initial paint).
+export interface LatestRun {
+  job_id: string;
+  snapshot_id: string | null;
+  snapshot_created_ts: number | null;
+  state: string;
+  fail_reason: string | null;
+  algorithm_name: string | null;
+  algorithm_version: string | null;
+  job_created_ts: number | null;
+  output_handles: Record<string, LatestOutputHandle>;
+}
+
 export interface GraphNode {
   id: string;
   algorithm_name: string;
@@ -429,6 +483,16 @@ export interface GraphNode {
   // Never affects dispatch — see the cosmetic/structural table in
   // docs/workflow-schema.md.
   preview_open?: string | null;
+  // Server-computed resolved output types keyed by port name. Populated
+  // by every graph GET (workflows / snapshots / locate). Read-only —
+  // clients that POST a graph back can leave this field on the payload;
+  // the gateway silently drops it (``exclude=True`` on GraphNode).
+  resolved_outputs?: Record<string, ResolvedOutputPort>;
+  // Most recent run for this graph node (across all snapshots for a
+  // workflow-scoped GET, or within the snapshot for a snapshot-scoped
+  // GET). ``null`` when the node has never dispatched. Read-only —
+  // silently dropped on writes like ``resolved_outputs``.
+  latest_run?: LatestRun | null;
 }
 
 export interface GraphEdge {

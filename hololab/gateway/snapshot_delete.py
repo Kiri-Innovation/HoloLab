@@ -271,6 +271,14 @@ async def delete_snapshot(app: FastAPI, snapshot_id: str) -> dict[str, Any]:
         if note is not None:
             tombstoned_only += 1
         await book.mark_deleted(handle.handle_id, ts=art.now_ts())
+        # Per-handle chip-facts cache is best-effort — pop on tombstone
+        # so the next graph GET doesn't surface counts for a file the
+        # operator just deleted. See app.py's create_app for the cache
+        # attribute; ``getattr`` guards test fixtures that build a
+        # WorkflowStore + HandleBook without the full app state.
+        cache = getattr(app.state, "summary_cache", None)
+        if cache is not None:
+            cache.invalidate(handle.handle_id)
 
     # 2. Cascade the snapshot row itself. FK ON DELETE CASCADE removes
     #    ``snapshot_jobs`` rows for this snapshot, releasing the shared

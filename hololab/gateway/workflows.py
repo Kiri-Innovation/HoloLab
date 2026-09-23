@@ -68,6 +68,17 @@ class GraphNode(BaseModel):
     position: GraphPosition = Field(default_factory=GraphPosition)
     params: dict[str, Any] = Field(default_factory=dict)
     assigned_node_id: str | None = None
+    # Read-only: computed on every GET by :func:`agent_graph_dict` from
+    # the pack catalog. Declared here so an agent (or the frontend) can
+    # POST the same graph JSON it just GET'd — the field is accepted on
+    # input and dropped on serialize (``exclude=True``), so the on-disk
+    # graph stays canonical and callers don't have to strip it manually.
+    resolved_outputs: dict[str, Any] | None = Field(default=None, exclude=True)
+    # Read-only: computed on every GET by
+    # :func:`latest_runs_for_workflow` / :func:`latest_runs_for_snapshot`.
+    # Same round-trip guarantee as ``resolved_outputs``: accepted on
+    # input, dropped on serialize, never persisted. See ``agent_graph_dict``.
+    latest_run: dict[str, Any] | None = Field(default=None, exclude=True)
     # Structural — when the pack is ``arrayable``, turning this on marks
     # every port that manifest-defaults to non-arrayed as arrayed at wire
     # time, and the scheduler fan-outs one sub-job per element of the
@@ -1307,7 +1318,65 @@ def _topology_text(graph: WorkflowGraph, labels: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
-def agent_graph_dict(graph: WorkflowGraph) -> dict[str, Any]:
+def _resolved_outputs_for_node(
+    node: GraphNode,
+    pack: PackHandle,
+    graph: WorkflowGraph,
+    node_by_id: dict[str, GraphNode],
+    packs_by_key: dict[tuple[str, str], PackHandle],
+) -> dict[str, dict[str, Any]]:
+    """Per-output-port resolved type: ``{port: {tags, arrayed, dim_labels}}``.
+
+    Runs the same three resolvers used at handle-register / validation time
+    (:func:`effective_output_tags`, :func:`effective_output_dim_labels`,
+    :func:`effective_port_arrayed`) so agents reading the graph and the
+    canvas rendering it see the *effective* type of every ``tags_from`` /
+    ``dim_labels_from`` port, not the manifest's raw ``["any"]`` +
+    ``dim_labels=[]`` declaration. Each resolver runs with its own
+    ``visited`` set — mixing them (as the earlier frontend walk did)
+    caused the tag walk to hit the dim-label walk's cycle-guard and
+    fall back to ``"any"`` when a port's ``tags_from`` and
+    ``dim_labels_from_input`` referenced the same upstream input.
+    """
+
+    out: dict[str, dict[str, Any]] = {}
+    for port_name, port in pack.outputs.items():
+        tags = effective_output_tags(node, pack, port_name, graph, node_by_id, packs_by_key)
+        dim_labels = effective_output_dim_labels(
+            node, pack, port_name, graph, node_by_id, packs_by_key
+        )
+        # For dim_labels_from_input ports (``get-index``): the manifest
+        # declares ``arrayed: false`` because the DEFAULT case (1-D input,
+        # drop_outer=1) yields a scalar. But when the wired input is 2-D
+        # the walked result still has one arrayed dim left, and the port
+        # is effectively arrayed. Mirror the frontend walk: when
+        # dim_labels_from_input is set and the walk resolved, cardinality
+        # follows the shape (nonzero derived layers → arrayed). Otherwise
+        # fall back to the static effective_port_arrayed rule.
+        if port.dim_labels_from_input and dim_labels is not None:
+            arrayed = len(dim_labels) > 0
+        else:
+            arrayed = effective_port_arrayed(
+                port.arrayed,
+                pack.arrayable,
+                node.arrayed_toggle,
+                port.scalar,
+                is_output=True,
+            )
+        out[port_name] = {
+            "tags": list(tags),
+            "arrayed": bool(arrayed),
+            "dim_labels": list(dim_labels) if dim_labels is not None else [],
+        }
+    return out
+
+
+def agent_graph_dict(
+    graph: WorkflowGraph,
+    packs_by_key: dict[tuple[str, str], PackHandle] | None = None,
+    *,
+    latest_runs: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Return an agent-friendly dict view of ``graph``.
 
     Shape matches :class:`hololab.gateway.models.WorkflowGraphOut`:
@@ -1316,6 +1385,29 @@ def agent_graph_dict(graph: WorkflowGraph) -> dict[str, Any]:
       * ``edges`` with ``source_label`` / ``target_label`` denormalized,
       * ``is_dag`` boolean,
       * ``topology_text`` compact readable rendering.
+
+    When ``packs_by_key`` is supplied every node also carries a
+    ``resolved_outputs`` map — the same ``tags_from`` / ``dim_labels_from``
+    resolution the gateway runs at handle-register / validation time.
+    Agents inspecting a graph then get the effective element type for
+    every port without walking the wire themselves, and the frontend
+    reads it as ground truth so its chip never has to duplicate the
+    resolver (the old duplicate had a shared-``visited`` bug that
+    surfaced generic-utility ports as ``any`` even when the upstream
+    was a concrete ``image`` tag). When ``packs_by_key`` is None,
+    ``resolved_outputs`` is omitted — callers that don't have a catalog
+    handy still get the plain graph.
+
+    When ``latest_runs`` is supplied (map of graph_node_id → LatestRun
+    dict from :func:`latest_runs_for_workflow` /
+    :func:`latest_runs_for_snapshot`) every node also carries a
+    ``latest_run`` field with the most recent job attributed to that
+    slot plus its produced handles (id + resolved tags + chip facts).
+    This closes the "agents ask for the graph; the graph doesn't tell
+    them what the last run produced" gap the frontend used to paper
+    over by aggregating multiple endpoints. Nodes with no run history
+    (never dispatched / a workflow with zero snapshots) leave
+    ``latest_run: null``.
 
     The wire fields (id, algorithm_name, etc) are unchanged so this can
     drop into any endpoint response that used to hand back ``graph.model_dump()``.
@@ -1337,7 +1429,24 @@ def agent_graph_dict(graph: WorkflowGraph) -> dict[str, Any]:
         is_dag = False
         ordered_ids = [n.id for n in graph.nodes]
 
-    ordered_nodes = [by_id[nid].model_dump() for nid in ordered_ids if nid in by_id]
+    ordered_nodes: list[dict[str, Any]] = []
+    for nid in ordered_ids:
+        n = by_id.get(nid)
+        if n is None:
+            continue
+        d = n.model_dump()
+        if packs_by_key is not None:
+            pack = packs_by_key.get((n.algorithm_name, n.algorithm_version))
+            if pack is not None:
+                d["resolved_outputs"] = _resolved_outputs_for_node(
+                    n, pack, graph, by_id, packs_by_key
+                )
+        if latest_runs is not None:
+            # Explicit ``None`` on absence so the field is always present
+            # on the wire — agents can then rely on ``node.latest_run``
+            # existing without a ``hasattr``/``in`` dance.
+            d["latest_run"] = latest_runs.get(nid)
+        ordered_nodes.append(d)
 
     edges_out: list[dict[str, Any]] = []
     for e in graph.edges:
@@ -1352,3 +1461,222 @@ def agent_graph_dict(graph: WorkflowGraph) -> dict[str, Any]:
         "is_dag": is_dag,
         "topology_text": _topology_text(graph, labels),
     }
+
+
+# ---------------------------------------------------------------------------
+# Per-node "latest run" resolution
+# ---------------------------------------------------------------------------
+
+
+async def _output_handles_for_job(
+    job_id: str,
+    algorithm_name: str,
+    algorithm_version: str,
+    *,
+    book: Any,
+    registry: Any,
+    cache: Any,
+) -> dict[str, dict[str, Any]]:
+    """Build ``output_handles`` payload for one job.
+
+    Returns ``{port_name: {handle_id, tags, dim_labels, dim_sizes,
+    element_count, internal_count[_kind|_items], deleted}}`` — the same
+    compact shape the frontend edge chip already reads. Facts come from
+    :class:`~hololab.gateway.handle_summary.HandleSummaryCache` so a
+    repeat query for the same handle doesn't re-walk the disk.
+
+    Handles with no ``output_port_name`` (internal / synthetic rows)
+    are skipped — the payload is keyed by port name, so anonymous
+    handles have no slot to land in.
+    """
+
+    from hololab.gateway.handle_summary import HandleSummaryCache
+
+    handles = await book.list_by_job(job_id)
+    out: dict[str, dict[str, Any]] = {}
+    for h in handles:
+        port = h.output_port_name
+        if not port:
+            continue
+        # ``dim_labels`` is what the summary probe needs to know
+        # ``depth`` — the number of arrayed layers to walk. We pull it
+        # from the producing port's manifest so the same port that
+        # declared ``dim_labels: ["cam", "frame"]`` gets its two-level
+        # ``dim_sizes: [21, 100]`` probe.
+        port_spec = registry.get_output_port_spec(algorithm_name, algorithm_version, port)
+        dim_labels = list(port_spec.dim_labels) if port_spec is not None else None
+        assert isinstance(cache, HandleSummaryCache)
+        facts = cache.get_or_compute(h, dim_labels=dim_labels)
+        entry: dict[str, Any] = {
+            "handle_id": h.handle_id,
+            "tags": list(h.tags),
+            "dim_labels": dim_labels,
+            "deleted": h.deleted_ts is not None,
+        }
+        for key, value in facts.items():
+            entry[key] = value
+        out[port] = entry
+    return out
+
+
+async def latest_runs_for_workflow(
+    workflow_id: str,
+    *,
+    db: Database,
+    book: Any,
+    registry: Any,
+    cache: Any,
+) -> dict[str, dict[str, Any]]:
+    """Latest job (across snapshots) per graph node for one workflow.
+
+    Answers "for each canvas slot in this workflow, what did the most
+    recent run produce there?" — the question every agent asks after
+    reading the graph and every edge chip renders on the canvas. One
+    SQL query enumerates the newest ``(graph_node_id, job_id,
+    snapshot_id, state, fail_reason, snapshot_created_ts)`` tuple per
+    slot; then we hydrate the produced handles via
+    :func:`_output_handles_for_job`.
+
+    The returned dict is safe to inline into ``agent_graph_dict`` — see
+    that function's ``latest_runs`` parameter.
+    """
+
+    # Per graph_node_id: the newest snapshot's attribution row + the
+    # jobs table's state/fail_reason fields. Window-function-free so it
+    # works on the SQLite version the gateway ships. The subquery picks
+    # the winning ``(gnid, snapshot_created_ts, job_id)`` and the outer
+    # JOIN pulls the state columns.
+    sql = """
+        WITH latest AS (
+            SELECT sj.graph_node_id AS gnid,
+                   sj.job_id AS job_id,
+                   sj.snapshot_id AS snapshot_id,
+                   s.created_ts AS snapshot_created_ts,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY sj.graph_node_id
+                       ORDER BY s.created_ts DESC, sj.job_id DESC
+                   ) AS rn
+            FROM snapshot_jobs sj
+            JOIN snapshots s ON s.snapshot_id = sj.snapshot_id
+            WHERE s.workflow_id = ?
+        )
+        SELECT l.gnid, l.job_id, l.snapshot_id, l.snapshot_created_ts,
+               j.state, j.fail_reason,
+               j.algorithm_name, j.algorithm_version, j.created_ts
+        FROM latest l
+        JOIN jobs j ON j.job_id = l.job_id
+        WHERE l.rn = 1
+    """
+    rows: list[tuple[Any, ...]] = []
+    async with db.read() as conn, conn.execute(sql, (workflow_id,)) as cur:
+        rows = list(await cur.fetchall())
+
+    out: dict[str, dict[str, Any]] = {}
+    for (
+        gnid,
+        job_id,
+        snapshot_id,
+        snapshot_created_ts,
+        state,
+        fail_reason,
+        alg_name,
+        alg_version,
+        job_created_ts,
+    ) in rows:
+        output_handles = await _output_handles_for_job(
+            job_id,
+            alg_name,
+            alg_version,
+            book=book,
+            registry=registry,
+            cache=cache,
+        )
+        out[gnid] = {
+            "job_id": job_id,
+            "snapshot_id": snapshot_id,
+            "snapshot_created_ts": snapshot_created_ts,
+            "state": state,
+            "fail_reason": fail_reason,
+            "algorithm_name": alg_name,
+            "algorithm_version": alg_version,
+            "job_created_ts": job_created_ts,
+            "output_handles": output_handles,
+        }
+    return out
+
+
+async def latest_runs_for_snapshot(
+    snapshot_id: str,
+    graph: WorkflowGraph,
+    *,
+    db: Database,
+    book: Any,
+    registry: Any,
+    cache: Any,
+) -> dict[str, dict[str, Any]]:
+    """``latest_runs`` scoped to one frozen snapshot.
+
+    Snapshots aren't "latest" in the workflow-wide sense — they are the
+    exact frozen run the caller is inspecting. Same output shape as
+    :func:`latest_runs_for_workflow` so callers can hand the result to
+    :func:`agent_graph_dict` interchangeably. Picks the freshest job
+    per ``graph_node_id`` within THIS snapshot (fan-out generation
+    scoping); non-fan-out slots yield the single attributed job.
+    """
+
+    sql = """
+        WITH within AS (
+            SELECT sj.graph_node_id AS gnid,
+                   sj.job_id AS job_id,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY sj.graph_node_id
+                       ORDER BY j.created_ts DESC, sj.job_id DESC
+                   ) AS rn
+            FROM snapshot_jobs sj
+            JOIN jobs j ON j.job_id = sj.job_id
+            WHERE sj.snapshot_id = ?
+        )
+        SELECT w.gnid, w.job_id, j.state, j.fail_reason,
+               j.algorithm_name, j.algorithm_version, j.created_ts
+        FROM within w
+        JOIN jobs j ON j.job_id = w.job_id
+        WHERE w.rn = 1
+    """
+    rows: list[tuple[Any, ...]] = []
+    async with db.read() as conn, conn.execute(sql, (snapshot_id,)) as cur:
+        rows = list(await cur.fetchall())
+
+    snap_created_ts: float | None = None
+    async with (
+        db.read() as conn,
+        conn.execute(
+            "SELECT created_ts FROM snapshots WHERE snapshot_id = ?", (snapshot_id,)
+        ) as cur,
+    ):
+        r = await cur.fetchone()
+        if r is not None:
+            snap_created_ts = r[0]
+
+    out: dict[str, dict[str, Any]] = {}
+    for gnid, job_id, state, fail_reason, alg_name, alg_version, job_created_ts in rows:
+        output_handles = await _output_handles_for_job(
+            job_id,
+            alg_name,
+            alg_version,
+            book=book,
+            registry=registry,
+            cache=cache,
+        )
+        out[gnid] = {
+            "job_id": job_id,
+            "snapshot_id": snapshot_id,
+            "snapshot_created_ts": snap_created_ts,
+            "state": state,
+            "fail_reason": fail_reason,
+            "algorithm_name": alg_name,
+            "algorithm_version": alg_version,
+            "job_created_ts": job_created_ts,
+            "output_handles": output_handles,
+        }
+    _ = graph  # Reserved for future filtering to declared nodes only.
+    return out

@@ -435,6 +435,88 @@ class LogTail(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class ResolvedOutputPort(BaseModel):
+    """Runtime-resolved type of one output port on one graph node.
+
+    Populated by :func:`hololab.gateway.workflows.agent_graph_dict` when
+    the endpoint has a pack catalog handy. Mirrors the three resolvers
+    validation runs at snapshot time (``effective_output_tags``,
+    ``effective_output_dim_labels``, ``effective_port_arrayed``) so
+    agents inspecting the graph — and the canvas rendering it — see the
+    same effective element type the scheduler will store on the emitted
+    handle, not the manifest's raw ``["any"]`` declaration for
+    ``tags_from`` / ``dim_labels_from`` ports.
+    """
+
+    tags: list[str]
+    arrayed: bool
+    dim_labels: list[str]
+
+
+class LatestOutputHandleOut(BaseModel):
+    """One produced handle from a graph node's most recent run.
+
+    Compact chip-facts view — the same fields the frontend edge chip
+    consumes for its ``image[cam:21] (7)`` label:
+      * ``handle_id`` — for downloads / previews / summary drill.
+      * ``tags`` — resolved tags stored on the handle at register time
+        (``["image"]``, not ``["any"]`` even for generic-utility ports).
+      * ``dim_labels`` — the producing port's declared labels, outer
+        first. ``None`` when the port declared none.
+      * ``dim_sizes`` — per-dim element counts, outer first. Present
+        for arrayed dir-storage handles where the tree is uniform; the
+        chip renders ``[cam:21][frame:100]`` from this.
+      * ``element_count`` — 1-D convenience field == ``dim_sizes[0]``
+        when both are set.
+      * ``internal_count`` + ``internal_count_kind`` — tag-specific
+        inside-one-element count (e.g. camera count in a
+        ``colmap-cameras-txt`` file). Used for the chip's ``(N)`` badge.
+      * ``internal_count_items`` — multi-value labeled counts
+        (``[{label: "pts", value: 8021}, ...]``) that supersede
+        ``internal_count`` when present.
+      * ``deleted`` — tombstoned via ``DELETE /api/artifacts/{id}``.
+        Frontend renders the chip in the "cleaned" style.
+    """
+
+    handle_id: str
+    tags: list[str]
+    dim_labels: list[str] | None = None
+    dim_sizes: list[int] | None = None
+    element_count: int | None = None
+    internal_count: int | None = None
+    internal_count_kind: str | None = None
+    internal_count_items: list[dict[str, Any]] | None = None
+    deleted: bool = False
+
+
+class LatestRunOut(BaseModel):
+    """Most recent run attributed to one graph node.
+
+    Populated by
+    :func:`hololab.gateway.workflows.latest_runs_for_workflow` /
+    :func:`hololab.gateway.workflows.latest_runs_for_snapshot`. The
+    intent: "an agent reading the graph should see what the last run
+    left at every slot without having to fetch snapshot + jobs +
+    handles + summaries by hand." Same data the canvas edge chip
+    displays — single source of truth.
+
+    Nodes that have never run leave ``latest_run: null`` on the graph
+    payload. Nodes whose latest job is still in flight report the
+    current in-flight state; ``output_handles`` will be empty until the
+    job transitions to done.
+    """
+
+    job_id: str
+    snapshot_id: str | None = None
+    snapshot_created_ts: float | None = None
+    state: str
+    fail_reason: str | None = None
+    algorithm_name: str | None = None
+    algorithm_version: str | None = None
+    job_created_ts: float | None = None
+    output_handles: dict[str, LatestOutputHandleOut] = Field(default_factory=dict)
+
+
 class GraphNodeOut(BaseModel):
     id: str
     algorithm_name: str
@@ -454,6 +536,23 @@ class GraphNodeOut(BaseModel):
     # hydrate its preview-drawer state without a separate round-trip.
     # See docs/workflow-schema.md for the cosmetic/structural boundary.
     preview_open: str | None = None
+    # Backend-resolved output-port types keyed by port name. Present on
+    # graph responses (``/api/workflows/{id}``, ``/api/snapshots/{id}``,
+    # ``/api/locate``) so agents and the frontend chip get the effective
+    # ``tags`` / ``arrayed`` / ``dim_labels`` for every ``tags_from`` /
+    # ``dim_labels_from`` port without re-walking the wire themselves.
+    # Omitted on request bodies (POST /api/workflows) — clients don't
+    # send it, the server computes it from the catalog on every read.
+    resolved_outputs: dict[str, ResolvedOutputPort] | None = None
+    # Most recent run attributed to this graph node. ``null`` when the
+    # node has never dispatched. On workflow GETs this is the latest
+    # across ALL snapshots for the workflow; on snapshot GETs it is
+    # scoped to that snapshot's own generation. See LatestRunOut for
+    # the shape. Same data the canvas edge chip reads — the field
+    # exists so agents don't have to stitch snapshot + jobs + handles
+    # + summary endpoints themselves to see "what did this node emit
+    # last?".
+    latest_run: LatestRunOut | None = None
 
 
 class GraphEdgeOut(BaseModel):
