@@ -5,35 +5,6 @@ Each entry names the defect, the shape of the fix, and the reason it
 was scoped out — so a future author doesn't have to re-derive the
 context.
 
-## Fanout `pending` shards stranded when dispatch raises before ASSIGNED
-
-**Context**: `e8fcc72` (`fix(gateway): recover mid-flight WS drops instead
-of stranding shards`) covered the WS-drop path end to end for `assigned`
-and `running` rows. But a shard whose `_dispatch_prepared_shard` raised
-**before** the PENDING→ASSIGNED transition (e.g. `get_session` returned
-None during a disconnect window) stays in `pending` forever — the parent
-fanout ends up FAILED via the aggregator, but the `pending` row is
-never flipped.
-
-**Symptom**: on the 88/100 stall, 8 of the 12 non-done shards
-(`frame_0020..0027`) were left in `pending` and never re-dispatched
-even after the parent was cancelled.
-
-**Options**:
-
-1. In `_run_one` (`hololab/gateway/execution.py`), catch dispatch-time
-   exceptions before re-raising and flip the shard row to FAILED
-   (SYSTEM_ERROR) with a `fail_message` naming the dispatch error.
-   Small, local, keeps the `_run_one` contract clean.
-2. After the fanout aggregator marks the parent FAILED, sweep any
-   remaining `pending` children of that parent and flip them to
-   CANCELLED. More systemic (also covers non-dispatch stranding
-   modes), needs a helper on `JobsStore`.
-
-Option 1 is probably what future-you wants — matches the
-`_dispatch_prepared_shard` / `_dispatch_job` send-fail cleanup that
-already exists in the same file.
-
 ## Shard-level stall detection
 
 **Context**: `_await_job_terminal` (`hololab/gateway/execution.py`)

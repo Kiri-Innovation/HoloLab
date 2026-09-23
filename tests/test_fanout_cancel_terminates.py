@@ -20,6 +20,18 @@ The fix reads shard + parent state from the DB inside ``_run_one``
 after acquiring the semaphore. If the shard is no longer PENDING (or
 the parent is CANCELLED), we do NOT dispatch. This test locks that
 behaviour in.
+
+Second regression (``test_pending_shard_flipped_when_dispatch_raises``):
+when ``_dispatch_prepared_shard`` raised **before** the
+PENDING→ASSIGNED transition (e.g. the compute node's WS session
+dropped mid-fanout and ``registry.get_session`` returned None), the
+shard row used to stay ``pending`` forever. The mid-flight orphan
+sweep only covers ``assigned``/``running`` rows (see
+``registry.mark_stuck_jobs_orphaned_for_node``) and the aggregator's
+``_mark_parent_failed`` never touches shard rows, so the pending rows
+outlived their FAILED parent and clogged the live-jobs list until
+manual cleanup. ``_run_one`` now flips such shards to FAILED
+(SYSTEM_ERROR) in-place before re-raising.
 """
 
 from __future__ import annotations
@@ -28,6 +40,7 @@ import asyncio
 import contextlib
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -236,3 +249,85 @@ async def test_cancel_all_is_idempotent_across_repeat_calls(tmp_path: Path) -> N
                     await snap_task
 
         client.portal.call(_run_and_double_cancel)
+
+
+@pytest.mark.asyncio
+async def test_pending_shard_flipped_when_dispatch_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every shard whose ``_dispatch_prepared_shard`` raises before the
+    PENDING→ASSIGNED transition must be flipped to FAILED, not left in
+    ``pending``.
+
+    Simulates the "compute node dropped mid-fanout" case: monkey-patch
+    ``_dispatch_prepared_shard`` to raise ``WorkflowRunError`` for every
+    shard. The parent fan-out ends up FAILED via the aggregator, and
+    without the ``_run_one`` fix the shard rows would stay ``pending``
+    forever — reproducing the 100-shard image-undistort stall.
+    """
+
+    from hololab.gateway import execution as exec_mod
+    from hololab.protocol.messages import JobFailReason
+
+    async def _always_raise(**_kwargs: Any) -> None:
+        raise WorkflowRunError("assigned compute node 'node-a' dropped mid-fanout")
+
+    monkeypatch.setattr(exec_mod, "_dispatch_prepared_shard", _always_raise)
+
+    ws_root = tmp_path / "ws"
+    ws_root.mkdir()
+    app = create_app(db_path=tmp_path / "drop.sqlite")
+
+    elements = [f"e{i:02d}" for i in range(6)]
+
+    with TestClient(app) as client:
+        _fake_online_node(app, workspace_root=ws_root)
+        _install_fake_catalog(app)
+
+        async def _seed() -> tuple[str, WorkflowGraph]:
+            snap_id, graph, _ = await _seed_fanout_graph(app, element_ids=elements, parallelism=2)
+            return snap_id, graph
+
+        snapshot_id, graph = client.portal.call(_seed)
+
+        async def _run() -> None:
+            with contextlib.suppress(WorkflowRunError):
+                await run_snapshot(
+                    app,
+                    snapshot_id=snapshot_id,
+                    graph=graph,
+                    workflow_id="wf1",
+                    skip_graph_nodes={"src"},
+                    seed_outputs={"src": {"out": "h-arr"}},
+                    job_timeout_s=30,
+                )
+
+        client.portal.call(_run)
+
+        async def _check() -> None:
+            store = app.state.jobs_store
+            rows = await store.list_recent(limit=200, order="asc")
+            shard_rows = [r for r in rows if r["graph_node_id"] == "fan" and r.get("parent_job_id")]
+            assert len(shard_rows) == len(elements), [r["state"] for r in shard_rows]
+
+            # Every shard must be terminal (FAILED) — no more pending rows.
+            # ``list_recent`` omits ``fail_message``; re-fetch via ``store.get``
+            # for the full Job to check the dispatch-time reason string.
+            for r in shard_rows:
+                assert r["state"] == "failed", (
+                    f"shard {r['job_id']} left in {r['state']!r} — "
+                    "dispatch-time failure did not flip pending → failed"
+                )
+                assert r["fail_reason"] == JobFailReason.SYSTEM_ERROR.value, r
+                full = await store.get(r["job_id"])
+                assert full is not None
+                assert full.fail_message and "dispatch failed" in full.fail_message, full
+
+            # Parent itself is FAILED (aggregator's normal path).
+            parent_rows = [
+                r for r in rows if r["graph_node_id"] == "fan" and not r.get("parent_job_id")
+            ]
+            assert len(parent_rows) == 1
+            assert parent_rows[0]["state"] == "failed"
+
+        client.portal.call(_check)

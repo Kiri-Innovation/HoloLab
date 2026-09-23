@@ -470,6 +470,27 @@ async def _execute_fanout_body(
                     element_id=element_id,
                     error=str(exc),
                 )
+                # If the shard never made it past PENDING (e.g. session was
+                # gone by the time ``_dispatch_prepared_shard`` looked it
+                # up), flip it here. Otherwise the row stays ``pending``
+                # forever: the mid-flight orphan sweep only covers
+                # ``assigned``/``running`` (see
+                # ``registry.mark_stuck_jobs_orphaned_for_node``), and the
+                # fanout aggregator's ``_mark_parent_failed`` never touches
+                # shard rows. Shards that failed AFTER the ASSIGNED
+                # transition are already handled inside
+                # ``_dispatch_prepared_shard`` via ``_fail_after_send_error``.
+                current = await store.get(shard.job_id)
+                if current is not None and current.state is JobState.PENDING:
+                    failed = JobStateMachine.transition(
+                        current,
+                        JobState.FAILED,
+                        fail_reason=JobFailReason.SYSTEM_ERROR,
+                        fail_message=f"dispatch failed: {exc!r}",
+                    )
+                    _, payload = event_from_transition(current, failed)
+                    await store.update(failed, "transition:failed", payload)
+                    _push_update(hub, failed)
                 raise
             final = await _await_job_terminal(store, shard.job_id, timeout_s=job_timeout_s)
             return (idx, element_id, final)
