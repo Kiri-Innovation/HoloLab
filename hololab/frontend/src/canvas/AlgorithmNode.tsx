@@ -18,6 +18,7 @@ import { effectivePortArrayed, effectivePortDimLabels, firstTagColour } from "..
 import { useCanvasContext } from "./CanvasContext";
 import type { NodeStaleness } from "./staleness";
 import { CopyRefButton } from "./CopyRefButton";
+import { OpenArtifactLocationButton } from "./OpenArtifactLocationButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { OpenSourceButton } from "./OpenSourceButton";
 import { BasicInfoPreview, Preview } from "./previews";
@@ -478,6 +479,24 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   // to a text pill.
   const failedTint = runState === "failed";
 
+  // Footer "跳转产物位置" affordance — jumps to the on-disk location of
+  // this node's produced artifacts. Uses the FIRST output port that
+  // resolved a PreviewTarget (i.e. persistently carries the last run's
+  // handle, even in stale / mid-rerun states). Ports without artifacts
+  // are skipped so the affordance never lies. Multi-output cases still
+  // work per-port via the drawer's own Open-in-Cocoder buttons.
+  const firstArtifactTarget = (() => {
+    if (!previews) return null;
+    for (const name of Object.keys(pack.outputs)) {
+      const t = previews[name];
+      if (t && !t.deleted) return t;
+    }
+    return null;
+  })();
+  const artifactComputeNode = firstArtifactTarget
+    ? computeNodesById?.[firstArtifactTarget.node_id] ?? assignedComputeNode
+    : null;
+
   const card = (
     <div
       className="hololab-node"
@@ -791,6 +810,15 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           >
             {progressLabel}
           </span>
+        )}
+        {/* Collapsed-only per user's request ("在没展开的时候"). When the
+            drawer is open, per-port Open-in-Cocoder buttons in the
+            drawer header already cover this affordance. */}
+        {!expanded && firstArtifactTarget && (
+          <OpenArtifactLocationButton
+            path={firstArtifactTarget.absolute_path}
+            computeNode={artifactComputeNode}
+          />
         )}
         {expandables.length > 0 && (
           <PreviewCaret
