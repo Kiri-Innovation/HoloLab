@@ -74,6 +74,7 @@ from hololab.gateway.registry import (
     SnapshotJobsStore,
     finalize_stale_orphaned_jobs,
     mark_stuck_jobs_orphaned,
+    mark_stuck_jobs_orphaned_for_node,
     reset_all_online_flags,
 )
 from hololab.gateway.spa_staticfiles import SPAStaticFiles
@@ -3041,6 +3042,35 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
         log.warning("node socket error", error=str(exc), exc_info=True)
     finally:
         if session is not None:
+            # Flip this node's ``assigned`` / ``running`` rows to
+            # ``orphaned`` before marking the session offline. Without
+            # this, a mid-flight WS drop (keepalive ping timeout,
+            # transient network hiccup) leaves in-flight rows stuck
+            # forever: the terminal ``job_done`` / ``job_fail`` frames
+            # went out with the socket, and neither the register-time
+            # reconciler nor the orphan sweeper touch rows still in
+            # ``assigned`` / ``running``. Reconciliation on the next
+            # ``register`` will hoist any the node still claims back to
+            # RUNNING; whatever the node no longer claims becomes
+            # INTERRUPTED, and the parent fanout finally unblocks.
+            try:
+                flipped = await mark_stuck_jobs_orphaned_for_node(app.state.db, session.node_id)
+                for jid in flipped:
+                    job = await store.get(jid)
+                    if job is not None:
+                        _push_job_update(hub, job)
+                if flipped:
+                    log.info(
+                        "mid-flight orphan flip",
+                        node_id=session.node_id,
+                        count=len(flipped),
+                    )
+            except Exception as exc:  # pragma: no cover — defensive
+                log.warning(
+                    "mid-flight orphan flip failed",
+                    node_id=session.node_id,
+                    error=str(exc),
+                )
             await registry.mark_offline(session.node_id)
             hub.broadcast(
                 encode(

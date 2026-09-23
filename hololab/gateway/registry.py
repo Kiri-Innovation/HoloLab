@@ -635,6 +635,48 @@ async def mark_stuck_jobs_orphaned(db: Database) -> int:
     return await db.write(_write)
 
 
+async def mark_stuck_jobs_orphaned_for_node(db: Database, node_id: str) -> list[str]:
+    """Mark this node's ``assigned`` / ``running`` jobs as ``orphaned``.
+
+    Called from the WS-drop path in ``_handle_node_socket`` so a
+    mid-flight disconnect stops leaving phantom in-flight rows behind.
+    Startup uses the node-agnostic :func:`mark_stuck_jobs_orphaned`;
+    mid-flight scopes to just the node whose socket died so a sibling
+    node's live jobs stay untouched.
+
+    Returns the job_ids that were flipped so the caller can broadcast
+    ``job_update`` frames for each — the frontend needs to flip its dot
+    from running-green to orphaned-blue immediately, not wait for the
+    next poll.
+
+    ``pending`` rows are left alone (same reasoning as the startup
+    counterpart): they weren't in-flight, they were queued, and forcing
+    them terminal here would strand shards the fanout pool never got a
+    chance to dispatch.
+    """
+
+    reclaimable = ("assigned", "running")
+
+    async def _write(conn: aiosqlite.Connection) -> list[str]:
+        placeholders = ",".join("?" for _ in reclaimable)
+        async with conn.execute(
+            f"SELECT job_id FROM jobs WHERE node_id=? AND state IN ({placeholders})",
+            (node_id, *reclaimable),
+        ) as cur:
+            ids = [row[0] for row in await cur.fetchall()]
+        if not ids:
+            return []
+        now = time.time()
+        id_placeholders = ",".join("?" for _ in ids)
+        await conn.execute(
+            f"UPDATE jobs SET state='orphaned', updated_ts=? WHERE job_id IN ({id_placeholders})",
+            (now, *ids),
+        )
+        return ids
+
+    return await db.write(_write)
+
+
 async def finalize_stale_orphaned_jobs(
     db: Database,
     *,

@@ -27,6 +27,7 @@ from hololab.gateway.registry import (
     JobsStore,
     finalize_stale_orphaned_jobs,
     mark_stuck_jobs_orphaned,
+    mark_stuck_jobs_orphaned_for_node,
 )
 from hololab.persistence.db import open_database
 
@@ -247,5 +248,105 @@ async def test_reconcile_hoists_claimed_and_finalises_unclaimed(tmp_path: Path) 
         assert (await store.get("silently-done")).state.value == "interrupted"
         # Untouched — we filtered by node_id.
         assert (await store.get("someone-elses")).state.value == "orphaned"
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_mark_stuck_orphaned_for_node_scopes_by_owner(
+    tmp_path: Path,
+) -> None:
+    """Mid-flight variant: only the disconnecting node's in-flight rows
+    flip. Sibling nodes stay untouched, and pending/terminal rows even
+    on the disconnecting node are left alone (same rationale as the
+    startup variant).
+    """
+
+    db = await open_database(tmp_path / "s.sqlite")
+    try:
+        # Rows owned by the node that's dropping.
+        await _seed_job(db, "drop-assigned", "assigned", node_id="dropping")
+        await _seed_job(db, "drop-running", "running", node_id="dropping")
+        await _seed_job(db, "drop-pending", "pending", node_id="dropping")
+        await _seed_job(db, "drop-done", "done", node_id="dropping")
+        # Rows owned by an unrelated node.
+        await _seed_job(db, "sibling-assigned", "assigned", node_id="sibling")
+        await _seed_job(db, "sibling-running", "running", node_id="sibling")
+
+        flipped = await mark_stuck_jobs_orphaned_for_node(db, "dropping")
+        assert sorted(flipped) == ["drop-assigned", "drop-running"]
+
+        store = JobsStore(db)
+        assert (await store.get("drop-assigned")).state.value == "orphaned"
+        assert (await store.get("drop-running")).state.value == "orphaned"
+        # Pending stays pending — see the docstring rationale.
+        assert (await store.get("drop-pending")).state.value == "pending"
+        assert (await store.get("drop-done")).state.value == "done"
+        # Sibling node's rows are untouched.
+        assert (await store.get("sibling-assigned")).state.value == "assigned"
+        assert (await store.get("sibling-running")).state.value == "running"
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_mark_stuck_orphaned_for_node_empty_when_no_stuck_rows(
+    tmp_path: Path,
+) -> None:
+    """No in-flight rows for the node → return empty, no writes."""
+
+    db = await open_database(tmp_path / "s.sqlite")
+    try:
+        await _seed_job(db, "done", "done", node_id="quiet")
+        await _seed_job(db, "pending", "pending", node_id="quiet")
+
+        flipped = await mark_stuck_jobs_orphaned_for_node(db, "quiet")
+        assert flipped == []
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_mid_flight_orphan_flip_end_to_end_with_reconcile(
+    tmp_path: Path,
+) -> None:
+    """Full DB path: node's socket drops → per-node orphan flip →
+    reconcile on reconnect. Mirrors what ``_handle_node_socket`` +
+    ``_reconcile_orphaned_on_register`` do together, minus the WS/hub
+    plumbing. Regression guard for the 100-shard fanout stall (parent
+    job ``7d1f7305`` cluster) where a mid-flight ping-timeout left
+    shards stuck ``running`` forever.
+    """
+
+    from hololab.gateway.jobs import event_from_transition
+
+    db = await open_database(tmp_path / "s.sqlite")
+    try:
+        # Shard the node has actually finished on its side but whose
+        # ``job_done`` was lost with the socket.
+        await _seed_job(db, "silently-done", "running", node_id="n1")
+        # Shard whose ``JobAssign`` never made it out.
+        await _seed_job(db, "never-arrived", "assigned", node_id="n1")
+        # Shard the node's daemon is genuinely still running.
+        await _seed_job(db, "still-alive", "running", node_id="n1")
+
+        # (1) mid-flight drop path
+        flipped = await mark_stuck_jobs_orphaned_for_node(db, "n1")
+        assert sorted(flipped) == sorted(["silently-done", "never-arrived", "still-alive"])
+
+        # (2) node reconnects, register frame includes only the job its
+        # daemon is actually running.
+        store = JobsStore(db)
+        orphans = await store.list_orphaned_for_node("n1")
+        claimed = {"still-alive"}
+        for job in orphans:
+            target = JobState.RUNNING if job.job_id in claimed else JobState.INTERRUPTED
+            new = JobStateMachine.transition(job, target)
+            kind, payload = event_from_transition(job, new)
+            await store.update(new, kind, payload)
+
+        assert (await store.get("still-alive")).state.value == "running"
+        assert (await store.get("silently-done")).state.value == "interrupted"
+        assert (await store.get("never-arrived")).state.value == "interrupted"
     finally:
         await db.close()

@@ -447,15 +447,30 @@ async def _execute_fanout_body(
                     _push_update(hub, cancelled)
                     return (idx, element_id, cancelled)
                 return (idx, element_id, shard_now)
-            await _dispatch_prepared_shard(
-                registry=registry,
-                store=store,
-                hub=hub,
-                gnode=gnode,
-                shard=shard_now,
-                shard_element_id=element_id,
-                shard_output_prefix=plan.parent_ws,
-            )
+            try:
+                await _dispatch_prepared_shard(
+                    registry=registry,
+                    store=store,
+                    hub=hub,
+                    gnode=gnode,
+                    shard=shard_now,
+                    shard_element_id=element_id,
+                    shard_output_prefix=plan.parent_ws,
+                )
+            except Exception as exc:
+                # Log before re-raising into ``gather(return_exceptions=True)``
+                # so the failure isn't silently swallowed. The aggregator
+                # still records this shard as ``shard raised: ...`` in the
+                # parent's fail_message; this log makes triage easy without
+                # crawling the parent row.
+                log.warning(
+                    "fanout shard dispatch failed",
+                    parent_job_id=plan.parent_job.job_id,
+                    shard_job_id=shard.job_id,
+                    element_id=element_id,
+                    error=str(exc),
+                )
+                raise
             final = await _await_job_terminal(store, shard.job_id, timeout_s=job_timeout_s)
             return (idx, element_id, final)
 
@@ -914,6 +929,46 @@ async def _create_shard_row(
     return shard
 
 
+async def _fail_after_send_error(
+    *,
+    store: JobsStore,
+    hub: FrontendHub,
+    job: Job,
+    exc: BaseException,
+    transition_tag: str,
+) -> None:
+    """Finalise a just-ASSIGNED row as FAILED when ``send_text`` blew up.
+
+    Cleanup path for the dispatch helpers: the row was already written
+    in ASSIGNED before we tried to hand the frame to the WS. When that
+    send raises (dead socket, keepalive timeout, transient close), the
+    node has not learned about the job — so we must not leave a row
+    the node has no way to complete. Flip to FAILED with SYSTEM_ERROR
+    (infra-class, propagates to the parent's aggregate reason via
+    :func:`_aggregate_parent_fail_reason`) and broadcast the update.
+    Any error inside this cleanup is logged and swallowed so it never
+    masks the original send failure — the caller re-raises that.
+    """
+
+    try:
+        failed = JobStateMachine.transition(
+            job,
+            JobState.FAILED,
+            fail_reason=JobFailReason.SYSTEM_ERROR,
+            fail_message=f"send failed: {exc!r}",
+        )
+        _, payload = event_from_transition(job, failed)
+        await store.update(failed, transition_tag, payload)
+        _push_update(hub, failed)
+    except Exception as cleanup_exc:  # pragma: no cover — defensive
+        log.warning(
+            "dispatch send-failure cleanup failed",
+            job_id=job.job_id,
+            original_error=str(exc),
+            cleanup_error=str(cleanup_exc),
+        )
+
+
 async def _dispatch_prepared_shard(
     *,
     registry: NodeRegistry,
@@ -954,8 +1009,26 @@ async def _dispatch_prepared_shard(
         shard_output_prefix=shard_output_prefix,
     )
     frame = encode("job_assign", assign_msg, v=session.protocol_v)
-    async with session.send_lock:
-        await session.ws.send_text(frame)
+    try:
+        async with session.send_lock:
+            await session.ws.send_text(frame)
+    except Exception as exc:
+        # The state transition to ASSIGNED above already landed in the
+        # DB; if we let this raise without cleanup the row would stay
+        # ``assigned`` forever (the node never received the frame, so
+        # it will never send a terminal ``job_done`` / ``job_fail`` for
+        # it). Flip to FAILED with SYSTEM_ERROR so the fanout aggregator
+        # counts it as an infra-class failure and the parent job can
+        # reach a terminal state promptly instead of waiting for
+        # ``job_timeout_s`` (~24 h) to fire.
+        await _fail_after_send_error(
+            store=store,
+            hub=hub,
+            job=assigned,
+            exc=exc,
+            transition_tag="transition:failed",
+        )
+        raise
 
     log.info(
         "shard dispatched",
@@ -1215,8 +1288,22 @@ async def _dispatch_job(
         graph_node_id=assigned.graph_node_id,
     )
     frame = encode("job_assign", assign_msg, v=session.protocol_v)
-    async with session.send_lock:
-        await session.ws.send_text(frame)
+    try:
+        async with session.send_lock:
+            await session.ws.send_text(frame)
+    except Exception as exc:
+        # See the matching comment in ``_dispatch_prepared_shard`` — the
+        # ASSIGNED row is already persisted; if send fails we must
+        # finalise it here or the run loop's ``_await_job_terminal``
+        # will block on a row the node never learned about.
+        await _fail_after_send_error(
+            store=store,
+            hub=hub,
+            job=assigned,
+            exc=exc,
+            transition_tag="transition:failed",
+        )
+        raise
 
     log.info(
         "dispatched",
@@ -1238,7 +1325,21 @@ async def _await_job_terminal(
     A future refactor could subscribe to an in-process event bus instead.
     """
 
-    _TERMINAL = {JobState.DONE, JobState.FAILED, JobState.CANCELLED}
+    # ``INTERRUPTED`` is terminal per the state machine (see
+    # ``hololab.gateway.jobs`` — no outbound edges) and is the natural
+    # landing state for a shard whose owning node reconnected but
+    # doesn't claim it anymore. Without INTERRUPTED here the reconcile
+    # would flip the row but the fanout worker would still spin against
+    # ``job_timeout_s`` (up to 24 h by default). ``ORPHANED`` is
+    # deliberately absent — the register-time reconciler can hoist it
+    # back to RUNNING, so treating it as terminal would drop still-alive
+    # work on the floor.
+    _TERMINAL = {
+        JobState.DONE,
+        JobState.FAILED,
+        JobState.CANCELLED,
+        JobState.INTERRUPTED,
+    }
     deadline = asyncio.get_event_loop().time() + timeout_s
     while True:
         job = await store.get(job_id)
