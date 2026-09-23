@@ -20,6 +20,7 @@ import type {
   HandleSummaryEntry,
   OutputPreviewSpec,
 } from "../wire";
+import { LazyThumb } from "./LazyThumb";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 
 // ---------------------------------------------------------------------------
@@ -2438,10 +2439,9 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
                   boxShadow: "0 1px 3px rgba(0,0,0,0.35)",
                 }}
               >
-                <img
+                <LazyThumb
                   src={thumbUrl(frameIdx)}
                   alt={`frame ${frameIdx}`}
-                  loading="lazy"
                   style={{
                     display: "block",
                     width: "100%",
@@ -2909,7 +2909,7 @@ function NestedGroupCard({
               boxShadow: "0 1px 2px rgba(0,0,0,0.35)",
             }}
           >
-            <img
+            <LazyThumb
               // Depends on the fileserver's still-image branch in
               // ``_thumb_response`` (dropping ``-ss`` for jpg/png/…):
               // before that landed a JPEG tile 500'd here. If a future
@@ -2917,7 +2917,6 @@ function NestedGroupCard({
               // the tile paints empty — coupling point is intentional.
               src={`${nodeRoot}/_thumb/${NESTED_MINI_THUMB_W}x${NESTED_MINI_THUMB_H}/${dirSub}/${encodeURIComponent(group.name)}/${group.pathPrefix}${encodeURIComponent(imgName)}?at=0`}
               alt={imgName}
-              loading="lazy"
               style={{
                 display: "block",
                 width: "100%",
@@ -3085,13 +3084,12 @@ function NestedGroupDetail({
                   boxShadow: "0 1px 3px rgba(0,0,0,0.35)",
                 }}
               >
-                <img
+                <LazyThumb
                   // Same fileserver still-image-branch dependency as the
                   // outer card thumb above — keep the two call sites in
                   // sync if the URL scheme moves.
                   src={`${nodeRoot}/_thumb/${STRIP_THUMB_W}x${STRIP_THUMB_H}/${dirSub}/${encodeURIComponent(group.name)}/${group.pathPrefix}${encodeURIComponent(imgName)}?at=0`}
                   alt={imgName}
-                  loading="lazy"
                   style={{
                     display: "block",
                     width: "100%",
