@@ -1004,6 +1004,8 @@ def _mount_routes(app: FastAPI) -> None:
                 book=book,
                 registry=registry,
                 cache=app.state.summary_cache,
+                graph=row.graph,
+                packs_by_key=packs_by_key,
             )
             return {
                 "kind": "workflow",
@@ -1036,6 +1038,7 @@ def _mount_routes(app: FastAPI) -> None:
                 book=book,
                 registry=registry,
                 cache=app.state.summary_cache,
+                packs_by_key=packs_by_key,
             )
             return {
                 "kind": "run",
@@ -1384,6 +1387,8 @@ def _mount_routes(app: FastAPI) -> None:
             book=app.state.handles,
             registry=registry,
             cache=app.state.summary_cache,
+            graph=row.graph,
+            packs_by_key=packs_by_key,
         )
         return {
             "workflow_id": row.workflow_id,
@@ -1962,6 +1967,7 @@ def _mount_routes(app: FastAPI) -> None:
             book=app.state.handles,
             registry=registry,
             cache=app.state.summary_cache,
+            packs_by_key=packs_by_key,
         )
         return {
             "snapshot_id": snap.snapshot_id,

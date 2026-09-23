@@ -1295,6 +1295,21 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       target: e.target,
       targetHandle: e.targetHandle ?? "",
     }));
+    // Per-graph-node source job for handleId lookup on NON-previewable
+    // ports. ``previewsByGraphNode`` only fills for ports the pack
+    // declared as previewable (they get resolved through /api/handles),
+    // so generic-utility outputs like ``get-index.item`` (preview:null)
+    // have no entry there and the chip would render ``[?]`` even when
+    // the backend has real ``dim_sizes`` seeded on the summary cache.
+    // Falling back to ``latestSnapshotJobs[].output_handles`` covers
+    // every port the last run emitted, matching the ``latest_run``
+    // payload shape the backend inlines on the graph GET.
+    const outputHandleByGraphNode = new Map<string, Record<string, string>>();
+    for (const j of latestSnapshotJobs) {
+      if (!j.graph_node_id) continue;
+      if (outputHandleByGraphNode.has(j.graph_node_id)) continue;
+      if (j.output_handles) outputHandleByGraphNode.set(j.graph_node_id, j.output_handles);
+    }
     return edges.map((e) => {
       const t = effectiveOutputType(e.source, e.sourceHandle ?? "", {
         nodes: graphNodes,
@@ -1305,7 +1320,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       const labelLong = formatTypeLabelLong(t);
       const sourceHandleName = e.sourceHandle ?? "";
       const handleId =
-        previewsByGraphNode[e.source]?.[sourceHandleName]?.handle_id ?? null;
+        previewsByGraphNode[e.source]?.[sourceHandleName]?.handle_id
+        ?? outputHandleByGraphNode.get(e.source)?.[sourceHandleName]
+        ?? null;
       const prev = e.data as TypedEdgeData | undefined;
       if (
         prev?.label === label &&
@@ -1326,7 +1343,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         },
       };
     });
-  }, [edges, nodes, catalogByKey, previewsByGraphNode]);
+  }, [edges, nodes, catalogByKey, previewsByGraphNode, latestSnapshotJobs]);
 
   // Snapshot-mode counterparts. Derived from viewingSnapshot +
   // snapshotSelectedGraphNodeId so the read-only inspector reflects

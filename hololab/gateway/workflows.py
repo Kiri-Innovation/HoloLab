@@ -1472,10 +1472,13 @@ async def _output_handles_for_job(
     job_id: str,
     algorithm_name: str,
     algorithm_version: str,
+    graph_node_id: str | None,
     *,
     book: Any,
     registry: Any,
     cache: Any,
+    graph: WorkflowGraph | None = None,
+    packs_by_key: dict[tuple[str, str], PackHandle] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Build ``output_handles`` payload for one job.
 
@@ -1485,6 +1488,14 @@ async def _output_handles_for_job(
     :class:`~hololab.gateway.handle_summary.HandleSummaryCache` so a
     repeat query for the same handle doesn't re-walk the disk.
 
+    ``dim_labels`` prefers the graph-resolved value (via
+    :func:`effective_output_dim_labels`) so a generic-utility port like
+    ``get-index.item`` — whose manifest declares ``dim_labels: []`` —
+    still reports the resolved ``["cam"]`` at runtime, and the summary
+    probe measures ``dim_sizes: [21]`` correctly. Falls back to the
+    static manifest labels when we lack the graph context (test paths
+    that call this directly).
+
     Handles with no ``output_port_name`` (internal / synthetic rows)
     are skipped — the payload is keyed by port name, so anonymous
     handles have no slot to land in.
@@ -1492,19 +1503,41 @@ async def _output_handles_for_job(
 
     from hololab.gateway.handle_summary import HandleSummaryCache
 
+    node_by_id: dict[str, GraphNode] = {n.id: n for n in graph.nodes} if graph is not None else {}
+    resolver_node = node_by_id.get(graph_node_id) if graph_node_id else None
+    resolver_pack = (
+        packs_by_key.get((algorithm_name, algorithm_version)) if packs_by_key is not None else None
+    )
+
     handles = await book.list_by_job(job_id)
     out: dict[str, dict[str, Any]] = {}
     for h in handles:
         port = h.output_port_name
         if not port:
             continue
-        # ``dim_labels`` is what the summary probe needs to know
-        # ``depth`` — the number of arrayed layers to walk. We pull it
-        # from the producing port's manifest so the same port that
-        # declared ``dim_labels: ["cam", "frame"]`` gets its two-level
-        # ``dim_sizes: [21, 100]`` probe.
-        port_spec = registry.get_output_port_spec(algorithm_name, algorithm_version, port)
-        dim_labels = list(port_spec.dim_labels) if port_spec is not None else None
+        # Prefer graph-resolved dim_labels so ``get-index.item`` (manifest
+        # dim_labels=[]) reports ``["cam"]`` after the walk drops the
+        # outer 'frame' layer — matches what the chip and the /summary
+        # endpoint show. Static port-spec value is the fallback for
+        # unit-test paths that call this without a graph.
+        dim_labels: list[str] | None = None
+        if (
+            resolver_node is not None
+            and resolver_pack is not None
+            and graph is not None
+            and packs_by_key is not None
+        ):
+            dim_labels = effective_output_dim_labels(
+                resolver_node,
+                resolver_pack,
+                port,
+                graph,
+                node_by_id,
+                packs_by_key,
+            )
+        if dim_labels is None:
+            port_spec = registry.get_output_port_spec(algorithm_name, algorithm_version, port)
+            dim_labels = list(port_spec.dim_labels) if port_spec is not None else None
         assert isinstance(cache, HandleSummaryCache)
         facts = cache.get_or_compute(h, dim_labels=dim_labels)
         entry: dict[str, Any] = {
@@ -1526,6 +1559,8 @@ async def latest_runs_for_workflow(
     book: Any,
     registry: Any,
     cache: Any,
+    graph: WorkflowGraph | None = None,
+    packs_by_key: dict[tuple[str, str], PackHandle] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Latest job (across snapshots) per graph node for one workflow.
 
@@ -1587,9 +1622,12 @@ async def latest_runs_for_workflow(
             job_id,
             alg_name,
             alg_version,
+            gnid,
             book=book,
             registry=registry,
             cache=cache,
+            graph=graph,
+            packs_by_key=packs_by_key,
         )
         out[gnid] = {
             "job_id": job_id,
@@ -1613,6 +1651,7 @@ async def latest_runs_for_snapshot(
     book: Any,
     registry: Any,
     cache: Any,
+    packs_by_key: dict[tuple[str, str], PackHandle] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """``latest_runs`` scoped to one frozen snapshot.
 
@@ -1663,9 +1702,12 @@ async def latest_runs_for_snapshot(
             job_id,
             alg_name,
             alg_version,
+            gnid,
             book=book,
             registry=registry,
             cache=cache,
+            graph=graph,
+            packs_by_key=packs_by_key,
         )
         out[gnid] = {
             "job_id": job_id,
@@ -1678,5 +1720,4 @@ async def latest_runs_for_snapshot(
             "job_created_ts": job_created_ts,
             "output_handles": output_handles,
         }
-    _ = graph  # Reserved for future filtering to declared nodes only.
     return out
