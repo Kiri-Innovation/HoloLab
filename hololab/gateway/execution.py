@@ -1039,7 +1039,21 @@ async def _resolve_origin_job_id(store: JobsStore, job: dict) -> str:
     ``gateway.app``), but any historical rows built before that flatten
     could still be N hops deep, so we bounded-loop with a cap to avoid
     an infinite loop on pathological data.
+
+    Fan-out safety: when the input row is a SHARD (``parent_job_id`` set),
+    hop to its parent first. The parent owns the aggregate arrayed<T>
+    handle downstream needs; a shard only owns its per-element slice.
+    This heals corrupt snapshots that had only shard attributions in
+    ``snapshot_jobs`` (from pre-fix rerun-from selections) — the caller
+    then hands the parent's job_id to ``handles.list_by_job`` and gets
+    the aggregate handle back.
     """
+
+    parent_job_id = job.get("parent_job_id")
+    if parent_job_id is not None:
+        parent_row = await store.get(parent_job_id)
+        if parent_row is not None:
+            job = _job_to_dict_for_chain(parent_row)
 
     origin_id = job["job_id"]
     reused = job.get("reused_from_job_id")

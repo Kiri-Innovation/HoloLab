@@ -661,6 +661,71 @@ def test_rerun_from_prefers_fanout_parent_over_shard(tmp_path: Path) -> None:
         assert by_gnode["n2"]["output_handles"] == {"out": "h-n2-parent"}
 
 
+async def test_resolve_origin_job_id_hops_shard_to_parent(tmp_path: Path) -> None:
+    """A rerun-from that picks a SHARD row (either because the caller
+    dropped a shard in from ``old_jobs_by_gnode`` or because the source
+    snapshot's bridge attributed only shards) must still resolve to
+    the parent's aggregate handle downstream — otherwise the reused
+    output map lands on a per-element slice and fan-out collapses.
+
+    ``_resolve_origin_job_id`` now hops shard → parent up front, then
+    walks the usual ``reused_from_job_id`` chain from the parent. This
+    heals corrupt snapshots (pre-fix rerun-from selections that
+    attributed only shards) retroactively — no data migration.
+    """
+
+    from hololab.gateway.execution import _resolve_origin_job_id
+    from hololab.gateway.jobs import Job, JobState
+    from hololab.gateway.registry import JobsStore
+
+    db = await open_database(tmp_path / "resolve.sqlite")
+    try:
+        store = JobsStore(db)
+        parent = Job(
+            job_id="p",
+            snapshot_id="s",
+            workflow_id="w",
+            algorithm_name="demo-echo",
+            algorithm_version="0.1.0",
+            state=JobState.DONE,
+            created_ts=1.0,
+            updated_ts=1.0,
+        )
+        shard = Job(
+            job_id="sh",
+            snapshot_id="s",
+            workflow_id="w",
+            algorithm_name="demo-echo",
+            algorithm_version="0.1.0",
+            state=JobState.DONE,
+            parent_job_id="p",
+            shard_element_id="frame_0000",
+            created_ts=2.0,
+            updated_ts=2.0,
+        )
+        await store.create(parent)
+        await store.create(shard)
+
+        got = await _resolve_origin_job_id(
+            store,
+            {
+                "job_id": shard.job_id,
+                "reused_from_job_id": None,
+                "parent_job_id": shard.parent_job_id,
+            },
+        )
+        assert got == "p", f"expected shard→parent hop, got {got!r}"
+
+        # Scalar (no parent) still returns its own id.
+        got_scalar = await _resolve_origin_job_id(
+            store,
+            {"job_id": "p", "reused_from_job_id": None, "parent_job_id": None},
+        )
+        assert got_scalar == "p"
+    finally:
+        await db.close()
+
+
 async def test_get_job_at_falls_back_to_shard_parent(tmp_path: Path) -> None:
     """When only shard rows are attributed (a corrupt snapshot left by
     pre-fix rerun-from), ``get_job_at`` must fall back to the shard's
