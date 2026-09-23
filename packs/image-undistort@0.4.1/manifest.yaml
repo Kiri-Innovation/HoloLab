@@ -96,7 +96,14 @@ outputs:
   images:
     tags: [image]
     scalar: true
-    dim_labels: ["frame"]
+    # Per-shard IS the per-cam image dir (21 ``cam_XXXX.png`` files
+    # sit directly at the handle root, no ``frames/`` wrapper). Under
+    # the arrayable_toggle the framework wraps N shards → aggregate
+    # has two dims: outer = per-frame shard dir, inner content = per-cam
+    # image file. Handle summary reports ``dim_sizes=[N_frame, N_cam]``.
+    # Analogous to ``frame-extraction@0.1.0.frame_sequence``'s
+    # ``["cam","frame"]`` with the outer/inner axes swapped.
+    dim_labels: ["frame", "cam"]
     description: >
       Per-shard undistorted images, at the PINHOLE resolution. Files
       sit directly under the shard's element dir (post flatten

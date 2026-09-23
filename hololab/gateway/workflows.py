@@ -1581,6 +1581,19 @@ async def latest_runs_for_workflow(
     # works on the SQLite version the gateway ships. The subquery picks
     # the winning ``(gnid, snapshot_created_ts, job_id)`` and the outer
     # JOIN pulls the state columns.
+    # Prefer parent jobs over their shards when a fan-out attributed
+    # BOTH to the same graph_node_id, then prefer the newest parent
+    # generation. ``snapshot_jobs`` holds a row for the parent plus one
+    # per shard; without the ``parent_job_id IS NULL`` tiebreaker,
+    # ``sj.job_id DESC`` picks a random shard by UUID lex ordering — its
+    # handles then point at one shard's element dir, so the summary probe
+    # reports the shard-local shape (e.g. ``dim_sizes=[21]`` for a
+    # per-cam file dir) instead of the parent's 2-D aggregate. And when a
+    # rerun-from lands a second parent in the same snapshot (e.g. cancel
+    # v0.4.0 → rerun with v0.4.1), ``j.created_ts DESC`` keeps the newest
+    # parent — UUID lex alone would flip between the two by chance.
+    # Non-fan-out slots have only a scalar parent row, so these extra
+    # ORDER BY keys are a no-op there.
     sql = """
         WITH latest AS (
             SELECT sj.graph_node_id AS gnid,
@@ -1589,10 +1602,14 @@ async def latest_runs_for_workflow(
                    s.created_ts AS snapshot_created_ts,
                    ROW_NUMBER() OVER (
                        PARTITION BY sj.graph_node_id
-                       ORDER BY s.created_ts DESC, sj.job_id DESC
+                       ORDER BY s.created_ts DESC,
+                                CASE WHEN j.parent_job_id IS NULL THEN 0 ELSE 1 END,
+                                j.created_ts DESC,
+                                sj.job_id DESC
                    ) AS rn
             FROM snapshot_jobs sj
             JOIN snapshots s ON s.snapshot_id = sj.snapshot_id
+            JOIN jobs j ON j.job_id = sj.job_id
             WHERE s.workflow_id = ?
         )
         SELECT l.gnid, l.job_id, l.snapshot_id, l.snapshot_created_ts,
@@ -1663,13 +1680,24 @@ async def latest_runs_for_snapshot(
     scoping); non-fan-out slots yield the single attributed job.
     """
 
+    # Parent-first is the PRIMARY key here, not a tiebreak. Rationale:
+    # within a single snapshot, shards are created *after* their parent,
+    # so ``j.created_ts DESC`` alone would consistently pick a shard.
+    # The workflow-scoped variant can afford to sort by ``s.created_ts
+    # DESC`` first (parent+shards share a snapshot, they tie), but
+    # ``sj.snapshot_id = ?`` here already fixes the snapshot — the only
+    # generation-versus-generation freshness that matters lives on
+    # ``s.created_ts`` (constant), so job-freshness becomes a
+    # tiebreak within one fanout generation, not the top-level rank.
     sql = """
         WITH within AS (
             SELECT sj.graph_node_id AS gnid,
                    sj.job_id AS job_id,
                    ROW_NUMBER() OVER (
                        PARTITION BY sj.graph_node_id
-                       ORDER BY j.created_ts DESC, sj.job_id DESC
+                       ORDER BY CASE WHEN j.parent_job_id IS NULL THEN 0 ELSE 1 END,
+                                j.created_ts DESC,
+                                sj.job_id DESC
                    ) AS rn
             FROM snapshot_jobs sj
             JOIN jobs j ON j.job_id = sj.job_id
