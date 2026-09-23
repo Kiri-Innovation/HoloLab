@@ -1391,27 +1391,48 @@ class SnapshotJobsStore:
         shard produces only its per-element slice. Downstream input
         resolution needs the parent's job_id so
         ``handles.list_by_job`` returns the aggregated output, not a
-        single shard's slice. We rank rows by
-        ``jobs.parent_job_id IS NULL`` (parent first) with the newest
-        parent winning ties by ``created_ts``.
+        single shard's slice.
+
+        Resolution order (COALESCE):
+          1. Newest directly-attributed parent (``parent_job_id`` NULL).
+          2. Fall back to the ``parent_job_id`` of the newest attributed
+             shard when only shards are attributed. Rerun-from used to
+             seed inherited snapshots with a shard-only attribution when
+             the reuse plan picked the newest job per gnode without
+             preferring parents (pre-fix behavior). Falling back to the
+             shard's parent heals those snapshots retroactively — the
+             parent job row + its aggregate handle still exist in the
+             DB, only the bridge row was missing.
         """
 
         async with (
             self._db.read() as conn,
             conn.execute(
                 """
-                SELECT sj.job_id
-                FROM snapshot_jobs sj
-                JOIN jobs j ON j.job_id = sj.job_id
-                WHERE sj.snapshot_id = ? AND sj.graph_node_id = ?
-                ORDER BY (j.parent_job_id IS NULL) DESC, j.created_ts DESC
-                LIMIT 1
+                WITH candidates AS (
+                    SELECT j.job_id, j.parent_job_id, j.created_ts
+                    FROM snapshot_jobs sj
+                    JOIN jobs j ON j.job_id = sj.job_id
+                    WHERE sj.snapshot_id = ? AND sj.graph_node_id = ?
+                )
+                SELECT COALESCE(
+                    (
+                        SELECT job_id FROM candidates
+                        WHERE parent_job_id IS NULL
+                        ORDER BY created_ts DESC LIMIT 1
+                    ),
+                    (
+                        SELECT parent_job_id FROM candidates
+                        WHERE parent_job_id IS NOT NULL
+                        ORDER BY created_ts DESC LIMIT 1
+                    )
+                )
                 """,
                 (snapshot_id, graph_node_id),
             ) as cur,
         ):
             row = await cur.fetchone()
-        return row[0] if row else None
+        return row[0] if row and row[0] is not None else None
 
     async def list_attributions(self, snapshot_id: str) -> list[dict[str, str]]:
         """Return ``[{job_id, graph_node_id}]`` for one snapshot."""

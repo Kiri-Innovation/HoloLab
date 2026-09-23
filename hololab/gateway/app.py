@@ -2055,17 +2055,31 @@ def _mount_routes(app: FastAPI) -> None:
         to_reuse = node_ids - to_rerun
 
         # Old-snapshot jobs indexed by graph_node_id for the reuse plan.
+        # A fan-out gnode has one parent job (parent_job_id NULL, holds the
+        # aggregate arrayed<T> output handle) plus N shard rows (each
+        # produces only its per-element slice). Shard rows are created
+        # AFTER the parent so a naive newest-by-created_ts pick lands on
+        # a shard — downstream then reuses a single frame's slice as the
+        # arrayed input, which either fanouts on the wrong tree (finding
+        # its per-cam subdirs) or degrades to a scalar 0-shard no-op. So
+        # rank parent above shards; break ties by newest created_ts, same
+        # rule as ``SnapshotJobsStore.get_job_at``.
         old_jobs = await jobs_store.list_by_snapshot(snapshot_id)
         old_jobs_by_gnode: dict[str, dict[str, Any]] = {}
         for j in old_jobs:
             gid = j.get("graph_node_id")
-            # Keep the newest job per graph_node — belt-and-braces since the
-            # executor only creates one job per (snapshot, graph_node), but
-            # rerun-from could conceivably layer more.
-            if gid and (
-                gid not in old_jobs_by_gnode
-                or j["created_ts"] > old_jobs_by_gnode[gid]["created_ts"]
-            ):
+            if not gid:
+                continue
+            existing = old_jobs_by_gnode.get(gid)
+            if existing is None:
+                old_jobs_by_gnode[gid] = j
+                continue
+            j_is_parent = j.get("parent_job_id") is None
+            existing_is_parent = existing.get("parent_job_id") is None
+            if j_is_parent != existing_is_parent:
+                if j_is_parent:
+                    old_jobs_by_gnode[gid] = j
+            elif j["created_ts"] > existing["created_ts"]:
                 old_jobs_by_gnode[gid] = j
 
         # Validate every to_reuse node has a done job with resolvable

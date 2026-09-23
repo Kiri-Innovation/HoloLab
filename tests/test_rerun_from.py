@@ -497,3 +497,238 @@ def test_rerun_from_a_previous_rerun_resolves_origin_handles(tmp_path: Path) -> 
         # And n1/n2 output_handles resolve to snap1's registered handles.
         assert by_gnode["n1"]["output_handles"] == {"out": "h-n1"}
         assert by_gnode["n2"]["output_handles"] == {"out": "h-n2"}
+
+
+def test_rerun_from_prefers_fanout_parent_over_shard(tmp_path: Path) -> None:
+    """When a to_reuse gnode has both a parent (aggregate) and shards
+    attributed, rerun-from must pick the PARENT — otherwise downstream
+    inherits a single-slice handle and the fan-out either finds the
+    wrong tree or degrades to a 0-shard scalar no-op.
+
+    Repro: n2 is an arrayable node whose parent produces the aggregate
+    handle ``h-n2-parent`` (path=.../out) and whose 2 shards each
+    produce a per-element slice (path=.../out/frame_0000 and
+    .../out/frame_0001). Shards are created AFTER the parent — a naive
+    newest-by-created_ts selection lands on a shard. The rerun's new
+    snapshot must attribute n2 to the parent and inherit ``h-n2-parent``
+    (aggregate), not ``h-n2-s1`` (last slice).
+    """
+
+    app = create_app(db_path=tmp_path / "rr-fanout.sqlite")
+    graph = _linear_graph()
+    with TestClient(app) as client:
+        _fake_online_node(client)
+        wf_id = "88888888-8888-8888-8888-888888888888"
+
+        async def _seed() -> str:
+            await client.app.state.workflows.save_draft(
+                workflow_id=wf_id, name="cc-e2e-fanout", graph=graph
+            )
+            snap = await client.app.state.workflows.create_snapshot(workflow_id=wf_id, graph=graph)
+            # n1 — a scalar upstream, needed so rerun-from-n3 has an
+            # in-graph to_reuse set that includes both n1 and n2.
+            n1_job = Job(
+                job_id=f"{snap.snapshot_id[:8]}-n1",
+                snapshot_id=snap.snapshot_id,
+                workflow_id=wf_id,
+                node_id="node-a",
+                graph_node_id="n1",
+                algorithm_name="single-video-source",
+                algorithm_version="0.1.0",
+                params={},
+                input_handles={},
+                state=JobState.DONE,
+            )
+            await client.app.state.jobs_store.create(n1_job)
+            await client.app.state.handles.register(
+                Handle(
+                    handle_id="h-n1",
+                    node_id="node-a",
+                    storage="file",
+                    tags=["single-video-source"],
+                    path="/tmp/n1.out",
+                    job_id=n1_job.job_id,
+                    output_port_name="out",
+                )
+            )
+
+            # n2 — fanout parent + 2 shards. Parent registered FIRST
+            # (older created_ts); shards later. Newest-by-created_ts
+            # would pick a shard.
+            parent = Job(
+                job_id="n2-parent",
+                snapshot_id=snap.snapshot_id,
+                workflow_id=wf_id,
+                node_id="node-a",
+                graph_node_id="n2",
+                algorithm_name="video-to-colmap",
+                algorithm_version="0.1.0",
+                params={},
+                input_handles={},
+                state=JobState.DONE,
+                created_ts=1000.0,
+                updated_ts=1000.0,
+                expected_shards=2,
+            )
+            await client.app.state.jobs_store.create(parent)
+            await client.app.state.handles.register(
+                Handle(
+                    handle_id="h-n2-parent",
+                    node_id="node-a",
+                    storage="dir",
+                    tags=["video-to-colmap"],
+                    path="/tmp/n2/out",
+                    job_id=parent.job_id,
+                    output_port_name="out",
+                )
+            )
+            for idx in range(2):
+                shard = Job(
+                    job_id=f"n2-s{idx}",
+                    snapshot_id=snap.snapshot_id,
+                    workflow_id=wf_id,
+                    node_id="node-a",
+                    graph_node_id="n2",
+                    algorithm_name="video-to-colmap",
+                    algorithm_version="0.1.0",
+                    params={},
+                    input_handles={},
+                    state=JobState.DONE,
+                    parent_job_id=parent.job_id,
+                    shard_element_id=f"frame_{idx:04d}",
+                    created_ts=2000.0 + idx,
+                    updated_ts=2000.0 + idx,
+                )
+                await client.app.state.jobs_store.create(shard)
+                await client.app.state.handles.register(
+                    Handle(
+                        handle_id=f"h-n2-s{idx}",
+                        node_id="node-a",
+                        storage="dir",
+                        tags=["video-to-colmap"],
+                        path=f"/tmp/n2/out/frame_{idx:04d}",
+                        job_id=shard.job_id,
+                        output_port_name="out",
+                    )
+                )
+
+            # n3, n4 — scalars so downstream_closure(n3) = {n3, n4}
+            # and to_reuse = {n1, n2}.
+            for gid, algo in (("n3", "stg-train"), ("n4", "stg-to-splatv")):
+                job = Job(
+                    job_id=f"{snap.snapshot_id[:8]}-{gid}",
+                    snapshot_id=snap.snapshot_id,
+                    workflow_id=wf_id,
+                    node_id="node-a",
+                    graph_node_id=gid,
+                    algorithm_name=algo,
+                    algorithm_version="0.1.0",
+                    params={},
+                    input_handles={},
+                    state=JobState.DONE,
+                )
+                await client.app.state.jobs_store.create(job)
+                await client.app.state.handles.register(
+                    Handle(
+                        handle_id=f"h-{gid}",
+                        node_id="node-a",
+                        storage="file",
+                        tags=[algo],
+                        path=f"/tmp/{gid}.out",
+                        job_id=job.job_id,
+                        output_port_name="out",
+                    )
+                )
+            return snap.snapshot_id
+
+        old_snap = client.portal.call(_seed)
+
+        r = client.post(f"/api/snapshots/{old_snap}/rerun-from/n3")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["reused_graph_node_ids"] == ["n1", "n2"]
+        # The reused_job_ids for n2 must be the parent, NOT any shard.
+        assert "n2-parent" in body["reused_job_ids"], body["reused_job_ids"]
+        assert not any(jid.startswith("n2-s") for jid in body["reused_job_ids"]), body[
+            "reused_job_ids"
+        ]
+
+        # And the new snapshot's n2 attribution + output handle resolves
+        # to the aggregate (h-n2-parent), not a slice.
+        detail = client.get(f"/api/snapshots/{body['new_snapshot_id']}").json()
+        by_gnode = {j["graph_node_id"]: j for j in detail["jobs"]}
+        assert by_gnode["n2"]["job_id"] == "n2-parent"
+        assert by_gnode["n2"]["output_handles"] == {"out": "h-n2-parent"}
+
+
+async def test_get_job_at_falls_back_to_shard_parent(tmp_path: Path) -> None:
+    """When only shard rows are attributed (a corrupt snapshot left by
+    pre-fix rerun-from), ``get_job_at`` must fall back to the shard's
+    ``parent_job_id`` so downstream input resolution still finds the
+    aggregate handle. Heals existing broken snapshots retroactively
+    without a data migration.
+    """
+
+    from hololab.gateway.jobs import Job, JobState
+    from hololab.gateway.registry import JobsStore, SnapshotJobsStore
+    from hololab.gateway.workflows import WorkflowStore
+
+    db = await open_database(tmp_path / "gja.sqlite")
+    try:
+        store = JobsStore(db)
+        bridge = SnapshotJobsStore(db)
+        workflows = WorkflowStore(db)
+        graph = _linear_graph()
+        wf_id = "99999999-9999-9999-9999-999999999999"
+        await workflows.save_draft(workflow_id=wf_id, name="gja", graph=graph)
+        snap = await workflows.create_snapshot(workflow_id=wf_id, graph=graph)
+
+        # Seed parent + shard, both DONE — but only attribute the SHARD.
+        # The parent job row still exists in the ``jobs`` table (that's
+        # the point: it's the corrupt-attribution scenario, not a
+        # missing-job scenario).
+        parent = Job(
+            job_id="p",
+            snapshot_id=snap.snapshot_id,
+            workflow_id=wf_id,
+            node_id="node-a",
+            graph_node_id="n1",
+            algorithm_name="single-video-source",
+            algorithm_version="0.1.0",
+            params={},
+            input_handles={},
+            state=JobState.DONE,
+            created_ts=1.0,
+            updated_ts=1.0,
+        )
+        shard = Job(
+            job_id="s",
+            snapshot_id=snap.snapshot_id,
+            workflow_id=wf_id,
+            node_id="node-a",
+            graph_node_id="n1",
+            algorithm_name="single-video-source",
+            algorithm_version="0.1.0",
+            params={},
+            input_handles={},
+            state=JobState.DONE,
+            parent_job_id="p",
+            shard_element_id="frame_0000",
+            created_ts=2.0,
+            updated_ts=2.0,
+        )
+        await store.create(parent)
+        # ``JobsStore.create`` auto-attributes DONE rows; drop the parent's
+        # attribution to simulate the pre-fix corruption.
+        await db.write(
+            lambda conn: conn.execute(
+                "DELETE FROM snapshot_jobs WHERE job_id=? AND snapshot_id=?",
+                (parent.job_id, snap.snapshot_id),
+            )
+        )
+        await store.create(shard)
+
+        got = await bridge.get_job_at(snap.snapshot_id, "n1")
+        assert got == "p", f"expected fallback to parent, got {got!r}"
+    finally:
+        await db.close()
