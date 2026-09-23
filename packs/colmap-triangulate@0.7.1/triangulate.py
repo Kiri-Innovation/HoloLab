@@ -254,6 +254,14 @@ def main() -> int:
 
     prefill_db(db, manual, image_names, sfm_cams, sfm_pose_by_key)
 
+    # Namespaced ``num_threads`` caps for each COLMAP subcommand. The OMP
+    # env exports in the manifest preamble only pinch the inner
+    # Eigen/OpenBLAS layer; these flags size the subcommand's own worker
+    # pool. Even at this pack's ``parallelism=4`` the CPU descriptor
+    # extract can oversubscribe under load. Belt on top of the manifest
+    # braces. Each subcommand exposes its own namespaced option — there
+    # is no top-level ``--num_threads`` on these executables in the COLMAP
+    # build shipped in the ``kiri`` env.
     run(
         [
             "colmap",
@@ -264,6 +272,8 @@ def main() -> int:
             scratch_input,
             "--FeatureExtraction.use_gpu",
             args.use_gpu,
+            "--FeatureExtraction.num_threads",
+            "2",
         ],
         "feature_extractor (DB pre-populated with per-image OPENCV cameras)",
     )
@@ -279,6 +289,8 @@ def main() -> int:
             db,
             "--FeatureMatching.use_gpu",
             args.use_gpu,
+            "--FeatureMatching.num_threads",
+            "2",
         ],
         "exhaustive_matcher",
     )
@@ -295,6 +307,8 @@ def main() -> int:
         "--output_path",
         distorted_sparse,
         "--Mapper.ba_global_function_tolerance=0.000001",
+        "--Mapper.num_threads",
+        "2",
     ]
     if refine_intrinsics:
         pt_cmd.append("--refine_intrinsics")

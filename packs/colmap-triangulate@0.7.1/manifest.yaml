@@ -15,10 +15,16 @@ category: "reconstruction/colmap"
 docs: |
   ### v0.7.1 vs v0.7.0
 
-  Behaviour-identical to ``@0.7.0``. Only the ``exec.shell`` preamble
-  changes: it caps ``OMP_NUM_THREADS`` / ``OPENBLAS_NUM_THREADS`` /
-  ``MKL_NUM_THREADS`` at 2 for the same reason ``image-undistort@0.4.1``
-  does — see that pack's docs for the full narrative.
+  Two-layer thread cap. The ``exec.shell`` preamble exports
+  ``OMP_NUM_THREADS`` / ``OMP_THREAD_LIMIT`` /
+  ``OPENBLAS_NUM_THREADS`` / ``MKL_NUM_THREADS`` at 2, and
+  ``triangulate.py`` passes the namespaced ``num_threads`` option to
+  each COLMAP subcommand (``FeatureExtraction.num_threads``,
+  ``FeatureMatching.num_threads``, ``Mapper.num_threads``). See
+  ``image-undistort@0.4.1``'s docs for why the CLI cap is required —
+  the OMP env vars miss COLMAP's own std::thread pool, and the
+  subcommands in this build only accept the namespaced form (no
+  top-level ``--num_threads``).
 
   #### Impact for this pack (defensive)
 
@@ -38,7 +44,9 @@ docs: |
   exposed to the manifest render context, so this can't be computed
   dynamically. 2 fits a 16-core box at ``parallelism=8`` and stays
   reasonable at ``parallelism=4`` (2×2=4 CPU threads, GPU still bounds
-  overall throughput).
+  overall throughput). Expect a small per-shard slowdown at low overall
+  load (fewer BA threads); the net is neutral-to-positive once the box
+  is contended.
 
   Everything else (DB pre-fill, feature_extractor / exhaustive_matcher /
   point_triangulator / model_converter sequence, output format) is
@@ -99,9 +107,16 @@ exec:
   shell: |
     set -euo pipefail
     # Cap COLMAP's OpenMP pool. See image-undistort@0.4.1 docs for the
-    # full rationale. 2 = cores(16) / parallelism(8); adjust externally
-    # for different box sizes or parallelism settings.
+    # full rationale and why ``OMP_THREAD_LIMIT`` is set alongside
+    # ``OMP_NUM_THREADS`` (hard ceiling for libraries that call
+    # ``omp_set_num_threads`` at init — Ceres in particular).
+    # 2 = cores(16) / parallelism(8); adjust externally for different
+    # box sizes or parallelism settings. ``triangulate.py`` also passes
+    # ``FeatureExtraction.num_threads`` / ``FeatureMatching.num_threads``
+    # / ``Mapper.num_threads`` at ``2`` on the CLI to cap COLMAP's own
+    # per-subcommand worker pools.
     export OMP_NUM_THREADS=2
+    export OMP_THREAD_LIMIT=2
     export OPENBLAS_NUM_THREADS=2
     export MKL_NUM_THREADS=2
     python "{{ pack_dir }}/triangulate.py" \

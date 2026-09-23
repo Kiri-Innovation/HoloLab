@@ -17,25 +17,32 @@ category: "reconstruction/colmap"
 docs: |
   ### v0.4.1 vs v0.4.0
 
-  Behaviour-identical to ``@0.4.0``. Only the ``exec.shell`` preamble
-  changes: it caps ``OMP_NUM_THREADS`` / ``OPENBLAS_NUM_THREADS`` /
-  ``MKL_NUM_THREADS`` at 2 so per-shard COLMAP no longer over-subscribes
-  the CPU when the framework runs several shards in parallel.
+  Thread cap via env vars only. The ``exec.shell`` preamble exports
+  ``OMP_NUM_THREADS`` / ``OPENBLAS_NUM_THREADS`` / ``MKL_NUM_THREADS``
+  at 2 to pinch Eigen/OpenBLAS/MKL, and ``OMP_THREAD_LIMIT=2`` as a
+  hard ceiling that ``omp_set_num_threads()`` cannot override (Ceres +
+  a few Eigen paths call it at init and would otherwise re-oversubscribe).
+  ``colmap image_undistorter`` has **no** ``--num_threads`` CLI in the
+  COLMAP build shipped in the ``kiri`` env, so this env-only cap is the
+  best we have without a cgroup / ``taskset`` wrapper. Any residual
+  oversubscription comes from non-OMP threading (OpenCV's TBB
+  ``parallel_for``, libjpeg's own encode threads), which no COLMAP or
+  OMP knob reaches.
 
   #### Why 2 (fixed)
 
-  ``colmap image_undistorter`` uses OpenMP with
-  ``omp_get_max_threads() == nproc`` by default. On a 16-core box with
-  ``graph_node.parallelism == 8`` (main-chain default), that becomes 8 ×
-  16 = 128 concurrent OpenMP threads sharing 16 cores → CFS churn,
-  cache thrashing, load-avg 30+. Cap = ``cores / parallelism`` = 16/8 =
-  **2** → 8 shards × 2 threads = 16 threads = one per core = tight fit.
+  Without any cap ``image_undistorter`` defaults to whatever
+  ``hardware_concurrency()`` reports (16 on a 16-core box). At
+  ``graph_node.parallelism == 8`` (main-chain default) that becomes 8 ×
+  16 = 128 concurrent threads sharing 16 cores → CFS churn, cache
+  thrashing, load-avg 30+. Cap = ``cores / parallelism`` = 16/8 = **2**
+  → 8 shards × ~2 threads = ~16 threads = one per core = tight fit.
 
   ``parallelism`` isn't exposed to the manifest render context (see
-  ``hololab.manifest.render.RenderContext.to_bindings``), so this value
-  cannot be computed dynamically inside the pack. If a caller runs this
-  pack at a different ``parallelism`` on a differently-sized box, adjust
-  the cap here (or set the env vars externally). Rule of thumb:
+  ``hololab.manifest.render.RenderContext.to_bindings``), so the cap is
+  fixed rather than dynamic. If a caller runs this pack at a different
+  ``parallelism`` on a differently-sized box, adjust these env vars
+  externally. Rule of thumb:
   ``OMP_NUM_THREADS ≈ max(1, nproc // parallelism)``.
 
   #### Empirical basis
@@ -43,11 +50,14 @@ docs: |
   Measured against the pre-cap ``@0.4.0`` on the main-chain workflow
   (100-shard fanout, ``parallelism=8``, 16-core box):
 
-  * Before: p50 12.0 s, p90 19.6 s, max 39.3 s, total wall ≈ 8.6 min,
-    load-avg 26 → 37 (2-2.3× oversubscription).
-  * After: recorded in the pack's release notes on the workflow.
+  * ``@0.4.0`` (no cap): p50 12.0 s, p90 19.6 s, max 39.3 s, total wall
+    ≈ 8.6 min, load-avg 26 → 37 (2-2.3× oversubscription).
+  * ``@0.4.1`` (env cap + ``OMP_THREAD_LIMIT``): recorded on the
+    workflow. Expect small per-shard slowdown when the box is quiet
+    (fewer OMP threads per undistort); total wall drops because the
+    whole box stops thrashing under fan-out.
 
-  Everything else — the ``colmap image_undistorter`` invocation,
+  Everything else — the ``image_undistorter`` invocation shape,
   ``model_converter → TXT`` follow-up, NAME rewrite bridge, output
   layout — is unchanged from ``@0.4.0``. Consult ``@0.4.0``'s
   ``docs:`` block for the SfM-cams-direct rationale and the NAME
@@ -120,7 +130,18 @@ exec:
     # Cap COLMAP's OpenMP pool. Default is omp_get_max_threads()==nproc,
     # which oversubscribes when the framework fans out N shards in
     # parallel. 2 = cores(16) / parallelism(8). Change if either differs.
+    #
+    # ``OMP_THREAD_LIMIT`` is a hard ceiling that ``omp_set_num_threads()``
+    # cannot exceed — necessary because ``colmap image_undistorter`` has
+    # no ``--num_threads`` CLI in this COLMAP build (verified in the
+    # ``kiri`` env: only ``feature_extractor`` / ``exhaustive_matcher`` /
+    # ``point_triangulator`` expose namespaced ``FeatureExtraction.num_threads``
+    # / ``FeatureMatching.num_threads`` / ``Mapper.num_threads``).
+    # Without the ceiling a library that calls ``omp_set_num_threads()``
+    # at init (Ceres, some Eigen paths) would override ``OMP_NUM_THREADS``
+    # and re-oversubscribe.
     export OMP_NUM_THREADS=2
+    export OMP_THREAD_LIMIT=2
     export OPENBLAS_NUM_THREADS=2
     export MKL_NUM_THREADS=2
     python "{{ pack_dir }}/undistort.py" \
