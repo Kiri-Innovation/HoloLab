@@ -1,0 +1,116 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-triangulate
+version: 0.7.1
+description: >
+  Per-frame triangulator — given fixed poses + intrinsics, solve the
+  3-D point cloud for one frame. Fan-outs one shard per element of
+  ``frames``; emits a ``point-cloud`` per shard. **No undistortion**:
+  ``@0.7.x`` splits the STG recipe so undistort lives in a separate
+  ``image-undistort`` step. Callers wanting the historical inline
+  behaviour should stay on ``colmap-triangulate@0.6.0``.
+source_entry: triangulate.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### v0.7.1 vs v0.7.0
+
+  Behaviour-identical to ``@0.7.0``. Only the ``exec.shell`` preamble
+  changes: it caps ``OMP_NUM_THREADS`` / ``OPENBLAS_NUM_THREADS`` /
+  ``MKL_NUM_THREADS`` at 2 for the same reason ``image-undistort@0.4.1``
+  does — see that pack's docs for the full narrative.
+
+  #### Impact for this pack (defensive)
+
+  Empirically, this pack's peak per-fanout concurrency is 2 (GPU-serialised
+  by ``feature_extractor`` / ``exhaustive_matcher`` with ``use_gpu=1``),
+  even at ``graph_node.parallelism == 4``. The CPU-heavy step that
+  actually spins OpenMP is ``point_triangulator`` (Ceres BA); its
+  contribution to a shard's wall is small, so the cap is insurance
+  rather than a big win. Applied for consistency with
+  ``image-undistort@0.4.1`` and to keep behaviour predictable if the
+  workflow's ``parallelism`` is bumped or the GPU serialisation loosens
+  in a future COLMAP release.
+
+  #### Value choice (fixed 2)
+
+  Same rationale as ``image-undistort@0.4.1``: ``parallelism`` is not
+  exposed to the manifest render context, so this can't be computed
+  dynamically. 2 fits a 16-core box at ``parallelism=8`` and stays
+  reasonable at ``parallelism=4`` (2×2=4 CPU threads, GPU still bounds
+  overall throughput).
+
+  Everything else (DB pre-fill, feature_extractor / exhaustive_matcher /
+  point_triangulator / model_converter sequence, output format) is
+  unchanged from ``@0.7.0``. See ``@0.7.0``'s ``docs:`` block for the
+  type-system refactor rationale and the DB pre-fill contract.
+
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    scalar: true
+    description: >
+      SfM output as one COLMAP-native bundle (cameras.txt OPENCV +
+      images.txt poses). Scalar — broadcast to every shard. Must have
+      exactly one OPENCV camera row (single_camera=1 at the SfM stage).
+  frames:
+    tags: [image]
+    description: "This frame's per-camera raw distorted images. Fan-out driver."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  refine_intrinsics:
+    type: bool
+    default: false
+    description: >
+      Optimise per-image camera intrinsics (focal length + distortion;
+      principal point stays fixed — that constraint is baked into
+      ``point_triangulator`` and cannot be overridden). Off by default.
+      Does **not** touch camera poses — ``point_triangulator`` freezes
+      those unconditionally. Passes ``--refine_intrinsics 1`` to COLMAP
+      when true.
+
+outputs:
+  points:
+    tags: [point-cloud]
+    scalar: true
+    dim_labels: ["frame"]
+    description: >
+      Freshly triangulated 3-D points for this frame, as a COLMAP-text
+      ``points3D.txt``. Scalar per invocation; framework wraps N shards
+      into arrayed<point-cloud>. Distortion is baked into the input
+      intrinsics — points live in the raw OPENCV frame; use
+      ``image-undistort`` if you need PINHOLE-aligned imagery.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    # Cap COLMAP's OpenMP pool. See image-undistort@0.4.1 docs for the
+    # full rationale. 2 = cores(16) / parallelism(8); adjust externally
+    # for different box sizes or parallelism settings.
+    export OMP_NUM_THREADS=2
+    export OPENBLAS_NUM_THREADS=2
+    export MKL_NUM_THREADS=2
+    python "{{ pack_dir }}/triangulate.py" \
+      --cams "{{ inputs.cams }}" \
+      --image-path "{{ inputs.frames }}" \
+      --output "{{ outputs.points }}" \
+      --scratch "{{ scratch_dir }}" \
+      --use-gpu {{ params.use_gpu }} \
+      --refine-intrinsics {{ params.refine_intrinsics | int }}
+
+idempotency:
+  marker: "{{ outputs.points }}/.hololab-done"

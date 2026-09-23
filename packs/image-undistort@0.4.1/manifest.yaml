@@ -1,0 +1,128 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: image-undistort
+version: 0.4.1
+description: >
+  Undistort one frame's images via COLMAP's ``image_undistorter``, using
+  a scalar ``colmap-cams`` bundle (from ``colmap-sfm``) as the intrinsic
+  source. Bundle-in, bundle-out — outputs a fresh ``colmap-cams``
+  (PINHOLE) and the undistorted images.
+
+  Arrayable: fan out one shard per frame of the driving ``images`` input.
+  Each shard's ``cams`` output is a PINHOLE ``colmap-cams`` for that
+  frame; framework aggregates into ``arrayed<colmap-cams>[frame]``.
+source_entry: undistort.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### v0.4.1 vs v0.4.0
+
+  Behaviour-identical to ``@0.4.0``. Only the ``exec.shell`` preamble
+  changes: it caps ``OMP_NUM_THREADS`` / ``OPENBLAS_NUM_THREADS`` /
+  ``MKL_NUM_THREADS`` at 2 so per-shard COLMAP no longer over-subscribes
+  the CPU when the framework runs several shards in parallel.
+
+  #### Why 2 (fixed)
+
+  ``colmap image_undistorter`` uses OpenMP with
+  ``omp_get_max_threads() == nproc`` by default. On a 16-core box with
+  ``graph_node.parallelism == 8`` (main-chain default), that becomes 8 ×
+  16 = 128 concurrent OpenMP threads sharing 16 cores → CFS churn,
+  cache thrashing, load-avg 30+. Cap = ``cores / parallelism`` = 16/8 =
+  **2** → 8 shards × 2 threads = 16 threads = one per core = tight fit.
+
+  ``parallelism`` isn't exposed to the manifest render context (see
+  ``hololab.manifest.render.RenderContext.to_bindings``), so this value
+  cannot be computed dynamically inside the pack. If a caller runs this
+  pack at a different ``parallelism`` on a differently-sized box, adjust
+  the cap here (or set the env vars externally). Rule of thumb:
+  ``OMP_NUM_THREADS ≈ max(1, nproc // parallelism)``.
+
+  #### Empirical basis
+
+  Measured against the pre-cap ``@0.4.0`` on the main-chain workflow
+  (100-shard fanout, ``parallelism=8``, 16-core box):
+
+  * Before: p50 12.0 s, p90 19.6 s, max 39.3 s, total wall ≈ 8.6 min,
+    load-avg 26 → 37 (2-2.3× oversubscription).
+  * After: recorded in the pack's release notes on the workflow.
+
+  Everything else — the ``colmap image_undistorter`` invocation,
+  ``model_converter → TXT`` follow-up, NAME rewrite bridge, output
+  layout — is unchanged from ``@0.4.0``. Consult ``@0.4.0``'s
+  ``docs:`` block for the SfM-cams-direct rationale and the NAME
+  rewrite scheme.
+
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    scalar: true
+    description: >
+      SfM ``colmap-cams`` bundle (cameras.txt OPENCV + images.txt with
+      21 poses referencing camera_id=1). Broadcast to every shard.
+      Must be a single-camera / OPENCV rig.
+  images:
+    tags: [image]
+    description: >
+      Per-frame image directory. Fan-out driver — one shard per element.
+      Element dir must contain the per-cam image files inline (regroup
+      @0.2.0's ``content_dims=1`` layout).
+
+params:
+  blank_pixels:
+    type: int
+    default: 0
+    min: 0
+    max: 1
+    description: >
+      Pass-through to ``image_undistorter --blank_pixels``. 0 (default)
+      crops out invalid regions; 1 keeps the original size and fills
+      with black.
+
+outputs:
+  cams:
+    tags: [colmap-cams]
+    scalar: true
+    dim_labels: ["frame"]
+    description: >
+      Per-shard PINHOLE ``colmap-cams`` bundle (cameras.txt PINHOLE +
+      images.txt with 21 poses). Framework aggregates into
+      ``arrayed<colmap-cams>[frame]``. All shards' bundles are
+      bit-identical (undistortion is intrinsic-only + poses come from
+      the scalar SfM broadcast); the redundancy is the cost of using
+      one arrayable pack for the whole per-frame und step.
+  images:
+    tags: [image]
+    scalar: true
+    dim_labels: ["frame"]
+    description: >
+      Per-shard undistorted images, at the PINHOLE resolution. Files
+      sit directly under the shard's element dir (post flatten
+      migration, no ``frames/`` wrapper).
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    # Cap COLMAP's OpenMP pool. Default is omp_get_max_threads()==nproc,
+    # which oversubscribes when the framework fans out N shards in
+    # parallel. 2 = cores(16) / parallelism(8). Change if either differs.
+    export OMP_NUM_THREADS=2
+    export OPENBLAS_NUM_THREADS=2
+    export MKL_NUM_THREADS=2
+    python "{{ pack_dir }}/undistort.py" \
+      --cams "{{ inputs.cams }}" \
+      --images "{{ inputs.images }}" \
+      --cams-out "{{ outputs.cams }}" \
+      --images-out "{{ outputs.images }}" \
+      --scratch "{{ scratch_dir }}" \
+      --blank-pixels {{ params.blank_pixels }}
+
+idempotency:
+  marker: "{{ outputs.cams }}/.hololab-done"
