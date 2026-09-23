@@ -1,12 +1,32 @@
 """Subprocess executor — the sacred boundary.
 
-Every job runs as ``conda run -p <prefix> bash -c "<rendered shell>"``. The
-node runtime NEVER imports algorithm code (see docs/architecture.md#execution-boundary).
+Every job runs as a fresh subprocess. The node runtime NEVER imports
+algorithm code (see docs/architecture.md#execution-boundary) — that
+invariant is what "sacred" means here: algorithm CUDA / torch versions
+stay isolated, a segfaulting shard kills one job not the daemon, and
+node deps stay light for single-artifact distribution.
 
-Environment inheritance is deliberately clean: we pass an empty ``env`` to
-``subprocess.Popen`` and let ``conda run`` populate ``PATH``, ``LD_LIBRARY_PATH``,
-``CUDA_HOME`` etc. inside the target env. If a specific env var must survive,
-declare it in the manifest ``exec.shell`` block itself.
+Two spawn paths, both preserving the invariant:
+
+1. **Cached-env fast path (default)** — the daemon pre-snapshots each
+   configured conda env at startup (see :mod:`hololab.node.env_cache`)
+   and passes the resulting dict directly to
+   ``asyncio.create_subprocess_exec(..., env=<cached>)`` while invoking
+   the manifest's rendered shell as ``bash -c "<shell>"``. Skips the
+   ``conda run`` CLI (~2 s per invocation), delivering ~40-80 ms
+   per-spawn overhead vs ~2 s.
+
+2. **``conda run`` fallback** — used when ``NodeConfig.use_env_cache``
+   is disabled OR when a specific env's snapshot failed at startup
+   (misconfigured env, prefix missing, activate.d error). Spawns
+   ``conda run -p <prefix> --no-capture-output bash -lc "<shell>"``
+   with a minimal daemon-side env allow-list (:func:`_clean_env`);
+   ``conda run`` populates ``PATH`` / ``LD_LIBRARY_PATH`` /
+   ``CUDA_HOME`` etc. inside the target env at spawn time.
+
+Both paths pass an explicit ``env`` dict — the node runtime never
+mutates its own ``os.environ`` and never inherits the full daemon env
+into a child.
 """
 
 from __future__ import annotations
@@ -44,13 +64,22 @@ _MAX_UNBROKEN_BYTES = 1024 * 1024  # 1 MiB
 
 @dataclass
 class ExecPlan:
-    """Everything the executor needs to spawn one job."""
+    """Everything the executor needs to spawn one job.
+
+    ``cached_env`` is the fast path — a fully-activated env dict for
+    ``conda_prefix``, captured once at daemon startup by
+    :func:`hololab.node.env_cache.snapshot_env`. When present, the
+    executor skips ``conda run`` and spawns ``bash -c`` directly with
+    this env. When ``None``, the executor falls back to the historical
+    ``conda run -p <prefix> --no-capture-output bash -lc "..."`` form.
+    """
 
     shell: str
     conda_bin: str
     conda_prefix: str
     working_dir: Path
     progress_regex: str | None = None
+    cached_env: dict[str, str] | None = None
 
 
 @dataclass
@@ -76,23 +105,32 @@ async def run_subprocess(
     block. ``on_progress`` is called with each successful progress-regex match.
     """
 
-    # ``bash -c`` receives the rendered shell as a single argument. Manifest
-    # authors write normal multi-line shell here.
-    cmd = [
-        plan.conda_bin,
-        "run",
-        "-p",
-        plan.conda_prefix,
-        "--no-capture-output",
-        "bash",
-        "-lc",
-        plan.shell,
-    ]
+    # Two spawn paths — see module docstring. Fast path (``cached_env``)
+    # uses ``bash -c`` with a pre-activated env dict; fallback uses
+    # ``conda run`` and re-computes the env every time.
+    if plan.cached_env is not None:
+        cmd = ["bash", "-c", plan.shell]
+        spawn_env = plan.cached_env
+        spawn_mode = "cached_env"
+    else:
+        cmd = [
+            plan.conda_bin,
+            "run",
+            "-p",
+            plan.conda_prefix,
+            "--no-capture-output",
+            "bash",
+            "-lc",
+            plan.shell,
+        ]
+        spawn_env = _clean_env()
+        spawn_mode = "conda_run"
 
     log.info(
         "spawn",
         conda_prefix=plan.conda_prefix,
         working_dir=str(plan.working_dir),
+        mode=spawn_mode,
     )
 
     proc = await asyncio.create_subprocess_exec(
@@ -101,8 +139,10 @@ async def run_subprocess(
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        # Clean env: no inheritance from node runtime. See module docstring.
-        env=_clean_env(),
+        # No inheritance from node runtime ``os.environ``: either the
+        # pre-activated ``cached_env`` (fast path) or the minimal
+        # ``_clean_env()`` allow-list (fallback). See module docstring.
+        env=spawn_env,
         # New process group so SIGTERM/SIGKILL can reach the shell's children.
         # Windows CTRL_BREAK_EVENT is deferred; see docs/architecture.md.
         start_new_session=(sys.platform != "win32"),
@@ -332,12 +372,18 @@ def _pgid_still_ours(pgid: int, our_pid: int) -> bool:
 
 
 def _clean_env() -> dict[str, str]:
-    """Return a minimal env suitable as base for ``conda run``.
+    """Return a minimal env suitable as base for the ``conda run`` fallback.
 
-    ``conda run`` needs a small handful of vars to bootstrap itself (PATH so
-    it can find its own tools, HOME for conda's own state). We deliberately
-    do NOT propagate ``PYTHONPATH``, ``LD_LIBRARY_PATH``, ``CUDA_*`` etc.:
+    Used **only** on the fallback spawn path (see module docstring); the
+    fast path passes the full pre-snapshotted env directly. The allow-list
+    here is what ``conda run`` needs to bootstrap itself (PATH so it can
+    find its own tools, HOME for conda's own state). We deliberately do
+    NOT propagate ``PYTHONPATH``, ``LD_LIBRARY_PATH``, ``CUDA_*`` etc.:
     ``conda run`` sets those inside the target env.
+
+    Kept in sync with :data:`hololab.node.env_cache._DAEMON_ENV_KEEP` so
+    the fast path and the fallback path start from the same "what the
+    daemon contributes to the child" baseline.
     """
 
     keep = {"PATH", "HOME", "USER", "LANG", "LC_ALL", "TZ", "TMPDIR", "SHELL"}

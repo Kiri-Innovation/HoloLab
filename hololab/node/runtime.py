@@ -34,6 +34,7 @@ from hololab.manifest.render import (
     rendered_scratch_dir,
 )
 from hololab.node.config import NodeConfig, write_node_config
+from hololab.node.env_cache import warmup_env_cache
 from hololab.node.executor import ExecPlan, ExecResult, run_subprocess
 from hololab.node.fileserver import ServeHandle, create_fileserver_app
 from hololab.node.orphan_cleanup import cleanup_workspace_orphans
@@ -199,6 +200,17 @@ class NodeRuntime:
         # awatch call binds to the new list.
         self._watch_task: asyncio.Task[None] | None = None
 
+        # Env cache — populated once at startup by
+        # :func:`hololab.node.env_cache.warmup_env_cache`. Maps
+        # ``env_prefix`` (the value stored in ``NodeConfig.envs``) to
+        # a fully-activated env dict; the executor uses this to skip
+        # ``conda run`` per spawn. A missing entry means "fall back to
+        # ``conda run`` for jobs targeting that env" — either the
+        # snapshot failed or ``use_env_cache`` is disabled. See the
+        # module for the trade-off (package installs inside a running
+        # env require a daemon restart to re-snapshot).
+        self._env_cache: dict[str, dict[str, str]] = {}
+
     # -- lifecycle -----------------------------------------------------------
 
     async def run(self) -> None:
@@ -224,6 +236,34 @@ class NodeRuntime:
                 "orphan cleanup: reaped previous-session subprocesses",
                 count=len(orphaned),
                 pids=orphaned,
+            )
+
+        # Warm the env cache — one ``conda run`` snapshot per configured
+        # env, results saved in ``self._env_cache`` and passed into every
+        # subsequent ``ExecPlan``. Skipped entirely when the operator has
+        # opted out via ``use_env_cache: false``, in which case every
+        # spawn walks the historical ``conda run`` path.
+        #
+        # Cost: ~2 s per env at daemon start (paid once). Any per-env
+        # failure is logged and simply omitted — the executor's fallback
+        # path picks up such envs transparently. See docs/architecture.md
+        # #execution-boundary for why we still keep the fallback.
+        if self._config.use_env_cache and self._config.envs:
+            self._env_cache = await warmup_env_cache(
+                self._config.conda_bin,
+                self._config.envs,
+                timeout_s=self._config.env_cache_timeout_s,
+            )
+            log.info(
+                "env cache ready",
+                cached=len(self._env_cache),
+                configured=len(self._config.envs),
+            )
+        else:
+            log.info(
+                "env cache disabled — every spawn will use 'conda run'",
+                use_env_cache=self._config.use_env_cache,
+                configured_envs=len(self._config.envs),
             )
 
         # File server runs as a separate task so a live config-set can
@@ -1202,6 +1242,11 @@ class NodeRuntime:
             conda_prefix=env_prefix,
             working_dir=Path(rendered.working_dir) if rendered.working_dir else pack.pack_dir,
             progress_regex=pack.manifest.progress.stdout_regex if pack.manifest.progress else None,
+            # None here means "fall back to ``conda run`` for this spawn"
+            # — either the env's snapshot failed at startup or the
+            # operator has ``use_env_cache: false``. The executor picks
+            # the spawn path off this field.
+            cached_env=self._env_cache.get(env_prefix),
         )
 
         # Belt-and-braces around run_subprocess: any exception here used

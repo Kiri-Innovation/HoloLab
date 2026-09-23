@@ -145,6 +145,30 @@ class NodeConfig(BaseModel):
     # non-zero.
     max_concurrent_jobs: int = Field(default=0, ge=0)
 
+    # Env cache — cold-snapshot each configured conda env at daemon
+    # startup and reuse that env dict for every spawn, bypassing
+    # ``conda run``'s ~2 s CLI bootstrap per shard. On a 100-shard
+    # fan-out of a lightweight pack (e.g. ``merge-colmap``) this
+    # collapses the per-shard framework tax from ~2 s to ~40-80 ms.
+    #
+    # Trade-off — hot updates:
+    #   Installing a new package into a running env is NOT reflected
+    #   in the cache. Restart the node daemon after
+    #   ``conda install`` / ``pip install`` inside a configured env
+    #   so the snapshot re-runs.
+    #
+    # Set to ``false`` to fully restore the pre-refactor behavior
+    # (every spawn goes through ``conda run``). See
+    # :mod:`hololab.node.env_cache` for how the snapshot is built.
+    use_env_cache: bool = True
+
+    # Timeout for the one-shot env snapshot subprocess (``conda run
+    # python -c "..."``). A misconfigured env that hangs at import
+    # time must not block daemon startup forever. On timeout the
+    # affected env falls back to the ``conda run`` path per spawn
+    # (a warning is logged; other envs still cache normally).
+    env_cache_timeout_s: float = Field(default=30.0, gt=0.0)
+
     # Cobrowser integration — the Flops device id for this compute node.
     # When the HoloLab UI runs inside the Flops built-in browser, the
     # "Open in Cocoder" button feeds this to ``window.flops.showDocument``
