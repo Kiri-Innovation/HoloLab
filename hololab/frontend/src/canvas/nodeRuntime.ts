@@ -7,18 +7,33 @@
 //
 //   * arrayed<T> fan-out — one parent job + N shard jobs, all attributed
 //     to the same graph_node_id in snapshot_jobs.
-//   * rerun-from-node — inherits a prior job row and mints a new one on
-//     top for the target slot.
+//   * rerun-from-node — dispatches a fresh top-level job for the same
+//     slot. Under cd61033 the earlier attempt's parent stays attributed
+//     to ``snapshot_jobs`` (attribution now happens at CREATE, not at
+//     DONE) and its done shards attribute at completion, so both
+//     generations end up in ``list_by_snapshot`` output.
 //
 // A naive ``Map.set(graph_node_id, job)`` loop drops N-1 of them and the
 // last-write-wins outcome depends on job iteration order — for a fan-out
 // where one shard failed and the rest succeeded, whether the node's
 // status dot goes red or green becomes a race with SQLite's row ordering.
 //
-// Aggregation rules — "live progress trumps stale failure"
-// --------------------------------------------------------
+// Generation scoping — "the newest run is what the node card shows"
+// -----------------------------------------------------------------
 //
-// Priority order (first match wins):
+// All aggregators (state / progress / fail_reason / representative job)
+// operate on a *single generation* — the newest top-level parent (by
+// ``created_ts``) plus any shards that point at it via
+// ``parent_job_id``. Motivation (2026-09-23): a tri graph_node with
+// three fan-out attempts (an older cancelled run + a middle cancelled
+// run + a live re-run) rendered the node card as ``cancelled`` and
+// ``50/100`` while the newest run's parent was ``done`` and its 18/100
+// shards were live — the RecentJobsPanel, which groups by
+// ``parent_job_id``, showed the live numbers on the top group. Scoping
+// aligns the two surfaces: the node card mirrors the panel's newest
+// group, and older attempts don't overwrite fresh success.
+//
+// Within a single generation, the state priority is unchanged:
 //
 //   1. Any job still ``running`` / ``assigned`` / ``pending`` →
 //      node state ``running``. Something is in flight, so the aggregate
@@ -43,8 +58,8 @@
 //
 // Progress for a fan-out node is ``done_shards / total_shards``. For a
 // single-job node it's the job's own progress. fail_reason is inherited
-// from the first failed job whenever any shard failed — surfaced through
-// the status-dot tooltip even when the aggregate state is ``running``.
+// from the first failed job in the newest generation — older
+// generations' failures don't leak into a fresh run's tooltip.
 
 import type { SnapshotJob } from "../wire";
 import type { NodeRuntime } from "./AlgorithmNode";
@@ -70,42 +85,21 @@ function aggregateStates(jobs: readonly SnapshotJob[]): string {
 
 function aggregateProgress(
   jobs: readonly SnapshotJob[],
+  parent: SnapshotJob,
 ): { current: number; total: number } | null {
-  // Scope to the newest generation. Under rerun-from-node a graph_node_id
-  // accumulates multiple top-level parents in a single snapshot — the
-  // cancelled attempts stay in ``snapshot_jobs`` (attributed at creation
-  // per cd61033) and their done shards attribute at completion — so a
-  // naive filter would sum done-shards across every generation. Concrete
-  // case: a fan-out with 32 done shards from an earlier cancelled run
-  // plus 18 done from the live re-run rendered ``50/100`` on the node
-  // card while the RecentJobsPanel (which groups by ``parent_job_id``)
-  // showed the live ``18/100`` — the two views for the same node
-  // disagreed by exactly the older run's done count.
-  //
-  // Fix: pick the newest top-level job (parent for a fan-out, or the
-  // lone job for a non-fan-out re-run) and count only its shards. This
-  // matches the panel's per-parent grouping so both surfaces agree.
-  const topLevel = jobs.filter((j) => j.parent_job_id == null);
-  if (topLevel.length === 0) {
-    // Only shards visible — shouldn't happen in practice because
-    // ``list_by_snapshot`` always returns the parent via the
-    // ``snapshot_jobs`` bridge. Fall back to counting what we have.
-    const done = jobs.filter((j) => j.state === "done").length;
-    return { current: done, total: jobs.length };
-  }
-  const current = topLevel.reduce((a, b) =>
-    b.created_ts > a.created_ts ? b : a,
-  );
-  const shards = jobs.filter((j) => j.parent_job_id === current.job_id);
+  // Caller passes a single generation: ``parent`` is the top-level job
+  // (fan-out coordinator or lone non-fan-out row) and ``jobs`` contains
+  // it plus its shards.
+  const shards = jobs.filter((j) => j.parent_job_id != null);
   if (shards.length === 0) {
     // Non-fan-out job, or a fan-out parent whose shards haven't been
     // created yet. When ``expected_shards`` is planned, render 0/N right
     // away so the footer doesn't blip through the parent's own ``null``
     // or ``1/1`` before shards materialise.
-    if (current.expected_shards != null && current.expected_shards > 0) {
-      return { current: 0, total: current.expected_shards };
+    if (parent.expected_shards != null && parent.expected_shards > 0) {
+      return { current: 0, total: parent.expected_shards };
     }
-    return current.progress ?? null;
+    return parent.progress ?? null;
   }
   const done = shards.filter((j) => j.state === "done").length;
   // Prefer the parent's planned shard count over the row-count of already-
@@ -114,25 +108,37 @@ function aggregateProgress(
   // it's frozen at fan-out start and can't drift if row-creation partially
   // fails.
   const total =
-    current.expected_shards != null && current.expected_shards > 0
-      ? current.expected_shards
+    parent.expected_shards != null && parent.expected_shards > 0
+      ? parent.expected_shards
       : shards.length;
   return { current: done, total };
 }
 
-function pickRepresentativeJob(jobs: readonly SnapshotJob[]): SnapshotJob {
-  // Oldest job — for a fan-out the parent is created before its shards
-  // and list_by_snapshot orders by created_ts, so index 0 is the parent
-  // and runtime.job_id points at the coordinating job (matters for the
-  // run-log affordance). Callers relying on job_id for artifact
-  // resolution go through the backend's get_job_at, which also prefers
-  // parent. Under the previous failed-first priority this function
-  // preferred the failed shard so the tooltip's ``fail_reason`` came from
-  // it; the new priority pipes ``fail_reason`` through
-  // ``aggregateJobsToRuntime`` directly (see below), so the representative
-  // can stay on the parent regardless of state — the tooltip still shows
-  // the first shard failure even when the aggregate is ``running``.
-  return jobs[0];
+function pickCurrentGeneration(jobs: readonly SnapshotJob[]): {
+  scoped: SnapshotJob[];
+  parent: SnapshotJob;
+} {
+  // Newest top-level job (parent for a fan-out, or the lone job for a
+  // non-fan-out re-run) by ``created_ts``. Generation = that parent plus
+  // any shards pointing at it via ``parent_job_id``. Non-fan-out
+  // generations return just the parent (no shards).
+  //
+  // Rare fallback: if the input has no top-level rows (only shards
+  // visible — shouldn't happen in practice because ``list_by_snapshot``
+  // returns the parent via the ``snapshot_jobs`` bridge), pick the
+  // newest job as an anchor so the aggregator has something to work
+  // with. runtime.job_id / progress will still resolve; the numbers may
+  // be off but the alternative is crashing.
+  const topLevel = jobs.filter((j) => j.parent_job_id == null);
+  const parent =
+    topLevel.length > 0
+      ? topLevel.reduce((a, b) => (b.created_ts > a.created_ts ? b : a))
+      : jobs.reduce((a, b) => (b.created_ts > a.created_ts ? b : a));
+  const shards = jobs.filter((j) => j.parent_job_id === parent.job_id);
+  return {
+    scoped: shards.length > 0 ? [parent, ...shards] : [parent],
+    parent,
+  };
 }
 
 export function aggregateJobsToRuntime(
@@ -147,20 +153,25 @@ export function aggregateJobsToRuntime(
   }
   const out: Record<string, NodeRuntime> = {};
   for (const [gnid, gjs] of grouped) {
-    const state = aggregateStates(gjs);
-    const rep = pickRepresentativeJob(gjs);
+    const { scoped, parent } = pickCurrentGeneration(gjs);
+    const state = aggregateStates(scoped);
     // Surface the first failed job's reason even when the aggregate is
     // ``running`` — the status-dot tooltip then reads "running · <reason>"
     // so the operator can still see that some earlier shard blew up
     // while the fan-out continues. Once the aggregate settles to
     // ``failed``, this is the same reason surfaced by the terminal
-    // verdict.
-    const failedJob = gjs.find((j) => j.state === "failed");
+    // verdict. Scoped to the newest generation so an older run's
+    // failure doesn't leak into a fresh re-run's tooltip.
+    const failedJob = scoped.find((j) => j.state === "failed");
     out[gnid] = {
       state,
-      progress: aggregateProgress(gjs),
+      progress: aggregateProgress(scoped, parent),
       fail_reason: failedJob?.fail_reason ?? null,
-      job_id: rep.job_id,
+      // Representative job is the newest generation's parent — the
+      // run-log affordance opens the coordinator's stdout, and the
+      // backend's ``get_job_at`` also prefers the parent for artifact
+      // resolution, so the two agree on what "this node's job" means.
+      job_id: parent.job_id,
     };
   }
   return out;

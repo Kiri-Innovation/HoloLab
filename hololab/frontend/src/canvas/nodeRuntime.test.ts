@@ -275,14 +275,142 @@ describe("aggregateJobsToRuntime — state priority", () => {
   });
 
   it("groups jobs by graph_node_id and aggregates each independently", () => {
-    const a1 = mkJob({ job_id: "a1", graph_node_id: "A", state: "running", created_ts: 0 });
-    const a2 = mkJob({ job_id: "a2", graph_node_id: "A", state: "failed", created_ts: 1 });
-    const b1 = mkJob({ job_id: "b1", graph_node_id: "B", state: "failed", created_ts: 2 });
-    const b2 = mkJob({ job_id: "b2", graph_node_id: "B", state: "done", created_ts: 3 });
-    const out = aggregateJobsToRuntime([a1, a2, b1, b2]);
-    // A has an in-flight job → running.
+    // Two distinct graph_nodes, each a small fan-out (parent + one
+    // shard) so the aggregation stays intra-generation. A's shard is
+    // failed but the parent is still running (in-flight wins → running).
+    // B is terminal with one failed shard (terminal + failed → failed).
+    const aParent = mkJob({ job_id: "a1", graph_node_id: "A", state: "running", created_ts: 0 });
+    const aShard = mkJob({ job_id: "a2", graph_node_id: "A", parent_job_id: "a1", state: "failed", created_ts: 1 });
+    const bParent = mkJob({ job_id: "b1", graph_node_id: "B", state: "failed", created_ts: 2 });
+    const bShard = mkJob({ job_id: "b2", graph_node_id: "B", parent_job_id: "b1", state: "done", created_ts: 3 });
+    const out = aggregateJobsToRuntime([aParent, aShard, bParent, bShard]);
+    // A has an in-flight parent → running.
     expect(out.A.state).toBe("running");
     // B has no in-flight job → failed wins (terminal branch).
     expect(out.B.state).toBe("failed");
+  });
+
+  it("multi-generation: older cancelled run does not poison newest done run", () => {
+    // Real bug (2026-09-23): a tri graph_node with an earlier
+    // cancelled fan-out plus a newer fan-out that completed cleanly
+    // rendered the node card as ``cancelled`` while the newest
+    // parent said ``done``. Scope the state aggregate to the newest
+    // generation so a fresh success isn't overwritten by stale
+    // cancellations. fail_reason must also be null — the old run's
+    // shard failures aren't relevant to the successful re-run.
+    const oldParent = mkJob({
+      job_id: "p_old",
+      state: "cancelled",
+      expected_shards: 100,
+      created_ts: 0,
+    });
+    const oldCancelledShard = mkJob({
+      job_id: "s_old",
+      parent_job_id: "p_old",
+      state: "cancelled",
+      created_ts: 1,
+    });
+    const newParent = mkJob({
+      job_id: "p_new",
+      state: "done",
+      expected_shards: 100,
+      created_ts: 100,
+    });
+    const newDoneShard = mkJob({
+      job_id: "s_new",
+      parent_job_id: "p_new",
+      state: "done",
+      created_ts: 101,
+    });
+    const out = aggregateJobsToRuntime([
+      oldParent,
+      oldCancelledShard,
+      newParent,
+      newDoneShard,
+    ]);
+    expect(out.n.state).toBe("done");
+    expect(out.n.job_id).toBe("p_new");
+    expect(out.n.fail_reason).toBeNull();
+    expect(out.n.progress).toEqual({ current: 1, total: 100 });
+  });
+
+  it("multi-generation: in-flight beats failed still applies across generations", () => {
+    // The older run FAILED terminally; the newer run is currently
+    // running. In-flight wins — but only because the newest generation
+    // itself is in flight. The older gen's failure must not leak in as
+    // fail_reason (it belongs to a different run entirely).
+    const oldParent = mkJob({
+      job_id: "p_old",
+      state: "failed",
+      fail_reason: "old boom",
+      expected_shards: 10,
+      created_ts: 0,
+    });
+    const oldFailedShard = mkJob({
+      job_id: "s_old",
+      parent_job_id: "p_old",
+      state: "failed",
+      fail_reason: "old shard boom",
+      created_ts: 1,
+    });
+    const newParent = mkJob({
+      job_id: "p_new",
+      state: "running",
+      expected_shards: 10,
+      created_ts: 100,
+    });
+    const newRunningShard = mkJob({
+      job_id: "s_new",
+      parent_job_id: "p_new",
+      state: "running",
+      created_ts: 101,
+    });
+    const out = aggregateJobsToRuntime([
+      oldParent,
+      oldFailedShard,
+      newParent,
+      newRunningShard,
+    ]);
+    expect(out.n.state).toBe("running");
+    expect(out.n.job_id).toBe("p_new");
+    expect(out.n.fail_reason).toBeNull();
+  });
+
+  it("multi-generation: newest done run reports null fail_reason even if older gen failed", () => {
+    const oldParent = mkJob({
+      job_id: "p_old",
+      state: "failed",
+      fail_reason: "old boom",
+      expected_shards: 5,
+      created_ts: 0,
+    });
+    const oldFailedShard = mkJob({
+      job_id: "s_old",
+      parent_job_id: "p_old",
+      state: "failed",
+      fail_reason: "old shard boom",
+      created_ts: 1,
+    });
+    const newParent = mkJob({
+      job_id: "p_new",
+      state: "done",
+      expected_shards: 5,
+      created_ts: 100,
+    });
+    const newDoneShard = mkJob({
+      job_id: "s_new",
+      parent_job_id: "p_new",
+      state: "done",
+      created_ts: 101,
+    });
+    const out = aggregateJobsToRuntime([
+      oldParent,
+      oldFailedShard,
+      newParent,
+      newDoneShard,
+    ]);
+    expect(out.n.state).toBe("done");
+    expect(out.n.fail_reason).toBeNull();
+    expect(out.n.progress).toEqual({ current: 1, total: 5 });
   });
 });
