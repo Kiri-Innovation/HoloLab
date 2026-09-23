@@ -1313,63 +1313,6 @@ class SnapshotJobsStore:
             row = await cur.fetchone()
         return row[0] if row else None
 
-    async def find_inflight_for_graph_node(
-        self, workflow_id: str, graph_node_id: str
-    ) -> dict[str, Any] | None:
-        """Return the newest in-flight parent job for a (workflow, graph_node), or None.
-
-        Attribution for a fan-out parent lands only after all shards
-        finish (see ``execution._run_shards_in_background``). Between
-        the fan-out kickoff and the last shard's DONE, ``get_job_at``
-        returns None even though a job is actively producing the
-        artifact. Downstream ``dispatch_graph_node`` calls in this
-        window used to fail with the flat "no produced artifact; run
-        it first" message, which reads accusatory (the user did run it
-        — it's still running). ``_resolve_inputs_from_snapshot`` calls
-        this helper on that failure to rewrite the message with the
-        in-flight facts (state + shard progress) so the operator
-        knows to wait, not re-run.
-
-        Returned dict shape (or ``None`` when no in-flight parent
-        exists): ``{job_id, state, algorithm_name, algorithm_version,
-        progress_current, progress_total, expected_shards, created_ts}``.
-        Non-parent shards are ignored (``parent_job_id IS NULL``) so
-        the answer describes the coordinator, not one of its 100
-        siblings.
-        """
-
-        async with (
-            self._db.read() as conn,
-            conn.execute(
-                """
-                SELECT job_id, state, algorithm_name, algorithm_version,
-                       progress_current, progress_total, expected_shards,
-                       created_ts
-                FROM jobs
-                WHERE workflow_id = ?
-                  AND graph_node_id = ?
-                  AND parent_job_id IS NULL
-                  AND state IN ('pending', 'assigned', 'running')
-                ORDER BY created_ts DESC
-                LIMIT 1
-                """,
-                (workflow_id, graph_node_id),
-            ) as cur,
-        ):
-            row = await cur.fetchone()
-        if row is None:
-            return None
-        return {
-            "job_id": row[0],
-            "state": row[1],
-            "algorithm_name": row[2],
-            "algorithm_version": row[3],
-            "progress_current": row[4],
-            "progress_total": row[5],
-            "expected_shards": row[6],
-            "created_ts": row[7],
-        }
-
     async def list_attributions(self, snapshot_id: str) -> list[dict[str, str]]:
         """Return ``[{job_id, graph_node_id}]`` for one snapshot."""
 

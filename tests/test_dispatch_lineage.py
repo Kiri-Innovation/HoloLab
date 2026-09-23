@@ -232,21 +232,62 @@ def test_dispatch_missing_upstream_400(tmp_path: Path) -> None:
         assert "B" in r.json()["detail"]
 
 
-def test_dispatch_missing_upstream_reports_inflight_when_running(tmp_path: Path) -> None:
-    """When the upstream is mid-fan-out (parent job running, attribution
-    not yet written), dispatching the downstream must say so instead of
-    the flat "no produced artifact; run it first".
+def _seed_attributed_job(
+    client: TestClient,
+    *,
+    workflow_id: str,
+    snapshot_id: str,
+    graph_node_id: str,
+    job_id: str,
+    state: JobState,
+    algorithm_name: str = "demo-echo",
+    algorithm_version: str = "0.1.0",
+    progress_current: int | None = None,
+    progress_total: int | None = None,
+    expected_shards: int | None = None,
+) -> None:
+    """Seed a job row + its ``snapshot_jobs`` attribution row.
 
-    Regression for 2026-09-22: a fan-out parent's ``snapshot_jobs``
-    attribution row is written only after all its shards complete
-    (``execution._run_shards_in_background`` tail). A downstream
-    dispatch fired during the fan-out window used to see the miss
-    branch and report "run it first" — accusatory since the user
-    already ran it, it's just still fanning out. Fix (this test):
-    on the miss branch, ``SnapshotJobsStore.find_inflight_for_graph_node``
-    is consulted and the message is rewritten with the job's state +
-    shard progress (``X/Y shards done``) so the operator waits
-    instead of retrying.
+    Mirrors the 2026-09-22 "attribute-at-creation" invariant: every
+    job that belongs to a snapshot has an attribution row from the
+    moment it's created, not later on DONE. Tests use this to stage
+    the various states (RUNNING / FAILED / CANCELLED) the resolver
+    now branches on.
+    """
+
+    async def _seed() -> None:
+        job = Job(
+            job_id=job_id,
+            snapshot_id=snapshot_id,
+            workflow_id=workflow_id,
+            node_id="node-a",
+            graph_node_id=graph_node_id,
+            algorithm_name=algorithm_name,
+            algorithm_version=algorithm_version,
+            params={},
+            input_handles={},
+            state=state,
+            progress_current=progress_current,
+            progress_total=progress_total,
+            expected_shards=expected_shards,
+        )
+        await client.app.state.jobs_store.create(job)
+        await client.app.state.snapshot_jobs.attribute(snapshot_id, job_id, graph_node_id)
+
+    client.portal.call(_seed)
+
+
+def test_dispatch_upstream_running_reports_shard_progress(tmp_path: Path) -> None:
+    """When the upstream job is attributed but still RUNNING, dispatching
+    the downstream must say "still running (X/Y shards)" — not the flat
+    "no produced artifact; run it first".
+
+    Regression for 2026-09-22: attribution is now written at parent
+    job creation (``_prepare_fanout`` + ``_dispatch_job``), so the
+    resolver sees a filled slot mid-fan-out and can inspect the job's
+    state directly. Under the old "attribute-on-DONE" model the slot
+    read as empty during the fan-out window and the operator was told
+    to "run it first" — misleading since they already had.
     """
 
     app = create_app(db_path=tmp_path / "inflight.sqlite")
@@ -256,43 +297,163 @@ def test_dispatch_missing_upstream_reports_inflight_when_running(tmp_path: Path)
         base = _seed_snapshot_with_jobs(
             client, workflow_id=wid, graph=_linear_graph(), done_at=["A"]
         )
-
-        # Seed a running fan-out parent for B, attributed to the
-        # workflow but NOT (yet) to the snapshot — mirrors the state
-        # execution._run_shards_in_background leaves the world in
-        # between shard-1 dispatch and last-shard done.
-        async def _seed_running_b() -> None:
-            job = Job(
-                job_id="b-parent",
-                snapshot_id=base,
-                workflow_id=wid,
-                node_id="node-a",
-                graph_node_id="B",
-                algorithm_name="demo-echo",
-                algorithm_version="0.1.0",
-                params={},
-                input_handles={},
-                state=JobState.RUNNING,
-                # Aggregated shard progress on the parent — the store
-                # helper picks these up so the error message can be
-                # concrete.
-                progress_current=7,
-                progress_total=10,
-                expected_shards=10,
-            )
-            await client.app.state.jobs_store.create(job)
-
-        client.portal.call(_seed_running_b)
+        _seed_attributed_job(
+            client,
+            workflow_id=wid,
+            snapshot_id=base,
+            graph_node_id="B",
+            job_id="b-parent",
+            state=JobState.RUNNING,
+            progress_current=7,
+            progress_total=10,
+            expected_shards=10,
+        )
 
         r = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
         assert r.status_code == 400
         detail = r.json()["detail"]
-        # Names the upstream, the running state, and the shard progress.
         assert "'B'" in detail, detail
         assert "running" in detail, detail
         assert "7/10 shards" in detail, detail
-        # No longer says "run it first" — user should wait, not re-run.
+        # Old flat message must not leak — user should wait, not re-run.
         assert "run it first" not in detail, detail
+        assert "no produced artifact" not in detail, detail
+
+
+def test_dispatch_upstream_failed_reports_reruns_message(tmp_path: Path) -> None:
+    """FAILED upstream (attribution kept per the "keep attribution on
+    failure" policy) must produce "last attempt failed; re-run it" —
+    NOT the "still running" wait message and NOT the "no produced
+    artifact" empty-slot message.
+    """
+
+    app = create_app(db_path=tmp_path / "failed.sqlite")
+    with TestClient(app) as client:
+        _fake_online_node(client)
+        wid = "77777777-7777-7777-7777-777777777777"
+        base = _seed_snapshot_with_jobs(
+            client, workflow_id=wid, graph=_linear_graph(), done_at=["A"]
+        )
+        _seed_attributed_job(
+            client,
+            workflow_id=wid,
+            snapshot_id=base,
+            graph_node_id="B",
+            job_id="b-failed",
+            state=JobState.FAILED,
+        )
+
+        r = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        assert r.status_code == 400
+        detail = r.json()["detail"]
+        assert "'B'" in detail, detail
+        assert "failed" in detail.lower(), detail
+        assert "re-run" in detail, detail
+        # Distinguish from the RUNNING / EMPTY branches.
+        assert "still running" not in detail, detail
+        assert "no produced artifact" not in detail, detail
+
+
+def test_dispatch_continue_when_upstream_slot_holds_failed_only(tmp_path: Path) -> None:
+    """Continue-vs-Fork must treat a FAILED slot as empty so a re-run of
+    the failed slot stays a Continue (not a Fork).
+
+    Attribute-at-creation means the failed job's attribution row is
+    still in ``snapshot_jobs``; a naive ``get_job_at`` returns it and
+    the pre-refactor code would Fork. Post-refactor, ``dispatch_graph_node``
+    checks the candidate's state and skips terminal-fail states, so a
+    dispatch onto the same graph_node stays a Continue and the fresh
+    attempt appends a new attribution row (newer ``created_ts``) that
+    ``get_job_at`` will now prefer.
+    """
+
+    app = create_app(db_path=tmp_path / "cont-fail.sqlite")
+    with TestClient(app) as client:
+        _fake_online_node(client)
+        wid = "88888888-8888-8888-8888-888888888888"
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=_linear_graph(), done_at=[])
+        # A slot for B: FAILED attribution + no downstream.
+        _seed_attributed_job(
+            client,
+            workflow_id=wid,
+            snapshot_id=base,
+            graph_node_id="B",
+            job_id="b-failed",
+            state=JobState.FAILED,
+        )
+        # A is not a real prerequisite here (B has no upstream in
+        # ``_linear_graph`` beyond A). Seed A DONE so B's re-dispatch
+        # can resolve its input.
+        _seed_attributed_job(
+            client,
+            workflow_id=wid,
+            snapshot_id=base,
+            graph_node_id="A",
+            job_id="a-done",
+            state=JobState.DONE,
+        )
+
+        async def _seed_a_handle() -> None:
+            await client.app.state.handles.register(
+                Handle(
+                    handle_id="h-A",
+                    node_id="node-a",
+                    storage="file",
+                    tags=["demo-echo"],
+                    path="/tmp/A.out",
+                    job_id="a-done",
+                    output_port_name="out",
+                )
+            )
+
+        client.portal.call(_seed_a_handle)
+
+        r = client.post(f"/api/workflows/{wid}/dispatch/B", params={"base_snapshot_id": base})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # Same snapshot, Continue not Fork.
+        assert body["operation"] == "continue", body
+        assert body["snapshot_id"] == base, body
+        assert "parent_snapshot_id" not in body, body
+
+
+def test_dispatch_attribution_written_at_creation(tmp_path: Path) -> None:
+    """After dispatching a graph node, ``snapshot_jobs`` must already
+    hold an attribution row for it — before the job reaches DONE.
+
+    Regression for 2026-09-22: attribution used to land on WS
+    ``job_done``; downstream dispatches during the running window
+    couldn't find the slot. Post-refactor the row is written inside
+    ``_dispatch_job`` right after ``store.create``, so a same-tick
+    ``get_job_at`` returns it.
+    """
+
+    app = create_app(db_path=tmp_path / "attr-early.sqlite")
+    with TestClient(app) as client:
+        _fake_online_node(client)
+        wid = "99999999-9999-9999-9999-999999999999"
+        graph = _linear_graph()
+
+        async def _save() -> None:
+            await client.app.state.workflows.save_draft(
+                workflow_id=wid, name="cc-e2e-attr-early", graph=graph
+            )
+
+        client.portal.call(_save)
+
+        r = client.post(f"/api/workflows/{wid}/dispatch/A")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        snap = body["snapshot_id"]
+        job_id = body["job_id"]
+
+        async def _check() -> str | None:
+            return await client.app.state.snapshot_jobs.get_job_at(snap, "A")
+
+        attributed = client.portal.call(_check)
+        # The attribution IS the freshly-minted job — even though the
+        # job has only just been ASSIGNED (no DONE frame yet).
+        assert attributed == job_id, (attributed, job_id)
 
 
 def test_dispatch_unknown_graph_node_404(tmp_path: Path) -> None:

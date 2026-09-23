@@ -164,7 +164,10 @@ async def run_snapshot(
                 job_timeout_s=job_timeout_s,
             )
             job_ids.append(parent_job_id)
-            await snapshot_jobs.attribute(snapshot_id, parent_job_id, graph_node_id)
+            # Attribution already written at parent-job creation inside
+            # ``_prepare_fanout`` (2026-09-22 refactor). The previous
+            # post-completion attribute here is redundant under the new
+            # invariant "one attribution per job, at creation".
             outputs_by_graph_node[graph_node_id] = parent_outputs
             continue
 
@@ -177,6 +180,7 @@ async def run_snapshot(
             gnode=gnode,
             input_handles=input_handles,
             pack_entry=pack_entry,
+            snapshot_jobs=snapshot_jobs,
         )
         job_ids.append(job_id)
 
@@ -188,13 +192,11 @@ async def run_snapshot(
                 f"{final.state.value}"
             )
 
-        # Lineage-first bridge: attribute this done job to the current
-        # snapshot. Historically this was implicit in ``jobs.snapshot_id``;
-        # under the V8 model every done attribution has to be an explicit
-        # ``snapshot_jobs`` row so the Continue/Fork dispatcher can find
-        # it by (snapshot_id, graph_node_id).
-        await snapshot_jobs.attribute(snapshot_id, job_id, graph_node_id)
-
+        # Attribution already written at creation inside ``_dispatch_job``
+        # (2026-09-22 refactor). No explicit post-completion attribute
+        # needed here — the sequential runner's downstream nodes will see
+        # the attributed row + the now-DONE state via ``get_job_at`` +
+        # ``jobs_store.get``.
         outputs_by_graph_node[graph_node_id] = await _collect_output_handles(handles, job_id)
 
     return job_ids
@@ -302,6 +304,21 @@ async def _prepare_fanout(
         expected_shards=len(element_ids),
     )
     await store.create(parent_job)
+    # Attribute at parent-job CREATION, not after the fan-out completes.
+    # A downstream ``dispatch_graph_node`` that runs while shards are in
+    # flight looks the parent up via ``snapshot_jobs.get_job_at`` and
+    # inspects its ``state``; without an early attribution the slot
+    # reads as "no produced artifact; run it first" mid-fan-out, which
+    # is misleading (2026-09-22 report). ``_resolve_inputs_from_snapshot``
+    # now branches on the attributed job's state:
+    #   * DONE           → wire the handles
+    #   * PENDING/ASSIGNED/RUNNING → "still running (X/Y shards)"
+    #   * FAILED/CANCELLED         → "last attempt failed; re-run"
+    # Continue-vs-Fork detection (see the ``if base_snapshot_id`` block
+    # in ``dispatch_graph_node``) treats FAILED/CANCELLED as slot-empty
+    # so a re-run of a failed slot stays a Continue, not a Fork.
+    snapshot_jobs_store: SnapshotJobsStore = app.state.snapshot_jobs
+    await snapshot_jobs_store.attribute(snapshot_id, parent_job.job_id, gnode.id)
     _push_update(hub, parent_job)
 
     parent_ws = str(Path(session.workspace_root) / "w" / workflow_id / "j" / parent_job.job_id)
@@ -984,12 +1001,23 @@ async def _dispatch_job(
     gnode: GraphNode,
     input_handles: dict[str, str],
     pack_entry: dict[str, Any] | None = None,
+    snapshot_jobs: SnapshotJobsStore | None = None,
 ) -> str:
     """Create + assign + send job_assign. Returns the newly minted job id.
 
     ``pack_entry`` is the catalog entry for ``gnode``'s pack; when
     provided, manifest ``params:`` defaults are merged in for any keys
     the workflow draft doesn't set (:func:`merged_params_with_defaults`).
+
+    ``snapshot_jobs`` is required when the caller wants attribute-at-
+    creation semantics (2026-09-22 refactor): the freshly-minted job's
+    row is written to ``snapshot_jobs`` immediately after ``store.create``
+    so a downstream dispatch on the same snapshot sees a filled slot
+    even mid-run (previously attribution only landed on WS ``job_done``,
+    which opened a race window that surfaced as "no produced artifact"
+    to the operator). Callers that don't want attribution (ad-hoc jobs
+    with ``snapshot_id=None``) omit it. See ``_prepare_fanout`` for the
+    fan-out counterpart.
     """
 
     assert gnode.assigned_node_id is not None
@@ -1010,6 +1038,11 @@ async def _dispatch_job(
         graph_node_id=gnode.id,
     )
     await store.create(job)
+    # Attribute at creation, not at DONE (see the block comment on the
+    # ``snapshot_jobs`` parameter above). Skipped when the caller didn't
+    # pass a store — ad-hoc jobs typically don't belong to a snapshot.
+    if snapshot_jobs is not None:
+        await snapshot_jobs.attribute(snapshot_id, job.job_id, gnode.id)
     _push_update(hub, job)
 
     assigned = JobStateMachine.transition(job, JobState.ASSIGNED, node_id=session.node_id)
@@ -1165,10 +1198,26 @@ async def dispatch_graph_node(
         raise DispatchError(f"graph node {graph_node_id!r} has no assigned compute node")
 
     # -- Choose Continue vs Fork --------------------------------------------
+    # Attribute-at-creation (2026-09-22 refactor) means ``get_job_at``
+    # can return a FAILED / CANCELLED job for a slot the operator will
+    # want to Continue-retry, not Fork. Skip terminal-fail states here
+    # so the retry stays a Continue: a new attempt appends a new
+    # attribution row with newer ``created_ts``, and ``get_job_at`` (which
+    # orders by created_ts DESC) surfaces the newest one at the next
+    # dispatch. Slot semantics: "productively filled" = DONE or in
+    # flight; "empty for Continue" = never attempted OR last attempt
+    # failed/cancelled.
     existing_job_id: str | None = None
     parent_snapshot_id: str | None = None
     if base_snapshot_id is not None:
-        existing_job_id = await snapshot_jobs.get_job_at(base_snapshot_id, graph_node_id)
+        candidate = await snapshot_jobs.get_job_at(base_snapshot_id, graph_node_id)
+        if candidate is not None:
+            candidate_job = await jobs_store.get(candidate)
+            if candidate_job is not None and candidate_job.state not in (
+                JobState.FAILED,
+                JobState.CANCELLED,
+            ):
+                existing_job_id = candidate
 
     if base_snapshot_id is None:
         # No base → new snapshot, first attribution.
@@ -1235,8 +1284,9 @@ async def dispatch_graph_node(
         # Prepare synchronously so we can return the parent job_id in
         # the API response; run the shard loop as a background task so
         # the endpoint stays fire-and-forget (matching the non-fanout
-        # branch below). Attribution happens inside the task when the
-        # parent completes, mirroring ``run_snapshot`` line 128.
+        # branch below). Attribution is now written at parent-job
+        # CREATION inside ``_prepare_fanout`` (2026-09-22 refactor); the
+        # background task only executes shards and marks terminal state.
         try:
             plan = await _prepare_fanout(
                 app,
@@ -1261,8 +1311,14 @@ async def dispatch_graph_node(
                     job_timeout_s=24 * 3600,
                 )
             except WorkflowRunError:
-                # Parent already marked FAILED inside the body; no
-                # attribution written so the operator can re-dispatch.
+                # Parent already marked FAILED inside the body. Attribution
+                # row was written at creation (kept — see the block
+                # comment on ``_prepare_fanout``'s attribute call); the
+                # resolver's state check turns that into "last attempt
+                # failed; re-run it" instead of the wrong "no produced
+                # artifact" message. Under Continue-vs-Fork detection,
+                # FAILED slots are treated as slot-empty so the retry
+                # stays a Continue.
                 return
             except Exception:
                 log.exception(
@@ -1271,14 +1327,9 @@ async def dispatch_graph_node(
                     graph_node=gnode.id,
                 )
                 return
-            try:
-                await snapshot_jobs.attribute(target_snapshot_id, plan.parent_job.job_id, gnode.id)
-            except Exception:
-                log.exception(
-                    "attribution failed after fan-out done",
-                    parent_job_id=plan.parent_job.job_id,
-                    graph_node=gnode.id,
-                )
+            # Success path: no follow-up attribute needed — the row
+            # already exists (idempotent INSERT OR IGNORE). Kept as a
+            # doc-comment marker.
 
         # Retain a reference so the GC doesn't reap the background task
         # mid-run (RUF006). Same pattern as ``app.py`` uses for full
@@ -1292,8 +1343,11 @@ async def dispatch_graph_node(
         fanout_task.add_done_callback(_bg_tasks.discard)
         app.state.dispatch_fanout_tasks = _bg_tasks
     else:
-        # Non-fanout: fire-and-forget dispatch; attribution happens in
-        # the WS ``job_done`` handler when the subprocess reports DONE.
+        # Non-fanout: fire-and-forget dispatch. Attribution is written
+        # at job creation inside ``_dispatch_job`` (see the block
+        # comment on its ``snapshot_jobs`` parameter). The WS
+        # ``job_done`` handler's own attribute call remains as
+        # defense-in-depth (idempotent INSERT OR IGNORE).
         job_id = await _dispatch_job(
             registry=registry,
             store=jobs_store,
@@ -1303,6 +1357,7 @@ async def dispatch_graph_node(
             gnode=gnode,
             input_handles=input_handles,
             pack_entry=pack_entry,
+            snapshot_jobs=snapshot_jobs,
         )
 
     result: dict[str, Any] = {
@@ -1333,23 +1388,34 @@ async def _resolve_inputs_from_snapshot(
 
       1. Following the edge to its source graph node.
       2. Looking up the job attributed to that source in the target
-         snapshot (via snapshot_jobs).
-      3. Reading that job's registered output handles (via HandleBook)
-         and picking the port named on the edge.
+         snapshot (via ``snapshot_jobs.get_job_at``).
+      3. Fetching that job's state (via ``jobs_store.get``) and
+         branching:
 
-    A missing attribution raises DispatchError. Because a fan-out
-    parent's attribution row is only written *after* all its shards
-    complete (see ``_run_shards_in_background`` below), a downstream
-    dispatch that fires while the upstream is mid-fan-out lands in this
-    branch too — the shards are producing the artifact, just not
-    attributed yet. To distinguish "hasn't run" from "still running",
-    the miss branch checks ``SnapshotJobsStore.find_inflight_for_graph_node``
-    and rewrites the error with the in-flight state + shard progress
-    when a running parent is found. Operator then knows to wait, not
-    re-run.
+         * ``DONE`` → look up its registered handles and wire the port.
+         * ``PENDING / ASSIGNED / RUNNING`` → the upstream is still
+           producing the artifact. Raise DispatchError with the shard
+           progress so the operator waits instead of re-dispatching.
+         * ``FAILED / CANCELLED`` → the last attempt didn't produce
+           anything. Raise DispatchError telling the operator to
+           re-run (a fresh dispatch will Continue on the same
+           snapshot per ``dispatch_graph_node``'s "skip terminal-fail
+           on Continue-vs-Fork" rule).
+
+    A ``None`` from ``get_job_at`` means the slot has never been
+    attempted in this snapshot — raise the original "run it first"
+    message so the operator knows to trigger the upstream.
+
+    Semantics upgrade (2026-09-22 refactor): attribution is now written
+    at job CREATION (see ``_prepare_fanout`` and ``_dispatch_job``), so
+    ``get_job_at`` returns a job as soon as it's dispatched, not only
+    after DONE. The prior helper ``find_inflight_for_graph_node`` was a
+    transitional workaround for the old "attribute-on-DONE" model and
+    is no longer used.
     """
 
     snapshot_jobs: SnapshotJobsStore = app.state.snapshot_jobs
+    jobs_store: JobsStore = app.state.jobs_store
     handles: HandleBook = app.state.handles
 
     wired: dict[str, str] = {}
@@ -1359,31 +1425,46 @@ async def _resolve_inputs_from_snapshot(
         source_gnode = edge.source
         upstream_job_id = await snapshot_jobs.get_job_at(target_snapshot_id, source_gnode)
         if upstream_job_id is None:
-            inflight = await snapshot_jobs.find_inflight_for_graph_node(workflow_id, source_gnode)
-            if inflight is not None:
-                # Compose a shard-progress hint. ``progress_current`` /
-                # ``progress_total`` are the parent's aggregated shard
-                # counters; ``expected_shards`` is the plan set at
-                # fan-out start. Fall back to whichever fields the job
-                # row actually carries — a still-pending parent may
-                # have neither yet.
-                shards_done = inflight.get("progress_current")
-                shards_total = inflight.get("progress_total") or inflight.get("expected_shards")
-                if shards_done is not None and shards_total is not None:
-                    progress = f" ({shards_done}/{shards_total} shards done)"
-                elif shards_total is not None:
-                    progress = f" (0/{shards_total} shards done)"
-                else:
-                    progress = ""
-                raise DispatchError(
-                    f"upstream graph node {source_gnode!r} is still {inflight['state']}"
-                    f"{progress}; attribution is written after all shards finish — "
-                    f"wait for the fan-out to complete, then retry"
-                )
+            # No attribution row at all — the upstream slot has never
+            # been dispatched in this snapshot. Under the pre-refactor
+            # "attribute-on-DONE" model this branch also caught the
+            # mid-fan-out window; that window no longer exists because
+            # ``_prepare_fanout`` attributes at creation.
             raise DispatchError(
                 f"upstream graph node {source_gnode!r} has no produced artifact "
                 f"in this snapshot; run it first"
             )
+        upstream_job = await jobs_store.get(upstream_job_id)
+        if upstream_job is None:
+            # Row-level race: attribution exists but the job row is
+            # missing. Treat as "no artifact" so the operator can
+            # re-dispatch to recover.
+            raise DispatchError(
+                f"upstream graph node {source_gnode!r} attribution points at "
+                f"unknown job {upstream_job_id!r}; re-run to recover"
+            )
+        state = upstream_job.state
+        if state in (JobState.PENDING, JobState.ASSIGNED, JobState.RUNNING):
+            # Attributed but still in flight. Aggregate shard progress
+            # from the parent row when available; a non-fanout job has
+            # None/None and the message drops the shard suffix.
+            shards_done = upstream_job.progress_current
+            shards_total = upstream_job.progress_total or upstream_job.expected_shards
+            if shards_done is not None and shards_total is not None:
+                progress = f" ({shards_done}/{shards_total} shards done)"
+            elif shards_total is not None:
+                progress = f" (0/{shards_total} shards done)"
+            else:
+                progress = ""
+            raise DispatchError(
+                f"upstream graph node {source_gnode!r} is still {state.value}"
+                f"{progress}; wait for it to finish, then retry"
+            )
+        if state in (JobState.FAILED, JobState.CANCELLED):
+            raise DispatchError(
+                f"upstream graph node {source_gnode!r} last attempt {state.value}; re-run it"
+            )
+        # state is DONE → wire the handles.
         registered = await handles.list_by_job(upstream_job_id)
         by_port = {h.output_port_name: h.handle_id for h in registered if h.output_port_name}
         handle_id = by_port.get(edge.sourceHandle)
