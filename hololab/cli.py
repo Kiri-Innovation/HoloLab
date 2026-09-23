@@ -103,13 +103,17 @@ def start_default(
         ),
     ),
 ) -> None:
-    """Default: run gateway + one local node in the same process.
+    """Default: run gateway + one local node + a file-server subprocess.
 
-    This is the one-command product experience — one process tree, one
-    Ctrl+C. The node runs in-process (asyncio task) rather than as a
-    subprocess so shutdown, ports, and logs are dead simple to reason
-    about. Use ``hololab dev`` if you want gateway auto-reload split
-    across processes.
+    The one-command product experience — one process tree, one Ctrl+C.
+    Gateway and node share this asyncio loop so REST/WS/scheduling stay
+    trivially in sync; the file server runs as a child process (see
+    :mod:`hololab.node.fileserver_main`) so ffmpeg-heavy ``/_thumb`` /
+    ``/_preview`` traffic doesn't steal the scheduler's CPU time slices.
+    The child sits in a fresh OS session — terminal SIGINT reaches only
+    the parent, which forwards SIGTERM to the child during shutdown.
+    Use ``hololab dev`` if you want gateway auto-reload split across
+    processes.
     """
 
     if ctx.invoked_subcommand is not None:

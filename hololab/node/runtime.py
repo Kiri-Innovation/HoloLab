@@ -16,6 +16,7 @@ import contextlib
 import json
 import os
 import shutil
+import sys
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -36,7 +37,6 @@ from hololab.manifest.render import (
 from hololab.node.config import NodeConfig, write_node_config
 from hololab.node.env_cache import warmup_env_cache
 from hololab.node.executor import ExecPlan, ExecResult, run_subprocess
-from hololab.node.fileserver import ServeHandle, create_fileserver_app
 from hololab.node.orphan_cleanup import cleanup_workspace_orphans
 from hololab.node.packs import LoadedPack, scan_multi_packs
 from hololab.protocol import (
@@ -190,11 +190,18 @@ class NodeRuntime:
         # cache lands the answer.
         self._locate_inflight: dict[str, asyncio.Future[HandleLocateResp]] = {}
 
-        # File server task + its owning ServeHandle. We hold the handle
-        # so a live workspace-root change can call ``stop()`` to release
-        # the socket cleanly before rebinding on the same port.
+        # File server subprocess + its watchdog task. The file server
+        # runs in its own OS process (see
+        # :mod:`hololab.node.fileserver_main`) so ffmpeg-heavy
+        # ``/_thumb`` / ``/_preview`` traffic doesn't share this
+        # process's asyncio loop with job scheduling. The watchdog task
+        # awaits ``proc.wait()`` and logs unexpected exits.
+        # ``_fs_stopping`` distinguishes an operator-driven stop
+        # (config-set restart or shutdown) from a crash so the watchdog
+        # only warns on the latter.
+        self._fs_proc: asyncio.subprocess.Process | None = None
         self._fs_task: asyncio.Task[None] | None = None
-        self._fs_handle: ServeHandle | None = None
+        self._fs_stopping: bool = False
 
         # Pack watcher — respawned when ``pack_dirs`` changes so the
         # awatch call binds to the new list.
@@ -266,10 +273,11 @@ class NodeRuntime:
                 configured_envs=len(self._config.envs),
             )
 
-        # File server runs as a separate task so a live config-set can
-        # cancel and restart it with new roots without touching the
-        # connect loop. See :meth:`_restart_file_server`.
-        self._fs_task = self._spawn_file_server()
+        # File server runs as an OS child process so its ffmpeg-heavy
+        # request handling doesn't share the scheduler's event loop.
+        # A live config-set restart is a kill+respawn on the same port;
+        # see :meth:`_restart_file_server`.
+        await self._start_file_server()
         # Pack watcher is likewise stored on ``self`` so a pack_dirs
         # patch can restart it against the new list without touching
         # the connect loop.
@@ -294,53 +302,143 @@ class NodeRuntime:
         try:
             await self._connect_loop()
         finally:
-            for t in (self._fs_task, self._watch_task, sweep_task, metrics_task):
+            # Stop the file server child first so its listen socket is
+            # released before this process exits — otherwise a fast
+            # ``hololab start`` restart hits EADDRINUSE on 8829.
+            with contextlib.suppress(Exception):
+                await self._stop_file_server()
+            for t in (self._watch_task, sweep_task, metrics_task):
                 if t is None:
                     continue
                 t.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await t
 
-    def _spawn_file_server(self) -> asyncio.Task[None]:
-        """Create + start a new file server task bound to the current config.
+    async def _start_file_server(self) -> None:
+        """Spawn the file server as a child process and start a watchdog.
 
-        Records the owning ``ServeHandle`` on the instance so
-        :meth:`_restart_file_server` can ask for a graceful shutdown
-        (which releases the TCP socket) before rebinding on the same
-        port.
+        The child is launched in a fresh session (``start_new_session=True``)
+        so a terminal SIGINT to this process's process group does NOT
+        reach the child directly — the parent's shutdown path
+        (:meth:`_stop_file_server`) is the single signal source, which
+        keeps "one Ctrl+C shuts everything down" straightforward: the
+        parent's shutdown handler drives ``_stop_file_server`` and the
+        child receives SIGTERM from us alone.
+
+        Proxy env vars are scrubbed on the child's environment because
+        loopback traffic must never traverse the operator's http proxy
+        (same trap that used to blow up node registration; see
+        :mod:`hololab.cli`).
         """
 
-        fs_app = create_fileserver_app(
-            workspace_root=self._config.workspace_root,
-            legacy_workspace_roots=list(self._config.legacy_workspace_roots),
+        cfg = self._config
+        argv = [
+            sys.executable,
+            "-m",
+            "hololab.node.fileserver_main",
+            "--host",
+            cfg.file_server_host,
+            "--port",
+            str(cfg.file_server_port),
+            "--workspace-root",
+            str(cfg.workspace_root),
+        ]
+        for p in cfg.legacy_workspace_roots:
+            argv += ["--legacy-root", str(p)]
+
+        child_env = dict(os.environ)
+        for name in (
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+        ):
+            child_env.pop(name, None)
+
+        self._fs_stopping = False
+        self._fs_proc = await asyncio.create_subprocess_exec(
+            *argv,
+            env=child_env,
+            start_new_session=True,
         )
-        self._fs_handle = ServeHandle(
-            fs_app,
-            host=self._config.file_server_host,
-            port=self._config.file_server_port,
-        )
-        return asyncio.create_task(
-            self._fs_handle.serve(),
+        self._fs_task = asyncio.create_task(
+            self._fs_watchdog(self._fs_proc),
             name="hololab-node-fileserver",
         )
+        log.info(
+            "file server started",
+            pid=self._fs_proc.pid,
+            host=cfg.file_server_host,
+            port=cfg.file_server_port,
+        )
 
-    async def _restart_file_server(self) -> None:
-        """Gracefully stop the current file server and start a fresh one.
+    async def _fs_watchdog(self, proc: asyncio.subprocess.Process) -> None:
+        """Await the child's exit and surface unexpected deaths in the log.
 
-        Called from the ``node_config_set_req`` handler after workspace
-        root changes. We use ``ServeHandle.stop()`` + task-await instead
-        of ``task.cancel()`` so uvicorn gets a chance to release the
-        listen socket — otherwise the immediate rebind on the same
-        host:port fails with ``EADDRINUSE`` and the whole node dies.
-        In-flight jobs' subprocesses are untouched: they own their own
-        write path in ``workspace_root`` at spawn time.
+        No auto-restart: file-server crashes are rare and a silent
+        respawn would hide real bugs. Jobs keep running when the child
+        is gone — only ``/_thumb``, ``/_preview``, and ``/w/…`` degrade
+        — so the operator has time to notice and restart the daemon.
         """
 
-        if self._fs_task is not None and self._fs_handle is not None:
-            await self._fs_handle.stop()
-            with contextlib.suppress(asyncio.CancelledError):
+        rc = await proc.wait()
+        if self._fs_stopping:
+            log.info("file server child exited (stop requested)", rc=rc)
+            return
+        log.warning(
+            "file server child died unexpectedly — /_thumb, /_preview, "
+            "/w/… will 502 through the gateway proxy until the daemon "
+            "is restarted",
+            rc=rc,
+        )
+
+    async def _stop_file_server(self) -> None:
+        """Send SIGTERM, wait for graceful exit, SIGKILL on timeout.
+
+        Uvicorn in the child catches SIGTERM (its default handler) and
+        drains its transports — ``timeout_graceful_shutdown=5`` in
+        ``fileserver_main`` releases the listen socket before we
+        respawn on the same port.
+        """
+
+        self._fs_stopping = True
+        proc = self._fs_proc
+        if proc is not None and proc.returncode is None:
+            with contextlib.suppress(ProcessLookupError):
+                proc.terminate()
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=6.0)
+            except asyncio.TimeoutError:
+                log.warning(
+                    "file server child did not exit within 6s — SIGKILL",
+                    pid=proc.pid,
+                )
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+                with contextlib.suppress(Exception):
+                    await proc.wait()
+        if self._fs_task is not None:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._fs_task
-        self._fs_task = self._spawn_file_server()
+        self._fs_proc = None
+        self._fs_task = None
+
+    async def _restart_file_server(self) -> None:
+        """Restart the file server child so it picks up new workspace roots.
+
+        Called from the ``node_config_set_req`` handler after
+        ``workspace_root`` / ``legacy_workspace_roots`` changes. We
+        kill the current child (which releases the listen socket) and
+        spawn a fresh one on the same host:port with the new roots
+        baked into its argv. In-flight jobs' subprocesses are untouched:
+        they own their own write path in ``workspace_root`` at spawn
+        time.
+        """
+
+        await self._stop_file_server()
+        await self._start_file_server()
 
     async def _restart_pack_watcher(self) -> None:
         """Rescan packs against the current ``pack_dirs`` list and start a
