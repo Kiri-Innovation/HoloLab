@@ -79,22 +79,55 @@ docs: |
 
   #### Performance vs @0.4.1
 
-  Wall-clock, one 21-image shard, GPU quiet, machine load < 5:
+  Cold single-shard breakdown (fresh subprocess, GPU quiet):
 
-  * ``@0.4.1`` solo (COLMAP native): **~5.0 s**
-  * ``@0.4.1`` under 8-way fan-out (empirical, `manifest.yaml:66`):
-    p50 **~20 s**, max **~39 s**
-  * ``@0.5.0`` solo: **~2.6 s** (read ~650 ms + gpu ~630 ms +
-    write ~920 ms + CUDA init ~300 ms)
-  * ``@0.5.0`` 4-way concurrent (contested I/O + shared GPU): ~4.5 s
-    per shard, wall ~8.4 s for 4 shards → **2.1 s/shard amortized**
+  * python + imports (torch 1.4 s, kornia 0.25 s, cv2/np 0.1 s): **~1.9 s**
+  * CUDA init (first tensor + sync): **~0.9 s**
+  * stage images + prior: ~25 ms
+  * read PNG (cv2 threaded ×8): ~700 ms
+  * build grid: ~100 ms
+  * GPU (fp16 chunk=8, pinned host out): ~270 ms
+    (H2D 90 + permute+cast 10 + grid_sample+u8 50 + D2H 120)
+  * write PNG (cv2 threaded ×8, compress=1): ~930 ms
+  * publish cams.txt/images.txt: ~15 ms
+  * **total: ~4.5 s** (of which imports+CUDA ~2.8 s = 62 %)
 
-  Two knobs available for tuning without re-implementation:
+  Real 100-shard runs on the classic-STG workflow (same 21-img shards
+  ~2704×2028), measured on the framework's own timings:
 
-  * ``--io-workers``: PNG decode/encode thread pool size (default 8).
-  * ``--png-compress``: ``PNG_COMPRESSION`` for cv2 imwrite (default 1
-    — matches COLMAP's output size to within a few %; raise for
-    smaller files at the cost of encode time).
+  * ``@0.4.1`` CPU, ``parallelism=8``: p50 22.24 s, mean 25.55 s,
+    max 423.78 s, **fan-out wall 423 s (7.06 min)**
+  * ``@0.5.0`` v1 (fp32, chunk=3, ``parallelism=4``): p50 6.89 s,
+    mean 7.03 s, max 13.92 s, **fan-out wall 313 s (5.22 min)**
+  * ``@0.5.0`` v2 (fp16, chunk=8, ``parallelism=8``, pinned D2H):
+    p50 11.34 s, mean 11.76 s, max 25.92 s, **fan-out wall 260 s
+    (4.34 min)** — **1.63× speedup vs @0.4.1**
+
+  Notes:
+  * At ``parallelism=8`` each shard is ~1.7× slower than at
+    ``parallelism=4`` (PCIe H2D/D2H + GPU kernel serialization split
+    across 8 procs). Net wall still improves because 8/4 concurrency
+    beats 1.7 slowdown.
+  * The remaining gap to ~1-2 min is dominated by (a) 2.8 s of
+    per-shard cold-start (imports+CUDA context creation), and (b)
+    ~1-2 s of framework overhead between shards per slot. Both need
+    a persistent-worker mechanism (either pack-internal daemon or
+    framework-level ``persistent: true``); the executor invariant is
+    subprocess-per-shard (``hololab/node/executor.py:6`` "sacred
+    boundary"), so this is out of scope for a pack-only change.
+
+  Tuning knobs:
+
+  * ``dtype`` (default ``fp16``): fp32 doubles VRAM; fp16 vs fp32 has
+    RMSE 0.71 on 8-bit inputs — no visible quality loss for STG.
+    bf16 rejected empirically (RMSE 4.65).
+  * ``chunk_size`` (default 8): peak VRAM ~1 GB / proc at fp16 chunk=8;
+    fits 8-way concurrent on 24 GB with headroom. chunk=21 (whole shard
+    in one kernel) OOMs at 8-way.
+  * ``png_compress`` (default 1): compress=0 saves ~330 ms/shard on
+    encode but inflates output 4×; compress=1 matches COLMAP output
+    size within a few %.
+  * ``io_workers`` (default 8): thread pool for cv2 PNG decode/encode.
 
   #### Concurrency and thread caps
 
@@ -167,6 +200,25 @@ params:
       libpng compression level for cv2 imwrite (0 = uncompressed, 9 =
       max). 1 matches COLMAP output size within a few percent while
       keeping encode time <1 s per 21-image shard.
+  chunk_size:
+    type: int
+    default: 8
+    min: 1
+    max: 21
+    description: >
+      Images per grid_sample call. Bounds GPU VRAM peak: fp16 chunk=8
+      peaks ~1 GB / proc, fp32 chunk=8 peaks ~1.6 GB / proc; both fit
+      8-way concurrent on 24 GB. chunk=21 (whole shard in one kernel)
+      peaks 2.5-4 GB and only works at parallelism<=4.
+  dtype:
+    type: string
+    default: fp16
+    description: >
+      GPU compute dtype: 'fp16' (default) or 'fp32'. fp16 halves VRAM
+      and PCIe pressure; RMSE vs fp32 ~0.7 on 8-bit inputs (well within
+      the STG downstream tolerance — the reader only checks
+      model=='PINHOLE'). bf16 rejected empirically (RMSE ~5 due to
+      8-bit mantissa insufficient for image resampling coordinates).
 
 outputs:
   cams:
@@ -215,7 +267,9 @@ exec:
       --staging "{{ staging_dir }}" \
       --blank-pixels {{ params.blank_pixels }} \
       --io-workers {{ params.io_workers }} \
-      --png-compress {{ params.png_compress }}
+      --png-compress {{ params.png_compress }} \
+      --chunk-size {{ params.chunk_size }} \
+      --dtype {{ params.dtype }}
 
 idempotency:
   marker: "{{ outputs.cams }}/.hololab-done"

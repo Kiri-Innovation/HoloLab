@@ -321,30 +321,38 @@ def _build_grid(cam: dict, new_cam: dict, device: str) -> torch.Tensor:
 def undistort_batch(
     imgs_u8: np.ndarray,
     grid: torch.Tensor,
-    chunk_size: int = 3,
+    chunk_size: int = 8,
+    compute_dtype: torch.dtype = torch.float16,
 ) -> np.ndarray:
     """imgs_u8: (B, H, W, 3) uint8 RGB. Returns (B, newH, newW, 3) uint8.
 
-    Processes in chunks of ``chunk_size`` so peak GPU mem is bounded even
-    when multiple shards share the GPU. chunk=3 at 2704x2028x3 peaks
-    around ~500 MB (uint8 upload + float32 intermediates + output);
-    a full 21-image shard peaks around ~3 GB, which OOMs under any
-    non-trivial fan-out. Between chunks we ``torch.cuda.empty_cache()``
-    to hand memory back to the driver so peers can allocate — required
-    when 4 shards share a 24 GB card.
+    Two knobs bound peak GPU memory + speed:
+
+    * ``chunk_size`` — how many images per grid_sample call. VRAM peaks
+      scale ~linearly (fp16 chunk=8 ~= 1 GB, fp32 chunk=8 ~= 1.6 GB).
+      chunk=8 at fp16 fits 8-way concurrent on a 24 GB card with margin.
+    * ``compute_dtype`` — fp16 halves both VRAM and PCIe pressure vs
+      fp32 while matching fp32 to RMSE ~0.7 on 8-bit inputs (verified
+      on the reference shard). Reject bf16 — its 8-bit mantissa yields
+      RMSE ~5, visibly worse.
+
+    Also: output D2H uses a pinned host buffer so ``.cpu()`` skips the
+    staging bounce (~470 ms → ~150 ms for 21 imgs at 2688x2016).
     """
     B = imgs_u8.shape[0]
     new_H, new_W = int(grid.shape[1]), int(grid.shape[2])
-    out_np = np.empty((B, new_H, new_W, 3), dtype=np.uint8)
+    # Pinned host buffer so the D2H copy is async + DMA-direct.
+    out_pinned = torch.empty(B, new_H, new_W, 3, dtype=torch.uint8, pin_memory=True)
+    grid_c = grid.to(compute_dtype) if grid.dtype != compute_dtype else grid
     for s in range(0, B, chunk_size):
         e = min(s + chunk_size, B)
         chunk = imgs_u8[s:e]
         t_u8 = torch.from_numpy(np.ascontiguousarray(chunk)).pin_memory()
         t_gpu = t_u8.to("cuda", non_blocking=True)
-        imgs = t_gpu.permute(0, 3, 1, 2).float().mul_(1.0 / 255.0)
+        imgs = t_gpu.permute(0, 3, 1, 2).to(compute_dtype).mul_(1.0 / 255.0)
         out = F.grid_sample(
             imgs,
-            grid.expand(e - s, -1, -1, -1),
+            grid_c.expand(e - s, -1, -1, -1),
             mode="bilinear",
             padding_mode="zeros",
             align_corners=True,
@@ -357,10 +365,11 @@ def undistort_batch(
             .permute(0, 2, 3, 1)
             .contiguous()
         )
-        out_np[s:e] = out.cpu().numpy()
+        out_pinned[s:e].copy_(out, non_blocking=True)
         del t_u8, t_gpu, imgs, out
         torch.cuda.empty_cache()
-    return out_np
+    torch.cuda.synchronize()
+    return out_pinned.numpy()
 
 
 # ---------------------------------------------------------------------------
@@ -440,6 +449,20 @@ def main() -> int:
     )
     ap.add_argument("--io-workers", type=int, default=8)
     ap.add_argument("--png-compress", type=int, default=1)
+    ap.add_argument(
+        "--chunk-size",
+        type=int,
+        default=8,
+        help="Images per grid_sample call. Bounds GPU VRAM peak; fp16 chunk=8 "
+        "~= 1 GB/proc, fits 8-way concurrent on 24 GB.",
+    )
+    ap.add_argument(
+        "--dtype",
+        choices=["fp16", "fp32"],
+        default="fp16",
+        help="GPU compute dtype. fp16 halves VRAM + PCIe; RMSE vs fp32 ~0.7 "
+        "on 8-bit inputs (well within STG tolerance).",
+    )
     args = ap.parse_args()
 
     if not args.images.is_dir():
@@ -497,7 +520,8 @@ def main() -> int:
     grid = _build_grid(cam, new_cam, "cuda")
     torch.cuda.synchronize()
     t_g0 = time.perf_counter()
-    out = undistort_batch(imgs, grid)
+    compute_dtype = torch.float16 if args.dtype == "fp16" else torch.float32
+    out = undistort_batch(imgs, grid, chunk_size=args.chunk_size, compute_dtype=compute_dtype)
     torch.cuda.synchronize()
     t_g1 = time.perf_counter()
 
