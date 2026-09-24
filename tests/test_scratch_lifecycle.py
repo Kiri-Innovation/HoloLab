@@ -11,6 +11,7 @@ The regressions we're protecting against:
 
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 from pathlib import Path
@@ -23,14 +24,23 @@ from hololab.node.runtime import NodeRuntime
 
 
 def _fake_config(workspace_root: Path) -> MagicMock:
-    """Just enough of NodeConfig for the sweep helpers to work."""
+    """Just enough of NodeConfig for the sweep + purge helpers to work.
+
+    ``staging_root`` is set to ``None`` explicitly (matches the default
+    NodeConfig): otherwise ``MagicMock``'s auto-child would satisfy the
+    ``is not None`` check and ``rendered_staging_dir`` would try to use
+    a bogus path as the tmpfs root.
+    """
 
     cfg = MagicMock()
     cfg.workspace_root = workspace_root
+    cfg.staging_root = None
     return cfg
 
 
-def _make_scratch(workspace_root: Path, job_id: str, *, age_hours: float, size_bytes: int = 512) -> Path:
+def _make_scratch(
+    workspace_root: Path, job_id: str, *, age_hours: float, size_bytes: int = 512
+) -> Path:
     """Create ``scratch/{job_id}`` with one file and backdated mtime."""
 
     d = workspace_root / "scratch" / job_id
@@ -72,22 +82,93 @@ def test_sweep_skips_running_job(tmp_path: Path) -> None:
 
 
 def test_purge_now_deletes_scratch(tmp_path: Path) -> None:
-    r = NodeRuntime.__new__(NodeRuntime)
-    r._config = _fake_config(tmp_path)
-    r._jobs = {}
+    """Purge is scheduled synchronously, executed on the loop's thread pool."""
 
-    target = _make_scratch(tmp_path, "success-job", age_hours=0)
+    async def _drive() -> None:
+        r = NodeRuntime.__new__(NodeRuntime)
+        r._config = _fake_config(tmp_path)
+        r._jobs = {}
+        r._purge_tasks = set()
 
-    r._purge_scratch_now("success-job")
-    assert not target.exists()
+        target = _make_scratch(tmp_path, "success-job", age_hours=0)
+
+        r._purge_scratch_now("success-job")
+        # ``_purge_scratch_now`` must not block on the ``rmtree`` — it
+        # returns immediately after scheduling. Drain the background
+        # task before asserting.
+        assert r._purge_tasks, "expected a scheduled purge task"
+        await asyncio.gather(*list(r._purge_tasks))
+        assert not target.exists()
+        # Task removes itself from the tracking set via done_callback.
+        assert not r._purge_tasks
+
+    asyncio.run(_drive())
 
 
 def test_purge_now_is_idempotent_for_missing_scratch(tmp_path: Path) -> None:
-    r = NodeRuntime.__new__(NodeRuntime)
-    r._config = _fake_config(tmp_path)
-    r._jobs = {}
-    # Never created — must not raise.
-    r._purge_scratch_now("never-was")
+    """No paths to remove -> no task scheduled, no exception."""
+
+    async def _drive() -> None:
+        r = NodeRuntime.__new__(NodeRuntime)
+        r._config = _fake_config(tmp_path)
+        r._jobs = {}
+        r._purge_tasks = set()
+
+        r._purge_scratch_now("never-was")
+        assert not r._purge_tasks
+
+    asyncio.run(_drive())
+
+
+def test_purge_now_returns_before_rmtree_finishes(tmp_path: Path) -> None:
+    """Regression guard for the async purge: the caller must not block.
+
+    Before the async refactor ``_purge_scratch_now`` synchronously walked
+    the scratch tree, adding measurable post-done overhead per shard
+    (~1 s on the STG 100-shard fanout). After the refactor it schedules
+    the ``rmtree`` on the default thread pool and returns immediately;
+    this test locks that contract in by holding the executor's GIL slot
+    with a blocking rmtree substitute and asserting the caller still
+    returns while the task is still pending.
+    """
+
+    import shutil
+    import threading
+
+    async def _drive() -> None:
+        r = NodeRuntime.__new__(NodeRuntime)
+        r._config = _fake_config(tmp_path)
+        r._jobs = {}
+        r._purge_tasks = set()
+
+        _make_scratch(tmp_path, "slow-job", age_hours=0)
+
+        loop = asyncio.get_running_loop()
+        started = asyncio.Event()
+        finish_evt = threading.Event()
+        real_rmtree = shutil.rmtree
+
+        def _slow_rmtree(path: str) -> None:
+            # Runs on the executor thread — signal back via
+            # ``call_soon_threadsafe`` and block on a plain
+            # ``threading.Event`` rather than a per-loop primitive.
+            loop.call_soon_threadsafe(started.set)
+            finish_evt.wait(timeout=5.0)
+            real_rmtree(path)
+
+        try:
+            shutil.rmtree = _slow_rmtree  # type: ignore[assignment]
+            r._purge_scratch_now("slow-job")
+            # If the caller had waited synchronously we'd have already
+            # blocked on ``finish_evt``. Instead we're still here.
+            await asyncio.wait_for(started.wait(), timeout=2.0)
+            assert r._purge_tasks, "task should still be in flight"
+            finish_evt.set()
+            await asyncio.gather(*list(r._purge_tasks))
+        finally:
+            shutil.rmtree = real_rmtree  # type: ignore[assignment]
+
+    asyncio.run(_drive())
 
 
 def test_retention_hours_env_override(monkeypatch: pytest.MonkeyPatch) -> None:

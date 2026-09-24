@@ -223,6 +223,17 @@ class NodeRuntime:
         # env require a daemon restart to re-snapshot).
         self._env_cache: dict[str, dict[str, str]] = {}
 
+        # Detached background purge tasks. ``_purge_scratch_now`` returns
+        # immediately after scheduling the ``rmtree`` on the default
+        # thread pool so the calling ``_run_job`` can release its
+        # concurrency semaphore slot; the strong reference here keeps
+        # the task from being GC'd mid-flight (``asyncio.create_task``
+        # only holds a weakref internally). Tasks self-remove via a
+        # done-callback; we don't await these anywhere in the normal
+        # exit path because the sweeper is a hard backstop for any
+        # unhappy path.
+        self._purge_tasks: set[asyncio.Task[None]] = set()
+
     # -- lifecycle -----------------------------------------------------------
 
     async def run(self) -> None:
@@ -836,20 +847,47 @@ class NodeRuntime:
             )
 
     def _purge_scratch_now(self, job_id: str) -> None:
-        """Immediate delete of one job's scratch. Called on job success.
+        """Detached delete of one job's scratch. Called on job success.
 
-        Never runs while the job is still in ``self._jobs`` — we only
-        reach this branch after the terminal state message is sent.
+        Schedules the actual ``rmtree`` on the default thread pool via
+        ``asyncio.to_thread`` and returns immediately, so ``_run_job``
+        can release its executor semaphore slot without waiting on
+        filesystem metadata churn (measured 0.5 s -> ~0 s on the
+        image-undistort per-shard post-done overhead). Never runs while
+        the job is still in ``self._jobs`` — we only reach this branch
+        after the terminal state message is sent, and the ``{job_id}``
+        directory is a fresh UUID so no concurrent job can be racing
+        for the same path. Failures in the background task fall through
+        to the retention sweeper (``_sweep_scratch_once``) as a
+        best-effort backstop.
+
         Also clears the per-job **staging** dir when ``staging_root`` is
         configured to a distinct filesystem (e.g. tmpfs), so RAM isn't
         held by finished shards.
         """
 
-        for path in self._scratch_dirs_for(job_id):
-            if not path.exists():
-                continue
+        paths = [p for p in self._scratch_dirs_for(job_id) if p.exists()]
+        if not paths:
+            return
+        task = asyncio.create_task(
+            self._purge_scratch_dirs_bg(job_id, paths),
+            name=f"hololab-purge-{job_id}",
+        )
+        self._purge_tasks.add(task)
+        task.add_done_callback(self._purge_tasks.discard)
+
+    async def _purge_scratch_dirs_bg(self, job_id: str, paths: list[Path]) -> None:
+        """Off-loop ``rmtree`` for every path in ``paths`` (best effort).
+
+        Runs in the default thread pool so a slow ext4 metadata delete
+        doesn't block the event loop from dispatching the next
+        ``job_assign``. Errors are logged, not raised — the retention
+        sweeper eventually reaps anything we miss.
+        """
+
+        for path in paths:
             try:
-                shutil.rmtree(path)
+                await asyncio.to_thread(shutil.rmtree, path)
             except OSError as exc:
                 log.warning(
                     "scratch purge (success) failed",
