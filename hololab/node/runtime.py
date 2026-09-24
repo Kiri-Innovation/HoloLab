@@ -33,6 +33,7 @@ from hololab.manifest.render import (
     render_manifest,
     rendered_output_paths,
     rendered_scratch_dir,
+    rendered_staging_dir,
 )
 from hololab.node.config import NodeConfig, write_node_config
 from hololab.node.env_cache import warmup_env_cache
@@ -236,6 +237,19 @@ class NodeRuntime:
             count=len(self._packs),
             roots=[str(p) for p in self._config.pack_dirs],
         )
+
+        # Fast-path staging root — usually a tmpfs mount. Precreate so
+        # the very first shard's ``rendered_staging_dir`` mkdir doesn't
+        # race with two concurrent shards each trying to build the root.
+        # Missing / unwritable target fails loud here rather than
+        # mid-fanout with an opaque OSError deep in the pack.
+        if self._config.staging_root is not None:
+            try:
+                Path(self._config.staging_root).mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                raise RuntimeError(
+                    f"staging_root {self._config.staging_root!r} is not usable: {exc}"
+                ) from exc
 
         # Reap workspace-scoped orphan processes left behind by a previous
         # daemon session (crash / restart / SIGKILL after a cancel storm).
@@ -775,35 +789,44 @@ class NodeRuntime:
         finished job is the point the shell wrote its output. Currently-
         running jobs are held in ``self._jobs`` and their dirs are
         skipped even if the mtime somehow drifted.
+
+        Also sweeps ``staging_root`` (the tmpfs-style fast-path root)
+        when configured. Stranded tmpfs entries burn RAM until the next
+        reboot, so the retention semantics apply there identically.
         """
 
-        root = Path(self._config.workspace_root) / "scratch"
-        if not root.is_dir():
-            return
         retention_hours = _scratch_retention_hours()
         cutoff = time.time() - retention_hours * 3600.0
         running = set(self._jobs.keys())
+
+        roots = [Path(self._config.workspace_root) / "scratch"]
+        if self._config.staging_root is not None:
+            roots.append(Path(self._config.staging_root))
+
         removed = 0
         freed_bytes = 0
-        for child in root.iterdir():
-            if not child.is_dir():
+        for root in roots:
+            if not root.is_dir():
                 continue
-            if child.name in running:
-                continue
-            try:
-                mtime = child.stat().st_mtime
-            except OSError:
-                continue
-            if mtime > cutoff:
-                continue
-            size = _dir_size_bytes(child)
-            try:
-                shutil.rmtree(child)
-            except OSError as exc:
-                log.warning("scratch sweep failed", path=str(child), error=str(exc))
-                continue
-            removed += 1
-            freed_bytes += size or 0
+            for child in root.iterdir():
+                if not child.is_dir():
+                    continue
+                if child.name in running:
+                    continue
+                try:
+                    mtime = child.stat().st_mtime
+                except OSError:
+                    continue
+                if mtime > cutoff:
+                    continue
+                size = _dir_size_bytes(child)
+                try:
+                    shutil.rmtree(child)
+                except OSError as exc:
+                    log.warning("scratch sweep failed", path=str(child), error=str(exc))
+                    continue
+                removed += 1
+                freed_bytes += size or 0
         if removed:
             log.info(
                 "scratch sweep complete",
@@ -817,17 +840,42 @@ class NodeRuntime:
 
         Never runs while the job is still in ``self._jobs`` — we only
         reach this branch after the terminal state message is sent.
+        Also clears the per-job **staging** dir when ``staging_root`` is
+        configured to a distinct filesystem (e.g. tmpfs), so RAM isn't
+        held by finished shards.
+        """
+
+        for path in self._scratch_dirs_for(job_id):
+            if not path.exists():
+                continue
+            try:
+                shutil.rmtree(path)
+            except OSError as exc:
+                log.warning(
+                    "scratch purge (success) failed",
+                    job_id=job_id,
+                    path=str(path),
+                    error=str(exc),
+                )
+
+    def _scratch_dirs_for(self, job_id: str) -> list[Path]:
+        """Return every filesystem location holding this job's scratch.
+
+        Always includes ``scratch_dir``; also includes ``staging_dir``
+        when the operator has pointed it at a different filesystem
+        (typically tmpfs). Order is stable so callers can `rmtree` both
+        without worrying about accidental double-delete on the fallback
+        case where the two paths coincide.
         """
 
         scratch = Path(rendered_scratch_dir(self._config.workspace_root, job_id))
-        if not scratch.exists():
-            return
-        try:
-            shutil.rmtree(scratch)
-        except OSError as exc:
-            log.warning(
-                "scratch purge (success) failed", job_id=job_id, path=str(scratch), error=str(exc)
-            )
+        staging = Path(
+            rendered_staging_dir(self._config.staging_root, self._config.workspace_root, job_id)
+        )
+        dirs = [scratch]
+        if staging != scratch:
+            dirs.append(staging)
+        return dirs
 
     # -- config control plane ------------------------------------------------
 
@@ -1273,6 +1321,19 @@ class NodeRuntime:
         scratch = rendered_scratch_dir(self._config.workspace_root, assign.job_id)
         Path(scratch).mkdir(parents=True, exist_ok=True)
 
+        # Per-job fast-path staging. Same path as ``scratch`` when the
+        # operator hasn't set ``staging_root``; otherwise a job-scoped
+        # subdir under (typically) a tmpfs mount, so packs that stage
+        # heavy inputs (COLMAP image_undistorter, ffmpeg decode) can
+        # dodge the workspace-SSD queue that dominates 8-way fan-out
+        # wall time. Only mkdir separately when the two paths diverge —
+        # in the fallback case ``scratch`` above already covers it.
+        staging = rendered_staging_dir(
+            self._config.staging_root, self._config.workspace_root, assign.job_id
+        )
+        if staging != scratch:
+            Path(staging).mkdir(parents=True, exist_ok=True)
+
         ctx = RenderContext(
             inputs=input_paths,
             outputs=outputs,
@@ -1280,6 +1341,7 @@ class NodeRuntime:
             pack_dir=str(pack.pack_dir),
             workspace_root=str(self._config.workspace_root),
             scratch_dir=scratch,
+            staging_dir=staging,
             job_id=assign.job_id,
             workflow_id=assign.workflow_id,
             # ``shard.*`` template bindings for arrayed<T> shard jobs.

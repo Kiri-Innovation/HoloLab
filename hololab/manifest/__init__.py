@@ -8,6 +8,7 @@ from hololab.manifest.render import (
     render_manifest,
     rendered_output_paths,
     rendered_scratch_dir,
+    rendered_staging_dir,
 )
 from hololab.manifest.schema import (
     ExecSpec,
@@ -43,4 +44,5 @@ __all__ = [
     "render_manifest",
     "rendered_output_paths",
     "rendered_scratch_dir",
+    "rendered_staging_dir",
 ]

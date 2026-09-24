@@ -15,6 +15,23 @@ source_entry: undistort.py
 category: "reconstruction/colmap"
 
 docs: |
+  ### v0.4.1 revisions
+
+  * **Input staging → tmpfs (opt-in)**: ``undistort.py`` grew a
+    ``--staging`` flag; the manifest passes ``{{ staging_dir }}`` for
+    it. When the node config sets ``staging_root`` (e.g.
+    ``/dev/shm/hololab``), the shard hardlinks-fallback-copies the 21
+    input images into RAM instead of hammering the shared workspace
+    SSD. When ``staging_root`` is unset the framework rewrites the
+    binding back to ``scratch_dir`` and the pack's disk layout is
+    identical to the pre-revision behavior. Output-side scratch
+    (``undistorter_out``) stays on ``--scratch`` so the publish
+    ``os.link`` to ``--images-out`` remains a hardlink instead of
+    degrading to a full copy (EXDEV). Empirically: 8-way fanout on a
+    single ext4 SSD stretched COLMAP wall time from ~5 s (solo) to
+    ~22 s (contended); staging inputs to tmpfs lets COLMAP's internal
+    read path stop competing on the workspace disk queue.
+
   ### v0.4.1 vs v0.4.0
 
   Thread cap via env vars only. The ``exec.shell`` preamble exports
@@ -150,6 +167,7 @@ exec:
       --cams-out "{{ outputs.cams }}" \
       --images-out "{{ outputs.images }}" \
       --scratch "{{ scratch_dir }}" \
+      --staging "{{ staging_dir }}" \
       --blank-pixels {{ params.blank_pixels }}
 
 idempotency:

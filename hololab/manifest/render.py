@@ -17,6 +17,20 @@ Available bindings (see docs/pack-spec.md#exec):
                            ``mktemp`` / ``/tmp`` for large artifacts
                            (system disk fills up silently — see the
                            Phase-0 mono-smoke incident).
+    staging_dir         -> per-job **fast** staging directory. When the
+                           node config declares ``staging_root`` (e.g. a
+                           tmpfs mount) this resolves to
+                           ``{staging_root}/{job_id}/`` and is the
+                           correct destination for **input** staging
+                           (hardlink-fallback-to-copy of source images,
+                           etc.). Output-side scratch must stay under
+                           ``scratch_dir`` so publish hardlinks to the
+                           declared output handles keep working (cross-fs
+                           ``os.link`` returns EXDEV → silent full copy).
+                           Falls back to the ``scratch_dir`` path when
+                           no ``staging_root`` is configured, so packs
+                           can always reference ``{{ staging_dir }}``
+                           safely.
     job_id, workflow_id -> ids for logging
 """
 
@@ -45,6 +59,12 @@ class RenderContext:
     # dispatching the subprocess. Kept after the job for post-mortem
     # inspection; the Artifacts page manages cleanup.
     scratch_dir: str = ""
+    # Per-job fast-path staging directory. Equal to ``scratch_dir`` when
+    # ``NodeConfig.staging_root`` is unset; otherwise points at
+    # ``{staging_root}/{job_id}/`` (typically tmpfs). See the module
+    # docstring for the "input-only" contract that keeps output hardlinks
+    # from silently degrading to full copies.
+    staging_dir: str = ""
     job_id: str = ""
     workflow_id: str = ""
     # Populated only for shard jobs (arrayed<T> fan-out). Exposes
@@ -66,6 +86,10 @@ class RenderContext:
             "pack_dir": self.pack_dir,
             "workspace_root": self.workspace_root,
             "scratch_dir": self.scratch_dir,
+            # Always defined so packs can reference ``{{ staging_dir }}``
+            # regardless of whether the operator has configured a
+            # ``staging_root`` — falls back to ``scratch_dir`` upstream.
+            "staging_dir": self.staging_dir or self.scratch_dir,
             "job_id": self.job_id,
             "workflow_id": self.workflow_id,
         }
@@ -197,3 +221,29 @@ def rendered_scratch_dir(workspace_root: Path, job_id: str) -> str:
     """
 
     return str(workspace_root / "scratch" / job_id)
+
+
+def rendered_staging_dir(
+    staging_root: Path | None,
+    workspace_root: Path,
+    job_id: str,
+) -> str:
+    """Per-job **input-staging** directory path.
+
+    When ``staging_root`` is set (e.g. a tmpfs mount configured on the
+    node), returns ``{staging_root}/{job_id}/`` — packs that reference
+    ``{{ staging_dir }}`` will stage inputs into RAM instead of
+    contending on the shared workspace SSD. When ``staging_root`` is
+    ``None``, returns the same path as :func:`rendered_scratch_dir` so
+    the template binding is always usable (packs never need a
+    conditional).
+
+    Flat ``{job_id}`` layout mirrors ``scratch/`` so a background
+    sweeper can iterate one directory. The runtime is responsible for
+    ``mkdir -p`` and for tearing the dir down on job completion — see
+    ``NodeRuntime._purge_scratch_now`` and ``_sweep_scratch_once``.
+    """
+
+    if staging_root is None:
+        return rendered_scratch_dir(workspace_root, job_id)
+    return str(staging_root / job_id)

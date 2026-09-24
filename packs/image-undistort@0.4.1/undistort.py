@@ -206,6 +206,20 @@ def main() -> int:
         help="Output image handle (undistorted image files at handle root).",
     )
     ap.add_argument("--scratch", type=Path, required=True)
+    ap.add_argument(
+        "--staging",
+        type=Path,
+        default=None,
+        help=(
+            "Fast-path root for INPUT staging (image hardlinks + sparse prior "
+            "text). Node runtime points this at ``staging_root`` (typically "
+            "tmpfs) when configured; falls back to ``--scratch`` when the "
+            "flag is omitted or the node has no ``staging_root`` set. "
+            "IMPORTANT: keep OUTPUT scratch on ``--scratch`` (workspace-SSD) "
+            "so the publish-side ``os.link`` to ``--images-out`` stays a "
+            "hardlink instead of degrading to a cross-fs copy."
+        ),
+    )
     ap.add_argument("--blank-pixels", type=int, default=0)
     args = ap.parse_args()
 
@@ -217,8 +231,14 @@ def main() -> int:
     args.images_out.mkdir(parents=True, exist_ok=True)
     args.scratch.mkdir(parents=True, exist_ok=True)
 
-    scratch_input = args.scratch / "input"
-    scratch_prior = args.scratch / "prior"
+    staging_root = args.staging if args.staging is not None else args.scratch
+    staging_root.mkdir(parents=True, exist_ok=True)
+
+    scratch_input = staging_root / "input"
+    scratch_prior = staging_root / "prior"
+    # Kept on ``--scratch`` so the publish loop below can ``os.link``
+    # into ``--images-out`` on the same filesystem. Moving this onto
+    # tmpfs would silently fall back to a 58 MiB/shard copy (EXDEV).
     scratch_output = args.scratch / "undistorter_out"
     if scratch_output.exists():
         shutil.rmtree(scratch_output)

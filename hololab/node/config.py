@@ -118,6 +118,31 @@ class NodeConfig(BaseModel):
     # resolvable via the preview proxy without a copy.
     workspace_root: Path = Field(default_factory=default_workspace_root)
 
+    # Optional fast-path root for **input staging** only — the per-job
+    # directory exposed to packs as ``{{ staging_dir }}``. Point this at
+    # a tmpfs mount (e.g. ``/dev/shm/hololab``) to let I/O-heavy packs
+    # (COLMAP image_undistorter, ffmpeg decode) stage their inputs in
+    # RAM and lift the shared-SSD contention that dominates 8-way fan-out
+    # wall time (see the image-undistort perf analysis: colmap wall
+    # time expanded 5.3 s → 22 s under 8 concurrent shards, ~90% of
+    # which was disk queue). Packs that don't reference
+    # ``{{ staging_dir }}`` are unaffected; when this is ``None`` the
+    # binding transparently equals ``scratch_dir`` so an existing pack
+    # keeps its historical single-directory layout.
+    #
+    # **Do not** put output-side scratch on tmpfs by conflating this
+    # with ``workspace_root``: cross-filesystem ``os.link`` returns
+    # ``EXDEV`` and the pack's publish step falls back to a full copy,
+    # which cancels the tmpfs win. Packs are expected to keep
+    # scratch-for-output (``{{ scratch_dir }}``, on ext4) hardlink-able
+    # to their declared output handles.
+    #
+    # Sizing: image-undistort at ``parallelism=8`` peaks at ~1 GiB of
+    # per-shard staging (~58 MiB input x 8 shards + headroom). ``/dev/shm``
+    # defaults to half of RAM on Linux so a 32 GiB tmpfs is trivial;
+    # keep an eye on any co-tenant that also targets it.
+    staging_root: Path | None = Field(default=None)
+
     # Additional roots the file server should search for older artifacts.
     # Read-only in the sense that the node never writes here — new jobs
     # always land under ``workspace_root``. When a proxy request comes

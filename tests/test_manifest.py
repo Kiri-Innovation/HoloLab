@@ -278,6 +278,48 @@ def test_rendered_scratch_dir_lives_flat_under_workspace_root(tmp_path: Path) ->
     assert Path(p) == tmp_path / "scratch" / "job-xyz"
 
 
+def test_rendered_staging_dir_falls_back_to_scratch_when_unset(tmp_path: Path) -> None:
+    """No ``staging_root`` configured → binding matches ``scratch_dir``.
+
+    Keeps packs that reference ``{{ staging_dir }}`` working on nodes
+    where the operator hasn't opted into the tmpfs fast path.
+    """
+
+    from hololab.manifest.render import rendered_scratch_dir, rendered_staging_dir
+
+    assert rendered_staging_dir(None, tmp_path, "job-xyz") == rendered_scratch_dir(
+        tmp_path, "job-xyz"
+    )
+
+
+def test_rendered_staging_dir_uses_staging_root_when_set(tmp_path: Path) -> None:
+    """Configured ``staging_root`` diverts staging to its own tree."""
+
+    from hololab.manifest.render import rendered_staging_dir
+
+    staging_root = tmp_path / "shm-hololab"
+    p = rendered_staging_dir(staging_root, tmp_path, "job-xyz")
+    assert Path(p) == staging_root / "job-xyz"
+
+
+def test_render_context_staging_dir_binding_defaults_to_scratch(tmp_path: Path) -> None:
+    """``{{ staging_dir }}`` always resolves — falls back to scratch."""
+
+    from hololab.manifest.render import RenderContext
+
+    ctx = RenderContext(scratch_dir=str(tmp_path / "scratch" / "j"))
+    bindings = ctx.to_bindings()
+    assert bindings["staging_dir"] == bindings["scratch_dir"]
+
+    ctx2 = RenderContext(
+        scratch_dir=str(tmp_path / "scratch" / "j"),
+        staging_dir=str(tmp_path / "shm" / "j"),
+    )
+    bindings2 = ctx2.to_bindings()
+    assert bindings2["staging_dir"] == str(tmp_path / "shm" / "j")
+    assert bindings2["scratch_dir"] != bindings2["staging_dir"]
+
+
 # ---------------------------------------------------------------------------
 # arrayed / arrayable / tags_from (M1: type-system foundation)
 # ---------------------------------------------------------------------------
