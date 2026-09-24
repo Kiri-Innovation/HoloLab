@@ -140,11 +140,10 @@ docs: |
 
   #### Deviations from @0.4.1 to be aware of
 
-  * ``--blank-pixels 1`` (bounding-rect / keep source size) is **not
-    implemented** — CLI accepts only 0. All in-repo workflows pass 0
-    (main-chain default). The bounding-rect branch would need a
-    corresponding change in ``compute_new_pinhole`` and different
-    ``padding_mode`` handling.
+  * ``--blank-pixels`` accepts 0 (inscribed) and 1 (bounding). COLMAP
+    supports fractional values in [0, 1] that linearly interpolate
+    between the two rects; this pack implements only the two
+    endpoints. In-repo workflows all use 0.
   * COLMAP's ``max_image_size`` / ``min_scale`` / ``max_scale`` /
     ROI knobs are not exposed. None are used by in-repo workflows.
   * Output PNGs are re-encoded by cv2 (libpng) rather than COLMAP
@@ -177,11 +176,16 @@ params:
     type: int
     default: 0
     min: 0
-    max: 0
+    max: 1
     description: >
-      Kept for @0.4.1 CLI-shape compatibility. GPU pack implements
-      inscribed-rectangle mode (0) only; passing 1 exits with a
-      diagnostic. All main-chain workflows pass 0.
+      Pass-through to the new_K derivation. 0 (default) crops out
+      invalid regions via the largest inscribed rectangle (COLMAP's
+      ``--blank_pixels 0`` behavior — no black borders, some content
+      cropped). 1 keeps ALL undistorted content via the smallest
+      bounding rectangle, filling uncovered regions with black
+      (COLMAP's ``--blank_pixels 1``). Both branches keep fx/fy
+      unchanged and symmetrize about (0, 0) so cx=W/2, cy=H/2.
+      Main-chain workflows use 0.
   io_workers:
     type: int
     default: 8

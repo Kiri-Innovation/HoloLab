@@ -238,26 +238,23 @@ def _iter_undistort(u: torch.Tensor, v: torch.Tensor, cam: dict, iters: int = 20
     return x, y
 
 
-def compute_new_pinhole(cam: dict) -> dict:
-    """COLMAP ``image_undistorter --blank_pixels 0`` equivalent.
+def compute_new_pinhole(cam: dict, blank_pixels: int = 0) -> dict:
+    """COLMAP ``image_undistorter`` equivalent for ``blank_pixels 0 | 1``.
 
     Sample the four borders of the source (distorted) image using COLMAP's
     pixel-center convention (``u,v = 0.5 .. W-0.5, H-0.5``), un-distort
-    every border sample to normalized coordinates, take the largest
-    inscribed axis-aligned rectangle, then **symmetrize about (0, 0)**
-    (``min(|left|, |right|)`` on each axis) so the principal point lands
-    on the new-image center. Matches COLMAP's invariant that
-    ``cx_new = W_new/2`` and ``cy_new = H_new/2`` while ``fx``/``fy``
-    stay identical to the source.
+    every border sample to normalized coordinates, then take:
 
-    Empirical parity on real 21-img OPENCV shard (2704x2028 with tiny
-    distortion): produces 2688x2016 vs COLMAP's 2688x2015 — W matches
-    byte-for-byte, H off by 1 px (COLMAP's exact rounding branch in the
-    ``image/undistortion.cc`` .cc file is not part of the shipped conda
-    headers, so this last pixel is not reverse-engineered). Downstream
-    STG only checks ``model=="PINHOLE"`` and the (K, image) pair is
-    self-consistent either way — see manifest ``docs`` for the accuracy
-    tolerance and pixel-diff numbers.
+    * ``blank_pixels=0``: the largest **inscribed** rectangle (no blank
+      pixels in output), then symmetrize about (0, 0) — matches COLMAP
+      W byte-for-byte on the reference shard, H off by 1 px.
+    * ``blank_pixels=1``: the smallest **bounding** rectangle (output
+      contains all undistorted content plus blank zero-padding where
+      the source didn't cover). Also symmetrized about (0, 0).
+
+    Both branches keep ``fx``/``fy`` from the source and produce a new
+    PINHOLE camera with ``cx_new = W_new/2`` and ``cy_new = H_new/2``,
+    matching COLMAP's invariant.
     """
     W, H = cam["W"], cam["H"]
     fx, fy = cam["fx"], cam["fy"]
@@ -272,13 +269,25 @@ def compute_new_pinhole(cam: dict) -> dict:
     _, y_top = _iter_undistort(us, torch.full_like(us, 0.5), cam)
     _, y_bot = _iter_undistort(us, torch.full_like(us, H - 0.5), cam)
 
-    left = float(x_left.max())
-    right = float(x_right.min())
-    top = float(y_top.max())
-    bot = float(y_bot.min())
+    if blank_pixels == 0:
+        # Inscribed: tightest side wins → no blank pixels but crops content
+        # at the loose sides.
+        left = float(x_left.max())
+        right = float(x_right.min())
+        top = float(y_top.max())
+        bot = float(y_bot.min())
+        half_x = min(abs(left), abs(right))
+        half_y = min(abs(top), abs(bot))
+    else:
+        # Bounding: loosest side wins → keeps all undistorted content,
+        # fills blanks where the source didn't cover on the tight sides.
+        left = float(x_left.min())
+        right = float(x_right.max())
+        top = float(y_top.min())
+        bot = float(y_bot.max())
+        half_x = max(abs(left), abs(right))
+        half_y = max(abs(top), abs(bot))
 
-    half_x = min(abs(left), abs(right))
-    half_y = min(abs(top), abs(bot))
     new_W = round(2 * half_x * fx)
     new_H = round(2 * half_y * fy)
     return dict(W=new_W, H=new_H, fx=fx, fy=fy, cx=new_W / 2.0, cy=new_H / 2.0)
@@ -468,10 +477,10 @@ def main() -> int:
     if not args.images.is_dir():
         print(f"ERROR: images handle is not a directory: {args.images}", file=sys.stderr)
         return 2
-    if args.blank_pixels != 0:
+    if args.blank_pixels not in (0, 1):
         print(
-            f"ERROR: --blank-pixels={args.blank_pixels} not supported by GPU pack; "
-            "only inscribed-rectangle mode (0) is implemented.",
+            f"ERROR: --blank-pixels={args.blank_pixels}; only 0 (inscribed) "
+            "and 1 (bounding) are implemented.",
             file=sys.stderr,
         )
         return 2
@@ -491,7 +500,7 @@ def main() -> int:
     rewritten, rewrites = stage_sparse_prior(args.cams, scratch_prior, staged)
 
     cam = parse_opencv_camera(scratch_prior / "cameras.txt")
-    new_cam = compute_new_pinhole(cam)
+    new_cam = compute_new_pinhole(cam, blank_pixels=args.blank_pixels)
     print(
         f"[image-undistort/0.5] src=OPENCV {cam['W']}x{cam['H']} "
         f"fx={cam['fx']:.4f} fy={cam['fy']:.4f} "
