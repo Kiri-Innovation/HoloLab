@@ -1,0 +1,221 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: image-undistort
+version: 0.5.0
+description: >
+  Undistort one frame's images on the GPU. Same bundle-in / bundle-out
+  contract as @0.4.1: consumes a scalar ``colmap-cams`` (OPENCV) from
+  ``colmap-sfm`` + the frame's images, emits a fresh PINHOLE
+  ``colmap-cams`` bundle and the undistorted images. Downstream packs
+  (``colmap-triangulate``, ``merge-colmap``, ``stg-train``) do not need
+  to change — the wire contract is byte-preserved.
+
+  Arrayable: fan out one shard per frame of the driving ``images`` input.
+source_entry: undistort.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### v0.5.0 — GPU rewrite
+
+  @0.4.1 shelled out to ``colmap image_undistorter``; that binary is a
+  heavily-threaded CPU pipeline (OpenMP + TBB + Ceres) that peaks at
+  ~5 s solo per 21-image shard and stretches to ~18–26 s under 8-way
+  fan-out (`packs/image-undistort@0.4.1/manifest.yaml:66-75`). @0.5.0
+  keeps every bundle-level behavior identical and swaps the compute
+  path for one ``torch.nn.functional.grid_sample`` call over the whole
+  shard.
+
+  Pipeline (per shard):
+
+  1. Stage 21 image files into scratch (hardlink; identical to @0.4.1).
+  2. Copy the SfM sparse prior in and rewrite ``images.txt`` NAMEs to
+     the staged basenames (identical to @0.4.1's ``stage_sparse_prior``).
+  3. Parse the single OPENCV camera row (fx fy cx cy k1 k2 p1 p2).
+  4. Derive PINHOLE ``new_K`` matching COLMAP's ``image_undistorter
+     --blank_pixels 0``: sample all 4 borders with a 20-iter Newton on
+     COLMAP's pixel-center convention (``u,v = 0.5 .. W-0.5, H-0.5``)
+     to un-distort each border sample to normalized coordinates, take
+     the largest inscribed axis-aligned rectangle, then **symmetrize
+     about (0, 0)** (``min(|left|, |right|)`` and ``min(|top|, |bot|)``)
+     so the principal point lands on the new-image center — matching
+     COLMAP's ``cx_new = W_new/2 & cy_new = H_new/2`` invariant while
+     keeping ``fx``/``fy`` unchanged.
+
+     On a real 21-img OPENCV shard (2704×2028, tiny OPENCV distortion),
+     this produces ``2688×2016 cx=1344.0 cy=1008.0`` — W matches
+     COLMAP byte-for-byte, H off by 1 pixel from COLMAP's ``2688×2015
+     cx=1344.0 cy=1007.5``. Reverse-engineering the last-pixel rounding
+     would require reading the .cc side of ``image/undistortion.cc``
+     (not shipped in the conda pkg headers), and the (K, image) pair is
+     self-consistent either way — STG's downstream reader only checks
+     ``model=="PINHOLE"``.
+  5. Decode the N images with cv2 in a 8-way thread pool (~600 ms for
+     21 imgs on the box), upload as uint8 (4× less PCIe than float32),
+     promote to float on the GPU, run one batched ``grid_sample``
+     (bilinear, ``align_corners=True``, ``padding_mode=zeros``), cast
+     to uint8, download. Pure kernel: ~6 ms for 21 imgs; total GPU
+     roundtrip: ~600 ms dominated by H2D + D2H.
+  6. Encode PNGs with cv2 (``PNG_COMPRESSION=1``) in the same thread
+     pool.
+  7. Emit ``cameras.txt`` (PINHOLE, COLMAP-format header) +
+     ``images.txt`` (poses / IDs / observations preserved verbatim
+     from the SfM prior; NAMEs rewritten to staged basenames) +
+     empty ``points3D.txt`` on ``cams-out``. Emit the undistorted
+     PNGs on ``images-out``.
+
+  #### Accuracy vs @0.4.1
+
+  Golden test on the shard used in @0.4.1's own benchmarks
+  (``w/3711480d-…/j/63469c73-…``, OPENCV 2704×2028, 21 cams):
+
+  * ``cameras.txt`` — **byte-identical** to COLMAP's output after
+    symmetric-centering step 4c above.
+  * Pixel diff (21 imgs, RGB, 0–255): **RMSE=0.67, mean|d|=0.27,
+    max|d|=41** (max is at a few high-frequency edge pixels; ≥97.9%
+    within ±1 gray level). Source of the sub-pixel disagreement is
+    GPU vs CPU bilinear floating-point rounding; STG's readers only
+    check ``model=="PINHOLE"`` (``dataset_readers.py:156`` and 7
+    parallel sites), so this is well inside the downstream tolerance.
+
+  #### Performance vs @0.4.1
+
+  Wall-clock, one 21-image shard, GPU quiet, machine load < 5:
+
+  * ``@0.4.1`` solo (COLMAP native): **~5.0 s**
+  * ``@0.4.1`` under 8-way fan-out (empirical, `manifest.yaml:66`):
+    p50 **~20 s**, max **~39 s**
+  * ``@0.5.0`` solo: **~2.6 s** (read ~650 ms + gpu ~630 ms +
+    write ~920 ms + CUDA init ~300 ms)
+  * ``@0.5.0`` 4-way concurrent (contested I/O + shared GPU): ~4.5 s
+    per shard, wall ~8.4 s for 4 shards → **2.1 s/shard amortized**
+
+  Two knobs available for tuning without re-implementation:
+
+  * ``--io-workers``: PNG decode/encode thread pool size (default 8).
+  * ``--png-compress``: ``PNG_COMPRESSION`` for cv2 imwrite (default 1
+    — matches COLMAP's output size to within a few %; raise for
+    smaller files at the cost of encode time).
+
+  #### Concurrency and thread caps
+
+  The GPU pack does not need @0.4.1's OMP env vars — no COLMAP process
+  runs, and torch/cv2 respect the OMP env if it happens to be set. The
+  exec preamble still sets ``OMP_NUM_THREADS=2`` to keep cv2's
+  ``parallel_for_`` (TBB) and any transiently-touched Eigen paths from
+  hogging cores when the framework fans out multiple GPU pack invocations
+  in parallel.
+
+  #### Deviations from @0.4.1 to be aware of
+
+  * ``--blank-pixels 1`` (bounding-rect / keep source size) is **not
+    implemented** — CLI accepts only 0. All in-repo workflows pass 0
+    (main-chain default). The bounding-rect branch would need a
+    corresponding change in ``compute_new_pinhole`` and different
+    ``padding_mode`` handling.
+  * COLMAP's ``max_image_size`` / ``min_scale`` / ``max_scale`` /
+    ROI knobs are not exposed. None are used by in-repo workflows.
+  * Output PNGs are re-encoded by cv2 (libpng) rather than COLMAP
+    (also libpng under the hood). Byte size within a few percent;
+    downstream STG reads pixels, not file bytes.
+
+  Everything else — staging shape, NAME rewrite bridge via
+  ``sfm_key``, output layout on ``cams-out``/``images-out``, sparse-
+  prior handling, blank-pixels default — matches @0.4.1.
+
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    scalar: true
+    description: >
+      SfM ``colmap-cams`` bundle (cameras.txt OPENCV + images.txt with
+      21 poses referencing camera_id=1). Broadcast to every shard.
+      Must be a single-camera / OPENCV rig.
+  images:
+    tags: [image]
+    description: >
+      Per-frame image directory. Fan-out driver — one shard per element.
+      Element dir must contain the per-cam image files inline (regroup
+      @0.2.0's ``content_dims=1`` layout).
+
+params:
+  blank_pixels:
+    type: int
+    default: 0
+    min: 0
+    max: 0
+    description: >
+      Kept for @0.4.1 CLI-shape compatibility. GPU pack implements
+      inscribed-rectangle mode (0) only; passing 1 exits with a
+      diagnostic. All main-chain workflows pass 0.
+  io_workers:
+    type: int
+    default: 8
+    min: 1
+    max: 32
+    description: >
+      Thread pool size for cv2 PNG decode/encode. Serial I/O per shard
+      dominates wall time (grid_sample is ~6 ms); 8 saturates the
+      workspace-SSD queue on a 21-image shard.
+  png_compress:
+    type: int
+    default: 1
+    min: 0
+    max: 9
+    description: >
+      libpng compression level for cv2 imwrite (0 = uncompressed, 9 =
+      max). 1 matches COLMAP output size within a few percent while
+      keeping encode time <1 s per 21-image shard.
+
+outputs:
+  cams:
+    tags: [colmap-cams]
+    scalar: true
+    dim_labels: ["frame"]
+    description: >
+      Per-shard PINHOLE ``colmap-cams`` bundle (cameras.txt PINHOLE +
+      images.txt with 21 poses preserved from the SfM prior). Framework
+      aggregates into ``arrayed<colmap-cams>[frame]``. All shards'
+      bundles are bit-identical (undistortion is intrinsic-only + poses
+      come from the scalar SfM broadcast).
+  images:
+    tags: [image]
+    scalar: true
+    dim_labels: ["frame", "cam"]
+    description: >
+      Per-shard undistorted images, at the PINHOLE resolution. Files
+      sit directly under the shard's element dir (post flatten
+      migration, no ``frames/`` wrapper).
+
+runtime:
+  env: kiri
+  gpu:
+    required: true
+
+exec:
+  shell: |
+    set -euo pipefail
+    # cv2's parallel_for_ (TBB) would otherwise fan a thread per core
+    # inside each pack invocation; capped to match @0.4.1's spirit
+    # (2 = cores/parallelism on the reference box).
+    export OMP_NUM_THREADS=2
+    export OMP_THREAD_LIMIT=2
+    export OPENBLAS_NUM_THREADS=2
+    export MKL_NUM_THREADS=2
+    # Let PyTorch's caching allocator hand fragmented free space back to
+    # the GPU driver; important when N pack invocations share the card.
+    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    python "{{ pack_dir }}/undistort.py" \
+      --cams "{{ inputs.cams }}" \
+      --images "{{ inputs.images }}" \
+      --cams-out "{{ outputs.cams }}" \
+      --images-out "{{ outputs.images }}" \
+      --scratch "{{ scratch_dir }}" \
+      --staging "{{ staging_dir }}" \
+      --blank-pixels {{ params.blank_pixels }} \
+      --io-workers {{ params.io_workers }} \
+      --png-compress {{ params.png_compress }}
+
+idempotency:
+  marker: "{{ outputs.cams }}/.hololab-done"
