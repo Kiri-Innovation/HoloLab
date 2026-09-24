@@ -194,6 +194,28 @@ class NodeConfig(BaseModel):
     # (a warning is logged; other envs still cache normally).
     env_cache_timeout_s: float = Field(default=30.0, gt=0.0)
 
+    # CPU pinning — wrap every subprocess spawn in ``taskset -c <mask>``
+    # so each concurrent shard runs on a fixed slice of cores. Meant for
+    # I/O-heavy packs with non-OMP threading (COLMAP's libjpeg encode,
+    # OpenCV TBB ``parallel_for``) that ``OMP_THREAD_LIMIT`` can't reach
+    # — under 8-way fanout the untamed encoders push load-avg to 30+ on
+    # a 16-core box and every shard's wall time balloons.
+    #
+    # Requires ``max_concurrent_jobs > 0`` (we need a fixed slot count
+    # to slice the CPU set). When disabled or unmet the executor falls
+    # back to its historical unbound spawn — same behavior as before
+    # this field existed. Splits contiguously (slot 0 -> cores 0..k-1,
+    # slot 1 -> cores k..2k-1, ...) so each shard keeps L2 / L3 cache
+    # locality; round-robin splits would risk cross-socket allocation
+    # on NUMA hosts.
+    #
+    # Simplest-viable MVP: static assignment. A shard that under-uses
+    # its slice cannot lend cores to a peer that would benefit — the
+    # rebalance would need a proper cgroup / dynamic-mask allocator.
+    # ``taskset`` must be on PATH inside the daemon's env (util-linux;
+    # present on every mainstream distro).
+    cpu_pinning: bool = False
+
     # Cobrowser integration — the Flops device id for this compute node.
     # When the HoloLab UI runs inside the Flops built-in browser, the
     # "Open in Cocoder" button feeds this to ``window.flops.showDocument``

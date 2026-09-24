@@ -72,6 +72,13 @@ class ExecPlan:
     executor skips ``conda run`` and spawns ``bash -c`` directly with
     this env. When ``None``, the executor falls back to the historical
     ``conda run -p <prefix> --no-capture-output bash -lc "..."`` form.
+
+    ``cpu_mask`` is the argument to ``taskset -c``: a comma / dash
+    ranged CPU list (e.g. ``"0-1"``, ``"4,8-11"``). When set the
+    executor prepends ``taskset -c <mask>`` to whichever spawn form it
+    picked; this bounds shard's non-OMP threading (libjpeg, TBB) that
+    ``OMP_THREAD_LIMIT`` can't reach. Assigned by
+    ``NodeRuntime`` from a per-slot pool — see ``NodeConfig.cpu_pinning``.
     """
 
     shell: str
@@ -80,6 +87,7 @@ class ExecPlan:
     working_dir: Path
     progress_regex: str | None = None
     cached_env: dict[str, str] | None = None
+    cpu_mask: str | None = None
 
 
 @dataclass
@@ -126,11 +134,22 @@ async def run_subprocess(
         spawn_env = _clean_env()
         spawn_mode = "conda_run"
 
+    # CPU pinning wrapper. ``taskset`` is a thin syscall shim that
+    # calls ``sched_setaffinity`` on the child before ``execve``; the
+    # bounded core set inherits down to every fork/thread that libjpeg
+    # / TBB spawn later, which is the point (OMP knobs can't reach
+    # them). Prepending it here rather than folding it into the shell
+    # preamble keeps the mask enforced even for packs that ``exec`` a
+    # binary directly and drop the surrounding bash.
+    if plan.cpu_mask:
+        cmd = ["taskset", "-c", plan.cpu_mask, *cmd]
+
     log.info(
         "spawn",
         conda_prefix=plan.conda_prefix,
         working_dir=str(plan.working_dir),
         mode=spawn_mode,
+        cpu_mask=plan.cpu_mask,
     )
 
     proc = await asyncio.create_subprocess_exec(

@@ -163,6 +163,19 @@ class NodeRuntime:
             asyncio.Semaphore(cap) if cap and cap > 0 else None
         )
 
+        # CPU-slot pool for ``NodeConfig.cpu_pinning``. When enabled we
+        # split ``os.cpu_count()`` contiguously across ``cap`` slots and
+        # stash the ``taskset -c`` masks on an ``asyncio.Queue``; each
+        # ``_run_job`` acquires one before spawning and returns it in
+        # the ``finally``. Left ``None`` when the operator hasn't opted
+        # in or when the preconditions don't hold — the executor sees
+        # ``ExecPlan.cpu_mask=None`` and skips the wrapper. Populated
+        # lazily on the running loop (``asyncio.Queue`` can't be built
+        # in ``__init__`` because ``NodeRuntime`` is instantiated
+        # outside an event loop by the CLI entry point).
+        self._cpu_slots: asyncio.Queue[str] | None = None
+        self._cpu_masks: list[str] = _compute_cpu_masks(cap) if self._config.cpu_pinning else []
+
         # In-flight ws + protocol version once connected.
         self._ws: websockets.WebSocketClientProtocol | None = None
         self._protocol_v = PROTOCOL_V_MAX
@@ -261,6 +274,36 @@ class NodeRuntime:
                 raise RuntimeError(
                     f"staging_root {self._config.staging_root!r} is not usable: {exc}"
                 ) from exc
+
+        # CPU pinning preflight — verify ``taskset`` is on PATH before
+        # any shard tries to spawn with it, and log what the split
+        # actually resolved to (or why we skipped it) so an operator
+        # doesn't have to grep through subprocess logs to find out.
+        if self._config.cpu_pinning:
+            if self._config.max_concurrent_jobs <= 0:
+                log.warning(
+                    "cpu_pinning ignored: requires max_concurrent_jobs > 0",
+                    max_concurrent_jobs=self._config.max_concurrent_jobs,
+                )
+                self._cpu_masks = []
+            elif shutil.which("taskset") is None:
+                log.warning(
+                    "cpu_pinning ignored: 'taskset' not on PATH (install util-linux)",
+                )
+                self._cpu_masks = []
+            elif not self._cpu_masks:
+                log.warning(
+                    "cpu_pinning ignored: cap > nproc or no cores visible",
+                    cap=self._config.max_concurrent_jobs,
+                    nproc=os.cpu_count(),
+                )
+            else:
+                log.info(
+                    "cpu pinning enabled",
+                    cap=self._config.max_concurrent_jobs,
+                    nproc=os.cpu_count(),
+                    masks=self._cpu_masks,
+                )
 
         # Reap workspace-scoped orphan processes left behind by a previous
         # daemon session (crash / restart / SIGKILL after a cancel storm).
@@ -896,6 +939,31 @@ class NodeRuntime:
                     error=str(exc),
                 )
 
+    async def _acquire_cpu_slot(self) -> str | None:
+        """Pull a ``taskset -c`` mask off the pool, or ``None`` when pinning is off.
+
+        Lazily materialises the ``asyncio.Queue`` on first call because
+        ``NodeRuntime.__init__`` runs outside the event loop (the CLI
+        entry-point instantiates before ``asyncio.run(...)``); pinning
+        can't be off just because the queue is ``None`` yet.
+        """
+
+        if not self._cpu_masks:
+            return None
+        if self._cpu_slots is None:
+            q: asyncio.Queue[str] = asyncio.Queue()
+            for m in self._cpu_masks:
+                q.put_nowait(m)
+            self._cpu_slots = q
+        return await self._cpu_slots.get()
+
+    def _release_cpu_slot(self, mask: str | None) -> None:
+        """Return a mask to the pool. Idempotent for the ``None`` case."""
+
+        if mask is None or self._cpu_slots is None:
+            return
+        self._cpu_slots.put_nowait(mask)
+
     def _scratch_dirs_for(self, job_id: str) -> list[Path]:
         """Return every filesystem location holding this job's scratch.
 
@@ -1443,19 +1511,6 @@ class NodeRuntime:
                 loop,
             )
 
-        plan = ExecPlan(
-            shell=rendered.shell,
-            conda_bin=self._config.conda_bin,
-            conda_prefix=env_prefix,
-            working_dir=Path(rendered.working_dir) if rendered.working_dir else pack.pack_dir,
-            progress_regex=pack.manifest.progress.stdout_regex if pack.manifest.progress else None,
-            # None here means "fall back to ``conda run`` for this spawn"
-            # — either the env's snapshot failed at startup or the
-            # operator has ``use_env_cache: false``. The executor picks
-            # the spawn path off this field.
-            cached_env=self._env_cache.get(env_prefix),
-        )
-
         # Belt-and-braces around run_subprocess: any exception here used
         # to escape _run_job silently (the task's exception was never
         # retrieved), leaving the job stuck in ``running`` forever and
@@ -1463,16 +1518,49 @@ class NodeRuntime:
         # ``job_fail`` and let the gateway close out the row.
         exec_error: Exception | None = None
         result: ExecResult | None = None
+        cpu_mask: str | None = None
         try:
             if self._exec_semaphore is not None:
                 async with self._exec_semaphore:
-                    result = await run_subprocess(
-                        plan,
-                        on_log=on_log,
-                        on_progress=on_progress,
-                        cancel_event=cancel_event,
-                    )
+                    # Acquire the CPU-pinning slot *inside* the semaphore
+                    # gate: the slot pool is sized to match the semaphore
+                    # cap, so this .get() would block otherwise but never
+                    # deadlock (a released slot always corresponds to a
+                    # released semaphore ticket). No-op when pinning is
+                    # off (``_cpu_slots is None`` -> ``cpu_mask=None``
+                    # -> executor skips the ``taskset`` wrapper).
+                    cpu_mask = await self._acquire_cpu_slot()
+                    try:
+                        plan = _make_exec_plan(
+                            rendered,
+                            self._config,
+                            env_prefix,
+                            pack,
+                            cached_env=self._env_cache.get(env_prefix),
+                            cpu_mask=cpu_mask,
+                        )
+                        result = await run_subprocess(
+                            plan,
+                            on_log=on_log,
+                            on_progress=on_progress,
+                            cancel_event=cancel_event,
+                        )
+                    finally:
+                        self._release_cpu_slot(cpu_mask)
+                        cpu_mask = None
             else:
+                # Pinning requires ``max_concurrent_jobs > 0`` (see
+                # ``NodeConfig.cpu_pinning``): with no semaphore we
+                # have no fixed slot count to slice against, so skip
+                # the pool entirely.
+                plan = _make_exec_plan(
+                    rendered,
+                    self._config,
+                    env_prefix,
+                    pack,
+                    cached_env=self._env_cache.get(env_prefix),
+                    cpu_mask=None,
+                )
                 result = await run_subprocess(
                     plan,
                     on_log=on_log,
@@ -1987,6 +2075,69 @@ def _probe_gpu() -> GpuInfo:
     except ValueError:
         vram_gb = None
     return GpuInfo(count=len(lines), total_vram_gb=vram_gb, name=name, driver_version=drv)
+
+
+def _compute_cpu_masks(cap: int) -> list[str]:
+    """Split ``[0..nproc-1]`` into ``cap`` contiguous ``taskset -c`` masks.
+
+    Contiguous slices preserve L2/L3 cache locality — adjacent core
+    ids share those caches on every mainstream CPU we run on.
+    Round-robin would risk cross-socket allocation on NUMA hosts and
+    cost more than pinning ever saves.
+
+    Returns an empty list (pinning disabled) when either input is
+    non-positive OR when ``cap > nproc`` — with more slots than cores
+    each slot would have to share, defeating the point of pinning; we
+    let the caller skip the wrapper entirely rather than pin every
+    shard to the full CPU set (which ``taskset`` still enforces but
+    which surprises nobody debugging load-avg later).
+
+    The last slot swallows any leftover cores when ``nproc % cap != 0``
+    — a 12-core box at ``cap=8`` yields slots
+    ``0, 1, 2, 3, 4, 5, 6, 7-11``. Slight imbalance beats leaving
+    cores unassigned.
+    """
+
+    nproc = os.cpu_count() or 0
+    if cap <= 0 or nproc <= 0 or cap > nproc:
+        return []
+    per = nproc // cap
+    masks: list[str] = []
+    for i in range(cap):
+        start = i * per
+        end = nproc if i == cap - 1 else start + per
+        masks.append(f"{start}-{end - 1}" if end - start > 1 else str(start))
+    return masks
+
+
+def _make_exec_plan(
+    rendered: Any,
+    config: NodeConfig,
+    env_prefix: str,
+    pack: LoadedPack,
+    *,
+    cached_env: dict[str, str] | None,
+    cpu_mask: str | None,
+) -> ExecPlan:
+    """Small helper — the ``ExecPlan(...)`` call was duplicated across
+    the semaphore / no-semaphore branches of ``_run_job`` once CPU
+    pinning came in. Kept out of the class body because it only
+    references its arguments.
+    """
+
+    return ExecPlan(
+        shell=rendered.shell,
+        conda_bin=config.conda_bin,
+        conda_prefix=env_prefix,
+        working_dir=Path(rendered.working_dir) if rendered.working_dir else pack.pack_dir,
+        progress_regex=pack.manifest.progress.stdout_regex if pack.manifest.progress else None,
+        # None here means "fall back to ``conda run`` for this spawn"
+        # — either the env's snapshot failed at startup or the
+        # operator has ``use_env_cache: false``. The executor picks
+        # the spawn path off this field.
+        cached_env=cached_env,
+        cpu_mask=cpu_mask,
+    )
 
 
 def _dir_size_bytes(path: Path) -> int | None:
