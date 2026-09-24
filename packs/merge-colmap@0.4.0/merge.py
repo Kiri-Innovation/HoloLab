@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -263,6 +264,23 @@ def main() -> int:
             except OSError:
                 shutil.copy2(source, dst)
             n_imgs += 1
+
+    # STG's Technicolor loader (scene/dataset_readers.py:1054-1063) unconditionally
+    # reads sparse/0/points3D.bin via read_points3D_binary — no .txt fallback.
+    # Emit BIN siblings so downstream stg-train@0.3.0 can consume our output.
+    subprocess.run(
+        [
+            "colmap",
+            "model_converter",
+            "--input_path",
+            str(sparse0),
+            "--output_path",
+            str(sparse0),
+            "--output_type",
+            "BIN",
+        ],
+        check=True,
+    )
 
     print(f"[merge-colmap/0.2] done -> mode {mode}, images: {n_imgs}", flush=True)
     return 0
