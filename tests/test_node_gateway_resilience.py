@@ -29,7 +29,9 @@ from hololab.protocol.messages import HandleLocateResp
 
 
 def _fresh_runtime() -> NodeRuntime:
-    """Bare NodeRuntime with just enough state for ``_locate_handle``."""
+    """Bare NodeRuntime with just enough state for ``_locate_handle`` /
+    ``_resolve_input_handles``.
+    """
 
     r = NodeRuntime.__new__(NodeRuntime)
     r._config = MagicMock()
@@ -38,6 +40,10 @@ def _fresh_runtime() -> NodeRuntime:
     r._pending_locates = {}
     r._send_lock = asyncio.Lock()
     r._protocol_v = 1
+    # Needed by ``_locate_handle_cached`` (which ``_resolve_input_handles``
+    # calls when no inline path is present).
+    r._locate_cache = {}
+    r._locate_inflight = {}
     return r
 
 
@@ -317,3 +323,93 @@ def test_unknown_handle_error_is_not_transient() -> None:
 
     err = _HandleResolutionError("unknown handle 'h1'")
     assert err.transient is False
+
+
+# ---------------------------------------------------------------------------
+# C1: inline sub-handle paths on JobAssign.input_paths
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_resolve_input_handles_uses_inline_path_and_skips_locate() -> None:
+    """When ``inline_paths`` names a port, the node uses that path directly
+    and DOES NOT call the gateway. This is the C1 hot-path for fan-out
+    shards — the gateway registered the sub-handle itself, so it already
+    knows the path and passes it on ``JobAssign.input_paths``.
+    """
+
+    r = _fresh_runtime()
+    r._ws_ready.set()
+
+    send_calls = 0
+
+    async def fake_send(kind: str, payload: Any) -> None:
+        nonlocal send_calls
+        send_calls += 1
+
+    r._send = fake_send  # type: ignore[assignment]
+
+    resolved = await r._resolve_input_handles(
+        {"frames": "sub-uuid-1"},
+        inline_paths={"frames": "/ws/shard/frame_0000"},
+    )
+    assert resolved == {"frames": "/ws/shard/frame_0000"}
+    assert send_calls == 0, "inline path must skip the handle_locate round-trip"
+
+
+@pytest.mark.asyncio
+async def test_resolve_input_handles_falls_back_to_locate_when_no_inline() -> None:
+    """Ports absent from ``inline_paths`` still go through the normal
+    locate path. Guards the fallback for scalar / cross-node handles.
+    """
+
+    r = _fresh_runtime()
+    r._ws_ready.set()
+
+    send_calls = 0
+
+    async def fake_send(kind: str, payload: Any) -> None:
+        nonlocal send_calls
+        send_calls += 1
+        fut = r._pending_locates[payload.handle_id]
+        fut.set_result(HandleLocateResp(handle_id=payload.handle_id, local_path="/ws/scalar"))
+
+    r._send = fake_send  # type: ignore[assignment]
+
+    resolved = await r._resolve_input_handles(
+        {"frames": "sub-uuid-1", "cfg": "scalar-uuid"},
+        inline_paths={"frames": "/ws/shard/frame_0000"},
+    )
+    assert resolved == {
+        "frames": "/ws/shard/frame_0000",
+        "cfg": "/ws/scalar",
+    }
+    # Exactly one locate call — for the scalar port only.
+    assert send_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_resolve_input_handles_none_inline_paths_is_backcompat() -> None:
+    """A ``None`` (or omitted) ``inline_paths`` argument keeps the old
+    behaviour: every port goes through the locate path. Guards against
+    breaking legacy call sites and single-job (non-fan-out) dispatch.
+    """
+
+    r = _fresh_runtime()
+    r._ws_ready.set()
+
+    send_calls = 0
+
+    async def fake_send(kind: str, payload: Any) -> None:
+        nonlocal send_calls
+        send_calls += 1
+        fut = r._pending_locates[payload.handle_id]
+        fut.set_result(
+            HandleLocateResp(handle_id=payload.handle_id, local_path=f"/ws/{payload.handle_id}")
+        )
+
+    r._send = fake_send  # type: ignore[assignment]
+
+    resolved = await r._resolve_input_handles({"a": "h-a", "b": "h-b"})
+    assert resolved == {"a": "/ws/h-a", "b": "/ws/h-b"}
+    assert send_calls == 2

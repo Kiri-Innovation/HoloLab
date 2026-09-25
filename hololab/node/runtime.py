@@ -1367,7 +1367,10 @@ class NodeRuntime:
         # that pre-date the handle book. Anything else goes through the
         # gateway's handle_locate round trip.
         try:
-            input_paths = await self._resolve_input_handles(assign.input_handles)
+            input_paths = await self._resolve_input_handles(
+                assign.input_handles,
+                inline_paths=assign.input_paths,
+            )
         except _HandleResolutionError as exc:
             # Transport-class failures (gateway unreachable, peer 5xx)
             # are infrastructure, not a bad workflow. Surface them as
@@ -1703,20 +1706,37 @@ class NodeRuntime:
 
     # -- handle resolution ---------------------------------------------------
 
-    async def _resolve_input_handles(self, input_handles: dict[str, str]) -> dict[str, str]:
+    async def _resolve_input_handles(
+        self,
+        input_handles: dict[str, str],
+        *,
+        inline_paths: dict[str, str] | None = None,
+    ) -> dict[str, str]:
         """Turn ``{port -> handle_id}`` into ``{port -> local_absolute_path}``.
 
         Order of interpretation for each value:
-        1. If it looks like an absolute filesystem path that exists, use as-is
-           (compat with the ad-hoc REST trigger and manifest-provided paths).
-        2. Otherwise ask the gateway to locate the handle. If the producer is
-           us, use the returned ``local_path``. If the producer is another
-           node, HTTP-fetch the bytes into our workspace under
+        1. If ``inline_paths`` names this port, use its absolute path
+           directly. The gateway supplies this shortcut for fan-out
+           sub-handles it registered itself (path is deterministically
+           ``parent.path / element_id``), skipping a per-shard
+           ``handle_locate`` round-trip. See ``JobAssign.input_paths``.
+        2. If the handle_id itself looks like an absolute filesystem path
+           that exists, use as-is (compat with the ad-hoc REST trigger and
+           manifest-provided paths).
+        3. Otherwise ask the gateway to locate the handle. If the producer
+           is us, use the returned ``local_path``. If the producer is
+           another node, HTTP-fetch the bytes into our workspace under
            ``inputs/{handle_id}/`` and return that local path.
         """
 
+        inline_paths = inline_paths or {}
         resolved: dict[str, str] = {}
         for port, handle_id in input_handles.items():
+            inline = inline_paths.get(port)
+            if inline:
+                resolved[port] = inline
+                continue
+
             if _looks_like_local_path(handle_id):
                 resolved[port] = handle_id
                 continue

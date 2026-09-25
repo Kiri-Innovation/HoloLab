@@ -233,8 +233,15 @@ class JobAssign(BaseModel):
     graph_node_id: str | None = None
     shard_element_id: str | None = None
     shard_output_prefix: str | None = None
-    # The gateway does not tell the node the input file paths. The node resolves
-    # them via handle_locate — locally first, cross-node later.
+    # Optional per-port shortcut: absolute local path on the assigned node
+    # for each input the gateway already knows will resolve there. Fan-out
+    # dispatch fills this for arrayed sub-handles (path = parent.path /
+    # element_id — the gateway registered them itself, so the answer is
+    # deterministic). When present, the node skips the ``handle_locate``
+    # round-trip for that port. Ports absent from this map fall through to
+    # the usual ``handle_locate`` path (cross-node fetch, unknown handle,
+    # etc.). Legacy nodes ignore unknown fields.
+    input_paths: dict[str, str] = Field(default_factory=dict)
 
 
 class JobAck(BaseModel):

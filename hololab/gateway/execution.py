@@ -395,7 +395,7 @@ async def _execute_fanout_body(
     # writer-queue traffic. Batched (below): O(1) parent-handle reads +
     # one ``register_many`` for every sub-handle + one ``create_many`` for
     # every shard row. Two transactions total instead of hundreds.
-    shards: list[tuple[int, str, Job]] = await _prepare_shard_rows(
+    shards: list[tuple[int, str, Job, dict[str, str]]] = await _prepare_shard_rows(
         store=store,
         handles=handles,
         plan=plan,
@@ -407,14 +407,16 @@ async def _execute_fanout_body(
     # Each ``_push_update`` is a per-subscriber ``queue.put_nowait`` — the
     # actual send happens on the subscriber's pump task, so this loop is
     # a tight in-memory hot path, not another DB round-trip storm.
-    for _idx, _eid, shard in shards:
+    for _idx, _eid, shard, _paths in shards:
         _push_update(hub, shard)
 
     # -- Phase 2: bounded-concurrent dispatch --------------------------------
     parallelism = max(1, int(getattr(gnode, "parallelism", 1) or 1))
     sem = asyncio.Semaphore(parallelism)
 
-    async def _run_one(idx: int, element_id: str, shard: Job) -> tuple[int, str, Job]:
+    async def _run_one(
+        idx: int, element_id: str, shard: Job, shard_input_paths: dict[str, str]
+    ) -> tuple[int, str, Job]:
         async with sem:
             # Between phase 1 (shard created PENDING) and now, the parent
             # or this shard may have been cancelled by an API call. Read
@@ -456,6 +458,7 @@ async def _execute_fanout_body(
                     shard=shard_now,
                     shard_element_id=element_id,
                     shard_output_prefix=plan.parent_ws,
+                    shard_input_paths=shard_input_paths,
                 )
             except Exception as exc:
                 # Log before re-raising into ``gather(return_exceptions=True)``
@@ -503,7 +506,7 @@ async def _execute_fanout_body(
         parallelism=parallelism,
     )
     results = await asyncio.gather(
-        *(_run_one(i, eid, s) for (i, eid, s) in shards),
+        *(_run_one(i, eid, s, paths) for (i, eid, s, paths) in shards),
         return_exceptions=True,
     )
 
@@ -613,7 +616,7 @@ async def _prepare_shard_rows(
     snapshot_id: str,
     workflow_id: str,
     gnode: GraphNode,
-) -> list[tuple[int, str, Job]]:
+) -> list[tuple[int, str, Job, dict[str, str]]]:
     """Materialise every shard's ``jobs`` row + synthetic sub-handles in-memory,
     then flush them to SQLite in two batched transactions.
 
@@ -659,23 +662,32 @@ async def _prepare_shard_rows(
         parent_by_port[port] = parent
 
     # 2) Build every sub-handle + shard Job in memory, no DB writes yet.
+    #
+    # Also stash the concrete local path for every arrayed sub-handle in
+    # ``shard_input_paths`` — the gateway already knows the answer
+    # (``parent.path / element_id``), and passing it inline on the
+    # ``JobAssign`` frame lets the node skip a per-shard
+    # ``handle_locate`` round-trip against the gateway. See
+    # ``JobAssign.input_paths`` in ``protocol/messages.py``.
     sub_handles: list[Handle] = []
     shard_rows: list[Job] = []
-    shards: list[tuple[int, str, Job]] = []
+    shards: list[tuple[int, str, Job, dict[str, str]]] = []
     now = time.time()
     for idx, element_id in enumerate(plan.element_ids):
         shard_inputs: dict[str, str] = {}
+        shard_input_paths: dict[str, str] = {}
         for port, handle_id in plan.input_handles.items():
             if port not in plan.arrayed_input_ports:
                 shard_inputs[port] = handle_id
                 continue
             parent = parent_by_port[port]
+            sub_path = str(Path(parent.path) / element_id)
             sub = Handle(
                 handle_id=str(uuid.uuid4()),
                 node_id=plan.session_node_id,
                 storage=parent.storage,
                 tags=list(parent.tags),
-                path=str(Path(parent.path) / element_id),
+                path=sub_path,
                 size_bytes=None,
                 job_id=None,
                 output_port_name=None,
@@ -683,6 +695,7 @@ async def _prepare_shard_rows(
             )
             sub_handles.append(sub)
             shard_inputs[port] = sub.handle_id
+            shard_input_paths[port] = sub_path
 
         shard = Job(
             job_id=str(uuid.uuid4()),
@@ -699,7 +712,7 @@ async def _prepare_shard_rows(
             updated_ts=now,
         )
         shard_rows.append(shard)
-        shards.append((idx, element_id, shard))
+        shards.append((idx, element_id, shard, shard_input_paths))
 
     # 3) Two flushes. Handles first so that when a peer reader observes
     #    a shard's input_handles map, every referenced handle_id already
@@ -999,11 +1012,19 @@ async def _dispatch_prepared_shard(
     shard: Job,
     shard_element_id: str,
     shard_output_prefix: str,
+    shard_input_paths: dict[str, str] | None = None,
 ) -> None:
     """Transition an already-created shard PENDING → ASSIGNED and send its
     :class:`JobAssign` frame to the compute node. The compute-node session
     is re-looked-up here (not passed in) so a session drop mid-fanout
     surfaces as a per-shard failure rather than a wholesale crash.
+
+    ``shard_input_paths`` is an optional ``{port -> absolute_local_path}``
+    map for inputs whose location the gateway already knows (arrayed
+    sub-handles register at ``parent.path / element_id`` — deterministic).
+    Passed inline on the ``JobAssign`` frame so the node can skip the
+    per-shard ``handle_locate`` round-trip for those ports. Ports omitted
+    from this map fall through to the usual locate path on the node.
     """
 
     assert gnode.assigned_node_id is not None
@@ -1028,6 +1049,7 @@ async def _dispatch_prepared_shard(
         graph_node_id=assigned.graph_node_id,
         shard_element_id=shard_element_id,
         shard_output_prefix=shard_output_prefix,
+        input_paths=dict(shard_input_paths) if shard_input_paths else {},
     )
     frame = encode("job_assign", assign_msg, v=session.protocol_v)
     try:

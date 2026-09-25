@@ -218,8 +218,12 @@ async def test_prepare_shard_rows_produces_N_rows_in_element_order(tmp_path: Pat
         workflow_id="wf-1",
         gnode=_graph_node(id="n1"),
     )
-    assert [eid for _idx, eid, _s in shards] == ["frame_0000", "frame_0001", "frame_0002"]
-    assert [idx for idx, _e, _s in shards] == [0, 1, 2]
+    assert [eid for _idx, eid, _s, _paths in shards] == [
+        "frame_0000",
+        "frame_0001",
+        "frame_0002",
+    ]
+    assert [idx for idx, _e, _s, _paths in shards] == [0, 1, 2]
 
 
 @pytest.mark.asyncio
@@ -239,7 +243,7 @@ async def test_prepare_shard_rows_shard_fields_match_baseline(tmp_path: Path) ->
         workflow_id="wf-1",
         gnode=_graph_node(id="n1"),
     )
-    _idx, _eid, shard = shards[0]
+    _idx, _eid, shard, _paths = shards[0]
 
     fetched = await store.get(shard.job_id)
     assert fetched is not None
@@ -281,7 +285,7 @@ async def test_prepare_shard_rows_subhandle_semantics(tmp_path: Path) -> None:
         workflow_id="wf-1",
         gnode=_graph_node(id="n1"),
     )
-    for _idx, element_id, shard in shards:
+    for _idx, element_id, shard, shard_input_paths in shards:
         # Scalar input passes through.
         assert shard.input_handles["config"] == "h-scalar-abc"
         # Arrayed input got a new sub-handle.
@@ -295,6 +299,9 @@ async def test_prepare_shard_rows_subhandle_semantics(tmp_path: Path) -> None:
         assert sub.storage == parent.storage
         assert sub.node_id == "node-a"
         assert sub.job_id is None
+        # And the sub-handle's local path is inlined for the dispatcher
+        # (C1 shortcut) — arrayed ports only, scalars are absent.
+        assert shard_input_paths == {"frames": sub.path}
 
 
 @pytest.mark.asyncio
