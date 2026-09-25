@@ -114,7 +114,7 @@ async def test_await_job_terminal_returns_on_interrupted(tmp_path: Path) -> None
 
         # Would raise if it waited past the timeout. Use a tiny budget
         # so the test fails loudly on regression (missed terminal).
-        final = await _await_job_terminal(store, "j", timeout_s=1.0, poll_s=0.05)
+        final = await _await_job_terminal(store, "j", timeout_s=1.0)
         assert final.state is JobState.INTERRUPTED
     finally:
         await db.close()
@@ -146,7 +146,7 @@ async def test_await_job_terminal_keeps_polling_on_orphaned(tmp_path: Path) -> N
         store = JobsStore(db)
 
         with pytest.raises(WorkflowRunError, match="did not terminate"):
-            await _await_job_terminal(store, "j", timeout_s=0.3, poll_s=0.05)
+            await _await_job_terminal(store, "j", timeout_s=0.3)
     finally:
         await db.close()
 

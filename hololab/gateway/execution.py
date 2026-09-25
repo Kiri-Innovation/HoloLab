@@ -1358,39 +1358,29 @@ async def _dispatch_job(
     return assigned.job_id
 
 
-async def _await_job_terminal(
-    store: JobsStore, job_id: str, *, timeout_s: float, poll_s: float = 0.5
-) -> Job:
-    """Poll ``jobs`` until the given job reaches done / failed / cancelled.
+async def _await_job_terminal(store: JobsStore, job_id: str, *, timeout_s: float) -> Job:
+    """Block until the given job reaches done / failed / cancelled / interrupted.
 
-    Polling is cheap (indexed by primary key) and lets us stay agnostic to
-    how progress arrives (WS from the node, an internal state change, etc.).
-    A future refactor could subscribe to an in-process event bus instead.
+    Delegates to :meth:`JobsStore.wait_terminal`, an in-process asyncio
+    event-bus wired straight to :meth:`JobsStore.update`. The old
+    500 ms poll loop was a comment away from this refactor for a
+    while (see the historical note in ``execution.py`` git history);
+    the event bus notifies waiters on the same tick the DB commit
+    lands, cutting the per-shard tail latency to zero.
+
+    ``INTERRUPTED`` is included because it's terminal per the state
+    machine (``hololab.gateway.jobs`` — no outbound edges) — the
+    landing state for a shard whose owning node reconnected but
+    doesn't claim it anymore. ``ORPHANED`` is deliberately absent:
+    the register-time reconciler can hoist it back to RUNNING, so
+    treating it as terminal would drop still-alive work on the floor.
+    Both selections are enforced by :meth:`JobsStore.wait_terminal`.
     """
 
-    # ``INTERRUPTED`` is terminal per the state machine (see
-    # ``hololab.gateway.jobs`` — no outbound edges) and is the natural
-    # landing state for a shard whose owning node reconnected but
-    # doesn't claim it anymore. Without INTERRUPTED here the reconcile
-    # would flip the row but the fanout worker would still spin against
-    # ``job_timeout_s`` (up to 24 h by default). ``ORPHANED`` is
-    # deliberately absent — the register-time reconciler can hoist it
-    # back to RUNNING, so treating it as terminal would drop still-alive
-    # work on the floor.
-    _TERMINAL = {
-        JobState.DONE,
-        JobState.FAILED,
-        JobState.CANCELLED,
-        JobState.INTERRUPTED,
-    }
-    deadline = asyncio.get_event_loop().time() + timeout_s
-    while True:
-        job = await store.get(job_id)
-        if job is not None and job.state in _TERMINAL:
-            return job
-        if asyncio.get_event_loop().time() > deadline:
-            raise WorkflowRunError(f"job {job_id} did not terminate within {timeout_s:.0f}s")
-        await asyncio.sleep(poll_s)
+    try:
+        return await store.wait_terminal(job_id, timeout_s=timeout_s)
+    except asyncio.TimeoutError as exc:
+        raise WorkflowRunError(f"job {job_id} did not terminate within {timeout_s:.0f}s") from exc
 
 
 async def _collect_output_handles(handles: HandleBook, job_id: str) -> dict[str, str]:
