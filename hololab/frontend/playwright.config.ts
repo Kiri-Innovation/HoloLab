@@ -25,7 +25,12 @@ export default defineConfig({
   webServer: {
     command: "npm run dev -- --host 127.0.0.1 --port 5173",
     port: 5173,
-    reuseExistingServer: !process.env.CI,
+    // Always reuse a dev server already listening on 5173 — the human
+    // developer usually has one open, and letting Playwright kill it
+    // between runs makes ``npx playwright test`` a hostile action.
+    // CI environments start fresh anyway, so the practical effect is
+    // "attach to whatever's there, otherwise spawn one".
+    reuseExistingServer: true,
     timeout: 60_000,
   },
   projects: [

@@ -38,6 +38,7 @@ node_modules/
 # Playwright e2e artifacts (traces + screenshots on failure)
 hololab/frontend/test-results/
 hololab/frontend/playwright-report/
+hololab/frontend/e2e-screenshots/
 
 # IDE
 .idea/
