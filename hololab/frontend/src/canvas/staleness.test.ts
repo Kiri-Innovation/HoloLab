@@ -23,6 +23,7 @@ function mkNode(over: Partial<GraphNode> & { id: string }): GraphNode {
     assigned_node_id: over.assigned_node_id ?? null,
     arrayed_toggle: over.arrayed_toggle ?? false,
     parallelism: over.parallelism ?? 1,
+    batch_size: over.batch_size ?? 1,
   };
 }
 
@@ -124,6 +125,18 @@ describe("computeStaleness — inflight_old_params", () => {
     const draft = mkGraph([mkNode({ id: "n", params: { use_gpu: 1 } })]);
     const runtimes: Record<string, NodeRuntime> = { n: { state: "running" } };
     expect(computeStaleness(draft, null, runtimes, []).n).toBeNull();
+  });
+
+  it("batch_size drift on done node → self_dirty with 批处理大小 reason", () => {
+    // Mirrors the parallelism drift branch. batch_size is structural
+    // (changes the shard-count math) so a draft/snapshot mismatch must
+    // surface as a self_dirty reason.
+    const draft = mkGraph([mkNode({ id: "n", batch_size: 4 })]);
+    const snap = mkGraph([mkNode({ id: "n", batch_size: 1 })]);
+    const runtimes: Record<string, NodeRuntime> = { n: { state: "done" } };
+    const s = computeStaleness(draft, snap, runtimes, []).n;
+    expect(s?.kind).toBe("self_dirty");
+    expect(s?.title).toContain("批处理大小");
   });
 
   it("done node with drift → self_dirty (unchanged behaviour, not the new chip)", () => {

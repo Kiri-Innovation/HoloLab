@@ -188,6 +188,9 @@ function selfDirtyReasons(
   const dPar = Math.max(1, Number(dn.parallelism ?? 1));
   const sPar = Math.max(1, Number(sn.parallelism ?? 1));
   if (dPar !== sPar) reasons.push(`并行度: ${sPar} → ${dPar}`);
+  const dBatch = Math.max(1, Number(dn.batch_size ?? 1));
+  const sBatch = Math.max(1, Number(sn.batch_size ?? 1));
+  if (dBatch !== sBatch) reasons.push(`批处理大小: ${sBatch} → ${dBatch}`);
 
   if (inboundSet(draftEdges, dn.id) !== inboundSet(snapEdges, sn.id)) {
     reasons.push("输入连线已改");

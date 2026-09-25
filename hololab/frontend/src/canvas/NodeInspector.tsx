@@ -329,6 +329,40 @@ export function NodeInspector({
                 </div>
               </div>
             ) : null}
+            {selected.arrayed_toggle ? (
+              <div style={FIELD}>
+                <div style={LABEL}>
+                  <span>批处理大小</span>
+                  <span style={TAG}>structural</span>
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  data-hl-batch-size=""
+                  value={Math.max(1, Math.round(Number(selected.batch_size ?? 1)))}
+                  onChange={(e) => {
+                    const raw = Number(e.target.value);
+                    const clamped = Number.isFinite(raw)
+                      ? Math.max(1, Math.round(raw))
+                      : 1;
+                    onChange({ batch_size: clamped });
+                  }}
+                  style={{
+                    width: 72,
+                    fontFamily: "var(--font-mono)",
+                    fontVariantNumeric: "tabular-nums",
+                    textAlign: "right",
+                  }}
+                />
+                <div style={{ ...HINT, marginTop: 4 }}>
+                  每个 shard 子进程处理的数组元素数（默认 1 = 每元素一个 job）。
+                  <code>N</code> 元素 + <code>batch_size=B</code> ⇒ <code>ceil(N/B)</code> 个 shard；
+                  批内任一元素失败即整批失败（<code>set -euo pipefail</code>）。
+                  改动会 Fork 新的快照。
+                </div>
+              </div>
+            ) : null}
           </>
         )}
 

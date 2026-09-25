@@ -478,6 +478,13 @@ export interface GraphNode {
   // concurrency = min(parallelism, node daemon max_concurrent_jobs).
   // Only meaningful when arrayed_toggle is true on an arrayable pack.
   parallelism?: number;
+  // Structural — how many arrayed<T> elements share a single shard
+  // subprocess (batched shards). Default 1 = one element per subprocess
+  // (pre-batching, no-op). ``batch_size=B`` with N elements produces
+  // ``ceil(N / B)`` shard jobs; a single element failing aborts the
+  // whole batch (``set -euo pipefail``). Only meaningful when
+  // ``arrayed_toggle`` is true on an arrayable pack.
+  batch_size?: number;
   // Cosmetic (observer-only) field. Name of the output port whose
   // preview drawer is expanded; null when the drawer is closed.
   // Never affects dispatch — see the cosmetic/structural table in
