@@ -269,6 +269,28 @@ def _build_grid(cam: dict, new_cam: dict, device: str) -> torch.Tensor:
     return grid
 
 
+# Reusable pinned host buffers. Each request grows them if the shape got
+# bigger; steady-state RSS is one input-chunk + one output shard, not one
+# per shard. Without this, the daemon leaks ~90 MB per request (~9 GB after
+# 100 shards → OOM-kills downstream STG under a 56 GB cgroup).
+_PINNED_IN_BUF: torch.Tensor | None = None
+_PINNED_OUT_BUF: torch.Tensor | None = None
+
+
+def _pinned_in(chunk_shape: tuple[int, int, int, int]) -> torch.Tensor:
+    global _PINNED_IN_BUF
+    if _PINNED_IN_BUF is None or tuple(_PINNED_IN_BUF.shape) != chunk_shape:
+        _PINNED_IN_BUF = torch.empty(chunk_shape, dtype=torch.uint8, pin_memory=True)
+    return _PINNED_IN_BUF
+
+
+def _pinned_out(out_shape: tuple[int, int, int, int]) -> torch.Tensor:
+    global _PINNED_OUT_BUF
+    if _PINNED_OUT_BUF is None or tuple(_PINNED_OUT_BUF.shape) != out_shape:
+        _PINNED_OUT_BUF = torch.empty(out_shape, dtype=torch.uint8, pin_memory=True)
+    return _PINNED_OUT_BUF
+
+
 def undistort_batch(
     imgs_u8: np.ndarray,
     grid: torch.Tensor,
@@ -277,13 +299,16 @@ def undistort_batch(
 ) -> np.ndarray:
     B = imgs_u8.shape[0]
     new_H, new_W = int(grid.shape[1]), int(grid.shape[2])
-    out_pinned = torch.empty(B, new_H, new_W, 3, dtype=torch.uint8, pin_memory=True)
+    out_pinned = _pinned_out((B, new_H, new_W, 3))
     grid_c = grid.to(compute_dtype) if grid.dtype != compute_dtype else grid
     for s in range(0, B, chunk_size):
         e = min(s + chunk_size, B)
         chunk = imgs_u8[s:e]
-        t_u8 = torch.from_numpy(np.ascontiguousarray(chunk)).pin_memory()
-        t_gpu = t_u8.to("cuda", non_blocking=True)
+        # Copy into a reusable pinned staging buffer instead of
+        # ``.pin_memory()`` on a per-call tensor (which leaked in the daemon).
+        in_pin = _pinned_in(chunk.shape)
+        in_pin.copy_(torch.from_numpy(np.ascontiguousarray(chunk)))
+        t_gpu = in_pin.to("cuda", non_blocking=True)
         imgs = t_gpu.permute(0, 3, 1, 2).to(compute_dtype).mul_(1.0 / 255.0)
         out = F.grid_sample(
             imgs,
@@ -301,10 +326,12 @@ def undistort_batch(
             .contiguous()
         )
         out_pinned[s:e].copy_(out, non_blocking=True)
-        del t_u8, t_gpu, imgs, out
+        del t_gpu, imgs, out
         torch.cuda.empty_cache()
     torch.cuda.synchronize()
-    return out_pinned.numpy()
+    # Return a numpy VIEW of the pinned buffer — but numpy view goes stale
+    # the next time the buffer is reused. Copy out so callers own it.
+    return out_pinned.numpy().copy()
 
 
 # ---------------------------------------------------------------------------

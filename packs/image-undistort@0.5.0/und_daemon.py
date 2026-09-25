@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import errno
+import gc
 import io
 import json
 import os
@@ -176,6 +177,14 @@ def _handle_conn(conn: socket.socket, manifest_hash: str) -> None:
         with _STATE_LOCK:
             _ACTIVE_REQUESTS = max(0, _ACTIVE_REQUESTS - 1)
             _LAST_ACTIVITY = time.monotonic()
+            active_now = _ACTIVE_REQUESTS
+        # Only sweep when the daemon fully quiesces, so the sweep doesn't
+        # thrash while other requests are still holding tensors.
+        if active_now == 0:
+            gc.collect()
+            with contextlib.suppress(Exception):
+                # ``und_worker.torch`` is the torch imported by the worker.
+                und_worker.torch.cuda.empty_cache()
         with contextlib.suppress(Exception):
             conn.close()
 
