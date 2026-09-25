@@ -3353,9 +3353,21 @@ async def _dispatch_node_frame(
 ) -> None:
     """Route an incoming frame from a connected node."""
 
+    # Any frame from the node is proof of life — tickle the liveness
+    # timestamp before doing any per-frame work. Prevents the sweeper
+    # from declaring a working node dead when a fan-out saturates the
+    # node's single ``_send_lock`` (runtime.py:184): 8 shards x log
+    # flushes every ``LOG_FLUSH_INTERVAL=0.5s`` + progress + register
+    # frames queue up, and a ``heartbeat`` frame every 15 s can wait
+    # far longer than 45 s to reach the wire under TCP backpressure or
+    # CPU pressure. The heartbeat interval + deadline are still the
+    # authoritative timing for a genuinely-silent node (asyncio loop
+    # stuck, WS half-dead): no frame of any kind arrives, so the
+    # deadline still fires.
+    session.last_heartbeat_ts = time.time()
+
     if kind == "heartbeat":
         assert isinstance(payload, Heartbeat)
-        session.last_heartbeat_ts = time.time()
         return
 
     if kind == "node_metrics":
