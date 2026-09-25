@@ -31,6 +31,11 @@ export interface RecentJobRow {
   // and ``n/N`` show the planned total (e.g. ×100) from the first frame
   // instead of drifting up as lazily-created shard rows arrive.
   expected_shards?: number | null;
+  // Set on batched shards (batch_size > 1) — full element list this shard
+  // covers. Panel sums lengths across done shards to render element-level
+  // progress alongside the coalesced-shard fraction. NULL when
+  // batch_size=1 (a single-element shard uses ``shard_element_id`` only).
+  shard_element_ids?: string[] | null;
   fail_reason?: string | null;
 }
 
@@ -206,6 +211,7 @@ function buildEntries(rows: RecentJobRow[]): Entry[] {
         updated_ts: maxTs,
         fail_reason: null,
         expected_shards: null,
+        shard_element_ids: null,
       };
       entries.push({ kind: "group", parent: synthetic, shards, sortTs: minTs - 0.001 });
       continue;
@@ -1075,6 +1081,25 @@ function GroupJobRow({
     parent.expected_shards != null && parent.expected_shards > 0
       ? parent.expected_shards
       : shards.length;
+  // Element-level bookkeeping for batched fan-outs (batch_size > 1).
+  // ``shard_element_ids`` is populated on each batched shard with the
+  // full list it covers; batch=1 leaves it null. We detect batching
+  // per-shard so mixed histories (a batch=1 job re-run at batch=8 in
+  // the same workflow) still render honestly. When ``isBatched`` is
+  // false the panel falls back to the pre-batching X/N + ×N display —
+  // byte-identical to today, since ``elementsTotal == total`` when
+  // every shard covers exactly one element.
+  const elemPerShard = (s: RecentJobRow) =>
+    s.shard_element_ids && s.shard_element_ids.length > 0
+      ? s.shard_element_ids.length
+      : 1;
+  const isBatched = shards.some(
+    (s) => s.shard_element_ids != null && s.shard_element_ids.length > 1,
+  );
+  const elementsDone = shards
+    .filter((s) => s.state === "done")
+    .reduce((sum, s) => sum + elemPerShard(s), 0);
+  const elementsTotal = shards.reduce((sum, s) => sum + elemPerShard(s), 0);
   const visibleShards = showAllShards
     ? shards
     : shards.slice(0, SHARDS_INITIAL_LIMIT);
@@ -1155,8 +1180,13 @@ function GroupJobRow({
               fontSize: "var(--fs-xs)",
               marginLeft: 2,
             }}
+            title={
+              isBatched
+                ? `${elementsTotal} elements across ${total} batched shards`
+                : undefined
+            }
           >
-            ×{total}
+            ×{isBatched ? elementsTotal : total}
           </span>
         </div>
         <div
@@ -1167,8 +1197,15 @@ function GroupJobRow({
             fontVariantNumeric: "tabular-nums",
             whiteSpace: "nowrap",
           }}
+          title={
+            isBatched
+              ? `${elementsDone}/${elementsTotal} elements · ${doneCount}/${total} batches`
+              : undefined
+          }
         >
-          {`${doneCount}/${total}`}
+          {isBatched
+            ? `${elementsDone}/${elementsTotal} · ${doneCount}/${total}b`
+            : `${doneCount}/${total}`}
           {!expanded && failedShardCount > 0 && (
             <span
               style={{ color: "var(--error, #e05a5a)", marginLeft: 4 }}

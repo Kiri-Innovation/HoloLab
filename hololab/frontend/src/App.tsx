@@ -555,6 +555,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             // (which omits it on shards) doesn't null it out.
             expected_shards:
               existing?.expected_shards ?? p.expected_shards ?? null,
+            // Batched-shard element list — sticky like ``shard_element_id``.
+            // Set on the shard at creation and never changes; batch=1
+            // shards leave this null.
+            shard_element_ids:
+              existing?.shard_element_ids ?? p.shard_element_ids ?? null,
           };
           // Preserve workflow_id (carried on the wire but not on the panel row shape).
           (next as unknown as { workflow_id?: string }).workflow_id =
@@ -641,6 +646,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               parent_job_id: p.parent_job_id ?? null,
               shard_element_id: p.shard_element_id ?? null,
               expected_shards: p.expected_shards ?? null,
+              shard_element_ids: p.shard_element_ids ?? null,
               created_ts: now,
               updated_ts: now,
             };
@@ -2769,6 +2775,7 @@ function jobToRow(j: JobSummary): RecentJobRow {
     parent_job_id: j.parent_job_id ?? null,
     shard_element_id: j.shard_element_id ?? null,
     expected_shards: j.expected_shards ?? null,
+    shard_element_ids: j.shard_element_ids ?? null,
     fail_reason: j.fail_reason,
   };
   (row as unknown as { workflow_id?: string }).workflow_id = j.workflow_id;

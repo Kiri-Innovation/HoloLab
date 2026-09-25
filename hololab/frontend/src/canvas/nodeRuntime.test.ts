@@ -32,6 +32,7 @@ function mkJob(over: Partial<SnapshotJob>): SnapshotJob {
     parent_job_id: over.parent_job_id ?? null,
     shard_element_id: over.shard_element_id ?? null,
     expected_shards: over.expected_shards ?? null,
+    shard_element_ids: over.shard_element_ids ?? null,
     created_ts: over.created_ts ?? 0,
     updated_ts: over.updated_ts ?? 0,
   };
@@ -374,6 +375,144 @@ describe("aggregateJobsToRuntime — state priority", () => {
     expect(out.n.state).toBe("running");
     expect(out.n.job_id).toBe("p_new");
     expect(out.n.fail_reason).toBeNull();
+  });
+
+  it("batched fan-out: progress counts elements, not coalesced shards", () => {
+    // batch_size=8 over 100 elements → 13 shards (12 full + 1 remainder).
+    // After 6 shards finish we expect ``47/100`` (6*8 - 1 for the last
+    // partial batch — here every done shard is a full 8, so 48/100 is
+    // exact) at the node card, NOT ``6/13``. The user-visible number
+    // is the domain progress (frames processed), never the internal
+    // parallelism.
+    const parent = mkJob({
+      job_id: "p",
+      state: "running",
+      expected_shards: 13,
+      created_ts: 0,
+    });
+    // Build 13 shards: first 6 done (each covers 8 elements),
+    // 7 pending (6 full batches of 8 + 1 remainder of 4).
+    const shards: SnapshotJob[] = [];
+    let created = 1;
+    for (let i = 0; i < 6; i++) {
+      shards.push(
+        mkJob({
+          job_id: `s${i}`,
+          parent_job_id: "p",
+          state: "done",
+          shard_element_ids: Array.from(
+            { length: 8 },
+            (_, k) => `elem_${i * 8 + k}`,
+          ),
+          created_ts: created++,
+        }),
+      );
+    }
+    for (let i = 6; i < 12; i++) {
+      shards.push(
+        mkJob({
+          job_id: `s${i}`,
+          parent_job_id: "p",
+          state: "pending",
+          shard_element_ids: Array.from(
+            { length: 8 },
+            (_, k) => `elem_${i * 8 + k}`,
+          ),
+          created_ts: created++,
+        }),
+      );
+    }
+    // Trailing remainder batch — 4 elements, batch_size=8 but only 4 left.
+    shards.push(
+      mkJob({
+        job_id: "s12",
+        parent_job_id: "p",
+        state: "pending",
+        shard_element_ids: ["elem_96", "elem_97", "elem_98", "elem_99"],
+        created_ts: created++,
+      }),
+    );
+
+    const out = aggregateJobsToRuntime([parent, ...shards]);
+    expect(out.n.state).toBe("running");
+    expect(out.n.progress).toEqual({ current: 48, total: 100 });
+  });
+
+  it("batch_size=1 fan-out is byte-identical to pre-batching aggregate", () => {
+    // Guard the byte-identical contract: with batch_size=1 every shard
+    // has ``shard_element_ids == null`` and the aggregator must fall
+    // back to the shard-count-based total (parent's ``expected_shards``
+    // when set), matching the exact display users saw before this file
+    // learned about batching.
+    const parent = mkJob({
+      job_id: "p",
+      state: "running",
+      expected_shards: 13,
+      created_ts: 0,
+    });
+    const shards = Array.from({ length: 13 }, (_, i) =>
+      mkJob({
+        job_id: `s${i}`,
+        parent_job_id: "p",
+        state: i < 6 ? "done" : "pending",
+        shard_element_id: `elem_${i}`,
+        // Deliberately null — batch=1 leaves this field NULL per the
+        // backend's execution.py contract.
+        shard_element_ids: null,
+        created_ts: 1 + i,
+      }),
+    );
+    const out = aggregateJobsToRuntime([parent, ...shards]);
+    expect(out.n.progress).toEqual({ current: 6, total: 13 });
+  });
+
+  it("batched fan-out: partial done shards count only their own elements", () => {
+    // Mixed states: 2 done full batches + 1 done partial batch + rest
+    // pending. Elements done = 8 + 8 + 3 = 19.
+    const parent = mkJob({
+      job_id: "p",
+      state: "running",
+      expected_shards: 5,
+      created_ts: 0,
+    });
+    const s0 = mkJob({
+      job_id: "s0",
+      parent_job_id: "p",
+      state: "done",
+      shard_element_ids: ["a", "b", "c", "d", "e", "f", "g", "h"],
+      created_ts: 1,
+    });
+    const s1 = mkJob({
+      job_id: "s1",
+      parent_job_id: "p",
+      state: "done",
+      shard_element_ids: ["i", "j", "k", "l", "m", "n", "o", "p"],
+      created_ts: 2,
+    });
+    const s2 = mkJob({
+      job_id: "s2",
+      parent_job_id: "p",
+      state: "done",
+      shard_element_ids: ["q", "r", "s"],
+      created_ts: 3,
+    });
+    const s3 = mkJob({
+      job_id: "s3",
+      parent_job_id: "p",
+      state: "pending",
+      shard_element_ids: ["t", "u", "v", "w", "x", "y", "z", "aa"],
+      created_ts: 4,
+    });
+    const s4 = mkJob({
+      job_id: "s4",
+      parent_job_id: "p",
+      state: "pending",
+      shard_element_ids: ["ab", "ac", "ad"],
+      created_ts: 5,
+    });
+    const out = aggregateJobsToRuntime([parent, s0, s1, s2, s3, s4]);
+    // Total elements = 8+8+3+8+3 = 30; done = 8+8+3 = 19.
+    expect(out.n.progress).toEqual({ current: 19, total: 30 });
   });
 
   it("multi-generation: newest done run reports null fail_reason even if older gen failed", () => {

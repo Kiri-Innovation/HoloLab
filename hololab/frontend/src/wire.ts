@@ -81,6 +81,13 @@ export interface JobUpdatePayload {
   // progress denominator so the display doesn't drift up as new shard
   // rows arrive (lazy creation would otherwise inflate the total).
   expected_shards?: number | null;
+  // Set on batched shards (batch_size > 1) — the full element list the
+  // shard covers. Frontend sums lengths across done shards to render
+  // element-level progress alongside the shard fraction (a shard=8 batch
+  // completes 8 elements at once, so the operator wants to see element
+  // throughput, not just the coalesced-shard count). NULL when
+  // batch_size=1: the scalar ``shard_element_id`` is the only bookkeeping.
+  shard_element_ids?: string[] | null;
 }
 
 // GET /api/jobs — same shape as JobUpdatePayload plus workflow bookkeeping.
@@ -100,6 +107,7 @@ export interface JobSummary {
   parent_job_id?: string | null;
   shard_element_id?: string | null;
   expected_shards?: number | null;
+  shard_element_ids?: string[] | null;
 }
 export interface LogChunkPayload {
   job_id: string;
@@ -583,6 +591,9 @@ export interface SnapshotJob {
   // first frame (shards are lazily created — counting rows would inflate
   // the total as new ones arrive).
   expected_shards?: number | null;
+  // Set on batched shards — the full element list this shard covers.
+  // See JobUpdatePayload.shard_element_ids.
+  shard_element_ids?: string[] | null;
   created_ts: number;
   updated_ts: number;
 }

@@ -50,6 +50,7 @@ function mkJob(over: Partial<SnapshotJob> & { job_id: string; graph_node_id: str
     parent_job_id: over.parent_job_id ?? null,
     shard_element_id: over.shard_element_id ?? null,
     expected_shards: over.expected_shards ?? null,
+    shard_element_ids: over.shard_element_ids ?? null,
     created_ts: over.created_ts ?? 0,
     updated_ts: over.updated_ts ?? 0,
   };

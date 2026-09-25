@@ -101,16 +101,35 @@ function aggregateProgress(
     }
     return parent.progress ?? null;
   }
-  const done = shards.filter((j) => j.state === "done").length;
-  // Prefer the parent's planned shard count over the row-count of already-
-  // created shards. Even though shards are pre-created upfront (2026-09-21
-  // refactor), ``expected_shards`` is still the authoritative denominator:
-  // it's frozen at fan-out start and can't drift if row-creation partially
-  // fails.
-  const total =
-    parent.expected_shards != null && parent.expected_shards > 0
-      ? parent.expected_shards
-      : shards.length;
+  // Element vs shard: with ``batch_size > 1`` one shard covers multiple
+  // elements (its ``shard_element_ids`` list). The node card footer
+  // shows element throughput, not the coalesced shard count — operators
+  // want "47/100 frames done", not "6/13 batches done" (that number is
+  // the internal parallelism, not the domain progress).
+  //
+  // Byte-identical for batch=1: when no shard carries ``shard_element_ids``
+  // we take the pre-batching path — ``done`` counts shards and ``total``
+  // is the parent's ``expected_shards`` (or ``shards.length`` fallback),
+  // matching the display before this file learned about batching.
+  const isBatched = shards.some(
+    (s) => s.shard_element_ids != null && s.shard_element_ids.length > 1,
+  );
+  if (!isBatched) {
+    const done = shards.filter((j) => j.state === "done").length;
+    const total =
+      parent.expected_shards != null && parent.expected_shards > 0
+        ? parent.expected_shards
+        : shards.length;
+    return { current: done, total };
+  }
+  const elemPerShard = (s: SnapshotJob) =>
+    s.shard_element_ids && s.shard_element_ids.length > 0
+      ? s.shard_element_ids.length
+      : 1;
+  const done = shards
+    .filter((j) => j.state === "done")
+    .reduce((sum, s) => sum + elemPerShard(s), 0);
+  const total = shards.reduce((sum, s) => sum + elemPerShard(s), 0);
   return { current: done, total };
 }
 
