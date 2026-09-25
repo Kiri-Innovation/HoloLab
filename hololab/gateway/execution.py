@@ -395,7 +395,7 @@ async def _execute_fanout_body(
     # writer-queue traffic. Batched (below): O(1) parent-handle reads +
     # one ``register_many`` for every sub-handle + one ``create_many`` for
     # every shard row. Two transactions total instead of hundreds.
-    shards: list[tuple[int, str, Job, dict[str, str]]] = await _prepare_shard_rows(
+    shards: list[tuple[int, list[str], Job, list[dict[str, str]]]] = await _prepare_shard_rows(
         store=store,
         handles=handles,
         plan=plan,
@@ -407,7 +407,7 @@ async def _execute_fanout_body(
     # Each ``_push_update`` is a per-subscriber ``queue.put_nowait`` — the
     # actual send happens on the subscriber's pump task, so this loop is
     # a tight in-memory hot path, not another DB round-trip storm.
-    for _idx, _eid, shard, _paths in shards:
+    for _idx, _eids, shard, _paths in shards:
         _push_update(hub, shard)
 
     # -- Phase 2: bounded-concurrent dispatch --------------------------------
@@ -415,8 +415,18 @@ async def _execute_fanout_body(
     sem = asyncio.Semaphore(parallelism)
 
     async def _run_one(
-        idx: int, element_id: str, shard: Job, shard_input_paths: dict[str, str]
+        idx: int,
+        batch_element_ids: list[str],
+        shard: Job,
+        batch_input_paths: list[dict[str, str]],
     ) -> tuple[int, str, Job]:
+        # ``element_id`` in the return tuple is the batch's LEAD element
+        # (first item). Kept as a single string for backward-compat with
+        # every error / logging call site that formats "element {eid}
+        # failed"; batched shards that fail already carry the full list
+        # in the row's ``shard_element_ids`` for anyone who needs the
+        # rest.
+        element_id = batch_element_ids[0]
         async with sem:
             # Between phase 1 (shard created PENDING) and now, the parent
             # or this shard may have been cancelled by an API call. Read
@@ -458,7 +468,9 @@ async def _execute_fanout_body(
                     shard=shard_now,
                     shard_element_id=element_id,
                     shard_output_prefix=plan.parent_ws,
-                    shard_input_paths=shard_input_paths,
+                    shard_input_paths=batch_input_paths[0] if len(batch_element_ids) == 1 else {},
+                    batch_element_ids=batch_element_ids,
+                    batch_input_paths=batch_input_paths,
                 )
             except Exception as exc:
                 # Log before re-raising into ``gather(return_exceptions=True)``
@@ -506,7 +518,7 @@ async def _execute_fanout_body(
         parallelism=parallelism,
     )
     results = await asyncio.gather(
-        *(_run_one(i, eid, s, paths) for (i, eid, s, paths) in shards),
+        *(_run_one(i, eids, s, paths) for (i, eids, s, paths) in shards),
         return_exceptions=True,
     )
 
@@ -616,7 +628,7 @@ async def _prepare_shard_rows(
     snapshot_id: str,
     workflow_id: str,
     gnode: GraphNode,
-) -> list[tuple[int, str, Job, dict[str, str]]]:
+) -> list[tuple[int, list[str], Job, list[dict[str, str]]]]:
     """Materialise every shard's ``jobs`` row + synthetic sub-handles in-memory,
     then flush them to SQLite in two batched transactions.
 
@@ -669,34 +681,70 @@ async def _prepare_shard_rows(
     # ``JobAssign`` frame lets the node skip a per-shard
     # ``handle_locate`` round-trip against the gateway. See
     # ``JobAssign.input_paths`` in ``protocol/messages.py``.
+    #
+    # Batched shards (Candidate A, ``gnode.batch_size > 1``): coalesce
+    # every ``B`` consecutive elements into one shard row + one
+    # ``JobAssign`` frame. The sub-handle count stays the same (one
+    # per (element, arrayed_port)); only the SHARD row count drops
+    # from N to ``ceil(N / B)``. Each shard carries the full
+    # ``shard_element_ids`` list + a per-element ``shard_input_paths``
+    # list so the node can render the pack shell once per element and
+    # chain them under ``set -euo pipefail`` in a single subprocess.
+    # ``batch_size=1`` is a strict no-op — ``shard_element_ids`` stays
+    # NULL and the row is byte-identical to the pre-batching layout.
     sub_handles: list[Handle] = []
     shard_rows: list[Job] = []
-    shards: list[tuple[int, str, Job, dict[str, str]]] = []
+    shards: list[tuple[int, list[str], Job, list[dict[str, str]]]] = []
     now = time.time()
-    for idx, element_id in enumerate(plan.element_ids):
-        shard_inputs: dict[str, str] = {}
-        shard_input_paths: dict[str, str] = {}
-        for port, handle_id in plan.input_handles.items():
-            if port not in plan.arrayed_input_ports:
-                shard_inputs[port] = handle_id
-                continue
-            parent = parent_by_port[port]
-            sub_path = str(Path(parent.path) / element_id)
-            sub = Handle(
-                handle_id=str(uuid.uuid4()),
-                node_id=plan.session_node_id,
-                storage=parent.storage,
-                tags=list(parent.tags),
-                path=sub_path,
-                size_bytes=None,
-                job_id=None,
-                output_port_name=None,
-                created_ts=now,
-            )
-            sub_handles.append(sub)
-            shard_inputs[port] = sub.handle_id
-            shard_input_paths[port] = sub_path
+    batch_size = max(1, int(getattr(gnode, "batch_size", 1) or 1))
+    element_ids = plan.element_ids
 
+    def _batches() -> list[list[str]]:
+        if batch_size <= 1:
+            return [[eid] for eid in element_ids]
+        return [element_ids[i : i + batch_size] for i in range(0, len(element_ids), batch_size)]
+
+    for idx, batch in enumerate(_batches()):
+        batch_input_paths: list[dict[str, str]] = []
+        # Non-arrayed inputs are the same for every element in the batch
+        # (scalar upstream). Arrayed inputs differ per element — one
+        # synthetic sub-handle per (element, arrayed_port).
+        shard_inputs: dict[str, str] = {
+            port: handle_id
+            for port, handle_id in plan.input_handles.items()
+            if port not in plan.arrayed_input_ports
+        }
+        for element_id in batch:
+            elem_paths: dict[str, str] = {}
+            for port in plan.arrayed_input_ports:
+                parent = parent_by_port[port]
+                sub_path = str(Path(parent.path) / element_id)
+                sub = Handle(
+                    handle_id=str(uuid.uuid4()),
+                    node_id=plan.session_node_id,
+                    storage=parent.storage,
+                    tags=list(parent.tags),
+                    path=sub_path,
+                    size_bytes=None,
+                    job_id=None,
+                    output_port_name=None,
+                    created_ts=now,
+                )
+                sub_handles.append(sub)
+                # For the DB ``input_handles`` map on the shard row we
+                # keep the FIRST element's sub-handle id per port —
+                # legacy consumers (rerun-from, artifact lookup) that
+                # inspect ``shard.input_handles`` still resolve. The
+                # per-element ids live on the sub_handles list; node
+                # uses ``shard_input_paths`` (not handle_id lookup) for
+                # every batched element.
+                shard_inputs.setdefault(port, sub.handle_id)
+                elem_paths[port] = sub_path
+            batch_input_paths.append(elem_paths)
+
+        # Preserve byte-identical DB shape when batch_size=1: leave
+        # ``shard_element_ids`` NULL and let the scalar
+        # ``shard_element_id`` be authoritative, exactly like pre-V14.
         shard = Job(
             job_id=str(uuid.uuid4()),
             workflow_id=workflow_id,
@@ -707,12 +755,13 @@ async def _prepare_shard_rows(
             input_handles=shard_inputs,
             graph_node_id=gnode.id,
             parent_job_id=plan.parent_job.job_id,
-            shard_element_id=element_id,
+            shard_element_id=batch[0],
+            shard_element_ids=list(batch) if len(batch) > 1 else None,
             created_ts=now,
             updated_ts=now,
         )
         shard_rows.append(shard)
-        shards.append((idx, element_id, shard, shard_input_paths))
+        shards.append((idx, list(batch), shard, batch_input_paths))
 
     # 3) Two flushes. Handles first so that when a peer reader observes
     #    a shard's input_handles map, every referenced handle_id already
@@ -1013,6 +1062,8 @@ async def _dispatch_prepared_shard(
     shard_element_id: str,
     shard_output_prefix: str,
     shard_input_paths: dict[str, str] | None = None,
+    batch_element_ids: list[str] | None = None,
+    batch_input_paths: list[dict[str, str]] | None = None,
 ) -> None:
     """Transition an already-created shard PENDING → ASSIGNED and send its
     :class:`JobAssign` frame to the compute node. The compute-node session
@@ -1025,6 +1076,14 @@ async def _dispatch_prepared_shard(
     Passed inline on the ``JobAssign`` frame so the node can skip the
     per-shard ``handle_locate`` round-trip for those ports. Ports omitted
     from this map fall through to the usual locate path on the node.
+
+    ``batch_element_ids`` + ``batch_input_paths`` (Candidate A): when a
+    shard covers more than one element (``gnode.batch_size > 1``), pass
+    the full ordered list of elements and their per-element input paths.
+    Both list lengths must match. The node uses these to render the
+    pack's shell once per element and chain them under one bash
+    ``set -euo pipefail`` wrapper. Length-1 batches leave both empty
+    (or None) — dispatch behaviour is byte-identical to pre-batching.
     """
 
     assert gnode.assigned_node_id is not None
@@ -1039,6 +1098,17 @@ async def _dispatch_prepared_shard(
     await store.update(assigned, kind, payload)
     _push_update(hub, assigned)
 
+    # A batched shard is signalled by ``len(batch_element_ids) > 1``.
+    # Under that path the ``JobAssign.input_paths`` scalar map is
+    # meaningless (there is no single element) so we drop it — the
+    # node reads ``shard_input_paths`` (the per-element list) instead.
+    is_batched = bool(batch_element_ids) and len(batch_element_ids) > 1
+    if is_batched:
+        assert batch_input_paths is not None
+        assert len(batch_input_paths) == len(batch_element_ids), (
+            "batch_element_ids and batch_input_paths must be aligned"
+        )
+
     assign_msg = JobAssign(
         job_id=assigned.job_id,
         workflow_id=assigned.workflow_id,
@@ -1049,7 +1119,9 @@ async def _dispatch_prepared_shard(
         graph_node_id=assigned.graph_node_id,
         shard_element_id=shard_element_id,
         shard_output_prefix=shard_output_prefix,
-        input_paths=dict(shard_input_paths) if shard_input_paths else {},
+        input_paths=({} if is_batched else (dict(shard_input_paths) if shard_input_paths else {})),
+        shard_element_ids=list(batch_element_ids) if is_batched else [],
+        shard_input_paths=[dict(m) for m in batch_input_paths] if is_batched else [],
     )
     frame = encode("job_assign", assign_msg, v=session.protocol_v)
     try:

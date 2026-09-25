@@ -776,8 +776,9 @@ class JobsStore:
                      algorithm_name, algorithm_version, params_json, input_handles_json,
                      state, progress_current, progress_total, fail_reason, fail_exit_code,
                      fail_message, created_ts, updated_ts, reused_from_job_id,
-                     parent_job_id, shard_element_id, started_ts, expected_shards)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     parent_job_id, shard_element_id, started_ts, expected_shards,
+                     shard_element_ids_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job.job_id,
@@ -802,6 +803,7 @@ class JobsStore:
                     job.shard_element_id,
                     job.started_ts,
                     job.expected_shards,
+                    json.dumps(job.shard_element_ids) if job.shard_element_ids else None,
                 ),
             )
             await conn.execute(
@@ -875,6 +877,7 @@ class JobsStore:
                         job.shard_element_id,
                         job.started_ts,
                         job.expected_shards,
+                        json.dumps(job.shard_element_ids) if job.shard_element_ids else None,
                     )
                 )
                 event_rows.append(
@@ -899,8 +902,9 @@ class JobsStore:
                      algorithm_name, algorithm_version, params_json, input_handles_json,
                      state, progress_current, progress_total, fail_reason, fail_exit_code,
                      fail_message, created_ts, updated_ts, reused_from_job_id,
-                     parent_job_id, shard_element_id, started_ts, expected_shards)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     parent_job_id, shard_element_id, started_ts, expected_shards,
+                     shard_element_ids_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 job_rows,
             )
@@ -1067,7 +1071,8 @@ class JobsStore:
                        algorithm_name, algorithm_version, params_json, input_handles_json,
                        state, progress_current, progress_total, fail_reason, fail_exit_code,
                        fail_message, created_ts, updated_ts, reused_from_job_id,
-                       parent_job_id, shard_element_id, started_ts, expected_shards
+                       parent_job_id, shard_element_id, started_ts, expected_shards,
+                       shard_element_ids_json
                 FROM jobs WHERE job_id=?
                 """,
                 (job_id,),
@@ -1100,6 +1105,7 @@ class JobsStore:
             shard_element_id=row[19],
             started_ts=row[20],
             expected_shards=row[21],
+            shard_element_ids=json.loads(row[22]) if row[22] else None,
         )
 
     async def list_shards_of(self, parent_job_id: str) -> list[Job]:  # noqa: F821
@@ -1122,7 +1128,8 @@ class JobsStore:
                        algorithm_name, algorithm_version, params_json, input_handles_json,
                        state, progress_current, progress_total, fail_reason, fail_exit_code,
                        fail_message, created_ts, updated_ts, reused_from_job_id,
-                       parent_job_id, shard_element_id, started_ts, expected_shards
+                       parent_job_id, shard_element_id, started_ts, expected_shards,
+                       shard_element_ids_json
                 FROM jobs
                 WHERE parent_job_id=?
                 ORDER BY created_ts ASC
@@ -1156,6 +1163,7 @@ class JobsStore:
                 shard_element_id=r[19],
                 started_ts=r[20],
                 expected_shards=r[21],
+                shard_element_ids=json.loads(r[22]) if r[22] else None,
             )
             for r in rows
         ]
@@ -1181,7 +1189,8 @@ class JobsStore:
                        algorithm_name, algorithm_version, params_json, input_handles_json,
                        state, progress_current, progress_total, fail_reason, fail_exit_code,
                        fail_message, created_ts, updated_ts, reused_from_job_id,
-                       parent_job_id, shard_element_id, started_ts, expected_shards
+                       parent_job_id, shard_element_id, started_ts, expected_shards,
+                       shard_element_ids_json
                 FROM jobs
                 WHERE state='orphaned' AND node_id=?
                 ORDER BY created_ts ASC
@@ -1215,6 +1224,7 @@ class JobsStore:
                 shard_element_id=r[19],
                 started_ts=r[20],
                 expected_shards=r[21],
+                shard_element_ids=json.loads(r[22]) if r[22] else None,
             )
             for r in rows
         ]
@@ -1267,7 +1277,8 @@ class JobsStore:
                 SELECT job_id, workflow_id, node_id, graph_node_id, algorithm_name,
                        algorithm_version, state, progress_current, progress_total,
                        fail_reason, created_ts, updated_ts, started_ts,
-                       parent_job_id, shard_element_id, expected_shards
+                       parent_job_id, shard_element_id, expected_shards,
+                       shard_element_ids_json
                 FROM jobs
                 {where}
                 ORDER BY created_ts {direction}
@@ -1295,6 +1306,7 @@ class JobsStore:
                 "parent_job_id": r[13],
                 "shard_element_id": r[14],
                 "expected_shards": r[15],
+                "shard_element_ids": json.loads(r[16]) if r[16] else None,
             }
             for r in rows
         ]
@@ -1337,7 +1349,8 @@ class JobsStore:
                        j.params_json, j.input_handles_json,
                        j.created_ts, j.updated_ts,
                        j.reused_from_job_id, j.started_ts,
-                       j.parent_job_id, j.shard_element_id, j.expected_shards
+                       j.parent_job_id, j.shard_element_id, j.expected_shards,
+                       j.shard_element_ids_json
                 FROM snapshot_jobs sj
                 JOIN jobs j ON j.job_id = sj.job_id
                 WHERE sj.snapshot_id = ?
@@ -1349,7 +1362,8 @@ class JobsStore:
                        j.params_json, j.input_handles_json,
                        j.created_ts, j.updated_ts,
                        j.reused_from_job_id, j.started_ts,
-                       j.parent_job_id, j.shard_element_id, j.expected_shards
+                       j.parent_job_id, j.shard_element_id, j.expected_shards,
+                       j.shard_element_ids_json
                 FROM jobs j
                 WHERE j.snapshot_id = ?
                   AND j.state != 'done'
@@ -1439,6 +1453,7 @@ class JobsStore:
                 "parent_job_id": r[18],
                 "shard_element_id": r[19],
                 "expected_shards": r[20],
+                "shard_element_ids": json.loads(r[21]) if r[21] else None,
                 "created_ts": r[14],
                 "updated_ts": r[15],
             }

@@ -218,10 +218,13 @@ async def test_prepare_shard_rows_produces_N_rows_in_element_order(tmp_path: Pat
         workflow_id="wf-1",
         gnode=_graph_node(id="n1"),
     )
-    assert [eid for _idx, eid, _s, _paths in shards] == [
-        "frame_0000",
-        "frame_0001",
-        "frame_0002",
+    # ``element_ids`` now comes back as a per-batch list. At the default
+    # batch_size=1 each list has exactly one entry — byte-identical to
+    # the pre-batching phase-1 output.
+    assert [eids for _idx, eids, _s, _paths in shards] == [
+        ["frame_0000"],
+        ["frame_0001"],
+        ["frame_0002"],
     ]
     assert [idx for idx, _e, _s, _paths in shards] == [0, 1, 2]
 
@@ -243,13 +246,16 @@ async def test_prepare_shard_rows_shard_fields_match_baseline(tmp_path: Path) ->
         workflow_id="wf-1",
         gnode=_graph_node(id="n1"),
     )
-    _idx, _eid, shard, _paths = shards[0]
+    _idx, _eids, shard, _paths = shards[0]
 
     fetched = await store.get(shard.job_id)
     assert fetched is not None
     assert fetched.state is JobState.PENDING
     assert fetched.parent_job_id == "parent-job-1"
     assert fetched.shard_element_id == "frame_0000"
+    # batch_size=1 (default) keeps the pre-V14 byte-identical shape:
+    # shard_element_ids is NULL, scalar shard_element_id is authoritative.
+    assert fetched.shard_element_ids is None
     assert fetched.workflow_id == "wf-1"
     assert fetched.snapshot_id == "snap-1"
     assert fetched.graph_node_id == "n1"
@@ -285,7 +291,12 @@ async def test_prepare_shard_rows_subhandle_semantics(tmp_path: Path) -> None:
         workflow_id="wf-1",
         gnode=_graph_node(id="n1"),
     )
-    for _idx, element_id, shard, shard_input_paths in shards:
+    for _idx, batch_ids, shard, batch_input_paths in shards:
+        # At the default batch_size=1 each batch has exactly one element
+        # — the assertions below use that one entry.
+        assert len(batch_ids) == 1
+        assert len(batch_input_paths) == 1
+        element_id = batch_ids[0]
         # Scalar input passes through.
         assert shard.input_handles["config"] == "h-scalar-abc"
         # Arrayed input got a new sub-handle.
@@ -301,7 +312,7 @@ async def test_prepare_shard_rows_subhandle_semantics(tmp_path: Path) -> None:
         assert sub.job_id is None
         # And the sub-handle's local path is inlined for the dispatcher
         # (C1 shortcut) — arrayed ports only, scalars are absent.
-        assert shard_input_paths == {"frames": sub.path}
+        assert batch_input_paths[0] == {"frames": sub.path}
 
 
 @pytest.mark.asyncio

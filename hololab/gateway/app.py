@@ -3793,6 +3793,7 @@ def _job_to_json(job: Job) -> dict[str, Any]:
         "updated_ts": job.updated_ts,
         "parent_job_id": job.parent_job_id,
         "shard_element_id": job.shard_element_id,
+        "shard_element_ids": job.shard_element_ids,
         "started_ts": job.started_ts,
         "expected_shards": job.expected_shards,
     }
@@ -4037,6 +4038,7 @@ def _push_job_update(
         started_ts=job.started_ts,
         parent_job_id=job.parent_job_id,
         shard_element_id=job.shard_element_id,
+        shard_element_ids=job.shard_element_ids,
         expected_shards=job.expected_shards,
         progress=(
             JobProgress(

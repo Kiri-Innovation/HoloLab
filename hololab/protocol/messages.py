@@ -242,6 +242,21 @@ class JobAssign(BaseModel):
     # the usual ``handle_locate`` path (cross-node fetch, unknown handle,
     # etc.). Legacy nodes ignore unknown fields.
     input_paths: dict[str, str] = Field(default_factory=dict)
+    # Batched shards (Candidate A, ``GraphNode.batch_size > 1``): the
+    # full ordered list of elements this one subprocess processes. The
+    # scalar ``shard_element_id`` above is the FIRST entry for
+    # backward-compat display. Empty list = non-batched shard (or a
+    # regular non-fan-out job) — the node follows the pre-batch path
+    # and uses ``shard_element_id`` / ``input_paths`` verbatim.
+    shard_element_ids: list[str] = Field(default_factory=list)
+    # Per-element inline input paths, index-aligned with
+    # ``shard_element_ids``. Each entry is the same ``{port -> path}``
+    # dict that ``input_paths`` carries for a single-shard dispatch —
+    # gateway pre-computes ``parent.path / element_id`` for every
+    # arrayed port. Empty list = non-batched (use ``input_paths``).
+    # Non-empty means ``len(...) == len(shard_element_ids)`` — the node
+    # loops over both together.
+    shard_input_paths: list[dict[str, str]] = Field(default_factory=list)
 
 
 class JobAck(BaseModel):
@@ -531,8 +546,15 @@ class JobUpdate(BaseModel):
     parent_job_id: str | None = None
     # Element key this shard is processing (e.g. ``cam_A``). Null on
     # parent + regular jobs. Used as the display label for a group's
-    # expanded shard rows.
+    # expanded shard rows. Under batching (Candidate A) this holds the
+    # FIRST element in the shard's batch — see ``shard_element_ids``.
     shard_element_id: str | None = None
+    # Full list of elements this batched shard processes back-to-back.
+    # None on non-batched shards (the scalar ``shard_element_id`` is
+    # authoritative) and on parent + regular jobs. New frontends read
+    # ``len(shard_element_ids)`` to render "elements 47/100" progress;
+    # legacy frontends keep working via ``shard_element_id`` alone.
+    shard_element_ids: list[str] | None = None
     # Populated on parent jobs at fan-out start (element list enumerated,
     # before the first shard is dispatched). The planned shard count —
     # constant for the fan-out's lifetime. Frontend progress uses it as

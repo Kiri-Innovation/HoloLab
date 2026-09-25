@@ -408,6 +408,23 @@ MIGRATIONS.append(
 )
 
 
+# V14 — batched shards (Candidate A). A shard job that processes B > 1
+# elements in one subprocess carries the full list in
+# ``shard_element_ids_json`` (JSON array). The scalar ``shard_element_id``
+# is kept in sync with the FIRST element for backward-compat display
+# and for downstream code that groups / sorts by a single string. NULL
+# on all pre-V14 rows and on batch_size=1 shards (they use only the
+# scalar column, byte-for-byte identical to pre-V14).
+MIGRATIONS.append(
+    (
+        14,
+        """
+        ALTER TABLE jobs ADD COLUMN shard_element_ids_json TEXT;
+        """,
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

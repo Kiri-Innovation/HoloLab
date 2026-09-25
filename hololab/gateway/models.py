@@ -393,9 +393,13 @@ class JobRow(BaseModel):
     started_ts: float | None = None
     # Fan-out shard bookkeeping. Non-null on shards → the frontend groups
     # them under the parent row in Recent Jobs; ``shard_element_id`` is
-    # the display label for each shard's expanded sub-row.
+    # the display label for each shard's expanded sub-row. Under
+    # batching (Candidate A) ``shard_element_id`` is the first element
+    # in the shard's batch — ``shard_element_ids`` (below) carries the
+    # full list when the shard covers more than one element.
     parent_job_id: str | None = None
     shard_element_id: str | None = None
+    shard_element_ids: list[str] | None = None
     # Non-null on the fan-out *parent* row — the planned shard count fixed
     # at fan-out start. Frontend uses it as the progress denominator so
     # the display doesn't grow as lazily-created shard rows arrive.
@@ -532,6 +536,10 @@ class GraphNodeOut(BaseModel):
     # fan-out. Default 1 = serial (pre-pool behavior). See GraphNode in
     # gateway/workflows.py for the full semantics.
     parallelism: int = Field(default=1, ge=1)
+    # Structural — batched shards (Candidate A). N elements per subprocess.
+    # Default 1 = one element per subprocess (pre-batching, no-op). See
+    # ``GraphNode.batch_size`` in workflows.py for the invariant.
+    batch_size: int = Field(default=1, ge=1)
     # Cosmetic — persisted with the workflow graph so the frontend can
     # hydrate its preview-drawer state without a separate round-trip.
     # See docs/workflow-schema.md for the cosmetic/structural boundary.
@@ -740,6 +748,11 @@ class SnapshotJobOut(BaseModel):
     started_ts: float | None = None
     parent_job_id: str | None = None
     shard_element_id: str | None = None
+    # Batched shards (Candidate A). See :class:`hololab.gateway.jobs.Job`
+    # for the invariant. ``shard_element_id`` is still populated (=
+    # first element) so pre-batch frontends keep rendering; new
+    # frontends read this list to compute "elements 47/100" progress.
+    shard_element_ids: list[str] | None = None
     expected_shards: int | None = None
     created_ts: float
     updated_ts: float

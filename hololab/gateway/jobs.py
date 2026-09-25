@@ -139,8 +139,21 @@ class Job:
     parent_job_id: str | None = None
     # Set on shard jobs — the sorted subdir name (element key) this
     # shard is processing (e.g. ``cam_A`` for a per-camera fan-out).
-    # NULL on parent + regular jobs.
+    # NULL on parent + regular jobs. For batched shards (V14 — see
+    # ``shard_element_ids`` below), this scalar holds the FIRST
+    # element's id: legacy callers that group / sort / label by a
+    # single string keep working; downstream code that needs the full
+    # batch iterates ``shard_element_ids`` instead.
     shard_element_id: str | None = None
+    # Set on batched shard jobs (Candidate A, batch_size > 1 on the
+    # graph node). Full ordered list of every element this shard's
+    # subprocess processes back-to-back inside one bash wrapper. NULL
+    # on non-batched shards (batch_size=1) and on parent / regular
+    # jobs — the scalar ``shard_element_id`` alone is authoritative
+    # in that case. Length ≥ 2 when set; the pre-batch layout with
+    # ``shard_element_ids=None + shard_element_id="x"`` is preserved
+    # byte-for-byte so batch_size=1 remains a strict no-op.
+    shard_element_ids: list[str] | None = None
     # Timestamp of the ASSIGNED→RUNNING transition. None until the job
     # actually starts executing (i.e. stays None for pending/assigned
     # and for pre-V11 rows loaded from an unstarted gateway). The
@@ -222,6 +235,9 @@ class JobStateMachine:
             reused_from_job_id=job.reused_from_job_id,
             parent_job_id=job.parent_job_id,
             shard_element_id=job.shard_element_id,
+            shard_element_ids=(
+                list(job.shard_element_ids) if job.shard_element_ids is not None else None
+            ),
             # First RUNNING transition stamps the start time; preserve it on
             # all subsequent transitions (done, failed, etc.).
             started_ts=now

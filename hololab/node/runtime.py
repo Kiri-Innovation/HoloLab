@@ -1335,7 +1335,17 @@ class NodeRuntime:
         task.add_done_callback(_cleanup)
 
     async def _run_job(self, assign: JobAssign, cancel_event: asyncio.Event) -> None:
-        """Full job path: resolve pack, render manifest, spawn subprocess, report."""
+        """Full job path: resolve pack, render manifest, spawn subprocess, report.
+
+        Batched shards (Candidate A, ``assign.shard_element_ids`` non-empty
+        with length > 1): render the pack's ``exec.shell`` once per
+        element in the batch, chain them with ``set -euo pipefail`` in
+        one bash wrapper, run as a single subprocess. First failing
+        element aborts the batch (matches the "arrayed job is an
+        integral unit" cancel / deploy semantics). Non-batched dispatch
+        (default, ``batch_size=1``) takes the pre-batching single-render
+        path — byte-identical to pre-V14 behaviour.
+        """
 
         key = (assign.algorithm_name, assign.algorithm_version)
         pack = self._packs.get(key)
@@ -1357,6 +1367,23 @@ class NodeRuntime:
                 message=(
                     f"logical env {pack.manifest.runtime.env!r} is not mapped in node config; "
                     "add it under `envs:`"
+                ),
+            )
+            return
+
+        # Batched vs single-element dispatch discrimination. A batched
+        # ``JobAssign`` carries ``shard_element_ids`` (list, len >= 2)
+        # + ``shard_input_paths`` (aligned list of per-element path
+        # dicts). Everything else takes the pre-batching path.
+        is_batched = bool(assign.shard_element_ids) and len(assign.shard_element_ids) > 1
+        if is_batched and len(assign.shard_input_paths) != len(assign.shard_element_ids):
+            await self._send_job_fail(
+                assign.job_id,
+                JobFailReason.SYSTEM_ERROR,
+                message=(
+                    "batched shard_input_paths length "
+                    f"({len(assign.shard_input_paths)}) does not match "
+                    f"shard_element_ids ({len(assign.shard_element_ids)})"
                 ),
             )
             return
@@ -1401,32 +1428,11 @@ class NodeRuntime:
             )
             return
 
-        outputs = rendered_output_paths(
-            pack.manifest,
-            self._config.workspace_root,
-            assign.workflow_id,
-            assign.job_id,
-            # Shard jobs redirect their outputs into the parent's workspace
-            # keyed by element_id — see docs/pack-spec.md#arrayed-and-arrayable.
-            shard_output_prefix=assign.shard_output_prefix,
-            shard_element_id=assign.shard_element_id,
-        )
-        # Pre-create the destination for each output. For ``storage: dir`` the
-        # output path itself is a directory (mkdir it). For ``storage: file``
-        # the output path is a file path — mkdir its parent so the algorithm
-        # can just write to the declared location.
-        for port_name, p in outputs.items():
-            spec = pack.manifest.outputs[port_name]
-            if spec.storage.value == "file":
-                Path(p).parent.mkdir(parents=True, exist_ok=True)
-            else:
-                Path(p).mkdir(parents=True, exist_ok=True)
-
-        # Per-job scratch. Materialised eagerly so ``{{ scratch_dir }}``
-        # is always a real, writable path — packs that previously used
-        # ``mktemp -d`` in /tmp (which silently exhausts the system disk
-        # for anything larger than a demo; see the Phase-0 mono-smoke
-        # incident) now write into workspace_root instead.
+        # Per-job scratch / staging — shared across every element in a
+        # batched shard. Packs are expected to isolate per-element
+        # working state inside these dirs themselves (e.g. und clears
+        # ``scratch/input`` at the start of each invocation) so N
+        # sequential elements sharing one scratch is safe.
         scratch = rendered_scratch_dir(self._config.workspace_root, assign.job_id)
         Path(scratch).mkdir(parents=True, exist_ok=True)
 
@@ -1443,31 +1449,137 @@ class NodeRuntime:
         if staging != scratch:
             Path(staging).mkdir(parents=True, exist_ok=True)
 
-        ctx = RenderContext(
-            inputs=input_paths,
-            outputs=outputs,
-            params=assign.params,
-            pack_dir=str(pack.pack_dir),
-            workspace_root=str(self._config.workspace_root),
-            scratch_dir=scratch,
-            staging_dir=staging,
-            job_id=assign.job_id,
-            workflow_id=assign.workflow_id,
-            # ``shard.*`` template bindings for arrayed<T> shard jobs.
-            # Empty when this isn't a shard — see RenderContext.to_bindings.
-            shard_element_id=assign.shard_element_id or "",
-            shard_index=0,  # index isn't relayed on the wire; not needed today.
-        )
-
-        try:
-            rendered = render_manifest(pack.manifest, ctx)
-        except ValueError as exc:
-            await self._send_job_fail(
-                assign.job_id, JobFailReason.USER_ERROR, message=f"template render failed: {exc}"
+        # ``batch`` is the list of ``(element_id, per_element_inputs,
+        # per_element_outputs)`` this subprocess must run through. For
+        # non-batched dispatch it has exactly one entry (the whole
+        # ``JobAssign``); for batched dispatch it has one per element
+        # from ``shard_element_ids``.
+        batch: list[tuple[str | None, dict[str, str], dict[str, str]]] = []
+        if is_batched:
+            # Merge scalar (non-arrayed) input paths — resolved once
+            # above via ``_resolve_input_handles`` — with each element's
+            # inlined arrayed paths.
+            scalar_ports = set(input_paths.keys()) - set(assign.input_handles.keys() & set())
+            for element_id, elem_arrayed_paths in zip(
+                assign.shard_element_ids, assign.shard_input_paths, strict=True
+            ):
+                elem_inputs = dict(input_paths)  # scalar broadcast (may be empty)
+                elem_inputs.update(elem_arrayed_paths)
+                elem_outputs = rendered_output_paths(
+                    pack.manifest,
+                    self._config.workspace_root,
+                    assign.workflow_id,
+                    assign.job_id,
+                    shard_output_prefix=assign.shard_output_prefix,
+                    shard_element_id=element_id,
+                )
+                batch.append((element_id, elem_inputs, elem_outputs))
+            _ = scalar_ports  # keep flake8 quiet; used for reader intuition above
+        else:
+            outputs = rendered_output_paths(
+                pack.manifest,
+                self._config.workspace_root,
+                assign.workflow_id,
+                assign.job_id,
+                # Shard jobs redirect their outputs into the parent's workspace
+                # keyed by element_id — see docs/pack-spec.md#arrayed-and-arrayable.
+                shard_output_prefix=assign.shard_output_prefix,
+                shard_element_id=assign.shard_element_id,
             )
-            return
+            batch.append((assign.shard_element_id, input_paths, outputs))
 
-        # Idempotency check.
+        # Pre-create the destination for every element x port. For
+        # ``storage: dir`` the output path itself is a directory (mkdir
+        # it). For ``storage: file`` the output path is a file path —
+        # mkdir its parent so the algorithm can just write to the
+        # declared location.
+        for _eid, _inputs, elem_outputs in batch:
+            for port_name, p in elem_outputs.items():
+                spec = pack.manifest.outputs[port_name]
+                if spec.storage.value == "file":
+                    Path(p).parent.mkdir(parents=True, exist_ok=True)
+                else:
+                    Path(p).mkdir(parents=True, exist_ok=True)
+
+        # Render the pack shell once per element; collect them into a
+        # single bash wrapper.
+        rendered_shells: list[str] = []
+        first_rendered = None  # first element's rendered manifest — used for idempotency
+        for shard_idx, (element_id, elem_inputs, elem_outputs) in enumerate(batch):
+            ctx = RenderContext(
+                inputs=elem_inputs,
+                outputs=elem_outputs,
+                params=assign.params,
+                pack_dir=str(pack.pack_dir),
+                workspace_root=str(self._config.workspace_root),
+                scratch_dir=scratch,
+                staging_dir=staging,
+                job_id=assign.job_id,
+                workflow_id=assign.workflow_id,
+                shard_element_id=element_id or "",
+                shard_index=shard_idx,
+            )
+            try:
+                per_elem_rendered = render_manifest(pack.manifest, ctx)
+            except ValueError as exc:
+                await self._send_job_fail(
+                    assign.job_id,
+                    JobFailReason.USER_ERROR,
+                    message=(
+                        f"template render failed for element {element_id!r}: {exc}"
+                        if is_batched
+                        else f"template render failed: {exc}"
+                    ),
+                )
+                return
+            rendered_shells.append(per_elem_rendered.shell)
+            if first_rendered is None:
+                first_rendered = per_elem_rendered
+
+        # Choose the RenderedManifest that drives per-batch attributes
+        # (idempotency marker, preview paths, progress status file,
+        # working_dir). We reuse the FIRST element's rendered manifest
+        # because those attributes are per-shard, not per-element —
+        # this is the same object the pre-batch path passed to the
+        # executor.
+        assert first_rendered is not None
+        rendered = first_rendered
+        # ``outputs`` is the FIRST element's output map — used by the
+        # non-batched idempotency fast-path and (only in the
+        # ``rendered.idempotency_marker`` branch) by ``_write_metadata``.
+        # Batched shards short-circuit that branch (marker is None) and
+        # register handles per element from ``batch`` below.
+        outputs = batch[0][2]
+
+        # Assemble the final shell. Non-batched: use the rendered shell
+        # verbatim (byte-identical to pre-batching). Batched: prepend
+        # ``set -euo pipefail`` so the first failing element aborts the
+        # whole batch (each per-element shell already sets its own
+        # ``set -euo pipefail`` on the first line, but the outer wrapper
+        # is what enforces it across element boundaries in case a pack
+        # skips the header). Element shells are separated by newlines
+        # and a comment naming the element for log readability.
+        if is_batched:
+            wrapped_shells = [
+                f"# element {i + 1}/{len(rendered_shells)}: {eid}\n{shell}"
+                for i, (shell, (eid, _, _)) in enumerate(zip(rendered_shells, batch, strict=True))
+            ]
+            final_shell = "set -euo pipefail\n" + "\n".join(wrapped_shells)
+            # Override the RenderedManifest's shell for the executor.
+            rendered = type(rendered)(
+                shell=final_shell,
+                working_dir=rendered.working_dir,
+                idempotency_marker=None,  # batched: skip the idempotency fast-path
+                preview_paths=rendered.preview_paths,
+                preview_globs=rendered.preview_globs,
+                progress_status_file=rendered.progress_status_file,
+            )
+
+        # Idempotency check. Non-batched only; batched shards always
+        # re-execute (see the ``idempotency_marker=None`` override
+        # above). A batched marker would need per-element skip logic
+        # inside the wrapper; MVP defers that — rerun-from creates
+        # fresh snapshots + job_ids anyway, so no marker collision.
         if rendered.idempotency_marker and Path(rendered.idempotency_marker).exists():
             log.info("job skipped: idempotency marker present", job_id=assign.job_id)
             await self._register_output_handles(pack, assign.job_id, outputs)
@@ -1632,14 +1744,30 @@ class NodeRuntime:
             )
             return
 
-        # Success: write idempotency marker if declared, then register handles.
+        # Success: write idempotency marker if declared (non-batched
+        # only — batched shards have ``idempotency_marker=None``, see
+        # the render block above), then register handles.
         if rendered.idempotency_marker:
             marker = Path(rendered.idempotency_marker)
             marker.parent.mkdir(parents=True, exist_ok=True)
             marker.touch()
             _write_metadata(marker, assign, outputs)
 
-        output_handles = await self._register_output_handles(pack, assign.job_id, outputs)
+        # Register one handle per port per element. Non-batched shards
+        # have a single ``(element_id, inputs, outputs)`` entry in
+        # ``batch`` so this behaves exactly like the pre-batching call.
+        # Batched shards register N handles per port on the same job_id;
+        # ``_collect_output_handles`` on the gateway collapses them
+        # (last-write-wins per port), which is fine because downstream
+        # consumers read the parent's aggregate handle — the shard-
+        # level registration is per-element bookkeeping that the
+        # Artifacts page groups by ``output_port_name``.
+        output_handles: dict[str, str] = {}
+        for _elem_id, _elem_inputs, elem_outputs in batch:
+            per_elem_handles = await self._register_output_handles(
+                pack, assign.job_id, elem_outputs
+            )
+            output_handles.update(per_elem_handles)
         await self._send("job_done", JobDone(job_id=assign.job_id, output_handles=output_handles))
 
         # Successful job → immediately reclaim scratch. Bytes there served
