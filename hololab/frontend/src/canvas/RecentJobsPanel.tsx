@@ -93,6 +93,7 @@ type GroupEntry = {
 type Entry = SingleEntry | GroupEntry;
 
 const IN_FLIGHT = new Set(["running", "assigned", "pending"]);
+const TERMINAL = new Set(["done", "failed", "cancelled", "interrupted"]);
 
 // States a stop button can act on. Superset of ``IN_FLIGHT`` by one:
 // ``orphaned`` is a live job whose WS session dropped but whose
@@ -120,7 +121,17 @@ function aggregateGroupState(parent: RecentJobRow, shards: RecentJobRow[]): stri
     else if (IN_FLIGHT.has(j.state)) hasInFlight = true;
     if (j.state !== "done" && firstNonDone === null) firstNonDone = j.state;
   }
-  if (hasInFlight) return "running";
+  if (hasInFlight) {
+    // Parent-terminal guard — mirror of
+    // ``canvas/nodeRuntime.ts:aggregateStates``. If the fan-out
+    // coordinator has finalised the "in-flight" shards are stranded;
+    // returning ``running`` here would let ``groupElapsed`` tick
+    // against ``now`` forever. 2026-09-26 tri incident: parent FAILED
+    // at t+8m47s with 5 shards stranded PENDING, the panel row read
+    // "1h 24m" and rising until refresh.
+    if (TERMINAL.has(parent.state)) return parent.state;
+    return "running";
+  }
   if (hasFailed) return "failed";
   if (allDone) return "done";
   return firstNonDone ?? "done";

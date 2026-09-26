@@ -515,6 +515,76 @@ describe("aggregateJobsToRuntime — state priority", () => {
     expect(out.n.progress).toEqual({ current: 19, total: 30 });
   });
 
+  it("parent FAILED with shards stranded PENDING → aggregate stays failed (no clock tick)", () => {
+    // 2026-09-26 incident: tri fan-out with parent FAILED at t+8m47s
+    // but 5 shards stranded PENDING (execution.py stale-reader race).
+    // Under the old rule ``hasInFlight`` (pending shards) beat
+    // ``hasFailed``, so the aggregate came back ``running`` and the
+    // card's elapsed clock ticked ``Date.now() - started_ts`` forever
+    // (user saw "1h 24m" and rising until refresh). Parent-terminal
+    // must win — the fan-out is over, stranded shards notwithstanding.
+    const parent = mkJob({
+      job_id: "p",
+      state: "failed",
+      fail_reason: "shard 0 finished pending; shard 1 finished pending; …",
+      expected_shards: 100,
+      created_ts: 0,
+      updated_ts: 527,
+      started_ts: 0,
+    });
+    const s0Pending = mkJob({
+      job_id: "s0",
+      parent_job_id: "p",
+      state: "pending",
+      created_ts: 1,
+      updated_ts: 1,
+    });
+    const s1Pending = mkJob({
+      job_id: "s1",
+      parent_job_id: "p",
+      state: "pending",
+      created_ts: 2,
+      updated_ts: 2,
+    });
+    const s2Done = mkJob({
+      job_id: "s2",
+      parent_job_id: "p",
+      state: "done",
+      created_ts: 3,
+      updated_ts: 10,
+    });
+    const out = aggregateJobsToRuntime([parent, s0Pending, s1Pending, s2Done]);
+    expect(out.n.state).toBe("failed");
+    // Timing frozen at the parent's terminal moment, not now: the
+    // FooterRunSummary branch on ``state === "running"`` won't fire,
+    // so the fixed ``formatCardDuration(started_ts, updated_ts)``
+    // renders instead. ``updated_ts`` is the max across the scoped
+    // rows — parent's fail moment (527) dominates the done shard's
+    // earlier finish (10).
+    expect(out.n.updated_ts).toBe(527);
+  });
+
+  it("parent cancelled with stray in-flight shard → aggregate is cancelled", () => {
+    // Same short-circuit for the cancel path — if the coordinator has
+    // been cancelled, any leftover running/pending shard is a straggler
+    // that will be reaped by cascade; the card should read cancelled,
+    // not running.
+    const parent = mkJob({
+      job_id: "p",
+      state: "cancelled",
+      expected_shards: 4,
+      created_ts: 0,
+    });
+    const running = mkJob({
+      job_id: "s0",
+      parent_job_id: "p",
+      state: "running",
+      created_ts: 1,
+    });
+    const out = aggregateJobsToRuntime([parent, running]);
+    expect(out.n.state).toBe("cancelled");
+  });
+
   it("multi-generation: newest done run reports null fail_reason even if older gen failed", () => {
     const oldParent = mkJob({
       job_id: "p_old",

@@ -65,8 +65,9 @@ import type { SnapshotJob } from "../wire";
 import type { NodeRuntime } from "./AlgorithmNode";
 
 const IN_FLIGHT_STATES = new Set(["running", "assigned", "pending"]);
+const TERMINAL_STATES = new Set(["done", "failed", "cancelled", "interrupted"]);
 
-function aggregateStates(jobs: readonly SnapshotJob[]): string {
+function aggregateStates(jobs: readonly SnapshotJob[], parent: SnapshotJob): string {
   let hasFailed = false;
   let hasInFlight = false;
   let firstNonDone: string | null = null;
@@ -77,7 +78,20 @@ function aggregateStates(jobs: readonly SnapshotJob[]): string {
     else if (IN_FLIGHT_STATES.has(j.state)) hasInFlight = true;
     if (j.state !== "done" && firstNonDone === null) firstNonDone = j.state;
   }
-  if (hasInFlight) return "running";
+  if (hasInFlight) {
+    // Normal path: in-flight beats failed so a fresh dispatch with a
+    // few early shard failures still reads ``running`` (see file
+    // header). Exception: if the parent coordinator has already
+    // finalised, the fan-out is over and the "in-flight" shards are
+    // stranded — don't lie and don't let the elapsed clock tick
+    // forever. 2026-09-26 tri incident: parent FAILED at t+8m47s
+    // with 5 shards stranded PENDING; without this guard the card
+    // read "已跑 1h+" and rising until refresh. In the happy path
+    // the parent only reaches a terminal state after every shard is
+    // terminal, so this branch is a no-op.
+    if (TERMINAL_STATES.has(parent.state)) return parent.state;
+    return "running";
+  }
   if (hasFailed) return "failed";
   if (allDone) return "done";
   return firstNonDone ?? "done";
@@ -173,7 +187,7 @@ export function aggregateJobsToRuntime(
   const out: Record<string, NodeRuntime> = {};
   for (const [gnid, gjs] of grouped) {
     const { scoped, parent } = pickCurrentGeneration(gjs);
-    const state = aggregateStates(scoped);
+    const state = aggregateStates(scoped, parent);
     // Surface the first failed job's reason even when the aggregate is
     // ``running`` — the status-dot tooltip then reads "running · <reason>"
     // so the operator can still see that some earlier shard blew up

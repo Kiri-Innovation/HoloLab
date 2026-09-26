@@ -96,18 +96,31 @@ def test_aggregation_rules_present() -> None:
     # ``if (hasFailed) return "failed"; if (hasInFlight) return "running";``
     # ordering wouldn't crash a test suite that doesn't hit the mixed
     # in-flight+failed shape — the vitest sibling covers behaviour but
-    # this pytest guards the syntactic ordering that ships to prod.
-    in_flight_return = body.find('if (hasInFlight) return "running";')
-    failed_return = body.find('if (hasFailed) return "failed";')
-    assert in_flight_return > 0 and failed_return > 0, (
+    # this pytest guards the syntactic ordering that ships to prod. The
+    # in-flight branch grew a nested parent-terminal short-circuit in
+    # 2026-09-26 (see the sibling ``parent FAILED with shards stranded
+    # PENDING → aggregate stays failed`` vitest), so we match the branch
+    # opener + any body rather than the one-liner return.
+    in_flight_branch = re.search(r"if\s*\(\s*hasInFlight\s*\)", body)
+    failed_branch = re.search(r'if\s*\(\s*hasFailed\s*\)\s*return\s+"failed";', body)
+    assert in_flight_branch is not None and failed_branch is not None, (
         "expected explicit priority branches for hasInFlight and hasFailed "
         "in canvas/nodeRuntime.ts — did the aggregator get refactored?"
     )
-    assert in_flight_return < failed_return, (
+    assert in_flight_branch.start() < failed_branch.start(), (
         "in-flight branch must come before failed branch in "
         "canvas/nodeRuntime.ts aggregator — otherwise a fan-out with early "
         "shard failures + shards still running paints the node red while "
         "progress ticks up, exactly the bug this priority swap fixed."
+    )
+    # ...and the in-flight branch must actually still return "running" on
+    # the happy path (a refactor that dropped the string would silently
+    # break the "fresh dispatch reads as running" contract).
+    assert re.search(
+        r"if\s*\(\s*hasInFlight\s*\)\s*\{[^}]*return\s+\"running\"", body, re.DOTALL
+    ), (
+        "in-flight branch no longer returns 'running' — regressed the "
+        "'live progress trumps stale failure' aggregate."
     )
 
 
