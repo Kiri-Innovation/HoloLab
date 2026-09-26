@@ -437,7 +437,21 @@ async def _execute_fanout_body(
             # doesn't stop the loop, new colmap keeps spawning" bug.
             shard_now = await store.get(shard.job_id)
             if shard_now is None:
-                return (idx, element_id, shard)
+                # Read-after-write race: phase-1 ``create_many`` committed on
+                # the writer connection but the reader connection's snapshot
+                # has not yet caught up. Observed in prod as a 100-shard tri
+                # fan-out stranding its first ``parallelism`` shards in
+                # PENDING (the ones that acquired the semaphore microseconds
+                # after commit — subsequent ones read successfully). The
+                # only other code path that DELETEs from ``jobs`` is
+                # ``snapshot_delete``, which cannot fire mid-fanout (the
+                # parent is still alive), so a ``None`` here means "our own
+                # write, reader hasn't seen it yet" — not "row genuinely
+                # gone". Trust the in-memory shard we just wrote and
+                # proceed rather than fast-returning PENDING (which the
+                # aggregator turns into "shard N finished pending" and
+                # fails the whole parent — the exact 2026-09-26 incident).
+                shard_now = shard
             if shard_now.state != JobState.PENDING:
                 # Cascade already flipped this row (or somebody cancelled
                 # this shard directly). Do not dispatch.
