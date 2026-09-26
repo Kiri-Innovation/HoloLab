@@ -5,7 +5,7 @@
 // dataset attributes. The App-level onConnect validator reads those tags to
 // enforce tag compatibility at edge-drawing time.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type {
   CatalogPack,
@@ -44,6 +44,12 @@ export interface NodeRuntime {
   progress?: { current: number; total: number } | null;
   fail_reason?: string | null;
   job_id?: string;
+  // Aggregated timing across the newest generation's parent + shards.
+  // ``started_ts`` = earliest start (falls back to created_ts per row).
+  // ``updated_ts`` = latest update. Nullable so aggregator output for a
+  // brand-new-and-unrun graph_node stays a plain state string.
+  started_ts?: number | null;
+  updated_ts?: number | null;
 }
 
 // One resolved shard preview — populated while an arrayed node's fanout is
@@ -161,6 +167,61 @@ export const STATE_COLOURS: Record<string, string> = {
 
 export function stateColour(state: string | undefined): string {
   return (state && STATE_COLOURS[state]) || "var(--status-pending)";
+}
+
+// Compact duration used in the node-card footer. Kept independent of
+// RecentJobsPanel's ``formatElapsed`` so the two views can tune their
+// resolution separately (panel = 1s/1m/1h buckets; card wants seconds
+// distinguishable up to 60, minute+second between 1m and 60m). Truncates
+// negatives to 0s so a clock-skew glitch never renders "-3s".
+function formatCardDuration(startTs: number, endTs: number): string {
+  const secs = Math.max(0, Math.round(endTs - startTs));
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) {
+    const rem = secs % 60;
+    return rem === 0 ? `${mins}m` : `${mins}m ${rem}s`;
+  }
+  const hrs = Math.floor(mins / 60);
+  const rmin = mins % 60;
+  return rmin === 0 ? `${hrs}h` : `${hrs}h ${rmin}m`;
+}
+
+// Coarse "X 分钟前 / X 小时前 / 刚刚" label for the footer's completion
+// time. Deliberately vague past an hour: the operator cares about
+// "recent" vs "hours ago" vs "yesterday", not minute-precision. All in
+// zh-CN because the rest of the UI copy already is.
+function formatRelativeTime(ts: number, now: number): string {
+  const diff = Math.max(0, Math.round(now - ts));
+  if (diff < 5) return "刚刚";
+  if (diff < 60) return `${diff}秒前`;
+  const mins = Math.floor(diff / 60);
+  if (mins < 60) return `${mins}分钟前`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}小时前`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}天前`;
+  return "很久以前";
+}
+
+const IN_FLIGHT_STATES_FOR_TICK = new Set([
+  "running",
+  "assigned",
+  "pending",
+]);
+
+/** Ticking wall-clock second-counter — only mounted while the node is
+ *  in-flight so idle cards don't force a full-canvas re-render every
+ *  second. Returns ``now`` in seconds (matches the backend timestamp
+ *  domain used across the codebase). */
+function useLiveNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now() / 1000);
+  useEffect(() => {
+    if (!active) return;
+    const id = window.setInterval(() => setNow(Date.now() / 1000), 1000);
+    return () => window.clearInterval(id);
+  }, [active]);
+  return now;
 }
 
 const DOT: React.CSSProperties = {
@@ -595,21 +656,43 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           </span>
         )}
         <div
-          title={`${pack.name} v${pack.version}`}
+          title={`${pack.name} v${pack.version} · ${assignedLabel}`}
           style={{
             flex: 1,
             minWidth: 0,
-            fontWeight: "var(--fw-semibold)",
-            fontSize: "var(--fs-md)",
-            color: "var(--text)",
-            lineHeight: "var(--lh-tight)",
-            letterSpacing: "-0.005em",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: 1,
           }}
         >
-          {pack.name}
+          <span
+            style={{
+              fontWeight: "var(--fw-semibold)",
+              fontSize: "var(--fs-md)",
+              color: "var(--text)",
+              lineHeight: "var(--lh-tight)",
+              letterSpacing: "-0.005em",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {pack.name}
+          </span>
+          <span
+            style={{
+              fontSize: "var(--fs-micro)",
+              fontFamily: "var(--font-mono)",
+              color: assigned_node_id ? "var(--text-muted)" : "var(--text-subtle)",
+              lineHeight: 1,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {assignedLabel} · v{pack.version}
+          </span>
         </div>
         <div
           style={{
@@ -770,7 +853,9 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         </div>
       </div>
 
-      {/* FOOTER — compute-node · version · arrayed chip · expand caret */}
+      {/* FOOTER — run result: elapsed + relative-time + progress + actions.
+          Header carries identity (compute-node · version); footer is
+          reserved for the latest run's outcome. */}
       <div
         style={{
           padding: "var(--space-1) var(--space-3)",
@@ -786,19 +871,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           minHeight: 20,
         }}
       >
-        <span
-          title={assigned_node_id ?? "no compute node assigned"}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            color: assigned_node_id ? "var(--text-muted)" : "var(--text-subtle)",
-          }}
-        >
-          {assignedLabel} · v{pack.version}
-        </span>
+        <FooterRunSummary
+          runtime={runtime}
+          runColour={runColour}
+          statusTitle={statusTitle}
+        />
         {progressLabel && (
           <span
             style={{
@@ -1204,6 +1281,110 @@ function RunButton({
     >
       {pending ? "…" : "▶"}
     </button>
+  );
+}
+
+/** Footer's "what did the latest run do" summary. Left-aligned, flex-1
+ *  so it consumes the space the compute-node label used to occupy. Four
+ *  states drive four sentences:
+ *
+ *    * no runtime            → 未运行 (muted)
+ *    * running               → 已跑 1m 26s (ticking, coloured by state)
+ *    * pending / assigned    → the raw state word (waiting to start)
+ *    * terminal (done/…/…)   → 1m 26s · 3 分钟前 (or coloured for failed)
+ *
+ *  All timestamps come from the aggregated NodeRuntime, which merges
+ *  the newest generation's parent + shards (see canvas/nodeRuntime.ts).
+ *  Rendered as a single span so overflow ellipsis works cleanly when the
+ *  card is narrow. */
+function FooterRunSummary({
+  runtime,
+  runColour,
+  statusTitle,
+}: {
+  runtime: NodeRuntime | undefined;
+  runColour: string;
+  statusTitle: string;
+}) {
+  const state = runtime?.state;
+  const inFlight = state ? IN_FLIGHT_STATES_FOR_TICK.has(state) : false;
+  const now = useLiveNow(inFlight);
+
+  const commonStyle: React.CSSProperties = {
+    flex: 1,
+    minWidth: 0,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    fontVariantNumeric: "tabular-nums",
+  };
+
+  if (!runtime) {
+    return (
+      <span
+        title="尚未运行"
+        style={{ ...commonStyle, color: "var(--text-subtle)" }}
+      >
+        未运行
+      </span>
+    );
+  }
+
+  const startTs = runtime.started_ts ?? null;
+  const updatedTs = runtime.updated_ts ?? null;
+
+  if (state === "running") {
+    const elapsed = startTs != null ? formatCardDuration(startTs, now) : "…";
+    return (
+      <span
+        title={statusTitle}
+        style={{
+          ...commonStyle,
+          color: runColour,
+          fontWeight: "var(--fw-semibold)",
+        }}
+      >
+        已跑 {elapsed}
+      </span>
+    );
+  }
+
+  if (state === "pending" || state === "assigned") {
+    return (
+      <span title={statusTitle} style={{ ...commonStyle, color: runColour }}>
+        {state === "pending" ? "排队中" : "已派发…"}
+      </span>
+    );
+  }
+
+  // Terminal states — done / failed / cancelled / orphaned. Render
+  // elapsed + relative time, coloured red only for failed so the eye
+  // catches attention without turning every completed card into noise.
+  const elapsed =
+    startTs != null && updatedTs != null
+      ? formatCardDuration(startTs, updatedTs)
+      : null;
+  const relative = updatedTs != null ? formatRelativeTime(updatedTs, now) : null;
+  const isFailed = state === "failed";
+  const parts: string[] = [];
+  if (state === "failed") parts.push("失败");
+  else if (state === "cancelled") parts.push("已取消");
+  else if (state === "orphaned") parts.push("离线");
+  if (elapsed) parts.push(elapsed);
+  if (relative) parts.push(relative);
+  const label = parts.length > 0 ? parts.join(" · ") : state ?? "—";
+
+  return (
+    <span
+      title={statusTitle}
+      style={{
+        ...commonStyle,
+        color: isFailed ? "var(--status-failed)" : "var(--text-muted)",
+        fontWeight: isFailed ? "var(--fw-semibold)" : "var(--fw-regular)",
+      }}
+    >
+      {label}
+    </span>
   );
 }
 

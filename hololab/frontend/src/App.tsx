@@ -129,6 +129,8 @@ function runtimeEqual(a: NodeRuntime | undefined, b: NodeRuntime | undefined): b
   if (a.state !== b.state) return false;
   if (a.job_id !== b.job_id) return false;
   if ((a.fail_reason ?? null) !== (b.fail_reason ?? null)) return false;
+  if ((a.started_ts ?? null) !== (b.started_ts ?? null)) return false;
+  if ((a.updated_ts ?? null) !== (b.updated_ts ?? null)) return false;
   const ap = a.progress ?? null;
   const bp = b.progress ?? null;
   if (ap === bp) return true;
@@ -597,6 +599,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           setLatestSnapshotJobs((prev) => {
             const idx = prev.findIndex((j) => j.job_id === p.job_id);
             if (idx >= 0) {
+              const now = Date.now() / 1000;
               const next = prev.slice();
               next[idx] = {
                 ...next[idx],
@@ -610,6 +613,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 // the parent's planned count.
                 expected_shards:
                   next[idx].expected_shards ?? p.expected_shards ?? null,
+                // Timestamps flow through so the node-card footer's
+                // duration/relative-time labels reflect the live WS
+                // transition (RUNNING carries started_ts once; DONE/FAILED
+                // bumps updated_ts). Without this the aggregator saw the
+                // frozen REST timestamps and the card's "3 分钟前" clock
+                // stalled at first-load until the next full refetch.
+                started_ts:
+                  next[idx].started_ts ?? p.started_ts ?? null,
+                updated_ts: now,
               };
               return next;
             }

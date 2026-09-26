@@ -182,6 +182,19 @@ export function aggregateJobsToRuntime(
     // verdict. Scoped to the newest generation so an older run's
     // failure doesn't leak into a fresh re-run's tooltip.
     const failedJob = scoped.find((j) => j.state === "failed");
+    // Timing across the newest generation. ``started_ts`` = earliest start
+    // (parent's is usually earliest, but shards can beat it on out-of-order
+    // startup — same guard used by RecentJobsPanel.groupElapsed). Falls
+    // back to created_ts per row so a not-yet-started job still contributes
+    // *something* rather than sinking the min to Infinity. ``updated_ts``
+    // = latest update; running=>tick-from-now, terminal=>last completion.
+    let earliestStart = Infinity;
+    let latestUpdate = 0;
+    for (const j of scoped) {
+      const s = j.started_ts ?? j.created_ts;
+      if (s < earliestStart) earliestStart = s;
+      if (j.updated_ts > latestUpdate) latestUpdate = j.updated_ts;
+    }
     out[gnid] = {
       state,
       progress: aggregateProgress(scoped, parent),
@@ -191,6 +204,8 @@ export function aggregateJobsToRuntime(
       // backend's ``get_job_at`` also prefers the parent for artifact
       // resolution, so the two agree on what "this node's job" means.
       job_id: parent.job_id,
+      started_ts: isFinite(earliestStart) ? earliestStart : null,
+      updated_ts: latestUpdate > 0 ? latestUpdate : null,
     };
   }
   return out;
