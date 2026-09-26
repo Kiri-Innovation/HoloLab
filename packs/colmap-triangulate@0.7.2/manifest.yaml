@@ -1,0 +1,155 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-triangulate
+version: 0.7.2
+description: >
+  Per-frame triangulator — given fixed poses + intrinsics, solve the
+  3-D point cloud for one frame. Fan-outs one shard per element of
+  ``frames``; emits a ``point-cloud`` per shard. **No undistortion**:
+  ``@0.7.x`` splits the STG recipe so undistort lives in a separate
+  ``image-undistort`` step. Callers wanting the historical inline
+  behaviour should stay on ``colmap-triangulate@0.6.0``.
+source_entry: triangulate.py
+category: "reconstruction/colmap"
+
+docs: |
+  ### v0.7.2 vs v0.7.1
+
+  Two tuning knobs from a per-step wall-time audit on the classic STG
+  workflow (100-shard fan-out, ``par=5``, 24 GB GPU box):
+
+  * ``point_triangulator`` (Ceres BA) dominates the per-shard wall at
+    ~42% (3.58 s of 8.35 s). Its ``--Mapper.ba_global_max_refinements``
+    knob defaults to 5 upstream; on this recipe the last three
+    refinement rounds barely move the solution. Dropping to **2** saves
+    ~0.7 s / shard at a measured point-cloud delta of <0.25% (well
+    inside numerical noise vs the ``@0.7.1`` output). Exposed as
+    ``ba_max_refinements``.
+  * Thread caps raised **2 → 4** across the manifest preamble
+    (``OMP_NUM_THREADS`` / ``OMP_THREAD_LIMIT`` /
+    ``OPENBLAS_NUM_THREADS`` / ``MKL_NUM_THREADS``) and the CLI
+    (``--FeatureExtraction.num_threads`` /
+    ``--FeatureMatching.num_threads`` / ``--Mapper.num_threads``).
+    At ``par=5`` this box has ~3 CPU cores per shard; 4 threads
+    oversubscribes slightly but the descriptor extract / BA both scale
+    up cleanly.
+
+  Combined effect on the classic recipe: ~314 s → ~245 s wall
+  (-22%) at ``par=5``, quality unchanged.
+
+  ``parallelism`` at run time is capped at **5**: at ``par ≥ 6`` the
+  GPU-side SIFT extractor + matcher over-commit VRAM on the 24 GB
+  card and one shard OOMs. Not enforced in the manifest (that's a
+  workflow-runtime concern) — flagged in the description for
+  operators tuning the fan-out.
+
+  ### Equivalence
+
+  ``@0.7.2`` with ``ba_max_refinements=5`` runs the same
+  ``point_triangulator`` command as ``@0.7.1`` (modulo the
+  thread-count flag values). Bump the thread caps back to 2 in the
+  preamble + CLI for a fully bit-for-bit replay.
+
+  ### Compat / migration
+
+  Old snapshots pin ``@0.7.1``; those replay unchanged. The default
+  ``ba_max_refinements=2`` here is a **performance-motivated
+  behavioural change** — callers pinning ``@0.7.2`` and expecting
+  ``@0.7.1``-level BA convergence should override the param
+  explicitly.
+
+  Everything else (DB pre-fill, feature_extractor / exhaustive_matcher
+  / point_triangulator / model_converter sequence, output format) is
+  unchanged from ``@0.7.1``. See ``@0.7.0``'s ``docs:`` block for the
+  type-system refactor rationale and the DB pre-fill contract.
+
+arrayable: true
+
+inputs:
+  cams:
+    tags: [colmap-cams]
+    scalar: true
+    description: >
+      SfM output as one COLMAP-native bundle (cameras.txt OPENCV +
+      images.txt poses). Scalar — broadcast to every shard. Must have
+      exactly one OPENCV camera row (single_camera=1 at the SfM stage).
+  frames:
+    tags: [image]
+    description: "This frame's per-camera raw distorted images. Fan-out driver."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  refine_intrinsics:
+    type: bool
+    default: false
+    description: >
+      Optimise per-image camera intrinsics (focal length + distortion;
+      principal point stays fixed — that constraint is baked into
+      ``point_triangulator`` and cannot be overridden). Off by default.
+      Does **not** touch camera poses — ``point_triangulator`` freezes
+      those unconditionally. Passes ``--refine_intrinsics 1`` to COLMAP
+      when true.
+  ba_max_refinements:
+    type: int
+    default: 2
+    min: 1
+    max: 10
+    description: >
+      Ceres bundle-adjustment ``--Mapper.ba_global_max_refinements``.
+      Upstream default is 5; empirically the last three rounds add
+      <0.25% point-cloud drift on the classic STG recipe while
+      costing ~0.7 s/shard. **2** is the perf/quality sweet spot.
+      Set to **5** to reproduce ``@0.7.1`` BA convergence exactly.
+
+outputs:
+  points:
+    tags: [point-cloud]
+    scalar: true
+    dim_labels: ["frame"]
+    description: >
+      Freshly triangulated 3-D points for this frame, as a COLMAP-text
+      ``points3D.txt``. Scalar per invocation; framework wraps N shards
+      into arrayed<point-cloud>. Distortion is baked into the input
+      intrinsics — points live in the raw OPENCV frame; use
+      ``image-undistort`` if you need PINHOLE-aligned imagery.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    # Cap COLMAP's OpenMP pool. See image-undistort@0.4.1 docs for the
+    # full rationale and why ``OMP_THREAD_LIMIT`` is set alongside
+    # ``OMP_NUM_THREADS`` (hard ceiling for libraries that call
+    # ``omp_set_num_threads`` at init — Ceres in particular).
+    # 4 = perf-tuned for par=5 on a 16-core / 24 GB GPU box; the
+    # descriptor extract and BA both scale cleanly up to 4 threads
+    # per shard (measured -7% wall vs 2 threads). ``triangulate.py``
+    # also passes ``FeatureExtraction.num_threads`` /
+    # ``FeatureMatching.num_threads`` / ``Mapper.num_threads`` at
+    # ``4`` on the CLI to cap COLMAP's own per-subcommand worker
+    # pools.
+    export OMP_NUM_THREADS=4
+    export OMP_THREAD_LIMIT=4
+    export OPENBLAS_NUM_THREADS=4
+    export MKL_NUM_THREADS=4
+    python "{{ pack_dir }}/triangulate.py" \
+      --cams "{{ inputs.cams }}" \
+      --image-path "{{ inputs.frames }}" \
+      --output "{{ outputs.points }}" \
+      --scratch "{{ scratch_dir }}" \
+      --use-gpu {{ params.use_gpu }} \
+      --refine-intrinsics {{ params.refine_intrinsics | int }} \
+      --ba-max-refinements {{ params.ba_max_refinements }}
+
+idempotency:
+  marker: "{{ outputs.points }}/.hololab-done"

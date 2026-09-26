@@ -443,3 +443,105 @@ def test_colmap_triangulate_v060_docs_correct_ba_behavior() -> None:
         "@0.6.0 docs must cite the COLMAP CLI help so the claim is verifiable"
     )
     assert "held fixed" in docs or "poses fixed" in docs.lower() or "freezes poses" in docs
+
+
+# ---------------------------------------------------------------------------
+# @0.7.2 — perf-tuned: ba_max_refinements=2, thread caps 2→4.
+# ---------------------------------------------------------------------------
+
+
+def test_colmap_triangulate_shape_v072() -> None:
+    m = _load("colmap-triangulate", "0.7.2")
+    assert m.version == "0.7.2"
+    assert m.arrayable is True
+    # Wire shape unchanged from @0.7.1.
+    assert m.inputs["cams"].tags == ["colmap-cams"]
+    assert m.inputs["cams"].scalar is True
+    assert m.inputs["frames"].tags == ["image"]
+    assert m.inputs["frames"].arrayed is False
+    assert m.outputs["points"].tags == ["point-cloud"]
+    assert m.outputs["points"].scalar is True
+    assert set(m.params.keys()) == {"use_gpu", "refine_intrinsics", "ba_max_refinements"}
+    ba = m.params["ba_max_refinements"]
+    assert ba.type.value == "int"
+    assert ba.default == 2, f"expected default 2 (perf sweet spot); got {ba.default!r}"
+    assert ba.min == 1 and ba.max == 10
+    assert m.source_entry == "triangulate.py"
+    assert (PACKS_ROOT / "colmap-triangulate@0.7.2" / m.source_entry).is_file()
+    assert (PACKS_ROOT / "colmap-triangulate@0.7.2" / "colmap_db.py").is_file()
+    assert (PACKS_ROOT / "colmap-triangulate@0.7.2" / "sfm_key.py").is_file()
+
+
+def test_colmap_triangulate_v072_shell_wires_ba_max_refinements() -> None:
+    """The manifest must forward ``ba_max_refinements`` to the script and
+    the script must forward it to ``point_triangulator`` via
+    ``--Mapper.ba_global_max_refinements=<n>``. Silent drop is the
+    failure mode — the shard would run at COLMAP's upstream default (5)
+    and every quality/perf claim in the docs would be wrong.
+    """
+    m = _load("colmap-triangulate", "0.7.2")
+    assert "--ba-max-refinements {{ params.ba_max_refinements }}" in m.exec.shell
+
+    script = (PACKS_ROOT / "colmap-triangulate@0.7.2" / "triangulate.py").read_text()
+    assert "--ba-max-refinements" in script
+    assert "default=2" in script, "argparse default must match manifest default (2)"
+    assert 'f"--Mapper.ba_global_max_refinements={args.ba_max_refinements}"' in script, (
+        "ba_max_refinements must be plumbed into the point_triangulator CLI"
+    )
+
+
+def test_colmap_triangulate_v072_thread_caps_bumped_to_four() -> None:
+    """Preamble and per-subcommand ``num_threads`` bumped 2→4 vs @0.7.1.
+    Guards against a stray revert that would erase the -7% wall-time win.
+    """
+    m = _load("colmap-triangulate", "0.7.2")
+    for env_line in (
+        "OMP_NUM_THREADS=4",
+        "OMP_THREAD_LIMIT=4",
+        "OPENBLAS_NUM_THREADS=4",
+        "MKL_NUM_THREADS=4",
+    ):
+        assert f"export {env_line}" in m.exec.shell, f"missing preamble export {env_line}"
+    # No stale =2 exports left over from @0.7.1.
+    assert "OMP_NUM_THREADS=2" not in m.exec.shell
+
+    script = (PACKS_ROOT / "colmap-triangulate@0.7.2" / "triangulate.py").read_text()
+    # Each of the three COLMAP invocations should pass ``num_threads=4``.
+    for flag in (
+        '"--FeatureExtraction.num_threads"',
+        '"--FeatureMatching.num_threads"',
+        '"--Mapper.num_threads"',
+    ):
+        idx = script.index(flag)
+        # The next non-whitespace token in the list literal is the value.
+        tail = script[idx : idx + 120]
+        assert '"4"' in tail, f'{flag} must be followed by "4"; saw {tail!r}'
+
+
+def test_colmap_triangulate_v072_ba5_replays_v071_pt_command() -> None:
+    """Equivalence claim from the docs: ``ba_max_refinements=5`` reproduces
+    the @0.7.1 ``point_triangulator`` invocation (modulo the intentional
+    thread-cap change). If the flag rendering ever drifts, the
+    "set 5 to reproduce @0.7.1" advice becomes a footgun.
+    """
+    script = (PACKS_ROOT / "colmap-triangulate@0.7.2" / "triangulate.py").read_text()
+    v071 = (PACKS_ROOT / "colmap-triangulate@0.7.1" / "triangulate.py").read_text()
+    # @0.7.1's pt_cmd list contains only ba_global_function_tolerance; @0.7.2 adds
+    # ba_global_max_refinements. Both live in the same block.
+    assert "--Mapper.ba_global_function_tolerance=0.000001" in script
+    assert "--Mapper.ba_global_function_tolerance=0.000001" in v071
+    # @0.7.1 did not pin max_refinements — it inherited COLMAP's default (5).
+    assert "ba_global_max_refinements" not in v071
+
+
+def test_colmap_triangulate_v072_docs_state_perf_claims() -> None:
+    """The docs are the source of truth for the tuning rationale. Bake the
+    key numbers in so a future edit can't quietly delete them: ~314 s →
+    ~245 s, par<=5 hard cap, ba_max_refinements=2 default, <0.25% delta.
+    """
+    m = _load("colmap-triangulate", "0.7.2")
+    docs = (m.docs or "") + " " + (m.description or "")
+    assert "ba_max_refinements" in docs
+    assert "par" in docs.lower() and "5" in docs, "docs must document the par<=5 cap"
+    assert "0.25%" in docs or "<0.25%" in docs, "docs must document the quality delta"
+    assert "@0.7.1" in docs, "docs must reference the baseline pack for replay"
