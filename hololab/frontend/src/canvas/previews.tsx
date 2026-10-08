@@ -2654,6 +2654,12 @@ const NESTED_MINI_H = Math.round((NESTED_MINI_W * 9) / 16); // 41
 const NESTED_MINI_OVERLAP = 32;
 const NESTED_MINI_THUMB_W = NESTED_MINI_W * 2;
 const NESTED_MINI_THUMB_H = NESTED_MINI_H * 2;
+// Keep every outer group card the width of a complete three-image stack.
+// This gives the vertical list a clean edge without stretching the stack
+// itself when a group contains fewer images.
+const NESTED_CARD_W =
+  NESTED_MINI_W +
+  (NESTED_INNER_THUMBS - 1) * (NESTED_MINI_W - NESTED_MINI_OVERLAP);
 
 const NESTED_IMG_RE = /\.(png|jpe?g|webp|bmp)$/i;
 
@@ -2814,9 +2820,9 @@ function NestedFrameSequencePreview({
       <div
         style={{
           display: "flex",
+          flexDirection: "column",
           gap: 10,
           alignItems: "flex-start",
-          flexWrap: "wrap",
         }}
       >
         {visibleGroups.map((g) => (
@@ -2862,11 +2868,6 @@ function NestedGroupCard({
   onClick: () => void;
 }) {
   const thumbs = group.imageFiles.slice(0, NESTED_INNER_THUMBS);
-  const stackWidth =
-    thumbs.length === 0
-      ? NESTED_MINI_W
-      : NESTED_MINI_W +
-        (thumbs.length - 1) * (NESTED_MINI_W - NESTED_MINI_OVERLAP);
   return (
     <button
       type="button"
@@ -2877,6 +2878,7 @@ function NestedGroupCard({
       style={{
         display: "flex",
         flexDirection: "column",
+        width: NESTED_CARD_W,
         gap: 4,
         padding: 0,
         background: "transparent",
@@ -2888,7 +2890,7 @@ function NestedGroupCard({
       <div
         style={{
           position: "relative",
-          width: stackWidth,
+          width: NESTED_CARD_W,
           height: NESTED_MINI_H,
         }}
       >
@@ -2955,7 +2957,7 @@ function NestedGroupCard({
           fontFamily: "var(--font-mono)",
           fontVariantNumeric: "tabular-nums",
           textAlign: "left",
-          maxWidth: stackWidth,
+          maxWidth: NESTED_CARD_W,
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
