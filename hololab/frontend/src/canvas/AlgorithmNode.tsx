@@ -21,6 +21,7 @@ import { CopyRefButton } from "./CopyRefButton";
 import { OpenArtifactLocationButton } from "./OpenArtifactLocationButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { OpenSourceButton } from "./OpenSourceButton";
+import { InsertAiReferenceButton } from "./InsertAiReferenceButton";
 import { BasicInfoPreview, Preview } from "./previews";
 import { PreviewPlaceholder } from "./PreviewPlaceholder";
 
@@ -117,6 +118,8 @@ export interface PreviewTarget {
 export interface AlgorithmNodeData extends Record<string, unknown> {
   pack: CatalogPack;
   assigned_node_id: string | null;
+  /** Draft node parameters, included in the CoBrowser reference snapshot. */
+  params?: Record<string, unknown>;
   runtime?: NodeRuntime;
   // Resolved preview URLs for each output port that has a preview
   // declaration AND has produced a handle. Key is the output port name.
@@ -473,8 +476,14 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     readOnly,
     staleness,
     arrayed_toggle,
+    params,
   } = data as AlgorithmNodeData & { arrayed_toggle?: boolean };
-  const { workflow_id: workflowId, computeNodesById, hydrating } = useCanvasContext();
+  const {
+    workflow_id: workflowId,
+    workflow_name: workflowName,
+    computeNodesById,
+    hydrating,
+  } = useCanvasContext();
   const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
   const inputEntries = Object.entries(pack.inputs);
   const outputEntries = Object.entries(pack.outputs);
@@ -895,6 +904,18 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           <OpenArtifactLocationButton
             path={firstArtifactTarget.absolute_path}
             computeNode={artifactComputeNode}
+          />
+        )}
+        {workflowId && (
+          <InsertAiReferenceButton
+            workflowId={workflowId}
+            workflowName={workflowName}
+            nodeId={id}
+            algorithmName={pack.name}
+            algorithmVersion={pack.version}
+            params={params ?? {}}
+            runtime={runtime}
+            artifactTargets={previews}
           />
         )}
         {expandables.length > 0 && (

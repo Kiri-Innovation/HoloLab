@@ -39,11 +39,59 @@ export interface FlopsShowDocumentResult {
   kind?: "file" | "dir";
 }
 
+export interface FlopsInsertReferenceParams {
+  schemaVersion: 1;
+  provider: string;
+  type: string;
+  requestId?: string;
+  resource: { uri: string; revision?: string };
+  display?: {
+    title?: string;
+    subtitle?: string;
+    icon?: "external" | "document" | "issue" | "workflow" | "dataset" | "link";
+  };
+  access?:
+    | { mode: "link_only" }
+    | { mode: "public_https"; url?: string; mediaType?: string };
+  documentation?: { url: string };
+  snapshot?: { text: string; mediaType: "text/plain" | "text/markdown" };
+}
+
+export interface FlopsInsertReferenceResult {
+  success: boolean;
+  requestId?: string;
+  kind?: string;
+  outcome?: "inserted" | "already_present";
+  reason?: string;
+}
+
 interface FlopsWindow {
   version: number;
   showDocument: (
     params: FlopsShowDocumentParams,
   ) => Promise<FlopsShowDocumentResult>;
+  insertReference: (
+    params: FlopsInsertReferenceParams,
+  ) => Promise<FlopsInsertReferenceResult>;
+}
+
+/** True only when the CoBrowser supports insert-reference v1. */
+export function flopsInsertReferenceAvailable(): boolean {
+  const f = window.flops;
+  return !!f && f.version === 1 && typeof f.insertReference === "function";
+}
+
+/** Typed insert-reference wrapper. Callers should gate UI with
+ * ``flopsInsertReferenceAvailable`` so regular browsers never expose a
+ * non-functional action. */
+export async function flopsInsertReference(
+  params: FlopsInsertReferenceParams,
+): Promise<FlopsInsertReferenceResult> {
+  const f = window.flops;
+  if (!f || typeof f.insertReference !== "function") {
+    throw new Error("window.flops.insertReference is not available");
+  }
+  return f.insertReference(params);
 }
 
 declare global {

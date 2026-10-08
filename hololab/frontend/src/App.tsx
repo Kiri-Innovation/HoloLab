@@ -1001,8 +1001,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   }, [computeNodes]);
 
   const canvasContextValue = useMemo(
-    () => ({ workflow_id: workflowId, computeNodesById, hydrating }),
-    [workflowId, computeNodesById, hydrating],
+    () => ({
+      workflow_id: workflowId,
+      workflow_name: workflowName || "untitled",
+      computeNodesById,
+      hydrating,
+    }),
+    [workflowId, workflowName, computeNodesById, hydrating],
   );
 
   // Push job runtime + resolved previews + previewOpen into each node's

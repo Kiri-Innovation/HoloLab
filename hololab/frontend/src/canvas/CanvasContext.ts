@@ -24,6 +24,8 @@ export interface CanvasContextValue {
   // The workflow this canvas is rendering (draft or snapshot). Used to
   // form ``hololab://graph-node/<workflow_id>/<graph_node_id>`` refs.
   workflow_id: string | null;
+  /** Human-readable name used in externally shared node references. */
+  workflow_name: string;
   // Compute-node lookup keyed by node_id. Consumed by the preview
   // drawer's "Open in Cocoder" button to resolve
   // ``flops_executor_id`` at render time.
@@ -42,6 +44,7 @@ export interface CanvasContextValue {
 
 const DEFAULT: CanvasContextValue = {
   workflow_id: null,
+  workflow_name: "untitled",
   computeNodesById: {},
   hydrating: false,
 };

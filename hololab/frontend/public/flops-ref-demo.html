@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HoloLab · Flops 引用 API 联调</title>
+  <style>
+    :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: Canvas; color: CanvasText; }
+    main { width: min(440px, calc(100vw - 40px)); border: 1px solid color-mix(in srgb, CanvasText 22%, transparent); border-radius: 10px; padding: 24px; }
+    h1 { margin: 0 0 18px; font-size: 18px; } p { color: color-mix(in srgb, CanvasText 68%, transparent); font-size: 14px; line-height: 1.5; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 18px 0; font: 13px ui-monospace, monospace; } dt { opacity: .65; }
+    button { border: 1px solid currentColor; border-radius: 6px; background: transparent; color: inherit; padding: 8px 12px; cursor: pointer; } button:disabled { opacity: .55; cursor: wait; }
+    output { display: block; min-height: 20px; margin-top: 14px; font: 13px ui-monospace, monospace; white-space: pre-wrap; } .ok { color: #16803c; } .err { color: #c42b2b; }
+  </style>
+  <main>
+    <h1>Flops insertReference 联调</h1>
+    <p>请在 Flops CoBrowser 中打开本页。普通浏览器会显示 API 不可用，且按钮不可点击。</p>
+    <dl><dt>window.flops.version</dt><dd id="version">—</dd><dt>typeof insertReference</dt><dd id="method">—</dd></dl>
+    <button id="insert" type="button">插入测试引用</button>
+    <output id="result" aria-live="polite"></output>
+  </main>
+  <script>
+    const flops = window.flops;
+    const method = typeof flops?.insertReference;
+    document.querySelector('#version').textContent = flops?.version ?? 'undefined';
+    document.querySelector('#method').textContent = method;
+    const button = document.querySelector('#insert');
+    const result = document.querySelector('#result');
+    const available = flops?.version === 1 && method === 'function';
+    button.disabled = !available;
+    if (!available) result.textContent = 'API 不可用：请在支持 insertReference v1 的 Flops CoBrowser 中打开。';
+    button.addEventListener('click', async () => {
+      button.disabled = true; result.className = ''; result.textContent = '正在调用…';
+      try {
+        const response = await window.flops.insertReference({
+          schemaVersion: 1, provider: 'hololab', type: 'demo', requestId: crypto.randomUUID(),
+          resource: { uri: 'https://hololab.xenotech.studio/flops-ref-demo.html' },
+          display: { title: 'HoloLab Flops API demo', subtitle: '静态联调页', icon: 'workflow' },
+          access: { mode: 'link_only' },
+          snapshot: { text: '# HoloLab Flops API demo\n\n用于验证 CoBrowser `insertReference`。', mediaType: 'text/markdown' },
+        });
+        result.className = response.success ? 'ok' : 'err';
+        result.textContent = response.success ? `成功：${response.outcome ?? 'inserted'}${response.kind ? ` (${response.kind})` : ''}` : `失败：${response.reason ?? 'unknown error'}`;
+      } catch (error) { result.className = 'err'; result.textContent = `调用异常：${error.message || String(error)}`; }
+      finally { button.disabled = !available; }
+    });
+  </script>
+</html>

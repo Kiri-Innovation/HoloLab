@@ -263,6 +263,7 @@ export function SnapshotCanvas({
         data: {
           pack,
           assigned_node_id: gn.assigned_node_id,
+          params: gn.params,
           runtime,
           previews: previewsByGraphNode[gn.id],
           previewOpen: previewOpenByGraphNode[gn.id] ?? null,
