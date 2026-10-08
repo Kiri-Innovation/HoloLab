@@ -20,20 +20,20 @@
     <output id="result" aria-live="polite"></output>
   </main>
   <script>
-    const flops = window.flops;
-    const method = typeof flops?.insertReference;
-    document.querySelector('#version').textContent = flops?.version ?? 'undefined';
+    const flopsApi = window.flops;
+    const method = typeof flopsApi?.insertReference;
+    document.querySelector('#version').textContent = flopsApi?.version ?? 'undefined';
     document.querySelector('#method').textContent = method;
     const button = document.querySelector('#insert');
     const result = document.querySelector('#result');
-    const available = flops?.version === 1 && method === 'function';
+    const available = flopsApi?.version === 1 && method === 'function';
     button.disabled = !available;
     if (!available) result.textContent = 'API 不可用：请在支持 insertReference v1 的 Flops CoBrowser 中打开。';
     button.addEventListener('click', async () => {
       button.disabled = true; result.className = ''; result.textContent = '正在调用…';
       try {
         const response = await window.flops.insertReference({
-          schemaVersion: 1, provider: 'hololab', type: 'demo', requestId: crypto.randomUUID(),
+          schemaVersion: 1, provider: 'hololab', type: 'demo',
           resource: { uri: 'https://hololab.xenotech.studio/flops-ref-demo.html' },
           display: { title: 'HoloLab Flops API demo', subtitle: '静态联调页', icon: 'workflow' },
           access: { mode: 'link_only' },
