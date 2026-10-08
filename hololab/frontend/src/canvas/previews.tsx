@@ -300,17 +300,15 @@ export function Preview({
   }
   // ``rig_frames_grouped`` — per-bucket directory tree from
   // rig-temporal-grouping@0.1.2. Layout ``<parent>/gNNNNNN/<alias>.jpg`` +
-  // ``<parent>/gNNNNNN/group.json`` — same ``arrayed<frame_sequence>``
-  // shape (element = group dir, image children = the participating cams),
-  // so the existing viewer paints one card per group with a stack of
-  // its cameras' thumbnails.  ``group.json`` sits next to the JPEGs and
-  // is ignored by ``NESTED_IMG_RE``.
+  // ``<parent>/gNNNNNN/group.json``. It shares the generic nested-image
+  // reader, but renders each group as one full-width row: the cameras in a
+  // moment must be read together, not mistaken for separate outer cards.
   if (
     tags &&
     tags.includes("rig_frames_grouped") &&
     storage === "dir"
   ) {
-    return <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />;
+    return <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} groupedRows />;
   }
   // ``rig_capture`` — rig-capture-source's per-alias camera dirs
   // (``camN/<orig-timestamp>.mp4`` + sidecars). Renders a
@@ -2628,6 +2626,10 @@ function FrameZoomOverlay({
 interface NestedFrameSequenceProps {
   baseUrl: string;
   handleId?: string;
+  // ``rig_frames_grouped`` represents a moment in time per outer element,
+  // not a generic collection. Its groups render as full-width rows so every
+  // camera in a moment stays together.
+  groupedRows?: boolean;
 }
 
 interface NestedGroup {
@@ -2644,6 +2646,13 @@ interface NestedGroup {
   // for the pack-convention ``<element>/frames/<image>`` layout. Always
   // ends with ``/`` when non-empty so URL composition is unconditional.
   pathPrefix: string;
+  manifest?: RigGroupManifest;
+}
+
+interface RigGroupManifest {
+  t_center_ns?: number | string;
+  n_cameras?: number;
+  frames?: { alias: string; file: string }[];
 }
 
 const NESTED_OUTER_CARDS = 3;
@@ -2655,6 +2664,9 @@ const NESTED_MINI_OVERLAP = 32;
 const NESTED_MINI_THUMB_W = NESTED_MINI_W * 2;
 const NESTED_MINI_THUMB_H = NESTED_MINI_H * 2;
 
+const GROUP_ROW_THUMB_W = 40;
+const GROUP_ROW_THUMB_H = 24;
+
 const NESTED_IMG_RE = /\.(png|jpe?g|webp|bmp)$/i;
 
 /** Zero-pad-aware compare so ``frame_2`` sorts before ``frame_10``. */
@@ -2665,6 +2677,7 @@ function compareNameNumeric(a: string, b: string): number {
 function NestedFrameSequencePreview({
   baseUrl,
   handleId,
+  groupedRows = false,
 }: NestedFrameSequenceProps) {
   const [nodeRoot, dirSub] = useMemo(() => splitProxyBase(baseUrl), [baseUrl]);
   const dirBase = baseUrl.replace(/\/$/, "");
@@ -2749,6 +2762,56 @@ function NestedFrameSequencePreview({
     };
   }, [handleId, reconnectTick, retry.tick]);
 
+  // Unlike the generic frame-sequence shape, rig grouping writes a small
+  // group.json alongside the JPEGs. Read it only for the three visible rows:
+  // it gives the center timestamp and authoritative camera count without
+  // turning a 100-group preview into 100 metadata requests.
+  useEffect(() => {
+    if (!groupedRows || state.kind !== "ok") return;
+    const pending = state.groups
+      .slice(0, NESTED_OUTER_CARDS)
+      .filter((group) => group.manifest === undefined);
+    if (pending.length === 0) return;
+    let cancelled = false;
+    void Promise.all(
+      pending.map(async (group) => {
+        try {
+          const res = await resilientFetch(
+            `${dirBase}/${encodeURIComponent(group.name)}/group.json`,
+          );
+          if (!res.ok) return { name: group.name, manifest: null };
+          return {
+            name: group.name,
+            manifest: (await res.json()) as RigGroupManifest,
+          };
+        } catch {
+          return { name: group.name, manifest: null };
+        }
+      }),
+    ).then((loaded) => {
+      if (cancelled) return;
+      const manifests = new Map(
+        loaded
+          .filter((entry): entry is { name: string; manifest: RigGroupManifest } => entry.manifest !== null)
+          .map((entry) => [entry.name, entry.manifest]),
+      );
+      if (manifests.size === 0) return;
+      setState((previous) => {
+        if (previous.kind !== "ok") return previous;
+        return {
+          ...previous,
+          groups: previous.groups.map((group) => ({
+            ...group,
+            manifest: manifests.get(group.name) ?? group.manifest,
+          })),
+        };
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dirBase, groupedRows, state]);
+
   const [detailGroup, setDetailGroup] = useState<string | null>(null);
 
   if (state.kind === "loading") {
@@ -2811,24 +2874,31 @@ function NestedFrameSequencePreview({
         overflow: "hidden",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-        }}
-      >
-        {visibleGroups.map((g) => (
-          <NestedGroupCard
-            key={g.name}
-            group={g}
-            nodeRoot={nodeRoot}
-            dirSub={dirSub}
-            onClick={() => setDetailGroup(g.name)}
-          />
-        ))}
-      </div>
+      {groupedRows ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {visibleGroups.map((g) => (
+            <RigGroupedFrameRow
+              key={g.name}
+              group={g}
+              nodeRoot={nodeRoot}
+              dirSub={dirSub}
+              onClick={() => setDetailGroup(g.name)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
+          {visibleGroups.map((g) => (
+            <NestedGroupCard
+              key={g.name}
+              group={g}
+              nodeRoot={nodeRoot}
+              dirSub={dirSub}
+              onClick={() => setDetailGroup(g.name)}
+            />
+          ))}
+        </div>
+      )}
       <div
         style={{
           display: "flex",
@@ -2850,6 +2920,114 @@ function NestedFrameSequencePreview({
   );
 }
 
+function formatGroupTime(tCenterNs: number | string | undefined): string {
+  if (tCenterNs === undefined) return "时间读取中";
+  const milliseconds = Number(tCenterNs) / 1_000_000;
+  if (!Number.isFinite(milliseconds)) return "时间未知";
+  return new Date(milliseconds).toISOString().slice(11, 23);
+}
+
+function RigGroupedFrameRow({
+  group,
+  nodeRoot,
+  dirSub,
+  onClick,
+}: {
+  group: NestedGroup;
+  nodeRoot: string;
+  dirSub: string;
+  onClick: () => void;
+}) {
+  const aliasesByFile = new Map(
+    group.manifest?.frames?.map((frame) => [frame.file, frame.alias]) ?? [],
+  );
+  const cameraCount = group.manifest?.n_cameras ?? group.totalImageCount;
+  return (
+    <section
+      data-hl-group-row={group.name}
+      style={{
+        padding: "5px 0 6px",
+        borderBottom: "1px solid rgba(255,255,255,0.14)",
+        minWidth: 0,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className="nodrag nopan"
+        title={`${group.name} · ${cameraCount} cams (click to expand)`}
+        style={{
+          display: "flex",
+          width: "100%",
+          alignItems: "baseline",
+          gap: 7,
+          padding: 0,
+          border: "none",
+          background: "transparent",
+          color: "inherit",
+          cursor: "zoom-in",
+          fontFamily: "var(--font-mono)",
+          fontSize: 10,
+        }}
+      >
+        <span data-hl-group-name="">{group.name}</span>
+        <span data-hl-group-time="" style={{ color: "var(--inverse-muted)" }}>
+          {formatGroupTime(group.manifest?.t_center_ns)}
+        </span>
+        <span data-hl-group-cameras="" style={{ marginLeft: "auto", color: "var(--inverse-muted)" }}>
+          {cameraCount} cams
+        </span>
+      </button>
+      <div
+        data-hl-group-images=""
+        style={{
+          display: "flex",
+          gap: 3,
+          marginTop: 4,
+          overflowX: "auto",
+          scrollbarWidth: "thin",
+        }}
+      >
+        {group.imageFiles.map((imgName) => {
+          const alias = aliasesByFile.get(imgName) ?? imgName.replace(NESTED_IMG_RE, "");
+          return (
+            <div
+              key={imgName}
+              data-hl-group-image={alias}
+              title={alias}
+              style={{
+                position: "relative",
+                flex: `0 0 ${GROUP_ROW_THUMB_W}px`,
+                width: GROUP_ROW_THUMB_W,
+                height: GROUP_ROW_THUMB_H,
+                background: "#000",
+                border: "1px solid rgba(255,255,255,0.18)",
+                borderRadius: "var(--radius-sm)",
+                overflow: "hidden",
+              }}
+            >
+              <LazyThumb
+                src={`${nodeRoot}/_thumb/${GROUP_ROW_THUMB_W * 2}x${GROUP_ROW_THUMB_H * 2}/${dirSub}/${encodeURIComponent(group.name)}/${group.pathPrefix}${encodeURIComponent(imgName)}?at=0`}
+                alt={alias}
+                style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }}
+              />
+              <span
+                style={{
+                  position: "absolute", right: 1, bottom: 1, padding: "0 2px",
+                  background: "rgba(0,0,0,0.72)", color: "#fff", fontSize: 8,
+                  fontFamily: "var(--font-mono)", lineHeight: "11px", pointerEvents: "none",
+                }}
+              >
+                {alias}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function NestedGroupCard({
   group,
   nodeRoot,
@@ -2862,11 +3040,6 @@ function NestedGroupCard({
   onClick: () => void;
 }) {
   const thumbs = group.imageFiles.slice(0, NESTED_INNER_THUMBS);
-  const stackWidth =
-    thumbs.length === 0
-      ? NESTED_MINI_W
-      : NESTED_MINI_W +
-        (thumbs.length - 1) * (NESTED_MINI_W - NESTED_MINI_OVERLAP);
   return (
     <button
       type="button"
@@ -2878,6 +3051,7 @@ function NestedGroupCard({
         display: "flex",
         flexDirection: "column",
         gap: 4,
+        minWidth: 0,
         padding: 0,
         background: "transparent",
         border: "none",
@@ -2888,7 +3062,7 @@ function NestedGroupCard({
       <div
         style={{
           position: "relative",
-          width: stackWidth,
+          width: "100%",
           height: NESTED_MINI_H,
         }}
       >
@@ -2955,7 +3129,7 @@ function NestedGroupCard({
           fontFamily: "var(--font-mono)",
           fontVariantNumeric: "tabular-nums",
           textAlign: "left",
-          maxWidth: stackWidth,
+          maxWidth: "100%",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
