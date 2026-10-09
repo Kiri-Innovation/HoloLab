@@ -49,3 +49,21 @@ it("supports manual dismissal and unsubscribing", () => {
   expect(listener).not.toHaveBeenCalled();
   expect(vi.getTimerCount()).toBe(0);
 });
+
+it("closing an older toast cannot dismiss its replacement or clear its timer", () => {
+  showToast({ message: "first", tone: "success" });
+  const firstId = getToastSnapshot()!.id;
+  showToast({ message: "second", tone: "error" });
+  dismissToast(firstId);
+  expect(getToastSnapshot()?.message).toBe("second");
+  expect(vi.getTimerCount()).toBe(1);
+  vi.advanceTimersByTime(8000);
+  expect(getToastSnapshot()).toBeNull();
+});
+
+it("closing the matching toast cancels only its own timeout", () => {
+  showToast({ message: "已复制引用", tone: "success" });
+  dismissToast(getToastSnapshot()!.id);
+  expect(getToastSnapshot()).toBeNull();
+  expect(vi.getTimerCount()).toBe(0);
+});

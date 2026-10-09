@@ -18,7 +18,9 @@ export function subscribeToToast(listener: () => void) {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
 }
-export function dismissToast() {
+export function dismissToast(id?: number) {
+  // A stale close handler must not dismiss a newer replacement notice.
+  if (id !== undefined && current?.id !== id) return;
   clearTimeout(timer);
   current = null;
   emit();
@@ -29,7 +31,8 @@ export function dismissToast() {
 export function showToast(notice: ToastNotice) {
   clearTimeout(timer);
   current = { ...notice, id: ++nextId };
-  timer = setTimeout(dismissToast, notice.tone === "error" ? 8000 : 3500);
+  const id = current.id;
+  timer = setTimeout(() => dismissToast(id), notice.tone === "error" ? 8000 : 3500);
   emit();
 }
 
@@ -80,7 +83,10 @@ export function ToastViewport() {
               finally { setBusy(false); }
             }}>{displayed.action.label}</button>
           )}
-          <button type="button" aria-label="关闭提示" className="hl-toast-action" onClick={dismissToast}>×</button>
+          <button type="button" aria-label="关闭提示" title="关闭提示"
+            className="hl-toast-action hl-toast-dismiss" onClick={() => dismissToast(displayed.id)}>
+            <span aria-hidden="true">✓</span>
+          </button>
         </div>
       )}
     </div>, anchor ?? document.body,

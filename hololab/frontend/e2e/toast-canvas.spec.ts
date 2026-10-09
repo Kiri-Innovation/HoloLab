@@ -35,10 +35,15 @@ for (const theme of ["light", "dark"] as const) {
     await page.clock.pauseAt(new Date());
     await page.getByRole("button", { name: "复制引用：引用整张流程", exact: true }).click();
     const toast = page.locator(".hl-toast-pill");
-    await expect(toast).toHaveText("已复制引用×");
+    await expect(toast).toHaveText("已复制引用✓");
     await expect(toast).toHaveCSS("background-color", "rgb(0, 0, 0)");
     await expect(toast).toHaveCSS("color", "rgb(255, 255, 255)");
     await expect(toast).toHaveCSS("border-radius", "999px");
+    const dismiss = toast.getByRole("button", { name: "关闭提示", exact: true });
+    await expect(dismiss).toHaveText("✓");
+    const closeBox = (await dismiss.boundingBox())!;
+    expect(closeBox.width).toBeGreaterThanOrEqual(32);
+    expect(closeBox.height).toBeGreaterThanOrEqual(32);
     const anchor = (await page.locator("[data-hl-toast-anchor]").boundingBox())!;
     const before = (await toast.boundingBox())!;
     expect(Math.abs(before.x + before.width / 2 - anchor.x - anchor.width / 2)).toBeLessThan(1);
@@ -72,5 +77,37 @@ for (const theme of ["light", "dark"] as const) {
     await page.clock.fastForward(3500);
     await page.clock.runFor(150);
     await expect(toast).toHaveCount(0);
+
+    // Native button activation supports mouse, Enter and Space.
+    for (const activation of ["click", "Enter", "Space"]) {
+      await page.getByRole("button", { name: "复制引用：引用整张流程", exact: true }).click();
+      await expect(dismiss).toBeVisible();
+      if (activation === "click") {
+        await dismiss.hover();
+        await page.clock.runFor(150);
+        await expect(dismiss).toHaveCSS("cursor", "pointer");
+        await expect(dismiss).toHaveCSS("background-color", "rgba(255, 255, 255, 0.15)");
+        await dismiss.click();
+      } else {
+        await dismiss.focus();
+        await dismiss.press(activation);
+      }
+      await page.clock.runFor(150);
+      await expect(toast).toHaveCount(0);
+    }
+
+    // Failure retains retry; its checkmark only dismisses, never retries.
+    await page.evaluate(() => {
+      navigator.clipboard.writeText = async () => { throw new Error("denied"); };
+      document.execCommand = () => false;
+    });
+    await page.getByRole("button", { name: "复制引用：引用整张流程", exact: true }).click();
+    await expect(toast).toContainText("复制失败");
+    await expect(toast.getByRole("button", { name: "重试复制" })).toBeVisible();
+    await expect(dismiss).toHaveText("✓");
+    await dismiss.click();
+    await page.clock.runFor(150);
+    await expect(toast).toHaveCount(0);
+
   });
 }
