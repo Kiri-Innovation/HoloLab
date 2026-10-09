@@ -79,10 +79,28 @@ body {
 .hl-tooltip {
   position: fixed; z-index: 12000; pointer-events: none;
   max-width: calc(100vw - 16px); overflow-wrap: anywhere;
-  padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm);
-  background: #000; color: #fff; border: 1px solid rgba(255,255,255,.2);
-  box-shadow: var(--shadow-2); font-size: var(--fs-xs); line-height: var(--lh-ui);
+  --tooltip-scale: 1;
+  --tooltip-tail: calc(5px * var(--tooltip-scale));
+  padding: calc(var(--space-1) * var(--tooltip-scale)) calc(var(--space-2) * var(--tooltip-scale));
+  border-radius: calc(var(--radius-sm) * var(--tooltip-scale));
+  background: #000; color: #fff; border: calc(1px * var(--tooltip-scale)) solid rgba(255,255,255,.2);
+  box-shadow: var(--shadow-2); font-size: calc(var(--fs-xs) * var(--tooltip-scale)); line-height: var(--lh-ui);
   animation: hl-tooltip-in 100ms var(--ease);
+}
+.hl-tooltip::after {
+  content: ""; position: absolute;
+  left: var(--tooltip-arrow-x); transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: var(--tooltip-tail) solid transparent;
+  border-right: var(--tooltip-tail) solid transparent;
+  filter: drop-shadow(0 1px 0 rgba(255,255,255,.2));
+}
+.hl-tooltip[data-placement="above"]::after {
+  top: 100%; border-top: var(--tooltip-tail) solid #000;
+}
+.hl-tooltip[data-placement="below"]::after {
+  bottom: 100%; border-bottom: var(--tooltip-tail) solid #000;
+  filter: drop-shadow(0 -1px 0 rgba(255,255,255,.2));
 }
 @keyframes hl-tooltip-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .hl-tooltip { animation: none; } }

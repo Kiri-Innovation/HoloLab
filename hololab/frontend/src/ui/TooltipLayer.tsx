@@ -1,11 +1,11 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { tooltipGeometry } from "./tooltipGeometry";
 
-/** One unscaled, unclipped DOM tooltip for the existing data-tooltip convention. */
+/** Body portal avoids clipping; CSS dimensions follow the anchor's canvas zoom. */
 export function TooltipLayer() {
   const id = useId();
   const [tip, setTip] = useState<{ target: HTMLElement; text: string } | null>(null);
-  const [position, setPosition] = useState({ left: 0, top: 0 });
   const bubble = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,9 +54,6 @@ export function TooltipLayer() {
     document.addEventListener("focusout", hide);
     document.addEventListener("pointerdown", hide, true);
     document.addEventListener("keydown", key);
-    document.addEventListener("scroll", hide, true);
-    document.addEventListener("wheel", hide, true);
-    window.addEventListener("resize", hide);
     return () => {
       hide();
       document.removeEventListener("pointerover", over);
@@ -65,26 +62,55 @@ export function TooltipLayer() {
       document.removeEventListener("focusout", hide);
       document.removeEventListener("pointerdown", hide, true);
       document.removeEventListener("keydown", key);
-      document.removeEventListener("scroll", hide, true);
-      document.removeEventListener("wheel", hide, true);
-      window.removeEventListener("resize", hide);
     };
   }, [id]);
 
   useLayoutEffect(() => {
     if (!tip || !bubble.current) return;
-    const anchor = tip.target.getBoundingClientRect();
-    const rect = bubble.current.getBoundingClientRect();
-    const margin = 8;
-    const above = anchor.top - rect.height - margin;
-    setPosition({
-      left: Math.max(margin, Math.min(anchor.left + (anchor.width - rect.width) / 2, window.innerWidth - rect.width - margin)),
-      top: Math.max(margin, Math.min(above >= margin ? above : anchor.bottom + margin, window.innerHeight - rect.height - margin)),
-    });
+    const element = bubble.current;
+    const viewport = tip.target.closest<HTMLElement>(".react-flow__viewport");
+    let frame = 0;
+    const update = () => {
+      if (!tip.target.isConnected) { setTip(null); return; }
+      const matrix = viewport ? new DOMMatrixReadOnly(getComputedStyle(viewport).transform) : null;
+      const zoom = matrix ? Math.hypot(matrix.a, matrix.b) : 1;
+      // Resize actual CSS text metrics, not a rasterized transform layer.
+      // Pure following is intentional: the tooltip belongs to its node.
+      element.style.setProperty("--tooltip-scale", String(zoom));
+      const rect = element.getBoundingClientRect();
+      const position = tooltipGeometry(tip.target.getBoundingClientRect(), rect,
+        { width: window.innerWidth, height: window.innerHeight }, zoom);
+      element.style.left = `${position.left}px`;
+      element.style.top = `${position.top}px`;
+      element.style.setProperty("--tooltip-arrow-x", `${position.arrowX - element.clientLeft}px`);
+      element.dataset.placement = position.placement;
+    };
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(update);
+    };
+    update();
+    // Follow live zoom/pan and node movement while hover/focus stays active.
+    const mutations = new MutationObserver(schedule);
+    if (viewport) mutations.observe(viewport, { attributes: true, attributeFilter: ["style"] });
+    const node = tip.target.closest(".react-flow__node");
+    if (node) mutations.observe(node, { attributes: true, attributeFilter: ["style"] });
+    const sizes = new ResizeObserver(schedule);
+    sizes.observe(tip.target);
+    sizes.observe(element);
+    window.addEventListener("resize", schedule);
+    document.addEventListener("scroll", schedule, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      mutations.disconnect();
+      sizes.disconnect();
+      window.removeEventListener("resize", schedule);
+      document.removeEventListener("scroll", schedule, true);
+    };
   }, [tip]);
 
   return tip ? createPortal(
-    <div ref={bubble} id={id} role="tooltip" className="hl-tooltip" style={position}>{tip.text}</div>,
+    <div ref={bubble} id={id} role="tooltip" className="hl-tooltip">{tip.text}</div>,
     document.body,
   ) : null;
 }

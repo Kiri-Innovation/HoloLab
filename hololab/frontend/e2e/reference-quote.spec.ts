@@ -64,7 +64,11 @@ for (const theme of ["light", "dark"] as const) {
     await reference.hover();
     await page.clock.runFor(450);
     await expect(tooltip).toHaveText("引用到 Flops");
-    await expect(tooltip).toHaveCSS("font-size", "11px");
+    const zoom = await reference.evaluate(el => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(el.closest(".react-flow__viewport")!).transform);
+      return Math.hypot(matrix.a, matrix.b);
+    });
+    expect(await tooltip.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeCloseTo(11 * zoom, 2);
     await expect(reference).toHaveAttribute("aria-describedby", await tooltip.getAttribute("id") as string);
     const cardBox = (await node.boundingBox())!;
     const tipBox = (await tooltip.boundingBox())!;
