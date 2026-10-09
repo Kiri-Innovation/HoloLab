@@ -1,8 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { useState } from "react";
+import { showToast } from "../ui/Toast";
 import { CopyRefButton } from "./CopyRefButton";
 import { flopsInsertReference, flopsInsertReferenceAvailable } from "../flops";
 
+vi.mock("../ui/Toast", () => ({ showToast: vi.fn() }));
 vi.mock("react", () => ({ useState: vi.fn((initial) => [initial, vi.fn()]) }));
 vi.mock("../flops", () => ({ flopsInsertReference: vi.fn(), flopsInsertReferenceAvailable: vi.fn() }));
 
@@ -34,24 +36,25 @@ it("copies the workflow token in an ordinary browser without fetching", async ()
   expect(writeText).toHaveBeenCalledWith("hololab://workflow/w1  # Demo · 0 个节点");
   expect(fetch).not.toHaveBeenCalled();
   expect(flopsInsertReference).not.toHaveBeenCalled();
+  expect(showToast).toHaveBeenCalledWith(expect.objectContaining({ message: "已复制引用", tone: "success" }));
 });
 
-it("shows the failure reason and copied feedback beside the button", () => {
-  vi.mocked(useState).mockReturnValueOnce([{ state: "copied", message: "插入失败：busy。已复制，可粘贴到对话" }, vi.fn()]);
-  const view = CopyRefButton({ kind: "handle", id: "a" });
-  const [button, status] = view.props.children;
-  expect(button.props.title).toBe("插入失败：busy。已复制，可粘贴到对话");
+it("keeps only insertion diagnostics beside the button after fallback", () => {
+  const insertionError = "已插入 0/1 条；插入失败：busy";
+  vi.mocked(useState).mockReturnValueOnce([{ state: "copied", message: "已复制引用", insertionError }, vi.fn()]);
+  const [button, status] = CopyRefButton({ kind: "handle", id: "a" }).props.children;
+  expect(button.props.title).toBe(insertionError);
   expect(status.props.role).toBe("status");
-  expect(status.props.children[0]).toBe(button.props.title);
+  expect(status.props.children).toBe(insertionError);
 });
-it("offers an explicit copy retry beside a double failure", () => {
-  vi.mocked(useState).mockReturnValueOnce([{ state: "err", message: "插入失败：busy。复制失败", retryText: "hololab://handle/a" }, vi.fn()]);
-  const view = CopyRefButton({ references: [{ kind: "handle", id: "a" }] });
-  expect(view.props.children[1].props.children[1].props.children).toBe("重试复制");
+it.each(["copied", "err"])("does not render inline feedback for pure copy result %s", state => {
+  vi.mocked(useState).mockReturnValueOnce([{ state, message: "copy result" }, vi.fn()]);
+  const view = CopyRefButton({ kind: "handle", id: "a" });
+  expect(view.props.children[1]).toBe(false);
 });
 
 it.each([
-  { available: true, icon: "reference", action: "引用到 Flops" },
+  { available: true, icon: "mention", action: "引用到 Flops" },
   { available: false, icon: "clipboard", action: "复制引用" },
 ])("uses $icon with matching tooltip and accessible name", ({ available, icon, action }) => {
   vi.mocked(flopsInsertReferenceAvailable).mockReturnValue(available);
@@ -71,16 +74,26 @@ it("rechecks availability on render for the shared batch button", () => {
   vi.mocked(flopsInsertReferenceAvailable).mockReturnValue(true);
   const after = CopyRefButton(props).props.children[0];
   expect(before.props.children[0].props["data-reference-icon"]).toBe("clipboard");
-  expect(after.props.children[0].props["data-reference-icon"]).toBe("reference");
+  expect(after.props.children[0].props["data-reference-icon"]).toBe("mention");
   expect(after.props["aria-label"]).toBe("引用到 Flops：引用 1 项");
 });
 
-it("keeps copied fallback feedback accessible in CoBrowser", () => {
+it("routes a double failure to a retryable toast without reinserting on retry", async () => {
+  vi.stubGlobal("window", { location: { origin: "http://lan-host:8123" }, isSecureContext: true });
+  const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+  vi.stubGlobal("navigator", { clipboard: { writeText } });
+  vi.stubGlobal("document", { createElement: () => { throw new Error("unavailable"); } });
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
   vi.mocked(flopsInsertReferenceAvailable).mockReturnValue(true);
-  const message = "插入失败：busy。已复制，可粘贴到对话";
-  vi.mocked(useState).mockReturnValueOnce([{ state: "copied", message }, vi.fn()]);
-  const button = CopyRefButton({ kind: "handle", id: "a" }).props.children[0];
-  expect(button.props["aria-label"]).toBe(message);
-  expect(button.props.title).toBe(message);
-  expect(button.props.children[0].props.children).toBe("✓");
+  vi.mocked(flopsInsertReference).mockResolvedValue({ success: false, reason: "busy" });
+  await CopyRefButton({ kind: "handle", id: "a" }).props.children[0].props.onClick({ stopPropagation: vi.fn() });
+  const toast = vi.mocked(showToast).mock.calls[0][0];
+  expect(toast.tone).toBe("error");
+  expect(toast.message).toContain("复制失败");
+  expect(toast.message).not.toContain("busy");
+  expect(toast.action?.label).toBe("重试复制");
+  writeText.mockResolvedValue(undefined);
+  await toast.action!.run();
+  expect(showToast).toHaveBeenLastCalledWith(expect.objectContaining({ message: "已复制引用", tone: "success" }));
+  expect(flopsInsertReference).toHaveBeenCalledTimes(1);
 });

@@ -25,7 +25,7 @@ export interface ReferenceOutcome {
   state: "inserted" | "copied" | "err";
   message: string;
   retryText?: string;
-  retryPrefix?: string;
+  insertionError?: string;
 }
 
 export function formatToken(kind: RefKind, id: string, comment?: string): string {
@@ -108,11 +108,11 @@ async function insertOne({ kind, id, comment, referenceDisplay }: ReferenceInput
   return flopsInsertReference(payload);
 }
 
-export async function copyReferenceText(text: string, prefix = ""): Promise<ReferenceOutcome> {
+export async function copyReferenceText(text: string, insertionError?: string): Promise<ReferenceOutcome> {
   const ok = await writeToClipboard(text);
   return ok
-    ? { state: "copied", message: `${prefix}已复制，可粘贴到对话` }
-    : { state: "err", message: `${prefix}复制失败：浏览器未允许写入剪贴板，请重试复制`, retryText: text, retryPrefix: prefix };
+    ? { state: "copied", message: "已复制引用", insertionError }
+    : { state: "err", message: "复制失败：浏览器未能写入剪贴板，请重试复制", retryText: text, insertionError };
 }
 
 export async function sendReferences(references: ReferenceInput[]): Promise<ReferenceOutcome> {
@@ -137,7 +137,7 @@ export async function sendReferences(references: ReferenceInput[]): Promise<Refe
     // ambiguous: never retry insertion automatically.
     const remaining = references.slice(i).map(r => formatToken(r.kind, r.id, r.comment)).join("\n");
     return copyReferenceText(remaining,
-      `已插入 ${i}/${references.length} 条；第 ${i + 1} 条插入失败：${reason}。剩余 ${references.length - i} 条：`);
+      `已插入 ${i}/${references.length} 条；第 ${i + 1} 条插入失败：${reason}。已尝试复制剩余 ${references.length - i} 条。`);
   }
   return { state: "inserted", message: `已插入 Flops 输入框（${references.length} 条）` };
 }

@@ -1,7 +1,24 @@
 import { useState } from "react";
+import { showToast } from "../ui/Toast";
 import { flopsInsertReferenceAvailable } from "../flops";
 import { copyReferenceText, formatToken, sendReferences, type ReferenceInput, type ReferenceOutcome } from "./referenceAction";
 export type { RefKind } from "./referenceAction";
+
+// Copy results belong to the global viewport, including retries after the
+// originating button unmounts. Insertion diagnostics remain at the source.
+function showCopyResult(result: ReferenceOutcome) {
+  if (result.state === "inserted") return;
+  showToast({
+    message: result.message,
+    tone: result.state === "copied" ? "success" : "error",
+    action: result.retryText ? {
+      label: "重试复制",
+      run: async () => {
+        showCopyResult(await copyReferenceText(result.retryText!, result.insertionError));
+      },
+    } : undefined,
+  });
+}
 
 interface ButtonOptions {
   disabled?: boolean;
@@ -21,13 +38,13 @@ export function CopyRefButton(props: CopyRefButtonProps) {
   const references = "references" in props ? props.references : [props];
   const [outcome, setOutcome] = useState<ReferenceOutcome | null>(null);
   const [loading, setLoading] = useState(false);
-  const state = loading ? "loading" : outcome?.state ?? "idle";
+  const state = loading ? "loading" : outcome?.insertionError ? "err" : outcome?.state ?? "idle";
   const token = references.map(r => formatToken(r.kind, r.id, r.comment)).join("\n");
   // CoBrowser injects its API before page load. Recheck on each render (and
   // sendReferences checks again on click); no per-button polling is needed.
   const canInsert = flopsInsertReferenceAvailable();
   const actionLabel = canInsert ? "引用到 Flops" : "复制引用";
-  const feedback = loading ? "正在处理引用…" : outcome?.message;
+  const feedback = loading ? "正在处理引用…" : outcome?.insertionError ?? outcome?.message;
 
 
   const doReference = async (e: React.MouseEvent) => {
@@ -35,18 +52,10 @@ export function CopyRefButton(props: CopyRefButtonProps) {
     setLoading(true);
     setOutcome(null);
     try {
-      setOutcome(await sendReferences(references));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const retryCopy = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!outcome?.retryText) return;
-    setLoading(true);
-    try {
-      setOutcome(await copyReferenceText(outcome.retryText, outcome.retryPrefix));
+      const result = await sendReferences(references);
+      showCopyResult(result);
+      // Pure copy feedback must not expand or change the source button.
+      setOutcome(result.state === "inserted" || result.insertionError ? result : null);
     } finally {
       setLoading(false);
     }
@@ -113,14 +122,14 @@ export function CopyRefButton(props: CopyRefButtonProps) {
               strokeLinejoin="round"
               aria-hidden="true"
               focusable="false"
-              data-reference-icon={canInsert ? "reference" : "clipboard"}
+              data-reference-icon={canInsert ? "mention" : "clipboard"}
               style={{ flexShrink: 0 }}
             >
               {canInsert ? (
-                // Reuse the link glyph from the former InsertAiReferenceButton.
+                // @ mentions express handing a reference to Flops, not opening a link.
                 <>
-                  <path d="M10 13a5 5 0 0 0 7.07.07l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15" />
-                  <path d="M14 11a5 5 0 0 0-7.07-.07l-2 2A5 5 0 0 0 12 20l1.15-1.15" />
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M16 8v6a2 2 0 0 0 4 0v-2a8 8 0 1 0-3 6.25" />
                 </>
               ) : (
                 <>
@@ -133,10 +142,9 @@ export function CopyRefButton(props: CopyRefButtonProps) {
           )}
         {label && <span>{label}</span>}
       </button>
-      {outcome && (
+      {(outcome?.insertionError || outcome?.state === "inserted") && (
         <span role="status" style={{ maxWidth: 280, whiteSpace: "normal", overflowWrap: "anywhere", fontSize: "var(--fs-xs)", color }}>
-          {outcome.message}
-          {outcome.retryText && <button type="button" disabled={loading || disabled} onClick={retryCopy}>重试复制</button>}
+          {outcome.insertionError ?? outcome.message}
         </span>
       )}
     </span>
