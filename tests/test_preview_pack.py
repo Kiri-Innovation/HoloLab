@@ -12,6 +12,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from hololab.gateway.execution import _arrayed_port_depth
 from hololab.gateway.workflows import (
     GraphEdge,
     GraphNode,
@@ -108,8 +109,10 @@ def test_manifest_declares_generic_zero_copy_arrayable_passthrough() -> None:
     assert m.outputs["out"].dim_labels_drop_outer == 0
     assert m.outputs["out"].arrayed is False
     assert m.runtime.gpu.required is False
+    assert m.params["content_dims"].default == 1
+    assert m.inputs["in"].content_dims_from == "content_dims"
     assert m.idempotency is not None
-    assert m.idempotency.marker == "{{ outputs.out }}.hololab-done"
+    assert m.idempotency.marker == "{{ outputs.out }}/.hololab-done"
 
 
 def test_timeline_path_preserves_rig_timeline_tag_for_tag_driven_preview() -> None:
@@ -156,7 +159,13 @@ def test_groups_path_preserves_nested_image_type_and_dims() -> None:
     assert effective_port_arrayed(False, True, True) is True
 
 
-def test_rendered_exec_is_a_symlink_and_marker_does_not_pollute_source(tmp_path: Path) -> None:
+def test_content_dims_excludes_image_file_axis_from_fanout() -> None:
+    spec = {"dim_labels": ["", ""], "content_dims_from": "content_dims"}
+    assert _arrayed_port_depth("in", spec, {"content_dims": 1}) == 1
+    assert _arrayed_port_depth("in", spec, {"content_dims": 0}) == 2
+
+
+def test_rendered_exec_links_entries_and_marker_does_not_pollute_source(tmp_path: Path) -> None:
     source = tmp_path / "rig-output"
     source.mkdir()
     (source / "timeline.png").write_bytes(b"png")
@@ -167,8 +176,10 @@ def test_rendered_exec_is_a_symlink_and_marker_does_not_pollute_source(tmp_path:
         RenderContext(inputs={"in": str(source)}, outputs={"out": str(output)}),
     )
     subprocess.run(["bash", "-c", rendered.shell], check=True)
-    assert output.is_symlink()
-    assert output.resolve() == source.resolve()
+    assert output.is_dir()
+    assert (output / "timeline.png").is_symlink()
+    assert (output / "timeline.png").resolve() == source / "timeline.png"
     assert (output / "timeline.png").read_bytes() == b"png"
     assert not (source / ".hololab-done").exists()
-    assert rendered.idempotency_marker == str(output) + ".hololab-done"
+    assert (output / ".hololab-done").is_file()
+    assert rendered.idempotency_marker == str(output / ".hololab-done")

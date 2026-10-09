@@ -534,6 +534,7 @@ class NodeRegistry:
                                 "arrayed": s.arrayed,
                                 "scalar": s.scalar,
                                 "dim_labels": list(s.dim_labels),
+                                "content_dims_from": s.content_dims_from,
                             }
                             for n, s in manifest.inputs.items()
                         }

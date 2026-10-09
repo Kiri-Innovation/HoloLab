@@ -107,6 +107,10 @@ class InputSpec(BaseModel):
     #   * ``scalar=true`` on a non-arrayable pack: labels are pure content
     #     dims (no wrap layer added).
     dim_labels: list[str] = Field(default_factory=list)
+    # Optional int-param key for innermost semantic axes stored as tag
+    # content rather than child directories. Arrayable execution enumerates
+    # only ``len(dim_labels) - content_dims`` directory levels.
+    content_dims_from: str | None = None
 
     @model_validator(mode="after")
     def _tags_non_empty(self) -> InputSpec:
@@ -464,6 +468,20 @@ class Manifest(BaseModel):
                     f"output port {out_name!r} has dim_labels_from_input="
                     f"{spec.dim_labels_from_input!r} which is not a declared "
                     f"input port on this pack"
+                )
+        for in_name, spec in self.inputs.items():
+            if spec.content_dims_from is None:
+                continue
+            param = self.params.get(spec.content_dims_from)
+            if param is None:
+                raise ValueError(
+                    f"input port {in_name!r} has content_dims_from="
+                    f"{spec.content_dims_from!r} which is not a declared param"
+                )
+            if param.type is not ParamType.INT:
+                raise ValueError(
+                    f"input port {in_name!r} content_dims_from must name an int param "
+                    f"(got {param.type.value!r})"
                 )
         return self
 

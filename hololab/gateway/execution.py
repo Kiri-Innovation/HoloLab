@@ -275,10 +275,13 @@ async def _prepare_fanout(
             f"declares no arrayed inputs — nothing to fan out over"
         )
 
+    effective_params = merged_params_with_defaults(gnode.params, pack_entry)
+
     # Depth per port — from manifest ``dim_labels`` when present, else 1
-    # (legacy single-layer arrayed).
+    # (legacy single-layer arrayed), minus tag-content file dimensions.
     port_depths = {
-        port: (len(pack_inputs[port].get("dim_labels") or []) or 1) for port in arrayed_input_ports
+        port: _arrayed_port_depth(port, pack_inputs[port], effective_params)
+        for port in arrayed_input_ports
     }
     element_ids = await _discover_element_ids(
         handles=handles,
@@ -287,7 +290,6 @@ async def _prepare_fanout(
         port_depths=port_depths,
     )
 
-    effective_params = merged_params_with_defaults(gnode.params, pack_entry)
     parent_job = Job(
         job_id=str(uuid.uuid4()),
         workflow_id=workflow_id,
@@ -851,6 +853,29 @@ def _enumerate_depth(root: str, depth: int, *, port: str) -> list[str]:
         for sub in _enumerate_depth(os.path.join(root, name), depth - 1, port=port):
             joined.append(f"{name}/{sub}" if sub else name)
     return joined
+
+
+def _arrayed_port_depth(port: str, spec: dict[str, Any], effective_params: dict[str, Any]) -> int:
+    """Return the number of physical directory layers to enumerate.
+
+    ``dim_labels`` describes semantic dimensions, which can include
+    tag-intrinsic file dimensions. A manifest may name an int parameter via
+    ``content_dims_from`` to subtract those innermost non-directory layers.
+    """
+
+    semantic_depth = len(spec.get("dim_labels") or []) or 1
+    param_name = spec.get("content_dims_from")
+    content_dims = effective_params.get(param_name, 0) if param_name else 0
+    if isinstance(content_dims, bool) or not isinstance(content_dims, int):
+        raise WorkflowRunError(
+            f"arrayed input {port!r} content_dims must be an integer (got {content_dims!r})"
+        )
+    if content_dims < 0 or content_dims >= semantic_depth:
+        raise WorkflowRunError(
+            f"arrayed input {port!r} content_dims={content_dims} is invalid for "
+            f"{semantic_depth} semantic dimensions; require 0 <= content_dims < {semantic_depth}"
+        )
+    return semantic_depth - content_dims
 
 
 async def _discover_element_ids(

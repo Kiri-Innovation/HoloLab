@@ -10,26 +10,42 @@ arrayable: true
 
 docs: |
   Use this node when a producer has several outputs and the canvas drawer can
-  only open one of them. Wire the artifact to ``in``; ``out`` is a symlink to
-  exactly the same artifact, so no payload is copied or transformed.
+  only open one of them. Wire the artifact to ``in``; ``out`` is a directory
+  of symlinks to the same entries, so no payload bytes are copied or
+  transformed.
 
   ``out`` inherits the connected input's tags and dimension labels. For a
   scalar artifact (for example ``rig_timeline``), leave the node's *arrayed*
-  switch off. For a two-dimensional ``arrayed<arrayed<T>>`` artifact
-  (including ``groups[group,cam]``), turn it on: the framework fans out over
-  its two levels and aggregates the symlinked leaves without copying bytes.
+  switch off. For an arrayed artifact (including ``groups[group,cam]``), turn
+  it on. ``content_dims=1`` means the innermost semantic dimension is image
+  content (files), not another directory fan-out layer; this is the correct
+  default for ``image[group,cam]``. Set it to 0 for a generic two-level
+  directory tree.
 
-  The idempotency marker is a sibling of the output symlink, never an entry in
-  the linked artifact. Thus previewing cannot mutate or pollute the source.
+  The idempotency marker lives inside the new output directory, never in the
+  linked source artifact. Thus previewing cannot mutate or pollute the source.
 
 inputs:
   in:
     tags: [any]
-    # The validator needs a declared depth before it can inspect a wire;
+    # The validator needs two semantic dimensions before it can inspect a wire;
     # dim_labels_from_input is output-only, so it cannot supply this later.
-    # Empty labels are wildcards, accepting any [outer, inner] names.
+    # Empty labels are wildcards. content_dims controls how many innermost
+    # dimensions are files rather than physical directory layers.
     dim_labels: ["", ""]
+    content_dims_from: content_dims
     description: "Any scalar T, or any 2-D arrayed<arrayed<T>> when arrayed is on."
+
+params:
+  content_dims:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: >
+      Number of innermost input dimensions represented by tag content rather
+      than directories. Default 1 preserves image[group,cam] as group dirs
+      containing image files; use 0 when both dimensions are directories.
 
 outputs:
   out:
@@ -48,12 +64,18 @@ runtime:
 exec:
   shell: |
     set -euo pipefail
-    # The runtime creates the declared directory before exec. Replace only
-    # that fresh output path; never touch the input tree.
+    # Build an output-owned shallow symlink tree. This leaves the source
+    # artifact untouched while placing the completion marker inside out.
     rm -rf "{{ outputs.out }}"
-    ln -s "$(readlink -f "{{ inputs.in }}")" "{{ outputs.out }}"
+    mkdir -p "{{ outputs.out }}"
+    while IFS= read -r -d '' ENTRY; do
+      ln -s "$(readlink -f "{{ inputs.in }}/$ENTRY")" "{{ outputs.out }}/$ENTRY"
+    done < <(find "{{ inputs.in }}" -mindepth 1 -maxdepth 1 \
+      ! -name '.hololab-done' -printf '%f\0')
+    touch "{{ outputs.out }}/.hololab-done"
+    # Fan-out shards write under <parent>/out/<element>; mark the aggregate
+    # root too. Concurrent touches are harmless.
+    touch "$(dirname "{{ outputs.out }}")/.hololab-done"
 
 idempotency:
-  # Do not place this below outputs.out: it is a symlink to the source
-  # artifact, and doing so would add a marker to the data being previewed.
-  marker: "{{ outputs.out }}.hololab-done"
+  marker: "{{ outputs.out }}/.hololab-done"
