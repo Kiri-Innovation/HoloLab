@@ -43,7 +43,7 @@ export function CopyRefButton(props: CopyRefButtonProps) {
   // CoBrowser injects its API before page load. Recheck on each render (and
   // sendReferences checks again on click); no per-button polling is needed.
   const canInsert = flopsInsertReferenceAvailable();
-  const actionLabel = canInsert ? "引用到 Flops" : "复制引用";
+  const actionLabel = canInsert ? "引用到 Flops" : "复制引用给 AI";
   const feedback = loading ? "正在处理引用…" : outcome?.insertionError ?? outcome?.message;
 
 

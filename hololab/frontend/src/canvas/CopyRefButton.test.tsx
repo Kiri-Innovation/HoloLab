@@ -55,7 +55,7 @@ it.each(["copied", "err"])("does not render inline feedback for pure copy result
 
 it.each([
   { available: true, icon: "quote", action: "引用到 Flops" },
-  { available: false, icon: "clipboard", action: "复制引用" },
+  { available: false, icon: "clipboard", action: "复制引用给 AI" },
 ])("uses $icon with matching tooltip and accessible name", ({ available, icon, action }) => {
   vi.mocked(flopsInsertReferenceAvailable).mockReturnValue(available);
   const button = CopyRefButton({ kind: "workflow", id: "w1" }).props.children[0];

@@ -33,7 +33,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator("[data-hl-toast-anchor]")).toHaveCount(1);
     await page.clock.install();
     await page.clock.pauseAt(new Date());
-    await page.getByRole("button", { name: "复制引用：引用整张流程", exact: true }).click();
+    await page.getByRole("button", { name: "复制引用给 AI：引用整张流程", exact: true }).click();
     const toast = page.locator(".hl-toast-pill");
     await expect(toast).toHaveText("已复制引用✓");
     await expect(toast).toHaveCSS("background-color", "rgb(0, 0, 0)");
@@ -80,7 +80,7 @@ for (const theme of ["light", "dark"] as const) {
 
     // Native button activation supports mouse, Enter and Space.
     for (const activation of ["click", "Enter", "Space"]) {
-      await page.getByRole("button", { name: "复制引用：引用整张流程", exact: true }).click();
+      await page.getByRole("button", { name: "复制引用给 AI：引用整张流程", exact: true }).click();
       await expect(dismiss).toBeVisible();
       if (activation === "click") {
         await dismiss.hover();
@@ -101,7 +101,7 @@ for (const theme of ["light", "dark"] as const) {
       navigator.clipboard.writeText = async () => { throw new Error("denied"); };
       document.execCommand = () => false;
     });
-    await page.getByRole("button", { name: "复制引用：引用整张流程", exact: true }).click();
+    await page.getByRole("button", { name: "复制引用给 AI：引用整张流程", exact: true }).click();
     await expect(toast).toContainText("复制失败");
     await expect(toast.getByRole("button", { name: "重试复制" })).toBeVisible();
     await expect(dismiss).toHaveText("✓");
