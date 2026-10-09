@@ -1,0 +1,59 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: preview
+version: 0.1.0
+description: >
+  Zero-copy generic passthrough for exposing any one artifact through a
+  single-output preview drawer.
+category: "utility/preview"
+arrayable: true
+
+docs: |
+  Use this node when a producer has several outputs and the canvas drawer can
+  only open one of them. Wire the artifact to ``in``; ``out`` is a symlink to
+  exactly the same artifact, so no payload is copied or transformed.
+
+  ``out`` inherits the connected input's tags and dimension labels. For a
+  scalar artifact (for example ``rig_timeline``), leave the node's *arrayed*
+  switch off. For a two-dimensional ``arrayed<arrayed<T>>`` artifact
+  (including ``groups[group,cam]``), turn it on: the framework fans out over
+  its two levels and aggregates the symlinked leaves without copying bytes.
+
+  The idempotency marker is a sibling of the output symlink, never an entry in
+  the linked artifact. Thus previewing cannot mutate or pollute the source.
+
+inputs:
+  in:
+    tags: [any]
+    # The validator needs a declared depth before it can inspect a wire;
+    # dim_labels_from_input is output-only, so it cannot supply this later.
+    # Empty labels are wildcards, accepting any [outer, inner] names.
+    dim_labels: ["", ""]
+    description: "Any scalar T, or any 2-D arrayed<arrayed<T>> when arrayed is on."
+
+outputs:
+  out:
+    tags: [any]
+    tags_from: in
+    dim_labels_from_input: in
+    dim_labels_drop_outer: 0
+    description: "The same artifact as ``in`` (zero-copy symlink)."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  expected_duration_min: [0.01, 0.02]
+
+exec:
+  shell: |
+    set -euo pipefail
+    # The runtime creates the declared directory before exec. Replace only
+    # that fresh output path; never touch the input tree.
+    rm -rf "{{ outputs.out }}"
+    ln -s "$(readlink -f "{{ inputs.in }}")" "{{ outputs.out }}"
+
+idempotency:
+  # Do not place this below outputs.out: it is a symlink to the source
+  # artifact, and doing so would add a marker to the data being previewed.
+  marker: "{{ outputs.out }}.hololab-done"
