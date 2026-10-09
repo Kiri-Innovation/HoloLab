@@ -229,28 +229,6 @@ export function Artifacts({ onBackToGallery }: ArtifactsProps) {
     }
   }, [selectedRows, load, checked]);
 
-  const onCopyRefs = useCallback(async () => {
-    if (selectedRows.length === 0) return;
-    // One hololab://handle/{id} per line, with a comment carrying the
-    // algorithm + port so the pasted output stays human-readable when
-    // dropped into a chat/log.
-    const lines = selectedRows.map((r) => {
-      const comment = [
-        r.algorithm_name,
-        r.output_port_name,
-        r.workflow_name ?? r.workflow_id?.slice(0, 8),
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      return comment
-        ? `hololab://handle/${r.handle_id}  # ${comment}`
-        : `hololab://handle/${r.handle_id}`;
-    });
-    const text = lines.join("\n");
-    const ok = await writeToClipboard(text);
-    if (!ok) alert("Copy failed — clipboard is unavailable in this context.");
-  }, [selectedRows]);
-
   // For the workflow filter dropdown: distinct workflows, name-aware.
   const workflows = useMemo(() => {
     if (!data) return [] as Array<{ id: string; name: string; count: number }>;
@@ -420,7 +398,7 @@ export function Artifacts({ onBackToGallery }: ArtifactsProps) {
           count={selectedRows.length}
           bytes={selectedBytes}
           busy={bulkBusy}
-          onCopyRefs={onCopyRefs}
+          rows={selectedRows}
           onDelete={onBulkDeleteSelected}
           onClear={clearSelection}
         />
@@ -927,9 +905,8 @@ function ArtifactRowView({
 // Floating at the bottom-centre so a full-viewport table still has a clear
 // action target. Fixed positioning keeps it in place while the row list
 // scrolls behind it. Deliberately tight action set:
-//   * Copy N refs — writes ``hololab://handle/{id}`` per line to the
-//     clipboard. Consistent with the CopyRefButton scheme used in
-//     RunsPanel / SnapshotBanner.
+//   * Reference N artifacts — shared insertion, clipboard fallback and feedback
+//     through CopyRefButton, preserving each selected handle as its own ref.
 //   * Delete N files — same semantics as the single-row × delete but in
 //     a Promise.allSettled fan-out. Node-side path guard is unchanged.
 //   * Clear — dismiss without any action.
@@ -939,14 +916,14 @@ function BulkActionBar({
   count,
   bytes,
   busy,
-  onCopyRefs,
+  rows,
   onDelete,
   onClear,
 }: {
   count: number;
   bytes: number;
   busy: boolean;
-  onCopyRefs: () => void;
+  rows: ArtifactRow[];
   onDelete: () => void;
   onClear: () => void;
 }) {
@@ -992,15 +969,16 @@ function BulkActionBar({
           background: "var(--border)",
         }}
       />
-      <button
-        type="button"
-        onClick={onCopyRefs}
+      <CopyRefButton
+        key={rows.map(r => r.handle_id).join(",")}
+        references={rows.map(r => ({
+          kind: "handle",
+          id: r.handle_id,
+          comment: [r.algorithm_name, r.output_port_name, r.workflow_name ?? r.workflow_id?.slice(0, 8)].filter(Boolean).join(" · "),
+        }))}
+        label={`引用 ${count} 项`}
         disabled={busy}
-        title="Copy hololab://handle/… references for the selected rows to the clipboard, one per line."
-        style={btnStyle()}
-      >
-        Copy {count} ref{count === 1 ? "" : "s"}
-      </button>
+      />
       <button
         type="button"
         onClick={onDelete}
@@ -1123,37 +1101,6 @@ function formatRelative(secs: number): string {
   if (dt < 86400 * 30) return `${Math.round(dt / 86400)}d ago`;
   const d = new Date(secs * 1000);
   return d.toISOString().slice(0, 10);
-}
-
-// Clipboard writer with a document.execCommand fallback — the app runs
-// over plain http on the LAN and navigator.clipboard is gated on
-// isSecureContext, so we need the legacy path too. Kept local rather
-// than re-imported so the Artifacts page doesn't depend on the
-// CopyRefButton implementation detail.
-async function writeToClipboard(text: string): Promise<boolean> {
-  if (navigator.clipboard && window.isSecureContext) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      /* fall through */
-    }
-  }
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.style.position = "fixed";
-  ta.style.opacity = "0";
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  let ok = false;
-  try {
-    ok = document.execCommand("copy");
-  } catch {
-    ok = false;
-  }
-  document.body.removeChild(ta);
-  return ok;
 }
 
 // One-line label for a run in the chained filter dropdown. Mirrors the
