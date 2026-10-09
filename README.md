@@ -42,20 +42,26 @@ Uninstall is `rm -rf ./hololab/ ~/.hololab/`.
 
 ## Install from source
 
-Requires **Python 3.10+**, **Node.js 18+**, and either **conda** or **miniconda/mamba** if you plan to run packs that need it. Everything else is `pip`.
+Requires **Python 3.10+**, **Node.js 22**, and either **conda** or **miniconda/mamba** if you plan to run packs that need it. Everything else is `pip`.
 
 ```bash
-git clone https://github.com/hololab-dev/hololab
+git clone --recurse-submodules https://github.com/hololab-dev/hololab
 cd hololab
 
 python3.12 -m venv .venv-runtime
 .venv-runtime/bin/pip install -e ".[dev]"
 
 # frontend deps + one-off build (dist is served by `hololab start`)
-cd hololab/frontend && npm install && npm run build && cd ../..
+cd hololab/frontend && npm ci && npm run build && cd ../..
 
 .venv-runtime/bin/hololab start
 ```
+
+ColmapUtil is built automatically from its pinned recursive submodule before frontend
+builds and, when stale, before dev startup. Existing checkouts must first run
+`git submodule update --init --recursive`. See the
+[ColmapUtil build guide](hololab/frontend/vendor/HOLOLAB_VENDORED.md) for setup on
+Linux, macOS and Windows, caching, offline use and troubleshooting.
 
 We deliberately pick plain `venv + pip` for dev to avoid another required tool. If you like `uv`, it works fine too — nothing in the project cares.
 

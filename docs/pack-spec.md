@@ -487,8 +487,8 @@ files and hauling a large runtime submodule into HoloLab's own bundle.
 
 * `colmap-cams` → `ColmapCamsPreview` iframes
   `/colmaputil/index.html?embed=1` (vendored from
-  `/cloud/cloud-ssd1/Kiri4DGS/Utils/ColmapUtil`, refresh workflow in
-  `public/colmaputil/HOLOLAB_VENDORED.md`), waits for its
+  `hololab/frontend/vendor/ColmapUtil`, build workflow in
+  `hololab/frontend/vendor/HOLOLAB_VENDORED.md`), waits for its
   `colmap-ready` handshake, then posts a `colmap-load-files` message
   with `cameras.txt` + `images.txt` fetched from
   `${baseUrl}/{name}` plus a synthetic empty `points3D.txt` header

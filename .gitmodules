@@ -1,0 +1,3 @@
+[submodule "hololab/frontend/vendor/ColmapUtil"]
+	path = hololab/frontend/vendor/ColmapUtil
+	url = https://github.com/Kiri-Innovation/ColmapUtil.git

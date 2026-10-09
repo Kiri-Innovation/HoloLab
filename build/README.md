@@ -25,7 +25,8 @@ supported — each artifact must be built on its target OS.
 
 ```bash
 cd hololab            # repo root
-make build-frontend   # produce hololab/frontend/dist/ if not fresh
+git submodule update --init --recursive
+make build-frontend   # builds ColmapUtil, then hololab/frontend/dist/
 ./build/build-linux.sh
 # → dist/hololab-linux-x64.tar.gz
 ```
@@ -45,3 +46,9 @@ tar xzf dist/hololab-linux-x64.tar.gz -C /tmp/
 `--version` must print `hololab 0.0.1` (or current). If it fails with
 `bad interpreter`, the shebang rewrite step in `build-linux.sh` did not run
 correctly.
+
+Frontend builds require Node.js 22, npm and Git. The first vendor install needs
+network access; subsequent builds reuse matching dependencies. See the
+[ColmapUtil build guide](../hololab/frontend/vendor/HOLOLAB_VENDORED.md).
+Re-run `make build-frontend` after updating source; the packaging script only
+checks whether an existing frontend dist is present, not whether it is fresh.

@@ -59,3 +59,7 @@ workspace/
 # .gitignore before this repo was split out. Keep it here so future
 # runs of the CLI don't accidentally add session data.
 .flops/
+
+# ColmapUtil is built from the pinned submodule.
+hololab/frontend/public/colmaputil/
+hololab/frontend/vendor/.cache/

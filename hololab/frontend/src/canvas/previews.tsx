@@ -159,7 +159,7 @@ export function Preview({
   // ``colmap-cams`` — COLMAP sparse reconstruction (cameras.txt +
   // images.txt in a dir handle). Renders inside an iframe backed by
   // the vendored ColmapUtil build (see
-  // ``public/colmaputil/HOLOLAB_VENDORED.md``). We route by tag so
+  // ``vendor/HOLOLAB_VENDORED.md``). We route by tag so
   // packs producing this type never need to declare a viewer, matching
   // the frame_sequence pattern above.
   if (
@@ -3191,7 +3191,7 @@ function NestedGroupDetail({
 //     cameras/images empty) → 0 cameras, N points as a naked cloud.
 //
 // See ``docs/pack-spec.md#Previews`` for the architecture rationale
-// and ``public/colmaputil/HOLOLAB_VENDORED.md`` for the refresh
+// and ``vendor/HOLOLAB_VENDORED.md`` for the build
 // workflow when ColmapUtil ships new features.
 // ---------------------------------------------------------------------------
 

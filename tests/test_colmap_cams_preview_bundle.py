@@ -12,13 +12,13 @@ catch cheaply:
    ``AlgorithmNode.FRONTEND_VIEWER_TAGS`` — the caret disappears
    whenever the gateway hasn't ingested the backend registry entry
    for the tag yet (typical during rolling upgrades).
-3. Someone runs ``npm run build`` without refreshing the vendored
-   ColmapUtil dist — the iframe 404s at load time.
+3. The frontend build omits the generated ColmapUtil dist — the iframe
+   404s at load time.
 
 We inspect the built dist for the string ``"colmap-cams"`` inside the
 bundle (both tag routes must contain it, so we assert the count is
 >=2), the iframe URL literal ``/colmaputil/index.html?embed=1``, and
-the presence of ``public/colmaputil/index.html``. The manifest test
+the presence of ``dist/colmaputil/index.html``. The manifest test
 already exists in ``test_colmap_packs.py`` — this file targets the
 frontend wiring only.
 """
@@ -94,23 +94,26 @@ def test_bundle_iframes_vendored_colmaputil() -> None:
 
 
 def test_vendored_colmaputil_dist_is_present() -> None:
-    """The vendored ColmapUtil build must land under ``public/`` so
-    Vite copies it into ``dist/colmaputil/`` at build time. Without
-    this file the iframe 404s.
+    """The generated ColmapUtil build must reach ``dist/colmaputil/``.
+    Source-only Python checkouts skip this assertion; frontend CI builds
+    first, so a missing iframe or accidentally packaged VSIX fails there.
     """
 
-    index = _FRONTEND / "public" / "colmaputil" / "index.html"
+    if _find_dist_js() is None:
+        pytest.skip("frontend dist not built — run `npm run build` first")
+    index = _FRONTEND / "dist" / "colmaputil" / "index.html"
     assert index.is_file(), (
         f"missing {index.relative_to(_REPO_ROOT)} — rebuild ColmapUtil "
-        f"and re-vendor per public/colmaputil/HOLOLAB_VENDORED.md"
+        f"via npm run build; see vendor/HOLOLAB_VENDORED.md"
     )
+    assert not list(index.parent.rglob("*.vsix")), "VSIX must not ship in the frontend"
     html = index.read_text(encoding="utf-8", errors="replace")
     # Assets must be scoped under /colmaputil/ (built with base=/colmaputil/);
     # otherwise the browser looks for /assets/... at the HoloLab origin and
     # 404s on the ColmapUtil chunks.
     assert "/colmaputil/assets/" in html, (
         "vendored ColmapUtil dist wasn't built with base=/colmaputil/ — "
-        "run `npm run build:embed` in ColmapUtil before re-vendoring"
+        "run `npm run build:vendor` in hololab/frontend"
     )
 
 
