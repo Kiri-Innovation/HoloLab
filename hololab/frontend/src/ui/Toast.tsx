@@ -1,6 +1,6 @@
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { CONTROL_STYLE } from "./controlStyles";
+import "./Toast.css";
 
 export interface ToastNotice {
   message: string;
@@ -33,33 +33,56 @@ export function showToast(notice: ToastNotice) {
   emit();
 }
 
+// ReactFlow children outside its transformed viewport form a stable overlay.
+// Register that host so the one global toast also works from toolbar/modals.
+let canvasAnchor: HTMLDivElement | null = null;
+const anchorListeners = new Set<() => void>();
+function setCanvasAnchor(element: HTMLDivElement | null) {
+  canvasAnchor = element;
+  anchorListeners.forEach(listener => listener());
+}
+function subscribeToAnchor(listener: () => void) {
+  anchorListeners.add(listener);
+  return () => { anchorListeners.delete(listener); };
+}
+export function CanvasToastAnchor() {
+  return <div ref={setCanvasAnchor} className="hl-canvas-toast-anchor" data-hl-toast-anchor="" />;
+}
+
 export function ToastViewport() {
   const notice = useSyncExternalStore(subscribeToToast, getToastSnapshot, () => null);
   const [busy, setBusy] = useState(false);
+  const anchor = useSyncExternalStore(subscribeToAnchor, () => canvasAnchor, () => null);
+  const [displayed, setDisplayed] = useState(notice);
+  useEffect(() => {
+    if (notice) {
+      setDisplayed(notice);
+      return;
+    }
+    // Match --dur-fast: retain the DOM only for the exit fade.
+    const exitTimer = setTimeout(() => setDisplayed(null), 140);
+    return () => clearTimeout(exitTimer);
+  }, [notice]);
   return createPortal(
     <div
       aria-live="polite"
       aria-atomic="true"
-      style={{ position: "fixed", bottom: 24, right: 24, zIndex: 10000, maxWidth: "min(380px, calc(100vw - 48px))", pointerEvents: "none" }}
+      className={`hl-toast-viewport ${anchor ? "hl-toast-in-canvas" : "hl-toast-global"}`}
     >
-      {notice && (
-        <div key={notice.id} role={notice.tone === "error" ? "alert" : "status"} style={{
-          pointerEvents: "auto", padding: "12px 14px", background: "var(--surface)",
-          color: "var(--text)", border: `1px solid var(--${notice.tone})`,
-          borderRadius: "var(--radius-sm)", boxShadow: "var(--shadow-2)",
-          fontSize: "var(--fs-sm)", overflowWrap: "anywhere",
-        }}>
-          <span>{notice.message}</span>
-          {notice.action && (
-            <button type="button" disabled={busy} style={{ ...CONTROL_STYLE, marginLeft: 8 }} onClick={async () => {
+      {displayed && (
+        <div key={displayed.id} role={displayed.tone === "error" ? "alert" : "status"}
+          className="hl-toast-pill" data-leaving={!notice}>
+          <span>{displayed.message}</span>
+          {displayed.action && (
+            <button type="button" disabled={busy} className="hl-toast-action" onClick={async () => {
               setBusy(true);
-              try { await notice.action!.run(); }
+              try { await displayed.action!.run(); }
               finally { setBusy(false); }
-            }}>{notice.action.label}</button>
+            }}>{displayed.action.label}</button>
           )}
-          <button type="button" aria-label="关闭提示" style={{ ...CONTROL_STYLE, marginLeft: 8 }} onClick={dismissToast}>×</button>
+          <button type="button" aria-label="关闭提示" className="hl-toast-action" onClick={dismissToast}>×</button>
         </div>
       )}
-    </div>, document.body,
+    </div>, anchor ?? document.body,
   );
 }

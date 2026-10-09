@@ -1,0 +1,76 @@
+import { test, expect } from "@playwright/test";
+
+const workflowId = "11111111-1111-1111-1111-111111111111";
+
+for (const theme of ["light", "dark"] as const) {
+  test(`toast is a canvas-centered black pill in ${theme} theme`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.addInitScript(theme => {
+      localStorage.setItem("hololab.theme", theme);
+      Object.defineProperty(navigator, "clipboard", { value: { writeText: async () => {} } });
+    }, theme);
+    await page.routeWebSocket("**/*", () => {});
+    await page.route("**/api/**", async route => {
+      const path = new URL(route.request().url()).pathname;
+      let body: unknown = [];
+      if (path === "/api/pack-catalog") body = [{
+        name: "demo-echo", version: "0.1.0", manifest_hash: "demo", node_ids: [],
+        description: "Example step", category: [], inputs: {}, outputs: {}, params: {}, arrayable: false,
+      }];
+      if (path === `/api/workflows/${workflowId}`) body = {
+        workflow_id: workflowId, name: "Toast placement · workflow", created_ts: 1700000000, updated_ts: 1700000000,
+        graph: {
+          nodes: [0, 1].map(i => ({ id: `step-${i}`, algorithm_name: "demo-echo", algorithm_version: "0.1.0", position: { x: i * 330, y: i * 130 }, params: {}, assigned_node_id: null })),
+          edges: [],
+        },
+      };
+      if (path === "/api/nodes/metrics/history") body = { sample_interval_s: 5, nodes: {} };
+      if (path === "/api/artifacts/summary") body = { total_bytes: 0, exclusive_bytes: 0, artifact_count: 0 };
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+    });
+    await page.goto(`/w/${workflowId}`);
+    await expect(page.locator(".react-flow__node")).toHaveCount(2);
+    await expect(page.locator("[data-hl-toast-anchor]")).toHaveCount(1);
+    await page.clock.install();
+    await page.clock.pauseAt(new Date());
+    await page.getByRole("button", { name: "复制引用：引用整张流程", exact: true }).click();
+    const toast = page.locator(".hl-toast-pill");
+    await expect(toast).toHaveText("已复制引用×");
+    await expect(toast).toHaveCSS("background-color", "rgb(0, 0, 0)");
+    await expect(toast).toHaveCSS("color", "rgb(255, 255, 255)");
+    await expect(toast).toHaveCSS("border-radius", "999px");
+    const anchor = (await page.locator("[data-hl-toast-anchor]").boundingBox())!;
+    const before = (await toast.boundingBox())!;
+    expect(Math.abs(before.x + before.width / 2 - anchor.x - anchor.width / 2)).toBeLessThan(1);
+    expect(before.y - anchor.y).toBe(12);
+    expect(anchor.x).toBeGreaterThan(100);
+    expect(anchor.width).toBeLessThan(1440 - 200);
+    expect(await page.locator(".react-flow__viewport [data-hl-toast-anchor]").count()).toBe(0);
+
+    const graph = page.locator(".react-flow__viewport");
+    const originalTransform = await graph.getAttribute("style");
+    await page.mouse.move(anchor.x + anchor.width / 2, anchor.y + anchor.height / 2);
+    await page.mouse.wheel(0, 180);
+    await page.clock.runFor(250);
+    await expect.poll(() => graph.getAttribute("style")).not.toBe(originalTransform);
+    const after = (await toast.boundingBox())!;
+    expect(after.x).toBeCloseTo(before.x, 1);
+    expect(after.y).toBeCloseTo(before.y, 1);
+
+    const zoomedTransform = await graph.getAttribute("style");
+    await page.mouse.move(anchor.x + anchor.width / 2, anchor.y + anchor.height - 80);
+    await page.mouse.down();
+    await page.mouse.move(anchor.x + anchor.width / 2 + 50, anchor.y + anchor.height - 110, { steps: 5 });
+    await page.mouse.up();
+    await expect.poll(() => graph.getAttribute("style")).not.toBe(zoomedTransform);
+    const panned = (await toast.boundingBox())!;
+    expect(panned.x).toBeCloseTo(before.x, 1);
+    expect(panned.y).toBeCloseTo(before.y, 1);
+
+    await page.screenshot({ path: testInfo.outputPath(`toast-${theme}.png`), animations: "disabled" });
+    await testInfo.attach(`toast-${theme}`, { path: testInfo.outputPath(`toast-${theme}.png`), contentType: "image/png" });
+    await page.clock.fastForward(3500);
+    await page.clock.runFor(150);
+    await expect(toast).toHaveCount(0);
+  });
+}

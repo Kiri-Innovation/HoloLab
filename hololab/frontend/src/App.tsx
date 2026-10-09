@@ -7,6 +7,7 @@
 //   - right:  ComputeNodesPanel
 //   - bottom: NodeInspector + RecentJobsPanel (split half/half)
 
+import { CanvasToastAnchor } from "./ui/Toast";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
@@ -2472,6 +2473,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             proOptions={{ hideAttribution: true }}
           >
             <Controls />
+            <CanvasToastAnchor />
             <Panel
               position="bottom-right"
               style={{ marginBottom: minimapOpen ? 158 : 0 }}

@@ -24,6 +24,7 @@
 // Handles that resolve but whose bytes fail to stream still get a
 // drawer — each viewer component renders its own load-failed state.
 
+import { CanvasToastAnchor } from "../ui/Toast";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Background,
@@ -438,6 +439,7 @@ export function SnapshotCanvas({
       </Panel>
       {minimapOpen && <MiniMap pannable />}
       <Controls showInteractive={false} />
+      <CanvasToastAnchor />
       <Background gap={20} color="var(--rf-grid)" />
     </ReactFlow>
   );

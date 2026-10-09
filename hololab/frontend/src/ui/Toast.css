@@ -1,0 +1,71 @@
+.hl-canvas-toast-anchor {
+  position: absolute;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+.hl-toast-viewport {
+  z-index: 10000;
+  pointer-events: none;
+  max-width: calc(100% - var(--space-6));
+}
+
+.hl-toast-in-canvas {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+}
+
+/* Gallery / Artifacts have no canvas; retain their global notification host. */
+.hl-toast-global {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  max-width: min(380px, calc(100vw - var(--space-9)));
+}
+
+.hl-toast-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: #000;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: var(--shadow-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  animation: hl-toast-enter var(--dur-fast) var(--ease);
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.hl-toast-pill[data-leaving="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hl-toast-action {
+  flex-shrink: 0;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.hl-toast-action:hover { background: rgba(255, 255, 255, 0.15); }
+.hl-toast-action:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.hl-toast-action:disabled { opacity: 0.6; cursor: wait; }
+
+@keyframes hl-toast-enter { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .hl-toast-pill { animation: none; transition: none; }
+}
