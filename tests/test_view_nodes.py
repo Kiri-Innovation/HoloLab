@@ -5,6 +5,7 @@ from hololab.gateway.workflows import (
     OutputPortView,
     PackHandle,
     WorkflowGraph,
+    agent_graph_dict,
     execution_topological_order,
     validate_snapshot,
 )
@@ -63,3 +64,14 @@ def test_view_requires_exactly_one_incoming_edge_and_has_no_output() -> None:
     )
     assert any("no output" in issue.message for issue in issues)
     assert any("exactly one" in issue.message for issue in issues)
+
+
+def test_agent_graph_uses_kind_as_the_view_discriminator() -> None:
+    graph = WorkflowGraph(
+        nodes=[GraphNode(id="v", kind="view", view_type="artifact-preview", title="groups")],
+        edges=[],
+    )
+    node = agent_graph_dict(graph)["nodes"][0]
+    assert node["kind"] == "view"
+    assert "algorithm_name" not in node
+    assert "algorithm_version" not in node

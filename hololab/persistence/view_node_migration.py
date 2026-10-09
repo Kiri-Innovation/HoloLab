@@ -41,13 +41,19 @@ def migrate_graph(
             report.exceptions.append(f"{label}: preview node {node_id!r} has invalid inbound edges")
             continue
         position = node.get("position", {"x": 0, "y": 0})
+        # The preview pack had exactly one input.  Preserve that useful,
+        # human-readable context as the sticker title rather than assigning a
+        # generic title to every migrated node.
+        title = inbound[0].get("sourceHandle")
+        if not isinstance(title, str) or not title:
+            title = "视图"
         node.clear()
         node.update(
             {
                 "id": node_id,
                 "kind": "view",
                 "view_type": "artifact-preview",
-                "title": "视图",
+                "title": title,
                 "position": position,
             }
         )

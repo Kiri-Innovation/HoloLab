@@ -29,7 +29,7 @@ def test_preview_pack_becomes_a_nonexecuting_view() -> None:
         "id": "p",
         "kind": "view",
         "view_type": "artifact-preview",
-        "title": "视图",
+        "title": "second",
         "position": {"x": 1, "y": 2},
     }
 

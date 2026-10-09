@@ -100,6 +100,16 @@ jobs: {counts_by_state, recent[]}}` — enough to answer "what's running,
 what workflows exist, what's the last thing I did" without any follow-up
 requests.
 
+## 查看某个输出：使用 view 贴纸，不要写透传 pack
+
+当用户想在画布上固定查看某个算法输出端口时，创建 `kind: "view"` 的
+view 贴纸，并把该输出端口连到贴纸唯一的 `in` 输入。贴纸直接复用按 tag
+分派的预览器，**不会**创建 job、产物、manifest 或执行依赖。
+
+不要为了预览而新增“输入等于输出”的 passthrough/preview pack；这类 pack
+会污染执行 DAG、增加无意义的 job/fan-out，并可能改变目录元数据。需要
+处理数据时才写 algorithm pack；只需要观察数据时一律使用 view 贴纸。
+
 ---
 
 ## When the user pastes a `hololab://` reference

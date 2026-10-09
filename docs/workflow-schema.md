@@ -1,8 +1,8 @@
 # Workflow schema
 
-A **workflow** in HoloLab is a directed acyclic graph of algorithm pack
+A **workflow** in HoloLab is a directed graph containing algorithm pack
 instances (blueprint-style — one node per pack use, with typed input/output
-ports). Two forms coexist:
+ports) and optional view stickers. Two forms coexist:
 
 - **Draft** — the frontend's editable graph, persisted under
   ``workflows.draft_json``. Rewritten every time the user saves.
@@ -11,6 +11,38 @@ ports). Two forms coexist:
   to the (mutable) draft.
 
 Both use the same JSON shape below.
+
+## View stickers
+
+A view sticker is a first-class graph node for looking at one already-produced
+output. It is not a pack and has no manifest, parameters, assigned compute
+node, output port, job, or artifact. Its one input edge is a display reference:
+it does **not** make the sticker an execution dependency.
+
+```jsonc
+{
+  "id": "groups_view",
+  "kind": "view",
+  "view_type": "artifact-preview",
+  "title": "groups",                  // editable canvas label
+  "position": { "x": 360, "y": -160 }
+}
+// edge: r3groups[groups] -> groups_view[in]
+```
+
+`kind` defaults to `"algorithm"` for old graph JSON. A `kind: "view"` node
+has exactly one inbound edge at target handle `in`, no outbound edges, and no
+`algorithm_name` or `algorithm_version`. The canvas resolves that edge's
+source handle and renders it through the same tag-driven previewer as an
+algorithm output.
+
+Views are deliberately excluded from the execution DAG: validation,
+topological sorting, job creation, downstream closure, and run-completion
+counts operate on algorithm nodes only. The input edge remains in draft and
+snapshot JSON so a snapshot replay shows the output that was being observed at
+the time of that run. A view can therefore be moved or retitled without
+changing data lineage; rewiring it changes only the saved observation target,
+not a job dependency.
 
 ## Shape (JSON)
 
@@ -131,6 +163,7 @@ after that snapshot was taken:
 | edges (source / target / handles) | Structural | No | data routing; changing them is a Fork |
 | `position` | Cosmetic | Yes | canvas coordinate; doesn't affect any job |
 | `preview_open` | Cosmetic | Yes | observer state (which drawer is expanded); doesn't affect any job |
+| view `title` / `position` | Cosmetic | Yes | sticker presentation; a view never changes execution |
 
 **The test that decides the family**: does changing this field affect
 what a downstream job would actually consume? If yes → structural

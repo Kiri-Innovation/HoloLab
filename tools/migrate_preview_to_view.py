@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +28,7 @@ def main() -> int:
     if not db.is_file():
         p.error(f"database does not exist: {db}")
     conn = sqlite3.connect(f"file:{db}?mode={'rw' if args.apply else 'ro'}", uri=True)
+    conn.execute("PRAGMA busy_timeout = 10000")
     rows = [
         ("workflows", "workflow_id", "draft_json", *r)
         for r in conn.execute("SELECT workflow_id, draft_json FROM workflows")
@@ -65,25 +65,64 @@ def main() -> int:
         )
     )
     if args.dry_run or exceptions:
+        conn.close()
         return 0 if not exceptions else 2
     backup = db.with_suffix(
         db.suffix
         + ".before-view-migration-"
         + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     )
-    shutil.copy2(db, backup)
-    with conn:
+    # ``copy2(db, backup)`` is not a database backup in WAL mode: committed
+    # pages can still live in ``db-wal``.  SQLite's backup API reads the
+    # coherent logical database, including WAL content.
+    backup_conn = sqlite3.connect(backup)
+    try:
+        conn.backup(backup_conn)
+        if backup_conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise RuntimeError(f"backup integrity check failed: {backup}")
+    finally:
+        backup_conn.close()
+
+    try:
+        conn.execute("BEGIN IMMEDIATE")
         for table, key, column, ident, value in updates:
             conn.execute(f"UPDATE {table} SET {column}=? WHERE {key}=?", (value, ident))
-    left = conn.execute(
-        'SELECT count(*) FROM workflows WHERE draft_json LIKE \'%"algorithm_name":"preview"%\''
-    ).fetchone()[0]
-    left += conn.execute(
-        'SELECT count(*) FROM snapshots WHERE graph_json LIKE \'%"algorithm_name":"preview"%\''
-    ).fetchone()[0]
+        conn.commit()
+        # Make durability visible in the main database before a service
+        # restart, then verify through a fresh SQLite connection below.
+        checkpoint = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    verify = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        left = verify.execute(
+            'SELECT count(*) FROM workflows WHERE draft_json LIKE \'%"algorithm_name":"preview"%\''
+        ).fetchone()[0]
+        left += verify.execute(
+            'SELECT count(*) FROM snapshots WHERE graph_json LIKE \'%"algorithm_name":"preview"%\''
+        ).fetchone()[0]
+        durable_views = verify.execute(
+            'SELECT count(*) FROM workflows WHERE draft_json LIKE \'%"kind":"view"%\''
+        ).fetchone()[0]
+        durable_views += verify.execute(
+            'SELECT count(*) FROM snapshots WHERE graph_json LIKE \'%"kind":"view"%\''
+        ).fetchone()[0]
+    finally:
+        verify.close()
     print(
         json.dumps(
-            {"backup": str(backup), "legacy_preview_references_after": left}, ensure_ascii=False
+            {
+                "backup": str(backup),
+                "backup_integrity": "ok",
+                "wal_checkpoint": checkpoint,
+                "legacy_preview_references_after": left,
+                "durable_view_nodes_after": durable_views,
+            },
+            ensure_ascii=False,
         )
     )
     return 0 if left == 0 else 3

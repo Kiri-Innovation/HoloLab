@@ -527,8 +527,11 @@ class LatestRunOut(BaseModel):
 class GraphNodeOut(BaseModel):
     id: str
     kind: str = "algorithm"
-    algorithm_name: str | None = None
-    algorithm_version: str | None = None
+    # ``kind: view`` is a genuine discriminator, not an algorithm with a
+    # null identity.  Keep omitted view identities omitted while preserving
+    # the response's established null semantics for unrelated fields.
+    algorithm_name: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    algorithm_version: str | None = Field(default=None, exclude_if=lambda value: value is None)
     view_type: str | None = None
     title: str | None = None
     position: dict[str, float] = Field(default_factory=lambda: {"x": 0.0, "y": 0.0})

@@ -371,6 +371,11 @@ by your command as the last step.
 
 ### Previews
 
+> 想把已有输出固定显示在工作流画布上时，使用 `kind: "view"` 的 view
+> 贴纸，而不是实现一个输入输出相同的 preview/passthrough pack。贴纸不属于
+> pack 规范、没有 manifest，也不会产生 job 或产物；其完整语义见
+> [workflow-schema.md](workflow-schema.md#view-stickers)。
+
 ```yaml
 previews:
   - id: sample_frame

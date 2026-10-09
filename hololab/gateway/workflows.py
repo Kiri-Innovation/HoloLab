@@ -1537,7 +1537,10 @@ def agent_graph_dict(
         n = by_id.get(nid)
         if n is None:
             continue
-        d = n.model_dump()
+        # A view node has no algorithm identity.  Excluding unset optionals is
+        # part of the wire discriminator: consumers must see ``kind: view``
+        # without misleading ``algorithm_name: null`` fields.
+        d = n.model_dump(exclude_none=True)
         if packs_by_key is not None and is_algorithm_node(n):
             pack = packs_by_key.get((n.algorithm_name, n.algorithm_version))
             if pack is not None:
