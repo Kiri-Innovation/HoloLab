@@ -1,4 +1,4 @@
-// Copy-a-hololab://reference button.
+// HoloLab reference button: insert into Flops when available, otherwise copy.
 //
 // The user's pain point: they want to point an agent at "this thing"
 // (a run, a job, a handle) and have the agent resolve it unambiguously.
@@ -10,6 +10,11 @@
 // hololab/gateway/refs.py and skill/SKILL.md ("resolving a reference").
 
 import { useState } from "react";
+import {
+  flopsInsertReference,
+  flopsInsertReferenceAvailable,
+  type FlopsInsertReferenceParams,
+} from "../flops";
 
 export type RefKind =
   | "workflow"
@@ -42,6 +47,10 @@ export interface CopyRefButtonProps {
   // Optional theme flag for placement on dark surfaces (banner, preview
   // drawer). Adjusts colours so the button reads on either.
   onDark?: boolean;
+  /** Extra node data for the agent-readable CoBrowser reference snapshot. */
+  snapshot?: string;
+  /** Human-readable labels for the CoBrowser reference pill. */
+  referenceDisplay?: { title: string; subtitle: string };
 }
 
 function formatToken(kind: RefKind, id: string, comment?: string): string {
@@ -49,6 +58,13 @@ function formatToken(kind: RefKind, id: string, comment?: string): string {
   // ``hololab://workflows`` on its own. Every other kind carries the id.
   const base = id ? `hololab://${kind}/${id}` : `hololab://${kind}`;
   return comment ? `${base}  # ${comment}` : base;
+}
+
+function truncateSnapshot(text: string): string {
+  const limit = 60 * 1024;
+  const bytes = new TextEncoder().encode(text);
+  if (bytes.length <= limit) return text;
+  return `${new TextDecoder().decode(bytes.slice(0, limit - 32))}\n\n_摘要已截断。_`;
 }
 
 async function writeToClipboard(text: string): Promise<boolean> {
@@ -87,12 +103,47 @@ export function CopyRefButton({
   size = "sm",
   label,
   onDark = false,
+  snapshot,
+  referenceDisplay,
 }: CopyRefButtonProps) {
-  const [state, setState] = useState<"idle" | "copied" | "err">("idle");
+  const [state, setState] = useState<"idle" | "loading" | "copied" | "inserted" | "err">("idle");
   const token = formatToken(kind, id, comment);
 
-  const doCopy = async (e: React.MouseEvent) => {
+  const doReference = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (flopsInsertReferenceAvailable()) {
+      setState("loading");
+      const path = id ? `${kind}/${id}` : kind;
+      const payload: FlopsInsertReferenceParams = {
+        schemaVersion: 1,
+        provider: "hololab",
+        type: kind === "graph-node" ? "workflow_node" : kind.replace(/-/g, "_"),
+        resource: { uri: `https://hololab.xenotech.studio/${path}` },
+        display: referenceDisplay ?? {
+          title: `HoloLab ${kind}`,
+          subtitle: comment ?? token,
+          icon: kind === "graph-node" || kind === "workflow" ? "workflow" : "external",
+        },
+        access: { mode: "link_only" },
+        snapshot: {
+          text: truncateSnapshot(snapshot ?? [
+            "# HoloLab reference",
+            "",
+            `- Reference: \`${token}\``,
+            comment ? `- Summary: ${comment}` : "",
+          ].filter(Boolean).join("\n")),
+          mediaType: "text/markdown",
+        },
+      };
+      try {
+        const result = await flopsInsertReference(payload);
+        setState(result.success ? "inserted" : "err");
+      } catch {
+        setState("err");
+      }
+      window.setTimeout(() => setState("idle"), 2000);
+      return;
+    }
     const ok = await writeToClipboard(token);
     setState(ok ? "copied" : "err");
     window.setTimeout(() => setState("idle"), 1500);
@@ -109,7 +160,7 @@ export function CopyRefButton({
     ? "1px solid var(--inverse-border)"
     : "1px solid var(--border)";
   const color =
-    state === "copied"
+    state === "copied" || state === "inserted"
       ? "var(--success)"
       : state === "err"
         ? "var(--error)"
@@ -120,13 +171,20 @@ export function CopyRefButton({
   return (
     <button
       type="button"
-      onClick={doCopy}
+      onClick={doReference}
+      disabled={state === "loading"}
       title={
-        state === "copied"
-          ? "copied — paste into a chat with your agent"
+        state === "loading"
+          ? "正在插入引用…"
+          : state === "inserted"
+          ? "已插入 Flops 输入框"
+          : state === "copied"
+          ? "已复制 — 粘贴到与 agent 的对话中"
           : state === "err"
-            ? "copy failed — select the terminal token and copy manually"
-            : `copy reference: ${token}`
+            ? "引用失败"
+            : flopsInsertReferenceAvailable()
+              ? `插入引用到 Flops: ${token}`
+              : `复制引用: ${token}`
       }
       style={{
         display: "inline-flex",
@@ -140,14 +198,14 @@ export function CopyRefButton({
         border,
         background: bg,
         color,
-        cursor: "pointer",
+        cursor: state === "loading" ? "wait" : "pointer",
         fontSize: dims.font,
         lineHeight: 1,
         transition:
           "background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease)",
       }}
     >
-      {state === "copied" ? "✓" : state === "err" ? "!" : "⧉"}
+      {state === "loading" ? "…" : state === "copied" || state === "inserted" ? "✓" : state === "err" ? "!" : "⧉"}
       {label && <span>{label}</span>}
     </button>
   );

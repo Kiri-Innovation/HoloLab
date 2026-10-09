@@ -21,7 +21,6 @@ import { CopyRefButton } from "./CopyRefButton";
 import { OpenArtifactLocationButton } from "./OpenArtifactLocationButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { OpenSourceButton } from "./OpenSourceButton";
-import { InsertAiReferenceButton } from "./InsertAiReferenceButton";
 import { BasicInfoPreview, Preview } from "./previews";
 import { PreviewPlaceholder } from "./PreviewPlaceholder";
 
@@ -113,6 +112,43 @@ export interface PreviewTarget {
   // Per-dim element counts, outer-first. Null for scalar / file-storage
   // or when the walk couldn't produce a uniform shape.
   dim_sizes: number[] | null;
+}
+
+function graphNodeReferenceSnapshot(
+  nodeId: string,
+  pack: CatalogPack,
+  workflowName: string,
+  params: Record<string, unknown>,
+  runtime: NodeRuntime | undefined,
+  previews: Record<string, PreviewTarget> | undefined,
+): string {
+  const artifacts = Object.entries(previews ?? {}).map(([port, target]) => ({
+    port,
+    handle: target.handle_id,
+    storage: target.storage,
+    tags: target.tags,
+    deleted: target.deleted,
+  }));
+  return [
+    "# HoloLab workflow node",
+    "",
+    `- Node: \`${nodeId}\``,
+    `- Algorithm: \`${pack.name}@${pack.version}\``,
+    `- Workflow: ${workflowName}`,
+    `- Latest run status: ${runtime?.state ?? "not run"}`,
+    runtime?.job_id ? `- Latest job: \`${runtime.job_id}\`` : "",
+    runtime?.fail_reason ? `- Failure reason: ${runtime.fail_reason}` : "",
+    "",
+    "## Parameters",
+    "```json",
+    JSON.stringify(params, null, 2),
+    "```",
+    "",
+    "## Output artifacts",
+    "```json",
+    JSON.stringify(artifacts, null, 2),
+    "```",
+  ].filter(Boolean).join("\n");
 }
 
 export interface AlgorithmNodeData extends Record<string, unknown> {
@@ -725,6 +761,13 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
               id={`${workflowId}/${id}`}
               comment={`${pack.name}${runState ? ` · ${runState}` : ""}`}
               size="xs"
+              referenceDisplay={{
+                title: `${pack.name}@${pack.version}`,
+                subtitle: `${id} · ${workflowName}`,
+              }}
+              snapshot={graphNodeReferenceSnapshot(
+                id, pack, workflowName, params ?? {}, runtime, previews,
+              )}
             />
           )}
           {!readOnly && (
@@ -904,18 +947,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           <OpenArtifactLocationButton
             path={firstArtifactTarget.absolute_path}
             computeNode={artifactComputeNode}
-          />
-        )}
-        {workflowId && (
-          <InsertAiReferenceButton
-            workflowId={workflowId}
-            workflowName={workflowName}
-            nodeId={id}
-            algorithmName={pack.name}
-            algorithmVersion={pack.version}
-            params={params ?? {}}
-            runtime={runtime}
-            artifactTargets={previews}
           />
         )}
         {expandables.length > 0 && (
