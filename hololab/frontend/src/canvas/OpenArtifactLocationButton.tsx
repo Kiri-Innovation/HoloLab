@@ -1,6 +1,6 @@
 // "Jump to artifact location" — footer-scale sibling of
-// OpenInCocoderButton. Sized for the 20 px node-card footer, next to the
-// preview-caret. Opens the producing node's on-disk artifact
+// OpenInCocoderButton. Uses the same compact 24 px control as the
+// preview toggle and node header actions. Opens the producing node's on-disk artifact
 // path/directory in Cocoder via ``window.flops.showDocument``.
 //
 // The button:
@@ -16,8 +16,7 @@
 //     node isn't online (rare, but keeps the button clickable on stale
 //     handles);
 //   * shows a flat error state (red icon + title) rather than a floating
-//     callout — the footer is 20 px tall and a callout would collide
-//     with the graph below the card. The full Cocoder flow (with guide
+//     callout to keep feedback within the compact footer. The full Cocoder flow (with guide
 //     + callout) is still available in the drawer.
 //
 // See docs/cobrowser-integration.md.
@@ -114,6 +113,7 @@ export function OpenArtifactLocationButton({
   return (
     <button
       type="button"
+      className="hl-icon-button"
       onClick={onClick}
       disabled={status.kind === "loading"}
       data-tooltip={status.kind === "err" ? status.msg : "跳转产物"}
@@ -125,8 +125,6 @@ export function OpenArtifactLocationButton({
         border: "1px solid var(--border-strong)",
         background: "transparent",
         color: colour,
-        width: 16,
-        height: 16,
         borderRadius: "var(--radius-sm)",
         cursor: status.kind === "loading" ? "wait" : "pointer",
         display: "flex",

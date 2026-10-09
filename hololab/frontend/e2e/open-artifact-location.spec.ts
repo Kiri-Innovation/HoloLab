@@ -325,6 +325,29 @@ for (const theme of ["light", "dark"] as const) {
       svg: el.outerHTML, color: getComputedStyle(el).color,
     }))));
     const expand = card.getByRole("button", { name: "展开预览", exact: true });
+    const fiveButtons = [
+      ["source", card.locator("[data-hl-open-source]")],
+      ["reference", card.getByRole("button", { name: "引用到 Flops", exact: true })],
+      ["run", card.getByRole("button", { name: /^(运行|重新运行)$/ })],
+      ["artifact", footer], ["preview", expand],
+    ] as const;
+    const measurements = [];
+    for (const [name, button] of fiveButtons) {
+      const measured = await button.evaluate(el => {
+        const r = el.getBoundingClientRect(), c = getComputedStyle(el), svg = el.querySelector("svg");
+        return { width:r.width, height:r.height, padding:c.padding, border:c.borderWidth, radius:c.borderRadius,
+          icon: svg ? { width:svg.getBoundingClientRect().width, height:svg.getBoundingClientRect().height,
+            stroke:svg.getAttribute("stroke-width"), viewBox:svg.getAttribute("viewBox") } : null };
+      });
+      measurements.push({ name, ...measured });
+      await button.screenshot({ path: testInfo.outputPath(`five-${name}-${theme}.png`) });
+      if (!process.env.FIVE_BUTTON_BASELINE) {
+        expect(measured).toMatchObject({ width:24, height:24, padding:"0px", border:"1px", radius:"4px",
+          icon:{width:12,height:12,stroke:"2.2",viewBox:"0 0 24 24"} });
+      }
+    }
+    await writeFile(testInfo.outputPath(`five-measurements-${theme}.json`), JSON.stringify(measurements, null, 2));
+    if (process.env.FIVE_BUTTON_BASELINE) return;
     await expect(expand).toHaveAttribute("aria-expanded", "false");
     await expect(expand.locator("path")).toHaveAttribute("d", "m6 9 6 6 6-6");
     const box = (await expand.boundingBox())!;
