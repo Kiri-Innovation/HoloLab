@@ -55,6 +55,8 @@ Issues = "https://github.com/hololab-dev/hololab/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["hololab"]
+# Ship the generated viewer, not its source checkout (which contains a VSIX).
+exclude = ["hololab/frontend/vendor/ColmapUtil/**"]
 
 # Bundle the built frontend as package data. In dev this dir may be empty;
 # gateway falls back to a placeholder page when dist/index.html is missing.

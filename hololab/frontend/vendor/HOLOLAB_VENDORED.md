@@ -61,6 +61,9 @@ only after verifying no build is running; the next run restores a pending backup
 The upstream tracked `public/colmaputil-send.vsix` is untouched. The copied VSIX
 is removed from vendor dist, excluded from staging, and must not appear in
 HoloLab's generated public/dist output. The upstream extension is not built.
+Python wheels exclude the ColmapUtil source checkout and include the built
+frontend via the existing dist force-include rule, so the upstream VSIX does
+not leak into packaged releases either.
 
 ## Troubleshooting
 
