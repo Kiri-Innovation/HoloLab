@@ -112,24 +112,24 @@ export function CopyRefButton(props: CopyRefButtonProps) {
           : state === "err" ? <span aria-hidden="true">!</span>
           : (
             <svg
-              width="14"
-              height="14"
+              width={canInsert ? 12 : 14}
+              height={canInsert ? 12 : 14}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth={canInsert ? 2.2 : 2}
               strokeLinecap="round"
               strokeLinejoin="round"
               aria-hidden="true"
               focusable="false"
-              data-reference-icon={canInsert ? "mention" : "clipboard"}
+              data-reference-icon={canInsert ? "quote" : "clipboard"}
               style={{ flexShrink: 0 }}
             >
               {canInsert ? (
-                // @ mentions express handing a reference to Flops, not opening a link.
+                // Paired quotation marks; match the adjacent source glyph's 12px / 2.2 stroke.
                 <>
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M16 8v6a2 2 0 0 0 4 0v-2a8 8 0 1 0-3 6.25" />
+                  <path d="M10 6H3v7h4c0 2-1 3-3 4v2c4-1 6-4 6-8V6Z" />
+                  <path d="M21 6h-7v7h4c0 2-1 3-3 4v2c4-1 6-4 6-8V6Z" />
                 </>
               ) : (
                 <>

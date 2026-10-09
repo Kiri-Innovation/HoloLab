@@ -54,7 +54,7 @@ it.each(["copied", "err"])("does not render inline feedback for pure copy result
 });
 
 it.each([
-  { available: true, icon: "mention", action: "引用到 Flops" },
+  { available: true, icon: "quote", action: "引用到 Flops" },
   { available: false, icon: "clipboard", action: "复制引用" },
 ])("uses $icon with matching tooltip and accessible name", ({ available, icon, action }) => {
   vi.mocked(flopsInsertReferenceAvailable).mockReturnValue(available);
@@ -63,6 +63,9 @@ it.each([
   expect(glyph.type).toBe("svg");
   expect(glyph.props["data-reference-icon"]).toBe(icon);
   expect(glyph.props["aria-hidden"]).toBe("true");
+  expect(glyph.props.width).toBe(available ? 12 : 14);
+  expect(glyph.props.height).toBe(available ? 12 : 14);
+  expect(glyph.props.strokeWidth).toBe(available ? 2.2 : 2);
   expect(button.props.title).toBe(`${action}: hololab://workflow/w1`);
   expect(button.props["aria-label"]).toBe(action);
 });
@@ -74,7 +77,7 @@ it("rechecks availability on render for the shared batch button", () => {
   vi.mocked(flopsInsertReferenceAvailable).mockReturnValue(true);
   const after = CopyRefButton(props).props.children[0];
   expect(before.props.children[0].props["data-reference-icon"]).toBe("clipboard");
-  expect(after.props.children[0].props["data-reference-icon"]).toBe("mention");
+  expect(after.props.children[0].props["data-reference-icon"]).toBe("quote");
   expect(after.props["aria-label"]).toBe("引用到 Flops：引用 1 项");
 });
 
