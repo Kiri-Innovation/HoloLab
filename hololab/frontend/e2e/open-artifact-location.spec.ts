@@ -288,3 +288,46 @@ test.describe("Collapsed footer — 跳转产物位置 button", () => {
     await expect(doneCard.locator("[data-hl-open-artifact]")).toHaveCount(0);
   });
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`artifact entry icons and paths in ${theme} theme`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.addInitScript(theme => {
+      localStorage.setItem("hololab.theme", theme);
+      const calls: unknown[] = [];
+      Object.assign(window, {
+        __artifactCalls: calls,
+        flops: {
+          version: 1,
+          insertReference: async () => ({ success: true }),
+          showDocument: async (params: unknown) => { calls.push(params); return { success: true }; },
+        },
+      });
+    }, theme);
+    await page.routeWebSocket("**/*", () => {});
+    await page.route("**/api/**", jsonRoute({}));
+    await stubCommon(page);
+    await page.goto(`/w/${WORKFLOW_ID}`);
+    const card = page.locator('[data-hololab-node="algorithm"][data-state="done"]');
+    const footer = card.locator("[data-hl-open-artifact]");
+    await expect(footer).toBeVisible();
+    await expect(footer.locator("svg")).toHaveAttribute("data-hl-artifact-jump-icon", "");
+    await expect(footer.locator("svg")).toHaveAttribute("width", "12");
+    await expect(footer.locator("svg")).toHaveAttribute("stroke-width", "2.2");
+    await card.screenshot({ path: testInfo.outputPath(`artifact-footer-${theme}.png`), animations: "disabled" });
+    await footer.click();
+    await card.locator('button[title="expand preview"]').click();
+    const preview = card.locator("[data-hl-open-cocoder]").first();
+    await expect(preview).toBeVisible();
+    await expect(preview.locator("svg")).toHaveAttribute("data-hl-artifact-jump-icon", "");
+    await expect(preview.locator("svg")).toHaveAttribute("width", "12");
+    await expect(preview.locator("svg")).toHaveAttribute("stroke-width", "2.2");
+    await card.screenshot({ path: testInfo.outputPath(`artifact-preview-${theme}.png`), animations: "disabled" });
+    await preview.click();
+    const calls = await page.evaluate(() => (window as unknown as { __artifactCalls: unknown[] }).__artifactCalls);
+    expect(calls).toEqual([
+      { path: ARTIFACT_PATH, deviceId: "device-abc" },
+      { path: ARTIFACT_PATH, deviceId: "device-abc" },
+    ]);
+  });
+}

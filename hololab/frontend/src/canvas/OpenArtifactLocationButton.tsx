@@ -23,6 +23,7 @@
 // See docs/cobrowser-integration.md.
 
 import { useEffect, useState } from "react";
+import { ArtifactJumpGlyph } from "./ArtifactJumpGlyph";
 import type { ComputeNode } from "../wire";
 import { flopsAvailable, flopsShowDocument } from "../flops";
 
@@ -43,28 +44,6 @@ type Status =
   | { kind: "loading" }
   | { kind: "ok" }
   | { kind: "err"; msg: string };
-
-/** Lucide-style "folder with corner arrow" glyph — 10x10 stroke icon
- *  that reads as "jump into folder" on both light and dark themes. */
-function FolderJumpGlyph({ colour }: { colour: string }) {
-  return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={colour}
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
-      <polyline points="10 14 14 14 14 10" />
-      <line x1="14" y1="14" x2="9" y2="9" />
-    </svg>
-  );
-}
 
 export function OpenArtifactLocationButton({
   path,
@@ -165,7 +144,7 @@ export function OpenArtifactLocationButton({
       ) : status.kind === "err" ? (
         <span style={{ fontSize: 9 }}>!</span>
       ) : (
-        <FolderJumpGlyph colour={colour} />
+        <ArtifactJumpGlyph />
       )}
     </button>
   );

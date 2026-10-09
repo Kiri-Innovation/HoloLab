@@ -23,6 +23,7 @@
 // See docs/cobrowser-integration.md.
 
 import { useEffect, useState } from "react";
+import { ArtifactJumpGlyph } from "./ArtifactJumpGlyph";
 import type { ComputeNode } from "../wire";
 import { flopsAvailable, flopsShowDocument } from "../flops";
 import { FlopsExecutorGuide } from "./FlopsExecutorGuide";
@@ -208,7 +209,7 @@ export function OpenInCocoderButton({
         ? "✓"
         : status.kind === "err"
           ? "!"
-          : "↗";
+          : <ArtifactJumpGlyph />;
 
   const title = configured
     ? status.kind === "loading"
