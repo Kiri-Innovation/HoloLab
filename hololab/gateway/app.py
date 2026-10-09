@@ -1776,7 +1776,8 @@ def _mount_routes(app: FastAPI) -> None:
         return {
             "workflow_id": workflow_id,
             "snapshot_id": snapshot.snapshot_id,
-            "node_count": len(snapshot.graph.nodes),
+            "node_count": sum(1 for n in snapshot.graph.nodes if n.kind == "algorithm"),
+            "view_node_count": sum(1 for n in snapshot.graph.nodes if n.kind == "view"),
             "mode": "graph",
         }
 
@@ -1956,7 +1957,7 @@ def _mount_routes(app: FastAPI) -> None:
         # the executor dispatches jobs one at a time in topological
         # order (see execution.run_snapshot). Without this the wait
         # would return prematurely after the first node.
-        total_nodes = len(snap.graph.nodes)
+        total_nodes = sum(1 for n in snap.graph.nodes if n.kind == "algorithm")
 
         def _matches(jobs: list[dict[str, Any]], target: str) -> bool:
             terminal = {"done", "failed", "cancelled", "orphaned"}
@@ -2229,6 +2230,8 @@ def _mount_routes(app: FastAPI) -> None:
         # bypassing that path — do it explicitly).
         for gnode in old_snap.graph.nodes:
             if gnode.id not in to_rerun:
+                continue
+            if gnode.kind != "algorithm":
                 continue
             if gnode.assigned_node_id is None or gnode.assigned_node_id not in online_node_ids:
                 raise HTTPException(

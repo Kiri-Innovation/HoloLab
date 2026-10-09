@@ -52,9 +52,9 @@ from hololab.gateway.workflows import (
     GraphNode,
     WorkflowGraph,
     effective_port_arrayed,
+    execution_topological_order,
     packs_by_key_from_catalog,
     resolve_handle_output_tags,
-    topological_order,
 )
 from hololab.logging import get_logger
 from hololab.protocol import JobAssign, JobFailReason, encode
@@ -117,7 +117,7 @@ async def run_snapshot(
     map so downstream ``_wire_inputs`` finds its inputs immediately.
     """
 
-    order = topological_order(graph)
+    order = execution_topological_order(graph)
     node_by_id = {n.id: n for n in graph.nodes}
 
     registry: NodeRegistry = app.state.registry
@@ -1593,6 +1593,8 @@ async def dispatch_graph_node(
     if graph_node_id not in node_by_id:
         raise DispatchError(f"graph node {graph_node_id!r} not in current graph")
     gnode = node_by_id[graph_node_id]
+    if gnode.kind != "algorithm":
+        raise DispatchError(f"graph node {graph_node_id!r} is a view and cannot be dispatched")
 
     if gnode.assigned_node_id is None:
         raise DispatchError(f"graph node {graph_node_id!r} has no assigned compute node")

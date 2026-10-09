@@ -471,6 +471,8 @@ export interface LatestRun {
 
 export interface GraphNode {
   id: string;
+  // Missing means algorithm for graphs saved before view stickers shipped.
+  kind?: "algorithm" | "view";
   algorithm_name: string;
   algorithm_version: string;
   position: { x: number; y: number };
@@ -508,6 +510,9 @@ export interface GraphNode {
   // GET). ``null`` when the node has never dispatched. Read-only —
   // silently dropped on writes like ``resolved_outputs``.
   latest_run?: LatestRun | null;
+  // View-node-only cosmetic fields. A view deliberately has no output.
+  view_type?: "artifact-preview";
+  title?: string | null;
 }
 
 export interface GraphEdge {

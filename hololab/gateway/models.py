@@ -526,8 +526,11 @@ class LatestRunOut(BaseModel):
 
 class GraphNodeOut(BaseModel):
     id: str
-    algorithm_name: str
-    algorithm_version: str
+    kind: str = "algorithm"
+    algorithm_name: str | None = None
+    algorithm_version: str | None = None
+    view_type: str | None = None
+    title: str | None = None
     position: dict[str, float] = Field(default_factory=lambda: {"x": 0.0, "y": 0.0})
     params: dict[str, Any] = Field(default_factory=dict)
     assigned_node_id: str | None = None

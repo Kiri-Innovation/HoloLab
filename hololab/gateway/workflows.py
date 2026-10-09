@@ -16,10 +16,10 @@ import time
 import uuid
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import aiosqlite
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from hololab.logging import get_logger
 from hololab.persistence.db import Database
@@ -63,8 +63,13 @@ class GraphNode(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str
-    algorithm_name: str
-    algorithm_version: str
+    # ``kind`` deliberately lives in the persisted graph instead of being a
+    # frontend-only node type.  A view is a graph resident, but is never a
+    # pack instance or an execution unit.  Old graphs predate the field and
+    # are normalized to ``algorithm`` before validation.
+    kind: Literal["algorithm", "view"] = "algorithm"
+    algorithm_name: str | None = None
+    algorithm_version: str | None = None
     position: GraphPosition = Field(default_factory=GraphPosition)
     params: dict[str, Any] = Field(default_factory=dict)
     assigned_node_id: str | None = None
@@ -109,6 +114,39 @@ class GraphNode(BaseModel):
     # Nullable so old graph JSON blobs (produced before this field
     # existed) round-trip cleanly through pydantic.
     preview_open: str | None = None
+    # View-only cosmetic data. ``view_type`` is intentionally explicit so
+    # future non-artifact stickers do not require another schema migration.
+    view_type: Literal["artifact-preview"] | None = None
+    title: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_kind(cls, value: Any) -> Any:
+        if isinstance(value, dict) and "kind" not in value:
+            return {**value, "kind": "algorithm"}
+        return value
+
+    @model_validator(mode="after")
+    def _kind_fields(self) -> GraphNode:
+        if self.kind == "algorithm":
+            if not self.algorithm_name or not self.algorithm_version:
+                raise ValueError("algorithm nodes require algorithm_name and algorithm_version")
+            if self.view_type is not None:
+                raise ValueError("algorithm nodes cannot declare view_type")
+        else:
+            if self.algorithm_name is not None or self.algorithm_version is not None:
+                raise ValueError("view nodes cannot declare an algorithm")
+            if self.view_type != "artifact-preview":
+                raise ValueError("view nodes require view_type='artifact-preview'")
+            if self.assigned_node_id is not None or self.params:
+                raise ValueError("view nodes cannot have params or assigned_node_id")
+        return self
+
+
+def is_algorithm_node(node: GraphNode) -> bool:
+    """The sole execution boundary for graph residents."""
+
+    return node.kind == "algorithm"
 
 
 class GraphEdge(BaseModel):
@@ -260,7 +298,7 @@ class WorkflowStore:
         """
 
         wid = workflow_id or str(uuid.uuid4())
-        graph_json = graph.model_dump_json()
+        graph_json = graph.model_dump_json(exclude_none=True)
         now = time.time()
         conflict_row: WorkflowRow | None = None
         precondition_row: WorkflowRow | None = None
@@ -419,7 +457,7 @@ class WorkflowStore:
         """
 
         snapshot_id = str(uuid.uuid4())
-        graph_json = graph.model_dump_json()
+        graph_json = graph.model_dump_json(exclude_none=True)
         now = time.time()
 
         async def _write(conn: aiosqlite.Connection) -> None:
@@ -573,6 +611,22 @@ def topological_order(graph: WorkflowGraph) -> list[str]:
     if len(ordered) != len(node_ids):
         raise GraphCycle(f"graph has a cycle; processed {len(ordered)}/{len(node_ids)} nodes")
     return ordered
+
+
+def execution_topological_order(graph: WorkflowGraph) -> list[str]:
+    """Topological order of executable nodes only.
+
+    View edges describe observation, not data dependency.  Keeping this
+    separate from :func:`topological_order` means canvas validation still
+    catches malformed cycles while a sticker can never create a Job.
+    """
+
+    algorithms = {n.id for n in graph.nodes if is_algorithm_node(n)}
+    execution_graph = WorkflowGraph(
+        nodes=[n for n in graph.nodes if n.id in algorithms],
+        edges=[e for e in graph.edges if e.source in algorithms and e.target in algorithms],
+    )
+    return topological_order(execution_graph)
 
 
 # ---------------------------------------------------------------------------
@@ -998,8 +1052,10 @@ def validate_snapshot(
     issues: list[ValidationIssue] = []
     node_by_id = {n.id: n for n in graph.nodes}
 
-    # Rules 1 + 2: pack exists on assigned node.
+    # Rules 1 + 2: pack exists on assigned node (views have neither).
     for node in graph.nodes:
+        if not is_algorithm_node(node):
+            continue
         key = (node.algorithm_name, node.algorithm_version)
         if key not in packs_by_key:
             issues.append(
@@ -1054,6 +1110,30 @@ def validate_snapshot(
                     where=f"edge:{edge.id}",
                     message="edge references an unknown node id",
                 )
+            )
+            continue
+        # A view is a leaf sticker with precisely one input. It intentionally
+        # accepts every runtime handle shape: the viewer dispatches from the
+        # registered handle tags, not a fake ``any`` manifest port.
+        if tgt.kind == "view":
+            if edge.targetHandle != "in":
+                issues.append(
+                    ValidationIssue(
+                        where=f"edge:{edge.id}", message="view target handle must be 'in'"
+                    )
+                )
+            if not is_algorithm_node(src):
+                issues.append(
+                    ValidationIssue(
+                        where=f"edge:{edge.id}",
+                        message="a view input must originate at an algorithm output",
+                    )
+                )
+            incoming_edges[(edge.target, edge.targetHandle)].append(edge.id)
+            continue
+        if src.kind == "view":
+            issues.append(
+                ValidationIssue(where=f"edge:{edge.id}", message="view nodes have no output ports")
             )
             continue
         src_pack = packs_by_key.get((src.algorithm_name, src.algorithm_version))
@@ -1137,6 +1217,16 @@ def validate_snapshot(
 
     # Rule 6: required inputs wired exactly once.
     for node in graph.nodes:
+        if node.kind == "view":
+            wires = incoming_edges.get((node.id, "in"), [])
+            if len(wires) != 1:
+                issues.append(
+                    ValidationIssue(
+                        where=f"node:{node.id}",
+                        message="view nodes require exactly one incoming 'in' edge",
+                    )
+                )
+            continue
         pack = packs_by_key.get((node.algorithm_name, node.algorithm_version))
         if pack is None:
             continue
@@ -1182,12 +1272,13 @@ def downstream_closure(graph: WorkflowGraph, start_id: str) -> set[str]:
     re-executing.
     """
 
-    node_ids = {n.id for n in graph.nodes}
+    node_ids = {n.id for n in graph.nodes if is_algorithm_node(n)}
     if start_id not in node_ids:
         return set()
     outgoing: dict[str, list[str]] = defaultdict(list)
     for e in graph.edges:
-        outgoing[e.source].append(e.target)
+        if e.source in node_ids and e.target in node_ids:
+            outgoing[e.source].append(e.target)
     seen: set[str] = set()
     stack: list[str] = [start_id]
     while stack:
@@ -1206,7 +1297,7 @@ def graph_from_json(raw: str) -> WorkflowGraph:
 
 
 def graph_to_json(graph: WorkflowGraph) -> str:
-    return graph.model_dump_json()
+    return graph.model_dump_json(exclude_none=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1232,7 +1323,7 @@ def _mermaid_labels(graph: WorkflowGraph) -> dict[str, str]:
     by_algo: dict[str, int] = {}
     labels: dict[str, str] = {}
     for n in graph.nodes:
-        base = n.algorithm_name
+        base = n.title or n.algorithm_name or "view"
         seen = by_algo.get(base, 0)
         by_algo[base] = seen + 1
         # First occurrence gets the bare name; later ones get "algo#N".
@@ -1447,7 +1538,7 @@ def agent_graph_dict(
         if n is None:
             continue
         d = n.model_dump()
-        if packs_by_key is not None:
+        if packs_by_key is not None and is_algorithm_node(n):
             pack = packs_by_key.get((n.algorithm_name, n.algorithm_version))
             if pack is not None:
                 d["resolved_outputs"] = _resolved_outputs_for_node(

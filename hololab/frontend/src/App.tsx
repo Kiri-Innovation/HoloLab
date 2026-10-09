@@ -83,6 +83,7 @@ import {
   type PreviewToggleDetail,
   type RunNodeDetail,
 } from "./canvas/AlgorithmNode";
+import { ViewNode, type ViewNodeData } from "./canvas/ViewNode";
 import { Artifacts } from "./Artifacts";
 import { Gallery } from "./Gallery";
 import { netBus, useReconnectTick } from "./net";
@@ -116,7 +117,7 @@ import {
   type RecentJobRow,
 } from "./canvas/RecentJobsPanel";
 
-const NODE_TYPES = { algorithm: AlgorithmNode };
+const NODE_TYPES = { algorithm: AlgorithmNode, view: ViewNode };
 
 // Cheap value-level equality for the aggregated NodeRuntime so the
 // setNodes runtime-sync effect can keep node identity stable across
@@ -792,7 +793,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [snapshotSelectedEdgeId, setSnapshotSelectedEdgeId] = useState<
     string | null
   >(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<AlgorithmNodeData>>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<any>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<TypedEdgeData>>([]);
   // Stable refs so onSelectEdge doesn't depend on edges/nodes and
   // doesn't need to be recreated (which would remount all TypedEdge
@@ -966,6 +967,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     setNodes((current) => {
       const remeasure: string[] = [];
       const next = current.map((n) => {
+        if ((n.data as ViewNodeData).kind === "view") return n;
         const key = `${n.data.pack.name}@${n.data.pack.version}`;
         const fresh = catalogByKey.get(key);
         if (!fresh || fresh.manifest_hash === n.data.pack.manifest_hash) {
@@ -1019,6 +1021,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   useEffect(() => {
     setNodes((current) =>
       current.map((n) => {
+        if ((n.data as ViewNodeData).kind === "view") {
+          const edge = edges.find((e) => e.target === n.id && e.targetHandle === "in");
+          const target = edge ? previewsByGraphNode[edge.source]?.[edge.sourceHandle ?? ""] ?? null : null;
+          if ((n.data as ViewNodeData).target === target) return n;
+          return { ...n, data: { ...n.data, target } };
+        }
         const d = n.data as AlgorithmNodeData;
         const rt = runtimeByGraphNode[n.id];
         const pv = previewsByGraphNode[n.id];
@@ -1055,6 +1063,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     previewsByGraphNode,
     previewShardsByGraphNode,
     previewOpenByGraphNode,
+    edges,
     setNodes,
   ]);
 
@@ -1161,6 +1170,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       const src = nodes.find((n) => n.id === conn.source)?.data;
       const tgt = nodes.find((n) => n.id === conn.target)?.data;
       if (!src || !tgt) return;
+      if ((tgt as ViewNodeData).kind === "view") {
+        if (conn.targetHandle !== "in" || (src as ViewNodeData).kind === "view") return;
+        if (edges.some((e) => e.target === conn.target && e.targetHandle === "in")) return;
+        setEdges((es) => addEdge({ ...conn, id: mintId("e"), type: "typed", data: {} }, es));
+        return;
+      }
+      if ((src as ViewNodeData).kind === "view") return;
 
       const srcOut = src.pack.outputs[conn.sourceHandle];
       const tgtIn = tgt.pack.inputs[conn.targetHandle];
@@ -1204,7 +1220,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         ),
       );
     },
-    [nodes, setEdges],
+    [nodes, edges, setEdges],
   );
 
   // --- drop target: convert a dragged pack into a canvas node ----------
@@ -1255,16 +1271,17 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     (e: React.DragEvent) => {
       e.preventDefault();
       if (!rfInstance || !rfWrapper.current) return;
+      const view = e.dataTransfer.getData("application/hololab-view");
       const raw = e.dataTransfer.getData("application/hololab-pack");
-      if (!raw) return;
+      if (!raw && !view) return;
+      const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      if (view) {
+        setNodes((ns) => ns.concat({ id: mintId("view"), type: "view", position, data: { kind: "view", title: "视图" } }));
+        return;
+      }
       const { name, version } = JSON.parse(raw) as { name: string; version: string };
       const pack = catalogByKey.get(`${name}@${version}`);
       if (!pack) return;
-
-      const position = rfInstance.screenToFlowPosition({
-        x: e.clientX,
-        y: e.clientY,
-      });
 
       const node: Node<AlgorithmNodeData> = {
         id: mintId("n"),
@@ -1294,7 +1311,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // is preserved when the label didn't change so xyflow doesn't churn.
   const displayEdges = useMemo(() => {
     if (edges.length === 0) return edges;
-    const graphNodes = nodes.map((n) => {
+    const graphNodes = nodes.filter((n) => (n.data as ViewNodeData).kind !== "view").map((n) => {
       const d = n.data as AlgorithmNodeData & {
         params?: Record<string, unknown>;
         arrayed_toggle?: boolean;
@@ -1312,7 +1329,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         arrayed_toggle: Boolean(d.arrayed_toggle),
       };
     });
-    const graphEdges = edges.map((e) => ({
+    const graphEdges = edges.filter((e) => graphNodes.some((n) => n.id === e.source) && graphNodes.some((n) => n.id === e.target)).map((e) => ({
       id: e.id,
       source: e.source,
       sourceHandle: e.sourceHandle ?? "",
@@ -1604,6 +1621,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const toGraph = useCallback((): WorkflowGraph => {
     return {
       nodes: nodes.map((n) => {
+        if ((n.data as ViewNodeData).kind === "view") {
+          const d = n.data as ViewNodeData;
+          return {
+            id: n.id,
+            kind: "view" as const,
+            view_type: "artifact-preview" as const,
+            title: d.title ?? "视图",
+            position: { x: n.position.x, y: n.position.y },
+          };
+        }
         const d = n.data as AlgorithmNodeData & {
           params?: Record<string, unknown>;
           arrayed_toggle?: boolean;
@@ -1636,7 +1663,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         target: e.target,
         targetHandle: e.targetHandle ?? "",
       })),
-    };
+    } as unknown as WorkflowGraph;
   }, [nodes, edges, previewOpenByGraphNode]);
 
   const fromGraph = useCallback(
@@ -1681,6 +1708,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       const missingPacks: string[] = [];
       const hydratedNodes = graph.nodes
         .map((gn) => {
+          if (gn.kind === "view") {
+            return {
+              id: gn.id,
+              type: "view",
+              position: gn.position,
+              data: { kind: "view", title: gn.title ?? "视图" },
+            } as Node<any>;
+          }
           const pack = catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`);
           if (!pack) {
             missingPacks.push(`${gn.algorithm_name}@${gn.algorithm_version}`);

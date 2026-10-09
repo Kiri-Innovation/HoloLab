@@ -550,6 +550,17 @@ export function PackPalette({ catalog, onRefresh }: PackPaletteProps) {
       </div>
 
       <div style={{ flex: 1, overflow: "auto", padding: "6px 8px 12px" }}>
+        <div
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData("application/hololab-view", "artifact-preview");
+            e.dataTransfer.effectAllowed = "copy";
+          }}
+          title="纯前端产物视图，不会创建任务"
+          style={{ ...ROW_BASE, cursor: "grab", marginBottom: 6, background: "#fff9df", border: "1px solid #ead99e" }}
+        >
+          <span>◈</span><span style={{ fontWeight: 600 }}>视图贴纸</span>
+        </div>
         {!hasCatalog && (
           <div
             style={{

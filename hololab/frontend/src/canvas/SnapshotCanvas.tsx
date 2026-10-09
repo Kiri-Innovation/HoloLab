@@ -53,13 +53,14 @@ import {
   type NodeRuntime,
   type PreviewTarget,
 } from "./AlgorithmNode";
+import { ViewNode, type ViewNodeData } from "./ViewNode";
 import { MinimapToggleButton } from "./MinimapToggleButton";
 import { aggregateJobsToRuntime } from "./nodeRuntime";
 import { TypedEdge, type TypedEdgeData } from "./TypedEdge";
 import { effectiveOutputType, formatTypeLabel, formatTypeLabelLong } from "./edgeLabels";
 import { seedEdgeSummaryFacts } from "./edgeSummaryCache";
 
-const NODE_TYPES = { algorithm: AlgorithmNode };
+const NODE_TYPES = { algorithm: AlgorithmNode, view: ViewNode };
 
 export interface SnapshotCanvasProps {
   snapshot: SnapshotDetail;
@@ -176,9 +177,7 @@ export function SnapshotCanvas({
       const outputs = job?.output_handles;
       if (!outputs) continue;
       for (const [portName, handleId] of Object.entries(outputs)) {
-        if (pack.outputs[portName]?.preview) {
-          work.push({ graphNodeId: gn.id, portName, handleId });
-        }
+        work.push({ graphNodeId: gn.id, portName, handleId });
       }
     }
 
@@ -251,7 +250,18 @@ export function SnapshotCanvas({
   // and preview state are baked in per-render — nothing else streams
   // into this canvas.
   const initial = useMemo(() => {
-    const rfNodes: Node<AlgorithmNodeData>[] = snapshot.graph.nodes.map((gn) => {
+    const rfNodes: Node<any>[] = snapshot.graph.nodes.map((gn) => {
+      if (gn.kind === "view") {
+        const edge = snapshot.graph.edges.find((e) => e.target === gn.id && e.targetHandle === "in");
+        const target = edge ? previewsByGraphNode[edge.source]?.[edge.sourceHandle] ?? null : null;
+        return {
+          id: gn.id,
+          type: "view",
+          position: gn.position,
+          selected: gn.id === selectedGraphNodeId,
+          data: { kind: "view", title: gn.title ?? "视图", target } as ViewNodeData,
+        };
+      }
       const pack =
         catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`) ??
         stubPack(gn.algorithm_name, gn.algorithm_version);

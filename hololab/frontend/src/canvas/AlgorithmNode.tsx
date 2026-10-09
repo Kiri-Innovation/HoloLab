@@ -846,6 +846,23 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 >
                   {portName}
                 </span>
+                {expandableNames.has(portName) && (
+                  <button
+                    type="button"
+                    className="nodrag"
+                    aria-label={`${portName} 预览`}
+                    data-tooltip={`${portName} 预览`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const next = expanded === portName ? null : portName;
+                      if (onPreviewToggle) onPreviewToggle(next);
+                      else dispatchToggle(id, next);
+                    }}
+                    style={{ border: 0, background: "transparent", color: "var(--text-muted)", cursor: "pointer", padding: "0 3px", fontSize: 11 }}
+                  >
+                    ◧
+                  </button>
+                )}
                 <Handle
                   type="source"
                   position={Position.Right}
@@ -909,17 +926,17 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           />
         )}
         {expandables.length > 0 && (
-          <PreviewCaret
-            expanded={Boolean(expanded)}
-            onClick={() => {
+          <button
+            type="button"
+            aria-label={expanded ? "收起预览" : "展开预览"}
+            data-tooltip={expanded ? "收起预览" : "展开预览"}
+            onClick={(e) => {
+              e.stopPropagation();
               const next = expanded ? null : expandables[0].name;
-              if (onPreviewToggle) {
-                onPreviewToggle(next);
-              } else {
-                dispatchToggle(id, next);
-              }
+              if (onPreviewToggle) onPreviewToggle(next); else dispatchToggle(id, next);
             }}
-          />
+            style={{ border: "1px solid var(--border-strong)", background: "transparent", color: "var(--text-muted)", cursor: "pointer", borderRadius: "var(--radius-sm)", fontSize: 10 }}
+          >⌄</button>
         )}
       </div>
 
@@ -1393,50 +1410,5 @@ function FooterRunSummary({
     >
       {label}
     </span>
-  );
-}
-
-/** Small caret in the node header — flips on expand. Purely visual. */
-/** Preview toggle: an open chevron distinguishes expansion from node execution. */
-function PreviewCaret({
-  expanded,
-  onClick,
-}: {
-  expanded: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      data-tooltip={expanded ? "收起预览" : "展开预览"}
-      aria-label={expanded ? "收起预览" : "展开预览"}
-      aria-expanded={expanded}
-      style={{
-        border: "1px solid var(--border-strong)",
-        background: expanded ? "var(--text)" : "transparent",
-        color: expanded ? "var(--text-inverse)" : "var(--text-muted)",
-        width: "var(--control-h-sm)",
-        height: "var(--control-h-sm)",
-        borderRadius: "var(--radius-sm)",
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 9,
-        lineHeight: 1,
-        padding: 0,
-        flexShrink: 0,
-      }}
-    >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-        aria-hidden="true" focusable="false">
-        <path d={expanded ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} />
-      </svg>
-    </button>
   );
 }
