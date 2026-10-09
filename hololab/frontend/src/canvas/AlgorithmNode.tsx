@@ -1257,15 +1257,8 @@ function RunButton({
       type="button"
       onClick={onClick}
       disabled={busy}
-      title={
-        inFlight
-          ? "running…"
-          : pending
-            ? "dispatching…"
-            : stale
-              ? "run this node · 结果陈旧，点击从此节点重跑"
-              : "run this node"
-      }
+      data-tooltip={inFlight ? "运行中" : pending ? "正在提交" : stale ? "重新运行" : "运行"}
+      aria-label={inFlight ? "运行中" : pending ? "正在提交" : stale ? "重新运行" : "运行"}
       style={{
         border: `1px solid ${staleTint ? "var(--warning)" : "var(--border-strong)"}`,
         background: busy
@@ -1416,7 +1409,8 @@ function PreviewCaret({
         e.stopPropagation();
         onClick();
       }}
-      title={expanded ? "collapse preview" : "expand preview"}
+      data-tooltip={expanded ? "收起预览" : "展开预览"}
+      aria-label={expanded ? "收起预览" : "展开预览"}
       style={{
         border: "1px solid var(--border-strong)",
         background: expanded ? "var(--text)" : "transparent",

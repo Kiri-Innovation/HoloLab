@@ -233,7 +233,7 @@ test.describe("Collapsed footer — 跳转产物位置 button", () => {
     await expect(doneButton).toBeVisible({ timeout: 15_000 });
     await expect(doneButton).toHaveAttribute("data-hl-configured", "1");
     await expect(doneButton).toHaveAttribute(
-      "title",
+      "aria-description",
       /跳转产物位置.*\/data\/runs\/sfm-done\/frames\.dir/,
     );
     // Screenshot the collapsed card so the visual result is auditable
@@ -265,7 +265,7 @@ test.describe("Collapsed footer — 跳转产物位置 button", () => {
     await expect(doneCard.locator("[data-hl-open-artifact]")).toBeVisible();
 
     // Click the preview caret to expand the drawer.
-    const caret = doneCard.locator('button[title="expand preview"]');
+    const caret = doneCard.locator('button[aria-label="展开预览"]');
     await expect(caret).toBeVisible();
     await caret.click();
 
@@ -316,7 +316,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(footer.locator("svg")).toHaveAttribute("stroke-width", "2.2");
     await card.screenshot({ path: testInfo.outputPath(`artifact-footer-${theme}.png`), animations: "disabled" });
     await footer.click();
-    await card.locator('button[title="expand preview"]').click();
+    await card.locator('button[aria-label="展开预览"]').click();
     const preview = card.locator("[data-hl-open-cocoder]").first();
     await expect(preview).toBeVisible();
     await expect(preview.locator("svg")).toHaveAttribute("data-hl-artifact-jump-icon", "");

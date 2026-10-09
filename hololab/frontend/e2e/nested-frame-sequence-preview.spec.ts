@@ -51,7 +51,7 @@ test("arrayed<frame_sequence> shows at most three groups in one vertical column"
   await page.goto(`/w/${WORKFLOW_ID}`);
   const card = page.locator('[data-hololab-node="algorithm"]').first();
   await expect(card).toBeVisible({ timeout: 15_000 });
-  await card.locator('button[title="expand preview"]').click();
+  await card.locator('button[aria-label="展开预览"]').click();
   const preview = card.locator("[data-hl-nested-strip]");
   await expect(preview).toBeVisible();
   const groups = preview.locator("[data-hl-group-card]");

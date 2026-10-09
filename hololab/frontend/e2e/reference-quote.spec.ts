@@ -17,6 +17,10 @@ for (const theme of ["light", "dark"] as const) {
     await page.route("**/api/**", async route => {
       const path = new URL(route.request().url()).pathname;
       let body: unknown = [];
+      // Focus/hover checks outlive the draft autosave debounce.
+      if (path === "/api/workflows" && route.request().method() === "POST") {
+        body = { workflow_id: workflowId, name: "Reference icon · workflow", updated_ts: 1700000001 };
+      }
       if (path === "/api/pack-catalog") body = [{
         name: "demo-echo", version: "0.1.0", manifest_hash: "demo", node_ids: [],
         description: "Example step", category: [], inputs: {}, outputs: {}, params: {}, arrayable: false,
@@ -40,14 +44,57 @@ for (const theme of ["light", "dark"] as const) {
     const quote = reference.locator("svg");
     const source = node.locator("[data-hl-open-source] svg");
     await expect(source).toBeVisible();
-    await expect(node.locator('button[title^="run this node"]')).toBeVisible();
+    await expect(node.locator('button[data-tooltip="重新运行"], button[data-tooltip="运行"]')).toBeVisible();
     await expect(quote).toHaveAttribute("data-reference-icon", "quote");
     await expect(quote.locator("path")).toHaveCount(2);
-    await expect(reference).toHaveAttribute("title", /^引用到 Flops:/);
+    await expect(reference).not.toHaveAttribute("title");
+    await expect(reference).toHaveAttribute("data-tooltip", "引用到 Flops");
     for (const attribute of ["width", "height", "stroke-width"]) {
       expect(await quote.getAttribute(attribute)).toBe(await source.getAttribute(attribute));
     }
     await expect(quote).toHaveAttribute("stroke", "currentColor");
+    await page.clock.install();
+    await page.clock.pauseAt(new Date());
+    const tooltip = page.getByRole("tooltip");
+    await source.hover();
+    await page.clock.runFor(200);
+    await expect(tooltip).toHaveCount(0);
+    await page.clock.runFor(200);
+    await expect(tooltip).toHaveText("查看代码");
+    await reference.hover();
+    await page.clock.runFor(450);
+    await expect(tooltip).toHaveText("引用到 Flops");
+    await expect(tooltip).toHaveCSS("font-size", "11px");
+    await expect(reference).toHaveAttribute("aria-describedby", await tooltip.getAttribute("id") as string);
+    const cardBox = (await node.boundingBox())!;
+    const tipBox = (await tooltip.boundingBox())!;
+    const clipTop = Math.max(0, Math.min(cardBox.y, tipBox.y) - 12);
+    await page.screenshot({
+      path: testInfo.outputPath(`tooltip-${theme}.png`), animations: "disabled",
+      clip: { x: Math.max(0, cardBox.x - 12), y: clipTop, width: cardBox.width + 24, height: cardBox.y + cardBox.height - clipTop + 12 },
+    });
+    await page.keyboard.press("Escape");
+    await expect(tooltip).toHaveCount(0);
+    await expect(reference).not.toHaveAttribute("aria-describedby");
+    await node.locator('button[data-tooltip="重新运行"], button[data-tooltip="运行"]').hover();
+    await page.clock.runFor(450);
+    await expect(tooltip).toHaveText(/运行/);
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toHaveCount(0);
+
+    // Keyboard focus shows immediately; toolbar placement flips below at the top edge.
+    await node.locator("[data-hl-open-source]").focus();
+    await page.keyboard.press("Tab");
+    await expect(reference).toBeFocused();
+    await expect(tooltip).toHaveText("引用到 Flops");
+    const toolbarRef = page.getByRole("button", { name: "引用到 Flops：引用整张流程", exact: true });
+    await toolbarRef.hover();
+    await page.clock.runFor(450);
+    const toolbarBox = (await toolbarRef.boundingBox())!;
+    const flipped = (await tooltip.boundingBox())!;
+    expect(flipped.y).toBeGreaterThanOrEqual(toolbarBox.y + toolbarBox.height);
+    expect(flipped.x + flipped.width).toBeLessThanOrEqual(1440 - 8);
+    await page.mouse.move(0, 0);
     await node.screenshot({ path: testInfo.outputPath(`reference-quote-${theme}.png`), animations: "disabled" });
     await testInfo.attach(`reference-quote-${theme}`, { path: testInfo.outputPath(`reference-quote-${theme}.png`), contentType: "image/png" });
   });

@@ -43,7 +43,7 @@ it("keeps only insertion diagnostics beside the button after fallback", () => {
   const insertionError = "已插入 0/1 条；插入失败：busy";
   vi.mocked(useState).mockReturnValueOnce([{ state: "copied", message: "已复制引用", insertionError }, vi.fn()]);
   const [button, status] = CopyRefButton({ kind: "handle", id: "a" }).props.children;
-  expect(button.props.title).toBe(insertionError);
+  expect(button.props["aria-description"]).toBe(insertionError);
   expect(status.props.role).toBe("status");
   expect(status.props.children).toBe(insertionError);
 });
@@ -66,7 +66,8 @@ it.each([
   expect(glyph.props.width).toBe(available ? 12 : 14);
   expect(glyph.props.height).toBe(available ? 12 : 14);
   expect(glyph.props.strokeWidth).toBe(available ? 2.2 : 2);
-  expect(button.props.title).toBe(`${action}: hololab://workflow/w1`);
+  expect(button.props.title).toBeUndefined();
+  expect(button.props["data-tooltip"]).toBe(action);
   expect(button.props["aria-label"]).toBe(action);
 });
 

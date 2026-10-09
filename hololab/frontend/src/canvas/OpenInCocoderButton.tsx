@@ -230,7 +230,9 @@ export function OpenInCocoderButton({
         type="button"
         onClick={onClick}
         disabled={status.kind === "loading"}
-        title={title}
+        data-tooltip={status.kind === "err" ? status.msg : "跳转产物"}
+        aria-label="跳转产物"
+        aria-description={title}
         data-hl-open-cocoder=""
         data-hl-configured={configured ? "1" : "0"}
         style={{

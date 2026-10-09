@@ -86,7 +86,8 @@ export function CopyRefButton(props: CopyRefButtonProps) {
         type="button"
         onClick={doReference}
         disabled={disabled || loading || references.length === 0}
-        title={feedback ?? `${actionLabel}: ${token}`}
+        data-tooltip={loading ? "正在处理引用" : actionLabel}
+        aria-description={feedback ?? token}
         aria-label={feedback ?? `${actionLabel}${label ? `：${label}` : ""}`}
         style={{
           display: "inline-flex",
