@@ -962,6 +962,40 @@ def _mount_routes(app: FastAPI) -> None:
         registry: NodeRegistry = app.state.registry
         return registry.catalog_json()
 
+    async def workflow_last_run(workflow_id: str) -> dict[str, Any] | None:
+        """Latest snapshot and job rollup shared by Gallery and references."""
+        workflows_store: WorkflowStore = app.state.workflows
+        jobs_store: JobsStore = app.state.jobs_store
+        snapshots = await workflows_store.list_snapshots_for_workflow(workflow_id)
+        if not snapshots:
+            return None
+        latest = snapshots[0]  # newest first
+        jobs = await jobs_store.list_by_snapshot(latest.snapshot_id)
+        state_counts: dict[str, int] = {}
+        for j in jobs:
+            state_counts[j["state"]] = state_counts.get(j["state"], 0) + 1
+        # Same rollup rules the runs endpoint uses so the Gallery
+        # pip and the Runs panel pip agree at a glance.
+        if not jobs:
+            rollup = "pending"
+        elif state_counts.get("failed", 0) > 0:
+            rollup = "failed"
+        elif state_counts.get("cancelled", 0) > 0 and state_counts.get("running", 0) == 0:
+            rollup = "cancelled"
+        elif all(j["state"] == "done" for j in jobs):
+            rollup = "done"
+        elif any(j["state"] in ("running", "assigned") for j in jobs):
+            rollup = "running"
+        else:
+            rollup = "pending"
+        return {
+            "snapshot_id": latest.snapshot_id,
+            "created_ts": latest.created_ts,
+            "state": rollup,
+            "state_counts": state_counts,
+            "job_count": len(jobs),
+        }
+
     @app.get(
         "/api/resolve",
         tags=["meta"],
@@ -1023,11 +1057,13 @@ def _mount_routes(app: FastAPI) -> None:
                 "resource": {
                     "workflow_id": row.workflow_id,
                     "name": row.name,
+                    "last_run": await workflow_last_run(row.workflow_id),
                     "graph": agent_graph_dict(row.graph, packs_by_key, latest_runs=latest_runs),
                     "created_ts": row.created_ts,
                     "updated_ts": row.updated_ts,
                 },
                 "related": {
+                    "workflow": f"/api/workflows/{row.workflow_id}",
                     "runs": f"/api/workflows/{row.workflow_id}/runs",
                     "run": f"/api/workflows/{row.workflow_id}/run",  # POST to launch
                 },
@@ -1364,46 +1400,11 @@ def _mount_routes(app: FastAPI) -> None:
         """
 
         workflows_store: WorkflowStore = app.state.workflows
-        jobs_store: JobsStore = app.state.jobs_store
 
         drafts = await workflows_store.list_drafts()
 
-        # N+1 queries by design — the Gallery loads ~dozens of rows, and
-        # a JOIN across snapshots+jobs+workflows with a per-workflow
-        # LATERAL is way more code to write and maintain than two
-        # awaited calls per row. Revisit if the drafts list ever grows
-        # into the thousands.
         for row in drafts:
-            snapshots = await workflows_store.list_snapshots_for_workflow(row["workflow_id"])
-            if not snapshots:
-                row["last_run"] = None
-                continue
-            latest = snapshots[0]  # newest first
-            jobs = await jobs_store.list_by_snapshot(latest.snapshot_id)
-            state_counts: dict[str, int] = {}
-            for j in jobs:
-                state_counts[j["state"]] = state_counts.get(j["state"], 0) + 1
-            # Same rollup rules the runs endpoint uses so the Gallery
-            # pip and the Runs panel pip agree at a glance.
-            if not jobs:
-                rollup = "pending"
-            elif state_counts.get("failed", 0) > 0:
-                rollup = "failed"
-            elif state_counts.get("cancelled", 0) > 0 and state_counts.get("running", 0) == 0:
-                rollup = "cancelled"
-            elif all(j["state"] == "done" for j in jobs):
-                rollup = "done"
-            elif any(j["state"] in ("running", "assigned") for j in jobs):
-                rollup = "running"
-            else:
-                rollup = "pending"
-            row["last_run"] = {
-                "snapshot_id": latest.snapshot_id,
-                "created_ts": latest.created_ts,
-                "state": rollup,
-                "state_counts": state_counts,
-                "job_count": len(jobs),
-            }
+            row["last_run"] = await workflow_last_run(row["workflow_id"])
         return drafts
 
     @app.get(

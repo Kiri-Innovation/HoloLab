@@ -9,6 +9,7 @@
 import { useState } from "react";
 import type { RunSummary } from "./RecentJobsPanel";
 import { STATE_COLOURS } from "./AlgorithmNode";
+import { CopyRefButton } from "./CopyRefButton";
 import { SaveStatusPill } from "./SaveStatusPill";
 import { ThemeToggle } from "../theme/ThemeToggle";
 import { CHIP_STYLE, CONTROL_STYLE, PRIMARY_CONTROL_STYLE } from "../ui/controlStyles";
@@ -17,6 +18,7 @@ import type { SaveStatus } from "./useDraftAutosave";
 export interface WorkflowToolbarProps {
   workflowId: string | null;
   name: string;
+  nodeCount: number;
   connected: boolean;
   running: boolean;
   summary: RunSummary | null;
@@ -41,6 +43,7 @@ export interface WorkflowToolbarProps {
 export function WorkflowToolbar({
   workflowId,
   name,
+  nodeCount,
   connected,
   running,
   summary,
@@ -208,6 +211,15 @@ export function WorkflowToolbar({
       >
         {message}
       </span>
+      {workflowId && (
+        <CopyRefButton
+          kind="workflow"
+          id={workflowId}
+          label="引用整张流程"
+          comment={`${name} · ${nodeCount} 个节点`}
+          referenceDisplay={{ title: name, subtitle: `${nodeCount} 个节点 · 当前已保存流程` }}
+        />
+      )}
       <ThemeToggle />
       <SaveStatusPill
         status={saveStatus}

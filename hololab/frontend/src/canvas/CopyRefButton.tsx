@@ -111,7 +111,7 @@ export function CopyRefButton({
     e.stopPropagation();
     if (flopsInsertReferenceAvailable()) {
       setState("loading");
-      const path = id ? `${kind}/${id}` : kind;
+      const path = kind === "workflow" ? `w/${id}` : id ? `${kind}/${id}` : kind;
       // The resolver DTO is the one snapshot source for every UI anchor.
       // If the gateway is temporarily unavailable, retain a useful, clearly
       // limited reference rather than silently claiming a full resource view.
@@ -132,9 +132,9 @@ export function CopyRefButton({
         type: kind === "graph-node" ? "workflow_node" : kind.replace(/-/g, "_"),
         // This is the actual running instance, never the old marketing host.
         resource: { uri: new URL(`/${path}`, window.location.origin).toString() },
-        display: referenceDisplay ?? {
-          title: `HoloLab ${kind}`,
-          subtitle: comment ?? token,
+        display: {
+          title: referenceDisplay?.title ?? `HoloLab ${kind}`,
+          subtitle: referenceDisplay?.subtitle ?? comment ?? token,
           icon: kind === "graph-node" || kind === "workflow" ? "workflow" : "external",
         },
         access: { mode: "link_only" },

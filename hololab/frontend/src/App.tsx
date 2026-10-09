@@ -2421,6 +2421,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     <WorkflowToolbar
       workflowId={workflowId}
       name={workflowName}
+      nodeCount={nodes.length}
       connected={connected}
       running={running}
       summary={workflowId ? runSummary : null}

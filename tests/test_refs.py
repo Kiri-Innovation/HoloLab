@@ -178,6 +178,21 @@ def test_resolve_workflow(tmp_path: Path) -> None:
         assert "runs" in body["related"]
         # agent-shaped graph is present.
         assert body["resource"]["graph"]["is_dag"] is True
+        assert body["resource"]["last_run"] is None
+        assert body["related"]["workflow"] == (
+            "/api/workflows/11111111-1111-1111-1111-111111111111"
+        )
+
+        # A real run uses the same latest-snapshot rollup as the Gallery.
+        snapshot_id, _ = _seed_wf_and_run(
+            client, workflow_id="11111111-1111-1111-1111-111111111111"
+        )
+        resource = client.get("/api/resolve", params={"ref": body["ref"]}).json()["resource"]
+        assert resource["last_run"]["snapshot_id"] == snapshot_id
+        assert resource["last_run"]["state"] == "done"
+        assert resource["last_run"]["created_ts"] > 0
+        assert resource["last_run"] == client.get("/api/workflows").json()[0]["last_run"]
+        assert resource["graph"]["nodes"][0]["latest_run"]["state"] == "done"
 
 
 def test_resolve_run(tmp_path: Path) -> None:
