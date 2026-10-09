@@ -2677,14 +2677,11 @@ function NestedFrameSequencePreview({
 
   const [state, setState] = useState<
     | { kind: "loading" }
-    // ``totalGroupCount`` = count of *all* top-level subdirs in the
-    // aggregate handle, whether or not the server had budget left to
-    // enrich their ``children`` for a thumbnail. ``groups`` is the
-    // subset that came back with at least one image reachable, which
-    // may be smaller. Two numbers because the ``共 N 组`` label should
-    // reflect the true fan-out count (e.g. 21 cameras), even when the
-    // per-frames drill in _summarize_dir ran out of shared budget and
-    // couldn't populate thumbs for every element.
+    // ``totalGroupCount`` comes from the measured outer dimension when
+    // available (otherwise all returned top-level dirs). ``groups`` is the
+    // subset the capped summary enriched with at least one reachable image.
+    // Two numbers ensure ``共 N 组`` reflects the true fan-out even when the
+    // shared per-group child drill budget is exhausted.
     | { kind: "ok"; groups: NestedGroup[]; totalGroupCount: number }
     | { kind: "err"; message: string }
   >({ kind: "loading" });
@@ -2703,7 +2700,14 @@ function NestedFrameSequencePreview({
         const summary = await getHandleSummary(handleId);
         if (cancelled) return;
         const entries = summary.fields.entries ?? [];
-        const totalGroupCount = entries.filter((e) => e.is_dir).length;
+        // ``entries`` is intentionally capped by the summary endpoint, so
+        // counting its directories under-reports large arrayed handles.  A
+        // measured outer dimension is authoritative when available; retain
+        // the directory count fallback for older gateways and scalar-ish
+        // handles.
+        const totalGroupCount = summary.dim_sizes?.[0]
+          ?? summary.element_count
+          ?? entries.filter((e) => e.is_dir).length;
         const groups: NestedGroup[] = entries
           .filter((e) => e.is_dir)
           .sort((a, b) => compareNameNumeric(a.name, b.name))
@@ -2799,7 +2803,19 @@ function NestedFrameSequencePreview({
     );
   }
 
-  const visibleGroups = state.groups.slice(0, NESTED_OUTER_CARDS);
+  // The summary has a shared child-listing budget.  Its last enriched group
+  // can therefore contain only a prefix of its images while still carrying a
+  // larger ``totalImageCount``. Prefer cards with enough sampled filenames
+  // for a complete three-thumb stack; this makes the overview useful without
+  // pretending a partial server listing is a short group.  Fall back when
+  // every available group is genuinely small or partially listed.
+  const groupsWithCompleteThumbs = state.groups.filter(
+    (g) => g.imageFiles.length >= Math.min(g.totalImageCount, NESTED_INNER_THUMBS),
+  );
+  const cardCandidates = groupsWithCompleteThumbs.length >= NESTED_OUTER_CARDS
+    ? groupsWithCompleteThumbs
+    : state.groups;
+  const visibleGroups = cardCandidates.slice(0, NESTED_OUTER_CARDS);
   const hiddenGroups = Math.max(
     0,
     state.totalGroupCount - visibleGroups.length,
@@ -2868,11 +2884,12 @@ function NestedGroupCard({
   onClick: () => void;
 }) {
   const thumbs = group.imageFiles.slice(0, NESTED_INNER_THUMBS);
+  const hasPartialListing = group.imageFiles.length < group.totalImageCount;
   return (
     <button
       type="button"
       onClick={onClick}
-      title={`${group.name} · ${group.totalImageCount} images (click to expand)`}
+      title={`${group.name} · ${group.totalImageCount} images${hasPartialListing ? ` (${group.imageFiles.length} listed)` : ""} (click to expand)`}
       data-hl-group-card={group.name}
       className="nodrag nopan"
       style={{
@@ -2947,7 +2964,7 @@ function NestedGroupCard({
             letterSpacing: "0.02em",
           }}
         >
-          {group.totalImageCount}
+          {hasPartialListing ? `${group.imageFiles.length}/${group.totalImageCount}` : group.totalImageCount}
         </div>
       </div>
       <div

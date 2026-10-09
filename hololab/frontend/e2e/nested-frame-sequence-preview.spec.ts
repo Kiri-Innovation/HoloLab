@@ -6,10 +6,12 @@ const NODE_ID = "node-nested";
 const GRAPH_NODE_ID = "frame-extraction";
 const HANDLE_ID = "nested-frames";
 const GROUPS = [
-  { name: "element-01", imageCount: 1 },
-  { name: "element-02", imageCount: 2 },
-  { name: "element-03", imageCount: 3 },
-  { name: "element-04", imageCount: 4 },
+  { name: "element-01", imageCount: 7, listedImageCount: 7 },
+  { name: "element-02", imageCount: 7, listedImageCount: 7 },
+  // The shared server drill budget can end mid-directory: its badge knows
+  // the real count but only two filenames reach the viewer.
+  { name: "element-03", imageCount: 7, listedImageCount: 2 },
+  { name: "element-04", imageCount: 7, listedImageCount: 7 },
 ];
 
 function jsonRoute(body: unknown) {
@@ -39,7 +41,7 @@ async function stubPage(page: import("@playwright/test").Page) {
   await page.route(`**/api/workflows/${WORKFLOW_ID}/runs`, jsonRoute([{ snapshot_id: SNAPSHOT_ID, workflow_id: WORKFLOW_ID, created_ts: 1_700_000_000, node_count: 1, job_count: 1, state_counts: { done: 1 }, overall_state: "done", favorite: false, note: null }]));
   await page.route(`**/api/snapshots/${SNAPSHOT_ID}`, jsonRoute({ snapshot_id: SNAPSHOT_ID, workflow_id: WORKFLOW_ID, created_ts: 1_700_000_000, graph, jobs: [{ job_id: "job-done", workflow_id: WORKFLOW_ID, node_id: NODE_ID, graph_node_id: GRAPH_NODE_ID, algorithm_name: pack.name, algorithm_version: pack.version, state: "done", progress: null, fail_reason: null, fail_exit_code: null, fail_message: null, params: {}, input_handles: {}, output_handles: { frames: HANDLE_ID }, parent_job_id: null, shard_element_id: null, shard_element_ids: null, expected_shards: null, created_ts: 1_700_000_000, updated_ts: 1_700_000_001 }] }));
   await page.route(`**/api/handles/${HANDLE_ID}`, jsonRoute({ handle_id: HANDLE_ID, node_id: NODE_ID, storage: "dir", tags: ["frame_sequence"], size_bytes: 0, output_port_name: "frames", proxy_url: `/proxy/${HANDLE_ID}/`, absolute_path: "/ws/nested", deleted_ts: null, preview: null, dim_labels: null, dim_sizes: null }));
-  await page.route(`**/api/handles/${HANDLE_ID}/summary`, jsonRoute({ handle_id: HANDLE_ID, kind: "dir", tags: ["frame_sequence"], storage: "dir", size_bytes: 0, proxy_url: `/proxy/${HANDLE_ID}/`, absolute_path: "/ws/nested", fields: { entries: GROUPS.map(({ name, imageCount }) => ({ name, is_dir: true, size_bytes: null, entry_count: imageCount, children: Array.from({ length: imageCount }, (_, i) => ({ name: `frame-${i + 1}.jpg`, is_dir: false, size_bytes: 1 })) })) } }));
+  await page.route(`**/api/handles/${HANDLE_ID}/summary`, jsonRoute({ handle_id: HANDLE_ID, kind: "dir", tags: ["frame_sequence"], storage: "dir", size_bytes: 0, proxy_url: `/proxy/${HANDLE_ID}/`, absolute_path: "/ws/nested", dim_sizes: [113, 7], fields: { entry_count: 115, truncated: true, entries: GROUPS.map(({ name, imageCount, listedImageCount }) => ({ name, is_dir: true, size_bytes: null, entry_count: imageCount, children: Array.from({ length: listedImageCount }, (_, i) => ({ name: `frame-${i + 1}.jpg`, is_dir: false, size_bytes: 1 })) })) } }));
 }
 
 test("arrayed<frame_sequence> shows at most three groups in one vertical column", async ({ page }) => {
@@ -54,8 +56,12 @@ test("arrayed<frame_sequence> shows at most three groups in one vertical column"
   await expect(preview).toBeVisible();
   const groups = preview.locator("[data-hl-group-card]");
   await expect(groups).toHaveCount(3);
-  await expect(preview.locator("[data-hl-group-count-label]")).toHaveText("共 4 组");
-  await expect(preview.getByText("+1 隐藏")).toBeVisible();
+  await expect(preview.locator("[data-hl-group-count-label]")).toHaveText("共 113 组");
+  await expect(preview.getByText("+110 隐藏")).toBeVisible();
+  await expect(preview.locator('[data-hl-group-card="element-03"]')).toHaveCount(0);
+  await expect(preview.locator('[data-hl-group-card="element-01"] img')).toHaveCount(3);
+  await expect(preview.locator('[data-hl-group-card="element-02"] img')).toHaveCount(3);
+  await expect(preview.locator('[data-hl-group-card="element-04"] img')).toHaveCount(3);
   await preview.screenshot({ path: process.env.LAYOUT_BASELINE ? "test-results/nested-frame-sequence-before.png" : "test-results/nested-frame-sequence-after.png" });
   const boxes = await groups.evaluateAll((cards) => cards.map((card) => card.getBoundingClientRect().toJSON()));
   if (process.env.LAYOUT_BASELINE) {
