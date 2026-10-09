@@ -412,6 +412,9 @@ class JobDetail(JobRow):
     snapshot_id: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     input_handles: dict[str, str] = Field(default_factory=dict)
+    # Produced handles keyed by output port.  A job is the producer; this
+    # deliberately does not imply that a graph-node *owns* these artifacts.
+    output_handles: dict[str, str] = Field(default_factory=dict)
     fail_exit_code: int | None = None
     fail_message: str | None = None
 

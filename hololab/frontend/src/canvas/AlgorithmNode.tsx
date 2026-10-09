@@ -114,43 +114,6 @@ export interface PreviewTarget {
   dim_sizes: number[] | null;
 }
 
-function graphNodeReferenceSnapshot(
-  nodeId: string,
-  pack: CatalogPack,
-  workflowName: string,
-  params: Record<string, unknown>,
-  runtime: NodeRuntime | undefined,
-  previews: Record<string, PreviewTarget> | undefined,
-): string {
-  const artifacts = Object.entries(previews ?? {}).map(([port, target]) => ({
-    port,
-    handle: target.handle_id,
-    storage: target.storage,
-    tags: target.tags,
-    deleted: target.deleted,
-  }));
-  return [
-    "# HoloLab workflow node",
-    "",
-    `- Node: \`${nodeId}\``,
-    `- Algorithm: \`${pack.name}@${pack.version}\``,
-    `- Workflow: ${workflowName}`,
-    `- Latest run status: ${runtime?.state ?? "not run"}`,
-    runtime?.job_id ? `- Latest job: \`${runtime.job_id}\`` : "",
-    runtime?.fail_reason ? `- Failure reason: ${runtime.fail_reason}` : "",
-    "",
-    "## Parameters",
-    "```json",
-    JSON.stringify(params, null, 2),
-    "```",
-    "",
-    "## Output artifacts",
-    "```json",
-    JSON.stringify(artifacts, null, 2),
-    "```",
-  ].filter(Boolean).join("\n");
-}
-
 export interface AlgorithmNodeData extends Record<string, unknown> {
   pack: CatalogPack;
   assigned_node_id: string | null;
@@ -512,7 +475,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     readOnly,
     staleness,
     arrayed_toggle,
-    params,
   } = data as AlgorithmNodeData & { arrayed_toggle?: boolean };
   const {
     workflow_id: workflowId,
@@ -765,9 +727,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 title: `${pack.name}@${pack.version}`,
                 subtitle: `${id} · ${workflowName}`,
               }}
-              snapshot={graphNodeReferenceSnapshot(
-                id, pack, workflowName, params ?? {}, runtime, previews,
-              )}
             />
           )}
           {!readOnly && (

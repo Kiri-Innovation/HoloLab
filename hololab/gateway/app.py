@@ -1073,7 +1073,9 @@ def _mount_routes(app: FastAPI) -> None:
             return {
                 "kind": "job",
                 "ref": parsed.canonical(),
-                "resource": _job_to_json(job),
+                "resource": _job_to_json(
+                    job, output_handles=await _output_handles_by_port(book, job.job_id)
+                ),
                 "related": related,
             }
 
@@ -1261,12 +1263,12 @@ def _mount_routes(app: FastAPI) -> None:
                     latest_snapshot_id = row[1]
                     latest_snapshot_created_ts = row[2]
 
-            latest_output_handles: dict[str, str] = {}
-            if latest_job_id is not None:
-                registered = await book.list_by_job(latest_job_id)
-                for h in registered:
-                    if h.output_port_name:
-                        latest_output_handles[h.output_port_name] = h.handle_id
+            latest_job = await jobs_store.get(latest_job_id) if latest_job_id is not None else None
+            latest_output_handles = (
+                await _output_handles_by_port(book, latest_job_id)
+                if latest_job_id is not None
+                else {}
+            )
 
             resource: dict[str, Any] = {
                 "workflow_id": workflow_id,
@@ -1282,6 +1284,27 @@ def _mount_routes(app: FastAPI) -> None:
                 "latest_snapshot_created_ts": latest_snapshot_created_ts,
                 "latest_job_id": latest_job_id,
                 "latest_output_handles": latest_output_handles,
+                # Keep draft configuration and historical execution separate:
+                # they can legitimately differ after an unsaved/rerun edit.
+                "current_draft": {
+                    "algorithm_name": gnode.algorithm_name,
+                    "algorithm_version": gnode.algorithm_version,
+                    "params": dict(gnode.params),
+                    "assigned_node_id": gnode.assigned_node_id,
+                },
+                "latest_attribution": (
+                    {
+                        "snapshot_id": latest_snapshot_id,
+                        "snapshot_created_ts": latest_snapshot_created_ts,
+                        "job_id": latest_job.job_id,
+                        "state": latest_job.state.value,
+                        "params": latest_job.params,
+                        "output_handles": latest_output_handles,
+                    }
+                    if latest_job is not None
+                    else None
+                ),
+                "drift": bool(latest_job is not None and dict(gnode.params) != latest_job.params),
             }
 
             related_gnode: dict[str, str] = {
@@ -2744,7 +2767,9 @@ def _mount_routes(app: FastAPI) -> None:
         job = await store.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
-        return _job_to_json(job)
+        return _job_to_json(
+            job, output_handles=await _output_handles_by_port(app.state.handles, job.job_id)
+        )
 
     @app.get(
         "/api/jobs/{job_id}/log",
@@ -3781,7 +3806,17 @@ async def _orphan_finalizer(app: FastAPI) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _job_to_json(job: Job) -> dict[str, Any]:
+async def _output_handles_by_port(book: HandleBook, job_id: str) -> dict[str, str]:
+    """Return every registered *output* handle for one producing job."""
+
+    return {
+        handle.output_port_name: handle.handle_id
+        for handle in await book.list_by_job(job_id)
+        if handle.output_port_name
+    }
+
+
+def _job_to_json(job: Job, *, output_handles: dict[str, str] | None = None) -> dict[str, Any]:
     return {
         "job_id": job.job_id,
         "workflow_id": job.workflow_id,
@@ -3792,6 +3827,7 @@ def _job_to_json(job: Job) -> dict[str, Any]:
         "algorithm_version": job.algorithm_version,
         "params": job.params,
         "input_handles": job.input_handles,
+        "output_handles": output_handles or {},
         "state": job.state.value,
         "progress": (
             {"current": job.progress_current, "total": job.progress_total}

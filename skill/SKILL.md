@@ -47,7 +47,7 @@ job              subprocess execution on a specific compute node
 Rules of thumb:
 - **Changing what to run** → edit the **draft** (`PATCH` isn't a verb here, use `POST /api/workflows` with existing `workflow_id`)
 - **Looking at what ran** → **snapshot + jobs** (`GET /api/snapshots/{id}`)
-- **Getting the outputs of a run** → job's `output_handles`, then `GET /api/handles/{id}/summary` or download via `proxy_url`
+- **Getting the outputs of one execution** → `GET /api/jobs/{job_id}` then its `output_handles`; for a whole run use `GET /api/snapshots/{id}`. Then inspect each handle with `GET /api/handles/{id}/summary` (or download via `proxy_url`).
 - **Restoring past params to try again** → `POST /api/workflows/{id}/restore-from-snapshot/{sid}`
 - **Running just one node, or "from here down"** → body on `/run` (see [Run modes](#run-just-one-node-or-just-from-a-node-downward))
 - **Stopping something** → cancel by job / snapshot / node / everywhere (see [Cancel a run](#cancel-a-run-single-job-whole-snapshot-whole-node-everything))
@@ -156,6 +156,20 @@ Reference kinds:
 The `#` comment tail is human-readable context; the resolver strips
 it, so you can pass the whole pasted line verbatim (URL-encode it or
 send as a query param and FastAPI decodes it).
+
+### Reference snapshots and read-only drill-down
+
+References inserted from the canvas include a
+`hololab.reference-snapshot/v1` Markdown snapshot. Every kind has the
+same `identity`, `state`, `context`, and `navigation` sections. Treat it
+as a useful offline summary, not as the authority: `navigation.resolve`
+contains the running instance's `GET /api/resolve?ref=…` URL, and its
+related links are the authoritative, current resources.
+
+The minimal read-only toolkit is already exposed by the REST API:
+`resolve`, workflow/snapshot/job reads, job logs, handle reads and
+summaries, artifact lineage, and filtered artifact listing. Start at
+`resolve`; follow its `related` links rather than reconstructing URLs.
 
 ---
 
@@ -499,6 +513,9 @@ Packs
 GET  /api/pack-catalog                                 — packs with port/param signatures (per-connected-node)
 GET  /api/packs                                        — every pack ever seen (persistent, across restarts)
 
+Reference resolution (agent entry point)
+GET  /api/resolve?ref=hololab://…                      — resolve a pasted reference; returns resource + one-hop related links
+
 Workflows (drafts)
 GET  /api/workflows                                    — list drafts + last_run rollups
 GET  /api/workflows/{id}                               — one draft (agent-shaped graph)
@@ -526,6 +543,7 @@ Jobs
 GET  /api/jobs?workflow_id=&state=&algorithm_name=&limit=&order=asc|desc
                                                        — filtered list; `state=live` = pending+assigned+running+orphaned
 GET  /api/jobs/{id}                                    — one job detail
+                                                       — includes input_handles AND output_handles by output port
 GET  /api/jobs/{id}/log?tail=&stream=stdout|stderr|both
                                                        — persisted stdout/stderr tail
 POST /api/jobs/{id}/cancel                             — cancel one job (idempotent; cascades to shards)

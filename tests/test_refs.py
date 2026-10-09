@@ -307,9 +307,7 @@ def test_resolve_404_on_unknown_id(tmp_path: Path) -> None:
 def test_parse_graph_node_compound_id() -> None:
     """The compound id ``<workflow_uuid>/<graph_node_id>`` round-trips."""
 
-    r = parse_ref(
-        "hololab://graph-node/11111111-1111-1111-1111-111111111111/d1src"
-    )
+    r = parse_ref("hololab://graph-node/11111111-1111-1111-1111-111111111111/d1src")
     assert r.kind == "graph-node"
     assert r.id == "11111111-1111-1111-1111-111111111111/d1src"
     assert r.comment is None
@@ -323,9 +321,7 @@ def test_parse_graph_node_with_comment_tail() -> None:
     r = parse_ref(ref)
     assert r.kind == "graph-node"
     assert r.comment == "single-video-source · done"
-    assert r.canonical() == (
-        "hololab://graph-node/11111111-1111-1111-1111-111111111111/d1src"
-    )
+    assert r.canonical() == ("hololab://graph-node/11111111-1111-1111-1111-111111111111/d1src")
 
 
 @pytest.mark.parametrize(
@@ -411,7 +407,18 @@ def test_resolve_graph_node_self_describing(tmp_path: Path) -> None:
         # Latest attribution surfaces the recorded snapshot + job.
         assert resource["latest_snapshot_id"] == snap_id
         assert resource["latest_job_id"] == job_id
-        assert resource["latest_output_handles"] == {
+        assert resource["latest_output_handles"] == {"out": "99999999-9999-9999-9999-999999999999"}
+        assert resource["current_draft"]["params"] == {"message": "hi"}
+        assert resource["latest_attribution"]["output_handles"] == {
+            "out": "99999999-9999-9999-9999-999999999999"
+        }
+        assert resource["drift"] is False
+
+        # A job is the artifact producer, so its detail is now a one-hop
+        # output lookup rather than requiring a snapshot detour.
+        job_detail = client.get(f"/api/jobs/{job_id}")
+        assert job_detail.status_code == 200, job_detail.text
+        assert job_detail.json()["output_handles"] == {
             "out": "99999999-9999-9999-9999-999999999999"
         }
 
@@ -429,11 +436,7 @@ def test_resolve_graph_node_404_unknown_workflow(tmp_path: Path) -> None:
     with TestClient(app) as client:
         r = client.get(
             "/api/resolve",
-            params={
-                "ref": (
-                    "hololab://graph-node/99999999-9999-9999-9999-999999999999/n1"
-                )
-            },
+            params={"ref": ("hololab://graph-node/99999999-9999-9999-9999-999999999999/n1")},
         )
         assert r.status_code == 404
 
@@ -498,9 +501,7 @@ def test_parse_workflows_rejects_id_segment() -> None:
     ``hololab://workflow/<uuid>`` singular kind and hide the mistake."""
 
     with pytest.raises(RefParseError):
-        parse_ref(
-            "hololab://workflows/11111111-1111-1111-1111-111111111111"
-        )
+        parse_ref("hololab://workflows/11111111-1111-1111-1111-111111111111")
 
 
 def test_format_workflows_index_round_trip() -> None:
@@ -569,10 +570,6 @@ def test_resolve_workflows_rejects_id_form(tmp_path: Path) -> None:
     with TestClient(app) as client:
         r = client.get(
             "/api/resolve",
-            params={
-                "ref": (
-                    "hololab://workflows/11111111-1111-1111-1111-111111111111"
-                )
-            },
+            params={"ref": ("hololab://workflows/11111111-1111-1111-1111-111111111111")},
         )
         assert r.status_code == 400

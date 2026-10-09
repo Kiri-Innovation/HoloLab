@@ -659,7 +659,7 @@ export interface LogTail {
 }
 
 // GET /api/jobs/{job_id} — full job detail (RecentJobRow + params +
-// input_handles + fail_message + fail_exit_code). The log viewer fetches
+// input/output handles + fail_message + fail_exit_code). The log viewer fetches
 // this to show ``fail_message`` (the panel row only carries ``fail_reason``).
 export interface JobDetail {
   job_id: string;
@@ -676,6 +676,7 @@ export interface JobDetail {
   fail_message: string | null;
   params: Record<string, unknown>;
   input_handles: Record<string, string>;
+  output_handles: Record<string, string>;
   created_ts: number;
   updated_ts: number;
 }

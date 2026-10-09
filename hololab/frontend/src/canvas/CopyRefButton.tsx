@@ -15,6 +15,7 @@ import {
   flopsInsertReferenceAvailable,
   type FlopsInsertReferenceParams,
 } from "../flops";
+import { referenceSnapshotDocument, resolveReference } from "./referenceSnapshot";
 
 export type RefKind =
   | "workflow"
@@ -47,8 +48,6 @@ export interface CopyRefButtonProps {
   // Optional theme flag for placement on dark surfaces (banner, preview
   // drawer). Adjusts colours so the button reads on either.
   onDark?: boolean;
-  /** Extra node data for the agent-readable CoBrowser reference snapshot. */
-  snapshot?: string;
   /** Human-readable labels for the CoBrowser reference pill. */
   referenceDisplay?: { title: string; subtitle: string };
 }
@@ -103,7 +102,6 @@ export function CopyRefButton({
   size = "sm",
   label,
   onDark = false,
-  snapshot,
   referenceDisplay,
 }: CopyRefButtonProps) {
   const [state, setState] = useState<"idle" | "loading" | "copied" | "inserted" | "err">("idle");
@@ -114,11 +112,26 @@ export function CopyRefButton({
     if (flopsInsertReferenceAvailable()) {
       setState("loading");
       const path = id ? `${kind}/${id}` : kind;
+      // The resolver DTO is the one snapshot source for every UI anchor.
+      // If the gateway is temporarily unavailable, retain a useful, clearly
+      // limited reference rather than silently claiming a full resource view.
+      let snapshotText: string;
+      try {
+        snapshotText = referenceSnapshotDocument(await resolveReference(token));
+      } catch {
+        snapshotText = referenceSnapshotDocument({
+          kind,
+          ref: token,
+          resource: { resolver_status: "unavailable" },
+          related: {},
+        });
+      }
       const payload: FlopsInsertReferenceParams = {
         schemaVersion: 1,
         provider: "hololab",
         type: kind === "graph-node" ? "workflow_node" : kind.replace(/-/g, "_"),
-        resource: { uri: `https://hololab.xenotech.studio/${path}` },
+        // This is the actual running instance, never the old marketing host.
+        resource: { uri: new URL(`/${path}`, window.location.origin).toString() },
         display: referenceDisplay ?? {
           title: `HoloLab ${kind}`,
           subtitle: comment ?? token,
@@ -126,12 +139,7 @@ export function CopyRefButton({
         },
         access: { mode: "link_only" },
         snapshot: {
-          text: truncateSnapshot(snapshot ?? [
-            "# HoloLab reference",
-            "",
-            `- Reference: \`${token}\``,
-            comment ? `- Summary: ${comment}` : "",
-          ].filter(Boolean).join("\n")),
+          text: truncateSnapshot(snapshotText),
           mediaType: "text/markdown",
         },
       };
