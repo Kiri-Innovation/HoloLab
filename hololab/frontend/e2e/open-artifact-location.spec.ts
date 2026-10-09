@@ -16,6 +16,7 @@
 // gateway or a real Cobrowser host.
 
 import { test, expect, type Route } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
 
 const WORKFLOW_ID = "wf-artifact-btn";
 const SNAPSHOT_ID = "snap-artifact-btn";
@@ -311,9 +312,18 @@ for (const theme of ["light", "dark"] as const) {
     const card = page.locator('[data-hololab-node="algorithm"][data-state="done"]');
     const footer = card.locator("[data-hl-open-artifact]");
     await expect(footer).toBeVisible();
+    // Capture the real controls at 100% canvas zoom: SVGs are exactly 12 CSS px.
+    await page.locator(".react-flow__viewport").evaluate(el => {
+      (el as HTMLElement).style.transform = "translate(40px, 40px) scale(1)";
+    });
     await expect(footer.locator("svg")).toHaveAttribute("data-hl-artifact-jump-icon", "");
     await expect(footer.locator("svg")).toHaveAttribute("width", "12");
     await expect(footer.locator("svg")).toHaveAttribute("stroke-width", "2.2");
+    const glyph = footer.locator("svg");
+    expect((await glyph.boundingBox())!.width).toBeCloseTo(12);
+    await writeFile(testInfo.outputPath(`artifact-glyph-${theme}.json`), JSON.stringify(await glyph.evaluate(el => ({
+      svg: el.outerHTML, color: getComputedStyle(el).color,
+    }))));
     await card.screenshot({ path: testInfo.outputPath(`artifact-footer-${theme}.png`), animations: "disabled" });
     await footer.click();
     await card.locator('button[aria-label="展开预览"]').click();

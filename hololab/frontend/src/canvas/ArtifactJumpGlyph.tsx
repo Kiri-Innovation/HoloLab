@@ -1,4 +1,4 @@
-/** Shared "open artifact in Cocoder" mark: a rounded box with an outward arrow.
+/** Shared "open artifact in Cocoder" mark: a folder with a simple rightward arrow.
  * Match the source/reference controls: 12px, 2.2 stroke, inherited theme colour.
  */
 export function ArtifactJumpGlyph() {
@@ -16,8 +16,8 @@ export function ArtifactJumpGlyph() {
       focusable="false"
       data-hl-artifact-jump-icon=""
     >
-      <path d="M10 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-5" />
-      <path d="M14 3h7v7M21 3 10 14" />
+      <path d="M20 9V8a2 2 0 0 0-2-2h-7L9 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1" />
+      <path d="M12 13h10m-4-4 4 4-4 4" />
     </svg>
   );
 }
