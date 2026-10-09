@@ -324,6 +324,17 @@ for (const theme of ["light", "dark"] as const) {
     await writeFile(testInfo.outputPath(`artifact-glyph-${theme}.json`), JSON.stringify(await glyph.evaluate(el => ({
       svg: el.outerHTML, color: getComputedStyle(el).color,
     }))));
+    const expand = card.getByRole("button", { name: "展开预览", exact: true });
+    await expect(expand).toHaveAttribute("aria-expanded", "false");
+    await expect(expand.locator("path")).toHaveAttribute("d", "m6 9 6 6 6-6");
+    const box = (await expand.boundingBox())!;
+    expect(box.width).toBe(24); expect(box.height).toBe(24);
+    await expect(expand.locator("svg")).toHaveAttribute("width", "12");
+    await expect(expand.locator("svg")).toHaveAttribute("height", "12");
+    await expect(expand.locator("svg")).toHaveAttribute("stroke-width", "2.2");
+    await expect(expand.locator("svg")).toHaveAttribute("fill", "none");
+    await card.getByRole("button", { name: /^(运行|重新运行)$/ }).screenshot({ path: testInfo.outputPath(`run-${theme}.png`) });
+    await expand.screenshot({ path: testInfo.outputPath(`expand-${theme}.png`) });
     await card.screenshot({ path: testInfo.outputPath(`artifact-footer-${theme}.png`), animations: "disabled" });
     await footer.click();
     await card.locator('button[aria-label="展开预览"]').click();
@@ -332,6 +343,10 @@ for (const theme of ["light", "dark"] as const) {
     await expect(preview.locator("svg")).toHaveAttribute("data-hl-artifact-jump-icon", "");
     await expect(preview.locator("svg")).toHaveAttribute("width", "12");
     await expect(preview.locator("svg")).toHaveAttribute("stroke-width", "2.2");
+    const collapse = card.getByRole("button", { name: "收起预览", exact: true });
+    await expect(collapse).toHaveAttribute("aria-expanded", "true");
+    await expect(collapse.locator("path")).toHaveAttribute("d", "m6 15 6-6 6 6");
+    await collapse.screenshot({ path: testInfo.outputPath(`collapse-${theme}.png`) });
     await card.screenshot({ path: testInfo.outputPath(`artifact-preview-${theme}.png`), animations: "disabled" });
     await preview.click();
     const calls = await page.evaluate(() => (window as unknown as { __artifactCalls: unknown[] }).__artifactCalls);
@@ -339,5 +354,8 @@ for (const theme of ["light", "dark"] as const) {
       { path: ARTIFACT_PATH, deviceId: "device-abc" },
       { path: ARTIFACT_PATH, deviceId: "device-abc" },
     ]);
+    await collapse.click();
+    await expect(expand).toHaveAttribute("aria-expanded", "false");
+    await expect(preview).toHaveCount(0);
   });
 }

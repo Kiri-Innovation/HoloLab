@@ -1397,8 +1397,7 @@ function FooterRunSummary({
 }
 
 /** Small caret in the node header — flips on expand. Purely visual. */
-/** Compact caret button — used in the footer bar to toggle the preview
- *  drawer. Sized to fit the 20 px footer without pushing it taller. */
+/** Preview toggle: an open chevron distinguishes expansion from node execution. */
 function PreviewCaret({
   expanded,
   onClick,
@@ -1415,12 +1414,13 @@ function PreviewCaret({
       }}
       data-tooltip={expanded ? "收起预览" : "展开预览"}
       aria-label={expanded ? "收起预览" : "展开预览"}
+      aria-expanded={expanded}
       style={{
         border: "1px solid var(--border-strong)",
         background: expanded ? "var(--text)" : "transparent",
         color: expanded ? "var(--text-inverse)" : "var(--text-muted)",
-        width: 16,
-        height: 16,
+        width: "var(--control-h-sm)",
+        height: "var(--control-h-sm)",
         borderRadius: "var(--radius-sm)",
         cursor: "pointer",
         display: "flex",
@@ -1432,7 +1432,11 @@ function PreviewCaret({
         flexShrink: 0,
       }}
     >
-      {expanded ? "▾" : "▸"}
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+        aria-hidden="true" focusable="false">
+        <path d={expanded ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} />
+      </svg>
     </button>
   );
 }
