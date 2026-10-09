@@ -8,6 +8,7 @@ import secrets
 import time
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import aiosqlite
@@ -86,6 +87,7 @@ class NodeRegistry:
     def __init__(self, db: Database) -> None:
         self._db = db
         self._sessions: dict[str, NodeSession] = {}  # node_id → session
+        self._manifest_cache: dict[Path, tuple[tuple[int, ...], Any]] = {}
 
     # -- session lifecycle ---------------------------------------------------
 
@@ -302,6 +304,27 @@ class NodeRegistry:
                     return session
         return None
 
+    def _load_manifest_cached(self, path: Path) -> Any:
+        """Reuse parsed YAML while the file is unchanged; never cache failures.
+
+        Check metadata on every lookup so edits, replacements and deletions
+        remain visible even before the node sends packs_updated. Catalogs
+        themselves are rebuilt from live sessions, preserving availability.
+        Return a copy: catalog callers can mutate nested tags/defaults.
+        """
+        from hololab.manifest import load_manifest
+
+        stat = path.stat()
+        stamp = (stat.st_dev, stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+        cached = self._manifest_cache.get(path)
+        if cached is not None and cached[0] == stamp:
+            return cached[1].model_copy(deep=True)
+        manifest, _sha = load_manifest(path)
+        if len(self._manifest_cache) >= 512 and path not in self._manifest_cache:
+            self._manifest_cache.pop(next(iter(self._manifest_cache)))
+        self._manifest_cache[path] = (stamp, manifest)
+        return manifest.model_copy(deep=True)
+
     def get_output_port_spec(
         self, algorithm_name: str, algorithm_version: str, output_port_name: str
     ) -> Any | None:
@@ -319,8 +342,6 @@ class NodeRegistry:
         """
 
         from pathlib import Path as _Path
-
-        from hololab.manifest import load_manifest
 
         legacy_root = _Path.cwd() / "packs"
         for session in self._sessions.values():
@@ -342,7 +363,7 @@ class NodeRegistry:
                     if not p.is_file():
                         continue
                     try:
-                        manifest, _sha = load_manifest(p)
+                        manifest = self._load_manifest_cached(p)
                     except Exception:
                         continue
                     return manifest.outputs.get(output_port_name)
@@ -422,11 +443,6 @@ class NodeRegistry:
         no online node can execute.
         """
 
-        # Local imports to avoid a top-level cycle: pack loading pulls in the
-        # manifest package which itself imports pydantic — cheap but per-call
-        # is fine because this is called from a REST handler, not a hot path.
-        from hololab.manifest import load_manifest
-
         # (name, version) -> catalog entry
         by_key: dict[tuple[str, str], dict[str, Any]] = {}
 
@@ -461,7 +477,7 @@ class NodeRegistry:
             if manifest_path:
                 p = _Path(manifest_path)
                 if p.is_file():
-                    m, _sha = load_manifest(p)
+                    m = self._load_manifest_cached(p)
                     return m
             candidates: list[_Path] = []
             if source_dir:
@@ -469,7 +485,7 @@ class NodeRegistry:
                 # ``source_dir`` may itself point directly at a manifest
                 # file in precise-file mode — check that first.
                 if sd.is_file():
-                    m, _sha = load_manifest(sd)
+                    m = self._load_manifest_cached(sd)
                     return m
                 candidates.append(sd)
             for r in roots:
@@ -481,7 +497,7 @@ class NodeRegistry:
             for root in candidates:
                 path = root / f"{name}@{version}" / "manifest.yaml"
                 if path.is_file():
-                    m, _sha = load_manifest(path)
+                    m = self._load_manifest_cached(path)
                     return m
             return None
 

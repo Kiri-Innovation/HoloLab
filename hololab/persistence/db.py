@@ -61,6 +61,11 @@ class Database:
         self._writer_conn = await aiosqlite.connect(self._path)
         self._reader_conn = await aiosqlite.connect(self._path)
 
+        from hololab.persistence.diagnostics import enabled, instrument_reader
+
+        if enabled():
+            instrument_reader(self._reader_conn)
+
         # WAL + foreign keys on both connections.
         for conn in (self._writer_conn, self._reader_conn):
             await conn.execute("PRAGMA journal_mode=WAL")

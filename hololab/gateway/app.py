@@ -93,6 +93,7 @@ from hololab.gateway.workflows import (
 from hololab.logging import get_logger
 from hololab.paths import frontend_dist_dir, gateway_sqlite_path
 from hololab.persistence.db import open_database
+from hololab.persistence.diagnostics import phase
 from hololab.protocol import (
     ArtifactDeleteResp,
     HandleCheckResp,
@@ -153,6 +154,11 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
 
     app = FastAPI(title="HoloLab Gateway", version="0.0.1")
 
+    from hololab.persistence.diagnostics import LatencyMiddleware, enabled, monitor_loop
+
+    if enabled():
+        app.add_middleware(LatencyMiddleware)
+
     dev_mode = os.environ.get("HOLOLAB_DEV") == "1"
     app.state.dev_mode = dev_mode
 
@@ -182,6 +188,9 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
         # UI to "interrupted" a heartbeat later would be exactly the
         # kind of destructive default we're fixing.
         app.state.gateway_started_ts = time.time()
+
+        if enabled():
+            app.state.latency_task = asyncio.create_task(monitor_loop(), name="latency-monitor")
 
         app.state.db = db
         app.state.registry = NodeRegistry(db)
@@ -226,7 +235,7 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
 
     @app.on_event("shutdown")
     async def _shutdown() -> None:
-        for attr in ("heartbeat_task", "orphan_finalizer_task"):
+        for attr in ("heartbeat_task", "orphan_finalizer_task", "latency_task"):
             task = getattr(app.state, attr, None)
             if task is not None:
                 task.cancel()
@@ -1199,7 +1208,8 @@ def _mount_routes(app: FastAPI) -> None:
             from hololab.gateway.refs import split_graph_node_id
 
             workflow_id, graph_node_id = split_graph_node_id(parsed.id)
-            draft = await workflows_store.get_draft(workflow_id)
+            with phase("draft"):
+                draft = await workflows_store.get_draft(workflow_id)
             if draft is None:
                 raise HTTPException(status_code=404, detail="workflow not found")
             gnode = next((n for n in draft.graph.nodes if n.id == graph_node_id), None)
@@ -1242,33 +1252,38 @@ def _mount_routes(app: FastAPI) -> None:
             latest_snapshot_id: str | None = None
             latest_snapshot_created_ts: float | None = None
 
-            async with (
-                app.state.db.read() as conn,
-                conn.execute(
-                    """
-                    SELECT sj.job_id, sj.snapshot_id, s.created_ts
-                    FROM snapshot_jobs sj
-                    JOIN snapshots s ON s.snapshot_id = sj.snapshot_id
-                    WHERE s.workflow_id = ?
-                      AND sj.graph_node_id = ?
-                    ORDER BY s.created_ts DESC
-                    LIMIT 1
-                    """,
-                    (workflow_id, graph_node_id),
-                ) as cur,
-            ):
-                row = await cur.fetchone()
-                if row is not None:
-                    latest_job_id = row[0]
-                    latest_snapshot_id = row[1]
-                    latest_snapshot_created_ts = row[2]
+            with phase("attribution"):
+                async with (
+                    app.state.db.read() as conn,
+                    conn.execute(
+                        """
+                        SELECT sj.job_id, sj.snapshot_id, s.created_ts
+                        FROM snapshot_jobs sj
+                        JOIN snapshots s ON s.snapshot_id = sj.snapshot_id
+                        WHERE s.workflow_id = ?
+                          AND sj.graph_node_id = ?
+                        ORDER BY s.created_ts DESC
+                        LIMIT 1
+                        """,
+                        (workflow_id, graph_node_id),
+                    ) as cur,
+                ):
+                    row = await cur.fetchone()
+                    if row is not None:
+                        latest_job_id = row[0]
+                        latest_snapshot_id = row[1]
+                        latest_snapshot_created_ts = row[2]
 
-            latest_job = await jobs_store.get(latest_job_id) if latest_job_id is not None else None
-            latest_output_handles = (
-                await _output_handles_by_port(book, latest_job_id)
-                if latest_job_id is not None
-                else {}
-            )
+            with phase("job"):
+                latest_job = (
+                    await jobs_store.get(latest_job_id) if latest_job_id is not None else None
+                )
+            with phase("handles"):
+                latest_output_handles = (
+                    await _output_handles_by_port(book, latest_job_id)
+                    if latest_job_id is not None
+                    else {}
+                )
 
             resource: dict[str, Any] = {
                 "workflow_id": workflow_id,
@@ -3187,10 +3202,10 @@ async def _resolve_handle_tags(
     (or under a since-deleted workflow) still surface concrete tags to the
     frontend viewer registry. The workflow store + registry catalog only
     fire when the raw tags carry ``any``; concrete-tag handles short-
-    circuit inside ``resolve_handle_output_tags`` with zero I/O.
+    circuit here, before loading the job or catalog, with zero I/O.
     """
 
-    if not handle.job_id or not handle.output_port_name:
+    if "any" not in handle.tags or not handle.job_id or not handle.output_port_name:
         return list(handle.tags)
     job = await jobs_store.get(handle.job_id)
     if job is None:
