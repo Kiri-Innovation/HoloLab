@@ -13,6 +13,10 @@ for (const theme of ["light", "dark"] as const) {
     await page.route("**/api/**", async route => {
       const path = new URL(route.request().url()).pathname;
       let body: unknown = [];
+      // The clock-driven dismissal checks also advance the draft autosave.
+      if (path === "/api/workflows" && route.request().method() === "POST") {
+        body = { workflow_id: workflowId, name: "Toast placement · workflow", updated_ts: 1700000001 };
+      }
       if (path === "/api/pack-catalog") body = [{
         name: "demo-echo", version: "0.1.0", manifest_hash: "demo", node_ids: [],
         description: "Example step", category: [], inputs: {}, outputs: {}, params: {}, arrayable: false,

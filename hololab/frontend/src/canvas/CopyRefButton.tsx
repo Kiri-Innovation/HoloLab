@@ -1,20 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { showToast } from "../ui/Toast";
 import { flopsInsertReferenceAvailable } from "../flops";
 import { copyReferenceText, formatToken, sendReferences, type ReferenceInput, type ReferenceOutcome } from "./referenceAction";
 export type { RefKind } from "./referenceAction";
 
-// Copy results belong to the global viewport, including retries after the
-// originating button unmounts. Insertion diagnostics remain at the source.
-function showCopyResult(result: ReferenceOutcome) {
-  if (result.state === "inserted") return;
+// All outcomes use one global notice per operation/batch, even after unmount.
+// Keep diagnostics out of node layout; a brief red icon identifies the source.
+function showReferenceResult(result: ReferenceOutcome) {
   showToast({
     message: result.message,
-    tone: result.state === "copied" ? "success" : "error",
+    tone: result.state === "err" || result.insertionError ? "error" : "success",
     action: result.retryText ? {
       label: "重试复制",
       run: async () => {
-        showCopyResult(await copyReferenceText(result.retryText!, result.insertionError));
+        showReferenceResult(await copyReferenceText(result.retryText!, result.insertionError));
       },
     } : undefined,
   });
@@ -44,8 +43,14 @@ export function CopyRefButton(props: CopyRefButtonProps) {
   // sendReferences checks again on click); no per-button polling is needed.
   const canInsert = flopsInsertReferenceAvailable();
   const actionLabel = canInsert ? "引用到 Flops" : "复制引用给 AI";
-  const feedback = loading ? "正在处理引用…" : outcome?.insertionError ?? outcome?.message;
+  const feedback = loading ? "正在处理引用…" : outcome?.message;
 
+
+  useEffect(() => {
+    if (!outcome) return;
+    const timer = setTimeout(() => setOutcome(null), 2000);
+    return () => clearTimeout(timer);
+  }, [outcome]);
 
   const doReference = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -53,9 +58,8 @@ export function CopyRefButton(props: CopyRefButtonProps) {
     setOutcome(null);
     try {
       const result = await sendReferences(references);
-      showCopyResult(result);
-      // Pure copy feedback must not expand or change the source button.
-      setOutcome(result.state === "inserted" || result.insertionError ? result : null);
+      showReferenceResult(result);
+      setOutcome(result);
     } finally {
       setLoading(false);
     }
@@ -88,7 +92,7 @@ export function CopyRefButton(props: CopyRefButtonProps) {
         disabled={disabled || loading || references.length === 0}
         data-tooltip={loading ? "正在处理引用" : actionLabel}
         aria-description={feedback ?? token}
-        aria-label={feedback ?? `${actionLabel}${label ? `：${label}` : ""}`}
+        aria-label={`${actionLabel}${label ? `：${label}` : ""}`}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -108,9 +112,9 @@ export function CopyRefButton(props: CopyRefButtonProps) {
             "background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease)",
         }}
       >
-        {state === "loading" ? <span aria-hidden="true">…</span>
-          : state === "copied" || state === "inserted" ? <span aria-hidden="true">✓</span>
-          : state === "err" ? <span aria-hidden="true">!</span>
+        {state === "loading" ? <span aria-hidden="true" style={{ width: canInsert ? 12 : 14, flexShrink: 0 }}>…</span>
+          : state === "copied" || state === "inserted" ? <span aria-hidden="true" style={{ width: canInsert ? 12 : 14, flexShrink: 0 }}>✓</span>
+          : state === "err" ? <span aria-hidden="true" style={{ width: canInsert ? 12 : 14, flexShrink: 0 }}>!</span>
           : (
             <svg
               width={canInsert ? 12 : 14}
@@ -143,11 +147,6 @@ export function CopyRefButton(props: CopyRefButtonProps) {
           )}
         {label && <span>{label}</span>}
       </button>
-      {(outcome?.insertionError || outcome?.state === "inserted") && (
-        <span role="status" style={{ maxWidth: 280, whiteSpace: "normal", overflowWrap: "anywhere", fontSize: "var(--fs-xs)", color }}>
-          {outcome.insertionError ?? outcome.message}
-        </span>
-      )}
     </span>
   );
 }

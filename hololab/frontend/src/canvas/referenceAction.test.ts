@@ -29,7 +29,8 @@ it.each(["false", "throw"])("falls back on insertion %s preserving its reason", 
   const result = await sendReferences([references[0]]);
   expect(result.state).toBe("copied");
   expect(result.insertionError).toContain("插入失败：forbidden");
-  expect(result.message).toBe("已复制引用");
+  expect(result.message).toContain("forbidden");
+  expect(result.message).toContain("已复制，可粘贴到对话");
   expect(writeText).toHaveBeenCalledWith("hololab://handle/a");
 });
 it("reports both failures and permits a copy-only retry", async () => {
