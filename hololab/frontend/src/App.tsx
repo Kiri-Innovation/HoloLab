@@ -1,3 +1,4 @@
+import { CanvasControls } from "./canvas/CanvasControls";
 // Blueprint canvas — the top-level shell.
 //
 // Layout:
@@ -11,7 +12,6 @@ import { CanvasToastAnchor } from "./ui/Toast";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
-  Controls,
   MiniMap,
   Panel,
   ReactFlow,
@@ -2472,7 +2472,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             minZoom={dynamicMinZoom}
             proOptions={{ hideAttribution: true }}
           >
-            <Controls />
+            <CanvasControls />
             <CanvasToastAnchor />
             <Panel
               position="bottom-right"

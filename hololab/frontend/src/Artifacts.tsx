@@ -440,7 +440,7 @@ function Header({
       <button
         type="button"
         onClick={onBack}
-        title="back to workflows"
+        data-tooltip="返回流程列表" aria-label="返回流程列表" aria-description="back to workflows"
         style={{
           ...CONTROL_STYLE,
           fontWeight: 600,
@@ -540,7 +540,7 @@ function SummaryBar({
               type="button"
               onClick={() => setStateFilter(stateFilter === s ? "all" : s)}
               style={pillStyle(s, stateFilter === s)}
-              title={`filter: ${s} · click again to clear`}
+              data-tooltip={stateFilter === s ? "清除状态筛选" : `筛选 ${s}`} aria-label={stateFilter === s ? "清除状态筛选" : `筛选 ${s}`} aria-description={`filter: ${s} · click again to clear`}
             >
               <span
                 style={{
@@ -612,7 +612,7 @@ function SummaryBar({
 
       <div style={{ flex: 1 }} />
 
-      <button type="button" onClick={onRefresh} disabled={loading} style={btnStyle()}>
+      <button data-tooltip="刷新" aria-label="刷新" type="button" onClick={onRefresh} disabled={loading} style={btnStyle()}>
         {loading ? "Loading…" : "Refresh"}
       </button>
       <button
@@ -623,7 +623,7 @@ function SummaryBar({
           ...btnStyle(),
           background: checked ? "var(--surface-hover)" : "var(--surface)",
         }}
-        title={
+        data-tooltip="检查产物是否存在" aria-label="检查产物是否存在" aria-description={
           checked
             ? "Liveness has been checked. Click to re-check."
             : "Ask each producing node whether its artifact files still exist."
@@ -635,7 +635,7 @@ function SummaryBar({
         type="button"
         onClick={onBulkDeleteDead}
         disabled={loading || !checked}
-        title={
+        data-tooltip="删除失效产物" aria-label="删除失效产物" aria-description={
           checked
             ? "Delete every handle currently classified as dead in the filter."
             : "Enable by running Check liveness first."
@@ -728,11 +728,8 @@ function ArtifactTable({
           type="checkbox"
           checked={allSelected}
           onChange={onToggleAll}
-          title={
-            allSelected
-              ? "Deselect every row in the current filter."
-              : "Select every row in the current filter."
-          }
+          data-tooltip={allSelected ? "取消全选" : "全选筛选结果"}
+          aria-label={allSelected ? "取消全选" : "全选筛选结果"}
           style={{ margin: 0, cursor: "pointer" }}
         />
         <span>State</span>
@@ -799,7 +796,8 @@ function ArtifactRowView({
         checked={selected}
         onChange={onToggle}
         onClick={(e) => e.stopPropagation()}
-        title={selected ? "Deselect this row" : "Select this row"}
+        data-tooltip={selected ? "取消选择" : "选择产物"}
+        aria-label={selected ? "取消选择" : "选择产物"}
         style={{ margin: 0, cursor: "pointer" }}
       />
       <StateChip state={row.state} />
@@ -859,7 +857,7 @@ function ArtifactRowView({
           className="hl-control-sm"
           type="button"
           onClick={() => onDelete(row)}
-          title="Delete artifact from disk"
+          data-tooltip="删除产物" aria-label="删除产物" aria-description="Delete artifact from disk"
           style={{
             border: "1px solid var(--border)",
             background: "transparent",
@@ -996,7 +994,7 @@ function BulkActionBar({
         type="button"
         onClick={onClear}
         disabled={busy}
-        title="Clear the selection without deleting anything."
+        data-tooltip="清空选择" aria-label="清空选择" aria-description="Clear the selection without deleting anything."
         style={{
           border: "none",
           background: "transparent",

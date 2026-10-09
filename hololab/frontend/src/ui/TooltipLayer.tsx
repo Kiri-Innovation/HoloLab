@@ -72,6 +72,10 @@ export function TooltipLayer() {
     let frame = 0;
     const update = () => {
       if (!tip.target.isConnected) { setTip(null); return; }
+      // Playback may end, or a toggle may change while focus/hover stays put.
+      const text = tip.target.dataset.tooltip;
+      if (!text) { setTip(null); return; }
+      if (text !== tip.text) { setTip({ target: tip.target, text }); return; }
       const matrix = viewport ? new DOMMatrixReadOnly(getComputedStyle(viewport).transform) : null;
       const zoom = matrix ? Math.hypot(matrix.a, matrix.b) : 1;
       // Resize actual CSS text metrics, not a rasterized transform layer.
@@ -92,6 +96,7 @@ export function TooltipLayer() {
     update();
     // Follow live zoom/pan and node movement while hover/focus stays active.
     const mutations = new MutationObserver(schedule);
+    mutations.observe(tip.target, { attributes: true, attributeFilter: ["data-tooltip"] });
     if (viewport) mutations.observe(viewport, { attributes: true, attributeFilter: ["style"] });
     const node = tip.target.closest(".react-flow__node");
     if (node) mutations.observe(node, { attributes: true, attributeFilter: ["style"] });

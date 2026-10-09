@@ -159,7 +159,7 @@ export function ComputeNodesPanel({ nodes, onConfigChanged }: ComputeNodesPanelP
             <button
               type="button"
               onClick={() => setDrawerFor(n.node_id)}
-              title="Node settings"
+              data-tooltip="节点设置" aria-label="节点设置" aria-description="Node settings"
               style={{
                 border: "1px solid var(--border)",
                 background: "var(--surface)",
@@ -368,7 +368,7 @@ function NodeSettingsDrawer({
         <button
           type="button"
           onClick={onClose}
-          title="close"
+          data-tooltip="关闭" aria-label="关闭" aria-description="close"
           style={{
             border: "none",
             background: "transparent",
@@ -496,7 +496,7 @@ function NodeSettingsDrawer({
               >
                 {saving ? "Applying…" : "Apply"}
               </button>
-              <button
+              <button data-tooltip="重新加载" aria-label="重新加载"
                 type="button"
                 onClick={() => void load()}
                 disabled={saving}
@@ -660,7 +660,7 @@ function LegacyRootsEditor({
           <button
             type="button"
             onClick={() => onChange(value.filter((_, j) => j !== i))}
-            title="remove"
+            data-tooltip="移除" aria-label="移除" aria-description="remove"
             style={{
               border: "1px solid var(--border-strong)",
               background: "var(--surface)",

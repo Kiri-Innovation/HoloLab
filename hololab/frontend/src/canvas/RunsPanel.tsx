@@ -192,7 +192,7 @@ function Header({ onRefresh }: { onRefresh: () => void }) {
           Run history
         </div>
       </div>
-      <button type="button" onClick={onRefresh} title="refresh" style={{ ...CONTROL_STYLE }}>
+      <button type="button" onClick={onRefresh} data-tooltip="刷新" aria-label="刷新" aria-description="refresh" style={{ ...CONTROL_STYLE }}>
         Refresh
       </button>
     </div>
@@ -466,7 +466,7 @@ function RunListView({
               tabIndex={0}
               onClick={() => onOpen(r.snapshot_id)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(r.snapshot_id); }}
-              title={active ? "currently open on canvas" : "open this run on the canvas"}
+              aria-description={active ? "currently open on canvas" : "open this run on the canvas"}
               style={{
                 display: "grid",
                 gridTemplateColumns: "8px 1fr auto",
@@ -644,7 +644,7 @@ function IconButton({
   return (
     <button
       type="button"
-      title={title}
+      data-tooltip={title} aria-label={title}
       onClick={onClick}
       style={{
         display: "inline-flex",
@@ -911,7 +911,7 @@ function NoteEditorModal({
               </button>
             ))}
           </div>
-          <button
+          <button data-tooltip="关闭" aria-label="关闭"
             type="button"
             onClick={onCancel}
             disabled={saving}
@@ -1182,7 +1182,7 @@ function DraftDiffModal({ items, onClose }: { items: DiffItem[]; onClose: () => 
               {items.length} 项改动 · 相较最新快照
             </div>
           </div>
-          <button
+          <button data-tooltip="关闭" aria-label="关闭"
             type="button"
             data-hl-draft-diff-close=""
             onClick={onClose}

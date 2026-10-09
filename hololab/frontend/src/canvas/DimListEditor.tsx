@@ -169,7 +169,7 @@ export function DimListEditor({
         <div key={i} style={ROW}>
           <button
             type="button"
-            title="move up"
+            data-tooltip="上移" aria-description="move up"
             onClick={() => moveUp(i)}
             disabled={i === 0}
             aria-label={`move ${v || "row"} up`}
@@ -179,7 +179,7 @@ export function DimListEditor({
           </button>
           <button
             type="button"
-            title="move down"
+            data-tooltip="下移" aria-description="move down"
             onClick={() => moveDown(i)}
             disabled={i === value.length - 1}
             aria-label={`move ${v || "row"} down`}
@@ -200,7 +200,7 @@ export function DimListEditor({
           />
           <button
             type="button"
-            title="remove"
+            data-tooltip="移除" aria-description="remove"
             onClick={() => removeAt(i)}
             aria-label={`remove ${v || "row"}`}
             style={ICON_BTN}

@@ -284,7 +284,7 @@ export function JobLogModal({ jobId, primer, onClose }: JobLogModalProps) {
             type="button"
             onClick={doCopyAll}
             disabled={!lines || lines.length === 0}
-            title={
+            data-tooltip={copyState === "copied" ? "已复制日志" : copyState === "err" ? "重试复制日志" : "复制日志"} aria-label={copyState === "copied" ? "已复制日志" : copyState === "err" ? "重试复制日志" : "复制日志"} aria-description={
               copyState === "copied"
                 ? "copied whole log to clipboard"
                 : copyState === "err"
@@ -318,7 +318,7 @@ export function JobLogModal({ jobId, primer, onClose }: JobLogModalProps) {
             type="button"
             onClick={onClose}
             aria-label="Close"
-            title="Close (Esc)"
+            data-tooltip="关闭" aria-description="Close (Esc)"
             style={{
               width: 24,
               height: 24,

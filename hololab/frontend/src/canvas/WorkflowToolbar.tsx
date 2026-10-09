@@ -89,7 +89,7 @@ export function WorkflowToolbar({
       <button
         type="button"
         onClick={onExitToGallery}
-        title="back to workflows"
+        data-tooltip="返回流程列表" aria-label="返回流程列表" aria-description="back to workflows"
         style={{
           ...CONTROL_STYLE,
           fontWeight: 600,
@@ -172,7 +172,7 @@ export function WorkflowToolbar({
         <button
           type="button"
           onClick={onLocateEarliestStale}
-          title={`${staleCount} 个节点结果陈旧 · 点击定位到最早需重跑的节点`}
+          data-tooltip="定位陈旧节点" aria-label="定位陈旧节点" aria-description={`${staleCount} 个节点结果陈旧 · 点击定位到最早需重跑的节点`}
           style={{
             ...CHIP_STYLE,
             gap: 6,
@@ -227,7 +227,7 @@ export function WorkflowToolbar({
           void onSaveRetry();
         }}
       />
-      <button
+      <button data-tooltip={running ? "正在运行" : "运行流程"} aria-label={running ? "正在运行" : "运行流程"}
         style={{ ...PRIMARY_CONTROL_STYLE, opacity: running ? 0.7 : 1 }}
         onClick={doRun}
         disabled={running}

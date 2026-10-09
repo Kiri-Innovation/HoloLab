@@ -165,7 +165,7 @@ export function SnapshotNodeInspector({
               <button
                 type="button"
                 onClick={() => setDocsOpen(true)}
-                title="Show pack docs"
+                data-tooltip="查看文档" aria-label="查看文档" aria-description="Show pack docs"
                 style={{
                   background: "transparent",
                   border: "1px solid var(--border)",
@@ -259,7 +259,7 @@ export function SnapshotNodeInspector({
                   type="button"
                   onClick={doRerun}
                   disabled={rerunning}
-                  title={
+                  data-tooltip={rerunning ? "正在启动" : "从此节点重新运行"} aria-label={rerunning ? "正在启动" : "从此节点重新运行"} aria-description={
                     job?.state === "done"
                       ? "Re-run this node and everything downstream. Upstream outputs are reused."
                       : "Retry this node and its downstream. Upstream done nodes will be reused."

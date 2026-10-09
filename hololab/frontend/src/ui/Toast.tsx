@@ -83,7 +83,7 @@ export function ToastViewport() {
               finally { setBusy(false); }
             }}>{displayed.action.label}</button>
           )}
-          <button type="button" aria-label="关闭提示" title="关闭提示"
+          <button type="button" aria-label="关闭提示" data-tooltip="关闭提示"
             className="hl-toast-action hl-toast-dismiss" onClick={() => dismissToast(displayed.id)}>
             <span aria-hidden="true">✓</span>
           </button>

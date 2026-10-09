@@ -1751,7 +1751,7 @@ function ZoomOverlay({
       <button
         type="button"
         onClick={onClose}
-        title="back to grid (Esc)"
+        data-tooltip="返回网格" aria-label="返回网格" aria-description="back to grid (Esc)"
         data-hl-zoom-back=""
         style={{
           position: "absolute",
@@ -1918,7 +1918,7 @@ function VideoArrayControls({ sync }: ControlsProps) {
         type="button"
         onClick={sync.togglePlay}
         disabled={disabled}
-        title={sync.playing ? "pause (space)" : atEnd ? "replay (space)" : "play (space)"}
+        data-tooltip={sync.playing ? "暂停" : atEnd ? "重新播放" : "播放"} aria-label={sync.playing ? "暂停" : atEnd ? "重新播放" : "播放"} aria-description={sync.playing ? "pause (space)" : atEnd ? "replay (space)" : "play (space)"}
         data-hl-play=""
         data-hl-state={sync.playing ? "playing" : atEnd ? "ended" : "paused"}
         className="nodrag nopan"
@@ -1968,6 +1968,8 @@ function VideoArrayControls({ sync }: ControlsProps) {
           }
         }}
         data-hl-scrub=""
+        data-tooltip="跳转播放位置"
+        aria-label="播放进度"
         className="nodrag nopan"
         // Pause immediately on any interaction (click or drag) so
         // the playhead doesn't advance while the user is choosing
@@ -2546,7 +2548,7 @@ function FrameZoomOverlay({
       <button
         type="button"
         onClick={onClose}
-        title="back to strip (Esc)"
+        data-tooltip="返回缩略图" aria-label="返回缩略图" aria-description="back to strip (Esc)"
         data-hl-frame-zoom-back=""
         className="nodrag nopan"
         style={{
@@ -3033,7 +3035,7 @@ function NestedGroupDetail({
           type="button"
           onClick={onBack}
           className="nodrag nopan"
-          title="back to groups"
+          data-tooltip="返回分组" aria-label="返回分组" aria-description="back to groups"
           data-hl-group-back=""
           style={{
             padding: "2px 8px",
@@ -3941,7 +3943,7 @@ function RigPoints4dPreview({ baseUrl }: { baseUrl: string }) {
           fontVariantNumeric: "tabular-nums",
         }}
       >
-        <button
+        <button data-tooltip="上一组"
           type="button"
           onClick={() => move(-1)}
           className="nodrag nopan"
@@ -3961,7 +3963,7 @@ function RigPoints4dPreview({ baseUrl }: { baseUrl: string }) {
         <span>
           {groupTag} ({safeIdx + 1}/{state.groups.length}) · {detail}
         </span>
-        <button
+        <button data-tooltip="下一组"
           type="button"
           onClick={() => move(1)}
           className="nodrag nopan"
@@ -4015,7 +4017,7 @@ function RigTimelinePreview({ baseUrl }: { baseUrl: string }) {
         target="_blank"
         rel="noreferrer noopener"
         className="nodrag nopan"
-        title="open interactive zoom timeline (plotly HTML) in a new tab"
+        data-tooltip="打开交互时间线" aria-label="打开交互时间线"
         style={{
           position: "absolute",
           top: 6,
@@ -4383,7 +4385,7 @@ function ArrayedPaginator({
           color: "var(--text-on-dark)",
         }}
       >
-        <button
+        <button data-tooltip="上一项"
           type="button"
           onClick={() => move(-1)}
           disabled={isSingle}
@@ -4429,7 +4431,7 @@ function ArrayedPaginator({
             )}
           </span>
         </div>
-        <button
+        <button data-tooltip="下一项"
           type="button"
           onClick={() => move(1)}
           disabled={isSingle}

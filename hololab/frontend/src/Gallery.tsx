@@ -222,7 +222,7 @@ function GalleryHeader({
       </button>
       <div style={{ flex: 1 }} />
       <ThemeToggle />
-      <button
+      <button data-tooltip="刷新" aria-label="刷新"
         type="button"
         onClick={onRefresh}
         style={{
@@ -470,7 +470,7 @@ function WorkflowCard({
         {hover && !editing && (
           <>
             <IconButton
-              title="rename"
+              title="重命名"
               onClick={(e) => {
                 e.stopPropagation();
                 setEditing(true);
@@ -479,7 +479,7 @@ function WorkflowCard({
               ✎
             </IconButton>
             <IconButton
-              title="delete"
+              title="删除流程"
               onClick={(e) => {
                 e.stopPropagation();
                 void onDelete(row);
@@ -511,7 +511,7 @@ function IconButton({
     <button
       className="hl-control-sm"
       type="button"
-      title={title}
+      data-tooltip={title} aria-label={title}
       onClick={onClick}
       style={{
         border: "none",

@@ -99,7 +99,7 @@ export function SaveStatusPill({ status, onRetry }: SaveStatusPillProps) {
       type="button"
       onClick={s.interactive ? onRetry : undefined}
       disabled={!s.interactive}
-      title={
+      data-tooltip={status === "error" ? "重试保存" : `自动保存：${s.label}`} aria-label={status === "error" ? "重试保存" : `自动保存：${s.label}`} aria-description={
         status === "error"
           ? "click to retry saving the draft"
           : `autosave: ${s.label.toLowerCase()}`

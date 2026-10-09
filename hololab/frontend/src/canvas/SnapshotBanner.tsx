@@ -78,7 +78,7 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
       <button
         type="button"
         onClick={onBack}
-        title="back to editable draft"
+        data-tooltip="返回草稿" aria-label="返回草稿" aria-description="back to editable draft"
         style={{
           border: "1px solid var(--inverse-border)",
           background: "transparent",
@@ -154,7 +154,7 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
         type="button"
         onClick={doRestore}
         disabled={restoring}
-        title="Overwrite the current draft with this run's graph and parameters"
+        data-tooltip={restoring ? "正在恢复" : "恢复快照"} aria-label={restoring ? "正在恢复" : "恢复快照"} aria-description="Overwrite the current draft with this run's graph and parameters"
         style={{
           border: "1px solid var(--accent)",
           background: restoring ? "var(--inverse-soft)" : "var(--accent)",

@@ -70,7 +70,7 @@ export function Splitter({
       onPointerMove={onPointerMove}
       onPointerUp={stopDragging}
       role="separator"
-      title="Drag to resize. Double-click to reset."
+      data-tooltip="拖动调整大小，双击重置"
     />
   );
 }

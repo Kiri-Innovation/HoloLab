@@ -1,3 +1,4 @@
+import { CanvasControls } from "./CanvasControls";
 // Read-only xyflow canvas that renders a past run's frozen graph.
 //
 // Same node cards, same edges, same positions as the draft — but
@@ -28,7 +29,6 @@ import { CanvasToastAnchor } from "../ui/Toast";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Background,
-  Controls,
   MiniMap,
   Panel,
   ReactFlow,
@@ -438,7 +438,7 @@ export function SnapshotCanvas({
         />
       </Panel>
       {minimapOpen && <MiniMap pannable />}
-      <Controls showInteractive={false} />
+      <CanvasControls showInteractive={false} />
       <CanvasToastAnchor />
       <Background gap={20} color="var(--rf-grid)" />
     </ReactFlow>

@@ -189,7 +189,7 @@ export function NodeInspector({
               <button
                 type="button"
                 onClick={() => setDocsOpen(true)}
-                title="Show pack docs"
+                data-tooltip="查看文档" aria-label="查看文档" aria-description="Show pack docs"
                 style={{
                   background: "transparent",
                   border: "1px solid var(--border)",

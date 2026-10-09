@@ -483,7 +483,7 @@ export function PackPalette({ catalog, onRefresh }: PackPaletteProps) {
         <h2 className="hl-section-title" style={{ margin: 0 }}>
           Packs
         </h2>
-        <button
+        <button data-tooltip="刷新" aria-label="刷新"
           onClick={onRefresh}
           style={{ ...CONTROL_STYLE, color: "var(--text-muted)" }}
         >
@@ -526,7 +526,7 @@ export function PackPalette({ catalog, onRefresh }: PackPaletteProps) {
             }}
           />
           {query && (
-            <button
+            <button data-tooltip="清空搜索"
               onClick={() => setQuery("")}
               aria-label="Clear search"
               style={{

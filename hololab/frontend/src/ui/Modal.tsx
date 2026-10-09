@@ -92,7 +92,7 @@ export function Modal({ open, onClose, title, children, maxWidth = 720 }: ModalP
             type="button"
             onClick={onClose}
             aria-label="Close"
-            title="Close (Esc)"
+            data-tooltip="关闭" aria-description="Close (Esc)"
             style={{
               width: 24,
               height: 24,

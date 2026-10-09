@@ -16,7 +16,7 @@ const MODES: { value: ThemePref; label: string; nextLabel: string; icon: ReactNo
   {
     value: "light",
     label: "Light theme",
-    nextLabel: "Switch to system theme",
+    nextLabel: "跟随系统主题",
     icon: (
       <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
         <path d="M10 3.5a.75.75 0 0 1 .75.75V6a.75.75 0 0 1-1.5 0V4.25A.75.75 0 0 1 10 3.5Zm0 10a.75.75 0 0 1 .75.75v1.75a.75.75 0 0 1-1.5 0V14.25a.75.75 0 0 1 .75-.75ZM3.5 10a.75.75 0 0 1 .75-.75H6a.75.75 0 0 1 0 1.5H4.25A.75.75 0 0 1 3.5 10Zm10 0a.75.75 0 0 1 .75-.75h1.75a.75.75 0 0 1 0 1.5H14.25a.75.75 0 0 1-.75-.75ZM5.05 5.05a.75.75 0 0 1 1.06 0l1.24 1.24a.75.75 0 1 1-1.06 1.06L5.05 6.11a.75.75 0 0 1 0-1.06Zm7.6 7.6a.75.75 0 0 1 1.06 0l1.24 1.24a.75.75 0 1 1-1.06 1.06l-1.24-1.24a.75.75 0 0 1 0-1.06Zm2.3-7.6a.75.75 0 0 1 0 1.06l-1.24 1.24a.75.75 0 1 1-1.06-1.06l1.24-1.24a.75.75 0 0 1 1.06 0Zm-7.6 7.6a.75.75 0 0 1 0 1.06l-1.24 1.24a.75.75 0 1 1-1.06-1.06l1.24-1.24a.75.75 0 0 1 1.06 0ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
@@ -26,7 +26,7 @@ const MODES: { value: ThemePref; label: string; nextLabel: string; icon: ReactNo
   {
     value: "system",
     label: "System theme",
-    nextLabel: "Switch to dark theme",
+    nextLabel: "切换深色主题",
     icon: (
       <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <rect x="3" y="4" width="14" height="10" rx="1.4" />
@@ -37,7 +37,7 @@ const MODES: { value: ThemePref; label: string; nextLabel: string; icon: ReactNo
   {
     value: "dark",
     label: "Dark theme",
-    nextLabel: "Switch to light theme",
+    nextLabel: "切换浅色主题",
     icon: (
       <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
         <path d="M11.53 3.53a.75.75 0 0 0-.94-.94 7.5 7.5 0 1 0 8.82 8.82.75.75 0 0 0-.94-.94 5.5 5.5 0 0 1-6.94-6.94Z" />
@@ -55,7 +55,7 @@ export function ThemeToggle() {
     <button
       type="button"
       aria-label={current.nextLabel}
-      title={current.nextLabel}
+      data-tooltip={current.nextLabel}
       onClick={() => setPref(next.value)}
       style={{
         ...CONTROL_STYLE,

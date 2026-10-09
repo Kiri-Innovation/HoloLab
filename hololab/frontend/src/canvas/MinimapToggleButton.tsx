@@ -14,7 +14,7 @@ export function MinimapToggleButton({ open, onToggle }: MinimapToggleButtonProps
       type="button"
       aria-pressed={open}
       aria-label={open ? "Hide minimap" : "Show minimap"}
-      title={open ? "Hide minimap" : "Show minimap"}
+      data-tooltip={open ? "隐藏小地图" : "显示小地图"} aria-description={open ? "Hide minimap" : "Show minimap"}
       onClick={onToggle}
       style={{
         width: "var(--control-h-md)",

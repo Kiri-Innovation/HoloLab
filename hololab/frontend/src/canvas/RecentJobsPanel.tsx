@@ -483,7 +483,7 @@ export function RecentJobsPanel({
                 error: null,
               })
             }
-            title={`Stop all live jobs (${liveCount})`}
+            data-tooltip="停止全部任务" aria-label="停止全部任务" aria-description={`Stop all live jobs (${liveCount})`}
             style={{
               marginLeft: "auto",
               display: "inline-flex",
@@ -772,7 +772,7 @@ function ViewLogButton({
     <button
       type="button"
       onClick={onClick}
-      title={
+      data-tooltip={state === "failed" ? "查看失败日志" : "查看日志"} aria-description={
         isTerminal
           ? state === "failed"
             ? "view failure log"
@@ -842,7 +842,7 @@ function StopButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      title={title ?? "Stop this job"}
+      data-tooltip={disabled ? "正在停止" : "停止任务"} aria-description={title ?? "Stop this job"}
       aria-label="Stop job"
       data-hl-stop-job=""
       style={{
@@ -949,7 +949,7 @@ function SingleJobRow({
     <div
       style={style}
       onClick={() => job.graph_node_id && onSelectGraphNode(job.graph_node_id)}
-      title={job.job_id}
+      aria-description={job.job_id}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = indent
           ? "var(--surface-hover)"
@@ -1133,7 +1133,7 @@ function GroupJobRow({
       <div
         style={CARD}
         onClick={onToggleExpand}
-        title={parent.job_id}
+        aria-description={parent.job_id}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = "var(--surface-hover)";
         }}
