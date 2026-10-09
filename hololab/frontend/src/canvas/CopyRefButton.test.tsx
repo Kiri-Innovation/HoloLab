@@ -49,3 +49,38 @@ it("offers an explicit copy retry beside a double failure", () => {
   const view = CopyRefButton({ references: [{ kind: "handle", id: "a" }] });
   expect(view.props.children[1].props.children[1].props.children).toBe("重试复制");
 });
+
+it.each([
+  { available: true, icon: "reference", action: "引用到 Flops" },
+  { available: false, icon: "clipboard", action: "复制引用" },
+])("uses $icon with matching tooltip and accessible name", ({ available, icon, action }) => {
+  vi.mocked(flopsInsertReferenceAvailable).mockReturnValue(available);
+  const button = CopyRefButton({ kind: "workflow", id: "w1" }).props.children[0];
+  const glyph = button.props.children[0];
+  expect(glyph.type).toBe("svg");
+  expect(glyph.props["data-reference-icon"]).toBe(icon);
+  expect(glyph.props["aria-hidden"]).toBe("true");
+  expect(button.props.title).toBe(`${action}: hololab://workflow/w1`);
+  expect(button.props["aria-label"]).toBe(action);
+});
+
+it("rechecks availability on render for the shared batch button", () => {
+  const props = { references: [{ kind: "handle" as const, id: "a" }], label: "引用 1 项" };
+  vi.mocked(flopsInsertReferenceAvailable).mockReturnValue(false);
+  const before = CopyRefButton(props).props.children[0];
+  vi.mocked(flopsInsertReferenceAvailable).mockReturnValue(true);
+  const after = CopyRefButton(props).props.children[0];
+  expect(before.props.children[0].props["data-reference-icon"]).toBe("clipboard");
+  expect(after.props.children[0].props["data-reference-icon"]).toBe("reference");
+  expect(after.props["aria-label"]).toBe("引用到 Flops：引用 1 项");
+});
+
+it("keeps copied fallback feedback accessible in CoBrowser", () => {
+  vi.mocked(flopsInsertReferenceAvailable).mockReturnValue(true);
+  const message = "插入失败：busy。已复制，可粘贴到对话";
+  vi.mocked(useState).mockReturnValueOnce([{ state: "copied", message }, vi.fn()]);
+  const button = CopyRefButton({ kind: "handle", id: "a" }).props.children[0];
+  expect(button.props["aria-label"]).toBe(message);
+  expect(button.props.title).toBe(message);
+  expect(button.props.children[0].props.children).toBe("✓");
+});

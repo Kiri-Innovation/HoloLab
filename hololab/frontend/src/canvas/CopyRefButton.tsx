@@ -23,6 +23,12 @@ export function CopyRefButton(props: CopyRefButtonProps) {
   const [loading, setLoading] = useState(false);
   const state = loading ? "loading" : outcome?.state ?? "idle";
   const token = references.map(r => formatToken(r.kind, r.id, r.comment)).join("\n");
+  // CoBrowser injects its API before page load. Recheck on each render (and
+  // sendReferences checks again on click); no per-button polling is needed.
+  const canInsert = flopsInsertReferenceAvailable();
+  const actionLabel = canInsert ? "引用到 Flops" : "复制引用";
+  const feedback = loading ? "正在处理引用…" : outcome?.message;
+
 
   const doReference = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -71,9 +77,8 @@ export function CopyRefButton(props: CopyRefButtonProps) {
         type="button"
         onClick={doReference}
         disabled={disabled || loading || references.length === 0}
-        title={loading ? "正在处理引用…" : outcome?.message ?? (
-          flopsInsertReferenceAvailable() ? `插入引用到 Flops: ${token}` : `复制引用: ${token}`
-        )}
+        title={feedback ?? `${actionLabel}: ${token}`}
+        aria-label={feedback ?? `${actionLabel}${label ? `：${label}` : ""}`}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -93,7 +98,39 @@ export function CopyRefButton(props: CopyRefButtonProps) {
             "background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease)",
         }}
       >
-        {state === "loading" ? "…" : state === "copied" || state === "inserted" ? "✓" : state === "err" ? "!" : "⧉"}
+        {state === "loading" ? <span aria-hidden="true">…</span>
+          : state === "copied" || state === "inserted" ? <span aria-hidden="true">✓</span>
+          : state === "err" ? <span aria-hidden="true">!</span>
+          : (
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              focusable="false"
+              data-reference-icon={canInsert ? "reference" : "clipboard"}
+              style={{ flexShrink: 0 }}
+            >
+              {canInsert ? (
+                // Reuse the link glyph from the former InsertAiReferenceButton.
+                <>
+                  <path d="M10 13a5 5 0 0 0 7.07.07l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15" />
+                  <path d="M14 11a5 5 0 0 0-7.07-.07l-2 2A5 5 0 0 0 12 20l1.15-1.15" />
+                </>
+              ) : (
+                <>
+                  <rect x="9" y="3" width="6" height="4" rx="1" />
+                  <path d="M9 5H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3" />
+                  <path d="M8 11h8M8 15h8" />
+                </>
+              )}
+            </svg>
+          )}
         {label && <span>{label}</span>}
       </button>
       {outcome && (
