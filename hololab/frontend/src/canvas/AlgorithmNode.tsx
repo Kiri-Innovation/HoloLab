@@ -1232,9 +1232,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   );
 }
 
-/** Play button placed at the far-right of the header — triggers a single-node
- *  dispatch. Slightly larger / more prominent than the icon-only utility buttons
- *  because "run" is the primary action on a node. */
+/** Single-node dispatch, matching the adjacent source/reference control geometry. */
 function RunButton({
   pending,
   inFlight,
@@ -1267,8 +1265,8 @@ function RunButton({
             ? "var(--warning-soft)"
             : "var(--surface-raised)",
         color: busy ? "var(--text-muted)" : staleTint ? "var(--warning)" : "var(--text)",
-        width: 20,
-        height: 20,
+        width: "var(--control-h-sm)",
+        height: "var(--control-h-sm)",
         borderRadius: "var(--radius-sm)",
         cursor: busy ? "default" : "pointer",
         display: "flex",
@@ -1283,7 +1281,13 @@ function RunButton({
           "opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
       }}
     >
-      {pending ? "…" : "▶"}
+      {pending ? <span aria-hidden="true">…</span> : (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+          aria-hidden="true" focusable="false">
+          <path d="m7 4 14 8-14 8Z" />
+        </svg>
+      )}
     </button>
   );
 }
