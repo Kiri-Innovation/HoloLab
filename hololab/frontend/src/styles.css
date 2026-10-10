@@ -630,3 +630,13 @@ a:hover { text-decoration: underline; }
 
 .hl-status-tooltip-reasons { margin: 0; padding-left: calc(var(--space-3) * var(--tooltip-scale)); display: flex; flex-direction: column; gap: calc(var(--space-1) * var(--tooltip-scale)); list-style: disc; }
 .hl-status-tooltip-reasons li::marker { color: #aaa; }
+
+.hl-node-run-control { width: var(--control-h-sm); height: var(--control-h-sm); padding: 0; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; line-height: 1; cursor: pointer; }
+.hl-node-run-control:disabled { cursor: default; opacity: .5; }
+.hl-node-stop-control:hover:not(:disabled), .hl-node-stop-control:focus-visible { color: var(--error) !important; background: var(--error-soft) !important; border-color: var(--error) !important; }
+.hl-node-stop-confirm { padding: var(--space-4); font-size: var(--fs-sm); }
+.hl-node-stop-confirm p { margin: 0 0 var(--space-3); }
+.hl-node-stop-confirm-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+.hl-node-stop-error { color: var(--error); }
+.hl-node-stop-submit { background: var(--error); border-color: var(--error); color: #fff; }
+.hl-node-stop-submit:hover:not(:disabled) { background: var(--error); color: #fff; }

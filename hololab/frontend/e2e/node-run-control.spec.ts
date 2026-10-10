@@ -1,0 +1,42 @@
+import {test,expect} from '@playwright/test';
+for(const theme of ['light','dark']) test(`node run and stop in ${theme}`,async({page},info)=>{
+  await page.setViewportSize({width:1400,height:1050});
+  await page.goto(`/e2e/fixtures/node-run.html?theme=${theme}`);
+  const card=(id:string)=>page.locator(`.react-flow__node[data-id="${id}"]`);
+  const stop=(id:string)=>card(id).getByRole('button',{name:'停止运行',exact:true});
+  const update=async(id:string,runtime:Record<string,string>)=>page.evaluate(({id,runtime})=>window.dispatchEvent(new CustomEvent('fixture:runtime',{detail:{id,runtime}})),{id,runtime});
+  for(const id of ['running','pending','assigned','orphaned']) await expect(stop(id)).toBeEnabled();
+  await expect(card('snapshot').locator('.hl-node-run-control')).toHaveCount(0);
+  await expect(card('interrupted').getByRole('button',{name:'运行',exact:true})).toBeEnabled();
+  await stop('running').hover();await expect(page.getByRole('tooltip')).toContainText('停止运行');
+  await expect(stop('running')).toHaveCSS('width','24px');await expect(stop('running').locator('svg')).toHaveAttribute('width','12');
+  await page.screenshot({path:info.outputPath(`buttons-${theme}.png`)});
+  await page.mouse.move(0,0);
+  await page.locator('.react-flow__viewport').evaluate(el=>(el as HTMLElement).style.transform='translate(20px,100px) scale(1.5)');
+  await stop('running').hover();await expect(page.getByRole('tooltip')).toBeVisible();
+  await page.screenshot({path:info.outputPath(`enlarged-${theme}.png`),clip:{x:180,y:265,width:900,height:275}});
+  await page.mouse.move(0,0);
+  await page.locator('.react-flow__viewport').evaluate(el=>(el as HTMLElement).style.transform='translate(0px,0px) scale(1)');
+  await stop('running').click();await expect(page.getByRole('dialog')).toBeVisible();
+  await page.screenshot({path:info.outputPath(`confirmation-${theme}.png`)});
+  await page.getByRole('button',{name:'继续运行',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);
+  let requests=0;let release:()=>void=()=>{};const gate=new Promise<void>(resolve=>release=resolve);
+  await page.route('**/api/jobs/running-parent/cancel',async route=>{requests++;expect(route.request().method()).toBe('POST');await gate;await route.fulfill({json:{job_id:'running-parent',state:'cancelled',already_terminal:false,cascaded:['shard-1']}});});
+  await stop('running').click();await page.getByRole('button',{name:'确认停止',exact:true}).click();
+  await expect(page.getByRole('button',{name:'停止中…',exact:true})).toBeDisabled();
+  await expect.poll(()=>requests).toBe(1);release();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(card('running').getByRole('button',{name:'停止已请求，等待状态同步',exact:true})).toBeDisabled();
+  await update('running',{state:'cancelled'});
+  await expect(card('running').getByRole('button',{name:'运行',exact:true})).toBeEnabled();
+  await expect(card('running').locator('[data-status-tone]')).toHaveAttribute('data-status-tone','neutral');
+  expect(requests).toBe(1);
+  // Existing dispatch event still reaches its handler and transitions into stop mode.
+  await card('done').getByRole('button',{name:'运行',exact:true}).click();await expect(stop('done')).toBeEnabled();
+  // A confirmation belongs to one generation only.
+  await stop('pending').click();await update('pending',{job_id:'next-parent'});await expect(page.getByRole('dialog')).toHaveCount(0);
+  await stop('orphaned').click();await expect(page.getByRole('dialog')).toContainText('停止指令可能暂时无法送达');await page.keyboard.press('Escape');
+  await page.route('**/api/jobs/assigned-parent/cancel',route=>route.fulfill({status:400,json:{detail:'测试错误：停止请求被拒绝'}}));
+  await stop('assigned').click();await page.getByRole('button',{name:'确认停止',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('停止失败');await expect(page.getByRole('button',{name:'确认停止',exact:true})).toBeEnabled();
+});

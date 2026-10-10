@@ -6,6 +6,7 @@
 // enforce tag compatibility at edge-drawing time.
 
 import { useEffect, useMemo, useState } from "react";
+import { NodeRunControl } from "./NodeRunControl";
 import { nodeStatus } from "./nodeStatus";
 import { NodeStatusDot } from "../ui/NodeStatusTooltip";
 import { NodeTitleTooltip } from "../ui/NodeTitleTooltip";
@@ -669,15 +670,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             />
           )}
           {!readOnly && (
-            <RunButton
-              pending={runClickPending}
-              inFlight={runInFlight}
-              stale={staleness?.kind === "self_dirty"}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleRunClick();
-              }}
-            />
+            <NodeRunControl pending={runClickPending} state={runState} jobId={runtime?.job_id}
+              stale={staleness?.kind === "self_dirty"} onRun={handleRunClick} />
           )}
         </div>
         {runErrorMsg && (
@@ -1182,66 +1176,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       </div>
       {card}
     </div>
-  );
-}
-
-/** Single-node dispatch, matching the adjacent source/reference control geometry. */
-function RunButton({
-  pending,
-  inFlight,
-  stale,
-  onClick,
-}: {
-  pending: boolean;
-  inFlight: boolean;
-  stale?: boolean;
-  onClick: (e: React.MouseEvent) => void;
-}) {
-  const busy = pending || inFlight;
-  // Amber-tinted border+background when this node is self-dirty so the
-  // affordance for "click here to refresh outputs" is visible without
-  // adding a separate button. Aligns with the staleness badge next to
-  // the pack name so the same visual language reads across the header.
-  const staleTint = Boolean(stale) && !busy;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={busy}
-      data-tooltip={inFlight ? "运行中" : pending ? "正在提交" : stale ? "重新运行" : "运行"}
-      aria-label={inFlight ? "运行中" : pending ? "正在提交" : stale ? "重新运行" : "运行"}
-      style={{
-        border: `1px solid ${staleTint ? "var(--warning)" : "var(--border-strong)"}`,
-        background: busy
-          ? "var(--surface-3)"
-          : staleTint
-            ? "var(--warning-soft)"
-            : "var(--surface-raised)",
-        color: busy ? "var(--text-muted)" : staleTint ? "var(--warning)" : "var(--text)",
-        width: "var(--control-h-sm)",
-        height: "var(--control-h-sm)",
-        borderRadius: "var(--radius-sm)",
-        cursor: busy ? "default" : "pointer",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 9,
-        lineHeight: 1,
-        padding: 0,
-        flexShrink: 0,
-        opacity: busy ? 0.5 : 1,
-        transition:
-          "opacity var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
-      }}
-    >
-      {pending ? <span aria-hidden="true">…</span> : (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-          aria-hidden="true" focusable="false">
-          <path d="m7 4 14 8-14 8Z" />
-        </svg>
-      )}
-    </button>
   );
 }
 
