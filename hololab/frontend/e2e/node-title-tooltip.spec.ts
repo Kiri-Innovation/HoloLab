@@ -64,17 +64,27 @@ for (const theme of ['light', 'dark']) {
     await viewport.evaluate(el=>(el as HTMLElement).style.transform='translate(40px,160px) scale(1)');
     await page.getByRole('button', {name:'展开预览',exact:true}).hover();
     await expect(tip).toBeVisible();await expect(tip).not.toHaveClass(/hl-tooltip--title/);
-    // Short title + short subtitle do not opt in; a long subtitle alone does.
+    await expect(tip).toHaveCSS('background-color', 'rgb(0, 0, 0)');
+    // Short titles still expose metadata, without changing node drag behavior.
     name='a';version='1';device='pc';await page.reload();
-    await expect(anchor).toBeVisible();await expect(anchor).not.toHaveAttribute('data-tooltip');
-    await anchor.hover();await page.waitForTimeout(450);await expect(tip).toHaveCount(0);
-    version='a-very-long-version-alone-can-overflow';await page.reload();
-    await expect(anchor).toHaveAttribute('tabindex','0');await anchor.hover();
+    await expect(anchor).toHaveAttribute('tabindex','0');
+    await anchor.hover();await expect(tip).toBeVisible();
     await expect(tip.locator('.hl-title-tooltip-name')).toHaveText('a');
-    // Widen the node without changing text: ResizeObserver disables the card.
-    await page.locator('[data-hololab-node="algorithm"]').evaluate(el=>(el as HTMLElement).style.width='900px');
-    await expect(anchor).not.toHaveAttribute('data-tooltip');await expect(tip).toHaveCount(0);
-    await expect(anchor).not.toHaveAttribute('aria-describedby');
+    await expect(anchor).toHaveCSS('cursor','default');
+    const card=page.locator('[data-hololab-node="algorithm"]');
+    await expect(tip).toHaveCSS('background-color',await card.evaluate(el=>getComputedStyle(el).backgroundColor));
+    await page.screenshot({path:info.outputPath(`short-${theme}.png`)});
+    await page.mouse.move(0,0);await anchor.focus();await expect(tip).toBeVisible();
+    await page.keyboard.press('Escape');await expect(tip).toHaveCount(0);
+    const before=(await card.boundingBox())!;
+    const titleBox=(await anchor.boundingBox())!;
+    await page.mouse.move(titleBox.x+titleBox.width/2,titleBox.y+titleBox.height/2);
+    await page.mouse.down();await page.mouse.move(titleBox.x+titleBox.width/2+40,titleBox.y+titleBox.height/2+30,{steps:5});
+    await expect(anchor).toHaveCSS('cursor','grabbing');
+    await page.mouse.up();await expect(anchor).toHaveCSS('cursor','default');
+    const after=(await card.boundingBox())!;
+    // React Flow consumes the initial movement when crossing its drag threshold.
+    expect(after.x-before.x).toBeGreaterThan(20);expect(after.y-before.y).toBeGreaterThan(15);
     expect(pageErrors).toEqual([]);
   });
 }

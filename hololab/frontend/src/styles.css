@@ -93,13 +93,16 @@ body {
   animation: hl-tooltip-in 100ms var(--ease);
 }
 .hl-tooltip--title {
+  background: var(--surface-2); color: var(--text-body); border-color: var(--border-strong);
   max-width: min(calc(280px * var(--tooltip-scale)), calc(100vw - 16px));
   padding: calc(var(--space-2) * var(--tooltip-scale)) calc(var(--space-3) * var(--tooltip-scale));
 }
 .hl-title-tooltip-content { display: flex; flex-direction: column; gap: calc(var(--space-1) * var(--tooltip-scale)); }
 .hl-title-tooltip-name { font-size: calc(var(--fs-md) * var(--tooltip-scale)); font-weight: var(--fw-semibold); }
-.hl-title-tooltip-version { font-family: var(--font-mono); color: #ddd; }
-.hl-title-tooltip-device { color: #bbb; }
+.hl-title-tooltip-version { font-family: var(--font-mono); color: var(--text-body); }
+.hl-title-tooltip-device { color: var(--text-muted); }
+[data-hl-node-title] { cursor: default; }
+.react-flow__node.dragging [data-hl-node-title] { cursor: grabbing; }
 [data-hl-node-title]:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
 .hl-tooltip::after {
   content: ""; position: absolute;
@@ -115,6 +118,14 @@ body {
 .hl-tooltip[data-placement="below"]::after {
   bottom: 100%; border-bottom: var(--tooltip-tail) solid #000;
   filter: drop-shadow(0 -1px 0 rgba(255,255,255,.2));
+}
+.hl-tooltip--title[data-placement="above"]::after {
+  border-top-color: var(--surface-2);
+  filter: drop-shadow(0 1px 0 var(--border-strong));
+}
+.hl-tooltip--title[data-placement="below"]::after {
+  border-bottom-color: var(--surface-2);
+  filter: drop-shadow(0 -1px 0 var(--border-strong));
 }
 @keyframes hl-tooltip-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .hl-tooltip { animation: none; } }
