@@ -7,10 +7,25 @@ export function useTypeSummary(type: EdgeType, handleId?: string | null): EdgeTy
   const [loaded, setLoaded] = useState<{ id: string; facts: EdgeSummaryFacts }>();
   const facts = handleId ? peekEdgeSummaryFacts(handleId) ?? (loaded?.id === handleId ? loaded.facts : undefined) : undefined;
   useEffect(() => {
-    if (!handleId || peekEdgeSummaryFacts(handleId)) return;
+    if (!handleId) return;
+    const cached = peekEdgeSummaryFacts(handleId);
+    // Inline latest-run facts can have only an outer count. Fetch the full
+    // summary once for array shapes whose authoritative dimensions are absent.
+    if (cached && (!type.arrayed || cached.dimSizes?.length)) return;
     let active = true;
     void loadEdgeSummaryFacts(handleId).then(facts => { if (active) setLoaded({ id: handleId, facts }); });
     return () => { active = false; };
-  }, [handleId]);
-  return { ...type, ...facts, runtimeAvailable: facts?.tags !== undefined, dimLabels: facts?.dimLabels ?? type.dimLabels, arrayed: facts?.dimLabels ? facts.dimLabels.length > 0 || Boolean(facts.dimSizes?.length) : type.arrayed };
+  }, [handleId, type.arrayed]);
+  return mergeTypeSummary(type, facts);
+}
+
+/** Empty dimension names do not cancel a resolved array shape. Internal counts
+ * (poses, points, etc.) never supply an outer dimension. */
+export function mergeTypeSummary(type: EdgeType, facts?: EdgeSummaryFacts): EdgeType & { runtimeAvailable: boolean } {
+  return {
+    ...type, ...facts,
+    runtimeAvailable: facts?.tags !== undefined,
+    dimLabels: facts?.dimLabels?.length ? facts.dimLabels : type.dimLabels,
+    arrayed: type.arrayed || Boolean(facts?.dimLabels?.length || facts?.dimSizes?.length),
+  };
 }

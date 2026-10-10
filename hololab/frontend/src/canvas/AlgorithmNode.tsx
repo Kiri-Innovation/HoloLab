@@ -699,12 +699,13 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
               spec.arrayed,
               pack.arrayable,
               arrayed_toggle,
+              spec.scalar,
             );
             return (
               <div key={`in-${portName}`} style={{ ...PORT_ROW, position: "relative" }}>
                 <PortHandle
                   nodeId={id}
-                  declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle) }}
+                  declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle, spec.scalar) }}
                   type="target"
                   position={Position.Left}
                   id={portName}
@@ -719,7 +720,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 />
                 <PortHandle asText nodeId={id} id={portName} type="target" position={Position.Left}
                   handleId={undefined}
-                  declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle) }}
+                  declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle, spec.scalar) }}
                   style={{
                     color: spec.required
                       ? "var(--text-body)"

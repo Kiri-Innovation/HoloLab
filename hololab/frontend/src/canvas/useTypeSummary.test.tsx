@@ -16,3 +16,17 @@ it('uses shared runtime dimensions and internal counts without leaking facts to 
   expect(unknown).toContain('static');expect(unknown).not.toContain('100');
   expect(renderToStaticMarkup(<Summary/>)).not.toContain('100');
 });
+
+import { mergeTypeSummary } from './useTypeSummary';
+import { formatTypeLabel } from './edgeLabels';
+it('preserves unnamed arrays and never mistakes internal pose counts for array lengths',()=>{
+ const scalar={tags:['colmap-cams'],arrayed:false,dimLabels:[]};
+ const facts={tags:['colmap-cams'],dimLabels:[],internalCountItems:[{label:'pose',value:21},{label:'intr',value:1}]};
+ expect(formatTypeLabel(mergeTypeSummary(scalar,facts))).toBe('colmap-cams(pose:21 intr:1)');
+ expect(formatTypeLabel(mergeTypeSummary({...scalar,arrayed:true}, {...facts,elementCount:100}))).toBe('colmap-cams(pose:21 intr:1)[100]');
+ expect(formatTypeLabel(mergeTypeSummary({...scalar,arrayed:true},facts))).toBe('colmap-cams(pose:21 intr:1)[?]');
+});
+it('renders all authoritative dimensions, inner to outer',()=>{
+ const type=mergeTypeSummary({tags:['image'],arrayed:true,dimLabels:[]},{tags:['image'],dimSizes:[2,3,4],dimLabels:['batch','frame','cam']});
+ expect(formatTypeLabel(type)).toBe('image[cam:4][frame:3][batch:2]');
+});
