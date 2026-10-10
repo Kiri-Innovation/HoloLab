@@ -22,18 +22,22 @@ export function typeTooltip(name: string, declared: EdgeType, actual: EdgeType &
     : '未知';
   // A node toggle adds one collection layer to the left-hand view. Scalar
   // broadcast ports are not wrapped: every invocation sees the same bundle.
-  const afterDeclared = view?.fanout && !view.broadcast ? `arrayed<${declaration}>` : undefined;
+  const afterTitle = view?.fanout ? view.broadcast ? 'auto arrayed' : 'after arrayed' : undefined;
+  const afterDeclared = view?.fanout ? view.broadcast ? declaration : `arrayed<${declaration}>` : undefined;
+  const explanation = view?.fanout && view.broadcast ? '广播：每个分片收到同一份完整输入' : undefined;
   const fullRuntime = !actual.runtimeAvailable ? '未知'
-    : actual.arrayed || actual.dimLabels.length || actual.dimSizes?.length
+    : view?.broadcast || actual.arrayed || actual.dimLabels.length || actual.dimSizes?.length
       ? actual.tags.map(tag => formatTypeLabel({ ...actual, tags: [tag] })).join(', ') || '未知'
       : '未知（无 arrayed 维度）';
   return {
+    'data-tooltip-after-title': afterTitle,
+    'data-tooltip-explanation': explanation,
     'data-tooltip-after-declared': afterDeclared,
     'data-tooltip-after-actual': afterDeclared ? fullRuntime : undefined,
     'data-tooltip': `${name}\n${declaration}\n${runtime}`,
     'data-tooltip-type': name,
     'data-tooltip-declared': declaration,
     'data-tooltip-actual': runtime,
-    'aria-label': `变量名：${name}；类型：${declaration}；元素实际类型：${runtime}${afterDeclared ? `；after arrayed：${afterDeclared}；完整实际类型：${fullRuntime}` : ''}`,
+    'aria-label': `变量名：${name}；类型：${declaration}；元素实际类型：${runtime}${afterDeclared ? `；${afterTitle}：${afterDeclared}；完整实际类型：${fullRuntime}${explanation ? `；${explanation}` : ""}` : ''}`,
   };
 }

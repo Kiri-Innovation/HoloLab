@@ -26,7 +26,9 @@ it('fanout broadcast retains an entire array handle, while split input takes one
  const scalar={tags:['image'],arrayed:false,dimLabels:[]};
  const broadcast=typeTooltip('frames',scalar,actual,{fanout:true,direction:'input',broadcast:true});
  expect(broadcast['data-tooltip-actual']).toBe('image[cam:21][frame:100]');
- expect(broadcast['data-tooltip-after-declared']).toBeUndefined();
+ expect(broadcast['data-tooltip-after-declared']).toBe('image');
+ expect(broadcast['data-tooltip-after-title']).toBe('auto arrayed');
+ expect(broadcast['data-tooltip-after-actual']).toBe('image[cam:21][frame:100]');
  expect(typeTooltip('frames',declared,actual,{fanout:true,direction:'input'})['data-tooltip-actual']).toBe('image[cam:21]');
  expect(typeTooltip('frames',declared,{...actual,runtimeAvailable:false},{fanout:true,direction:'output'})['data-tooltip-after-actual']).toBe('未知');
 });
@@ -41,4 +43,16 @@ it('adds precisely one wrapper and shows the complete unmodified runtime on the 
  expect(typeTooltip('frames',{...type,dimLabels:['','']},actual,{fanout:true,direction:'input'})['data-tooltip-after-declared']).toBe('arrayed<arrayed<arrayed<image>>>');
  expect(typeTooltip('frames',type,actual)['data-tooltip-after-declared']).toBeUndefined();
  expect(typeTooltip('frames',type,{...actual,arrayed:false,dimLabels:[],dimSizes:[]},{fanout:true,direction:'input'})['data-tooltip-after-actual']).toBe('未知（无 arrayed 维度）');
+});
+
+it('broadcast uses unchanged scalar values in two columns only in fanout context',()=>{
+ const scalar={tags:['colmap-cams'],arrayed:false,dimLabels:[],internalCountItems:[{label:'pose',value:21},{label:'intr',value:1}],runtimeAvailable:true};
+ const view={fanout:true,direction:'input' as const,broadcast:true};
+ const result=typeTooltip('cams',scalar,scalar,view);
+ expect(result['data-tooltip-after-title']).toBe('auto arrayed');
+ expect(result['data-tooltip-after-declared']).toBe('colmap-cams');
+ expect(result['data-tooltip-after-actual']).toBe('colmap-cams(pose:21 intr:1)');
+ expect(result['data-tooltip-explanation']).toContain('同一份完整输入');
+ expect(typeTooltip('cams',scalar,scalar,{...view,fanout:false})['data-tooltip-after-title']).toBeUndefined();
+ expect(typeTooltip('cams',scalar,{...scalar,runtimeAvailable:false},view)['data-tooltip-after-actual']).toBe('未知');
 });

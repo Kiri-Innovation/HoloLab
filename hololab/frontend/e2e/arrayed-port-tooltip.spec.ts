@@ -9,16 +9,20 @@ for(const theme of ['light','dark']) test(`arrayed broadcast and dimensions ${th
  const check=async(selector:string,rows:string[],name:string)=>{
   await page.locator(selector).first().hover();
   await expect(tip).toBeVisible();
-  if(name==='ordinary-scalar' || name==='broadcast') await expect(tip.locator('.hl-type-tooltip-content > *')).toHaveText(rows);
+  if(name==='ordinary-scalar') await expect(tip.locator('.hl-type-tooltip-content > *')).toHaveText(rows);
   else {
     await expect(tip.locator('.hl-type-tooltip-before > *')).toHaveText(rows);
-    const full=rows[2]+(nested?'[batch:2]':'[frame:100]');
-    await expect(tip.locator('.hl-type-tooltip-after > *')).toHaveText(['after arrayed',`arrayed<${rows[1]}>`,full]);
+    const broadcast=name.startsWith('broadcast');
+    const full=broadcast?rows[2]:rows[2]+(nested?'[batch:2]':'[frame:100]');
+    await expect(tip.locator('.hl-type-tooltip-after > *')).toHaveText([broadcast?'auto arrayed':'after arrayed',broadcast?rows[1]:`arrayed<${rows[1]}>`,full]);
+    if(broadcast) await expect(tip.locator('.hl-type-tooltip-explanation')).toHaveText('广播：每个分片收到同一份完整输入');
   }
   await page.screenshot({path:info.outputPath(`${theme}-${name}.png`)});
  };
  await expect(page.locator('.hl-arrayed-frame')).toHaveCount(1);
  await check('[data-id="n1"] .target[data-handleid="cams"]',['cams','colmap-cams','colmap-cams(pose:21 intr:1)'],'broadcast');
+ await check('.hl-edge-chip[data-tooltip-type="cams"]',['cams','colmap-cams','colmap-cams(pose:21 intr:1)'],'broadcast-edge');
+ await check('[data-id="n1"] span[data-tooltip-type="cams"]',['cams','colmap-cams','colmap-cams(pose:21 intr:1)'],'broadcast-text');
  await check('[data-id="n1"] .target[data-handleid="frames"]',['frames','arrayed<image>','image[cam:21]'],'array-input');
  await check('[data-id="n1"] .source[data-handleid="frames"]',['frames','arrayed<image>','image[cam:21]'],'array-output');
  await check('.hl-edge-chip[data-tooltip-type="frames"]',['frames','arrayed<image>','image[cam:21]'],'array-edge');

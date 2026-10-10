@@ -671,3 +671,5 @@ a:hover { text-decoration: underline; }
 .hl-tooltip--type-dual[data-stacked="true"] section + section { border-left: 0; border-top: 1px solid var(--border-subtle); padding-left: 0; padding-top: calc(var(--space-2) * var(--tooltip-scale)); }
 
 .hl-type-tooltip-columns section > span { color: var(--text-muted); font-family: var(--font-mono); overflow-wrap: anywhere; }
+
+.hl-type-tooltip-explanation { grid-column: 1 / -1; color: var(--text-muted); font-size: inherit; }
