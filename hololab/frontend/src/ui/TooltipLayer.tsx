@@ -89,10 +89,13 @@ export function TooltipLayer() {
       element.style.setProperty("--tooltip-scale", String(zoom));
       const rect = element.getBoundingClientRect();
       // Title cards leave a full space-2 between the tail tip and the title.
-      const titleGap = parseFloat(getComputedStyle(element).getPropertyValue("--space-2")) + 5;
+      const style = getComputedStyle(element);
+      const titleGap = parseFloat(style.getPropertyValue("--space-2")) + 5;
+      // Computed padding/border already include zoom; do not scale this inset again.
+      const textInset = parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth);
       const position = tooltipGeometry(tip.target.getBoundingClientRect(), rect,
         { width: window.innerWidth, height: window.innerHeight }, zoom,
-        tip.title ? { align: "left", gap: titleGap } : undefined);
+        tip.title ? { align: "left", gap: titleGap, textInset } : undefined);
       element.style.left = `${position.left}px`;
       element.style.top = `${position.top}px`;
       element.style.setProperty("--tooltip-arrow-x", `${position.arrowX - element.clientLeft}px`);

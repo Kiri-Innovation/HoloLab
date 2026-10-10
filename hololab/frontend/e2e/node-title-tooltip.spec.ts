@@ -39,15 +39,22 @@ for (const theme of ['light', 'dark']) {
       await page.screenshot({path:info.outputPath(`title-${theme}-${zoom}.png`)});
       const bubble = (await tip.boundingBox())!;
       const titleRect = (await anchor.boundingBox())!;
-      expect(bubble.x).toBeCloseTo(titleRect.x, 1);
+      const textRect = (await tip.locator(".hl-title-tooltip-name").boundingBox())!;
+      expect(textRect.x).toBeCloseTo(titleRect.x, 1);
       expect(titleRect.y - bubble.y - bubble.height).toBeCloseTo(13 * zoom, 1);
       const node = (await page.locator('[data-hololab-node="algorithm"]').boundingBox())!;
       const x = Math.max(0, Math.min(bubble.x, node.x) - 12);
       const y = Math.max(0, Math.min(bubble.y, node.y) - 12);
+      await page.evaluate(({left,top,height}) => {
+        const line=document.createElement('div');line.id='alignment-guide';
+        Object.assign(line.style,{position:'fixed',left:`${left}px`,top:`${top}px`,height:`${height}px`,borderLeft:'1px dashed #f05a80',zIndex:'13000',pointerEvents:'none'});
+        document.body.appendChild(line);
+      },{left:titleRect.x,top:bubble.y,height:titleRect.y+titleRect.height-bubble.y});
       await page.screenshot({path:info.outputPath(`detail-${theme}-${zoom}.png`), clip: {
         x, y, width: Math.max(bubble.x+bubble.width,node.x+node.width)+12-x,
         height: Math.max(bubble.y+bubble.height,node.y+node.height)+12-y,
       }});
+      await page.locator("#alignment-guide").evaluate(el=>el.remove());
     }
     await page.mouse.move(0,0);
     await viewport.evaluate(el=>(el as HTMLElement).style.transform='translate(-240px,-110px) scale(1)');
@@ -59,8 +66,14 @@ for (const theme of ['light', 'dark']) {
     expect(b.x).toBeGreaterThanOrEqual(8);expect(b.x+b.width).toBeLessThanOrEqual(1192);
     const a=(await anchor.boundingBox())!;
     const arrow=await tip.evaluate(el=>parseFloat((el as HTMLElement).style.getPropertyValue('--tooltip-arrow-x'))+el.clientLeft);
-    expect(b.x+arrow).toBeCloseTo(a.x+Math.min(12,a.width/2),1);
+    expect(b.x+arrow).toBeCloseTo(a.x,1);
     await page.screenshot({path:info.outputPath(`title-${theme}-edge.png`)});
+    await viewport.evaluate((el, delta) => {
+      const matrix=new DOMMatrixReadOnly(getComputedStyle(el).transform);
+      (el as HTMLElement).style.transform=`translate(${matrix.e+delta}px,160px) scale(1)`;
+    },10-a.x);
+    await expect.poll(async () => (await tip.boundingBox())!.x).toBeCloseTo(8,1);
+    await page.screenshot({path:info.outputPath(`left-edge-${theme}.png`)});
     await viewport.evaluate(el=>(el as HTMLElement).style.transform='translate(680px,160px) scale(1)');
     await expect(tip).toHaveAttribute('data-placement','above');
     const right=(await tip.boundingBox())!;
