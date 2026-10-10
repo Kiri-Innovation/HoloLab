@@ -1,0 +1,225 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap-sfm
+version: 0.4.0
+description: >
+  Run COLMAP Structure-from-Motion and emit a colmap-cams bundle plus a
+  separate point-cloud output. Supports a shared camera, one camera per
+  image folder, or one camera per image.
+category: "reconstruction/colmap"
+
+docs: |
+  Wrapper around the vanilla COLMAP CLI: ``feature_extractor`` +
+  ``exhaustive_matcher`` + ``mapper``. With its defaults this is deliberately
+  command-equivalent to ``colmap-sfm@0.3.0``: all input images share one
+  OPENCV camera, COLMAP's 1.2 focal-length initialization is used, and focal
+  length / distortion are refined while the principal point remains fixed.
+
+  ## Camera assignment
+
+  ``camera_assignment`` controls COLMAP camera IDs, not image poses:
+
+  * ``single`` (default): one intrinsic shared by every image. This preserves
+    the historical STG behaviour and is the safe default for monocular input.
+  * ``per_folder``: images in each immediate source folder share a camera.
+    Use a source layout such as ``cam0/frame.jpg``, ``cam1/frame.jpg``.
+  * ``per_image``: every image gets an independent COLMAP camera ID. This is
+    appropriate for a synchronized multi-device capture only when the devices
+    really have different intrinsics.
+
+  ``camera_model`` is passed directly to COLMAP. ``OPENCV`` remains the
+  compatibility default. For unconstrained per-image estimation prefer the
+  lower-dimensional ``SIMPLE_RADIAL`` model: it estimates focal length and one
+  radial coefficient while retaining COLMAP's image-centre principal point.
+  ``default_focal_length_factor`` initializes focal length as this factor times
+  ``max(width, height)`` when EXIF does not provide one. For a 4000 px image
+  with an expected 2760 px focal length, use ``0.69`` rather than COLMAP's
+  default ``1.2``.
+
+  ## Identifiability boundary
+
+  ``per_image`` makes COLMAP optimize separate camera parameter blocks; a low
+  reprojection error is **not** proof that fully free calibration is unique.
+  One exposure per device with a fully free 5-DOF intrinsic matrix and
+  independent distortion is commonly underconstrained / ill-conditioned and
+  admits multiple solutions. A restricted model (for example one focal length
+  per device, fixed principal point, simple distortion) with non-planar,
+  overlapping views and non-critical baselines can be jointly estimated, but
+  should still be checked across captures. Pure rotation, planar structure,
+  narrow baselines, and weak overlap are classic failure cases.
+
+  Recommended production pipeline: calibrate every physical device offline,
+  assign each device one COLMAP camera ID, inject its known camera parameters
+  into the database via COLMAP ``rig_configurator``, and pass those camera IDs
+  to ``--Mapper.constant_camera_list_path``. Then a single synchronized group
+  solves only poses and points. This pack does not yet accept a per-device
+  calibration JSON directly; use the COLMAP database/rig-configurator step
+  before mapper when calibrated intrinsics must be frozen.
+
+  Output layout::
+
+      cams/ cameras.txt + images.txt
+      points/ points3D.txt
+
+inputs:
+  frames:
+    tags: [image]
+    description: "One image set on which to run SfM."
+
+params:
+  use_gpu:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
+  max_image_size:
+    type: int
+    default: 3200
+    min: 512
+    description: "SIFT downscale cap (--SiftExtraction.max_image_size)."
+  max_num_features:
+    type: int
+    default: 8192
+    min: 512
+    description: "SIFT feature cap per image."
+  camera_assignment:
+    type: enum
+    values: [single, per_folder, per_image]
+    default: single
+    description: "COLMAP intrinsic sharing: one shared camera, one per folder, or one per image."
+  camera_model:
+    type: enum
+    values: [SIMPLE_PINHOLE, PINHOLE, SIMPLE_RADIAL, RADIAL, OPENCV, FULL_OPENCV]
+    default: OPENCV
+    description: "COLMAP ImageReader camera model. OPENCV is the backwards-compatible default."
+  camera_params:
+    type: string
+    default: ""
+    description: "Optional comma-separated COLMAP camera parameters used as initialization. Empty = EXIF/default focal initialization."
+  default_focal_length_factor:
+    type: float
+    default: 1.2
+    min: 0.01
+    description: "Initial focal / max(image width, image height) when EXIF has no focal length."
+  refine_focal_length:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "Pass-through to --Mapper.ba_refine_focal_length."
+  refine_principal_point:
+    type: int
+    default: 0
+    min: 0
+    max: 1
+    description: "Pass-through to --Mapper.ba_refine_principal_point."
+  refine_extra_params:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: "Pass-through to --Mapper.ba_refine_extra_params."
+
+outputs:
+  cams:
+    tags: [colmap-cams]
+    description: "COLMAP text-format cameras.txt and images.txt."
+  points:
+    tags: [point-cloud]
+    description: "COLMAP text-format points3D.txt."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+
+exec:
+  shell: |
+    set -euo pipefail
+    FRAMES_HANDLE="{{ inputs.frames }}"
+    OUT_CAMS="{{ outputs.cams }}"
+    OUT_POINTS="{{ outputs.points }}"
+    DB="{{ scratch_dir }}/database.db"
+    SPARSE_ROOT="{{ scratch_dir }}/sparse"
+
+    if compgen -G "$FRAMES_HANDLE"/*.png > /dev/null || \
+       compgen -G "$FRAMES_HANDLE"/*.jpg > /dev/null || \
+       compgen -G "$FRAMES_HANDLE"/*.jpeg > /dev/null; then
+      IMG_DIR="$FRAMES_HANDLE"
+    elif [ -d "$FRAMES_HANDLE/frames" ]; then
+      IMG_DIR="$FRAMES_HANDLE/frames"
+    else
+      echo "ERROR: no images at $FRAMES_HANDLE or its frames/ subdir" >&2
+      exit 2
+    fi
+
+    case "{{ params.camera_assignment | default('single') }}" in
+      single) CAMERA_ASSIGNMENT=(--ImageReader.single_camera 1) ;;
+      per_folder) CAMERA_ASSIGNMENT=(--ImageReader.single_camera 0 --ImageReader.single_camera_per_folder 1) ;;
+      per_image) CAMERA_ASSIGNMENT=(--ImageReader.single_camera 0 --ImageReader.single_camera_per_image 1) ;;
+      *) echo "ERROR: unknown camera_assignment={{ params.camera_assignment | default('single') }}" >&2; exit 2 ;;
+    esac
+    CAMERA_PARAMS=()
+    if [ -n "{{ params.camera_params | default('') }}" ]; then
+      CAMERA_PARAMS=(--ImageReader.camera_params "{{ params.camera_params | default('') }}")
+    fi
+    FOCAL_INIT=()
+    if [ "{{ params.default_focal_length_factor | default(1.2) }}" != "1.2" ]; then
+      FOCAL_INIT=(--ImageReader.default_focal_length_factor {{ params.default_focal_length_factor | default(1.2) }})
+    fi
+    BA_INTRINSICS=()
+    if [ "{{ params.refine_focal_length | default(1) }}" != "1" ]; then
+      BA_INTRINSICS+=(--Mapper.ba_refine_focal_length {{ params.refine_focal_length | default(1) }})
+    fi
+    if [ "{{ params.refine_principal_point | default(0) }}" != "0" ]; then
+      BA_INTRINSICS+=(--Mapper.ba_refine_principal_point {{ params.refine_principal_point | default(0) }})
+    fi
+    if [ "{{ params.refine_extra_params | default(1) }}" != "1" ]; then
+      BA_INTRINSICS+=(--Mapper.ba_refine_extra_params {{ params.refine_extra_params | default(1) }})
+    fi
+
+    mkdir -p "$OUT_CAMS" "$OUT_POINTS" "$SPARSE_ROOT"
+    if colmap feature_extractor -h 2>&1 | grep -q 'FeatureExtraction.use_gpu'; then
+      GPU_OPT_EXTRACT=FeatureExtraction.use_gpu
+      GPU_OPT_MATCH=FeatureMatching.use_gpu
+    else
+      GPU_OPT_EXTRACT=SiftExtraction.use_gpu
+      GPU_OPT_MATCH=SiftMatching.use_gpu
+    fi
+    echo "[colmap-sfm/0.4.0] camera_assignment={{ params.camera_assignment | default('single') }} camera_model={{ params.camera_model | default('OPENCV') }}"
+    colmap feature_extractor \
+      --database_path "$DB" --image_path "$IMG_DIR" \
+      "${CAMERA_ASSIGNMENT[@]}" \
+      --ImageReader.camera_model {{ params.camera_model | default('OPENCV') }} \
+      "${FOCAL_INIT[@]}" \
+      "${CAMERA_PARAMS[@]}" \
+      --SiftExtraction.max_image_size {{ params.max_image_size | default(3200) }} \
+      --SiftExtraction.max_num_features {{ params.max_num_features | default(8192) }} \
+      --"$GPU_OPT_EXTRACT" {{ params.use_gpu | default(1) }}
+
+    colmap exhaustive_matcher --database_path "$DB" --"$GPU_OPT_MATCH" {{ params.use_gpu | default(1) }}
+    colmap mapper --database_path "$DB" --image_path "$IMG_DIR" --output_path "$SPARSE_ROOT" \
+      --Mapper.ba_global_function_tolerance=0.000001 \
+      "${BA_INTRINSICS[@]}"
+
+    MODEL0="$SPARSE_ROOT/0"
+    if [ ! -d "$MODEL0" ]; then
+      echo "ERROR: COLMAP mapper produced no reconstruction under $SPARSE_ROOT" >&2
+      exit 3
+    fi
+    TXT_SCRATCH="{{ scratch_dir }}/txt"
+    mkdir -p "$TXT_SCRATCH"
+    colmap model_converter --input_path "$MODEL0" --output_path "$TXT_SCRATCH" --output_type TXT
+    rm -f "$TXT_SCRATCH/rigs.txt" "$TXT_SCRATCH/frames.txt"
+    cp -f "$TXT_SCRATCH/cameras.txt" "$OUT_CAMS/cameras.txt"
+    cp -f "$TXT_SCRATCH/images.txt" "$OUT_CAMS/images.txt"
+    cp -f "$TXT_SCRATCH/points3D.txt" "$OUT_POINTS/points3D.txt"
+    test -s "$OUT_CAMS/cameras.txt" || { echo "no cameras.txt produced" >&2; exit 4; }
+    test -s "$OUT_CAMS/images.txt" || { echo "no images.txt produced" >&2; exit 4; }
+    test -s "$OUT_POINTS/points3D.txt" || { echo "no points3D.txt produced" >&2; exit 4; }
+    echo "[colmap-sfm/0.4.0] done → cams:$OUT_CAMS points:$OUT_POINTS"
+
+idempotency:
+  marker: "{{ outputs.cams }}/.hololab-done"

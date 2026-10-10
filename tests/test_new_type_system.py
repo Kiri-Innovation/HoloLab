@@ -168,6 +168,34 @@ def test_colmap_sfm_v030_shape() -> None:
     assert m.params["max_image_size"].default == 3200
 
 
+def test_colmap_sfm_v040_camera_assignment_and_intrinsics_shape() -> None:
+    """@0.4.0 keeps @0.3.0 defaults but exposes COLMAP camera ownership.
+
+    The defaults are intentionally asserted here: changing either ``single``
+    or OPENCV would silently alter existing monocular/STG workflows.
+    """
+    m = _load("colmap-sfm", "0.4.0")
+    assert m.name == "colmap-sfm"
+    assert m.version == "0.4.0"
+    assert m.params["camera_assignment"].default == "single"
+    assert m.params["camera_assignment"].values == ["single", "per_folder", "per_image"]
+    assert m.params["camera_model"].default == "OPENCV"
+    assert "SIMPLE_RADIAL" in m.params["camera_model"].values
+    assert m.params["camera_params"].default == ""
+    assert m.params["default_focal_length_factor"].default == 1.2
+    assert m.params["refine_focal_length"].default == 1
+    assert m.params["refine_principal_point"].default == 0
+    assert m.params["refine_extra_params"].default == 1
+    shell = m.exec.shell
+    assert "--ImageReader.single_camera_per_folder 1" in shell
+    assert "--ImageReader.single_camera_per_image 1" in shell
+    assert "--ImageReader.default_focal_length_factor" in shell
+    assert "--Mapper.ba_refine_focal_length" in shell
+    assert "--Mapper.ba_refine_principal_point" in shell
+    assert "--Mapper.ba_refine_extra_params" in shell
+    assert "underconstrained / ill-conditioned" in m.docs
+
+
 def test_colmap_triangulate_v070_shape() -> None:
     """``@0.7.0`` — triangulate only. No undistort inline; output = point-cloud."""
     m = _load("colmap-triangulate", "0.7.0")
