@@ -435,7 +435,9 @@ for (const theme of ["light", "dark"] as const) {
       const items = [el, ...Array.from(footer.querySelectorAll('span, button')).filter(x => x !== el && (x.textContent === '100/100' || x.tagName === 'BUTTON'))];
       const rects = items.map(x => {const r=x.getBoundingClientRect();return {text:x.textContent, x:r.x,width:r.width,height:r.height};});
       const c=getComputedStyle(footer);
-      return {paddingLeft:c.paddingLeft,paddingRight:c.paddingRight,items:rects,gaps:rects.slice(1).map((r,i)=>r.x-rects[i].x-rects[i].width),summaryClient:el.clientWidth,summaryScroll:el.scrollWidth};
+      const range = document.createRange(); range.selectNodeContents(el);
+      const textRect = range.getBoundingClientRect();
+      return {textWidth:textRect.width, visibleTextToProgress:rects[1].x-textRect.right, paddingLeft:c.paddingLeft,paddingRight:c.paddingRight,items:rects,gaps:rects.slice(1).map((r,i)=>r.x-rects[i].x-rects[i].width),summaryClient:el.clientWidth,summaryScroll:el.scrollWidth};
     });
     const edges = await card.evaluate(el => {
       const footer = el.querySelector('[data-hl-node-footer]')!;
@@ -445,7 +447,7 @@ for (const theme of ["light", "dark"] as const) {
       const text = footer.querySelector('span')!.getBoundingClientRect();
       const h = getComputedStyle(header), c = getComputedStyle(footer);
       return { top: b.top-f.top, right: r.right-b.right, bottom: r.bottom-b.bottom,
-        footerHeight:f.height, cardHeight:r.height, textLeft:text.left-r.left, textBottom:r.bottom-text.bottom,
+        footerHeight:f.height, cardHeight:r.height, textLeft:text.left-r.left, textTop:text.top-f.top, textBottom:r.bottom-text.bottom,
         headerPadding:[h.paddingTop,h.paddingRight,h.paddingBottom,h.paddingLeft],
         footerPadding:[c.paddingTop,c.paddingRight,c.paddingBottom,c.paddingLeft],
         button:{x:b.x-r.x,y:b.y-r.y,width:b.width,height:b.height}, footerY:f.y-r.y, cardWidth:r.width };
@@ -461,8 +463,11 @@ for (const theme of ["light", "dark"] as const) {
     if (process.env.FOOTER_SPACING_BASELINE) return;
     expect(metrics.gaps).toEqual([4,8,4]);
     expect(metrics.summaryScroll).toBeLessThanOrEqual(metrics.summaryClient);
+    expect(metrics.textWidth).toBeLessThanOrEqual(metrics.items[0].width);
     expect(metrics.paddingLeft).toBe('4px'); expect(metrics.paddingRight).toBe('4px');
     expect(edges).toMatchObject({top:5,right:5,bottom:5,footerHeight:33});
+    expect(edges.textTop).toBe(edges.textBottom);
+    expect(metrics.gaps[2]).toBe(parseFloat(metrics.paddingRight));
     await summary.hover();
     await expect(page.getByRole('tooltip')).toContainText('1m 25s · 14天前');
     await page.mouse.move(0,0);
@@ -476,7 +481,10 @@ for (const theme of ["light", "dark"] as const) {
       expect(b.y-f.y).toBeCloseTo(5*zoom);
       expect(r.x+r.width-b.x-b.width).toBeCloseTo(5*zoom);
       expect(r.y+r.height-b.y-b.height).toBeCloseTo(5*zoom);
+      const j=(await jump.boundingBox())!;
+      expect(b.x-j.x-j.width).toBeCloseTo(4*zoom);
       const s=(await summary.boundingBox())!, p=(await progress.boundingBox())!;
+      expect(j.x-p.x-p.width).toBeCloseTo(8*zoom);
       expect(p.x-s.x-s.width).toBeCloseTo(4*zoom);
       await card.screenshot({path:testInfo.outputPath(`spacing-${theme}-${zoom}.png`)});
     }
