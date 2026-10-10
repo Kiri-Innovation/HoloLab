@@ -9,12 +9,12 @@ export interface ViewNodeData extends Record<string, unknown> {
 }
 
 /** A non-executing canvas sticker for observing exactly one upstream handle. */
-export function ViewNode({ data, selected }: NodeProps) {
+export function ViewNode({ id, data, selected }: NodeProps) {
   const d = data as ViewNodeData;
   const target = d.target ?? null;
   return (
     <div
-      className="nodrag"
+      data-hl-view-node={id}
       style={{
         width: 300,
         minHeight: 124,
@@ -27,10 +27,13 @@ export function ViewNode({ data, selected }: NodeProps) {
       }}
     >
       <Handle type="target" position={Position.Left} id="in" style={{ background: "#c99722" }} />
-      <div style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, borderBottom: "1px solid #ead99e" }}>
+      <div
+        className="hl-view-drag-handle"
+        style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, borderBottom: "1px solid #ead99e", cursor: "grab" }}
+      >
         ◈ {d.title?.trim() || "视图"}
       </div>
-      <div style={{ padding: 8, fontSize: 11 }}>
+      <div className="nodrag" style={{ padding: 8, fontSize: 11 }}>
         {!target ? (
           <span style={{ color: "#806f3b" }}>连接一个产物以查看；不会创建任务或产物。</span>
         ) : target.deleted ? (

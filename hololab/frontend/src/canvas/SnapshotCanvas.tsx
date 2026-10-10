@@ -54,6 +54,7 @@ import {
   type PreviewTarget,
 } from "./AlgorithmNode";
 import { ViewNode, type ViewNodeData } from "./ViewNode";
+import { isViewGraphNode } from "./nodeMeta";
 import { MinimapToggleButton } from "./MinimapToggleButton";
 import { aggregateJobsToRuntime } from "./nodeRuntime";
 import { TypedEdge, type TypedEdgeData } from "./TypedEdge";
@@ -171,6 +172,7 @@ export function SnapshotCanvas({
     };
     const work: Work[] = [];
     for (const gn of snapshot.graph.nodes) {
+      if (isViewGraphNode(gn)) continue;
       const pack = catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`);
       if (!pack) continue;
       const job = jobsByGraphNodeId.get(gn.id);
@@ -251,13 +253,14 @@ export function SnapshotCanvas({
   // into this canvas.
   const initial = useMemo(() => {
     const rfNodes: Node<any>[] = snapshot.graph.nodes.map((gn) => {
-      if (gn.kind === "view") {
+      if (isViewGraphNode(gn)) {
         const edge = snapshot.graph.edges.find((e) => e.target === gn.id && e.targetHandle === "in");
         const target = edge ? previewsByGraphNode[edge.source]?.[edge.sourceHandle] ?? null : null;
         return {
           id: gn.id,
           type: "view",
           position: gn.position,
+          dragHandle: ".hl-view-drag-handle",
           selected: gn.id === selectedGraphNodeId,
           data: { kind: "view", title: gn.title ?? "视图", target } as ViewNodeData,
         };

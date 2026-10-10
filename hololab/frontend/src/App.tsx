@@ -26,6 +26,7 @@ import {
   type EdgeProps,
   type Node,
   type NodeChange,
+  type NodeMouseHandler,
   type OnConnect,
   type ReactFlowInstance,
 } from "@xyflow/react";
@@ -84,6 +85,12 @@ import {
   type RunNodeDetail,
 } from "./canvas/AlgorithmNode";
 import { ViewNode, type ViewNodeData } from "./canvas/ViewNode";
+import {
+  algorithmDataForNode,
+  algorithmNodeData,
+  isAlgorithmGraphNode,
+  isViewGraphNode,
+} from "./canvas/nodeMeta";
 import { Artifacts } from "./Artifacts";
 import { Gallery } from "./Gallery";
 import { netBus, useReconnectTick } from "./net";
@@ -823,6 +830,46 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     },
     [onEdgesChange, onNodesChange],
   );
+  // React Flow's keyboard deletion is internally optimistic. Keep the
+  // controlled arrays authoritative so deleting a selected view sticker (or
+  // any connected node) cannot be reverted by the next render.
+  const onNodesDelete = useCallback(
+    (deleted: Node[]) => {
+      const ids = new Set(deleted.map((node) => node.id));
+      setNodes((current) => current.filter((node) => !ids.has(node.id)));
+      setEdges((current) => current.filter((edge) => !ids.has(edge.source) && !ids.has(edge.target)));
+    },
+    [setNodes, setEdges],
+  );
+  // Keep keyboard deletion reliable for controlled nodes. In particular a
+  // view's preview DOM can own focus after a drag; handle the canvas-level
+  // shortcut from our source-of-truth selection rather than assuming a pack
+  // node renderer owns focus.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (viewingSnapshot || (event.key !== "Backspace" && event.key !== "Delete")) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      const deleted = nodes.filter((node) => node.selected);
+      if (deleted.length === 0) return;
+      event.preventDefault();
+      onNodesDelete(deleted);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [nodes, onNodesDelete, viewingSnapshot]);
+  const onNodeClick: NodeMouseHandler = useCallback(
+    (event, clicked) => {
+      const keepExisting = event.ctrlKey || event.metaKey;
+      setNodes((current) =>
+        current.map((node) => ({
+          ...node,
+          selected: node.id === clicked.id ? (keepExisting ? !node.selected : true) : keepExisting ? node.selected : false,
+        })),
+      );
+    },
+    [setNodes],
+  );
   const edgeTypes = useMemo(
     () => ({
       typed: (props: EdgeProps) => (
@@ -967,10 +1014,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     setNodes((current) => {
       const remeasure: string[] = [];
       const next = current.map((n) => {
-        if ((n.data as ViewNodeData).kind === "view") return n;
-        const key = `${n.data.pack.name}@${n.data.pack.version}`;
+        const data = algorithmDataForNode(n);
+        if (!data) return n;
+        const key = `${data.pack.name}@${data.pack.version}`;
         const fresh = catalogByKey.get(key);
-        if (!fresh || fresh.manifest_hash === n.data.pack.manifest_hash) {
+        if (!fresh || fresh.manifest_hash === data.pack.manifest_hash) {
           return n;
         }
         remeasure.push(n.id);
@@ -1276,7 +1324,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       if (!raw && !view) return;
       const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
       if (view) {
-        setNodes((ns) => ns.concat({ id: mintId("view"), type: "view", position, data: { kind: "view", title: "视图" } }));
+        setNodes((ns) => ns.concat({
+          id: mintId("view"),
+          type: "view",
+          position,
+          dragHandle: ".hl-view-drag-handle",
+          data: { kind: "view", title: "视图" },
+        }));
         return;
       }
       const { name, version } = JSON.parse(raw) as { name: string; version: string };
@@ -1311,21 +1365,23 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // is preserved when the label didn't change so xyflow doesn't churn.
   const displayEdges = useMemo(() => {
     if (edges.length === 0) return edges;
-    const graphNodes = nodes.filter((n) => (n.data as ViewNodeData).kind !== "view").map((n) => {
-      const d = n.data as AlgorithmNodeData & {
+    const graphNodes = nodes.flatMap((n) => {
+      const data = algorithmDataForNode(n);
+      if (!data) return [];
+      const d = data as AlgorithmNodeData & {
         params?: Record<string, unknown>;
         arrayed_toggle?: boolean;
       };
       return {
         id: n.id,
-        algorithm_name: n.data.pack.name,
-        algorithm_version: n.data.pack.version,
+        algorithm_name: data.pack.name,
+        algorithm_version: data.pack.version,
         position: n.position,
         // Real params — effectiveOutputType reads dim_labels_from here
         // (e.g. regroup.out → output_dims) so the chip renders the
         // right labels before any handle summary lands.
         params: d.params ?? {},
-        assigned_node_id: n.data.assigned_node_id,
+        assigned_node_id: data.assigned_node_id,
         arrayed_toggle: Boolean(d.arrayed_toggle),
       };
     });
@@ -1403,7 +1459,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     const gn = viewingSnapshot.graph.nodes.find(
       (n) => n.id === snapshotSelectedGraphNodeId,
     );
-    if (!gn) return null;
+    if (!gn || isViewGraphNode(gn)) return null;
     return catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`) ?? null;
   }, [viewingSnapshot, snapshotSelectedGraphNodeId, catalogByKey]);
 
@@ -1422,7 +1478,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       if (!ge) return null;
       const srcNode = viewingSnapshot.graph.nodes.find((n) => n.id === ge.source);
       const tgtNode = viewingSnapshot.graph.nodes.find((n) => n.id === ge.target);
-      if (!srcNode || !tgtNode) return null;
+      if (!srcNode || !tgtNode || isViewGraphNode(srcNode) || isViewGraphNode(tgtNode)) return null;
       const srcPack =
         catalogByKey.get(
           `${srcNode.algorithm_name}@${srcNode.algorithm_version}`,
@@ -1474,26 +1530,33 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     const srcRf = nodes.find((n) => n.id === selectedEdge.source);
     const tgtRf = nodes.find((n) => n.id === selectedEdge.target);
     if (!srcRf || !tgtRf) return null;
-    const srcPack = srcRf.data.pack;
-    const tgtPack = tgtRf.data.pack;
+    const srcData = algorithmDataForNode(srcRf);
+    const tgtData = algorithmDataForNode(tgtRf);
+    // A view has no pack and its input edge is only an observation. It has
+    // no algorithm-port inspector to render.
+    if (!srcData || !tgtData) return null;
+    const srcPack = srcData.pack;
+    const tgtPack = tgtData.pack;
     const sourceHandle = selectedEdge.sourceHandle ?? "";
     const targetHandle = selectedEdge.targetHandle ?? "";
     const portSpec = srcPack.outputs[sourceHandle] ?? null;
     // Rebuild GraphNode/Edge shape for effectiveOutputType (matches
     // displayEdges above; kept inline because the args differ enough
     // that pulling into a helper wouldn't pay for itself).
-    const graphNodes = nodes.map((n) => {
-      const d = n.data as AlgorithmNodeData & {
+    const graphNodes = nodes.flatMap((n) => {
+      const data = algorithmDataForNode(n);
+      if (!data) return [];
+      const d = data as AlgorithmNodeData & {
         params?: Record<string, unknown>;
         arrayed_toggle?: boolean;
       };
       return {
         id: n.id,
-        algorithm_name: n.data.pack.name,
-        algorithm_version: n.data.pack.version,
+        algorithm_name: data.pack.name,
+        algorithm_version: data.pack.version,
         position: n.position,
         params: d.params ?? {},
-        assigned_node_id: n.data.assigned_node_id,
+        assigned_node_id: data.assigned_node_id,
         arrayed_toggle: Boolean(d.arrayed_toggle),
       };
     });
@@ -1520,9 +1583,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       algorithm_version: srcPack.version,
       position: srcRf.position,
       params: {},
-      assigned_node_id: srcRf.data.assigned_node_id,
+      assigned_node_id: srcData.assigned_node_id,
       arrayed_toggle: Boolean(
-        (srcRf.data as AlgorithmNodeData & { arrayed_toggle?: boolean })
+        (srcData as AlgorithmNodeData & { arrayed_toggle?: boolean })
           .arrayed_toggle,
       ),
     };
@@ -1532,9 +1595,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       algorithm_version: tgtPack.version,
       position: tgtRf.position,
       params: {},
-      assigned_node_id: tgtRf.data.assigned_node_id,
+      assigned_node_id: tgtData.assigned_node_id,
       arrayed_toggle: Boolean(
-        (tgtRf.data as AlgorithmNodeData & { arrayed_toggle?: boolean })
+        (tgtData as AlgorithmNodeData & { arrayed_toggle?: boolean })
           .arrayed_toggle,
       ),
     };
@@ -1708,11 +1771,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       const missingPacks: string[] = [];
       const hydratedNodes = graph.nodes
         .map((gn) => {
-          if (gn.kind === "view") {
+          if (isViewGraphNode(gn)) {
             return {
               id: gn.id,
               type: "view",
               position: gn.position,
+              dragHandle: ".hl-view-drag-handle",
               data: { kind: "view", title: gn.title ?? "视图" },
             } as Node<any>;
           }
@@ -1795,7 +1859,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     // Count how many referenced packs resolve in the CURRENT catalog.
     let resolvable = 0;
     for (const gn of wire.nodes) {
-      if (catalogByKey.has(`${gn.algorithm_name}@${gn.algorithm_version}`)) {
+      if (isAlgorithmGraphNode(gn) && catalogByKey.has(`${gn.algorithm_name}@${gn.algorithm_version}`)) {
         resolvable += 1;
       }
     }
@@ -2501,8 +2565,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             edgeTypes={edgeTypes}
             onNodesChange={onNodesChange as (c: NodeChange[]) => void}
             onEdgesChange={onEdgesChange}
+            onNodesDelete={onNodesDelete}
+            onNodeClick={onNodeClick}
             onConnect={onConnect}
             onInit={setRfInstance}
+            deleteKeyCode="Backspace"
             fitView
             minZoom={dynamicMinZoom}
             proOptions={{ hideAttribution: true }}
@@ -2568,6 +2635,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       currentWorkflowId={workflowId}
     />
   );
+  const selectedAlgorithmData = selectedNode ? algorithmNodeData(selectedNode.data) : null;
   const inspectorSlot = edgeInspectorProps ? (
     <EdgeInspector {...edgeInspectorProps} />
   ) : viewingSnapshot ? (
@@ -2577,7 +2645,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       job={snapshotSelectedJob}
       onRerunFromHere={onRerunFromHere}
     />
-  ) : !selectedNode ? (
+  ) : !selectedNode || !selectedAlgorithmData ? (
     // Nothing selected on the draft canvas — show live server pulse
     // instead of a blank placeholder so the operator can gauge cluster
     // load while planning the next run.
@@ -2585,25 +2653,25 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   ) : (
     <NodeInspector
       selected={
-        selectedNode
+        selectedNode && selectedAlgorithmData
           ? {
               id: selectedNode.id,
-              algorithm_name: selectedNode.data.pack.name,
-              algorithm_version: selectedNode.data.pack.version,
+              algorithm_name: selectedAlgorithmData.pack.name,
+              algorithm_version: selectedAlgorithmData.pack.version,
               position: {
                 x: selectedNode.position.x,
                 y: selectedNode.position.y,
               },
               params:
                 (
-                  selectedNode.data as AlgorithmNodeData & {
+                  selectedAlgorithmData as AlgorithmNodeData & {
                     params?: Record<string, unknown>;
                   }
                 ).params ?? {},
-              assigned_node_id: selectedNode.data.assigned_node_id,
+              assigned_node_id: selectedAlgorithmData.assigned_node_id,
               arrayed_toggle: Boolean(
                 (
-                  selectedNode.data as AlgorithmNodeData & {
+                  selectedAlgorithmData as AlgorithmNodeData & {
                     arrayed_toggle?: boolean;
                   }
                 ).arrayed_toggle,
@@ -2612,7 +2680,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 1,
                 Number(
                   (
-                    selectedNode.data as AlgorithmNodeData & {
+                  selectedAlgorithmData as AlgorithmNodeData & {
                       parallelism?: number;
                     }
                   ).parallelism ?? 1,
@@ -2622,7 +2690,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 1,
                 Number(
                   (
-                    selectedNode.data as AlgorithmNodeData & {
+                  selectedAlgorithmData as AlgorithmNodeData & {
                       batch_size?: number;
                     }
                   ).batch_size ?? 1,
@@ -2631,7 +2699,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             }
           : null
       }
-      pack={selectedNode ? selectedNode.data.pack : null}
+      pack={selectedAlgorithmData?.pack ?? null}
       computeNodes={computeNodes}
       onChange={onInspectorChange}
       onDelete={onInspectorDelete}

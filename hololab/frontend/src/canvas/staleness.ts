@@ -41,6 +41,7 @@
 
 import type { CatalogPack, GraphEdge, GraphNode, SnapshotJob, WorkflowGraph } from "../wire";
 import type { NodeRuntime } from "./AlgorithmNode";
+import { isAlgorithmGraphNode } from "./nodeMeta";
 
 const IN_FLIGHT = new Set(["pending", "assigned", "running"]);
 
@@ -279,13 +280,21 @@ export function computeStaleness(
   packDefaults: PackDefaults = () => ({}),
 ): Record<string, NodeStaleness | null> {
   const out: Record<string, NodeStaleness | null> = {};
+  // A view is an observer, not an executable graph vertex. Excluding view
+  // nodes and their display edges also prevents a sticker from making an
+  // algorithm appear upstream-dirty.
+  const draftNodes = draft.nodes.filter(isAlgorithmGraphNode);
+  const draftIds = new Set(draftNodes.map((n) => n.id));
+  const draftEdges = draft.edges.filter((e) => draftIds.has(e.source) && draftIds.has(e.target));
+  const snapNodes = (snap?.nodes ?? []).filter(isAlgorithmGraphNode);
+  const snapIds = new Set(snapNodes.map((n) => n.id));
+  const snapEdges = (snap?.edges ?? []).filter((e) => snapIds.has(e.source) && snapIds.has(e.target));
   const snapById = new Map<string, GraphNode>(
-    (snap?.nodes ?? []).map((n) => [n.id, n]),
+    snapNodes.map((n) => [n.id, n]),
   );
-  const snapEdges = snap?.edges ?? [];
-  const preds = buildPreds(draft.nodes, draft.edges);
-  const order = topoOrder(draft.nodes, draft.edges);
-  const draftById = new Map<string, GraphNode>(draft.nodes.map((n) => [n.id, n]));
+  const preds = buildPreds(draftNodes, draftEdges);
+  const order = topoOrder(draftNodes, draftEdges);
+  const draftById = new Map<string, GraphNode>(draftNodes.map((n) => [n.id, n]));
 
   for (const id of order) {
     const dn = draftById.get(id);
@@ -332,7 +341,7 @@ export function computeStaleness(
     // reset). We still gate on runtime.state === "done" to decide "does
     // this node have any fresh output right now".
     const sn = snap ? (snapById.get(id) ?? null) : null;
-    const selfReasons = selfDirtyReasons(dn, sn, draft.edges, snapEdges, packDefaults);
+    const selfReasons = selfDirtyReasons(dn, sn, draftEdges, snapEdges, packDefaults);
     const hasDoneOutput = rt?.state === "done";
     if (!hasDoneOutput && selfReasons.length === 0) {
       // Config matches the snapshot but the output isn't fresh — the

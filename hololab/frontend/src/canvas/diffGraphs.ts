@@ -6,6 +6,7 @@
 
 import type { WorkflowGraph, GraphNode, GraphEdge } from "../wire";
 import type { PackDefaults } from "./staleness";
+import { graphNodeLabel, isAlgorithmGraphNode } from "./nodeMeta";
 
 export interface DiffItem {
   description: string;
@@ -25,7 +26,7 @@ function edgeKey(e: GraphEdge): string {
 
 // Display name for a graph node: use algorithm_name as the human label.
 function nodeName(n: GraphNode): string {
-  return n.algorithm_name;
+  return graphNodeLabel(n);
 }
 
 export function diffGraphs(
@@ -41,30 +42,38 @@ export function diffGraphs(
 ): DiffItem[] {
   const items: DiffItem[] = [];
 
-  const snapById = new Map<string, GraphNode>(snap.nodes.map((n) => [n.id, n]));
-  const draftById = new Map<string, GraphNode>(draft.nodes.map((n) => [n.id, n]));
+  // Views are observation-only: changing one must not make the execution
+  // graph structurally dirty.
+  const snapNodes = snap.nodes.filter(isAlgorithmGraphNode);
+  const draftNodes = draft.nodes.filter(isAlgorithmGraphNode);
+  const snapIds = new Set(snapNodes.map((n) => n.id));
+  const draftIds = new Set(draftNodes.map((n) => n.id));
+  const snapEdges = snap.edges.filter((e) => snapIds.has(e.source) && snapIds.has(e.target));
+  const draftEdges = draft.edges.filter((e) => draftIds.has(e.source) && draftIds.has(e.target));
+  const snapById = new Map<string, GraphNode>(snapNodes.map((n) => [n.id, n]));
+  const draftById = new Map<string, GraphNode>(draftNodes.map((n) => [n.id, n]));
 
   // Combined name lookup for edge descriptions (draft wins for added nodes).
   const nameById = new Map<string, string>();
-  for (const n of snap.nodes) nameById.set(n.id, nodeName(n));
-  for (const n of draft.nodes) nameById.set(n.id, nodeName(n));
+  for (const n of snapNodes) nameById.set(n.id, nodeName(n));
+  for (const n of draftNodes) nameById.set(n.id, nodeName(n));
 
   // --- nodes added ---
-  for (const n of draft.nodes) {
+  for (const n of draftNodes) {
     if (!snapById.has(n.id)) {
       items.push({ description: `新增节点 ${nodeName(n)}` });
     }
   }
 
   // --- nodes removed ---
-  for (const n of snap.nodes) {
+  for (const n of snapNodes) {
     if (!draftById.has(n.id)) {
       items.push({ description: `删除节点 ${nodeName(n)}` });
     }
   }
 
   // --- changed nodes (present in both) ---
-  for (const dn of draft.nodes) {
+  for (const dn of draftNodes) {
     const sn = snapById.get(dn.id);
     if (!sn) continue;
     const label = nodeName(dn);
@@ -135,8 +144,8 @@ export function diffGraphs(
   }
 
   // --- edges added / removed ---
-  const snapEdgeKeys = new Map<string, GraphEdge>(snap.edges.map((e) => [edgeKey(e), e]));
-  const draftEdgeKeys = new Map<string, GraphEdge>(draft.edges.map((e) => [edgeKey(e), e]));
+  const snapEdgeKeys = new Map<string, GraphEdge>(snapEdges.map((e) => [edgeKey(e), e]));
+  const draftEdgeKeys = new Map<string, GraphEdge>(draftEdges.map((e) => [edgeKey(e), e]));
 
   const edgeDesc = (e: GraphEdge): string => {
     const src = nameById.get(e.source) ?? e.source;

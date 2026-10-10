@@ -130,6 +130,12 @@ export function useDraftAutosave(opts: {
   // guard yet" (first save will mint the row + a ts).
   initialBaseUpdatedTs?: number;
 }): AutosaveHandle {
+  // App recreates its callback bundle on unrelated live-state renders
+  // (metrics, job frames, preview hydration). Keep the debounce stable and
+  // read the newest callbacks through a ref, otherwise those renders can
+  // continually cancel a pending drag-position save.
+  const optsRef = useRef(opts);
+  optsRef.current = opts;
   const [status, setStatus] = useState<SaveStatus>("idle");
   const lastSavedSerialised = useRef<string>("");
   const inFlight = useRef<Promise<void> | null>(null);
@@ -145,29 +151,30 @@ export function useDraftAutosave(opts: {
   // triggers coalesce into one round trip.
   const doSave = useCallback(async () => {
     if (inFlight.current) return inFlight.current;
-    const snapshotBeforeSave = opts.serialisedSnapshot;
+    const current = optsRef.current;
+    const snapshotBeforeSave = current.serialisedSnapshot;
     setStatus("saving");
     const p = (async () => {
       try {
-        const result = await opts.save(baseUpdatedTs.current);
+        const result = await current.save(baseUpdatedTs.current);
         // Only cache the pre-save snapshot as clean; the state may
         // have advanced during the round trip, in which case the
         // next debounced tick catches those changes.
         lastSavedSerialised.current = snapshotBeforeSave;
         savedOnce.current = true;
         baseUpdatedTs.current = result.updated_ts;
-        opts.onSaved?.(result.workflow_id, result.updated_ts);
+        current.onSaved?.(result.workflow_id, result.updated_ts);
         // If the state changed while we were saving, the pill flips
         // straight to ``unsaved`` (via the effect below); otherwise
         // it lands on ``saved``.
         setStatus(
-          opts.serialisedSnapshot === snapshotBeforeSave ? "saved" : "unsaved",
+          optsRef.current.serialisedSnapshot === snapshotBeforeSave ? "saved" : "unsaved",
         );
       } catch (err) {
         if (isWorkflowConflict(err)) {
           console.warn("autosave conflict — server row has moved past ours", err);
           setStatus("conflict");
-          opts.onConflict?.(err.detail);
+          optsRef.current.onConflict?.(err.detail);
         } else if (isWorkflowPreconditionRequired(err)) {
           // Legacy tab / stale bundle: we sent no base_updated_ts and
           // the row exists. The server refused rather than clobber. Park
@@ -178,7 +185,7 @@ export function useDraftAutosave(opts: {
             err,
           );
           setStatus("conflict");
-          opts.onConflict?.(err.detail);
+          optsRef.current.onConflict?.(err.detail);
         } else {
           console.warn("autosave failed", err);
           setStatus(navigator.onLine === false ? "offline" : "error");
@@ -189,7 +196,7 @@ export function useDraftAutosave(opts: {
     })();
     inFlight.current = p;
     return p;
-  }, [opts]);
+  }, []);
 
   // Debounced trigger. Compares the current serialised form to the
   // last-saved one; when they differ, schedule a save. The
@@ -227,8 +234,8 @@ export function useDraftAutosave(opts: {
       // Don't fire the beacon in ``conflict`` — the row has moved on,
       // sending our stale base_updated_ts just gets rejected again.
       if (status === "conflict") return;
-      if (opts.serialisedSnapshot === lastSavedSerialised.current) return;
-      const b = opts.beaconBody(baseUpdatedTs.current);
+      if (optsRef.current.serialisedSnapshot === lastSavedSerialised.current) return;
+      const b = optsRef.current.beaconBody(baseUpdatedTs.current);
       if (!b) return;
       try {
         const blob = new Blob([b.body], { type: "application/json" });
@@ -239,7 +246,7 @@ export function useDraftAutosave(opts: {
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [opts.enabled, opts, status]);
+  }, [opts.enabled, status]);
 
   // Retry on ``online``: if we're in the offline state and the
   // browser reconnects, kick a save.
@@ -267,9 +274,9 @@ export function useDraftAutosave(opts: {
   const markConflict = useCallback(
     (detail: WorkflowConflictDetail) => {
       setStatus("conflict");
-      opts.onConflict?.(detail);
+      optsRef.current.onConflict?.(detail);
     },
-    [opts],
+    [],
   );
 
   return { status, save: doSave, resync, markConflict };

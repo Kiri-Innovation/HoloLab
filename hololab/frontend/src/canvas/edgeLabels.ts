@@ -30,6 +30,7 @@
 
 import type { CatalogPack, GraphEdge, GraphNode } from "../wire";
 import { effectivePortArrayed, effectivePortDimLabels } from "../tags";
+import { isAlgorithmGraphNode } from "./nodeMeta";
 
 export interface EdgeType {
   tags: string[];
@@ -74,7 +75,7 @@ function walkTags(
   if (visited.has(key)) return ["any"];
   visited.add(key);
   const node = ctx.nodes.find((n) => n.id === nodeId);
-  if (!node) return [];
+  if (!node || !isAlgorithmGraphNode(node)) return [];
   const pack = ctx.catalogByKey.get(
     `${node.algorithm_name}@${node.algorithm_version}`,
   );
@@ -101,7 +102,7 @@ function walkDimLabels(
   if (visited.has(key)) return null;
   visited.add(key);
   const node = ctx.nodes.find((n) => n.id === nodeId);
-  if (!node) return null;
+  if (!node || !isAlgorithmGraphNode(node)) return null;
   const pack = ctx.catalogByKey.get(
     `${node.algorithm_name}@${node.algorithm_version}`,
   );
@@ -149,7 +150,7 @@ export function effectiveOutputType(
   ctx: EdgeTypeCtx,
 ): EdgeType {
   const node = ctx.nodes.find((n) => n.id === nodeId);
-  if (!node) return { tags: [], arrayed: false, dimLabels: [] };
+  if (!node || !isAlgorithmGraphNode(node)) return { tags: [], arrayed: false, dimLabels: [] };
   const pack = ctx.catalogByKey.get(
     `${node.algorithm_name}@${node.algorithm_version}`,
   );
