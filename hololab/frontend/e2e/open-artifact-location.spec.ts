@@ -407,3 +407,54 @@ for (const theme of ["light", "dark"] as const) {
     await expect(preview).toHaveCount(0);
   });
 }
+
+for (const theme of ["light", "dark"] as const) {
+  test(`footer spacing in ${theme} theme`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1000, height: 700 });
+    await page.clock.setFixedTime(new Date((CREATED_TS + 85 + 14 * 86400) * 1000));
+    await page.addInitScript(theme => localStorage.setItem("hololab.theme", theme), theme);
+    await injectFlops(page);
+    await page.routeWebSocket("**/*", () => {});
+    await page.route("**/api/**", jsonRoute({}));
+    await stubCommon(page);
+    await page.route(`**/api/snapshots/${SNAPSHOT_ID}`, jsonRoute({
+      snapshot_id: SNAPSHOT_ID, workflow_id: WORKFLOW_ID, created_ts: CREATED_TS,
+      graph: workflowGraph(), jobs: [{ ...doneJobWithHandle(), updated_ts: CREATED_TS + 85, progress: { current: 100, total: 100 } }],
+    }));
+    await page.goto(`/w/${WORKFLOW_ID}`);
+    const card = page.locator('[data-hololab-node="algorithm"][data-state="done"]');
+    const jump = card.locator('[data-hl-open-artifact]');
+    await expect(jump).toBeVisible();
+    const viewport = page.locator('.react-flow__viewport');
+    await viewport.evaluate(el => (el as HTMLElement).style.transform = 'translate(40px, 40px) scale(1)');
+    const summary = card.getByText('1m 25s · 14天前', { exact: true });
+    const progress = card.getByText('100/100', { exact: true });
+    await expect(summary).toBeVisible();
+    const metrics = await summary.evaluate(el => {
+      const footer = el.closest('[data-hl-node-footer]') ?? el.parentElement!;
+      const items = [el, ...Array.from(footer.querySelectorAll('span, button')).filter(x => x !== el && (x.textContent === '100/100' || x.tagName === 'BUTTON'))];
+      const rects = items.map(x => {const r=x.getBoundingClientRect();return {text:x.textContent, x:r.x,width:r.width,height:r.height};});
+      const c=getComputedStyle(footer);
+      return {paddingLeft:c.paddingLeft,paddingRight:c.paddingRight,items:rects,gaps:rects.slice(1).map((r,i)=>r.x-rects[i].x-rects[i].width),summaryClient:el.clientWidth,summaryScroll:el.scrollWidth};
+    });
+    await writeFile(testInfo.outputPath(`spacing-${theme}.json`), JSON.stringify(metrics,null,2));
+    await card.screenshot({path:testInfo.outputPath(`spacing-${theme}.png`)});
+    if (process.env.FOOTER_SPACING_BASELINE) return;
+    expect(metrics.gaps).toEqual([4,8,4]);
+    expect(metrics.summaryScroll).toBeLessThanOrEqual(metrics.summaryClient);
+    expect(metrics.paddingLeft).toBe('12px'); expect(metrics.paddingRight).toBe('12px');
+    await summary.hover();
+    await expect(page.getByRole('tooltip')).toContainText('1m 25s · 14天前');
+    await page.mouse.move(0,0);
+    await summary.focus();
+    await expect(page.getByRole('tooltip')).toContainText('1m 25s · 14天前');
+    await summary.evaluate(el => (el as HTMLElement).blur());
+    for (const zoom of [0.5,1.5]) {
+      await viewport.evaluate((el,z) => (el as HTMLElement).style.transform = `translate(40px, 40px) scale(${z})`,zoom);
+      expect((await jump.boundingBox())!.width).toBeCloseTo(24*zoom);
+      const s=(await summary.boundingBox())!, p=(await progress.boundingBox())!;
+      expect(p.x-s.x-s.width).toBeCloseTo(4*zoom);
+      await card.screenshot({path:testInfo.outputPath(`spacing-${theme}-${zoom}.png`)});
+    }
+  });
+}

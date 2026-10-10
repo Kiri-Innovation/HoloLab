@@ -885,6 +885,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           Header carries identity (compute-node · version); footer is
           reserved for the latest run's outcome. */}
       <div
+        data-hl-node-footer=""
         style={{
           padding: "var(--space-1) var(--space-3)",
           borderTop: "1px solid var(--border-subtle)",
@@ -899,53 +900,58 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           minHeight: 20,
         }}
       >
-        <FooterRunSummary
-          runtime={runtime}
-          runColour={runColour}
-          statusTitle={statusTitle}
-        />
-        {progressLabel && (
-          <span
-            style={{
-              color: runColour,
-              fontVariantNumeric: "tabular-nums",
-              whiteSpace: "nowrap",
-            }}
-            title={statusTitle}
-          >
-            {progressLabel}
-          </span>
-        )}
-        {/* Collapsed-only per user's request ("在没展开的时候"). When the
-            drawer is open, per-port Open-in-Cocoder buttons in the
-            drawer header already cover this affordance. */}
-        {!expanded && firstArtifactTarget && (
-          <OpenArtifactLocationButton
-            path={firstArtifactTarget.absolute_path}
-            computeNode={artifactComputeNode}
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", flex: 1, minWidth: 0 }}>
+          <FooterRunSummary
+            runtime={runtime}
+            runColour={runColour}
+            statusTitle={statusTitle}
           />
-        )}
-        {expandables.length > 0 && (
-          <button
-            type="button"
-            className="hl-icon-button hl-button--ghost hl-node-footer-action"
-            aria-expanded={Boolean(expanded)}
-            aria-label={expanded ? "收起预览" : "展开预览"}
-            data-tooltip={expanded ? "收起预览" : "展开预览"}
-            onClick={(e) => {
-              e.stopPropagation();
-              const next = expanded ? null : expandables[0].name;
-              if (onPreviewToggle) onPreviewToggle(next); else dispatchToggle(id, next);
-            }}
-            style={{ flexShrink: 0 }}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-              aria-hidden="true" focusable="false">
-              <path d={expanded ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} />
-            </svg>
-          </button>
-        )}
+          {progressLabel && (
+            <span
+              style={{
+                color: runColour,
+                fontVariantNumeric: "tabular-nums",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+              data-tooltip={statusTitle}
+            >
+              {progressLabel}
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", flexShrink: 0 }}>
+          {/* Collapsed-only per user's request ("在没展开的时候"). When the
+              drawer is open, per-port Open-in-Cocoder buttons in the
+              drawer header already cover this affordance. */}
+          {!expanded && firstArtifactTarget && (
+            <OpenArtifactLocationButton
+              path={firstArtifactTarget.absolute_path}
+              computeNode={artifactComputeNode}
+            />
+          )}
+          {expandables.length > 0 && (
+            <button
+              type="button"
+              className="hl-icon-button hl-button--ghost hl-node-footer-action"
+              aria-expanded={Boolean(expanded)}
+              aria-label={expanded ? "收起预览" : "展开预览"}
+              data-tooltip={expanded ? "收起预览" : "展开预览"}
+              onClick={(e) => {
+                e.stopPropagation();
+                const next = expanded ? null : expandables[0].name;
+                if (onPreviewToggle) onPreviewToggle(next); else dispatchToggle(id, next);
+              }}
+              style={{ flexShrink: 0 }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+                aria-hidden="true" focusable="false">
+                <path d={expanded ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {expanded && currentPreview && (
@@ -1355,7 +1361,7 @@ function FooterRunSummary({
   if (!runtime) {
     return (
       <span
-        title="尚未运行"
+        data-tooltip="尚未运行"
         style={{ ...commonStyle, color: "var(--text-subtle)" }}
       >
         未运行
@@ -1370,7 +1376,7 @@ function FooterRunSummary({
     const elapsed = startTs != null ? formatCardDuration(startTs, now) : "…";
     return (
       <span
-        title={statusTitle}
+        data-tooltip={statusTitle}
         style={{
           ...commonStyle,
           color: runColour,
@@ -1384,7 +1390,7 @@ function FooterRunSummary({
 
   if (state === "pending" || state === "assigned") {
     return (
-      <span title={statusTitle} style={{ ...commonStyle, color: runColour }}>
+      <span data-tooltip={statusTitle} style={{ ...commonStyle, color: runColour }}>
         {state === "pending" ? "排队中" : "已派发…"}
       </span>
     );
@@ -1409,7 +1415,8 @@ function FooterRunSummary({
 
   return (
     <span
-      title={statusTitle}
+      data-tooltip={`${label} · ${statusTitle}`}
+      tabIndex={0}
       style={{
         ...commonStyle,
         color: isFailed ? "var(--status-failed)" : "var(--text-muted)",
