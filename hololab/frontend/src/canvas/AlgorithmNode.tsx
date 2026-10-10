@@ -799,7 +799,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 <span
                   title={inputTitle(portName, spec)}
                   style={{
-                    marginLeft: 10,
                     color: spec.required
                       ? "var(--text-body)"
                       : "var(--text-subtle)",
@@ -834,7 +833,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 <span
                   title={outputTitle(portName, spec)}
                   style={{
-                    marginRight: 10,
                     color: "var(--text-body)",
                     fontFamily: "var(--font-mono)",
                     whiteSpace: "nowrap",
