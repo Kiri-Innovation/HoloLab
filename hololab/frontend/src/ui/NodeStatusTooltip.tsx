@@ -1,4 +1,4 @@
-import type { NodeStatusPresentation } from "../canvas/nodeStatus";
+import { statusReasonLines, type NodeStatusPresentation } from "../canvas/nodeStatus";
 
 export function NodeStatusDot({ status, state }: { status: NodeStatusPresentation; state?: string }) {
   const text = `${status.conclusion}。${status.reason} ${status.action}`;
@@ -13,9 +13,12 @@ export function NodeStatusDot({ status, state }: { status: NodeStatusPresentatio
 }
 
 export function NodeStatusTooltipCard({ conclusion, reason, action }: Omit<NodeStatusPresentation, "tone">) {
+  const reasons = statusReasonLines(reason);
   return <div className="hl-status-tooltip-content">
     <strong>{conclusion}</strong>
-    <span>{reason}</span>
+    {reasons.length > 1
+      ? <ul className="hl-status-tooltip-reasons">{reasons.map((line, index) => <li key={index}>{line}</li>)}</ul>
+      : reasons.length === 1 ? <span className="hl-status-tooltip-reason">{reasons[0]}</span> : null}
     <span className="hl-status-tooltip-action">{action}</span>
   </div>;
 }

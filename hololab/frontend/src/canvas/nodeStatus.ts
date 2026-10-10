@@ -49,12 +49,17 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
       action: "可在任务面板查看进度和日志，无需重复提交。" };
   }
   // Keep secondary evidence even when failure/neutral status wins the colour.
-  if (!readOnly && known && stale?.title && !result.reason.includes(stale.title)) result.reason += ` ${stale.title}`;
-  if (!readOnly && known && oldParams && result.tone === "error" && !stale?.title) result.reason += " 已提交任务与当前草稿不同。";
+  if (!readOnly && known && stale?.title && !result.reason.includes(stale.title)) result.reason += `\n${stale.title}`;
+  if (!readOnly && known && oldParams && result.tone === "error" && !stale?.title) result.reason += "\n已提交任务与当前草稿不同。";
   if (readOnly) {
     result.conclusion = state === "done" ? "此快照中的运行已完成" : `此快照：${result.conclusion}`;
     if (state === "done") result.reason = "这是快照记录的完成状态，不代表当前草稿结果有效。";
     result.action = "可查看此快照的任务记录；需要重新运行时请返回工作流草稿。";
   }
   return result;
+}
+
+/** Existing staleness messages use spaced middle dots; preserve punctuation inside names. */
+export function statusReasonLines(reason: string): string[] {
+  return reason.split(/\s+·\s+|\r?\n/).map(line => line.trim()).filter(Boolean);
 }

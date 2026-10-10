@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { nodeStatus } from "./nodeStatus";
+import { nodeStatus, statusReasonLines } from "./nodeStatus";
 import type { NodeStaleness } from "./staleness";
 
 const states = [undefined, "pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted", "future"];
@@ -40,4 +40,15 @@ it("describes historical completion without claiming freshness", () => {
 });
 it("unknown status stays neutral even with drift", () => {
   expect(nodeStatus({state:"future",drift:true}).conclusion).toBe("状态暂不可识别");
+});
+
+it("separates update reasons and preserves single reasons without blank rows", () => {
+  expect(statusReasonLines("算法已更改：a@1 → a@2 · 参数已改：width · 并行度：4 → 5")).toEqual(["算法已更改：a@1 → a@2", "参数已改：width", "并行度：4 → 5"]);
+  expect(statusReasonLines("\n 磁盘空间不足。\n\n")).toEqual(["磁盘空间不足。"]);
+  expect(statusReasonLines("名字a·b")).toEqual(["名字a·b"]);
+  expect(statusReasonLines(" ")).toEqual([]);
+});
+it("separates failure evidence from each stale reason", () => {
+  const result=nodeStatus({state:"failed",failReason:"磁盘空间不足",stale:{kind:"self_dirty",title:"参数已改：width · 并行度：4 → 5"}});
+  expect(statusReasonLines(result.reason)).toEqual(["磁盘空间不足", "参数已改：width", "并行度：4 → 5"]);
 });

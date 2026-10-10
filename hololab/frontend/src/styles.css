@@ -627,3 +627,6 @@ a:hover { text-decoration: underline; }
 .hl-status-tooltip-content { display: flex; flex-direction: column; gap: calc(var(--space-1) * var(--tooltip-scale)); }
 .hl-status-tooltip-content strong { font-size: calc(var(--fs-md) * var(--tooltip-scale)); }
 .hl-status-tooltip-action { color: #ccc; }
+
+.hl-status-tooltip-reasons { margin: 0; padding-left: calc(var(--space-3) * var(--tooltip-scale)); display: flex; flex-direction: column; gap: calc(var(--space-1) * var(--tooltip-scale)); list-style: disc; }
+.hl-status-tooltip-reasons li::marker { color: #aaa; }

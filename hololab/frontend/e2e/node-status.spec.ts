@@ -23,8 +23,16 @@ for (const theme of ['light','dark']) test(`single status dot in ${theme}`, asyn
   expect(handles).toEqual([[96,248.734375],[314,248.734375]]);
   await expect(page.locator('.react-flow__edge-path').first()).toHaveAttribute('d','M324,253.734375 C385,253.734375 385,253.734375 446,253.734375');
   await page.screenshot({path:info.outputPath(`colours-${theme}.png`)});
-  for(const id of ['failed','orphaned','interrupted','drift','cancelled','unknown','snapshot']){
+  for(const id of ['stale','failed','orphaned','interrupted','drift','cancelled','unknown','snapshot']){
     await dot(id).hover();await expect(tip).toHaveClass(/hl-tooltip--status/);
+    if(id==='stale') {
+      await expect(tip.locator('li')).toHaveCount(3);
+      await expect(tip.locator('li').nth(1)).toHaveText('参数已改：ba_max_refinements');
+    }
+    if(id==='failed') {
+      await expect(tip.locator('li')).toHaveCount(0);
+      await expect(tip.locator('.hl-status-tooltip-reason')).toHaveText('磁盘空间不足');
+    }
     const full=await dot(id).getAttribute('aria-label');
     expect(full).toContain(await tip.locator('strong').innerText());
     await expect(dot(id)).toHaveAttribute('aria-describedby',await tip.getAttribute('id') ?? '');
