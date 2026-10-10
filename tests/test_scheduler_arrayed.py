@@ -36,6 +36,7 @@ from hololab.gateway.execution import (
     WorkflowRunError,
     _discover_element_ids,
     _shard_input_handles,
+    enumerate_arrayed_elements,
     run_snapshot,
 )
 from hololab.gateway.handles import Handle, HandleBook
@@ -142,6 +143,19 @@ async def test_discover_element_ids_skips_dotfiles_and_files(tmp_path: Path) -> 
         arrayed_input_ports=["frames"],
     )
     assert elements == ["cam00", "cam01"]
+
+
+def test_enumerate_arrayed_elements_is_the_marker_safe_global_contract(tmp_path: Path) -> None:
+    """Every framework fan-out uses this marker-safe ordering primitive."""
+    root = tmp_path / "arrayed"
+    root.mkdir()
+    for name in ("g000001", "g000000"):
+        (root / name).mkdir()
+    (root / ".hololab-done").touch()
+    (root / ".hololab-metadata.json").write_text("{}")
+    (root / "ordinary-file.txt").touch()
+
+    assert enumerate_arrayed_elements(str(root), port="groups") == ["g000000", "g000001"]
 
 
 @pytest.mark.asyncio
@@ -775,10 +789,7 @@ async def test_single_node_dispatch_fans_out_arrayable(tmp_path: Path) -> None:
                     if any(r["job_id"] == parent_id for r in fan_rows):
                         return fan_rows
                     await asyncio.sleep(0.05)
-                raise AssertionError(
-                    f"parent {parent_id} never attributed to 'fan' "
-                    f"(rows={rows})"
-                )
+                raise AssertionError(f"parent {parent_id} never attributed to 'fan' (rows={rows})")
 
             fan_rows = client.portal.call(_wait_attributed)
             attributed_ids = {r["job_id"] for r in fan_rows}

@@ -1,0 +1,40 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: regroup-by-frame
+version: 0.1.1
+description: >
+  **DEPRECATED** — kept for snapshot replay. Transposes
+  ``arrayed<frame_sequence>`` from (camera x frame) to (frame x camera).
+source_entry: regroup.py
+category: "utility/arrayed"
+
+docs: |
+  Whole-array transpose. Input camera elements follow the framework fan-out
+  contract: sorted immediate non-dot directories; HoloLab marker sidecars are
+  excluded.
+
+inputs:
+  by_cam:
+    tags: [image]
+    arrayed: true
+    dim_labels: ["cam", "frame"]
+    description: "arrayed<image_sequence>: each element = one camera's frames."
+
+outputs:
+  by_frame:
+    tags: [image]
+    arrayed: true
+    dim_labels: ["frame", "cam"]
+    description: "arrayed<image_sequence>: each element = one frame's cameras."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/regroup.py" \
+      --input "{{ inputs.by_cam }}" \
+      --output "{{ outputs.by_frame }}"

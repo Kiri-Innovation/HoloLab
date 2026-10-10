@@ -1,0 +1,34 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: array-length
+version: 0.1.1
+description: "Count an arrayed<T> handle's elements into an int scalar handle."
+category: "utility/arrayed"
+
+docs: |
+  An element is an immediate non-dot directory, exactly as framework fan-out
+  enumerates it; HoloLab marker sidecars are excluded.
+
+inputs:
+  arr:
+    tags: [any]
+    arrayed: true
+    description: "Any arrayed<T> handle (directory whose subdirs are elements)."
+
+outputs:
+  n:
+    tags: [int]
+    storage: file
+    description: "Base-10 integer file with the element count."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    # Same immediate non-dot-directory contract as framework fan-out.
+    N=$(find "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -printf '.' | wc -c | tr -d ' ')
+    echo "$N" > "{{ outputs.n }}"

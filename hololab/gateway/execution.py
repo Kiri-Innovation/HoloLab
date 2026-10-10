@@ -824,8 +824,13 @@ async def _run_fanout_node(
     return plan.parent_job.job_id, outputs
 
 
-def _list_subdirs(path: str, *, port: str) -> list[str]:
-    """List sorted immediate subdir names, excluding dotfiles."""
+def enumerate_arrayed_elements(path: str, *, port: str) -> list[str]:
+    """Return canonical immediate element ids for an ``arrayed<T>`` directory.
+
+    An element is a non-hidden directory. Producer sidecars such as
+    ``.hololab-done`` and ``.hololab-metadata.json`` are never elements.
+    This is the framework's fan-out order: lexical order of these names.
+    """
     try:
         with os.scandir(path) as it:
             return sorted(
@@ -846,8 +851,8 @@ def _enumerate_depth(root: str, depth: int, *, port: str) -> list[str]:
     if depth <= 0:
         return [""]
     if depth == 1:
-        return _list_subdirs(root, port=port)
-    outer = _list_subdirs(root, port=port)
+        return enumerate_arrayed_elements(root, port=port)
+    outer = enumerate_arrayed_elements(root, port=port)
     joined: list[str] = []
     for name in outer:
         for sub in _enumerate_depth(os.path.join(root, name), depth - 1, port=port):

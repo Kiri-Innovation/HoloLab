@@ -1,0 +1,64 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: get-index
+version: 0.1.1
+description: >
+  Pick one element of an ``arrayed<T>`` handle by 0-based index (sorted
+  subdir order). Produces the plain T handle.
+category: "utility/arrayed"
+
+docs: |
+  Element access utility. ``idx`` is a param (static "pick this one" —
+  no natural int-producing sibling to wire), not an input port. Element
+  order is the framework fan-out order: lexically sorted, immediate,
+  non-dot directories only. HoloLab sidecars such as ``.hololab-done``
+  and ``.hololab-metadata.json`` are not elements.
+
+  Output tags propagate from ``arr`` via ``tags_from: arr``.
+
+inputs:
+  arr:
+    tags: [any]
+    arrayed: true
+    description: "Any arrayed<T> handle."
+
+params:
+  idx:
+    type: int
+    default: 0
+    min: 0
+    description: "0-based index in the framework's sorted non-dot subdir element list."
+
+outputs:
+  item:
+    tags: [any]
+    tags_from: arr
+    dim_labels_from_input: arr
+    dim_labels_drop_outer: 1
+    description: "The idx-th element of arr, symlinked."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    IDX={{ params.idx }}
+    # Mirror the framework's enumerate_arrayed_elements contract exactly:
+    # immediate, non-dot directories, in lexical order. Marker sidecars
+    # therefore cannot become elements or affect the element count.
+    mapfile -t ENTRIES < <(find "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -printf '%f\n' | sort)
+    # Do not use bash array-length syntax here: its hash-brace sequence is
+    # a Jinja2 comment delimiter in this template. Count the same filtered
+    # set used above, including the empty-array case correctly.
+    N=$(find "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -printf '.' | wc -c | tr -d ' ')
+    if [ "$IDX" -ge "$N" ] || [ "$IDX" -lt 0 ]; then
+      echo "ERROR: idx $IDX out of range (array size $N)" >&2
+      exit 1
+    fi
+    PICKED="{{ inputs.arr }}/${ENTRIES[$IDX]}"
+    rm -rf "{{ outputs.item }}"
+    ln -s "$(readlink -f "$PICKED")" "{{ outputs.item }}"
+    echo "get-index: picked [$IDX] = ${ENTRIES[$IDX]}"
