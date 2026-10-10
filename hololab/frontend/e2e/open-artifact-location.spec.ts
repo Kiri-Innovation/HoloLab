@@ -437,12 +437,32 @@ for (const theme of ["light", "dark"] as const) {
       const c=getComputedStyle(footer);
       return {paddingLeft:c.paddingLeft,paddingRight:c.paddingRight,items:rects,gaps:rects.slice(1).map((r,i)=>r.x-rects[i].x-rects[i].width),summaryClient:el.clientWidth,summaryScroll:el.scrollWidth};
     });
+    const edges = await card.evaluate(el => {
+      const footer = el.querySelector('[data-hl-node-footer]')!;
+      const button = footer.querySelector('button[aria-expanded]')!;
+      const header = el.firstElementChild!;
+      const b = button.getBoundingClientRect(), f = footer.getBoundingClientRect(), r = el.getBoundingClientRect();
+      const text = footer.querySelector('span')!.getBoundingClientRect();
+      const h = getComputedStyle(header), c = getComputedStyle(footer);
+      return { top: b.top-f.top, right: r.right-b.right, bottom: r.bottom-b.bottom,
+        footerHeight:f.height, cardHeight:r.height, textLeft:text.left-r.left, textBottom:r.bottom-text.bottom,
+        headerPadding:[h.paddingTop,h.paddingRight,h.paddingBottom,h.paddingLeft],
+        footerPadding:[c.paddingTop,c.paddingRight,c.paddingBottom,c.paddingLeft],
+        button:{x:b.x-r.x,y:b.y-r.y,width:b.width,height:b.height}, footerY:f.y-r.y, cardWidth:r.width };
+    });
+    await writeFile(testInfo.outputPath(`edges-${theme}.json`), JSON.stringify(edges,null,2));
+    const previewToggle = card.getByRole('button', {name:'展开预览',exact:true});
+    await previewToggle.hover();
+    await expect(page.getByRole('tooltip')).toHaveText('展开预览');
+    await card.screenshot({path:testInfo.outputPath(`edges-${theme}.png`)});
+    await page.mouse.move(0,0);
     await writeFile(testInfo.outputPath(`spacing-${theme}.json`), JSON.stringify(metrics,null,2));
     await card.screenshot({path:testInfo.outputPath(`spacing-${theme}.png`)});
     if (process.env.FOOTER_SPACING_BASELINE) return;
     expect(metrics.gaps).toEqual([4,8,4]);
     expect(metrics.summaryScroll).toBeLessThanOrEqual(metrics.summaryClient);
-    expect(metrics.paddingLeft).toBe('12px'); expect(metrics.paddingRight).toBe('12px');
+    expect(metrics.paddingLeft).toBe('4px'); expect(metrics.paddingRight).toBe('4px');
+    expect(edges).toMatchObject({top:5,right:5,bottom:5,footerHeight:33});
     await summary.hover();
     await expect(page.getByRole('tooltip')).toContainText('1m 25s · 14天前');
     await page.mouse.move(0,0);
@@ -452,6 +472,10 @@ for (const theme of ["light", "dark"] as const) {
     for (const zoom of [0.5,1.5]) {
       await viewport.evaluate((el,z) => (el as HTMLElement).style.transform = `translate(40px, 40px) scale(${z})`,zoom);
       expect((await jump.boundingBox())!.width).toBeCloseTo(24*zoom);
+      const b=(await previewToggle.boundingBox())!, r=(await card.boundingBox())!, f=(await card.locator('[data-hl-node-footer]').boundingBox())!;
+      expect(b.y-f.y).toBeCloseTo(5*zoom);
+      expect(r.x+r.width-b.x-b.width).toBeCloseTo(5*zoom);
+      expect(r.y+r.height-b.y-b.height).toBeCloseTo(5*zoom);
       const s=(await summary.boundingBox())!, p=(await progress.boundingBox())!;
       expect(p.x-s.x-s.width).toBeCloseTo(4*zoom);
       await card.screenshot({path:testInfo.outputPath(`spacing-${theme}-${zoom}.png`)});

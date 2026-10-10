@@ -887,7 +887,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       <div
         data-hl-node-footer=""
         style={{
-          padding: "var(--space-1) var(--space-3)",
+          padding: "var(--space-1)",
           borderTop: "1px solid var(--border-subtle)",
           background: "var(--surface)",
           borderRadius: "0 0 var(--radius-md) var(--radius-md)",
