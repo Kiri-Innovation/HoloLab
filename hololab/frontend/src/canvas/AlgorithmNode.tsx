@@ -920,8 +920,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             </span>
           )}
         </div>
-        {/* Match the footer inset: 4px between 24px ghost hit areas; keep 8px to run metadata. */}
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", flexShrink: 0 }}>
+        {/* Separate simultaneous focus/hover fills by half a spacing step (2px); retain 4px inset and 8px to metadata. */}
+        <div style={{ display: "flex", alignItems: "center", gap: "calc(var(--space-1) / 2)", flexShrink: 0 }}>
           {/* Collapsed-only per user's request ("在没展开的时候"). When the
               drawer is open, per-port Open-in-Cocoder buttons in the
               drawer header already cover this affordance. */}
