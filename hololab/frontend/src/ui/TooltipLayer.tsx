@@ -4,7 +4,7 @@ import { NodeStatusTooltipCard } from "./NodeStatusTooltip";
 import { NodeTitleTooltipCard } from "./NodeTitleTooltip";
 import { tooltipGeometry } from "./tooltipGeometry";
 
-const readContent = (target: HTMLElement) => ({ afterTitle: target.dataset.tooltipAfterTitle, explanation: target.dataset.tooltipExplanation, afterDeclared: target.dataset.tooltipAfterDeclared, afterActual: target.dataset.tooltipAfterActual, typeName: target.dataset.tooltipType, declared: target.dataset.tooltipDeclared, actual: target.dataset.tooltipActual, text: target.dataset.tooltip ?? "",
+const readContent = (target: HTMLElement) => ({ afterTitle: target.dataset.tooltipAfterTitle, afterDeclared: target.dataset.tooltipAfterDeclared, afterActual: target.dataset.tooltipAfterActual, typeName: target.dataset.tooltipType, declared: target.dataset.tooltipDeclared, actual: target.dataset.tooltipActual, text: target.dataset.tooltip ?? "",
   status: target.dataset.tooltipStatus, reason: target.dataset.tooltipReason, action: target.dataset.tooltipAction,
   title: target.dataset.tooltipTitle, version: target.dataset.tooltipVersion, device: target.dataset.tooltipDevice });
 
@@ -93,7 +93,7 @@ export function TooltipLayer() {
       // Playback may end, or a toggle may change while focus/hover stays put.
       const content = readContent(tip.target);
       if (!content.text) { setTip(null); return; }
-      if (content.afterTitle !== tip.afterTitle || content.explanation !== tip.explanation || content.afterDeclared !== tip.afterDeclared || content.afterActual !== tip.afterActual || content.typeName !== tip.typeName || content.declared !== tip.declared || content.actual !== tip.actual || content.text !== tip.text || content.title !== tip.title || content.version !== tip.version || content.device !== tip.device || content.status !== tip.status || content.reason !== tip.reason || content.action !== tip.action) { setTip({ target: tip.target, ...content }); return; }
+      if (content.afterTitle !== tip.afterTitle || content.afterDeclared !== tip.afterDeclared || content.afterActual !== tip.afterActual || content.typeName !== tip.typeName || content.declared !== tip.declared || content.actual !== tip.actual || content.text !== tip.text || content.title !== tip.title || content.version !== tip.version || content.device !== tip.device || content.status !== tip.status || content.reason !== tip.reason || content.action !== tip.action) { setTip({ target: tip.target, ...content }); return; }
       const matrix = viewport ? new DOMMatrixReadOnly(getComputedStyle(viewport).transform) : null;
       const zoom = matrix ? Math.hypot(matrix.a, matrix.b) : 1;
       // Resize actual CSS text metrics, not a rasterized transform layer.
@@ -121,7 +121,7 @@ export function TooltipLayer() {
     update();
     // Follow live zoom/pan and node movement while hover/focus stays active.
     const mutations = new MutationObserver(schedule);
-    mutations.observe(tip.target, { attributes: true, attributeFilter: ["data-tooltip-after-title", "data-tooltip-explanation", "data-tooltip-after-declared", "data-tooltip-after-actual", "data-tooltip-type", "data-tooltip-declared", "data-tooltip-actual", "data-tooltip", "data-tooltip-title", "data-tooltip-version", "data-tooltip-device", "data-tooltip-status", "data-tooltip-reason", "data-tooltip-action"] });
+    mutations.observe(tip.target, { attributes: true, attributeFilter: ["data-tooltip-after-title", "data-tooltip-after-declared", "data-tooltip-after-actual", "data-tooltip-type", "data-tooltip-declared", "data-tooltip-actual", "data-tooltip", "data-tooltip-title", "data-tooltip-version", "data-tooltip-device", "data-tooltip-status", "data-tooltip-reason", "data-tooltip-action"] });
     if (viewport) mutations.observe(viewport, { attributes: true, attributeFilter: ["style"] });
     const node = tip.target.closest(".react-flow__node");
     if (node) mutations.observe(node, { attributes: true, attributeFilter: ["style"] });
@@ -144,7 +144,6 @@ export function TooltipLayer() {
       {tip.typeName && tip.afterDeclared ? <div className="hl-type-tooltip-columns">
         <section className="hl-type-tooltip-before"><strong>{tip.typeName}</strong><span>{tip.declared}</span><span>{tip.actual}</span></section>
         <section className="hl-type-tooltip-after"><strong>{tip.afterTitle}</strong><span>{tip.afterDeclared}</span><span>{tip.afterActual}</span></section>
-        {tip.explanation && <small className="hl-type-tooltip-explanation">{tip.explanation}</small>}
       </div> : tip.typeName ? <div className="hl-type-tooltip-content">
         <strong>{tip.typeName}</strong>
         <span>{tip.declared}</span>

@@ -14,8 +14,8 @@ for(const theme of ['light','dark']) test(`arrayed broadcast and dimensions ${th
     await expect(tip.locator('.hl-type-tooltip-before > *')).toHaveText(rows);
     const broadcast=name.startsWith('broadcast');
     const full=broadcast?rows[2]:rows[2]+(nested?'[batch:2]':'[frame:100]');
-    await expect(tip.locator('.hl-type-tooltip-after > *')).toHaveText([broadcast?'auto arrayed':'after arrayed',broadcast?rows[1]:`arrayed<${rows[1]}>`,full]);
-    if(broadcast) await expect(tip.locator('.hl-type-tooltip-explanation')).toHaveText('广播：每个分片收到同一份完整输入');
+    await expect(tip.locator('.hl-type-tooltip-after > *')).toHaveText([broadcast?'arrayed (auto-popped)':'after arrayed',broadcast?rows[1]:`arrayed<${rows[1]}>`,full]);
+    await expect(tip.locator('.hl-type-tooltip-columns > *')).toHaveCount(2);
   }
   await page.screenshot({path:info.outputPath(`${theme}-${name}.png`)});
  };
