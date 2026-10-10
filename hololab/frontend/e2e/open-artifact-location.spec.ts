@@ -324,6 +324,10 @@ for (const theme of ["light", "dark"] as const) {
     await writeFile(testInfo.outputPath(`artifact-glyph-${theme}.json`), JSON.stringify(await glyph.evaluate(el => ({
       svg: el.outerHTML, color: getComputedStyle(el).color,
     }))));
+    const outputRow = card.getByText('frames', {exact: true}).locator('..');
+    await expect(outputRow.getByRole('button')).toHaveCount(0);
+    await expect(outputRow).toHaveText('frames');
+    await expect(card.getByRole('button', {name: 'frames 预览', exact: true})).toHaveCount(0);
     const expand = card.getByRole("button", { name: "展开预览", exact: true });
     const fiveButtons = [
       ["source", card.locator("[data-hl-open-source]")],

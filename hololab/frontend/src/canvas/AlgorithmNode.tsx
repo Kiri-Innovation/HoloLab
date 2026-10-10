@@ -846,23 +846,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 >
                   {portName}
                 </span>
-                {expandableNames.has(portName) && (
-                  <button
-                    type="button"
-                    className="nodrag"
-                    aria-label={`${portName} 预览`}
-                    data-tooltip={`${portName} 预览`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const next = expanded === portName ? null : portName;
-                      if (onPreviewToggle) onPreviewToggle(next);
-                      else dispatchToggle(id, next);
-                    }}
-                    style={{ border: 0, background: "transparent", color: "var(--text-muted)", cursor: "pointer", padding: "0 3px", fontSize: 11 }}
-                  >
-                    ◧
-                  </button>
-                )}
                 <Handle
                   type="source"
                   position={Position.Right}
