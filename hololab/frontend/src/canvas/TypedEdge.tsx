@@ -170,6 +170,8 @@ function TypedEdgeInner({
   id,
   source,
   sourceHandleId,
+  target,
+  targetHandleId,
   sourceX,
   sourceY,
   targetX,
@@ -205,13 +207,21 @@ function TypedEdgeInner({
   const enriched = useTypeSummary(edgeType ?? { tags: [], arrayed: false, dimLabels: [] }, handleId);
   const label = edgeType ? formatTypeLabel(enriched) : baseLabel;
   const sourceData = useStore(s => s.nodeLookup.get(source)?.data) as AlgorithmNodeData | undefined;
-  const port = sourceData?.pack?.outputs[sourceHandleId ?? ''];
-  const declared = port && sourceData ? {
+  const targetData = useStore(s => s.nodeLookup.get(target)?.data) as AlgorithmNodeData | undefined;
+  const targetFanout = Boolean(targetData?.arrayed_toggle && targetData.pack?.arrayable);
+  const owner = targetFanout ? targetData : sourceData;
+  const name = (targetFanout ? targetHandleId : sourceHandleId) ?? '未知';
+  const port = targetFanout ? owner?.pack.inputs[name] : owner?.pack.outputs[name];
+  const scalarInput = targetFanout && port?.scalar;
+  const declared = port && owner ? {
     tags: port.tags,
-    arrayed: effectivePortArrayed(port.arrayed, sourceData.pack.arrayable, Boolean(sourceData.arrayed_toggle)),
-    dimLabels: effectivePortDimLabels(port.arrayed, port.dim_labels, sourceData.pack.arrayable, Boolean(sourceData.arrayed_toggle)),
+    arrayed: effectivePortArrayed(port.arrayed, owner.pack.arrayable, Boolean(owner.arrayed_toggle), scalarInput),
+    dimLabels: effectivePortDimLabels(port.arrayed, port.dim_labels, owner.pack.arrayable, Boolean(owner.arrayed_toggle), scalarInput),
   } : edgeType ?? { tags: [], arrayed: false, dimLabels: [] };
-  const tooltip = typeTooltip(sourceHandleId ?? '未知', declared, enriched);
+  const tooltip = typeTooltip(name, declared, enriched, {
+    fanout: Boolean(owner?.arrayed_toggle && owner.pack?.arrayable),
+    direction: targetFanout ? 'input' : 'output', broadcast: Boolean(scalarInput),
+  });
 
   const stroke = selected ? "var(--accent)" : "var(--rf-edge, var(--border-strong))";
   const strokeWidth = selected ? STROKE_SELECTED : STROKE_DEFAULT;

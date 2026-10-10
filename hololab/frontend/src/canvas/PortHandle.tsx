@@ -9,12 +9,13 @@ import { useTypeSummary } from "./useTypeSummary";
 export function PortHandle({ nodeId, declared, handleId, asText, ...props }: ComponentProps<typeof Handle> & {
   asText?: boolean; nodeId: string; declared: EdgeType; handleId?: string;
 }) {
+  const fanout = useStore(s => Boolean(s.nodeLookup.get(nodeId)?.data.arrayed_toggle) && Boolean((s.nodeLookup.get(nodeId)?.data.pack as {arrayable?:boolean})?.arrayable));
   const edge = useStore(s => s.edges.find(e => props.type === "target"
     ? e.target === nodeId && e.targetHandle === props.id
     : e.source === nodeId && e.sourceHandle === props.id));
   const data = edge?.data as TypedEdgeData | undefined;
   const actual = useTypeSummary(data?.edgeType ?? declared, data?.handleId ?? handleId);
-  const attributes = typeTooltip(props.id ?? '', declared, actual);
+  const attributes = typeTooltip(props.id ?? '', declared, actual, {fanout, direction: props.type === 'target' ? 'input' : 'output', broadcast: props.type === 'target' && !declared.arrayed});
   if (asText) return <span style={props.style} {...attributes}>{props.children}</span>;
   return <Handle {...props} className="hl-port-handle" {...attributes} />;
 }
