@@ -29,7 +29,7 @@
 // The edge type name is registered on both the draft and snapshot
 // ReactFlow instances via ``edgeTypes = { typed: TypedEdge }``.
 
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -41,11 +41,7 @@ import {
 } from "@xyflow/react";
 import type { EdgeType } from "./edgeLabels";
 import { formatTypeLabel, formatTypeLabelLong } from "./edgeLabels";
-import {
-  loadEdgeSummaryFacts,
-  peekEdgeSummaryFacts,
-  type EdgeSummaryFacts,
-} from "./edgeSummaryCache";
+import { useTypeSummary } from "./useTypeSummary";
 
 export interface TypedEdgeData extends Record<string, unknown> {
   /** Compact chip label without runtime counts (e.g. ``colmap`` or
@@ -202,66 +198,9 @@ function TypedEdgeInner({
   const edgeType = d?.edgeType;
   const handleId = d?.handleId ?? null;
 
-  // Cached summary facts. Seeded synchronously from the module-level
-  // cache so a re-mounted edge (theme flip, panel resize) reuses the
-  // last resolved value without re-fetching or reflashing to ``[?]``.
-  const [facts, setFacts] = useState<EdgeSummaryFacts | undefined>(() =>
-    handleId ? peekEdgeSummaryFacts(handleId) : undefined,
-  );
-
-  // Reset the cached facts when the underlying handle changes (edge
-  // re-wire, snapshot switch). A stale ``elementCount`` from the old
-  // handle would otherwise stick to the new one until first hover.
-  useEffect(() => {
-    setFacts(handleId ? peekEdgeSummaryFacts(handleId) : undefined);
-  }, [handleId]);
-
-  // Proactively load the summary as soon as the source handle exists —
-  // hover should be a pure CSS change, not a request trigger. Deduped
-  // + bounded by ``getHandleSummary`` (pLimit(8) + session cache in
-  // api.ts) so N edges mounting together fan out at most 8 in-flight
-  // and repeat mounts pay zero HTTP cost. Failures resolve to ``{}``
-  // silently so the chip degrades to ``[?]`` instead of retry-storming.
-  useEffect(() => {
-    if (!handleId || facts !== undefined) return;
-    let cancelled = false;
-    loadEdgeSummaryFacts(handleId).then((next) => {
-      if (!cancelled) setFacts(next);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [handleId, facts]);
-
-  // Compose the chip and tooltip strings. When ``edgeType`` is missing
-  // (older edges built before we started stashing it) fall back to the
-  // pre-formatted ``label`` — no runtime numbers, but nothing regresses.
-  const { label, labelLong } = useMemo(() => {
-    if (!edgeType) return { label: baseLabel, labelLong: baseLabelLong };
-    const enriched: EdgeType = {
-      ...edgeType,
-      // Runtime dim_labels from the handle summary overrides the static
-      // catalog value.  Generic ports (regroup.out) have dim_labels=[]
-      // in the catalog; the summary carries the resolved param value.
-      dimLabels:
-        facts?.dimLabels && facts.dimLabels.length > 0
-          ? facts.dimLabels
-          : edgeType.dimLabels,
-      dimSizes: facts?.dimSizes ?? edgeType.dimSizes,
-      elementCount: facts?.elementCount ?? edgeType.elementCount,
-      innerElementCount:
-        facts?.innerElementCount ?? edgeType.innerElementCount,
-      internalCount: facts?.internalCount ?? edgeType.internalCount,
-      internalCountKind:
-        facts?.internalCountKind ?? edgeType.internalCountKind,
-      internalCountItems:
-        facts?.internalCountItems ?? edgeType.internalCountItems,
-    };
-    return {
-      label: formatTypeLabel(enriched),
-      labelLong: formatTypeLabelLong(enriched),
-    };
-  }, [edgeType, facts, baseLabel, baseLabelLong]);
+  const enriched = useTypeSummary(edgeType ?? { tags: [], arrayed: false, dimLabels: [] }, handleId);
+  const label = edgeType ? formatTypeLabel(enriched) : baseLabel;
+  const labelLong = edgeType ? formatTypeLabelLong(enriched) : baseLabelLong;
 
   const stroke = selected ? "var(--accent)" : "var(--rf-edge, var(--border-strong))";
   const strokeWidth = selected ? STROKE_SELECTED : STROKE_DEFAULT;
@@ -444,7 +383,7 @@ function TypedEdgeInner({
             data-dot={dotCollapsed ? "" : undefined}
             data-pop={showPop ? "" : undefined}
             data-covered={covered ? "" : undefined}
-            title={labelLong}
+            data-tooltip={labelLong}
             onClick={onChipClick}
             onMouseEnter={onChipEnter}
             style={chipStyle}

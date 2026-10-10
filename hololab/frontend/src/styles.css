@@ -640,3 +640,16 @@ a:hover { text-decoration: underline; }
 .hl-node-stop-error { color: var(--error); }
 .hl-node-stop-submit { background: var(--error); border-color: var(--error); color: #fff; }
 .hl-node-stop-submit:hover:not(:disabled) { background: var(--error); color: #fff; }
+
+/* Expand pointer hit area without changing the measured connection anchor. */
+.hl-port-handle::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.hl-tooltip--multiline { white-space: pre-line; max-width: min(calc(420px * var(--tooltip-scale)), calc(100vw - 16px)); }

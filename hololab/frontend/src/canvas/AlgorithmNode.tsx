@@ -1,3 +1,4 @@
+import { PortHandle } from "./PortHandle";
 // Custom xyflow node for one algorithm-pack instance.
 //
 // The node's shape is manifest-driven: inputs on the left, outputs on the
@@ -10,7 +11,7 @@ import { NodeRunControl } from "./NodeRunControl";
 import { nodeStatus } from "./nodeStatus";
 import { NodeStatusDot } from "../ui/NodeStatusTooltip";
 import { NodeTitleTooltip } from "../ui/NodeTitleTooltip";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Position, type NodeProps } from "@xyflow/react";
 import type {
   CatalogPack,
   InputPortSpec,
@@ -716,7 +717,9 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             );
             return (
               <div key={`in-${portName}`} style={{ ...PORT_ROW, position: "relative" }}>
-                <Handle
+                <PortHandle
+                  nodeId={id}
+                  declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle) }}
                   type="target"
                   position={Position.Left}
                   id={portName}
@@ -730,7 +733,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   data-hl-arrayed-port={isArrayed ? "" : undefined}
                 />
                 <span
-                  title={inputTitle(portName, spec)}
+                  data-tooltip={inputTitle(portName, spec)}
                   style={{
                     color: spec.required
                       ? "var(--text-body)"
@@ -764,7 +767,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 style={{ ...PORT_ROW, position: "relative", justifyContent: "flex-end" }}
               >
                 <span
-                  title={outputTitle(portName, spec)}
+                  data-tooltip={outputTitle(portName, spec)}
                   style={{
                     color: "var(--text-body)",
                     fontFamily: "var(--font-mono)",
@@ -777,8 +780,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 >
                   {portName}
                 </span>
-                <Handle
+                <PortHandle
+                  nodeId={id}
+                  declared={{ tags: previews?.[portName]?.tags ?? spec.tags, arrayed: isArrayed, dimLabels: previews?.[portName]?.dim_labels ?? effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle), dimSizes: previews?.[portName]?.dim_sizes ?? undefined }}
                   type="source"
+                  handleId={previews?.[portName]?.handle_id}
                   position={Position.Right}
                   id={portName}
                   style={{

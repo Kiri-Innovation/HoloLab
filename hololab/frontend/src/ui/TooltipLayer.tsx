@@ -15,6 +15,7 @@ export function TooltipLayer() {
   const bubble = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let pointerDown = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const hide = () => {
       clearTimeout(timer);
@@ -25,13 +26,14 @@ export function TooltipLayer() {
     const show = (target: HTMLElement, delay: number) => {
       hide();
       const display = () => {
-        if (!target.isConnected || !target.dataset.tooltip) return;
+        if (pointerDown || !target.isConnected || !target.dataset.tooltip) return;
         setTip({ target, ...readContent(target) });
       };
       if (delay) timer = setTimeout(display, delay);
       else display();
     };
     const over = (event: PointerEvent) => {
+      if (event.buttons) return;
       const target = targetFor(event.target);
       if (target && !target.contains(event.relatedTarget as Node | null)) show(target, 350);
     };
@@ -44,19 +46,27 @@ export function TooltipLayer() {
       if (target?.matches(":focus-visible")) show(target, 0);
     };
     const key = (event: KeyboardEvent) => { if (event.key === "Escape") hide(); };
+    const down = () => { pointerDown = true; hide(); };
+    const up = () => { pointerDown = false; };
+    document.addEventListener("pointerup", up, true);
+    window.addEventListener("blur", up);
+    document.addEventListener("pointercancel", up, true);
     document.addEventListener("pointerover", over);
     document.addEventListener("pointerout", out);
     document.addEventListener("focusin", focus);
     document.addEventListener("focusout", hide);
-    document.addEventListener("pointerdown", hide, true);
+    document.addEventListener("pointerdown", down, true);
     document.addEventListener("keydown", key);
     return () => {
       hide();
+      document.removeEventListener("pointerup", up, true);
+      document.removeEventListener("pointercancel", up, true);
+      window.removeEventListener("blur", up);
       document.removeEventListener("pointerover", over);
       document.removeEventListener("pointerout", out);
       document.removeEventListener("focusin", focus);
       document.removeEventListener("focusout", hide);
-      document.removeEventListener("pointerdown", hide, true);
+      document.removeEventListener("pointerdown", down, true);
       document.removeEventListener("keydown", key);
     };
   }, [id]);
@@ -129,7 +139,7 @@ export function TooltipLayer() {
   }, [tip]);
 
   return tip ? createPortal(
-    <div ref={bubble} id={id} role="tooltip" className={`hl-tooltip${tip.title ? " hl-tooltip--title" : tip.status ? " hl-tooltip--status" : ""}`}>
+    <div ref={bubble} id={id} role="tooltip" className={`hl-tooltip${!tip.title && !tip.status && tip.text.includes("\n") ? " hl-tooltip--multiline" : ""}${tip.title ? " hl-tooltip--title" : tip.status ? " hl-tooltip--status" : ""}`}>
       {tip.status ? <NodeStatusTooltipCard conclusion={tip.status} reason={tip.reason ?? ""} action={tip.action ?? ""} /> : tip.title ? <NodeTitleTooltipCard name={tip.title} version={tip.version ?? ""} device={tip.device ?? ""} /> : tip.text}
     </div>,
     document.body,
