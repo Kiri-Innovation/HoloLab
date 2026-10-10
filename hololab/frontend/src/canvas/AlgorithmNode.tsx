@@ -6,6 +6,8 @@
 // enforce tag compatibility at edge-drawing time.
 
 import { useEffect, useMemo, useState } from "react";
+import { nodeStatus } from "./nodeStatus";
+import { NodeStatusDot } from "../ui/NodeStatusTooltip";
 import { NodeTitleTooltip } from "../ui/NodeTitleTooltip";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type {
@@ -598,71 +600,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           position: "relative",
         }}
       >
-        <span
-          data-hl-node-status={runState || "idle"}
-          title={statusTitle}
-          style={{
-            flex: "0 0 auto",
-            width: 8,
-            height: 8,
-            borderRadius: "var(--radius-pill)",
-            background: runState ? runColour : "var(--border-strong)",
-            boxShadow: runState === "running"
-              ? "0 0 0 2px color-mix(in srgb, var(--status-running) 25%, transparent)"
-              : "none",
-          }}
-        />
-        {!readOnly && staleness && staleness.kind !== "inflight_old_params" && (
-          <span
-            data-hl-node-stale={staleness.kind}
-            title={`结果陈旧 · ${staleness.title}${staleness.kind === "self_dirty" ? " · 点击 ▶ 从此节点重跑" : ""}`}
-            style={{
-              flex: "0 0 auto",
-              width: 8,
-              height: 8,
-              borderRadius: "var(--radius-pill)",
-              // Filled amber = this node's own config diverged. Hollow
-              // ring = only the inputs upstream changed; the operator
-              // usually wants to jump to the upstream node first.
-              background: staleness.kind === "self_dirty" ? "var(--warning)" : "transparent",
-              border: staleness.kind === "upstream_dirty" ? "1.5px solid var(--warning)" : "none",
-              boxSizing: "border-box",
-            }}
-          />
-        )}
-        {!readOnly && staleness?.kind === "inflight_old_params" && (
-          // A chip (not a dot) because the case is louder than "your
-          // draft has drifted from the last snapshot" — the operator's
-          // running command is *right now* using params they don't see
-          // in the config drawer. See canvas/staleness.ts for the
-          // motivating incident. Filled warning chip with the literal
-          // text ``旧参数`` so the meaning doesn't rely on iconography;
-          // the tooltip carries the specific reasons and the job id.
-          <span
-            data-hl-node-stale="inflight_old_params"
-            title={staleness.title}
-            style={{
-              flex: "0 0 auto",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 3,
-              padding: "0 var(--space-1)",
-              height: 16,
-              borderRadius: "var(--radius-pill)",
-              background: "var(--warning-soft)",
-              border: "1px solid var(--warning)",
-              color: "var(--warning)",
-              fontSize: "var(--fs-xs)",
-              fontWeight: "var(--fw-semibold)",
-              lineHeight: 1,
-              whiteSpace: "nowrap",
-              boxSizing: "border-box",
-            }}
-          >
-            <span aria-hidden="true" style={{ fontWeight: "var(--fw-bold)" }}>!</span>
-            旧参数
-          </span>
-        )}
+        <NodeStatusDot state={runState} status={nodeStatus({ state: runState, stale: staleness, failReason: runtime?.fail_reason, readOnly })} />
         <NodeTitleTooltip
           name={pack.name} version={pack.version} device={assignedLabel}
           style={{
