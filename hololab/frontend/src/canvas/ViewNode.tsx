@@ -14,28 +14,59 @@ export function ViewNode({ id, data, selected }: NodeProps) {
   const target = d.target ?? null;
   return (
     <div
+      className="hololab-node"
       data-hl-view-node={id}
       style={{
         width: 300,
         minHeight: 124,
-        border: `1px solid ${selected ? "var(--accent)" : "#d8b96a"}`,
+        background: "var(--surface-2)",
+        border: `1px solid ${selected ? "var(--accent)" : "var(--border-strong)"}`,
         borderRadius: "var(--radius-md)",
-        background: "#fff9df",
-        color: "#443816",
-        boxShadow: selected ? "0 0 0 2px var(--accent-soft)" : "var(--shadow-1)",
+        boxShadow: "var(--rf-node-shadow)",
+        fontFamily: "var(--font-sans)",
+        color: "var(--text-body)",
+        position: "relative",
+        transition: "width 120ms ease-out, box-shadow var(--dur-fast) var(--ease)",
         overflow: "hidden",
       }}
     >
-      <Handle type="target" position={Position.Left} id="in" style={{ background: "#c99722" }} />
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="in"
+        style={{
+          background: "var(--text-muted)",
+          borderRadius: "var(--radius-sm)",
+        }}
+      />
       <div
         className="hl-view-drag-handle"
-        style={{ padding: "8px 10px", fontSize: 12, fontWeight: 700, borderBottom: "1px solid #ead99e", cursor: "grab" }}
+        style={{
+          padding: "var(--space-2) var(--space-3)",
+          borderBottom: "1px solid var(--border)",
+          background: "var(--surface-raised)",
+          borderRadius: "var(--radius-md) var(--radius-md) 0 0",
+          cursor: "grab",
+          minHeight: 32,
+          display: "flex",
+          alignItems: "center",
+        }}
       >
-        ◈ {d.title?.trim() || "视图"}
+        <span
+          style={{
+            fontWeight: "var(--fw-semibold)",
+            fontSize: "var(--fs-md)",
+            lineHeight: "var(--lh-tight)",
+            letterSpacing: "-0.005em",
+            color: "var(--text)",
+          }}
+        >
+          {d.title?.trim() || "视图"}
+        </span>
       </div>
-      <div className="nodrag" style={{ padding: 8, fontSize: 11 }}>
+      <div className="nodrag" style={{ padding: "var(--space-2) var(--space-3)", fontSize: "var(--fs-xs)" }}>
         {!target ? (
-          <span style={{ color: "#806f3b" }}>连接一个产物以查看；不会创建任务或产物。</span>
+          <span style={{ color: "var(--text-muted)" }}>连接一个产物以查看；不会创建任务或产物。</span>
         ) : target.deleted ? (
           <span style={{ color: "var(--error)" }}>产物已被清理</span>
         ) : (
