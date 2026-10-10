@@ -14,10 +14,8 @@ import { NodeTitleTooltip } from "../ui/NodeTitleTooltip";
 import { Position, type NodeProps } from "@xyflow/react";
 import type {
   CatalogPack,
-  InputPortSpec,
   OutputPortSpec,
   OutputPreviewSpec,
-  PortSpec,
 } from "../wire";
 import { effectivePortArrayed, effectivePortDimLabels, firstTagColour } from "../tags";
 import { useCanvasContext } from "./CanvasContext";
@@ -28,19 +26,6 @@ import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { OpenSourceButton } from "./OpenSourceButton";
 import { BasicInfoPreview, Preview } from "./previews";
 import { PreviewPlaceholder } from "./PreviewPlaceholder";
-
-function inputTitle(portName: string, spec: InputPortSpec): string {
-  const parts = [`port: ${portName}`, `tags: ${spec.tags.join(", ")}`];
-  if (!spec.required) parts.push("optional");
-  if (spec.description) parts.push(spec.description);
-  return parts.join(" · ");
-}
-
-function outputTitle(portName: string, spec: PortSpec): string {
-  const parts = [`port: ${portName}`, `tags: ${spec.tags.join(", ")}`];
-  if (spec.description) parts.push(spec.description);
-  return parts.join(" · ");
-}
 
 // Snapshot of the latest job run for one blueprint node. Driven by WS
 // ``job_update`` events keyed on ``graph_node_id`` in App.tsx.
@@ -732,8 +717,9 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   data-required={spec.required ? "1" : "0"}
                   data-hl-arrayed-port={isArrayed ? "" : undefined}
                 />
-                <span
-                  data-tooltip={inputTitle(portName, spec)}
+                <PortHandle asText nodeId={id} id={portName} type="target" position={Position.Left}
+                  handleId={undefined}
+                  declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle) }}
                   style={{
                     color: spec.required
                       ? "var(--text-body)"
@@ -749,7 +735,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   {!spec.required && (
                     <span style={{ color: "var(--text-subtle)" }}>?</span>
                   )}
-                </span>
+                </PortHandle>
               </div>
             );
           })}
@@ -766,8 +752,9 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 key={`out-${portName}`}
                 style={{ ...PORT_ROW, position: "relative", justifyContent: "flex-end" }}
               >
-                <span
-                  data-tooltip={outputTitle(portName, spec)}
+                <PortHandle asText nodeId={id} id={portName} type="source" position={Position.Right}
+                  handleId={previews?.[portName]?.handle_id}
+                  declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle) }}
                   style={{
                     color: "var(--text-body)",
                     fontFamily: "var(--font-mono)",
@@ -779,10 +766,10 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   }}
                 >
                   {portName}
-                </span>
+                </PortHandle>
                 <PortHandle
                   nodeId={id}
-                  declared={{ tags: previews?.[portName]?.tags ?? spec.tags, arrayed: isArrayed, dimLabels: previews?.[portName]?.dim_labels ?? effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle), dimSizes: previews?.[portName]?.dim_sizes ?? undefined }}
+                  declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle) }}
                   type="source"
                   handleId={previews?.[portName]?.handle_id}
                   position={Position.Right}

@@ -1,3 +1,6 @@
+import { typeTooltip } from "./typeTooltip";
+import type { AlgorithmNodeData } from "./AlgorithmNode";
+import { effectivePortArrayed, effectivePortDimLabels } from "../tags";
 // Custom xyflow edge that renders a small "data type" chip near the
 // midpoint of the wire and highlights when selected.
 //
@@ -40,7 +43,7 @@ import {
   type ReactFlowState,
 } from "@xyflow/react";
 import type { EdgeType } from "./edgeLabels";
-import { formatTypeLabel, formatTypeLabelLong } from "./edgeLabels";
+import { formatTypeLabel } from "./edgeLabels";
 import { useTypeSummary } from "./useTypeSummary";
 
 export interface TypedEdgeData extends Record<string, unknown> {
@@ -165,6 +168,8 @@ type TypedEdgeProps = EdgeProps & {
 
 function TypedEdgeInner({
   id,
+  source,
+  sourceHandleId,
   sourceX,
   sourceY,
   targetX,
@@ -194,13 +199,19 @@ function TypedEdgeInner({
 
   const d = data as TypedEdgeData | undefined;
   const baseLabel = d?.label ?? "";
-  const baseLabelLong = d?.labelLong ?? baseLabel;
   const edgeType = d?.edgeType;
   const handleId = d?.handleId ?? null;
 
   const enriched = useTypeSummary(edgeType ?? { tags: [], arrayed: false, dimLabels: [] }, handleId);
   const label = edgeType ? formatTypeLabel(enriched) : baseLabel;
-  const labelLong = edgeType ? formatTypeLabelLong(enriched) : baseLabelLong;
+  const sourceData = useStore(s => s.nodeLookup.get(source)?.data) as AlgorithmNodeData | undefined;
+  const port = sourceData?.pack?.outputs[sourceHandleId ?? ''];
+  const declared = port && sourceData ? {
+    tags: port.tags,
+    arrayed: effectivePortArrayed(port.arrayed, sourceData.pack.arrayable, Boolean(sourceData.arrayed_toggle)),
+    dimLabels: effectivePortDimLabels(port.arrayed, port.dim_labels, sourceData.pack.arrayable, Boolean(sourceData.arrayed_toggle)),
+  } : edgeType ?? { tags: [], arrayed: false, dimLabels: [] };
+  const tooltip = typeTooltip(sourceHandleId ?? '未知', declared, enriched);
 
   const stroke = selected ? "var(--accent)" : "var(--rf-edge, var(--border-strong))";
   const strokeWidth = selected ? STROKE_SELECTED : STROKE_DEFAULT;
@@ -383,7 +394,7 @@ function TypedEdgeInner({
             data-dot={dotCollapsed ? "" : undefined}
             data-pop={showPop ? "" : undefined}
             data-covered={covered ? "" : undefined}
-            data-tooltip={labelLong}
+            {...tooltip}
             onClick={onChipClick}
             onMouseEnter={onChipEnter}
             style={chipStyle}

@@ -27,7 +27,9 @@ for (const theme of ['light', 'dark']) test(`port and edge tooltips ${theme}`, a
     const before=await geometry();
     for(const [name,anchor] of [['input',input],['output',output],['edge',edge]] as const){
       await anchor.hover();
-      await expect(tip).toContainText('arrayed<frame> of image,rgb');
+      await expect(tip.locator('.hl-type-tooltip-content > *')).toHaveCount(3);
+      await expect(tip.locator('.hl-type-tooltip-content > :nth-child(2)')).toHaveText('arrayed<frame> of image,rgb');
+      await expect(tip.locator('.hl-type-tooltip-content > :nth-child(3)')).toHaveText('未知');
       await expect(tip).toHaveCSS('--tooltip-scale',String(zoom));
       await expect(anchor).not.toHaveAttribute('title');
       await page.screenshot({path:info.outputPath(`${theme}-${name}-${zoom}.png`)});
@@ -44,4 +46,26 @@ for (const theme of ['light', 'dark']) test(`port and edge tooltips ${theme}`, a
   await page.mouse.up();
   await expect(page.locator(".hl-edge-chip")).toHaveCount(2);
   await page.mouse.move(0,0);await input.hover();await expect(tip).toBeVisible();
+});
+
+for (const theme of ['light','dark']) test(`three rows with runtime data ${theme}`, async({page}, info)=>{
+  await page.setViewportSize({width:1200,height:800});
+  await page.goto(`/e2e/fixtures/port-types.html?theme=${theme}`);
+  const tip=page.getByRole('tooltip');
+  const anchors=[
+    page.locator('[data-id="n1"] .target'),
+    page.locator('[data-id="n0"] .source'),
+    page.locator('.hl-edge-chip'),
+    page.locator('[data-id="n1"] span[data-tooltip-type="images"]').first(),
+  ];
+  for(const [i,anchor] of anchors.entries()){
+    await anchor.hover();
+    await expect(tip.locator('.hl-type-tooltip-content > *')).toHaveText(['images','arrayed<frame> of any','image[frame:100], rgb[frame:100]']);
+    const lines=await tip.locator('.hl-type-tooltip-content > *').evaluateAll(es=>es.map(e=>e.getBoundingClientRect().top));
+    expect(lines[0]).toBeLessThan(lines[1]);expect(lines[1]).toBeLessThan(lines[2]);
+    await page.screenshot({path:info.outputPath(`${theme}-runtime-${i}.png`)});
+  }
+  await page.locator('[data-id="n0"] .target').hover();
+  await expect(tip.locator('.hl-type-tooltip-content > :nth-child(3)')).toHaveText('未知');
+  await page.screenshot({path:info.outputPath(`${theme}-unknown.png`)});
 });

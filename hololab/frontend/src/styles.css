@@ -653,3 +653,13 @@ a:hover { text-decoration: underline; }
 }
 
 .hl-tooltip--multiline { white-space: pre-line; max-width: min(calc(420px * var(--tooltip-scale)), calc(100vw - 16px)); }
+
+.hl-tooltip--type {
+  background: var(--surface-2); color: var(--text-body); border-color: var(--border-strong);
+  padding: calc(var(--space-2) * var(--tooltip-scale)) calc(var(--space-3) * var(--tooltip-scale));
+}
+.hl-type-tooltip-content { display: flex; flex-direction: column; gap: calc(var(--space-1) * var(--tooltip-scale)); }
+.hl-type-tooltip-content > * { display: block; white-space: nowrap; }
+.hl-type-tooltip-content > span { color: var(--text-muted); font-family: var(--font-mono); }
+.hl-tooltip--type[data-placement="above"]::after { border-top-color: var(--surface-2); }
+.hl-tooltip--type[data-placement="below"]::after { border-bottom-color: var(--surface-2); }

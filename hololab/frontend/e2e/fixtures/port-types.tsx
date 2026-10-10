@@ -1,0 +1,16 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {ReactFlow,ReactFlowProvider} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import '../../src/styles.css';
+import {AlgorithmNode} from '../../src/canvas/AlgorithmNode';
+import {TypedEdge} from '../../src/canvas/TypedEdge';
+import {TooltipLayer} from '../../src/ui/TooltipLayer';
+import {seedEdgeSummaryFacts} from '../../src/canvas/edgeSummaryCache';
+const port={tags:['any'],arrayed:true,dim_labels:['frame'],required:true};
+const pack={name:'example',version:'1',node_ids:[],manifest_hash:'x',inputs:{images:port},outputs:{images:port},params:{},arrayable:false};
+document.documentElement.dataset.theme=new URLSearchParams(location.search).get('theme') || 'light';
+seedEdgeSummaryFacts('result',{handle_id:'result',tags:['image','rgb'],dim_labels:['frame'],dim_sizes:[100],deleted:false});
+const nodes=[0,1].map(i=>({id:`n${i}`,type:'algorithm',position:{x:130+i*450,y:260},data:{pack,assigned_node_id:null}}));
+const edges=[{id:'e',source:'n0',sourceHandle:'images',target:'n1',targetHandle:'images',type:'typed',data:{label:'image[100]',edgeType:{tags:['any'],arrayed:true,dimLabels:['frame']},handleId:'result'}}];
+createRoot(document.getElementById('root')!).render(<ReactFlowProvider><ReactFlow nodes={nodes} edges={edges} nodeTypes={{algorithm:AlgorithmNode}} edgeTypes={{typed:TypedEdge}}/><TooltipLayer/></ReactFlowProvider>);

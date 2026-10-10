@@ -16,6 +16,7 @@ import { getHandleSummary } from "../api";
 import type { HandleSummary, LatestOutputHandle } from "../wire";
 
 export interface EdgeSummaryFacts {
+  tags?: string[];
   elementCount?: number;
   internalCount?: number;
   internalCountKind?: string;
@@ -43,7 +44,7 @@ const pending = new Map<string, Promise<EdgeSummaryFacts>>();
 const resolved = new Map<string, EdgeSummaryFacts>();
 
 function factsFromSummary(s: HandleSummary): EdgeSummaryFacts {
-  const facts: EdgeSummaryFacts = {};
+  const facts: EdgeSummaryFacts = { tags: s.tags };
 
   // dim_sizes is the authoritative multi-dim count source. Backfill the
   // legacy scalar fields so callers that only inspect elementCount still
@@ -72,7 +73,7 @@ function factsFromSummary(s: HandleSummary): EdgeSummaryFacts {
     }
   }
 
-  if (Array.isArray(s.dim_labels) && s.dim_labels.length > 0) {
+  if (Array.isArray(s.dim_labels)) {
     facts.dimLabels = s.dim_labels as string[];
   }
 
@@ -137,7 +138,7 @@ export function seedEdgeSummaryFacts(
   latest: LatestOutputHandle,
 ): void {
   if (resolved.has(handleId)) return;
-  const facts: EdgeSummaryFacts = {};
+  const facts: EdgeSummaryFacts = { tags: latest.tags };
   if (latest.dim_sizes && latest.dim_sizes.length > 0) {
     facts.dimSizes = latest.dim_sizes;
     facts.elementCount = latest.dim_sizes[0];
@@ -145,7 +146,7 @@ export function seedEdgeSummaryFacts(
   } else if (typeof latest.element_count === "number") {
     facts.elementCount = latest.element_count;
   }
-  if (latest.dim_labels && latest.dim_labels.length > 0) {
+  if (latest.dim_labels) {
     facts.dimLabels = latest.dim_labels;
   }
   if (latest.internal_count_items && latest.internal_count_items.length > 0) {
