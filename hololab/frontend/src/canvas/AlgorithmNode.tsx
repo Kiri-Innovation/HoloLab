@@ -869,6 +869,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         data-hl-node-footer=""
         style={{
           padding: "var(--space-1)",
+          paddingLeft: "var(--space-3)",
           borderTop: "1px solid var(--border-subtle)",
           background: "var(--surface)",
           borderRadius: "0 0 var(--radius-md) var(--radius-md)",
@@ -901,7 +902,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             </span>
           )}
         </div>
-        {/* Separate simultaneous focus/hover fills by half a spacing step (2px); retain 4px inset and 8px to metadata. */}
+        {/* Separate simultaneous focus/hover fills by half a spacing step (2px); retain 4px right inset and 8px to metadata. */}
         <div style={{ display: "flex", alignItems: "center", gap: "calc(var(--space-1) / 2)", flexShrink: 0 }}>
           {/* Collapsed-only per user's request ("在没展开的时候"). When the
               drawer is open, per-port Open-in-Cocoder buttons in the

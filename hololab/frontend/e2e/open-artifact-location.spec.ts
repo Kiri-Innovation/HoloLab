@@ -481,8 +481,8 @@ for (const theme of ["light", "dark"] as const) {
     expect(metrics.gaps).toEqual([4,8,2]);
     expect(metrics.summaryScroll).toBeLessThanOrEqual(metrics.summaryClient);
     expect(metrics.textWidth).toBeLessThanOrEqual(metrics.items[0].width);
-    expect(metrics.paddingLeft).toBe('4px'); expect(metrics.paddingRight).toBe('4px');
-    expect(edges).toMatchObject({top:5,right:5,bottom:5,footerHeight:33});
+    expect(metrics.paddingLeft).toBe('12px'); expect(metrics.paddingRight).toBe('4px');
+    expect(edges).toMatchObject({top:5,right:5,bottom:5,footerHeight:33,textLeft:13});
     expect(edges.textTop).toBe(edges.textBottom);
     expect(metrics.gaps[2]).toBe(parseFloat(metrics.paddingRight) / 2);
     await summary.hover();
