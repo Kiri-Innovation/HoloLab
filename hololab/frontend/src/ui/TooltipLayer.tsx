@@ -1,24 +1,21 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { NodeTitleTooltipCard } from "./NodeTitleTooltip";
 import { tooltipGeometry } from "./tooltipGeometry";
+
+const readContent = (target: HTMLElement) => ({ text: target.dataset.tooltip ?? "",
+  title: target.dataset.tooltipTitle, version: target.dataset.tooltipVersion, device: target.dataset.tooltipDevice });
 
 /** Body portal avoids clipping; CSS dimensions follow the anchor's canvas zoom. */
 export function TooltipLayer() {
   const id = useId();
-  const [tip, setTip] = useState<{ target: HTMLElement; text: string } | null>(null);
+  const [tip, setTip] = useState<{ target: HTMLElement } & ReturnType<typeof readContent> | null>(null);
   const bubble = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let active: HTMLElement | null = null;
-    let originalDescription: string | null = null;
     const hide = () => {
       clearTimeout(timer);
-      if (active) {
-        if (originalDescription === null) active.removeAttribute("aria-describedby");
-        else active.setAttribute("aria-describedby", originalDescription);
-      }
-      active = null;
       setTip(null);
     };
     const targetFor = (target: EventTarget | null) =>
@@ -27,10 +24,7 @@ export function TooltipLayer() {
       hide();
       const display = () => {
         if (!target.isConnected || !target.dataset.tooltip) return;
-        active = target;
-        originalDescription = target.getAttribute("aria-describedby");
-        target.setAttribute("aria-describedby", [originalDescription, id].filter(Boolean).join(" "));
-        setTip({ target, text: target.dataset.tooltip });
+        setTip({ target, ...readContent(target) });
       };
       if (delay) timer = setTimeout(display, delay);
       else display();
@@ -65,6 +59,18 @@ export function TooltipLayer() {
     };
   }, [id]);
 
+  // Restore accessibility metadata even when resize removes truncation while focused.
+  const target = tip?.target;
+  useLayoutEffect(() => {
+    if (!target) return;
+    const original = target.getAttribute("aria-describedby");
+    target.setAttribute("aria-describedby", [original, id].filter(Boolean).join(" "));
+    return () => {
+      if (original === null) target.removeAttribute("aria-describedby");
+      else target.setAttribute("aria-describedby", original);
+    };
+  }, [target, id]);
+
   useLayoutEffect(() => {
     if (!tip || !bubble.current) return;
     const element = bubble.current;
@@ -73,9 +79,9 @@ export function TooltipLayer() {
     const update = () => {
       if (!tip.target.isConnected) { setTip(null); return; }
       // Playback may end, or a toggle may change while focus/hover stays put.
-      const text = tip.target.dataset.tooltip;
-      if (!text) { setTip(null); return; }
-      if (text !== tip.text) { setTip({ target: tip.target, text }); return; }
+      const content = readContent(tip.target);
+      if (!content.text) { setTip(null); return; }
+      if (content.text !== tip.text || content.title !== tip.title || content.version !== tip.version || content.device !== tip.device) { setTip({ target: tip.target, ...content }); return; }
       const matrix = viewport ? new DOMMatrixReadOnly(getComputedStyle(viewport).transform) : null;
       const zoom = matrix ? Math.hypot(matrix.a, matrix.b) : 1;
       // Resize actual CSS text metrics, not a rasterized transform layer.
@@ -96,7 +102,7 @@ export function TooltipLayer() {
     update();
     // Follow live zoom/pan and node movement while hover/focus stays active.
     const mutations = new MutationObserver(schedule);
-    mutations.observe(tip.target, { attributes: true, attributeFilter: ["data-tooltip"] });
+    mutations.observe(tip.target, { attributes: true, attributeFilter: ["data-tooltip", "data-tooltip-title", "data-tooltip-version", "data-tooltip-device"] });
     if (viewport) mutations.observe(viewport, { attributes: true, attributeFilter: ["style"] });
     const node = tip.target.closest(".react-flow__node");
     if (node) mutations.observe(node, { attributes: true, attributeFilter: ["style"] });
@@ -115,7 +121,9 @@ export function TooltipLayer() {
   }, [tip]);
 
   return tip ? createPortal(
-    <div ref={bubble} id={id} role="tooltip" className="hl-tooltip">{tip.text}</div>,
+    <div ref={bubble} id={id} role="tooltip" className={`hl-tooltip${tip.title ? " hl-tooltip--title" : ""}`}>
+      {tip.title ? <NodeTitleTooltipCard name={tip.title} version={tip.version ?? ""} device={tip.device ?? ""} /> : tip.text}
+    </div>,
     document.body,
   ) : null;
 }

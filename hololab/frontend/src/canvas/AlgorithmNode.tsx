@@ -6,6 +6,7 @@
 // enforce tag compatibility at edge-drawing time.
 
 import { useEffect, useMemo, useState } from "react";
+import { NodeTitleTooltip } from "../ui/NodeTitleTooltip";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type {
   CatalogPack,
@@ -662,8 +663,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             旧参数
           </span>
         )}
-        <div
-          title={`${pack.name} v${pack.version} · ${assignedLabel}`}
+        <NodeTitleTooltip
+          name={pack.name} version={pack.version} device={assignedLabel}
           style={{
             flex: 1,
             minWidth: 0,
@@ -700,7 +701,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           >
             {assignedLabel} · v{pack.version}
           </span>
-        </div>
+        </NodeTitleTooltip>
         <div
           style={{
             flex: "0 0 auto",

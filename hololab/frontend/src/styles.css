@@ -92,6 +92,15 @@ body {
   box-shadow: var(--shadow-2); font-size: calc(var(--fs-xs) * var(--tooltip-scale)); line-height: var(--lh-ui);
   animation: hl-tooltip-in 100ms var(--ease);
 }
+.hl-tooltip--title {
+  max-width: min(calc(280px * var(--tooltip-scale)), calc(100vw - 16px));
+  padding: calc(var(--space-2) * var(--tooltip-scale)) calc(var(--space-3) * var(--tooltip-scale));
+}
+.hl-title-tooltip-content { display: flex; flex-direction: column; gap: calc(var(--space-1) * var(--tooltip-scale)); }
+.hl-title-tooltip-name { font-size: calc(var(--fs-md) * var(--tooltip-scale)); font-weight: var(--fw-semibold); }
+.hl-title-tooltip-version { font-family: var(--font-mono); color: #ddd; }
+.hl-title-tooltip-device { color: #bbb; }
+[data-hl-node-title]:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
 .hl-tooltip::after {
   content: ""; position: absolute;
   left: var(--tooltip-arrow-x); transform: translateX(-50%);
