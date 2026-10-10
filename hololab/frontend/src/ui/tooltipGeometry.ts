@@ -11,17 +11,19 @@ export function tooltipGeometry(
   bubble: { width: number; height: number },
   viewport: { width: number; height: number },
   zoom: number,
+  options: { align?: "left"; gap?: number } = {},
 ) {
   const center = anchor.left + anchor.width / 2;
-  const gap = 8 * zoom; // includes the 5*zoom tail and a small gap to the button
+  const targetX = options.align === "left" ? anchor.left + Math.min(12 * zoom, anchor.width / 2) : center;
+  const gap = (options.gap ?? 8) * zoom; // includes the 5*zoom tail and a small gap to the button
   const above = anchor.top - bubble.height - gap;
   const placement = above >= 8 ? "above" : "below";
-  const left = Math.max(8, Math.min(center - bubble.width / 2, viewport.width - bubble.width - 8));
+  const left = Math.max(8, Math.min((options.align === "left" ? anchor.left : center - bubble.width / 2), viewport.width - bubble.width - 8));
   return {
     left,
     top: Math.max(8, Math.min(placement === "above" ? above : anchor.bottom + gap, viewport.height - bubble.height - 8)),
     placement,
     // Do not re-center after edge avoidance: the tail tracks the button.
-    arrowX: center - left,
+    arrowX: targetX - left,
   };
 }

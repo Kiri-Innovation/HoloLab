@@ -22,3 +22,15 @@ it.each([0, 976])("offsets the tail when horizontally clamped at %s", left => {
   expect(result.left + result.arrowX).toBe(left + 12);
   expect(result.arrowX).not.toBe(bubble.width / 2);
 });
+
+it.each([0.5, 1, 1.5])("left-aligns title cards with tail clearance at zoom %s", zoom => {
+  const result = tooltipGeometry({ left: 100, top: 300, width: 100 * zoom, bottom: 330 }, bubble, viewport, zoom, { align: "left", gap: 13 });
+  expect(result.left).toBe(100);
+  expect(result.arrowX).toBe(12 * zoom);
+  expect(300 - result.top - bubble.height).toBe(13 * zoom);
+});
+it("keeps left-aligned cards inside the right edge and tracks the title", () => {
+  const result = tooltipGeometry({ left: 930, top: 300, width: 50, bottom: 330 }, bubble, viewport, 1, { align: "left", gap: 13 });
+  expect(result.left + bubble.width).toBe(992);
+  expect(result.left + result.arrowX).toBe(942);
+});

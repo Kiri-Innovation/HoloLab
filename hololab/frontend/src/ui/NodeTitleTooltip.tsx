@@ -17,8 +17,10 @@ export function NodeTitleTooltip({ name, version, device, style, children }: {
 
 export function NodeTitleTooltipCard({ name, version, device }: { name: string; version: string; device: string }) {
   return <div className="hl-title-tooltip-content">
-    <strong className="hl-title-tooltip-name">{name}</strong>
-    <span className="hl-title-tooltip-version">@{version}</span>
-    <span className="hl-title-tooltip-device">设备 · {device}</span>
+    <div className="hl-title-tooltip-heading">
+      <strong className="hl-title-tooltip-name">{name}</strong>{" "}
+      <span className="hl-title-tooltip-version">@{version}</span>
+    </div>
+    <span className="hl-title-tooltip-device">{device}</span>
   </div>;
 }

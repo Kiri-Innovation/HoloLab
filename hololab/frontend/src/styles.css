@@ -99,7 +99,7 @@ body {
 }
 .hl-title-tooltip-content { display: flex; flex-direction: column; gap: calc(var(--space-1) * var(--tooltip-scale)); }
 .hl-title-tooltip-name { font-size: calc(var(--fs-md) * var(--tooltip-scale)); font-weight: var(--fw-semibold); }
-.hl-title-tooltip-version { font-family: var(--font-mono); color: var(--text-body); }
+.hl-title-tooltip-version { font-family: var(--font-mono); color: var(--text-muted); }
 .hl-title-tooltip-device { color: var(--text-muted); }
 [data-hl-node-title] { cursor: default; }
 .react-flow__node.dragging [data-hl-node-title] { cursor: grabbing; }

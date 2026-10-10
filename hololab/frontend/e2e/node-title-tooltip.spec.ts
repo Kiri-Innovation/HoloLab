@@ -33,11 +33,14 @@ for (const theme of ['light', 'dark']) {
       await anchor.hover();
       await expect(tip.locator('.hl-title-tooltip-name')).toHaveText(longName);
       await expect(tip.locator('.hl-title-tooltip-version')).toHaveText('@'+version);
-      await expect(tip.locator('.hl-title-tooltip-device')).toContainText('设备');
+      await expect(tip.locator('.hl-title-tooltip-device')).toHaveText(device);
       await expect(tip).toHaveCSS('--tooltip-scale',String(zoom));
       expect(await tip.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
       await page.screenshot({path:info.outputPath(`title-${theme}-${zoom}.png`)});
       const bubble = (await tip.boundingBox())!;
+      const titleRect = (await anchor.boundingBox())!;
+      expect(bubble.x).toBeCloseTo(titleRect.x, 1);
+      expect(titleRect.y - bubble.y - bubble.height).toBeCloseTo(13 * zoom, 1);
       const node = (await page.locator('[data-hololab-node="algorithm"]').boundingBox())!;
       const x = Math.max(0, Math.min(bubble.x, node.x) - 12);
       const y = Math.max(0, Math.min(bubble.y, node.y) - 12);
@@ -56,8 +59,13 @@ for (const theme of ['light', 'dark']) {
     expect(b.x).toBeGreaterThanOrEqual(8);expect(b.x+b.width).toBeLessThanOrEqual(1192);
     const a=(await anchor.boundingBox())!;
     const arrow=await tip.evaluate(el=>parseFloat((el as HTMLElement).style.getPropertyValue('--tooltip-arrow-x'))+el.clientLeft);
-    expect(b.x+arrow).toBeCloseTo(a.x+a.width/2,1);
+    expect(b.x+arrow).toBeCloseTo(a.x+Math.min(12,a.width/2),1);
     await page.screenshot({path:info.outputPath(`title-${theme}-edge.png`)});
+    await viewport.evaluate(el=>(el as HTMLElement).style.transform='translate(680px,160px) scale(1)');
+    await expect(tip).toHaveAttribute('data-placement','above');
+    const right=(await tip.boundingBox())!;
+    expect(right.x+right.width).toBeLessThanOrEqual(1192);
+    await page.screenshot({path:info.outputPath(`right-edge-${theme}.png`)});
     await page.keyboard.press('Escape');await expect(tip).toHaveCount(0);
     await anchor.evaluate(el=>(el as HTMLElement).blur());
     // Existing simple tooltips retain plain content, with no rich-card styling.
