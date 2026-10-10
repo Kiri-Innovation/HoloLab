@@ -113,7 +113,7 @@ export function OpenArtifactLocationButton({
   return (
     <button
       type="button"
-      className="hl-icon-button"
+      className="hl-icon-button hl-button--ghost hl-node-footer-action"
       onClick={onClick}
       disabled={status.kind === "loading"}
       data-tooltip={status.kind === "err" ? status.msg : "跳转产物"}
@@ -122,8 +122,6 @@ export function OpenArtifactLocationButton({
       data-hl-open-artifact=""
       data-hl-configured={configured ? "1" : "0"}
       style={{
-        border: "1px solid var(--border-strong)",
-        background: "transparent",
         color: colour,
         borderRadius: "var(--radius-sm)",
         cursor: status.kind === "loading" ? "wait" : "pointer",
@@ -133,8 +131,6 @@ export function OpenArtifactLocationButton({
         padding: 0,
         flexShrink: 0,
         lineHeight: 1,
-        transition:
-          "color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
       }}
     >
       {status.kind === "loading" ? (

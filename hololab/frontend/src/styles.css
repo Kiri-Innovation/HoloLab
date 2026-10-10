@@ -76,6 +76,11 @@ body {
 .hl-button--ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
 .hl-button--ghost:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
 .hl-icon-button { width: var(--control-h-sm); height: var(--control-h-sm); padding: 0; display: inline-grid; place-items: center; }
+/* Footer ghost actions retain the 1px transparent border as layout space. */
+.hl-node-footer-action:hover:not(:disabled), .hl-node-footer-action:focus-visible {
+  border-color: transparent;
+  background: var(--surface-hover);
+}
 .hl-tooltip {
   position: fixed; z-index: 12000; pointer-events: none;
   max-width: calc(100vw - 16px); overflow-wrap: anywhere;

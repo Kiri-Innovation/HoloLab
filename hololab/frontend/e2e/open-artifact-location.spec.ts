@@ -348,6 +348,31 @@ for (const theme of ["light", "dark"] as const) {
     }
     await writeFile(testInfo.outputPath(`five-measurements-${theme}.json`), JSON.stringify(measurements, null, 2));
     if (process.env.FIVE_BUTTON_BASELINE) return;
+    await page.mouse.move(0, 0);
+    await expect(footer).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(expand).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await card.screenshot({ path: testInfo.outputPath(`ghost-idle-${theme}.png`) });
+    for (const [name, button, label] of [["artifact", footer, "跳转产物"], ["preview", expand, "展开预览"]] as const) {
+      const beforeHover = await button.boundingBox();
+      await expect(button).toHaveCSS("border-color", "rgba(0, 0, 0, 0)");
+      await button.hover();
+      await expect(page.getByRole("tooltip")).toHaveText(label);
+      await expect(button).toHaveCSS("background-color", theme === "light" ? "rgb(233, 233, 233)" : "rgb(45, 45, 45)");
+      await expect(button).toHaveCSS("border-color", "rgba(0, 0, 0, 0)");
+      expect(await button.boundingBox()).toEqual(beforeHover);
+      await card.screenshot({ path: testInfo.outputPath(`ghost-hover-${name}-${theme}.png`) });
+      await page.mouse.move(0, 0);
+      await expect(button).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    }
+    // Keyboard focus uses the same background and the existing global focus ring.
+    await page.keyboard.press("Tab");
+    await expand.focus();
+    await expect(expand).toBeFocused();
+    await expect(expand).not.toHaveCSS("box-shadow", "none");
+    await expect(page.getByRole("tooltip")).toHaveText("展开预览");
+    await expect(expand).toHaveCSS("background-color", theme === "light" ? "rgb(233, 233, 233)" : "rgb(45, 45, 45)");
+    await card.screenshot({ path: testInfo.outputPath(`ghost-focus-${theme}.png`) });
+    await expand.evaluate(el => (el as HTMLElement).blur());
     await expect(expand).toHaveAttribute("aria-expanded", "false");
     await expect(expand.locator("path")).toHaveAttribute("d", "m6 9 6 6 6-6");
     const box = (await expand.boundingBox())!;

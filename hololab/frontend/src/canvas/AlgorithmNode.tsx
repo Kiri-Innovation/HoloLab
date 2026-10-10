@@ -928,7 +928,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         {expandables.length > 0 && (
           <button
             type="button"
-            className="hl-icon-button"
+            className="hl-icon-button hl-button--ghost hl-node-footer-action"
             aria-expanded={Boolean(expanded)}
             aria-label={expanded ? "收起预览" : "展开预览"}
             data-tooltip={expanded ? "收起预览" : "展开预览"}
@@ -937,7 +937,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
               const next = expanded ? null : expandables[0].name;
               if (onPreviewToggle) onPreviewToggle(next); else dispatchToggle(id, next);
             }}
-            style={{ border: "1px solid var(--border-strong)", background: "transparent", color: "var(--text-muted)", cursor: "pointer", borderRadius: "var(--radius-sm)", fontSize: 10 }}
+            style={{ flexShrink: 0 }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
