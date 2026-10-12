@@ -14,7 +14,7 @@ for(const theme of ['light','dark']) test(`arrayed broadcast and dimensions ${th
     await expect(tip.locator('.hl-type-tooltip-before > *')).toHaveText(rows);
     const broadcast=name.startsWith('broadcast');
     const full=broadcast?rows[2]:rows[2]+(nested?'[batch:2]':'[frame:100]');
-    await expect(tip.locator('.hl-type-tooltip-after > *')).toHaveText([broadcast?'arrayed (auto-popped)':'after arrayed',broadcast?rows[1]:`arrayed<${rows[1]}>`,full]);
+    await expect(tip.locator('.hl-type-tooltip-after > *')).toHaveText([broadcast?'arrayed (auto-popped)':'after arrayed',rows[1],full]);
     await expect(tip.locator('.hl-type-tooltip-columns > *')).toHaveCount(2);
   }
   await page.screenshot({path:info.outputPath(`${theme}-${name}.png`)});

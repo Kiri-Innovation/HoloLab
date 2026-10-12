@@ -1,5 +1,5 @@
 /** Versioned, JSON-safe type semantics. Never accepts or parses display text.
- * See docs/type-ir.md. Deliberately not wired into production in phase 1. */
+ * See docs/type-ir.md. Runtime observations remain separate from contracts. */
 import type { PortSpec } from '../wire';
 
 export type Axis = Readonly<{ label: string | null }>;
@@ -14,7 +14,7 @@ export type PortDeclaration = Readonly<Pick<PortSpec, 'tags' | 'arrayed' | 'scal
   tags_from?: string | null;
   dim_labels_from?: string | null;
   dim_labels_from_input?: string | null;
-  dim_labels_drop_outer?: number;
+  dim_labels_drop_outer?: number | null;
   content_dims_from?: string | null;
 }>;
 
@@ -34,6 +34,8 @@ export type ObservedAxis = Readonly<{
 }>;
 export type RuntimeShape = Readonly<{
   handleId: string | null;
+  /** Transitional name for a legacy single internal count. */
+  legacyCountKind?: string;
   tags: Observation<readonly string[]>;
   /** Ordered outer first; unknown is distinct from a known scalar ([]). */
   axes: Observation<readonly ObservedAxis[]>;

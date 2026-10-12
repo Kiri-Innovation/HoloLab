@@ -28,7 +28,7 @@ for (const theme of ['light', 'dark']) test(`port and edge tooltips ${theme}`, a
     for(const [name,anchor] of [['input',input],['output',output],['edge',edge]] as const){
       await anchor.hover();
       await expect(tip.locator('.hl-type-tooltip-content > *')).toHaveCount(3);
-      await expect(tip.locator('.hl-type-tooltip-content > :nth-child(2)')).toHaveText('arrayed<frame> of image,rgb');
+      await expect(tip.locator('.hl-type-tooltip-content > :nth-child(2)')).toHaveText('arrayed[frame]<image,rgb>');
       await expect(tip.locator('.hl-type-tooltip-content > :nth-child(3)')).toHaveText('未知');
       await expect(tip).toHaveCSS('--tooltip-scale',String(zoom));
       await expect(anchor).not.toHaveAttribute('title');
@@ -60,7 +60,7 @@ for (const theme of ['light','dark']) test(`three rows with runtime data ${theme
   ];
   for(const [i,anchor] of anchors.entries()){
     await anchor.hover();
-    await expect(tip.locator('.hl-type-tooltip-content > *')).toHaveText(['images','arrayed<frame> of any','image, rgb']);
+    await expect(tip.locator('.hl-type-tooltip-content > *')).toHaveText(['images','arrayed[frame]<any>','image, rgb']);
     const lines=await tip.locator('.hl-type-tooltip-content > *').evaluateAll(es=>es.map(e=>e.getBoundingClientRect().top));
     expect(lines[0]).toBeLessThan(lines[1]);expect(lines[1]).toBeLessThan(lines[2]);
     await page.screenshot({path:info.outputPath(`${theme}-runtime-${i}.png`)});

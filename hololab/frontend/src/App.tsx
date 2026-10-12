@@ -1249,8 +1249,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       );
       if (!portsCompatible(srcTags, srcArrayed, tgtTags, tgtArrayed, tgtIn?.scalar)) {
         // Flash a message via console for MVP; a toast is a follow-up.
-        const srcLabel = srcArrayed ? `arrayed<${srcTags.join(",")}>` : srcTags.join(",");
-        const tgtLabel = tgtArrayed ? `arrayed<${tgtTags.join(",")}>` : tgtTags.join(",");
+        const srcLabel = formatTypeLabelLong({ tags: srcTags, arrayed: srcArrayed, dimLabels: srcArrayed ? srcOut?.dim_labels ?? [] : [] });
+        const tgtLabel = formatTypeLabelLong({ tags: tgtTags, arrayed: tgtArrayed, dimLabels: tgtArrayed ? tgtIn?.dim_labels ?? [] : [] });
         console.warn(`edge rejected: ${srcLabel} → ${tgtLabel} incompatible`);
         return;
       }

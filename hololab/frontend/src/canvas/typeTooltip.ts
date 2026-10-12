@@ -1,33 +1,24 @@
-import { formatTypeLabel, formatTypeLabelLong, type EdgeType } from './edgeLabels';
+import type { EdgeType } from './edgeLabels';
+import type { PortDeclaration } from '../types/portTypeIR';
+import { adaptPortType, declarationType, elementRuntime, type PortContext } from '../types/legacyPortType';
+import { observedValue, renderPortType } from '../types/renderPortType';
 
-/** Runtime dimensions are outer-first. Describe one element, not the whole
- * collection. Keep inner dimensions and internal counts; never mutate chip data. */
-export function elementType(actual: EdgeType): EdgeType {
-  if (!actual.arrayed && !actual.dimLabels.length && !actual.dimSizes?.length) return actual;
-  const dimLabels = actual.dimLabels.slice(1);
-  const dimSizes = actual.dimSizes?.slice(1);
-  return { ...actual, dimLabels, dimSizes,
-    arrayed: Math.max(dimLabels.length, dimSizes?.length ?? 0) > 0 || actual.innerElementCount != null,
-    elementCount: dimSizes?.[0] ?? actual.innerElementCount,
-    innerElementCount: dimSizes?.[1],
-  };
-}
-
-/** Keep all tags (the compact edge chip intentionally abbreviates them). */
-export function typeTooltip(name: string, declared: EdgeType, actual: EdgeType & { runtimeAvailable?: boolean }, view?: { fanout: boolean; direction: "input" | "output"; broadcast?: boolean }) {
-  const declaration = formatTypeLabelLong({ tags: declared.tags, arrayed: declared.arrayed, dimLabels: declared.dimLabels });
-  const element = view?.fanout && view.broadcast ? actual : elementType(actual);
-  const runtime = actual.runtimeAvailable
-    ? actual.tags.map(tag => formatTypeLabel({ ...element, tags: [tag] })).join(', ') || '未知'
-    : '未知';
-  // A node toggle adds one collection layer to the left-hand view. Scalar
-  // broadcast ports are not wrapped: every invocation sees the same bundle.
-  const afterTitle = view?.fanout ? view.broadcast ? 'arrayed (auto-popped)' : 'after arrayed' : undefined;
-  const afterDeclared = view?.fanout ? view.broadcast ? declaration : `arrayed<${declaration}>` : undefined;
-  const fullRuntime = !actual.runtimeAvailable ? '未知'
-    : view?.broadcast || actual.arrayed || actual.dimLabels.length || actual.dimSizes?.length
-      ? actual.tags.map(tag => formatTypeLabel({ ...actual, tags: [tag] })).join(', ') || '未知'
-      : '未知（无 arrayed 维度）';
+/** Data assembly only: every type label is a terminal IR render. Effective
+ * legacy fields are already aggregate; never wrap a rendered declaration. */
+export function typeTooltip(name: string, declared: EdgeType, actual: EdgeType & { runtimeAvailable?: boolean },
+  view: PortContext = { fanout: false, direction: 'input' }, raw?: PortDeclaration) {
+  const source = raw ?? { tags: declared.tags, arrayed: declared.arrayed, dim_labels: declared.dimLabels };
+  const ir = adaptPortType(source, declared, { ...actual, runtimeAvailable: Boolean(actual.runtimeAvailable) }, view, view.handleId ?? null);
+  const original = raw ? declarationType(raw) : ir.views.aggregate;
+  const declaration = renderPortType(original, { mode: 'declaration' });
+  const broadcast = ir.views.participation === 'broadcast-input';
+  const item = broadcast ? ir.runtime : elementRuntime(ir.runtime);
+  const runtime = renderPortType(ir.views.invocation, { mode: 'runtime', runtime: item, unknown: '未知' });
+  const afterTitle = view.fanout ? broadcast ? 'arrayed (auto-popped)' : 'after arrayed' : undefined;
+  const afterDeclared = view.fanout ? renderPortType(ir.views.aggregate, { mode: 'declaration' }) : undefined;
+  const axes = observedValue(ir.runtime.axes);
+  const fullRuntime = !actual.runtimeAvailable ? '未知' : !broadcast && !axes?.length ? '未知（无 arrayed 维度）'
+    : renderPortType(ir.views.aggregate, { mode: 'runtime', runtime: ir.runtime, unknown: '未知' });
   return {
     'data-tooltip-after-title': afterTitle,
     'data-tooltip-after-declared': afterDeclared,

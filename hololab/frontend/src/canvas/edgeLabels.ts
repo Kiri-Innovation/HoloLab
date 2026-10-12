@@ -28,6 +28,8 @@
 // The chip renders inner-first (Python-convention: T[cam:21][frame:100])
 // so that the "element type" bracket sits closest to the tag name.
 
+import { runtimeFromLegacy, typeFromLegacy } from "../types/legacyPortType";
+import { renderPortType } from "../types/renderPortType";
 import type { CatalogPack, GraphEdge, GraphNode } from "../wire";
 import { effectivePortArrayed, effectivePortDimLabels } from "../tags";
 import { isAlgorithmGraphNode } from "./nodeMeta";
@@ -213,110 +215,12 @@ export function effectiveOutputType(
   return { tags, arrayed, dimLabels };
 }
 
-/** Base tag string used on the chip (compact form). Empty tag list
- *  degrades to ``"?"``; longer lists collapse to ``first+N`` so the
- *  chip stays bounded. */
-function baseChipTag(t: EdgeType): string {
-  if (t.tags.length === 0) return "?";
-  return t.tags.length <= 1 ? t.tags[0] : `${t.tags[0]}+${t.tags.length - 1}`;
-}
-
-/** Compact label suitable for an edge chip. Composes:
- *
- *    <base>                      scalar, no counts
- *    <base>(N)                   scalar + internal count
- *    <base>[N]                   1-D arrayed, unlabeled
- *    <base>[label:N]             1-D arrayed, dim label present
- *    <base>[C][F]                2-D arrayed, unlabeled (inner→outer)
- *    <base>[l_inner:C][l_outer:F] 2-D labeled (inner→outer)
- *
- *  Dimensions render inner→outer (Python convention) even though the
- *  backend stores them outer-first. Unknown array sizes use ``[?]``. */
+/** Compatibility facades for existing edge/inspector/snapshot consumers.
+ * All display formatting is delegated to the IR renderer. */
 export function formatTypeLabel(t: EdgeType): string {
-  const base = baseChipTag(t);
-  let s = base;
-  if (t.internalCountItems && t.internalCountItems.length > 0) {
-    const visible = t.internalCountItems.filter((x) => x.value !== 0);
-    if (visible.length > 0) {
-      s += `(${visible.map((x) => `${x.label}:${x.value}`).join(" ")})`;
-    }
-  } else if (t.internalCount != null) {
-    s += `(${t.internalCount})`;
-  }
-  if (t.dimLabels.length > 0 || t.arrayed || (t.dimSizes && t.dimSizes.length > 0)) {
-    // dimSizes.length is a floor: if the summary reports more dims than the
-    // static labels (stale catalog), still render the right bracket count.
-    const depth = Math.max(
-      t.dimLabels.length,
-      t.arrayed ? 1 : 0,
-      t.dimSizes?.length ?? 0,
-    );
-    // Render inner→outer: start from the deepest dim (highest index).
-    for (let i = depth - 1; i >= 0; i--) {
-      // dimSizes is the authoritative source; fall back to legacy scalar
-      // fields for handles that predate the dim_sizes payload.
-      let n: number | undefined;
-      if (t.dimSizes && i < t.dimSizes.length) {
-        n = t.dimSizes[i];
-      } else if (i === 0) {
-        n = t.elementCount;
-      } else if (i === 1) {
-        n = t.innerElementCount;
-      }
-      const label = t.dimLabels[i] ?? "";
-      const nStr = n != null ? String(n) : "?";
-      s += label ? `[${label}:${nStr}]` : `[${nStr}]`;
-    }
-  }
-  return s;
+  return renderPortType(typeFromLegacy(t), { mode: 'compact', runtime: runtimeFromLegacy({ ...t, runtimeAvailable: undefined }) });
 }
 
-/** Full human-readable form (with the full tag list and dim labels) —
- *  used for the hover title / tooltip. Empty dim label renders as
- *  ``arrayed<T>`` (old-style) rather than ``arrayed<> of T``.
- *  Dimension order matches the chip: inner→outer. */
 export function formatTypeLabelLong(t: EdgeType): string {
-  if (t.tags.length === 0) return "unknown";
-  const inner = t.tags.join(",");
-  // Filter to non-empty labels, then reverse to inner→outer display order.
-  const labels = t.dimLabels.filter((l) => l && l.length > 0).reverse();
-  let s: string;
-  if (t.dimLabels.length === 0 && !t.arrayed) {
-    s = inner;
-  } else if (labels.length === 0) {
-    // arrayed but no dim names — legacy wrapping form.
-    const wraps = Math.max(t.dimLabels.length, t.arrayed ? 1 : 0);
-    s = inner;
-    for (let i = 0; i < wraps; i++) s = `arrayed<${s}>`;
-  } else {
-    s = `arrayed<${labels.join(",")}> of ${inner}`;
-  }
-  if (t.internalCountItems && t.internalCountItems.length > 0) {
-    const visible = t.internalCountItems.filter((x) => x.value !== 0);
-    if (visible.length > 0) {
-      s += ` · ${visible.map((x) => `${x.label}:${x.value}`).join(", ")}`;
-    }
-  } else if (t.internalCount != null) {
-    const kind = t.internalCountKind ?? "count";
-    s += ` · ${t.internalCount} ${kind}`;
-  }
-  // Sizes also inner→outer to match chip order.
-  if (t.dimSizes && t.dimSizes.length > 0) {
-    const parts: string[] = [];
-    for (let i = t.dimSizes.length - 1; i >= 0; i--) {
-      const lbl = t.dimLabels[i] ?? "";
-      parts.push(lbl ? `${t.dimSizes[i]} ${lbl}` : String(t.dimSizes[i]));
-    }
-    s += ` · ${parts.join(", ")}`;
-  } else {
-    if (t.innerElementCount != null) {
-      s += ` · ${t.innerElementCount} inner`;
-    }
-    if (t.elementCount != null) {
-      s += t.innerElementCount != null
-        ? `, ${t.elementCount} outer`
-        : ` · ${t.elementCount} outer`;
-    }
-  }
-  return s;
+  return renderPortType(typeFromLegacy(t), { mode: 'long', runtime: runtimeFromLegacy(t) });
 }

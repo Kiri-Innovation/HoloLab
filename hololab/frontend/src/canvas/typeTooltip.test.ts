@@ -3,7 +3,7 @@ import {typeTooltip} from './typeTooltip';
 const declared={tags:['any'],arrayed:true,dimLabels:['frame']};
 it('keeps declaration independent of runtime and renders exactly three fields',()=>{
  const result=typeTooltip('images',declared,{tags:['image','rgb'],arrayed:true,dimLabels:['frame'],dimSizes:[100],runtimeAvailable:true});
- expect(result['data-tooltip'].split('\n')).toEqual(['images','arrayed<frame> of any','image, rgb']);
+ expect(result['data-tooltip'].split('\n')).toEqual(['images','arrayed[frame]<any>','image, rgb']);
 });
 it('never presents a declaration or failed summary as real data',()=>{
  expect(typeTooltip('images',declared,{...declared,runtimeAvailable:false})['data-tooltip-actual']).toBe('未知');
@@ -33,14 +33,14 @@ it('fanout broadcast retains an entire array handle, while split input takes one
  expect(typeTooltip('frames',declared,{...actual,runtimeAvailable:false},{fanout:true,direction:'output'})['data-tooltip-after-actual']).toBe('未知');
 });
 
-it('adds precisely one wrapper and shows the complete unmodified runtime on the right',()=>{
+it('does not rewrap aggregate declarations and keeps full runtime on the right',()=>{
  const actual={tags:['image'],arrayed:true,dimLabels:['frame','cam'],dimSizes:[100,21],runtimeAvailable:true};
  const type={tags:['image'],arrayed:true,dimLabels:['']};
  const result=typeTooltip('frames',type,actual,{fanout:true,direction:'input'});
  expect(result['data-tooltip'].split('\n')).toEqual(['frames','arrayed<image>','image[cam:21]']);
- expect(result['data-tooltip-after-declared']).toBe('arrayed<arrayed<image>>');
+ expect(result['data-tooltip-after-declared']).toBe('arrayed<image>');
  expect(result['data-tooltip-after-actual']).toBe('image[cam:21][frame:100]');
- expect(typeTooltip('frames',{...type,dimLabels:['','']},actual,{fanout:true,direction:'input'})['data-tooltip-after-declared']).toBe('arrayed<arrayed<arrayed<image>>>');
+ expect(typeTooltip('frames',{...type,dimLabels:['','']},actual,{fanout:true,direction:'input'})['data-tooltip-after-declared']).toBe('arrayed<arrayed<image>>');
  expect(typeTooltip('frames',type,actual)['data-tooltip-after-declared']).toBeUndefined();
  expect(typeTooltip('frames',type,{...actual,arrayed:false,dimLabels:[],dimSizes:[]},{fanout:true,direction:'input'})['data-tooltip-after-actual']).toBe('未知（无 arrayed 维度）');
 });

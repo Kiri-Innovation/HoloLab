@@ -213,15 +213,15 @@ function TypedEdgeInner({
   const name = (targetFanout ? targetHandleId : sourceHandleId) ?? '未知';
   const port = targetFanout ? owner?.pack.inputs[name] : owner?.pack.outputs[name];
   const scalarInput = targetFanout && port?.scalar;
-  const declared = port && owner ? {
+  const declared = !targetFanout && edgeType ? edgeType : port && owner ? {
     tags: port.tags,
     arrayed: effectivePortArrayed(port.arrayed, owner.pack.arrayable, Boolean(owner.arrayed_toggle), scalarInput),
     dimLabels: effectivePortDimLabels(port.arrayed, port.dim_labels, owner.pack.arrayable, Boolean(owner.arrayed_toggle), scalarInput),
   } : edgeType ?? { tags: [], arrayed: false, dimLabels: [] };
   const tooltip = typeTooltip(name, declared, enriched, {
     fanout: Boolean(owner?.arrayed_toggle && owner.pack?.arrayable),
-    direction: targetFanout ? 'input' : 'output', broadcast: Boolean(scalarInput),
-  });
+    handleId, direction: targetFanout ? 'input' : 'output', broadcast: Boolean(scalarInput),
+  }, port);
 
   const stroke = selected ? "var(--accent)" : "var(--rf-edge, var(--border-strong))";
   const strokeWidth = selected ? STROKE_SELECTED : STROKE_DEFAULT;

@@ -1,7 +1,8 @@
 # Port type IR: phased unification
 
-Status: phase 1, isolated TypeScript model and pure operations. No production
-consumer, wire payload, validator, runtime or pack contract changes in this phase.
+Status: phases 1–2 implemented. Frontend outlets now use explicit legacy adapters
+and a terminal IR renderer. Backend wire payloads, validation, runtime execution
+and pack contracts are unchanged.
 Source: `hololab/frontend/src/types/portTypeIR.ts`.
 
 ## Contract
@@ -50,8 +51,8 @@ existing effective-arrayed rule is an OR operation, not unconditional recursive
 wrapping. A scalar output can be aggregated, while a scalar input is broadcast.
 Blindly converting these fields and wrapping again repeats the current bug.
 
-Phase 2 must provide explicit source-aware adapters; phase 3 will centralize the
-normalization. Reuse `effective_port_arrayed`, `effective_output_tags` and
+Phase 2 provides explicit source-aware adapters (below); phase 3 will centralize
+the normalization. Reuse `effective_port_arrayed`, `effective_output_tags` and
 `effective_output_dim_labels` rather than silently inventing new pack semantics.
 When legacy metadata cannot distinguish collection and content axes, retain
 unknown provenance/role and do not guess from a display string or label spelling.
@@ -163,9 +164,10 @@ content axes not being popped, JSON serialization, and all three observation
 statuses including zero. No UI wiring means existing production behavior is
 unchanged; run existing UI regression tests and frontend build as confirmation.
 
-Stop after phase 1 for review. Subsequent stages require separate acceptance:
+Phase 1 was accepted before phase 2 began. Stop after phase 2 for review;
+subsequent stages require separate acceptance:
 
-2. Source-aware adapters and one renderer across five outlets; preserve captions
+2. Implemented: source-aware adapters and one renderer across five outlets; preserve captions
    without deriving semantics from them. Test labeled/unlabeled and already-
    aggregate sources, which existing screenshot fixtures do not exhaust.
 3. Backend normalization shared by resolved types and validation, with additive
@@ -177,3 +179,61 @@ Stop after phase 1 for review. Subsequent stages require separate acceptance:
    and pack compatibility; report any schema change before implementing it.
 
 No pack files, scheduler behavior or runtime processes are changed in phase 1.
+
+
+## Phase 2 implementation and acceptance
+
+`legacyPortType.ts` is the sole bridge for the display migration:
+
+- `typeFromLegacy` accepts effective `EdgeType` fields, including the fields
+  already sourced from backend `resolved_outputs`. An array flag constructs
+  collection layers (unnamed legacy arrays retain one layer); scalar axes are
+  object content axes, not automatic collection promotion.
+- `declarationType` reads raw `PortSpec` fields. It does not apply `tags_from` or
+  reimplement graph inference. The left tooltip declaration remains author intent;
+  the effective right-hand view uses the already-resolved fields instead.
+- `legacyViews` requires explicit `invocation` or `aggregate` provenance. Only an
+  invocation source can be wrapped; an aggregate source is reused and one known
+  collection layer is removed to obtain the invocation view. Broadcast reuses
+  the whole type, including an existing array, without introducing a dimension.
+- Production `adaptPortType` always receives **effective aggregate** fields from
+  the existing helpers/resolver. In particular `arrayed: true` plus a node toggle
+  does not cause another array layer: current pack semantics use OR, not an
+  additional wrapper. This corrects the previous tooltip's unconditional shell.
+- `runtimeFromLegacy` maps summary facts to observation fields with unknown
+  coverage and preserved `legacyValue`; it does not promote a count to complete
+  evidence. `elementRuntime` preserves the existing third-row element projection
+  and retains count provenance. This is not a per-shard verification API.
+
+`renderPortType` is the only type renderer, with declaration, long, compact and
+runtime modes. Named array axes now render as `arrayed[frame]<colmap-cams>`;
+unnamed arrays remain `arrayed<T>`. Recursive structures retain every layer,
+including unnamed ones. The old `arrayed<frame> of T` ambiguity is removed.
+Compact/runtime counts retain `T(pose:21 intr:1)[frame:100]` and inner-first
+brackets. Long inspection labels retain available count details. Legacy values
+remain visible during migration but the IR never labels their coverage complete.
+
+`formatTypeLabel` / `formatTypeLabelLong` remain as thin compatibility facades
+used by edge chips, inspectors and snapshot labels; they contain no formatting
+rules. Frontend rejection messages call the same facade. The backend rejection
+message remains unchanged until phase 3. There is still no visible rejection
+popup: the existing console warning is tested without adding a new interaction.
+
+Snapshot edge labels continue to use frozen producer `resolved_outputs` and
+snapshot job handles. Card layout and snapshot interaction are unchanged in this
+phase. Pack metadata still comes from the catalog for the snapshot's algorithm
+version, as before; there is no new claim that historical input declarations are
+separately frozen. Existing snapshot node cards do not forward `arrayed_toggle`
+to their visual wrapper: that pre-existing layout/mode limitation is not changed
+here, because enabling it would move connection anchors. The historical wire
+type is still preserved and explicitly tested independently of the card layout.
+
+Regression distinction: a chip without runtime data can show the **known contract**
+with an unknown count (`image[frame:?]`), while the tooltip's actual-data row must
+remain `未知`. This has a dedicated test; summary absence must not erase known
+contract information or invent an actual result.
+
+Remaining boundaries are intentional: phase 2 does not change frontend/backend
+compatibility policy, discover array provenance from arbitrary filesystem paths,
+or claim that legacy summaries record full measurement coverage. Those concerns
+remain phases 3–4. Current resolver behavior is reused, not duplicated in adapters.
