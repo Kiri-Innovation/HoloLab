@@ -671,3 +671,8 @@ a:hover { text-decoration: underline; }
 .hl-tooltip--type-dual[data-stacked="true"] section + section { border-left: 0; border-top: 1px solid var(--border-subtle); padding-left: 0; padding-top: calc(var(--space-2) * var(--tooltip-scale)); }
 
 .hl-type-tooltip-columns section > span { color: var(--text-muted); font-family: var(--font-mono); overflow-wrap: anywhere; }
+
+.hl-tooltip--connection { max-width: min(calc(380px * var(--tooltip-scale)), calc(100vw - 16px)); }
+.hl-connection-tooltip { display: flex; flex-direction: column; gap: calc(var(--space-1) * var(--tooltip-scale)); }
+.hl-connection-tooltip strong { color: var(--error); }
+.hl-connection-tooltip[data-valid="true"] strong { color: var(--success); }

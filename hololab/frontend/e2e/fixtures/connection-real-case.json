@@ -1,0 +1,421 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "nmv4xtft71",
+        "kind": "algorithm",
+        "algorithm_name": "stg-train",
+        "algorithm_version": "0.3.0",
+        "position": {
+          "x": 500,
+          "y": 150
+        },
+        "params": {},
+        "assigned_node_id": null,
+        "arrayed_toggle": false,
+        "parallelism": 1,
+        "batch_size": 1
+      },
+      {
+        "id": "r3groups",
+        "kind": "algorithm",
+        "algorithm_name": "rig-temporal-grouping",
+        "algorithm_version": "0.1.5",
+        "position": {
+          "x": -1200,
+          "y": 750
+        },
+        "params": {},
+        "assigned_node_id": null,
+        "arrayed_toggle": false,
+        "parallelism": 1,
+        "batch_size": 1
+      },
+      {
+        "id": "nmv1ulffp1",
+        "kind": "algorithm",
+        "algorithm_name": "colmap-sfm",
+        "algorithm_version": "0.4.0",
+        "position": {
+          "x": -1200,
+          "y": 2250
+        },
+        "params": {},
+        "assigned_node_id": null,
+        "arrayed_toggle": false,
+        "parallelism": 1,
+        "batch_size": 1
+      },
+      {
+        "id": "tri_g0",
+        "kind": "algorithm",
+        "algorithm_name": "colmap-triangulate",
+        "algorithm_version": "0.7.5",
+        "position": {
+          "x": -1200,
+          "y": 3000
+        },
+        "params": {},
+        "assigned_node_id": null,
+        "arrayed_toggle": true,
+        "parallelism": 1,
+        "batch_size": 1
+      },
+      {
+        "id": "und_g0",
+        "kind": "algorithm",
+        "algorithm_name": "image-undistort",
+        "algorithm_version": "0.5.2",
+        "position": {
+          "x": -1200,
+          "y": 3250
+        },
+        "params": {},
+        "assigned_node_id": null,
+        "arrayed_toggle": true,
+        "parallelism": 1,
+        "batch_size": 1
+      },
+      {
+        "id": "merge_g0",
+        "kind": "algorithm",
+        "algorithm_name": "merge-colmap",
+        "algorithm_version": "0.4.0",
+        "position": {
+          "x": 0,
+          "y": 150
+        },
+        "params": {},
+        "assigned_node_id": null,
+        "arrayed_toggle": true,
+        "parallelism": 1,
+        "batch_size": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": "e_tri_cams",
+        "source": "nmv1ulffp1",
+        "sourceHandle": "cams",
+        "target": "tri_g0",
+        "targetHandle": "cams"
+      },
+      {
+        "id": "e_tri_frames_all",
+        "source": "r3groups",
+        "sourceHandle": "groups",
+        "target": "tri_g0",
+        "targetHandle": "frames"
+      },
+      {
+        "id": "e_und_cams",
+        "source": "nmv1ulffp1",
+        "sourceHandle": "cams",
+        "target": "und_g0",
+        "targetHandle": "cams"
+      },
+      {
+        "id": "e_und_images",
+        "source": "r3groups",
+        "sourceHandle": "groups",
+        "target": "und_g0",
+        "targetHandle": "images"
+      },
+      {
+        "id": "e_merge_points",
+        "source": "tri_g0",
+        "sourceHandle": "points",
+        "target": "merge_g0",
+        "targetHandle": "points"
+      },
+      {
+        "id": "e_merge_cams",
+        "source": "und_g0",
+        "sourceHandle": "cams",
+        "target": "merge_g0",
+        "targetHandle": "cams"
+      },
+      {
+        "id": "e_merge_images",
+        "source": "und_g0",
+        "sourceHandle": "images",
+        "target": "merge_g0",
+        "targetHandle": "images"
+      }
+    ]
+  },
+  "catalog": [
+    {
+      "name": "stg-train",
+      "version": "0.3.0",
+      "manifest_hash": "fixture",
+      "node_ids": [],
+      "inputs": {
+        "colmap_frames": {
+          "tags": [
+            "colmap-folder"
+          ],
+          "required": true,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "frame"
+          ]
+        },
+        "flow_dir": {
+          "tags": [
+            "t4w_flow"
+          ],
+          "required": false,
+          "arrayed": false,
+          "scalar": false,
+          "dim_labels": []
+        }
+      },
+      "outputs": {
+        "model_dir": {
+          "tags": [
+            "stg_model",
+            "splatv"
+          ],
+          "arrayed": false,
+          "scalar": false,
+          "dim_labels": [],
+          "dim_labels_drop_outer": 0
+        }
+      },
+      "params": {},
+      "arrayable": false
+    },
+    {
+      "name": "rig-temporal-grouping",
+      "version": "0.1.5",
+      "manifest_hash": "fixture",
+      "node_ids": [],
+      "inputs": {
+        "frames": {
+          "tags": [
+            "image"
+          ],
+          "required": true,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "cam",
+            "index"
+          ]
+        }
+      },
+      "outputs": {
+        "groups": {
+          "tags": [
+            "image"
+          ],
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "group",
+            "cam"
+          ],
+          "dim_labels_drop_outer": 0
+        },
+        "exposure_timeline": {
+          "tags": [
+            "rig_timeline"
+          ],
+          "arrayed": false,
+          "scalar": false,
+          "dim_labels": [],
+          "dim_labels_drop_outer": 0
+        }
+      },
+      "params": {},
+      "arrayable": false
+    },
+    {
+      "name": "colmap-sfm",
+      "version": "0.4.0",
+      "manifest_hash": "fixture",
+      "node_ids": [],
+      "inputs": {
+        "frames": {
+          "tags": [
+            "image"
+          ],
+          "required": true,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "cam"
+          ]
+        }
+      },
+      "outputs": {
+        "cams": {
+          "tags": [
+            "colmap-cams"
+          ],
+          "arrayed": false,
+          "scalar": false,
+          "dim_labels": [],
+          "dim_labels_drop_outer": 0
+        },
+        "points": {
+          "tags": [
+            "point-cloud"
+          ],
+          "arrayed": false,
+          "scalar": false,
+          "dim_labels": [],
+          "dim_labels_drop_outer": 0
+        }
+      },
+      "params": {},
+      "arrayable": false
+    },
+    {
+      "name": "colmap-triangulate",
+      "version": "0.7.5",
+      "manifest_hash": "fixture",
+      "node_ids": [],
+      "inputs": {
+        "cams": {
+          "tags": [
+            "colmap-cams"
+          ],
+          "required": true,
+          "arrayed": false,
+          "scalar": true,
+          "dim_labels": []
+        },
+        "frames": {
+          "tags": [
+            "image"
+          ],
+          "required": true,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "cam"
+          ]
+        }
+      },
+      "outputs": {
+        "points": {
+          "tags": [
+            "point-cloud"
+          ],
+          "arrayed": false,
+          "scalar": true,
+          "dim_labels": [],
+          "dim_labels_drop_outer": 0
+        }
+      },
+      "params": {},
+      "arrayable": true
+    },
+    {
+      "name": "image-undistort",
+      "version": "0.5.2",
+      "manifest_hash": "fixture",
+      "node_ids": [],
+      "inputs": {
+        "cams": {
+          "tags": [
+            "colmap-cams"
+          ],
+          "required": true,
+          "arrayed": false,
+          "scalar": true,
+          "dim_labels": []
+        },
+        "images": {
+          "tags": [
+            "image"
+          ],
+          "required": true,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "cam"
+          ]
+        }
+      },
+      "outputs": {
+        "cams": {
+          "tags": [
+            "colmap-cams"
+          ],
+          "arrayed": false,
+          "scalar": true,
+          "dim_labels": [],
+          "dim_labels_drop_outer": 0
+        },
+        "images": {
+          "tags": [
+            "image"
+          ],
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "cam"
+          ],
+          "dim_labels_drop_outer": 0
+        }
+      },
+      "params": {},
+      "arrayable": true
+    },
+    {
+      "name": "merge-colmap",
+      "version": "0.4.0",
+      "manifest_hash": "fixture",
+      "node_ids": [],
+      "inputs": {
+        "cams": {
+          "tags": [
+            "colmap-cams"
+          ],
+          "required": true,
+          "arrayed": false,
+          "scalar": false,
+          "dim_labels": []
+        },
+        "points": {
+          "tags": [
+            "point-cloud"
+          ],
+          "required": true,
+          "arrayed": false,
+          "scalar": false,
+          "dim_labels": []
+        },
+        "images": {
+          "tags": [
+            "image"
+          ],
+          "required": false,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "cam"
+          ]
+        }
+      },
+      "outputs": {
+        "folder": {
+          "tags": [
+            "colmap-folder"
+          ],
+          "arrayed": false,
+          "scalar": true,
+          "dim_labels": [],
+          "dim_labels_drop_outer": 0
+        }
+      },
+      "params": {},
+      "arrayable": true
+    }
+  ],
+  "_source": "Read-only extract of workflow 272b31c3-e2ca-4fd5-a8c8-03a38a97711d and installed manifests, 2026-10-12. Relevant type graph preserved; device IDs, paths and display positions removed/replaced. No backend resolved_outputs override."
+}

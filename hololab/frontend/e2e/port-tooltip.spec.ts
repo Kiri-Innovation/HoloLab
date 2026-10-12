@@ -41,7 +41,8 @@ for (const theme of ['light', 'dark']) test(`port and edge tooltips ${theme}`, a
   await output.hover();await expect(tip).toBeVisible();
   const spare=page.locator('[data-id="n1"] .react-flow__handle.target[data-handleid="spare"]');
   await page.mouse.down();await spare.hover();await page.waitForTimeout(450);
-  await expect(tip).toHaveCount(0);
+  await expect(tip.locator(".hl-type-tooltip-content")).toHaveCount(0);
+  await expect(tip.locator(".hl-connection-tooltip")).toHaveAttribute("data-valid", "true");
   await expect(page.locator('.react-flow__connection-path')).toHaveCount(1);
   await page.mouse.up();
   await expect(page.locator(".hl-edge-chip")).toHaveCount(2);

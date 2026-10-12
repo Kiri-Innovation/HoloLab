@@ -62,7 +62,8 @@ import {
   runWorkflow,
   saveWorkflow,
 } from "./api";
-import { portsCompatible, effectivePortArrayed, effectivePortDimLabels } from "./tags";
+import { validateConnection } from "./canvas/connectionValidation";
+import { useConnectionFeedback } from "./canvas/ConnectionFeedback";
 import { diffGraphs } from "./canvas/diffGraphs";
 import type { DiffItem } from "./canvas/diffGraphs";
 import {
@@ -1210,48 +1211,32 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const runSummary = useMemo(() => summarise(workflowJobs), [workflowJobs]);
 
-  // --- xyflow onConnect: tag-check before adding the edge --------------
+  // Build the type context once per graph change, never fetch during a drag.
+  const connectionContext = useMemo(() => ({
+    nodes: nodes.flatMap(n => {
+      const d = algorithmDataForNode(n);
+      return d ? [{ id: n.id, algorithm_name: d.pack.name, algorithm_version: d.pack.version,
+        position: n.position, params: d.params ?? {}, arrayed_toggle: d.arrayed_toggle,
+        assigned_node_id: d.assigned_node_id }] : [];
+    }),
+    catalogByKey: new Map(nodes.flatMap(n => {
+      const d = algorithmDataForNode(n);
+      return d ? [[`${d.pack.name}@${d.pack.version}`, d.pack] as const] : [];
+    })),
+    edges: edges.map(e => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle ?? "",
+      target: e.target, targetHandle: e.targetHandle ?? "" })),
+  }), [nodes, edges]);
+  const viewIds = useMemo(() => new Set(nodes.filter(n => (n.data as ViewNodeData).kind === "view").map(n => n.id)), [nodes]);
+  const checkConnection = useCallback((conn: Connection) => validateConnection(conn, connectionContext, viewIds), [connectionContext, viewIds]);
+  const { onConnectEnd, recordVerdict } = useConnectionFeedback(checkConnection);
   const onConnect: OnConnect = useCallback(
     (conn: Connection) => {
-      if (!conn.source || !conn.target || !conn.sourceHandle || !conn.targetHandle) return;
-
-      const src = nodes.find((n) => n.id === conn.source)?.data;
-      const tgt = nodes.find((n) => n.id === conn.target)?.data;
-      if (!src || !tgt) return;
-      if ((tgt as ViewNodeData).kind === "view") {
-        if (conn.targetHandle !== "in" || (src as ViewNodeData).kind === "view") return;
-        if (edges.some((e) => e.target === conn.target && e.targetHandle === "in")) return;
-        setEdges((es) => addEdge({ ...conn, id: mintId("e"), type: "typed", data: {} }, es));
+      const verdict = checkConnection(conn);
+      recordVerdict(verdict);
+      if (!verdict.ok) {
+        console.warn(`edge rejected: ${verdict.actual} → ${verdict.expected} incompatible`);
         return;
       }
-      if ((src as ViewNodeData).kind === "view") return;
-
-      const tgtIn = tgt.pack.inputs[conn.targetHandle];
-      if (!src.pack.outputs[conn.sourceHandle] || !tgtIn) return;
-      const graphNodes = nodes.flatMap(n => {
-        const d = algorithmDataForNode(n);
-        return d ? [{ id: n.id, algorithm_name: d.pack.name, algorithm_version: d.pack.version,
-          position: n.position, params: d.params ?? {}, arrayed_toggle: d.arrayed_toggle,
-          assigned_node_id: d.assigned_node_id }] : [];
-      });
-      const catalog = new Map(nodes.flatMap(n => {
-        const d = algorithmDataForNode(n);
-        return d ? [[`${d.pack.name}@${d.pack.version}`, d.pack] as const] : [];
-      }));
-      const sourceType = effectiveOutputType(conn.source, conn.sourceHandle, {
-        nodes: graphNodes, catalogByKey: catalog,
-        edges: edges.map(e => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle ?? "",
-          target: e.target, targetHandle: e.targetHandle ?? "" })),
-      });
-      const targetType = { tags: tgtIn.tags,
-        arrayed: effectivePortArrayed(tgtIn.arrayed, tgt.pack.arrayable, tgt.arrayed_toggle, tgtIn.scalar),
-        dimLabels: effectivePortDimLabels(tgtIn.arrayed, tgtIn.dim_labels, tgt.pack.arrayable, tgt.arrayed_toggle, tgtIn.scalar) };
-      if (!portsCompatible(sourceType.tags, sourceType.arrayed, targetType.tags, targetType.arrayed,
-        tgtIn.scalar, sourceType.dimLabels, targetType.dimLabels)) {
-        console.warn(`edge rejected: ${formatTypeLabelLong(sourceType)} → ${formatTypeLabelLong(targetType)} incompatible`);
-        return;
-      }
-
       setEdges((es) =>
         addEdge(
           {
@@ -1265,7 +1250,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         ),
       );
     },
-    [nodes, edges, setEdges],
+    [checkConnection, recordVerdict, setEdges],
   );
 
   // --- drop target: convert a dragged pack into a canvas node ----------
@@ -2565,6 +2550,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             onNodesDelete={onNodesDelete}
             onNodeClick={onNodeClick}
             onConnect={onConnect}
+            onConnectEnd={onConnectEnd}
             onInit={setRfInstance}
             deleteKeyCode="Backspace"
             fitView

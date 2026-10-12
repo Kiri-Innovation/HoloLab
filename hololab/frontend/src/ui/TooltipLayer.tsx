@@ -4,6 +4,8 @@ import { NodeStatusTooltipCard } from "./NodeStatusTooltip";
 import { NodeTitleTooltipCard } from "./NodeTitleTooltip";
 import { tooltipGeometry } from "./tooltipGeometry";
 
+import { CONNECTION_TOOLTIP_EVENT, type ConnectionTooltip } from "./connectionTooltip";
+
 const readContent = (target: HTMLElement) => ({ afterTitle: target.dataset.tooltipAfterTitle, afterDeclared: target.dataset.tooltipAfterDeclared, afterActual: target.dataset.tooltipAfterActual, typeName: target.dataset.tooltipType, declared: target.dataset.tooltipDeclared, actual: target.dataset.tooltipActual, text: target.dataset.tooltip ?? "",
   status: target.dataset.tooltipStatus, reason: target.dataset.tooltipReason, action: target.dataset.tooltipAction,
   title: target.dataset.tooltipTitle, version: target.dataset.tooltipVersion, device: target.dataset.tooltipDevice });
@@ -11,7 +13,14 @@ const readContent = (target: HTMLElement) => ({ afterTitle: target.dataset.toolt
 /** Body portal avoids clipping; CSS dimensions follow the anchor's canvas zoom. */
 export function TooltipLayer() {
   const id = useId();
-  const [tip, setTip] = useState<{ target: HTMLElement } & ReturnType<typeof readContent> | null>(null);
+  const [ordinaryTip, setTip] = useState<{ target: HTMLElement } & ReturnType<typeof readContent> | null>(null);
+  const [connectionTip, setConnectionTip] = useState<ConnectionTooltip | null>(null);
+  useEffect(() => {
+    const update = (e: Event) => setConnectionTip((e as CustomEvent<ConnectionTooltip | null>).detail);
+    document.addEventListener(CONNECTION_TOOLTIP_EVENT, update);
+    return () => document.removeEventListener(CONNECTION_TOOLTIP_EVENT, update);
+  }, []);
+  const tip = connectionTip ? { target: connectionTip.target, ...readContent(connectionTip.target), typeName: undefined, afterDeclared: undefined, title: undefined, status: undefined, text: "" } : ordinaryTip;
   const bubble = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,11 +98,13 @@ export function TooltipLayer() {
     const viewport = tip.target.closest<HTMLElement>(".react-flow__viewport");
     let frame = 0;
     const update = () => {
-      if (!tip.target.isConnected) { setTip(null); return; }
+      if (!tip.target.isConnected) { setTip(null); setConnectionTip(null); return; }
       // Playback may end, or a toggle may change while focus/hover stays put.
       const content = readContent(tip.target);
-      if (!content.text) { setTip(null); return; }
-      if (content.afterTitle !== tip.afterTitle || content.afterDeclared !== tip.afterDeclared || content.afterActual !== tip.afterActual || content.typeName !== tip.typeName || content.declared !== tip.declared || content.actual !== tip.actual || content.text !== tip.text || content.title !== tip.title || content.version !== tip.version || content.device !== tip.device || content.status !== tip.status || content.reason !== tip.reason || content.action !== tip.action) { setTip({ target: tip.target, ...content }); return; }
+      if (!connectionTip) {
+        if (!content.text) { setTip(null); return; }
+        if (content.afterTitle !== tip.afterTitle || content.afterDeclared !== tip.afterDeclared || content.afterActual !== tip.afterActual || content.typeName !== tip.typeName || content.declared !== tip.declared || content.actual !== tip.actual || content.text !== tip.text || content.title !== tip.title || content.version !== tip.version || content.device !== tip.device || content.status !== tip.status || content.reason !== tip.reason || content.action !== tip.action) { setTip({ target: tip.target, ...content }); return; }
+      }
       const matrix = viewport ? new DOMMatrixReadOnly(getComputedStyle(viewport).transform) : null;
       const zoom = matrix ? Math.hypot(matrix.a, matrix.b) : 1;
       // Resize actual CSS text metrics, not a rasterized transform layer.
@@ -137,11 +148,18 @@ export function TooltipLayer() {
       window.removeEventListener("resize", schedule);
       document.removeEventListener("scroll", schedule, true);
     };
-  }, [tip]);
+  }, [ordinaryTip, connectionTip]);
 
   return tip ? createPortal(
-    <div ref={bubble} id={id} role="tooltip" className={`hl-tooltip${!tip.typeName && !tip.title && !tip.status && tip.text.includes("\n") ? " hl-tooltip--multiline" : ""}${tip.typeName ? ` hl-tooltip--type${tip.afterDeclared ? " hl-tooltip--type-dual" : ""}` : tip.title ? " hl-tooltip--title" : tip.status ? " hl-tooltip--status" : ""}`}>
-      {tip.typeName && tip.afterDeclared ? <div className="hl-type-tooltip-columns">
+    <div ref={bubble} id={id} role="tooltip" className={`hl-tooltip${connectionTip ? " hl-tooltip--connection hl-tooltip--title" : ""}${!tip.typeName && !tip.title && !tip.status && tip.text.includes("\n") ? " hl-tooltip--multiline" : ""}${tip.typeName ? ` hl-tooltip--type${tip.afterDeclared ? " hl-tooltip--type-dual" : ""}` : tip.title ? " hl-tooltip--title" : tip.status ? " hl-tooltip--status" : ""}`}>
+      {connectionTip ? <div className="hl-connection-tooltip" data-valid={connectionTip.verdict.ok} role="status" aria-live="polite">
+        <strong>{connectionTip.verdict.ok ? '✓ 可以连接' : '✕ 无法连接'}</strong>
+        {!connectionTip.verdict.ok && <>
+          <span>{connectionTip.verdict.reason}</span>
+          {connectionTip.verdict.expected && <span>预期：{connectionTip.verdict.expected}</span>}
+          {connectionTip.verdict.actual && <span>实际：{connectionTip.verdict.actual}</span>}
+        </>}
+      </div> : tip.typeName && tip.afterDeclared ? <div className="hl-type-tooltip-columns">
         <section className="hl-type-tooltip-before"><strong>{tip.typeName}</strong><span>{tip.declared}</span><span>{tip.actual}</span></section>
         <section className="hl-type-tooltip-after"><strong>{tip.afterTitle}</strong><span>{tip.afterDeclared}</span><span>{tip.afterActual}</span></section>
       </div> : tip.typeName ? <div className="hl-type-tooltip-content">
