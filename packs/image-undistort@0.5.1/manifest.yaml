@@ -173,6 +173,9 @@ inputs:
       Must be a single-camera / OPENCV rig.
   images:
     tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [cam]
     description: >
       Per-frame image directory. Fan-out driver — one shard per element.
       Element dir must contain the per-cam image files inline (regroup
@@ -235,7 +238,6 @@ outputs:
   cams:
     tags: [colmap-cams]
     scalar: true
-    dim_labels: ["frame"]
     description: >
       Per-shard PINHOLE ``colmap-cams`` bundle (cameras.txt PINHOLE +
       images.txt with 21 poses preserved from the SfM prior). Framework
@@ -244,8 +246,9 @@ outputs:
       come from the scalar SfM broadcast).
   images:
     tags: [image]
-    scalar: true
-    dim_labels: ["frame", "cam"]
+    arrayed: true
+    storage: dir
+    dim_labels: [cam]
     description: >
       Per-shard undistorted images, at the PINHOLE resolution. Files
       sit directly under the shard's element dir (post flatten

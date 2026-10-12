@@ -43,7 +43,8 @@ class StorageForm(str, Enum):
     This is an internal transport hint — it drives whether cross-node
     materialization pulls a single file or a tarball of a directory tree.
     Users authoring a graph never see it; it does NOT participate in edge
-    compatibility (that's tags-only).
+    compatibility (tags and collection axes do). The image contract additionally
+    requires file storage for a single image and dir storage for an array.
     """
 
     DIR = "dir"
@@ -58,30 +59,14 @@ class StorageForm(str, Enum):
 class InputSpec(BaseModel):
     """Declared input port on an algorithm node.
 
-    ``tags`` is the *object type* the port accepts — the only thing edge
-    compatibility looks at. ``storage`` is an internal transport hint (see
-    :class:`StorageForm`); it defaults to ``dir`` and never affects edge
-    matching. ``description`` is authorial help shown in tooltips.
+    ``tags`` and ``arrayed``/``dim_labels`` describe ONE invocation. Each
+    collection axis is a directory-container layer; leaves can be files (image)
+    or opaque bundles. ``image`` means one fully decodable image file.
 
-    ``arrayed`` marks the port as accepting an ``arrayed<T>`` value — a
-    directory whose immediate subdirectories are elements. See
-    ``docs/pack-spec.md#arrayed-and-arrayable``. Combines with the
-    containing pack's ``arrayable`` flag: an arrayable pack's ports flip
-    to arrayed at the graph node's ``arrayed_toggle`` (per-node checkbox).
-
-    The special tag ``any`` is a wildcard — it matches every other tag at
-    edge-compatibility time. Utility packs (``arrayfy`` / ``get-index`` /
-    ``array-length``) that operate over any element type use this.
-
-    Backward-compatible legacy fields (``type``, ``optional``) are accepted
-    but no longer participate in validation — they are recorded and ignored.
-
-    ``scalar`` pins this port to non-arrayed **regardless** of the node's
-    ``arrayed_toggle``. Use it on ports that receive a single shared value
-    (e.g. a cameras.txt that is broadcast to every shard) when the node is
-    otherwise arrayable. Without ``scalar: true``, the toggle would flip the
-    port to arrayed and the framework would try to enumerate subdirectories in
-    the handle, finding 0 elements and raising an element-set mismatch error.
+    Node-level fan-out adds one outer collection. ``scalar`` on an input means
+    broadcast this complete declared value to each invocation, without removing
+    its own collection layers. ``any`` is an explicitly unconstrained leaf.
+    Existing ``type`` / ``optional`` legacy fields remain ignored.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -92,30 +77,19 @@ class InputSpec(BaseModel):
     description: str | None = None
     arrayed: bool = False
     scalar: bool = False
-    # Per-dimension semantic labels for the AGGREGATE handle this port sees,
-    # **outer dim first**. Applies at three levels:
-    #   * ``arrayed=true``: labels describe the arrayed<...> dims the pack
-    #     itself emits/consumes. ``["frame","camera"]`` = 2-D
-    #     ``arrayed<arrayed<T>>``.
-    #   * ``scalar=true`` (or default per-shard) on an ``arrayable`` pack:
-    #     the framework wraps N shards into ``arrayed<T>`` at the aggregate,
-    #     so the FIRST label names that wrap dim (usually the enumeration
-    #     axis of the driving arrayed input). Remaining labels are
-    #     tag-intrinsic content dims resolved via
-    #     :mod:`hololab.gateway.tag_probes` (e.g. ``image_sequence`` adds
-    #     one inner dim = files under ``frames/``).
-    #   * ``scalar=true`` on a non-arrayable pack: labels are pure content
-    #     dims (no wrap layer added).
+    # Single-invocation collection labels, outer first. Node fan-out is separate.
     dim_labels: list[str] = Field(default_factory=list)
-    # Optional int-param key for innermost semantic axes stored as tag
-    # content rather than child directories. Arrayable execution enumerates
-    # only ``len(dim_labels) - content_dims`` directory levels.
+    # Legacy generic layout hint. It never changes fan-out enumeration depth;
+    # image declarations reject it (images have no intrinsic collection axes).
     content_dims_from: str | None = None
 
     @model_validator(mode="after")
     def _tags_non_empty(self) -> InputSpec:
         if not self.tags:
             raise ValueError("input port must declare at least one tag (object type)")
+        from hololab.manifest.data_contract import check_declaration
+
+        check_declaration(self)
         return self
 
     @model_validator(mode="after")
@@ -166,13 +140,9 @@ class OutputSpec(BaseModel):
     ``arrayed`` marks the port as producing an ``arrayed<T>`` value; same
     per-node override rule as inputs (see :class:`InputSpec` docstring).
 
-    ``scalar`` pins this port to non-arrayed **regardless** of the node's
-    ``arrayed_toggle``. Use it on outputs that always produce a single item
-    per invocation — even when the pack fans out, each shard's output is one
-    item, and the framework aggregates them into ``arrayed<T>`` at the parent
-    level. Canvas validation will reject an edge from a ``scalar: true`` output
-    to any input that would be arrayed (fan-out participant without
-    ``scalar: true``), catching "0-element zip" errors before runtime.
+    Every output describes one invocation. Fan-out aggregates one value per
+    shard in an additional outer directory. The legacy output ``scalar`` flag
+    never suppresses this aggregation or erases declared array dimensions.
 
     ``tags_from`` names one of this pack's input ports whose effective
     tags this output should mirror. Used by generic utility packs
@@ -190,10 +160,7 @@ class OutputSpec(BaseModel):
     arrayed: bool = False
     scalar: bool = False
     tags_from: str | None = None
-    # Aggregate-dim labels (see InputSpec.dim_labels docstring). Allowed on
-    # scalar/per-shard outputs of arrayable packs — those get wrapped into
-    # ``arrayed<T>`` by the framework at aggregation time and the first
-    # label names the wrap dim.
+    # Single-invocation collection axes; fan-out adds its own outer layer.
     dim_labels: list[str] = Field(default_factory=list)
     # Names a params key whose runtime value (a list[str]) overrides
     # dim_labels at display time.  Used by reshape packs (e.g. regroup)
@@ -221,6 +188,9 @@ class OutputSpec(BaseModel):
     def _tags_non_empty(self) -> OutputSpec:
         if not self.tags:
             raise ValueError("output port must declare at least one tag (object type)")
+        from hololab.manifest.data_contract import check_declaration
+
+        check_declaration(self)
         return self
 
     @model_validator(mode="after")

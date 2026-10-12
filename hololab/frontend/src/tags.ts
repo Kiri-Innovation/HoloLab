@@ -8,65 +8,48 @@
 export const ANY_TAG = "any";
 
 export function tagsCompatible(a: string[], b: string[]): boolean {
+  if ([...a,...b].some(t=>t === "image_sequence" || t === "frame_sequence")) return false;
   if (a.includes(ANY_TAG) || b.includes(ANY_TAG)) return true;
   const setA = new Set(a);
   for (const t of b) if (setA.has(t)) return true;
   return false;
 }
 
-// Full edge compatibility: tags overlap AND arrayed cardinality matches.
-// Asymmetric exception: arrayed source → explicit scalar target is allowed
-// (the scalar port broadcasts the full parent handle to every shard).
-// A scalar source (portScalar=true → srcArrayed=false) into an arrayed
-// target is rejected — the fan-out zip would find 0 sub-elements.
+// Match tags and collection structure. Broadcasting preserves the invocation
+// contract; it does not permit an array where a single image is declared.
 export function portsCompatible(
-  srcTags: string[],
-  srcArrayed: boolean,
-  tgtTags: string[],
-  tgtArrayed: boolean,
-  tgtScalar?: boolean,
+  srcTags: string[], srcArrayed: boolean, tgtTags: string[], tgtArrayed: boolean,
+  _tgtScalar?: boolean, srcDims?: string[], tgtDims?: string[],
 ): boolean {
-  if (srcArrayed !== tgtArrayed) {
-    // Allow arrayed source → explicit scalar target (broadcast semantic).
-    if (!(srcArrayed && tgtScalar)) return false;
+  if (!tagsCompatible(srcTags, tgtTags)) return false;
+  if ((!srcArrayed && srcTags.includes(ANY_TAG)) || (!tgtArrayed && tgtTags.includes(ANY_TAG))) return true;
+  if (srcArrayed !== tgtArrayed) return false;
+  if (!srcArrayed || srcDims === undefined || tgtDims === undefined) return true;
+  const a = srcDims.length ? srcDims : [""];
+  const b = tgtDims.length ? tgtDims : [""];
+  // An `any` leaf may represent a nested generic value, after the explicitly
+  // declared outer dimensions have matched (same as backend compatible()).
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    if (a[i] && b[i] && a[i] !== b[i]) return false;
   }
-  return tagsCompatible(srcTags, tgtTags);
+  return a.length === b.length || (a.length < b.length ? srcTags : tgtTags).includes(ANY_TAG);
 }
 
-// Compute the effective ``arrayed`` state of one port on one graph node.
-// Rule: ``portScalar`` wins unconditionally (always non-arrayed); otherwise
-// manifest declaration OR (pack.arrayable AND node.arrayed_toggle).
+// A node toggle adds one collection around the single-invocation declaration.
+// scalar means broadcast that complete input unchanged, including its arrays.
 export function effectivePortArrayed(
-  portArrayed: boolean | undefined,
-  packArrayable: boolean | undefined,
-  nodeToggle: boolean | undefined,
-  portScalar?: boolean,
+  portArrayed: boolean | undefined, packArrayable: boolean | undefined,
+  nodeToggle: boolean | undefined, portScalar?: boolean,
 ): boolean {
-  if (portScalar) return false;
-  return Boolean(portArrayed) || (Boolean(packArrayable) && Boolean(nodeToggle));
+  return Boolean(portArrayed) || (!portScalar && Boolean(packArrayable) && Boolean(nodeToggle));
 }
 
-// Effective dim-label list for one port on one graph node. Depth =
-// list length. Empty = scalar. For arrayable packs promoted via
-// ``arrayed_toggle`` (no manifest declaration), the promotion adds one
-// unlabeled level at the outer end so callers still know "there is a
-// dim here, just no name for it". Manifest declarations with
-// ``dim_labels`` win as-is.
 export function effectivePortDimLabels(
-  portArrayed: boolean | undefined,
-  portDimLabels: string[] | undefined,
-  packArrayable: boolean | undefined,
-  nodeToggle: boolean | undefined,
-  portScalar?: boolean,
+  portArrayed: boolean | undefined, portDimLabels: string[] | undefined,
+  packArrayable: boolean | undefined, nodeToggle: boolean | undefined, portScalar?: boolean,
 ): string[] {
-  if (portScalar) return [];
-  const arrayed = Boolean(portArrayed) || (Boolean(packArrayable) && Boolean(nodeToggle));
-  if (!arrayed) return [];
-  const declared = portDimLabels ?? [];
-  if (declared.length > 0) return declared.slice();
-  // Legacy bool ``arrayed=true`` with no dim_labels — one unlabeled level.
-  // Or arrayable-pack promotion where the manifest is silent — same.
-  return [""];
+  const invocation = portArrayed ? (portDimLabels?.length ? [...portDimLabels] : [""]) : [];
+  return packArrayable && nodeToggle && !portScalar ? ["", ...invocation] : invocation;
 }
 
 // Deterministic pastel per tag for the port dot colour. Same tag → same colour

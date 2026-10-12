@@ -75,6 +75,9 @@ inputs:
       exactly one OPENCV camera row (single_camera=1 at the SfM stage).
   frames:
     tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [cam]
     description: "This frame's per-camera raw distorted images. Fan-out driver."
 
 params:
@@ -110,7 +113,6 @@ outputs:
   points:
     tags: [point-cloud]
     scalar: true
-    dim_labels: ["frame"]
     description: >
       Freshly triangulated 3-D points for this frame, as a COLMAP-text
       ``points3D.txt``. Scalar per invocation; framework wraps N shards

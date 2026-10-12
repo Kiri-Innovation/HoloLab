@@ -37,5 +37,5 @@ runtime:
 exec:
   shell: |
     set -euo pipefail
-    N=$(find "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 -printf '.' | wc -c | tr -d ' ')
+    N=$(find -L "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 -printf '.' | wc -c | tr -d ' ')
     echo "$N" > "{{ outputs.n }}"

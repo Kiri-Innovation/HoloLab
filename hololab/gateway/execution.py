@@ -51,7 +51,6 @@ from hololab.gateway.registry import JobsStore, NodeRegistry, SnapshotJobsStore
 from hololab.gateway.workflows import (
     GraphNode,
     WorkflowGraph,
-    effective_port_arrayed,
     execution_topological_order,
     packs_by_key_from_catalog,
     resolve_handle_output_tags,
@@ -257,17 +256,11 @@ async def _prepare_fanout(
 
     pack_inputs: dict[str, dict[str, Any]] = pack_entry.get("inputs", {})
     pack_outputs: dict[str, dict[str, Any]] = pack_entry.get("outputs", {})
-    arrayable = bool(pack_entry.get("arrayable", False))
 
     arrayed_input_ports = [
         port
         for port, spec in pack_inputs.items()
-        if effective_port_arrayed(
-            bool(spec.get("arrayed", False)),
-            arrayable,
-            True,
-            port_scalar=bool(spec.get("scalar", False)),
-        )
+        if not spec.get("scalar", False) and port in input_handles
     ]
     if not arrayed_input_ports:
         raise WorkflowRunError(
@@ -277,8 +270,8 @@ async def _prepare_fanout(
 
     effective_params = merged_params_with_defaults(gnode.params, pack_entry)
 
-    # Depth per port — from manifest ``dim_labels`` when present, else 1
-    # (legacy single-layer arrayed), minus tag-content file dimensions.
+    # Fan-out removes exactly one outer collection; the manifest describes
+    # what remains for one algorithm invocation.
     port_depths = {
         port: _arrayed_port_depth(port, pack_inputs[port], effective_params)
         for port in arrayed_input_ports
@@ -613,7 +606,7 @@ async def _execute_fanout_body(
         aggregate = Handle(
             handle_id=str(uuid.uuid4()),
             node_id=plan.session_node_id,
-            storage=spec.get("storage", "dir"),
+            storage="dir",
             tags=resolved_tags,
             path=aggregate_path,
             size_bytes=size_bytes,
@@ -651,7 +644,7 @@ async def _prepare_shard_rows(
     Semantics are byte-for-byte equivalent to the previous per-shard loop
     (:func:`_shard_input_handles` + :func:`_create_shard_row` called N times).
     The batching only touches persistence: sub-handles inherit the parent's
-    tags / storage / node_id and carry ``job_id=None`` exactly as before,
+    tags / node_id and carry ``job_id=None`` exactly as before,
     and shard rows carry the same PENDING state + input_handles map + params.
 
     Why the split matters:
@@ -738,7 +731,7 @@ async def _prepare_shard_rows(
                 sub = Handle(
                     handle_id=str(uuid.uuid4()),
                     node_id=plan.session_node_id,
-                    storage=parent.storage,
+                    storage="file" if Path(sub_path).is_file() else "dir",
                     tags=list(parent.tags),
                     path=sub_path,
                     size_bytes=None,
@@ -834,7 +827,10 @@ def enumerate_arrayed_elements(path: str, *, port: str) -> list[str]:
     try:
         with os.scandir(path) as it:
             return sorted(
-                e.name for e in it if not e.name.startswith(".") and e.is_dir(follow_symlinks=True)
+                e.name
+                for e in it
+                if not e.name.startswith(".")
+                and (e.is_dir(follow_symlinks=True) or e.is_file(follow_symlinks=True))
             )
     except OSError as exc:
         raise WorkflowRunError(f"cannot list arrayed input {port!r} ({path}): {exc}") from exc
@@ -861,12 +857,7 @@ def _enumerate_depth(root: str, depth: int, *, port: str) -> list[str]:
 
 
 def _arrayed_port_depth(port: str, spec: dict[str, Any], effective_params: dict[str, Any]) -> int:
-    """Return the number of physical directory layers to enumerate.
-
-    ``dim_labels`` describes semantic dimensions, which can include
-    tag-intrinsic file dimensions. A manifest may name an int parameter via
-    ``content_dims_from`` to subtract those innermost non-directory layers.
-    """
+    """Fan-out enumerates its one added outer collection, not invocation axes."""
 
     from hololab.gateway.port_type_ir import enumeration_depth
 
@@ -976,8 +967,7 @@ async def _shard_input_handles(
     handle_locate short-circuits to the local path, so no cross-node
     transport is needed. Non-arrayed inputs are passed through unchanged.
 
-    The synthetic handle rows are transient bookkeeping — they inherit tags
-    and storage from the parent handle. They are not registered against any
+    The synthetic handle rows are transient bookkeeping — they inherit tags from the parent; storage reflects the selected leaf. They are not registered against any
     job (``job_id`` NULL) so they don't pollute per-job artifact accounting.
     """
 
@@ -995,7 +985,7 @@ async def _shard_input_handles(
         sub_handle = Handle(
             handle_id=str(uuid.uuid4()),
             node_id=producer_node_id,
-            storage=parent_handle.storage,
+            storage="file" if Path(sub_path).is_file() else "dir",
             tags=list(parent_handle.tags),
             path=sub_path,
             size_bytes=None,

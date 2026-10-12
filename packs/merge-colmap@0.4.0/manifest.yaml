@@ -60,7 +60,6 @@ arrayable: true
 inputs:
   cams:
     tags: [colmap-cams]
-    dim_labels: ["frame"]
     description: >
       Per-frame ``colmap-cams`` bundle (typically PINHOLE from
       ``image-undistort@0.4.0``). Aggregate handle is
@@ -73,8 +72,10 @@ inputs:
       ``points3D.txt``.
   images:
     tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [cam]
     required: false
-    dim_labels: ["frame"]
     description: >
       Optional per-frame images. Aggregate handle is
       ``arrayed<image>[frame]``; each shard's element dir holds the
@@ -84,7 +85,6 @@ outputs:
   folder:
     tags: [colmap-folder]
     scalar: true
-    dim_labels: ["frame"]
     description: >
       Per-frame ``colmap-folder``. Framework aggregates into
       ``arrayed<colmap-folder>[frame]``. Consumed by

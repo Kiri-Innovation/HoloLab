@@ -30,5 +30,5 @@ exec:
   shell: |
     set -euo pipefail
     # Same immediate non-dot-directory contract as framework fan-out.
-    N=$(find "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -printf '.' | wc -c | tr -d ' ')
+    N=$(find -L "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 \( -type d -o -type f \) ! -name '.*' -printf '.' | wc -c | tr -d ' ')
     echo "$N" > "{{ outputs.n }}"

@@ -49,20 +49,22 @@ inputs:
   by_cam:
     tags: [image]
     arrayed: true
+    storage: dir
+    dim_labels: [cam, frame]
     # Aggregate = arrayed<image_sequence>: outer subdir = per-camera, inner
     # content = per-frame (files under each cam's ``frames/``). Summary
     # reports ``dim_sizes=[N_cam, N_frame]``.
-    dim_labels: ["cam", "frame"]
     description: "arrayed<image_sequence>: each element = one camera's frames."
 
 outputs:
   by_frame:
     tags: [image]
     arrayed: true
+    storage: dir
+    dim_labels: [frame, cam]
     # Transposed: outer subdir = per-frame, inner content = per-camera
     # (files under each frame's ``frames/``). Summary reports
     # ``dim_sizes=[N_frame, N_cam]``.
-    dim_labels: ["frame", "cam"]
     description: "arrayed<image_sequence>: each element = one frame's cameras."
 
 runtime:

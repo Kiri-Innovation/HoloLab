@@ -73,7 +73,7 @@ export interface PartialArrayedInfo {
 export interface PreviewProps {
   // The pack's declared viewer spec. Optional because some viewers are
   // tag-driven from the frontend and don't need one (see the tag
-  // intercepts at the top of ``Preview()``): a ``frame_sequence`` or
+  // intercepts at the top of ``Preview()``): a ``arrayed<image>`` or
   // ``colmap-cams`` output whose pack manifest is silent about
   // ``preview:`` still routes to the right viewer via its tags. When
   // this is undefined and no tag intercept matches, we render an
@@ -99,7 +99,7 @@ export interface PreviewProps {
   producingNode?: ComputeNode | null;
   // Port tags (from OutputPortSpec.tags). Lets the frontend pick a
   // richer viewer than the tag-registry default when the shape is
-  // known — e.g. a ``frame_sequence`` dir gets the stacked-strip
+  // known — e.g. a ``arrayed<image>`` dir gets the stacked-strip
   // viewer instead of the "first frame only" image viewer that the
   // registry falls back to.
   tags?: string[];
@@ -107,7 +107,7 @@ export interface PreviewProps {
   // (manifest declaration OR pack.arrayable ∧ node.arrayed_toggle;
   // see ``effectivePortArrayed`` in ``tags.ts``). Preview routing
   // dispatches on ``arrayed<T>`` vs scalar ``T`` for tag families
-  // that have a dedicated nested viewer (``arrayed<frame_sequence>``
+  // that have a dedicated nested viewer (``arrayed<arrayed<image>>``
   // → ``NestedFrameSequencePreview``).
   arrayed?: boolean;
   // Per-dimension labels (outer→inner), when the port declares them.
@@ -137,31 +137,19 @@ export function Preview({
   dimLabels,
   partial,
 }: PreviewProps) {
-  // Tag-driven routing takes precedence over ``spec.viewer``. A
-  // ``frame_sequence`` scalar ships from the gateway with
-  // ``viewer: "image"`` pointing at the first frame — a legacy default
-  // that hides the sequence shape. Its arrayed form goes one level
-  // deeper: ``<parent>/<element>/<file>``. Both families have generic
-  // per-type viewers so packs don't need to reinvent them.
-  // ``image`` is the canonical tag for "one dir of sequenced images".
-  // ``image_sequence`` and ``frame_sequence`` are aliases kept for
-  // backward compat with pre-migration handles.
-  if (
-    tags &&
-    (tags.includes("image") || tags.includes("image_sequence") || tags.includes("frame_sequence")) &&
-    storage === "dir"
-  ) {
-    if (arrayed) {
-      return <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />;
-    }
-    return <FrameStripPreview baseUrl={baseUrl} />;
+  // Image is one file. Only explicit collections use sequence viewers.
+  if (tags?.includes("image") && storage === "file") return <ImagePreview url={baseUrl} />;
+  if (tags?.includes("image") && storage === "dir" && arrayed) {
+    return (dimLabels?.length ?? 1) > 1
+      ? <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />
+      : <FrameStripPreview baseUrl={baseUrl} />;
   }
   // ``colmap-cams`` — COLMAP sparse reconstruction (cameras.txt +
   // images.txt in a dir handle). Renders inside an iframe backed by
   // the vendored ColmapUtil build (see
   // ``vendor/HOLOLAB_VENDORED.md``). We route by tag so
   // packs producing this type never need to declare a viewer, matching
-  // the frame_sequence pattern above.
+  // the image-array pattern above.
   if (
     tags &&
     tags.includes("colmap-cams") &&
@@ -289,7 +277,7 @@ export function Preview({
   // ``rig_frames`` — per-alias JPEG tree produced by
   // ``rig-frame-extraction`` and passed through by ``rig-temporal-grouping``.
   // Layout: ``<parent>/<alias>/NNNNNN.jpg`` — the classic
-  // ``arrayed<frame_sequence>`` shape that ``NestedFrameSequencePreview``
+  // ``arrayed<arrayed<image>>`` shape that ``NestedFrameSequencePreview``
   // handles natively (with element = alias, image = frame).
   if (
     tags &&
@@ -300,7 +288,7 @@ export function Preview({
   }
   // ``rig_frames_grouped`` — per-bucket directory tree from
   // rig-temporal-grouping@0.1.2. Layout ``<parent>/gNNNNNN/<alias>.jpg`` +
-  // ``<parent>/gNNNNNN/group.json`` — same ``arrayed<frame_sequence>``
+  // ``<parent>/gNNNNNN/group.json`` — same ``arrayed<arrayed<image>>``
   // shape (element = group dir, image children = the participating cams),
   // so the existing viewer paints one card per group with a stack of
   // its cameras' thumbnails.  ``group.json`` sits next to the JPEGs and
@@ -2085,7 +2073,7 @@ function splitProxyBase(url: string): [string, string] {
 }
 
 // ---------------------------------------------------------------------------
-// FrameStripPreview: dense stack for a ``frame_sequence`` dir.
+// FrameStripPreview: dense stack for a ``arrayed<image>`` dir.
 //
 // Layout: N overlapping cards laid out in a single row (like a fanned
 // stack of playing cards), followed by a ``count · WxH`` metadata line.
@@ -2158,7 +2146,7 @@ function frameName(idx: number): string {
  *  ~free (the server never sends more than the requested byte) and
  *  survives whether or not the intermediate proxy rewrites HEAD.
  *
- *  Probe requests fire in bursts (frame_sequence counters walk ~30 of
+ *  Probe requests fire in bursts (image-array counters walk ~30 of
  *  these against one dir at mount time). The default ``resilientFetch``
  *  budget of 6 retries × 30 s makes a genuine transient blip during a
  *  page refresh mushroom into a 3-minute retry storm. We cap probes
@@ -2197,7 +2185,7 @@ async function probeFrameCount(
   signal: AbortSignal,
 ): Promise<number> {
   // Empty dir guard: if frame 0 is missing we're not looking at a
-  // frame_sequence layout at all, so bail with 0.
+  // image-array layout at all, so bail with 0.
   if (!(await probeExists(frameUrl(0), signal))) return 0;
 
   // Exponential phase: 1, 2, 4, 8, … until a probe misses.
@@ -2590,7 +2578,7 @@ function FrameZoomOverlay({
 }
 
 // ---------------------------------------------------------------------------
-// NestedFrameSequencePreview: viewer for ``arrayed<frame_sequence>``.
+// NestedFrameSequencePreview: viewer for ``arrayed<arrayed<image>>``.
 //
 // Layout on disk: ``<parent>/<element>/<image>``. Each element is a
 // directory of image files; the two current producers are
@@ -2714,7 +2702,7 @@ function NestedFrameSequencePreview({
           .filter((e) => e.is_dir)
           .sort((a, b) => compareNameNumeric(a.name, b.name))
           .map((e) => {
-            // arrayed<frame_sequence> can put images either directly
+            // arrayed<arrayed<image>> can put images either directly
             // under the element (``<element>/<image>``) or one deeper
             // inside a ``frames/`` subdir (``<element>/frames/<image>``,
             // the current frame-extraction + regroup-by-frame

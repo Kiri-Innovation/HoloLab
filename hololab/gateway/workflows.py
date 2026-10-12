@@ -26,10 +26,8 @@ from hololab.gateway.port_type_ir import (
     PortTypeIR,
     PortTypes,
     compatible,
-    enumeration_depth,
     from_legacy,
     render_type,
-    shard_view,
     unknown_runtime,
     views_from_aggregate,
 )
@@ -98,9 +96,9 @@ class GraphNode(BaseModel):
     # input, dropped on serialize, never persisted. See ``agent_graph_dict``.
     latest_run: dict[str, Any] | None = Field(default=None, exclude=True)
     # Structural — when the pack is ``arrayable``, turning this on marks
-    # every port that manifest-defaults to non-arrayed as arrayed at wire
-    # time, and the scheduler fan-outs one sub-job per element of the
-    # arrayed inputs. Default False keeps the pre-arrayed behavior for
+    # mapped input/output with one extra outer array at wire time. The
+    # scheduler dispatches one invocation per outer element; invocation
+    # arrays declared in the manifest stay intact. Default False keeps the pre-arrayed behavior for
     # every existing node. See docs/pack-spec.md#arrayed-and-arrayable.
     arrayed_toggle: bool = False
     # Structural — upper bound on the number of shards this node's fan-out
@@ -706,22 +704,6 @@ class ValidationIssue:
 
 ANY_TAG = "any"
 
-# Tags that are structural synonyms.  A producer on either tag wires cleanly
-# into a consumer on the other without an explicit conversion node.
-# ``image`` is the canonical name; ``image_sequence`` and ``frame_sequence``
-# are aliases retained for backward compat with pre-migration handles.
-_TAG_ALIAS_GROUPS: tuple[frozenset[str], ...] = (
-    frozenset({"image", "image_sequence", "frame_sequence"}),
-)
-
-# Pre-computed mapping tag → canonical representative (min of the group).
-_TAG_CANONICAL: dict[str, str] = {tag: min(group) for group in _TAG_ALIAS_GROUPS for tag in group}
-
-
-def _canonical_tags(tags: list[str]) -> set[str]:
-    """Expand each tag to its canonical form for alias-aware intersection."""
-    return {_TAG_CANONICAL.get(t, t) for t in tags}
-
 
 def tags_compatible(a: list[str], b: list[str]) -> bool:
     """Two tag sets are compatible iff they share at least one tag OR
@@ -731,14 +713,16 @@ def tags_compatible(a: list[str], b: list[str]) -> bool:
     tag sets and want a pure set-overlap check. Snapshot validation uses
     :func:`ports_compatible` which additionally checks arrayed cardinality.
 
-    Alias groups (e.g. ``image_sequence`` ↔ ``frame_sequence``) are
-    treated as identical: a producer on either tag matches a consumer on
-    the other without an explicit conversion node.
+    Removed image aliases are rejected even against the ``any`` wildcard.
     """
 
+    from hololab.manifest.data_contract import REMOVED_IMAGE_TAGS
+
+    if REMOVED_IMAGE_TAGS.intersection(a) or REMOVED_IMAGE_TAGS.intersection(b):
+        return False
     if ANY_TAG in a or ANY_TAG in b:
         return True
-    return bool(_canonical_tags(a) & _canonical_tags(b))
+    return bool(set(a) & set(b))
 
 
 def ports_compatible(
@@ -750,22 +734,10 @@ def ports_compatible(
     src_dim_labels: list[str] | None = None,
     tgt_dim_labels: list[str] | None = None,
 ) -> bool:
-    """Full edge compatibility: tag overlap AND arrayed cardinality match.
+    """Match tags and explicit collection structure; broadcast does not erase it.
 
-    * ``any`` on either side matches every tag (utility packs like
-      ``arrayfy`` / ``get-index`` operate over any element type).
-    * Cardinality is strict with one asymmetric exception:
-      - ``T`` → ``T`` and ``arrayed<T>`` → ``arrayed<T>`` are always valid.
-      - ``arrayed<T>`` → ``scalar-locked T`` (``tgt_scalar=True``) is **allowed**:
-        the scalar port broadcasts the full parent handle to every shard.
-      - ``scalar<T>`` (``src_arrayed=False`` via ``scalar: true``) → ``arrayed<T>``
-        is **rejected**: the fan-out zip would find 0 sub-elements.
-      Use an explicit ``arrayfy`` node to promote a non-scalar source into
-      an array.
-    * When ``src_dim_labels`` / ``tgt_dim_labels`` are both supplied and both
-      sides are arrayed→arrayed, the arrayed depth (number of dim labels, or 1
-      for a legacy empty list) must match, and every non-empty per-layer label
-      pair must agree (empty label = wildcard that matches any same-depth label).
+    Unnamed axes are wildcard labels, not wildcard depth. A bare ``any`` may
+    represent a generic structured value; removed image type names never match.
     """
 
     # Preserve the legacy optional-label API: if either side omits labels,
@@ -788,30 +760,13 @@ def effective_port_arrayed(
     *,
     is_output: bool = False,
 ) -> bool:
-    """Compute the runtime ``arrayed`` state of one port on one graph node.
+    """Whether the effective value contains a collection.
 
-    Rule:
-    * ``port_scalar`` (manifest ``scalar: true``) on an **input** port —
-      always non-arrayed; the port broadcasts its scalar value to every
-      fan-out shard regardless of the toggle.
-    * ``port_scalar`` on an **output** port of a **fan-out node**
-      (``pack.arrayable`` AND ``node.arrayed_toggle``) — the port produces
-      one item *per shard*, and the framework aggregates the N shards into
-      an ``arrayed<T>`` handle at the parent job (see
-      ``execution._execute_fanout_body``: the parent-level output path is
-      ``{parent_ws}/{port}/`` and every shard writes into
-      ``.../{element_id}/``). Downstream nodes see an arrayed handle, so
-      the validator must treat this as arrayed too.
-    * ``port_scalar`` on an output port of a non-fan-out node — one item
-      per invocation, non-arrayed.
-    * Otherwise: ``manifest arrayed OR (pack.arrayable AND node.arrayed_toggle)``.
-      A port declared ``arrayed: true`` in the manifest is always arrayed.
-      Ports that default to non-arrayed on an arrayable pack flip when the
-      operator turns on the checkbox.
+    The manifest describes one invocation. Fan-out adds one outer collection
+    to mapped inputs and every output; scalar inputs broadcast their full
+    declared value unchanged. Depth is resolved separately, never with OR.
     """
-    if port_scalar:
-        return bool(is_output and pack_arrayable and node_toggle)
-    return port_arrayed or (pack_arrayable and node_toggle)
+    return port_arrayed or (pack_arrayable and node_toggle and (is_output or not port_scalar))
 
 
 def effective_output_tags(
@@ -868,7 +823,7 @@ def effective_output_tags(
     return list(port.tags)
 
 
-def effective_output_dim_labels(
+def _invocation_output_dim_labels(
     node: GraphNode,
     pack: PackHandle,
     port_name: str,
@@ -935,7 +890,68 @@ def effective_output_dim_labels(
             return list(upstream_labels[drop:])
         return None
 
+    if port.arrayed and port.tags_from and not port.dim_labels:
+        for edge in graph.edges:
+            if edge.target != node.id or edge.targetHandle != port.tags_from:
+                continue
+            up = node_by_id.get(edge.source)
+            up_pack = packs_by_key.get((up.algorithm_name, up.algorithm_version)) if up else None
+            if not up_pack:
+                return None
+            dims = effective_output_dim_labels(
+                up, up_pack, edge.sourceHandle, graph, node_by_id, packs_by_key, visited
+            )
+            return None if dims is None else ["", *dims]
+        return None
     return list(port.dim_labels)
+
+
+def effective_output_dim_labels(
+    node, pack, port_name, graph, node_by_id, packs_by_key, _visited=None
+):
+    visited = set() if _visited is None else set(_visited)
+    key = (node.id, port_name)
+    if key in visited:
+        return None
+    labels = _invocation_output_dim_labels(
+        node, pack, port_name, graph, node_by_id, packs_by_key, visited
+    )
+    if labels is None:
+        return None
+    port = pack.outputs[port_name]
+    # A declared but unnamed collection still has one dimension.
+    if port.arrayed and not labels:
+        labels = [""]
+    if not (pack.arrayable and node.arrayed_toggle):
+        return labels
+    outer = ""
+    for edge in graph.edges:
+        if (
+            edge.target != node.id
+            or edge.targetHandle not in pack.inputs
+            or pack.inputs[edge.targetHandle].scalar
+        ):
+            continue
+        upstream = node_by_id.get(edge.source)
+        upstream_pack = (
+            packs_by_key.get((upstream.algorithm_name, upstream.algorithm_version))
+            if upstream
+            else None
+        )
+        if upstream_pack:
+            dims = effective_output_dim_labels(
+                upstream,
+                upstream_pack,
+                edge.sourceHandle,
+                graph,
+                node_by_id,
+                packs_by_key,
+                visited | {key},
+            )
+            if dims:
+                outer = dims[0]
+                break
+    return [outer, *labels]
 
 
 def packs_by_key_from_catalog(
@@ -1179,11 +1195,8 @@ def validate_snapshot(
             continue
         src_out = src_pack.outputs[edge.sourceHandle]
         tgt_in = tgt_pack.inputs[edge.targetHandle]
-        # Effective arrayed state — the manifest default OR-ed with the
-        # pack.arrayable AND-ed with node.arrayed_toggle override.
-        # ``scalar: true`` on an input broadcasts (non-arrayed). On an
-        # output of a fan-out node it aggregates to arrayed<T> at the
-        # parent — see ``effective_port_arrayed``.
+        # Compare structured aggregate values. Broadcasting preserves the
+        # invocation declaration rather than relaxing its required shape.
         source_types, _ = resolved_port_types(src, src_pack, graph, node_by_id, packs_by_key)
         target_types, _ = resolved_port_types(tgt, tgt_pack, graph, node_by_id, packs_by_key)
         source_type = source_types.outputs[edge.sourceHandle].views.aggregate
@@ -1197,7 +1210,7 @@ def validate_snapshot(
                 else "tag mismatch or dimension mismatch"
             )
             msg = f"{reason}: source is {render_type(source_type)}, target expects {render_type(target_type)}"
-            if src_out.scalar and not src_arr and tgt_arr:
+            if src_out.scalar and not src_arr and tgt_arr and not tgt_in.arrayed:
                 msg += "; scalar output (scalar: true): declare scalar: true on the target input to broadcast"
             issues.append(ValidationIssue(where=f"edge:{edge.id}", message=msg))
         incoming_edges[(edge.target, edge.targetHandle)].append(edge.id)
@@ -1475,17 +1488,6 @@ def resolved_port_types(
     """
     outputs = _effective_output_fields(node, pack, graph, node_by_id, packs_by_key)
     fanout = pack.arrayable and node.arrayed_toggle
-    depths: dict[str, int | None] = {}
-    if fanout:
-        params = {**pack.param_defaults, **node.params}
-        for name, port in pack.inputs.items():
-            if not port.scalar:
-                try:
-                    depths[name] = enumeration_depth(name, asdict(port), params)
-                except ValueError:
-                    depths[name] = None
-    unique_depths = set(depths.values())
-    output_depth = next(iter(unique_depths)) if len(unique_depths) == 1 else None
     groups = {}
     for direction, ports in (("inputs", pack.inputs), ("outputs", pack.outputs)):
         group = {}
@@ -1497,7 +1499,8 @@ def resolved_port_types(
                 if direction == "outputs"
                 else {
                     "tags": list(port.tags),
-                    "dim_labels": list(port.dim_labels),
+                    "dim_labels": ([""] if fanout and not port.scalar else [])
+                    + (list(port.dim_labels) or ([""] if port.arrayed else [])),
                     "arrayed": effective_port_arrayed(
                         port.arrayed, pack.arrayable, node.arrayed_toggle, port.scalar
                     ),
@@ -1512,12 +1515,6 @@ def resolved_port_types(
                 )
             aggregate = from_legacy(fields["tags"], fields["arrayed"], fields["dim_labels"])
             views = views_from_aggregate(aggregate, participation)
-            if participation in ("map-input", "collect-output"):
-                views.invocation = shard_view(
-                    aggregate,
-                    depths.get(name) if direction == "inputs" else output_depth,
-                    content_axes=direction == "inputs",
-                )
             group[name] = PortTypeIR(
                 declaration=declaration, views=views, runtime=unknown_runtime()
             )

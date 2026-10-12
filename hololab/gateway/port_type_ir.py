@@ -157,12 +157,22 @@ def views_from_aggregate(aggregate: TypeExpr, participation: str) -> TypeViews:
 def compatible(
     source: TypeExpr, target: TypeExpr, tag_match: Callable, *, broadcast: bool = False
 ) -> bool:
-    # Broadcast sends the whole value; it does not pop or duplicate it.
-    if broadcast:
-        while isinstance(source, ArrayType):
-            source = source.element
-        while isinstance(target, ArrayType):
-            target = target.element
+    from hololab.manifest.data_contract import REMOVED_IMAGE_TAGS
+
+    def leaf_tags(t):
+        while isinstance(t, ArrayType):
+            t = t.element
+        return t.tags if isinstance(t, ObjectType) else []
+
+    if REMOVED_IMAGE_TAGS.intersection([*leaf_tags(source), *leaf_tags(target)]):
+        return False
+    if isinstance(source, UnknownType) or isinstance(target, UnknownType):
+        return False
+    # Broadcast preserves the declared value, never erases collection layers.
+    if isinstance(target, ObjectType) and "any" in target.tags:
+        return True
+    if isinstance(source, ObjectType) and "any" in source.tags:
+        return True
     if isinstance(source, ArrayType) and isinstance(target, ArrayType):
         a, b = source.axis.label, target.axis.label
         return (not a or not b or a == b) and compatible(source.element, target.element, tag_match)
@@ -182,19 +192,9 @@ def render_type(type_: TypeExpr) -> str:
 
 def enumeration_depth(port: str, spec: dict, effective_params: dict) -> int:
     """Physical shard depth, shared with execution; no display or IO input."""
-    semantic_depth = len(spec.get("dim_labels") or []) or 1
-    param_name = spec.get("content_dims_from")
-    content_dims = effective_params.get(param_name, 0) if param_name else 0
-    if isinstance(content_dims, bool) or not isinstance(content_dims, int):
-        raise ValueError(
-            f"arrayed input {port!r} content_dims must be an integer (got {content_dims!r})"
-        )
-    if content_dims < 0 or content_dims >= semantic_depth:
-        raise ValueError(
-            f"arrayed input {port!r} content_dims={content_dims} is invalid for "
-            f"{semantic_depth} semantic dimensions; require 0 <= content_dims < {semantic_depth}"
-        )
-    return semantic_depth - content_dims
+    # A node-level fan-out adds exactly one outer collection around an invocation.
+    # Intrinsic data dimensions never determine the number of dispatched layers.
+    return 1
 
 
 def shard_view(aggregate: TypeExpr, depth: int | None, *, content_axes: bool = False) -> TypeExpr:

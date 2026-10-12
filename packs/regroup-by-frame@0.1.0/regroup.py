@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Transpose arrayed<frame_sequence> from (camera x frame) to (frame x camera).
+"""Transpose arrayed<arrayed<image>> from (camera x frame) to (frame x camera).
 
-Input layout:  ``<input>/<cam_id>/frames/frame_XXXXXX.<ext>``
-Output layout: ``<output>/<frame_key>/frames/<cam_id>.<ext>``
+Input layout:  ``<input>/<cam_id>/frame_XXXXXX.<ext>``
+Output layout: ``<output>/<frame_key>/<cam_id>.<ext>``
 
 ``frame_key`` is the frame filename stem preserved verbatim (e.g.
 ``frame_000000``), so element order lines up with the source frame indices.
@@ -19,8 +19,8 @@ from pathlib import Path
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--input", required=True, help="arrayed<frame_sequence> input root")
-    ap.add_argument("--output", required=True, help="arrayed<frame_sequence> output root")
+    ap.add_argument("--input", required=True, help="arrayed<arrayed<image>> input root")
+    ap.add_argument("--output", required=True, help="arrayed<arrayed<image>> output root")
     args = ap.parse_args()
 
     input_root = Path(args.input)
@@ -32,7 +32,7 @@ def main() -> int:
 
     output_root.mkdir(parents=True, exist_ok=True)
 
-    cam_dirs = sorted(d for d in input_root.iterdir() if d.is_dir())
+    cam_dirs = sorted(d for d in input_root.iterdir() if d.is_dir() and not d.name.startswith("."))
     if not cam_dirs:
         print(f"ERROR: no camera subdirs under {input_root}", file=sys.stderr)
         return 1
@@ -42,15 +42,15 @@ def main() -> int:
 
     for cam_dir in cam_dirs:
         cam_id = cam_dir.name
-        frames_dir = cam_dir / "frames"
+        frames_dir = cam_dir
         if not frames_dir.is_dir():
-            print(f"WARN: no frames/ under {cam_dir}, skipping", file=sys.stderr)
+            print(f"WARN: no image array under {cam_dir}, skipping", file=sys.stderr)
             continue
         for frame_file in sorted(frames_dir.iterdir()):
-            if not frame_file.is_file():
+            if not frame_file.is_file() or frame_file.name.startswith("."):
                 continue
             frame_key = frame_file.stem  # e.g. "frame_000000"
-            out_frame_dir = output_root / frame_key / "frames"
+            out_frame_dir = output_root / frame_key
             out_frame_dir.mkdir(parents=True, exist_ok=True)
             dest = out_frame_dir / f"{cam_id}{frame_file.suffix}"
             # Rewire an existing symlink cleanly (allows idempotent re-runs).

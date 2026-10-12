@@ -28,6 +28,7 @@ from websockets.exceptions import ConnectionClosed
 
 from hololab import PROTOCOL_V_MAX, PROTOCOL_V_MIN
 from hololab.logging import get_logger
+from hololab.manifest.data_contract import ContractError, validate_ports
 from hololab.manifest.render import (
     RenderContext,
     render_manifest,
@@ -1488,6 +1489,21 @@ class NodeRuntime:
             )
             batch.append((assign.shard_element_id, input_paths, outputs))
 
+        try:
+            for _eid, invocation_inputs, _outputs in batch:
+                await asyncio.to_thread(
+                    validate_ports,
+                    invocation_inputs,
+                    pack.manifest.inputs,
+                    direction="input",
+                    params=assign.params,
+                )
+        except (ContractError, OSError) as exc:
+            await self._send_job_fail(
+                assign.job_id, JobFailReason.USER_ERROR, message=f"input contract violation: {exc}"
+            )
+            return
+
         # Pre-create the destination for every element x port. For
         # ``storage: dir`` the output path itself is a directory (mkdir
         # it). For ``storage: file`` the output path is a file path —
@@ -1582,6 +1598,21 @@ class NodeRuntime:
         # fresh snapshots + job_ids anyway, so no marker collision.
         if rendered.idempotency_marker and Path(rendered.idempotency_marker).exists():
             log.info("job skipped: idempotency marker present", job_id=assign.job_id)
+            try:
+                await asyncio.to_thread(
+                    validate_ports,
+                    outputs,
+                    pack.manifest.outputs,
+                    direction="output",
+                    params=assign.params,
+                )
+            except (ContractError, OSError) as exc:
+                await self._send_job_fail(
+                    assign.job_id,
+                    JobFailReason.ALGO_ERROR,
+                    message=f"cached output contract violation: {exc}",
+                )
+                return
             await self._register_output_handles(pack, assign.job_id, outputs)
             await self._send("job_done", JobDone(job_id=assign.job_id, output_handles={}))
             return
@@ -1744,6 +1775,23 @@ class NodeRuntime:
             )
             return
 
+        # Validate the entire batch before registering ANY output or writing a
+        # success marker. A successful shell exit alone does not prove a contract.
+        try:
+            for _eid, _inputs, invocation_outputs in batch:
+                await asyncio.to_thread(
+                    validate_ports,
+                    invocation_outputs,
+                    pack.manifest.outputs,
+                    direction="output",
+                    params=assign.params,
+                )
+        except (ContractError, OSError) as exc:
+            await self._send_job_fail(
+                assign.job_id, JobFailReason.ALGO_ERROR, message=f"output contract violation: {exc}"
+            )
+            return
+
         # Success: write idempotency marker if declared (non-batched
         # only — batched shards have ``idempotency_marker=None``, see
         # the render block above), then register handles.
@@ -1783,6 +1831,7 @@ class NodeRuntime:
     ) -> dict[str, str]:
         """For each declared output, register a handle with the gateway. Returns port → handle_id."""
 
+        await asyncio.to_thread(validate_ports, outputs, pack.manifest.outputs, direction="output")
         assert self._node_id is not None
         out_map: dict[str, str] = {}
         for port_name, path in outputs.items():
@@ -1791,7 +1840,7 @@ class NodeRuntime:
             hr = HandleRegister(
                 handle_id=handle_id,
                 node_id=self._node_id,
-                storage=spec.storage.value,
+                storage="file" if Path(path).is_file() else "dir",
                 tags=spec.tags,
                 path=path,
                 size_bytes=_dir_size_bytes(Path(path)),

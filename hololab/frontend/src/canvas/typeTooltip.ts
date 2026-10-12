@@ -12,7 +12,7 @@ export function typeTooltip(name: string, declared: EdgeType, actual: EdgeType &
   const original = raw ? declarationType(raw) : ir.views.aggregate;
   const declaration = renderPortType(original, { mode: 'declaration' });
   const broadcast = ir.views.participation === 'broadcast-input';
-  const item = broadcast ? ir.runtime : elementRuntime(ir.runtime);
+  const item = !view.fanout || broadcast ? ir.runtime : elementRuntime(ir.runtime);
   const runtime = renderPortType(ir.views.invocation, { mode: 'runtime', runtime: item, unknown: '未知' });
   const afterTitle = view.fanout ? broadcast ? 'arrayed (auto-popped)' : 'after arrayed' : undefined;
   const afterDeclared = view.fanout ? renderPortType(ir.views.aggregate, { mode: 'declaration' }) : undefined;

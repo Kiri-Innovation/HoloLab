@@ -64,6 +64,9 @@ docs: |
 inputs:
   frames:
     tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [cam]
     description: "One image set on which to run SfM."
 
 params:

@@ -49,11 +49,11 @@ exec:
     # Mirror the framework's enumerate_arrayed_elements contract exactly:
     # immediate, non-dot directories, in lexical order. Marker sidecars
     # therefore cannot become elements or affect the element count.
-    mapfile -t ENTRIES < <(find "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -printf '%f\n' | sort)
+    mapfile -t ENTRIES < <(find -L "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 \( -type d -o -type f \) ! -name '.*' -printf '%f\n' | sort)
     # Do not use bash array-length syntax here: its hash-brace sequence is
     # a Jinja2 comment delimiter in this template. Count the same filtered
     # set used above, including the empty-array case correctly.
-    N=$(find "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -printf '.' | wc -c | tr -d ' ')
+    N=$(find -L "{{ inputs.arr }}" -mindepth 1 -maxdepth 1 \( -type d -o -type f \) ! -name '.*' -printf '.' | wc -c | tr -d ' ')
     if [ "$IDX" -ge "$N" ] || [ "$IDX" -lt 0 ]; then
       echo "ERROR: idx $IDX out of range (array size $N)" >&2
       exit 1

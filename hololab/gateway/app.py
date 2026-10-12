@@ -13,6 +13,7 @@ import json
 import os
 import time
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -926,7 +927,9 @@ def _mount_routes(app: FastAPI) -> None:
         )
         depth = len(dim_labels) if dim_labels else None
 
-        summary = summarize_handle(handle, depth=depth, dim_labels=dim_labels)
+        summary = summarize_handle(
+            replace(handle, tags=resolved_tags), depth=depth, dim_labels=dim_labels
+        )
         # summarize_handle also computes ``dim_sizes`` internally via the
         # same helper — prefer the summary's value (it saw the exact same
         # tree walk we asked for) and only fall back to the display-meta
@@ -3263,28 +3266,32 @@ async def _resolve_handle_display_meta(
     explicit_preview = port_spec.preview if port_spec is not None else None
     preview = infer_preview_for_output(explicit_preview, resolved_tags)
 
-    raw_dim_labels = list(port_spec.dim_labels) if port_spec is not None else None
-    if port_spec is not None and port_spec.dim_labels_from and job is not None:
-        dynamic = job.params.get(port_spec.dim_labels_from)
-        if isinstance(dynamic, list) and all(isinstance(x, str) and x for x in dynamic):
-            raw_dim_labels = list(dynamic)
-    if (
-        port_spec is not None
-        and port_spec.dim_labels_from_input
-        and job is not None
-        and handle.output_port_name is not None
-    ):
-        derived = await _resolve_derived_dim_labels(
-            job,
-            handle.output_port_name,
-            registry=registry,
-            workflows=workflows,
-        )
-        # None = source declared but unresolvable (no snapshot, missing wire,
-        # …). Prefer showing NO dims over guessing — matches the "no half-baked
-        # [?] chips at cold load" policy.
-        raw_dim_labels = derived
-    dim_labels, dim_sizes = dim_info_for_handle(handle, dim_labels=raw_dim_labels)
+    raw_dim_labels = None
+    if port_spec is not None:
+        raw_dim_labels = list(port_spec.dim_labels) or ([""] if port_spec.arrayed else [])
+        if job is not None:
+            derived = await _resolve_derived_dim_labels(
+                job,
+                handle.output_port_name,
+                registry=registry,
+                workflows=workflows,
+            )
+            if derived is not None:
+                raw_dim_labels = derived
+            elif port_spec.dim_labels_from_input or port_spec.tags_from:
+                raw_dim_labels = None  # unresolved generic shape, not a fabricated one
+            else:
+                if port_spec.dim_labels_from:
+                    dynamic = job.params.get(port_spec.dim_labels_from)
+                    if isinstance(dynamic, list) and all(isinstance(x, str) for x in dynamic):
+                        raw_dim_labels = list(dynamic)
+                if getattr(job, "expected_shards", None) is not None:
+                    raw_dim_labels = ["", *raw_dim_labels]
+    # A generic producer may register `any`; measurement uses its resolved leaf
+    # tag so arrays of image FILES are not mistaken for directories of bundles.
+    dim_labels, dim_sizes = dim_info_for_handle(
+        replace(handle, tags=resolved_tags), dim_labels=raw_dim_labels
+    )
     return preview, dim_labels, dim_sizes, resolved_tags
 
 
@@ -3335,6 +3342,15 @@ async def _resolve_derived_dim_labels(
     if pack is None:
         return None
 
+    # Job identity determines whether this handle is one invocation or the
+    # aggregate. A shard must not acquire its parent's extra collection axis.
+    graph_node = graph_node.model_copy(
+        update={
+            "params": job.params,
+            "arrayed_toggle": getattr(job, "expected_shards", None) is not None,
+        }
+    )
+    node_by_id[graph_node.id] = graph_node
     return effective_output_dim_labels(
         graph_node, pack, output_port_name, graph, node_by_id, packs_by_key
     )

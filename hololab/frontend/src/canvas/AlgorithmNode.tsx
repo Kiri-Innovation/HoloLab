@@ -290,10 +290,7 @@ interface ExpandablePort {
 // yet — like ``colmap-cams`` at the time of writing — still get the
 // caret because this promotion looks at the port's ``tags`` directly.
 const FRONTEND_VIEWER_TAGS = new Set<string>([
-  "frame_sequence",
-  // Structural rename — see previews.tsx for the routing pair. Both
-  // tags accepted so a rolling migration doesn't drop the caret.
-  "image_sequence",
+  "image",
   "colmap-cams",
   // ``point-cloud`` is the 2026-09-22 type-system refactor's canonical
   // tag for triangulated points; ``colmap-points`` was the retired
@@ -320,7 +317,7 @@ const FRONTEND_VIEWER_TAGS = new Set<string>([
   // rig-capture-source's per-alias camera dirs — 7-tile video grid.
   "rig_capture",
   // Per-alias JPEG tree from rig-frame-extraction / rig-temporal-grouping.
-  // Rendered as arrayed<frame_sequence> via NestedFrameSequencePreview.
+  // Rendered as arrayed<arrayed<image>> via NestedFrameSequencePreview.
   "rig_frames",
   // Per-group directory tree from rig-temporal-grouping@0.1.2 — element =
   // one time bucket, children = the participating aliases' JPEGs. Same

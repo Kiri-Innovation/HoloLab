@@ -377,7 +377,8 @@ def internal_count_for(tags: list[str], sample_path: Path) -> ProbeResult | None
 
 # ---------------------------------------------------------------------------
 # Content-dim registry — for tags whose semantic type carries intrinsic
-# enumeration layers *inside* the leaf (e.g. ``image_sequence`` is a
+# enumeration layers *inside* an opaque leaf (currently no registered tags).
+# Previously image bundles were a
 # sequence of files under ``frames/`` — one intrinsic dim beyond whatever
 # arrayed wrapping the port has). Consumed by
 # ``handle_summary._measure_dim_sizes`` to compute ``dim_sizes[k:]`` for
@@ -395,43 +396,7 @@ def internal_count_for(tags: list[str], sample_path: Path) -> ProbeResult | None
 ContentDimProbeFn = Callable[[Path], list[int] | None]
 
 
-def _probe_image_sequence_content_dims(path: Path) -> list[int] | None:
-    """One intrinsic dim: count image files inside the element leaf.
-
-    New layout (post frames/ removal): the element leaf IS the sequence —
-    image files live directly under ``<leaf>/`` (``<leaf>/frame_XXXXXX.png``
-    from frame-extraction, or ``<leaf>/cam_YYYY.png`` from the
-    ``arrayed<arrayed<image>>`` transpose). Legacy layout kept the images
-    one level down under ``<leaf>/frames/`` — still probed as a fallback
-    so pre-migration handles keep reporting ``dim_sizes`` correctly.
-    """
-    try:
-        direct = sum(1 for c in path.iterdir() if not c.name.startswith(".") and c.is_file())
-    except OSError:
-        return None
-    if direct > 0:
-        return [direct]
-    frames = path / "frames"
-    if not frames.is_dir():
-        return None
-    try:
-        n = sum(1 for c in frames.iterdir() if not c.name.startswith(".") and c.is_file())
-    except OSError:
-        return None
-    if n == 0:
-        return None
-    return [n]
-
-
-# tag → (content_dim_count, probe_fn). Content dim count = number of
-# intrinsic layers the tag adds on top of whatever dir depth the port's
-# arrayed/wrap declaration produces.
-_CONTENT_DIM_REGISTRY: dict[str, tuple[int, ContentDimProbeFn]] = {
-    "image": (1, _probe_image_sequence_content_dims),
-    # Aliases retained for backward compat with pre-migration handles.
-    "image_sequence": (1, _probe_image_sequence_content_dims),
-    "frame_sequence": (1, _probe_image_sequence_content_dims),
-}
+_CONTENT_DIM_REGISTRY: dict[str, tuple[int, ContentDimProbeFn]] = {}
 
 
 def content_dim_count_for(tags: list[str]) -> int:

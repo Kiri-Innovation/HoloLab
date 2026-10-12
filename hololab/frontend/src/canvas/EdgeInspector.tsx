@@ -298,10 +298,7 @@ export function EdgeInspector({
           </div>
           <div style={{ marginTop: -8 }}>
             {showPreview && (info.preview || source.portSpec?.preview ||
-              info.tags.includes("image") ||
-              info.tags.includes("image_sequence") ||
-              info.tags.includes("frame_sequence") ||
-              source.portSpec?.tags.includes("frame_sequence")) ? (
+              info.tags.includes("image")) ? (
               // Prefer the backend-resolved ``info.preview`` (single
               // source of truth from ``tag_viewers.py``). Fall back to
               // the catalog's static spec for packs that declared

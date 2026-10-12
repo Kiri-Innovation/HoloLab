@@ -62,7 +62,7 @@ import {
   runWorkflow,
   saveWorkflow,
 } from "./api";
-import { portsCompatible, effectivePortArrayed } from "./tags";
+import { portsCompatible, effectivePortArrayed, effectivePortDimLabels } from "./tags";
 import { diffGraphs } from "./canvas/diffGraphs";
 import type { DiffItem } from "./canvas/diffGraphs";
 import {
@@ -1226,32 +1226,29 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       }
       if ((src as ViewNodeData).kind === "view") return;
 
-      const srcOut = src.pack.outputs[conn.sourceHandle];
       const tgtIn = tgt.pack.inputs[conn.targetHandle];
-      const srcTags = srcOut?.tags ?? [];
-      const tgtTags = tgtIn?.tags ?? [];
-      // Effective arrayed state depends on both the manifest declaration
-      // and the per-node ``arrayed_toggle`` (when the pack is arrayable).
-      // We read the toggle off the node data if present; unset → false.
-      const srcNode = nodes.find((n) => n.id === conn.source);
-      const tgtNode = nodes.find((n) => n.id === conn.target);
-      const srcArrayed = effectivePortArrayed(
-        srcOut?.arrayed,
-        src.pack.arrayable,
-        (srcNode?.data as { arrayed_toggle?: boolean } | undefined)?.arrayed_toggle,
-        srcOut?.scalar,
-      );
-      const tgtArrayed = effectivePortArrayed(
-        tgtIn?.arrayed,
-        tgt.pack.arrayable,
-        (tgtNode?.data as { arrayed_toggle?: boolean } | undefined)?.arrayed_toggle,
-        tgtIn?.scalar,
-      );
-      if (!portsCompatible(srcTags, srcArrayed, tgtTags, tgtArrayed, tgtIn?.scalar)) {
-        // Flash a message via console for MVP; a toast is a follow-up.
-        const srcLabel = formatTypeLabelLong({ tags: srcTags, arrayed: srcArrayed, dimLabels: srcArrayed ? srcOut?.dim_labels ?? [] : [] });
-        const tgtLabel = formatTypeLabelLong({ tags: tgtTags, arrayed: tgtArrayed, dimLabels: tgtArrayed ? tgtIn?.dim_labels ?? [] : [] });
-        console.warn(`edge rejected: ${srcLabel} → ${tgtLabel} incompatible`);
+      if (!src.pack.outputs[conn.sourceHandle] || !tgtIn) return;
+      const graphNodes = nodes.flatMap(n => {
+        const d = algorithmDataForNode(n);
+        return d ? [{ id: n.id, algorithm_name: d.pack.name, algorithm_version: d.pack.version,
+          position: n.position, params: d.params ?? {}, arrayed_toggle: d.arrayed_toggle,
+          assigned_node_id: d.assigned_node_id }] : [];
+      });
+      const catalog = new Map(nodes.flatMap(n => {
+        const d = algorithmDataForNode(n);
+        return d ? [[`${d.pack.name}@${d.pack.version}`, d.pack] as const] : [];
+      }));
+      const sourceType = effectiveOutputType(conn.source, conn.sourceHandle, {
+        nodes: graphNodes, catalogByKey: catalog,
+        edges: edges.map(e => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle ?? "",
+          target: e.target, targetHandle: e.targetHandle ?? "" })),
+      });
+      const targetType = { tags: tgtIn.tags,
+        arrayed: effectivePortArrayed(tgtIn.arrayed, tgt.pack.arrayable, tgt.arrayed_toggle, tgtIn.scalar),
+        dimLabels: effectivePortDimLabels(tgtIn.arrayed, tgtIn.dim_labels, tgt.pack.arrayable, tgt.arrayed_toggle, tgtIn.scalar) };
+      if (!portsCompatible(sourceType.tags, sourceType.arrayed, targetType.tags, targetType.arrayed,
+        tgtIn.scalar, sourceType.dimLabels, targetType.dimLabels)) {
+        console.warn(`edge rejected: ${formatTypeLabelLong(sourceType)} → ${formatTypeLabelLong(targetType)} incompatible`);
         return;
       }
 

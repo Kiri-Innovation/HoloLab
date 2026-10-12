@@ -127,7 +127,7 @@ def _dispatch_summary(handle: Handle, path: Path) -> dict[str, Any]:
     suffix = path.suffix.lower()
     if suffix in (".mp4", ".mov", ".mkv", ".webm"):
         return _summarize_video(path, handle)
-    if suffix in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
+    if "image" in handle.tags or suffix in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
         return _summarize_image(path, handle)
     if suffix in (".txt", ".log", ".json", ".md", ".yaml", ".yml"):
         return _summarize_text(path, handle)
@@ -203,6 +203,8 @@ def _annotate_element_and_internal_counts(
         result["element_count"] = element_count
     if dim_sizes is not None:
         result["dim_sizes"] = dim_sizes
+        if dim_sizes:
+            result["element_count"] = dim_sizes[0]
 
     from hololab.gateway.type_observation import observe_summary
 
@@ -243,7 +245,8 @@ def _measure_dim_sizes(
     every level (a ragged tree yields ``None`` — no averaged lies).
     Phase 2 hands the leaf reached in phase 1 to
     :func:`tag_probes.probe_content_dims` for the tag's intrinsic
-    layers (e.g. ``image_sequence`` counts files under ``frames/``).
+    layers if a tag registers them. ``image`` has none: every declared
+    axis is a collection, whose final children must be individual files.
 
     Returns ``(sizes, sample_leaf)`` where ``sample_leaf`` is the path
     used for the tag_probes internal_count sniff (the phase-1 leaf, or
@@ -260,14 +263,15 @@ def _measure_dim_sizes(
     sizes: list[int] = []
     current: list[Path] = [root]
     sample: Path | None = None
-    for _ in range(dir_depth):
+    for layer in range(dir_depth):
         next_layer: list[Path] = []
         per_dir: int | None = None
         for parent in current:
             try:
-                kids = sorted(
-                    c for c in parent.iterdir() if not c.name.startswith(".") and c.is_dir()
-                )
+                kids = sorted(c for c in parent.iterdir() if not c.name.startswith("."))
+                file_leaf = "image" in tags and layer == dir_depth - 1
+                if any(not (c.is_file() if file_leaf else c.is_dir()) for c in kids):
+                    return None, None
             except OSError:
                 return None, None
             if per_dir is None:

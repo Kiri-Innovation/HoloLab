@@ -31,7 +31,7 @@
 import { runtimeFromSummary, typeFromLegacy } from "../types/legacyPortType";
 import { renderPortType } from "../types/renderPortType";
 import type { CatalogPack, GraphEdge, GraphNode } from "../wire";
-import { effectivePortArrayed, effectivePortDimLabels } from "../tags";
+
 import { isAlgorithmGraphNode } from "./nodeMeta";
 
 export interface EdgeType {
@@ -79,7 +79,7 @@ function walkTags(
 
 // Walk ``dim_labels_from_input`` back to the ultimate producer. Own
 // visited set — see the header on walkTags.
-function walkDimLabels(
+function invocationDimLabels(
   nodeId: string,
   portName: string,
   ctx: EdgeTypeCtx,
@@ -110,13 +110,35 @@ function walkDimLabels(
       (e) => e.target === nodeId && e.targetHandle === port.dim_labels_from_input,
     );
     if (!feeder) return null;
-    const upstream = walkDimLabels(feeder.source, feeder.sourceHandle, ctx, visited);
+    const upstream = walkDimLabels(feeder.source, feeder.sourceHandle, ctx, new Set(visited));
     if (upstream == null) return null;
     const drop = Math.max(0, port.dim_labels_drop_outer ?? 0);
     return drop >= upstream.length ? [] : upstream.slice(drop);
   }
 
-  return port.dim_labels ? [...port.dim_labels] : [];
+  if (port.arrayed && port.tags_from && !port.dim_labels?.length) {
+    const feeder = ctx.edges.find(e => e.target === nodeId && e.targetHandle === port.tags_from);
+    if (!feeder) return null;
+    const dims = walkDimLabels(feeder.source, feeder.sourceHandle, ctx, new Set(visited));
+    return dims === null ? null : ["", ...dims];
+  }
+  return port.dim_labels?.length ? [...port.dim_labels] : port.arrayed ? [""] : [];
+}
+
+function walkDimLabels(nodeId: string, portName: string, ctx: EdgeTypeCtx, visited: Set<string>): string[] | null {
+  const node = ctx.nodes.find(n => n.id === nodeId);
+  if (!node || !isAlgorithmGraphNode(node)) return null;
+  const pack = ctx.catalogByKey.get(`${node.algorithm_name}@${node.algorithm_version}`);
+  const dims = invocationDimLabels(nodeId, portName, ctx, new Set(visited));
+  if (dims === null || !pack || !pack.arrayable || !node.arrayed_toggle) return dims;
+  const next = new Set(visited).add(`${nodeId}::${portName}`);
+  let outer = "";
+  for (const edge of ctx.edges) {
+    if (edge.target !== nodeId || !pack.inputs[edge.targetHandle] || pack.inputs[edge.targetHandle].scalar) continue;
+    const upstream = walkDimLabels(edge.source, edge.sourceHandle, ctx, next);
+    if (upstream?.length) { outer = upstream[0]; break; }
+  }
+  return [outer, ...dims];
 }
 
 export interface EdgeTypeCtx {
@@ -158,44 +180,9 @@ export function effectiveOutputType(
   // Local mirror for pre-autosave state. Two independent walks so a
   // port whose tags_from and dim_labels_from_input reference the same
   // upstream input doesn't self-poison its own cycle guard.
-  const nodeArrayed = Boolean(node.arrayed_toggle);
-  const tags = port.tags_from
-    ? walkTags(nodeId, portName, ctx, new Set())
-    : [...port.tags];
-
-  let dimLabels: string[];
-  let arrayed = effectivePortArrayed(port.arrayed, pack.arrayable, nodeArrayed);
-  if (port.dim_labels_from_input) {
-    const walked = walkDimLabels(nodeId, portName, ctx, new Set());
-    if (walked != null) {
-      dimLabels = walked;
-      // Arrayed cardinality mirrors the derived shape: a drop that
-      // collapses the outermost layer must also flip the port to scalar,
-      // else the chip would render an unlabeled ``[?]`` bracket for a
-      // value that is genuinely a single element.
-      arrayed = walked.length > 0;
-    } else {
-      dimLabels = [];
-      arrayed = false;
-    }
-  } else if (port.dim_labels_from) {
-    const pv = node.params[port.dim_labels_from];
-    dimLabels = Array.isArray(pv) && pv.every((v) => typeof v === "string")
-      ? (pv as string[])
-      : effectivePortDimLabels(
-          port.arrayed,
-          port.dim_labels,
-          pack.arrayable,
-          nodeArrayed,
-        );
-  } else {
-    dimLabels = effectivePortDimLabels(
-      port.arrayed,
-      port.dim_labels,
-      pack.arrayable,
-      nodeArrayed,
-    );
-  }
+  const tags = port.tags_from ? walkTags(nodeId, portName, ctx, new Set()) : [...port.tags];
+  const dimLabels = walkDimLabels(nodeId, portName, ctx, new Set()) ?? [];
+  const arrayed = dimLabels.length > 0;
 
   return { tags, arrayed, dimLabels };
 }

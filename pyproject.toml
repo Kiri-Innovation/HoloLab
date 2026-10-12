@@ -35,6 +35,7 @@ dependencies = [
     "structlog>=24.4",
     "watchfiles>=0.24",
     "pyyaml>=6.0",
+    "pillow>=10",
 ]
 
 [project.optional-dependencies]

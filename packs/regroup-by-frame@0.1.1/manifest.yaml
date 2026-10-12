@@ -17,14 +17,16 @@ inputs:
   by_cam:
     tags: [image]
     arrayed: true
-    dim_labels: ["cam", "frame"]
+    storage: dir
+    dim_labels: [cam, frame]
     description: "arrayed<image_sequence>: each element = one camera's frames."
 
 outputs:
   by_frame:
     tags: [image]
     arrayed: true
-    dim_labels: ["frame", "cam"]
+    storage: dir
+    dim_labels: [frame, cam]
     description: "arrayed<image_sequence>: each element = one frame's cameras."
 
 runtime:

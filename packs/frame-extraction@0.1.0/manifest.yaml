@@ -97,14 +97,12 @@ params:
 outputs:
   frame_sequence:
     tags: [image]
-    # Per-shard the script writes an ``arrayed<image>`` sequence — files
-    # ``frame_XXXXXX.png`` sit directly at the handle root (no ``frames/``
-    # subdir since the flatten migration). Under arrayable_toggle the
-    # framework wraps N shards → ``arrayed<arrayed<image>>``; ``dim_labels``
-    # names the aggregate view: outer wrap = per-camera shard dir, inner
-    # content = per-frame image file. Handle summary reports
-    # ``dim_sizes=[N_cam, N_frame]``.
-    dim_labels: ["cam", "frame"]
+    arrayed: true
+    storage: dir
+    dim_labels: [frame]
+    # One invocation emits arrayed[frame]<image>. Node-level fan-out adds
+    # one outer camera collection; both axes contain explicit elements,
+    # and the last element is a single decodable image file.
     description: >
       Directory containing ``frame_XXXXXX.png`` files at its root (no
       ``frames/`` wrapper). Consumed by ``frames-to-camera-track`` and
