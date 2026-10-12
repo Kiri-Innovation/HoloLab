@@ -868,19 +868,12 @@ def _arrayed_port_depth(port: str, spec: dict[str, Any], effective_params: dict[
     ``content_dims_from`` to subtract those innermost non-directory layers.
     """
 
-    semantic_depth = len(spec.get("dim_labels") or []) or 1
-    param_name = spec.get("content_dims_from")
-    content_dims = effective_params.get(param_name, 0) if param_name else 0
-    if isinstance(content_dims, bool) or not isinstance(content_dims, int):
-        raise WorkflowRunError(
-            f"arrayed input {port!r} content_dims must be an integer (got {content_dims!r})"
-        )
-    if content_dims < 0 or content_dims >= semantic_depth:
-        raise WorkflowRunError(
-            f"arrayed input {port!r} content_dims={content_dims} is invalid for "
-            f"{semantic_depth} semantic dimensions; require 0 <= content_dims < {semantic_depth}"
-        )
-    return semantic_depth - content_dims
+    from hololab.gateway.port_type_ir import enumeration_depth
+
+    try:
+        return enumeration_depth(port, spec, effective_params)
+    except ValueError as exc:
+        raise WorkflowRunError(str(exc)) from exc
 
 
 async def _discover_element_ids(

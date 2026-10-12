@@ -79,7 +79,6 @@ from hololab.gateway.registry import (
 )
 from hololab.gateway.spa_staticfiles import SPAStaticFiles
 from hololab.gateway.workflows import (
-    PackHandle,
     WorkflowConflict,
     WorkflowGraph,
     WorkflowPreconditionRequired,
@@ -1720,35 +1719,7 @@ def _mount_routes(app: FastAPI) -> None:
         registry: NodeRegistry = app.state.registry
 
         # Build validation inputs from the catalog + connected sessions.
-        from hololab.gateway.workflows import InputPortView, OutputPortView
-
-        catalog = {(c["name"], c["version"]): c for c in registry.catalog_json()}
-        packs_by_key: dict[tuple[str, str], PackHandle] = {
-            key: PackHandle(
-                inputs={
-                    n: InputPortView(
-                        tags=tuple(i["tags"]),
-                        required=bool(i.get("required", True)),
-                        arrayed=bool(i.get("arrayed", False)),
-                        scalar=bool(i.get("scalar", False)),
-                        dim_labels=tuple(i.get("dim_labels", []) or []),
-                    )
-                    for n, i in entry["inputs"].items()
-                },
-                outputs={
-                    n: OutputPortView(
-                        tags=tuple(o["tags"]),
-                        arrayed=bool(o.get("arrayed", False)),
-                        tags_from=o.get("tags_from"),
-                        scalar=bool(o.get("scalar", False)),
-                        dim_labels=tuple(o.get("dim_labels", []) or []),
-                    )
-                    for n, o in entry["outputs"].items()
-                },
-                arrayable=bool(entry.get("arrayable", False)),
-            )
-            for key, entry in catalog.items()
-        }
+        packs_by_key = packs_by_key_from_catalog(registry.catalog_json())
         online_node_ids = {s.node_id for s in registry.all_sessions()}
         packs_offered_by_node: dict[str, set[tuple[str, str]]] = {}
         for session in registry.all_sessions():

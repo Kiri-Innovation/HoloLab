@@ -15,7 +15,7 @@ import json
 import time
 import uuid
 from collections import defaultdict, deque
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 import aiosqlite
@@ -26,8 +26,10 @@ from hololab.gateway.port_type_ir import (
     PortTypeIR,
     PortTypes,
     compatible,
+    enumeration_depth,
     from_legacy,
     render_type,
+    shard_view,
     unknown_runtime,
     views_from_aggregate,
 )
@@ -691,6 +693,7 @@ class PackHandle:
     inputs: dict[str, InputPortView]
     outputs: dict[str, OutputPortView]
     arrayable: bool = False
+    param_defaults: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -978,6 +981,11 @@ def packs_by_key_from_catalog(
                 for n, o in entry["outputs"].items()
             },
             arrayable=bool(entry.get("arrayable", False)),
+            param_defaults={
+                name: spec["default"]
+                for name, spec in (entry.get("params") or {}).items()
+                if isinstance(spec, dict) and "default" in spec
+            },
         )
         for key, entry in entries.items()
     }
@@ -1467,6 +1475,17 @@ def resolved_port_types(
     """
     outputs = _effective_output_fields(node, pack, graph, node_by_id, packs_by_key)
     fanout = pack.arrayable and node.arrayed_toggle
+    depths: dict[str, int | None] = {}
+    if fanout:
+        params = {**pack.param_defaults, **node.params}
+        for name, port in pack.inputs.items():
+            if not port.scalar:
+                try:
+                    depths[name] = enumeration_depth(name, asdict(port), params)
+                except ValueError:
+                    depths[name] = None
+    unique_depths = set(depths.values())
+    output_depth = next(iter(unique_depths)) if len(unique_depths) == 1 else None
     groups = {}
     for direction, ports in (("inputs", pack.inputs), ("outputs", pack.outputs)):
         group = {}
@@ -1491,13 +1510,16 @@ def resolved_port_types(
                     if direction == "outputs"
                     else ("broadcast-input" if port.scalar else "map-input")
                 )
+            aggregate = from_legacy(fields["tags"], fields["arrayed"], fields["dim_labels"])
+            views = views_from_aggregate(aggregate, participation)
+            if participation in ("map-input", "collect-output"):
+                views.invocation = shard_view(
+                    aggregate,
+                    depths.get(name) if direction == "inputs" else output_depth,
+                    content_axes=direction == "inputs",
+                )
             group[name] = PortTypeIR(
-                declaration=declaration,
-                views=views_from_aggregate(
-                    from_legacy(fields["tags"], fields["arrayed"], fields["dim_labels"]),
-                    participation,
-                ),
-                runtime=unknown_runtime(),
+                declaration=declaration, views=views, runtime=unknown_runtime()
             )
         groups[direction] = group
     return PortTypes(**groups), outputs

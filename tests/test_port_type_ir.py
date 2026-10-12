@@ -189,3 +189,75 @@ def test_http_graph_and_resolve_share_additive_contract(tmp_path, monkeypatch):
             "arrayed": True,
             "dim_labels": ["cam"],
         }
+
+
+@pytest.mark.parametrize(
+    "content,expected", [(0, "image"), (1, "image[cam]"), (2, "?"), (True, "?")]
+)
+def test_invocation_agrees_with_physical_enumeration(content, expected):
+    from dataclasses import asdict
+
+    from hololab.gateway.execution import WorkflowRunError, _arrayed_port_depth
+    from hololab.gateway.port_type_ir import enumeration_depth
+    from hololab.gateway.workflows import resolved_port_types
+
+    spec = InputPortView(
+        ("image",), True, True, dim_labels=("frame", "cam"), content_dims_from="content"
+    )
+    pack = PackHandle(
+        {"frames": spec},
+        {"out": OutputPortView(("image",), True, dim_labels=("frame", "cam"))},
+        arrayable=True,
+        param_defaults={"content": content},
+    )
+    node = GraphNode(id="n", algorithm_name="p", algorithm_version="1", arrayed_toggle=True)
+    graph = WorkflowGraph(nodes=[node], edges=[])
+    types, old = resolved_port_types(node, pack, graph, {"n": node}, {("p", "1"): pack})
+    assert render_type(types.inputs["frames"].views.invocation) == expected
+    assert old["out"] == {"tags": ["image"], "arrayed": True, "dim_labels": ["frame", "cam"]}
+    if expected == "?":
+        with pytest.raises(WorkflowRunError):
+            _arrayed_port_depth("frames", asdict(spec), {"content": content})
+    else:
+        assert enumeration_depth(
+            "frames", asdict(spec), {"content": content}
+        ) == _arrayed_port_depth("frames", asdict(spec), {"content": content})
+
+
+def test_shard_output_without_driving_shape_stays_unknown():
+    from hololab.gateway.workflows import resolved_port_types
+
+    node = GraphNode(id="n", algorithm_name="p", algorithm_version="1", arrayed_toggle=True)
+    pack = PackHandle({}, {"out": OutputPortView(("image",), False)}, arrayable=True)
+    types, old = resolved_port_types(
+        node, pack, WorkflowGraph(nodes=[node], edges=[]), {"n": node}, {}
+    )
+    assert types.outputs["out"].views.invocation.kind == "unknown"
+    assert old["out"]["arrayed"] is True
+
+
+def test_http_run_validation_uses_same_derived_dimensions(tmp_path, monkeypatch):
+    from dataclasses import asdict
+
+    from fastapi.testclient import TestClient
+
+    from hololab.gateway.app import create_app
+
+    graph, packs = graph_fixture()
+    graph.nodes[0].params["dims"] = ["frame", "other"]
+    catalog = [dict(name=k[0], version=k[1], **asdict(p)) for k, p in packs.items()]
+    with TestClient(create_app(db_path=tmp_path / "run-validation.sqlite")) as client:
+        monkeypatch.setattr(client.app.state.registry, "catalog_json", lambda: catalog)
+
+        async def seed():
+            await client.app.state.workflows.save_draft(
+                workflow_id="validation", name="IR", graph=graph
+            )
+
+        client.portal.call(seed)
+        result = client.post("/api/workflows/validation/run", json={})
+        assert result.status_code == 422, result.text
+        error = next(
+            i["message"] for i in result.json()["detail"]["issues"] if i["where"] == "edge:dt"
+        )
+        assert "arrayed[other]<image>" in error and "arrayed[cam]<image>" in error

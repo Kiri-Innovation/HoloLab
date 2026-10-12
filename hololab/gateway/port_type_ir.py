@@ -178,3 +178,43 @@ def render_type(type_: TypeExpr) -> str:
         axis = f"[{type_.axis.label}]" if type_.axis.label else ""
         return f"arrayed{axis}<{render_type(type_.element)}>"
     return ",".join(type_.tags) + "".join(f"[{a.label or '?'}]" for a in type_.contentAxes)
+
+
+def enumeration_depth(port: str, spec: dict, effective_params: dict) -> int:
+    """Physical shard depth, shared with execution; no display or IO input."""
+    semantic_depth = len(spec.get("dim_labels") or []) or 1
+    param_name = spec.get("content_dims_from")
+    content_dims = effective_params.get(param_name, 0) if param_name else 0
+    if isinstance(content_dims, bool) or not isinstance(content_dims, int):
+        raise ValueError(
+            f"arrayed input {port!r} content_dims must be an integer (got {content_dims!r})"
+        )
+    if content_dims < 0 or content_dims >= semantic_depth:
+        raise ValueError(
+            f"arrayed input {port!r} content_dims={content_dims} is invalid for "
+            f"{semantic_depth} semantic dimensions; require 0 <= content_dims < {semantic_depth}"
+        )
+    return semantic_depth - content_dims
+
+
+def shard_view(aggregate: TypeExpr, depth: int | None, *, content_axes: bool = False) -> TypeExpr:
+    """Project exactly the directory layers enumerated by execution.
+
+    Unknown depth or an underspecified aggregate stays unknown, rather than
+    making up a shard type. Explicit input content axes are not shard arrays.
+    """
+    if depth is None:
+        return UnknownType(reason="unresolved-shard-depth")
+    current = aggregate
+    for _ in range(depth):
+        if not isinstance(current, ArrayType):
+            return UnknownType(reason="insufficient-aggregate-dimensions")
+        current = current.element
+    if content_axes:
+        axes = []
+        while isinstance(current, ArrayType):
+            axes.append(current.axis)
+            current = current.element
+        if isinstance(current, ObjectType):
+            return ObjectType(tags=current.tags, contentAxes=axes + current.contentAxes)
+    return current
