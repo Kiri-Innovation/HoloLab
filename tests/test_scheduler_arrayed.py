@@ -108,7 +108,7 @@ async def _seeded_book(tmp_path: Path, *, subdirs: list[str]) -> tuple[HandleBoo
         handle_id="h-arr",
         node_id="node",
         storage="dir",
-        tags=["frame_sequence"],
+        tags=["colmap-cams"],
         path=str(root),
         job_id=None,
         output_port_name=None,
@@ -129,9 +129,9 @@ async def test_discover_element_ids_returns_sorted_subdirs(tmp_path: Path) -> No
 
 
 @pytest.mark.asyncio
-async def test_discover_element_ids_skips_dotfiles_and_files(tmp_path: Path) -> None:
+async def test_discover_element_ids_skips_dotfiles_but_includes_files(tmp_path: Path) -> None:
     """Framework sidecars (``.hololab-done``, ``.hololab-metadata.json``) and
-    stray files must NOT be dispatched as shards — element = subdir only."""
+    ordinary files are valid elements; only dot-prefixed metadata is excluded."""
     book, h = await _seeded_book(tmp_path, subdirs=["cam00", "cam01"])
     # Drop in the exact files a real producer's output would carry.
     (Path(h.path) / ".hololab-done").touch()
@@ -142,7 +142,7 @@ async def test_discover_element_ids_skips_dotfiles_and_files(tmp_path: Path) -> 
         input_handles={"frames": h.handle_id},
         arrayed_input_ports=["frames"],
     )
-    assert elements == ["cam00", "cam01"]
+    assert elements == ["cam00", "cam01", "stray.txt"]
 
 
 def test_enumerate_arrayed_elements_is_the_marker_safe_global_contract(tmp_path: Path) -> None:
@@ -155,7 +155,11 @@ def test_enumerate_arrayed_elements_is_the_marker_safe_global_contract(tmp_path:
     (root / ".hololab-metadata.json").write_text("{}")
     (root / "ordinary-file.txt").touch()
 
-    assert enumerate_arrayed_elements(str(root), port="groups") == ["g000000", "g000001"]
+    assert enumerate_arrayed_elements(str(root), port="groups") == [
+        "g000000",
+        "g000001",
+        "ordinary-file.txt",
+    ]
 
 
 @pytest.mark.asyncio
@@ -314,7 +318,7 @@ def _install_fake_catalog(client_app: Any, *, arrayable: bool = True) -> None:
         "arrayable": arrayable,
         "inputs": {
             "frames": {
-                "tags": ["frame_sequence"],
+                "tags": ["colmap-cams"],
                 "required": True,
                 "storage": "dir",
                 "description": None,
@@ -323,7 +327,7 @@ def _install_fake_catalog(client_app: Any, *, arrayable: bool = True) -> None:
         },
         "outputs": {
             "out": {
-                "tags": ["frame_sequence"],
+                "tags": ["colmap-cams"],
                 "storage": "dir",
                 "description": None,
                 "preview": None,
@@ -419,7 +423,7 @@ async def test_fanout_creates_shards_and_registers_aggregate(tmp_path: Path) -> 
                     handle_id="h-arr",
                     node_id="node-a",
                     storage="dir",
-                    tags=["frame_sequence"],
+                    tags=["colmap-cams"],
                     path=str(arr_root),
                 )
             )
@@ -446,7 +450,7 @@ async def test_fanout_creates_shards_and_registers_aggregate(tmp_path: Path) -> 
                     handle_id="h-arr",
                     node_id="node-a",
                     storage="dir",
-                    tags=["frame_sequence"],
+                    tags=["colmap-cams"],
                     path=str(arr_root),
                     job_id="upstream-job",
                     output_port_name="out",
@@ -518,7 +522,7 @@ async def test_fanout_creates_shards_and_registers_aggregate(tmp_path: Path) -> 
         aggregate = parent_handles[0]
         assert aggregate.output_port_name == "out"
         assert aggregate.path == str(ws_root / "w" / "wf1" / "j" / parent_id / "out")
-        assert aggregate.tags == ["frame_sequence"]
+        assert aggregate.tags == ["colmap-cams"]
 
         # Every shard's job_assign frame carried shard_element_id +
         # shard_output_prefix.
@@ -558,7 +562,7 @@ async def test_fanout_shard_failure_marks_parent_failed(tmp_path: Path) -> None:
                     handle_id="h-arr",
                     node_id="node-a",
                     storage="dir",
-                    tags=["frame_sequence"],
+                    tags=["colmap-cams"],
                     path=str(arr_root),
                     job_id="upstream-job",
                     output_port_name="out",
@@ -677,7 +681,7 @@ async def test_single_node_dispatch_fans_out_arrayable(tmp_path: Path) -> None:
                     handle_id="h-arr",
                     node_id="node-a",
                     storage="dir",
-                    tags=["frame_sequence"],
+                    tags=["colmap-cams"],
                     path=str(arr_root),
                     job_id="upstream-job",
                     output_port_name="out",

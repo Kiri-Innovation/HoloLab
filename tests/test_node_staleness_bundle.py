@@ -131,49 +131,12 @@ def test_staleness_earliest_walks_topological_order() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_algorithm_node_renders_stale_badge() -> None:
+def test_algorithm_node_passes_staleness_and_snapshot_context_to_status_dot() -> None:
     body = ALGO_NODE_TSX.read_text(encoding="utf-8")
-    # Stable DOM attribute so E2E hooks + this test can pin the badge
-    # without depending on colour classes / structural position.
-    assert "data-hl-node-stale=" in body, (
-        "AlgorithmNode must render the staleness badge with a stable "
-        "``data-hl-node-stale`` attribute so tests + styling can select it."
-    )
-    # Chinese tooltip prefix so the operator understands what amber means.
-    assert "结果陈旧" in body
-
-
-def test_algorithm_node_hides_badge_in_readonly() -> None:
-    """The snapshot canvas sets ``readOnly=true`` — the badge must
-    respect that so history mode stays quiet (nothing is "stale" when
-    you're viewing a frozen past run).
-    """
-
-    body = ALGO_NODE_TSX.read_text(encoding="utf-8")
-    # The badge JSX gate must include ``!readOnly`` — grepping literally
-    # for the concise expression the source uses.
-    assert "!readOnly && staleness" in body, (
-        "AlgorithmNode must gate the stale badge on !readOnly so it "
-        "never draws on the snapshot canvas (which is a read-only view "
-        "of a frozen past run — nothing there is 'stale')."
-    )
-
-
-def test_algorithm_node_hints_run_button_when_stale() -> None:
-    """A dirty node's Run button should visibly hint the affordance —
-    same amber language as the badge — so the operator knows this is
-    the "从这里重跑" entry point without inventing a new button.
-    """
-
-    body = ALGO_NODE_TSX.read_text(encoding="utf-8")
-    assert "stale={staleness?.kind" in body, (
-        "AlgorithmNode must pass ``stale=`` to RunButton when the "
-        "node's staleness is self_dirty — otherwise the primary action "
-        "is indistinguishable from a fresh node."
-    )
-    # Literal string match against the AlgorithmNode source — the
-    # fullwidth comma is part of the Chinese sentence the user sees.
-    assert "结果陈旧，点击从此节点重跑" in body  # noqa: RUF001
+    assert "<NodeStatusDot" in body
+    assert "stale: staleness" in body
+    assert "readOnly })" in body
+    assert "stale={staleness?.kind" in body
 
 
 # ---------------------------------------------------------------------------

@@ -81,7 +81,7 @@ def _install_fake_catalog(client_app: Any) -> None:
         "arrayable": True,
         "inputs": {
             "frames": {
-                "tags": ["frame_sequence"],
+                "tags": ["colmap-cams"],
                 "required": True,
                 "storage": "dir",
                 "description": None,
@@ -90,7 +90,7 @@ def _install_fake_catalog(client_app: Any) -> None:
         },
         "outputs": {
             "out": {
-                "tags": ["frame_sequence"],
+                "tags": ["colmap-cams"],
                 "storage": "dir",
                 "description": None,
                 "preview": None,
@@ -124,7 +124,7 @@ async def _seed_fanout_graph(
             handle_id="h-arr",
             node_id="node-a",
             storage="dir",
-            tags=["frame_sequence"],
+            tags=["colmap-cams"],
             path=str(arr_root),
             job_id="upstream-job",
             output_port_name="out",
@@ -214,9 +214,7 @@ async def test_upfront_shard_rows_appear_before_any_dispatch(tmp_path: Path) -> 
         _install_fake_catalog(app)
 
         async def _seed() -> tuple[str, WorkflowGraph]:
-            snap_id, graph, _ = await _seed_fanout_graph(
-                app, element_ids=elements, parallelism=1
-            )
+            snap_id, graph, _ = await _seed_fanout_graph(app, element_ids=elements, parallelism=1)
             return snap_id, graph
 
         snapshot_id, graph = client.portal.call(_seed)
@@ -431,9 +429,7 @@ async def test_no_fail_fast_all_shards_reach_terminal(tmp_path: Path) -> None:
         _install_fake_catalog(app)
 
         async def _seed() -> tuple[str, WorkflowGraph]:
-            snap_id, graph, _ = await _seed_fanout_graph(
-                app, element_ids=elements, parallelism=2
-            )
+            snap_id, graph, _ = await _seed_fanout_graph(app, element_ids=elements, parallelism=2)
             return snap_id, graph
 
         snapshot_id, graph = client.portal.call(_seed)
@@ -541,9 +537,7 @@ async def test_parallelism_one_dispatches_serially(tmp_path: Path) -> None:
         _install_fake_catalog(app)
 
         async def _seed() -> tuple[str, WorkflowGraph]:
-            snap_id, graph, _ = await _seed_fanout_graph(
-                app, element_ids=elements, parallelism=1
-            )
+            snap_id, graph, _ = await _seed_fanout_graph(app, element_ids=elements, parallelism=1)
             return snap_id, graph
 
         snapshot_id, graph = client.portal.call(_seed)

@@ -43,19 +43,17 @@ def test_sampled_counts_and_complete_directory_axis(tmp_path):
     assert str(tmp_path) not in str(s["runtime_shape"])
 
 
-def test_intrinsic_dimension_is_sampled_not_a_uniformity_guarantee(tmp_path):
+def test_ragged_image_collection_does_not_claim_uniform_dimensions(tmp_path):
     for name, count in [("f0", 21), ("f1", 7)]:
         leaf = tmp_path / name
         leaf.mkdir()
         for i in range(count):
             (leaf / f"cam_{i}.png").touch()
     s = summarize_handle(handle(tmp_path, ("image",)), depth=2, dim_labels=["frame", "cam"])
-    assert s["dim_sizes"] == [2, 21]  # Existing legacy sample remains unchanged.
-    axes = s["runtime_shape"]["axes"]["evidence"]
-    assert axes["status"] == "sampled"
-    assert axes["value"][0]["size"]["evidence"]["status"] == "complete"
-    assert axes["value"][1]["size"]["evidence"]["status"] == "sampled"
-    assert axes["value"][1]["role"] == "content"
+    # Ragged collections have no uniform rectangular shape; never sample the
+    # first camera count and pretend it describes every frame.
+    assert "dim_sizes" not in s
+    assert s["runtime_shape"]["axes"]["evidence"]["status"] == "unknown"
 
 
 def test_scalar_counts_complete_and_missing_handle_unknown(tmp_path):

@@ -27,7 +27,7 @@ def _marker_array(root: Path) -> None:
         (root / name).mkdir(parents=True)
     (root / ".hololab-done").touch()
     (root / ".hololab-metadata.json").write_text("{}")
-    (root / "stray.txt").write_text("not an element")
+    (root / "stray.txt").write_text("a file element")
 
 
 def test_get_index_011_ignores_hololab_markers_and_counts_elements(tmp_path: Path) -> None:
@@ -35,7 +35,7 @@ def test_get_index_011_ignores_hololab_markers_and_counts_elements(tmp_path: Pat
     arr.mkdir()
     _marker_array(arr)
 
-    for index, expected in ((0, "g000000"), (1, "g000001")):
+    for index, expected in ((0, "g000000"), (1, "g000001"), (2, "stray.txt")):
         item = tmp_path / f"item-{index}"
         _run_shell(
             PACKS / "get-index@0.1.1" / "manifest.yaml", arr=arr, output=item, params={"idx": index}
@@ -44,15 +44,16 @@ def test_get_index_011_ignores_hololab_markers_and_counts_elements(tmp_path: Pat
 
     n = tmp_path / "n.txt"
     _run_shell(PACKS / "array-length@0.1.1" / "manifest.yaml", arr=arr, output=n, params={})
-    assert n.read_text() == "2\n"
+    assert n.read_text() == "3\n"
 
 
 def test_arrayed_utility_shells_explicitly_filter_dot_directories() -> None:
     """Global convention guard for pack-side directory enumeration.
 
     Utility manifests that enumerate arrayed elements must spell the same
-    ``-type d ! -name '.*'`` contract as the framework helper.
+    file-or-directory, non-dot entry contract as the framework helper.
     """
     for name in ("get-index@0.1.1", "array-length@0.1.1"):
         text = (PACKS / name / "manifest.yaml").read_text()
-        assert "-type d ! -name '.*'" in text
+        assert "! -name '.*'" in text
+        assert "-type f" in text and "-type d" in text

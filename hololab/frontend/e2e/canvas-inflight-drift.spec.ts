@@ -203,7 +203,7 @@ async function stubCommon(page: import("@playwright/test").Page) {
 }
 
 test.describe("Canvas node — inflight_old_params chip", () => {
-  test("running + drifted draft → `!旧参数` chip on the drifted node only", async ({
+  test("running + drifted draft → single warning dot with old-parameter tooltip", async ({
     page,
   }) => {
     // Draft: drift node has use_gpu=1, match node has use_gpu=0.
@@ -240,29 +240,16 @@ test.describe("Canvas node — inflight_old_params chip", () => {
     await expect(dots.first()).toHaveAttribute("data-hl-node-status", "running");
     await expect(dots.nth(1)).toHaveAttribute("data-hl-node-status", "running");
 
-    // Only ONE chip in the DOM — the drifted node's.
-    const chips = page.locator(`[data-hl-node-stale="inflight_old_params"]`);
-    await expect(chips).toHaveCount(1);
-    // Chip renders the literal "旧参数" text so meaning doesn't hinge
-    // on iconography — the ``!`` prefix is aria-hidden decoration.
-    await expect(chips.first()).toContainText("旧参数");
-    // Tooltip must (a) call out the specific reason (``use_gpu``) so
-    // the operator knows which edit is being ignored by the running
-    // job, and (b) name the job short-hash so they can grep the run
-    // history for it.
-    const title = await chips.first().getAttribute("title");
-    expect(title).not.toBeNull();
-    expect(title!).toContain("旧参数");
-    expect(title!).toContain("use_gpu");
-    expect(title!).toContain("job job-dri");
-    expect(title!).toContain("完成后");
-
-    // The match node must not carry a chip AND must not carry a
-    // self_dirty dot — its params match everything.
-    const matchNode = page.locator(
-      `[data-hololab-node="algorithm"]`,
-    ).nth(1);
-    await expect(matchNode.locator(`[data-hl-node-stale]`)).toHaveCount(0);
+    // Drift changes the single status dot; raw running state is retained.
+    await expect(dots.first()).toHaveAttribute("data-status-tone", "warning");
+    await expect(dots.nth(1)).toHaveAttribute("data-status-tone", "info");
+    await expect(page.locator('[data-hl-node-stale]')).toHaveCount(0);
+    await dots.first().hover();
+    const tooltip=page.getByRole('tooltip');
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toContainText('旧参数');
+    await expect(tooltip).toContainText('use_gpu');
+    await expect(dots.first()).not.toHaveAttribute('title');
 
     await page.screenshot({
       path: "test-results/inflight-drift-chip-visible.png",
@@ -270,7 +257,7 @@ test.describe("Canvas node — inflight_old_params chip", () => {
     });
   });
 
-  test("done + drifted draft → amber self_dirty dot (NOT the chip)", async ({
+  test("done + drifted draft → single warning dot", async ({
     page,
   }) => {
     // Same drift, but the jobs are DONE — the operator has finished
@@ -308,7 +295,7 @@ test.describe("Canvas node — inflight_old_params chip", () => {
     // Chip absent — it is EXCLUSIVELY the in-flight-drift indicator.
     await expect(page.locator(`[data-hl-node-stale="inflight_old_params"]`)).toHaveCount(0);
     // Amber self_dirty dot present on the drifted node.
-    const stale = page.locator(`[data-hl-node-stale="self_dirty"]`);
+    const stale = page.locator(`[data-hl-node-status][data-status-tone="warning"]`);
     await expect(stale).toHaveCount(1);
 
     await page.screenshot({

@@ -1,15 +1,4 @@
-"""M6 packs: colmap-sfm-cams-only + colmap-triangulate + colmap-assemble.
-
-Locks the shape (tags, arrayable, params) so a future refactor of the tag
-system or fan-out semantics doesn't silently break the STG production
-pipeline. Runtime correctness (COLMAP invocation, output layout) is
-exercised by end-to-end runs — not here.
-
-Both @0.1.0 and @0.2.0 pack versions are validated. @0.2.0 is the
-canonical STG no_prior mirror; @0.1.0 is kept for any historic workflow
-that still references it (jobs record ``(name, version)`` at assignment,
-so bumping the pack doesn't disturb them).
-"""
+"""Supported COLMAP pack contracts and current SfM key resolution regressions."""
 
 from __future__ import annotations
 
@@ -25,18 +14,18 @@ PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
 
 
 def _load_sfm_key_module():
-    """Import ``sfm_key.py`` from colmap-triangulate@0.5.0 as a module.
+    """Import ``sfm_key.py`` from colmap-triangulate@0.7.4 as a module.
 
     Filesystem import so the test doesn't need the pack on sys.path. The
     helper is deliberately numpy-free — resolver logic ships in its own
     file (``sfm_key.py``) precisely so tests can exercise it without the
     kiri runtime env.
     """
-    pack_dir = PACKS_ROOT / "colmap-triangulate@0.5.0"
+    pack_dir = PACKS_ROOT / "colmap-triangulate@0.7.4"
     src = pack_dir / "sfm_key.py"
     if str(pack_dir) not in sys.path:
         sys.path.insert(0, str(pack_dir))
-    spec = importlib.util.spec_from_file_location("sfm_key_v050", src)
+    spec = importlib.util.spec_from_file_location("sfm_key_v074", src)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -46,50 +35,6 @@ def _load_sfm_key_module():
 def _load(name: str, version: str = "0.2.0"):
     m, _sha = load_manifest(PACKS_ROOT / f"{name}@{version}" / "manifest.yaml")
     return m
-
-
-# ---------------------------------------------------------------------------
-# @0.2.0 — canonical STG no_prior mirror (single_camera+OPENCV, undistort,
-# self-contained colmap-frame output).
-# ---------------------------------------------------------------------------
-
-
-def test_colmap_sfm_cams_only_shape_v020() -> None:
-    m = _load("colmap-sfm-cams-only", "0.2.0")
-    assert m.version == "0.2.0"
-    assert m.arrayable is False  # SfM is a whole-sequence solve, not per-shard.
-    assert m.inputs["frames"].tags == ["image"]
-    assert m.inputs["frames"].arrayed is False
-    assert m.outputs["cams"].tags == ["colmap-cams"]
-    assert m.outputs["cams"].arrayed is False
-    for p in ("use_gpu", "max_image_size", "max_num_features"):
-        assert p in m.params, p
-    # Defaults raised to COLMAP defaults — v0.1.0's 2048/2400 was too weak.
-    assert m.params["max_num_features"].default == 8192
-    assert m.params["max_image_size"].default == 3200
-    # single_camera + OPENCV are baked into the shell (mirroring pre_no_prior.py).
-    assert "--ImageReader.single_camera 1" in m.exec.shell
-    assert "--ImageReader.camera_model OPENCV" in m.exec.shell
-    # BA tolerance override (mirrors SpacetimeGaussians/thirdparty/gaussian_splatting/convert.py:83)
-    assert "ba_global_function_tolerance=0.000001" in m.exec.shell
-
-
-def test_colmap_triangulate_shape_v020() -> None:
-    m = _load("colmap-triangulate", "0.2.0")
-    assert m.version == "0.2.0"
-    assert m.arrayable is True  # framework fans out one shard per element.
-    assert m.inputs["cams"].tags == ["colmap-cams"]
-    assert m.inputs["cams"].arrayed is False
-    assert m.inputs["frames"].tags == ["image"]
-    assert m.inputs["frames"].arrayed is False
-    # v0.2.0 output is a self-contained per-frame COLMAP dir (sparse/0 + images/).
-    assert m.outputs["frame"].tags == ["colmap-frame"]
-    assert m.outputs["frame"].arrayed is False
-    assert m.params["filter_max_reproj_error"].default == 4.0
-    assert m.params["max_num_features"].default == 8192
-    assert m.params["max_image_size"].default == 3200
-    assert m.source_entry == "triangulate.py"
-    assert (PACKS_ROOT / "colmap-triangulate@0.2.0" / m.source_entry).is_file()
 
 
 def test_colmap_assemble_shape_v020() -> None:
@@ -110,44 +55,10 @@ def test_colmap_assemble_shape_v020() -> None:
     assert (PACKS_ROOT / "colmap-assemble@0.2.0" / m.source_entry).is_file()
 
 
-@pytest.mark.parametrize("pack_name", ["colmap-sfm-cams-only", "colmap-triangulate"])
-def test_colmap_pack_docs_mention_rig_alternative_v020(pack_name: str) -> None:
-    """The ``docs:`` field distinguishes this pack from rig-group-triangulation
-    so a future contributor doesn't ask "why are there two triangulators?"."""
-    m = _load(pack_name, "0.2.0")
-    assert m.docs and "rig-group-triangulation" in m.docs, (
-        f"{pack_name}@0.2.0 docs must explain the rig-* alternative"
-    )
-
-
-@pytest.mark.parametrize(
-    "pack_name", ["colmap-sfm-cams-only", "colmap-triangulate", "colmap-assemble"]
-)
+@pytest.mark.parametrize("pack_name", ["colmap-assemble"])
 def test_colmap_pack_category_v020(pack_name: str) -> None:
     m = _load(pack_name, "0.2.0")
     assert m.category == ["reconstruction", "colmap"], m.category
-
-
-# ---------------------------------------------------------------------------
-# @0.1.0 — kept alongside for historic workflows. Only shape locks; the
-# canonical STG behavior lives in @0.2.0 and is checked above.
-# ---------------------------------------------------------------------------
-
-
-def test_colmap_sfm_cams_only_shape_v010() -> None:
-    m = _load("colmap-sfm-cams-only", "0.1.0")
-    assert m.arrayable is False
-    assert m.inputs["frames"].tags == ["image"]
-    assert m.outputs["cams"].tags == ["colmap-cams"]
-
-
-def test_colmap_triangulate_shape_v010() -> None:
-    m = _load("colmap-triangulate", "0.1.0")
-    assert m.arrayable is True
-    assert m.inputs["cams"].tags == ["colmap-cams"]
-    assert m.inputs["frames"].tags == ["image"]
-    # v0.1.0 emitted only points3D.
-    assert m.outputs["points"].tags == ["colmap-points"]
 
 
 def test_colmap_assemble_shape_v010() -> None:
@@ -158,75 +69,6 @@ def test_colmap_assemble_shape_v010() -> None:
     assert m.inputs["points"].tags == ["colmap-points"]
     assert m.inputs["frames"].tags == ["image"]
     assert m.outputs["colmap"].tags == ["colmap"]
-
-
-# ---------------------------------------------------------------------------
-# @0.5.0 — mirror of STG's getcolmapsinglen3d. Distorted-domain feature
-# extract + per-image OPENCV cameras; intrinsics stay fixed (given-pose
-# triangulator; --refine_intrinsics defaults to 0 and this version never
-# sets it) + inline image_undistorter. See manifest docs for the full
-# v0.4.0 -> v0.5.0 diff.
-# ---------------------------------------------------------------------------
-
-
-def test_colmap_triangulate_shape_v050() -> None:
-    m = _load("colmap-triangulate", "0.5.0")
-    assert m.version == "0.5.0"
-    assert m.arrayable is True
-    # Inputs rolled back to the OPENCV bundle (colmap-cams) + raw distorted frames.
-    assert m.inputs["cams"].tags == ["colmap-cams"]
-    assert m.inputs["cams"].scalar is True, "cams must broadcast to every shard"
-    assert m.inputs["frames"].tags == ["image"]
-    assert m.inputs["frames"].arrayed is False
-    # Output still colmap tag; downstream stg-train stays wired.
-    assert m.outputs["frame"].tags == ["colmap"]
-    assert m.outputs["frame"].scalar is True
-    # Only knob is use_gpu — SIFT caps / reproj filter removed (STG doesn't set them).
-    assert set(m.params.keys()) == {"use_gpu"}, (
-        f"@0.5.0 only exposes use_gpu; got {sorted(m.params)}"
-    )
-    assert m.source_entry == "triangulate.py"
-    assert (PACKS_ROOT / "colmap-triangulate@0.5.0" / m.source_entry).is_file()
-    assert (PACKS_ROOT / "colmap-triangulate@0.5.0" / "colmap_db.py").is_file(), (
-        "vendored COLMAP DB helper must ship with the pack"
-    )
-
-
-def test_colmap_triangulate_v050_shell_matches_stg_flags() -> None:
-    """The shell wraps triangulate.py — the flag choices live in the script.
-
-    Lock that the script-level knobs match STG's helper3dg.py exactly:
-    * only ba_global_function_tolerance=0.000001 on point_triangulator
-    * no --ImageReader.single_camera / --camera_model on feature_extractor
-      (DB is pre-populated; the extractor only attaches features)
-    * no --clear_points, no --filter_max_reproj_error, no --ba_refine_*=0
-    """
-    script = (PACKS_ROOT / "colmap-triangulate@0.5.0" / "triangulate.py").read_text()
-    assert "ba_global_function_tolerance=0.000001" in script
-    for banned in ("ba_refine_focal_length", "ba_refine_principal_point", "ba_refine_extra_params"):
-        assert banned not in script, f"@0.5.0 must not pass --{banned}"
-    assert "--ImageReader.single_camera" not in script
-    assert "--ImageReader.camera_model" not in script
-    # Match the actual CLI flag (docstring / comments may mention the name).
-    assert "--Mapper.filter_max_reproj_error" not in script
-    assert '"--clear_points"' not in script
-    assert "prefill_db" in script and "add_camera" in script
-
-
-def test_colmap_triangulate_v050_docs_flag_upstream_mirror() -> None:
-    m = _load("colmap-triangulate", "0.5.0")
-    assert m.docs and "helper3dg.py" in m.docs, (
-        "@0.5.0 docs must credit the upstream reference so the semantic "
-        "contract is discoverable from the manifest alone"
-    )
-    assert "pre_no_prior.py" in m.docs
-
-
-# ---------------------------------------------------------------------------
-# @0.5.0 — SfM key resolution: staged filename → SfM pose key. This is the
-# load-bearing lookup that had 100/100 shards failing when regroup@0.2.0's
-# indexed leaf names (``cam_0000.png``) collided with SfM's ``cam00`` keys.
-# ---------------------------------------------------------------------------
 
 
 def _fake_sfm(keys: list[str]) -> dict[str, object]:
@@ -360,96 +202,6 @@ def test_resolve_sfm_key_multi_digit_indexes_are_handled() -> None:
     assert sk.numeric_suffix("cam") is None
 
 
-# ---------------------------------------------------------------------------
-# @0.6.0 — @0.5.0 + opt-in ``refine_intrinsics`` bool param. Semantically
-# identical to @0.5.0 when the param is left at its default (false); the
-# opt-in appends ``--refine_intrinsics 1`` to the point_triangulator call.
-# ---------------------------------------------------------------------------
-
-
-def test_colmap_triangulate_shape_v060() -> None:
-    m = _load("colmap-triangulate", "0.6.0")
-    assert m.version == "0.6.0"
-    assert m.arrayable is True
-    # Same wire shape as @0.5.0 — this bump is purely a param addition.
-    assert m.inputs["cams"].tags == ["colmap-cams"]
-    assert m.inputs["cams"].scalar is True
-    assert m.inputs["frames"].tags == ["image"]
-    assert m.inputs["frames"].arrayed is False
-    assert m.outputs["frame"].tags == ["colmap"]
-    assert m.outputs["frame"].scalar is True
-    assert set(m.params.keys()) == {"use_gpu", "refine_intrinsics"}
-    ri = m.params["refine_intrinsics"]
-    assert ri.type.value == "bool", f"expected bool param; got {ri.type}"
-    assert ri.default is False, f"refine_intrinsics must default OFF; got {ri.default!r}"
-    assert m.source_entry == "triangulate.py"
-    assert (PACKS_ROOT / "colmap-triangulate@0.6.0" / m.source_entry).is_file()
-    # Vendored helpers must ship alongside — pack is self-contained.
-    assert (PACKS_ROOT / "colmap-triangulate@0.6.0" / "colmap_db.py").is_file()
-    assert (PACKS_ROOT / "colmap-triangulate@0.6.0" / "sfm_key.py").is_file()
-
-
-def test_colmap_triangulate_v060_shell_wires_refine_intrinsics_bool_to_int() -> None:
-    """The shell renders ``params.refine_intrinsics | int`` as 0/1 so the
-    Python side can accept it as an ``int``. If either side drifts (e.g.
-    triangulate.py switches back to ``store_true``), COLMAP invocation
-    breaks silently at shard-dispatch time — assert both halves here.
-    """
-    m = _load("colmap-triangulate", "0.6.0")
-    assert "--refine-intrinsics {{ params.refine_intrinsics | int }}" in m.exec.shell
-
-    script = (PACKS_ROOT / "colmap-triangulate@0.6.0" / "triangulate.py").read_text()
-    # store_true would reject the rendered "0" / "1" tail.
-    assert 'action="store_true"' not in script, (
-        "argparse must accept an int value to match the shell's "
-        "``--refine-intrinsics {int}`` rendering"
-    )
-    assert "choices=(0, 1)" in script
-    # The load-bearing conditional: pass the flag only when the operator opted in.
-    assert "if refine_intrinsics:" in script
-    assert '"--refine_intrinsics"' in script
-
-
-def test_colmap_triangulate_v060_off_by_default_matches_v050_command() -> None:
-    """``refine_intrinsics=false`` (default) must produce a point_triangulator
-    command that does NOT include ``--refine_intrinsics``, matching @0.5.0
-    bit-for-bit. Regression guard: the opt-in must be strictly opt-in.
-    """
-    script = (PACKS_ROOT / "colmap-triangulate@0.6.0" / "triangulate.py").read_text()
-    # The append happens inside ``if refine_intrinsics:``; assert the string
-    # ``pt_cmd.append("--refine_intrinsics")`` doesn't appear unconditionally.
-    # Cheap structural check: it must be preceded by the guard.
-    idx = script.index('pt_cmd.append("--refine_intrinsics")')
-    prefix = script[max(0, idx - 200) : idx]
-    assert "if refine_intrinsics:" in prefix, (
-        "--refine_intrinsics must be appended only inside the "
-        "if-refine_intrinsics guard so default OFF matches @0.5.0"
-    )
-
-
-def test_colmap_triangulate_v060_docs_correct_ba_behavior() -> None:
-    """The @0.6.0 docs must state ``point_triangulator`` is a given-pose
-    triangulator and mention the ``--refine_intrinsics arg (=0)`` COLMAP
-    default. This lets a future reader hitting a "wait, do poses drift?"
-    question find the answer inside the manifest.
-    """
-    m = _load("colmap-triangulate", "0.6.0")
-    docs = (m.docs or "") + " " + (m.description or "")
-    assert "given-pose triangulator" in docs.lower()
-    assert "refine_intrinsics" in docs
-    # Grounded quote from ``colmap point_triangulator -h`` — the doc pins
-    # its factual claim to a checkable source rather than restating it.
-    assert "refine_intrinsics arg (=0)" in docs, (
-        "@0.6.0 docs must cite the COLMAP CLI help so the claim is verifiable"
-    )
-    assert "held fixed" in docs or "poses fixed" in docs.lower() or "freezes poses" in docs
-
-
-# ---------------------------------------------------------------------------
-# @0.7.2 — perf-tuned: ba_max_refinements=2, thread caps 2→4.
-# ---------------------------------------------------------------------------
-
-
 def test_colmap_triangulate_shape_v072() -> None:
     m = _load("colmap-triangulate", "0.7.2")
     assert m.version == "0.7.2"
@@ -458,7 +210,7 @@ def test_colmap_triangulate_shape_v072() -> None:
     assert m.inputs["cams"].tags == ["colmap-cams"]
     assert m.inputs["cams"].scalar is True
     assert m.inputs["frames"].tags == ["image"]
-    assert m.inputs["frames"].arrayed is False
+    assert m.inputs["frames"].arrayed is True
     assert m.outputs["points"].tags == ["point-cloud"]
     assert m.outputs["points"].scalar is True
     assert set(m.params.keys()) == {"use_gpu", "refine_intrinsics", "ba_max_refinements"}
@@ -516,22 +268,6 @@ def test_colmap_triangulate_v072_thread_caps_bumped_to_four() -> None:
         # The next non-whitespace token in the list literal is the value.
         tail = script[idx : idx + 120]
         assert '"4"' in tail, f'{flag} must be followed by "4"; saw {tail!r}'
-
-
-def test_colmap_triangulate_v072_ba5_replays_v071_pt_command() -> None:
-    """Equivalence claim from the docs: ``ba_max_refinements=5`` reproduces
-    the @0.7.1 ``point_triangulator`` invocation (modulo the intentional
-    thread-cap change). If the flag rendering ever drifts, the
-    "set 5 to reproduce @0.7.1" advice becomes a footgun.
-    """
-    script = (PACKS_ROOT / "colmap-triangulate@0.7.2" / "triangulate.py").read_text()
-    v071 = (PACKS_ROOT / "colmap-triangulate@0.7.1" / "triangulate.py").read_text()
-    # @0.7.1's pt_cmd list contains only ba_global_function_tolerance; @0.7.2 adds
-    # ba_global_max_refinements. Both live in the same block.
-    assert "--Mapper.ba_global_function_tolerance=0.000001" in script
-    assert "--Mapper.ba_global_function_tolerance=0.000001" in v071
-    # @0.7.1 did not pin max_refinements — it inherited COLMAP's default (5).
-    assert "ba_global_max_refinements" not in v071
 
 
 def test_colmap_triangulate_v072_docs_state_perf_claims() -> None:

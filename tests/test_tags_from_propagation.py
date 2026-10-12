@@ -136,7 +136,7 @@ def test_declared_tags_when_tags_from_unset() -> None:
         nodes=[GraphNode(id="p", algorithm_name="p", algorithm_version="0.1.0")],
         edges=[],
     )
-    pack = _pk_producer(("frame_sequence",))
+    pack = _pk_producer(("image",))
     tags = effective_output_tags(
         graph.nodes[0],
         pack,
@@ -145,7 +145,7 @@ def test_declared_tags_when_tags_from_unset() -> None:
         {"p": graph.nodes[0]},
         {("p", "0.1.0"): pack},
     )
-    assert tags == ["frame_sequence"]
+    assert tags == ["image"]
 
 
 def test_tags_from_falls_back_to_any_when_input_unwired() -> None:
@@ -167,8 +167,8 @@ def test_tags_from_falls_back_to_any_when_input_unwired() -> None:
 def test_arrayfy_output_propagates_matching_tag() -> None:
     """src produces frame_sequence → arrayfy.out effective tag = frame_sequence
     → downstream expecting frame_sequence connects cleanly."""
-    graph = _fanout_graph(sink_tags=("frame_sequence",))
-    packs = _packs(src_out_tags=("frame_sequence",), sink_tags=("frame_sequence",))
+    graph = _fanout_graph(sink_tags=("image",))
+    packs = _packs(src_out_tags=("image",), sink_tags=("image",))
     edge_issues = [i for i in _validate(graph, packs) if i.where.startswith("edge:")]
     assert edge_issues == [], edge_issues
 
@@ -177,7 +177,7 @@ def test_arrayfy_output_propagates_and_rejects_mismatch() -> None:
     """src produces frame_sequence, downstream expects colmap-cams —
     propagation makes the mismatch concrete and validate_snapshot rejects."""
     graph = _fanout_graph(sink_tags=("colmap-cams",))
-    packs = _packs(src_out_tags=("frame_sequence",), sink_tags=("colmap-cams",))
+    packs = _packs(src_out_tags=("image",), sink_tags=("colmap-cams",))
     edge_issues = [i for i in _validate(graph, packs) if i.where.startswith("edge:")]
     assert any("tag mismatch" in i.message for i in edge_issues), edge_issues
 
@@ -187,7 +187,7 @@ def test_arrayfy_without_data_wired_still_matches_any() -> None:
     back to its declared ``[any]`` and downstream typing still succeeds
     (permissive during graph construction; snapshot validation would
     surface the missing required input separately)."""
-    packs = _packs(src_out_tags=("frame_sequence",), sink_tags=("colmap-cams",))
+    packs = _packs(src_out_tags=("image",), sink_tags=("colmap-cams",))
     graph = _fanout_graph(sink_tags=("colmap-cams",))
     # Drop the src → arrayfy.data edge so tags_from can't resolve.
     graph.edges = [e for e in graph.edges if e.id != "e1"]

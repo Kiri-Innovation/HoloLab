@@ -36,6 +36,7 @@ version: 0.1.0
 outputs:
   out:
     tags: [image]
+    storage: file
 runtime:
   env: test
 exec:

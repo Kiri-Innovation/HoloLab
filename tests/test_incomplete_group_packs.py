@@ -76,4 +76,4 @@ def test_missing_cam3_uses_the_six_present_cameras(tmp_path: Path) -> None:
     }
     resolved = tri.prefill_db(tmp_path / "input.db", tmp_path / "manual", present, cams, poses)
     assert [name for name, _ in resolved] == present
-    assert len((tmp_path / "manual" / "images.txt").read_text().splitlines()) == 13
+    assert [row[-1] for row in tri.parse_images_txt(tmp_path / "manual" / "images.txt")] == present

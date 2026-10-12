@@ -433,10 +433,7 @@ def test_handle_summary_dim_sizes_rejects_ragged(tmp_path: Path) -> None:
 
 
 def test_content_dim_registry_image_flat_layout(tmp_path: Path) -> None:
-    """New (flat) ``image`` probe: image files sit directly under the
-    element leaf; probe reports their count. Registry counts stay 1
-    (one intrinsic dim) regardless of physical wrapping.
-    """
+    """Image has no intrinsic dimension; files require an explicit collection."""
     from hololab.gateway.tag_probes import content_dim_count_for, probe_content_dims
 
     leaf = tmp_path / "elem"
@@ -444,20 +441,17 @@ def test_content_dim_registry_image_flat_layout(tmp_path: Path) -> None:
     for i in range(5):
         (leaf / f"frame_{i:06d}.png").write_bytes(b"")
 
-    assert content_dim_count_for(["image"]) == 1
-    assert content_dim_count_for(["image_sequence"]) == 1  # alias
-    assert content_dim_count_for(["frame_sequence"]) == 1  # alias
+    assert content_dim_count_for(["image"]) == 0
+    assert content_dim_count_for(["image_sequence"]) == 0  # removed tag
+    assert content_dim_count_for(["frame_sequence"]) == 0  # removed tag
     assert content_dim_count_for(["colmap"]) == 0
 
-    assert probe_content_dims(["image"], leaf) == [5]
+    assert probe_content_dims(["image"], leaf) is None
     assert probe_content_dims(["colmap"], leaf) is None
 
 
 def test_content_dim_registry_image_legacy_frames_dir(tmp_path: Path) -> None:
-    """Backward compat: pre-flatten handles with ``<leaf>/frames/<file>``
-    still yield a correct content-dim count so old artifacts keep
-    reporting ``dim_sizes``.
-    """
+    """Old directory wrappers cannot invent intrinsic image dimensions."""
     from hololab.gateway.tag_probes import probe_content_dims
 
     leaf = tmp_path / "elem"
@@ -465,18 +459,13 @@ def test_content_dim_registry_image_legacy_frames_dir(tmp_path: Path) -> None:
     for i in range(5):
         (leaf / "frames" / f"frame_{i:06d}.png").write_bytes(b"")
 
-    assert probe_content_dims(["image"], leaf) == [5]
+    assert probe_content_dims(["image"], leaf) is None
     # An empty root with no files and no frames/ → None (drops dim_sizes).
     assert probe_content_dims(["image"], tmp_path / "empty") is None
 
 
 def test_handle_summary_dim_sizes_image_2d_flat(tmp_path: Path) -> None:
-    """arrayable-wrap ``image`` (flat, new layout): dim_labels=["frame","cam"]
-    with depth=2 and files directly under each element dir.
-
-    Walker walks 1 dir level (frame), then ``image`` probe counts files
-    directly under each element (cam count).
-    """
+    """The complete walker measures explicit frame and camera collection axes."""
     from hololab.gateway.handle_summary import summarize_handle
     from hololab.gateway.handles import Handle
 
@@ -499,9 +488,7 @@ def test_handle_summary_dim_sizes_image_2d_flat(tmp_path: Path) -> None:
 
 
 def test_handle_summary_dim_sizes_image_2d_legacy_frames_dir(tmp_path: Path) -> None:
-    """Legacy handles still report dim_sizes: files under
-    ``<frame_XXXX>/frames/<cam_YY>.png``. Backward compat contract.
-    """
+    """An undeclared extra directory layer does not yield a valid image shape."""
     from hololab.gateway.handle_summary import summarize_handle
     from hololab.gateway.handles import Handle
 
@@ -518,15 +505,12 @@ def test_handle_summary_dim_sizes_image_2d_legacy_frames_dir(tmp_path: Path) -> 
         path=str(root),
     )
     res = summarize_handle(h, depth=2)
-    assert res["dim_sizes"] == [3, 4]
-    assert res["element_count"] == 3
+    assert "dim_sizes" not in res
+    assert res["runtime_shape"]["axes"]["evidence"]["status"] == "unknown"
 
 
 def test_handle_summary_dim_sizes_image_1d_flat(tmp_path: Path) -> None:
-    """Single-shard ``image`` (depth=1): the handle IS the arrayed<image>
-    sequence — files ``frame_XXXXXX.png`` at the root, no ``frames/``.
-    Walker uses dir_depth = 1 - 1 = 0 (no dir walk, only content probe).
-    """
+    """An explicit one-axis image collection contains files at its root."""
     from hololab.gateway.handle_summary import summarize_handle
     from hololab.gateway.handles import Handle
 
@@ -629,9 +613,9 @@ _RBF_SCRIPT = (
 
 
 def _mk_image_sequence_tree(root: Path, cams: list[str], n_frames: int) -> None:
-    """frame-extraction-style arrayed<image_sequence>: <cam>/frames/frame_XXXXXX.png."""
+    """Explicit camera/frame collection of test payload files."""
     for cam in cams:
-        frames_dir = root / cam / "frames"
+        frames_dir = root / cam
         frames_dir.mkdir(parents=True)
         for i in range(n_frames):
             (frames_dir / f"frame_{i:06d}.png").write_bytes(f"{cam}/{i}".encode())
@@ -654,14 +638,7 @@ def _run_rbf(input_root: Path, output_root: Path) -> subprocess.CompletedProcess
 
 
 def test_regroup_by_frame_transposes_image_sequence(tmp_path: Path) -> None:
-    """regroup-by-frame@0.1.0 iterates individual PNGs at the file level.
-
-    Input:  <cam>/frames/frame_XXXXXX.png   (legacy frame-extraction shape)
-    Output: <frame_key>/frames/<cam>.png    (legacy colmap-triangulate shape)
-
-    The DEPRECATED @0.1.0 pack keeps the old ``frames/`` convention on both
-    sides. New producers use the flat layout; consumers accept both.
-    """
+    """Transpose camera/frame files to frame/camera files, without extra wrappers."""
     in_root = tmp_path / "in"
     _mk_image_sequence_tree(in_root, ["cam_A", "cam_B"], n_frames=3)
     out = tmp_path / "out_rbf"
@@ -671,46 +648,30 @@ def test_regroup_by_frame_transposes_image_sequence(tmp_path: Path) -> None:
     assert len(outer) == 3, f"expected 3 per-frame elements, got {outer}"
     assert outer[0] == "frame_000000"
 
-    frames_dir = out / "frame_000000" / "frames"
+    frames_dir = out / "frame_000000"
     assert frames_dir.is_dir()
     assert (frames_dir / "cam_A.png").is_symlink()
     assert (frames_dir / "cam_B.png").is_symlink()
     assert (frames_dir / "cam_A.png").read_bytes() == b"cam_A/0"
 
 
-def test_regroup_v020_misinterprets_image_sequence_when_content_dims_0(
+def test_regroup_v020_explicit_file_axes_need_no_content_dims(
     tmp_path: Path,
 ) -> None:
-    """Default ``content_dims=0`` treats ``frames/`` as a plain subdir —
-    wrong shape for image_sequence input. Documents that callers MUST
-    pass ``content_dims=1`` when the input carries the ``image`` tag
-    family (the pack has no auto-detection).
-    """
+    """Both content_dims settings retain explicit physical collection axes."""
     in_root = tmp_path / "in"
     _mk_image_sequence_tree(in_root, ["cam_A", "cam_B"], n_frames=3)
     out = tmp_path / "out_v020"
     _run(in_root, out, ["cam", "frame"], ["frame", "cam"], content_dims=0)
 
     outer = sorted(p.name for p in out.iterdir() if not p.name.startswith("."))
-    assert outer == ["frame_0000"], (
-        f"content_dims=0 folds all frames into one; got {outer} — pass content_dims=1"
-    )
+    assert outer == ["frame_0000", "frame_0001", "frame_0002"]
 
 
 def test_regroup_v020_matches_regroup_by_frame_element_count(
     tmp_path: Path,
 ) -> None:
-    """With ``content_dims=1``, regroup@0.2.0 produces the same per-frame
-    element count as regroup-by-frame@0.1.0, but at a flatter layout.
-
-    * regroup-by-frame@0.1.0: ``<frame_dir>/frames/<cam>.png`` (legacy).
-    * regroup@0.2.0:          ``<frame_dir>/<cam>.png``         (flat).
-
-    Filenames also differ: legacy echoes source stems (``cam00.png``);
-    v0.2.0 uses ``<label>_<idx:04d>`` (``cam_0000.png``). Same file
-    count, same per-frame group set — downstream colmap-triangulate
-    now consumes the shard root directly (auto-detects both layouts).
-    """
+    """Both regroup variants preserve the number and bytes of explicit file leaves."""
     in_root = tmp_path / "in"
     _mk_image_sequence_tree(in_root, ["cam00", "cam01", "cam02"], n_frames=4)
 
@@ -724,7 +685,7 @@ def test_regroup_v020_matches_regroup_by_frame_element_count(
     v020_frames = sorted(p.name for p in out_v020.iterdir() if not p.name.startswith("."))
     assert len(rbf_frames) == len(v020_frames) == 4
 
-    rbf_cams = sorted((out_rbf / rbf_frames[0] / "frames").iterdir())
+    rbf_cams = sorted((out_rbf / rbf_frames[0]).iterdir())
     v020_cams = sorted(f for f in (out_v020 / v020_frames[0]).iterdir() if f.is_symlink())
     assert len(rbf_cams) == len(v020_cams) == 3
     assert [c.name for c in v020_cams] == ["cam_0000.png", "cam_0001.png", "cam_0002.png"]
@@ -765,12 +726,10 @@ def test_regroup_v020_content_dims_1_extension_preserved(tmp_path: Path) -> None
     assert (out / "frame_0000" / "cam_0000.jpg").is_symlink()
 
 
-def test_regroup_v020_content_dims_1_accepts_legacy_frames_input(tmp_path: Path) -> None:
-    """Backward compat: pre-flatten input (files under ``<cam>/frames/``)
-    still regroups correctly — output stays flat (new layout).
-    """
+def test_regroup_v020_content_dims_1_preserves_flat_file_elements(tmp_path: Path) -> None:
+    """Legacy content_dims hint does not introduce an implicit frames wrapper."""
     in_root = tmp_path / "in"
-    _mk_image_sequence_tree(in_root, ["cam00", "cam01"], n_frames=2)  # writes frames/
+    _mk_image_sequence_tree(in_root, ["cam00", "cam01"], n_frames=2)  # writes explicit files
     out = tmp_path / "out"
     _run(in_root, out, ["cam", "frame"], ["frame", "cam"], content_dims=1)
 
@@ -835,18 +794,13 @@ def test_schema_allows_dim_labels_from() -> None:
 
 
 def test_schema_allows_dim_labels_on_scalar_ports() -> None:
-    """Post-relaxation: scalar/non-arrayed ports may declare dim_labels.
-
-    Describes the aggregate view after framework arrayable wrapping.
-    Locks the schema change so a future validator tighten-up doesn't
-    silently break arrayable-wrapped chip labels.
-    """
+    """Non-image bundle content labels remain legal; image axes require arrayed."""
     from hololab.manifest.schema import InputSpec, OutputSpec
 
     # Scalar output with dim_labels — used by colmap-triangulate.frame.
     out = OutputSpec(tags=["colmap"], scalar=True, dim_labels=["frame"])
     assert out.dim_labels == ["frame"]
 
-    # Non-arrayed input with dim_labels — describes aggregate under toggle.
-    inp = InputSpec(tags=["image"], dim_labels=["frame", "cam"])
+    # Image collection declares its invocation dimensions explicitly.
+    inp = InputSpec(tags=["image"], arrayed=True, dim_labels=["frame", "cam"])
     assert inp.dim_labels == ["frame", "cam"]

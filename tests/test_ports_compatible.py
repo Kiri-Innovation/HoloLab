@@ -35,11 +35,11 @@ from hololab.gateway.workflows import (
 
 
 def test_ports_compatible_scalar_to_scalar_overlap() -> None:
-    assert ports_compatible(["frame_sequence"], False, ["frame_sequence"], False)
+    assert ports_compatible(["image"], False, ["image"], False)
 
 
 def test_ports_compatible_scalar_to_arrayed_rejected() -> None:
-    assert not ports_compatible(["frame_sequence"], False, ["frame_sequence"], True)
+    assert not ports_compatible(["image"], False, ["image"], True)
 
 
 def test_ports_compatible_arrayed_to_arrayed_overlap() -> None:
@@ -47,16 +47,16 @@ def test_ports_compatible_arrayed_to_arrayed_overlap() -> None:
 
 
 def test_ports_compatible_tag_disjoint_rejected() -> None:
-    assert not ports_compatible(["frame_sequence"], False, ["colmap"], False)
+    assert not ports_compatible(["image"], False, ["colmap"], False)
 
 
 def test_any_tag_matches_anything() -> None:
-    assert tags_compatible(["any"], ["frame_sequence"])
-    assert tags_compatible(["frame_sequence"], ["any"])
+    assert tags_compatible(["any"], ["image"])
+    assert tags_compatible(["image"], ["any"])
     assert tags_compatible(["any"], ["any"])
-    # Wildcard still respects arrayed cardinality in ports_compatible.
-    assert ports_compatible(["any"], True, ["frame_sequence"], True)
-    assert not ports_compatible(["any"], False, ["frame_sequence"], True)
+    # A bare any represents a structural generic; wrapped any retains its layer.
+    assert ports_compatible(["any"], True, ["image"], True)
+    assert ports_compatible(["any"], False, ["image"], True)
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +101,7 @@ def test_effective_arrayed_scalar_input_always_broadcasts() -> None:
     # of pack arrayability — that's the broadcast contract for cams-style
     # scalar bundles fed into every fan-out shard.
     assert not effective_port_arrayed(False, True, True, port_scalar=True)
-    assert not effective_port_arrayed(True, True, True, port_scalar=True)
+    assert effective_port_arrayed(True, True, True, port_scalar=True)
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +292,9 @@ def test_scalar_output_to_arrayed_input_rejected() -> None:
     )
     edge_issues = [i for i in issues if i.where.startswith("edge:")]
     assert edge_issues, "expected validation issue for scalar output → arrayed input"
-    assert any("scalar output" in i.message for i in edge_issues), edge_issues
+    assert any(
+        "scalar output" in i.message or "cardinality mismatch" in i.message for i in edge_issues
+    ), edge_issues
 
 
 def test_fanout_scalar_output_to_arrayed_input_allowed() -> None:
@@ -394,11 +396,13 @@ def test_fanout_off_scalar_output_to_arrayed_input_still_rejected() -> None:
     )
     edge_issues = [i for i in issues if i.where.startswith("edge:")]
     assert edge_issues, "expected validation issue when fan-out is off"
-    assert any("scalar output" in i.message for i in edge_issues), edge_issues
+    assert any(
+        "scalar output" in i.message or "cardinality mismatch" in i.message for i in edge_issues
+    ), edge_issues
 
 
-def test_arrayed_output_to_scalar_input_allowed() -> None:
-    """arrayed output → scalar: true input must be accepted (broadcast semantic)."""
+def test_arrayed_output_to_scalar_input_rejected() -> None:
+    """Broadcast preserves the declaration; it cannot consume an unexpected array."""
     graph = WorkflowGraph(
         nodes=[
             GraphNode(
@@ -433,11 +437,11 @@ def test_arrayed_output_to_scalar_input_allowed() -> None:
         packs_offered_by_node={"node": {("src", "0.1.0"), ("dst", "0.1.0")}},
     )
     edge_issues = [i for i in issues if i.where.startswith("edge:")]
-    assert edge_issues == [], edge_issues
+    assert any("cardinality mismatch" in i.message for i in edge_issues), edge_issues
 
 
-def test_scalar_output_to_scalar_input_allowed() -> None:
-    """scalar: true output → scalar: true input: both non-arrayed, always OK."""
+def test_fanout_output_cannot_broadcast_into_single_bundle() -> None:
+    """The parent aggregate is an array even when its output has scalar=True."""
     graph = WorkflowGraph(
         nodes=[
             GraphNode(
@@ -474,10 +478,10 @@ def test_scalar_output_to_scalar_input_allowed() -> None:
         packs_offered_by_node={"node": {("src", "0.1.0"), ("dst", "0.1.0")}},
     )
     edge_issues = [i for i in issues if i.where.startswith("edge:")]
-    assert edge_issues == [], edge_issues
+    assert any("cardinality mismatch" in i.message for i in edge_issues), edge_issues
 
 
-def test_validate_any_tag_wildcard_accepts_frame_sequence() -> None:
+def test_validate_any_tag_wildcard_accepts_image() -> None:
     graph = WorkflowGraph(
         nodes=[
             GraphNode(
@@ -490,7 +494,7 @@ def test_validate_any_tag_wildcard_accepts_frame_sequence() -> None:
         edges=[GraphEdge(id="e", source="a", sourceHandle="o", target="b", targetHandle="i")],
     )
     packs = {
-        ("src", "0.1.0"): _pk({}, {"o": {"tags": ["frame_sequence"]}}),
+        ("src", "0.1.0"): _pk({}, {"o": {"tags": ["image"]}}),
         # Generic utility pack accepts anything via the ``any`` wildcard.
         ("dst", "0.1.0"): _pk({"i": {"tags": ["any"]}}, {"out": {"tags": ["any"]}}),
     }

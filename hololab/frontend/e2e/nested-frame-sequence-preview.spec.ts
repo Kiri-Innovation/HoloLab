@@ -25,7 +25,7 @@ async function stubPage(page: import("@playwright/test").Page) {
     name: "frame-extraction", version: "1.0.0", manifest_hash: "hash", node_ids: [NODE_ID],
     description: "generic nested frames", category: [], docs: null, source_entry: null, manifest_path: null,
     source_dir: null, inputs: {}, params: {}, arrayable: false,
-    outputs: { frames: { tags: ["frame_sequence"], arrayed: true, preview: null, description: null, dim_labels: null } },
+    outputs: { frames: { tags: ["image"], arrayed: true, preview: null, description: null, dim_labels: ["group", "frame"] } },
   };
   const graph = { nodes: [{ id: GRAPH_NODE_ID, algorithm_name: pack.name, algorithm_version: pack.version, position: { x: 100, y: -100 }, params: {}, assigned_node_id: NODE_ID }], edges: [] };
   await page.route("**/_thumb/**", async (route) => {
@@ -40,11 +40,11 @@ async function stubPage(page: import("@playwright/test").Page) {
   await page.route(`**/api/workflows/${WORKFLOW_ID}`, jsonRoute({ workflow_id: WORKFLOW_ID, name: "nested preview", graph, created_ts: 1_700_000_000, updated_ts: 1_700_000_000 }));
   await page.route(`**/api/workflows/${WORKFLOW_ID}/runs`, jsonRoute([{ snapshot_id: SNAPSHOT_ID, workflow_id: WORKFLOW_ID, created_ts: 1_700_000_000, node_count: 1, job_count: 1, state_counts: { done: 1 }, overall_state: "done", favorite: false, note: null }]));
   await page.route(`**/api/snapshots/${SNAPSHOT_ID}`, jsonRoute({ snapshot_id: SNAPSHOT_ID, workflow_id: WORKFLOW_ID, created_ts: 1_700_000_000, graph, jobs: [{ job_id: "job-done", workflow_id: WORKFLOW_ID, node_id: NODE_ID, graph_node_id: GRAPH_NODE_ID, algorithm_name: pack.name, algorithm_version: pack.version, state: "done", progress: null, fail_reason: null, fail_exit_code: null, fail_message: null, params: {}, input_handles: {}, output_handles: { frames: HANDLE_ID }, parent_job_id: null, shard_element_id: null, shard_element_ids: null, expected_shards: null, created_ts: 1_700_000_000, updated_ts: 1_700_000_001 }] }));
-  await page.route(`**/api/handles/${HANDLE_ID}`, jsonRoute({ handle_id: HANDLE_ID, node_id: NODE_ID, storage: "dir", tags: ["frame_sequence"], size_bytes: 0, output_port_name: "frames", proxy_url: `/proxy/${HANDLE_ID}/`, absolute_path: "/ws/nested", deleted_ts: null, preview: null, dim_labels: null, dim_sizes: null }));
-  await page.route(`**/api/handles/${HANDLE_ID}/summary`, jsonRoute({ handle_id: HANDLE_ID, kind: "dir", tags: ["frame_sequence"], storage: "dir", size_bytes: 0, proxy_url: `/proxy/${HANDLE_ID}/`, absolute_path: "/ws/nested", dim_sizes: [113, 7], fields: { entry_count: 115, truncated: true, entries: GROUPS.map(({ name, imageCount, listedImageCount }) => ({ name, is_dir: true, size_bytes: null, entry_count: imageCount, children: Array.from({ length: listedImageCount }, (_, i) => ({ name: `frame-${i + 1}.jpg`, is_dir: false, size_bytes: 1 })) })) } }));
+  await page.route(`**/api/handles/${HANDLE_ID}`, jsonRoute({ handle_id: HANDLE_ID, node_id: NODE_ID, storage: "dir", tags: ["image"], size_bytes: 0, output_port_name: "frames", proxy_url: `/proxy/${HANDLE_ID}/`, absolute_path: "/ws/nested", deleted_ts: null, preview: null, dim_labels: ["group", "frame"], dim_sizes: null }));
+  await page.route(`**/api/handles/${HANDLE_ID}/summary`, jsonRoute({ handle_id: HANDLE_ID, kind: "dir", tags: ["image"], storage: "dir", size_bytes: 0, proxy_url: `/proxy/${HANDLE_ID}/`, absolute_path: "/ws/nested", dim_sizes: [113, 7], fields: { entry_count: 115, truncated: true, entries: GROUPS.map(({ name, imageCount, listedImageCount }) => ({ name, is_dir: true, size_bytes: null, entry_count: imageCount, children: Array.from({ length: listedImageCount }, (_, i) => ({ name: `frame-${i + 1}.jpg`, is_dir: false, size_bytes: 1 })) })) } }));
 }
 
-test("arrayed<frame_sequence> shows at most three groups in one vertical column", async ({ page }) => {
+test("nested image array shows at most three groups in one vertical column", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1400 });
   await page.addInitScript(() => { delete (window as { IntersectionObserver?: unknown }).IntersectionObserver; });
   await stubPage(page);

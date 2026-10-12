@@ -1,17 +1,4 @@
-"""M9 packs: colmap-split + image-undistort + colmap-triangulate@0.3.0.
-
-Locks the manifest shape (tag names, arrayable flag, input/output topology)
-so a future refactor doesn't silently break the typed-camera decomposition,
-and asserts the on-disk contract of the entry points:
-
-* ``colmap-split`` copies ``cameras.txt`` verbatim (COLMAP-native, no JSON),
-  and rewrites ``images.txt`` with per-pose observation lines blanked.
-* ``image-undistort`` consumes those two COLMAP files (no reassembly step),
-  and its script has no cross-pack Python dependency.
-* Both split outputs must round-trip through the real ``colmap
-  model_converter`` binary — the ultimate "is this valid COLMAP text?"
-  oracle.
-"""
+"""colmap-split manifest and executable COLMAP text contract tests."""
 
 from __future__ import annotations
 
@@ -41,11 +28,6 @@ def _load_module(name: str, path: Path):
 split_mod = _load_module("_split_mod", PACKS_ROOT / "colmap-split@0.1.0" / "split.py")
 
 
-# ---------------------------------------------------------------------------
-# Manifest shape
-# ---------------------------------------------------------------------------
-
-
 def test_colmap_split_shape() -> None:
     m, _ = load_manifest(PACKS_ROOT / "colmap-split@0.1.0" / "manifest.yaml")
     assert m.name == "colmap-split"
@@ -63,77 +45,6 @@ def test_colmap_split_shape() -> None:
         # arrayed (fan-out) input port is rejected at canvas validation time.
         assert m.outputs[p].scalar is True, p
     assert m.source_entry == "split.py"
-
-
-def test_image_undistort_shape() -> None:
-    m, _ = load_manifest(PACKS_ROOT / "image-undistort@0.2.0" / "manifest.yaml")
-    assert m.name == "image-undistort"
-    assert m.version == "0.2.0"
-    assert m.arrayable is True
-    # cameras: scalar-locked — must NOT participate in the fan-out zip;
-    # the framework broadcasts the single cameras.txt to every shard.
-    assert m.inputs["cameras"].tags == ["colmap-cameras-txt"]
-    assert m.inputs["cameras"].scalar is True
-    assert m.inputs["cameras"].arrayed is False
-    # images: fan-out driver — one shard per element (no scalar lock).
-    assert m.inputs["images"].tags == ["image"]
-    assert m.inputs["images"].scalar is False
-    # Two outputs — renamed to und_cameras / und_images so the canvas label
-    # reads "und.und_cameras" and "und.und_images" (port id == display name).
-    assert m.outputs["und_cameras"].tags == ["colmap-cameras-txt"]
-    assert m.outputs["und_images"].tags == ["image"]
-    assert m.source_entry == "undistort.py"
-    # Docs must cite the framework-level zip contract.
-    assert m.docs and "_discover_element_ids" in m.docs
-
-
-def test_colmap_triangulate_v030_shape() -> None:
-    m, _ = load_manifest(PACKS_ROOT / "colmap-triangulate@0.3.0" / "manifest.yaml")
-    assert m.name == "colmap-triangulate"
-    assert m.version == "0.3.0"
-    assert m.arrayable is True
-    # Three typed inputs (no monolithic colmap-cams anymore).
-    assert m.inputs["cameras"].tags == ["colmap-cameras-txt"]
-    assert m.inputs["poses"].tags == ["colmap-images-txt"]
-    assert m.inputs["images"].tags == ["image"]
-    for p in ("cameras", "poses", "images"):
-        assert m.inputs[p].arrayed is False, p
-    # poses is scalar-locked — shared across all camera shards (broadcast).
-    assert m.inputs["poses"].scalar is True
-    assert m.inputs["cameras"].scalar is False
-    assert m.inputs["images"].scalar is False
-    # Output shape is identical to @0.2.0 so colmap-assemble @0.2.0 still consumes it.
-    assert m.outputs["frame"].tags == ["colmap-frame"]
-    assert m.outputs["frame"].arrayed is False
-
-
-def test_colmap_triangulate_v040_shape() -> None:
-    """v0.4.0 keeps the v0.3.0 script + input topology but renames the output
-    tag ``colmap-frame`` → ``colmap`` (assemble is deprecated; downstream
-    consumers glue arrayed<colmap> → their bespoke container in their own
-    exec). Output is ``scalar: true`` so scalar-to-arrayed edge validation
-    catches misuse before runtime."""
-    m, _ = load_manifest(PACKS_ROOT / "colmap-triangulate@0.4.0" / "manifest.yaml")
-    assert m.name == "colmap-triangulate"
-    assert m.version == "0.4.0"
-    assert m.arrayable is True
-    # Inputs unchanged from v0.3.0.
-    assert m.inputs["cameras"].tags == ["colmap-cameras-txt"]
-    assert m.inputs["poses"].tags == ["colmap-images-txt"]
-    assert m.inputs["images"].tags == ["image"]
-    assert m.inputs["poses"].scalar is True
-    # Output tag renamed; scalar: true so each invocation → one element.
-    assert m.outputs["frame"].tags == ["colmap"]
-    assert m.outputs["frame"].arrayed is False
-    assert m.outputs["frame"].scalar is True
-    # Script reuse — same triangulate.py copied from @0.3.0.
-    assert m.source_entry == "triangulate.py"
-    assert (PACKS_ROOT / "colmap-triangulate@0.4.0" / m.source_entry).is_file()
-
-
-# ---------------------------------------------------------------------------
-# split.py — text-native output
-# ---------------------------------------------------------------------------
 
 
 _SFM_FIXTURE_CAMERAS = (

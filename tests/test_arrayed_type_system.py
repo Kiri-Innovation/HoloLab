@@ -139,11 +139,9 @@ def test_ports_compatible_empty_label_is_wildcard() -> None:
     )
 
 
-def test_ports_compatible_scalar_broadcast_still_allowed() -> None:
-    """Existing scalar-broadcast exception must not be broken by the
-    new depth check — an arrayed source into an explicit scalar target
-    is still valid regardless of depth."""
-    assert ports_compatible(
+def test_ports_compatible_broadcast_does_not_erase_shape() -> None:
+    """Broadcast repeats the declared invocation type; it cannot erase axes."""
+    assert not ports_compatible(
         ["x"],
         True,
         ["x"],
@@ -248,13 +246,13 @@ async def test_discover_element_ids_depth_mismatch_rejected(tmp_path: Path) -> N
 # ---------------------------------------------------------------------------
 
 
-def test_tags_compatible_treats_image_as_image_sequence_and_frame_sequence() -> None:
-    assert tags_compatible(["image"], ["image_sequence"])
-    assert tags_compatible(["image"], ["frame_sequence"])
-    assert tags_compatible(["image_sequence"], ["image"])
-    assert tags_compatible(["image_sequence"], ["frame_sequence"])
-    assert tags_compatible(["frame_sequence"], ["image"])
-    assert tags_compatible(["frame_sequence"], ["image_sequence"])
+def test_removed_image_aliases_are_rejected() -> None:
+    assert not tags_compatible(["image"], ["image_sequence"])
+    assert not tags_compatible(["image"], ["frame_sequence"])
+    assert not tags_compatible(["image_sequence"], ["image"])
+    assert not tags_compatible(["image_sequence"], ["frame_sequence"])
+    assert not tags_compatible(["frame_sequence"], ["image"])
+    assert not tags_compatible(["frame_sequence"], ["image_sequence"])
 
 
 def test_tags_compatible_alias_does_not_leak_across_groups() -> None:

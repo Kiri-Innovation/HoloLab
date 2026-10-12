@@ -65,15 +65,13 @@ def test_structural_views_round_trip(arrayed, labels, mode):
     ),
 )
 def test_compatibility_matrix(src_arr, tgt_arr, scalar, a, b):
-    expected = src_arr == tgt_arr or (src_arr and scalar)
+    expected = src_arr == tgt_arr
     if src_arr and tgt_arr:
         expected &= (len(a) or 1) == (len(b) or 1)
         expected &= all(
             not s or not t or s == t for s, t in zip(a or [""], b or [""], strict=False)
         )
-    assert (
-        ports_compatible(["image"], src_arr, ["image_sequence"], tgt_arr, scalar, a, b) == expected
-    )
+    assert ports_compatible(["image"], src_arr, ["image"], tgt_arr, scalar, a, b) == expected
     assert not ports_compatible(["image"], src_arr, ["mesh"], tgt_arr, scalar, a, b)
 
 
@@ -192,12 +190,18 @@ def test_http_graph_and_resolve_share_additive_contract(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "content,expected", [(0, "image"), (1, "image[cam]"), (2, "?"), (True, "?")]
+    "content,expected",
+    [
+        (0, "arrayed[frame]<arrayed[cam]<image>>"),
+        (1, "arrayed[frame]<arrayed[cam]<image>>"),
+        (2, "arrayed[frame]<arrayed[cam]<image>>"),
+        (True, "arrayed[frame]<arrayed[cam]<image>>"),
+    ],
 )
 def test_invocation_agrees_with_physical_enumeration(content, expected):
     from dataclasses import asdict
 
-    from hololab.gateway.execution import WorkflowRunError, _arrayed_port_depth
+    from hololab.gateway.execution import _arrayed_port_depth
     from hololab.gateway.port_type_ir import enumeration_depth
     from hololab.gateway.workflows import resolved_port_types
 
@@ -214,17 +218,12 @@ def test_invocation_agrees_with_physical_enumeration(content, expected):
     graph = WorkflowGraph(nodes=[node], edges=[])
     types, old = resolved_port_types(node, pack, graph, {"n": node}, {("p", "1"): pack})
     assert render_type(types.inputs["frames"].views.invocation) == expected
-    assert old["out"] == {"tags": ["image"], "arrayed": True, "dim_labels": ["frame", "cam"]}
-    if expected == "?":
-        with pytest.raises(WorkflowRunError):
-            _arrayed_port_depth("frames", asdict(spec), {"content": content})
-    else:
-        assert enumeration_depth(
-            "frames", asdict(spec), {"content": content}
-        ) == _arrayed_port_depth("frames", asdict(spec), {"content": content})
+    assert old["out"] == {"tags": ["image"], "arrayed": True, "dim_labels": ["", "frame", "cam"]}
+    assert enumeration_depth("frames", asdict(spec), {"content": content}) == 1
+    assert _arrayed_port_depth("frames", asdict(spec), {"content": content}) == 1
 
 
-def test_shard_output_without_driving_shape_stays_unknown():
+def test_shard_output_keeps_declared_invocation_without_driving_shape():
     from hololab.gateway.workflows import resolved_port_types
 
     node = GraphNode(id="n", algorithm_name="p", algorithm_version="1", arrayed_toggle=True)
@@ -232,7 +231,7 @@ def test_shard_output_without_driving_shape_stays_unknown():
     types, old = resolved_port_types(
         node, pack, WorkflowGraph(nodes=[node], edges=[]), {"n": node}, {}
     )
-    assert types.outputs["out"].views.invocation.kind == "unknown"
+    assert types.outputs["out"].views.invocation == ObjectType(tags=["image"])
     assert old["out"]["arrayed"] is True
 
 

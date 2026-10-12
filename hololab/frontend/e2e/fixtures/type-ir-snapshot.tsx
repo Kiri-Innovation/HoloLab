@@ -12,7 +12,7 @@ const legacy=new URLSearchParams(location.search).has('legacy');
 const snapshot={snapshot_id:'historical',workflow_id:'fixture',created_ts:1,jobs:legacy?[{job_id:'old-job',graph_node_id:'n0',state:'done',algorithm_name:pack.name,algorithm_version:pack.version,params:{},output_handles:{cams:'old-handle'},created_ts:1,started_ts:2,finished_ts:3}]:[],graph:{nodes:[0,1].map(i=>({id:`n${i}`,algorithm_name:pack.name,algorithm_version:pack.version,position:{x:i*460,y:150},params:{},assigned_node_id:null,arrayed_toggle:true,
  resolved_outputs:{cams:{tags:['colmap-cams'],arrayed:true,dim_labels:['historical-frame']}}})),edges:[{id:'historic-edge',source:'n0',sourceHandle:'cams',target:'n1',targetHandle:'cams'}]}} as SnapshotDetail;
 document.documentElement.dataset.theme=new URLSearchParams(location.search).get('theme') || 'light';
-const catalog = [pack];
+const catalog = new URLSearchParams(location.search).has('missingPack') ? [] : [pack];
 const mixed=new URLSearchParams(location.search).has('mixed');
 function ZoomControls(){
  const {setViewport}=useReactFlow();

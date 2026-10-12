@@ -154,6 +154,6 @@ def test_handle_lookup_returns_resolved_preview_and_dims(tmp_path: Path) -> None
         body = r.json()
         # No job_id on the handle -> port lookup skipped -> dim_labels null.
         # But preview still resolves from the (raw) tag via TAG_VIEWER_REGISTRY.
-        assert body["preview"] == {"viewer": "image", "member": "frame_000000.png"}
+        assert body["preview"] == {"viewer": "image", "member": None}
         assert body["dim_labels"] is None
         assert body["dim_sizes"] is None

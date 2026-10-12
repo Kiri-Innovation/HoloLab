@@ -37,6 +37,25 @@ from hololab.persistence.db import open_database
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+async def close_test_databases(monkeypatch):
+    """Keep writer tasks alive and close SQLite threads before their loop ends."""
+    databases = []
+    real_open = open_database
+
+    async def tracked_open(path):
+        db = await real_open(path)
+        databases.append(db)
+        return db
+
+    monkeypatch.setattr(
+        __import__(__name__, fromlist=["open_database"]), "open_database", tracked_open
+    )
+    yield
+    for db in databases:
+        await db.close()
+
+
 async def _open_stores(tmp_path: Path) -> tuple[JobsStore, HandleBook]:
     db = await open_database(tmp_path / "db.sqlite")
     return JobsStore(db), HandleBook(db)
@@ -58,7 +77,7 @@ def _handle(handle_id: str, *, path: str = "/tmp/x") -> Handle:
         handle_id=handle_id,
         node_id="node-a",
         storage="dir",
-        tags=["frame_sequence"],
+        tags=["colmap-cams"],
         path=path,
         job_id=None,
         output_port_name=None,
@@ -118,7 +137,7 @@ async def test_handle_book_register_many_writes_every_row(tmp_path: Path) -> Non
         got = await book.get(h.handle_id)
         assert got is not None
         assert got.path == h.path
-        assert got.tags == ["frame_sequence"]
+        assert got.tags == ["colmap-cams"]
         assert got.storage == "dir"
 
 
@@ -164,7 +183,7 @@ async def _seeded_book_with_parent(tmp_path: Path) -> tuple[JobsStore, HandleBoo
         handle_id="h-arrayed",
         node_id="node-a",
         storage="dir",
-        tags=["frame_sequence", "colmap-cams"],
+        tags=["image", "colmap-cams"],
         path=str(root),
         job_id=None,
         output_port_name=None,

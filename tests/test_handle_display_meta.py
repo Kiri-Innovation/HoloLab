@@ -34,11 +34,11 @@ def test_explicit_preview_wins_over_registry() -> None:
     assert got is explicit
 
 
-def test_image_tag_infers_frame_strip() -> None:
+def test_image_tag_infers_direct_file_preview() -> None:
     got = infer_preview_for_output(None, ["image"])
     assert got is not None
     assert got.viewer == "image"
-    assert got.member == "frame_000000.png"
+    assert got.member is None
 
 
 def test_first_registered_tag_wins() -> None:

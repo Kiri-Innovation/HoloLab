@@ -44,7 +44,7 @@ function pack() {
     inputs: {},
     outputs: {
       frames: {
-        tags: ["image_sequence"],
+        tags: ["image"],
         arrayed: false,
         preview: null,
         description: null,
@@ -109,7 +109,7 @@ function handleInfo() {
     handle_id: HANDLE_ID,
     node_id: NODE_ID,
     storage: "dir",
-    tags: ["image_sequence"],
+    tags: ["image"],
     size_bytes: 0,
     output_port_name: "frames",
     proxy_url: `/proxy/${HANDLE_ID}/`,

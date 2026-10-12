@@ -7,12 +7,11 @@ for(const theme of ['light','dark']) test(`arrayed broadcast and dimensions ${th
   summaries++;
   const labels=nested?['batch','frame','cam']:['frame','cam'];
   const sizes=nested?[2,100,21]:[100,21];
-  const axes=labels.map((label,i)=>({label,role:i===labels.length-1?'content':'collection',size:{evidence:{
-    status:i===labels.length-1?'sampled':'complete',value:sizes[i],source:'fixture-probe',
-    ...(i===labels.length-1?{sample:'first-leaf'}:{})}}}));
+  const axes=labels.map((label,i)=>({label,role:'collection',size:{evidence:{
+    status:'complete',value:sizes[i],source:'fixture-collection-scan'}}}));
   await route.fulfill({json:{handle_id:'result',tags:['image'],dim_labels:labels,dim_sizes:sizes,element_count:100,fields:{},
     runtime_shape:{schemaVersion:1,handleId:'result',tags:{evidence:{status:'complete',value:['image'],source:'registered-handle-metadata'}},
-      axes:{evidence:{status:'sampled',value:axes,source:'handle-shape-probe',sample:'first-leaf'}},internalCounts:[]}}});
+      axes:{evidence:{status:'complete',value:axes,source:'handle-shape-probe'}},internalCounts:[]}}});
  });
  await page.goto(`/e2e/fixtures/port-types.html?theme=${theme}&arrayed=1`);
  const tip=page.getByRole('tooltip');
@@ -24,7 +23,7 @@ for(const theme of ['light','dark']) test(`arrayed broadcast and dimensions ${th
     await expect(tip.locator('.hl-type-tooltip-before > *')).toHaveText(rows);
     const broadcast=name.startsWith('broadcast');
     const full=broadcast?rows[2]:rows[2]+(nested?'[batch:2]':'[frame:100]');
-    await expect(tip.locator('.hl-type-tooltip-after > *')).toHaveText([broadcast?'arrayed (auto-popped)':'after arrayed',rows[1],full]);
+    await expect(tip.locator('.hl-type-tooltip-after > *')).toHaveText([broadcast?'arrayed (auto-popped)':'after arrayed',broadcast?rows[1]:`arrayed<${rows[1]}>`,full]);
     await expect(tip.locator('.hl-type-tooltip-columns > *')).toHaveCount(2);
   }
   await page.screenshot({path:info.outputPath(`${theme}-${name}.png`)});

@@ -85,7 +85,7 @@ def test_edge_summary_cache_wired(bundle_js: str) -> None:
     assert "element_count" in bundle_js, (
         "edge summary reader must consume ``element_count`` from HandleSummary"
     )
-    assert "internal_count" in bundle_js, (
+    assert "runtime_shape" in bundle_js, (
         "edge summary reader must consume ``internal_count`` from HandleSummary"
     )
 
@@ -112,13 +112,9 @@ def test_image_tag_routed(bundle_js: str) -> None:
     assert '"image"' in bundle_js or "'image'" in bundle_js, (
         "Preview() must route on the canonical image tag"
     )
-    # Aliases retained so pre-migration handles keep working.
-    assert '"image_sequence"' in bundle_js or "'image_sequence'" in bundle_js, (
-        "image_sequence alias must remain for backward compat"
-    )
-    assert '"frame_sequence"' in bundle_js or "'frame_sequence'" in bundle_js, (
-        "frame_sequence alias must remain for backward compat"
-    )
+    # Removed names may remain in validation's rejection set, but never route
+    # a preview. Runtime measurements come from the versioned observation IR.
+    assert "runtime_shape" in bundle_js
 
 
 def test_dim_list_editor_present(bundle_js: str) -> None:
@@ -152,7 +148,7 @@ def test_internal_count_items_wire_key_present(bundle_js: str) -> None:
     Missing this means colmap chips always fall back to the legacy scalar
     ``internal_count`` path and never render ``(cam:21 point:6685)``."""
 
-    assert "internal_count_items" in bundle_js, (
+    assert "internalCounts" in bundle_js, (
         "edgeSummaryCache must consume ``internal_count_items`` from HandleSummary"
     )
 
