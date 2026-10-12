@@ -144,9 +144,11 @@ reads `docs`; it's presentation-only.
 ### Ports — tags are the object type
 
 Every port (input or output) is typed by its **tags** — a list of strings that
-name the object type the port carries. Tags are the only thing edge
-compatibility looks at: two ports are compatible iff their tag sets have a
-non-empty intersection.
+name the object type the port carries. Compatibility checks effective tags,
+array cardinality, and collection dimension depth/labels (see [Dimensions](#dim-labels)).
+Tags match by non-empty intersection, the `any` wildcard, or a registered alias
+(e.g. `image`, `image_sequence`, and `frame_sequence`). A tag match alone does
+not make an array/scalar or named-dimension mismatch valid.
 
 A port can carry multiple tags at once. Semantically this reads as "this
 thing is BOTH an X AND a Y". A specialized producer might declare
@@ -154,8 +156,10 @@ thing is BOTH an X AND a Y". A specialized producer might declare
 that is specifically a sharp4dgs export. Any consumer that wants `[colmap]`
 or `[sharp4dgs_export]` (or both) accepts it.
 
-Ports carry NO other type information. `PathDir`/`PathFile`/etc. are not
-part of the port spec — how the object is stored on disk is a system detail.
+`tags`, `arrayed`, `scalar`, and dimension/derivation fields together form the
+machine-readable port contract. There is no `type: "arrayed<...>"` string grammar.
+`PathDir`/`PathFile`/etc. are not object tags — how the object is stored on disk
+is a separate system detail.
 For CV pipeline evolution: pack authors should think in terms of the object
 they're moving (colmap, gaussians, mask sequence, splatv) rather than files
 vs directories.
@@ -196,8 +200,8 @@ outputs:
     storage: file      # optional; defaults to `dir`
 ```
 
-`storage` is **not** part of edge compatibility. Two ports with matching
-tags are always compatible, regardless of storage form.
+`storage` is **not** part of edge compatibility. It does not override tag,
+cardinality or dimension checks.
 
 ### `arrayed` and `arrayable`
 
@@ -214,11 +218,12 @@ flags control whether a port carries one:
   every port that manifest-defaults to non-arrayed is treated as arrayed
   and the scheduler fan-outs one sub-job (a *shard*) per element.
 
-Edge compatibility is `tags overlap AND arrayed cardinality matches`. No
-implicit scalar↔array broadcasting — wire an `arrayfy` node when you need
-to promote a scalar to an array.
+Edge compatibility requires matching effective tags, cardinality and collection
+axes. The explicit exception is an input with `scalar: true`: it accepts the
+whole array handle as a broadcast value, provided the tags match. There is no
+implicit scalar-to-array promotion — use an `arrayfy` node for that direction.
 
-Shard mechanics (v1: sequential; parallelism knob is a follow-up):
+Shard mechanics:
 
 - Framework mints one parent job (coordinator, no compute-node dispatch)
   plus N shard jobs, one per element of the arrayed inputs.
@@ -226,9 +231,10 @@ Shard mechanics (v1: sequential; parallelism knob is a follow-up):
   instead of its own workspace (via a `shard_output_prefix` on `JobAssign`).
   Aggregation is automatic: after all shards finish, the framework registers
   one parent output handle per port pointing at `{parent_workspace}/{port}/`.
-- Failure is all-or-nothing: any shard failure marks the parent FAILED with
-  a fail message naming the element id and shard index, and the scheduler
-  does not create the remaining shards.
+- `parallelism` bounds concurrent shard dispatch. Shard jobs are created up
+  front; one failure does not short-circuit the pool. The parent is marked
+  failed after all shards reach terminal states; downstream nodes are not
+  started from a partially successful parent.
 
 The pack shell may reference `{{ shard.element_id }}` and `{{ shard.index }}`
 when executing as a shard; these expand to empty for non-shard runs (Jinja2
@@ -256,6 +262,100 @@ should stay fixed no matter what the pack-level toggle does:
   per shard) with `dim_labels: [frame]`; feeding it into
   `stg-train.colmap_frames` (`arrayed: true, dim_labels: [frame]`) is a
   valid edge because the parent aggregate is arrayed<colmap>.
+
+### Dimensions (`dim_labels`)
+
+<a id="dim-labels"></a>
+
+The YAML contract remains structured fields, parsed by `InputSpec`/`OutputSpec`
+in `hololab/manifest/schema.py`. Type labels such as `arrayed[frame]<image>` are
+terminal renderings of that contract, not accepted YAML syntax and never parsed
+back to determine execution or compatibility.
+
+| Field | Meaning |
+|---|---|
+| `dim_labels: [frame, cam]` | Semantic axes, **outer first**. An empty list on an effective array retains one unnamed legacy layer. Empty label strings are wildcard names in compatibility checks. |
+| `dim_labels_from: output_dims` | Output labels derive from this node's parameter list. Invalid/missing values fall back to declared labels, as before. |
+| `dim_labels_from_input: frames` | Output labels derive from the connected producer's resolved output. Missing connections/cycles give unresolved labels. |
+| `dim_labels_drop_outer: 1` | Remove this many outer labels after input derivation; zero preserves them, dropping all yields a scalar. Nonnegative; requires `dim_labels_from_input`. |
+| `content_dims_from: content_dims` | Input-only parameter name: number of innermost semantic axes stored as content rather than child directories. Used by fan-out enumeration; not a measured element count. |
+
+`dim_labels_from` and `dim_labels_from_input` are mutually exclusive. The current
+manifest schema accepts at most **two static labels**. This is a YAML validation
+limit, not a license to truncate runtime `dim_sizes`: runtime observations and
+the recursive IR accept variable-length axes. Dynamic parameter-derived labels
+retain the existing resolver behavior; this update does not add a new pack limit.
+
+Labels describe the aggregate value in the existing manifest contract. They do
+not invariably mean extra arrays on top of `arrayed`: effective cardinality is
+`port.arrayed OR (pack.arrayable AND node.arrayed_toggle)`, with the `scalar`
+exceptions above. Never wrap an already-resolved aggregate again. For an effective
+scalar, named dimensions describe content. For a fan-out aggregate they may name
+both the outer collection and inner tag-specific content.
+
+Compatibility compares the same normalized result exposed by the graph API:
+
+1. Resolve `tags_from` and output dimension derivations first.
+2. Check scalar/array cardinality, except explicit scalar-input broadcast.
+3. For array-to-array, require equal semantic depth (`[]` means one legacy layer).
+   At each layer two non-empty labels must match; an empty name is a wildcard.
+4. Require tag overlap, a registered alias, or `any` on either side.
+
+`storage`, preview settings and measured counts do not participate. Content axes
+on scalar objects are retained as metadata; this version does not add new scalar
+content-shape validation. Unresolved legacy derivations retain their existing
+fallback fields, not a claim that all dimensions have been established.
+
+Physical shard discovery is separate from these semantic labels: execution uses
+`max(1, len(dim_labels)) - content_dims` directory layers, with `content_dims`
+read from the named parameter (default zero). It requires an integer in the range
+`0 <= content_dims < semantic_depth`. At multiple directory layers a shard id can
+be `outer/inner`; do not infer a physical shard path by parsing a displayed type.
+Backend `views.invocation` uses the same `enumeration_depth` helper as execution,
+including merged parameter defaults. It removes those directory layers; explicit
+remaining input content axes become object `contentAxes`. Output projections use
+the common driving-input depth. Invalid/missing driving depth or too few resolved
+aggregate dimensions produces an `unknown` invocation, not an invented type.
+The frontend's legacy tooltip element row remains the one-outer-layer display
+projection; it is not a physical shard enumeration plan.
+
+### Declaration, effective type, and runtime observation
+
+- **Declaration**: YAML contract and derivation directives; preserved even when
+  a generic output resolves to another tag or a node is arrayed.
+- **Effective type**: graph-context normalization, including arrayed participation
+  and derived tags/labels. Graph `port_types` and validation share this result;
+  `resolved_outputs` remains the compatible legacy projection.
+- **Observation**: values read from a particular handle. Summary and inline latest
+  output handles add `runtime_shape.schemaVersion = 1` with separate evidence for
+  tags, axes and internal counts. This does not alter the declaration or validate
+  a current draft against an old result.
+
+For example, `dim_sizes: [100, 21]` and `dim_labels: [frame, cam]` describe
+outer-first measured axes. The compact display may print inner first as
+`image[cam:21][frame:100]`; this display order does not change the data order.
+`pose:21` / `intr:1` are internal probe metrics, not declaration dimensions.
+
+Evidence has three states:
+
+| Evidence | Meaning |
+|---|---|
+| `unknown` | Not measured, unavailable, or legacy coverage unrecorded. Optional `legacyValue` preserves an old display value without asserting coverage. |
+| `sampled` | Measured at a named relative sample, such as the first sorted leaf. Does not assert the same count for all elements. |
+| `complete` | Covered the referenced handle/field scope; not a guarantee about future runs or all upstream artifacts. `source` identifies the scan, probe or metadata origin. |
+
+Directory branching factors are checked across the directory tree. Intrinsic
+content dimensions may be probed only at the first leaf: an outer size can be
+complete while its inner size is sampled. Internal counts at that leaf are also
+sampled. Ragged directory trees or inaccessible data do not publish a complete
+shape. Zero is a measured value, not an unknown. An absent `dim_sizes` does not
+prove a scalar.
+
+Legacy `tags`, `dim_labels`, `dim_sizes`, `element_count`, `internal_count`, and
+`internal_count_items` keep their existing meanings. In particular, old
+`dim_sizes` can contain a first-leaf content measurement; consumers requiring
+coverage must read `runtime_shape`, not assume all legacy numbers are exhaustive.
+See [type IR](type-ir.md) for wire fields, renderers and compatibility boundaries.
 
 ### The `int` scalar handle type
 

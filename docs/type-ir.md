@@ -1,9 +1,11 @@
 # Port type IR: phased unification
 
-Status: phases 1–2 implemented. Frontend outlets now use explicit legacy adapters
-and a terminal IR renderer. Backend wire payloads, validation, runtime execution
-and pack contracts are unchanged.
-Source: `hololab/frontend/src/types/portTypeIR.ts`.
+Status: phases 1–5 implemented. Frontend outlets use explicit adapters and a
+terminal IR renderer. Backend normalization now supplies both compatibility and
+additive versioned API fields; runtime observations carry scope/evidence.
+Existing YAML and legacy response field semantics remain unchanged.
+Sources: `hololab/frontend/src/types/portTypeIR.ts`,
+`hololab/gateway/port_type_ir.py`, and `hololab/gateway/type_observation.py`.
 
 ## Contract
 
@@ -51,8 +53,8 @@ existing effective-arrayed rule is an OR operation, not unconditional recursive
 wrapping. A scalar output can be aggregated, while a scalar input is broadcast.
 Blindly converting these fields and wrapping again repeats the current bug.
 
-Phase 2 provides explicit source-aware adapters (below); phase 3 will centralize
-the normalization. Reuse `effective_port_arrayed`, `effective_output_tags` and
+Phase 2 provides explicit source-aware frontend adapters (below); phase 3
+centralizes backend normalization for validation and API serialization. Reuse `effective_port_arrayed`, `effective_output_tags` and
 `effective_output_dim_labels` rather than silently inventing new pack semantics.
 When legacy metadata cannot distinguish collection and content axes, retain
 unknown provenance/role and do not guess from a display string or label spelling.
@@ -103,43 +105,107 @@ Zero is a real measured value. Unknown shape differs from measured scalar `[]`.
 coverage and individual size coverage may differ. Internal counts have independent
 evidence; e.g. a complete outer directory count and a sampled pose count coexist.
 No measurement is automatically replicated to every element when a type is
-wrapped or broadcast. Full runtime derivation/projection is deferred to phase 4.
+wrapped or broadcast. Phase 4 records these scopes at the actual probe boundary.
 
-This phase supplies compile-time TS types and JSON round-trip tests, not a runtime
-JSON validator. External payloads must be validated before becoming this IR.
+The frontend validates `runtime_shape` at the HTTP/cache boundary in
+`runtimeObservation.ts`. Unsupported versions or malformed evidence fall back to
+legacy fields with unknown coverage. Python uses Pydantic discriminated unions
+for the same shape. Unknown axis labels remain JSON `null`; absent measurements
+are not serialized as fabricated numeric values.
 
-## Backend / API design (not implemented yet)
+## Backend / API implementation (phase 3)
 
-In phase 3 add Python equivalents of the versioned semantic envelope using the
-existing Pydantic infrastructure, rather than modifying the manifest schema.
-The normalizer consumes existing `InputSpec`/`OutputSpec`, graph context, effective
-resolvers and node execution mode; it returns both port directions and both views.
-Backend compatibility and response generation should consume that same result.
-Frontend pre-autosave fallback must follow the same vectors/rules.
+`port_type_ir.py` defines recursive `object` / `array` / `unknown` variants,
+`Declaration`, `TypeViews`, `RuntimeShape`, and the versioned envelopes.
+`workflows.resolved_port_types` is the shared normalizer. It invokes the existing
+output resolvers, preserves their old projection exactly, and creates IR once.
+`validate_snapshot` compares aggregate IR through `compatible`; error messages
+use `render_type`, including named axes. The public `ports_compatible` legacy
+signature delegates to this structured compatibility operation too.
 
-Proposed additive payload under each graph node:
+Additive fields:
 
 ```ts
+// Workflow/snapshot graph node, and /api/resolve graph-node current_draft:
 type NodePortTypes = {
   schemaVersion: 1;
   inputs: Record<string, PortTypeIR>;
   outputs: Record<string, PortTypeIR>;
 };
 // graphNode.port_types?: NodePortTypes
+// current_draft.port_types?: NodePortTypes
 ```
 
-Values are structured JSON objects, never type strings. Graph GET and `/api/resolve` `current_draft` should
-use the same producer. Keep `resolved_outputs` and existing summary fields during
-migration, deriving them from the new normalized result where representable.
-Do not send historical runtime observations as proof of current draft validity.
-Phase 4 adds structured evidence to summary responses; phase 3 can explicitly
-report unknown observation coverage alongside legacy values.
+`resolved_outputs` still has exactly `{tags, arrayed, dim_labels}` per output.
+`port_types` is accepted on a graph round trip but excluded from persistence.
+Without a pack catalog it is unavailable. Graph drafts explicitly carry unknown
+`runtime`; historical counts are not attached to draft contracts. Read the
+associated `latest_run.output_handles` or handle summary for observations.
 
-No Python module or endpoint change is needed for this isolated first phase.
-An unconsumed Python duplicate now would create another model to drift. The
-wire contract, schema validation, serialization tests and legacy fallbacks must
-ship together in phase 3. Cross-client consumers (including Flops) will need the
-versioned additive schema and should continue using legacy fields until migrated.
+One intentional validation correction: derived output dimensions now determine
+compatibility just as they already determined `resolved_outputs` (e.g. a
+`get-index` output retaining a second input dimension is still an array). This
+changes neither the old fields nor scheduling, but can reject edges whose
+incompatible derived dimensions were formerly missed by static-label checking.
+No runtime count becomes a compatibility constraint.
+
+The whole-workflow run route uses `packs_by_key_from_catalog` too; its old local
+copy omitted dimension derivation fields. Both actual run validation and graph
+GET/resolve now receive the same catalog representation.
+
+Backend invocation normalization uses `enumeration_depth`, extracted unchanged
+from the executor into the pure IR module. Execution calls the same function and
+keeps its existing `WorkflowRunError` contract. The normalizer merges parameter
+defaults exactly as dispatch does and `shard_view` removes all enumerated directory
+layers, not blindly one layer. On inputs, explicitly retained content axes become
+object `contentAxes`. Collected output projection uses the common driving-input
+depth. Invalid/unresolved depth or too few aggregate layers yields `unknown`;
+legacy aggregate fields and compatibility checks are still preserved. Tests cover
+nested directories, content-axis subtraction, parameter defaults and invalid
+values. The TS one-layer pure helper is still valid for a normalized one-boundary
+operation; it is not a substitute for the backend's physical shard context.
+
+The frontend keeps its explicit legacy contract adapter for unsaved drafts and
+older services. Backend `port_types` is available to API consumers; this release
+does not make the canvas depend on a saved server response for every draft edit.
+Both renderers use `arrayed[frame]<T>` rather than the old `arrayed<frame> of T`.
+There is no display-string parsing or wrapper-string inference.
+
+## Runtime observation implementation (phase 4)
+
+Handle summary and inline `latest_run.output_handles[port]` add:
+
+```ts
+// Other existing fields remain alongside this additive envelope.
+runtime_shape?: RuntimeShape & { schemaVersion: 1 };
+```
+
+`type_observation.observe_summary` runs where `handle_summary` knows the actual
+probe scope, before cache serialization. `internal_count_items` has a typed
+`InternalCountItem {label: string, value: number}` model without changing the
+legacy JSON shape. Full `internalCounts` carry independent evidence.
+
+- Registered handle tags: complete **metadata** scope, source explicitly named;
+  not a filesystem validation of that tag's semantic correctness.
+- Directory dimensions: complete directory-tree scan when uniform.
+- Tag content dimensions: sampled when read at one child, complete when the
+  referenced handle root itself is the whole probe scope.
+- Internal counts: sampled at the first leaf, or complete at the root scope.
+  `sample` is relative to the handle, never an absolute host path.
+- Missing/ragged shape: unknown. Old numbers are preserved but not upgraded.
+
+A shape may have a sampled overall axis-list and a complete outer size plus a
+sampled inner size. `complete` describes coverage of the field's measurement,
+not independent verification of file-header claims. Probes remain cheap; this
+phase does not scan every element's internal contents.
+
+The summary cache keys by `(handle_id, dim_labels)` so an early request without
+resolved labels cannot poison later contextual evidence. Tombstoning invalidates
+all scopes for that handle. The frontend summary cache validates the envelope;
+`runtimeFromLegacy` prefers validated evidence and rejects a mismatched handle id.
+When a new probe is unknown it can retain legacy axes under `legacyValue` without
+relabeling them complete. Element-row projection slices the observation structure
+and retains its coverage/source/sample. UI layout and tooltip captions are unchanged.
 
 ## Coverage of the five display outlets (phase 2 inventory)
 
@@ -164,21 +230,37 @@ content axes not being popped, JSON serialization, and all three observation
 statuses including zero. No UI wiring means existing production behavior is
 unchanged; run existing UI regression tests and frontend build as confirmation.
 
-Phase 1 was accepted before phase 2 began. Stop after phase 2 for review;
-subsequent stages require separate acceptance:
+Phases 1 and 2 were accepted separately. Phases 3–5 were then authorized as a
+continuous run, with separate commits:
 
-2. Implemented: source-aware adapters and one renderer across five outlets; preserve captions
-   without deriving semantics from them. Test labeled/unlabeled and already-
-   aggregate sources, which existing screenshot fixtures do not exhaust.
-3. Backend normalization shared by resolved types and validation, with additive
-   API/schema; reconcile current frontend/backend dimension/alias differences.
-4. Runtime observation provenance and coverage; avoid first-element samples being
-   treated as globally complete or historical observations as current guarantees.
-5. Update pack specification and dimension semantics. In particular the old
-   statement “compatibility only checks tags” is incomplete. Retain current YAML
-   and pack compatibility; report any schema change before implementing it.
+3. Python IR, shared normalized validation/API result, versioned additive payload,
+   legacy field/round-trip and HTTP resolve compatibility tests.
+4. Scoped runtime evidence, typed counts, frontend boundary validation and legacy
+   fallback, plus browser regressions of the five display outlets.
+5. Pack documentation of dimension rules, broadcast exceptions and the distinction
+   between declaration, effective views and runtime observations; no pack changes.
 
-No pack files, scheduler behavior or runtime processes are changed in phase 1.
+Acceptance: phase 3's focused backend suite passed 226 tests, plus 3 resolve
+regressions. Phase 4's expanded suite passed 247 tests plus 30 additional
+propagation/API/bundle tests; frontend unit tests passed 356, browser regressions
+16 (light/dark, 50/100/150%, port/edge/title/status tooltips, wiring/selection and
+snapshot/inspector). The production frontend build regenerated dist. A subsequent
+phase-3 hardening commit passed 257 tests covering actual run-route validation,
+shared multi-layer shard depth, the scheduler, observations and API compatibility.
+
+### Remaining boundaries / cross-client coordination
+
+- Existing Flops/agent clients can keep reading legacy fields. To distinguish
+  sampled counts they must adopt version-1 `runtime_shape`; no mandatory coordinated
+  migration or service restart was performed by this change.
+- The existing frontend tooltip's element row removes one outer observation
+  layer by design. Backend `port_types.views.invocation` includes physical shard
+  depth; consumers needing dispatch semantics must use that field rather than
+  parse a tooltip. Missing/invalid driving metadata stays `unknown`.
+- Legacy dimension resolution fallbacks (including unresolved generic axes) are
+  preserved, not promoted into proof of complete dimension knowledge.
+- The pre-existing snapshot card-mode limitation recorded below is unchanged.
+  This work does not modify node geometry or snapshot canvas mode forwarding.
 
 
 ## Phase 2 implementation and acceptance
@@ -215,9 +297,9 @@ remain visible during migration but the IR never labels their coverage complete.
 
 `formatTypeLabel` / `formatTypeLabelLong` remain as thin compatibility facades
 used by edge chips, inspectors and snapshot labels; they contain no formatting
-rules. Frontend rejection messages call the same facade. The backend rejection
-message remains unchanged until phase 3. There is still no visible rejection
-popup: the existing console warning is tested without adding a new interaction.
+rules. Frontend rejection messages call the same facade. Phase 3 subsequently
+migrated backend rejection messages to the Python renderer. There is still no
+visible rejection popup: the existing console warning is tested without adding a new interaction.
 
 Snapshot edge labels continue to use frozen producer `resolved_outputs` and
 snapshot job handles. Card layout and snapshot interaction are unchanged in this
@@ -233,7 +315,7 @@ with an unknown count (`image[frame:?]`), while the tooltip's actual-data row mu
 remain `未知`. This has a dedicated test; summary absence must not erase known
 contract information or invent an actual result.
 
-Remaining boundaries are intentional: phase 2 does not change frontend/backend
-compatibility policy, discover array provenance from arbitrary filesystem paths,
-or claim that legacy summaries record full measurement coverage. Those concerns
-remain phases 3–4. Current resolver behavior is reused, not duplicated in adapters.
+At phase 2 acceptance, backend compatibility and measurement evidence were
+intentionally deferred. Phases 3–4 above now implement them. Legacy values still
+do not prove complete coverage, and arbitrary filesystem paths or formatted
+strings are never used to infer declaration semantics.
