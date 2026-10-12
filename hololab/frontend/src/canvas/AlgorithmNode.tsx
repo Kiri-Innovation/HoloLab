@@ -106,6 +106,7 @@ export interface PreviewTarget {
 
 export interface AlgorithmNodeData extends Record<string, unknown> {
   pack: CatalogPack;
+  arrayed_toggle?: boolean;
   assigned_node_id: string | null;
   /** Draft node parameters, included in the CoBrowser reference snapshot. */
   params?: Record<string, unknown>;
@@ -465,7 +466,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     readOnly,
     staleness,
     arrayed_toggle,
-  } = data as AlgorithmNodeData & { arrayed_toggle?: boolean };
+  } = data as AlgorithmNodeData;
   const {
     workflow_id: workflowId,
     workflow_name: workflowName,

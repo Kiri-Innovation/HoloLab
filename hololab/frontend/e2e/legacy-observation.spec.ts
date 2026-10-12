@@ -15,11 +15,11 @@ for(const theme of ['light','dark']) test(`historical response without evidence 
  const before=await port.boundingBox();
  await edge.hover();
  const tip=page.getByRole('tooltip');await expect(tip).toBeVisible();
- await expect(tip.locator('.hl-type-tooltip-content > :nth-child(3)')).toHaveText('未知');
+ await expect(tip.locator('.hl-type-tooltip-before > :nth-child(3)')).toHaveText('未知');
  await expect(edge).toContainText('colmap-cams[historical-frame:?]');
  await expect(tip).not.toContainText('999');await expect(edge).not.toContainText('888');
  await page.screenshot({path:info.outputPath(`${theme}-legacy-unknown.png`)});
- await port.hover();await expect(tip.locator('.hl-type-tooltip-content > :nth-child(3)')).toHaveText('未知');
+ await port.hover();await expect(tip.locator('.hl-type-tooltip-before > :nth-child(3)')).toHaveText('未知');
  expect(await port.boundingBox()).toEqual(before);
  await edge.click();await expect(edge).toHaveAttribute('data-selected','');
  expect(errors).toEqual([]);

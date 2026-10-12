@@ -34,6 +34,7 @@ import {
   ReactFlow,
   useEdgesState,
   useNodesState,
+  useUpdateNodeInternals,
   type Edge,
   type EdgeMouseHandler,
   type EdgeProps,
@@ -276,6 +277,7 @@ export function SnapshotCanvas({
         selected: gn.id === selectedGraphNodeId,
         data: {
           pack,
+          arrayed_toggle: gn.arrayed_toggle,
           assigned_node_id: gn.assigned_node_id,
           params: gn.params,
           runtime,
@@ -341,6 +343,8 @@ export function SnapshotCanvas({
   const [edges, setEdges, onEdgesChange] =
     useEdgesState<Edge<TypedEdgeData>>(initial.edges);
 
+  const updateNodeInternals = useUpdateNodeInternals();
+
   // Re-seed when we switch to a different snapshot (or the catalog
   // changes and pack labels need refreshing).
   useEffect(() => {
@@ -353,6 +357,13 @@ export function SnapshotCanvas({
     });
     setEdges(initial.edges);
   }, [initial, setNodes, setEdges]);
+
+  // Re-seeding can clear handle bounds even when the DOM has not resized.
+  // Measure after the new card/frame commits, including same-ID snapshot switches.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => updateNodeInternals(initial.nodes.map(n => n.id)));
+    return () => cancelAnimationFrame(frame);
+  }, [initial, updateNodeInternals]);
 
   // Reflect the App-owned selection state onto xyflow's per-node
   // ``selected`` flag. This keeps the inspector's selection and the

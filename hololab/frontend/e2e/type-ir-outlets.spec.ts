@@ -43,8 +43,8 @@ for(const theme of ['light','dark']) {
   await edge.hover();
   await expect(edge).toContainText('colmap-cams[historical-frame:?]');
   await expect(page.getByRole('tooltip')).toBeVisible();
-  await expect(page.locator('.hl-type-tooltip-content > span').first()).toHaveText('arrayed[frame]<colmap-cams>');
-  await expect(page.locator('.hl-type-tooltip-after')).toHaveCount(0);
+  await expect(page.locator('.hl-type-tooltip-before > span').first()).toHaveText('arrayed[frame]<colmap-cams>');
+  await expect(page.locator('.hl-type-tooltip-after')).toHaveCount(1);
   await page.screenshot({path:info.outputPath(`${theme}-snapshot.png`)});
   await edge.click();await expect(edge).toHaveAttribute('data-selected','');
  });

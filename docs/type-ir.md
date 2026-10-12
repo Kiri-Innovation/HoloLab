@@ -261,10 +261,7 @@ shared multi-layer shard depth, the scheduler, observations and API compatibilit
   parse a tooltip. Missing/invalid driving metadata stays `unknown`.
 - Legacy dimension resolution fallbacks (including unresolved generic axes) are
   preserved, not promoted into proof of complete dimension knowledge.
-- Snapshot card mode forwarding is a current bug, not an old-data issue:
-  `SnapshotCanvas` omits `arrayed_toggle` when building algorithm node data, for
-  both newly produced and historical snapshots. This cleanup does not close that
-  issue or modify node geometry; it needs a separate layout/anchor fix.
+- Snapshot card mode forwarding was subsequently fixed: see the snapshot note below.
 
 
 ## Phase 2 implementation and acceptance
@@ -309,10 +306,12 @@ Snapshot edge labels continue to use frozen producer `resolved_outputs` and
 snapshot job handles. Card layout and snapshot interaction are unchanged in this
 phase. Pack metadata still comes from the catalog for the snapshot's algorithm
 version, as before; there is no new claim that historical input declarations are
-separately frozen. Existing snapshot node cards do not forward `arrayed_toggle`
-to their visual wrapper: that pre-existing layout/mode limitation is not changed
-here, because enabling it would move connection anchors. The historical wire
-type is still preserved and explicitly tested independently of the card layout.
+separately frozen. Snapshot node cards now forward the persisted `arrayed_toggle` to their
+visual wrapper and port tooltip context. The package's `arrayable` capability
+continues to come from the catalog. React Flow observes the wrapper size; snapshot data refreshes also explicitly
+request handle remeasurement after commit (same-size refreshes may not trigger
+ResizeObserver); browser tests switch saved modes with the same node IDs and
+check edge endpoints at 50%, 100% and 150% zoom.
 
 Regression distinction: a chip without runtime data can show the **known contract**
 with an unknown count (`image[frame:?]`), while the tooltip's actual-data row must
@@ -347,7 +346,14 @@ Flow's measured node sizes, so a missing historical preview does not discard
 edge endpoint measurements while the card DOM remains unchanged.
 
 New observations continue to distinguish `sampled` and `complete`; old data need
-not recover either status. The snapshot `arrayed_toggle` omission is independent:
-there is no age/version conditional in the node-building path, so new snapshots
-also lack the wrapper/context. It cannot be closed as obsolete data. This change
-leaves it reported without altering snapshot card geometry.
+not recover either status. The snapshot `arrayed_toggle` omission affected new snapshots too and was fixed
+separately by forwarding the saved field, without changing persistence or execution.
+
+Snapshot node field audit: `arrayed_toggle` is persisted on `GraphNode` and is
+forwarded explicitly; `arrayable` comes with the matched catalog pack. Node ID,
+position, algorithm identity, params and assigned device are already forwarded.
+`preview_open` seeds local preview state. `parallelism` and `batch_size` are
+execution settings not read by `AlgorithmNode`; they need no visual prop.
+`resolved_outputs` / `port_types` remain on the graph for type resolution, not
+card layout. Runtime/preview data is derived from snapshot jobs/handles; draft
+staleness and live partial-shard previews are not persisted node fields.
