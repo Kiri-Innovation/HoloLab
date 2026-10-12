@@ -16,6 +16,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from hololab.gateway.port_type_ir import PortTypes
 from hololab.manifest.schema import OutputPreview
 
 # ---------------------------------------------------------------------------
@@ -561,6 +562,7 @@ class GraphNodeOut(BaseModel):
     # Omitted on request bodies (POST /api/workflows) — clients don't
     # send it, the server computes it from the catalog on every read.
     resolved_outputs: dict[str, ResolvedOutputPort] | None = None
+    port_types: PortTypes | None = None
     # Most recent run attributed to this graph node. ``null`` when the
     # node has never dispatched. On workflow GETs this is the latest
     # across ALL snapshots for the workflow; on snapshot GETs it is

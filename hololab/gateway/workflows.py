@@ -15,12 +15,22 @@ import json
 import time
 import uuid
 from collections import defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 import aiosqlite
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from hololab.gateway.port_type_ir import (
+    Declaration,
+    PortTypeIR,
+    PortTypes,
+    compatible,
+    from_legacy,
+    render_type,
+    unknown_runtime,
+    views_from_aggregate,
+)
 from hololab.logging import get_logger
 from hololab.persistence.db import Database
 
@@ -79,6 +89,7 @@ class GraphNode(BaseModel):
     # input and dropped on serialize (``exclude=True``), so the on-disk
     # graph stays canonical and callers don't have to strip it manually.
     resolved_outputs: dict[str, Any] | None = Field(default=None, exclude=True)
+    port_types: PortTypes | None = Field(default=None, exclude=True)
     # Read-only: computed on every GET by
     # :func:`latest_runs_for_workflow` / :func:`latest_runs_for_snapshot`.
     # Same round-trip guarantee as ``resolved_outputs``: accepted on
@@ -643,6 +654,7 @@ class InputPortView:
     arrayed: bool
     scalar: bool = False
     dim_labels: tuple[str, ...] = ()
+    content_dims_from: str | None = None
 
 
 @dataclass(frozen=True)
@@ -753,22 +765,16 @@ def ports_compatible(
       pair must agree (empty label = wildcard that matches any same-depth label).
     """
 
-    # Exception: arrayed source into an explicit scalar target is a broadcast
-    # — the scalar input receives the full parent handle, not a shard subdir.
-    if src_arrayed != tgt_arrayed and not (src_arrayed and tgt_scalar):
-        return False
-    # Dim-label depth + label check (arrayed→arrayed only; broadcast skips).
-    if src_arrayed and tgt_arrayed and src_dim_labels is not None and tgt_dim_labels is not None:
-        src_depth = len(src_dim_labels) or 1
-        tgt_depth = len(tgt_dim_labels) or 1
-        if src_depth != tgt_depth:
-            return False
-        a_labels = src_dim_labels if src_dim_labels else [""]
-        b_labels = tgt_dim_labels if tgt_dim_labels else [""]
-        for s, t in zip(a_labels, b_labels, strict=True):
-            if s and t and s != t:
-                return False
-    return tags_compatible(src_tags, tgt_tags)
+    # Preserve the legacy optional-label API: if either side omits labels,
+    # only cardinality and tags were requested. All graph callers supply
+    # normalized axes through resolved_port_types instead.
+    check_axes = src_dim_labels is not None and tgt_dim_labels is not None
+    return compatible(
+        from_legacy(src_tags, src_arrayed, src_dim_labels if check_axes else []),
+        from_legacy(tgt_tags, tgt_arrayed, tgt_dim_labels if check_axes else []),
+        tags_compatible,
+        broadcast=tgt_scalar and src_arrayed and not tgt_arrayed,
+    )
 
 
 def effective_port_arrayed(
@@ -954,6 +960,7 @@ def packs_by_key_from_catalog(
                     arrayed=bool(i.get("arrayed", False)),
                     scalar=bool(i.get("scalar", False)),
                     dim_labels=tuple(i.get("dim_labels", []) or []),
+                    content_dims_from=i.get("content_dims_from"),
                 )
                 for n, i in entry["inputs"].items()
             },
@@ -1169,49 +1176,21 @@ def validate_snapshot(
         # ``scalar: true`` on an input broadcasts (non-arrayed). On an
         # output of a fan-out node it aggregates to arrayed<T> at the
         # parent — see ``effective_port_arrayed``.
-        src_arr = effective_port_arrayed(
-            src_out.arrayed,
-            src_pack.arrayable,
-            src.arrayed_toggle,
-            port_scalar=src_out.scalar,
-            is_output=True,
-        )
-        tgt_arr = effective_port_arrayed(
-            tgt_in.arrayed, tgt_pack.arrayable, tgt.arrayed_toggle, port_scalar=tgt_in.scalar
-        )
-        # Effective tag sets — outputs may declare ``tags_from`` to inherit
-        # from their pack's connected input (arrayfy / get-index generics).
-        src_tags = effective_output_tags(
-            src, src_pack, edge.sourceHandle, graph, node_by_id, packs_by_key
-        )
-        tgt_tags = list(tgt_in.tags)
-        if not ports_compatible(
-            src_tags,
-            src_arr,
-            tgt_tags,
-            tgt_arr,
-            tgt_scalar=tgt_in.scalar,
-            src_dim_labels=list(src_out.dim_labels) if src_arr else None,
-            tgt_dim_labels=list(tgt_in.dim_labels) if tgt_arr else None,
-        ):
-            if src_arr != tgt_arr:
-                if src_out.scalar and tgt_arr:
-                    msg = (
-                        f"`{src.algorithm_name}.{edge.sourceHandle}` is a scalar output "
-                        f"(scalar: true) — it always produces one item per invocation; "
-                        f"`{tgt.algorithm_name}.{edge.targetHandle}` participates in "
-                        f"fan-out (arrayed). Declare `scalar: true` on the target input "
-                        f"to receive the broadcast, or wire it to a non-arrayed target."
-                    )
-                else:
-                    msg = (
-                        f"arrayed cardinality mismatch: source is "
-                        f"{'arrayed<' + ','.join(src_tags) + '>' if src_arr else ','.join(src_tags)}"
-                        f", target expects "
-                        f"{'arrayed<' + ','.join(tgt_tags) + '>' if tgt_arr else ','.join(tgt_tags)}"
-                    )
-            else:
-                msg = f"tag mismatch: {src_tags} vs {tgt_tags} have no overlap"
+        source_types, _ = resolved_port_types(src, src_pack, graph, node_by_id, packs_by_key)
+        target_types, _ = resolved_port_types(tgt, tgt_pack, graph, node_by_id, packs_by_key)
+        source_type = source_types.outputs[edge.sourceHandle].views.aggregate
+        target_type = target_types.inputs[edge.targetHandle].views.aggregate
+        if not compatible(source_type, target_type, tags_compatible, broadcast=tgt_in.scalar):
+            src_arr = source_type.kind == "array"
+            tgt_arr = target_type.kind == "array"
+            reason = (
+                "arrayed cardinality mismatch"
+                if src_arr != tgt_arr
+                else "tag mismatch or dimension mismatch"
+            )
+            msg = f"{reason}: source is {render_type(source_type)}, target expects {render_type(target_type)}"
+            if src_out.scalar and not src_arr and tgt_arr:
+                msg += "; scalar output (scalar: true): declare scalar: true on the target input to broadcast"
             issues.append(ValidationIssue(where=f"edge:{edge.id}", message=msg))
         incoming_edges[(edge.target, edge.targetHandle)].append(edge.id)
 
@@ -1421,7 +1400,7 @@ def _topology_text(graph: WorkflowGraph, labels: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
-def _resolved_outputs_for_node(
+def _effective_output_fields(
     node: GraphNode,
     pack: PackHandle,
     graph: WorkflowGraph,
@@ -1472,6 +1451,60 @@ def _resolved_outputs_for_node(
             "dim_labels": list(dim_labels) if dim_labels is not None else [],
         }
     return out
+
+
+def resolved_port_types(
+    node: GraphNode,
+    pack: PackHandle,
+    graph: WorkflowGraph,
+    node_by_id: dict[str, GraphNode],
+    packs_by_key: dict[tuple[str, str], PackHandle],
+) -> tuple[PortTypes, dict[str, dict[str, Any]]]:
+    """Single normalization result used by validation and graph/resolve APIs.
+
+    Legacy resolved fields remain a lossless projection, not a re-rendering.
+    Aggregate fields are already lifted: never wrap them a second time.
+    """
+    outputs = _effective_output_fields(node, pack, graph, node_by_id, packs_by_key)
+    fanout = pack.arrayable and node.arrayed_toggle
+    groups = {}
+    for direction, ports in (("inputs", pack.inputs), ("outputs", pack.outputs)):
+        group = {}
+        for name, port in ports.items():
+            raw = {k: v for k, v in asdict(port).items() if k in Declaration.model_fields}
+            declaration = Declaration.model_validate(raw)
+            fields = (
+                outputs[name]
+                if direction == "outputs"
+                else {
+                    "tags": list(port.tags),
+                    "dim_labels": list(port.dim_labels),
+                    "arrayed": effective_port_arrayed(
+                        port.arrayed, pack.arrayable, node.arrayed_toggle, port.scalar
+                    ),
+                }
+            )
+            participation = "none"
+            if fanout:
+                participation = (
+                    "collect-output"
+                    if direction == "outputs"
+                    else ("broadcast-input" if port.scalar else "map-input")
+                )
+            group[name] = PortTypeIR(
+                declaration=declaration,
+                views=views_from_aggregate(
+                    from_legacy(fields["tags"], fields["arrayed"], fields["dim_labels"]),
+                    participation,
+                ),
+                runtime=unknown_runtime(),
+            )
+        groups[direction] = group
+    return PortTypes(**groups), outputs
+
+
+def _resolved_outputs_for_node(node, pack, graph, node_by_id, packs_by_key):
+    return resolved_port_types(node, pack, graph, node_by_id, packs_by_key)[1]
 
 
 def agent_graph_dict(
@@ -1544,9 +1577,9 @@ def agent_graph_dict(
         if packs_by_key is not None and is_algorithm_node(n):
             pack = packs_by_key.get((n.algorithm_name, n.algorithm_version))
             if pack is not None:
-                d["resolved_outputs"] = _resolved_outputs_for_node(
-                    n, pack, graph, by_id, packs_by_key
-                )
+                types, legacy_outputs = resolved_port_types(n, pack, graph, by_id, packs_by_key)
+                d["resolved_outputs"] = legacy_outputs
+                d["port_types"] = types.model_dump()
         if latest_runs is not None:
             # Explicit ``None`` on absence so the field is always present
             # on the wire — agents can then rely on ``node.latest_run``

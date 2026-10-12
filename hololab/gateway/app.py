@@ -1358,6 +1358,21 @@ def _mount_routes(app: FastAPI) -> None:
                 "drift": bool(latest_job is not None and dict(gnode.params) != latest_job.params),
             }
 
+            # Additive contract: resolve the same draft types as workflow GET.
+            from hololab.gateway.workflows import resolved_port_types
+
+            draft_packs = packs_by_key_from_catalog(registry.catalog_json())
+            draft_pack = draft_packs.get((gnode.algorithm_name, gnode.algorithm_version))
+            if draft_pack is not None:
+                draft_types, _ = resolved_port_types(
+                    gnode,
+                    draft_pack,
+                    draft.graph,
+                    {n.id: n for n in draft.graph.nodes},
+                    draft_packs,
+                )
+                resource["current_draft"]["port_types"] = draft_types.model_dump()
+
             related_gnode: dict[str, str] = {
                 "workflow": f"/api/workflows/{workflow_id}",
                 "dispatch": (
