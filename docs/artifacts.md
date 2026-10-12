@@ -33,7 +33,7 @@ The gateway records **absolute** paths in the `handles` table. The preview proxy
 
 The `handles.storage` column is a transport hint that drives what the file server does when a cross-node consumer materializes the handle:
 
-- **`storage: dir`** (default) — the handle path is a directory; cross-node fetch tarballs the tree. Used by every "reconstruction output" pack (colmap, frame_sequence, splatv model directories, arrayed<T> handles).
+- **`storage: dir`** (default) — the handle path is a directory; cross-node fetch tarballs the tree. Used by every "reconstruction output" pack (COLMAP bundles, model directories, arrayed<T> handles).
 - **`storage: file`** — the handle path is a single file; cross-node fetch is one HTTP GET.
 
 ### `int` scalar handles
@@ -47,7 +47,22 @@ Introduced by the arrayed<T> type system so nodes like `array-length` can flow c
 
 ### `arrayed<T>` handles
 
-An arrayed<T> handle is a `storage: dir` handle whose immediate subdirectories are elements of type T. Element ids are the sorted subdir names. Framework fan-out for arrayable packs writes each shard's outputs to `{parent_workspace}/{port}/{element_id}/`; the aggregate parent handle points at `{parent_workspace}/{port}/`. See [pack-spec.md#arrayed-and-arrayable](pack-spec.md#arrayed-and-arrayable).
+An arrayed<T> handle is a `storage: dir` handle whose immediate non-dot entries are elements of type T: image files, bundle directories, nested collections, or valid symlinks. Element ids are the sorted entry names. Framework fan-out for arrayable packs writes each shard's outputs to `{parent_workspace}/{port}/{element_id}/`; the aggregate parent handle points at `{parent_workspace}/{port}/`. See [pack-spec.md#arrayed-and-arrayable](pack-spec.md#arrayed-and-arrayable).
+
+### Strict images and measurements
+
+`image` is one fully decodable, single-frame file (`storage: file`). A collection
+uses `arrayed: true`, `storage: dir`, and outer-first `dim_labels`; there is no
+implicit `frames/` wrapper or image-content count dimension. Removed type tags
+`image_sequence` and `frame_sequence` are rejected (same-named ports are legal).
+Each manifest describes one invocation; fan-out adds one outer collection.
+The system validates every image leaf before execution/publication. Developers
+are responsible for declaring what their algorithm expects.
+
+`runtime_shape` reports explicit dimensions and internal bundle counts with
+unknown/sampled/complete evidence. Sampling a COLMAP bundle is not exhaustive
+contract validation. Old stored artifacts are not rewritten by a pack migration;
+old layouts may still preview but must pass the current contract before reuse.
 
 ## Deletion and the preview drawer
 

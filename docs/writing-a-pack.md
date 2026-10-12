@@ -435,7 +435,7 @@ and `Utils/STG_to_SplaTV/` are single-purpose directories so a top-level
 Note that ``frame-extraction`` (A0) lives under ``hololab/packs/``, not
 next to sharp-4dgs. It's a generic video-decode utility with no
 algorithm dependency, so it ships with HoloLab and any downstream that
-wants a ``frame_sequence`` can consume it — MegaSaM
+wants an explicit ``arrayed[frame]<image>`` can consume it — MegaSaM
 (``frames-to-camera-track``) today, other trackers later. The legacy
 combined ``video-to-camera-track`` stays in ``pack_dirs`` so existing
 workflow drafts still resolve, but new workflows should chain
@@ -502,14 +502,19 @@ Three things you must do:
    surfaces the checkbox in the Inspector.
 2. **Keep your exec strictly per-shard**. No shared state across shards,
    no coordination, no appending to shared files. The framework routes
-   each shard's outputs into a distinct per-element subdirectory; two
+   each shard's outputs into a distinct per-element path; two
    shards writing to the same path is a bug your pack owns.
-3. **Do NOT declare `arrayed: true` on the port that gets fanned out**.
-   The framework computes effective arrayed at wire time as
-   `port.arrayed OR (pack.arrayable AND node.arrayed_toggle)`; when the
-   checkbox is on, your non-arrayed input ports flip to arrayed
-   automatically. Ports that should ALWAYS be arrayed regardless (e.g.
-   `video-array-source.videos_dir`) belong on non-arrayable packs.
+3. **Declare exactly what one call consumes and produces**. A single image
+   requires `tags: [image], storage: file`; an image collection requires
+   `tags: [image], arrayed: true, storage: dir, dim_labels: [cam]` (or its actual
+   outer-first axis labels). Fan-out adds one outer layer; it does not replace
+   an existing array. Use `scalar: true` inputs to broadcast a declared value.
+
+System responsibility: reject deliveries that violate declared shape and decode
+all image leaves before execution / publication. Developer responsibility:
+ensure declarations match algorithm expectations. The system does not inspect
+algorithm intent. `image_sequence` / `frame_sequence` type tags are rejected;
+port names are independent and may retain those names.
 
 Available template bindings inside the shell for shard jobs:
 
@@ -530,17 +535,16 @@ you already use — the framework routes it):
                             {parent_workspace}/<port>/{shard.element_id}/
 ```
 
-Just write to `{{ outputs.frames }}/...` as usual. The framework computes
-the shard-specific path and pre-creates the directory. When the parent
-job fans in, its output handle for `<port>` points at
-`{parent_workspace}/<port>/`, which naturally contains every element's
-subdirectory.
+For `storage: dir`, write under `{{ outputs.frames }}/...`; the runtime
+pre-creates that directory. For `storage: file`, write the file at the exact
+output path; only its parent directory is pre-created. The parent handle
+points at `{parent_workspace}/<port>/`, containing one file or bundle per shard.
 
-Failure model (v1: sequential, all-or-nothing):
+Failure model (parent success requires every shard):
 
 - Any shard failure marks the parent FAILED with a fail_message naming
-  the failing `element_id` and shard index (0-based). Remaining shards
-  are not dispatched.
+  the failing element. The bounded worker pool drains scheduled shards;
+  downstream nodes do not consume a partially successful parent.
 - Retries and partial-success recovery are follow-ups; if you need
   per-shard retry today, do it inside your shell.
 
@@ -559,14 +563,16 @@ inputs:
                                       # → flips to arrayed at toggle time
 outputs:
   frame_sequence:
-    tags: [frame_sequence]            # arrayed=false in manifest
-                                      # → flips to arrayed at toggle time
+    tags: [image]
+    arrayed: true                    # one call produces a frame collection
+    storage: dir
+    dim_labels: [frame]              # fan-out adds an outer camera axis
 runtime:
   env: kiri
 exec:
   shell: |
     # Each shard sees ONE video dir at {{ inputs.video_dir }} and writes
-    # {{ outputs.frame_sequence }}/frames/frame_XXXXXX.png. No branching
+    # {{ outputs.frame_sequence }}/frame_XXXXXX.png. No branching
     # on shard.element_id needed — the framework routes I/O for you.
     VIDEO=$(find "{{ inputs.video_dir }}" -maxdepth 1 -type f | head -1)
     python {{ pack_dir }}/extract_frames.py "$VIDEO" -o "{{ outputs.frame_sequence }}"

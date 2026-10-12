@@ -104,3 +104,7 @@ smoke 需要相邻 SpacetimeGaussians checkout 和现有算法环境/GPU。单�
 - 用户负责外部消费者通知。API 原有 tags / dim_labels 等字段没有删除；类型规则变严格，消费者也需采用单次调用 + 外层 fan-out 语义。
 - 用户安排 gateway 与 compute node 使用同一版代码/依赖再重启；本次没有重启，在线旧进程不代表新规则。Pillow 已加入 pyproject 依赖。
 - STG 的 batch=1 smoke 曾触发其现有 `traincameralist` 未赋值错误；改回 pack 默认 batch=2 后通过。本次没有修改 STG。
+
+## 后续状态
+
+第二步用户改为删除不兼容历史版本；清单、完整测试及外部 pack 部署核实见 [第二步报告](strict-image-step-2.md)。本报告上文的“第二步待办”保留为第一步交付时的记录。

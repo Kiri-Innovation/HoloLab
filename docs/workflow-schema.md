@@ -159,7 +159,7 @@ after that snapshot was taken:
 | `algorithm_name` / `algorithm_version` | Structural | No | pack identity determines execution semantics |
 | `params` | Structural | No | feeds executor, defines data lineage identity |
 | `assigned_node_id` | Structural | No | physical producer; changing it changes lineage identity (Q2) |
-| `arrayed_toggle` | Structural | No | flips ports of an `arrayable` pack to arrayed cardinality → different sub-job fan-out and different aggregate output handle (see [pack-spec.md#arrayed-and-arrayable](pack-spec.md#arrayed-and-arrayable)) |
+| `arrayed_toggle` | Structural | No | adds one outer collection to mapped inputs and outputs of an `arrayable` pack; broadcast inputs preserve their invocation shape → different sub-job fan-out and different aggregate output handle (see [pack-spec.md#arrayed-and-arrayable](pack-spec.md#arrayed-and-arrayable)) |
 | edges (source / target / handles) | Structural | No | data routing; changing them is a Fork |
 | `position` | Cosmetic | Yes | canvas coordinate; doesn't affect any job |
 | `preview_open` | Cosmetic | Yes | observer state (which drawer is expanded); doesn't affect any job |
@@ -279,8 +279,7 @@ flowing between two ports and can be selected in their own right.
 
 - **Type chip** — each edge renders a small chip near its midpoint
   showing the source port's effective type in the same vocabulary the
-  node port dots use (a tag like `frame_sequence` or its arrayed form
-  `arrayed<frame_sequence>`). The chip is deliberately quiet
+  node port dots use (a type like `image` or `arrayed[frame]<image>`). The chip is deliberately quiet
   (translucent, small mono) so a canvas with many overlapping wires
   doesn't turn into a wall of labels; hover or selection promotes it.
   When the source port declares `tags_from`, the label follows the
@@ -366,3 +365,19 @@ V8 Continue/Fork operation on the workflow's most recent snapshot.
 - Content-addressed artifact IDs (every Fork produces a fresh UUID —
   intentional; our packs are non-deterministic and users want two
   same-parameter reruns to remain distinguishable).
+
+## Strict image invocation contracts
+
+Port fields describe one algorithm call, not its parent fan-out aggregate.
+`image` requires a single decoded image file (`storage: file`); image collections
+use `arrayed: true`, `storage: dir`, and outer-first `dim_labels`. Removed
+`image_sequence` / `frame_sequence` tags cannot be used as types; node/port IDs
+are unaffected. A node toggle adds exactly one outer collection, even when its
+invocation already consumes an array. `scalar: true` inputs broadcast that
+entire declared value without erasing its dimensions.
+
+The system validates delivered data against the declaration; pack authors own
+agreement with algorithm code. Snapshots preserve graph structure and version
+references, not a private copy of pack code. Migrating a historical pack does
+not rewrite saved artifact bytes. Reusing old handles still requires contract
+validation; a viewable historical result is not proof it can be executed again.

@@ -146,8 +146,9 @@ reads `docs`; it's presentation-only.
 Every port (input or output) is typed by its **tags** — a list of strings that
 name the object type the port carries. Compatibility checks effective tags,
 array cardinality, and collection dimension depth/labels (see [Dimensions](#dim-labels)).
-Tags match by non-empty intersection, the `any` wildcard, or a registered alias
-(e.g. `image`, `image_sequence`, and `frame_sequence`). A tag match alone does
+Tags match by non-empty intersection or the `any` wildcard.
+`image_sequence` and `frame_sequence` are removed type tags and are rejected,
+even alongside `any`. Port variable names such as `frame_sequence` remain valid. A tag match alone does
 not make an array/scalar or named-dimension mismatch valid.
 
 A port can carry multiple tags at once. Semantically this reads as "this
@@ -205,23 +206,38 @@ cardinality or dimension checks.
 
 ### `arrayed` and `arrayable`
 
-An `arrayed<T>` is *a directory whose immediate subdirectories are elements
-of type T*. Element ids are the sorted subdirectory names. Two independent
-flags control whether a port carries one:
+Every port declaration describes **one algorithm invocation**. `image` strictly
+means one fully decodable, single-frame image **file**, with `storage: file`.
+It never means a directory of images and has no intrinsic image-count axis.
+A collection must declare its directory and axes explicitly:
 
-- Per-port **`arrayed: <bool>`** — the manifest declares the port's default
-  cardinality. Example: `video-array-source.videos_dir` is intrinsically
-  arrayed (`tags: [video-source], arrayed: true`).
-- Per-pack **`arrayable: <bool>`** — the pack's exec is data-parallel over
-  its arrayed inputs. When true the canvas shows a "并行处理数组输入"
-  checkbox on each instance of the pack; when the operator turns it on,
-  every port that manifest-defaults to non-arrayed is treated as arrayed
-  and the scheduler fan-outs one sub-job (a *shard*) per element.
+```yaml
+inputs:
+  frames:
+    tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [cam]
+```
 
-Edge compatibility requires matching effective tags, cardinality and collection
-axes. The explicit exception is an input with `scalar: true`: it accepts the
-whole array handle as a broadcast value, provided the tags match. There is no
-implicit scalar-to-array promotion — use an `arrayfy` node for that direction.
+An `arrayed<T>` is a directory of non-dot entries of type T. Entries can be
+files (image leaves), directories (bundles or nested collections), or symlinks
+to valid entries. Element IDs are sorted entry names, including file extensions.
+
+- Per-port `arrayed: true` declares a collection consumed/produced in one call.
+- Per-pack `arrayable: true` enables node `arrayed_toggle`. Turning it on adds
+  **one outer collection layer**, even if the invocation already consumes an
+  array. A `[cam]` image invocation then consumes one element of `[frame,cam]`.
+- An input with `scalar: true` broadcasts its entire declared value to every
+  shard. Its declared collection layers remain intact; broadcast does not allow
+  an array to satisfy a single-image contract. Use `arrayfy` for explicit wrapping.
+
+The system guarantees actual delivered data conforms to the declaration. The
+algorithm developer owns the declaration's agreement with algorithm code; the
+system does not infer intent or statically analyze that code. Checks run when
+loading declarations, validating edges, before execution and before publishing
+any output (including cached output). Image arrays are validated **at every
+leaf**, including full decode, not by sampling handle summaries.
 
 Shard mechanics:
 
@@ -245,23 +261,10 @@ The `arrayable: true` contract obligates the pack author to promise **no
 cross-shard state or data exchange** — the framework has no way to enforce
 this (shell can do anything), but violating it produces subtle bugs.
 
-**Per-port `scalar: true`** — an escape hatch for ports whose cardinality
-should stay fixed no matter what the pack-level toggle does:
-
-- On an **input**, `scalar: true` means *broadcast*: every shard receives
-  the full parent handle (not an element sub-handle). Use it for bundles
-  that every shard needs whole — e.g. an SfM `cams` model that pairs with
-  every per-frame image group.
-- On an **output**, `scalar: true` means *one item per invocation*. On a
-  non-fan-out invocation that's one item total; on a fan-out invocation
-  it's one item **per shard**, and the framework aggregates the N items
-  into an `arrayed<T>` at the parent job (the `{parent_workspace}/{port}/`
-  directory populated by shard subdirs). Downstream nodes see an
-  arrayed<T> handle — declare its shape via `dim_labels` on the output.
-  Example: `colmap-triangulate.frame` is `scalar: true` (one COLMAP dir
-  per shard) with `dim_labels: [frame]`; feeding it into
-  `stg-train.colmap_frames` (`arrayed: true, dim_labels: [frame]`) is a
-  valid edge because the parent aggregate is arrayed<colmap>.
+**Per-port `scalar: true`** on an input selects broadcast, preserving the
+single-invocation type. The legacy output flag does not suppress aggregation:
+every fan-out output gains one outer collection layer. Declare only the
+invocation dimensions on outputs; do not predeclare the framework's outer axis.
 
 ### Dimensions (`dim_labels`)
 
@@ -278,7 +281,7 @@ back to determine execution or compatibility.
 | `dim_labels_from: output_dims` | Output labels derive from this node's parameter list. Invalid/missing values fall back to declared labels, as before. |
 | `dim_labels_from_input: frames` | Output labels derive from the connected producer's resolved output. Missing connections/cycles give unresolved labels. |
 | `dim_labels_drop_outer: 1` | Remove this many outer labels after input derivation; zero preserves them, dropping all yields a scalar. Nonnegative; requires `dim_labels_from_input`. |
-| `content_dims_from: content_dims` | Input-only parameter name: number of innermost semantic axes stored as content rather than child directories. Used by fan-out enumeration; not a measured element count. |
+| `content_dims_from: content_dims` | Legacy field retained for non-image declarations; it does not change fan-out depth. Rejected for image ports. |
 
 `dim_labels_from` and `dim_labels_from_input` are mutually exclusive. The current
 manifest schema accepts at most **two static labels**. This is a YAML validation
@@ -286,38 +289,24 @@ limit, not a license to truncate runtime `dim_sizes`: runtime observations and
 the recursive IR accept variable-length axes. Dynamic parameter-derived labels
 retain the existing resolver behavior; this update does not add a new pack limit.
 
-Labels describe the aggregate value in the existing manifest contract. They do
-not invariably mean extra arrays on top of `arrayed`: effective cardinality is
-`port.arrayed OR (pack.arrayable AND node.arrayed_toggle)`, with the `scalar`
-exceptions above. Never wrap an already-resolved aggregate again. For an effective
-scalar, named dimensions describe content. For a fan-out aggregate they may name
-both the outer collection and inner tag-specific content.
+Labels describe the **single-invocation** collection axes, outer first.
+A node fan-out adds one outer axis, using the driving producer's outer label
+when known (otherwise an unnamed axis). The boolean `arrayed` projection alone
+cannot encode depth: use the recursive `port_types` IR and its invocation and
+aggregate views. Never wrap an already-resolved aggregate again.
 
-Compatibility compares the same normalized result exposed by the graph API:
+Compatibility uses the same normalized IR as the graph API: resolve generic
+tags and dimensions, require equal collection depth and matching nonempty axis
+labels (empty names are wildcards), then require leaf tag overlap or `any`.
+Bare `any` is a structural generic value; removed tags remain invalid even with
+`any`. Broadcast preserves declared shape. Counts measured at runtime do not
+participate in declaration compatibility.
 
-1. Resolve `tags_from` and output dimension derivations first.
-2. Check scalar/array cardinality, except explicit scalar-input broadcast.
-3. For array-to-array, require equal semantic depth (`[]` means one legacy layer).
-   At each layer two non-empty labels must match; an empty name is a wildcard.
-4. Require tag overlap, a registered alias, or `any` on either side.
-
-`storage`, preview settings and measured counts do not participate. Content axes
-on scalar objects are retained as metadata; this version does not add new scalar
-content-shape validation. Unresolved legacy derivations retain their existing
-fallback fields, not a claim that all dimensions have been established.
-
-Physical shard discovery is separate from these semantic labels: execution uses
-`max(1, len(dim_labels)) - content_dims` directory layers, with `content_dims`
-read from the named parameter (default zero). It requires an integer in the range
-`0 <= content_dims < semantic_depth`. At multiple directory layers a shard id can
-be `outer/inner`; do not infer a physical shard path by parsing a displayed type.
-Backend `views.invocation` uses the same `enumeration_depth` helper as execution,
-including merged parameter defaults. It removes those directory layers; explicit
-remaining input content axes become object `contentAxes`. Output projections use
-the common driving-input depth. Invalid/missing driving depth or too few resolved
-aggregate dimensions produces an `unknown` invocation, not an invented type.
-The frontend's legacy tooltip element row remains the one-outer-layer display
-projection; it is not a physical shard enumeration plan.
+Fan-out enumerates **exactly one outer layer**. A shard receives the declared
+invocation value, which may itself be a collection; it never flattens all axes.
+`dim_sizes` observations retain all measured explicit collection layers.
+Unknown/sampled/complete evidence describes measurement coverage, not a type
+guarantee; contract validation is separate and exhaustive.
 
 ### Declaration, effective type, and runtime observation
 
@@ -495,7 +484,7 @@ templated. Preview generation is the pack's responsibility.
 (tags + arrayed-ness), not by the pack.** A per-pack `preview:` block
 is an escape hatch reserved for the rare case where the type's generic
 viewer misses something pack-specific. If two packs emit the same type
-(e.g. one produces `arrayed<frame_sequence>` by regrouping, the other
+(e.g. one produces `arrayed<arrayed<image>>` by regrouping, the other
 by fan-out extraction), they get the *same* viewer with zero
 per-pack effort — which is the whole point of typed ports.
 
@@ -523,39 +512,12 @@ outputs:
 Explicit `preview:` on an output port still wins if declared; use
 that only when the tag-driven default isn't right for your pack.
 
-**Frontend viewer overrides.** A tag can also drive a richer *frontend*
-viewer than the registry's declared choice. `frame_sequence` is the
-canonical example: the registry pins it to the plain `image` viewer
-(showing only `frames/frame_000000.png`), but when the frontend sees
-that tag on a dir-storage handle it swaps in the stacked-strip viewer
-(`FrameStripPreview` in `previews.tsx`) — a fanned overlap of ~6 sample
-thumbs plus a `count · WxH` metadata line. The sample indices are
-evenly spaced across the full sequence so the tail is always visible;
-the last card overlays a `+N` badge when the run has more frames than
-cards. Clicking a card opens the raw PNG in a zoomable overlay
-(Esc/← to close). Adopt the same pattern for any tag whose "one entry
-is representative" default isn't true.
-
-**Arrayed viewers.** A tag family can register a *pair* of viewers —
-one for the scalar `T`, one for `arrayed<T>` — since the arrayed form
-adds an outer directory layer (`<parent>/<element>/<file>`) that the
-scalar viewer wouldn't handle. `frame_sequence` is the canonical pair:
-
-* scalar `frame_sequence` → `FrameStripPreview` (probes
-  `frames/frame_XXXXXX.png`);
-* `arrayed<frame_sequence>` → `NestedFrameSequencePreview` — a
-  two-level fan showing up to 3 outer group cards (each a mini
-  fanned stack of the group's first 3 thumbnails + a corner badge for
-  the group's total image count) with a `共 M 组` label; click a group
-  card to drill down into that group as a `FrameStripPreview`-style
-  strip.
-
-The dispatch key is the port's effective `arrayed` state — computed
-per-node as `port.arrayed || (pack.arrayable && node.arrayed_toggle)`.
-Both `frame-extraction[arrayed_toggle=true]` (per-camera groups) and
-`regroup-by-frame` (per-frame groups) resolve to `arrayed<
-frame_sequence>` and automatically share the nested viewer with no
-per-pack preview declaration.
+**Image viewers.** `image` with `storage: file` previews the file directly.
+An explicit one-dimensional image array uses `FrameStripPreview`; nested image
+arrays use `NestedFrameSequencePreview` with a group drill-down. Viewer selection
+uses the resolved shape and storage, not removed aliases or an implicit
+`frames/` directory. Frame extraction under fan-out yields `[cam,frame]` image
+collections; regrouping can transpose them to `[frame,cam]`.
 
 **Arrayed fallback — pager over the scalar viewer.** When a tag family
 has a scalar viewer but *no* dedicated `arrayed<T>` viewer, the
