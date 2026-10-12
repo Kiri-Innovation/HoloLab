@@ -12,10 +12,13 @@
 // enough for the chip; more expensive drill-downs (per-element inner
 // counts) come from the preview drawer's own summary fetch.
 
+import { parseRuntimeObservation } from "../types/runtimeObservation";
+import type { RuntimeShape } from "../types/portTypeIR";
 import { getHandleSummary } from "../api";
 import type { HandleSummary, LatestOutputHandle } from "../wire";
 
 export interface EdgeSummaryFacts {
+  runtimeShape?: RuntimeShape;
   tags?: string[];
   elementCount?: number;
   internalCount?: number;
@@ -44,7 +47,8 @@ const pending = new Map<string, Promise<EdgeSummaryFacts>>();
 const resolved = new Map<string, EdgeSummaryFacts>();
 
 function factsFromSummary(s: HandleSummary): EdgeSummaryFacts {
-  const facts: EdgeSummaryFacts = { tags: s.tags };
+  const facts: EdgeSummaryFacts = { tags: s.tags,
+    runtimeShape: parseRuntimeObservation((s as HandleSummary & { runtime_shape?: unknown }).runtime_shape) };
 
   // dim_sizes is the authoritative multi-dim count source. Backfill the
   // legacy scalar fields so callers that only inspect elementCount still
@@ -138,7 +142,8 @@ export function seedEdgeSummaryFacts(
   latest: LatestOutputHandle,
 ): void {
   if (resolved.has(handleId)) return;
-  const facts: EdgeSummaryFacts = { tags: latest.tags };
+  const facts: EdgeSummaryFacts = { tags: latest.tags,
+    runtimeShape: parseRuntimeObservation((latest as LatestOutputHandle & { runtime_shape?: unknown }).runtime_shape) };
   if (latest.dim_sizes && latest.dim_sizes.length > 0) {
     facts.dimSizes = latest.dim_sizes;
     facts.elementCount = latest.dim_sizes[0];

@@ -79,7 +79,9 @@ def dim_info_for_handle(
     return dim_labels, sizes
 
 
-def summarize_handle(handle: Handle, *, depth: int | None = None) -> dict[str, Any]:
+def summarize_handle(
+    handle: Handle, *, depth: int | None = None, dim_labels: list[str] | None = None
+) -> dict[str, Any]:
     """Return a summary dict for one handle.
 
     Dispatch order (see :func:`_dispatch_summary`):
@@ -106,7 +108,7 @@ def summarize_handle(handle: Handle, *, depth: int | None = None) -> dict[str, A
 
     path = Path(handle.path)
     base = _dispatch_summary(handle, path)
-    _annotate_element_and_internal_counts(base, handle, path, depth=depth)
+    _annotate_element_and_internal_counts(base, handle, path, depth=depth, dim_labels=dim_labels)
     return base
 
 
@@ -139,6 +141,7 @@ def _annotate_element_and_internal_counts(
     path: Path,
     *,
     depth: int | None = None,
+    dim_labels: list[str] | None = None,
 ) -> None:
     """Fill ``element_count`` + ``dim_sizes`` + ``internal_count`` + kind.
 
@@ -162,6 +165,7 @@ def _annotate_element_and_internal_counts(
     element_count: int | None = None
     sample_path: Path = path
     dim_sizes: list[int] | None = None
+    dimension_leaf: Path | None = None
 
     if handle.storage == "dir" and path.is_dir():
         try:
@@ -176,6 +180,7 @@ def _annotate_element_and_internal_counts(
 
         if depth is not None and depth >= 1:
             dim_sizes, leaf = _measure_dim_sizes(path, depth, list(handle.tags))
+            dimension_leaf = leaf
             if leaf is not None:
                 sample_path = leaf
 
@@ -198,6 +203,29 @@ def _annotate_element_and_internal_counts(
         result["element_count"] = element_count
     if dim_sizes is not None:
         result["dim_sizes"] = dim_sizes
+
+    from hololab.gateway.type_observation import observe_summary
+
+    # Record evidence at the point where sampling is known. Existing numeric
+    # fields remain untouched for clients that have not adopted the envelope.
+    sample = str(sample_path.relative_to(path)) if sample_path != path else None
+    axis_sample = (
+        str(dimension_leaf.relative_to(path))
+        if dimension_leaf is not None and dimension_leaf != path
+        else None
+    )
+    if result.get("kind") == "splatv" and isinstance(fields.get("camera_count"), int):
+        sample = None  # camera_count above was read from the root file itself.
+    result["runtime_shape"] = observe_summary(
+        handle_id=handle.handle_id,
+        tags=list(handle.tags),
+        facts=result,
+        labels=dim_labels,
+        content_depth=content_dim_count_for(list(handle.tags)),
+        sample=sample,
+        axis_sample=axis_sample,
+        accessible=path.exists(),
+    ).model_dump()
 
 
 def _measure_dim_sizes(
@@ -630,6 +658,7 @@ _CHIP_FACT_KEYS = (
     "internal_count",
     "internal_count_kind",
     "internal_count_items",
+    "runtime_shape",
 )
 
 
@@ -638,7 +667,9 @@ class HandleSummaryCache:
 
     A ``Handle`` is immutable after registration — the file on disk
     doesn't change and the tags are frozen at ``handle_register`` time —
-    so we key strictly on ``handle_id`` with no TTL. The one thing that
+    so we key on ``(handle_id, dim_labels)`` with no TTL.
+    Resolved labels are part of the probe scope, and can arrive after a first
+    request without graph context. The one thing that
     invalidates an entry is a tombstone (``DELETE /api/artifacts/{id}``)
     which pops the row via :meth:`invalidate`.
 
@@ -657,7 +688,7 @@ class HandleSummaryCache:
     """
 
     def __init__(self, *, max_entries: int = 4096) -> None:
-        self._store: dict[str, dict[str, Any]] = {}
+        self._store: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
         self._lock = threading.Lock()
         # Bounded so a long-lived gateway across thousands of workflow
         # runs doesn't grow the cache without bound. FIFO eviction —
@@ -681,13 +712,14 @@ class HandleSummaryCache:
         ``dim_sizes`` measurement walks the right depth.
         """
 
+        cache_key = (handle.handle_id, tuple(dim_labels or []))
         with self._lock:
-            hit = self._store.get(handle.handle_id)
+            hit = self._store.get(cache_key)
             if hit is not None:
                 return hit
 
         depth = len(dim_labels) if dim_labels else None
-        full = summarize_handle(handle, depth=depth)
+        full = summarize_handle(handle, depth=depth, dim_labels=dim_labels)
         facts: dict[str, Any] = {}
         for key in _CHIP_FACT_KEYS:
             if key in full and full[key] is not None:
@@ -698,7 +730,7 @@ class HandleSummaryCache:
             # we were probing. Trust the first writer (identical inputs
             # produce identical outputs by construction) and drop our
             # probe on the floor.
-            existing = self._store.get(handle.handle_id)
+            existing = self._store.get(cache_key)
             if existing is not None:
                 return existing
             if len(self._store) >= self._max_entries:
@@ -706,7 +738,7 @@ class HandleSummaryCache:
                 # preserves insertion order in Python 3.7+.
                 oldest = next(iter(self._store))
                 self._store.pop(oldest, None)
-            self._store[handle.handle_id] = facts
+            self._store[cache_key] = facts
             return facts
 
     def invalidate(self, handle_id: str) -> None:
@@ -718,7 +750,9 @@ class HandleSummaryCache:
         """
 
         with self._lock:
-            self._store.pop(handle_id, None)
+            for key in list(self._store):
+                if key[0] == handle_id:
+                    self._store.pop(key, None)
 
     def size(self) -> int:
         """Test hook — number of cached entries."""

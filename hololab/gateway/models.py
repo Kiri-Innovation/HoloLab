@@ -17,6 +17,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from hololab.gateway.port_type_ir import PortTypes
+from hololab.gateway.type_observation import InternalCountItem, RuntimeObservation
 from hololab.manifest.schema import OutputPreview
 
 # ---------------------------------------------------------------------------
@@ -289,6 +290,7 @@ class HandleSummary(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    runtime_shape: RuntimeObservation | None = None
     handle_id: str
     kind: str = Field(description="Summary variant: splatv | video | image | text | dir | unknown.")
     tags: list[str]
@@ -338,7 +340,7 @@ class HandleSummary(BaseModel):
         default=None,
         description="Human-readable name for :attr:`internal_count`; null when unset.",
     )
-    internal_count_items: list[dict[str, Any]] | None = Field(
+    internal_count_items: list[InternalCountItem] | None = Field(
         default=None,
         description=(
             "Multi-value labeled internal counts. Supersedes ``internal_count`` "
@@ -486,6 +488,7 @@ class LatestOutputHandleOut(BaseModel):
         Frontend renders the chip in the "cleaned" style.
     """
 
+    runtime_shape: RuntimeObservation | None = None
     handle_id: str
     tags: list[str]
     dim_labels: list[str] | None = None
@@ -493,7 +496,7 @@ class LatestOutputHandleOut(BaseModel):
     element_count: int | None = None
     internal_count: int | None = None
     internal_count_kind: str | None = None
-    internal_count_items: list[dict[str, Any]] | None = None
+    internal_count_items: list[InternalCountItem] | None = None
     deleted: bool = False
 
 

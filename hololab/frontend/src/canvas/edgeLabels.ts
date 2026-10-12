@@ -35,6 +35,7 @@ import { effectivePortArrayed, effectivePortDimLabels } from "../tags";
 import { isAlgorithmGraphNode } from "./nodeMeta";
 
 export interface EdgeType {
+  runtimeShape?: import("../types/portTypeIR").RuntimeShape;
   tags: string[];
   arrayed: boolean;
   /** Per-dimension labels, outer-first (mirrors backend storage order).

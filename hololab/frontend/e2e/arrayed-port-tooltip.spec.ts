@@ -3,7 +3,17 @@ for(const theme of ['light','dark']) test(`arrayed broadcast and dimensions ${th
  await page.setViewportSize({width:1200,height:800});
  let summaries=0;
  let nested=false;
- await page.route('**/api/handles/result/summary',async route=>{summaries++;await route.fulfill({json:{handle_id:'result',tags:['image'],dim_labels:nested?['batch','frame','cam']:['frame','cam'],dim_sizes:nested?[2,100,21]:[100,21],element_count:100,fields:{}}});});
+ await page.route('**/api/handles/result/summary',async route=>{
+  summaries++;
+  const labels=nested?['batch','frame','cam']:['frame','cam'];
+  const sizes=nested?[2,100,21]:[100,21];
+  const axes=labels.map((label,i)=>({label,role:i===labels.length-1?'content':'collection',size:{evidence:{
+    status:i===labels.length-1?'sampled':'complete',value:sizes[i],source:'fixture-probe',
+    ...(i===labels.length-1?{sample:'first-leaf'}:{})}}}));
+  await route.fulfill({json:{handle_id:'result',tags:['image'],dim_labels:labels,dim_sizes:sizes,element_count:100,fields:{},
+    runtime_shape:{schemaVersion:1,handleId:'result',tags:{evidence:{status:'complete',value:['image'],source:'registered-handle-metadata'}},
+      axes:{evidence:{status:'sampled',value:axes,source:'handle-shape-probe',sample:'first-leaf'}},internalCounts:[]}}});
+ });
  await page.goto(`/e2e/fixtures/port-types.html?theme=${theme}&arrayed=1`);
  const tip=page.getByRole('tooltip');
  const check=async(selector:string,rows:string[],name:string)=>{

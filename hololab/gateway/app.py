@@ -927,7 +927,7 @@ def _mount_routes(app: FastAPI) -> None:
         )
         depth = len(dim_labels) if dim_labels else None
 
-        summary = summarize_handle(handle, depth=depth)
+        summary = summarize_handle(handle, depth=depth, dim_labels=dim_labels)
         # summarize_handle also computes ``dim_sizes`` internally via the
         # same helper — prefer the summary's value (it saw the exact same
         # tree walk we asked for) and only fall back to the display-meta
@@ -947,6 +947,7 @@ def _mount_routes(app: FastAPI) -> None:
             "internal_count": summary.get("internal_count"),
             "internal_count_kind": summary.get("internal_count_kind"),
             "internal_count_items": summary.get("internal_count_items"),
+            "runtime_shape": summary.get("runtime_shape"),
             "preview": preview,
             "dim_labels": dim_labels,
         }

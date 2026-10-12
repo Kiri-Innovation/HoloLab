@@ -43,12 +43,18 @@ function legacy<T>(value: T | undefined): Observation<T> {
 export function runtimeFromLegacy(t: LegacyFacts, handleId: string | null = null): RuntimeShape {
   if (t.runtimeAvailable === false) return unknownRuntime(handleId, 'summary-unavailable');
   const depth = Math.max(t.arrayed ? 1 : 0, t.dimLabels.length, t.dimSizes?.length ?? 0);
-  return { handleId, legacyCountKind: t.internalCountKind, tags: legacy([...t.tags]), axes: legacy(Array.from({ length: depth }, (_, i) => ({
+  const fallback: RuntimeShape = { handleId, legacyCountKind: t.internalCountKind, tags: legacy([...t.tags]), axes: legacy(Array.from({ length: depth }, (_, i) => ({
     label: t.dimLabels[i] || null, role: 'unknown' as const,
     size: legacy(t.dimSizes?.[i] ?? (i === 0 ? t.elementCount : i === 1 ? t.innerElementCount : undefined)),
   }))), internalCounts: t.internalCountItems?.length
     ? t.internalCountItems.map(item => ({ key: item.label, count: legacy(item.value) }))
     : t.internalCount != null ? [{ key: '', count: legacy(t.internalCount) }] : [] };
+  const measured = t.runtimeShape;
+  if (!measured || handleId && measured.handleId !== handleId) return fallback;
+  // Keep unmeasured legacy values without upgrading their evidence. This also
+  // preserves old display behavior when a probe cannot determine all axes.
+  return { ...measured, axes: measured.axes.evidence.status === 'unknown'
+    ? { ...measured.axes, legacyValue: fallback.axes.legacyValue } : measured.axes };
 }
 
 /** Compatibility projection for the existing tooltip element row. This is a
