@@ -8,7 +8,6 @@ const nullableString = (v: unknown) => v === null || string(v);
 const count = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 function observation<T>(value: unknown, valid: (value: unknown) => value is T): value is Observation<T> {
   if (!record(value) || !record(value.evidence)) return false;
-  if ('legacyValue' in value && !valid(value.legacyValue)) return false;
   const e = value.evidence;
   if (e.status === 'unknown') return string(e.reason);
   return (e.status === 'complete' || e.status === 'sampled' && string(e.sample)) && string(e.source) && valid(e.value);

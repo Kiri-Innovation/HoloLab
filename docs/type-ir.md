@@ -96,8 +96,9 @@ Each observed field uses `Observation<T>`:
 `complete` is scoped to the referenced handle and field, not all future runs or
 all objects in the workflow. A representative first-element pose count is
 `sampled`, with a sample identifier. `dim_sizes` alone does not establish coverage.
-If the old API supplies a number but no coverage guarantee, keep it as
-`legacyValue`, with unknown evidence; do not discard it or relabel it complete.
+The optional `legacyValue` field remains accepted by the versioned wire model.
+The canvas no longer reconstructs or displays it: unknown evidence is unmeasured,
+even if old numeric fields are present. API legacy fields themselves remain unchanged.
 Zero is a real measured value. Unknown shape differs from measured scalar `[]`.
 
 `RuntimeShape.axes` is outer-first. Each axis records its role
@@ -202,10 +203,11 @@ phase does not scan every element's internal contents.
 The summary cache keys by `(handle_id, dim_labels)` so an early request without
 resolved labels cannot poison later contextual evidence. Tombstoning invalidates
 all scopes for that handle. The frontend summary cache validates the envelope;
-`runtimeFromLegacy` prefers validated evidence and rejects a mismatched handle id.
-When a new probe is unknown it can retain legacy axes under `legacyValue` without
-relabeling them complete. Element-row projection slices the observation structure
-and retains its coverage/source/sample. UI layout and tooltip captions are unchanged.
+`runtimeFromSummary` accepts validated evidence and rejects a mismatched handle id.
+Missing or unsupported `runtime_shape` yields `unknownRuntime`; no legacy axes or
+counts are backfilled. Element-row projection slices known observation structure
+and retains its coverage/source/sample; unknown evidence remains unknown. UI layout
+and tooltip captions are unchanged.
 
 ## Coverage of the five display outlets (phase 2 inventory)
 
@@ -259,8 +261,10 @@ shared multi-layer shard depth, the scheduler, observations and API compatibilit
   parse a tooltip. Missing/invalid driving metadata stays `unknown`.
 - Legacy dimension resolution fallbacks (including unresolved generic axes) are
   preserved, not promoted into proof of complete dimension knowledge.
-- The pre-existing snapshot card-mode limitation recorded below is unchanged.
-  This work does not modify node geometry or snapshot canvas mode forwarding.
+- Snapshot card mode forwarding is a current bug, not an old-data issue:
+  `SnapshotCanvas` omits `arrayed_toggle` when building algorithm node data, for
+  both newly produced and historical snapshots. This cleanup does not close that
+  issue or modify node geometry; it needs a separate layout/anchor fix.
 
 
 ## Phase 2 implementation and acceptance
@@ -282,18 +286,18 @@ shared multi-layer shard depth, the scheduler, observations and API compatibilit
   the existing helpers/resolver. In particular `arrayed: true` plus a node toggle
   does not cause another array layer: current pack semantics use OR, not an
   additional wrapper. This corrects the previous tooltip's unconditional shell.
-- `runtimeFromLegacy` maps summary facts to observation fields with unknown
-  coverage and preserved `legacyValue`; it does not promote a count to complete
-  evidence. `elementRuntime` preserves the existing third-row element projection
-  and retains count provenance. This is not a per-shard verification API.
+- The phase-2 numeric fallback has since been removed (see the policy below).
+  `runtimeFromSummary` now uses only structured evidence. `elementRuntime`
+  preserves the third-row element projection and observation provenance;
+  this display row is not a per-shard verification API.
 
 `renderPortType` is the only type renderer, with declaration, long, compact and
 runtime modes. Named array axes now render as `arrayed[frame]<colmap-cams>`;
 unnamed arrays remain `arrayed<T>`. Recursive structures retain every layer,
 including unnamed ones. The old `arrayed<frame> of T` ambiguity is removed.
 Compact/runtime counts retain `T(pose:21 intr:1)[frame:100]` and inner-first
-brackets. Long inspection labels retain available count details. Legacy values
-remain visible during migration but the IR never labels their coverage complete.
+brackets. Long inspection labels retain available measured count details.
+Unmeasured legacy numbers are no longer displayed by the canvas.
 
 `formatTypeLabel` / `formatTypeLabelLong` remain as thin compatibility facades
 used by edge chips, inspectors and snapshot labels; they contain no formatting
@@ -319,3 +323,31 @@ At phase 2 acceptance, backend compatibility and measurement evidence were
 intentionally deferred. Phases 3–4 above now implement them. Legacy values still
 do not prove complete coverage, and arbitrary filesystem paths or formatted
 strings are never used to infer declaration semantics.
+
+
+## Old-data display policy (post phase 5)
+
+The API compatibility contract and canvas fallback policy are deliberately separate:
+
+| Category | Path / condition | Policy |
+|---|---|---|
+| A: external API | Graph `resolved_outputs`, handle `tags`, `dim_labels`, `dim_sizes`, `element_count`, `internal_count_items`, etc. | Keep existing fields and meanings. No backend schema or serialization changes in this cleanup. |
+| A/current draft | `typeFromLegacy`, `declarationType`, `effectiveOutputType` on structured catalog/resolved fields | Keep. Unsaved drafts still need these adapters; they are not historical measurement reconstruction. |
+| B: old summary | Summary/cache numeric fields, directory entries, first-child entry counts without `runtime_shape` | Do not reconstruct measurements. Inline and fetched facts share `factsFromSummary`. |
+| B: missing evidence | `legacyValue` and unknown new axes supplemented with old dimensions | Ignore, even when an old number exists. Actual-data row is unknown. |
+| Normal validation | Missing, malformed, unsupported-version or wrong-handle `runtime_shape` | Safely treat as unmeasured. This guard is retained to avoid render failures. |
+| Normal unavailable metadata | Missing catalog pack / optional preview / no current job | Keep safe defaults; these can occur for new snapshots and offline nodes too. |
+
+Known declarations remain useful without observations: a compact chip may show
+`image[frame:?]`; its tooltip actual-data row stays `未知`. This does not copy a
+contract into a measured result. Old snapshots still render and edges remain
+selectable; tests include old numeric fields deliberately carrying 999/888 so
+accidental resurrection is detectable. Snapshot metadata refreshes preserve React
+Flow's measured node sizes, so a missing historical preview does not discard
+edge endpoint measurements while the card DOM remains unchanged.
+
+New observations continue to distinguish `sampled` and `complete`; old data need
+not recover either status. The snapshot `arrayed_toggle` omission is independent:
+there is no age/version conditional in the node-building path, so new snapshots
+also lack the wrapper/context. It cannot be closed as obsolete data. This change
+leaves it reported without altering snapshot card geometry.

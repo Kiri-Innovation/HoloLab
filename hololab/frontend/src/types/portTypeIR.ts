@@ -24,8 +24,8 @@ export type Evidence<T> =
   | Readonly<{ status: 'complete'; value: T; source: string }>;
 
 /** Complete means measured over this handle/scope, never inferred from a
- * manifest. Legacy values of unrecorded coverage remain unknown, with the
- * original value retained separately as legacyValue. */
+ * manifest. legacyValue remains accepted in the versioned wire shape, but the
+ * UI ignores it: unknown evidence always renders as unmeasured. */
 export type Observation<T> = Readonly<{ evidence: Evidence<T>; legacyValue?: T }>;
 export type ObservedAxis = Readonly<{
   label: string | null;

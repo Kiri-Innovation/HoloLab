@@ -9,9 +9,9 @@ export function useTypeSummary(type: EdgeType, handleId?: string | null): EdgeTy
   useEffect(() => {
     if (!handleId) return;
     const cached = peekEdgeSummaryFacts(handleId);
-    // Inline latest-run facts can have only an outer count. Fetch the full
-    // summary once for array shapes whose authoritative dimensions are absent.
-    if (cached && (!type.arrayed || cached.dimSizes?.length)) return;
+    // A cached unknown is still a resolved response; don't probe old numeric
+    // fields or refetch simply to reconstruct an unsupported legacy shape.
+    if (cached) return;
     let active = true;
     void loadEdgeSummaryFacts(handleId).then(facts => { if (active) setLoaded({ id: handleId, facts }); });
     return () => { active = false; };
@@ -24,8 +24,8 @@ export function useTypeSummary(type: EdgeType, handleId?: string | null): EdgeTy
 export function mergeTypeSummary(type: EdgeType, facts?: EdgeSummaryFacts): EdgeType & { runtimeAvailable: boolean } {
   return {
     ...type, ...facts,
-    runtimeAvailable: facts?.tags !== undefined,
+    runtimeAvailable: facts?.runtimeShape !== undefined,
     dimLabels: facts?.dimLabels?.length ? facts.dimLabels : type.dimLabels,
-    arrayed: type.arrayed || Boolean(facts?.dimLabels?.length || facts?.dimSizes?.length),
+    arrayed: type.arrayed || Boolean(facts?.dimLabels?.length),
   };
 }

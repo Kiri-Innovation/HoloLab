@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseRuntimeObservation } from './runtimeObservation';
-import { runtimeFromLegacy, elementRuntime } from './legacyPortType';
+import { runtimeFromSummary, elementRuntime } from './legacyPortType';
 import { renderPortType } from './renderPortType';
 
 const payload = {
@@ -14,7 +14,7 @@ const payload = {
 describe('versioned runtime evidence', () => {
   it('preserves sampled vs complete through element projection and terminal rendering', () => {
     const runtimeShape = parseRuntimeObservation(payload)!;
-    const runtime = runtimeFromLegacy({ tags: ['image'], arrayed: true, dimLabels: ['frame','cam'], runtimeShape }, 'h');
+    const runtime = runtimeFromSummary({ tags: ['image'], arrayed: true, dimLabels: ['frame','cam'], runtimeShape }, 'h');
     expect(runtime.axes.evidence.status).toBe('sampled');
     const element = elementRuntime(runtime);
     expect(element.axes.evidence.status).toBe('sampled');
@@ -27,8 +27,8 @@ describe('versioned runtime evidence', () => {
   });
   it('keeps legacy unknown coverage and rejects evidence from another handle', () => {
     const facts = {tags:['image'],arrayed:true,dimLabels:['frame'],dimSizes:[9]};
-    expect(runtimeFromLegacy(facts).axes.evidence.status).toBe('unknown');
-    const mismatched = runtimeFromLegacy({...facts,runtimeShape:parseRuntimeObservation(payload)}, 'different');
+    expect(runtimeFromSummary(facts).axes.evidence.status).toBe('unknown');
+    const mismatched = runtimeFromSummary({...facts,runtimeShape:parseRuntimeObservation(payload)}, 'different');
     expect(mismatched.axes.evidence.status).toBe('unknown');
   });
 });

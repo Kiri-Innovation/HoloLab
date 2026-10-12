@@ -17,7 +17,7 @@ export function typeTooltip(name: string, declared: EdgeType, actual: EdgeType &
   const afterTitle = view.fanout ? broadcast ? 'arrayed (auto-popped)' : 'after arrayed' : undefined;
   const afterDeclared = view.fanout ? renderPortType(ir.views.aggregate, { mode: 'declaration' }) : undefined;
   const axes = observedValue(ir.runtime.axes);
-  const fullRuntime = !actual.runtimeAvailable ? '未知' : !broadcast && !axes?.length ? '未知（无 arrayed 维度）'
+  const fullRuntime = !actual.runtimeAvailable || !actual.runtimeShape ? '未知' : !broadcast && !axes?.length ? '未知（无 arrayed 维度）'
     : renderPortType(ir.views.aggregate, { mode: 'runtime', runtime: ir.runtime, unknown: '未知' });
   return {
     'data-tooltip-after-title': afterTitle,

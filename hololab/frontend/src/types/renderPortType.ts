@@ -3,7 +3,7 @@
 import type { Observation, RuntimeShape, TypeExpr } from './portTypeIR';
 
 export function observedValue<T>(value: Observation<T>): T | undefined {
-  return value.evidence.status === 'unknown' ? value.legacyValue : value.evidence.value;
+  return value.evidence.status === 'unknown' ? undefined : value.evidence.value;
 }
 
 export type RenderOptions = {
@@ -41,7 +41,8 @@ export function renderPortType(type: TypeExpr, options: RenderOptions): string {
   let leaf = type;
   const typeAxes: Array<{ label: string | null }> = [];
   while (leaf.kind === 'array') { typeAxes.push(leaf.axis); leaf = leaf.element; }
-  const knownTags = runtime ? observedValue(runtime.tags) : leaf.kind === 'object' ? leaf.tags : undefined;
+  const knownTags = (runtime ? observedValue(runtime.tags) : undefined)
+    ?? (options.mode === 'compact' && leaf.kind === 'object' ? leaf.tags : undefined);
   if (!knownTags?.length && options.mode !== 'compact') return unknown;
   const tags = knownTags?.length ? knownTags : [unknown];
   const counts = runtime?.internalCounts ?? [];
@@ -50,8 +51,8 @@ export function renderPortType(type: TypeExpr, options: RenderOptions): string {
   const countText = visible.length ? `(${visible.map(item => item.key ? `${item.key}:${item.value}` : item.value).join(' ')})` : '';
   const axes = runtime ? observedValue(runtime.axes) : undefined;
   // Unknown measured shape is not silently replaced by a declaration.
-  const dimensions = runtime ? axes?.map(axis => ({ label: axis.label, size: observedValue(axis.size) }))
-    : typeAxes.map(axis => ({ label: axis.label, size: undefined }));
+  const dimensions = axes?.map(axis => ({ label: axis.label, size: observedValue(axis.size) }))
+    ?? (options.mode === 'compact' ? typeAxes.map(axis => ({ label: axis.label, size: undefined })) : undefined);
   const suffix = [...(dimensions ?? [])].reverse().map(axis =>
     `[${axis.label ? `${axis.label}:` : ''}${axis.size ?? '?'}]`).join('');
   if (options.mode === 'compact') {

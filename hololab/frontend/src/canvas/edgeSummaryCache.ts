@@ -8,35 +8,30 @@
 // summaries are pinned for the session; failures resolve to ``{}``
 // silently so the chip degrades to ``[?]`` without retry-storming.
 //
-// A single ``element_count`` / ``internal_count`` payload per handle is
-// enough for the chip; more expensive drill-downs (per-element inner
-// counts) come from the preview drawer's own summary fetch.
+// Only validated runtime_shape evidence supplies measurements. Older responses
+// remain renderable, with unknown measured values.
 
 import { parseRuntimeObservation } from "../types/runtimeObservation";
 import type { RuntimeShape } from "../types/portTypeIR";
 import { getHandleSummary } from "../api";
-import type { HandleSummary, LatestOutputHandle } from "../wire";
+import { observedValue } from "../types/renderPortType";
+import type { LatestOutputHandle } from "../wire";
 
 export interface EdgeSummaryFacts {
   runtimeShape?: RuntimeShape;
   tags?: string[];
-  elementCount?: number;
-  internalCount?: number;
-  internalCountKind?: string;
-  /** Multi-value labeled counts. Supersedes internalCount when present.
-   *  Items with value=0 are rendered but hidden by the chip formatter. */
-  internalCountItems?: Array<{ label: string; value: number }>;
-  /** Inner element count for the first outer element when the server
-   *  enriched ``fields.entries[].children`` (2-D arrayed only). */
-  innerElementCount?: number;
-  /** Per-dimension sizes from ``dim_sizes``, outer first. Supersedes
-   *  ``elementCount`` / ``innerElementCount`` when present. */
-  dimSizes?: number[];
-  /** Runtime-resolved dim labels from ``HandleSummary.dim_labels``.
-   *  Overrides the static catalog labels in TypedEdge — critical for
-   *  generic ports like ``regroup.out`` where the catalog has ``[]``
-   *  and the actual labels come from the job's ``output_dims`` param. */
   dimLabels?: string[];
+}
+
+/** New evidence only. Old response fields stay on the API, not as UI fallback.
+ * Both inline graph facts and standalone summaries take this same path. */
+export function factsFromSummary(s: { handle_id: string; runtime_shape?: unknown }): EdgeSummaryFacts {
+  const runtimeShape = parseRuntimeObservation(s.runtime_shape);
+  if (!runtimeShape || runtimeShape.handleId !== s.handle_id) return {};
+  const tags = observedValue(runtimeShape.tags);
+  const axes = observedValue(runtimeShape.axes);
+  return { runtimeShape, ...(tags ? { tags: [...tags] } : {}),
+    ...(axes ? { dimLabels: axes.map(axis => axis.label ?? '') } : {}) };
 }
 
 // Two parallel maps so ``peek`` can answer without observing an in-
@@ -45,52 +40,6 @@ export interface EdgeSummaryFacts {
 // invalidated — a handle's element count doesn't change after emit).
 const pending = new Map<string, Promise<EdgeSummaryFacts>>();
 const resolved = new Map<string, EdgeSummaryFacts>();
-
-function factsFromSummary(s: HandleSummary): EdgeSummaryFacts {
-  const facts: EdgeSummaryFacts = { tags: s.tags,
-    runtimeShape: parseRuntimeObservation((s as HandleSummary & { runtime_shape?: unknown }).runtime_shape) };
-
-  // dim_sizes is the authoritative multi-dim count source. Backfill the
-  // legacy scalar fields so callers that only inspect elementCount still
-  // get the right value for the common 1-D case.
-  if (Array.isArray(s.dim_sizes) && s.dim_sizes.length > 0) {
-    facts.dimSizes = s.dim_sizes as number[];
-    facts.elementCount = s.dim_sizes[0];
-    if (s.dim_sizes.length > 1) facts.innerElementCount = s.dim_sizes[1];
-  } else {
-    // Legacy path: backend predates dim_sizes.
-    const explicitElementCount = s.element_count;
-    if (typeof explicitElementCount === "number") {
-      facts.elementCount = explicitElementCount;
-    } else if (Array.isArray(s.fields.entries)) {
-      // Older backend hasn't set element_count — infer from top-level
-      // dir list. Only trust when the payload isn't truncated.
-      if (!s.fields.truncated) {
-        const dirs = s.fields.entries.filter((e) => e.is_dir).length;
-        if (dirs > 0) facts.elementCount = dirs;
-      }
-    }
-    // Second dim: first element's entry_count from the server drill.
-    const firstDir = s.fields.entries?.find((e) => e.is_dir);
-    if (firstDir?.entry_count != null) {
-      facts.innerElementCount = firstDir.entry_count;
-    }
-  }
-
-  if (Array.isArray(s.dim_labels)) {
-    facts.dimLabels = s.dim_labels as string[];
-  }
-
-  if (Array.isArray(s.internal_count_items) && s.internal_count_items.length > 0) {
-    facts.internalCountItems = s.internal_count_items as Array<{ label: string; value: number }>;
-  } else if (typeof s.internal_count === "number") {
-    facts.internalCount = s.internal_count;
-    if (typeof s.internal_count_kind === "string") {
-      facts.internalCountKind = s.internal_count_kind;
-    }
-  }
-  return facts;
-}
 
 /** Fetch summary facts for a handle, deduped by id. Never rejects — a
  *  failure resolves to an empty facts object so the chip's ``[?]``
@@ -139,28 +88,9 @@ export function _resetEdgeSummaryCache(): void {
  */
 export function seedEdgeSummaryFacts(
   handleId: string,
-  latest: LatestOutputHandle,
+  latest: LatestOutputHandle & { runtime_shape?: unknown },
 ): void {
   if (resolved.has(handleId)) return;
-  const facts: EdgeSummaryFacts = { tags: latest.tags,
-    runtimeShape: parseRuntimeObservation((latest as LatestOutputHandle & { runtime_shape?: unknown }).runtime_shape) };
-  if (latest.dim_sizes && latest.dim_sizes.length > 0) {
-    facts.dimSizes = latest.dim_sizes;
-    facts.elementCount = latest.dim_sizes[0];
-    if (latest.dim_sizes.length > 1) facts.innerElementCount = latest.dim_sizes[1];
-  } else if (typeof latest.element_count === "number") {
-    facts.elementCount = latest.element_count;
-  }
-  if (latest.dim_labels) {
-    facts.dimLabels = latest.dim_labels;
-  }
-  if (latest.internal_count_items && latest.internal_count_items.length > 0) {
-    facts.internalCountItems = latest.internal_count_items;
-  } else if (typeof latest.internal_count === "number") {
-    facts.internalCount = latest.internal_count;
-    if (typeof latest.internal_count_kind === "string") {
-      facts.internalCountKind = latest.internal_count_kind;
-    }
-  }
+  const facts = latest.handle_id === handleId ? factsFromSummary(latest) : {};
   resolved.set(handleId, facts);
 }

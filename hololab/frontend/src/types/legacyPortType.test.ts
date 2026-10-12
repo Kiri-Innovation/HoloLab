@@ -1,5 +1,6 @@
+import {measured} from '../test/measurements';
 import { describe, expect, it } from 'vitest';
-import { adaptPortType, declarationType, elementRuntime, legacyViews, runtimeFromLegacy, typeFromLegacy } from './legacyPortType';
+import { adaptPortType, declarationType, elementRuntime, legacyViews, runtimeFromSummary, typeFromLegacy } from './legacyPortType';
 import { observedValue, renderPortType } from './renderPortType';
 import { objectType, unknownType, wrapArray, type TypeExpr } from './portTypeIR';
 import { effectiveOutputType, formatTypeLabel, formatTypeLabelLong } from '../canvas/edgeLabels';
@@ -48,9 +49,9 @@ describe('terminal renderer and outlet compatibility facades', () => {
   });
   for (const sizes of [[100], [100, 21], [2, 100, 21], [0]]) {
     it(`uses authoritative runtime axes ${sizes}`, () => {
-      const actual = { ...scalar, dimSizes: sizes, elementCount: 999, innerElementCount: 888 };
-      const runtime = runtimeFromLegacy(actual);
-      expect(runtime.axes.evidence.status).toBe('unknown');
+      const actual = { ...scalar, dimSizes: sizes, elementCount: 999, innerElementCount: 888, runtimeShape: measured(tags, [], sizes) };
+      const runtime = runtimeFromSummary(actual);
+      expect(runtime.axes.evidence.status).toBe('complete');
       expect(observedValue(runtime.axes)?.map(axis => observedValue(axis.size))).toEqual(sizes);
       const suffix = [...sizes].reverse().map(n => `[${n}]`).join('');
       expect(renderPortType(typeFromLegacy(scalar), { mode: 'runtime', runtime })).toBe(`image${suffix}, rgb${suffix}`);
@@ -95,29 +96,26 @@ describe('terminal renderer and outlet compatibility facades', () => {
     expect(legacyViews(typeFromLegacy(fields), { fanout: true, direction: 'output' }, 'aggregate').aggregate)
       .toEqual(wrapArray(objectType(['image']), { label: 'old-frame' }));
   });
-  it('retains first-element counts without inventing measured coverage', () => {
+  it('ignores old numbers without runtime_shape', () => {
     const actual = { tags: ['colmap-cams'], arrayed: true, dimLabels: ['frame'], dimSizes: [100],
-      internalCountItems: [{ label: 'pose', value: 21 }, { label: 'intr', value: 1 }] };
-    const full = runtimeFromLegacy(actual, 'h');
-    const item = elementRuntime(full);
-    expect(item.internalCounts).toEqual(full.internalCounts);
-    expect(item.internalCounts.every(count => count.count.evidence.status === 'unknown')).toBe(true);
-    expect(observedValue(full.axes)).toHaveLength(1);
-    expect(observedValue(item.axes)).toHaveLength(0);
-    expect(renderPortType(typeFromLegacy(actual), { mode: 'runtime', runtime: item })).toBe('colmap-cams(pose:21 intr:1)');
+      internalCountItems: [{ label: 'pose', value: 21 }] };
+    const runtime = runtimeFromSummary(actual, 'h');
+    expect(observedValue(runtime.axes)).toBeUndefined();
+    expect(runtime.internalCounts).toEqual([]);
+    expect(renderPortType(typeFromLegacy(actual), {mode:'runtime',runtime})).toBe('unknown');
+    expect(formatTypeLabel(actual)).toBe('colmap-cams[frame:?]');
   });
-  for (const status of ['unknown', 'sampled', 'complete'] as const) it(`retains ${status} evidence on observation projection`, () => {
-    const runtime = runtimeFromLegacy({ ...scalar, arrayed: true, dimSizes: [100, 21] });
+  for (const status of ['unknown', 'sampled', 'complete'] as const) it(`preserves ${status} evidence`, () => {
+    const runtime = measured(tags,['frame','cam'],[100,21]);
     const axes = observedValue(runtime.axes)!;
-    const evidence = status === 'unknown' ? runtime.axes : { evidence: status === 'sampled'
-      ? { status, value: axes, source: 'probe', sample: 'first' }
-      : { status, value: axes, source: 'scan' } };
-    const projected = elementRuntime({ ...runtime, axes: evidence });
+    const evidence = status === 'unknown' ? {evidence:{status,reason:'unmeasured'},legacyValue:axes}
+      : {evidence:status === 'sampled' ? {status,value:axes,source:'probe',sample:'first'} : {status,value:axes,source:'scan'}};
+    const projected=elementRuntime({...runtime,axes:evidence});
     expect(projected.axes.evidence.status).toBe(status);
-    expect(observedValue(projected.axes)).toEqual(axes.slice(1));
+    expect(observedValue(projected.axes)).toEqual(status==='unknown'?undefined:axes.slice(1));
   });
   it('unknown data never renders a declaration as a measured result', () => {
-    const runtime = runtimeFromLegacy({ ...scalar, runtimeAvailable: false });
+    const runtime = runtimeFromSummary({ ...scalar, runtimeAvailable: false });
     expect(renderPortType(typeFromLegacy(scalar), { mode: 'runtime', runtime, unknown: '未知' })).toBe('未知');
     const fields = { tags: ['image'], arrayed: true, dimLabels: ['frame'], runtimeAvailable: false };
     expect(formatTypeLabel(fields)).toBe('image[frame:?]');

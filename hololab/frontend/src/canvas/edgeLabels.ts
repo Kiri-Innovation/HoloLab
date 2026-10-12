@@ -28,7 +28,7 @@
 // The chip renders inner-first (Python-convention: T[cam:21][frame:100])
 // so that the "element type" bracket sits closest to the tag name.
 
-import { runtimeFromLegacy, typeFromLegacy } from "../types/legacyPortType";
+import { runtimeFromSummary, typeFromLegacy } from "../types/legacyPortType";
 import { renderPortType } from "../types/renderPortType";
 import type { CatalogPack, GraphEdge, GraphNode } from "../wire";
 import { effectivePortArrayed, effectivePortDimLabels } from "../tags";
@@ -42,22 +42,6 @@ export interface EdgeType {
    *  Length = arrayed depth. An unlabeled dim is the empty string ``""``.
    *  Empty when scalar.  formatTypeLabel renders these inner→outer. */
   dimLabels: string[];
-  /** Runtime counts. Populated by TypedEdge after a handle-summary
-   *  fetch; undefined = "unknown". Never populated at layout time. */
-  elementCount?: number;
-  /** Second-level element count when we've drilled far enough (e.g.
-   *  a summary that enriched one level of ``children``). */
-  innerElementCount?: number;
-  /** Per-dimension sizes from the server's ``dim_sizes`` field, outer
-   *  first. Supersedes ``elementCount`` / ``innerElementCount`` when
-   *  present. Index 0 maps to ``dimLabels[0]``, etc. */
-  dimSizes?: number[];
-  /** Tag-specific inner count (cameras.txt row count, etc.). */
-  internalCount?: number;
-  internalCountKind?: string;
-  /** Multi-value labeled counts — supersedes internalCount when present.
-   *  Items with value=0 are suppressed by the chip formatter. */
-  internalCountItems?: Array<{ label: string; value: number }>;
 }
 
 // Walk ``tags_from`` back to the ultimate producer. Independent from
@@ -219,9 +203,9 @@ export function effectiveOutputType(
 /** Compatibility facades for existing edge/inspector/snapshot consumers.
  * All display formatting is delegated to the IR renderer. */
 export function formatTypeLabel(t: EdgeType): string {
-  return renderPortType(typeFromLegacy(t), { mode: 'compact', runtime: runtimeFromLegacy({ ...t, runtimeAvailable: undefined }) });
+  return renderPortType(typeFromLegacy(t), { mode: 'compact', runtime: runtimeFromSummary(t) });
 }
 
 export function formatTypeLabelLong(t: EdgeType): string {
-  return renderPortType(typeFromLegacy(t), { mode: 'long', runtime: runtimeFromLegacy(t) });
+  return renderPortType(typeFromLegacy(t), { mode: 'long', runtime: runtimeFromSummary(t) });
 }

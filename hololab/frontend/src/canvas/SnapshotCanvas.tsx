@@ -344,7 +344,13 @@ export function SnapshotCanvas({
   // Re-seed when we switch to a different snapshot (or the catalog
   // changes and pack labels need refreshing).
   useEffect(() => {
-    setNodes(initial.nodes);
+    // Preview metadata can settle without changing DOM size. Keep React Flow's
+    // measurements: ResizeObserver need not fire again for a data-only refresh,
+    // and dropping measured sizes can otherwise hide connected edges.
+    setNodes((current) => {
+      const measured = new Map(current.map((node) => [node.id, node.measured]));
+      return initial.nodes.map((node) => ({ ...node, measured: measured.get(node.id) }));
+    });
     setEdges(initial.edges);
   }, [initial, setNodes, setEdges]);
 

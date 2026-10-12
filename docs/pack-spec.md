@@ -340,7 +340,7 @@ Evidence has three states:
 
 | Evidence | Meaning |
 |---|---|
-| `unknown` | Not measured, unavailable, or legacy coverage unrecorded. Optional `legacyValue` preserves an old display value without asserting coverage. |
+| `unknown` | Not measured, unavailable, or legacy coverage unrecorded. Optional wire `legacyValue` is retained for compatibility; the canvas ignores it and treats unknown evidence as unmeasured. |
 | `sampled` | Measured at a named relative sample, such as the first sorted leaf. Does not assert the same count for all elements. |
 | `complete` | Covered the referenced handle/field scope; not a guarantee about future runs or all upstream artifacts. `source` identifies the scan, probe or metadata origin. |
 
