@@ -87,6 +87,12 @@ def test_resolution_param_defaults_to_two_and_offers_downsample_ladder() -> None
     assert list(p.values or []) == [1, 2, 4, 8]
 
 
+def test_lazy_image_loading_is_enabled_by_default() -> None:
+    """The STG pack must never select the eager host-RAM loading path."""
+    m = _load()
+    assert m.params["lazy_load_images"].default is True
+
+
 def test_manifest_defaults_mirror_sharp4dgs_export_json() -> None:
     """Every JSON key we lifted to a node param must ship the JSON's value.
 
@@ -131,6 +137,8 @@ def test_exec_shell_emits_every_lifted_param_as_cli_flag() -> None:
 
     # The parameter that was the whole point.
     assert "--resolution 2" in shell, shell
+    assert 'LAZY_FLAG="--lazy-load-images"' in shell, shell
+    assert 'if [ "{{ params.lazy_load_images }}"' not in shell, shell
 
     # All lifted params show up on the CLI. --motion-mask-mode and
     # --len-memory-window-train use hyphens (STG registers them that way).
