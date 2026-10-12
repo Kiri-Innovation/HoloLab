@@ -33,6 +33,8 @@ for (const theme of ['light','dark']) test(`single status dot in ${theme}`, asyn
       await expect(tip.locator('li')).toHaveCount(0);
       await expect(tip.locator('.hl-status-tooltip-reason')).toHaveText('磁盘空间不足');
     }
+    const titles:Record<string,string>={cancelled:'已主动停止',orphaned:'执行设备失去连接',interrupted:'运行中断（未恢复）',failed:'运行失败'};
+    if(titles[id]) { await expect(tip.locator('strong')).toHaveText(titles[id]); await expect(tip).not.toContainText('尚未运行'); }
     const full=await dot(id).getAttribute('aria-label');
     expect(full).toContain(await tip.locator('strong').innerText());
     await expect(dot(id)).toHaveAttribute('aria-describedby',await tip.getAttribute('id') ?? '');

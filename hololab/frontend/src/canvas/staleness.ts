@@ -102,6 +102,8 @@ export interface NodeStaleness {
   // which edit forces a rerun. For inflight_old_params it also names
   // the snapshot id short-hash the in-flight job is running against.
   title: string;
+  /** Configuration evidence only; runtime status is explained by nodeStatus. */
+  changeReasons?: readonly string[];
 }
 
 // Stable inbound-edge fingerprint per target node: sorted set of
@@ -342,6 +344,7 @@ export function computeStaleness(
     // this node have any fresh output right now".
     const sn = snap ? (snapById.get(id) ?? null) : null;
     const selfReasons = selfDirtyReasons(dn, sn, draftEdges, snapEdges, packDefaults);
+    const changeReasons = [...selfReasons];
     const hasDoneOutput = rt?.state === "done";
     if (!hasDoneOutput && selfReasons.length === 0) {
       // Config matches the snapshot but the output isn't fresh — the
@@ -349,11 +352,13 @@ export function computeStaleness(
       const prior = rt?.state;
       if (prior === "failed") selfReasons.push("上次运行失败，需要重跑");
       else if (prior === "cancelled") selfReasons.push("上次运行被取消，需要重跑");
-      else if (prior === "orphaned") selfReasons.push("上次运行未完成（节点掉线），需要重跑");
+      else if (prior === "orphaned") selfReasons.push("执行连接丢失，等待状态确认");
+      else if (prior === "interrupted") selfReasons.push("上次运行中断，需要确认后重跑");
+      else if (prior) selfReasons.push("运行状态暂不可识别");
       else selfReasons.push("尚未运行");
     }
     if (selfReasons.length > 0) {
-      out[id] = { kind: "self_dirty", title: selfReasons.join(" · ") };
+      out[id] = { kind: "self_dirty", title: selfReasons.join(" · "), changeReasons };
       continue;
     }
     // Config matches snapshot AND we have a done output. Check if any

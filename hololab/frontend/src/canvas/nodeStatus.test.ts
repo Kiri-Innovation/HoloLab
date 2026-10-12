@@ -11,7 +11,7 @@ const rows: Record<string, string[]> = {
   running: ["info", "warning", "warning", "warning"],
   done: ["success", "warning", "warning", "warning"],
   failed: ["error", "error", "error", "error"],
-  cancelled: ["neutral", "neutral", "neutral", "warning"],
+  cancelled: ["neutral", "neutral", "neutral", "neutral"],
   orphaned: ["error", "error", "error", "error"],
   interrupted: ["error", "error", "error", "error"],
   future: ["neutral", "neutral", "neutral", "neutral"],
@@ -21,7 +21,7 @@ for (const state of states) for (const [index, kind] of kinds.entries()) for (co
     const stale: NodeStaleness | undefined = kind ? { kind, title: "具体变化原因" } : undefined;
     const frozen = Object.freeze(stale ?? {});
     const result = nodeStatus({ state, stale, drift });
-    const expected = drift && !["failed", "orphaned", "interrupted", "future"].includes(state ?? "") ? "warning" : rows[state ?? "idle"][index];
+    const expected = drift && !["failed", "orphaned", "interrupted", "cancelled", "future"].includes(state ?? "") ? "warning" : rows[state ?? "idle"][index];
     expect(result.tone).toBe(expected);
     expect(result.conclusion).toBeTruthy();expect(result.reason).toBeTruthy();expect(result.action).toBeTruthy();
     if (stale && state !== "future") expect(result.reason).toContain(stale.title);
@@ -51,4 +51,11 @@ it("separates update reasons and preserves single reasons without blank rows", (
 it("separates failure evidence from each stale reason", () => {
   const result=nodeStatus({state:"failed",failReason:"磁盘空间不足",stale:{kind:"self_dirty",title:"参数已改：width · 并行度：4 → 5"}});
   expect(statusReasonLines(result.reason)).toEqual(["磁盘空间不足", "参数已改：width", "并行度：4 → 5"]);
+});
+
+it("keeps stop intent distinct and translates recorded failure categories", () => {
+  expect(nodeStatus({state:"cancelled",drift:true}).conclusion).toBe("已主动停止");
+  expect(nodeStatus({state:"failed",failReason:"algo_error"}).reason).toBe("算法进程异常退出。");
+  expect(nodeStatus({state:"failed",failReason:"system_error"}).reason).toContain("系统");
+  expect(nodeStatus({state:"interrupted"}).reason).toContain("未记录具体原因");
 });

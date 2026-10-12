@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 import type { CatalogPack, GraphNode, SnapshotJob, WorkflowGraph } from "../wire";
 import type { NodeRuntime } from "./AlgorithmNode";
+import { nodeStatus } from "./nodeStatus";
 import { computeStaleness, packDefaultsFromCatalog } from "./staleness";
 
 function mkNode(over: Partial<GraphNode> & { id: string }): GraphNode {
@@ -306,3 +307,18 @@ describe("computeStaleness — manifest default-fill normalisation", () => {
     expect(out.fx).toBeNull();
   });
 });
+
+for (const state of ["interrupted", "orphaned", "cancelled", "failed", "future", "done", "running"]) {
+  it(`does not confuse ${state} with never run or repeat stale runtime instructions`, () => {
+    const graph = mkGraph([mkNode({id:"n"})]);
+    const runtimes = {n:{state}};
+    const stale = computeStaleness(graph, graph, runtimes).n;
+    expect(stale?.title ?? "").not.toContain("尚未运行");
+    const result = nodeStatus({state, stale});
+    expect(result.reason).not.toContain("尚未运行");
+    if (state === "orphaned") expect(result.reason).not.toContain("需要重跑");
+    const changed = mkGraph([mkNode({id:"n", params:{width:10}})]);
+    const delta = computeStaleness(changed, graph, runtimes).n;
+    if (state !== "future" && state !== "running") expect(nodeStatus({state,stale:delta}).reason).toContain("width");
+  });
+}
