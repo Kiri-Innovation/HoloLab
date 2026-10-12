@@ -8,10 +8,10 @@ inputs:
     tags: [colmap-folder]
     arrayed: true
     dim_labels: [frame]
-    require_axis_match: false
+    require_axis_label_match: false
 ```
 
-- `InputSpec.require_axis_match` 是严格布尔值，默认 `true`。不声明字段时行为不变：双方轴名非空且不同才拒绝，任一侧无名仍是名称通配。
+- `InputSpec.require_axis_label_match` 是严格布尔值，默认 `true`。不声明字段时行为不变：双方轴名非空且不同才拒绝，任一侧无名仍是名称通配。
 - `false` 只关闭该输入所有集合层的轴名比较。数组/标量、集合层数、元素 tags 保持现有规则（包括显式 `any` 泛型）；不改路径、数据、维度名、遍历顺序或调度。
 - catalog 输入声明与 `port_types.inputs.*.declaration` 均携带字段。后端快照/运行校验与前端拖拽及最终 onConnect 使用同一输入策略。
 - 类型字符串仍只用于展示。提示区分 tags、数组/标量、层数、轴名四种原因。
@@ -74,3 +74,14 @@ STG pack 实际位于独立仓库 `SpacetimeGaussians/stg-train@0.3.0/manifest.y
 ## 部署
 
 未 push、未重启服务。部署需同时包含 HoloLab 的字段支持与 STG manifest 的显式放宽；之后由用户重启/刷新 gateway 与执行节点的 pack catalog，并刷新浏览器。旧服务没有新字段支持时不会启用放宽。不修改任何旧 API 字段的语义。
+
+## 字段定名回归
+
+字段统一为用户指定的 `require_axis_label_match`，前端函数参数同步为
+`requireAxisLabelMatch`。默认值和所有校验行为不变，不保留旧字段别名。
+本轮相关后端测试 250 项、前端单测 492 项、浅/深主题拖拽浏览器测试
+2 项通过；实际草稿副本与磁盘 manifest 的候选边验证仍通过。
+浏览器重验绿勾及成功落线、严格端口拒绝、取消、缩放和普通 tooltip。
+`npm run build` 重打 dist；源码、文档、测试、STG manifest 和新 dist
+均检查字段定名，无旧名残留（不包括 git 历史与缓存）。
+新截图：[/tmp/axis-label-rename-screenshots/](/tmp/axis-label-rename-screenshots/)。

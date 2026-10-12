@@ -88,7 +88,7 @@ class RuntimeShape(Model):
 
 class Declaration(Model):
     tags: list[str]
-    require_axis_match: bool = True
+    require_axis_label_match: bool = True
     arrayed: bool = False
     scalar: bool = False
     dim_labels: list[str] = Field(default_factory=list)
@@ -161,7 +161,7 @@ def compatible(
     tag_match: Callable,
     *,
     broadcast: bool = False,
-    require_axis_match: bool = True,
+    require_axis_label_match: bool = True,
 ) -> bool:
     from hololab.manifest.data_contract import REMOVED_IMAGE_TAGS
 
@@ -181,8 +181,11 @@ def compatible(
         return True
     if isinstance(source, ArrayType) and isinstance(target, ArrayType):
         a, b = source.axis.label, target.axis.label
-        return (not require_axis_match or not a or not b or a == b) and compatible(
-            source.element, target.element, tag_match, require_axis_match=require_axis_match
+        return (not require_axis_label_match or not a or not b or a == b) and compatible(
+            source.element,
+            target.element,
+            tag_match,
+            require_axis_label_match=require_axis_label_match,
         )
     if isinstance(source, ObjectType) and isinstance(target, ObjectType):
         return tag_match(source.tags, target.tags)

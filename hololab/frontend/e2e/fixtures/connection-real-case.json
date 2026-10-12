@@ -161,7 +161,7 @@
           "dim_labels": [
             "frame"
           ],
-          "require_axis_match": false
+          "require_axis_label_match": false
         },
         "flow_dir": {
           "tags": [

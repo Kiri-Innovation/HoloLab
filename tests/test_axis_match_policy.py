@@ -43,24 +43,27 @@ def test_axis_policy_preserves_depth_and_tags(strict, src, tgt, tag):
             from_legacy(["image"], bool(src), src),
             from_legacy([tag], bool(tgt), tgt),
             tags_compatible,
-            require_axis_match=strict,
+            require_axis_label_match=strict,
         )
         == expected
     )
     assert (
         ports_compatible(
-            ["image"], bool(src), [tag], bool(tgt), False, src, tgt, require_axis_match=strict
+            ["image"], bool(src), [tag], bool(tgt), False, src, tgt, require_axis_label_match=strict
         )
         == expected
     )
 
 
 def test_manifest_default_and_explicit_boolean():
-    assert InputSpec(tags=["colmap-folder"]).require_axis_match is True
-    assert InputSpec(tags=["colmap-folder"], require_axis_match=False).require_axis_match is False
+    assert InputSpec(tags=["colmap-folder"]).require_axis_label_match is True
+    assert (
+        InputSpec(tags=["colmap-folder"], require_axis_label_match=False).require_axis_label_match
+        is False
+    )
     for bad in ["false", "true", 0, 1, None]:
         with pytest.raises(ValidationError):
-            InputSpec(tags=["colmap-folder"], require_axis_match=bad)
+            InputSpec(tags=["colmap-folder"], require_axis_label_match=bad)
 
 
 @pytest.mark.parametrize("strict", [True, False])
@@ -71,7 +74,7 @@ def test_real_merge_stg_graph_validation_and_api_contract(strict):
         ).read_text()
     )
     stg = next(p for p in fixture["catalog"] if p["name"] == "stg-train")
-    stg["inputs"]["colmap_frames"]["require_axis_match"] = strict
+    stg["inputs"]["colmap_frames"]["require_axis_label_match"] = strict
     packs = packs_by_key_from_catalog(fixture["catalog"])
     graph = WorkflowGraph.model_validate(fixture["graph"])
     graph.edges.append(
@@ -91,7 +94,8 @@ def test_real_merge_stg_graph_validation_and_api_contract(strict):
     payload = agent_graph_dict(graph, packs)
     node = next(n for n in payload["nodes"] if n["id"] == "nmv4xtft71")
     assert (
-        node["port_types"]["inputs"]["colmap_frames"]["declaration"]["require_axis_match"] is strict
+        node["port_types"]["inputs"]["colmap_frames"]["declaration"]["require_axis_label_match"]
+        is strict
     )
     # Relaxing comparison never renames either declaration or effective type.
     assert (
@@ -99,7 +103,7 @@ def test_real_merge_stg_graph_validation_and_api_contract(strict):
         == "frame"
     )
     und = packs[("image-undistort", "0.5.2")]
-    assert all(p.require_axis_match for p in und.inputs.values())
+    assert all(p.require_axis_label_match for p in und.inputs.values())
 
 
 def test_manifest_catalog_and_http_graph_preserve_input_policy(tmp_path):
@@ -120,7 +124,7 @@ inputs:
     tags: [colmap-folder]
     arrayed: true
     dim_labels: [frame]
-    require_axis_match: false
+    require_axis_label_match: false
   strict:
     tags: [colmap-folder]
     arrayed: true
@@ -145,8 +149,8 @@ exec:
             node_id="node", packs=[pack], pack_dirs=[]
         )
         catalog = client.get("/api/pack-catalog").json()
-        assert catalog[0]["inputs"]["folders"]["require_axis_match"] is False
-        assert catalog[0]["inputs"]["strict"]["require_axis_match"] is True
+        assert catalog[0]["inputs"]["folders"]["require_axis_label_match"] is False
+        assert catalog[0]["inputs"]["strict"]["require_axis_label_match"] is True
         assert catalog[0]["inputs"]["folders"]["dim_labels"] == ["frame"]
         wid = "11111111-1111-4111-8111-111111111111"
 
@@ -164,5 +168,5 @@ exec:
         response = client.get(f"/api/workflows/{wid}")
         assert response.status_code == 200
         inputs = response.json()["graph"]["nodes"][0]["port_types"]["inputs"]
-        assert inputs["folders"]["declaration"]["require_axis_match"] is False
-        assert inputs["strict"]["declaration"]["require_axis_match"] is True
+        assert inputs["folders"]["declaration"]["require_axis_label_match"] is False
+        assert inputs["strict"]["declaration"]["require_axis_label_match"] is True

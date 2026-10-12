@@ -19,7 +19,7 @@ export function tagsCompatible(a: string[], b: string[]): boolean {
 // contract; it does not permit an array where a single image is declared.
 export function portsCompatible(
   srcTags: string[], srcArrayed: boolean, tgtTags: string[], tgtArrayed: boolean,
-  _tgtScalar?: boolean, srcDims?: string[], tgtDims?: string[], requireAxisMatch = true,
+  _tgtScalar?: boolean, srcDims?: string[], tgtDims?: string[], requireAxisLabelMatch = true,
 ): boolean {
   if (!tagsCompatible(srcTags, tgtTags)) return false;
   if ((!srcArrayed && srcTags.includes(ANY_TAG)) || (!tgtArrayed && tgtTags.includes(ANY_TAG))) return true;
@@ -30,7 +30,7 @@ export function portsCompatible(
   // An `any` leaf may represent a nested generic value, after the explicitly
   // declared outer dimensions have matched (same as backend compatible()).
   for (let i = 0; i < Math.min(a.length, b.length); i++) {
-    if (requireAxisMatch && a[i] && b[i] && a[i] !== b[i]) return false;
+    if (requireAxisLabelMatch && a[i] && b[i] && a[i] !== b[i]) return false;
   }
   return a.length === b.length || (a.length < b.length ? srcTags : tgtTags).includes(ANY_TAG);
 }

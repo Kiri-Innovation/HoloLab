@@ -10,7 +10,7 @@ for (const theme of ['light', 'dark']) {
     // Recorded real graph and manifest contracts; add a strict comparison port; the real STG input opts out.
     const catalog = structuredClone(fixture.catalog);
     const stg = catalog.find(p => p.name === 'stg-train')!;
-    Object.assign(stg.inputs, { strict: { ...stg.inputs.colmap_frames, require_axis_match: true } });
+    Object.assign(stg.inputs, { strict: { ...stg.inputs.colmap_frames, require_axis_label_match: true } });
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname;
       let body: unknown = [];

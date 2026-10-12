@@ -150,7 +150,7 @@ Tags match by non-empty intersection or the `any` wildcard.
 `image_sequence` and `frame_sequence` are removed type tags and are rejected,
 even alongside `any`. Port variable names such as `frame_sequence` remain valid. A tag match alone does
 not make an array/scalar mismatch valid; a named-axis mismatch requires the
-consumer's explicit `require_axis_match: false` opt-out.
+consumer's explicit `require_axis_label_match: false` opt-out.
 
 A port can carry multiple tags at once. Semantically this reads as "this
 thing is BOTH an X AND a Y". A specialized producer might declare
@@ -279,7 +279,7 @@ back to determine execution or compatibility.
 | Field | Meaning |
 |---|---|
 | `dim_labels: [frame, cam]` | Semantic axes, **outer first**. An empty list on an effective array retains one unnamed legacy layer. Empty label strings are wildcard names in compatibility checks. |
-| `require_axis_match: true` | Input-only boolean, default `true`. Compare nonempty axis names at every collection layer; `false` skips names only, never depth, array/scalar shape or tags. Unnamed axes remain wildcard names in either mode. |
+| `require_axis_label_match: true` | Input-only boolean, default `true`. Compare nonempty axis names at every collection layer; `false` skips names only, never depth, array/scalar shape or tags. Unnamed axes remain wildcard names in either mode. |
 | `dim_labels_from: output_dims` | Output labels derive from this node's parameter list. Invalid/missing values fall back to declared labels, as before. |
 | `dim_labels_from_input: frames` | Output labels derive from the connected producer's resolved output. Missing connections/cycles give unresolved labels. |
 | `dim_labels_drop_outer: 1` | Remove this many outer labels after input derivation; zero preserves them, dropping all yields a scalar. Nonnegative; requires `dim_labels_from_input`. |
@@ -300,7 +300,7 @@ aggregate views. Never wrap an already-resolved aggregate again.
 Compatibility uses the same normalized IR as the graph API: resolve generic
 tags and dimensions, require equal collection depth and matching nonempty axis
 labels (empty names are wildcards), then require leaf tag overlap or `any`.
-An input may explicitly set `require_axis_match: false` when its algorithm does
+An input may explicitly set `require_axis_label_match: false` when its algorithm does
 not depend on axis names. This does not relabel upstream data or reorder files;
 the pack developer remains responsible for input ordering and algorithm semantics.
 Bare `any` is a structural generic value; removed tags remain invalid even with

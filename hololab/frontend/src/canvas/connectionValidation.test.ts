@@ -58,7 +58,7 @@ for (const strict of [true, false]) for (const src of [[], [''], ['group'], ['gr
       const expected = tag === 'image' && src.length === dst.length
         && (!strict || src.every((a, i) => !a || !dst[i] || a === dst[i]));
       const ctx = context({ tags: ['image'], arrayed: !!src.length, dim_labels: src },
-        { tags: [tag], arrayed: !!dst.length, dim_labels: dst, require_axis_match: strict });
+        { tags: [tag], arrayed: !!dst.length, dim_labels: dst, require_axis_label_match: strict });
       expect(validateConnection(conn, ctx).ok).toBe(expected);
     });
   }
@@ -66,6 +66,6 @@ it('distinguishes the rule that rejects a connection', () => {
   const source = { tags: ['image'], arrayed: true, dim_labels: ['group', 'cam'] };
   const target = { tags: ['image'], arrayed: true, dim_labels: ['frame', 'view'] };
   expect(validateConnection(conn, context(source, target)).reason).toBe('数组轴名称不匹配。');
-  expect(validateConnection(conn, context(source, { ...target, dim_labels: ['frame'], require_axis_match: false })).reason)
+  expect(validateConnection(conn, context(source, { ...target, dim_labels: ['frame'], require_axis_label_match: false })).reason)
     .toBe('数组维度层数不匹配。');
 });

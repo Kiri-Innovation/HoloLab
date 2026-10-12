@@ -360,7 +360,7 @@ staleness and live partial-shard previews are not persisted node fields.
 
 ### Input axis-name policy
 
-`declaration.require_axis_match` defaults to `true`. The input contract may set
+`declaration.require_axis_label_match` defaults to `true`. The input contract may set
 it to `false` to skip only axis-label comparison, recursively. Collection depth
 and leaf tags retain their existing rules, including explicit generic `any`.
 The catalog carries the same input field; validation and drag feedback read it.
