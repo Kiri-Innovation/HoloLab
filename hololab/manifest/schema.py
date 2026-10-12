@@ -73,6 +73,8 @@ class InputSpec(BaseModel):
 
     tags: list[str] = Field(default_factory=list)
     required: bool = True
+    # Named collection axes must agree unless this input explicitly opts out.
+    require_axis_match: bool = Field(default=True, strict=True)
     storage: StorageForm = StorageForm.DIR
     description: str | None = None
     arrayed: bool = False

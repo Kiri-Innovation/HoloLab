@@ -655,6 +655,7 @@ class InputPortView:
     scalar: bool = False
     dim_labels: tuple[str, ...] = ()
     content_dims_from: str | None = None
+    require_axis_match: bool = True
 
 
 @dataclass(frozen=True)
@@ -733,6 +734,7 @@ def ports_compatible(
     tgt_scalar: bool = False,
     src_dim_labels: list[str] | None = None,
     tgt_dim_labels: list[str] | None = None,
+    require_axis_match: bool = True,
 ) -> bool:
     """Match tags and explicit collection structure; broadcast does not erase it.
 
@@ -749,6 +751,7 @@ def ports_compatible(
         from_legacy(tgt_tags, tgt_arrayed, tgt_dim_labels if check_axes else []),
         tags_compatible,
         broadcast=tgt_scalar and src_arrayed and not tgt_arrayed,
+        require_axis_match=require_axis_match,
     )
 
 
@@ -980,6 +983,7 @@ def packs_by_key_from_catalog(
                     scalar=bool(i.get("scalar", False)),
                     dim_labels=tuple(i.get("dim_labels", []) or []),
                     content_dims_from=i.get("content_dims_from"),
+                    require_axis_match=i.get("require_axis_match", True),
                 )
                 for n, i in entry["inputs"].items()
             },
@@ -1201,7 +1205,13 @@ def validate_snapshot(
         target_types, _ = resolved_port_types(tgt, tgt_pack, graph, node_by_id, packs_by_key)
         source_type = source_types.outputs[edge.sourceHandle].views.aggregate
         target_type = target_types.inputs[edge.targetHandle].views.aggregate
-        if not compatible(source_type, target_type, tags_compatible, broadcast=tgt_in.scalar):
+        if not compatible(
+            source_type,
+            target_type,
+            tags_compatible,
+            broadcast=tgt_in.scalar,
+            require_axis_match=tgt_in.require_axis_match,
+        ):
             src_arr = source_type.kind == "array"
             tgt_arr = target_type.kind == "array"
             reason = (

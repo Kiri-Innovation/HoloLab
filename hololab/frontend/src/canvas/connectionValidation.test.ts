@@ -30,11 +30,11 @@ describe('feedback uses the final port compatibility predicate', () => {
         });
       }
 });
-it('explains the actual merge_g0 → STG mismatch from the recorded graph', () => {
+it('allows the actual merge_g0 → STG connection with the declared opt-out', () => {
   const packs = realCase.catalog as unknown as CatalogPack[];
   const ctx = { ...realCase.graph, nodes: realCase.graph.nodes as GraphNode[], catalogByKey: new Map(packs.map(p => [`${p.name}@${p.version}`, p])) };
   expect(validateConnection({ source: 'merge_g0', sourceHandle: 'folder', target: 'nmv4xtft71', targetHandle: 'colmap_frames' }, ctx)).toEqual({
-    ok: false, reason: '数组维度的层数或轴名称不匹配。',
+    ok: true, reason: undefined,
     expected: 'arrayed[frame]<colmap-folder>', actual: 'arrayed[group]<colmap-folder>',
   });
 });
@@ -50,4 +50,22 @@ it('handles unavailable ports and view cards using the same decision', () => {
   expect(validateConnection(conn, ctx).reason).toBe('这两个端口已经连接。');
   expect(validateConnection(conn, ctx, new Set(['t'])).reason).toContain('已有输入');
   expect(validateConnection(conn, ctx, new Set(['s'])).reason).toContain('不能作为数据输出');
+});
+
+for (const strict of [true, false]) for (const src of [[], [''], ['group'], ['group', 'cam']])
+  for (const dst of [[], [''], ['frame'], ['frame', 'view']]) for (const tag of ['image', 'mesh']) {
+    it(`axis policy ${strict}/${src}/${dst}/${tag}`, () => {
+      const expected = tag === 'image' && src.length === dst.length
+        && (!strict || src.every((a, i) => !a || !dst[i] || a === dst[i]));
+      const ctx = context({ tags: ['image'], arrayed: !!src.length, dim_labels: src },
+        { tags: [tag], arrayed: !!dst.length, dim_labels: dst, require_axis_match: strict });
+      expect(validateConnection(conn, ctx).ok).toBe(expected);
+    });
+  }
+it('distinguishes the rule that rejects a connection', () => {
+  const source = { tags: ['image'], arrayed: true, dim_labels: ['group', 'cam'] };
+  const target = { tags: ['image'], arrayed: true, dim_labels: ['frame', 'view'] };
+  expect(validateConnection(conn, context(source, target)).reason).toBe('数组轴名称不匹配。');
+  expect(validateConnection(conn, context(source, { ...target, dim_labels: ['frame'], require_axis_match: false })).reason)
+    .toBe('数组维度层数不匹配。');
 });

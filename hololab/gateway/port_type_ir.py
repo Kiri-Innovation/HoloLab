@@ -88,6 +88,7 @@ class RuntimeShape(Model):
 
 class Declaration(Model):
     tags: list[str]
+    require_axis_match: bool = True
     arrayed: bool = False
     scalar: bool = False
     dim_labels: list[str] = Field(default_factory=list)
@@ -155,7 +156,12 @@ def views_from_aggregate(aggregate: TypeExpr, participation: str) -> TypeViews:
 
 
 def compatible(
-    source: TypeExpr, target: TypeExpr, tag_match: Callable, *, broadcast: bool = False
+    source: TypeExpr,
+    target: TypeExpr,
+    tag_match: Callable,
+    *,
+    broadcast: bool = False,
+    require_axis_match: bool = True,
 ) -> bool:
     from hololab.manifest.data_contract import REMOVED_IMAGE_TAGS
 
@@ -175,7 +181,9 @@ def compatible(
         return True
     if isinstance(source, ArrayType) and isinstance(target, ArrayType):
         a, b = source.axis.label, target.axis.label
-        return (not a or not b or a == b) and compatible(source.element, target.element, tag_match)
+        return (not require_axis_match or not a or not b or a == b) and compatible(
+            source.element, target.element, tag_match, require_axis_match=require_axis_match
+        )
     if isinstance(source, ObjectType) and isinstance(target, ObjectType):
         return tag_match(source.tags, target.tags)
     return False

@@ -7,10 +7,10 @@ for (const theme of ['light', 'dark']) {
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.addInitScript(t => localStorage.setItem('hololab.theme', t), theme);
     await page.routeWebSocket('**/*', () => {});
-    // Recorded real graph and manifest contracts; only add a compatible comparison port.
+    // Recorded real graph and manifest contracts; add a strict comparison port; the real STG input opts out.
     const catalog = structuredClone(fixture.catalog);
     const stg = catalog.find(p => p.name === 'stg-train')!;
-    Object.assign(stg.inputs, { compatible: { ...stg.inputs.colmap_frames, dim_labels: ['group'] } });
+    Object.assign(stg.inputs, { strict: { ...stg.inputs.colmap_frames, require_axis_match: true } });
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname;
       let body: unknown = [];
@@ -22,8 +22,8 @@ for (const theme of ['light', 'dark']) {
     });
     await page.goto(`/w/${wid}`);
     const source = page.locator('[data-id="merge_g0"] .source[data-handleid="folder"]');
-    const target = page.locator('[data-id="nmv4xtft71"] .target[data-handleid="colmap_frames"]');
-    const good = page.locator('[data-id="nmv4xtft71"] .target[data-handleid="compatible"]');
+    const target = page.locator('[data-id="nmv4xtft71"] .target[data-handleid="strict"]');
+    const good = page.locator('[data-id="nmv4xtft71"] .target[data-handleid="colmap_frames"]');
     await expect(source).toBeAttached();
     await page.waitForTimeout(300);
     const zoom = async (z: number) => page.locator('.react-flow__viewport').evaluate((el, z) => { (el as HTMLElement).style.transform = `translate(170px,150px) scale(${z})`; }, z);
@@ -33,6 +33,7 @@ for (const theme of ['light', 'dark']) {
     await source.hover(); await page.mouse.down(); await target.hover();
     const feedback = page.locator('.hl-connection-tooltip');
     await expect(feedback).toHaveAttribute('data-valid', 'false');
+    await expect(feedback).toContainText('数组轴名称不匹配。');
     await expect(feedback).toContainText('预期：arrayed[frame]<colmap-folder>');
     await expect(feedback).toContainText('实际：arrayed[group]<colmap-folder>');
     await page.screenshot({ path: info.outputPath(`${theme}-drag-invalid.png`) });

@@ -255,6 +255,8 @@ export interface OutputPortSpec extends PortSpec {
 }
 
 export interface InputPortSpec extends PortSpec {
+  /** Defaults to true; false relaxes axis names only, never collection depth or tags. */
+  require_axis_match?: boolean;
   required: boolean;
 }
 

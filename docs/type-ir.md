@@ -357,3 +357,13 @@ execution settings not read by `AlgorithmNode`; they need no visual prop.
 `resolved_outputs` / `port_types` remain on the graph for type resolution, not
 card layout. Runtime/preview data is derived from snapshot jobs/handles; draft
 staleness and live partial-shard previews are not persisted node fields.
+
+### Input axis-name policy
+
+`declaration.require_axis_match` defaults to `true`. The input contract may set
+it to `false` to skip only axis-label comparison, recursively. Collection depth
+and leaf tags retain their existing rules, including explicit generic `any`.
+The catalog carries the same input field; validation and drag feedback read it.
+Resolved types keep their original labels: this policy does not rename or reshape
+values, change observations, or affect fan-out scheduling. Old consumers keep the
+existing fields; missing policy means the original strict comparison.

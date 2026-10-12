@@ -160,7 +160,8 @@
           "scalar": false,
           "dim_labels": [
             "frame"
-          ]
+          ],
+          "require_axis_match": false
         },
         "flow_dir": {
           "tags": [

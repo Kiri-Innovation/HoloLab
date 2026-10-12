@@ -37,9 +37,11 @@ export function validateConnection(conn: Connection, ctx: EdgeTypeCtx,
     dimLabels: effectivePortDimLabels(input.arrayed, input.dim_labels, pack.arrayable, tgt.arrayed_toggle, input.scalar),
   };
   const ok = portsCompatible(source.tags, source.arrayed, target.tags, target.arrayed,
-    input.scalar, source.dimLabels, target.dimLabels);
+    input.scalar, source.dimLabels, target.dimLabels, input.require_axis_match ?? true);
   const reason = ok ? undefined : !tagsCompatible(source.tags, target.tags) ? '数据类型不匹配。'
     : source.arrayed !== target.arrayed ? '单个数据与数组不能直接连接。'
-    : '数组维度的层数或轴名称不匹配。';
+    : !portsCompatible(source.tags, source.arrayed, target.tags, target.arrayed,
+      input.scalar, source.dimLabels, target.dimLabels, false) ? '数组维度层数不匹配。'
+    : '数组轴名称不匹配。';
   return { ok, reason, expected: formatTypeLabelLong(target), actual: formatTypeLabelLong(source) };
 }

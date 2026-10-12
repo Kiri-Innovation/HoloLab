@@ -11,6 +11,7 @@ export type TypeExpr =
 /** Preserve manifest intent, including derivation directives, separately from
  * resolved views. dim_labels may describe aggregate OR content dimensions. */
 export type PortDeclaration = Readonly<Pick<PortSpec, 'tags' | 'arrayed' | 'scalar' | 'dim_labels'> & {
+  require_axis_match?: boolean;
   tags_from?: string | null;
   dim_labels_from?: string | null;
   dim_labels_from_input?: string | null;
