@@ -143,9 +143,9 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
       schema.tagNames = [...defaultSchema.tagNames, 'figure', 'figcaption', 'svg', 'path'];
       schema.attributes = {
         ...schema.attributes,
-        div: [['className', 'concept-flow', 'concept-card', 'concept-devices', 'concept-connection', 'concept-person', 'concept-routing', 'concept-routing-links', 'concept-transfer', 'concept-route-note']],
+        div: [['className', 'concept-flow', 'concept-card', 'concept-devices', 'concept-connection', 'concept-person', 'concept-access']],
         figure: [['className', 'concept-diagram'], 'ariaLabel'],
-        svg: ['viewBox', 'preserveAspectRatio', 'ariaHidden'],
+        svg: ['viewBox', 'ariaHidden'],
         path: ['d'],
       };
     }
