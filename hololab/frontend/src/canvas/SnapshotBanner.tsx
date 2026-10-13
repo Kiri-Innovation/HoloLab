@@ -55,6 +55,7 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
 
   return (
     <div
+      className="hl-snapshot-banner"
       style={{
         position: "absolute",
         top: 0,
@@ -64,13 +65,11 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
         alignItems: "center",
         gap: 10,
         padding: "8px 14px",
-        // Dark strip so the mode-switch is unmistakable against the
-        // draft canvas — inverted from body text/bg so it works under
-        // both light and dark themes.
-        background: "var(--text)",
+        // Preserve the light-theme strip; dark mode uses themed surface tokens.
+        background: "var(--snapshot-banner-bg)",
         color: "var(--text-inverse)",
         fontSize: "var(--fs-xs)",
-        borderBottom: "1px solid var(--text)",
+        borderBottom: "1px solid var(--snapshot-banner-border)",
         boxShadow: "var(--shadow-1)",
         zIndex: 6,
       }}

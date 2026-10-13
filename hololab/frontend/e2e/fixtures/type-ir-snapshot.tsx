@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {ReactFlowProvider,useReactFlow} from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import '../../src/styles.css';
+import {SnapshotBanner} from '../../src/canvas/SnapshotBanner';
 import {SnapshotCanvas} from '../../src/canvas/SnapshotCanvas';
 import {TooltipLayer} from '../../src/ui/TooltipLayer';
 import type {CatalogPack, SnapshotDetail} from '../../src/wire';
@@ -22,6 +23,6 @@ function Fixture(){
  const [arrayed,setArrayed]=useState(true);
  const shown=mixed?{...snapshot,snapshot_id:arrayed?'arrayed':'ordinary',graph:{...snapshot.graph,nodes:snapshot.graph.nodes.map((n,i)=>({...n,arrayed_toggle:i===0 && arrayed}))}}:snapshot;
  const [edge,setEdge]=useState<string|null>(null); const [node,setNode]=useState<string|null>(null);
- return <ReactFlowProvider>{mixed && <ZoomControls/>}{mixed && <button style={{position:"fixed",top:0,zIndex:100}} onClick={()=>setArrayed(v=>!v)}>Switch snapshot</button>}<SnapshotCanvas snapshot={shown} catalog={catalog} selectedGraphNodeId={node} onSelectionChange={setNode} selectedEdgeId={edge} onEdgeSelectionChange={setEdge}/><TooltipLayer/></ReactFlowProvider>;
+ return <ReactFlowProvider>{mixed && <ZoomControls/>}{mixed && <button style={{position:"fixed",top:0,zIndex:100}} onClick={()=>setArrayed(v=>!v)}>Switch snapshot</button>}<SnapshotCanvas snapshot={shown} catalog={catalog} selectedGraphNodeId={node} onSelectionChange={setNode} selectedEdgeId={edge} onEdgeSelectionChange={setEdge}/>{new URLSearchParams(location.search).has("banner") && <SnapshotBanner snapshot={shown} onBack={()=>document.body.dataset.back="true"} onRestored={()=>{}}/>}<TooltipLayer/></ReactFlowProvider>;
 }
 createRoot(document.getElementById('root')!).render(<Fixture/>);

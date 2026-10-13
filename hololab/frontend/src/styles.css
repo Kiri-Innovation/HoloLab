@@ -676,3 +676,18 @@ a:hover { text-decoration: underline; }
 .hl-connection-tooltip { display: flex; flex-direction: column; gap: calc(var(--space-1) * var(--tooltip-scale)); }
 .hl-connection-tooltip strong { color: var(--error); }
 .hl-connection-tooltip[data-valid="true"] strong { color: var(--success); }
+
+/* Snapshot mode keeps its light-theme contrast without inverting in dark mode.
+ * Inverse tokens are scoped here so the shared reference button follows suit. */
+.hl-snapshot-banner {
+  --snapshot-banner-bg: var(--text);
+  --snapshot-banner-border: var(--text);
+}
+:root[data-theme="dark"] .hl-snapshot-banner {
+  --snapshot-banner-bg: var(--surface-2);
+  --snapshot-banner-border: var(--border);
+  --text-inverse: var(--text);
+  --inverse-border: var(--border-strong);
+  --inverse-muted: var(--text-muted);
+  --inverse-soft: var(--surface-hover);
+}
