@@ -1,10 +1,11 @@
 """Contract tests for the split STG init/train packs."""
 
+import re
 from pathlib import Path
 
 import pytest
 
-from hololab.manifest import load_manifest
+from hololab.manifest import RenderContext, load_manifest, render_manifest
 
 ROOT = Path("/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians")
 
@@ -30,6 +31,22 @@ def test_init_emits_semantic_state_and_supervision() -> None:
     assert manifest.outputs["supervision"].tags == ["stg-supervision"]
 
 
+def test_init_renders_when_optional_flow_is_unwired() -> None:
+    manifest, _ = load_manifest(ROOT / "stg-init@0.1.0/manifest.yaml")
+    rendered = render_manifest(
+        manifest,
+        RenderContext(
+            inputs={"colmap_frames": "/tmp/frames"},
+            outputs={"initial_state": "/tmp/state", "supervision": "/tmp/supervision"},
+            params={"configpath": "configs/n3d_full/stg_state_default.json"},
+            scratch_dir="/tmp/scratch",
+            job_id="test-job",
+            workflow_id="test-workflow",
+        ),
+    )
+    assert 'if [ -n "" ]' in rendered.shell
+
+
 def test_train_has_only_progress_and_diagnostic_knobs() -> None:
     manifest, _ = load_manifest(ROOT / "stg-train@0.4.0/manifest.yaml")
     assert set(manifest.params) == {"iterations", "save_cam"}
@@ -45,3 +62,39 @@ def test_state_runner_hard_disables_difix_schedules() -> None:
     runner = (ROOT / "stg_state.py").read_text()
     assert '"--temporal-bridge-at-iter", "", "--difix-replace-at-iter", ""' in runner
     assert '"--start_checkpoint", str(checkpoint)' in runner
+
+
+@pytest.mark.parametrize(
+    ("relative", "allowed"),
+    [
+        (
+            "stg-init@0.1.0/manifest.yaml",
+            {
+                "inputs.colmap_frames",
+                "inputs.get('flow_dir', '')",
+                "outputs.supervision",
+                "outputs.initial_state",
+                "params.configpath",
+                "scratch_dir",
+            },
+        ),
+        (
+            "stg-train@0.4.0/manifest.yaml",
+            {
+                "inputs.state",
+                "inputs.supervision",
+                "outputs.state",
+                "params.iterations",
+                "params.save_cam",
+                "scratch_dir",
+            },
+        ),
+    ],
+)
+def test_every_template_reference_is_declared_or_runtime_builtin(
+    relative: str, allowed: set[str]
+) -> None:
+    """Prevent optional/unwired ports from becoming StrictUndefined regressions."""
+    raw = (ROOT / relative).read_text()
+    refs = {match.strip() for match in re.findall(r"\{\{\s*(.*?)\s*\}\}", raw)}
+    assert refs <= allowed
