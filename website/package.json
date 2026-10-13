@@ -12,7 +12,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 5200 --strictPort",
     "test": "node --test tests/sync-docs.test.mjs",
-    "test:browser": "node tests/browser.mjs"
+    "test:browser": "node tests/browser.mjs",
+    "test:visual": "node tests/visual.mjs"
   },
   "dependencies": {
     "react": "18.3.1", "react-dom": "18.3.1"

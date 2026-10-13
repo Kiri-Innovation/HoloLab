@@ -150,3 +150,12 @@ view after the fallback, so the HTTP response remains 200 unless the hosting
 layer supplies route-aware 404 handling. It has no backend or product API proxy.
 Canonical links use the public domain; route titles and descriptions update in
 the browser. Server rendering and full-text search are not included in this batch.
+
+## Product visual alignment
+
+See [VISUAL-ALIGNMENT.md](VISUAL-ALIGNMENT.md) for the product palette, typography,
+component sources, deliberate reading-layout exceptions and before/after decisions.
+With preview running, `PRODUCT_URL=http://<product-host>:8828 npm run test:visual`
+performs a read-only Gallery comparison and writes local comparison boards. It
+blocks non-read HTTP requests and never opens an editable workflow. Reference
+screenshots and measured styles stay under ignored `test-results/visual/`.
