@@ -39,3 +39,9 @@ def test_train_has_only_progress_and_diagnostic_knobs() -> None:
     shell = manifest.exec.shell
     assert "--temporal-bridge-at-iter" not in shell  # encapsulated in state runner
     assert "--start_checkpoint" not in shell
+
+
+def test_state_runner_hard_disables_difix_schedules() -> None:
+    runner = (ROOT / "stg_state.py").read_text()
+    assert '"--temporal-bridge-at-iter", "", "--difix-replace-at-iter", ""' in runner
+    assert '"--start_checkpoint", str(checkpoint)' in runner
