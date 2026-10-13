@@ -1,0 +1,5 @@
+[
+  { "id": "use", "title": "使用", "href": "/docs", "order": 10 },
+  { "id": "build", "title": "开发", "href": "/docs/build", "order": 20 },
+  { "id": "reference", "title": "参考", "href": "/docs/reference", "order": 30 }
+]

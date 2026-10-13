@@ -1,0 +1,109 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { syncDocs, frontmatter } from '../scripts/sync-docs.mjs';
+
+async function fixture(t) {
+  const root = await mkdtemp(path.join(tmpdir(), 'hololab-docs-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const config = path.join(root, 'config'), output = path.join(root, 'output');
+  await mkdir(config); await mkdir(path.join(root, 'docs'));
+  const sources = [
+    { source: 'docs/a.md', slug: 'use/a', section: 'use', title: 'A', group: 'Start', order: 10 },
+    { source: 'docs/b.md', slug: 'reference/nested/b', section: 'use', title: 'B', group: 'Start', order: 20 },
+  ];
+  const write = (file, value) => writeFile(path.join(root, file), value);
+  const configure = async (entries = sources, deferred = []) => {
+    await write('config/docs-sources.json', JSON.stringify(entries));
+    await write('config/docs-sections.json', JSON.stringify([{ id: 'use', title: '使用', href: '/docs', order: 10 }]));
+    await write('config/docs-deferred.json', JSON.stringify(deferred));
+  };
+  await configure();
+  await write('docs/a.md', '# A\n\n[Next](b.md#heading)\n\n[Again][b]\n\n[b]: b.md#heading\n');
+  await write('docs/b.md', '# B\n\n## Heading\n\n## Heading\n');
+  return { root, output, config, sources, write, configure, run: () => syncDocs({ root, output, config }), index: async () => JSON.parse(await readFile(path.join(output,'index.json'), 'utf8')) };
+}
+
+test('nested slugs, reference links, stable duplicate heading IDs and metadata', async t => {
+  const f = await fixture(t);
+  await f.write('docs/b.md', '---\ntitle: 新标题\ngroup: 新分组\norder: 2\n---\n# B\n\n## Heading\n\n## Heading\n');
+  await f.run();
+  const { docs } = await f.index();
+  assert.equal(docs[0].title, '新标题');
+  assert.equal(docs[0].group, '新分组');
+  assert.match(docs[0].html, /id="heading-1"/);
+  assert.equal((docs[1].html.match(/href="\/docs\/reference\/nested\/b#heading"/g) ?? []).length, 2);
+  assert.match(await readFile(path.join(f.output, 'reference/nested/b.md'),'utf8'), /Heading/);
+});
+
+test('bad frontmatter is never silently ignored', () => {
+  for (const source of [
+    '---\ntitle: [\n---\n# X', '---\ntitle: A\n# unclosed',
+    '---\ntitle: A\ntitle: B\n---\n', '---\norder: "10"\n---\n',
+    '---\ngroup: false\n---\n', '---\ntitle: null\n---\n',
+    '---\n- A\n---\n', '---\norderr: 10\n---\n',
+    '---\norder: -1\n---\n',
+  ]) assert.throws(() => frontmatter(source, 'test.md'));
+});
+
+for (const [label, change, pattern] of [
+  ['duplicate slug', s => { s[1].slug = s[0].slug; }, /Duplicate/],
+  ['reserved route', s => { s[0].slug = '../'; }, /Invalid slug/],
+  ['path traversal', s => { s[0].source = '../secret.md'; }, /Unsafe source/],
+  ['unknown section', s => { s[0].section = 'private'; }, /Unknown section/],
+  ['missing source', s => { s[0].source = 'docs/missing.md'; }, /ENOENT/],
+  ['invalid order', s => { s[0].order = '10'; }, /order/],
+]) test(`reject ${label}`, async t => {
+  const f = await fixture(t); change(f.sources); await f.configure(); await assert.rejects(f.run(), pattern);
+});
+
+test('allowlist blocks unpublished links, invalid anchors and dangerous schemes', async t => {
+  const f = await fixture(t);
+  for (const url of ['secret.md', 'b.md#missing', '/docs/not-real', 'javascript:alert%281%29', 'data:text/html,hello']) {
+    await f.write('docs/a.md', `# A\n\n[No](${url})`);
+    await assert.rejects(f.run());
+  }
+});
+
+test('deferred reference has a visible notice and never copies its target', async t => {
+  const f = await fixture(t);
+  await f.write('docs/private.md', '# PRIVATE MARKER');
+  await f.write('docs/a.md', '# A\n\n[Pending][p]\n\n[p]: private.md');
+  await f.configure(f.sources, ['docs/private.md']);
+  assert.equal((await f.run()).withheld.length, 1);
+  const index = JSON.stringify(await f.index());
+  assert.match(index, /文档整理中/);
+  assert.doesNotMatch(index, /PRIVATE MARKER|private.md/);
+});
+
+test('raw HTML is not executed and code fences are preserved', async t => {
+  const f = await fixture(t);
+  await f.write('docs/a.md', '# A\n\n<script>alert(1)</script>\n\n```html\n<script>example</script>\n```');
+  await f.run();
+  const doc = (await f.index()).docs[0];
+  assert.doesNotMatch(doc.html, /<script>/);
+  assert.match(doc.html, /&#x3C;script>/);
+});
+
+test('validation failure preserves prior output; removing a source removes generated content', async t => {
+  const f = await fixture(t);
+  await f.run();
+  const before = await readFile(path.join(f.output, 'index.json'),'utf8');
+  await f.write('docs/a.md', '# A\n\n[bad](secret.md)');
+  await assert.rejects(f.run());
+  assert.equal(await readFile(path.join(f.output, 'index.json'),'utf8'), before);
+  await f.write('docs/a.md', '# A');
+  await f.configure(f.sources.slice(0,1));
+  await f.run();
+  await assert.rejects(readFile(path.join(f.output, 'reference/nested/b.md')), /ENOENT/);
+});
+
+test('symlink cannot smuggle a source into the allowlist', async t => {
+  const f = await fixture(t);
+  await f.write('secret.md', '# SECRET');
+  await rm(path.join(f.root, 'docs/a.md'));
+  await symlink(path.join(f.root, 'secret.md'), path.join(f.root, 'docs/a.md'));
+  await assert.rejects(f.run(), /Symlink/);
+});
