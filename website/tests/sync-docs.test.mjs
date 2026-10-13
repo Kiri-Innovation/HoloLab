@@ -107,3 +107,30 @@ test('symlink cannot smuggle a source into the allowlist', async t => {
   await symlink(path.join(f.root, 'secret.md'), path.join(f.root, 'docs/a.md'));
   await assert.rejects(f.run(), /Symlink/);
 });
+
+test('diagram HTML/SVG is opt-in, website-owned and sanitized after parsing', async t => {
+  const f = await fixture(t);
+  await mkdir(path.join(f.root, 'website/content'), { recursive: true });
+  const source = 'website/content/intro.md';
+  await f.write(source, `# Intro
+
+<figure class="concept-diagram" aria-label="System"><div class="concept-flow"><div class="concept-card">Gateway</div><svg viewBox="0 0 24 24" aria-hidden="true" onload="alert(1)"><path d="M3 12h18" /><script>alert(1)</script><foreignObject><iframe src="https://example.org"></iframe></foreignObject><use href="https://example.org/evil.svg#x" /></svg></div><figcaption>Caption</figcaption></figure>
+
+<div class="header" style="position:fixed" onclick="alert(1)">Bad styling</div>
+<a href="javascript:alert(1)">Bad link</a>
+<img src="x" onerror="alert(1)">
+`);
+  const entry = { ...f.sources[0], source };
+  await f.configure([entry]);
+  await f.run();
+  assert.doesNotMatch((await f.index()).docs[0].html, /<svg|<figure|concept-card/);
+  await f.configure([{ ...entry, diagrams: true }]);
+  await f.run();
+  const html = (await f.index()).docs[0].html;
+  assert.match(html, /<figure class="concept-diagram" aria-label="System">/);
+  assert.match(html, /<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18"><\/path>/);
+  assert.match(html, /<figcaption>Caption<\/figcaption>/);
+  assert.doesNotMatch(html, /<script|<iframe|<foreignObject|<use|onload|onclick|onerror|style=|class="header"|javascript:/);
+  await f.configure([{ ...f.sources[0], diagrams: true }]);
+  await assert.rejects(f.run(), /only allowed in website-owned/);
+});

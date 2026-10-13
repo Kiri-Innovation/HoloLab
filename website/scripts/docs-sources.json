@@ -1,5 +1,14 @@
 [
   {
+    "source": "website/content/use/introduction.md",
+    "slug": "introduction",
+    "section": "use",
+    "title": "介绍 HoloLab",
+    "group": "开始使用",
+    "order": 0,
+    "diagrams": true
+  },
+  {
     "source": "website/content/use/quick-start.md",
     "slug": "quick-start",
     "section": "use",

@@ -1,4 +1,5 @@
 @import './tokens.css';
+@import './diagrams.css';
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 100px; }
 body { margin: 0; background: var(--bg); color: var(--text-body); font-family: var(--font-sans); font-size: var(--fs-lg); line-height: 1.8; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }

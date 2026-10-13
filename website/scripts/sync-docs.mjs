@@ -7,6 +7,7 @@ import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkStringify from 'remark-stringify';
 import remarkRehype from 'remark-rehype';
+import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 import { visit } from 'unist-util-visit';
@@ -64,7 +65,8 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
   const docs = [];
   for (const entry of sources) {
     if (!object(entry)) fail('Invalid source entry');
-    for (const key of Object.keys(entry)) if (!['source', 'slug', 'section', 'title', 'group', 'order'].includes(key)) fail(`Unknown source field: ${key}`);
+    for (const key of Object.keys(entry)) if (!['source', 'slug', 'section', 'title', 'group', 'order', 'diagrams'].includes(key)) fail(`Unknown source field: ${key}`);
+    if (entry.diagrams !== undefined && (typeof entry.diagrams !== 'boolean' || !entry.source?.startsWith('website/content/'))) fail('Diagrams are only allowed in website-owned content');
     metadata(entry, entry.source);
     if (!word(entry.slug) || !slugPattern.test(entry.slug)) fail(`Invalid slug: ${entry.slug}`);
     if (!sectionIds.has(entry.section)) fail(`Unknown section: ${entry.section}`);
@@ -134,7 +136,22 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
     doc.tree.children = doc.tree.children.filter(n => n.type !== 'definition');
     doc.markdown = unified().use(remarkStringify).use(remarkGfm).stringify(doc.tree);
     const schema = { ...defaultSchema, clobberPrefix: '', attributes: { ...defaultSchema.attributes, '*': [...(defaultSchema.attributes['*'] ?? []), 'id'] } };
-    const renderer = unified().use(remarkRehype).use(rehypeSanitize, schema).use(rehypeStringify);
+    // Raw markup is opt-in per publication entry, restricted to our own content.
+    // Sanitize AFTER parsing: no scripts, event handlers, style, foreignObject,
+    // external SVG references or arbitrary classes that could alter the page UI.
+    if (doc.diagrams) {
+      schema.tagNames = [...defaultSchema.tagNames, 'figure', 'figcaption', 'svg', 'path'];
+      schema.attributes = {
+        ...schema.attributes,
+        div: [['className', 'concept-flow', 'concept-card', 'concept-devices']],
+        figure: [['className', 'concept-diagram'], 'ariaLabel'],
+        svg: ['viewBox', 'ariaHidden'],
+        path: ['d'],
+      };
+    }
+    const renderer = unified().use(remarkRehype, { allowDangerousHtml: !!doc.diagrams });
+    if (doc.diagrams) renderer.use(rehypeRaw);
+    renderer.use(rehypeSanitize, schema).use(rehypeStringify);
     doc.html = renderer.stringify(await renderer.run(doc.tree));
   }
   const staging = `${output}.tmp-${process.pid}`;
