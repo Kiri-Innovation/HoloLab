@@ -27,6 +27,8 @@ def test_init_emits_semantic_state_and_supervision() -> None:
     manifest, _ = load_manifest(ROOT / "stg-init@0.1.0/manifest.yaml")
     assert manifest.inputs["colmap_frames"].arrayed is True
     assert manifest.inputs["colmap_frames"].tags == ["colmap-folder"]
+    assert manifest.inputs["flow_dir"].tags == ["t4w_flow"]
+    assert manifest.inputs["flow_dir"].required is False
     assert manifest.outputs["initial_state"].tags == ["stg-training-state", "stg_model"]
     assert manifest.outputs["supervision"].tags == ["stg-supervision"]
 
