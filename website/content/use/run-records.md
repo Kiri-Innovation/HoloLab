@@ -42,22 +42,31 @@ order: 35
 
 如果你只想调整导出参数，通常不想把抽帧和重建再跑一次。沿用前两步结果、重新执行最后一步时，可以产生新运行记录 R2：它关联旧的 J1、J2，以及新的导出任务 J4；J4 产出新目录 A4，R1 仍关联原来的 J1、J2、J3。
 
-<figure class="concept-diagram" aria-label="两个运行记录共享早期任务：左侧 R1 与右侧 R2 都关联中间唯一的 J1 和 J2，复用它们产出的 A1、A2。R1 另关联 J3，产出 A3；R2 另关联新任务 J4，产出 A4。共享任务及产物没有复制。">
+<figure class="concept-diagram" aria-label="三列记录关系：左列 R1、R2；中列唯一的 J1、J2、J3、J4；右列 A1、A2、A3、A4。R1 用实线关联 J1、J2、J3，R2 用虚线关联 J1、J2、J4。每个 Job 产出同编号的 Artifact；两个 Run 共享 J1、J2 及其产物 A1、A2，没有复制。">
 <div class="concept-records concept-reuse">
-<div class="concept-card"><strong>R1</strong><span>原运行</span></div>
-<div class="concept-record-link"><span>关联</span><svg viewBox="0 0 40 20" aria-hidden="true"><path d="M2 10h36m-6-6 6 6-6 6" /></svg></div>
-<div class="concept-card"><strong>J1 · 抽帧</strong><span>共享任务</span><span>产出 A1</span></div>
-<div class="concept-record-link"><span>关联</span><svg viewBox="0 0 40 20" aria-hidden="true"><path d="M38 10H2m6-6-6 6 6 6" /></svg></div>
-<div class="concept-card"><strong>R2</strong><span>新运行</span></div>
-<div class="concept-record-link"><span>关联</span><svg viewBox="0 0 40 20" aria-hidden="true"><path d="M2 10h36m-6-6 6 6-6 6" /></svg></div>
-<div class="concept-card"><strong>J2 · 重建</strong><span>共享任务</span><span>产出 A2</span></div>
-<div class="concept-record-link"><span>关联</span><svg viewBox="0 0 40 20" aria-hidden="true"><path d="M38 10H2m6-6-6 6 6 6" /></svg></div>
-<div class="concept-record-link"><span>关联</span><svg viewBox="0 0 20 40" aria-hidden="true"><path d="M10 2v36m-6-6 6 6 6-6" /></svg></div>
-<div class="concept-record-link"><span>关联</span><svg viewBox="0 0 20 40" aria-hidden="true"><path d="M10 2v36m-6-6 6 6 6-6" /></svg></div>
-<div class="concept-card"><strong>J3 · 导出</strong><span>原任务</span><span>产出 A3</span></div>
-<div class="concept-card"><strong>J4 · 导出</strong><span>新任务</span><span>产出 A4</span></div>
+<div class="concept-card"><strong>R1</strong><span>原运行</span><span>实线</span></div>
+<div class="concept-card"><strong>R2</strong><span>新运行</span><span>虚线</span></div>
+<div class="concept-reuse-lines"><svg viewBox="0 0 120 420" preserveAspectRatio="none" aria-hidden="true"><path d="M2 102 C42 102 70 41 118 41 m-6-5 6 5-6 5" /><path d="M2 102 C42 102 70 149 118 149 m-6-5 6 5-6 5" /><path d="M2 102 C42 102 70 264 118 264 m-6-5 6 5-6 5" /><path d="M2 318 C60 318 48 55 118 55 m-6-5 6 5-6 5" /><path d="M2 318 C60 318 48 163 118 163 m-6-5 6 5-6 5" /><path d="M2 318 C42 318 70 372 118 372 m-6-5 6 5-6 5" /></svg></div>
+<div class="concept-reuse-jobs">
+<div class="concept-card"><strong>J1 · 抽帧</strong><span>共享任务</span></div>
+<div class="concept-card"><strong>J2 · 重建</strong><span>共享任务</span></div>
+<div class="concept-card"><strong>J3 · 导出</strong><span>原任务</span></div>
+<div class="concept-card"><strong>J4 · 导出</strong><span>新任务</span></div>
 </div>
-<figcaption>箭头表示记录关联，卡片内的“产出”标出对应 Artifact，不是网络访问方向。中间的 J1、J2 各只有一份，同时被 R1、R2 关联，A1、A2 也被复用；下方 J3 → A3 留在 R1，J4 → A4 属于 R2。</figcaption>
+<div class="concept-reuse-outputs">
+<div class="concept-record-link"><span>产出</span><svg viewBox="0 0 40 20" aria-hidden="true"><path d="M2 10h36m-6-6 6 6-6 6" /></svg></div>
+<div class="concept-record-link"><span>产出</span><svg viewBox="0 0 40 20" aria-hidden="true"><path d="M2 10h36m-6-6 6 6-6 6" /></svg></div>
+<div class="concept-record-link"><span>产出</span><svg viewBox="0 0 40 20" aria-hidden="true"><path d="M2 10h36m-6-6 6 6-6 6" /></svg></div>
+<div class="concept-record-link"><span>产出</span><svg viewBox="0 0 40 20" aria-hidden="true"><path d="M2 10h36m-6-6 6 6-6 6" /></svg></div>
+</div>
+<div class="concept-reuse-artifacts">
+<div class="concept-card"><strong>A1</strong><span>图片目录</span></div>
+<div class="concept-card"><strong>A2</strong><span>重建目录</span></div>
+<div class="concept-card"><strong>A3</strong><span>原导出</span></div>
+<div class="concept-card"><strong>A4</strong><span>新导出</span></div>
+</div>
+</div>
+<figcaption>左侧箭头表示 Run 关联 Job：实线来自 R1，虚线来自 R2；虚线仅用于区分来源，不表示计划功能。交叉处不相连，J1、J2 各接收两个 Run 的箭头，记录及其产物 A1、A2 没有复制。右侧箭头表示 Job 产出 Artifact：J1 → A1、J2 → A2、J3 → A3、J4 → A4。这里均不是网络访问方向。</figcaption>
 </figure>
 
 这时共有 **2 个 Run、4 个不同的 Job、4 个产物**，不是每个 Run 各自拥有三份互不相干的任务。Run 与 Job 是可复用的关联关系；产物记录生产它的 Job，再由这个 Job 追溯到关联的 Run。
