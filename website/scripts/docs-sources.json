@@ -33,6 +33,15 @@
     "order": 30
   },
   {
+    "source": "website/content/use/run-records.md",
+    "slug": "use/run-records",
+    "section": "use",
+    "title": "产物与运行记录：找到结果的来路",
+    "group": "运行与结果",
+    "order": 35,
+    "diagrams": true
+  },
+  {
     "source": "website/content/use/troubleshooting.md",
     "slug": "use/troubleshooting",
     "section": "use",
