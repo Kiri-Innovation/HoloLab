@@ -20,7 +20,7 @@ try {
       assert.doesNotMatch(await page.locator('article').innerText(), /\*\*/);
       assert.equal(await page.locator('article figure').count(), 2);
       assert.equal(await page.locator('article svg path').count(), 5);
-      assert.equal(await page.locator('.concept-card strong svg').getAttribute('aria-hidden'), 'true');
+      assert.equal(await page.locator('.concept-person strong svg').getAttribute('aria-hidden'), 'true');
       assert.deepEqual((await page.locator('.sidebar .doc-link').allTextContents()).slice(0,2), ['介绍 HoloLab','快速开始']);
       const state = await page.locator('article').evaluate(article => {
         const rect = article.getBoundingClientRect();
@@ -31,7 +31,7 @@ try {
           strokes:paths.map(p => getComputedStyle(p).stroke),
           arrowColors:paths.map(p => getComputedStyle(p.closest('svg')).color),
           diagramBackground:getComputedStyle(article.querySelector('figure')).backgroundColor,
-          diagramsFit:[...article.querySelectorAll('figure, .concept-card, svg')].every(el => {
+          diagramsFit:[...article.querySelectorAll('figure, .concept-card, .concept-person, svg')].every(el => {
             const r=el.getBoundingClientRect();
             return r.width>0 && r.height>0 && r.left>=rect.left && r.right<=rect.right+1 && el.scrollWidth<=el.clientWidth+1;
           }),

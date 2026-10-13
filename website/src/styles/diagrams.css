@@ -16,6 +16,7 @@
   .concept-flow svg { align-self: center; flex-basis: auto; transform: rotate(90deg); }
 }
 
-/* A decorative person-with-code icon distinguishes the human actor. */
-.concept-card strong:has(svg) { display: flex; align-items: center; gap: 6px; }
-.concept-card strong svg { flex: 0 0 24px; width: 24px; height: 24px; color: inherit; transform: none; }
+/* The human actor has no card border or background. */
+.concept-person { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.concept-person strong { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 13px; }
+.concept-person strong svg { flex: 0 0 24px; width: 24px; height: 24px; color: inherit; transform: none; }
