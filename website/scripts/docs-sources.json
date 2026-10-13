@@ -1,7 +1,82 @@
 [
-  { "source": "website/content/use/quick-start.md", "slug": "quick-start", "section": "use", "title": "快速开始", "group": "开始使用", "order": 10 },
-  { "source": "website/content/use/workflows.md", "slug": "use/workflows", "section": "use", "title": "第一个工作流", "group": "开始使用", "order": 20 },
-  { "source": "website/content/use/results.md", "slug": "use/results", "section": "use", "title": "查看结果", "group": "运行与结果", "order": 30 },
-  { "source": "website/content/use/troubleshooting.md", "slug": "use/troubleshooting", "section": "use", "title": "排错", "group": "运行与结果", "order": 40 },
-  { "source": "docs/artifacts.md", "slug": "reference/artifacts", "section": "reference", "title": "产物与工作空间", "group": "数据与存储", "order": 10 }
+  {
+    "source": "website/content/use/quick-start.md",
+    "slug": "quick-start",
+    "section": "use",
+    "title": "快速开始",
+    "group": "开始使用",
+    "order": 10
+  },
+  {
+    "source": "website/content/use/workflows.md",
+    "slug": "use/workflows",
+    "section": "use",
+    "title": "第一个工作流",
+    "group": "开始使用",
+    "order": 20
+  },
+  {
+    "source": "website/content/use/results.md",
+    "slug": "use/results",
+    "section": "use",
+    "title": "查看结果",
+    "group": "运行与结果",
+    "order": 30
+  },
+  {
+    "source": "website/content/use/troubleshooting.md",
+    "slug": "use/troubleshooting",
+    "section": "use",
+    "title": "排错",
+    "group": "运行与结果",
+    "order": 40
+  },
+  {
+    "source": "docs/artifacts.md",
+    "slug": "reference/artifacts",
+    "section": "reference",
+    "title": "产物与工作空间",
+    "group": "数据与存储",
+    "order": 10
+  },
+  {
+    "source": "docs/writing-a-pack.md",
+    "slug": "build/writing-a-pack",
+    "section": "build",
+    "title": "编写 Pack",
+    "group": "接入算法",
+    "order": 10
+  },
+  {
+    "source": "docs/architecture.md",
+    "slug": "build/architecture",
+    "section": "build",
+    "title": "HoloLab 架构",
+    "group": "系统设计",
+    "order": 20
+  },
+  {
+    "source": "docs/type-ir.md",
+    "slug": "build/type-ir",
+    "section": "build",
+    "title": "端口类型系统",
+    "group": "系统设计",
+    "order": 30
+  },
+  {
+    "source": "docs/pack-spec.md",
+    "slug": "reference/pack-spec",
+    "section": "reference",
+    "title": "Pack 规范",
+    "group": "接口与格式",
+    "order": 10
+  },
+  {
+    "source": "docs/workflow-schema.md",
+    "slug": "reference/workflow-schema",
+    "section": "reference",
+    "title": "工作流 Schema",
+    "group": "接口与格式",
+    "order": 20
+  }
 ]

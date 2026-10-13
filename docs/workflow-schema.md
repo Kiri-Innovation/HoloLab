@@ -1,3 +1,8 @@
+---
+title: 工作流 Schema
+group: 接口与格式
+order: 20
+---
 # Workflow schema
 
 A **workflow** in HoloLab is a directed graph containing algorithm pack
@@ -93,11 +98,16 @@ Enforced when a snapshot is created (i.e. at Run time):
 3. **The graph is a DAG** (no cycles).
 4. **Every edge's endpoints exist** and reference declared ports on their
    respective packs' manifests.
-5. **Tag compatibility on every edge**: the output port's `tags` and the
-   input port's `tags` must intersect (non-empty ∩). The frontend enforces
-   this at edge-drawing time so a wrong connection can never even be drawn.
-   Physical storage form (dir vs file) is NOT part of edge compatibility —
-   two ports carrying the same object type connect regardless of storage.
+5. **Effective type compatibility on every edge**: compare normalized
+   aggregate types, including ordinary array/scalar shape, collection depth,
+   leaf tags and applicable axis-label rules. Explicit `any` is a generic
+   contract, not missing information. An input may set
+   `require_axis_label_match: false` to disable only label comparison; it does
+   not reshape the value. `storage` is not an independent edge-matching rule.
+   Removed image tags are rejected, and strict image declarations and actual
+   delivery must satisfy the single-file or explicit-collection contract.
+   Frontend dragging shows compatibility feedback; server validation remains
+   necessary for saved graphs and API requests.
 6. **All required inputs are wired**: every input port with `required: true`
    (the default) on every algorithm node has exactly one incoming edge.
 
@@ -125,8 +135,7 @@ order. Parallel independent branches are a follow-up.
 ## Cross-node handle transport — silently managed by the system
 
 When two connected algorithm nodes have different `assigned_node_id`s,
-the downstream node's handle materialization step goes through the full
-`handle_locate` round trip (see `docs/architecture.md#data-plane`):
+the downstream node resolves handles through the gateway (with cached lookups where available; see [Architecture](architecture.md#data-plane)):
 
 - Node sends `handle_locate_req { handle_id }` to the gateway.
 - Gateway looks up the handle. If the producer is the requester, the
@@ -144,9 +153,7 @@ shell template you always see `{{ inputs.x }}` as a real local path;
 whether that path was already on disk or was materialized from a remote
 tarball two seconds ago is not your concern.
 
-Materialization is per-workflow-run cache-friendly (the workspace path is
-deterministic from the handle id) so a shared upstream is only fetched
-once even when several downstream jobs consume it.
+Remote transfer requires a reachable producer file-server URL. The runtime reports an error if no URL is available. Materialization uses a deterministic handle staging path and can reuse already fetched data; do not infer universal network reachability from an online control connection.
 
 ## Structural vs cosmetic graph node fields
 

@@ -47,9 +47,8 @@ sources/slugs, traversal and symlink sources are rejected.
 Optional YAML frontmatter supports `title`, `group`, `order`. Present fields take
 precedence over the mapping and are validated even if a fallback exists. Missing
 fields use the mapping. Duplicate YAML keys, unknown fields, malformed YAML,
-empty labels and non-integer/negative orders fail the sync. Thus the existing
-artifact source also builds from a clean checkout without the separately
-unstaged frontmatter addition.
+empty labels and non-integer/negative orders fail the sync. All six published
+product documents carry frontmatter; mapping fallbacks remain supported.
 
 Relative Markdown links (including reference-style links) are rewritten through
 the allowlist. Published heading anchors are validated. Unknown local links,
@@ -68,10 +67,15 @@ sync removes stale generated pages.
 | `website/content/use/results.md` | `/docs/use/results` |
 | `website/content/use/troubleshooting.md` | `/docs/use/troubleshooting` |
 | `docs/artifacts.md` | `/docs/reference/artifacts` |
+| `docs/writing-a-pack.md` | `/docs/build/writing-a-pack` |
+| `docs/architecture.md` | `/docs/build/architecture` |
+| `docs/type-ir.md` | `/docs/build/type-ir` |
+| `docs/pack-spec.md` | `/docs/reference/pack-spec` |
+| `docs/workflow-schema.md` | `/docs/reference/workflow-schema` |
 
-`pack-spec`, `workflow-schema`, `writing-a-pack`, `architecture`, and `type-ir`
-remain unpublished pending editorial review. `/docs/build` is a working landing
-page with a concise availability notice and a link to the workflow guide.
+The five reviewed development/reference documents are applied to their product
+sources and published. The deferred list is empty. Links between the six product
+documents resolve through the allowlist, including the artifact-to-Pack link.
 `docs/reports/*`, `TODO`, `design-spec`, `cobrowser-integration`, and
 `video-preview-transcoding` are not included. The root README and internal skill
 are not imported. `review/` is ignored and never imported by the app or sync.
@@ -108,15 +112,15 @@ WEBSITE_URL=http://127.0.0.1:5200 npm run test:browser
 
 Sync tests use temporary fixtures, including invalid metadata, publication
 boundaries, nested links/anchors, raw HTML, source removal and error preservation.
-The browser check covers all eight document/index routes, 404 UI, theme
+The browser check covers all thirteen document/index routes in both themes, 404 UI, theme
 persistence and system changes, relative links, fragments, browser history and
-mobile navigation/overflow. It writes six ignored PNGs under `test-results/`:
-home and document in light/dark themes, plus mobile home/document views.
+mobile navigation/overflow. It writes ignored PNGs under `test-results/`: home and quick-start in light/dark
+themes, each of the five reviewed documents in both themes, plus mobile views.
 
 ## Deployment (Flops)
 
 1. Check out the complete HoloLab repository. Building only a detached copy of
-   `website/` will fail because `docs/artifacts.md` is a source dependency.
+   `website/` will fail because the six `docs/*.md` files are source dependencies.
 2. From `website/`, run `npm ci` and `npm run build` with Node.js 22. Website
    builds need neither Python, product frontend dependencies nor product submodules.
 3. Serve `website/dist/` on `hololab.xenotech.studio` with HTTPS.

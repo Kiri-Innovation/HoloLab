@@ -1,3 +1,8 @@
+---
+title: 产物与工作空间
+group: 数据与存储
+order: 10
+---
 # Artifacts and workspace layout
 
 Every job HoloLab runs writes into a **workspace root** owned by the

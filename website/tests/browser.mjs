@@ -16,6 +16,8 @@ try {
     await page.goto(origin);
     await page.getByLabel('主题', { exact: true }).selectOption(theme);
     assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
+    assert.match(await page.locator('main').innerText(), /就能在画布上用它搭流程/);
+    assert.doesNotMatch(await page.locator('main').innerText(), /拖进画布/);
     await page.screenshot({ path: `${output}home-${theme}.png`, fullPage: true });
     await page.getByRole('link', { name: '快速开始 ↗', exact: true }).click();
     await page.waitForURL('**/docs/quick-start');
@@ -24,18 +26,29 @@ try {
     await page.reload();
     assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
   }
-  for (const route of [...sections.map(s => s.href), ...docs.map(d => d.href)]) {
-    await page.goto(origin + route);
-    await page.locator('main h1').waitFor();
-    assert.equal(await page.locator('main h1').count(), 1, `${route}: one H1`);
-    assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), `https://hololab.xenotech.studio${route}`);
-    const broken = await page.locator('a[href^="#"]').evaluateAll(links => links.filter(a => !document.getElementById(decodeURIComponent(a.hash.slice(1)))).map(a => a.href));
-    assert.deepEqual(broken, [], `${route}: missing anchors`);
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${route}: horizontal overflow`);
+  for (const theme of ['light', 'dark']) {
+    await page.getByLabel('主题', { exact: true }).selectOption(theme);
+    for (const route of [...sections.map(s => s.href), ...docs.map(d => d.href)]) {
+      await page.goto(origin + route);
+      await page.locator('main h1').waitFor();
+      assert.equal(await page.locator('main h1').count(), 1, `${route}: one H1`);
+      assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), `https://hololab.xenotech.studio${route}`);
+      const broken = await page.locator('a[href^="#"]').evaluateAll(links => links.filter(a => !document.getElementById(decodeURIComponent(a.hash.slice(1)))).map(a => a.href));
+      assert.deepEqual(broken, [], `${route}: missing anchors`);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${route}: horizontal overflow`);
+      assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
+      const published = docs.find(d => d.href === route);
+      if (published?.source.startsWith('docs/') && published.slug !== 'reference/artifacts') {
+        assert.ok((await page.locator('article').innerText()).length > 2000, `${route}: full article rendered`);
+        assert.equal(await page.locator('article h2').count(), published.headings.filter(h => h.depth === 2).length);
+        await page.screenshot({ path: `${output}${published.slug.split('/').at(-1)}-${theme}.png` });
+      }
+    }
   }
   await page.goto(origin + '/docs/reference/artifacts');
-  assert.match(await page.locator('article').innerText(), /文档整理中/);
-  assert.equal(await page.locator('article a[href*="pack-spec"]').count(), 0);
+  assert.doesNotMatch(await page.locator('article').innerText(), /文档整理中/);
+  await page.locator('article a[href*="pack-spec"]').click();
+  await page.waitForURL('**/docs/reference/pack-spec#arrayed-and-arrayable');
   await page.goto(origin + '/docs/use/results');
   await page.getByRole('link', { name: '产物与工作空间', exact: true }).last().click();
   await page.waitForURL('**/docs/reference/artifacts');
@@ -64,5 +77,5 @@ try {
   await page.goto(origin);
   await page.screenshot({ path: `${output}home-mobile.png`, fullPage: true });
   assert.deepEqual(errors, [], 'browser console/page errors');
-  console.log(`Browser checks passed: 8 document routes, 404, anchors, links, history, persistent/system themes, mobile navigation and overflow; 6 screenshots in ${output}`);
+  console.log(`Browser checks passed: ${docs.length + sections.length} document routes in both themes, 404, anchors, links, history, persistent/system themes, mobile navigation and overflow; 16 screenshots in ${output}`);
 } finally { await browser.close(); }

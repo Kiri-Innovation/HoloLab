@@ -1,253 +1,234 @@
-# HoloLab Architecture
+---
+title: HoloLab 架构
+group: 系统设计
+order: 20
+---
+# HoloLab architecture
 
-This document is the source of truth for HoloLab's design decisions. If code and this document disagree, one of them is wrong — file an issue.
+HoloLab separates the browser interface, workflow coordination, and algorithm
+execution. Algorithms run as subprocesses in configured environments; HoloLab
+does not import their Python modules into its own runtime.
 
-## Three identities
+## Components
 
-HoloLab has exactly three moving parts:
+| Component | Responsibilities |
+| --- | --- |
+| Frontend | React and TypeScript canvas, workflow editing, task status, logs and previews. |
+| Gateway | HTTP and WebSocket APIs, workflow validation, scheduling, persistence and handle lookup. |
+| Compute node | Pack discovery, environment resolution, subprocess execution and file serving. |
 
-| Identity     | Role                                                                        | Ships in artifact | Language     |
-| ------------ | --------------------------------------------------------------------------- | ----------------- | ------------ |
-| **Gateway**  | Control-plane backend. Serves frontend, brokers WS, keeps state, preview proxy. | Yes               | Python 3.10+ |
-| **Node**     | Compute-node runtime. Scans packs, runs jobs as subprocesses, serves files. | Yes               | Python 3.10+ |
-| **Frontend** | React canvas. Never talks to nodes directly; always through gateway.        | Yes (as static)   | React + TS   |
-
-A single Python package `hololab` contains all three; the `hololab` CLI selects which subset(s) to run. The frontend is built (Vite) into static assets and shipped as package data.
+`hololab start` runs a gateway and a local compute node together, with a child
+file-server process. Separate gateway and node commands support deployments on
+multiple machines. Each algorithm node in a workflow is assigned to a compute
+node that offers its Pack.
 
 ## Connection topology
 
-**Node → Gateway, outbound WebSocket only.** No inbound to nodes, ever.
+Compute nodes initiate a persistent WebSocket connection to the gateway. They
+register their inventory and report heartbeats, task status, logs and handles.
+The gateway sends assignments and cancellation requests over this connection.
+The browser uses gateway HTTP and WebSocket endpoints.
 
-Rationale:
+An outbound control connection does not establish file-server reachability.
+For cross-device data transfers, configure and test the producer's advertised
+file-server URL from the consuming device. Do not assume that registration alone
+makes a node behind NAT reachable for all data operations.
 
-- Real-world nodes sit behind NAT / corporate firewalls / cloud security groups. Outbound WS is the only connection direction that always works.
-- One authentication direction (gateway authenticates incoming node tokens).
-- Same code path for local (loopback), self-hosted, and hosted-gateway deployments.
+## Drafts, snapshots and jobs
 
-Concrete rules:
+The draft is the editable workflow. The frontend saves edits automatically and
+shows the save state. Wait for a successful save before submitting the workflow.
+Submitted jobs use recorded configuration; later draft edits do not alter an
+already-running subprocess.
 
-- Node dials `ws://<gateway>/ws/node` on start.
-- Handshake exchanges protocol versions (`v_min`, `v_max`) — see [Protocol](#protocol).
-- Heartbeat every 15 s. Gateway declares node dead at 45 s without heartbeat.
-- Reconnect uses exponential backoff (1 s → 2 s → 4 s → … capped at 30 s), forever.
-- After reconnect, gateway **re-syncs** by asking the node which jobs it currently has running. The gateway's account is authoritative for anything else.
-- Frontend connects to `ws://<gateway>/ws/frontend` — pure subscription channel.
+A snapshot records workflow and job lineage. Jobs and snapshots have a
+many-to-many attribution relationship: a subsequent run can reuse existing
+results. Single-node dispatch may continue a compatible snapshot or fork one
+when the lineage requires it. See [Workflow schema](workflow-schema.md) for the
+record shapes and Continue/Fork semantics.
 
-For the "both parties are behind NAT" edge case (user's laptop as gateway, home GPU as node, both behind NAT), we plan an optional third-party rendezvous relay. **Not built yet.** Interim workaround: run the gateway on a host either side can reach.
+View stickers observe outputs. They do not create algorithm jobs and are not
+execution dependencies.
+
+## Execution boundary
+
+A Pack declares inputs, outputs, parameters, environment requirements and an
+`exec.shell` template. The compute node resolves logical environment names using
+its configuration, then starts the command as a subprocess.
+
+Environment snapshots can be cached by the node to avoid repeating conda startup
+for each shard. A fallback uses `conda run`. After changes that affect activation
+environment variables, restart the node at an appropriate time to refresh its
+cached environment. This is an operational action, not part of editing a workflow.
+
+The manifest describes one algorithm invocation. For an arrayable Pack, node
+fan-out adds one outer collection layer. Each shard consumes one element of
+mapped inputs; broadcast inputs retain their complete declared value. Collected
+outputs add one outer layer. See [Pack specification](pack-spec.md).
+
+## Data plane
+
+Jobs register file or directory handles with the gateway. A handle records the
+producing node and path; algorithm templates receive local paths.
+
+When resolving an input, a node can use a supplied local path or ask the gateway
+to locate a handle. A handle on the requesting node resolves to a local path.
+For a remote producer, the gateway can return an HTTP URL based on the producer's
+advertised URL. The consumer fetches the file, or downloads and extracts the
+directory archive, into its input staging area. A missing advertised URL is an
+error; the runtime does not invent a reachable route.
+
+Browser previews use gateway proxy routes. Therefore “all large files never pass
+through the gateway” is not a universal description of the system: distinguish
+compute-node input transfer from browser preview and download traffic.
+
+The output path may be a file or a directory, according to the declaration.
+See [Artifacts and workspace layout](artifacts.md) for storage, migration and
+reference-counted deletion. Automatic lifecycle cleanup described there as
+future work is not a current feature.
+
+## Types and observations
+
+Manifest declarations describe required data; normalized port types describe
+invocation and wire views; runtime observations describe measured handles.
+Measurements do not replace declarations or prove compatibility.
+
+Validation checks effective type structure, including collection layers and
+applicable axis-label rules. Image data is checked against the strict single-file
+or explicit collection contract. See [Port type IR](type-ir.md).
+
+## Persistence and recovery
+
+The gateway persists workflows, snapshots, jobs and handle metadata in SQLite.
+Runtime connection loss and algorithm failure are different conditions. A task
+whose device connection is lost may still be running; wait for reconciliation
+before submitting a duplicate. If recovery fails, inspect the device and residual
+processes before rerunning.
+
+Task records distinguish cancellation, failure and interruption. A cancellation
+record does not identify which operator issued the stop instruction.
+
+## Installation and deployment boundaries
+
+The public quick-start documents source installation. The repository also contains
+build tooling for packaging the Python runtime and frontend. That tooling alone
+does not establish that downloadable releases are published for every platform.
+
+Algorithm dependencies, CUDA, model weights and datasets remain the operator's
+responsibility. Deployments across machines additionally require reachable
+control and data routes and appropriate environment mappings.
 
 ## Protocol
 
-All WebSocket messages share a single envelope:
+Every WebSocket frame is a JSON envelope. For example:
 
 ```json
 {
   "v": 1,
-  "id": "uuid",
-  "kind": "job_progress",
-  "payload": { "...": "..." },
+  "id": "message-uuid",
+  "kind": "heartbeat",
+  "payload": { "running_jobs": [], "gpu_util": null },
   "ts": 1735000000.0
 }
 ```
 
-- `v` — protocol version. Both sides declare `v_min`/`v_max` in the register frame; the intersection maximum is chosen.
-- `id` — unique per message. Used for log correlation, not for RPC (we don't do request/response).
-- `kind` — discriminated union tag; see `hololab/protocol/messages.py`.
-- `payload` — kind-specific, validated by pydantic.
-- `ts` — sender's wall-clock (monotonic sequence is not enforced across parties).
+`v` is the negotiated protocol version, `id` identifies the message, `kind`
+selects a Pydantic payload model, and `ts` is sender wall-clock time. Payload
+identifiers such as job or handle IDs correlate operations; the envelope ID
+is not a universal request/response contract. The registry and decoder live in
+`hololab/protocol/envelope.py`; payload models live in `messages.py`.
 
-### Message kinds (MVP)
+Registration advertises `v_min` and `v_max`. `register_ok` returns `node_id`,
+`session_id`, `protocol_v`, and an optional issued `node_token`; the node persists
+its identity and token for reconnection. Registration errors distinguish version,
+authentication and protocol failures.
 
-Node → Gateway:
+| Direction | Message families |
+| --- | --- |
+| Node → gateway | `register`, `heartbeat`, `node_metrics`, `packs_updated`, job ack/progress/log/done/fail, `handle_register`, `handle_locate_req`. |
+| Gateway → node | Registration response, `job_assign`, `job_cancel`, handle lookup response, node-config requests, handle-check and artifact-delete requests. |
+| Gateway → frontend | `job_update`, `log_chunk`, `preview_ready`, node online/offline, `workflow_updated`. |
 
-- `register` — `{node_name, packs[], gpu_info, advertised_url, token, v_min, v_max}`
-- `heartbeat` — `{running_jobs[], gpu_util?}`
-- `job_ack`, `job_progress`, `job_log`, `job_done`, `job_fail`
-- `handle_register` — node announces a new produced file/dir
-- `handle_locate_req` — node asks gateway where to fetch a handle (future: cross-node)
+`JobAssign` identifies workflow, job, algorithm name/version, parameters and input
+handles. Optional input paths and shard fields support local shortcuts, fan-out
+and batching. `HandleLocateResp` carries `local_path` or `http_url`, storage form
+and a not-found flag. A known remote handle can still lack a reachable URL.
 
-Gateway → Node:
+`JobFail` includes job ID, reason, optional exit code, log tail and message.
+Reasons distinguish `user_error`, `algo_error`, `system_error`, `oom` and
+`cancelled`. These classifications do not imply automatic retries.
 
-- `register_ok` — `{session_id, node_id}` (server-assigned)
-- `register_err` — `{code, message}`
-- `job_assign` — `{job_id, algorithm, version, params, input_handles, workspace_paths}`
-- `job_cancel` — `{job_id}`
-- `handle_locate_resp` — `{handle_id, node_id, url}`
+The node heartbeat interval is 15 seconds; the gateway's liveness threshold is
+45 seconds. Reconnect backoff is capped at 30 seconds. Reconnection reconciles
+reported jobs rather than assuming a disconnected task has failed.
 
-Gateway → Frontend:
+## Persistence implementation
 
-- `job_update` — full or partial job state
-- `log_chunk` — batched log lines
-- `preview_ready` — a preview asset is now downloadable via `/proxy/{node}/...`
-- `node_online` / `node_offline`
+`hololab/persistence/db.py` uses WAL-mode SQLite with foreign keys, a serialized
+writer queue and a reader connection. Queued writes may be batched into one
+transaction; per-operation savepoints isolate failures within the batch. This
+keeps write order without opening competing writer transactions.
 
-`job_fail` payload carries `{reason, exit_code, log_tail}` where reason ∈ `user_error | algo_error | system_error | oom | cancelled`. This enables the scheduler to decide whether to auto-retry (only `system_error`) and the UI to color the failure.
+`jobs` records current state; events and logs record task history. Workflows,
+snapshots, `snapshot_jobs`, nodes, Packs and handles preserve execution context.
+Forward-only migrations live under `hololab/persistence/migrations/`. User data
+lives outside the checkout, normally under `~/.hololab/` with platform/configuration
+overrides. See the workspace reference before relocating stored files.
 
-We deliberately have **no bidirectional RPC framework**. Every request has a natural correlation ID (usually `job_id`); pattern matching on `kind` suffices.
+## Execution environment and cancellation
 
-## Persistence
+`hololab.node.env_cache.warmup_env_cache` captures each configured environment
+at node startup. The executor's cached path runs `bash -c` with that explicit
+environment; the fallback uses `conda run -p <prefix> --no-capture-output bash -lc`
+with a cleaned environment. Neither path imports algorithm code or mutates the
+parent process environment to switch between jobs.
 
-SQLite from day 0, opened in WAL mode. All writes flow through a **single asyncio writer task**; reads may be concurrent. Rationale: aiosqlite's connection-per-task pattern under load can produce writer-writer contention on WAL; funneling writes through one queue is simpler than tuning.
+The fallback is selected when `use_env_cache` is disabled or a particular
+snapshot could not be captured. Activation-variable changes require refreshing
+the cache; installing a package file alone is distinct from changing captured
+environment variables. Do not assume the cache snapshots all package contents.
 
-Two central tables:
+On POSIX systems, cancellation sends SIGTERM to the process group, waits up to
+30 seconds, then escalates to SIGKILL. This reaches child processes of the shell.
+Before sending either signal, the executor checks that the process group still
+belongs to the runtime, protecting against recycled PIDs. The current Windows
+branch calls process termination; CTRL_BREAK_EVENT-based group cancellation
+remains unimplemented.
 
-- `jobs` — current state (denormalized for quick UI queries).
-- `job_events` — append-only. Every state transition is a row. The current state can be reconstructed from the event stream; the `jobs` table is a cache. This gives us **event replay for recovery** and a natural audit log.
+Machine configuration maps logical `runtime.env` names to real conda prefixes.
+It also supplies `conda_bin`, `pack_dirs`, workspace roots and advertised URLs.
+Pack identity and execution declarations remain in the manifest. See
+[Writing a Pack](writing-a-pack.md) for source discovery and validation.
 
-Other tables: `nodes`, `packs`, `handles`, `workflows`, `snapshots`.
+## Packaging implementation
 
-Schema migrations use a simple `schema_version` table and forward-only `hololab/persistence/migrations/NNN_*.sql` files. We picked this over Alembic because our schema is small enough not to need a full migration framework, and shipping raw `.sql` files is easier for contributors to read.
+Repository build tooling can assemble a standalone interpreter, the Python
+package and built frontend. The wheel includes `hololab/frontend/dist` via its
+build configuration; the gateway serves those assets. Portable launcher tooling
+uses `build/sh-trampoline.tmpl` to resolve the colocated interpreter instead of
+retaining a build machine's absolute shebang path.
 
-User data location:
-
-- Linux / macOS: `$HOME/.hololab/` (or `$XDG_DATA_HOME/hololab/`)
-- Windows: `%APPDATA%/hololab/`
-
-Never inside the repo or the installed package.
-
-## Workflow model
-
-Two states:
-
-- **Draft** — the frontend's editable graph. Persisted server-side as JSON at named workflow granularity. Autosave to draft is client-side; explicit `Save` publishes to gateway.
-- **Snapshot** — frozen at the moment the user hits "Run". Immutable. Jobs bind to a snapshot ID, not to the draft. Later edits to the draft don't affect a running snapshot.
-
-Runs are displayed as a list of snapshots. Each snapshot's job DAG is materialized once and never mutated.
-
-## Data plane
-
-**Large files never traverse the gateway.**
-
-- Gateway maintains a **handle book**: `handle_id (uuid) → { node_id, path, kind_tag, size, sha256? }`.
-- Node registers handles as they are produced.
-- Consumers ask the gateway to `locate` a handle; gateway returns `{node_id, http_url}`; consumer node pulls directly via HTTP.
-- Preview payloads (thumbnails, small images, log lines) may pass through the gateway's proxy for browser convenience (browser can't reach NAT-hidden nodes; the gateway reverse-proxies to the node's local HTTP server).
-
-Workspace convention on each node:
-
-```
-{workspace_root}/
-├── w/{workflow_id}/
-│   ├── inputs/{handle_id}/          # materialized inputs pulled from other nodes
-│   └── j/{job_id}/
-│       └── {output_name}/           # each output is a directory
-│           ├── .done                # idempotency marker
-│           └── ...                  # actual output files
-```
-
-Idempotency: if `{output}/.done` exists **and** the input handle set matches what's recorded in `.done`, the job is skipped and existing handles are re-registered.
-
-## Execution boundary (sacred)
-
-The node runtime **never** imports algorithm code. Every algorithm runs as a fresh subprocess.
-
-Why this is non-negotiable:
-
-- Isolates torch/CUDA versions per algorithm.
-- One segfaulting algorithm kills one job, not the node.
-- Node runtime dependencies stay light (see `pyproject.toml`) — critical for single-artifact distribution.
-- Same-language coupling would tempt "just import for the trivial case" — a slippery slope back to ComfyUI's env hell.
-
-Two spawn paths, both preserving the invariant:
-
-1. **Cached-env fast path (default)** — at daemon startup, `hololab.node.env_cache.warmup_env_cache` snapshots each configured conda env once via
-   ```
-   conda run -p <env_prefix> --no-capture-output python -c "json.dumps(dict(os.environ))"
-   ```
-   The resulting dict (`PATH`, `LD_LIBRARY_PATH`, `CUDA_HOME`, plus every `activate.d` export) is stored on `NodeRuntime._env_cache`. Every subsequent shard is spawned as
-   ```
-   bash -c "<shell command from manifest>"     # env=<cached dict>
-   ```
-   which skips `conda run` entirely. On a 100-shard lightweight fan-out this saves ~2 s / shard of framework tax (the `conda run` CLI bootstrap) — see `hololab/node/env_cache.py` for the mechanism.
-
-2. **`conda run` fallback** — used when `NodeConfig.use_env_cache` is disabled OR when a specific env's snapshot failed at startup (misconfigured prefix, `activate.d` error, timeout). Spawns
-   ```
-   conda run -p <env_prefix> --no-capture-output bash -lc "<shell command from manifest>"
-   ```
-   exactly as the pre-cache implementation did. This is the safety net; if the fast path ever starts producing a wrong env dict for a real env, flipping `use_env_cache: false` in the node config restores the historical behavior without a code change.
-
-Env inheritance in both paths: the node runtime passes an **explicit** `env=` dict to `subprocess.Popen` — either the pre-snapshotted one (fast) or the `_clean_env()` allow-list (fallback). It never propagates its own live `os.environ` into a child, and it never mutates its own env in place.
-
-Hot updates: the cached env dict is frozen at daemon start. Installing a new package into a running env (`conda install …` / `pip install …`) is **not** reflected in the cache — restart the node daemon so the snapshot re-runs. Documented on `NodeConfig.use_env_cache`.
-
-Cancellation:
-
-- Linux/macOS: `SIGTERM` → 30 s grace → `SIGKILL`.
-- Windows: `CREATE_NEW_PROCESS_GROUP` + `CTRL_BREAK_EVENT` — **deferred**, marked TODO in code.
-
-## Preview channel
-
-Browser reaches previews via `GET /proxy/{node_id}/{path}` on the gateway, which reverse-proxies to the node's local HTTP file server. Node's file server binds `127.0.0.1` by default; only the gateway (from the node's outbound WS session) is authorized to proxy to it.
-
-This trades some gateway bandwidth for the "browser can always see previews even when node is NAT-hidden" property. Small thumbnails and log lines are the common case; large downloads should be rare and can eventually get a signed-URL bypass.
-
-## Manifest and packs
-
-Algorithm packs are the open-source contract. Detailed in [`pack-spec.md`](pack-spec.md).
-
-Machine-specific concerns live in the **node config**, not in the manifest:
-
-- `conda_bin` — explicit path to the `conda` binary (no PATH guessing).
-- `envs` — map logical env name → real prefix, e.g. `kiri: /cloud/cloud-ssd1/envs/kiri`.
-- `workspace_root`, `packs_dir`, `advertised_url`, gateway URL, token.
-
-The manifest declares a logical env name (`runtime.env: kiri`); the node resolves it against its `envs` map at execution time. A pack is thus fully portable across hosts.
+Build scripts under `build/` run on their target platform. Pack environments,
+CUDA and algorithm dependencies remain external to the product runtime.
+User state stays outside the installation tree. A package build should be tested
+on a clean target machine; the existence of tooling is not evidence of a
+published or validated release for every platform.
 
 ## Comparison with ComfyUI
 
-|                     | ComfyUI                                | HoloLab                                   |
-| ------------------- | -------------------------------------- | ----------------------------------------- |
-| Execution           | Single process, in-memory tensors      | Subprocess per job, files on disk         |
-| Environment         | One shared Python                      | Per-algorithm conda env                   |
-| Distribution        | Single machine                         | Gateway + N nodes, WS-connected           |
-| Cache               | Python object hash                     | Output-dir marker + input handle set      |
-| Long jobs           | Awkward (blocks queue)                 | First-class (heartbeat, resume, cancel)   |
-| Extension unit      | Python class (`INPUT_TYPES`, ...)      | Directory with `manifest.yaml` + code     |
-| Primary target      | Diffusion / generative AI              | CV research (SfM, NeRF, 3DGS, eval)       |
+For readers arriving from ComfyUI or another node editor, the important HoloLab
+boundaries are the following. These describe HoloLab's contract without assuming
+the capabilities of another tool's extensions or deployment.
 
-Where we borrow: the declarative node UX, tag-based edge type checking, and the "check idempotency marker before running" pattern. Where we diverge: everything about execution.
+| Design concern | HoloLab contract |
+| --- | --- |
+| Execution | Algorithm commands run in separate subprocesses. |
+| Dependencies | Logical runtime environments map to device-specific conda prefixes. |
+| Data exchange | Handles resolve to files or directories, not shared in-process tensors. |
+| Compute placement | A gateway coordinates explicitly assigned compute nodes. |
+| Reuse | Output markers and matching input lineage support reuse; see Pack idempotency rules. |
+| Long jobs | Task state, heartbeats, logs and cancellation are tracked separately from canvas editing. |
+| Extension unit | A manifest describes an algorithm invocation and its declared inputs and outputs. |
 
-## Distribution
-
-We ship one self-contained tarball per platform. **The user installs nothing**
-— they extract the archive and run `bin/hololab`.
-
-- **Base interpreter**: [python-build-standalone](https://github.com/astral-sh/python-build-standalone)
-  — statically-linked-ish CPython that runs on any recent Linux (glibc ≥ 2.17)
-  or macOS without system dependencies. We drop it into the artifact and
-  install the HoloLab wheel into it at build time.
-- **Frontend**: `hololab/frontend/dist/` (built by Vite) is bundled inside the
-  wheel via `[tool.hatch.build.targets.wheel.force-include]`. The gateway
-  serves it at `/`.
-- **Shebang trampoline**: pip generates console scripts with an absolute
-  interpreter path baked in — invalid on the user's machine. Our build
-  rewrites `bin/hololab` (and `bin/pip*`) to a portable `sh` trampoline that
-  resolves the co-located `python` at run time. Template at
-  `build/sh-trampoline.tmpl`.
-- **The artifact is stateless**. User data — SQLite, node config, workspace,
-  logs — lives under `~/.hololab/` (or `$XDG_DATA_HOME/hololab` / `%APPDATA%\hololab`),
-  never inside the extracted tree. "Upgrade" = replace the tree, restart.
-- **Build layout**: `build/build-<platform>.sh`. Cross-compilation is not
-  supported; each platform builds on its own OS (GH Actions matrix or local).
-- **Boundary rule (non-negotiable)**: the artifact ships **light deps only** —
-  FastAPI, uvicorn, websockets, pydantic, aiosqlite, httpx, typer, jinja2,
-  structlog, watchfiles, pyyaml. **No torch, no CUDA, no opencv**. Heavy
-  compute stays in the user's existing conda environments and is invoked via
-  `conda run -p`. This is what keeps the artifact ~50 MB instead of ~5 GB.
-
-Acceptance for a build: `bin/hololab --version` on a fresh machine (Docker
-container with no Python installed is the acid test).
-
-## What is *not* here yet
-
-Explicitly out of scope for the first slice:
-
-- Multi-user authentication (single-user token only).
-- Rendezvous relay for double-NAT.
-- Automatic retry on system errors.
-- Cross-node handle transport (single-node MVP).
-- Windows signal handling (Linux/macOS only for smoke).
-- Automatic updates.
-- SHA-256 dedup on handles (async future work).
-- Streaming/partial outputs.
-
-Each of these has a design sketch in the roadmap; none are load-bearing for the first vertical slice.
+The node-graph interface is familiar, but these boundaries determine how to split
+an algorithm, provision its dependencies and inspect a failed run.

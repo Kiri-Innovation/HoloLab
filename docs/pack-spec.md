@@ -1,3 +1,8 @@
+---
+title: Pack 规范
+group: 接口与格式
+order: 10
+---
 # Pack Specification (`hololab.dev/v1`)
 
 **New to HoloLab pack authoring?** Start with the friendlier walkthrough
@@ -14,7 +19,7 @@ my-algo@0.1.0/
 └── ...             # any supporting files your command needs
 ```
 
-The directory name convention `NAME@VERSION` is enforced by the node's pack scanner. Multiple versions of the same pack coexist without interference; a job always locks the version at assignment time.
+Pack identity comes from `name` and `version` in the manifest. `NAME@VERSION` is a directory naming convention, not a scanner requirement. A source may be a manifest file, a directory containing `manifest.yaml`, or a directory of Pack subdirectories. Multiple versions can coexist; duplicate identities across sources resolve in configured source order (first wins).
 
 ## Design principles
 
@@ -145,7 +150,7 @@ reads `docs`; it's presentation-only.
 
 Every port (input or output) is typed by its **tags** — a list of strings that
 name the object type the port carries. Compatibility checks effective tags,
-array cardinality, and collection dimension depth/labels (see [Dimensions](#dim-labels)).
+array cardinality, and collection dimension depth/labels (see [Dimensions](#dimensions-dim_labels)).
 Tags match by non-empty intersection or the `any` wildcard.
 `image_sequence` and `frame_sequence` are removed type tags and are rejected,
 even alongside `any`. Port variable names such as `frame_sequence` remain valid. A tag match alone does
@@ -254,9 +259,9 @@ Shard mechanics:
   started from a partially successful parent.
 
 The pack shell may reference `{{ shard.element_id }}` and `{{ shard.index }}`
-when executing as a shard; these expand to empty for non-shard runs (Jinja2
-StrictUndefined turns a stray reference into a loud error, so a template that
-accidentally uses `shard.*` on a non-shard run fails fast).
+when executing as a shard. The `shard` binding is absent for non-shard runs;
+Jinja2 StrictUndefined raises an explicit template error if those runs reference
+`shard.*`, rather than substituting an empty string.
 
 The `arrayable: true` contract obligates the pack author to promise **no
 cross-shard state or data exchange** — the framework has no way to enforce
@@ -448,9 +453,14 @@ Rendered as a Jinja2 template with these bindings:
 - `params.<name>` — user-supplied param value.
 - `pack_dir` — absolute path to the pack directory.
 - `workspace_root` — absolute path to the node's workspace root.
+- `scratch_dir` — per-job intermediate output area under the workspace.
+- `staging_dir` — input staging area; falls back to scratch when no separate staging root is configured.
 - `job_id`, `workflow_id` — for logging purposes.
 
-The rendered string is passed as a single command to `conda run -p <prefix> bash -c "<rendered>"`. Environment variables of the node process are not inherited; declare any you need inside the shell block.
+The rendered command runs through `bash -c` with a cached activation environment,
+or through `conda run -p <prefix> --no-capture-output bash -lc` when the cache is
+disabled or unavailable. The executor passes an explicit environment instead of
+inheriting the daemon's full environment. See [Execution environment](architecture.md#execution-environment-and-cancellation).
 
 ### Idempotency
 

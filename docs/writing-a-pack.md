@@ -1,3 +1,8 @@
+---
+title: 编写 Pack
+group: 接入算法
+order: 10
+---
 # Writing a HoloLab pack
 
 You have an algorithm in your own repo — a Python script, a shell one-liner
@@ -105,8 +110,8 @@ docs: |
   ``out_dir/hello.txt`` under the workspace root.
 
 # What this node reads. Ports are typed by their ``tags`` — the object
-# type. Edge compatibility is tags-only (storage form is transport hint,
-# never affects wiring). Omit ``inputs`` entirely for source packs.
+# type. Wiring also checks collection structure and applicable axis labels.
+# Storage controls transport. Omit ``inputs`` entirely for source packs.
 inputs:
   seed:
     tags: [text]
@@ -211,7 +216,7 @@ Edit `~/.hololab/node/config.yaml`:
 
 ```yaml
 pack_dirs:
-  - /cloud/cloud-ssd1/Kiri4DGS/hololab/packs       # legacy repo layout
+  - /path/to/HoloLab/packs       # legacy repo layout
   - /home/dev/my-algo                              # colocated manifest+code
   - /home/dev/my-tools/convert.manifest.yaml       # precise-file
 ```
@@ -222,10 +227,10 @@ so existing configs keep working untouched.
 
 ## What can go wrong
 
-- **Tag mismatch.** Ports connect only if their tags overlap. If your
-  new pack outputs `tags: [gs_sequence]` and the downstream stage reads
-  `tags: [colmap]`, the canvas edge silently refuses to draw. Look at
-  upstream/downstream manifests when writing yours.
+- **Incompatible inputs.** Drag feedback reports a mismatched type,
+  collection layer or axis label. Check the effective output and input
+  contracts. A matching tag alone does not guarantee that their structures
+  are compatible; the explicit `any` generic follows its own rule.
 - **Path is not absolute.** `pack_dirs` entries must be absolute paths.
   `~/my-packs` in `config.yaml` gets expanded on load, but the API
   patch and CLI both reject relative paths outright.
@@ -263,8 +268,7 @@ it wraps (mode 1 or 2 above). Two reasons:
   a script and its corresponding manifest tweak land in the same
   commit.
 - `exec.shell` can reference sibling files with short relative paths
-  (or absolute paths if the repo lives at a fixed checkout — see the
-  case study below).
+  (explicit paths configured for the deployment).
 
 The HoloLab repo's `packs/` directory is only for the source packs
 that ship with HoloLab itself (video-source, demo, etc.). External
@@ -296,8 +300,7 @@ Signals that argue for keeping it as one pack:
 
 ### 3. Design your tags
 
-Tags name the object type on a port. Edges connect only when tag sets
-overlap (see [pack-spec.md § Ports](pack-spec.md#ports--tags-are-the-object-type)).
+Tags name the object type on a port. Leaf tags, collection structure and applicable axis-label rules together determine compatibility; explicit `any` provides generic matching. See [Pack ports](pack-spec.md#ports--tags-are-the-object-type).
 
 - **Reuse an existing tag** when your output is genuinely the same
   object as an existing pipeline stage — `colmap`, `stg_model`,
@@ -323,7 +326,7 @@ will run the pack:
 
 - **`runtime.env`** is a *logical* name. The node's `config.yaml` maps
   `envs.<name>` to a real conda prefix (e.g. `envs.kiri:
-  /cloud/.../envs/kiri`). Coordinate with the operator so the env
+  /path/to/conda/envs/kiri`). Coordinate with the operator so the env
   they've provisioned matches the name in your manifest.
 - **`runtime.resources`** — `scratch_gb`, `mem_gb`, `gpu_mem_gb`. The
   node runs a live preflight against `df` / `MemAvailable` before it
@@ -337,7 +340,9 @@ will run the pack:
   paths the node created for you. Write into `{{ outputs.<port> }}`;
   never write into `{{ inputs.<port> }}`.
 - For temporary files that must NOT be part of the output, use
-  `{{ scratch_dir }}` — the node cleans it up when the job finishes.
+  `{{ scratch_dir }}`. Successful jobs schedule scratch and staging cleanup in
+  the background. Failed-job data and failed cleanup attempts are left for the
+  retention sweeper; do not assume immediate removal after every terminal state.
 - Set `idempotency.marker` to a file *inside* your output. Write it
   last, from within `exec.shell`. On re-run with the same inputs the
   node skips the subprocess and re-registers the existing handles.
@@ -352,7 +357,8 @@ hololab pack validate /path/to/your/pack
 #   UI: Compute nodes → ⚙ → Pack sources → + Add path
 #   or edit ~/.hololab/node/config.yaml → pack_dirs and restart the node.
 
-# From an agent (see skill/SKILL.md for the full REST surface):
+# Optional HTTP inspection (set HOLO to your gateway URL first):
+HOLO=http://127.0.0.1:8828
 curl -s $HOLO/api/pack-catalog | jq '.[] | select(.name=="your-pack") | {name, version, manifest_path, source_dir}'
 
 # Wire a workflow that uses your pack in the UI, dispatch a run, and
@@ -390,101 +396,12 @@ Rule of thumb: if you can't `import` your entrypoint from a plain kiri
 env without adding the algorithm repo to `sys.path`, it belongs next to
 the algorithm. Otherwise it can (and probably should) ship with HoloLab.
 
-## Case study: Kiri4DGS's own algorithm-repo packs
+## Keep examples portable
 
-The pipeline packs shipped alongside Kiri4DGS's algorithm repos
-(Sharp-4DGS Phase A1/A2/A3, STG training, .splatv export) follow a
-specific convention worth calling out — you may want to mirror it for
-other in-repo algorithms.
-
-**Layout — one manifest per algorithm, colocated with the code:**
-
-```
-Kiri4DGS/
-├── hololab/packs/
-│   ├── frame-extraction@0.1.0/                  ← generic utility (video → frames)
-│   │   ├── manifest.yaml                        ← ships with HoloLab, no algo dep
-│   │   └── extract_frames.py                    ← self-contained
-│   ├── single-video-source@0.1.0/               ← generic utility (data source)
-│   └── video-array-source@0.1.0/                ← generic utility (data source)
-├── sharp-4dgs/per-frame/
-│   ├── video_to_colmap.py                       ← algorithm (A1 tracker; --convert-only reuses A0 frames)
-│   ├── frames-to-camera-track.manifest.yaml     ← pack for the above (MegaSaM only)
-│   ├── video-to-camera-track.manifest.yaml     ← deprecated A0+A1 combo pack, kept for BC
-│   ├── colmap_to_3d.py                          ← algorithm (A2)
-│   ├── track-to-gs-sequence.manifest.yaml       ← pack for the above
-│   ├── gsseq_to_multiview.py                    ← algorithm (A3)
-│   ├── gs-seq-to-multiview-colmap.manifest.yaml ← pack for the above
-│   ├── video_to_3d.py                           ← algorithm (A0+A1+A2+A3 combo)
-│   ├── video-to-colmap.manifest.yaml            ← pack for the above
-│   ├── path_setup.py                            ← support / not a pack
-│   └── ...
-├── SpacetimeGaussians/
-│   ├── train.py                                 ← algorithm
-│   └── manifest.yaml                            ← pack (mode 2, index.html)
-└── Utils/STG_to_SplaTV/
-    ├── convert_to_splatv_lite.py                ← algorithm
-    └── manifest.yaml                            ← pack (mode 2)
-```
-
-Five sharp-4dgs algorithms share `per-frame/` so each gets its own
-`<name>.manifest.yaml` (**mode 1**, precise-file). `SpacetimeGaussians/`
-and `Utils/STG_to_SplaTV/` are single-purpose directories so a top-level
-`manifest.yaml` (**mode 2**, index.html) is clean.
-
-Note that ``frame-extraction`` (A0) lives under ``hololab/packs/``, not
-next to sharp-4dgs. It's a generic video-decode utility with no
-algorithm dependency, so it ships with HoloLab and any downstream that
-wants an explicit ``arrayed[frame]<image>`` can consume it — MegaSaM
-(``frames-to-camera-track``) today, other trackers later. The legacy
-combined ``video-to-camera-track`` stays in ``pack_dirs`` so existing
-workflow drafts still resolve, but new workflows should chain
-``frame-extraction`` → ``frames-to-camera-track`` so the tracker can be
-re-run without re-decoding the video.
-
-**pack_dirs on the compute node** — one entry per manifest for mode-1,
-one entry per directory for mode-2 or for HoloLab-owned packs (the
-`hololab/packs/` scan sweeps everything inside):
-
-```yaml
-pack_dirs:
-  - /cloud/cloud-ssd1/Kiri4DGS/hololab/packs   # generic utilities + demos + frame-extraction
-  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/frames-to-camera-track.manifest.yaml
-  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video-to-camera-track.manifest.yaml
-  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/track-to-gs-sequence.manifest.yaml
-  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video-to-colmap.manifest.yaml
-  - /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/gs-seq-to-multiview-colmap.manifest.yaml
-  - /cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians
-  - /cloud/cloud-ssd1/Kiri4DGS/Utils/STG_to_SplaTV
-```
-
-**Absolute paths everywhere in the manifest** — this is the deliberate
-convention for Kiri4DGS's own packs:
-
-```yaml
-source_entry: /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video_to_colmap.py
-
-exec:
-  shell: |
-    cd /cloud/cloud-ssd1/Kiri4DGS
-    python /cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video_to_colmap.py "$VIDEO" ...
-```
-
-No `{{ pack_dir }}/../..` navigation, no `params.sharp_repo` /
-`params.stg_repo` indirection. **The tradeoff is intentional**:
-
-- ✅ **Explicit and unambiguous** — one glance at the manifest tells you
-  exactly what file runs; no template resolution to trace through.
-- ✅ **No user-facing "where is your repo?" parameter** to fill in per
-  compute node.
-- ❌ **Manifests are pinned to this specific machine's checkout path**
-  (`/cloud/cloud-ssd1/Kiri4DGS`). If the repo moves, every manifest
-  needs updating.
-
-That's a fine tradeoff for **Kiri4DGS's own official packs**, which are
-authored for the main experimental machine. Third-party or portable
-packs should still prefer `{{ pack_dir }}` (or accept path params) —
-the polymorphic pack_dirs contract supports both styles.
+Place the manifest alongside the algorithm it wraps. Configure the actual
+checkout path in the compute node's Pack sources. Use documented template
+bindings and resolve script locations deliberately; do not copy another
+machine's checkout or conda paths into a published manifest.
 
 ## Writing an arrayable pack
 
@@ -588,4 +505,4 @@ plain per-video extractor — no branching required.
 - Node config — `hololab/node/config.py::NodeConfig`
 - Full pack spec — [`pack-spec.md`](pack-spec.md)
 - Arrayed<T> type system — [`pack-spec.md`](pack-spec.md#arrayed-and-arrayable)
-- Cobrowser "Jump to source" — [`cobrowser-integration.md`](cobrowser-integration.md)
+- Source and artifact location jumps require the Flops Cobrowser integration and configured device mapping.
