@@ -55,7 +55,7 @@ Gateway 接收任务状态并登记产物位置，实际文件留在执行设备
 <figure class="concept-diagram" aria-label="箭头表示谁主动访问谁：用户通过浏览器画布访问 Gateway；设备 A 和设备 B 分别主动建立指向 Gateway 的 WebSocket 连接。">
 <div class="concept-flow concept-access">
 <div class="concept-person"><strong><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM2 18v-3a4 4 0 0 1 4-4h2M10 11h12v9H10zM8 22h15M15 14l-2 2 2 2m3-4 2 2-2 2" /></svg></strong></div>
-<div class="concept-connection"><span>浏览器画布</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18m-6-6 6 6-6 6" /></svg></div>
+<div class="concept-connection"><span>浏览器画布</span><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M2 12h96m-7-6 7 6-7 6" /></svg></div>
 <div class="concept-card"><strong>Gateway</strong><span>派工 / 接收状态</span><span>保存记录与产物索引</span></div>
 <div class="concept-connection"><span>WebSocket 连接</span><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M98 12H2m7-6-7 6 7 6" /></svg></div>
 <div class="concept-card"><strong>设备 A · Executor</strong><span>算法进程 / 本机产物</span></div>
