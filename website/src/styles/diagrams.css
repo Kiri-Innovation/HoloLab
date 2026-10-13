@@ -17,6 +17,22 @@
 }
 
 /* The human actor has no card border or background. */
-.concept-person { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.concept-person { flex: 0 0 32px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
 .concept-person strong { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 13px; }
 .concept-person strong svg { flex: 0 0 24px; width: 24px; height: 24px; color: inherit; transform: none; }
+
+/* Execution and preview traffic are separate from the planned file relay. */
+.concept-routing { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 112px minmax(0, 1fr); align-items: center; }
+.concept-routing-links { min-height: 190px; align-self: stretch; position: relative; display: flex; justify-content: center; align-items: center; }
+.concept-routing-links .concept-connection { gap: 4px; z-index: 1; }
+.concept-routing-links .concept-connection svg { width: 48px; height: 32px; flex-basis: auto; transform: none; }
+.concept-transfer { position: absolute; inset: 0; pointer-events: none; }
+.concept-transfer svg { width: 100%; height: 100%; transform: none; color: var(--text-muted); }
+.concept-transfer path:first-child { stroke-dasharray: 4 4; }
+.concept-routing .concept-devices { min-height: 190px; grid-template-rows: 1fr 1fr; }
+.concept-routing .concept-devices .concept-card { justify-content: center; }
+.concept-route-note { grid-column: 1 / -1; padding-top: 8px; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+@media (max-width: 700px) {
+  .concept-person { flex-basis: auto; }
+  .concept-routing { width: 100%; grid-template-columns: minmax(0, 1fr) 80px minmax(0, 1fr); }
+}

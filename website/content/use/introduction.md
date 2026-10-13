@@ -52,15 +52,21 @@ order: 0
 
 Gateway 接收任务状态并登记产物位置，实际文件留在执行设备上，供后续步骤使用或回看。Gateway 与设备服务可以部署在同一台机器，也可以分开部署。
 
-<figure class="concept-diagram" aria-label="用户通过浏览器画布向 Gateway 提交工作流并查看状态；Gateway 向设备 A 或 B 的 Executor 派发任务，产物存放在执行设备上">
+<figure class="concept-diagram" aria-label="用户图标通过标注为浏览器画布的箭头连接 Gateway；Gateway 向设备安排运行，设备经 Gateway 提供产物预览。虚线 U 形路径从设备 A 经 Gateway 到设备 B，表示计划中的 Gateway 文件中转，尚未提供；当前跨设备输入由消费设备直连生产设备拉取。">
 <div class="concept-flow">
-<div class="concept-person"><strong><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM2 18v-3a4 4 0 0 1 4-4h2M10 11h12v9H10zM8 22h15M15 14l-2 2 2 2m3-4 2 2-2 2" /></svg>用户</strong><span>提交运行 / 查看状态</span></div>
+<div class="concept-person"><strong><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM2 18v-3a4 4 0 0 1 4-4h2M10 11h12v9H10zM8 22h15M15 14l-2 2 2 2m3-4 2 2-2 2" /></svg></strong></div>
 <div class="concept-connection"><span>浏览器画布</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h18m-5-5 5 5-5 5M21 16H3m5-5-5 5 5 5" /></svg></div>
+<div class="concept-routing">
 <div class="concept-card"><strong>Gateway</strong><span>派工 / 接收状态</span><span>保存记录与产物索引</span></div>
-<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h18m-5-5 5 5-5 5M21 16H3m5-5-5 5 5 5" /></svg>
-<div class="concept-devices"><div class="concept-card"><strong>设备 A · Executor</strong><span>算法进程 → 本机产物</span></div><div class="concept-card"><strong>设备 B · Executor</strong><span>算法进程 → 本机产物</span></div></div>
+<div class="concept-routing-links">
+<div class="concept-transfer"><svg viewBox="0 0 112 190" preserveAspectRatio="none" aria-hidden="true"><path d="M110 45H5V145H110" /><path d="m13 40-8 5 8 5M5 95H0m102 45 8 5-8 5" /></svg></div>
+<div class="concept-connection"><span>安排运行</span><svg viewBox="0 0 48 32" aria-hidden="true"><path d="M4 8h40m-7-6 7 6-7 6M44 24H4m7-6-7 6 7 6" /></svg><span>产物预览</span></div>
 </div>
-<figcaption>浏览器画布是用户与 Gateway 交互的界面；算法由设备上的 Executor 执行，Gateway 保存运行记录与产物索引。</figcaption>
+<div class="concept-devices"><div class="concept-card"><strong>设备 A · Executor</strong><span>算法进程 → 本机产物</span></div><div class="concept-card"><strong>设备 B · Executor</strong><span>算法进程 → 本机产物</span></div></div>
+<div class="concept-route-note">虚线：跨设备传输 · Gateway 文件中转（计划中）</div>
+</div>
+</div>
+<figcaption>当前跨设备输入由 Gateway 定位产物，消费设备直连生产设备拉取文件，需文件服务地址可达；产物预览通过 Gateway 代理。虚线 A → Gateway → B 表示计划中的文件中转，尚未提供。</figcaption>
 </figure>
 
 ## 跑完后，怎么找到这次结果？
