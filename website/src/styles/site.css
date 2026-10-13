@@ -45,7 +45,6 @@ h1,h2,h3 { color: var(--text); font-weight: var(--fw-semibold); line-height: var
 .canvas-screenshot img { display: block; width: 100%; height: auto; }
 .pipeline figcaption { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); color: var(--text-muted); font-size: var(--fs-xs); padding: var(--space-3); border-top: 1px solid var(--border); }
 .pipeline figcaption small { display: block; font-size: var(--fs-micro); margin-top: var(--space-1); }
-.pipeline figcaption > a { flex-shrink: 0; }
 .capabilities,.audience { display: grid; grid-template-columns: 1fr 2fr; gap: 64px; padding: 64px 0; border-bottom: 1px solid var(--border); }
 .home h2 { font-size: var(--fs-2xl); letter-spacing: -.01em; }
 .capabilities h2,.audience h2 { margin-top: 12px; }

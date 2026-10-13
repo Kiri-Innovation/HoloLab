@@ -23,7 +23,7 @@ try {
       return img?.getAttribute('src') === `/images/workflow-${t}.webp` && img.complete && img.naturalWidth === 2836;
     }, theme);
     assert.equal(await page.locator('.canvas-screenshot img').evaluate(img => img.naturalHeight), 1038);
-    assert.equal(await page.locator('.canvas-screenshot').getAttribute('href'), `/images/workflow-${theme}.webp`);
+    assert.equal(await page.locator('.pipeline a, .pipeline button').count(), 0);
     await page.screenshot({ path: `${output}home-${theme}.png`, fullPage: true });
     await page.getByRole('link', { name: '快速开始 ↗', exact: true }).click();
     await page.waitForURL('**/docs/quick-start');
