@@ -52,29 +52,32 @@ order: 0
 
 Gateway 接收任务状态并登记产物位置，实际文件留在执行设备上，供后续步骤使用或回看。
 
-<figure class="concept-diagram" aria-label="箭头表示谁主动访问谁：用户通过浏览器画布访问 Gateway；设备 A 和设备 B 分别主动建立指向 Gateway 的 WebSocket 连接。">
+<figure class="concept-diagram" aria-label="分开部署示例：Gateway、设备 A 和设备 B 分别位于三台机器，虚线框表示机器边界。箭头表示谁主动访问谁：用户通过浏览器画布访问 Gateway；设备 A 和设备 B 分别主动建立指向 Gateway 的 WebSocket 连接。">
 <div class="concept-flow concept-access">
 <div class="concept-person"><strong><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM2 18v-3a4 4 0 0 1 4-4h2M10 11h12v9H10zM8 22h15M15 14l-2 2 2 2m3-4 2 2-2 2" /></svg></strong></div>
 <div class="concept-connection"><span>浏览器画布</span><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M2 12h96m-7-6 7 6-7 6" /></svg></div>
-<div class="concept-card"><strong>Gateway</strong><span>派工 / 接收状态</span><span>保存记录与产物索引</span></div>
+<div class="concept-machine"><span>网关机器</span><div class="concept-card"><strong>Gateway</strong><span>派工 / 接收状态</span><span>保存记录与产物索引</span></div></div>
 <div class="concept-connection"><span>WebSocket 连接</span><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M98 12H2m7-6-7 6 7 6" /></svg></div>
-<div class="concept-card"><strong>设备 A · Executor</strong><span>算法进程 / 本机产物</span></div>
+<div class="concept-machine"><span>机器 A</span><div class="concept-card"><strong>设备 A · Executor</strong><span>算法进程 / 本机产物</span></div></div>
 <div class="concept-connection"><span>WebSocket 连接</span><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M98 12H2m7-6-7 6 7 6" /></svg></div>
-<div class="concept-card"><strong>设备 B · Executor</strong><span>算法进程 / 本机产物</span></div>
+<div class="concept-machine"><span>机器 B</span><div class="concept-card"><strong>设备 B · Executor</strong><span>算法进程 / 本机产物</span></div></div>
 </div>
-<figcaption>蓝色箭头表示主动访问方向。设备主动连接 Gateway，派工和状态回报复用这条 WebSocket 连接。产物预览另走浏览器 → Gateway → 设备文件服务；跨设备输入由消费设备直连生产设备拉取，文件服务地址须对请求方可达。</figcaption>
+<figcaption>这里以三台机器分开部署为例，虚线框表示机器边界，实线卡片表示程序实体。蓝色箭头表示主动访问方向。设备主动连接 Gateway，派工和状态回报复用这条 WebSocket 连接。产物预览另走浏览器 → Gateway → 设备文件服务；跨设备输入由消费设备直连生产设备拉取，文件服务地址须对请求方可达。</figcaption>
 </figure>
 
 Gateway 与设备服务可以部署在同一台机器，也可以分开部署。
 
-<figure class="concept-diagram" aria-label="部署模式对比，虚线框表示机器边界。同机部署时 Gateway 与设备服务在同一台机器，通过本机地址通信；分开部署时位于两台机器。两种模式均由设备主动建立到 Gateway 的 WebSocket 连接，Gateway 通过 HTTP 访问设备文件服务以提供预览。">
-<div class="concept-deployment">
-<strong>同机部署</strong>
-<div class="concept-machine"><span>同一台机器 · 127.0.0.1</span><div class="concept-deployment-row"><div class="concept-card"><strong>Gateway</strong></div><div class="concept-deployment-links"><span>WebSocket</span><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M98 12H2m7-6-7 6 7 6" /></svg><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M2 12h96m-7-6 7 6-7 6" /></svg><span>HTTP 预览</span></div><div class="concept-card"><strong>设备服务</strong><span>Executor</span><span>文件服务</span></div></div></div>
-<strong>分开部署</strong>
-<div class="concept-deployment-row"><div class="concept-machine"><span>机器 A</span><div class="concept-card"><strong>Gateway</strong></div></div><div class="concept-deployment-links"><span>WebSocket</span><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M98 12H2m7-6-7 6 7 6" /></svg><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M2 12h96m-7-6 7 6-7 6" /></svg><span>HTTP 预览</span></div><div class="concept-machine"><span>机器 B</span><div class="concept-card"><strong>设备服务</strong><span>Executor</span><span>文件服务</span></div></div></div>
+<figure class="concept-diagram" aria-label="同机部署：用户通过浏览器画布访问 Gateway。Gateway 与设备服务 Executor 两个程序实体位于同一个机器虚线框内；设备在本机主动连接 Gateway，Gateway 在本机访问设备文件服务以提供预览。">
+<div class="concept-flow concept-access concept-colocated">
+<div class="concept-person"><strong><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM2 18v-3a4 4 0 0 1 4-4h2M10 11h12v9H10zM8 22h15M15 14l-2 2 2 2m3-4 2 2-2 2" /></svg></strong></div>
+<div class="concept-connection"><span>浏览器画布</span><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M2 12h96m-7-6 7 6-7 6" /></svg></div>
+<div class="concept-machine concept-shared"><span>同一台机器 · 本机通信</span>
+<div class="concept-card"><strong>Gateway</strong></div>
+<div class="concept-deployment-links"><span>WebSocket</span><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M98 12H2m7-6-7 6 7 6" /></svg><svg viewBox="0 0 100 24" aria-hidden="true"><path d="M2 12h96m-7-6 7 6-7 6" /></svg><span>HTTP 预览</span></div>
+<div class="concept-card"><strong>设备服务</strong><span>Executor</span><span>文件服务</span></div>
 </div>
-<figcaption>虚线框表示机器，箭头表示主动访问方向。同机且使用默认端口时，节点连接 ws://127.0.0.1:8828，文件服务监听 127.0.0.1:8829，advertised_url 可设为 http://127.0.0.1:8829。分开部署时，设备须能访问 Gateway；预览还要求 Gateway 能访问设备上报的文件服务地址。若有跨设备输入，消费设备也须能访问生产设备的文件服务；设备上线不代表这些文件访问路径已打通。</figcaption>
+</div>
+<figcaption>用户仍通过浏览器画布访问 Gateway；同机部署只改变服务所在的位置。使用默认端口时，节点连接 ws://127.0.0.1:8828，文件服务监听 127.0.0.1:8829，advertised_url 可设为 http://127.0.0.1:8829。</figcaption>
 </figure>
 
 ## 跑完后，怎么找到这次结果？
