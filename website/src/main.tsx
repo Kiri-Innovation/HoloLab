@@ -59,10 +59,13 @@ function DocsIndex() {
   const entries = docs.filter(d => d.section === section?.id);
   return <><div className="eyebrow">HoloLab 文档</div><h1>{section?.title === '使用' ? '开始使用 HoloLab' : section?.title === '开发' ? '开发文档' : '参考文档'}</h1><p className="page-intro">{introductions[section?.id ?? 'use']}</p><div className="doc-cards">{entries.map((d,i) => <a key={d.slug} href={d.href}><span className="doc-number">0{i+1}</span><div><strong>{d.title}</strong><small>{d.group}</small></div><span>→</span></a>)}</div>{section?.id === 'build' && entries.length === 0 && <div className="empty-docs"><h2>先了解工作流怎么运行</h2><p>准备接入算法前，可以先熟悉画布、参数和设备的使用方式。</p><a href="/docs/use/workflows">阅读「第一个工作流」 →</a></div>}</>;
 }
+function Footer() {
+  return <footer className="footer"><a className="brand" href="/">HoloLab</a><span>视觉算法，连接成工作流。</span><a href="/docs">文档 ↗</a></footer>;
+}
 function Documentation() {
   const siblings = docs.filter(d => d.section === current?.section);
   const index = siblings.findIndex(d => d.slug === current?.slug);
-  return <div className="docs-layout"><aside className="sidebar"><DocNav /></aside><main id="main" className="document"><details className="mobile-nav"><summary>浏览文档</summary><DocNav /></details>{current ? <><div className="breadcrumb"><a href={section?.href}>{section?.title}</a><span>/</span>{current.group}</div>{current.slug === 'reference/artifacts' && <p className="reference-note">英文参考 · “Future direction” 部分为未实现的计划。</p>}<article className="prose" dangerouslySetInnerHTML={{ __html: current.html }} /><nav className="page-turn" aria-label="上一篇和下一篇">{siblings[index-1] ? <a href={siblings[index-1].href}><small>上一篇</small>← {siblings[index-1].title}</a> : <span/>}{siblings[index+1] && <a href={siblings[index+1].href}><small>下一篇</small>{siblings[index+1].title} →</a>}</nav></> : <DocsIndex />}</main><aside className="toc" aria-label="本页目录">{current && <><span>本页内容</span>{current.headings.filter(h => h.depth === 2).map(h => <a key={h.id} href={`#${h.id}`}>{h.title}</a>)}</>}</aside></div>;
+  return <div className="docs-layout"><aside className="sidebar"><DocNav /></aside><main id="main" className="document"><details className="mobile-nav"><summary>浏览文档</summary><DocNav /></details>{current ? <><div className="breadcrumb"><a href={section?.href}>{section?.title}</a><span>/</span>{current.group}</div>{current.slug === 'reference/artifacts' && <p className="reference-note">英文参考 · “Future direction” 部分为未实现的计划。</p>}<article className="prose" dangerouslySetInnerHTML={{ __html: current.html }} /><nav className="page-turn" aria-label="上一篇和下一篇">{siblings[index-1] ? <a href={siblings[index-1].href}><small>上一篇</small>← {siblings[index-1].title}</a> : <span/>}{siblings[index+1] && <a href={siblings[index+1].href}><small>下一篇</small>{siblings[index+1].title} →</a>}</nav></> : <DocsIndex />}</main><aside className="toc" aria-label="本页目录">{current && <><span>本页内容</span>{current.headings.filter(h => h.depth === 2).map(h => <a key={h.id} href={`#${h.id}`}>{h.title}</a>)}</>}</aside><div className="docs-footer"><Footer /></div></div>;
 }
 function App() {
   useEffect(() => {
@@ -71,7 +74,7 @@ function App() {
     if (current) document.querySelector('meta[name="description"]')?.setAttribute('content', `${current.title} · HoloLab ${section?.title}文档`);
     if (window.location.hash) { try { document.getElementById(decodeURIComponent(window.location.hash.slice(1)))?.scrollIntoView(); } catch { /* An invalid user-entered fragment is harmless. */ } }
   }, []);
-  return <><a className="skip" href="#main">跳到正文</a><Header />{isHome ? <Home /> : isFound ? <Documentation /> : <main id="main" className="not-found"><div className="eyebrow">404</div><h1>没有找到这一页</h1><p>链接可能已变更，可以从文档目录继续查找。</p><a className="button primary" href="/docs">返回文档 →</a></main>}<footer className="footer"><a className="brand" href="/">HoloLab</a><span>视觉算法，连接成工作流。</span><a href="/docs">文档 ↗</a></footer></>;
+  return <><a className="skip" href="#main">跳到正文</a><Header />{isHome ? <Home /> : isFound ? <Documentation /> : <main id="main" className="not-found"><div className="eyebrow">404</div><h1>没有找到这一页</h1><p>链接可能已变更，可以从文档目录继续查找。</p><a className="button primary" href="/docs">返回文档 →</a></main>}{(isHome || !isFound) && <Footer />}</>;
 }
 
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
