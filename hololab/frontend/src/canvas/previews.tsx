@@ -142,7 +142,7 @@ export function Preview({
   if (tags?.includes("image") && storage === "dir" && arrayed) {
     return (dimLabels?.length ?? 1) > 1
       ? <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />
-      : <FrameStripPreview baseUrl={baseUrl} />;
+      : <FrameStripPreview baseUrl={baseUrl} handleId={handleId} />;
   }
   // ``colmap-cams`` — COLMAP sparse reconstruction (cameras.txt +
   // images.txt in a dir handle). Renders inside an iframe backed by
@@ -2266,9 +2266,30 @@ function sampleIndices(n: number, k: number): number[] {
 
 interface FrameStripProps {
   baseUrl: string;
+  handleId?: string;
 }
 
-function FrameStripPreview({ baseUrl }: FrameStripProps) {
+/**
+ * Return PNG leaves from an arrayed-image handle summary.  Most frame packs
+ * use the fast contiguous ``frame_XXXXXX.png`` convention; diagnostic packs
+ * legitimately use semantic names such as ``iter_000100.png``.  This fallback
+ * keeps the viewer type-driven rather than making every diagnostic pack adopt
+ * a filesystem-shape naming convention.
+ */
+function summaryImagePaths(summary: HandleSummary): string[] {
+  const natural = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+  const entries = summary.fields.entries ?? [];
+  const isPng = (name: string) => /\.png$/i.test(name);
+  const direct = entries.filter((entry) => !entry.is_dir && isPng(entry.name)).map((entry) => entry.name);
+  if (direct.length > 0) return direct.sort(natural);
+  const frames = entries.find((entry) => entry.is_dir && entry.name === "frames");
+  return (frames?.children ?? [])
+    .filter((entry) => !entry.is_dir && isPng(entry.name))
+    .map((entry) => `frames/${entry.name}`)
+    .sort(natural);
+}
+
+function FrameStripPreview({ baseUrl, handleId }: FrameStripProps) {
   const [nodeRoot, dirSub] = useMemo(() => splitProxyBase(baseUrl), [baseUrl]);
   const dirBase = baseUrl.replace(/\/$/, "");
 
@@ -2280,7 +2301,14 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
   // difference the viewer needs to handle.
   const [state, setState] = useState<
     | { kind: "loading" }
-    | { kind: "ok"; count: number; width: number | null; height: number | null; pathPrefix: string }
+    | {
+        kind: "ok";
+        count: number;
+        width: number | null;
+        height: number | null;
+        pathPrefix: string;
+        paths?: string[];
+      }
     | { kind: "err"; message: string }
   >({ kind: "loading" });
 
@@ -2298,6 +2326,21 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
           probeExists(`${dirBase}/frames/${frameName(0)}`, abort.signal),
         ]);
         const pathPrefix = flatExists ? "" : legacyExists ? "frames/" : "";
+        if (!flatExists && !legacyExists && handleId) {
+          const paths = summaryImagePaths(await getHandleSummary(handleId));
+          const dims = paths.length > 0
+            ? await fetchPngDims(`${dirBase}/${paths[0]}`, abort.signal)
+            : null;
+          setState({
+            kind: "ok",
+            count: paths.length,
+            width: dims?.width ?? null,
+            height: dims?.height ?? null,
+            pathPrefix: "",
+            paths,
+          });
+          return;
+        }
         const rawUrl = (idx: number) => `${dirBase}/${pathPrefix}${frameName(idx)}`;
         const [count, dims] = await Promise.all([
           probeFrameCount(rawUrl, abort.signal),
@@ -2316,17 +2359,21 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
       }
     })();
     return () => abort.abort();
-  }, [dirBase, reconnectTick, retry.tick]);
+  }, [dirBase, handleId, reconnectTick, retry.tick]);
 
   const pathPrefix = state.kind === "ok" ? state.pathPrefix : "";
+  const imagePath = useCallback(
+    (idx: number) => (state.kind === "ok" ? state.paths?.[idx] : undefined) ?? `${pathPrefix}${frameName(idx)}`,
+    [pathPrefix, state],
+  );
   const rawFrameUrl = useCallback(
-    (idx: number) => `${dirBase}/${pathPrefix}${frameName(idx)}`,
-    [dirBase, pathPrefix],
+    (idx: number) => `${dirBase}/${imagePath(idx)}`,
+    [dirBase, imagePath],
   );
   const thumbUrl = useCallback(
     (idx: number) =>
-      `${nodeRoot}/_thumb/${STRIP_THUMB_W}x${STRIP_THUMB_H}/${dirSub}/${pathPrefix}${frameName(idx)}?at=0`,
-    [nodeRoot, dirSub, pathPrefix],
+      `${nodeRoot}/_thumb/${STRIP_THUMB_W}x${STRIP_THUMB_H}/${dirSub}/${imagePath(idx)}?at=0`,
+    [nodeRoot, dirSub, imagePath],
   );
 
   const [zoomIdx, setZoomIdx] = useState<number | null>(null);
@@ -2359,7 +2406,7 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
   if (state.count === 0) {
     return (
       <div style={PREVIEW_SHELL}>
-        <Status text="no frame_XXXXXX.png found" kind="info" />
+        <Status text="no PNG images found" kind="info" />
       </div>
     );
   }
@@ -2404,12 +2451,13 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
         >
           {sampled.map((frameIdx, i) => {
             const isLast = i === sampled.length - 1;
+            const imageName = imagePath(frameIdx);
             return (
               <button
                 type="button"
                 key={frameIdx}
                 data-hl-frame-card={frameIdx}
-                title={`frame ${frameIdx} of ${state.count}`}
+                title={`${imageName} (${frameIdx + 1}/${state.count})`}
                 onClick={() => setZoomIdx(frameIdx)}
                 className="nodrag nopan"
                 style={{
@@ -2431,7 +2479,7 @@ function FrameStripPreview({ baseUrl }: FrameStripProps) {
               >
                 <LazyThumb
                   src={thumbUrl(frameIdx)}
-                  alt={`frame ${frameIdx}`}
+                  alt={imageName}
                   style={{
                     display: "block",
                     width: "100%",

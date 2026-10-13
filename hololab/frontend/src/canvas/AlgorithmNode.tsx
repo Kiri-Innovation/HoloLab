@@ -337,7 +337,13 @@ function expandableOutputs(
   pack: CatalogPack,
   previews: Record<string, PreviewTarget> | undefined,
 ): ExpandablePort[] {
-  const out: ExpandablePort[] = [];
+  // Prefer an actual viewer over a plain artifact inspection panel.  Output
+  // declaration order is a wiring/detail concern, not a visual-priority
+  // contract: a training state commonly comes first so it can be connected
+  // downstream, while an image/video diagnostic should be the node's default
+  // drawer.  Keep declaration order within each tier for deterministic UI.
+  const viewers: ExpandablePort[] = [];
+  const infos: ExpandablePort[] = [];
   for (const [name, spec] of Object.entries(pack.outputs)) {
     const target = previews?.[name] ?? null;
     // A port becomes a viewer when EITHER the pack pre-declared one, OR
@@ -353,17 +359,17 @@ function expandableOutputs(
       target && (target.preview || hasFrontendViewerTag(target.tags)),
     );
     if (staticViewer || runtimeViewer) {
-      out.push({ name, spec, target, kind: "viewer" });
+      viewers.push({ name, spec, target, kind: "viewer" });
     } else if (target) {
-      out.push({ name, spec, target, kind: "info" });
+      infos.push({ name, spec, target, kind: "info" });
     } else {
       // No preview spec and no handle yet — include anyway so the caret
       // is always visible for nodes with outputs, and clicking it shows
       // the "尚未运行" placeholder + Run button before the first run.
-      out.push({ name, spec, target: null, kind: "info" });
+      infos.push({ name, spec, target: null, kind: "info" });
     }
   }
-  return out;
+  return [...viewers, ...infos];
 }
 
 // Toggle event — the App listens for it and updates its state, which flows
@@ -483,10 +489,20 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     () => new Set(expandables.map((p) => p.name)),
     [expandables],
   );
-  const expanded =
-    previewOpen && expandableNames.has(previewOpen) ? previewOpen : null;
+  const requestedPreview =
+    previewOpen && expandableNames.has(previewOpen)
+      ? expandables.find((p) => p.name === previewOpen) ?? null
+      : null;
+  const preferredPreview = expandables[0] ?? null;
+  // `preview_open` is persisted on workflow nodes.  Before viewer-first
+  // ordering, opening a multi-output node saved its first (often directory)
+  // output here.  Promote that stale info selection to the first live viewer
+  // so existing workflows immediately show their diagnostic image/grid.
   const currentPreview =
-    expanded ? expandables.find((p) => p.name === expanded) ?? null : null;
+    requestedPreview?.kind === "info" && preferredPreview?.kind === "viewer"
+      ? preferredPreview
+      : requestedPreview;
+  const expanded = currentPreview?.name ?? null;
   const width =
     expanded && currentPreview?.kind === "viewer"
       ? NODE_WIDTH_EXPANDED
