@@ -79,8 +79,8 @@ Gateway 接收任务状态并登记产物位置，实际文件留在执行设备
 
 ## 如果你用过 ComfyUI
 
-用过 ComfyUI，你会熟悉节点和连线，它[也有类型检查](https://docs.comfy.org/basic-concepts/workflow)。
+用过 ComfyUI，你会熟悉节点和连线，它也有类型检查。
 
-HoloLab 用 Pack 接入外部程序、指定执行设备，与常见的[服务端 Python 自定义节点](https://docs.comfy.org/custom-nodes/overview)不同。还需留意数组层数与轴名，以及运行、任务、产物之间的追溯关系。
+HoloLab 用 Pack 接入外部程序、指定执行设备，与常见的服务端 Python 自定义节点不同。还需留意数组层数与轴名，以及运行、任务、产物之间的追溯关系。
 
 接下来：[快速开始 →](quick-start.md)
