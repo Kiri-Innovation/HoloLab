@@ -6,10 +6,12 @@
 .concept-card strong { color: var(--text); font-size: 13px; }
 .prose .concept-card code { padding: 0; border: 0; background: none; font-size: 11px; }
 .concept-devices { display: grid; gap: 8px; }
+.concept-connection { display: flex; flex: 0 0 80px; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
 .concept-flow svg { flex: 0 0 24px; width: 24px; height: auto; color: var(--accent); }
 .concept-flow path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .prose .concept-diagram figcaption { margin-top: 10px; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
 @media (max-width: 700px) {
   .concept-flow { flex-direction: column; align-items: stretch; }
+  .concept-connection { flex-basis: auto; }
   .concept-flow svg { align-self: center; flex-basis: auto; transform: rotate(90deg); }
 }

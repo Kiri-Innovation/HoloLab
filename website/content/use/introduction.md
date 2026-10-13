@@ -44,23 +44,23 @@ order: 0
 <figcaption>图中的箭头记录输入输出的对应关系；实际文件由执行设备按需读取或拉取。</figcaption>
 </figure>
 
-## 这一步在哪台机器上跑？
+## HoloLab 如何运行
 
-需要另一台机器的 GPU 时，你可能会先 SSH 登录，再进入环境启动程序。
+用户通过浏览器画布提交工作流。接收并校验这张图、解析步骤间依赖，再按依赖顺序派发任务的协调服务，是 **Gateway**。
 
-在画布上选好提供该 Pack 的**计算设备**（Compute node），其 **Executor** 负责启动独立算法进程。
+设备扫描到 Pack 并上线后，你就能为相应步骤选择这台**计算设备**（Compute node）。任务到达设备后，由 **Executor** 在 Pack 声明、设备已配置好的环境中启动独立算法进程。
 
-负责校验、按依赖顺序派工、管理状态和登记产物的是 **Gateway**。它可与设备服务同机部署；设备的 Node 服务与画布节点是两回事。
+Gateway 接收任务状态并登记产物位置，实际文件留在执行设备上，供后续步骤使用或回看。Gateway 与设备服务可以部署在同一台机器，也可以分开部署。
 
-<figure class="concept-diagram" aria-label="浏览器画布向 Gateway 提交运行，Gateway 向设备 A 或 B 派工并接收状态；各设备在自己的工作空间存放产物">
+<figure class="concept-diagram" aria-label="用户通过浏览器画布向 Gateway 提交工作流并查看状态；Gateway 向设备 A 或 B 的 Executor 派发任务，产物存放在执行设备上">
 <div class="concept-flow">
-<div class="concept-card"><strong>浏览器 · 画布</strong><span>Workflow</span><span>提交运行 / 查看状态</span></div>
-<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h18m-5-5 5 5-5 5M21 16H3m5-5-5 5 5 5" /></svg>
+<div class="concept-card"><strong>用户</strong><span>提交运行 / 查看状态</span></div>
+<div class="concept-connection"><span>浏览器画布</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h18m-5-5 5 5-5 5M21 16H3m5-5-5 5 5 5" /></svg></div>
 <div class="concept-card"><strong>Gateway</strong><span>派工 / 接收状态</span><span>保存记录与产物索引</span></div>
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h18m-5-5 5 5-5 5M21 16H3m5-5-5 5 5 5" /></svg>
 <div class="concept-devices"><div class="concept-card"><strong>设备 A · Executor</strong><span>算法进程 → 本机产物</span></div><div class="concept-card"><strong>设备 B · Executor</strong><span>算法进程 → 本机产物</span></div></div>
 </div>
-<figcaption>你仍然使用自己的机器和环境，只是从画布提交任务；Gateway 记下产物位置，文件留在生成它的设备上。</figcaption>
+<figcaption>浏览器画布是用户与 Gateway 交互的界面；算法由设备上的 Executor 执行，Gateway 保存运行记录与产物索引。</figcaption>
 </figure>
 
 ## 跑完后，怎么找到这次结果？
