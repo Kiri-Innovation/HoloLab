@@ -54,7 +54,7 @@ Gateway 接收任务状态并登记产物位置，实际文件留在执行设备
 
 <figure class="concept-diagram" aria-label="用户通过浏览器画布向 Gateway 提交工作流并查看状态；Gateway 向设备 A 或 B 的 Executor 派发任务，产物存放在执行设备上">
 <div class="concept-flow">
-<div class="concept-card"><strong>用户</strong><span>提交运行 / 查看状态</span></div>
+<div class="concept-card"><strong><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM2 18v-3a4 4 0 0 1 4-4h2M10 11h12v9H10zM8 22h15M15 14l-2 2 2 2m3-4 2 2-2 2" /></svg>用户</strong><span>提交运行 / 查看状态</span></div>
 <div class="concept-connection"><span>浏览器画布</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h18m-5-5 5 5-5 5M21 16H3m5-5-5 5 5 5" /></svg></div>
 <div class="concept-card"><strong>Gateway</strong><span>派工 / 接收状态</span><span>保存记录与产物索引</span></div>
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h18m-5-5 5 5-5 5M21 16H3m5-5-5 5 5 5" /></svg>

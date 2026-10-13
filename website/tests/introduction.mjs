@@ -19,7 +19,8 @@ try {
       assert.equal(await page.locator('article h1').innerText(), '介绍 HoloLab');
       assert.doesNotMatch(await page.locator('article').innerText(), /\*\*/);
       assert.equal(await page.locator('article figure').count(), 2);
-      assert.equal(await page.locator('article svg path').count(), 4);
+      assert.equal(await page.locator('article svg path').count(), 5);
+      assert.equal(await page.locator('.concept-card strong svg').getAttribute('aria-hidden'), 'true');
       assert.deepEqual((await page.locator('.sidebar .doc-link').allTextContents()).slice(0,2), ['介绍 HoloLab','快速开始']);
       const state = await page.locator('article').evaluate(article => {
         const rect = article.getBoundingClientRect();

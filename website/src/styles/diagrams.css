@@ -15,3 +15,7 @@
   .concept-connection { flex-basis: auto; }
   .concept-flow svg { align-self: center; flex-basis: auto; transform: rotate(90deg); }
 }
+
+/* A decorative person-with-code icon distinguishes the human actor. */
+.concept-card strong:has(svg) { display: flex; align-items: center; gap: 6px; }
+.concept-card strong svg { flex: 0 0 24px; width: 24px; height: 24px; color: inherit; transform: none; }
