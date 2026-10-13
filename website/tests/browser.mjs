@@ -18,6 +18,12 @@ try {
     assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
     assert.match(await page.locator('main').innerText(), /就能在画布上用它搭流程/);
     assert.doesNotMatch(await page.locator('main').innerText(), /拖进画布/);
+    await page.waitForFunction(t => {
+      const img = document.querySelector('.canvas-screenshot img');
+      return img?.getAttribute('src') === `/images/workflow-${t}.webp` && img.complete && img.naturalWidth === 2836;
+    }, theme);
+    assert.equal(await page.locator('.canvas-screenshot img').evaluate(img => img.naturalHeight), 1038);
+    assert.equal(await page.locator('.canvas-screenshot').getAttribute('href'), `/images/workflow-${theme}.webp`);
     await page.screenshot({ path: `${output}home-${theme}.png`, fullPage: true });
     await page.getByRole('link', { name: '快速开始 ↗', exact: true }).click();
     await page.waitForURL('**/docs/quick-start');
@@ -75,7 +81,17 @@ try {
   await page.waitForURL('**/docs/use/workflows');
   await page.screenshot({ path: `${output}docs-mobile.png`, fullPage: true });
   await page.goto(origin);
+  await page.getByLabel('主题', { exact: true }).selectOption('system');
+  for (const theme of ['light', 'dark']) {
+    await page.emulateMedia({colorScheme: theme});
+    await page.waitForFunction(t => {
+      const img = document.querySelector('.canvas-screenshot img');
+      return img?.src.endsWith(`workflow-${t}.webp`) && img.complete && img.naturalWidth === 2836;
+    }, theme);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({path: `${output}home-mobile-${theme}.png`, fullPage: true});
+  }
   await page.screenshot({ path: `${output}home-mobile.png`, fullPage: true });
   assert.deepEqual(errors, [], 'browser console/page errors');
-  console.log(`Browser checks passed: ${docs.length + sections.length} document routes in both themes, 404, anchors, links, history, persistent/system themes, mobile navigation and overflow; 16 screenshots in ${output}`);
+  console.log(`Browser checks passed: ${docs.length + sections.length} document routes in both themes, 404, anchors, links, history, persistent/system themes, mobile navigation and overflow; desktop and mobile screenshots in ${output}`);
 } finally { await browser.close(); }
