@@ -21,7 +21,7 @@ try {
       assert.equal(await page.locator('article figure').count(), 3);
       assert.equal(await page.locator('article svg path').count(), 10);
       assert.equal(await page.locator('.concept-person strong svg').getAttribute('aria-hidden'), 'true');
-      assert.deepEqual((await page.locator('.sidebar .doc-link').allTextContents()).slice(0,2), ['介绍 HoloLab','快速开始']);
+      assert.deepEqual((await page.locator('.sidebar .doc-link').allTextContents()).slice(0,2), ['介绍 HoloLab','安装和运行']);
       const state = await page.locator('article').evaluate(article => {
         const rect = article.getBoundingClientRect();
         const paths = [...article.querySelectorAll('svg path')];
@@ -46,7 +46,7 @@ try {
       if (device==='desktop') assert.ok(state.articleHeight<=height*2.5,'guide stays within two and a half desktop screens');
       measurements.push({device,theme,...state});
       await page.screenshot({ path:`${output}${device}-${theme}.png`, fullPage:true });
-      await page.locator('article').getByRole('link',{name:'快速开始 →',exact:true}).click();
+      await page.locator('article').getByRole('link',{name:'安装和运行 →',exact:true}).click();
       await page.waitForURL('**/docs/quick-start');
       assert.match(await page.locator('.page-turn a').first().innerText(), /介绍 HoloLab/);
     }

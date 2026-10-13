@@ -25,7 +25,7 @@ try {
     assert.equal(await page.locator('.canvas-screenshot img').evaluate(img => img.naturalHeight), 1038);
     assert.equal(await page.locator('.pipeline a, .pipeline button').count(), 0);
     await page.screenshot({ path: `${output}home-${theme}.png`, fullPage: true });
-    await page.getByRole('link', { name: '快速开始 ↗', exact: true }).click();
+    await page.getByRole('link', { name: '安装和运行 ↗', exact: true }).click();
     await page.waitForURL('**/docs/quick-start');
     assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
     await page.screenshot({ path: `${output}docs-${theme}.png`, fullPage: true });

@@ -1,6 +1,6 @@
 ---
 title: 介绍 HoloLab
-group: 开始使用
+group: 快速开始
 order: 0
 ---
 # 介绍 HoloLab
@@ -104,4 +104,4 @@ Gateway 与设备服务可以部署在同一台机器，也可以分开部署。
 
 HoloLab 用 Pack 接入外部程序、指定执行设备，与常见的服务端 Python 自定义节点不同。还需留意数组层数与轴名，以及运行、任务、产物之间的追溯关系。
 
-接下来：[快速开始 →](quick-start.md)
+接下来：[安装和运行 →](quick-start.md)
