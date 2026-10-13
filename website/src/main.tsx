@@ -21,10 +21,10 @@ function ThemeControl() {
     try { localStorage.setItem('hololab.website.theme', theme); } catch { /* Private browsing still supports the current theme. */ }
     return () => media.removeEventListener('change', apply);
   }, [theme]);
-  return <label className="theme-control"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">{theme === 'system' ? <><rect x="3" y="4" width="14" height="10" rx="1.4"/><path d="M7 17h6M10 14v3"/></> : theme === 'light' ? <><circle cx="10" cy="10" r="3"/><path d="M10 1v3m0 12v3M1 10h3m12 0h3M3.5 3.5l2 2m9 9l2 2m0-13l-2 2m-9 9l-2 2"/></> : <path d="M12 3a7 7 0 1 0 5 10A6 6 0 0 1 12 3Z"/>}</svg><select aria-label="主题" aria-describedby="theme-help" value={theme} onChange={e => setTheme(e.target.value as Theme)}><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select><span className="control-tooltip" id="theme-help" role="tooltip">浅色 / 深色 / 跟随系统</span></label>;
+  return <select className="theme-control" aria-label="主题" value={theme} onChange={e => setTheme(e.target.value as Theme)}><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select>;
 }
 function Header() {
-  return <header className="header"><div className="header-inner"><a className="brand" href="/" aria-label="HoloLab 首页">HoloLab</a><span className="header-context">· {isHome ? "官网" : "文档"}</span><nav aria-label="主导航"><a href="/" aria-current={isHome ? 'page' : undefined}>概览</a>{sections.map(s => <a key={s.id} href={s.href} aria-current={section?.id === s.id ? 'page' : undefined}>{s.title}</a>)}</nav><ThemeControl /></div></header>;
+  return <header className="header"><div className="header-inner"><a className="brand" href="/" aria-label="HoloLab 首页">HoloLab</a><nav aria-label="主导航"><a href="/" aria-current={isHome ? 'page' : undefined}>概览</a><a href="/docs" aria-current={section ? 'page' : undefined}>文档</a></nav><ThemeControl /></div></header>;
 }
 function Pipeline() {
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
@@ -42,7 +42,17 @@ function Home() {
   return <main id="main" className="home"><section className="hero"><div className="eyebrow"><span className="tiny-square" /> HoloLab / 视觉研究工作流</div><h1>把你手上的视觉算法，<br className="desktop-break"/>接成能跑的工作流</h1><p className="intro">HoloLab 是一个可视化工作流工具，用来组织计算机视觉实验：<br className="desktop-break"/>在画布上把数据、重建、训练、评估串起来，配置每一步的参数，<br className="desktop-break"/>看着它跑完，然后检查结果。</p><p className="execution-note">算法通过 Pack 接入，各自在独立进程和你配置的环境里执行。</p><div className="actions"><a className="button primary" href="/docs/quick-start">快速开始 <span>↗</span></a><a className="button" href="/docs">阅读文档 <span>→</span></a></div></section><Pipeline /><section className="capabilities"><div><div className="eyebrow">在画布上工作</div><h2>你能拿它做什么</h2></div><ul><li><strong>接上自己的算法</strong><p>写一个 manifest 描述输入、输出、参数和执行命令，就能在画布上用它搭流程。</p></li><li><strong>串起一条链</strong><p>端口之间有类型检查，接错了当场告诉你哪里不对。</p></li><li><strong>跑起来看得见</strong><p>每一步的进度、日志、状态都能看到，随时可以停。</p><small>进度信息取决于 Pack 的实现。</small></li><li><strong>结果能追</strong><p>每次运行留下记录，产物可以预览，也能跳回文件所在位置。</p><small>跳转文件位置需要 Flops Cobrowser 集成。</small></li></ul></section><section className="audience"><div><div className="eyebrow">研究 / 开发</div><h2>给谁用</h2></div><p>做 SfM、NeRF、3D Gaussian Splatting 这类研究的人，以及想把已有算法接进可视化流程的开发者。</p></section><section className="start"><div><h2>开始</h2><p>按快速开始装好、跑起来，然后添加节点、连线、选设备、运行。</p></div><a className="button primary" href="/docs/quick-start">快速开始 →</a></section></main>;
 }
 function DocNav() {
-  return <nav className="doc-nav" aria-label="文档导航">{sections.map(s => { const entries = docs.filter(d => d.section === s.id); const groups = [...new Set(entries.map(d => d.group))]; return <div className="nav-section" key={s.id}><a className="section-link" aria-current={pathname === s.href ? 'page' : undefined} href={s.href}>{s.title}<span>↗</span></a>{groups.map(group => <div key={group}><div className="nav-group">{group}</div>{entries.filter(d => d.group === group).map(d => <a className="doc-link" key={d.slug} aria-current={current?.slug === d.slug ? 'page' : undefined} href={d.href}>{d.title}</a>)}</div>)}</div>; })}</nav>;
+  return <nav className="doc-nav" aria-label="文档导航">{sections.map(s => {
+    const entries = docs.filter(d => d.section === s.id);
+    const groups = [...new Set(entries.map(d => d.group))];
+    return <section className="nav-section" key={s.id} aria-label={s.title}>
+      <h2><a className="section-link" aria-current={pathname === s.href ? 'page' : undefined} href={s.href}>{s.title}</a></h2>
+      {groups.map(group => <section className="nav-group" key={group} aria-label={group}>
+        <h3>{group}</h3>
+        <ul>{entries.filter(d => d.group === group).map(d => <li key={d.slug}><a className="doc-link" aria-current={current?.slug === d.slug ? 'page' : undefined} href={d.href}>{d.title}</a></li>)}</ul>
+      </section>)}
+    </section>;
+  })}</nav>;
 }
 const introductions: Record<string,string> = { use: '从安装开始，在画布上跑通第一个工作流，再查看结果。', build: '从编写 Pack 开始，了解算法如何接入，以及工作流和类型系统如何运行。', reference: '查阅 Pack、工作流格式，以及产物与工作空间的详细规则。' };
 function DocsIndex() {
@@ -52,7 +62,7 @@ function DocsIndex() {
 function Documentation() {
   const siblings = docs.filter(d => d.section === current?.section);
   const index = siblings.findIndex(d => d.slug === current?.slug);
-  return <div className="docs-layout"><aside className="sidebar"><div className="sidebar-title">文档 <span>HoloLab</span></div><DocNav /></aside><main id="main" className="document"><details className="mobile-nav"><summary>浏览文档</summary><DocNav /></details>{current ? <><div className="breadcrumb"><a href={section?.href}>{section?.title}</a><span>/</span>{current.group}</div>{current.slug === 'reference/artifacts' && <p className="reference-note">英文参考 · “Future direction” 部分为未实现的计划。</p>}<article className="prose" dangerouslySetInnerHTML={{ __html: current.html }} /><nav className="page-turn" aria-label="上一篇和下一篇">{siblings[index-1] ? <a href={siblings[index-1].href}><small>上一篇</small>← {siblings[index-1].title}</a> : <span/>}{siblings[index+1] && <a href={siblings[index+1].href}><small>下一篇</small>{siblings[index+1].title} →</a>}</nav></> : <DocsIndex />}</main><aside className="toc" aria-label="本页目录">{current && <><span>本页内容</span>{current.headings.filter(h => h.depth === 2).map(h => <a key={h.id} href={`#${h.id}`}>{h.title}</a>)}</>}</aside></div>;
+  return <div className="docs-layout"><aside className="sidebar"><DocNav /></aside><main id="main" className="document"><details className="mobile-nav"><summary>浏览文档</summary><DocNav /></details>{current ? <><div className="breadcrumb"><a href={section?.href}>{section?.title}</a><span>/</span>{current.group}</div>{current.slug === 'reference/artifacts' && <p className="reference-note">英文参考 · “Future direction” 部分为未实现的计划。</p>}<article className="prose" dangerouslySetInnerHTML={{ __html: current.html }} /><nav className="page-turn" aria-label="上一篇和下一篇">{siblings[index-1] ? <a href={siblings[index-1].href}><small>上一篇</small>← {siblings[index-1].title}</a> : <span/>}{siblings[index+1] && <a href={siblings[index+1].href}><small>下一篇</small>{siblings[index+1].title} →</a>}</nav></> : <DocsIndex />}</main><aside className="toc" aria-label="本页目录">{current && <><span>本页内容</span>{current.headings.filter(h => h.depth === 2).map(h => <a key={h.id} href={`#${h.id}`}>{h.title}</a>)}</>}</aside></div>;
 }
 function App() {
   useEffect(() => {

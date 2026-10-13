@@ -61,20 +61,19 @@ try {
       fonts:await platformFonts(context,page,'.header .brand'),
     };
     for (const key of ['fontFamily','backgroundColor','color']) assert.equal(siteMetrics.body[key], productMetrics.body[key], `body ${theme} ${key}`);
-    assert.equal(siteMetrics.header.height,productMetrics.header.height, 'header geometry');
-    assert.equal(siteMetrics.surface.backgroundColor,productMetrics.header.backgroundColor, 'header surface');
-    for (const key of ['fontSize','fontWeight','lineHeight','fontFamily']) assert.equal(siteMetrics.brand[key],productMetrics.brand[key],`brand ${key}`);
+    assert.equal(siteMetrics.header.height,'64px', 'reading-site header geometry');
+    assert.equal(siteMetrics.surface.backgroundColor,productMetrics.body.backgroundColor, 'minimal header uses page surface');
+    assert.equal(siteMetrics.brand.fontFamily,productMetrics.brand.fontFamily,'brand font family');
     for (const key of ['fontSize','fontWeight','fontFamily','lineHeight','backgroundColor','borderRadius','color','borderWidth','padding']) assert.equal(siteMetrics.primary[key],productMetrics.primary[key],`primary ${theme} ${key}`);
     assert.equal(siteMetrics.primary.height,'32px','site uses product large action size');
     assert.deepEqual(siteMetrics.fonts,productMetrics.fonts,'actual rendered brand fonts');
     await page.getByLabel('主题',{exact:true}).focus();
-    await page.getByRole('tooltip').waitFor({state:'visible'});
-    assert.notEqual((await style(page,'.theme-control select')).boxShadow,'none');
+    assert.notEqual((await style(page,'.theme-control')).boxShadow,'none');
     await page.mouse.click(1000,300);
     await page.goto(websiteURL+'/docs/quick-start');
     await page.locator('article pre').first().waitFor();
     await page.screenshot({path:`${output}docs-${theme}.png`});
-    assert.equal((await style(page,'.sidebar')).backgroundColor,productMetrics.header.backgroundColor);
+    assert.equal((await style(page,'.sidebar')).backgroundColor,'rgba(0, 0, 0, 0)');
     const code = await style(page,'.prose pre');
     assert.equal(code.borderRadius,'4px');
     assert.equal(code.backgroundColor,theme==='light'?'rgb(250, 250, 250)':'rgb(37, 37, 38)');
@@ -94,5 +93,5 @@ try {
     }
   }
   await writeFile(`${output}metrics.json`,JSON.stringify(metrics,null,2));
-  console.log('Visual parity passed in light/dark: live fonts, colors, header, buttons, sidebar, code, focus and tooltip; four comparison boards. No product writes.');
+  console.log('Visual parity passed in light/dark: live fonts, colors, minimal navigation, buttons, code and focus; four comparison boards. No product writes.');
 } finally { await browser.close(); }

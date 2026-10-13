@@ -29,6 +29,10 @@ try {
     await page.waitForURL('**/docs/quick-start');
     assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
     await page.screenshot({ path: `${output}docs-${theme}.png`, fullPage: true });
+    await page.screenshot({ path: `${output}navigation-desktop-${theme}.png` });
+    assert.deepEqual(await page.locator('.header nav a').allTextContents(), ['概览', '文档']);
+    assert.equal(await page.locator('.sidebar .nav-section').count(), 3);
+    assert.equal(await page.locator('.sidebar a[aria-current="page"]').count(), 1);
     await page.reload();
     assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
   }
@@ -74,6 +78,12 @@ try {
     await page.goto(origin + route);
     await page.locator('main h1').waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `mobile ${route}: horizontal overflow`);
+  }
+  for (const theme of ['light', 'dark']) {
+    await page.goto(origin + '/docs/quick-start');
+    await page.getByLabel('主题', {exact:true}).selectOption(theme);
+    await page.locator('.mobile-nav summary').click();
+    await page.screenshot({path: `${output}navigation-mobile-${theme}.png`, fullPage: true});
   }
   await page.goto(origin + '/docs/quick-start');
   await page.locator('.mobile-nav summary').click();
