@@ -293,6 +293,9 @@ export interface CatalogPack {
   outputs: Record<string, OutputPortSpec>;
   params: Record<string, ParamSpec>;
   node_viewers?: NodeViewerSpec[];
+  // Opt-in: a pack-owned viewer is the complete card-bottom UI, so do not
+  // additionally render generic per-output artifact drawers. Defaults false.
+  hide_default_output_previews?: boolean;
   // When true, this pack's exec is data-parallel over its arrayed inputs
   // and each node instance gets an "arrayed" checkbox in the Inspector
   // (see docs/pack-spec.md#arrayed-and-arrayable).

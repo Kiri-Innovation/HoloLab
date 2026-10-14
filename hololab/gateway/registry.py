@@ -522,6 +522,7 @@ class NodeRegistry:
                         "source_dir": pk.source_dir,
                         "arrayable": False,
                         "node_viewers": [],
+                        "hide_default_output_previews": False,
                     },
                 )
                 if session.node_id not in entry["node_ids"]:
@@ -545,6 +546,9 @@ class NodeRegistry:
                         entry["node_viewers"] = [
                             viewer.model_dump() for viewer in manifest.node_viewers
                         ]
+                        entry["hide_default_output_previews"] = (
+                            manifest.hide_default_output_previews
+                        )
                         entry["inputs"] = {
                             n: {
                                 "tags": s.tags,

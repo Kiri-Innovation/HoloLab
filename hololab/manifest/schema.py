@@ -466,6 +466,10 @@ class Manifest(BaseModel):
     exec: ExecSpec
     idempotency: IdempotencySpec | None = None
     node_viewers: list[NodeViewerSpec] = Field(default_factory=list)
+    # A pack-owned node viewer can be the complete card-bottom experience.
+    # Keep ordinary output inspection visible by default; packs must opt in
+    # explicitly when their diagnostic viewer intentionally replaces it.
+    hide_default_output_previews: bool = False
     previews: list[PreviewSpec] = Field(default_factory=list)
     progress: ProgressSpec | None = None
 

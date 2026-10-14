@@ -485,9 +485,37 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const outputEntries = Object.entries(pack.outputs);
   const runState = runtime?.state;
   const runColour = stateColour(runState);
-  const expandables = expandableOutputs(pack, previews);
   const defaultNodeViewer =
     pack.node_viewers?.find((viewer) => viewer.default) ?? pack.node_viewers?.[0] ?? null;
+  // A long-running gateway can encounter a freshly-authored manifest before
+  // its Python schema knows a new catalog field. In that rolling-upgrade
+  // window, read just this declarative boolean from the already trusted,
+  // same-version pack asset. Once the gateway serializes the field, this
+  // effect is a no-op and the catalog remains the source of truth.
+  const [compatHideDefaultOutputPreviews, setCompatHideDefaultOutputPreviews] = useState(false);
+  useEffect(() => {
+    if (typeof pack.hide_default_output_previews === "boolean" || !defaultNodeViewer || !assigned_node_id) {
+      setCompatHideDefaultOutputPreviews(false);
+      return;
+    }
+    let cancelled = false;
+    const path = `/pack-assets/${encodeURIComponent(assigned_node_id)}/${encodeURIComponent(pack.name)}/${encodeURIComponent(pack.version)}/manifest.yaml`;
+    void fetch(path, { cache: "no-store" })
+      .then((response) => response.ok ? response.text() : "")
+      .then((text) => {
+        if (!cancelled) {
+          setCompatHideDefaultOutputPreviews(/^hide_default_output_previews:\s*true\s*(?:#.*)?$/m.test(text));
+        }
+      })
+      .catch(() => { if (!cancelled) setCompatHideDefaultOutputPreviews(false); });
+    return () => { cancelled = true; };
+  }, [assigned_node_id, defaultNodeViewer?.id, pack.hide_default_output_previews, pack.name, pack.version]);
+  // A pack may opt into a node-owned viewer as its whole card-bottom UI.
+  // Do not infer this from the presence of a node viewer: coexistence with
+  // ordinary output inspection remains the default for every existing pack.
+  const hideDefaultOutputPreviews = pack.hide_default_output_previews === true
+    || compatHideDefaultOutputPreviews;
+  const expandables = hideDefaultOutputPreviews ? [] : expandableOutputs(pack, previews);
   const defaultNodeViewerFrames = defaultNodeViewer
     ? nodeViewerFrames?.[defaultNodeViewer.id] ?? []
     : [];
