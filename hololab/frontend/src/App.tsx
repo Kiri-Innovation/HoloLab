@@ -358,6 +358,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // Live images may arrive immediately after job_ack, before React commits
   // the matching job row. Keep this wire identity outside render state.
   const graphNodeByJobIdRef = useRef<Record<string, string>>({});
+  // A node viewer describes one execution, rather than an ever-growing
+  // scrapbook of every execution of the graph node.  When a new run starts,
+  // discard the previous run's restored output history before its first live
+  // frame arrives; otherwise a completed run at a higher iteration hides a
+  // freshly-started run at iteration 0/100.
+  const viewerRunByGraphNodeRef = useRef<Record<string, string>>({});
   // Held on a ref so the PREVIEW_TOGGLE_EVENT listener can read the
   // *current* workflow id when persisting a user toggle, without
   // having to re-register the listener each time workflowId changes.
@@ -539,6 +545,27 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       } else if (env.kind === "job_update") {
         const p = env.payload as JobUpdatePayload;
         if (p.graph_node_id) graphNodeByJobIdRef.current[p.job_id] = p.graph_node_id;
+        if (
+          p.graph_node_id &&
+          (p.state === "queued" || p.state === "running") &&
+          viewerRunByGraphNodeRef.current[p.graph_node_id] !== p.job_id
+        ) {
+          viewerRunByGraphNodeRef.current[p.graph_node_id] = p.job_id;
+          setNodeViewerFramesByGraphNode((prev) => {
+            if (!(p.graph_node_id! in prev)) return prev;
+            const next = { ...prev };
+            delete next[p.graph_node_id!];
+            return next;
+          });
+          // ``history_output`` is resolved from this map.  Clearing it makes
+          // the iframe start empty, then receive only this run's live files.
+          setPreviewsByGraphNode((prev) => {
+            if (!(p.graph_node_id! in prev)) return prev;
+            const next = { ...prev };
+            delete next[p.graph_node_id!];
+            return next;
+          });
+        }
 
         // Update the jobs table (drives the panel + summary). The wire
         // payload wins for the fields it names; anything else is preserved
