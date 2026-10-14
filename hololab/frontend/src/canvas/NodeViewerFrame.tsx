@@ -62,26 +62,50 @@ export function NodeViewerFrame({
       return;
     }
     let cancelled = false;
-    void getHandleSummary(historyTarget.handle_id)
-      .then((summary) => {
-        if (cancelled) return;
-        const restored = (summary.fields.entries ?? [])
+    const base = historyTarget.proxy_url.replace(/\/$/, "");
+    // Nodes predating the ``history_index`` schema field ignore it until
+    // their next restart. ``state/previews/index.json`` is the STG private
+    // diagnostics convention, retained as a backwards-compatible fallback.
+    const historyIndex = viewer.history_index
+      ?? (viewer.history_output === "state" ? "previews/index.json" : null);
+    const restore = historyIndex
+      ? fetch(`${base}/${historyIndex.split("/").map(encodeURIComponent).join("/")}`, {
+        cache: "no-store",
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const body = await response.json() as {
+            frames?: Array<{ iteration?: unknown; path?: unknown }>;
+          };
+          return (body.frames ?? [])
+            .filter((frame) => typeof frame.path === "string" && !frame.path.startsWith("/") && !frame.path.split("/").includes(".."))
+            .map((frame) => ({
+              proxy_url: `${base}/${String(frame.path).split("/").map(encodeURIComponent).join("/")}`,
+              iteration: typeof frame.iteration === "number" ? frame.iteration : null,
+              node_id: null,
+            }));
+        })
+      : getHandleSummary(historyTarget.handle_id)
+        .then((summary) => (summary.fields.entries ?? [])
           .filter((entry) => !entry.is_dir && /\.png$/i.test(entry.name))
           .map((entry) => {
             const match = /iter[_]?(\d+)/.exec(entry.name);
             return {
-              proxy_url: `${historyTarget.proxy_url.replace(/\/$/, "")}/${entry.name}`,
+              proxy_url: `${base}/${entry.name}`,
               iteration: match ? Number(match[1]) : null,
               node_id: null,
             };
-          });
+          }));
+    void restore
+      .then((restored) => {
+        if (cancelled) return;
         setHistoryFrames(restored);
       })
       .catch(() => {
         if (!cancelled) setHistoryFrames([]);
       });
     return () => { cancelled = true; };
-  }, [historyTarget?.handle_id, historyTarget?.proxy_url]);
+  }, [historyTarget?.handle_id, historyTarget?.proxy_url, viewer.history_index, viewer.history_output]);
 
   const allFrames = [...historyFrames, ...frames]
     .reduce<LiveViewerFrame[]>((out, frame) => {

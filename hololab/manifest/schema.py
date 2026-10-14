@@ -370,6 +370,10 @@ class NodeViewerSpec(BaseModel):
     # Optional durable output used to rehydrate the viewer after a browser
     # refresh; it remains an ordinary output, not a viewer-only port.
     history_output: str | None = None
+    # Optional JSON index relative to ``history_output``.  This permits a
+    # viewer to retain private files inside a semantic output directory
+    # without promoting the files themselves to a graph output port.
+    history_index: str | None = None
     live_globs: list[str] = Field(default_factory=list)
 
     @field_validator("entry")
@@ -378,6 +382,16 @@ class NodeViewerSpec(BaseModel):
         path = Path(value)
         if path.is_absolute() or ".." in path.parts:
             raise ValueError("node_viewers.entry must be a relative path inside the pack")
+        return value
+
+    @field_validator("history_index")
+    @classmethod
+    def _relative_history_index(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        path = Path(value)
+        if path.is_absolute() or ".." in path.parts:
+            raise ValueError("node_viewers.history_index must be relative to history_output")
         return value
 
 
