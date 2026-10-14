@@ -67,6 +67,7 @@ inputs:
     arrayed: true
     storage: dir
     dim_labels: [cam]
+    require_axis_label_match: false  # Consumes image sets; axis names do not affect SfM.
     description: "One image set on which to run SfM."
 
 params:
