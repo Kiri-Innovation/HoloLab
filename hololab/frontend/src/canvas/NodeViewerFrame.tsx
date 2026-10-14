@@ -80,7 +80,10 @@ export function NodeViewerFrame({
           return (body.frames ?? [])
             .filter((frame) => typeof frame.path === "string" && !frame.path.startsWith("/") && !frame.path.split("/").includes(".."))
             .map((frame) => ({
-              proxy_url: `${base}/${String(frame.path).split("/").map(encodeURIComponent).join("/")}`,
+              // Frame paths are relative to the index file itself. This
+              // keeps an index plus its private images movable as a unit
+              // inside a semantic output directory (e.g. state/previews/).
+              proxy_url: `${base}/${historyIndex.split("/").slice(0, -1).concat(String(frame.path).split("/")).map(encodeURIComponent).join("/")}`,
               iteration: typeof frame.iteration === "number" ? frame.iteration : null,
               node_id: null,
             }));
