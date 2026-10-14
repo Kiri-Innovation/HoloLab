@@ -203,3 +203,139 @@ def test_process_reused_during_read_discards_metadata(tmp_path, monkeypatch):
 
     monkeypatch.setattr(Path, "read_text", reused)
     assert all(v is None for v in lens.process_details(123, tmp_path).values())
+
+
+def test_cpu_delta_reuse_and_whole_host_scale():
+    assert lens.cpu_delta({"born": 1, "ticks": 10}, {"born": 1, "ticks": 30}, 400) == 5
+    assert lens.cpu_delta({"born": 1, "ticks": 10}, {"born": 2, "ticks": 30}, 400) is None
+    assert lens.cpu_delta({"born": 1, "ticks": 10}, {"born": 1, "ticks": 30}, 0) is None
+
+
+def test_host_sampling(monkeypatch):
+    snapshots = iter(
+        [
+            {
+                400: {"pid": 400, "name": "a", "born": 1, "ticks": 10, "used_mb": 10},
+                500: {"pid": 500, "name": "b", "born": 2, "ticks": 20, "used_mb": 20},
+            },
+            {
+                400: {"pid": 400, "name": "a", "born": 1, "ticks": 30, "used_mb": 10},
+                500: {"pid": 500, "name": "b", "born": 2, "ticks": 100, "used_mb": 20},
+            },
+        ]
+    )
+    counters = iter([(1000, 200), (1400, 300)])
+    sleeps = []
+    monkeypatch.setattr(lens, "read_host_processes", lambda: next(snapshots))
+    monkeypatch.setattr(lens, "read_host_cpu", lambda: next(counters))
+    monkeypatch.setattr(lens.time, "sleep", sleeps.append)
+    monkeypatch.setattr(lens, "process_identity", lambda pid: (1, 1 if pid == 400 else 2))
+    monkeypatch.setattr(lens, "process_details", lambda pid: {})
+    monkeypatch.setattr(
+        lens,
+        "owner",
+        lambda pid, active: (
+            {"owner": "job", "job_id": "j"} if pid == 500 else {"owner": "external"}
+        ),
+    )
+    r = lens.sample_resource("cpu", {})
+    assert r["error"] is None
+    assert r["total_percent"] == 75
+    assert [p["usage_percent"] for p in r["processes"]] == [20, 5]
+    assert r["processes"][0]["job_id"] == "j"
+    assert sleeps == [0.3]
+    assert all(p["termination_token"] is None for p in r["processes"])
+
+
+def test_rss_sampling(monkeypatch):
+    from hololab.node import metrics
+
+    monkeypatch.setattr(metrics, "sample_memory", lambda: (1, 2))
+    monkeypatch.setattr(
+        lens,
+        "read_host_processes",
+        lambda: {400: {"pid": 400, "name": "a", "born": 1, "used_mb": 3000}},
+    )
+    monkeypatch.setattr(lens, "process_identity", lambda pid: (1, 1))
+    monkeypatch.setattr(lens, "process_details", lambda pid: {})
+    r = lens.sample_resource("mem", {})
+    assert r["total_used_mb"] == 1024
+    assert r["total_capacity_mb"] == 2048
+    assert r["processes"][0]["used_mb"] == 3000  # Do not clamp RSS to host usage.
+    assert r["processes"][0]["termination_token"] is None
+
+
+def test_pmon_parse_and_unavailable(monkeypatch):
+    text = "# gpu pid type sm mem enc dec command\n# Idx # C/G % % % % name\n0 400 C 30 8 0 0 python\n0 500 C - - - - python\n1 - - - - - - -\n"
+    rows = lens.parse_pmon(text)
+    assert len(rows) == 2
+    assert rows[0]["usage_percent"] == 30
+    assert rows[0]["memory_activity_percent"] == 8
+    assert rows[1]["usage_percent"] is None
+    with pytest.raises(ValueError):
+        lens.parse_pmon("garbage")
+    monkeypatch.setattr(
+        lens,
+        "sample_vram",
+        lambda active: {
+            "gpus": [{"index": 0, "uuid": "u"}],
+            "processes": [{"gpu_uuid": "u", "pid": 400}, {"gpu_uuid": "u", "pid": 500}],
+            "error": None,
+        },
+    )
+    monkeypatch.setattr(lens, "query", lambda *args: [["0", "90"]])
+    monkeypatch.setattr(lens.subprocess, "run", lambda *args, **kw: SimpleNamespace(stdout=text))
+    r = lens.sample_resource("gpu", {})
+    assert r["gpus"][0]["util_percent"] == 90
+    assert r["processes"][0]["usage_percent"] == 30
+    assert "did not report" in r["error"]
+
+    def denied(*a, **kw):
+        raise PermissionError()
+
+    monkeypatch.setattr(lens.subprocess, "run", denied)
+    assert "pmon failed" in lens.sample_resource("gpu", {})["error"]
+
+
+def test_metric_gateway_routing_and_cache(tmp_path):
+    app = create_app(db_path=tmp_path / "gateway.db")
+    with TestClient(app) as client:
+        session = SimpleNamespace(
+            protocol_v=1, send_lock=asyncio.Lock(), ws=SimpleNamespace(), last_heartbeat_ts=0
+        )
+        calls = []
+
+        async def send(raw):
+            _, req = decode(raw)
+            calls.append(req.metric)
+            await _dispatch_node_frame(
+                "resource_lens_resp",
+                ResourceLensResp(
+                    req_id=req.req_id, data={"metric": req.metric, "processes": [], "error": None}
+                ),
+                session,
+                None,
+                None,
+                None,
+                None,
+                None,
+                app,
+            )
+
+        session.ws.send_text = send
+        app.state.registry._sessions["n"] = session
+        for metric in ("cpu", "mem", "gpu", "vram", "cpu"):
+            assert client.get(f"/api/nodes/n/resources/{metric}").json()["metric"] == metric
+        assert calls == ["cpu", "mem", "gpu", "vram"]
+        assert client.get("/api/nodes/n/resources/disk").status_code == 400
+        app.state.registry._sessions.clear()
+
+
+def test_host_counters_unavailable(monkeypatch):
+    def unavailable():
+        raise PermissionError()
+
+    monkeypatch.setattr(lens, "read_host_processes", unavailable)
+    for metric in ("cpu", "mem"):
+        assert "unavailable" in lens.sample_resource(metric, {})["error"]
+    assert lens.sample_resource("disk", {})["error"] == "Unsupported resource metric"

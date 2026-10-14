@@ -80,7 +80,7 @@ test('external confirmation, cancel, success refresh, themes and job cancel',asy
   await dialog.getByRole('button',{name:'结束进程',exact:true}).click();
   await expect(dialog).toHaveCount(0);
   await expect(lens).toContainText('terminated (SIGTERM)');
-  await expect(lens).toContainText('No compute processes');
+  await expect(lens).toContainText('No processes');
   expect(posts).toBe(2);
   for(const theme of ['light','dark']){
     await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);

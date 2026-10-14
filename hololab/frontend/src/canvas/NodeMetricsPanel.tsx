@@ -49,11 +49,11 @@ export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps
   const [lens, setLens] = useState<{ nodeId: string; metric: ResourceMetric } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousScroll = useRef({ top: 0, left: 0 });
-  const triggerRef = useRef<string | null>(null);
-  const openLens = (nodeId: string, _trigger: HTMLElement) => {
-    previousScroll.current = { top: panelRef.current?.scrollTop ?? 0, left: panelRef.current?.scrollLeft ?? 0 };
-    triggerRef.current = nodeId;
-    setLens({ nodeId, metric: "vram" });
+  const triggerRef = useRef<{nodeId: string; metric: ResourceMetric} | null>(null);
+  const openLens = (nodeId: string, metric: ResourceMetric) => {
+    if (!lens) previousScroll.current = { top: panelRef.current?.scrollTop ?? 0, left: panelRef.current?.scrollLeft ?? 0 };
+    triggerRef.current = {nodeId, metric};
+    setLens({ nodeId, metric });
   };
   const closeLens = useCallback(() => setLens(null), []);
   useLayoutEffect(() => {
@@ -62,8 +62,8 @@ export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps
       panelRef.current.scrollLeft = lens ? 0 : previousScroll.current.left;
     }
     if (!lens) {
-      const card = [...(panelRef.current?.querySelectorAll<HTMLElement>("[data-pulse-node]") ?? [])].find(el => el.dataset.pulseNode === triggerRef.current);
-      card?.querySelector<HTMLElement>(".hl-metric-action")?.focus({ preventScroll: true });
+      const card = [...(panelRef.current?.querySelectorAll<HTMLElement>("[data-pulse-node]") ?? [])].find(el => el.dataset.pulseNode === triggerRef.current?.nodeId);
+      card?.querySelector<HTMLElement>(`[aria-label="Open ${triggerRef.current?.metric.toUpperCase()} resource lens"]`)?.focus({ preventScroll: true });
     }
   }, [lens]);
   const cards = useMemo<NodeCardModel[]>(() => {
@@ -149,8 +149,8 @@ export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps
         </div>
       ) : lens ? (
         <div className="hl-pulse-lens-layout">
-          {cards.filter(c => c.node_id === lens.nodeId).map(c => <NodeCard key={c.node_id} card={c} onVram={() => {}} active />)}
-          <VramLens key={lens.nodeId} nodeId={lens.nodeId} latest={cards.find(c => c.node_id === lens.nodeId)?.latest?.gpus?.[0] ?? null} onBack={closeLens} />
+          {cards.filter(c => c.node_id === lens.nodeId).map(c => <NodeCard key={c.node_id} card={c} onMetric={metric => openLens(c.node_id, metric)} active={lens.metric} />)}
+          <VramLens key={`${lens.nodeId}:${lens.metric}`} metric={lens.metric} nodeId={lens.nodeId} latest={cards.find(c => c.node_id === lens.nodeId)?.latest?.gpus?.[0] ?? null} onBack={closeLens} />
         </div>
       ) : (
         <div
@@ -161,7 +161,7 @@ export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps
           }}
         >
           {cards.map((c) => (
-            <NodeCard key={c.node_id} card={c} onVram={el => openLens(c.node_id, el)} />
+            <NodeCard key={c.node_id} card={c} onMetric={metric => openLens(c.node_id, metric)} />
           ))}
         </div>
       )}
@@ -178,7 +178,7 @@ const CARD_STYLE: CSSProperties = {
   background: "var(--surface-2)",
 };
 
-function NodeCard({ card, onVram, active = false }: { card: NodeCardModel; onVram: (el: HTMLElement) => void; active?: boolean }) {
+function NodeCard({ card, onMetric, active }: { card: NodeCardModel; onMetric: (metric: ResourceMetric) => void; active?: ResourceMetric }) {
   const { history, latest, online } = card;
 
   // For multi-GPU rigs we sparkline the first GPU (index 0) — most
@@ -293,12 +293,16 @@ function NodeCard({ card, onVram, active = false }: { card: NodeCardModel; onVra
 
       <MetricRow
         label="CPU"
+        onActivate={() => onMetric("cpu")}
+        active={active === "cpu"}
         value={formatPercent(latest?.cpu_percent ?? null)}
         subtitle={null}
         series={cpuSeries}
       />
       <MetricRow
         label="MEM"
+        onActivate={() => onMetric("mem")}
+        active={active === "mem"}
         value={formatPercent(memPercent)}
         subtitle={
           latest?.mem_used_gb != null && latest.mem_total_gb != null
@@ -309,14 +313,16 @@ function NodeCard({ card, onVram, active = false }: { card: NodeCardModel; onVra
       />
       <MetricRow
         label="GPU"
+        onActivate={() => onMetric("gpu")}
+        active={active === "gpu"}
         value={formatPercent(gpuLatest?.util_percent ?? null)}
         subtitle={null}
         series={gpuSeries.util}
       />
       <MetricRow
         label="VRAM"
-        onActivate={onVram}
-        active={active}
+        onActivate={() => onMetric("vram")}
+        active={active === "vram"}
         value={formatPercent(vramPercent)}
         subtitle={
           gpuLatest?.mem_used_mb != null && gpuLatest.mem_total_mb != null
@@ -345,7 +351,7 @@ function MetricRow({ label, value, subtitle, series, onActivate, active }: Metri
     <div
       role={onActivate ? "button" : undefined}
       tabIndex={onActivate ? 0 : undefined}
-      aria-label={onActivate ? "Open VRAM resource lens" : undefined}
+      aria-label={onActivate ? `Open ${label} resource lens` : undefined}
       aria-pressed={onActivate ? active : undefined}
       className={onActivate ? "hl-metric-action" : undefined}
       onClick={onActivate ? e => onActivate(e.currentTarget) : undefined}

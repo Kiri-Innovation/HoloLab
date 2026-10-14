@@ -768,7 +768,9 @@ class NodeRuntime:
                     lens_tasks.add(task)
                     task.add_done_callback(lens_tasks.discard)
                 elif env.kind == "resource_lens_req":
-                    task = asyncio.create_task(self._resource_lens_reply(payload.req_id))
+                    task = asyncio.create_task(
+                        self._resource_lens_reply(payload.req_id, payload.metric)
+                    )
                     lens_tasks.add(task)
                     task.add_done_callback(lens_tasks.discard)
                 elif env.kind == "node_config_get_req":
@@ -809,11 +811,11 @@ class NodeRuntime:
             "process_terminate_resp", ProcessTerminateResp(req_id=payload.req_id, data=data)
         )
 
-    async def _resource_lens_reply(self, req_id: str) -> None:
-        from hololab.node.resource_lens import ACTIVE, sample_vram
+    async def _resource_lens_reply(self, req_id: str, metric: str = "vram") -> None:
+        from hololab.node.resource_lens import ACTIVE, sample_resource
         from hololab.protocol.messages import ResourceLensResp
 
-        data = await asyncio.to_thread(sample_vram, ACTIVE)
+        data = await asyncio.to_thread(sample_resource, metric, ACTIVE)
         await self._safe_send("resource_lens_resp", ResourceLensResp(req_id=req_id, data=data))
 
     async def _heartbeat_loop(self) -> None:

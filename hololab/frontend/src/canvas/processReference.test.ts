@@ -19,3 +19,8 @@ it.each([undefined, vi.fn().mockResolvedValue({success:false,reason:"unsupported
   expect(writeText).toHaveBeenCalledWith(processReferenceText(p,"http://localhost/w/a"));
   if(insertReference) expect(insertReference).toHaveBeenCalledTimes(1);
 });
+it('uses metric-specific reference units', () => {
+  expect(processReferenceText({...p,metric:'cpu',usage_percent:12.5},'http://localhost')).toContain('CPU: 12.5%');
+  expect(processReferenceText({...p,metric:'mem'},'http://localhost')).toContain('MEM: 1.0 GiB');
+  expect(processReferenceText({...p,metric:'gpu',usage_percent:null},'http://localhost')).toContain('GPU: Unknown');
+});

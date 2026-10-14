@@ -459,7 +459,18 @@ def _mount_routes(app: FastAPI) -> None:
         session = app.state.registry.get_session(node_id)
         if session is None:
             raise HTTPException(status_code=404, detail="Compute node is offline")
-        cached = app.state.resource_lens_cache.get(node_id)
+        cached = next(
+            (
+                c
+                for key in (node_id, (node_id, "gpu"))
+                if (c := app.state.resource_lens_cache.get(key))
+                and any(
+                    p.get("pid") == pid and p.get("termination_token") == token
+                    for p in c[2].get("processes", [])
+                )
+            ),
+            None,
+        )
         confirmed = (
             next(
                 (
@@ -515,18 +526,22 @@ def _mount_routes(app: FastAPI) -> None:
             finally:
                 # A successful kill must not be followed by the old five-second snapshot.
                 app.state.resource_lens_cache.pop(node_id, None)
+                app.state.resource_lens_cache.pop((node_id, "gpu"), None)
 
-    @app.get("/api/nodes/{node_id}/resources/vram", tags=["nodes"])
-    async def get_vram_lens(node_id: str) -> dict[str, Any]:
+    @app.get("/api/nodes/{node_id}/resources/{metric}", tags=["nodes"])
+    async def get_vram_lens(node_id: str, metric: str) -> dict[str, Any]:
         from hololab.protocol.messages import ResourceLensReq
 
+        if metric not in ("cpu", "mem", "gpu", "vram"):
+            raise HTTPException(status_code=400, detail="Unsupported resource metric")
+        cache_key = node_id if metric == "vram" else (node_id, metric)
         session = app.state.registry.get_session(node_id)
         if session is None:
             raise HTTPException(status_code=404, detail="Compute node is offline")
         # Coalesce concurrent viewers and bound repeated sampling to once per 5s.
         lock = app.state.resource_lens_locks.setdefault(node_id, asyncio.Lock())
         async with lock:
-            cached = app.state.resource_lens_cache.get(node_id)
+            cached = app.state.resource_lens_cache.get(cache_key)
             if cached and cached[0] is session and time.monotonic() - cached[1] < 5:
                 return cached[2]
             req_id = str(uuid.uuid4())
@@ -534,13 +549,17 @@ def _mount_routes(app: FastAPI) -> None:
                 app,
                 session,
                 "resource_lens_req",
-                ResourceLensReq(req_id=req_id),
+                ResourceLensReq(req_id=req_id, metric=metric),
                 req_id,
                 pending_key="pending_resource_lenses",
-                timeout_s=6,
+                timeout_s=10,
             )
+            if response["data"].get("metric", "vram") != metric:
+                raise HTTPException(
+                    status_code=409, detail="Compute node needs upgrading for this resource metric"
+                )
             data = {"node_id": node_id, **response["data"]}
-            app.state.resource_lens_cache[node_id] = (session, time.monotonic(), data)
+            app.state.resource_lens_cache[cache_key] = (session, time.monotonic(), data)
             return data
 
     @app.get(

@@ -194,3 +194,184 @@ def sample_vram(active: dict[int, tuple[int, dict[str, str]]]) -> dict[str, Any]
     except (OSError, subprocess.SubprocessError, ValueError) as exc:
         result["error"] = f"GPU process accounting unavailable ({type(exc).__name__})"
     return result
+
+
+def read_host_processes() -> dict[int, dict[str, Any]]:
+    rows = {}
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            stat = (proc / "stat").read_text()
+            tail = stat.rsplit(")", 1)[1].split()
+            rows[int(proc.name)] = {
+                "pid": int(proc.name),
+                "name": stat.split("(", 1)[1].rsplit(")", 1)[0],
+                "born": int(tail[19]),
+                "ticks": int(tail[11]) + int(tail[12]),
+                "used_mb": int(tail[21]) * os.sysconf("SC_PAGE_SIZE") / 1024**2,
+            }
+        except (OSError, ValueError, IndexError):
+            continue  # Exited or inaccessible; never invent zero usage.
+    return rows
+
+
+def read_host_cpu() -> tuple[int, int]:
+    values = [int(x) for x in Path("/proc/stat").read_text().splitlines()[0].split()[1:9]]
+    return sum(values), values[3] + values[4]  # Exclude guest ticks already in user/nice.
+
+
+def cpu_delta(first: dict[str, Any], second: dict[str, Any], total_ticks: int) -> float | None:
+    if first["born"] != second["born"] or total_ticks <= 0:
+        return None
+    return max(0.0, min(100.0, 100 * (second["ticks"] - first["ticks"]) / total_ticks))
+
+
+def sample_host(metric: str, active: dict[int, tuple[int, dict[str, str]]]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "metric": metric,
+        "ts": time.time(),
+        "processes": [],
+        "gpus": [],
+        "error": None,
+    }
+    try:
+        if metric == "cpu":
+            first = read_host_processes()
+            a = read_host_cpu()
+            start = time.monotonic()
+            time.sleep(0.3)
+            second = read_host_processes()
+            b = read_host_cpu()
+            result["sample_window_s"] = time.monotonic() - start
+            delta = b[0] - a[0]
+            if delta <= 0:
+                raise ValueError("CPU counter did not advance")
+            result["total_percent"] = max(0.0, min(100.0, 100 * (1 - (b[1] - a[1]) / delta)))
+            rows = []
+            for pid, p in second.items():
+                value = cpu_delta(first[pid], p, delta) if pid in first else None
+                if value is not None:
+                    rows.append({**p, "usage_percent": value})
+        else:
+            from hololab.node.metrics import sample_memory
+
+            used, total = sample_memory()
+            if used is None or total is None:
+                raise ValueError("Memory counters unavailable")
+            result.update(total_used_mb=used * 1024, total_capacity_mb=total * 1024)
+            rows = list(read_host_processes().values())
+        if not rows:
+            raise ValueError("No readable process counters")
+        field = "usage_percent" if metric == "cpu" else "used_mb"
+        rows.sort(key=lambda p: p[field], reverse=True)
+        for p in rows:
+            pid = p["pid"]
+            # Verify birth time before attaching metadata/attribution.
+            try:
+                if process_identity(pid)[1] != p["born"]:
+                    continue
+                details = process_details(pid)
+                attribution = owner(pid, dict(active))
+                if process_identity(pid)[1] != p["born"]:
+                    continue
+            except (OSError, ValueError, IndexError):
+                continue
+            result["processes"].append(
+                {
+                    "pid": pid,
+                    "name": p["name"],
+                    field: p[field],
+                    **attribution,
+                    **details,
+                    "termination_token": None,
+                }
+            )
+    except (OSError, ValueError, IndexError) as exc:
+        result["error"] = f"{metric.upper()} process accounting unavailable ({type(exc).__name__})"
+    result["ts"] = time.time()
+    return result
+
+
+def parse_pmon(text: str) -> list[dict[str, Any]]:
+    columns: list[str] | None = None
+    rows = []
+    for line in text.splitlines():
+        parts = line.split()
+        if parts[:2] == ["#", "gpu"]:
+            columns = parts[1:]
+            continue
+        if not parts or parts[0] == "#":
+            continue
+        if columns is None or "pid" not in columns or "sm" not in columns:
+            raise ValueError("Unrecognized pmon format")
+        values = dict(zip(columns, parts, strict=False))
+        if values.get("pid") == "-":
+            continue
+        rows.append(
+            {
+                "index": int(values["gpu"]),
+                "pid": int(values["pid"]),
+                "usage_percent": number(values.get("sm", "-")),
+                "memory_activity_percent": number(values.get("mem", "-")),
+            }
+        )
+    if columns is None:
+        raise ValueError("Missing pmon header")
+    return rows
+
+
+def sample_resource(metric: str, active: dict[int, tuple[int, dict[str, str]]]) -> dict[str, Any]:
+    if metric in ("cpu", "mem"):
+        return sample_host(metric, active)
+    if metric not in ("vram", "gpu"):
+        return {
+            "metric": metric,
+            "error": "Unsupported resource metric",
+            "processes": [],
+            "gpus": [],
+        }
+    result = sample_vram(active)
+    if metric == "vram":
+        return result
+    result["metric"] = "gpu"
+    if result["error"]:
+        return result
+    try:
+        totals = query("index,utilization.gpu", "gpu")
+        for g in result["gpus"]:
+            g["util_percent"] = next(
+                (number(r[1]) for r in totals if int(r[0]) == g["index"]), None
+            )
+        probe = subprocess.run(
+            ["nvidia-smi", "pmon", "-c", "1"], capture_output=True, text=True, check=True, timeout=3
+        )
+        values = {(p["index"], p["pid"]): p for p in parse_pmon(probe.stdout)}
+        for p in result["processes"]:
+            index = next(g["index"] for g in result["gpus"] if g["uuid"] == p["gpu_uuid"])
+            p.update(
+                {
+                    k: v
+                    for k, v in values.get((index, p["pid"]), {"usage_percent": None}).items()
+                    if k not in ("pid", "index")
+                }
+            )
+        result["processes"].sort(
+            key=lambda p: p["usage_percent"] if p["usage_percent"] is not None else -1, reverse=True
+        )
+        if any(p["usage_percent"] is None for p in result["processes"]):
+            result["error"] = (
+                "pmon did not report SM utilization for one or more compute processes (unsupported or process exited); unknown values are shown as —."
+            )
+    except (
+        OSError,
+        subprocess.SubprocessError,
+        ValueError,
+        IndexError,
+        KeyError,
+        StopIteration,
+    ) as exc:
+        result["error"] = (
+            f"GPU utilization unavailable: nvidia-smi pmon failed ({type(exc).__name__})"
+        )
+    return result

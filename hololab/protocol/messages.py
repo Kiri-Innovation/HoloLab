@@ -620,6 +620,7 @@ class WorkflowUpdated(BaseModel):
 
 class ResourceLensReq(BaseModel):
     req_id: str
+    metric: str = "vram"
 
 
 class ResourceLensResp(BaseModel):

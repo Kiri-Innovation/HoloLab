@@ -2,10 +2,12 @@ import { flopsInsertReference, flopsInsertReferenceAvailable } from "../flops";
 import { copyReferenceText } from "./referenceAction";
 
 export interface ProcessReference {
-  pid: number; name: string; used_mb: number | null; nodeId: string; sampledAt: number;
+  metric?: "cpu" | "mem" | "gpu" | "vram"; usage_percent?: number | null; pid: number; name: string; used_mb: number | null; nodeId: string; sampledAt: number;
 }
 export function processReferenceText(p: ProcessReference, url: string): string {
-  return `${p.name} (PID ${p.pid}) · External / 非 HoloLab\nCompute node: ${p.nodeId}\nVRAM: ${p.used_mb == null ? "Unknown" : `${(p.used_mb / 1024).toFixed(1)} GiB`}\nObserved: ${new Date(p.sampledAt * 1000).toISOString()}\n${url}`;
+  const metric = p.metric ?? "vram";
+  const amount = metric === "cpu" || metric === "gpu" ? (p.usage_percent == null ? "Unknown" : `${p.usage_percent.toFixed(1)}%`) : p.used_mb == null ? "Unknown" : `${(p.used_mb / 1024).toFixed(1)} GiB`;
+  return `${p.name} (PID ${p.pid}) · External / 非 HoloLab\nCompute node: ${p.nodeId}\n${metric.toUpperCase()}: ${amount}\nObserved: ${new Date(p.sampledAt * 1000).toISOString()}\n${url}`;
 }
 export async function copyProcessReference(p: ProcessReference) {
   const url = window.location.href;
