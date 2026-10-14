@@ -94,12 +94,14 @@ def parse_images_txt(path: Path) -> list[tuple[int, np.ndarray, np.ndarray, int,
 
 
 def stage_scratch_input(source_dir: Path, scratch_input: Path) -> list[str]:
-    """Hardlink each per-cam file into ``scratch_input`` under a flat name."""
+    """Hardlink each per-cam image into ``scratch_input`` under a flat name."""
     if scratch_input.exists():
         shutil.rmtree(scratch_input)
     scratch_input.mkdir(parents=True)
     names: list[str] = []
     for src in sorted(source_dir.iterdir()):
+        if src.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+            continue
         if not (src.is_file() or src.is_symlink()):
             continue
         real = src.resolve()
