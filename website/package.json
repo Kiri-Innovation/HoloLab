@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "sync:docs": "node scripts/sync-docs.mjs",
     "predev": "npm run sync:docs",
@@ -13,18 +15,31 @@
     "preview": "vite preview --host 127.0.0.1 --port 5200 --strictPort",
     "test": "node --test tests/sync-docs.test.mjs",
     "test:browser": "node tests/browser.mjs",
-    "test:visual": "node tests/visual.mjs"
+    "test:visual": "node tests/visual.mjs",
+    "postbuild": "node scripts/localize-html.mjs",
+    "test:metadata": "node tests/metadata.mjs"
   },
   "dependencies": {
-    "react": "18.3.1", "react-dom": "18.3.1"
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
-    "@types/react": "^18.3.10", "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.2", "typescript": "~5.6.3", "vite": "^5.4.8",
-    "@playwright/test": "^1.63.0", "github-slugger": "^2.0.0",
-    "unified": "^11.0.5", "remark-parse": "^11.0.0", "remark-gfm": "^4.0.1",
-    "remark-rehype": "^11.1.1", "remark-stringify": "^11.0.0",
-    "rehype-raw": "^7.0.0", "rehype-stringify": "^10.0.1", "rehype-sanitize": "^6.0.0",
-    "unist-util-visit": "^5.0.0", "yaml": "^2.8.1"
+    "@types/react": "^18.3.10",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "typescript": "~5.6.3",
+    "vite": "^5.4.8",
+    "@playwright/test": "^1.63.0",
+    "github-slugger": "^2.0.0",
+    "unified": "^11.0.5",
+    "remark-parse": "^11.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-rehype": "^11.1.1",
+    "remark-stringify": "^11.0.0",
+    "rehype-raw": "^7.0.0",
+    "rehype-stringify": "^10.0.1",
+    "rehype-sanitize": "^6.0.0",
+    "unist-util-visit": "^5.0.0",
+    "yaml": "^2.8.1"
   }
 }

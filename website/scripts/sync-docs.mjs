@@ -54,7 +54,7 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
   for (const s of sections) {
     if (!object(s) || !/^[a-z]+$/.test(s.id) || !word(s.title) || !Number.isSafeInteger(s.order) || s.order < 0 || !/^\/docs(?:\/[a-z-]+)?$/.test(s.href)) fail('Invalid section');
     if (sectionIds.has(s.id) || routes.has(s.href)) fail(`Duplicate section: ${s.id}`);
-    sectionIds.add(s.id); routes.add(s.href);
+    sectionIds.add(s.id); routes.add(s.href); routes.add(`/zh-CN${s.href}`);
   }
   const sourcePath = (source) => {
     if (!word(source) || path.isAbsolute(source) || source.includes('\\') || source.split('/').some(s => !s || s === '.' || s === '..') || !source.endsWith('.md')) fail(`Unsafe source path: ${source}`);
@@ -65,17 +65,20 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
   const docs = [];
   for (const entry of sources) {
     if (!object(entry)) fail('Invalid source entry');
-    for (const key of Object.keys(entry)) if (!['source', 'slug', 'section', 'title', 'group', 'order', 'diagrams'].includes(key)) fail(`Unknown source field: ${key}`);
+    for (const key of Object.keys(entry)) if (!['source', 'slug', 'section', 'title', 'group', 'order', 'diagrams', 'locale', 'contentLanguage', 'legacySource'].includes(key)) fail(`Unknown source field: ${key}`);
     if (entry.diagrams !== undefined && (typeof entry.diagrams !== 'boolean' || !entry.source?.startsWith('website/content/'))) fail('Diagrams are only allowed in website-owned content');
+    if (entry.locale !== undefined && !['en', 'zh-CN'].includes(entry.locale)) fail('Invalid locale');
+    if (entry.contentLanguage !== undefined && !['en', 'zh-CN'].includes(entry.contentLanguage)) fail('Invalid content language');
     metadata(entry, entry.source);
     if (!word(entry.slug) || !slugPattern.test(entry.slug)) fail(`Invalid slug: ${entry.slug}`);
     if (!sectionIds.has(entry.section)) fail(`Unknown section: ${entry.section}`);
-    const href = `/docs/${entry.slug}`;
+    const href = `${entry.locale === 'zh-CN' ? '/zh-CN' : ''}/docs/${entry.slug}`;
     if (routes.has(href)) fail(`Duplicate or reserved slug: ${entry.slug}`);
     routes.add(href);
     const file = sourcePath(entry.source);
-    if (seenPaths.has(file) || deferredPaths.has(file)) fail(`Duplicate or deferred source: ${entry.source}`);
-    seenPaths.add(file);
+    const fileKey = `${entry.locale ?? 'en'}:${file}`;
+    if (seenPaths.has(fileKey) || deferredPaths.has(file)) fail(`Duplicate or deferred source: ${entry.source}`);
+    seenPaths.add(fileKey);
     const actual = await realpath(file);
     if (actual !== file) fail(`Symlink source is not allowed: ${entry.source}`);
     const { body, meta } = frontmatter(await readFile(file, 'utf8'), entry.source);
@@ -87,9 +90,11 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
       node.data = { hProperties: { id } };
       headings.push({ depth: node.depth, title, id });
     });
-    docs.push({ ...resolved, href, file, tree, headings });
+    const linkFile = entry.legacySource ? sourcePath(entry.legacySource) : file;
+    docs.push({ ...resolved, href, file, linkFile, tree, headings });
   }
-  const byFile = new Map(docs.map(doc => [doc.file, doc]));
+  const byFile = new Map();
+  for (const doc of docs) for (const file of [doc.file, doc.linkFile]) byFile.set(`${doc.locale ?? 'en'}:${file}`, doc);
   const byHref = new Map(docs.map(doc => [doc.href, doc]));
   const withheld = [];
   function checkAnchor(target, hash, context) {
@@ -114,20 +119,22 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
       if (node.type === 'image') fail(`${doc.source}: local image needs an explicit reviewed asset: ${url}`);
       if (url.startsWith('#')) { checkAnchor(doc, url.slice(1), doc.source); return; }
       if (url.startsWith('/')) {
-        const [route, hash] = url.split('#');
+        const [originalRoute, hash] = url.split('#');
+        const route = doc.locale === 'zh-CN' && originalRoute.startsWith('/docs') ? `/zh-CN${originalRoute}` : originalRoute;
+        node.url = route + (hash ? `#${hash}` : '');
         if (byHref.has(route)) checkAnchor(byHref.get(route), hash, doc.source);
-        else if (route !== '/' && !sections.some(s => s.href === route)) fail(`${doc.source}: unknown route ${url}`);
+        else if (route !== '/' && !sections.some(s => s.href === route || `/zh-CN${s.href}` === route)) fail(`${doc.source}: unknown route ${url}`);
         return;
       }
       if (/^[a-z][a-z0-9+.-]*:/i.test(url) || url.includes('?')) fail(`${doc.source}: unsupported link ${url}`);
       const [relative, hash] = url.split('#');
-      const targetFile = path.resolve(path.dirname(doc.file), decodeURIComponent(relative));
+      const targetFile = path.resolve(path.dirname(doc.linkFile), decodeURIComponent(relative));
       if (deferredPaths.has(targetFile)) {
         withheld.push({ source: doc.source, target: path.relative(root, targetFile) });
-        parent.children[index] = { type: 'text', value: `${plainText(node)}（文档整理中）` };
+        parent.children[index] = { type: 'text', value: `${plainText(node)}${doc.locale === 'en' ? ' (documentation pending)' : '（文档整理中）'}` };
         return;
       }
-      const target = byFile.get(targetFile);
+      const target = byFile.get(`${doc.locale ?? 'en'}:${targetFile}`);
       if (!target) fail(`${doc.source}: link outside publication allowlist: ${url}`);
       checkAnchor(target, hash, doc.source);
       node.url = target.href + (hash ? `#${hash}` : '');
@@ -159,11 +166,11 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
   await mkdir(staging, { recursive: true });
   try {
     for (const doc of docs) {
-      const destination = path.join(staging, `${doc.slug}.md`);
+      const destination = path.join(staging, doc.locale ?? '', `${doc.slug}.md`);
       await mkdir(path.dirname(destination), { recursive: true });
       await writeFile(destination, doc.markdown);
     }
-    const published = docs.map(({ file, tree, markdown, ...doc }) => doc);
+    const published = docs.map(({ file, linkFile, tree, markdown, ...doc }) => doc);
     await writeFile(path.join(staging, 'index.json'), JSON.stringify({ sections: sections.sort((a,b) => a.order-b.order), docs: published.sort((a,b) => a.order-b.order) }, null, 2));
     await rm(output, { recursive: true, force: true });
     await rename(staging, output);

@@ -134,3 +134,33 @@ test('diagram HTML/SVG is opt-in, website-owned and sanitized after parsing', as
   await f.configure([{ ...f.sources[0], diagrams: true }]);
   await assert.rejects(f.run(), /only allowed in website-owned/);
 });
+
+test('localized copies resolve links within their language and keep separate output files', async t => {
+  const f = await fixture(t);
+  const entries = ['en', 'zh-CN'].flatMap(locale => f.sources.map(s => ({ ...s, locale, contentLanguage: 'en' })));
+  await f.configure(entries);
+  await f.run();
+  const { docs } = await f.index();
+  assert.equal(docs.length, 4);
+  for (const locale of ['en', 'zh-CN']) {
+    const prefix = locale === 'en' ? '' : '/zh-CN';
+    const a = docs.find(d => d.slug === 'use/a' && d.locale === locale);
+    assert.ok(a.html.includes(`href="${prefix}/docs/reference/nested/b#heading"`));
+    assert.match(await readFile(path.join(f.output, locale, 'use/a.md'), 'utf8'), /Next/);
+  }
+  await f.configure([...entries, entries[0]]);
+  await assert.rejects(f.run(), /Duplicate/);
+});
+
+test('moved Chinese sources keep legacy relative links and localize absolute doc links', async t => {
+  const f = await fixture(t);
+  await mkdir(path.join(f.root, 'website/content/zh/use'), { recursive: true });
+  await f.write('website/content/zh/use/a.md', '# A\n\n[Relative](../../../docs/b.md#heading)\n\n[Absolute](/docs/reference/nested/b#heading)\n');
+  await f.configure([
+    { ...f.sources[0], source: 'website/content/zh/use/a.md', legacySource: 'website/content/use/a.md', locale: 'zh-CN' },
+    { ...f.sources[1], locale: 'zh-CN' },
+  ]);
+  await f.run();
+  const { docs } = await f.index();
+  assert.equal((docs[0].html.match(/href="\/zh-CN\/docs\/reference\/nested\/b#heading"/g) ?? []).length, 2);
+});

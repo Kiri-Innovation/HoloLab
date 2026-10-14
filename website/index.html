@@ -1,14 +1,25 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#181818" />
-  <meta name="description" content="HoloLab 是组织计算机视觉实验的可视化工作流工具。连接算法，运行工作流，检查结果。" />
+  <meta name="description" content="Build visual workflows for computer vision experiments with HoloLab." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="canonical" href="https://hololab.xenotech.studio/" />
-  <title>HoloLab — 视觉算法工作流</title>
+  <meta property="og:locale" content="en_US" />
+  <link rel="alternate" hreflang="en" href="https://hololab.xenotech.studio/" />
+  <link rel="alternate" hreflang="zh-CN" href="https://hololab.xenotech.studio/zh-CN/" />
+  <link rel="alternate" hreflang="x-default" href="https://hololab.xenotech.studio/" />
+  <title>Visual workflows for vision algorithms — HoloLab</title>
   <script>
+    // Only the unprefixed home negotiates language. Shared deep links are explicit.
+    if (location.pathname === '/') {
+      let preferred;
+      try { preferred = localStorage.getItem('hololab.website.locale'); } catch {}
+      if (preferred !== 'en' && preferred !== 'zh-CN') preferred = (navigator.languages?.[0] || navigator.language || '').toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
+      if (preferred === 'zh-CN') location.replace('/zh-CN/' + location.search + location.hash);
+    }
     try { const t = localStorage.getItem('hololab.website.theme'); document.documentElement.dataset.theme = t === 'light' || t === 'dark' ? t : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch { document.documentElement.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
   </script>
 </head>
