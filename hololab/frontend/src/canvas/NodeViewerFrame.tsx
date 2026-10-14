@@ -18,6 +18,7 @@ export function NodeViewerFrame({
   frames,
   historyTarget,
   running,
+  progress,
 }: {
   viewer: NodeViewerSpec;
   packName: string;
@@ -26,6 +27,7 @@ export function NodeViewerFrame({
   frames: LiveViewerFrame[];
   historyTarget?: { handle_id: string; proxy_url: string; node_id: string } | null;
   running: boolean;
+  progress?: { current: number; total: number } | null;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
@@ -101,10 +103,11 @@ export function NodeViewerFrame({
         viewer_id: viewer.id,
         frames: allFrames,
         running,
+        progress: progress ?? null,
       },
       window.location.origin,
     );
-  }, [allFrames, loaded, running, viewer.id]);
+  }, [allFrames, loaded, running, progress?.current, progress?.total, viewer.id]);
 
   if (!src) {
     return (

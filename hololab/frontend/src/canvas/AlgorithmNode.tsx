@@ -1162,6 +1162,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 : null
             }
             running={runInFlight}
+            progress={runtime?.progress ?? null}
           />
         </div>
       )}
