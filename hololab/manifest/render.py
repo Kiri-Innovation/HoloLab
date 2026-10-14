@@ -131,6 +131,7 @@ class RenderedManifest:
     idempotency_marker: str | None
     preview_paths: dict[str, str]  # preview_id → path (empty for glob-only)
     preview_globs: dict[str, str]  # preview_id → glob (empty for path-only)
+    node_viewer_live_globs: dict[str, list[str]]
     progress_status_file: str | None
 
 
@@ -160,6 +161,15 @@ def render_manifest(manifest: Manifest, ctx: RenderContext) -> RenderedManifest:
         if pv.glob:
             preview_globs[pv.id] = _render_str(pv.glob, bindings, where=f"previews[{pv.id}].glob")
 
+    node_viewer_live_globs = {
+        viewer.id: [
+            _render_str(glob, bindings, where=f"node_viewers[{viewer.id}].live_globs")
+            for glob in viewer.live_globs
+        ]
+        for viewer in manifest.node_viewers
+        if viewer.live_globs
+    }
+
     progress_status_file = None
     if manifest.progress and manifest.progress.status_file:
         progress_status_file = _render_str(
@@ -172,6 +182,7 @@ def render_manifest(manifest: Manifest, ctx: RenderContext) -> RenderedManifest:
         idempotency_marker=idempotency_marker,
         preview_paths=preview_paths,
         preview_globs=preview_globs,
+        node_viewer_live_globs=node_viewer_live_globs,
         progress_status_file=progress_status_file,
     )
 

@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import glob
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -62,6 +64,7 @@ from hololab.protocol import (
     NodeConfigGetResp,
     NodeConfigSetReq,
     NodeConfigSetResp,
+    PreviewReady,
     Register,
     RegisterErr,
     RegisterOk,
@@ -418,6 +421,8 @@ class NodeRuntime:
         ]
         for p in cfg.legacy_workspace_roots:
             argv += ["--legacy-root", str(p)]
+        for p in cfg.pack_dirs:
+            argv += ["--pack-dir", str(p)]
 
         child_env = dict(os.environ)
         for name in (
@@ -1588,6 +1593,7 @@ class NodeRuntime:
                 idempotency_marker=None,  # batched: skip the idempotency fast-path
                 preview_paths=rendered.preview_paths,
                 preview_globs=rendered.preview_globs,
+                node_viewer_live_globs=rendered.node_viewer_live_globs,
                 progress_status_file=rendered.progress_status_file,
             )
 
@@ -1657,6 +1663,62 @@ class NodeRuntime:
                 loop,
             )
 
+        async def publish_live_viewer_files() -> None:
+            """Announce completed image writes without involving the trainer.
+
+            Pack wrappers/training programs keep writing ordinary files.  The
+            runtime is the sole live-preview integration point: it waits for
+            the size to be identical on two polls before publishing a URL.
+            """
+            observed: dict[str, int] = {}
+            announced: set[str] = set()
+            while True:
+                for viewer_id, patterns in rendered.node_viewer_live_globs.items():
+                    for pattern in patterns:
+                        for raw in glob.glob(pattern):
+                            path = Path(raw)
+                            if not path.is_file() or str(path) in announced:
+                                continue
+                            try:
+                                size = path.stat().st_size
+                            except OSError:
+                                continue
+                            key = str(path)
+                            if observed.get(key) != size:
+                                observed[key] = size
+                                continue
+                            try:
+                                relative = path.resolve().relative_to(
+                                    self._config.workspace_root.resolve()
+                                )
+                            except ValueError:
+                                log.warning("live viewer file outside workspace", path=key)
+                                announced.add(key)
+                                continue
+                            match = re.search(r"iter[_]?(\\d+)", path.name)
+                            iteration = int(match.group(1)) if match else None
+                            await self._safe_send(
+                                "preview_ready",
+                                PreviewReady(
+                                    job_id=assign.job_id,
+                                    preview_id=viewer_id,
+                                    proxy_url=f"/proxy/{self._node_id}/{relative.as_posix()}",
+                                    type="image",
+                                    iteration=iteration,
+                                    node_id=self._node_id,
+                                ),
+                            )
+                            announced.add(key)
+                await asyncio.sleep(0.5)
+
+        live_viewer_task = (
+            asyncio.create_task(
+                publish_live_viewer_files(), name=f"hololab-live-viewer-{assign.job_id}"
+            )
+            if rendered.node_viewer_live_globs
+            else None
+        )
+
         # Belt-and-braces around run_subprocess: any exception here used
         # to escape _run_job silently (the task's exception was never
         # retrieved), leaving the job stuck in ``running`` forever and
@@ -1717,6 +1779,10 @@ class NodeRuntime:
             log.exception("run_subprocess raised", job_id=assign.job_id)
             exec_error = exc
         finally:
+            if live_viewer_task is not None:
+                live_viewer_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await live_viewer_task
             flush_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await flush_task

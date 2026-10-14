@@ -14,6 +14,7 @@ Invoked by :meth:`hololab.node.runtime.NodeRuntime._start_file_server` as::
         --host 127.0.0.1 --port 8829
         --workspace-root /path/to/primary
         [--legacy-root /path/to/old ...]
+        [--pack-dir /path/to/packs ...]
 
 Signal contract: parent (``NodeRuntime``) spawns us in a fresh session
 (``start_new_session=True``) so terminal SIGINT does NOT reach us
@@ -56,6 +57,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Additional read-only root (repeatable) — legacy artifacts.",
     )
     p.add_argument(
+        "--pack-dir",
+        type=Path,
+        action="append",
+        default=[],
+        help="Pack source root (repeatable); serves declared node-viewer assets.",
+    )
+    p.add_argument(
         "--log-level",
         default="warning",
         help="Uvicorn log level (default: warning).",
@@ -76,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     app = create_fileserver_app(
         workspace_root=args.workspace_root,
         legacy_workspace_roots=list(args.legacy_root),
+        pack_dirs=list(args.pack_dir),
     )
     config = uvicorn.Config(
         app,

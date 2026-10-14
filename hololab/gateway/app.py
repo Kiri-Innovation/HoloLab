@@ -117,6 +117,7 @@ from hololab.protocol import (
     NodeOffline,
     NodeOnline,
     PacksUpdated,
+    PreviewReady,
     Register,
     RegisterErr,
     RegisterOk,
@@ -2937,6 +2938,16 @@ def _mount_routes(app: FastAPI) -> None:
     async def proxy(node_id: str, path: str, request: Request) -> Any:
         return await proxy_get(node_id, path, request, app.state.registry)
 
+    @app.get("/pack-assets/{node_id}/{name}/{version}/{path:path}")
+    async def pack_asset(node_id: str, name: str, version: str, path: str, request: Request) -> Any:
+        """Proxy a pack-owned node-viewer asset from its producing node."""
+        return await proxy_get(
+            node_id,
+            f"/_pack/{name}/{version}/{path}",
+            request,
+            app.state.registry,
+        )
+
     @app.websocket("/ws/node")
     async def ws_node(ws: WebSocket) -> None:
         await ws.accept()
@@ -3524,6 +3535,23 @@ async def _dispatch_node_frame(
             return
         await store.update(new, "progress", f'{{"c":{payload.current},"t":{payload.total}}}')
         _push_job_update(hub, new)
+        return
+
+    if kind == "preview_ready":
+        assert isinstance(payload, PreviewReady)
+        job = await store.get(payload.job_id)
+        # PreviewReady is a non-terminal data-plane event.  It must belong
+        # to the node that owns the job; accepting arbitrary job ids here
+        # would let one trusted node scribble on another node's canvas.
+        if job is None or (job.node_id is not None and job.node_id != session.node_id):
+            return
+        hub.broadcast(
+            encode(
+                "preview_ready",
+                payload.model_copy(update={"node_id": session.node_id}),
+                v=session.protocol_v,
+            )
+        )
         return
 
     if kind == "job_log":

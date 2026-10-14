@@ -349,6 +349,35 @@ class PreviewSpec(BaseModel):
         return self
 
 
+class NodeViewerSpec(BaseModel):
+    """A pack-owned viewer mounted below an algorithm node.
+
+    Unlike :class:`OutputPreview`, a node viewer is not an output port and
+    therefore has no graph/wiring semantics.  ``entry`` is a file relative to
+    the pack directory; the gateway proxies it from the node file server.
+    ``live_globs`` are optional templated paths watched by the node runtime
+    while a job is running.  Every stable matching file is announced to the
+    iframe as an image update.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    title: str | None = None
+    default: bool = False
+    renderer: Literal["iframe"]
+    entry: str
+    live_globs: list[str] = Field(default_factory=list)
+
+    @field_validator("entry")
+    @classmethod
+    def _relative_entry(cls, value: str) -> str:
+        path = Path(value)
+        if path.is_absolute() or ".." in path.parts:
+            raise ValueError("node_viewers.entry must be a relative path inside the pack")
+        return value
+
+
 class ProgressSpec(BaseModel):
     """How the node parses progress from the algorithm's output."""
 
@@ -419,6 +448,7 @@ class Manifest(BaseModel):
     runtime: RuntimeSpec
     exec: ExecSpec
     idempotency: IdempotencySpec | None = None
+    node_viewers: list[NodeViewerSpec] = Field(default_factory=list)
     previews: list[PreviewSpec] = Field(default_factory=list)
     progress: ProgressSpec | None = None
 

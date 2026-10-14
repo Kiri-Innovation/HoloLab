@@ -292,10 +292,29 @@ export interface CatalogPack {
   inputs: Record<string, InputPortSpec>;
   outputs: Record<string, OutputPortSpec>;
   params: Record<string, ParamSpec>;
+  node_viewers?: NodeViewerSpec[];
   // When true, this pack's exec is data-parallel over its arrayed inputs
   // and each node instance gets an "arrayed" checkbox in the Inspector
   // (see docs/pack-spec.md#arrayed-and-arrayable).
   arrayable?: boolean;
+}
+
+export interface NodeViewerSpec {
+  id: string;
+  title?: string | null;
+  default?: boolean;
+  renderer: "iframe";
+  entry: string;
+  live_globs?: string[];
+}
+
+export interface PreviewReadyPayload {
+  job_id: string;
+  preview_id: string;
+  proxy_url: string;
+  type: string;
+  iteration?: number | null;
+  node_id?: string | null;
 }
 
 // GET /api/handles/{id}

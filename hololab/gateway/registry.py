@@ -521,6 +521,7 @@ class NodeRegistry:
                         "manifest_path": pk.manifest_path,
                         "source_dir": pk.source_dir,
                         "arrayable": False,
+                        "node_viewers": [],
                     },
                 )
                 if session.node_id not in entry["node_ids"]:
@@ -541,6 +542,9 @@ class NodeRegistry:
                         entry["docs"] = manifest.docs
                         entry["source_entry"] = manifest.source_entry
                         entry["arrayable"] = manifest.arrayable
+                        entry["node_viewers"] = [
+                            viewer.model_dump() for viewer in manifest.node_viewers
+                        ]
                         entry["inputs"] = {
                             n: {
                                 "tags": s.tags,

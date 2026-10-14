@@ -578,6 +578,8 @@ class PreviewReady(BaseModel):
     preview_id: str
     proxy_url: str
     type: str  # "image" | "video" | "text" | "ply" | "grid" | "log"
+    iteration: int | None = None
+    node_id: str | None = None
 
 
 class NodeOnline(BaseModel):

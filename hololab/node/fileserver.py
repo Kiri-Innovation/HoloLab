@@ -176,6 +176,7 @@ def create_fileserver_app(
     *,
     workspace_root: Path,
     legacy_workspace_roots: list[Path] | None = None,
+    pack_dirs: list[Path] | None = None,
 ) -> FastAPI:
     """Build a small FastAPI app that serves files under one or more roots.
 
@@ -198,6 +199,30 @@ def create_fileserver_app(
     primary = workspace_root.resolve()
     legacy = [p.resolve() for p in (legacy_workspace_roots or [])]
     all_roots: list[Path] = [primary, *legacy]
+    viewer_pack_dirs = list(pack_dirs or [])
+
+    @app.get("/_pack/{name}/{version}/{asset:path}", response_model=None)
+    async def _pack_asset(name: str, version: str, asset: str):
+        """Serve one declared pack-owned viewer asset.
+
+        This deliberately resolves the exact installed ``name@version`` pack
+        on every request. Pack watcher updates then become visible without a
+        fileserver restart, while the lexical containment check keeps a pack
+        asset request inside that pack's directory.
+        """
+        from hololab.node.packs import scan_multi_packs
+
+        pack = scan_multi_packs(viewer_pack_dirs).get((name, version))
+        if pack is None:
+            raise HTTPException(status_code=404, detail="pack not found")
+        candidate = Path(os.path.normpath(os.path.join(str(pack.pack_dir), asset)))
+        try:
+            candidate.relative_to(pack.pack_dir)
+        except ValueError as exc:
+            raise HTTPException(status_code=403, detail="path outside pack") from exc
+        if not candidate.is_file():
+            raise HTTPException(status_code=404, detail="viewer asset not found")
+        return FileResponse(candidate)
 
     def _resolve_under_any(sub: str) -> Path | None:
         """Return the first root where ``sub`` maps to an existing target.
