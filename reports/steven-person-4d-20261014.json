@@ -1,0 +1,165 @@
+{
+  "delivery": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/deliveries/steven-person-4d-20261014",
+  "frozen_model": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/deliveries/steven-person-4d-20261014/person_frozen_t050.ply",
+  "conclusion": "结论：4D 冻结使头发外缘的透明鬼影明显减少，但没有消除全部鬼影，也未得到无失真的人物。93 视角平均，自身头部轮廓软带等效宽度由 12.216 降到 6.237 px（减少 48.95%），外围透明残留积分/周长由 1.253 降到 0.670 px（减少 46.51%）；静态 30000 步分别为 11.085、1.198 px。已逐张打开正、侧、背及自由视角图：发丝状外围残影减少，但侧面手/前臂仍有叠影，手指局部变形，冻结后姿态与原图不同、顶部有裁切。原图人物 PSNR 36.72→22.95 dB、原 mask 背景 α 0.0303→0.0401，不能隐瞒；这些下降混合了姿态差异与错误重建。动态 matched-time 的 PSNR 为 38.44 dB，不能冒充冻结版指标。实验支持“运动自由度可吸收部分输入不兼容并减少透明残影”，尚不能证实生成不一致是唯一来源，也不能宣布问题已解决。",
+  "comparison": {
+    "old_static": {
+      "own_head_soft_width_px": 12.216053620289074,
+      "own_head_outer_opacity_px": 1.25279013397117,
+      "foreground_psnr": 36.718807804820926,
+      "head_psnr": 39.04522302432339,
+      "background_alpha": 0.03032326416402895,
+      "head_outer_alpha": 0.1545960382227936,
+      "head_band_soft_fraction": 0.5281054156069661,
+      "head_laplacian_variance": 0.0004480116716955328,
+      "silhouette_iou": 0.9563493011159576
+    },
+    "static30k": {
+      "own_head_soft_width_px": 11.08493663780538,
+      "own_head_outer_opacity_px": 1.1977591827550393,
+      "foreground_psnr": 37.088695106602145,
+      "head_psnr": 39.48758515100902,
+      "background_alpha": 0.026908834905473775,
+      "head_outer_alpha": 0.1468087494854004,
+      "head_band_soft_fraction": 0.5400111502337405,
+      "head_laplacian_variance": 0.00046011007823405526,
+      "silhouette_iou": 0.9578067851816658
+    },
+    "frozen_t050": {
+      "own_head_soft_width_px": 6.236576392932894,
+      "own_head_outer_opacity_px": 0.6700595095909367,
+      "foreground_psnr": 22.947878370544398,
+      "head_psnr": 24.31576516196621,
+      "background_alpha": 0.04006548541265049,
+      "head_outer_alpha": 0.22958156540589306,
+      "head_band_soft_fraction": 0.19728703366205874,
+      "head_laplacian_variance": 0.0005215359910395027,
+      "silhouette_iou": 0.917436732785963
+    },
+    "dynamic_matched": {
+      "own_head_soft_width_px": 6.224915149406144,
+      "own_head_outer_opacity_px": 0.7105918678011671,
+      "foreground_psnr": 38.44042298650522,
+      "head_psnr": 40.57256989687316,
+      "background_alpha": 0.004284195798469247,
+      "head_outer_alpha": 0.017859684426077112,
+      "head_band_soft_fraction": 0.2585342968598112,
+      "head_laplacian_variance": 0.0004747831654610984,
+      "silhouette_iou": 0.9863601326360867
+    }
+  },
+  "paired_improvement": {
+    "own_head_soft_width_px": {
+      "views_improved": 93,
+      "total": 93,
+      "mean_reduction_percent": 48.947699586265294
+    },
+    "own_head_outer_opacity_px": {
+      "views_improved": 91,
+      "total": 93,
+      "mean_reduction_percent": 46.51462432363339
+    }
+  },
+  "reconnaissance": {
+    "fastgs_commit": "b1622125610b4dfe2794ac1fc64f155cbe69c10a",
+    "implementation": "8-layer width-256 spatial/time Fourier MLP; outputs XYZ, quaternion and log-scale deltas; squared delta regularization. Opacity and SH appearance remain canonical.",
+    "available": [
+      "--dynamic native training + renderer",
+      "numeric/frame_N time map; pano face suffixes share time",
+      "optional person_bbox.ply AABB selection and normalization",
+      "paired canonical PLY + deformation checkpoint",
+      "export_static.py bakes deformation into standard PLY"
+    ],
+    "missing": [
+      "No pretrained 4D or human motion prior",
+      "No dynamic resume",
+      "No explicit temporal smoothness or multi-view simultaneous observations in this data",
+      "silhouette adapter originally rejected dynamic; removed guard because same differentiable alpha rendering supports it"
+    ],
+    "input_policy": "data_sources=original; no fixed images or repair stages executed",
+    "freeze_policy": "t=0.5 chosen before seeing outputs; same frozen PLY in all views",
+    "controls": "existing delivered cleaned static15k + newly trained static30k, same mask/BCE/resolution/densification settings",
+    "failures": [
+      {
+        "stage": "diagnostics-v1",
+        "reason": "merged COLMAP has zero valid image-point associations",
+        "log": "diagnostics.log",
+        "resolution": "record n=0, do not invent reprojection statistics; compute independent SIFT epipolar residuals"
+      },
+      {
+        "stage": "evaluate-v1",
+        "reason": "Peak frozen render tolerance 1e-4 exceeded: max 0.000307 but mean only 3.1e-8; float32 export normalization differences",
+        "log": "evaluate.log",
+        "resolution": "Retained initial metrics and validation; revised check requires peak <1/255 AND mean <1e-6. Added model-relative fringe metrics because GT masks confound pose change."
+      },
+      {
+        "stage": "video-v1",
+        "reason": "Assumed 640x640 renders, actual undistorted input 1301x1301 and resolution=2 yields 650x650; size assertion caught mismatch",
+        "log": "video.log",
+        "resolution": "Read native dimensions for video, do not crop/resize model renders; fix input diagnostic annotation scaling"
+      }
+    ]
+  },
+  "freeze_validation": {
+    "render_equivalence": [
+      {
+        "view": "frame_000000",
+        "max_abs": 0.0003044009208679199,
+        "mean_abs": 3.0980082499354467e-08
+      },
+      {
+        "view": "frame_000023",
+        "max_abs": 0.0003066211938858032,
+        "mean_abs": 1.9241113591306203e-08
+      },
+      {
+        "view": "frame_000046",
+        "max_abs": 0.00016176700592041016,
+        "mean_abs": 2.5646212264973656e-08
+      }
+    ],
+    "displacement_over_extent": {
+      "median": 0.007502858992666006,
+      "p95": 0.015992898494005203,
+      "max": 0.028974372893571854
+    },
+    "time": 0.5,
+    "regularization": 0.003252841765061021
+  },
+  "silhouette_gradient": {
+    "silhouette_loss": 0.014245964586734772,
+    "deformation_gradient_l1": 24.483487164136022,
+    "finite": true
+  },
+  "changed_repositories": [
+    "hololab"
+  ],
+  "fastgs_repository_modified": false,
+  "no_difix": true,
+  "no_service_restart": true,
+  "input_resolution": [
+    1301,
+    1301
+  ],
+  "render_resolution": [
+    650,
+    650
+  ],
+  "visual_inspection": {
+    "opened": [
+      "compare_front.png",
+      "compare_side.png",
+      "compare_back.png",
+      "input_evidence_000_004.png",
+      "compare_free_front.png",
+      "compare_free_side.png",
+      "compare_free_back.png"
+    ],
+    "observations": {
+      "front": "Frozen head outer fringe notably reduced; head shape/framing changed, top cropped, finger/hand distortion and residual fringes remain. Static30k still has streaks above/left of head.",
+      "side": "Frozen hair outline cleaner, but hand/forearm still transparent, doubled and fuzzy. Not a clean reconstruction.",
+      "back": "Frozen hair halo/doubled outer shell markedly reduced; this camera coincides with frozen t=0.5, so it is the favored observation. Front and side must also be considered."
+    },
+    "decision": "Partial reduction of visible hair ghosting; not elimination. Raw GT-mask residuals are confounded by frozen shape changes."
+  }
+}

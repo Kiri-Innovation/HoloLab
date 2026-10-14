@@ -1,6 +1,8 @@
 """FastGS adapter: masked RGB plus explicit differentiable silhouette loss.
 
 Imports the installed trainer without editing the FastGS repository.
+Static and dynamic training share native differentiable alpha; the native trainer
+adds deformation regularization and saves paired deformation checkpoints.
 """
 
 import json
@@ -33,8 +35,6 @@ if a.max_scale != 0:
     raise ValueError("Scale-capped refinement was experimental and is not supported")
 if not a.masks:
     raise ValueError("Independent masks input is mandatory")
-if a.dynamic:
-    raise ValueError("This adapter currently supports static training only")
 render_original = train.render_fastgs
 photo_original = train.photometric_loss
 state = {}
