@@ -220,6 +220,7 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
         # _dispatch_node_frame when the matching _resp arrives.
         app.state.pending_config_replies: dict[str, asyncio.Future[Any]] = {}
         app.state.pending_resource_lenses = {}
+        app.state.pending_process_terminations = {}
         app.state.resource_lens_locks = {}
         app.state.resource_lens_cache = {}
         app.state.pending_handle_checks: dict[str, asyncio.Future[Any]] = {}
@@ -444,6 +445,76 @@ def _mount_routes(app: FastAPI) -> None:
             "sample_interval_s": METRICS_SAMPLE_INTERVAL_S,
             "nodes": {nid: [metrics_to_dict(s) for s in samples] for nid, samples in raw.items()},
         }
+
+    @app.post("/api/nodes/{node_id}/resources/processes/terminate", tags=["nodes"])
+    async def terminate_gpu_process(
+        node_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        from hololab.node.process_control import local_identity
+        from hololab.protocol.messages import ProcessTerminateReq
+
+        pid, token = body.get("pid"), body.get("token")
+        if type(pid) is not int or not isinstance(token, str) or not token:
+            raise HTTPException(status_code=400, detail="pid and confirmation token are required")
+        session = app.state.registry.get_session(node_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Compute node is offline")
+        cached = app.state.resource_lens_cache.get(node_id)
+        confirmed = (
+            next(
+                (
+                    p
+                    for p in cached[2].get("processes", [])
+                    if p.get("pid") == pid and p.get("termination_token") == token
+                ),
+                None,
+            )
+            if cached and cached[0] is session
+            else None
+        )
+        if not confirmed or not confirmed.get("cmdline"):
+            raise HTTPException(status_code=409, detail="Confirmation is stale; refresh the lens")
+        req_id = str(uuid.uuid4())
+        peer = request.client.host if request.client else "unknown"
+        audit = {
+            "request_id": req_id,
+            "actor": "unauthenticated",
+            "peer_ip": peer,
+            "node_id": node_id,
+            "pid": pid,
+            "confirmed_cmdline": confirmed["cmdline"],
+        }
+        # No account identity exists on the current node-control REST surface.
+        log.warning("gpu_process_termination_requested", **audit, at=time.time())
+        lock = app.state.resource_lens_locks.setdefault(node_id, asyncio.Lock())
+        async with lock:
+            try:
+                response = await _await_node_reply(
+                    app,
+                    session,
+                    "process_terminate_req",
+                    ProcessTerminateReq(
+                        req_id=req_id, pid=pid, token=token, gateway_identity=local_identity()
+                    ),
+                    req_id,
+                    pending_key="pending_process_terminations",
+                    timeout_s=12,
+                )
+                data = response["data"]
+                log.warning("gpu_process_termination_result", **audit, at=time.time(), result=data)
+                return data
+            except HTTPException as exc:
+                log.warning(
+                    "gpu_process_termination_unconfirmed",
+                    **audit,
+                    at=time.time(),
+                    status=exc.status_code,
+                    reason=str(exc.detail),
+                )
+                raise
+            finally:
+                # A successful kill must not be followed by the old five-second snapshot.
+                app.state.resource_lens_cache.pop(node_id, None)
 
     @app.get("/api/nodes/{node_id}/resources/vram", tags=["nodes"])
     async def get_vram_lens(node_id: str) -> dict[str, Any]:
@@ -3183,7 +3254,7 @@ async def _await_node_reply(
     pending: dict[str, asyncio.Future[Any]] = getattr(app.state, pending_key)
     loop = asyncio.get_running_loop()
     fut: asyncio.Future[dict[str, Any]] = loop.create_future()
-    if pending_key == "pending_resource_lenses":
+    if pending_key in ("pending_resource_lenses", "pending_process_terminations"):
         fut.node_session = session
     pending[req_id] = fut
 
@@ -3483,8 +3554,12 @@ async def _dispatch_node_frame(
                 fut.set_result(payload.model_dump())
         return
 
-    if kind == "resource_lens_resp":
-        pending = app.state.pending_resource_lenses
+    if kind in ("resource_lens_resp", "process_terminate_resp"):
+        pending = (
+            app.state.pending_resource_lenses
+            if kind == "resource_lens_resp"
+            else app.state.pending_process_terminations
+        )
         # Bind a reply to the requesting node session, not just a request ID.
         entry = pending.get(payload.req_id)
         if entry is not None and getattr(entry, "node_session", None) is session:

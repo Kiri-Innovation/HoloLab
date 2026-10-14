@@ -763,6 +763,10 @@ class NodeRuntime:
                     fut = self._pending_locates.pop(payload.handle_id, None)
                     if fut is not None and not fut.done():
                         fut.set_result(payload)
+                elif env.kind == "process_terminate_req":
+                    task = asyncio.create_task(self._process_terminate_reply(payload))
+                    lens_tasks.add(task)
+                    task.add_done_callback(lens_tasks.discard)
                 elif env.kind == "resource_lens_req":
                     task = asyncio.create_task(self._resource_lens_reply(payload.req_id))
                     lens_tasks.add(task)
@@ -793,6 +797,17 @@ class NodeRuntime:
             heart.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await heart
+
+    async def _process_terminate_reply(self, payload: Any) -> None:
+        from hololab.node.process_control import terminate_external
+        from hololab.protocol.messages import ProcessTerminateResp
+
+        data = await asyncio.to_thread(
+            terminate_external, payload.pid, payload.token, payload.gateway_identity
+        )
+        await self._safe_send(
+            "process_terminate_resp", ProcessTerminateResp(req_id=payload.req_id, data=data)
+        )
 
     async def _resource_lens_reply(self, req_id: str) -> None:
         from hololab.node.resource_lens import ACTIVE, sample_vram

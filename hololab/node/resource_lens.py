@@ -161,6 +161,8 @@ def sample_vram(active: dict[int, tuple[int, dict[str, str]]]) -> dict[str, Any]
             )
         rows = query("gpu_uuid,pid,process_name,used_gpu_memory", "compute-apps")
         owners = dict(active)
+        from hololab.node.process_control import issue_confirmation
+
         detail_cache: dict[int, dict[str, Any]] = {}
         for row in rows:
             if len(row) != 4:
@@ -169,13 +171,20 @@ def sample_vram(active: dict[int, tuple[int, dict[str, str]]]) -> dict[str, Any]
             pid = int(raw_pid)
             if pid not in detail_cache:
                 detail_cache[pid] = process_details(pid)
+            attribution = owner(pid, owners)
+            token = (
+                issue_confirmation(pid, detail_cache[pid]["cmdline"])
+                if attribution["owner"] == "external"
+                else None
+            )
             result["processes"].append(
                 {
                     "gpu_uuid": uuid.strip(),
                     "pid": pid,
                     "name": Path(name.strip()).name,
                     "used_mb": number(memory),
-                    **owner(pid, owners),
+                    **attribution,
+                    "termination_token": token,
                     **detail_cache[pid],
                 }
             )

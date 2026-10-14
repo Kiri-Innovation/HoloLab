@@ -625,3 +625,15 @@ class ResourceLensReq(BaseModel):
 class ResourceLensResp(BaseModel):
     req_id: str
     data: dict[str, Any]
+
+
+class ProcessTerminateReq(BaseModel):
+    req_id: str
+    pid: int = Field(strict=True)
+    token: str
+    gateway_identity: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProcessTerminateResp(BaseModel):
+    req_id: str
+    data: dict[str, Any]

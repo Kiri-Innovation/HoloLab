@@ -21,3 +21,13 @@
 .hl-process-details dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); gap: 6px 12px; margin: 0; font-size: var(--fs-xs); }
 .hl-process-details dt { color: var(--text-muted); }
 .hl-process-details dd { margin: 0; overflow-wrap: anywhere; }
+
+.lens-process-actions { display: flex; align-items: start; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.hl-resource-lens .lens-danger, .hl-terminate-dialog .lens-danger { background: var(--error); color: var(--surface); border: 1px solid var(--error); font-weight: 600; }
+.hl-terminate-dialog { box-sizing: border-box; width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text); font: var(--fs-sm) var(--font-sans); }
+.hl-terminate-dialog::backdrop { background: #0009; }
+.hl-terminate-dialog h3 { margin-top: 0; }
+.hl-terminate-command { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: var(--surface-2); border: 1px solid var(--border); font: var(--fs-xs) var(--font-mono); }
+.hl-terminate-dialog footer { display: flex; justify-content: flex-end; gap: 12px; }
+.hl-terminate-dialog button { padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); cursor: pointer; }
+.hl-terminate-dialog button:disabled { opacity: .5; cursor: default; }
