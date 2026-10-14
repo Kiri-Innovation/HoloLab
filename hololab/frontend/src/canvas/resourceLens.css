@@ -31,3 +31,11 @@
 .hl-terminate-dialog footer { display: flex; justify-content: flex-end; gap: 12px; }
 .hl-terminate-dialog button { padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); cursor: pointer; }
 .hl-terminate-dialog button:disabled { opacity: .5; cursor: default; }
+
+.hl-resource-lens .lens-kebab { width: 26px; height: 26px; padding: 0; flex: 0 0 26px; background: transparent; border-color: transparent; font-size: 20px; line-height: 1; }
+.hl-resource-lens .lens-kebab:hover, .hl-resource-lens .lens-kebab[aria-expanded="true"] { background: var(--surface-hover); }
+.hl-process-menu { position: fixed; z-index: 10000; width: 160px; box-sizing: border-box; padding: 4px; background: var(--bg-elevated, var(--surface-2)); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: 0 12px 32px #0005; color: var(--text); }
+.hl-process-menu button { display: block; width: 100%; padding: 8px 12px; text-align: left; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: var(--fs-sm) var(--font-sans); cursor: pointer; }
+.hl-process-menu button:hover, .hl-process-menu button:focus-visible { background: var(--surface-hover); }
+.hl-process-menu button.process-menu-danger { color: var(--error); }
+.hl-process-menu button:disabled { opacity: .5; cursor: default; }

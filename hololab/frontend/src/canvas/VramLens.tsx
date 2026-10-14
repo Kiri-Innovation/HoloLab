@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { GpuMetricSample } from "../wire";
 import { cancelJob } from "../api";
 import { TerminateProcessDialog } from "./TerminateProcessDialog";
+import { ProcessMenu } from "./ProcessMenu";
 import { JobLogModal } from "./JobLogModal";
 import "./resourceLens.css";
 
@@ -71,7 +72,7 @@ export function VramLens({ nodeId, latest, onBack }: {
         <div>{p.owner === "job" && p.job_id ? <button className="lens-job" onClick={() => setJobId(p.job_id!)}>{p.job_name ?? p.job_id}</button> : <strong>{p.name}</strong>}
           <div className="lens-muted">{p.owner === "job" ? "HoloLab Job" : p.owner === "external" ? "External · 非 HoloLab" : "Ownership unknown · 归属未知"} · PID {p.pid}</div>
         </div><div className="lens-process-actions"><span>{gib(p.used_mb)} GiB</span>
-          {p.owner === "external" && <button className="lens-danger" disabled={!p.cmdline || !p.termination_token || loading} title={!p.cmdline || !p.termination_token ? "Refresh to obtain a verifiable process snapshot" : undefined} onClick={() => setTerminating(p)}>结束进程…</button>}
+          {p.owner === "external" && <ProcessMenu process={{...p, nodeId, sampledAt: data.ts}} canTerminate={!!p.cmdline && !!p.termination_token && !loading} onTerminate={() => setTerminating(p)} onMessage={setActionMessage} />}
           {p.owner === "job" && p.job_id && <button disabled={stoppingJob != null} onClick={() => void stopJob(p.job_id!)}>停止任务</button>}
         </div></div>
         <details className="hl-process-details">

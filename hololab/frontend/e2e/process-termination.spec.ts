@@ -20,7 +20,7 @@ test('external confirmation, cancel, success refresh, themes and job cancel',asy
       if(reject) return route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({detail:'Process changed since confirmation; refresh the lens'})});
       terminated=true;body=evidence?.result ?? {status:'terminated'};
     }else if(path.endsWith('/resources/vram'))body=terminated ? after : before;
-    else if(path==='/api/nodes')body=[{node_id:'node-a',node_name:'Temporary GPU test · recorded real sample',gpu:{count:1,name:before.gpus[0].name,total_vram_gb:24},packs:[],connected_ts:0,advertised_url:null,workspace_root:null,legacy_workspace_roots:[],flops_executor_id:null,packs_dir:null}];
+    else if(path==='/api/nodes')body=[{node_id:'node-a',node_name:evidence ? 'Temporary GPU test · recorded real sample' : 'Resource lens · test fixture',gpu:{count:1,name:before.gpus[0].name,total_vram_gb:24},packs:[],connected_ts:0,advertised_url:null,workspace_root:null,legacy_workspace_roots:[],flops_executor_id:null,packs_dir:null}];
     else if(path==='/api/nodes/metrics/history')body={sample_interval_s:3,nodes:{'node-a':[{ts:1,cpu_percent:0,mem_used_gb:1,mem_total_gb:64,gpus:before.gpus}]}};
     else if(path==='/api/workflows/lens-test')body={workflow_id:'lens-test',name:'Resource lens test',graph:{nodes:[],edges:[]},created_ts:1,updated_ts:1};
     else if(path.endsWith('/cancel')){cancels++;body={};}
@@ -31,20 +31,46 @@ test('external confirmation, cancel, success refresh, themes and job cancel',asy
   await page.goto('/w/lens-test');
   await page.getByRole('button',{name:'Open VRAM resource lens'}).click();
   const lens=page.getByRole('region',{name:'VRAM resource lens'});
-  await lens.getByRole('button',{name:'结束进程…',exact:true}).click();
+  await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+  const openMenu=()=>lens.getByRole('button',{name:`进程菜单 · PID ${targetProcess.pid}`,exact:true}).click();
+  await openMenu();
+  for(const theme of ['light','dark']){
+    await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+    await page.waitForTimeout(300); // Let theme color transitions settle before capturing.
+    await page.screenshot({path:`test-results/process-menu-${theme}.png`});
+  }
+  await page.getByRole('menuitem',{name:'复制 PID',exact:true}).click();
+  expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(String(targetProcess.pid));
+  await expect(lens).toContainText('已复制 PID');
+  await openMenu();
+  await page.getByRole('menuitem',{name:'复制引用',exact:true}).click();
+  await expect(lens).toContainText('已复制引用');
+  const copied=await page.evaluate(()=>navigator.clipboard.readText());
+  expect(copied).toContain(`${targetProcess.name} (PID ${targetProcess.pid})`);
+  expect(copied).toContain('Compute node: node-a');
+  expect(copied).toContain('/w/lens-test');
+  console.log('clipboard reference:',copied);
+  await openMenu();await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);await expect(lens).toBeVisible();
+
+  await lens.getByRole('button',{name:`进程菜单 · PID ${targetProcess.pid}`,exact:true}).click();
+  await page.getByRole('menuitem',{name:'结束进程',exact:true}).click();
   const dialog=page.getByRole('dialog');
   await expect(dialog.locator('pre')).toHaveText(targetProcess.cmdline);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);await expect(lens).toBeVisible();expect(posts).toBe(0);
-  await lens.getByRole('button',{name:'结束进程…',exact:true}).click();
+  await lens.getByRole('button',{name:`进程菜单 · PID ${targetProcess.pid}`,exact:true}).click();
+  await page.getByRole('menuitem',{name:'结束进程',exact:true}).click();
   await dialog.getByRole('button',{name:'结束进程',exact:true}).click();
   await expect(dialog.getByRole('alert')).toContainText('Process changed');
   await expect(dialog.getByRole('button',{name:'结束进程',exact:true})).toBeDisabled();
   await dialog.getByRole('button',{name:'Close',exact:true}).click();
   reject=false;
-  await lens.getByRole('button',{name:'结束进程…',exact:true}).click();
+  await lens.getByRole('button',{name:`进程菜单 · PID ${targetProcess.pid}`,exact:true}).click();
+  await page.getByRole('menuitem',{name:'结束进程',exact:true}).click();
   for(const theme of ['light','dark']){
     await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+    await page.waitForTimeout(300);
     await dialog.screenshot({path:`test-results/terminate-confirm-${theme}.png`});
   }
   await dialog.evaluate(el=>(el as HTMLElement).style.width='358px');
