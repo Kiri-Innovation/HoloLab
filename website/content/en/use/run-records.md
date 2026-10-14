@@ -38,6 +38,11 @@ To answer “which parameters did reconstruction use?”, look at its **Job**, n
 
 Its output directory is an **Artifact**. An artifact reference, or **Handle**, records its ID, device, path, output port, and producing Job. Downstream tasks use input references to access it; the files remain on the execution device. A registered directory may contain many files, so the artifact count is neither a file count nor a fixed number per node.
 
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/preview-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/preview-light.webp" alt="The actual point-cloud preview from colmap-triangulate in the STG pipeline. Frame names and artifact references are hidden; no source imagery is shown. Some product labels remain in Chinese." width="844" height="1236" loading="lazy" decoding="async" /></picture>
+<figcaption>The actual point-cloud preview from colmap-triangulate in the STG pipeline. Frame names and artifact references are hidden; no source imagery is shown. Some product labels remain in Chinese.</figcaption>
+</figure>
+
 ## Rerun only the last step
 
 If you only change export parameters, you probably do not want to repeat frame extraction and reconstruction. Reusing their results and rerunning export can create R2, linked to the old J1 and J2 plus a new export Job J4. J4 produces A4; R1 still links to the original J1, J2, and J3.
@@ -84,6 +89,16 @@ Start with your question; you do not need to memorize the IDs.
 | What was produced, and does it still exist? | Workflow list → **Artifacts** → find the artifact | Source algorithm, output port, and file path; check whether the files exist |
 | Can I see the result directly? | Canvas → a node’s artifact preview | Previews for supported types; no viewer does not mean no files were generated |
 
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/runs-jobs-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/runs-jobs-light.webp" alt="Cropped Run history and Recent jobs panels for STG, shown side by side. The current task panel was empty at capture time; historical runs were available. Timestamps and record IDs are hidden." width="1054" height="714" loading="lazy" decoding="async" /></picture>
+<figcaption>Cropped Run history and Recent jobs panels for STG, shown side by side. The current task panel was empty at capture time; historical runs were available. Timestamps and record IDs are hidden.</figcaption>
+</figure>
+
 **Current limitation:** filtering artifacts by Run still uses the producing Job’s original run record. It may omit artifacts from Jobs inherited from an earlier Run. Clear the Run filter and check the source algorithm and file path, or open the original Run. An empty filtered view does not prove the files are gone.
+
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/artifacts-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/artifacts-light.webp" alt="Artifacts filtered to the STG workflow. Actual paths, timestamps, and the workflow name are hidden." width="3200" height="1140" loading="lazy" decoding="async" /></picture>
+<figcaption>Artifacts filtered to the STG workflow. Actual paths, timestamps, and the workflow name are hidden.</figcaption>
+</figure>
 
 Previews depend on the artifact type and viewer. Progress depends on the Pack reporting parseable updates. For previews, file locations, and cleanup, see [View results](results.md).

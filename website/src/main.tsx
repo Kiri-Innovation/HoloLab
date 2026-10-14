@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import content from './content/docs/index.json';
 import './styles/site.css';
 import './styles/i18n.css';
+import './styles/screenshots.css';
 import { locale, localeKey, localize, t, label } from './i18n';
 
 type Theme = 'light' | 'dark' | 'system';
@@ -78,6 +79,19 @@ function Footer() {
   return <footer className="footer"><a className="brand" href={localize('/')}>HoloLab</a><span>{t('footer')}</span><a href={localize('/docs')}>{t('docs')} ↗</a></footer>;
 }
 function Documentation() {
+  useEffect(() => {
+    // Follow the site's resolved theme, including a manual override of the OS theme.
+    const syncPictures = () => {
+      const dark = document.documentElement.dataset.theme === 'dark';
+      document.querySelectorAll<HTMLSourceElement>('.doc-screenshot picture source').forEach(source => {
+        source.media = dark ? '(min-width: 0px)' : 'not all';
+      });
+    };
+    syncPictures();
+    const observer = new MutationObserver(syncPictures);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
   const siblings = docs.filter(d => d.section === current?.section);
   const index = siblings.findIndex(d => d.slug === current?.slug);
   return <div className="docs-layout"><aside className="sidebar"><DocNav /></aside><main id="main" className="document"><details className="mobile-nav"><summary>{t('browse')}</summary><DocNav /></details>{current ? <><div className="breadcrumb"><a href={section?.href}>{section?.title}</a><span>/</span>{current.group}</div>{current.contentLanguage !== locale && <p className="reference-note">{t('englishNotice')}</p>}{current.slug === 'reference/artifacts' && <p className="reference-note">{t('futureNotice')}</p>}<article lang={current.contentLanguage} className="prose" dangerouslySetInnerHTML={{ __html: current.html }} /><nav className="page-turn" aria-label={t('pageTurn')}>{siblings[index-1] ? <a href={siblings[index-1].href}><small>{t('previous')}</small>← {siblings[index-1].title}</a> : <span/>}{siblings[index+1] && <a href={siblings[index+1].href}><small>{t('next')}</small>{siblings[index+1].title} →</a>}</nav></> : <DocsIndex />}</main><aside className="toc" aria-label={t('tocLabel')}>{current && <><span>{t('toc')}</span>{current.headings.filter(h => h.depth === 2).map(h => <a key={h.id} href={`#${h.id}`}>{h.title}</a>)}</>}</aside><div className="docs-footer"><Footer /></div></div>;

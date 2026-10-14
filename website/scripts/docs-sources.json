@@ -30,7 +30,8 @@
     "group": "快速开始",
     "order": 10,
     "locale": "en",
-    "contentLanguage": "en"
+    "contentLanguage": "en",
+    "screenshots": true
   },
   {
     "source": "website/content/zh/use/quick-start.md",
@@ -41,7 +42,8 @@
     "order": 10,
     "locale": "zh-CN",
     "contentLanguage": "zh-CN",
-    "legacySource": "website/content/use/quick-start.md"
+    "legacySource": "website/content/use/quick-start.md",
+    "screenshots": true
   },
   {
     "source": "website/content/en/use/workflows.md",
@@ -51,7 +53,8 @@
     "group": "快速开始",
     "order": 20,
     "locale": "en",
-    "contentLanguage": "en"
+    "contentLanguage": "en",
+    "screenshots": true
   },
   {
     "source": "website/content/zh/use/workflows.md",
@@ -62,7 +65,8 @@
     "order": 20,
     "locale": "zh-CN",
     "contentLanguage": "zh-CN",
-    "legacySource": "website/content/use/workflows.md"
+    "legacySource": "website/content/use/workflows.md",
+    "screenshots": true
   },
   {
     "source": "website/content/en/use/results.md",
@@ -94,7 +98,8 @@
     "order": 35,
     "diagrams": true,
     "locale": "en",
-    "contentLanguage": "en"
+    "contentLanguage": "en",
+    "screenshots": true
   },
   {
     "source": "website/content/zh/use/run-records.md",
@@ -106,7 +111,8 @@
     "diagrams": true,
     "locale": "zh-CN",
     "contentLanguage": "zh-CN",
-    "legacySource": "website/content/use/run-records.md"
+    "legacySource": "website/content/use/run-records.md",
+    "screenshots": true
   },
   {
     "source": "website/content/en/use/troubleshooting.md",

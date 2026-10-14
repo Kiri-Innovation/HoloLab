@@ -1,0 +1,146 @@
+[
+  {
+    "file": "gallery-light.webp",
+    "width": 1800,
+    "height": 600,
+    "bytes": 10338,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "canvas-light.webp",
+    "width": 3200,
+    "height": 2100,
+    "bytes": 106580,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "ports-light.webp",
+    "width": 1470,
+    "height": 380,
+    "bytes": 12722,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "run-light.webp",
+    "width": 726,
+    "height": 104,
+    "bytes": 3562,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "artifacts-light.webp",
+    "width": 3200,
+    "height": 1140,
+    "bytes": 53020,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "preview-light.webp",
+    "width": 844,
+    "height": 1236,
+    "bytes": 51282,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "panels-light.webp",
+    "width": 1294,
+    "height": 664,
+    "bytes": 16384,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "add-node-light.webp",
+    "width": 1400,
+    "height": 664,
+    "bytes": 17988,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "runs-jobs-light.webp",
+    "width": 1054,
+    "height": 714,
+    "bytes": 18738,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "gallery-dark.webp",
+    "width": 1800,
+    "height": 600,
+    "bytes": 9670,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "canvas-dark.webp",
+    "width": 3200,
+    "height": 2100,
+    "bytes": 96476,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "ports-dark.webp",
+    "width": 1470,
+    "height": 380,
+    "bytes": 11798,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "run-dark.webp",
+    "width": 726,
+    "height": 104,
+    "bytes": 3258,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "artifacts-dark.webp",
+    "width": 3200,
+    "height": 1140,
+    "bytes": 47626,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "preview-dark.webp",
+    "width": 844,
+    "height": 1236,
+    "bytes": 48732,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "panels-dark.webp",
+    "width": 1294,
+    "height": 664,
+    "bytes": 14626,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "add-node-dark.webp",
+    "width": 1400,
+    "height": 664,
+    "bytes": 16200,
+    "quality": 86,
+    "captureScale": 2
+  },
+  {
+    "file": "runs-jobs-dark.webp",
+    "width": 1054,
+    "height": 714,
+    "bytes": 17372,
+    "quality": 86,
+    "captureScale": 2
+  }
+]

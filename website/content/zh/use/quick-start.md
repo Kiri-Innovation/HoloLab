@@ -50,6 +50,11 @@ cd ../..
 
 打开后首先看到工作流列表。点击已有工作流即可进入，也可以点击 **+ New workflow**；列表为空时还有 **+ Create your first workflow** 入口。新建后会打开空画布，地址变为同一主机和端口下的 `/w/<workflow_id>`，可以收藏这个页面，下次直接回到该工作流。
 
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/gallery-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/gallery-light.webp" alt="工作流列表，仅保留 classic STG 示例；名称、更新时间和其他工作流已隐藏。" width="1800" height="600" loading="lazy" decoding="async" /></picture>
+<figcaption>工作流列表，仅保留 classic STG 示例；名称、更新时间和其他工作流已隐藏。</figcaption>
+</figure>
+
 在桌面布局中，先认识这几个入口：
 
 - **画布区**：中央区域放置节点和连线，用来组织工作流的步骤与连接。
@@ -57,9 +62,19 @@ cd ../..
 - **运行与状态**：顶部的 **Run** 用来启动工作流；**Recent jobs** 显示任务状态并提供日志入口，右侧的 **Runs** 可以回看运行记录。
 - **产物**：展开节点预览可查看受支持的输出；要查找产物清单，回到工作流列表，打开 **Artifacts**（`/artifacts`）。
 
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/canvas-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/canvas-light.webp" alt="classic STG 画布全貌：左侧 Packs、中央节点图、右侧设备与运行记录、底部任务面板。原始影像预览及标识已隐藏。" width="3200" height="2100" loading="lazy" decoding="async" /></picture>
+<figcaption>classic STG 画布全貌：左侧 Packs、中央节点图、右侧设备与运行记录、底部任务面板。原始影像预览及标识已隐藏。</figcaption>
+</figure>
+
 ## 先确认设备和 Pack
 
 进入工作流后，在 **Compute nodes** 面板确认计算设备在线。**Packs** 列表来自计算节点扫描到的 manifest；看得到 Pack 不代表它所需的算法环境已安装。
+
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/panels-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/panels-light.webp" alt="Packs 与 Compute nodes 的局部截图并列：算法入口与设备状态；设备名称、ID 和路径已隐藏。" width="1294" height="664" loading="lazy" decoding="async" /></picture>
+<figcaption>Packs 与 Compute nodes 的局部截图并列：算法入口与设备状态；设备名称、ID 和路径已隐藏。</figcaption>
+</figure>
 
 计算节点的配置默认在 `~/.hololab/node/config.yaml`。例如，一个 Pack 声明使用 `research` 环境时，需要在设备上配置对应的实际路径：
 

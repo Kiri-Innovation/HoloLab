@@ -1,0 +1,5 @@
+/* Real, reviewed product captures. Both languages share the same assets. */
+.prose .doc-screenshot { margin: 28px 0; }
+.doc-screenshot picture { display: block; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface); }
+.doc-screenshot img { display: block; width: 100%; height: auto; max-width: 100%; }
+.prose .doc-screenshot figcaption { margin-top: 8px; color: var(--text-muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }

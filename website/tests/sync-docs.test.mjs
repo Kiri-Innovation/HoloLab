@@ -164,3 +164,24 @@ test('moved Chinese sources keep legacy relative links and localize absolute doc
   const { docs } = await f.index();
   assert.equal((docs[0].html.match(/href="\/zh-CN\/docs\/reference\/nested\/b#heading"/g) ?? []).length, 2);
 });
+
+test('reviewed screenshot pictures retain theme sources and reject remote or missing assets', async t => {
+  const f = await fixture(t);
+  await mkdir(path.join(f.root, 'website/content/en/use'), { recursive: true });
+  await mkdir(path.join(f.root, 'website/public/images/docs'), { recursive: true });
+  for (const theme of ['light', 'dark']) await f.write(`website/public/images/docs/canvas-${theme}.webp`, 'fixture');
+  const entry = { ...f.sources[0], source: 'website/content/en/use/a.md', screenshots: true };
+  await f.configure([entry]);
+  const markup = '<figure class="doc-screenshot"><picture><source srcset="/images/docs/canvas-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp"><img src="/images/docs/canvas-light.webp" alt="Canvas" width="1600" height="1000" onerror="alert(1)"></picture><figcaption>Actual UI</figcaption></figure>';
+  await f.write(entry.source, '# A\n\n' + markup);
+  await f.run();
+  let html = (await f.index()).docs[0].html;
+  assert.match(html, /<picture>/); assert.match(html, /srcset="\/images\/docs\/canvas-dark.webp"/);
+  assert.match(html, /class="doc-screenshot"/); assert.doesNotMatch(html, /onerror/);
+  await f.write(entry.source, '# A\n\n' + markup.replace('/images/docs/canvas-light.webp', 'https://example.org/image.webp'));
+  await assert.rejects(f.run(), /reviewed local WebP/);
+  await f.write(entry.source, '# A\n\n' + markup.replace('canvas-light.webp', 'missing-light.webp'));
+  await assert.rejects(f.run(), /ENOENT/);
+  await f.configure([{ ...entry, source: 'docs/a.md' }]);
+  await assert.rejects(f.run(), /website-owned/);
+});

@@ -15,6 +15,11 @@ Start with a Pack whose environment and data are already available on a compute 
 
 If the list is empty, check that the device is online and that **Pack sources** in its settings includes the manifest location. Search only filters Packs that have been discovered; it does not download or install algorithms.
 
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/add-node-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/add-node-light.webp" alt="The frame-extraction Pack and its existing node in the STG workflow, shown as paired crops. No node was added. Some product labels remain in Chinese." width="1400" height="664" loading="lazy" decoding="async" /></picture>
+<figcaption>The frame-extraction Pack and its existing node in the STG workflow, shown as paired crops. No node was added. Some product labels remain in Chinese.</figcaption>
+</figure>
+
 ## Set parameters and choose a device
 
 Select an algorithm node. Edit its **Parameters** in the inspector and choose a device that provides the Pack under **Compute node**. Execution checks device assignments, so replace `unassigned` before running.
@@ -29,9 +34,19 @@ Checks cover more than type names: array depth and applicable axis-name rules al
 
 Connect all required inputs and keep the graph free of cycles. Consult the algorithm for input semantics and parameter constraints.
 
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/ports-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/ports-light.webp" alt="Ports and the existing connection between the video source and frame-extraction nodes in the STG pipeline. The connection was not edited." width="1470" height="380" loading="lazy" decoding="async" /></picture>
+<figcaption>Ports and the existing connection between the video source and frame-extraction nodes in the STG pipeline. The connection was not edited.</figcaption>
+</figure>
+
 ## Wait for the save, then run
 
 Canvas edits save automatically; the top bar shows the save state. Wait for **Saved**, then click **Run** at the upper right. If saving fails, click **Save failed · Retry**. Resolve any warning about another page modifying the workflow before running.
+
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/run-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/run-light.webp" alt="A crop of the top execution toolbar. The Run button was not clicked." width="726" height="104" loading="lazy" decoding="async" /></picture>
+<figcaption>A crop of the top execution toolbar. The Run button was not clicked.</figcaption>
+</figure>
 
 HoloLab validates Packs, devices, required inputs, and links before execution. If **Cannot run** appears, address the errors shown for the affected nodes or links.
 

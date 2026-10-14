@@ -50,6 +50,11 @@ After starting the services with the command above, open [http://127.0.0.1:8828]
 
 The first screen is the workflow gallery. Click an existing workflow to open it, or choose **+ New workflow**; an empty gallery also offers **+ Create your first workflow**. Creating one opens an empty canvas at `/w/<workflow_id>` on the same host and port. You can bookmark that page to return to the workflow.
 
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/gallery-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/gallery-light.webp" alt="Workflow gallery with only the classic STG entry retained. Names, timestamps, and other workflows are hidden. Some labels in the product UI remain in Chinese." width="1800" height="600" loading="lazy" decoding="async" /></picture>
+<figcaption>Workflow gallery with only the classic STG entry retained. Names, timestamps, and other workflows are hidden. Some labels in the product UI remain in Chinese.</figcaption>
+</figure>
+
 On a desktop, these are the main places to look:
 
 - **Canvas:** the central area holds your nodes and links—the steps and connections that make up the workflow.
@@ -57,9 +62,19 @@ On a desktop, these are the main places to look:
 - **Execution:** **Run** in the top bar starts the workflow. **Recent jobs** shows task status and provides logs; **Runs** in the right sidebar lets you revisit run records.
 - **Results:** expand a node's preview to inspect supported outputs. For the artifact inventory, return to the workflow gallery and open **Artifacts** (`/artifacts`).
 
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/canvas-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/canvas-light.webp" alt="The classic STG workspace: Packs on the left, the graph in the center, devices and run history on the right, and the task panel below. Source image previews and identifiers are hidden." width="3200" height="2100" loading="lazy" decoding="async" /></picture>
+<figcaption>The classic STG workspace: Packs on the left, the graph in the center, devices and run history on the right, and the task panel below. Source image previews and identifiers are hidden.</figcaption>
+</figure>
+
 ## Check the device and its Packs
 
 Open a workflow and check that your device is online in **Compute nodes**. The **Packs** panel lists algorithms found in the compute node's manifests. A listed Pack does not mean its algorithm environment is installed.
+
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/panels-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/panels-light.webp" alt="Cropped Packs and Compute nodes panels shown side by side: algorithm access and device status. Device names, IDs, and paths are hidden." width="1294" height="664" loading="lazy" decoding="async" /></picture>
+<figcaption>Cropped Packs and Compute nodes panels shown side by side: algorithm access and device status. Device names, IDs, and paths are hidden.</figcaption>
+</figure>
 
 The compute node configuration defaults to `~/.hololab/node/config.yaml`. If a Pack declares an environment named `research`, map that name to the environment's actual path on the device:
 

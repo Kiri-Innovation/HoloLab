@@ -38,6 +38,11 @@ order: 35
 
 输出目录则是**产物（Artifact）**。系统用一个产物引用 **Handle** 记录它的编号、所在设备、路径、输出端口和生产它的 Job；下游任务通过输入引用使用它，实际文件仍在执行设备上。一个登记的目录可以包含很多文件，所以产物数量不等于文件数量，也不固定等于节点数量。
 
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/preview-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/preview-light.webp" alt="STG 链中 colmap-triangulate 的真实点云预览；帧名与产物引用已隐藏，未展示原始影像。" width="844" height="1236" loading="lazy" decoding="async" /></picture>
+<figcaption>STG 链中 colmap-triangulate 的真实点云预览；帧名与产物引用已隐藏，未展示原始影像。</figcaption>
+</figure>
+
 ## 只重跑最后一步
 
 如果你只想调整导出参数，通常不想把抽帧和重建再跑一次。沿用前两步结果、重新执行最后一步时，可以产生新运行记录 R2：它关联旧的 J1、J2，以及新的导出任务 J4；J4 产出新目录 A4，R1 仍关联原来的 J1、J2、J3。
@@ -84,6 +89,16 @@ order: 35
 | 输出是什么、还在不在 | 工作流列表页 → **Artifacts** → 查找产物 | 来源算法、输出端口与文件路径；可检查文件是否存在 |
 | 想直接看结果 | 画布 → 节点的产物预览 | 受支持类型的预览；没有预览器不代表没生成文件 |
 
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/runs-jobs-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/runs-jobs-light.webp" alt="STG 的 Run history 与 Recent jobs 局部截图并列。采集时当前任务面板为空，历史记录仍可见；时间与记录标识已隐藏。" width="1054" height="714" loading="lazy" decoding="async" /></picture>
+<figcaption>STG 的 Run history 与 Recent jobs 局部截图并列。采集时当前任务面板为空，历史记录仍可见；时间与记录标识已隐藏。</figcaption>
+</figure>
+
 **当前限制**：按 Run 筛选产物时，筛选依据仍是生产 Job 首次所属的运行记录，因此可能漏掉从旧 Run 继承的 Job 产物。找不到时，可以取消 Run 筛选，按来源算法和文件路径核对，或回看原来的 Run；不要仅凭筛选结果判断文件已经丢失。
+
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/artifacts-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/artifacts-light.webp" alt="Artifacts 页已筛选到 STG 工作流；实际路径、时间和工作流名称已隐藏。" width="3200" height="1140" loading="lazy" decoding="async" /></picture>
+<figcaption>Artifacts 页已筛选到 STG 工作流；实际路径、时间和工作流名称已隐藏。</figcaption>
+</figure>
 
 预览取决于产物类型和预览器；进度取决于 Pack 是否上报可解析的信息。预览、文件位置与清理操作继续看[查看结果](results.md)。
