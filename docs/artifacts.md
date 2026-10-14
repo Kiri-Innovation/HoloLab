@@ -1,6 +1,6 @@
 ---
-title: 产物与工作空间
-group: 数据与存储
+title: Artifacts and workspaces
+group: Data and storage
 order: 10
 ---
 # Artifacts and workspace layout
