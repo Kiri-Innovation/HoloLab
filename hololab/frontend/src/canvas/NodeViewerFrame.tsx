@@ -29,6 +29,7 @@ export function NodeViewerFrame({
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
+  const [assetError, setAssetError] = useState<string | null>(null);
   const [historyFrames, setHistoryFrames] = useState<LiveViewerFrame[]>([]);
   const nodeId = (frames.length ? frames[frames.length - 1].node_id : null)
     ?? historyTarget?.node_id
@@ -36,6 +37,22 @@ export function NodeViewerFrame({
   const src = nodeId
     ? `/pack-assets/${encodeURIComponent(nodeId)}/${encodeURIComponent(packName)}/${encodeURIComponent(packVersion)}/${viewer.entry.split("/").map(encodeURIComponent).join("/")}`
     : null;
+
+  useEffect(() => {
+    if (!src) return;
+    const controller = new AbortController();
+    setLoaded(false);
+    setAssetError(null);
+    void fetch(src, { signal: controller.signal, cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setAssetError(`viewer 资源不可用（${String(error instanceof Error ? error.message : error)}）`);
+      });
+    return () => controller.abort();
+  }, [src]);
 
   useEffect(() => {
     if (!historyTarget) {
@@ -95,6 +112,9 @@ export function NodeViewerFrame({
         {running ? "等待训练节点分配…" : "尚未运行"}
       </div>
     );
+  }
+  if (assetError) {
+    return <div style={{ padding: 12, color: "var(--status-failed)", fontSize: 11 }}>{assetError}</div>;
   }
   return (
     <iframe
