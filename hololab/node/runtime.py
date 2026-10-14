@@ -1696,7 +1696,7 @@ class NodeRuntime:
                                 log.warning("live viewer file outside workspace", path=key)
                                 announced.add(announcement_key)
                                 continue
-                            match = re.search(r"iter[_]?(\\d+)", path.name)
+                            match = re.search(r"iter[_]?(\d+)", path.name)
                             iteration = int(match.group(1)) if match else None
                             await self._safe_send(
                                 "preview_ready",
