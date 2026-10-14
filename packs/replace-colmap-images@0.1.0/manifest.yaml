@@ -1,0 +1,36 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: replace-colmap-images
+version: 0.1.0
+description: replace colmap images
+source_entry: run.py
+category: refinement
+arrayable: false
+inputs:
+  colmap:
+    tags:
+    - colmap-folder
+  images:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - frame
+outputs:
+  folder:
+    tags:
+    - colmap-folder
+params: {}
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 4
+    mem_gb: 12
+exec:
+  shell: 'set -euo pipefail
+
+    python "{{ pack_dir }}/run.py" --colmap "{{ inputs.colmap }}" --images "{{ inputs.images
+    }}" --output "{{ outputs.folder }}"'

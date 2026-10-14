@@ -1,0 +1,40 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: refinement-compare
+version: 0.1.0
+description: refinement compare
+source_entry: run.py
+category: refinement
+arrayable: false
+inputs:
+  before: &id001
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - frame
+  after: *id001
+  fixed: *id001
+  references: *id001
+  masks:
+    tags:
+    - mask-dir
+outputs:
+  report:
+    tags:
+    - text
+params: {}
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 4
+    mem_gb: 12
+exec:
+  shell: 'set -euo pipefail
+
+    python "{{ pack_dir }}/run.py" --before "{{ inputs.before }}" --after "{{ inputs.after
+    }}" --fixed "{{ inputs.fixed }}" --references "{{ inputs.references }}" --masks
+    "{{ inputs.masks }}" --output "{{ outputs.report }}"'
