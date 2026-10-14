@@ -26,6 +26,8 @@ _KIND_REGISTRY: dict[str, type[BaseModel]] = {
     "register_err": messages.RegisterErr,
     "heartbeat": messages.Heartbeat,
     "node_metrics": messages.NodeMetrics,
+    "resource_lens_req": messages.ResourceLensReq,
+    "resource_lens_resp": messages.ResourceLensResp,
     "packs_updated": messages.PacksUpdated,
     "job_assign": messages.JobAssign,
     "job_ack": messages.JobAck,

@@ -5,7 +5,7 @@
 //
 // Data flow: App.tsx owns ``metricsByNode`` (seeded from the gateway's
 // /api/nodes/metrics/history and topped up via WS ``node_metrics``
-// frames). This component is a pure render of that map crossed with
+// frames). Cards render that map crossed with
 // the currently-online ``ComputeNode`` list — nodes that appeared in
 // the history buffer but aren't currently connected surface as
 // offline cards with their last known reading.
@@ -15,7 +15,8 @@
 // colours resolve to CSS variables so both themes work without a
 // second stylesheet.
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { VramLens, type ResourceMetric } from "./VramLens";
 import type { ComputeNode, GpuMetricSample, NodeMetrics } from "../wire";
 
 // Cap on retained samples per node. Mirrors ``DEFAULT_BUFFER_SIZE`` in
@@ -45,6 +46,26 @@ interface NodeCardModel {
 }
 
 export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps) {
+  const [lens, setLens] = useState<{ nodeId: string; metric: ResourceMetric } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previousScroll = useRef({ top: 0, left: 0 });
+  const triggerRef = useRef<string | null>(null);
+  const openLens = (nodeId: string, _trigger: HTMLElement) => {
+    previousScroll.current = { top: panelRef.current?.scrollTop ?? 0, left: panelRef.current?.scrollLeft ?? 0 };
+    triggerRef.current = nodeId;
+    setLens({ nodeId, metric: "vram" });
+  };
+  const closeLens = useCallback(() => setLens(null), []);
+  useLayoutEffect(() => {
+    if (panelRef.current) {
+      panelRef.current.scrollTop = lens ? 0 : previousScroll.current.top;
+      panelRef.current.scrollLeft = lens ? 0 : previousScroll.current.left;
+    }
+    if (!lens) {
+      const card = [...(panelRef.current?.querySelectorAll<HTMLElement>("[data-pulse-node]") ?? [])].find(el => el.dataset.pulseNode === triggerRef.current);
+      card?.querySelector<HTMLElement>(".hl-metric-action")?.focus({ preventScroll: true });
+    }
+  }, [lens]);
   const cards = useMemo<NodeCardModel[]>(() => {
     const online = new Map<string, ComputeNode>(nodes.map((n) => [n.node_id, n]));
     const historyIds = Object.keys(metricsByNode);
@@ -87,6 +108,7 @@ export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps
 
   return (
     <div
+      ref={panelRef}
       className="hl-node-metrics"
       style={{
         padding: "14px 18px 20px",
@@ -125,16 +147,21 @@ export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps
         <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
           No compute nodes connected yet.
         </div>
+      ) : lens ? (
+        <div className="hl-pulse-lens-layout">
+          {cards.filter(c => c.node_id === lens.nodeId).map(c => <NodeCard key={c.node_id} card={c} onVram={() => {}} active />)}
+          <VramLens key={lens.nodeId} nodeId={lens.nodeId} latest={cards.find(c => c.node_id === lens.nodeId)?.latest?.gpus?.[0] ?? null} onBack={closeLens} />
+        </div>
       ) : (
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
             gap: 12,
           }}
         >
           {cards.map((c) => (
-            <NodeCard key={c.node_id} card={c} />
+            <NodeCard key={c.node_id} card={c} onVram={el => openLens(c.node_id, el)} />
           ))}
         </div>
       )}
@@ -151,7 +178,7 @@ const CARD_STYLE: CSSProperties = {
   background: "var(--surface-2)",
 };
 
-function NodeCard({ card }: { card: NodeCardModel }) {
+function NodeCard({ card, onVram, active = false }: { card: NodeCardModel; onVram: (el: HTMLElement) => void; active?: boolean }) {
   const { history, latest, online } = card;
 
   // For multi-GPU rigs we sparkline the first GPU (index 0) — most
@@ -175,6 +202,7 @@ function NodeCard({ card }: { card: NodeCardModel }) {
 
   return (
     <div
+      data-pulse-node={card.node_id}
       style={{
         ...CARD_STYLE,
         opacity: online ? 1 : 0.62,
@@ -287,6 +315,8 @@ function NodeCard({ card }: { card: NodeCardModel }) {
       />
       <MetricRow
         label="VRAM"
+        onActivate={onVram}
+        active={active}
         value={formatPercent(vramPercent)}
         subtitle={
           gpuLatest?.mem_used_mb != null && gpuLatest.mem_total_mb != null
@@ -302,15 +332,24 @@ function NodeCard({ card }: { card: NodeCardModel }) {
 // -- metric row -------------------------------------------------------------
 
 interface MetricRowProps {
+  onActivate?: (el: HTMLElement) => void;
+  active?: boolean;
   label: string;
   value: string;
   subtitle: string | null;
   series: (number | null)[];
 }
 
-function MetricRow({ label, value, subtitle, series }: MetricRowProps) {
+function MetricRow({ label, value, subtitle, series, onActivate, active }: MetricRowProps) {
   return (
     <div
+      role={onActivate ? "button" : undefined}
+      tabIndex={onActivate ? 0 : undefined}
+      aria-label={onActivate ? "Open VRAM resource lens" : undefined}
+      aria-pressed={onActivate ? active : undefined}
+      className={onActivate ? "hl-metric-action" : undefined}
+      onClick={onActivate ? e => onActivate(e.currentTarget) : undefined}
+      onKeyDown={onActivate ? e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onActivate(e.currentTarget); } } : undefined}
       style={{
         display: "grid",
         gridTemplateColumns: "40px 82px 1fr",

@@ -88,6 +88,7 @@ class ExecPlan:
     progress_regex: str | None = None
     cached_env: dict[str, str] | None = None
     cpu_mask: str | None = None
+    resource_job: dict[str, str] | None = None
 
 
 @dataclass
@@ -167,6 +168,8 @@ async def run_subprocess(
         start_new_session=(sys.platform != "win32"),
     )
 
+    from hololab.node.resource_lens import ACTIVE, register
+
     progress_re = re.compile(plan.progress_regex) if plan.progress_regex else None
     stdout_tail: deque[str] = deque(maxlen=_TAIL_KEEP)
     stderr_tail: deque[str] = deque(maxlen=_TAIL_KEEP)
@@ -197,6 +200,8 @@ async def run_subprocess(
     cancel_task = asyncio.create_task(cancel_event.wait())
 
     cancelled = False
+    if plan.resource_job:
+        register(proc.pid, plan.resource_job)
     try:
         wait_task = asyncio.create_task(proc.wait())
         done, _pending = await asyncio.wait(
@@ -213,8 +218,12 @@ async def run_subprocess(
             with contextlib.suppress(asyncio.CancelledError):
                 await cancel_task
     finally:
-        await stdout_task
-        await stderr_task
+        try:
+            await stdout_task
+            await stderr_task
+        finally:
+            if plan.resource_job:
+                ACTIVE.pop(proc.pid, None)
 
     return ExecResult(
         exit_code=proc.returncode if proc.returncode is not None else -1,

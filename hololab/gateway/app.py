@@ -219,6 +219,9 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
         # Populated when the gateway sends a request frame, drained by
         # _dispatch_node_frame when the matching _resp arrives.
         app.state.pending_config_replies: dict[str, asyncio.Future[Any]] = {}
+        app.state.pending_resource_lenses = {}
+        app.state.resource_lens_locks = {}
+        app.state.resource_lens_cache = {}
         app.state.pending_handle_checks: dict[str, asyncio.Future[Any]] = {}
         app.state.pending_artifact_deletes: dict[str, asyncio.Future[Any]] = {}
 
@@ -441,6 +444,33 @@ def _mount_routes(app: FastAPI) -> None:
             "sample_interval_s": METRICS_SAMPLE_INTERVAL_S,
             "nodes": {nid: [metrics_to_dict(s) for s in samples] for nid, samples in raw.items()},
         }
+
+    @app.get("/api/nodes/{node_id}/resources/vram", tags=["nodes"])
+    async def get_vram_lens(node_id: str) -> dict[str, Any]:
+        from hololab.protocol.messages import ResourceLensReq
+
+        session = app.state.registry.get_session(node_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Compute node is offline")
+        # Coalesce concurrent viewers and bound repeated sampling to once per 5s.
+        lock = app.state.resource_lens_locks.setdefault(node_id, asyncio.Lock())
+        async with lock:
+            cached = app.state.resource_lens_cache.get(node_id)
+            if cached and cached[0] is session and time.monotonic() - cached[1] < 5:
+                return cached[2]
+            req_id = str(uuid.uuid4())
+            response = await _await_node_reply(
+                app,
+                session,
+                "resource_lens_req",
+                ResourceLensReq(req_id=req_id),
+                req_id,
+                pending_key="pending_resource_lenses",
+                timeout_s=6,
+            )
+            data = {"node_id": node_id, **response["data"]}
+            app.state.resource_lens_cache[node_id] = (session, time.monotonic(), data)
+            return data
 
     @app.get(
         "/api/nodes/{node_id}/config",
@@ -3153,6 +3183,8 @@ async def _await_node_reply(
     pending: dict[str, asyncio.Future[Any]] = getattr(app.state, pending_key)
     loop = asyncio.get_running_loop()
     fut: asyncio.Future[dict[str, Any]] = loop.create_future()
+    if pending_key == "pending_resource_lenses":
+        fut.node_session = session
     pending[req_id] = fut
 
     frame = encode(frame_kind, frame_payload, v=session.protocol_v)
@@ -3168,6 +3200,8 @@ async def _await_node_reply(
     except asyncio.TimeoutError as exc:
         pending.pop(req_id, None)
         raise HTTPException(status_code=504, detail="node did not reply in time") from exc
+    finally:
+        pending.pop(req_id, None)
 
 
 # Backwards-compat shim — ``_await_config_reply`` still exists because
@@ -3447,6 +3481,16 @@ async def _dispatch_node_frame(
             fut = pending.pop(payload.req_id, None)
             if fut is not None and not fut.done():
                 fut.set_result(payload.model_dump())
+        return
+
+    if kind == "resource_lens_resp":
+        pending = app.state.pending_resource_lenses
+        # Bind a reply to the requesting node session, not just a request ID.
+        entry = pending.get(payload.req_id)
+        if entry is not None and getattr(entry, "node_session", None) is session:
+            pending.pop(payload.req_id, None)
+            if not entry.done():
+                entry.set_result(payload.model_dump())
         return
 
     if kind == "handle_check_resp":

@@ -616,3 +616,12 @@ class WorkflowUpdated(BaseModel):
     name: str
     updated_ts: float
     origin: str | None = None
+
+
+class ResourceLensReq(BaseModel):
+    req_id: str
+
+
+class ResourceLensResp(BaseModel):
+    req_id: str
+    data: dict[str, Any]

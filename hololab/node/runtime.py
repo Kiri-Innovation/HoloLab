@@ -739,6 +739,7 @@ class NodeRuntime:
     async def _session_loop(self) -> None:
         """Heartbeat + incoming frame dispatch, in parallel."""
 
+        lens_tasks: set[asyncio.Task] = set()
         heart = asyncio.create_task(self._heartbeat_loop(), name="hololab-node-heartbeat")
         try:
             assert self._ws is not None
@@ -762,6 +763,10 @@ class NodeRuntime:
                     fut = self._pending_locates.pop(payload.handle_id, None)
                     if fut is not None and not fut.done():
                         fut.set_result(payload)
+                elif env.kind == "resource_lens_req":
+                    task = asyncio.create_task(self._resource_lens_reply(payload.req_id))
+                    lens_tasks.add(task)
+                    task.add_done_callback(lens_tasks.discard)
                 elif env.kind == "node_config_get_req":
                     assert isinstance(payload, NodeConfigGetReq)
                     await self._handle_config_get_req(payload)
@@ -782,9 +787,19 @@ class NodeRuntime:
             # locate that fires between disconnect and reconnect would
             # try to send on the dead WS and burn an attempt.
             self._ws_ready.clear()
+            for task in lens_tasks:
+                task.cancel()
+            await asyncio.gather(*lens_tasks, return_exceptions=True)
             heart.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await heart
+
+    async def _resource_lens_reply(self, req_id: str) -> None:
+        from hololab.node.resource_lens import ACTIVE, sample_vram
+        from hololab.protocol.messages import ResourceLensResp
+
+        data = await asyncio.to_thread(sample_vram, ACTIVE)
+        await self._safe_send("resource_lens_resp", ResourceLensResp(req_id=req_id, data=data))
 
     async def _heartbeat_loop(self) -> None:
         while True:
@@ -1748,6 +1763,10 @@ class NodeRuntime:
                             cached_env=self._env_cache.get(env_prefix),
                             cpu_mask=cpu_mask,
                         )
+                        plan.resource_job = {
+                            "job_id": assign.job_id,
+                            "job_name": assign.algorithm_name,
+                        }
                         result = await run_subprocess(
                             plan,
                             on_log=on_log,
@@ -1770,6 +1789,7 @@ class NodeRuntime:
                     cached_env=self._env_cache.get(env_prefix),
                     cpu_mask=None,
                 )
+                plan.resource_job = {"job_id": assign.job_id, "job_name": assign.algorithm_name}
                 result = await run_subprocess(
                     plan,
                     on_log=on_log,
