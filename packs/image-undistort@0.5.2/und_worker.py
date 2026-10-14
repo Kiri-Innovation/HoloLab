@@ -46,15 +46,18 @@ def stage_images(source_dir: Path, scratch_input: Path) -> list[Path]:
     if scratch_input.exists():
         shutil.rmtree(scratch_input)
     scratch_input.mkdir(parents=True)
-    if any(p.is_file() and not p.name.startswith(".") for p in source_dir.iterdir()):
-        walk_root = source_dir
+    if source_dir.is_file():
+        sources = [source_dir]
+    elif any(p.is_file() and not p.name.startswith(".") for p in source_dir.iterdir()):
+        sources = sorted(source_dir.iterdir())
     else:
         walk_root = source_dir / "frames"
         if not walk_root.is_dir():
             raise SystemExit(f"no image files at {source_dir} or its frames/ subdir")
+        sources = sorted(walk_root.iterdir())
 
     staged: list[Path] = []
-    for src in sorted(walk_root.iterdir()):
+    for src in sources:
         if not (src.is_file() or src.is_symlink()):
             continue
         real = src.resolve()
@@ -259,6 +262,35 @@ def compute_new_pinhole(cam: dict, blank_pixels: int = 0) -> dict:
 
     new_W = round(2 * half_x * fx)
     new_H = round(2 * half_y * fy)
+    if blank_pixels == 0:
+        # Border inversion uses COLMAP's half-pixel convention, whereas
+        # _build_grid samples integer pixel coordinates. Rounding and strong
+        # tangential distortion can leave a thin invalid edge. Check the
+        # actual forward map and shrink only the offending output axes.
+        while new_W > 1 and new_H > 1:
+            us = np.arange(new_W, dtype=np.float64)
+            vs = np.arange(new_H, dtype=np.float64)
+            u = np.concatenate((us, us, np.zeros(new_H), np.full(new_H, new_W - 1)))
+            v = np.concatenate((np.zeros(new_W), np.full(new_W, new_H - 1), vs, vs))
+            x, y = (u - new_W / 2) / fx, (v - new_H / 2) / fy
+            r2 = x * x + y * y
+            radial = 1 + cam["k1"] * r2 + cam["k2"] * r2 * r2
+            sx = (
+                fx * (x * radial + 2 * cam["p1"] * x * y + cam["p2"] * (r2 + 2 * x * x)) + cam["cx"]
+            )
+            sy = (
+                fy * (y * radial + cam["p1"] * (r2 + 2 * y * y) + 2 * cam["p2"] * x * y) + cam["cy"]
+            )
+            if not (np.isfinite(sx).all() and np.isfinite(sy).all()):
+                raise SystemExit("non-finite undistortion border")
+            crop_x = sx.min() < 0.001 or sx.max() > W - 1.001
+            crop_y = sy.min() < 0.001 or sy.max() > H - 1.001
+            if not (crop_x or crop_y):
+                break
+            new_W -= 2 * int(crop_x)
+            new_H -= 2 * int(crop_y)
+        else:
+            raise SystemExit("camera has no valid centered undistortion crop")
     return dict(W=new_W, H=new_H, fx=fx, fy=fy, cx=new_W / 2.0, cy=new_H / 2.0)
 
 
@@ -457,8 +489,8 @@ def process_shard(
     png_compress = int(request["png_compress"])
     dtype = str(request["dtype"])
 
-    if not images.is_dir():
-        log_fn(f"ERROR: images handle is not a directory: {images}", file=sys.stderr)
+    if not (images.is_dir() or images.is_file()):
+        log_fn(f"ERROR: images handle is not a file or directory: {images}", file=sys.stderr)
         return 2
     if blank_pixels not in (0, 1):
         log_fn(
@@ -479,9 +511,9 @@ def process_shard(
 
     staged = stage_images(images, scratch_input)
     rewritten, rewrites, absent_sfm_keys = stage_sparse_prior(cams, scratch_prior, staged)
-    if len(rewritten) < 2:
+    if not rewritten:
         raise SystemExit(
-            f"need at least 2 staged images with SfM poses to undistort; got {len(rewritten)}"
+            f"need at least 1 staged image with an SfM pose to undistort; got {len(rewritten)}"
         )
     staged = [f for f in staged if f.name in {row[9] for row, _obs in rewritten}]
 

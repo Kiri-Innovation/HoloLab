@@ -75,11 +75,13 @@ inputs:
     arrayed: true
     storage: dir
     dim_labels: [cam]
+    require_axis_label_match: false  # Accept flat monocular frame sequences as image sets.
     required: false
     description: >
       Optional per-frame images. Aggregate handle is
       ``arrayed<image>[frame]``; each shard's element dir holds the
-      cam-side image files inline. Wire for Mode B.
+      cam-side image files inline. A single image file or a flat monocular
+      sequence (arrayed mode disabled) is also accepted. Wire for Mode B.
 
 outputs:
   folder:

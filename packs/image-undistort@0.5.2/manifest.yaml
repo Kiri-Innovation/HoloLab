@@ -17,6 +17,10 @@ category: "reconstruction/colmap"
 docs: |
   ### v0.5.2 — incomplete groups are valid shards
 
+  Single-image files and flat monocular image sets are also accepted. For
+  ``blank_pixels=0``, the derived crop is checked against the forward
+  sampling border and tightened to avoid rounding/tangential black edges.
+
   The output is the intersection of staged group images and SfM pose rows.
   Missing cameras are reported in stdout and ``undistortion_meta.json`` in
   the ``cams`` output; remaining cameras are undistorted normally.
@@ -174,18 +178,20 @@ inputs:
     tags: [colmap-cams]
     scalar: true
     description: >
-      SfM ``colmap-cams`` bundle (cameras.txt OPENCV + images.txt with
-      21 poses referencing camera_id=1). Broadcast to every shard.
-      Must be a single-camera / OPENCV rig.
+      SfM ``colmap-cams`` bundle (cameras.txt + images.txt poses).
+      Broadcast to every shard. Supports OPENCV and SIMPLE_RADIAL,
+      with one or multiple intrinsics.
   images:
     tags: [image]
     arrayed: true
     storage: dir
     dim_labels: [cam]
+    require_axis_label_match: false  # Accept flat monocular frame sequences as image sets.
     description: >
       Per-frame image directory. Fan-out driver — one shard per element.
       Element dir must contain the per-cam image files inline (regroup
-      @0.2.0's ``content_dims=1`` layout).
+      @0.2.0's ``content_dims=1`` layout). Also accepts a single image
+      file or a flat monocular sequence with arrayed mode disabled.
 
 params:
   blank_pixels:

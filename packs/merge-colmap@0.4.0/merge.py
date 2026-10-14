@@ -106,6 +106,8 @@ def _staged_files(images_root: Path) -> list[Path]:
       element's files are pooled — sufficient for a single-frame merge
       because NAMEs still resolve unambiguously by cam key.
     """
+    if images_root.is_file():
+        return [images_root]
     direct = sorted(p for p in images_root.iterdir() if p.is_file() and not p.name.startswith("."))
     if direct:
         return direct
@@ -189,8 +191,10 @@ def main() -> int:
         # Mode A: publish images.txt verbatim.
         shutil.copyfile(src_imgs_txt, sparse0 / "images.txt")
     else:
-        if not args.images.is_dir():
-            print(f"ERROR: --images root is not a directory: {args.images}", file=sys.stderr)
+        if not (args.images.is_dir() or args.images.is_file()):
+            print(
+                f"ERROR: --images root is not a file or directory: {args.images}", file=sys.stderr
+            )
             return 2
         mode = "B"
         images_out = args.out / "images"
