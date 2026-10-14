@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 export interface TerminateTarget { pid: number; name: string; cmdline?: string | null; termination_token?: string | null; used_mb: number | null; }
-export function TerminateProcessDialog({ nodeId, target, onClose, onSuccess }: {
-  nodeId: string; target: TerminateTarget; onClose: () => void; onSuccess: (message: string) => void;
+export function TerminateProcessDialog({ nodeId, target, usageLabel, onClose, onSuccess }: {
+  usageLabel?: string; nodeId: string; target: TerminateTarget; onClose: () => void; onSuccess: (message: string) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
@@ -29,7 +29,7 @@ export function TerminateProcessDialog({ nodeId, target, onClose, onSuccess }: {
   };
   return createPortal(<dialog ref={dialog} className="hl-terminate-dialog" aria-labelledby="terminate-title" aria-describedby="terminate-warning" onCancel={e => {e.preventDefault(); if (!busy) onClose();}}>
     <h3 id="terminate-title">结束进程 · Terminate process</h3>
-    <p>External · 非 HoloLab · PID {target.pid} · {target.used_mb == null ? "—" : (target.used_mb / 1024).toFixed(1)} GiB</p>
+    <p>External · 非 HoloLab · PID {target.pid} · {usageLabel ?? (target.used_mb == null ? "—" : `${(target.used_mb / 1024).toFixed(1)} GiB`)}</p>
     <p id="terminate-warning">This stops the process. SIGTERM is sent first; after 3 seconds, SIGKILL is used if it is still running.</p>
     <pre className="hl-terminate-command">{target.cmdline ?? "Command line unavailable — refresh the lens before confirming."}</pre>
     {error && <p role="alert">{error}</p>}

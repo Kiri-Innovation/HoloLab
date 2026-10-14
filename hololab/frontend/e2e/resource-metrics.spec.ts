@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 const live=process.env.HOLOLAB_RESOURCE_SAMPLES ? JSON.parse(readFileSync(process.env.HOLOLAB_RESOURCE_SAMPLES,'utf8')) : null;
 const gpu={index:0,uuid:'gpu-a',name:'GPU',mem_used_mb:400,mem_total_mb:24576,util_percent:10};
 const samples=live ?? Object.fromEntries(['cpu','mem','gpu','vram'].map(metric=>[metric,{metric,ts:1,error:null,gpus:[gpu],total_percent:40,total_used_mb:1024,total_capacity_mb:4096,sample_window_s:.3,processes:[{pid:12345,name:'python',gpu_uuid:'gpu-a',used_mb:400,usage_percent:10,owner:'external',cmdline:'python test.py',termination_token:'t'}]}]));
-test('four metric lenses, read-only host menus, return focus and narrow layout',async({page})=>{
+test('four metric lenses, host process menus, return focus and narrow layout',async({page})=>{
   page.on('pageerror',e=>{throw e;});
   await page.routeWebSocket('**',ws=>ws.close());
   const calls:string[]=[];
@@ -29,10 +29,24 @@ test('four metric lenses, read-only host menus, return focus and narrow layout',
     await expect(lens.locator('.hl-resource-process-entry')).toHaveCount(samples[metric].processes.length);
     if(metric==='cpu'||metric==='mem'){
       await lens.getByRole('button',{name:/进程菜单/}).first().click();
-      await expect(page.getByRole('menuitem',{name:'结束进程',exact:true})).toHaveCount(0);
+      await expect(page.getByRole('menuitem',{name:'结束进程',exact:true})).toBeVisible();
       await expect(page.getByRole('menuitem',{name:'复制 PID'})).toBeVisible();
+      for(const theme of ['light','dark']) {
+        await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+        await page.waitForTimeout(300);
+        await page.screenshot({path:`test-results/host-${metric}-menu-${theme}.png`});
+      }
       await page.keyboard.press('Escape');
       await expect(lens).toBeVisible();
+      const blocked=samples[metric].processes.find((p:any)=>p.termination_reason);
+      if(blocked){
+        await lens.getByRole('button',{name:`进程菜单 · PID ${blocked.pid}`,exact:true}).click();
+        await expect(page.getByRole('menuitem',{name:'结束进程',exact:true})).toBeDisabled();
+        await expect(page.getByRole('menu')).toContainText(blocked.termination_reason);
+        await page.screenshot({path:`test-results/host-${metric}-protected.png`});
+        await page.keyboard.press('Escape');
+      }
+      await lens.locator('header').scrollIntoViewIfNeeded();
     }
     for(const theme of ['light','dark']){
       await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);

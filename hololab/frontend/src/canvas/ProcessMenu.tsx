@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { writeToClipboard } from "./referenceAction";
 import { copyProcessReference, type ProcessReference } from "./processReference";
 
-export function ProcessMenu({ process, allowTerminate = true, canTerminate, onTerminate, onMessage }: {
-  process: ProcessReference; allowTerminate?: boolean; canTerminate: boolean; onTerminate: () => void; onMessage: (text: string) => void;
+export function ProcessMenu({ process, allowTerminate = true, terminationReason, canTerminate, onTerminate, onMessage }: {
+  process: ProcessReference; allowTerminate?: boolean; terminationReason?: string | null; canTerminate: boolean; onTerminate: () => void; onMessage: (text: string) => void;
 }) {
   const [position, setPosition] = useState<{left: number; top: number} | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -36,10 +36,11 @@ export function ProcessMenu({ process, allowTerminate = true, canTerminate, onTe
     <button ref={trigger} className="lens-kebab" aria-label={`进程菜单 · PID ${process.pid}`} aria-haspopup="menu" aria-expanded={!!position} aria-controls={position ? id : undefined} onClick={() => {
       if (position) { close(); return; }
       const rect = trigger.current!.getBoundingClientRect();
-      setPosition({ left: Math.max(8, Math.min(rect.right - 160, window.innerWidth - 168)), top: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 132)) });
+      setPosition({ left: Math.max(8, Math.min(rect.right - 160, window.innerWidth - 168)), top: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - (terminationReason ? 220 : 132))) });
     }}>⋮</button>
     {position && createPortal(<div ref={menu} id={id} role="menu" aria-label={`进程操作 · PID ${process.pid}`} className="hl-process-menu" style={{left:position.left, top:position.top}}>
-      {allowTerminate && <button role="menuitem" className="process-menu-danger" disabled={!canTerminate} onClick={() => { close(); onTerminate(); }}>结束进程</button>}
+      {allowTerminate && <button role="menuitem" className="process-menu-danger" disabled={!canTerminate} title={terminationReason ?? undefined} aria-describedby={terminationReason ? `${id}-reason` : undefined} onClick={() => { close(); onTerminate(); }}>结束进程</button>}
+      {terminationReason && <p id={`${id}-reason`} className="lens-muted" style={{padding:"0 8px", overflowWrap:"anywhere"}}>{terminationReason}</p>}
       <button role="menuitem" onClick={async () => { close(); onMessage(await writeToClipboard(String(process.pid)) ? "已复制 PID" : "复制 PID 失败，请重试"); }}>复制 PID</button>
       <button role="menuitem" onClick={async () => { close(); onMessage((await copyProcessReference(process)).message); }}>复制引用</button>
     </div>, document.body)}

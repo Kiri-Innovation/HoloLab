@@ -161,7 +161,7 @@ def sample_vram(active: dict[int, tuple[int, dict[str, str]]]) -> dict[str, Any]
             )
         rows = query("gpu_uuid,pid,process_name,used_gpu_memory", "compute-apps")
         owners = dict(active)
-        from hololab.node.process_control import issue_confirmation
+        from hololab.node.process_control import termination_offer
 
         detail_cache: dict[int, dict[str, Any]] = {}
         for row in rows:
@@ -172,11 +172,6 @@ def sample_vram(active: dict[int, tuple[int, dict[str, str]]]) -> dict[str, Any]
             if pid not in detail_cache:
                 detail_cache[pid] = process_details(pid)
             attribution = owner(pid, owners)
-            token = (
-                issue_confirmation(pid, detail_cache[pid]["cmdline"])
-                if attribution["owner"] == "external"
-                else None
-            )
             result["processes"].append(
                 {
                     "gpu_uuid": uuid.strip(),
@@ -184,7 +179,7 @@ def sample_vram(active: dict[int, tuple[int, dict[str, str]]]) -> dict[str, Any]
                     "name": Path(name.strip()).name,
                     "used_mb": number(memory),
                     **attribution,
-                    "termination_token": token,
+                    **termination_offer(pid, detail_cache[pid]["cmdline"], attribution, "vram"),
                     **detail_cache[pid],
                 }
             )
@@ -228,6 +223,8 @@ def cpu_delta(first: dict[str, Any], second: dict[str, Any], total_ticks: int) -
 
 
 def sample_host(metric: str, active: dict[int, tuple[int, dict[str, str]]]) -> dict[str, Any]:
+    from hololab.node.process_control import termination_offer
+
     result: dict[str, Any] = {
         "metric": metric,
         "ts": time.time(),
@@ -284,7 +281,7 @@ def sample_host(metric: str, active: dict[int, tuple[int, dict[str, str]]]) -> d
                     field: p[field],
                     **attribution,
                     **details,
-                    "termination_token": None,
+                    **termination_offer(pid, details.get("cmdline"), attribution, metric),
                 }
             )
     except (OSError, ValueError, IndexError) as exc:

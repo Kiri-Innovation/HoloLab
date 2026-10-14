@@ -1,4 +1,4 @@
-"""Confirmed, narrowly scoped termination of external GPU processes."""
+"""Confirmed, narrowly scoped termination of external resource-lens processes."""
 
 from __future__ import annotations
 
@@ -16,8 +16,81 @@ from typing import Any
 
 from hololab.node import resource_lens as lens
 
-_CONFIRMATIONS: dict[str, tuple[int, int, str, float]] = {}
+_CONFIRMATIONS: dict[str, tuple[int, int, str, float, str]] = {}
 _LOCK = threading.Lock()
+
+
+# Exact executable / comm / argv[0] names. Prefixes below are explicit families,
+# not regexes. Do not block every child of systemd/sshd (that would block users).
+SYSTEM_PROCESS_NAMES = frozenset(
+    {
+        "init",
+        "tini",
+        "kthreadd",
+        "systemd",
+        "systemd-journald",
+        "systemd-logind",
+        "systemd-udevd",
+        "systemd-networkd",
+        "systemd-resolved",
+        "sshd",
+        "docker",
+        "dockerd",
+        "containerd",
+        "containerd-shim",
+        "nginx",
+        "flops-core",
+    }
+)
+SYSTEM_PROCESS_PREFIXES = ("flops-headless", "containerd-shim-")
+
+
+def critical_name(name: str) -> bool:
+    return name in SYSTEM_PROCESS_NAMES or any(name.startswith(p) for p in SYSTEM_PROCESS_PREFIXES)
+
+
+def system_process_reason(pid: int, proc_root: Path = Path("/proc")) -> str | None:
+    if pid <= 300:
+        return "系统关键进程，禁止终止：system PID (≤ 300)"  # noqa: RUF001
+    proc = proc_root / str(pid)
+    tail = (proc / "stat").read_text().rsplit(")", 1)[1].split()
+    argv = (proc / "cmdline").read_bytes().split(b"\0")
+    if int(tail[6]) & 0x00200000:  # Linux PF_KTHREAD; display brackets are not authoritative.
+        return "系统关键进程，禁止终止：内核线程"  # noqa: RUF001
+    names = {
+        (proc / "comm").read_text().strip(),
+        Path(os.readlink(proc / "exe")).name,
+        Path(argv[0].decode(errors="replace")).name,
+    }
+    for name in sorted(names):
+        if critical_name(name):
+            return f"系统关键进程，禁止终止：{name}"  # noqa: RUF001
+    if not argv[0]:
+        return "无法读取完整命令行，禁止终止"  # noqa: RUF001
+    return None
+
+
+def termination_offer(
+    pid: int, cmdline: str | None, attribution: dict[str, Any], metric: str
+) -> dict[str, Any]:
+    reason = None
+    token = None
+    try:
+        if attribution.get("owner") == "job":
+            reason = "HoloLab 任务，请使用停止任务"  # noqa: RUF001
+        elif attribution.get("owner") != "external":
+            reason = "归属无法核实，禁止终止"  # noqa: RUF001
+        else:
+            reason = system_process_reason(pid)
+            if not reason and protected_process(pid, {}):
+                reason = "HoloLab 进程树，禁止终止"  # noqa: RUF001
+            if not reason:
+                token = issue_confirmation(pid, cmdline, metric)
+                if not token:
+                    reason = "进程信息已变化或命令行不可读，请刷新"  # noqa: RUF001
+    except (OSError, ValueError, IndexError):
+        reason = "进程信息不可读或进程已退出，禁止终止"  # noqa: RUF001
+    return {"termination_token": token, "termination_reason": reason}
 
 
 def _pidfd_syscall(number: int, *args: int) -> int:
@@ -44,8 +117,8 @@ def send_pidfd(fd: int, sig: int) -> None:
         _pidfd_syscall(424, fd, sig, 0, 0)
 
 
-def issue_confirmation(pid: int, cmdline: str | None) -> str | None:
-    if pid <= 300 or not cmdline:
+def issue_confirmation(pid: int, cmdline: str | None, metric: str = "vram") -> str | None:
+    if pid <= 300 or not cmdline or metric not in ("vram", "gpu", "cpu", "mem"):
         return None
     try:
         born = lens.process_identity(pid)[1]
@@ -61,7 +134,7 @@ def issue_confirmation(pid: int, cmdline: str | None) -> str | None:
         if len(_CONFIRMATIONS) >= 1024:
             _CONFIRMATIONS.pop(next(iter(_CONFIRMATIONS)))
         token = secrets.token_urlsafe(24)
-        _CONFIRMATIONS[token] = (pid, born, cmdline, now + 300)
+        _CONFIRMATIONS[token] = (pid, born, cmdline, now + 300, metric)
     return token
 
 
@@ -137,6 +210,9 @@ def terminate_external(
             return refuse("Refused: HoloLab Job process; use Stop task")
         if protected_process(pid, gateway or {}):
             return refuse("Refused: HoloLab process tree")
+        reason = system_process_reason(pid)
+        if reason:
+            return refuse(reason)
         if attribution["owner"] != "external":
             return refuse("Refused: process ownership cannot be verified")
         with _LOCK:
@@ -152,9 +228,17 @@ def terminate_external(
                 return refuse("Process no longer exists")
             if lens.process_identity(pid)[1] != confirmed[1] or read_cmdline(pid) != confirmed[2]:
                 return refuse("Process changed since confirmation; refresh the lens")
-            rows = lens.query("gpu_uuid,pid,process_name,used_gpu_memory", "compute-apps")
-            if not any(len(row) == 4 and row[1].strip() == str(pid) for row in rows):
-                return refuse("Refused: PID is not in the current GPU process list")
+            metric = confirmed[4]
+            if metric in ("gpu", "vram"):
+                rows = lens.query("gpu_uuid,pid,process_name,used_gpu_memory", "compute-apps")
+                if not any(len(row) == 4 and row[1].strip() == str(pid) for row in rows):
+                    return refuse("Refused: PID is not in the current GPU process list")
+            elif metric in ("cpu", "mem"):
+                current = lens.read_host_processes().get(pid)
+                if not current or current["born"] != confirmed[1]:
+                    return refuse("Refused: PID is no longer in the current host process list")
+            else:
+                return refuse("Refused: invalid confirmation scope")
             # Recheck after the driver query; use pidfd, never a recycled numeric PID.
             if lens.owner(pid, dict(lens.ACTIVE))["owner"] != "external" or protected_process(
                 pid, gateway or {}
@@ -162,10 +246,22 @@ def terminate_external(
                 return refuse("Refused: process now belongs to HoloLab or ownership is unknown")
             if lens.process_identity(pid)[1] != confirmed[1] or read_cmdline(pid) != confirmed[2]:
                 return refuse("Process changed since confirmation; refresh the lens")
+            reason = system_process_reason(pid)
+            if reason:
+                return refuse(reason)
             send_pidfd(fd, signal.SIGTERM)
             if poll.poll(3000):
                 result["status"] = "terminated"
             else:
+                reason = system_process_reason(pid)
+                if reason:
+                    return refuse(f"SIGTERM sent; escalation refused: {reason}")
+                if lens.owner(pid, dict(lens.ACTIVE))["owner"] != "external" or protected_process(
+                    pid, gateway or {}
+                ):
+                    return refuse(
+                        "SIGTERM sent; escalation refused: process now belongs to HoloLab"
+                    )
                 send_pidfd(fd, signal.SIGKILL)
                 if poll.poll(2000):
                     result["status"] = "force-killed"

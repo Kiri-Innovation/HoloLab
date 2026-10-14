@@ -9,7 +9,7 @@ import "./resourceLens.css";
 export type ResourceMetric = "vram" | "gpu" | "cpu" | "mem"; // Future lenses can extend this discriminated key.
 interface VramProcess {
   gpu_uuid?: string; usage_percent?: number | null; pid: number; name: string; used_mb: number | null;
-  termination_token?: string | null;
+  termination_token?: string | null; termination_reason?: string | null;
   cmdline?: string | null; cwd?: string | null; user?: string | null;
   started_ts?: number | null; elapsed_s?: number | null; ppid?: number | null; listen_ports?: string[] | null;
   owner: "job" | "external" | "unknown"; job_id?: string; job_name?: string;
@@ -78,7 +78,7 @@ export function VramLens({ nodeId, latest, onBack, metric = "vram" }: {
         <div>{p.owner === "job" && p.job_id ? <button className="lens-job" onClick={() => setJobId(p.job_id!)}>{p.job_name ?? p.job_id}</button> : <strong>{p.name}</strong>}
           <div className="lens-muted">{p.owner === "job" ? "HoloLab Job" : p.owner === "external" ? "External · 非 HoloLab" : "Ownership unknown · 归属未知"} · PID {p.pid}</div>
         </div><div className="lens-process-actions"><span>{formatUsage(p)}</span>
-          {p.owner === "external" && <ProcessMenu process={{...p, nodeId, sampledAt: data.ts, metric}} allowTerminate={gpuMetric} canTerminate={!!p.cmdline && !!p.termination_token && !loading} onTerminate={() => setTerminating(p)} onMessage={setActionMessage} />}
+          {p.owner === "external" && <ProcessMenu process={{...p, nodeId, sampledAt: data.ts, metric}} terminationReason={p.termination_reason} canTerminate={!!p.cmdline && !!p.termination_token && !loading} onTerminate={() => setTerminating(p)} onMessage={setActionMessage} />}
           {p.owner === "job" && p.job_id && <button disabled={stoppingJob != null} onClick={() => void stopJob(p.job_id!)}>停止任务</button>}
         </div></div>
         <details className="hl-process-details">
@@ -98,7 +98,7 @@ export function VramLens({ nodeId, latest, onBack, metric = "vram" }: {
       {!loading && !data.error && processes.length === 0 && <p>No processes reported for this resource.</p>}
     </>}
 
-    {terminating && <TerminateProcessDialog nodeId={nodeId} target={terminating} onClose={() => setTerminating(null)} onSuccess={message => {
+    {terminating && <TerminateProcessDialog nodeId={nodeId} target={terminating} usageLabel={formatUsage(terminating)} onClose={() => setTerminating(null)} onSuccess={message => {
       setTerminating(null); setActionMessage(message); setPreferSnapshot(true); setData(null); setRefresh(n => n + 1);
     }} />}
     <JobLogModal jobId={jobId} onClose={() => setJobId(null)} />

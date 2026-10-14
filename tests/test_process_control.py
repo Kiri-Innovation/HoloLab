@@ -12,6 +12,7 @@ from hololab.node import resource_lens as lens
 @pytest.fixture
 def safe(monkeypatch):
     control._CONFIRMATIONS.clear()
+    monkeypatch.setattr(control, "system_process_reason", lambda pid: None)
     monkeypatch.setattr(lens, "owner", lambda *args: {"owner": "external"})
     monkeypatch.setattr(control, "protected_process", lambda *args: False)
     monkeypatch.setattr(lens, "process_identity", lambda pid: (1, 123))
@@ -76,7 +77,13 @@ def test_command_change_refused(safe, monkeypatch):
 
 
 def test_expired_confirmation(safe):
-    control._CONFIRMATIONS[safe[0]] = (12345, 123, "temporary-test-process", time.monotonic() - 1)
+    control._CONFIRMATIONS[safe[0]] = (
+        12345,
+        123,
+        "temporary-test-process",
+        time.monotonic() - 1,
+        "vram",
+    )
     assert "expired" in control.terminate_external(12345, safe[0])["reason"]
     safe[1].assert_not_called()
 
@@ -103,7 +110,8 @@ def test_permission_denied(safe, monkeypatch):
     safe[1].assert_not_called()
 
 
-def test_gateway_forward_audit_and_invalidate(tmp_path, monkeypatch):
+@pytest.mark.parametrize("metric", ["vram", "gpu", "cpu", "mem"])
+def test_gateway_forward_audit_and_invalidate(tmp_path, monkeypatch, metric):
     import asyncio
     from types import SimpleNamespace
 
@@ -147,7 +155,7 @@ def test_gateway_forward_audit_and_invalidate(tmp_path, monkeypatch):
         url = "/api/nodes/node-a/resources/processes/terminate"
         assert client.post(url, json={"pid": 12345, "token": "forged"}).status_code == 409
         assert client.post(url, json={"pid": "12345", "token": "t"}).status_code == 400
-        app.state.resource_lens_cache["node-a"] = (
+        app.state.resource_lens_cache["node-a" if metric == "vram" else ("node-a", metric)] = (
             session,
             time.monotonic(),
             {
@@ -222,3 +230,126 @@ assert result['status']=='terminated',result
         if child.poll() is None:
             child.terminate()
             child.wait(timeout=5)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "systemd",
+        "sshd",
+        "docker",
+        "dockerd",
+        "containerd",
+        "nginx",
+        "flops-core",
+        "flops-headless",
+        "flops-headless-worker",
+        "containerd-shim-runc-v2",
+    ],
+)
+def test_critical_names(name):
+    assert control.critical_name(name)
+
+
+@pytest.mark.parametrize("name", ["python", "train", "my-nginx-report", "sshd-test", "worker"])
+def test_normal_names(name):
+    assert not control.critical_name(name)
+
+
+def test_host_scope_does_not_query_gpu(safe, monkeypatch):
+    token = control.issue_confirmation(12345, "temporary-test-process", "mem")
+    monkeypatch.setattr(lens, "read_host_processes", lambda: {12345: {"born": 123}})
+    query = Mock(side_effect=AssertionError("GPU query must not run"))
+    monkeypatch.setattr(lens, "query", query)
+    assert control.terminate_external(12345, token)["status"] == "terminated"
+    query.assert_not_called()
+
+
+def test_new_system_name_refused_before_signal(safe, monkeypatch):
+    reasons = iter([None, "system critical process"])
+    monkeypatch.setattr(control, "system_process_reason", lambda pid: next(reasons))
+    assert control.terminate_external(12345, safe[0])["reason"] == "system critical process"
+    safe[1].assert_not_called()
+
+
+@pytest.mark.parametrize("name,expected", [("sshd", "failed"), ("lens-test", "terminated")])
+def test_real_named_temporary_process(tmp_path, name, expected):
+    import selectors
+    import subprocess
+    import sys
+
+    script = tmp_path / "temporary_process.py"
+    script.write_text(
+        "import ctypes,os,sys,time\nctypes.CDLL(None).prctl(15,sys.argv[1].encode(),0,0,0)\nprint(os.getpid(),flush=True)\ntime.sleep(60)\n"
+    )
+    child = subprocess.Popen([sys.executable, str(script), name], stdout=subprocess.PIPE, text=True)
+    try:
+        with selectors.DefaultSelector() as ready:
+            ready.register(child.stdout, selectors.EVENT_READ)
+            assert ready.select(5)
+        assert int(child.stdout.readline()) == child.pid
+        # A sibling worker exercises production guards without bypassing the own-tree protection.
+        worker = """
+import sys
+from hololab.node.process_control import termination_offer,terminate_external,read_cmdline,issue_confirmation
+pid=int(sys.argv[1]); expected=sys.argv[2]
+offer=termination_offer(pid,read_cmdline(pid),{'owner':'external'},'cpu')
+if expected=='failed':
+    assert offer['termination_token'] is None
+    assert 'sshd' in offer['termination_reason']
+    result=terminate_external(pid,issue_confirmation(pid,read_cmdline(pid),'cpu'))
+    assert 'sshd' in result['reason'],result
+else:
+    assert offer['termination_token'],offer
+    result=terminate_external(pid,offer['termination_token'])
+assert result['status']==expected,result
+print(result)
+"""
+        subprocess.run(
+            [sys.executable, "-c", worker, str(child.pid), expected], check=True, timeout=15
+        )
+        if expected == "terminated":
+            assert child.wait(timeout=5) == -signal.SIGTERM
+        else:
+            assert child.poll() is None
+    finally:
+        if child.poll() is None:
+            child.terminate()
+            child.wait(timeout=5)
+
+
+def test_kernel_thread_flag(tmp_path):
+    proc = tmp_path / "12345"
+    proc.mkdir()
+    tail = ["0"] * 24
+    tail[6] = str(0x00200000)
+    (proc / "stat").write_text("12345 (kworker) " + " ".join(tail))
+    (proc / "cmdline").write_bytes(b"")
+    assert "内核线程" in control.system_process_reason(12345, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "comm,exe,argv,blocked",
+    [
+        ("ordinary", "/usr/sbin/sshd", b"ordinary\0", True),
+        ("ordinary", "/usr/bin/python", b"/usr/sbin/nginx\0", True),
+        ("ordinary", "/usr/bin/python", b"python\0sshd\0", False),
+        ("flops-core", "/usr/bin/python", b"python\0", True),
+    ],
+)
+def test_explicit_process_identity_sources(tmp_path, comm, exe, argv, blocked):
+    proc = tmp_path / "12345"
+    proc.mkdir()
+    (proc / "stat").write_text("12345 (ordinary) " + " ".join(["0"] * 24))
+    (proc / "comm").write_text(comm)
+    (proc / "cmdline").write_bytes(argv)
+    (proc / "exe").symlink_to(exe)
+    assert bool(control.system_process_reason(12345, tmp_path)) == blocked
+
+
+def test_no_escalation_if_process_becomes_system_service(safe, monkeypatch):
+    reasons = iter([None, None, "system critical process"])
+    monkeypatch.setattr(control, "system_process_reason", lambda pid: next(reasons))
+    safe[2].poll.side_effect = [[], []]
+    assert "escalation refused" in control.terminate_external(12345, safe[0])["reason"]
+    safe[1].assert_called_once_with(42, signal.SIGTERM)

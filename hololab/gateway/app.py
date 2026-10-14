@@ -447,7 +447,7 @@ def _mount_routes(app: FastAPI) -> None:
         }
 
     @app.post("/api/nodes/{node_id}/resources/processes/terminate", tags=["nodes"])
-    async def terminate_gpu_process(
+    async def terminate_resource_process(
         node_id: str, body: dict[str, Any], request: Request
     ) -> dict[str, Any]:
         from hololab.node.process_control import local_identity
@@ -462,7 +462,7 @@ def _mount_routes(app: FastAPI) -> None:
         cached = next(
             (
                 c
-                for key in (node_id, (node_id, "gpu"))
+                for key in (node_id, (node_id, "gpu"), (node_id, "cpu"), (node_id, "mem"))
                 if (c := app.state.resource_lens_cache.get(key))
                 and any(
                     p.get("pid") == pid and p.get("termination_token") == token
@@ -494,6 +494,7 @@ def _mount_routes(app: FastAPI) -> None:
             "node_id": node_id,
             "pid": pid,
             "confirmed_cmdline": confirmed["cmdline"],
+            "metric": cached[2].get("metric", "vram"),
         }
         # No account identity exists on the current node-control REST surface.
         log.warning("gpu_process_termination_requested", **audit, at=time.time())
@@ -526,7 +527,8 @@ def _mount_routes(app: FastAPI) -> None:
             finally:
                 # A successful kill must not be followed by the old five-second snapshot.
                 app.state.resource_lens_cache.pop(node_id, None)
-                app.state.resource_lens_cache.pop((node_id, "gpu"), None)
+                for metric in ("gpu", "cpu", "mem"):
+                    app.state.resource_lens_cache.pop((node_id, metric), None)
 
     @app.get("/api/nodes/{node_id}/resources/{metric}", tags=["nodes"])
     async def get_vram_lens(node_id: str, metric: str) -> dict[str, Any]:
