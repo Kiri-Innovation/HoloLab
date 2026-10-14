@@ -22,6 +22,7 @@ import type {
 } from "../wire";
 import { LazyThumb } from "./LazyThumb";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
+import { LagsplatPreview } from "./LagsplatPreview";
 
 // ---------------------------------------------------------------------------
 // Common shell
@@ -358,6 +359,8 @@ export function Preview({
   switch (spec.viewer) {
     case "splatv":
       return <SplatvPreview url={url} />;
+    case "lagsplat":
+      return <LagsplatPreview baseUrl={baseUrl} />;
     case "video":
       return <VideoPreview url={url} />;
     case "image":
