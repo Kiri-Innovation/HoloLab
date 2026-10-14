@@ -41,6 +41,7 @@ import type {
   NodeMetrics,
   NodeOfflinePayload,
   NodeOnlinePayload,
+  PreviewReadyPayload,
   SnapshotDetail,
   SnapshotJob,
   WorkflowGraph,
@@ -85,6 +86,7 @@ import {
   type PreviewToggleDetail,
   type RunNodeDetail,
 } from "./canvas/AlgorithmNode";
+import type { LiveViewerFrame } from "./canvas/NodeViewerFrame";
 import { ViewNode, type ViewNodeData } from "./canvas/ViewNode";
 import {
   algorithmDataForNode,
@@ -350,6 +352,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [previewShardsByGraphNode, setPreviewShardsByGraphNode] = useState<
     Record<string, Record<string, PreviewShard[]>>
   >({});
+  const [nodeViewerFramesByGraphNode, setNodeViewerFramesByGraphNode] = useState<
+    Record<string, Record<string, LiveViewerFrame[]>>
+  >({});
+  // Live images may arrive immediately after job_ack, before React commits
+  // the matching job row. Keep this wire identity outside render state.
+  const graphNodeByJobIdRef = useRef<Record<string, string>>({});
   // Held on a ref so the PREVIEW_TOGGLE_EVENT listener can read the
   // *current* workflow id when persisting a user toggle, without
   // having to re-register the listener each time workflowId changes.
@@ -530,6 +538,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         });
       } else if (env.kind === "job_update") {
         const p = env.payload as JobUpdatePayload;
+        if (p.graph_node_id) graphNodeByJobIdRef.current[p.job_id] = p.graph_node_id;
 
         // Update the jobs table (drives the panel + summary). The wire
         // payload wins for the fields it names; anything else is preserved
@@ -763,6 +772,30 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             }));
           });
         }
+      } else if (env.kind === "preview_ready") {
+        const p = env.payload as PreviewReadyPayload;
+        const graphNodeId = graphNodeByJobIdRef.current[p.job_id];
+        if (!graphNodeId) return;
+        const frame: LiveViewerFrame = {
+          proxy_url: p.proxy_url,
+          iteration: p.iteration ?? null,
+          node_id: p.node_id ?? null,
+        };
+        setNodeViewerFramesByGraphNode((prev) => {
+          const byViewer = { ...(prev[graphNodeId] ?? {}) };
+          const prior = byViewer[p.preview_id] ?? [];
+          const index = prior.findIndex((item) =>
+            frame.iteration != null
+              ? item.iteration === frame.iteration
+              : item.proxy_url === frame.proxy_url,
+          );
+          const next = index >= 0
+            ? prior.map((item, i) => (i === index ? frame : item))
+            : prior.concat(frame);
+          next.sort((a, b) => (a.iteration ?? -1) - (b.iteration ?? -1));
+          byViewer[p.preview_id] = next;
+          return { ...prev, [graphNodeId]: byViewer };
+        });
       }
     };
 
@@ -1080,6 +1113,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const rt = runtimeByGraphNode[n.id];
         const pv = previewsByGraphNode[n.id];
         const ps = previewShardsByGraphNode[n.id];
+        const nv = nodeViewerFramesByGraphNode[n.id];
         const po = previewOpenByGraphNode[n.id] ?? null;
         // Value-level runtime compare so a WS update that keeps a node's
         // aggregate state unchanged doesn't mint a new node identity —
@@ -1091,6 +1125,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           runtimeEqual(rt, d.runtime) &&
           pv === d.previews &&
           ps === d.previewShards &&
+          nv === d.nodeViewerFrames &&
           po === (d.previewOpen ?? null)
         ) {
           return n;
@@ -1102,6 +1137,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             runtime: rt,
             previews: pv,
             previewShards: ps,
+            nodeViewerFrames: nv,
             previewOpen: po,
           },
         };
@@ -1111,6 +1147,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     runtimeByGraphNode,
     previewsByGraphNode,
     previewShardsByGraphNode,
+    nodeViewerFramesByGraphNode,
     previewOpenByGraphNode,
     edges,
     setNodes,
@@ -1780,6 +1817,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               ...({ batch_size: gn.batch_size ?? 1 } as object),
               runtime: runtimeByGraphNode[gn.id],
               previews: previewsByGraphNode[gn.id],
+              nodeViewerFrames: nodeViewerFramesByGraphNode[gn.id],
               previewOpen: previewOpenByGraphNode[gn.id] ?? null,
             },
           };
@@ -1819,6 +1857,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       setEdges,
       runtimeByGraphNode,
       previewsByGraphNode,
+      nodeViewerFramesByGraphNode,
       previewOpenByGraphNode,
     ],
   );

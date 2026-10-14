@@ -26,6 +26,7 @@ import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { OpenSourceButton } from "./OpenSourceButton";
 import { BasicInfoPreview, Preview } from "./previews";
 import { PreviewPlaceholder } from "./PreviewPlaceholder";
+import { NodeViewerFrame, type LiveViewerFrame } from "./NodeViewerFrame";
 
 // Snapshot of the latest job run for one blueprint node. Driven by WS
 // ``job_update`` events keyed on ``graph_node_id`` in App.tsx.
@@ -118,6 +119,8 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   // Populated as each shard completes; consumed by the drawer when the
   // aggregate target isn't in ``previews`` yet.
   previewShards?: Record<string, PreviewShard[]>;
+  // Non-terminal files announced by the node runtime for pack-owned viewers.
+  nodeViewerFrames?: Record<string, LiveViewerFrame[]>;
   // Frontend-only: which preview drawer is expanded, if any. The node
   // grows a slot below its body when set. ``null`` = collapsed.
   previewOpen?: string | null;
@@ -464,6 +467,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     runtime,
     previews,
     previewShards,
+    nodeViewerFrames,
     previewOpen,
     onPreviewToggle,
     readOnly,
@@ -482,6 +486,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const runState = runtime?.state;
   const runColour = stateColour(runState);
   const expandables = expandableOutputs(pack, previews);
+  const defaultNodeViewer =
+    pack.node_viewers?.find((viewer) => viewer.default) ?? pack.node_viewers?.[0] ?? null;
+  const defaultNodeViewerFrames = defaultNodeViewer
+    ? nodeViewerFrames?.[defaultNodeViewer.id] ?? []
+    : [];
   // Expand a port so long as it is expandable (viewer-backed OR a
   // handle exists). The drawer decides at render time whether to show
   // the real Preview, the basic-info panel, or a placeholder.
@@ -504,7 +513,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       : requestedPreview;
   const expanded = currentPreview?.name ?? null;
   const width =
-    expanded && currentPreview?.kind === "viewer"
+    (defaultNodeViewer || (expanded && currentPreview?.kind === "viewer"))
       ? NODE_WIDTH_EXPANDED
       : NODE_WIDTH;
   const runInFlight =
@@ -1126,6 +1135,29 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
               />
             );
           })()}
+        </div>
+      )}
+      {defaultNodeViewer && (
+        <div
+          className="nodrag"
+          style={{
+            padding: 8,
+            borderTop: "1px solid var(--border)",
+            background: "var(--inverse-surface)",
+            borderRadius: expanded ? 0 : "0 0 var(--radius-md) var(--radius-md)",
+          }}
+        >
+          <div style={{ fontSize: 10, color: "var(--inverse-muted)", marginBottom: 6 }}>
+            {pack.name} · {defaultNodeViewer.title ?? defaultNodeViewer.id}
+          </div>
+          <NodeViewerFrame
+            viewer={defaultNodeViewer}
+            packName={pack.name}
+            packVersion={pack.version}
+            assignedNodeId={assigned_node_id}
+            frames={defaultNodeViewerFrames}
+            running={runInFlight}
+          />
         </div>
       )}
     </div>
