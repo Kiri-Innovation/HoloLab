@@ -14,17 +14,5 @@ while True:
     if any(e["name"] == "static30k" for e in events):
         break
     time.sleep(5)
-run(
-    [
-        PYTHON,
-        "/cloud/cloud-ssd1/FastGS-Pano/export_static.py",
-        "-m",
-        str(OUT / "dynamic"),
-        "--time",
-        "0.5",
-        "-o",
-        str(OUT / "person_frozen_t050.ply"),
-    ],
-    "freeze",
-)
-run([PYTHON, str(ROOT / "hololab/tools/person4d/evaluate.py")], "evaluate")
+# The default evaluator selects time from reference evidence, exports, and compares.
+run([PYTHON, str(ROOT / "hololab/tools/person4d/evaluate.py")], "reference-selection")
