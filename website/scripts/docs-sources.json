@@ -180,21 +180,22 @@
     "source": "docs/architecture.md",
     "slug": "build/architecture",
     "section": "build",
-    "title": "HoloLab 架构",
-    "group": "系统设计",
+    "title": "HoloLab architecture",
+    "group": "System design",
     "order": 20,
     "locale": "en",
     "contentLanguage": "en"
   },
   {
-    "source": "docs/architecture.md",
+    "source": "docs/zh/architecture.md",
     "slug": "build/architecture",
     "section": "build",
     "title": "HoloLab 架构",
     "group": "系统设计",
     "order": 20,
     "locale": "zh-CN",
-    "contentLanguage": "en"
+    "contentLanguage": "zh-CN",
+    "legacySource": "docs/architecture.md"
   },
   {
     "source": "docs/type-ir.md",

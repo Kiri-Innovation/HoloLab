@@ -1,6 +1,6 @@
 ---
-title: HoloLab 架构
-group: 系统设计
+title: HoloLab architecture
+group: System design
 order: 20
 ---
 # HoloLab architecture
