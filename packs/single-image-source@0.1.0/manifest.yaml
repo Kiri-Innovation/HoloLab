@@ -1,0 +1,72 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: single-image-source
+version: 0.1.0
+description: "Data-source node — points at ONE image file to feed image-conditioned algorithms. Does NOT transform pixels."
+category: "source/image"
+docs: |
+  Data-source node for a **single image**. Symlinks the source file
+  into a handle so downstream image-conditioned packs can read it
+  without copying bytes; it does **NOT** resize, convert, or otherwise
+  alter pixels.
+
+  - **Param:** `image_path` — absolute path to a `.png`/`.jpg`/`.jpeg`/`.webp`.
+  - **Output:** `image` — a single-file image handle.
+  - **Output tag:** ``image``.
+  - Runs in ~1 s; fails fast if `image_path` is missing or unsupported.
+
+  Downstream image consumers such as ``minimax-h3-orbit`` accept this
+  scalar ``image`` handle directly. Use this source when one still image,
+  rather than a frame collection, conditions an algorithm.
+
+  Preview: derived from the ``image`` tag via the gateway's tag→viewer
+  registry. See docs/pack-spec.md § "tag-driven preview inference".
+
+params:
+  image_path:
+    type: string
+    description: "Absolute path to the source image file (.png / .jpg / .jpeg / .webp)."
+
+outputs:
+  image:
+    tags: [image]
+    storage: file
+    description: "Symlink to the source image file; pixels are not copied or transformed."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  expected_duration_min: [0.01, 0.05]
+  resources:
+    # Symlink-only pack; no real disk or memory pressure. Values are
+    # generous rounding so the preflight never blocks this pack.
+    scratch_gb: 0.1
+    mem_gb: 0.5
+
+exec:
+  # Symlink so downstream image consumers read the original bytes directly.
+  shell: |
+    set -euo pipefail
+    OUT="{{ outputs.image }}"
+    SRC="{{ params.image_path }}"
+    if [ ! -f "$SRC" ]; then
+      echo "image_path not found or not a file: $SRC" >&2
+      exit 2
+    fi
+    case "${SRC,,}" in
+      *.png|*.jpg|*.jpeg|*.webp) ;;
+      *)
+        echo "image_path must end in .png, .jpg, .jpeg, or .webp: $SRC" >&2
+        exit 2
+        ;;
+    esac
+    mkdir -p "$(dirname "$OUT")"
+    ln -sf "$SRC" "$OUT"
+    echo "[ITER 1/1] source ready"
+
+idempotency:
+  marker: "{{ outputs.image }}.hololab-done"
+
+progress:
+  stdout_regex: '\\[ITER (\\d+)/(\\d+)\\]'
