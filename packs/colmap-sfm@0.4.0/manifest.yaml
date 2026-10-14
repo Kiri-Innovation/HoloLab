@@ -208,14 +208,35 @@ exec:
       --Mapper.ba_global_function_tolerance=0.000001 \
       "${BA_INTRINSICS[@]}"
 
-    MODEL0="$SPARSE_ROOT/0"
-    if [ ! -d "$MODEL0" ]; then
-      echo "ERROR: COLMAP mapper produced no reconstruction under $SPARSE_ROOT" >&2
-      exit 3
-    fi
+    # Mapper indices reflect discovery order, not reconstruction size.
+    # Binary model headers store the number of registered images / 3D points.
+    MODEL=$(python - "$SPARSE_ROOT" <<'PYMODEL'
+    import struct
+    import sys
+    from pathlib import Path
+
+    candidates = []
+    for model in sorted(Path(sys.argv[1]).iterdir()):
+        if not model.is_dir() or not (model / "images.bin").is_file():
+            continue
+        counts = []
+        for name in ("images.bin", "points3D.bin"):
+            with (model / name).open("rb") as stream:
+                counts.append(struct.unpack("<Q", stream.read(8))[0])
+        images, points = counts
+        print(f"[colmap-sfm/0.4.0] model={model.name} registered_images={images} points={points}", file=sys.stderr)
+        if images:
+            candidates.append((images, points, model))
+    if not candidates:
+        sys.exit("ERROR: COLMAP mapper produced no nonempty reconstruction")
+    best = max(candidates, key=lambda item: (item[0], item[1]))
+    print(f"[colmap-sfm/0.4.0] selected model={best[2].name}", file=sys.stderr)
+    print(best[2])
+    PYMODEL
+    )
     TXT_SCRATCH="{{ scratch_dir }}/txt"
     mkdir -p "$TXT_SCRATCH"
-    colmap model_converter --input_path "$MODEL0" --output_path "$TXT_SCRATCH" --output_type TXT
+    colmap model_converter --input_path "$MODEL" --output_path "$TXT_SCRATCH" --output_type TXT
     rm -f "$TXT_SCRATCH/rigs.txt" "$TXT_SCRATCH/frames.txt"
     cp -f "$TXT_SCRATCH/cameras.txt" "$OUT_CAMS/cameras.txt"
     cp -f "$TXT_SCRATCH/images.txt" "$OUT_CAMS/images.txt"
