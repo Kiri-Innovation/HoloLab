@@ -364,6 +364,32 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // frame arrives; otherwise a completed run at a higher iteration hides a
   // freshly-started run at iteration 0/100.
   const viewerRunByGraphNodeRef = useRef<Record<string, string>>({});
+  // Dispatch is the only client-side event guaranteed when a user starts a
+  // run.  Websocket updates remain a useful fallback, but cannot be the
+  // sole trigger for dropping prior-run viewer history.
+  const resetNodeViewerForRun = useCallback((graphNodeId: string, jobId?: string) => {
+    if (jobId) viewerRunByGraphNodeRef.current[graphNodeId] = jobId;
+    setNodeViewerFramesByGraphNode((prev) => {
+      if (!(graphNodeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[graphNodeId];
+      return next;
+    });
+    // ``history_output`` resolves from this map, so this also prevents a
+    // completed predecessor's output handle being rehydrated in the iframe.
+    setPreviewsByGraphNode((prev) => {
+      if (!(graphNodeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[graphNodeId];
+      return next;
+    });
+  }, []);
+
+  const resetAllNodeViewersForWorkflowRun = useCallback(() => {
+    viewerRunByGraphNodeRef.current = {};
+    setNodeViewerFramesByGraphNode({});
+    setPreviewsByGraphNode({});
+  }, []);
   // Held on a ref so the PREVIEW_TOGGLE_EVENT listener can read the
   // *current* workflow id when persisting a user toggle, without
   // having to re-register the listener each time workflowId changes.
@@ -550,21 +576,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           (p.state === "queued" || p.state === "running") &&
           viewerRunByGraphNodeRef.current[p.graph_node_id] !== p.job_id
         ) {
-          viewerRunByGraphNodeRef.current[p.graph_node_id] = p.job_id;
-          setNodeViewerFramesByGraphNode((prev) => {
-            if (!(p.graph_node_id! in prev)) return prev;
-            const next = { ...prev };
-            delete next[p.graph_node_id!];
-            return next;
-          });
-          // ``history_output`` is resolved from this map.  Clearing it makes
-          // the iframe start empty, then receive only this run's live files.
-          setPreviewsByGraphNode((prev) => {
-            if (!(p.graph_node_id! in prev)) return prev;
-            const next = { ...prev };
-            delete next[p.graph_node_id!];
-            return next;
-          });
+          resetNodeViewerForRun(p.graph_node_id, p.job_id);
         }
 
         // Update the jobs table (drives the panel + summary). The wire
@@ -830,7 +842,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     return () => {
       closed = true;
     };
-  }, [refreshCatalog]);
+  }, [refreshCatalog, resetNodeViewerForRun]);
 
   // --- workflow model ---------------------------------------------------
   const [workflowId, setWorkflowId] = useState<string | null>(null);
@@ -1238,6 +1250,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       try {
         dispatchNode(wid, graph_node_id).then(
           (result) => {
+            // A successful dispatch is synchronous proof of a new run even
+            // if this tab's websocket is reconnecting or misses its queued
+            // event.  Clear before the new snapshot begins hydrating.
+            resetNodeViewerForRun(graph_node_id, result.job_id);
             setLatestSnapshotId(result.snapshot_id);
             setRunsPanelRefreshToken((t) => t + 1);
             resolve();
@@ -1250,7 +1266,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     };
     window.addEventListener(RUN_NODE_EVENT, onRun);
     return () => window.removeEventListener(RUN_NODE_EVENT, onRun);
-  }, []);
+  }, [resetNodeViewerForRun]);
 
   // Mirror workflowId into a ref so the toggle listener (registered
   // once at mount) can read the current value without re-registering.
@@ -2169,6 +2185,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         ).workflow_id;
       setWorkflowId(wid);
       const runResult = await runWorkflow(wid);
+      // The toolbar starts a whole graph; every node may replace its output.
+      // Apply the same dispatch-time rule as the per-node play button.
+      resetAllNodeViewersForWorkflowRun();
       // Snapshot was just created from the current draft. Fetch the
       // frozen graph so the draft-modified badge clears immediately
       // after a successful run.
@@ -2194,7 +2213,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     } finally {
       window.setTimeout(() => setRunning(false), 800);
     }
-  }, [workflowId, workflowName, toGraph, onSave]);
+  }, [workflowId, workflowName, toGraph, onSave, resetAllNodeViewersForWorkflowRun]);
 
   // "New workflow" is now a Gallery affordance; the toolbar navigates
   // back to the Gallery via onExitToGallery instead of clearing state
