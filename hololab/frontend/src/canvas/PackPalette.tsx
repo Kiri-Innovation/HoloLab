@@ -35,7 +35,8 @@ type LeafNode = {
   pack: CatalogPack;
 };
 
-type TreeNode = FolderNode | LeafNode;
+type ViewLeafNode = { kind: "view"; path: string; depth: number; label: string };
+type TreeNode = FolderNode | LeafNode | ViewLeafNode;
 
 function buildTree(catalog: CatalogPack[]): FolderNode {
   const root: FolderNode = {
@@ -83,12 +84,15 @@ function buildTree(catalog: CatalogPack[]): FolderNode {
     });
   }
 
+  const misc = ensureFolder(["misc"]);
+  misc.children.push({ kind: "view", path: "misc/@builtin/visualize", depth: misc.depth + 1, label: "visualize" });
+
   // Stable sort: folders before leaves at each level, then alphabetical.
   const sortRec = (node: FolderNode) => {
     node.children.sort((a, b) => {
-      if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
-      const la = a.kind === "folder" ? a.label : a.pack.name;
-      const lb = b.kind === "folder" ? b.label : b.pack.name;
+      if ((a.kind === "folder") !== (b.kind === "folder")) return a.kind === "folder" ? -1 : 1;
+      const la = a.kind === "leaf" ? a.pack.name : a.label;
+      const lb = b.kind === "leaf" ? b.pack.name : b.label;
       return la.localeCompare(lb);
     });
     for (const c of node.children) if (c.kind === "folder") sortRec(c);
@@ -108,9 +112,9 @@ function computeMatches(root: FolderNode, query: string) {
   if (!q) return { matched, forceOpen, active: false };
 
   const visit = (node: TreeNode, ancestors: string[]): boolean => {
-    if (node.kind === "leaf") {
-      const hay =
-        `${node.pack.name} ${node.pack.description ?? ""} ${node.path}`.toLowerCase();
+    if (node.kind !== "folder") {
+      const hay = (node.kind === "view" ? `${node.label} ${node.path}` :
+        `${node.pack.name} ${node.pack.description ?? ""} ${node.path}`).toLowerCase();
       if (hay.includes(q)) {
         matched.add(node.path);
         for (const a of ancestors) forceOpen.add(a);
@@ -332,6 +336,24 @@ function PackLeaf({
   );
 }
 
+function ViewLeaf({ depth, query }: { depth: number; query: string }) {
+  const [hover, setHover] = useState(false);
+  return <div className="hl-pack-leaf" data-hl-builtin="visualize" draggable
+    onDragStart={(e) => {
+      e.dataTransfer.setData("application/hololab-view", "artifact-preview");
+      e.dataTransfer.effectAllowed = "copy";
+    }}
+    onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+    title="Preview an input artifact without creating a task"
+    style={{ ...ROW_BASE, cursor: "grab", background: hover ? "var(--surface-hover)" : "transparent" }}>
+    <IndentGuides depth={depth} />
+    <span style={{ display: "inline-block", width: 12 }} />
+    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
+      <Highlight text="visualize" query={query} />
+    </span>
+  </div>;
+}
+
 function Folder({
   node,
   open,
@@ -424,7 +446,7 @@ export function PackPalette({ catalog, onRefresh }: PackPaletteProps) {
     // rendering visibility during search.
     if (!active) return true;
     const walk = (n: TreeNode): boolean => {
-      if (n.kind === "leaf") return matched.has(n.path);
+      if (n.kind !== "folder") return matched.has(n.path);
       return n.children.some(walk);
     };
     return walk(folder);
@@ -433,7 +455,10 @@ export function PackPalette({ catalog, onRefresh }: PackPaletteProps) {
   const renderChildren = (folder: FolderNode): JSX.Element[] => {
     const out: JSX.Element[] = [];
     for (const child of folder.children) {
-      if (child.kind === "leaf") {
+      if (child.kind === "view") {
+        if (active && !matched.has(child.path)) continue;
+        out.push(<ViewLeaf key={child.path} depth={child.depth} query={active ? query : ""} />);
+      } else if (child.kind === "leaf") {
         if (active && !matched.has(child.path)) continue;
         out.push(
           <PackLeaf
@@ -550,17 +575,6 @@ export function PackPalette({ catalog, onRefresh }: PackPaletteProps) {
       </div>
 
       <div style={{ flex: 1, overflow: "auto", padding: "6px 8px 12px" }}>
-        <div
-          draggable
-          onDragStart={(e) => {
-            e.dataTransfer.setData("application/hololab-view", "artifact-preview");
-            e.dataTransfer.effectAllowed = "copy";
-          }}
-          title="纯前端产物视图，不会创建任务"
-          style={{ ...ROW_BASE, cursor: "grab", marginBottom: 6, background: "#fff9df", border: "1px solid #ead99e" }}
-        >
-          <span>◈</span><span style={{ fontWeight: 600 }}>视图贴纸</span>
-        </div>
         {!hasCatalog && (
           <div
             style={{
@@ -572,7 +586,7 @@ export function PackPalette({ catalog, onRefresh }: PackPaletteProps) {
             No packs offered by any online compute node.
           </div>
         )}
-        {hasCatalog && !hasResults && (
+        {!hasResults && (
           <div
             style={{
               fontSize: "var(--fs-xs)",
@@ -583,7 +597,7 @@ export function PackPalette({ catalog, onRefresh }: PackPaletteProps) {
             No packs match “{query.trim()}”.
           </div>
         )}
-        {hasCatalog && hasResults && renderChildren(tree)}
+        {hasResults && renderChildren(tree)}
       </div>
     </div>
   );

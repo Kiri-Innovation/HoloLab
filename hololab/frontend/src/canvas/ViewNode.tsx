@@ -12,6 +12,8 @@ export interface ViewNodeData extends Record<string, unknown> {
 export function ViewNode({ id, data, selected }: NodeProps) {
   const d = data as ViewNodeData;
   const target = d.target ?? null;
+  const title = d.title?.trim();
+  const displayTitle = !title || title === "视图" || title === "视图贴纸" ? "visualize" : title;
   return (
     <div
       className="hololab-node"
@@ -61,7 +63,7 @@ export function ViewNode({ id, data, selected }: NodeProps) {
             color: "var(--text)",
           }}
         >
-          {d.title?.trim() || "视图"}
+          {displayTitle}
         </span>
       </div>
       <div className="nodrag" style={{ padding: "var(--space-2) var(--space-3)", fontSize: "var(--fs-xs)" }}>

@@ -42,6 +42,30 @@ test("view sticker survives drag, save, reload, selection and deletion without a
   await page.route("**/proxy/n/timeline/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: "" }));
   await page.goto(`/w/${W}`);
   await expect(page.getByText("第二输出")).toBeVisible({ timeout: 15_000 });
+  const palette = page.locator(".hl-pack-palette");
+  const visualize = palette.locator('[data-hl-builtin="visualize"]');
+  await expect(visualize).toBeVisible();
+  await expect(palette.locator(".hl-pack-folder")).toHaveText([/misc/]);
+  await expect(palette.locator(".hl-pack-leaf")).toHaveText([/producer/, "visualize"]);
+  const search = palette.getByRole("searchbox");
+  await search.fill("producer");
+  await expect(visualize).toHaveCount(0);
+  await search.fill("visualize");
+  await expect(visualize).toBeVisible();
+  await expect(palette.locator(".hl-pack-leaf")).toHaveCount(1);
+  const payload = await visualize.evaluate(el => {
+    const dataTransfer = new DataTransfer();
+    el.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer }));
+    return { view: dataTransfer.getData("application/hololab-view"), pack: dataTransfer.getData("application/hololab-pack") };
+  });
+  expect(payload).toEqual({ view: "artifact-preview", pack: "" });
+  await search.fill("");
+  await page.mouse.move(900, 600);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+    await expect(visualize).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await palette.screenshot({ path: `test-results/visualize-palette-${theme}.png` });
+  }
   // Let the autosave hook record the hydrated graph as its clean baseline;
   // a real operator cannot drag before this hydration turn either.
   await page.waitForTimeout(1_000);
@@ -62,8 +86,13 @@ test("view sticker survives drag, save, reload, selection and deletion without a
   expect(savedSticker?.position).not.toEqual(graph.nodes[1].position);
   await page.screenshot({ path: "test-results/view-node-dragged.png" });
 
+  // Legacy default titles are presented as visualize without rewriting stored data.
+  persistedGraph.nodes.find(n => n.id === "sticker")!.title = "视图";
   await page.reload();
   await expect(sticker).toBeVisible();
+  await expect(sticker.locator(".hl-view-drag-handle")).toHaveText("visualize");
+  expect(persistedGraph.nodes.find(n => n.id === "sticker")?.kind).toBe("view");
+  expect(persistedGraph.edges).toEqual(graph.edges);
   await page.waitForTimeout(1_000);
   const rfSticker = page.getByTestId("rf__node-sticker");
   await rfSticker.click({ button: "right" });

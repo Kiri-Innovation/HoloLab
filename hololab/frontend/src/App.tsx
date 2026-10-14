@@ -1391,7 +1391,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           type: "view",
           position,
           dragHandle: ".hl-view-drag-handle",
-          data: { kind: "view", title: "视图" },
+          data: { kind: "view", title: "visualize" },
         }));
         return;
       }
