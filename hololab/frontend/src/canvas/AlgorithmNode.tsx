@@ -1156,6 +1156,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             packVersion={pack.version}
             assignedNodeId={assigned_node_id}
             frames={defaultNodeViewerFrames}
+            historyTarget={
+              defaultNodeViewer.history_output
+                ? previews?.[defaultNodeViewer.history_output] ?? null
+                : null
+            }
             running={runInFlight}
           />
         </div>

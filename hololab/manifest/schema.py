@@ -367,6 +367,9 @@ class NodeViewerSpec(BaseModel):
     default: bool = False
     renderer: Literal["iframe"]
     entry: str
+    # Optional durable output used to rehydrate the viewer after a browser
+    # refresh; it remains an ordinary output, not a viewer-only port.
+    history_output: str | None = None
     live_globs: list[str] = Field(default_factory=list)
 
     @field_validator("entry")
@@ -456,6 +459,13 @@ class Manifest(BaseModel):
     def _check_tags_from_refs(self) -> Manifest:
         """Every ``tags_from`` on an output must reference a real input port."""
         input_names = set(self.inputs)
+        output_names = set(self.outputs)
+        for viewer in self.node_viewers:
+            if viewer.history_output is not None and viewer.history_output not in output_names:
+                raise ValueError(
+                    f"node viewer {viewer.id!r} references unknown history_output="
+                    f"{viewer.history_output!r}"
+                )
         for out_name, spec in self.outputs.items():
             if spec.tags_from is not None and spec.tags_from not in input_names:
                 raise ValueError(

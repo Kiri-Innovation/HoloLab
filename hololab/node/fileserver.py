@@ -212,7 +212,14 @@ def create_fileserver_app(
         """
         from hololab.node.packs import scan_multi_packs
 
-        pack = scan_multi_packs(viewer_pack_dirs).get((name, version))
+        pack = next(
+            (
+                candidate
+                for candidate in scan_multi_packs(viewer_pack_dirs)
+                if (candidate.manifest.name, candidate.manifest.version) == (name, version)
+            ),
+            None,
+        )
         if pack is None:
             raise HTTPException(status_code=404, detail="pack not found")
         candidate = Path(os.path.normpath(os.path.join(str(pack.pack_dir), asset)))

@@ -305,6 +305,7 @@ export interface NodeViewerSpec {
   default?: boolean;
   renderer: "iframe";
   entry: string;
+  history_output?: string | null;
   live_globs?: string[];
 }
 

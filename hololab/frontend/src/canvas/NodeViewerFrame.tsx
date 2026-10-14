@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { NodeViewerSpec } from "../wire";
+import { getHandleSummary } from "../api";
 
 export interface LiveViewerFrame {
   proxy_url: string;
@@ -15,6 +16,7 @@ export function NodeViewerFrame({
   packVersion,
   assignedNodeId,
   frames,
+  historyTarget,
   running,
 }: {
   viewer: NodeViewerSpec;
@@ -22,14 +24,56 @@ export function NodeViewerFrame({
   packVersion: string;
   assignedNodeId: string | null;
   frames: LiveViewerFrame[];
+  historyTarget?: { handle_id: string; proxy_url: string; node_id: string } | null;
   running: boolean;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
-  const nodeId = (frames.length ? frames[frames.length - 1].node_id : null) ?? assignedNodeId;
+  const [historyFrames, setHistoryFrames] = useState<LiveViewerFrame[]>([]);
+  const nodeId = (frames.length ? frames[frames.length - 1].node_id : null)
+    ?? historyTarget?.node_id
+    ?? assignedNodeId;
   const src = nodeId
     ? `/pack-assets/${encodeURIComponent(nodeId)}/${encodeURIComponent(packName)}/${encodeURIComponent(packVersion)}/${viewer.entry.split("/").map(encodeURIComponent).join("/")}`
     : null;
+
+  useEffect(() => {
+    if (!historyTarget) {
+      setHistoryFrames([]);
+      return;
+    }
+    let cancelled = false;
+    void getHandleSummary(historyTarget.handle_id)
+      .then((summary) => {
+        if (cancelled) return;
+        const restored = (summary.fields.entries ?? [])
+          .filter((entry) => !entry.is_dir && /\.png$/i.test(entry.name))
+          .map((entry) => {
+            const match = /iter[_]?(\d+)/.exec(entry.name);
+            return {
+              proxy_url: `${historyTarget.proxy_url.replace(/\/$/, "")}/${entry.name}`,
+              iteration: match ? Number(match[1]) : null,
+              node_id: null,
+            };
+          });
+        setHistoryFrames(restored);
+      })
+      .catch(() => {
+        if (!cancelled) setHistoryFrames([]);
+      });
+    return () => { cancelled = true; };
+  }, [historyTarget?.handle_id, historyTarget?.proxy_url]);
+
+  const allFrames = [...historyFrames, ...frames]
+    .reduce<LiveViewerFrame[]>((out, frame) => {
+      const index = out.findIndex((old) => frame.iteration != null
+        ? old.iteration === frame.iteration
+        : old.proxy_url === frame.proxy_url);
+      if (index >= 0) out[index] = frame;
+      else out.push(frame);
+      return out;
+    }, [])
+    .sort((a, b) => (a.iteration ?? -1) - (b.iteration ?? -1));
 
   useEffect(() => {
     const target = iframeRef.current?.contentWindow;
@@ -38,12 +82,12 @@ export function NodeViewerFrame({
       {
         type: "hololab-viewer-state",
         viewer_id: viewer.id,
-        frames,
+        frames: allFrames,
         running,
       },
       window.location.origin,
     );
-  }, [frames, loaded, running, viewer.id]);
+  }, [allFrames, loaded, running, viewer.id]);
 
   if (!src) {
     return (

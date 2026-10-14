@@ -1677,7 +1677,8 @@ class NodeRuntime:
                     for pattern in patterns:
                         for raw in glob.glob(pattern):
                             path = Path(raw)
-                            if not path.is_file() or str(path) in announced:
+                            announcement_key = f"{viewer_id}:{path}"
+                            if not path.is_file() or announcement_key in announced:
                                 continue
                             try:
                                 size = path.stat().st_size
@@ -1693,7 +1694,7 @@ class NodeRuntime:
                                 )
                             except ValueError:
                                 log.warning("live viewer file outside workspace", path=key)
-                                announced.add(key)
+                                announced.add(announcement_key)
                                 continue
                             match = re.search(r"iter[_]?(\\d+)", path.name)
                             iteration = int(match.group(1)) if match else None
@@ -1708,7 +1709,7 @@ class NodeRuntime:
                                     node_id=self._node_id,
                                 ),
                             )
-                            announced.add(key)
+                            announced.add(announcement_key)
                 await asyncio.sleep(0.5)
 
         live_viewer_task = (
