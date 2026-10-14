@@ -200,21 +200,22 @@
     "source": "docs/type-ir.md",
     "slug": "build/type-ir",
     "section": "build",
-    "title": "端口类型系统",
-    "group": "系统设计",
+    "title": "Port type system",
+    "group": "System design",
     "order": 30,
     "locale": "en",
     "contentLanguage": "en"
   },
   {
-    "source": "docs/type-ir.md",
+    "source": "docs/zh/type-ir.md",
     "slug": "build/type-ir",
     "section": "build",
     "title": "端口类型系统",
     "group": "系统设计",
     "order": 30,
     "locale": "zh-CN",
-    "contentLanguage": "en"
+    "contentLanguage": "zh-CN",
+    "legacySource": "docs/type-ir.md"
   },
   {
     "source": "docs/pack-spec.md",

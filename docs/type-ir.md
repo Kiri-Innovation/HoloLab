@@ -1,6 +1,6 @@
 ---
-title: 端口类型系统
-group: 系统设计
+title: Port type system
+group: System design
 order: 30
 ---
 # Port type IR
