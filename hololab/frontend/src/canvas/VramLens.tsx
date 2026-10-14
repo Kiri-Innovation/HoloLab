@@ -6,6 +6,8 @@ import "./resourceLens.css";
 export type ResourceMetric = "vram"; // Future lenses can extend this discriminated key.
 interface VramProcess {
   gpu_uuid: string; pid: number; name: string; used_mb: number | null;
+  cmdline?: string | null; cwd?: string | null; user?: string | null;
+  started_ts?: number | null; elapsed_s?: number | null; ppid?: number | null; listen_ports?: string[] | null;
   owner: "job" | "external" | "unknown"; job_id?: string; job_name?: string;
 }
 interface VramData {
@@ -50,10 +52,24 @@ export function VramLens({ nodeId, latest, onBack }: {
     {(error || data?.error) && <p role="alert">{error || data?.error}</p>}
     {data && !error && <>
       <p className="lens-muted">Process snapshot · {new Date(data.ts * 1000).toLocaleTimeString()}</p>
-      {processes.map(p => <div className="hl-resource-process" key={`${p.gpu_uuid}:${p.pid}`}>
+      {processes.map(p => <div className="hl-resource-process-entry" key={`${p.gpu_uuid}:${p.pid}`}>
+        <div className="hl-resource-process">
         <div>{p.owner === "job" && p.job_id ? <button className="lens-job" onClick={() => setJobId(p.job_id!)}>{p.job_name ?? p.job_id}</button> : <strong>{p.name}</strong>}
           <div className="lens-muted">{p.owner === "job" ? "HoloLab Job" : p.owner === "external" ? "External · 非 HoloLab" : "Ownership unknown · 归属未知"} · PID {p.pid}</div>
-        </div><span>{gib(p.used_mb)} GiB</span>
+        </div><span>{gib(p.used_mb)} GiB</span></div>
+        <details className="hl-process-details">
+          <summary aria-label={`Details for ${p.name}, PID ${p.pid}`}>Details · 详情</summary>
+          <div className="lens-muted">Command line</div>
+          <code className="hl-process-command" title={p.cmdline ?? undefined}>{p.cmdline ?? "Unavailable"}</code>
+          <dl>
+            <dt>Working directory</dt><dd>{p.cwd ?? "Unavailable"}</dd>
+            <dt>User</dt><dd>{p.user ?? "Unavailable"}</dd>
+            <dt>Started</dt><dd>{p.started_ts == null ? "Unavailable" : new Date(p.started_ts * 1000).toLocaleString()}</dd>
+            <dt>Elapsed</dt><dd>{p.elapsed_s == null ? "Unavailable" : `${Math.floor(p.elapsed_s / 3600)}h ${Math.floor(p.elapsed_s % 3600 / 60)}m ${Math.floor(p.elapsed_s % 60)}s`}</dd>
+            <dt>TCP listeners</dt><dd>{p.listen_ports == null ? "Unavailable" : p.listen_ports.join(", ") || "None observed"}</dd>
+            <dt>Parent PID</dt><dd>{p.ppid ?? "Unavailable"}</dd>
+          </dl>
+        </details>
       </div>)}
       {!loading && !data.error && processes.length === 0 && <p>No compute processes reported for this GPU.</p>}
     </>}

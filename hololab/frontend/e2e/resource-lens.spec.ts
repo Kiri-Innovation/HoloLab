@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const live = process.env.HOLOLAB_LENS_SAMPLE ? JSON.parse(readFileSync(process.env.HOLOLAB_LENS_SAMPLE, "utf8")) : null;
 const gpu = { index: 0, uuid: "gpu-a", name: "GPU", mem_used_mb: 23756, mem_total_mb: 24576, util_percent: 100 };
 const sample = live?.lens ?? { ts: 1700000000, error: null, gpus: [gpu], processes: [
-  { gpu_uuid: "gpu-a", pid: 20, name: "python", used_mb: 22000, owner: "external" },
+  { gpu_uuid: "gpu-a", pid: 20, name: "python", used_mb: 22000, owner: "external", cmdline: "python main.py --port 8288", cwd: "/example/project", user: "root", started_ts: 1700000000, elapsed_s: 120, ppid: 1, listen_ports: ["127.0.0.1:8288"] },
   { gpu_uuid: "gpu-a", pid: 21, name: "python", used_mb: 1000, owner: "job", job_id: "job-a", job_name: "training" },
 ] };
 const metrics = live?.metrics ?? { ts: 1700000000, cpu_percent: 61.9, mem_used_gb: 51, mem_total_gb: 64, gpus: [gpu] };
@@ -32,8 +32,8 @@ test("VRAM lens loads on demand, restores fleet, handles errors and themes", asy
     }
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   });
-  await page.setViewportSize({width: 1440, height: 1000});
-  await page.addInitScript(() => localStorage.setItem("hl-layout-bottom", "460"));
+  await page.setViewportSize({width: 1440, height: live ? 1200 : 1000});
+  await page.addInitScript(height => localStorage.setItem("hl-layout-bottom", String(height)), live ? 640 : 460);
   await page.goto('/w/lens-test');
   const panel = page.locator('.hl-node-metrics');
   await expect(panel.locator('[data-pulse-node]')).toHaveCount(live ? 1 : 4);
@@ -57,9 +57,16 @@ test("VRAM lens loads on demand, restores fleet, handles errors and themes", asy
     await page.keyboard.press('Escape');
     await expect(lens).toBeVisible();
   }
+  const details = lens.locator('details').first();
+  await expect(details).not.toHaveAttribute('open', '');
+  await details.locator('summary').click();
+  await expect(details).toHaveAttribute('open', '');
+  await expect(details.locator('.hl-process-command')).toContainText('--port');
+  await expect(details).toContainText('127.0.0.1:8288');
+  await expect(details.locator('.hl-process-command')).toHaveAttribute('title', sample.processes[0].cmdline);
   for (const theme of ['light', 'dark']) {
     await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
-    await panel.screenshot({path:`test-results/resource-lens-${live ? 'live' : 'fixture'}-${theme}.png`});
+    await panel.screenshot({path:`test-results/resource-lens-details-${live ? 'live' : 'fixture'}-${theme}.png`});
   }
   await page.keyboard.press('Escape');
   await expect(lens).toHaveCount(0);
@@ -74,7 +81,9 @@ test("VRAM lens loads on demand, restores fleet, handles errors and themes", asy
   // The inspector itself can be narrow independently of the page viewport.
   await panel.evaluate(el => { el.style.width='340px'; el.style.boxSizing='border-box'; el.style.height='100vh'; el.style.position='fixed'; el.style.inset='0'; el.style.zIndex='10000'; el.style.background='var(--surface)'; });
   expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-  await lens.screenshot({path:`test-results/resource-lens-${live ? 'live' : 'fixture'}-narrow.png`});
+  await lens.locator('details').first().locator('summary').click();
+  expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await lens.screenshot({path:`test-results/resource-lens-details-${live ? 'live' : 'fixture'}-narrow.png`});
   fail = true;
   await lens.getByRole('button', {name:'Refresh', exact:true}).click();
   await expect(lens.getByRole('alert')).toContainText('Node did not reply');
@@ -86,7 +95,11 @@ test("VRAM lens loads on demand, restores fleet, handles errors and themes", asy
   await panel.getByRole('button', {name:'Open VRAM resource lens'}).first().click();
   await expect(lens).not.toHaveAttribute('aria-busy', 'true');
   expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-  await lens.screenshot({path:`test-results/resource-lens-${live ? 'live' : 'fixture'}-mobile.png`});
+  await lens.locator('details').first().locator('summary').click();
+  expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await lens.locator('details').first().locator('dd').last().scrollIntoViewIfNeeded();
+  await expect(lens.locator('details').first().locator('dd').last()).toBeInViewport();
+  await page.screenshot({path:`test-results/resource-lens-details-${live ? 'live' : 'fixture'}-mobile.png`});
   expect(errors).toEqual([]);
 
 });
