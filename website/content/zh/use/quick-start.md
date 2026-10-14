@@ -57,14 +57,15 @@ cd ../..
 
 在桌面布局中，先认识这几个入口：
 
-- **画布区**：中央区域放置节点和连线，用来组织工作流的步骤与连接。
-- **Packs**：左侧面板列出可用算法，通过 **Search packs…** 搜索，再将对应节点添加到画布。
-- **运行与状态**：顶部的 **Run** 用来启动工作流；**Recent jobs** 显示任务状态并提供日志入口，右侧的 **Runs** 可以回看运行记录。
-- **产物**：展开节点预览可查看受支持的输出；要查找产物清单，回到工作流列表，打开 **Artifacts**（`/artifacts`）。
+- **① 画布区**：中央区域放置节点和连线，用来组织工作流的步骤与连接。
+- **② Packs**：左侧面板列出可用算法，通过 **Search packs…** 搜索，再将对应节点添加到画布。
+- **③ 运行与状态**：顶部的 **Run** 用来启动工作流；**Recent jobs** 显示任务状态并提供日志入口，右侧的 **Runs** 可以回看运行记录。
+- **④ 产物**：展开节点预览可查看受支持的输出；要查找产物清单，回到工作流列表，打开 **Artifacts**（`/artifacts`）。
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/canvas-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/canvas-light.webp" alt="classic STG 画布全貌：左侧 Packs、中央节点图、右侧设备与运行记录、底部任务面板。原始影像预览及标识已隐藏。" width="3200" height="2100" loading="lazy" decoding="async" /></picture>
-<figcaption>classic STG 画布全貌：左侧 Packs、中央节点图、右侧设备与运行记录、底部任务面板。原始影像预览及标识已隐藏。</figcaption>
+<div class="annotated-canvas"><picture><source srcset="/images/docs/canvas-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/canvas-light.webp" alt="编号对应上方列表：① 画布区，② Packs，③ Run / Run history / Recent jobs，④ 节点预览。Artifacts 产物清单在另一页面。原始影像预览及标识已隐藏。" width="3200" height="2100" loading="lazy" decoding="async" /></picture>
+<div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-canvas"><span class="region-number">1</span></span><span class="canvas-region region-packs"><span class="region-number">2</span></span><span class="canvas-region region-run"><span class="region-number">3</span></span><span class="canvas-region region-history"><span class="region-number">3</span></span><span class="canvas-region region-jobs"><span class="region-number">3</span></span><span class="canvas-region region-preview"><span class="region-number">4</span></span></div></div>
+<figcaption>编号对应上方列表：① 画布区，② Packs，③ Run / Run history / Recent jobs，④ 节点预览。Artifacts 产物清单在另一页面。原始影像预览及标识已隐藏。</figcaption>
 </figure>
 
 ## 先确认设备和 Pack

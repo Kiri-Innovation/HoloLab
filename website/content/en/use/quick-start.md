@@ -57,14 +57,15 @@ The first screen is the workflow gallery. Click an existing workflow to open it,
 
 On a desktop, these are the main places to look:
 
-- **Canvas:** the central area holds your nodes and links—the steps and connections that make up the workflow.
-- **Packs:** the left panel lists available algorithms. Use **Search packs…** to find one and add its node to the canvas.
-- **Execution:** **Run** in the top bar starts the workflow. **Recent jobs** shows task status and provides logs; **Runs** in the right sidebar lets you revisit run records.
-- **Results:** expand a node's preview to inspect supported outputs. For the artifact inventory, return to the workflow gallery and open **Artifacts** (`/artifacts`).
+- **① Canvas:** the central area holds your nodes and links—the steps and connections that make up the workflow.
+- **② Packs:** the left panel lists available algorithms. Use **Search packs…** to find one and add its node to the canvas.
+- **③ Execution:** **Run** in the top bar starts the workflow. **Recent jobs** shows task status and provides logs; **Runs** in the right sidebar lets you revisit run records.
+- **④ Results:** expand a node's preview to inspect supported outputs. For the artifact inventory, return to the workflow gallery and open **Artifacts** (`/artifacts`).
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/canvas-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/canvas-light.webp" alt="The classic STG workspace: Packs on the left, the graph in the center, devices and run history on the right, and the task panel below. Source image previews and identifiers are hidden." width="3200" height="2100" loading="lazy" decoding="async" /></picture>
-<figcaption>The classic STG workspace: Packs on the left, the graph in the center, devices and run history on the right, and the task panel below. Source image previews and identifiers are hidden.</figcaption>
+<div class="annotated-canvas"><picture><source srcset="/images/docs/canvas-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/canvas-light.webp" alt="Numbers match the list above: ① canvas, ② Packs, ③ Run / Run history / Recent jobs, ④ node preview. The Artifacts inventory is on a separate page. Source image previews and identifiers are hidden." width="3200" height="2100" loading="lazy" decoding="async" /></picture>
+<div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-canvas"><span class="region-number">1</span></span><span class="canvas-region region-packs"><span class="region-number">2</span></span><span class="canvas-region region-run"><span class="region-number">3</span></span><span class="canvas-region region-history"><span class="region-number">3</span></span><span class="canvas-region region-jobs"><span class="region-number">3</span></span><span class="canvas-region region-preview"><span class="region-number">4</span></span></div></div>
+<figcaption>Numbers match the list above: ① canvas, ② Packs, ③ Run / Run history / Recent jobs, ④ node preview. The Artifacts inventory is on a separate page. Source image previews and identifiers are hidden.</figcaption>
 </figure>
 
 ## Check the device and its Packs
