@@ -1,0 +1,29 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: person-gray-mask
+version: 0.1.0
+description: Gray-wall foreground extraction with adaptive Lab color seeds and GrabCut. Validates every image stem and size; white means valid RGB loss.
+source_entry: mask.py
+category: preprocessing/masks
+inputs:
+  colmap:
+    tags: [colmap-folder]
+outputs:
+  masks:
+    tags: [mask-dir]
+  report:
+    tags: [directory]
+runtime:
+  env: fastgs
+  gpu:
+    required: false
+exec:
+  shell: >-
+    python "{{ pack_dir }}/mask.py" --colmap "{{ inputs.colmap }}"
+    --output "{{ outputs.masks }}" --report "{{ outputs.report }}"
+previews:
+  - id: samples
+    type: grid
+    glob: "{{ outputs.report }}/sample_*.png"
+idempotency:
+  marker: "{{ outputs.masks }}/.done"

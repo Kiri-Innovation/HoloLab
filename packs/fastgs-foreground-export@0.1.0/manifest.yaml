@@ -1,0 +1,23 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: fastgs-foreground-export
+version: 0.1.0
+description: Export only Gaussian centers that project into at least one foreground mask. Conservatively removes unobserved off-frame points; does not clip 2D renders.
+source_entry: export.py
+category: export/fastgs-pano
+inputs:
+  colmap: {tags: [colmap-folder]}
+  masks: {tags: [mask-dir]}
+  model: {tags: [fastgs-model]}
+outputs:
+  model: {tags: [fastgs-model]}
+  ply: {tags: [ply-3dgs], storage: file}
+runtime:
+  env: fastgs
+  gpu: {required: true, vram_gb_min: 4}
+  exclusive: true
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/export.py" --colmap "{{ inputs.colmap }}" --masks "{{ inputs.masks }}" --model "{{ inputs.model }}" --output "{{ outputs.model }}"
+    cp "{{ outputs.model }}"/point_cloud/iteration_*/point_cloud.ply "{{ outputs.ply }}"

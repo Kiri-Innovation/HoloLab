@@ -1,0 +1,69 @@
+{
+  "workflow_id": "ca5d26f1-b30a-4c03-9511-31e4cb151d99",
+  "results": [
+    {
+      "name": "baseline-v2",
+      "job_id": "c066d37a-65fe-43d0-99f7-ea611b0c0816",
+      "gaussians": 158857,
+      "seconds": 72.72279477119446,
+      "sampled_gpu_peak_mib": 2237.0,
+      "ema_loss": 0.0087829,
+      "foreground_psnr": 36.426869572266106,
+      "interior_psnr": 37.68887909984969,
+      "background_alpha": 0.9993384826567865,
+      "background_occupied": 1.0
+    },
+    {
+      "name": "masked-v2",
+      "job_id": "3957ec95-070e-4414-81f1-0988d2d762d1",
+      "gaussians": 154900,
+      "seconds": 73.5602023601532,
+      "sampled_gpu_peak_mib": 2659.0,
+      "ema_loss": 0.0076483,
+      "foreground_psnr": 38.78446213705525,
+      "interior_psnr": 40.068773202854295,
+      "background_alpha": 0.6683158054146715,
+      "background_occupied": 0.9423093684773871
+    },
+    {
+      "name": "bce-v2",
+      "job_id": "40d054a7-e681-4095-b77b-5a6beefa7679",
+      "gaussians": 225637,
+      "seconds": 88.75992679595947,
+      "sampled_gpu_peak_mib": 2839.0,
+      "ema_loss": 0.0139376,
+      "foreground_psnr": 36.718807804820926,
+      "interior_psnr": 38.639138261877456,
+      "background_alpha": 0.03032326416402895,
+      "background_occupied": 0.09851558319676228
+    }
+  ],
+  "delivery": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/deliveries/steven-person-mask-20261014",
+  "model": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/e8406131-9da2-42d7-a8fa-13bb275247bb/model/point_cloud/iteration_15000/point_cloud.ply",
+  "mask_count": 93,
+  "mask_handle": {
+    "handle_id": "712b295f-d13a-4b24-9c19-ad3bbce83b75",
+    "node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+    "storage": "dir",
+    "tags": [
+      "mask-dir"
+    ],
+    "size_bytes": 1011250,
+    "output_port_name": "masks",
+    "proxy_url": "/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/b2861259-70d6-4695-bdf2-093c4061cc87/masks",
+    "absolute_path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/b2861259-70d6-4695-bdf2-093c4061cc87/masks",
+    "deleted_ts": null,
+    "preview": null,
+    "dim_labels": null,
+    "dim_sizes": null
+  },
+  "limitations": [
+    "Residual silhouette fringes and off-frame floaters; not a perfect clean reconstruction",
+    "Training-view PSNR only; no held-out test set",
+    "Foreground boundary quality may drop; compare metrics and PNGs"
+  ],
+  "changed_repositories": [
+    "hololab"
+  ],
+  "fastgs_repository_modified": false
+}

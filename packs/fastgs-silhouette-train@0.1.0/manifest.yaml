@@ -1,0 +1,257 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: fastgs-silhouette-train
+version: 0.1.0
+description: Static FastGS training with independent masked RGB loss and differentiable alpha silhouette supervision.
+source_entry: train_masked.py
+category: training/fastgs-pano
+docs: |
+  Uses the installed FastGS trainer without modifying its repository.
+  RGB loss only uses masks; an additional binary cross-entropy alpha loss (or optional L1 loss)
+  supervises foreground opacity and background transparency. No alpha
+  channel is inserted into ground-truth RGB. Dynamic mode is unsupported.
+  Outputs per-1000-step loss records and CUDA memory/time statistics.
+
+inputs:
+  colmap:
+    tags: [colmap-folder]
+    description: >
+      Dataset root that FastGS's colmap loader accepts. Must contain
+      ``sparse/0/`` + ``<images_dir>/``. For data_sources=both, additionally
+      ``sparse_fixed/0/`` + ``images_fixed/``. Retagged 2026-09-22 —
+      accepts the new canonical ``[colmap-folder]`` from
+      ``merge-colmap@0.4.0`` and ``fastgs-colmap-overlay``.
+  depths:
+    tags: [inv-depth-npy]
+    required: false
+    description: "Optional metric z-depth .npy dir. Filenames must match image stems (e.g. frame_00000_front.npy)."
+  masks:
+    tags: [mask-dir]
+    required: true
+    description: "Optional color-mask dir (white=valid). Filenames match image stems."
+  bbox:
+    tags: [ply-bbox]
+    required: false
+    description: "Optional person_bbox.ply for dynamic mode; overrides <source>/person_bbox.ply autodetect."
+
+params:
+  silhouette_loss: {type: enum, values: [bce, l1], default: bce}
+  silhouette_weight: {type: float, default: 0.1, min: 0.0}
+  iterations:              { type: int,  default: 30000, min: 1 }
+  data_sources:            { type: enum, values: [original, fixed, both], default: original }
+  images_dir_name:         { type: string, default: "images",
+                             description: "-i argument to train.py. Change to e.g. images_2 to train on half-res." }
+  resolution:              { type: int,   default: -1,
+                             description: "--resolution; -1 keeps source. 2 halves width/height." }
+  mult:                    { type: float, default: 0.5,
+                             description: "Rasterization tile-compactness multiplier." }
+  optimizer_type:          { type: enum,  values: [default, sparse_adam], default: default }
+  frame_gpu_budget:        { type: int,   default: -1,
+                             description: "-1 keeps all frame payloads resident; N caches at most N views." }
+
+  # Densification window + schedule
+  densify_from_iter:       { type: int, default: 500 }
+  densify_until_iter:      { type: int, default: 15000 }
+  opacity_reset_interval:  { type: int, default: 3000 }
+  max_gaussians:           { type: int, default: -1,
+                             description: "Stop densification once the model exceeds this count. -1 disables." }
+  densify_milestones:      { type: string, default: "",
+                             description: "Comma-separated switch iterations, e.g. \"7000,10000\". Empty = single stage." }
+  densification_interval:  { type: string, default: "100",
+                             description: "Comma-separated per-stage intervals (length must equal densify_milestones+1)." }
+  grad_abs_thresh:         { type: string, default: "0.0002",
+                             description: "Comma-separated per-stage split thresholds (length must equal densify_milestones+1)." }
+
+  # Depth supervision
+  depth_l1_weight_init:    { type: float, default: 0.0 }
+  depth_l1_weight_final:   { type: float, default: 0.0 }
+
+  # Dynamic mode
+  dynamic:                 { type: bool, default: false,
+                             description: "Enable the deformation head. Image stems must be frame_XXXXX[_face]." }
+
+  # Focused sampling (mutex within the mode)
+  focus_camera_index:      { type: int,   default: -1,
+                             description: "0-based camera index to bias toward. -1 disables focus mode." }
+  focus_image_stem:        { type: string, default: "",
+                             description: "Alternative to focus_camera_index. Empty = disabled. Takes precedence if both set." }
+  focus_from_iter:         { type: int,   default: 10000 }
+  focus_sample_probability: { type: float, default: 0.5 }
+
+  # Scene / eval knobs (safe additions — pass-through to train.py; matches ModelParams defaults)
+  sh_degree:               { type: int,   default: 3, min: 0, max: 3,
+                             description: "SH degree for the Gaussian appearance model. 3 = full quality (default); 0 = diffuse only (fastest smoke)." }
+  white_background:        { type: bool,  default: false,
+                             description: "Render against white BG instead of black. Match your dataset's convention." }
+  eval:                    { type: bool,  default: false,
+                             description: "Enable train/test split behaviour in the loader." }
+  split_dir:               { type: string, default: "",
+                             description: "Optional directory containing explicit train.txt and test.txt view lists." }
+
+  # Dynamic-mode deform head tuning (only consulted when dynamic=true)
+  deform_warm_up:          { type: int,   default: 3000,
+                             description: "Iterations before the deform head is enabled. dynamic=true only." }
+  deform_lr_init:          { type: float, default: 0.0008,
+                             description: "Initial LR for the deform head. dynamic=true only." }
+  deform_lr_final:         { type: float, default: 0.0000016,
+                             description: "Final LR for the deform head. dynamic=true only." }
+  deform_reg_weight:       { type: float, default: 0.01,
+                             description: "Regularisation weight for the deform head. dynamic=true only." }
+
+outputs:
+  ply:
+    tags: [ply-3dgs]
+    storage: file
+    description: Static Gaussian PLY for direct viewing or download.
+  gs_ckpt:
+    tags: [fastgs-model]
+    description: >
+      Trained model dir: point_cloud/iteration_<iter>/point_cloud.ply,
+      chkpnt<iter>.pth, cameras.json, cfg_args, and (dynamic mode)
+      deform/iteration_<iter>/deform.pth.
+
+runtime:
+  env: fastgs
+  gpu:
+    required: true
+    vram_gb_min: 20
+  expected_duration_min: [3, 90]
+  resources:
+    scratch_gb: 4.0
+    mem_gb: 16.0
+    gpu_mem_gb: 22.0
+  exclusive: true
+
+exec:
+  shell: |
+    set -euo pipefail
+    cd /cloud/cloud-ssd1/FastGS-Pano
+
+    # Optional inputs — Jinja StrictUndefined would blow up on unset
+    # inputs, so we default to '' and branch in bash.
+    DEPTHS_IN="{{ inputs.depths|default('') }}"
+    MASKS_IN="{{ inputs.masks|default('') }}"
+    BBOX_IN="{{ inputs.bbox|default('') }}"
+
+    depth_args=()
+    if [ -n "$DEPTHS_IN" ]; then
+      depth_args+=(--depths "$DEPTHS_IN")
+    fi
+    if [ "{{ params.depth_l1_weight_init }}" != "0.0" ] || \
+       [ "{{ params.depth_l1_weight_final }}" != "0.0" ]; then
+      depth_args+=(
+        --depth_l1_weight_init  {{ params.depth_l1_weight_init }}
+        --depth_l1_weight_final {{ params.depth_l1_weight_final }}
+      )
+    fi
+
+    mask_args=()
+    if [ -n "$MASKS_IN" ]; then
+      mask_args+=(--masks "$MASKS_IN")
+    fi
+
+    bbox_args=()
+    if [ -n "$BBOX_IN" ]; then
+      bbox_args+=(--dynamic_bbox "$BBOX_IN")
+    fi
+
+    dyn_args=()
+    if [ "{{ params.dynamic }}" = "True" ] || [ "{{ params.dynamic }}" = "true" ]; then
+      dyn_args+=(--dynamic)
+    fi
+
+    frame_gpu_args=()
+    if [ "{{ params.frame_gpu_budget }}" != "-1" ]; then
+      frame_gpu_args+=(--frame_gpu_budget {{ params.frame_gpu_budget }})
+    fi
+
+    # List params: comma-separated → space-separated for argparse nargs='+' / '*'.
+    milestones_str="{{ params.densify_milestones }}"
+    milestones_args=()
+    if [ -n "$milestones_str" ]; then
+      IFS=',' read -r -a _tmp <<< "$milestones_str"
+      milestones_args+=(--densify_milestones "${_tmp[@]}")
+    fi
+
+    IFS=',' read -r -a _int_arr <<< "{{ params.densification_interval }}"
+    IFS=',' read -r -a _grad_arr <<< "{{ params.grad_abs_thresh }}"
+
+    focus_args=()
+    if [ -n "{{ params.focus_image_stem }}" ]; then
+      focus_args+=(--focus_image_stem "{{ params.focus_image_stem }}"
+                   --focus_from_iter {{ params.focus_from_iter }}
+                   --focus_sample_probability {{ params.focus_sample_probability }})
+    elif [ "{{ params.focus_camera_index }}" != "-1" ]; then
+      focus_args+=(--focus_camera_index {{ params.focus_camera_index }}
+                   --focus_from_iter {{ params.focus_from_iter }}
+                   --focus_sample_probability {{ params.focus_sample_probability }})
+    fi
+
+    resolution_args=()
+    if [ "{{ params.resolution }}" != "-1" ]; then
+      resolution_args+=(--resolution {{ params.resolution }})
+    fi
+
+    split_args=()
+    if [ -n "{{ params.split_dir }}" ]; then
+      split_args+=(--split_dir "{{ params.split_dir }}")
+    fi
+
+    white_bg_flag=""
+    if [ "{{ params.white_background }}" = "True" ] || [ "{{ params.white_background }}" = "true" ]; then
+      white_bg_flag="--white_background"
+    fi
+    eval_flag=""
+    if [ "{{ params.eval }}" = "True" ] || [ "{{ params.eval }}" = "true" ]; then
+      eval_flag="--eval"
+    fi
+
+    python "{{ pack_dir }}/train_masked.py" --silhouette_weight {{ params.silhouette_weight }} --silhouette_loss {{ params.silhouette_loss }} \
+      -s "{{ inputs.colmap }}" \
+      -i "{{ params.images_dir_name }}" \
+      --data_sources "{{ params.data_sources }}" \
+      -m "{{ outputs.gs_ckpt }}" \
+      --iterations {{ params.iterations }} \
+      --max_gaussians {{ params.max_gaussians }} \
+      --densify_from_iter {{ params.densify_from_iter }} \
+      --densify_until_iter {{ params.densify_until_iter }} \
+      --opacity_reset_interval {{ params.opacity_reset_interval }} \
+      --densification_interval "${_int_arr[@]}" \
+      --grad_abs_thresh        "${_grad_arr[@]}" \
+      "${milestones_args[@]}" \
+      --optimizer_type "{{ params.optimizer_type }}" \
+      --test_iterations       {{ params.iterations }} \
+      --save_iterations       {{ params.iterations }} \
+      --checkpoint_iterations {{ params.iterations }} \
+      --mult {{ params.mult }} \
+      --sh_degree {{ params.sh_degree }} \
+      --deform_warm_up {{ params.deform_warm_up }} \
+      --deform_lr_init {{ params.deform_lr_init }} \
+      --deform_lr_final {{ params.deform_lr_final }} \
+      --deform_reg_weight {{ params.deform_reg_weight }} \
+      "${resolution_args[@]}" \
+      "${dyn_args[@]}" \
+      "${bbox_args[@]}" \
+      "${depth_args[@]}" \
+      "${mask_args[@]}" \
+      "${frame_gpu_args[@]}" \
+      "${focus_args[@]}" \
+      "${split_args[@]}" \
+      $white_bg_flag $eval_flag \
+      --quiet
+
+    cp "{{ outputs.gs_ckpt }}/point_cloud/iteration_{{ params.iterations }}/point_cloud.ply" "{{ outputs.ply }}"
+    touch "{{ outputs.gs_ckpt }}/.hololab-done"
+  working_dir: /cloud/cloud-ssd1/FastGS-Pano
+
+idempotency:
+  marker: "{{ outputs.gs_ckpt }}/.hololab-done"
+
+progress:
+  # tqdm bar in train.py; matches [iter/total] within the "Training progress" line.
+  stdout_regex: '(\d+)/(\d+)'
+
+previews:
+  - id: cfg_args
+    type: text
+    path: "{{ outputs.gs_ckpt }}/cfg_args"
