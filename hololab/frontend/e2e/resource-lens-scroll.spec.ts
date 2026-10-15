@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('sidebar process list scrolls without overflow and restores focus', async ({ page }) => {
+test('bottom compute dock keeps the device visible while the lens scrolls', async ({ page }) => {
   page.on('pageerror', e => { throw e; });
   await page.routeWebSocket('**', () => {});
   await page.route('**/api/**', async route => {
@@ -14,6 +14,8 @@ test('sidebar process list scrolls without overflow and restores focus', async (
   await page.setViewportSize({width: 1440, height: 1000});
   await page.goto('/w/lens-scroll');
   const panel = page.locator('.hl-node-metrics');
+  await expect(page.locator('.hl-compute-dock .hl-node-metrics')).toBeVisible();
+  await expect(page.locator('.hl-inspector-sidebar .hl-node-metrics')).toHaveCount(0);
   await panel.getByRole('button', {name: 'Open CPU resource lens'}).first().click();
   const card = panel.locator('[data-pulse-node]');
   await expect(panel.locator('.hl-resource-process')).toHaveCount(32);
@@ -24,12 +26,14 @@ test('sidebar process list scrolls without overflow and restores focus', async (
       await panel.evaluate((el, f) => {el.scrollTop = (el.scrollHeight-el.clientHeight)*f;}, fraction);
       await page.waitForTimeout(100);
       const p = await panel.boundingBox(); const c = await card.boundingBox();
-      // The inspector sidebar uses the existing narrow, stacked lens layout.
-      expect(await card.evaluate(el => getComputedStyle(el).position)).toBe('static');
+      // The bottom dock owns scrolling; the device stays pinned alongside the list.
+      expect(await card.evaluate(el => getComputedStyle(el).position)).toBe('sticky');
+      expect(c!.y).toBeGreaterThanOrEqual(p!.y);
+      expect(c!.y).toBeLessThanOrEqual(p!.y + 40);
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
       if (fraction > 0) expect(await panel.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
       measurements.push({theme, state, cardTop: c!.y, panelTop: p!.y, scrollTop: await panel.evaluate(el => el.scrollTop)});
-      await panel.screenshot({path: `test-results/lens-scroll-${theme}-${state}.png`});
+      await page.screenshot({path: `test-results/lens-scroll-${theme}-${state}.png`});
     }
   }
   console.log(JSON.stringify(measurements));
@@ -39,12 +43,13 @@ test('sidebar process list scrolls without overflow and restores focus', async (
   expect(await card.first().evaluate(el => getComputedStyle(el).position)).toBe('static');
   await panel.getByRole('button', {name: 'Open CPU resource lens'}).first().click();
   await page.setViewportSize({width: 390, height: 844});
-  await page.getByRole('tab', {name: 'Inspect', exact: true}).click();
+  await page.getByRole('tab', {name: 'Nodes', exact: true}).click();
   await panel.getByRole('button', {name: 'Open CPU resource lens'}).first().click();
   await expect(card).toHaveCount(1);
   expect(await card.evaluate(el => getComputedStyle(el).position)).toBe('static');
   expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.screenshot({path: 'test-results/lens-scroll-narrow-top.png'});
   await panel.locator('.hl-resource-process').last().scrollIntoViewIfNeeded();
   await expect(panel.locator('.hl-resource-process').last()).toBeVisible();
-  await panel.screenshot({path: 'test-results/lens-scroll-narrow.png'});
+  await page.screenshot({path: 'test-results/lens-scroll-narrow.png'});
 });

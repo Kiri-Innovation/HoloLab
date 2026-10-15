@@ -1,5 +1,4 @@
 .hl-inspector-sidebar { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); overflow: hidden; }
-.hl-sidebar-compute { flex: 0 0 auto; max-height: 38%; overflow: auto; border-bottom: 1px solid var(--border); }
 .hl-sidebar-content { flex: 1; min-height: 0; overflow: auto; }
 .hl-compute-assignment { padding: 12px 14px 0; display: grid; grid-template-columns: 94px minmax(0, 1fr); align-items: center; gap: 8px; font-size: var(--fs-xs); }
 .hl-compute-assignment select { width: 100%; min-width: 0; text-align: left; }
@@ -19,7 +18,8 @@
 .hl-mobile-inspector > .hl-node-inspector { height: auto !important; overflow: visible !important; }
 .hl-inspector-heading { flex-wrap: wrap; }
 .hl-inspector-heading > div:first-child { flex-basis: 100%; }
-.hl-sidebar-compute { display: flex; overflow: hidden; }
-.hl-sidebar-compute .hl-compute-panel { min-height: 0; width: 100%; display: flex; flex-direction: column; }
-.hl-sidebar-compute .hl-node-metrics { min-height: 0; }
 .hl-compute-assignment { flex-shrink: 0; }
+
+.hl-compute-dock { min-height: 0; min-width: 0; overflow: hidden; background: var(--surface); }
+.hl-compute-dock .hl-compute-panel { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.hl-compute-dock .hl-node-metrics { flex: 1; min-height: 0; box-sizing: border-box; }

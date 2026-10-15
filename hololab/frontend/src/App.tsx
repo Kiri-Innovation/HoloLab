@@ -6,7 +6,8 @@ import { CanvasControls } from "./canvas/CanvasControls";
 //   - top:    WorkflowToolbar (name, save/run, run summary chip)
 //   - left:   PackPalette
 //   - middle: xyflow canvas (algorithm-node instances)
-//   - right:  unified compute pulse, selection inspector / recent jobs, run history
+//   - right:  selection inspector / recent jobs, run history
+//   - bottom: compute nodes, pulse and resource lenses
 
 import { CanvasToastAnchor } from "./ui/Toast";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -281,9 +282,10 @@ interface AppInnerProps {
 }
 
 function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
-  // Independent sidebar widths; the inspector keeps the full canvas height.
+  // Independent sidebar widths and a resizable compute dock.
   const leftDock = useResizableSlot("hl-layout-left", 300, 180, 420);
   const rightDock = useResizableSlot("hl-layout-inspector-right", 380, 320, 400);
+  const bottomDock = useResizableSlot("hl-layout-bottom", 400, 160, Number.POSITIVE_INFINITY);
   const [minimapOpen, setMinimapOpen] = useState(false);
 
   // Bumped by the WS lifecycle on true reconnects (previously connected →
@@ -2728,9 +2730,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     />
   );
   const selectedAlgorithmData = selectedNode ? algorithmNodeData(selectedNode.data) : null;
-  const nodesSlot = (
-    <ComputeNodesPanel nodes={computeNodes} metricsByNode={metricsByNode}
-      assignment={!viewingSnapshot && selectedAlgorithmData ? (
+  const assignmentSlot = !viewingSnapshot && selectedAlgorithmData ? (
         <div className="hl-compute-assignment">
           <label htmlFor="hl-assigned-node">Assigned node</label>
           <select id="hl-assigned-node" value={selectedAlgorithmData.assigned_node_id || ""}
@@ -2746,9 +2746,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           </select>
           {!computeNodes.some(cn => cn.packs.some(p => p.name === selectedAlgorithmData.pack.name && p.version === selectedAlgorithmData.pack.version)) && <small style={{ gridColumn: "1 / -1", color: "var(--error)" }}>No online compute node offers this pack.</small>}
         </div>
-      ) : null}
-    />
-  );
+      ) : null;
+  const nodesSlot = <ComputeNodesPanel nodes={computeNodes} metricsByNode={metricsByNode} />;
   const hasInspection = Boolean(edgeInspectorProps || (viewingSnapshot ? snapshotSelectedGraphNodeId : selectedAlgorithmData));
   const inspectorSlot = edgeInspectorProps ? (
     <EdgeInspector {...edgeInspectorProps} />
@@ -2846,7 +2845,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           nodes={nodesSlot}
           runs={runsSlot}
           jobs={jobsSlot}
-          inspect={<div className="hl-mobile-inspector">{nodesSlot}{inspectorSlot}</div>}
+          inspect={<div className="hl-mobile-inspector">{assignmentSlot}{inspectorSlot}</div>}
           selectionId={mobileSelectionId}
           latestSnapshotId={latestSnapshotId}
         />
@@ -2859,11 +2858,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       className="hl-app-shell hl-workspace"
       style={{
         display: "grid",
-        gridTemplateRows: "auto minmax(0, 1fr)",
+        gridTemplateRows: `auto minmax(0, 1fr) 6px min(${bottomDock.value}px, 65vh)`,
         gridTemplateColumns: `${leftDock.value}px 6px minmax(0, 1fr) 6px ${rightDock.value}px`,
         gridTemplateAreas: `
           "top top top top top"
           "left left-split mid right-split right"
+          "bottom-split bottom-split bottom-split bottom-split bottom-split"
+          "bottom bottom bottom bottom bottom"
         `,
         height: "100vh",
         background: "var(--bg)",
@@ -2916,15 +2917,22 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       </div>
 
       <aside className="hl-panel hl-inspector-sidebar" style={{ gridArea: "right" }}>
-        <div className="hl-sidebar-compute">{nodesSlot}</div>
+        {assignmentSlot}
         <div className="hl-sidebar-content">
           {hasInspection ? inspectorSlot : jobsSlot}
         </div>
-        {runsSlot && <details className="hl-sidebar-runs">
+        {!hasInspection && runsSlot && <details className="hl-sidebar-runs">
           <summary>Run history · snapshots</summary>
           <div>{runsSlot}</div>
         </details>}
       </aside>
+      <div style={{ gridArea: "bottom-split", minWidth: 0 }}>
+        <Splitter label="Resize compute panel" onResize={bottomDock.resize}
+          onReset={bottomDock.reset} orientation="horizontal" reverse />
+      </div>
+      <section className="hl-compute-dock" aria-label="Compute node pulse" style={{ gridArea: "bottom" }}>
+        {nodesSlot}
+      </section>
     </div>
   );
 }

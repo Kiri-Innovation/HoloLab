@@ -4,7 +4,7 @@ const pack = { name:'inspector-demo',version:'1.0',manifest_hash:'demo',node_ids
 const graph={nodes:[{id:'demo-node',algorithm_name:pack.name,algorithm_version:pack.version,position:{x:100,y:100},params:{},assigned_node_id:'compute-a',arrayed_toggle:false}],edges:[]};
 test('sidebar selection, autosave, assignment, deletion and theme screenshots',async({page})=>{
  const before=process.env.INSPECTOR_BEFORE==='1';
- const output='../../reports/inspector-sidebar-20261015'; mkdirSync(output,{recursive:true});
+ const output='test-results/inspector-sidebar'; mkdirSync(output,{recursive:true});
  const saved:any[]=[]; let currentGraph = structuredClone(graph); let runReads = 0;
  page.on('pageerror',e=>{throw e;});
  await page.routeWebSocket('**', () => {});
@@ -26,6 +26,8 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  if(before)return;
  const sidebar=page.locator('.hl-inspector-sidebar');await expect(sidebar.locator('.hl-node-inspector')).toBeVisible();expect((await sidebar.boundingBox())!.width).toBe(380);expect(await sidebar.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
  await expect(sidebar.getByText('Recent jobs',{exact:true})).toHaveCount(0);
+ await expect(sidebar.locator('.hl-sidebar-runs')).toHaveCount(0);
+ await expect(page.locator('.hl-compute-dock .hl-node-metrics')).toBeVisible();
  await sidebar.getByRole('textbox',{name:'setting_12',exact:true}).scrollIntoViewIfNeeded();
  await expect(sidebar.getByRole('textbox',{name:'setting_12',exact:true})).toBeVisible();
  await sidebar.getByRole('textbox',{name:'threshold',exact:true}).fill('0.25');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.params?.threshold).toBe(0.25);
