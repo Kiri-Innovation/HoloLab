@@ -1,0 +1,70 @@
+{
+  "runtime_shape": {
+    "handleId": "6f22e7cc-5ce5-4504-8481-da3a58e7f747",
+    "tags": {
+      "evidence": {
+        "status": "complete",
+        "value": [
+          "directory"
+        ],
+        "source": "registered-handle-metadata"
+      }
+    },
+    "axes": {
+      "evidence": {
+        "status": "unknown",
+        "reason": "shape-not-measured"
+      }
+    },
+    "internalCounts": [],
+    "schemaVersion": 1
+  },
+  "handle_id": "6f22e7cc-5ce5-4504-8481-da3a58e7f747",
+  "kind": "dir",
+  "tags": [
+    "directory"
+  ],
+  "storage": "dir",
+  "size_bytes": 7741293,
+  "proxy_url": "/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/report",
+  "absolute_path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/report",
+  "fields": {
+    "entry_count": 5,
+    "total_size_bytes": 7741293,
+    "entries": [
+      {
+        "name": "progress.json",
+        "is_dir": false,
+        "size_bytes": 31317
+      },
+      {
+        "name": "sample_181.png",
+        "is_dir": false,
+        "size_bytes": 2746486
+      },
+      {
+        "name": "validation.json",
+        "is_dir": false,
+        "size_bytes": 35009
+      },
+      {
+        "name": "sample_000.png",
+        "is_dir": false,
+        "size_bytes": 2776600
+      },
+      {
+        "name": "sample_091.png",
+        "is_dir": false,
+        "size_bytes": 2151881
+      }
+    ],
+    "truncated": false
+  },
+  "element_count": null,
+  "dim_sizes": null,
+  "internal_count": null,
+  "internal_count_kind": null,
+  "internal_count_items": null,
+  "preview": null,
+  "dim_labels": null
+}

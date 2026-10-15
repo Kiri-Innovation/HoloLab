@@ -7,7 +7,12 @@ source_entry: export.py
 category: export/fastgs-pano
 inputs:
   colmap: {tags: [colmap-folder]}
-  masks: {tags: [mask-dir]}
+  masks:
+    tags: [mask]
+    arrayed: true
+    storage: dir
+    dim_labels: [frame]
+    description: "Per-frame binary PNG files, materialized as a directory; stems match colmap images."
   model: {tags: [fastgs-model]}
 outputs:
   model: {tags: [fastgs-model]}

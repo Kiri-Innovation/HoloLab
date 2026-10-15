@@ -10,7 +10,21 @@ inputs:
     tags: [colmap-folder]
 outputs:
   masks:
-    tags: [mask-dir]
+    tags: [mask, image]
+    arrayed: true
+    storage: dir
+    dim_labels: [frame]
+    description: >-
+      arrayed<mask>[frame], sorted by filename. The image co-tag declares
+      the existing single-image file contract for every mask leaf.
+      The aggregate is a directory;
+      each element is one file named <image-stem>.png (storage: file),
+      decoded as single-channel uint8 at the source image width and height.
+      Values are 0 (background) or 255 (foreground / valid RGB loss).
+      Validated before success: nonempty inputs, unique stems, exact PNG
+      filename coverage, matching image dimensions, binary values, and
+      foreground coverage strictly between 5% and 95%. Hidden .done is
+      an execution marker, not an array element.
   report:
     tags: [directory]
 runtime:

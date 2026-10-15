@@ -1,0 +1,987 @@
+{
+  "job_id": "474108f4-66e9-4dce-b6ff-21f5a883714b",
+  "lines": [
+    {
+      "stream": "stdout",
+      "line": "Loading trained model at iteration 15000",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Mask directory not found: /cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/3595b3b3-0c0d-436f-b224-349939b7344c/folder/masks; continuing without masks.",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 1/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 2/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 3/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 4/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 5/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 6/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 7/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 8/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 9/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 10/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 11/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 12/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 13/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 14/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 15/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 16/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 17/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 18/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 19/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 20/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 21/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 22/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 23/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 24/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 25/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 26/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 27/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 28/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 29/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 30/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 31/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 32/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 33/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 34/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 35/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 36/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 37/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 38/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 39/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 40/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 41/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 42/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 43/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 44/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 45/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 46/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 47/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 48/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 49/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 50/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 51/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 52/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 53/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 54/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 55/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 56/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 57/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 58/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 59/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 60/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 61/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 62/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 63/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 64/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 65/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 66/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 67/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 68/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 69/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 70/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 71/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 72/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 73/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 74/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 75/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 76/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 77/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 78/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 79/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 80/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 81/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 82/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 83/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 84/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 85/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 86/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 87/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 88/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 89/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 90/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 91/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 92/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 93/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 94/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 95/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 96/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 97/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 98/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 99/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 100/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 101/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 102/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 103/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 104/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 105/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 106/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 107/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 108/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 109/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 110/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 111/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 112/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 113/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 114/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 115/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 116/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 117/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 118/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 119/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 120/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 121/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 122/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 123/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 124/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 125/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 126/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 127/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 128/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 129/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 130/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 131/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 132/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 133/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 134/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 135/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 136/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 137/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 138/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 139/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 140/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 141/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 142/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 143/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 144/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 145/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 146/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 147/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 148/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 149/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 150/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 151/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 152/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 153/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 154/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 155/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 156/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 157/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 158/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 159/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 160/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 161/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 162/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 163/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 164/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 165/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 166/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 167/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 168/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 169/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 170/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 171/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 172/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 173/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 174/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 175/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 176/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 177/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 178/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 179/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 180/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 181/182",
+      "ts": 1792042120.8234775
+    },
+    {
+      "stream": "stdout",
+      "line": "Reading camera 182/182",
+      "ts": 1792042131.3400028
+    },
+    {
+      "stream": "stdout",
+      "line": "Loading Training Cameras",
+      "ts": 1792042131.3400028
+    },
+    {
+      "stream": "stdout",
+      "line": "Loading Test Cameras",
+      "ts": 1792042131.3400028
+    },
+    {
+      "stream": "stdout",
+      "line": "{",
+      "ts": 1792042131.3400028
+    },
+    {
+      "stream": "stdout",
+      "line": "  \"before\": 259260,",
+      "ts": 1792042131.3400028
+    },
+    {
+      "stream": "stdout",
+      "line": "  \"after\": 259134,",
+      "ts": 1792042131.3400028
+    },
+    {
+      "stream": "stdout",
+      "line": "  \"removed\": 126,",
+      "ts": 1792042131.3400028
+    },
+    {
+      "stream": "stdout",
+      "line": "  \"margin_pixels\": 2,",
+      "ts": 1792042131.3400028
+    },
+    {
+      "stream": "stdout",
+      "line": "  \"criterion\": \"inside at least one foreground mask\",",
+      "ts": 1792042131.3400028
+    },
+    {
+      "stream": "stdout",
+      "line": "  \"views\": 182,",
+      "ts": 1792042131.3400028
+    },
+    {
+      "stream": "stdout",
+      "line": "  \"source\": \"/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/0554ebc5-f3e7-437d-9a12-e7e60fdc4608/gs_ckpt\"",
+      "ts": 1792042131.3400028
+    },
+    {
+      "stream": "stdout",
+      "line": "}",
+      "ts": 1792042131.3400028
+    }
+  ],
+  "total_returned": 196,
+  "truncated": false
+}

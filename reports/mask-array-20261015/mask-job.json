@@ -1,0 +1,29 @@
+{
+  "job_id": "15bc742d-8957-4adb-b656-261a59e65f97",
+  "workflow_id": "ca5d26f1-b30a-4c03-9511-31e4cb151d99",
+  "node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+  "graph_node_id": "steven-person-mask",
+  "algorithm_name": "person-gray-mask",
+  "algorithm_version": "0.1.0",
+  "state": "done",
+  "progress": null,
+  "fail_reason": null,
+  "created_ts": 1792041940.7163742,
+  "updated_ts": 1792042094.344573,
+  "started_ts": 1792041942.239952,
+  "parent_job_id": null,
+  "shard_element_id": null,
+  "shard_element_ids": null,
+  "expected_shards": null,
+  "snapshot_id": "de265e0f-87ff-4d21-a052-7bf61deecce6",
+  "params": {},
+  "input_handles": {
+    "colmap": "2b2d0c5e-d21a-4664-9eba-708c7ede095f"
+  },
+  "output_handles": {
+    "masks": "567a1ded-d615-4634-bd41-a3633495864f",
+    "report": "6f22e7cc-5ce5-4504-8481-da3a58e7f747"
+  },
+  "fail_exit_code": null,
+  "fail_message": null
+}

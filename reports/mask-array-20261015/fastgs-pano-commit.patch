@@ -1,0 +1,27 @@
+commit 431f01818eb683285468fc05148f3f77ebe9f735
+Author:     Steven(Kiri4090) <deslate@outlook.com>
+AuthorDate: Thu Oct 15 05:26:15 2026 +0000
+Commit:     Steven(Kiri4090) <deslate@outlook.com>
+CommitDate: Thu Oct 15 05:26:15 2026 +0000
+
+    Accept frame arrays of masks in FastGS training
+
+diff --git a/packs/fastgs-pano-train@0.1.0/manifest.yaml b/packs/fastgs-pano-train@0.1.0/manifest.yaml
+index 8adaacc..d68c427 100644
+--- a/packs/fastgs-pano-train@0.1.0/manifest.yaml
++++ b/packs/fastgs-pano-train@0.1.0/manifest.yaml
+@@ -67,9 +67,12 @@ inputs:
+     required: false
+     description: "Optional metric z-depth .npy dir. Filenames must match image stems (e.g. frame_00000_front.npy)."
+   masks:
+-    tags: [mask-dir]
++    tags: [mask]
++    arrayed: true
++    storage: dir
++    dim_labels: [frame]
+     required: false
+-    description: "Optional color-mask dir (white=valid). Filenames match image stems."
++    description: "Per-frame binary PNG masks (white=valid), materialized as a directory. Filenames match image stems."
+   bbox:
+     tags: [ply-bbox]
+     required: false

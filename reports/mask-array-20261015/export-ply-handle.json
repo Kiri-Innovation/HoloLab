@@ -1,0 +1,16 @@
+{
+  "handle_id": "d95ef614-bce7-4077-8d1d-c0fe7d769353",
+  "node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+  "storage": "file",
+  "tags": [
+    "ply-3dgs"
+  ],
+  "size_bytes": 64266763,
+  "output_port_name": "ply",
+  "proxy_url": "/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/474108f4-66e9-4dce-b6ff-21f5a883714b/ply",
+  "absolute_path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/474108f4-66e9-4dce-b6ff-21f5a883714b/ply",
+  "deleted_ts": null,
+  "preview": null,
+  "dim_labels": null,
+  "dim_sizes": null
+}

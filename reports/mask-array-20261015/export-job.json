@@ -1,0 +1,31 @@
+{
+  "job_id": "474108f4-66e9-4dce-b6ff-21f5a883714b",
+  "workflow_id": "ca5d26f1-b30a-4c03-9511-31e4cb151d99",
+  "node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+  "graph_node_id": null,
+  "algorithm_name": "fastgs-foreground-export",
+  "algorithm_version": "0.1.0",
+  "state": "done",
+  "progress": null,
+  "fail_reason": null,
+  "created_ts": 1792042118.2984433,
+  "updated_ts": 1792042131.7053773,
+  "started_ts": 1792042120.8349257,
+  "parent_job_id": null,
+  "shard_element_id": null,
+  "shard_element_ids": null,
+  "expected_shards": null,
+  "snapshot_id": null,
+  "params": {},
+  "input_handles": {
+    "model": "08c3f7aa-1542-46fa-b64e-3e8afb6a2336",
+    "colmap": "2b2d0c5e-d21a-4664-9eba-708c7ede095f",
+    "masks": "567a1ded-d615-4634-bd41-a3633495864f"
+  },
+  "output_handles": {
+    "model": "a89fb034-3a6f-4660-b03d-140b33010089",
+    "ply": "d95ef614-bce7-4077-8d1d-c0fe7d769353"
+  },
+  "fail_exit_code": null,
+  "fail_message": null
+}

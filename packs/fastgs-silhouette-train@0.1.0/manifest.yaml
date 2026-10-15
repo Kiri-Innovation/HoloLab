@@ -26,9 +26,12 @@ inputs:
     required: false
     description: "Optional metric z-depth .npy dir. Filenames must match image stems (e.g. frame_00000_front.npy)."
   masks:
-    tags: [mask-dir]
+    tags: [mask]
+    arrayed: true
+    storage: dir
+    dim_labels: [frame]
     required: true
-    description: "Optional color-mask dir (white=valid). Filenames match image stems."
+    description: "Per-frame binary PNG masks (white=valid), materialized as a directory. Filenames match image stems."
   bbox:
     tags: [ply-bbox]
     required: false

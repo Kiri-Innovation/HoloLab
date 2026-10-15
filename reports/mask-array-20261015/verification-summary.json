@@ -1,0 +1,21 @@
+{
+  "tests": {
+    "passed": 106,
+    "skipped": 1
+  },
+  "canvas_graph_and_params_unchanged": true,
+  "mask_file_count": 182,
+  "mask_shape": [
+    1458,
+    1458
+  ],
+  "mask_values": [
+    0,
+    255
+  ],
+  "same_model_export_counts_identical": true,
+  "train_iterations": 3000,
+  "canvas_iterations": 15000,
+  "tag_viewers_modified": false,
+  "fastgs_commit": "431f01818eb683285468fc05148f3f77ebe9f735"
+}

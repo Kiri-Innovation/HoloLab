@@ -1,0 +1,567 @@
+{
+  "runtime_shape": {
+    "handleId": "567a1ded-d615-4634-bd41-a3633495864f",
+    "tags": {
+      "evidence": {
+        "status": "complete",
+        "value": [
+          "mask",
+          "image"
+        ],
+        "source": "registered-handle-metadata"
+      }
+    },
+    "axes": {
+      "evidence": {
+        "status": "complete",
+        "value": [
+          {
+            "label": "frame",
+            "role": "collection",
+            "size": {
+              "evidence": {
+                "status": "complete",
+                "value": 182,
+                "source": "directory-tree-scan"
+              }
+            }
+          }
+        ],
+        "source": "handle-shape-probe"
+      }
+    },
+    "internalCounts": [],
+    "schemaVersion": 1
+  },
+  "handle_id": "567a1ded-d615-4634-bd41-a3633495864f",
+  "kind": "dir",
+  "tags": [
+    "mask",
+    "image"
+  ],
+  "storage": "dir",
+  "size_bytes": 2298772,
+  "proxy_url": "/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks",
+  "absolute_path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks",
+  "fields": {
+    "entry_count": 184,
+    "total_size_bytes": 1242434,
+    "entries": [
+      {
+        "name": "frame_000158.png",
+        "is_dir": false,
+        "size_bytes": 11205
+      },
+      {
+        "name": "frame_000035.png",
+        "is_dir": false,
+        "size_bytes": 14817
+      },
+      {
+        "name": ".done",
+        "is_dir": false,
+        "size_bytes": 0
+      },
+      {
+        "name": "frame_000093.png",
+        "is_dir": false,
+        "size_bytes": 12413
+      },
+      {
+        "name": "frame_000117.png",
+        "is_dir": false,
+        "size_bytes": 12613
+      },
+      {
+        "name": "frame_000131.png",
+        "is_dir": false,
+        "size_bytes": 13737
+      },
+      {
+        "name": "frame_000019.png",
+        "is_dir": false,
+        "size_bytes": 13131
+      },
+      {
+        "name": "frame_000167.png",
+        "is_dir": false,
+        "size_bytes": 12123
+      },
+      {
+        "name": "frame_000087.png",
+        "is_dir": false,
+        "size_bytes": 12603
+      },
+      {
+        "name": "frame_000165.png",
+        "is_dir": false,
+        "size_bytes": 11953
+      },
+      {
+        "name": "frame_000150.png",
+        "is_dir": false,
+        "size_bytes": 11189
+      },
+      {
+        "name": "frame_000061.png",
+        "is_dir": false,
+        "size_bytes": 11232
+      },
+      {
+        "name": "frame_000164.png",
+        "is_dir": false,
+        "size_bytes": 11760
+      },
+      {
+        "name": "frame_000008.png",
+        "is_dir": false,
+        "size_bytes": 12656
+      },
+      {
+        "name": "frame_000047.png",
+        "is_dir": false,
+        "size_bytes": 12807
+      },
+      {
+        "name": "frame_000154.png",
+        "is_dir": false,
+        "size_bytes": 11157
+      },
+      {
+        "name": "frame_000054.png",
+        "is_dir": false,
+        "size_bytes": 12041
+      },
+      {
+        "name": "frame_000114.png",
+        "is_dir": false,
+        "size_bytes": 12662
+      },
+      {
+        "name": "frame_000016.png",
+        "is_dir": false,
+        "size_bytes": 12852
+      },
+      {
+        "name": "frame_000076.png",
+        "is_dir": false,
+        "size_bytes": 11333
+      },
+      {
+        "name": "frame_000110.png",
+        "is_dir": false,
+        "size_bytes": 12378
+      },
+      {
+        "name": "frame_000145.png",
+        "is_dir": false,
+        "size_bytes": 11534
+      },
+      {
+        "name": "frame_000113.png",
+        "is_dir": false,
+        "size_bytes": 12498
+      },
+      {
+        "name": "frame_000073.png",
+        "is_dir": false,
+        "size_bytes": 11225
+      },
+      {
+        "name": "frame_000004.png",
+        "is_dir": false,
+        "size_bytes": 12900
+      },
+      {
+        "name": "frame_000026.png",
+        "is_dir": false,
+        "size_bytes": 13167
+      },
+      {
+        "name": "frame_000046.png",
+        "is_dir": false,
+        "size_bytes": 13041
+      },
+      {
+        "name": "frame_000112.png",
+        "is_dir": false,
+        "size_bytes": 12496
+      },
+      {
+        "name": "frame_000003.png",
+        "is_dir": false,
+        "size_bytes": 12942
+      },
+      {
+        "name": "frame_000018.png",
+        "is_dir": false,
+        "size_bytes": 12900
+      },
+      {
+        "name": "frame_000051.png",
+        "is_dir": false,
+        "size_bytes": 12186
+      },
+      {
+        "name": "frame_000120.png",
+        "is_dir": false,
+        "size_bytes": 13158
+      },
+      {
+        "name": "frame_000124.png",
+        "is_dir": false,
+        "size_bytes": 13399
+      },
+      {
+        "name": "frame_000039.png",
+        "is_dir": false,
+        "size_bytes": 14655
+      },
+      {
+        "name": "frame_000159.png",
+        "is_dir": false,
+        "size_bytes": 11357
+      },
+      {
+        "name": "frame_000052.png",
+        "is_dir": false,
+        "size_bytes": 12186
+      },
+      {
+        "name": "frame_000037.png",
+        "is_dir": false,
+        "size_bytes": 14961
+      },
+      {
+        "name": "frame_000125.png",
+        "is_dir": false,
+        "size_bytes": 13467
+      },
+      {
+        "name": "frame_000048.png",
+        "is_dir": false,
+        "size_bytes": 12631
+      },
+      {
+        "name": "frame_000099.png",
+        "is_dir": false,
+        "size_bytes": 12487
+      },
+      {
+        "name": "frame_000009.png",
+        "is_dir": false,
+        "size_bytes": 12661
+      },
+      {
+        "name": "frame_000081.png",
+        "is_dir": false,
+        "size_bytes": 12413
+      },
+      {
+        "name": "frame_000180.png",
+        "is_dir": false,
+        "size_bytes": 12730
+      },
+      {
+        "name": "frame_000078.png",
+        "is_dir": false,
+        "size_bytes": 11893
+      },
+      {
+        "name": "frame_000142.png",
+        "is_dir": false,
+        "size_bytes": 12520
+      },
+      {
+        "name": "frame_000107.png",
+        "is_dir": false,
+        "size_bytes": 12323
+      },
+      {
+        "name": "frame_000089.png",
+        "is_dir": false,
+        "size_bytes": 12522
+      },
+      {
+        "name": "frame_000121.png",
+        "is_dir": false,
+        "size_bytes": 13277
+      },
+      {
+        "name": "frame_000013.png",
+        "is_dir": false,
+        "size_bytes": 12847
+      },
+      {
+        "name": "frame_000179.png",
+        "is_dir": false,
+        "size_bytes": 12866
+      },
+      {
+        "name": "frame_000169.png",
+        "is_dir": false,
+        "size_bytes": 12405
+      },
+      {
+        "name": "frame_000030.png",
+        "is_dir": false,
+        "size_bytes": 14136
+      },
+      {
+        "name": "frame_000100.png",
+        "is_dir": false,
+        "size_bytes": 12511
+      },
+      {
+        "name": "frame_000147.png",
+        "is_dir": false,
+        "size_bytes": 11104
+      },
+      {
+        "name": "frame_000172.png",
+        "is_dir": false,
+        "size_bytes": 12736
+      },
+      {
+        "name": "frame_000143.png",
+        "is_dir": false,
+        "size_bytes": 12258
+      },
+      {
+        "name": "frame_000178.png",
+        "is_dir": false,
+        "size_bytes": 12695
+      },
+      {
+        "name": "frame_000146.png",
+        "is_dir": false,
+        "size_bytes": 11435
+      },
+      {
+        "name": "frame_000151.png",
+        "is_dir": false,
+        "size_bytes": 11195
+      },
+      {
+        "name": "frame_000176.png",
+        "is_dir": false,
+        "size_bytes": 12829
+      },
+      {
+        "name": "frame_000062.png",
+        "is_dir": false,
+        "size_bytes": 11217
+      },
+      {
+        "name": "frame_000095.png",
+        "is_dir": false,
+        "size_bytes": 12217
+      },
+      {
+        "name": "frame_000023.png",
+        "is_dir": false,
+        "size_bytes": 13242
+      },
+      {
+        "name": "frame_000119.png",
+        "is_dir": false,
+        "size_bytes": 12793
+      },
+      {
+        "name": "frame_000091.png",
+        "is_dir": false,
+        "size_bytes": 12521
+      },
+      {
+        "name": "frame_000032.png",
+        "is_dir": false,
+        "size_bytes": 14418
+      },
+      {
+        "name": "frame_000103.png",
+        "is_dir": false,
+        "size_bytes": 12526
+      },
+      {
+        "name": "frame_000040.png",
+        "is_dir": false,
+        "size_bytes": 14533
+      },
+      {
+        "name": "frame_000057.png",
+        "is_dir": false,
+        "size_bytes": 12054
+      },
+      {
+        "name": "frame_000175.png",
+        "is_dir": false,
+        "size_bytes": 12778
+      },
+      {
+        "name": "frame_000034.png",
+        "is_dir": false,
+        "size_bytes": 14811
+      },
+      {
+        "name": "frame_000065.png",
+        "is_dir": false,
+        "size_bytes": 11214
+      },
+      {
+        "name": "frame_000083.png",
+        "is_dir": false,
+        "size_bytes": 12477
+      },
+      {
+        "name": "frame_000133.png",
+        "is_dir": false,
+        "size_bytes": 13786
+      },
+      {
+        "name": "frame_000166.png",
+        "is_dir": false,
+        "size_bytes": 12009
+      },
+      {
+        "name": "frame_000049.png",
+        "is_dir": false,
+        "size_bytes": 12099
+      },
+      {
+        "name": "frame_000025.png",
+        "is_dir": false,
+        "size_bytes": 13431
+      },
+      {
+        "name": "frame_000149.png",
+        "is_dir": false,
+        "size_bytes": 10936
+      },
+      {
+        "name": "frame_000053.png",
+        "is_dir": false,
+        "size_bytes": 12204
+      },
+      {
+        "name": "frame_000000.png",
+        "is_dir": false,
+        "size_bytes": 12835
+      },
+      {
+        "name": "frame_000085.png",
+        "is_dir": false,
+        "size_bytes": 12598
+      },
+      {
+        "name": "frame_000086.png",
+        "is_dir": false,
+        "size_bytes": 12563
+      },
+      {
+        "name": "frame_000059.png",
+        "is_dir": false,
+        "size_bytes": 11544
+      },
+      {
+        "name": "frame_000148.png",
+        "is_dir": false,
+        "size_bytes": 11042
+      },
+      {
+        "name": "frame_000128.png",
+        "is_dir": false,
+        "size_bytes": 13527
+      },
+      {
+        "name": "frame_000010.png",
+        "is_dir": false,
+        "size_bytes": 12825
+      },
+      {
+        "name": "frame_000092.png",
+        "is_dir": false,
+        "size_bytes": 12469
+      },
+      {
+        "name": "frame_000027.png",
+        "is_dir": false,
+        "size_bytes": 13481
+      },
+      {
+        "name": "frame_000155.png",
+        "is_dir": false,
+        "size_bytes": 11197
+      },
+      {
+        "name": "frame_000153.png",
+        "is_dir": false,
+        "size_bytes": 11130
+      },
+      {
+        "name": "frame_000134.png",
+        "is_dir": false,
+        "size_bytes": 13571
+      },
+      {
+        "name": "frame_000041.png",
+        "is_dir": false,
+        "size_bytes": 14029
+      },
+      {
+        "name": "frame_000109.png",
+        "is_dir": false,
+        "size_bytes": 12326
+      },
+      {
+        "name": "frame_000067.png",
+        "is_dir": false,
+        "size_bytes": 11257
+      },
+      {
+        "name": "frame_000096.png",
+        "is_dir": false,
+        "size_bytes": 12077
+      },
+      {
+        "name": "frame_000170.png",
+        "is_dir": false,
+        "size_bytes": 12642
+      },
+      {
+        "name": "frame_000094.png",
+        "is_dir": false,
+        "size_bytes": 12240
+      },
+      {
+        "name": "frame_000115.png",
+        "is_dir": false,
+        "size_bytes": 12725
+      },
+      {
+        "name": "frame_000038.png",
+        "is_dir": false,
+        "size_bytes": 14633
+      },
+      {
+        "name": "frame_000074.png",
+        "is_dir": false,
+        "size_bytes": 11249
+      }
+    ],
+    "truncated": true
+  },
+  "element_count": 182,
+  "dim_sizes": [
+    182
+  ],
+  "internal_count": null,
+  "internal_count_kind": null,
+  "internal_count_items": null,
+  "preview": {
+    "viewer": "image",
+    "member": null
+  },
+  "dim_labels": [
+    "frame"
+  ]
+}

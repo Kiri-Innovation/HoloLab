@@ -1,0 +1,16 @@
+{
+  "handle_id": "a89fb034-3a6f-4660-b03d-140b33010089",
+  "node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+  "storage": "dir",
+  "tags": [
+    "fastgs-model"
+  ],
+  "size_bytes": 64341972,
+  "output_port_name": "model",
+  "proxy_url": "/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/474108f4-66e9-4dce-b6ff-21f5a883714b/model",
+  "absolute_path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/474108f4-66e9-4dce-b6ff-21f5a883714b/model",
+  "deleted_ts": null,
+  "preview": null,
+  "dim_labels": null,
+  "dim_sizes": null
+}

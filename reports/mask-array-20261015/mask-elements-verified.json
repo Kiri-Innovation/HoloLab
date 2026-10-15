@@ -1,0 +1,2742 @@
+{
+  "parent_handle_id": "567a1ded-d615-4634-bd41-a3633495864f",
+  "count": 182,
+  "dim_labels": [
+    "frame"
+  ],
+  "dim_sizes": [
+    182
+  ],
+  "elements": [
+    {
+      "element_id": "frame_000000.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000000.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "bdb0bc3f71e819c13f27f419e5897e09e1e6185f53e1cdf4615cc742e141042e"
+    },
+    {
+      "element_id": "frame_000001.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000001.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "80d49abd1a03f2c35bf03aa33d50be53642f0c1278a622298785d152789a651a"
+    },
+    {
+      "element_id": "frame_000002.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000002.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "72dcef398c29977eb6f2a90279718a0c5e2a1bbc745f724c686a34a23a2a406a"
+    },
+    {
+      "element_id": "frame_000003.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000003.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "46578082a2d3be654b55c019d7aa9446038c8fd503abb15dbb4bf4b3f0ef53b7"
+    },
+    {
+      "element_id": "frame_000004.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000004.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "18c058b2ac7ada66b6693f643f7ae2c0abde87353fad0c6033dbec6d5ae6abd4"
+    },
+    {
+      "element_id": "frame_000005.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000005.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "47b8b9616c43d12525bc4213e95cd15bf1d3b33f15941c640711d8175faac3be"
+    },
+    {
+      "element_id": "frame_000006.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000006.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a5155a382fee8c57d87cac960a07b82534b16d597860bcc90ab804b8c53dc411"
+    },
+    {
+      "element_id": "frame_000007.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000007.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "e1470d70c75dbd54edaa8675dc13d547216491847b44c9c5dc066af5f05ef583"
+    },
+    {
+      "element_id": "frame_000008.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000008.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "9288099d95b78066edbb0018f68949dc3ca52530f0388abbbc2a3a25b8811e2a"
+    },
+    {
+      "element_id": "frame_000009.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000009.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "2013735c0e36e1766b18e9eec9b6ae72918cc04b4496126c15c2b49f1553fdd8"
+    },
+    {
+      "element_id": "frame_000010.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000010.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a7ab824db1d99d257b9f49653d89b310decad968c5c75b3e73aff6a1c8fef10c"
+    },
+    {
+      "element_id": "frame_000011.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000011.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "2c860f62fd8e2ec51e6078b09a0af5f74d022885e053382392f2b5172b09dc11"
+    },
+    {
+      "element_id": "frame_000012.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000012.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "9858ad1a83836b97a6eb480d0eeb6c215329e60c5e802bf8b18a245c12a823dc"
+    },
+    {
+      "element_id": "frame_000013.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000013.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "11edaed7edb93c8665d08682f905ac45ae512b50bc694d9d861ec2f3012b3d74"
+    },
+    {
+      "element_id": "frame_000014.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000014.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "d0d4c19fd00bd1c1af43afbb37206a177814dd99e3cf41b3b54ecfca210e722d"
+    },
+    {
+      "element_id": "frame_000015.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000015.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "322fe5c3ec279e8a70d7b6ae5021206d3bd28f003e0b1995c5d55fab783d743b"
+    },
+    {
+      "element_id": "frame_000016.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000016.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a04fb4e292b9249c06b7dbaed6e62fabd3a043975d5d99dccb3b01772927be79"
+    },
+    {
+      "element_id": "frame_000017.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000017.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "903f8cf4729adb6f35fbdc61b91f83bc531ce1e6a67f41cdf40ed5b5a72b2cf9"
+    },
+    {
+      "element_id": "frame_000018.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000018.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "d5a93552889f34edfc12133f9f89b9ad0af5ae96cfd489d288ee5276fb89e72c"
+    },
+    {
+      "element_id": "frame_000019.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000019.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a7eb04ad92c25b994f8a3b3453e6750aed2991851ea23671fd565cadf36f1dad"
+    },
+    {
+      "element_id": "frame_000020.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000020.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "4eee1a639b483971936dbe0cc65a98fe5dbcf6f5b683402f54706274877f5ddb"
+    },
+    {
+      "element_id": "frame_000021.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000021.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "657ceb36fd7826cdd4e62fe6cf045b70bcf35633b6b2ac109167b103f920c2fd"
+    },
+    {
+      "element_id": "frame_000022.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000022.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "83dca3d7a6cb54d13fba3535a6535600d08e169eebc0c3ae654af8a8f8fd3b30"
+    },
+    {
+      "element_id": "frame_000023.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000023.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "365bc9cbb759bbc3b2a6b8a9e893b4a898323078629cab19ae8f7c3d1979cefe"
+    },
+    {
+      "element_id": "frame_000024.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000024.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "33b64dbe0009c88424a2e1d45eea8c48dad98a57d7f672d844da999103443f52"
+    },
+    {
+      "element_id": "frame_000025.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000025.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "ffc5c0fda0d333bc2d627a6d3079b4c221272d39ef9c265a1e0d5d57a051f2e8"
+    },
+    {
+      "element_id": "frame_000026.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000026.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "77386f8a6ca3a37377c56ad7967c9dd4178d1c2cf850894679ad9e401653be69"
+    },
+    {
+      "element_id": "frame_000027.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000027.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "507d2d309c50f2d301336b4c38aac111c3d4f9cf99792c38f325d8de250002ad"
+    },
+    {
+      "element_id": "frame_000028.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000028.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "655815dbe27cee6d7d375ba3612833b0f1aca01af53db205bb150dc6c4cf5736"
+    },
+    {
+      "element_id": "frame_000029.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000029.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "3dc7d1d8327b08173a33734165ddd48701a24405847528b3f17dbeb957b54e0b"
+    },
+    {
+      "element_id": "frame_000030.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000030.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "4545c479c88d57ac8b02269bc846e3dbe67f6c99ac0828e545fd6ec9a04269ff"
+    },
+    {
+      "element_id": "frame_000031.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000031.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "bb7fc0ea501fd52870e6e104cffeb24d9107a3c995bb5fff5e9bf40f7493c561"
+    },
+    {
+      "element_id": "frame_000032.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000032.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "b46296c1cfed5cde60eddf30129f87d6ceffd3fa4453e3cd0760858759c91670"
+    },
+    {
+      "element_id": "frame_000033.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000033.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "3b4cc09d240c91de2f57d911a1a0301a2c852b8bc79253a4f8970b3c7496d5b4"
+    },
+    {
+      "element_id": "frame_000034.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000034.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "571b7970d62b3144c08087c4443b215b697d0b4af646ce48ee8ed194ce51a683"
+    },
+    {
+      "element_id": "frame_000035.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000035.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "449b7529ced0b0b40e5cb18ffbca07f487516de6d554542c805856752fa7f57e"
+    },
+    {
+      "element_id": "frame_000036.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000036.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "777973db06bec45ce4da725f9922598909a16857fc863430096f41a65bc538e4"
+    },
+    {
+      "element_id": "frame_000037.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000037.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "482f6226c061fc25fc139076eeacb2e250d20202baba118cd90b95b8406806f9"
+    },
+    {
+      "element_id": "frame_000038.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000038.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "81339642a50a33ec4933c9ccc27fe0770ec39a969572ab9c8aea4e2365b18354"
+    },
+    {
+      "element_id": "frame_000039.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000039.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "793e69c839937d748e6b8882a968e5494eba7e7425fd3f8e8adda5a0172b69ac"
+    },
+    {
+      "element_id": "frame_000040.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000040.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "c704ea89686da9518f9d9510195f3af3aa4c0ad45deb3ae73d885baf2f289d2d"
+    },
+    {
+      "element_id": "frame_000041.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000041.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "df9f01093ae367ee9d1a80196694e0925e450610168c000ddb3f4565ff223def"
+    },
+    {
+      "element_id": "frame_000042.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000042.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "b652a9e5ce4b8cba719741192e8cf7a3fed9268714223b2596c06be63ce6101e"
+    },
+    {
+      "element_id": "frame_000043.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000043.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "995d9ced88350c9ee5caaa17628f3fda757a71a47a4119606b53c780992c601f"
+    },
+    {
+      "element_id": "frame_000044.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000044.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "78d7810420bcc052fe9bc5d53b0e81aacf8fc739f394aa0401006bbff4bacbe9"
+    },
+    {
+      "element_id": "frame_000045.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000045.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "8415c8f7305c3351c66a9e04b4ae92a71fef958c84ac207f22f8c6562286c852"
+    },
+    {
+      "element_id": "frame_000046.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000046.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "e91b21d892fe37ad1a32770bc8ebee26ca075298f2c725e36ba8e9035cc52eea"
+    },
+    {
+      "element_id": "frame_000047.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000047.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "8bbc920eafe5f837e2a92da9ee0835c14d711e35873f152ea284510e152d125e"
+    },
+    {
+      "element_id": "frame_000048.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000048.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "1e7a8d4c7c7c9b0acf86a5e4d0c73d135931543267c00cf06ae9a8dc9f3ea87e"
+    },
+    {
+      "element_id": "frame_000049.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000049.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a8ff8827f9c5e11f6c86aac632553645ae8037de64ce1a155e5b11c48d0b75a7"
+    },
+    {
+      "element_id": "frame_000050.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000050.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "afde6ee9a7cf60ab97429161bb137fb5f2755cf382f2c629c6a2e09e5f58450d"
+    },
+    {
+      "element_id": "frame_000051.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000051.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "19f7bdec028bad08fa62c035698e269c0ba121aa2ea53899cf2be52f5b38581d"
+    },
+    {
+      "element_id": "frame_000052.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000052.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "bcef3796c35faf81b4c11b2c7a684589b9c89fe7d00d206236c05e0ef58a695c"
+    },
+    {
+      "element_id": "frame_000053.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000053.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "5b735ff20da29c46dd6aa51ea9626ac859f3ac1137e9701b49a411c589c0d3fb"
+    },
+    {
+      "element_id": "frame_000054.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000054.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a8715fac705e454c55adf96bb71a8de04fd49309e5b0c2c2718ad4dd73e9a335"
+    },
+    {
+      "element_id": "frame_000055.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000055.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "dd1c523db8aa8b18e17e4fab7305dcae2d9dca136e7fb723d88fb868b1b16661"
+    },
+    {
+      "element_id": "frame_000056.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000056.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "3af1c552913ea81a6e1236326a7a89c1c74073e85cf8354154dd6fbe51c0997f"
+    },
+    {
+      "element_id": "frame_000057.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000057.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "bb49ac62877ef561c169511f35b60258045fb6e7460265c56737a4a910f9d860"
+    },
+    {
+      "element_id": "frame_000058.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000058.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "5b027ff7581903a2f07fc28496160db1421a79f6ed1741a72c57e4e86a52ec3f"
+    },
+    {
+      "element_id": "frame_000059.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000059.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "8c19e97b3693b3ed6ca907c8fef8263b6ef496666451aebb7594ab381cf0eb7a"
+    },
+    {
+      "element_id": "frame_000060.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000060.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a508e3db33c76b61c3cce080bf7bc9b03dbf91d0f1a25ca765ade4a501f9b0ae"
+    },
+    {
+      "element_id": "frame_000061.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000061.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "3d08c203fc3035c96f3a1046f9e1b00492d8f14bc8bd8d8d7ccee673a5685352"
+    },
+    {
+      "element_id": "frame_000062.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000062.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "66fef17237bc7b6899e4649bd6f3c8b69cba1a290c1c23985fe091c41b79876a"
+    },
+    {
+      "element_id": "frame_000063.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000063.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "3f24d2a162f8b76781f5afc2c7ae379c6cd115116e46cb14550ddc0f7488cfc6"
+    },
+    {
+      "element_id": "frame_000064.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000064.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "731ccba381bc2fe22b3be519a1e2982c8d995cbe14e46e7cb052bd4c1fa2e116"
+    },
+    {
+      "element_id": "frame_000065.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000065.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "58e08dd60db57d0807fe906c748d6309e11d6f090fd797c9d831052ac10072a5"
+    },
+    {
+      "element_id": "frame_000066.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000066.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "b628363a6ac39778d444c0a24509687678684b2f2d7c36be0ebefbfbc22eca64"
+    },
+    {
+      "element_id": "frame_000067.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000067.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "428f82d925e53be3fba3ed641a06f698d8c09565370297d17262b20fbc168803"
+    },
+    {
+      "element_id": "frame_000068.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000068.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "b16a7e5391edfc5e9b1a980ab95b4c66b289840ad76dbe7dd40d8d99e1884179"
+    },
+    {
+      "element_id": "frame_000069.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000069.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "940117442795ae2ab04412ec65dc6252829cf98862225ef5386ed52435fc432a"
+    },
+    {
+      "element_id": "frame_000070.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000070.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "d206b38fe762d53244cd59f702bcc9af3bf67eb23e91b58d6755ba4659421d5a"
+    },
+    {
+      "element_id": "frame_000071.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000071.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "e0e0609926cfbd2294ce84c3c9cd25d651e1b0e064d00fdd6a450062659dcbd6"
+    },
+    {
+      "element_id": "frame_000072.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000072.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a25cf890ca4f326e836ad8372ce5885eaa4bfb71cebb8252aebb3bd1a533576b"
+    },
+    {
+      "element_id": "frame_000073.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000073.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "dce2e79b5453e32968820af030d42569debbfcd0febee48119162f21ca4895cb"
+    },
+    {
+      "element_id": "frame_000074.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000074.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "de8327cf985c7956c29603bb3de2f03d33e7ffa8ade49ae14f49d599f624eaf7"
+    },
+    {
+      "element_id": "frame_000075.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000075.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "633f9a3a574be80725999907253b94e1c340ff9886f3686c8e96622295a48809"
+    },
+    {
+      "element_id": "frame_000076.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000076.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "5e31f3e9ad4fe0c39dea32db1f34cf1d40826d7ed6e86b311144ef8d17988f25"
+    },
+    {
+      "element_id": "frame_000077.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000077.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "6cc064af258b7c5ea08b7e33dfd1f5523bad03189ea9ca827deb595319e508e8"
+    },
+    {
+      "element_id": "frame_000078.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000078.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "2f23f7c52b99ab7b99e49f57a2558df06739d639fbff0d0e4e567eb9963be81d"
+    },
+    {
+      "element_id": "frame_000079.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000079.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "c4d68818ecd4f49647e41487a7c66da6388955674bea026980f2e75e076ad0c0"
+    },
+    {
+      "element_id": "frame_000080.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000080.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "5bab384fcd3c4250f9d2f0355634017f677d2761ea5f398c70ad667bca4ab75c"
+    },
+    {
+      "element_id": "frame_000081.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000081.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a9f7ea49a172d9e400ce874d79ce4bcb1bad217a75c2ca62013366280437f62d"
+    },
+    {
+      "element_id": "frame_000082.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000082.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a66c01cc03cbf2d5d552b1e8e18625d506bd69bfc453d7716cf54f6870f83311"
+    },
+    {
+      "element_id": "frame_000083.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000083.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "6d1760ab12c8db982de295db2a58495f4be72a01108f29692ac7f940fa1cff4d"
+    },
+    {
+      "element_id": "frame_000084.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000084.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "e65607227818d893559c4521c527c32355d2bfc6cfafbc5ae7abe3f17f957bb3"
+    },
+    {
+      "element_id": "frame_000085.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000085.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "ef0a0e930f9cc031d52c746bb6e77dae6848c038ce71c92fb4f6c0ee9ab023eb"
+    },
+    {
+      "element_id": "frame_000086.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000086.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "07fa6ac6061c1f4c6e95e0ecdde2cea7066efd49bcbc492c74e81a31b4ed5cd3"
+    },
+    {
+      "element_id": "frame_000087.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000087.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "d8646638c9c5c2934f6ff4ab666bedb8176da04b46748d9c75b1ee28a0b9f555"
+    },
+    {
+      "element_id": "frame_000088.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000088.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "703eb256817df84bf145ad0dba614fdf47cfbac62ead78e17ec659dad75f6fff"
+    },
+    {
+      "element_id": "frame_000089.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000089.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "87bd79353d013d1aa3c8fce1c7de489bfc7667bdbe928e14d0f8ede86d1a9bf5"
+    },
+    {
+      "element_id": "frame_000090.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000090.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "0bf0b6af37ada073bcfb95f321b1a0db4ca57d6335d24b1ded350644880b0ef3"
+    },
+    {
+      "element_id": "frame_000091.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000091.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "00f4eb4a8930e417ce2fe3a1cb186c5c9be7dcfdecc9ba05d673e2531934f0d7"
+    },
+    {
+      "element_id": "frame_000092.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000092.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "23b30a88be35660859018310f11c9467dce24d51a4c59bcc76558b617d14416e"
+    },
+    {
+      "element_id": "frame_000093.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000093.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "34598e5e1eda0cccf7db2b1989b29c4ff70e93ba3f00c12791f54a0e81b83e90"
+    },
+    {
+      "element_id": "frame_000094.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000094.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "ccb795904b074efdb5a6ee4070f82596196507df7f671afbcc518bb0f90bf5d0"
+    },
+    {
+      "element_id": "frame_000095.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000095.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "604e7242aa068a5907326627b35a51b37278b44b9ac91290783313a933228f98"
+    },
+    {
+      "element_id": "frame_000096.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000096.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "aefa9e8164d21d1545dbf80ddf5884b17ea4e7a78df57a6ae59056ff517c314e"
+    },
+    {
+      "element_id": "frame_000097.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000097.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "0c4af2bb58cee4b0695348b379a75cce3652b6f4ff00ee1d19dc8cbcc4386fdc"
+    },
+    {
+      "element_id": "frame_000098.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000098.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "934ed64080a0ed0ff0c48c90e2213913c28b6e44132d31d6ffc70b283c2d0641"
+    },
+    {
+      "element_id": "frame_000099.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000099.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "73e00bc227eb0e5d6782d124ee59c2a1c5f18af3a16c029d2738a6f4ceb6483d"
+    },
+    {
+      "element_id": "frame_000100.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000100.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "c52a855d422dca5a59a3689790e338042e4d023262b65cf22990781f0e472c43"
+    },
+    {
+      "element_id": "frame_000101.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000101.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "6e1840b2587af667790ac30874be52c7b1b07cc39b0e9bdbf3178b9585fedc28"
+    },
+    {
+      "element_id": "frame_000102.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000102.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "c4e559c0fc6e6bd157c9d0fde0d39f1c528efb145c737afdac83d70bffc7adc5"
+    },
+    {
+      "element_id": "frame_000103.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000103.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "f8cbe681ab1ce02fc8b50294f8f2f7eb1a1ea8e76a32806a0900c32957703615"
+    },
+    {
+      "element_id": "frame_000104.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000104.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "5dcdf7dd0b5a19ea3d9cdebbc14eaa76112579658374730b6fc952530651bd98"
+    },
+    {
+      "element_id": "frame_000105.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000105.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "cf19504045542a8cf08e3ed1d28b554720772db3fc74c42651086074fe2157e7"
+    },
+    {
+      "element_id": "frame_000106.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000106.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "80f4865de7ce70bb7541effbbaaaf6708956b38279f1c72eeb3b0383f07547c2"
+    },
+    {
+      "element_id": "frame_000107.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000107.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "abd58f25c8402d795f0dade37de3110fb7065576ebe67b20ad930ad46bfc5905"
+    },
+    {
+      "element_id": "frame_000108.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000108.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "c6397eebbb454ea0db0c1c54d75419bb27fcb765e3aa32130ff7438d850932f1"
+    },
+    {
+      "element_id": "frame_000109.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000109.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a0846adf65d66406d32722f97b05d19a45aa45c27af958fedf738ea8f978bcac"
+    },
+    {
+      "element_id": "frame_000110.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000110.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "4a9cb48327a5cf5bf92b1ec4048ec639380d8b520ad1da7e209f8ca0ee6ab057"
+    },
+    {
+      "element_id": "frame_000111.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000111.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "60605560da981e79f18fe66ea5d226d7b624b1d8581be5869e701201c92e7fa5"
+    },
+    {
+      "element_id": "frame_000112.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000112.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "3d324b3ade32c8d848e7899385dabaf0041c6d40a7af24e4a74cbdfe704cd2a9"
+    },
+    {
+      "element_id": "frame_000113.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000113.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "82e29ce1bc95b0ad223db207a7063c32ac48cdea6dc99a462bfe6918fdc5f262"
+    },
+    {
+      "element_id": "frame_000114.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000114.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "fca1a1b69d2c14bc3a1a31fde92e505f91c63b4c26a8971845cfa0aebaf572ae"
+    },
+    {
+      "element_id": "frame_000115.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000115.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "2059763610259f7a06cc43c43c645a286e1cd35a156598a46abd9db6d7e20927"
+    },
+    {
+      "element_id": "frame_000116.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000116.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "6c7b414c852a2282f30a6ebc7effbd70c06948366573e9db95e30e6b2d645f03"
+    },
+    {
+      "element_id": "frame_000117.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000117.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "d61c3844b89dd371fe8def4e29455b60cd4b2f6411a48c136e501133bbfa2feb"
+    },
+    {
+      "element_id": "frame_000118.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000118.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "6fae96b3520ea2eec4c9c935a78ab659e36f0d4b987ad2393255573431c4b5f6"
+    },
+    {
+      "element_id": "frame_000119.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000119.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "6604288977ad2e5fe609a5f33bde242ade92a254789caf112fb2a4905cef75b0"
+    },
+    {
+      "element_id": "frame_000120.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000120.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "6f5c73db8e7d84eda171b9a5f550e114d4fcbe8bc47035055b6043dcd29b8ba7"
+    },
+    {
+      "element_id": "frame_000121.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000121.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "cc783c7453b782919e17c16d8214ef97d3795c5083b1404dc2d885ace5c48cce"
+    },
+    {
+      "element_id": "frame_000122.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000122.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "8bebe71b4bb8bcd99b93729b3e384dc3edd2e8f18fe55053066d31596f8cf9fc"
+    },
+    {
+      "element_id": "frame_000123.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000123.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "1893f8232c0dab19c67d87fe3b5d89a294c4f692da5620ff5b071da88167787c"
+    },
+    {
+      "element_id": "frame_000124.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000124.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "9904cf762488931f9f529756161b715190c99545b4d50ca52ebacebd981aea1a"
+    },
+    {
+      "element_id": "frame_000125.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000125.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "6d7f724953ce99a8f3083d3b66c92a08006f68876ca57b6908b4f00ec3ec48ec"
+    },
+    {
+      "element_id": "frame_000126.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000126.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "0e27ee064e967db7594ae628e1a19cebe5bd4f0d2f2b71e4cd2f6e3f4de3d8a2"
+    },
+    {
+      "element_id": "frame_000127.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000127.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "334def4cb9eb2dcb175ee4fc9e61f2735f41fe29f77e42e56f717a5f4aa835aa"
+    },
+    {
+      "element_id": "frame_000128.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000128.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "3985655e63602c3ace7c0a415d53af2ca2a096d0b0da53a60f7207769c8d12cf"
+    },
+    {
+      "element_id": "frame_000129.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000129.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "3b9b2274d285a7d20798c1e069e4487e19fad4dfd976bdd11d8df3ad31bfb6d6"
+    },
+    {
+      "element_id": "frame_000130.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000130.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "c9294205ecb67e2ded5d670a34684c0e8098573c44be3d73efa4998529aa81bc"
+    },
+    {
+      "element_id": "frame_000131.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000131.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "6e5b42618230bd14b2754c74ef8bbcd1abe0ef1b64247ee9b245be7dd6b08110"
+    },
+    {
+      "element_id": "frame_000132.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000132.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "0957302c28f57ae7ed6678b79cd03de5dedac7a31471ebb39af499d860a1b5ef"
+    },
+    {
+      "element_id": "frame_000133.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000133.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "2e640726698bd8dc6f327f7d95611ce8b4c007322f4d98802ebac4a63575d542"
+    },
+    {
+      "element_id": "frame_000134.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000134.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "1837e19302b39f5603f2112397a81a1ea34d877707d31d5a76b14171fb81fed8"
+    },
+    {
+      "element_id": "frame_000135.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000135.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "8ace651e9d87c4a9c1329829320d81354aa39c286edc652fbfb4a6f77470bd51"
+    },
+    {
+      "element_id": "frame_000136.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000136.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "542b4933d42c6f896700f87feb302a346e07b8418a80a2f20ab959a9b8c382a7"
+    },
+    {
+      "element_id": "frame_000137.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000137.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "7361a1c04c598495ab2c59a9f7db7a59fe8e64a13a9ee4526031ee89447b9d9b"
+    },
+    {
+      "element_id": "frame_000138.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000138.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "2c0d13a9643747842dc5fd5afad2de9a4e168c5ade4b75305d3ac09c8f9d7059"
+    },
+    {
+      "element_id": "frame_000139.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000139.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "c0c89b10e645410714f1189104dcd9c5d62627ec927608bddba71033cf62470a"
+    },
+    {
+      "element_id": "frame_000140.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000140.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "9968374e43eea475ec4f6dbc0e879079084403fb63bc72cba23ecfa69b853113"
+    },
+    {
+      "element_id": "frame_000141.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000141.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "21b16a9d788fdd7400db0f490e8b7b6d10f8535e13d6880eddd1a29bd7595b62"
+    },
+    {
+      "element_id": "frame_000142.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000142.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "c979a7d8766176244827ccf29bda175309a384c0f327e7ba0a69da60ff977259"
+    },
+    {
+      "element_id": "frame_000143.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000143.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "ed28a3b381efda0a158117d9f561cd74ed0e914850319193399db60e33d21552"
+    },
+    {
+      "element_id": "frame_000144.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000144.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "91a35babceeaae09f680c1e8f6c42c46b5de6d09fe43f61ca7b230287e21e08c"
+    },
+    {
+      "element_id": "frame_000145.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000145.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "84bf737fc81317628d8d5021f6c5882847f1e3e324f058b7a841704176707aa1"
+    },
+    {
+      "element_id": "frame_000146.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000146.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "c3fb1196b5f56288430b56deffab65b1569b84ddefcafff572907bde6ff29e0d"
+    },
+    {
+      "element_id": "frame_000147.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000147.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "4fb774fdb3068260fcdfef62ccc6f45175de671954c31998c50357fdc9386ed2"
+    },
+    {
+      "element_id": "frame_000148.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000148.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "2a19e0d33e9d9f6edb653d7527532fb0f00c2530681f51fbfc08b0545b8fc5fd"
+    },
+    {
+      "element_id": "frame_000149.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000149.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "d5c9d99f97b2bcf7ff5b0b3d8ed1f48791e3399600cff2f13f949c54bee4a0ad"
+    },
+    {
+      "element_id": "frame_000150.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000150.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "695b4c992f95de2352defb06b5986d478e1c5d92a903fc02010c1b5d3eb2df9e"
+    },
+    {
+      "element_id": "frame_000151.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000151.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a2f98f14a23ff401209fbea81c8755e1223933de592cc17dc5e38f0943a61f56"
+    },
+    {
+      "element_id": "frame_000152.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000152.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "5e21a873750ff30dd9aab9583368980fc01a71b8326b96afa824de6e6d913855"
+    },
+    {
+      "element_id": "frame_000153.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000153.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "567ee8bdf251059779fdfe2bd0dc7b5f2c3ad54c3a54dff8dae14c06b823c597"
+    },
+    {
+      "element_id": "frame_000154.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000154.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "fb22fb9a416aabaafccc182910ca5e8ce5d54e36f3c485825a7661daf6df6001"
+    },
+    {
+      "element_id": "frame_000155.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000155.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "36a6bc688af9ae017a79779cf79271c16fb95c22003f6da3f962358e4ef7520c"
+    },
+    {
+      "element_id": "frame_000156.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000156.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "3e1aa905834ad3b0919af26d7d5b31ac5dd46e081d5d6975e394472c76f35530"
+    },
+    {
+      "element_id": "frame_000157.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000157.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "1b1ce9cb0123538e75c11432207b472feebe1b0b9c26effd3030fa3bebce0ec0"
+    },
+    {
+      "element_id": "frame_000158.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000158.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "53a05313bb75230cc34b91c4095d2cebab9a7d7e1f386aa5715110bc79e94332"
+    },
+    {
+      "element_id": "frame_000159.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000159.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "1c63bc9662032d145ea52fca8631c27c9beb96b6dc65175c2b5c07aee64d50a7"
+    },
+    {
+      "element_id": "frame_000160.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000160.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "db901ffc4fece7392bceb2b84343c16f0d26b871a6968713efffe12cab3b912c"
+    },
+    {
+      "element_id": "frame_000161.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000161.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "f3988fbc65e6584ed8077466d0c8fb51f7a5cec504d227b8748060da60019850"
+    },
+    {
+      "element_id": "frame_000162.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000162.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "3a04c42730814c985201da8a07282b22d14447106421d45560c33309df549c82"
+    },
+    {
+      "element_id": "frame_000163.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000163.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "9b34fb1e2e7ca4659569b73d1308525f736a7e23e090f5924296a9f95aa8fbfb"
+    },
+    {
+      "element_id": "frame_000164.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000164.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "942a2d9bffb9aacc5478745880a61a3c04e960247e8dea3fcf0da25386faaa4e"
+    },
+    {
+      "element_id": "frame_000165.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000165.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "fe1f2558dc6e7c76c11b3d0f70200bf5ad77632b12734a4820fa337a4ad12133"
+    },
+    {
+      "element_id": "frame_000166.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000166.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "e4f40387d2abd51f41802fdc3786b69a23045ccd82a80f1e4d6d1137799d0e7f"
+    },
+    {
+      "element_id": "frame_000167.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000167.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "50a421cfeef8a005d0894916559f884a494ae8fd100feced995b9564d887c06b"
+    },
+    {
+      "element_id": "frame_000168.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000168.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "2bfc231caf24209aa71b51cae6375275dd5c35f21f7b71503bcf72db96060fb1"
+    },
+    {
+      "element_id": "frame_000169.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000169.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "1c46d61631d8b78875f21c3b84939c327048c93589611863805833030865ab33"
+    },
+    {
+      "element_id": "frame_000170.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000170.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "fc77bfc86aa34bac34e95f46c683d286e31d23e1e2243fb22c95b38e00862e73"
+    },
+    {
+      "element_id": "frame_000171.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000171.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "9dcc312ed38e7a5fda46898a8c00ea46c334ec4b2d9c04d02f8e64f549cf535b"
+    },
+    {
+      "element_id": "frame_000172.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000172.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "fbc40c532a4d064f2ab9396da07665486bcfbd0e5dd22c0f04fdcb740dc3b281"
+    },
+    {
+      "element_id": "frame_000173.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000173.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "1bfeb4a84afbeddc4c0011ea3b7d8fca445a13a1f87186a1bc6efe084821273d"
+    },
+    {
+      "element_id": "frame_000174.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000174.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "9d877b39ab23c5a8664b0d2ce275f430fbcb790ffa580d9743f9ae87b85db32f"
+    },
+    {
+      "element_id": "frame_000175.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000175.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "d8846663f66e7cc4eced0ed591a1ab7eb524ac6c518c80e0acbf82d5ef7c5bf7"
+    },
+    {
+      "element_id": "frame_000176.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000176.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "a477dc598159837ae1817ff0f7a37a48a10e041e9e73f9beed25ba984db05cc8"
+    },
+    {
+      "element_id": "frame_000177.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000177.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "0ab5f630f1e7082cf3f1646a0aca95b4d43a68d24d347b4ebd678da0d144d8e0"
+    },
+    {
+      "element_id": "frame_000178.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000178.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "14c362d43e5f4e94d60c1280c9f600933398546dcabcb0987a56be1e35dcd5bc"
+    },
+    {
+      "element_id": "frame_000179.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000179.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "961c9619e4a8766c30e72df3cf7d55a0bb7df42eec35e882221859206ee59245"
+    },
+    {
+      "element_id": "frame_000180.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000180.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "2de6eeead4d883312cc20eb70f4bbc283f316b9563453366d1d2e7c02f39147c"
+    },
+    {
+      "element_id": "frame_000181.png",
+      "storage": "file",
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/15bc742d-8957-4adb-b656-261a59e65f97/masks/frame_000181.png",
+      "mode": "L",
+      "size": [
+        1458,
+        1458
+      ],
+      "values": [
+        0,
+        255
+      ],
+      "sha256": "4012848de5a9ef83b8bf4579650d8657d09eb36596b3beb95045c0a5231fe139"
+    }
+  ]
+}

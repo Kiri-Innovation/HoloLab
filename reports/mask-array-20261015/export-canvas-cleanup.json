@@ -1,0 +1,9 @@
+{
+  "before": 355585,
+  "after": 355465,
+  "removed": 120,
+  "margin_pixels": 2,
+  "criterion": "inside at least one foreground mask",
+  "views": 182,
+  "source": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/9e0c2f9f-c1e4-47fc-9ae3-7a3550cd05eb/gs_ckpt"
+}

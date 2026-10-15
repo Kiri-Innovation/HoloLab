@@ -1,0 +1,21 @@
+{
+  "baseline": {
+    "before": 259260,
+    "after": 259134,
+    "removed": 126,
+    "margin_pixels": 2,
+    "criterion": "inside at least one foreground mask",
+    "views": 182,
+    "source": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/0554ebc5-f3e7-437d-9a12-e7e60fdc4608/gs_ckpt"
+  },
+  "rerun": {
+    "before": 259260,
+    "after": 259134,
+    "removed": 126,
+    "margin_pixels": 2,
+    "criterion": "inside at least one foreground mask",
+    "views": 182,
+    "source": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/ca5d26f1-b30a-4c03-9511-31e4cb151d99/j/0554ebc5-f3e7-437d-9a12-e7e60fdc4608/gs_ckpt"
+  },
+  "counts_identical": true
+}

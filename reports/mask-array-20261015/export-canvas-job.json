@@ -1,0 +1,31 @@
+{
+  "job_id": "96efeda7-afa3-4089-8cb8-310ec119ed62",
+  "workflow_id": "ca5d26f1-b30a-4c03-9511-31e4cb151d99",
+  "node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+  "graph_node_id": "steven-person-export",
+  "algorithm_name": "fastgs-foreground-export",
+  "algorithm_version": "0.1.0",
+  "state": "done",
+  "progress": null,
+  "fail_reason": null,
+  "created_ts": 1792042178.8989553,
+  "updated_ts": 1792042193.231449,
+  "started_ts": 1792042180.9218307,
+  "parent_job_id": null,
+  "shard_element_id": null,
+  "shard_element_ids": null,
+  "expected_shards": null,
+  "snapshot_id": "de265e0f-87ff-4d21-a052-7bf61deecce6",
+  "params": {},
+  "input_handles": {
+    "model": "57a08b75-96f6-4ac0-9bb3-1b630b69520b",
+    "colmap": "2b2d0c5e-d21a-4664-9eba-708c7ede095f",
+    "masks": "567a1ded-d615-4634-bd41-a3633495864f"
+  },
+  "output_handles": {
+    "model": "990f3874-a6de-42e7-942c-fe3a09d758b9",
+    "ply": "6726c275-c949-4593-b918-65badf3d87d2"
+  },
+  "fail_exit_code": null,
+  "fail_message": null
+}

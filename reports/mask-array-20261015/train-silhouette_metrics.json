@@ -1,0 +1,23 @@
+[
+  {
+    "iteration": 1000,
+    "rgb_loss": 0.03753180801868439,
+    "silhouette_loss": 0.06499031186103821,
+    "silhouette_kind": "bce",
+    "total_loss": 0.04403083771467209
+  },
+  {
+    "iteration": 2000,
+    "rgb_loss": 0.0218360498547554,
+    "silhouette_loss": 0.04834529384970665,
+    "silhouette_kind": "bce",
+    "total_loss": 0.026670578867197037
+  },
+  {
+    "iteration": 3000,
+    "rgb_loss": 0.027571871876716614,
+    "silhouette_loss": 0.05273154005408287,
+    "silhouette_kind": "bce",
+    "total_loss": 0.03284502774477005
+  }
+]

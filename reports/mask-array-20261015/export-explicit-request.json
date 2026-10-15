@@ -1,0 +1,11 @@
+{
+  "workflow_id": "ca5d26f1-b30a-4c03-9511-31e4cb151d99",
+  "algorithm_name": "fastgs-foreground-export",
+  "algorithm_version": "0.1.0",
+  "params": {},
+  "input_handles": {
+    "model": "08c3f7aa-1542-46fa-b64e-3e8afb6a2336",
+    "colmap": "2b2d0c5e-d21a-4664-9eba-708c7ede095f",
+    "masks": "567a1ded-d615-4634-bd41-a3633495864f"
+  }
+}

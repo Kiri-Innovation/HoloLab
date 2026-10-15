@@ -1,0 +1,917 @@
+{
+  "job_id": "15bc742d-8957-4adb-b656-261a59e65f97",
+  "lines": [
+    {
+      "stream": "stdout",
+      "line": "[MASK 1/182] frame_000000.png coverage=0.5553",
+      "ts": 1792041942.2331207
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 2/182] frame_000001.png coverage=0.5554",
+      "ts": 1792041942.733592
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 3/182] frame_000002.png coverage=0.5587",
+      "ts": 1792041943.7347257
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 4/182] frame_000003.png coverage=0.5595",
+      "ts": 1792041944.2357135
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 5/182] frame_000004.png coverage=0.5592",
+      "ts": 1792041945.2397318
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 6/182] frame_000005.png coverage=0.5623",
+      "ts": 1792041945.7402422
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 7/182] frame_000006.png coverage=0.5595",
+      "ts": 1792041946.2416093
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 8/182] frame_000007.png coverage=0.5609",
+      "ts": 1792041947.242587
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 9/182] frame_000008.png coverage=0.5619",
+      "ts": 1792041947.7436476
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 10/182] frame_000009.png coverage=0.5617",
+      "ts": 1792041948.7455163
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 11/182] frame_000010.png coverage=0.5654",
+      "ts": 1792041949.2465045
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 12/182] frame_000011.png coverage=0.4504",
+      "ts": 1792041951.7513301
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 13/182] frame_000012.png coverage=0.4647",
+      "ts": 1792041953.7571225
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 14/182] frame_000013.png coverage=0.5652",
+      "ts": 1792041954.2591345
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 15/182] frame_000014.png coverage=0.5668",
+      "ts": 1792041955.2641509
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 16/182] frame_000015.png coverage=0.5670",
+      "ts": 1792041955.7662475
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 17/182] frame_000016.png coverage=0.5672",
+      "ts": 1792041956.769542
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 18/182] frame_000017.png coverage=0.5668",
+      "ts": 1792041957.2704806
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 19/182] frame_000018.png coverage=0.5676",
+      "ts": 1792041957.7714243
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 20/182] frame_000019.png coverage=0.5653",
+      "ts": 1792041958.7724574
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 21/182] frame_000020.png coverage=0.5662",
+      "ts": 1792041959.2737682
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 22/182] frame_000021.png coverage=0.5655",
+      "ts": 1792041960.279488
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 23/182] frame_000022.png coverage=0.5626",
+      "ts": 1792041960.7805576
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 24/182] frame_000023.png coverage=0.5604",
+      "ts": 1792041961.7815814
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 25/182] frame_000024.png coverage=0.5601",
+      "ts": 1792041962.2839437
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 26/182] frame_000025.png coverage=0.5590",
+      "ts": 1792041962.7846065
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 27/182] frame_000026.png coverage=0.5594",
+      "ts": 1792041963.7888336
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 28/182] frame_000027.png coverage=0.5537",
+      "ts": 1792041964.289368
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 29/182] frame_000028.png coverage=0.5522",
+      "ts": 1792041965.2907887
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 30/182] frame_000029.png coverage=0.5499",
+      "ts": 1792041965.7919512
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 31/182] frame_000030.png coverage=0.5391",
+      "ts": 1792041966.794249
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 32/182] frame_000031.png coverage=0.5353",
+      "ts": 1792041967.2955196
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 33/182] frame_000032.png coverage=0.5309",
+      "ts": 1792041968.297049
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 34/182] frame_000033.png coverage=0.5278",
+      "ts": 1792041968.7983286
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 35/182] frame_000034.png coverage=0.5224",
+      "ts": 1792041969.8007379
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 36/182] frame_000035.png coverage=0.5186",
+      "ts": 1792041970.3029244
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 37/182] frame_000036.png coverage=0.5146",
+      "ts": 1792041971.306544
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 38/182] frame_000037.png coverage=0.5094",
+      "ts": 1792041971.8070185
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 39/182] frame_000038.png coverage=0.5082",
+      "ts": 1792041972.8087554
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 40/182] frame_000039.png coverage=0.4858",
+      "ts": 1792041973.3112044
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 41/182] frame_000040.png coverage=0.4779",
+      "ts": 1792041974.3141499
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 42/182] frame_000041.png coverage=0.4760",
+      "ts": 1792041974.815503
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 43/182] frame_000042.png coverage=0.4678",
+      "ts": 1792041975.3164303
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 44/182] frame_000043.png coverage=0.4659",
+      "ts": 1792041976.3179395
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 45/182] frame_000044.png coverage=0.4583",
+      "ts": 1792041976.8189147
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 46/182] frame_000045.png coverage=0.4527",
+      "ts": 1792041977.8197162
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 47/182] frame_000046.png coverage=0.4482",
+      "ts": 1792041978.3208103
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 48/182] frame_000047.png coverage=0.4427",
+      "ts": 1792041979.3216453
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 49/182] frame_000048.png coverage=0.4361",
+      "ts": 1792041979.8233087
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 50/182] frame_000049.png coverage=0.4234",
+      "ts": 1792041980.3242888
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 51/182] frame_000050.png coverage=0.4106",
+      "ts": 1792041981.3255873
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 52/182] frame_000051.png coverage=0.4031",
+      "ts": 1792041981.8269606
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 53/182] frame_000052.png coverage=0.3963",
+      "ts": 1792041982.8283455
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 54/182] frame_000053.png coverage=0.3901",
+      "ts": 1792041983.329406
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 55/182] frame_000054.png coverage=0.3856",
+      "ts": 1792041984.3305871
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 56/182] frame_000055.png coverage=0.3869",
+      "ts": 1792041984.8314528
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 57/182] frame_000056.png coverage=0.3851",
+      "ts": 1792041985.333122
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 58/182] frame_000057.png coverage=0.3786",
+      "ts": 1792041986.33464
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 59/182] frame_000058.png coverage=0.3797",
+      "ts": 1792041986.8362117
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 60/182] frame_000059.png coverage=0.3840",
+      "ts": 1792041987.3367863
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 61/182] frame_000060.png coverage=0.3830",
+      "ts": 1792041988.339724
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 62/182] frame_000061.png coverage=0.3818",
+      "ts": 1792041988.8413427
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 63/182] frame_000062.png coverage=0.3842",
+      "ts": 1792041989.843169
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 64/182] frame_000063.png coverage=0.3908",
+      "ts": 1792041990.343613
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 65/182] frame_000064.png coverage=0.3900",
+      "ts": 1792041991.3448896
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 66/182] frame_000065.png coverage=0.3945",
+      "ts": 1792041991.8460972
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 67/182] frame_000066.png coverage=0.4030",
+      "ts": 1792041992.347296
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 68/182] frame_000067.png coverage=0.4065",
+      "ts": 1792041993.349662
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 69/182] frame_000068.png coverage=0.4140",
+      "ts": 1792041993.8505423
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 70/182] frame_000069.png coverage=0.4273",
+      "ts": 1792041994.3510983
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 71/182] frame_000070.png coverage=0.4351",
+      "ts": 1792041995.352604
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 72/182] frame_000071.png coverage=0.4437",
+      "ts": 1792041995.8537276
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 73/182] frame_000072.png coverage=0.4513",
+      "ts": 1792041996.856576
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 74/182] frame_000073.png coverage=0.4579",
+      "ts": 1792041997.3582964
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 75/182] frame_000074.png coverage=0.4656",
+      "ts": 1792041997.8593798
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 76/182] frame_000075.png coverage=0.4729",
+      "ts": 1792041998.861402
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 77/182] frame_000076.png coverage=0.4805",
+      "ts": 1792041999.368421
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 78/182] frame_000077.png coverage=0.4877",
+      "ts": 1792042000.3703332
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 79/182] frame_000078.png coverage=0.4969",
+      "ts": 1792042000.870856
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 80/182] frame_000079.png coverage=0.5098",
+      "ts": 1792042001.3712964
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 81/182] frame_000080.png coverage=0.5205",
+      "ts": 1792042002.3732197
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 82/182] frame_000081.png coverage=0.5269",
+      "ts": 1792042002.8743436
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 83/182] frame_000082.png coverage=0.5332",
+      "ts": 1792042003.8764284
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 84/182] frame_000083.png coverage=0.5384",
+      "ts": 1792042004.3772364
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 85/182] frame_000084.png coverage=0.5453",
+      "ts": 1792042005.3802311
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 86/182] frame_000085.png coverage=0.5509",
+      "ts": 1792042005.8819187
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 87/182] frame_000086.png coverage=0.5559",
+      "ts": 1792042006.3833857
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 88/182] frame_000087.png coverage=0.5625",
+      "ts": 1792042007.3853924
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 89/182] frame_000088.png coverage=0.5683",
+      "ts": 1792042007.886954
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 90/182] frame_000089.png coverage=0.5769",
+      "ts": 1792042008.8885598
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 91/182] frame_000090.png coverage=0.5835",
+      "ts": 1792042009.3898604
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 92/182] frame_000091.png coverage=0.5827",
+      "ts": 1792042010.392098
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 93/182] frame_000092.png coverage=0.5864",
+      "ts": 1792042011.3951898
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 94/182] frame_000093.png coverage=0.5891",
+      "ts": 1792042011.8956404
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 95/182] frame_000094.png coverage=0.5909",
+      "ts": 1792042012.396372
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 96/182] frame_000095.png coverage=0.5904",
+      "ts": 1792042013.3979678
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 97/182] frame_000096.png coverage=0.5907",
+      "ts": 1792042013.8988762
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 98/182] frame_000097.png coverage=0.5913",
+      "ts": 1792042014.900997
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 99/182] frame_000098.png coverage=0.5895",
+      "ts": 1792042015.4033494
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 100/182] frame_000099.png coverage=0.5883",
+      "ts": 1792042015.9045603
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 101/182] frame_000100.png coverage=0.5860",
+      "ts": 1792042016.9055068
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 102/182] frame_000101.png coverage=0.5839",
+      "ts": 1792042017.406813
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 103/182] frame_000102.png coverage=0.5821",
+      "ts": 1792042018.40873
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 104/182] frame_000103.png coverage=0.5802",
+      "ts": 1792042018.9154916
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 105/182] frame_000104.png coverage=0.5788",
+      "ts": 1792042019.9184196
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 106/182] frame_000105.png coverage=0.5758",
+      "ts": 1792042020.4189954
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 107/182] frame_000106.png coverage=0.5737",
+      "ts": 1792042020.919542
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 108/182] frame_000107.png coverage=0.5716",
+      "ts": 1792042021.9212155
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 109/182] frame_000108.png coverage=0.5688",
+      "ts": 1792042022.422477
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 110/182] frame_000109.png coverage=0.5641",
+      "ts": 1792042023.4241455
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 111/182] frame_000110.png coverage=0.5602",
+      "ts": 1792042023.9260905
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 112/182] frame_000111.png coverage=0.5562",
+      "ts": 1792042024.426902
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 113/182] frame_000112.png coverage=0.5537",
+      "ts": 1792042025.4302027
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 114/182] frame_000113.png coverage=0.5527",
+      "ts": 1792042025.9309225
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 115/182] frame_000114.png coverage=0.5504",
+      "ts": 1792042026.9327621
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 116/182] frame_000115.png coverage=0.5455",
+      "ts": 1792042027.4336214
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 117/182] frame_000116.png coverage=0.5468",
+      "ts": 1792042027.934747
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 118/182] frame_000117.png coverage=0.5441",
+      "ts": 1792042028.9361851
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 119/182] frame_000118.png coverage=0.5370",
+      "ts": 1792042029.4368837
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 120/182] frame_000119.png coverage=0.5284",
+      "ts": 1792042030.437844
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 121/182] frame_000120.png coverage=0.5247",
+      "ts": 1792042030.9386191
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 122/182] frame_000121.png coverage=0.5252",
+      "ts": 1792042031.9402683
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 123/182] frame_000122.png coverage=0.5272",
+      "ts": 1792042032.4409244
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 124/182] frame_000123.png coverage=0.5262",
+      "ts": 1792042032.9418652
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 125/182] frame_000124.png coverage=0.5221",
+      "ts": 1792042033.9435265
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 126/182] frame_000125.png coverage=0.5195",
+      "ts": 1792042034.4444199
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 127/182] frame_000126.png coverage=0.5200",
+      "ts": 1792042035.4458127
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 128/182] frame_000127.png coverage=0.5249",
+      "ts": 1792042035.9462934
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 129/182] frame_000128.png coverage=0.5184",
+      "ts": 1792042036.9481778
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 130/182] frame_000129.png coverage=0.5136",
+      "ts": 1792042037.4490225
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 131/182] frame_000130.png coverage=0.5127",
+      "ts": 1792042038.4505548
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 132/182] frame_000131.png coverage=0.5095",
+      "ts": 1792042038.9519007
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 133/182] frame_000132.png coverage=0.5065",
+      "ts": 1792042039.4528155
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 134/182] frame_000133.png coverage=0.5041",
+      "ts": 1792042040.454225
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 135/182] frame_000134.png coverage=0.5042",
+      "ts": 1792042040.955591
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 136/182] frame_000135.png coverage=0.5015",
+      "ts": 1792042041.9571579
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 137/182] frame_000136.png coverage=0.4998",
+      "ts": 1792042042.4576125
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 138/182] frame_000137.png coverage=0.4958",
+      "ts": 1792042043.459711
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 139/182] frame_000138.png coverage=0.4890",
+      "ts": 1792042043.9607494
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 140/182] frame_000139.png coverage=0.4735",
+      "ts": 1792042044.4619431
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 141/182] frame_000140.png coverage=0.4619",
+      "ts": 1792042045.4632905
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 142/182] frame_000141.png coverage=0.4554",
+      "ts": 1792042045.9636755
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 143/182] frame_000142.png coverage=0.4482",
+      "ts": 1792042046.9653757
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 144/182] frame_000143.png coverage=0.4412",
+      "ts": 1792042047.4664028
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 145/182] frame_000144.png coverage=0.4322",
+      "ts": 1792042048.4675922
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 146/182] frame_000145.png coverage=0.4211",
+      "ts": 1792042048.9691093
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 147/182] frame_000146.png coverage=0.4085",
+      "ts": 1792042049.470014
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 148/182] frame_000147.png coverage=0.3982",
+      "ts": 1792042050.47162
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 149/182] frame_000148.png coverage=0.3872",
+      "ts": 1792042050.973369
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 150/182] frame_000149.png coverage=0.3783",
+      "ts": 1792042051.9762692
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 151/182] frame_000150.png coverage=0.3805",
+      "ts": 1792042052.4774868
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 152/182] frame_000151.png coverage=0.3822",
+      "ts": 1792042053.4793873
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 153/182] frame_000152.png coverage=0.3859",
+      "ts": 1792042053.9797492
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 154/182] frame_000153.png coverage=0.3904",
+      "ts": 1792042054.480986
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 155/182] frame_000154.png coverage=0.3979",
+      "ts": 1792042055.4830897
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 156/182] frame_000155.png coverage=0.4049",
+      "ts": 1792042055.9837399
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 157/182] frame_000156.png coverage=0.4144",
+      "ts": 1792042056.9849072
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 158/182] frame_000157.png coverage=0.4254",
+      "ts": 1792042057.4854338
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 159/182] frame_000158.png coverage=0.4412",
+      "ts": 1792042057.9860072
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 160/182] frame_000159.png coverage=0.4630",
+      "ts": 1792042058.9880207
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 161/182] frame_000160.png coverage=0.4839",
+      "ts": 1792042059.488576
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 162/182] frame_000161.png coverage=0.4924",
+      "ts": 1792042060.4907334
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 163/182] frame_000162.png coverage=0.4977",
+      "ts": 1792042060.992804
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 164/182] frame_000163.png coverage=0.5021",
+      "ts": 1792042061.9960175
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 165/182] frame_000164.png coverage=0.5074",
+      "ts": 1792042062.4978027
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 166/182] frame_000165.png coverage=0.5115",
+      "ts": 1792042062.9998574
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 167/182] frame_000166.png coverage=0.5146",
+      "ts": 1792042064.002328
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 168/182] frame_000167.png coverage=0.5175",
+      "ts": 1792042064.5034375
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 169/182] frame_000168.png coverage=0.5218",
+      "ts": 1792042065.5050821
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 170/182] frame_000169.png coverage=0.5261",
+      "ts": 1792042066.0062637
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 171/182] frame_000170.png coverage=0.5298",
+      "ts": 1792042067.0081415
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 172/182] frame_000171.png coverage=0.5328",
+      "ts": 1792042067.5093749
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 173/182] frame_000172.png coverage=0.5350",
+      "ts": 1792042068.0101824
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 174/182] frame_000173.png coverage=0.5378",
+      "ts": 1792042069.0121148
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 175/182] frame_000174.png coverage=0.5405",
+      "ts": 1792042069.5129316
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 176/182] frame_000175.png coverage=0.5418",
+      "ts": 1792042070.514595
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 177/182] frame_000176.png coverage=0.5444",
+      "ts": 1792042071.0155478
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 178/182] frame_000177.png coverage=0.5460",
+      "ts": 1792042072.0170515
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 179/182] frame_000178.png coverage=0.5480",
+      "ts": 1792042072.5177846
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 180/182] frame_000179.png coverage=0.5514",
+      "ts": 1792042073.5200243
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 181/182] frame_000180.png coverage=0.5536",
+      "ts": 1792042074.0219462
+    },
+    {
+      "stream": "stdout",
+      "line": "[MASK 182/182] frame_000181.png coverage=0.5561",
+      "ts": 1792042075.0257843
+    }
+  ],
+  "total_returned": 182,
+  "truncated": false
+}

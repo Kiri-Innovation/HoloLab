@@ -1,0 +1,737 @@
+[
+  {
+    "name": "fastgs-foreground-export",
+    "version": "0.1.0",
+    "manifest_hash": "ae0d5487d25b9bc99547e72931e47f694ed568665255fe82ea0b90e8a257aa6b",
+    "node_ids": [
+      "c6ad6211-18ff-4a0a-9108-67f370d25072"
+    ],
+    "inputs": {
+      "colmap": {
+        "tags": [
+          "colmap-folder"
+        ],
+        "required": true,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": null,
+        "arrayed": false,
+        "scalar": false,
+        "dim_labels": [],
+        "content_dims_from": null
+      },
+      "masks": {
+        "tags": [
+          "mask"
+        ],
+        "required": true,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": "Per-frame binary PNG files, materialized as a directory; stems match colmap images.",
+        "arrayed": true,
+        "scalar": false,
+        "dim_labels": [
+          "frame"
+        ],
+        "content_dims_from": null
+      },
+      "model": {
+        "tags": [
+          "fastgs-model"
+        ],
+        "required": true,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": null,
+        "arrayed": false,
+        "scalar": false,
+        "dim_labels": [],
+        "content_dims_from": null
+      }
+    },
+    "outputs": {
+      "model": {
+        "tags": [
+          "fastgs-model"
+        ],
+        "storage": "dir",
+        "description": null,
+        "arrayed": false,
+        "scalar": false,
+        "tags_from": null,
+        "dim_labels": [],
+        "dim_labels_from": null,
+        "dim_labels_from_input": null,
+        "dim_labels_drop_outer": 0,
+        "preview": null
+      },
+      "ply": {
+        "tags": [
+          "ply-3dgs"
+        ],
+        "storage": "file",
+        "description": null,
+        "arrayed": false,
+        "scalar": false,
+        "tags_from": null,
+        "dim_labels": [],
+        "dim_labels_from": null,
+        "dim_labels_from_input": null,
+        "dim_labels_drop_outer": 0,
+        "preview": null
+      }
+    },
+    "params": {},
+    "description": "Export only Gaussian centers that project into at least one foreground mask. Conservatively removes unobserved off-frame points; does not clip 2D renders.",
+    "category": [
+      "export",
+      "fastgs-pano"
+    ],
+    "docs": null,
+    "source_entry": "export.py",
+    "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/packs/fastgs-foreground-export@0.1.0/manifest.yaml",
+    "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/packs",
+    "arrayable": false,
+    "node_viewers": [],
+    "hide_default_output_previews": false
+  },
+  {
+    "name": "fastgs-pano-train",
+    "version": "0.1.0",
+    "manifest_hash": "dc4b1f54a1c19b0bc1409e7625fe4a513b1a0f418e92df0f2777db8468a4a6ac",
+    "node_ids": [
+      "c6ad6211-18ff-4a0a-9108-67f370d25072"
+    ],
+    "inputs": {
+      "colmap": {
+        "tags": [
+          "colmap-folder"
+        ],
+        "required": true,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": "Dataset root that FastGS's colmap loader accepts. Must contain ``sparse/0/`` + ``<images_dir>/``. For data_sources=both, additionally ``sparse_fixed/0/`` + ``images_fixed/``. Retagged 2026-09-22 \u2014 accepts the new canonical ``[colmap-folder]`` from ``merge-colmap@0.4.0`` and ``fastgs-colmap-overlay``.\n",
+        "arrayed": false,
+        "scalar": false,
+        "dim_labels": [],
+        "content_dims_from": null
+      },
+      "depths": {
+        "tags": [
+          "inv-depth-npy"
+        ],
+        "required": false,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": "Optional metric z-depth .npy dir. Filenames must match image stems (e.g. frame_00000_front.npy).",
+        "arrayed": false,
+        "scalar": false,
+        "dim_labels": [],
+        "content_dims_from": null
+      },
+      "masks": {
+        "tags": [
+          "mask"
+        ],
+        "required": false,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": "Per-frame binary PNG masks (white=valid), materialized as a directory. Filenames match image stems.",
+        "arrayed": true,
+        "scalar": false,
+        "dim_labels": [
+          "frame"
+        ],
+        "content_dims_from": null
+      },
+      "bbox": {
+        "tags": [
+          "ply-bbox"
+        ],
+        "required": false,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": "Optional person_bbox.ply for dynamic mode; overrides <source>/person_bbox.ply autodetect.",
+        "arrayed": false,
+        "scalar": false,
+        "dim_labels": [],
+        "content_dims_from": null
+      }
+    },
+    "outputs": {
+      "gs_ckpt": {
+        "tags": [
+          "fastgs-model"
+        ],
+        "storage": "dir",
+        "description": "Trained model dir: point_cloud/iteration_<iter>/point_cloud.ply, chkpnt<iter>.pth, cameras.json, cfg_args, and (dynamic mode) deform/iteration_<iter>/deform.pth.\n",
+        "arrayed": false,
+        "scalar": false,
+        "tags_from": null,
+        "dim_labels": [],
+        "dim_labels_from": null,
+        "dim_labels_from_input": null,
+        "dim_labels_drop_outer": 0,
+        "preview": null
+      }
+    },
+    "params": {
+      "iterations": {
+        "type": "int",
+        "default": 30000,
+        "description": null,
+        "optional": false
+      },
+      "data_sources": {
+        "type": "enum",
+        "default": "original",
+        "description": null,
+        "optional": false
+      },
+      "images_dir_name": {
+        "type": "string",
+        "default": "images",
+        "description": "-i argument to train.py. Change to e.g. images_2 to train on half-res.",
+        "optional": false
+      },
+      "resolution": {
+        "type": "int",
+        "default": -1,
+        "description": "--resolution; -1 keeps source. 2 halves width/height.",
+        "optional": false
+      },
+      "mult": {
+        "type": "float",
+        "default": 0.5,
+        "description": "Rasterization tile-compactness multiplier.",
+        "optional": false
+      },
+      "optimizer_type": {
+        "type": "enum",
+        "default": "default",
+        "description": null,
+        "optional": false
+      },
+      "frame_gpu_budget": {
+        "type": "int",
+        "default": -1,
+        "description": "-1 keeps all frame payloads resident; N caches at most N views.",
+        "optional": false
+      },
+      "densify_from_iter": {
+        "type": "int",
+        "default": 500,
+        "description": null,
+        "optional": false
+      },
+      "densify_until_iter": {
+        "type": "int",
+        "default": 15000,
+        "description": null,
+        "optional": false
+      },
+      "opacity_reset_interval": {
+        "type": "int",
+        "default": 3000,
+        "description": null,
+        "optional": false
+      },
+      "max_gaussians": {
+        "type": "int",
+        "default": -1,
+        "description": "Stop densification once the model exceeds this count. -1 disables.",
+        "optional": false
+      },
+      "densify_milestones": {
+        "type": "string",
+        "default": "",
+        "description": "Comma-separated switch iterations, e.g. \"7000,10000\". Empty = single stage.",
+        "optional": false
+      },
+      "densification_interval": {
+        "type": "string",
+        "default": "100",
+        "description": "Comma-separated per-stage intervals (length must equal densify_milestones+1).",
+        "optional": false
+      },
+      "grad_abs_thresh": {
+        "type": "string",
+        "default": "0.0002",
+        "description": "Comma-separated per-stage split thresholds (length must equal densify_milestones+1).",
+        "optional": false
+      },
+      "depth_l1_weight_init": {
+        "type": "float",
+        "default": 0.0,
+        "description": null,
+        "optional": false
+      },
+      "depth_l1_weight_final": {
+        "type": "float",
+        "default": 0.0,
+        "description": null,
+        "optional": false
+      },
+      "dynamic": {
+        "type": "bool",
+        "default": false,
+        "description": "Enable the deformation head. Image stems must be frame_XXXXX[_face].",
+        "optional": false
+      },
+      "focus_camera_index": {
+        "type": "int",
+        "default": -1,
+        "description": "0-based camera index to bias toward. -1 disables focus mode.",
+        "optional": false
+      },
+      "focus_image_stem": {
+        "type": "string",
+        "default": "",
+        "description": "Alternative to focus_camera_index. Empty = disabled. Takes precedence if both set.",
+        "optional": false
+      },
+      "focus_from_iter": {
+        "type": "int",
+        "default": 10000,
+        "description": null,
+        "optional": false
+      },
+      "focus_sample_probability": {
+        "type": "float",
+        "default": 0.5,
+        "description": null,
+        "optional": false
+      },
+      "sh_degree": {
+        "type": "int",
+        "default": 3,
+        "description": "SH degree for the Gaussian appearance model. 3 = full quality (default); 0 = diffuse only (fastest smoke).",
+        "optional": false
+      },
+      "white_background": {
+        "type": "bool",
+        "default": false,
+        "description": "Render against white BG instead of black. Match your dataset's convention.",
+        "optional": false
+      },
+      "eval": {
+        "type": "bool",
+        "default": false,
+        "description": "Enable train/test split behaviour in the loader.",
+        "optional": false
+      },
+      "split_dir": {
+        "type": "string",
+        "default": "",
+        "description": "Optional directory containing explicit train.txt and test.txt view lists.",
+        "optional": false
+      },
+      "deform_warm_up": {
+        "type": "int",
+        "default": 3000,
+        "description": "Iterations before the deform head is enabled. dynamic=true only.",
+        "optional": false
+      },
+      "deform_lr_init": {
+        "type": "float",
+        "default": 0.0008,
+        "description": "Initial LR for the deform head. dynamic=true only.",
+        "optional": false
+      },
+      "deform_lr_final": {
+        "type": "float",
+        "default": 1.6e-06,
+        "description": "Final LR for the deform head. dynamic=true only.",
+        "optional": false
+      },
+      "deform_reg_weight": {
+        "type": "float",
+        "default": 0.01,
+        "description": "Regularisation weight for the deform head. dynamic=true only.",
+        "optional": false
+      }
+    },
+    "description": "Train a FastGS panoramic 3DGS model. Wraps ``train.py`` with the full knob set from ``scripts/config.sh``: staged densification, ``max_gaussians``, focused sampling, ``--dynamic`` + bbox, ``data_sources = original|fixed|both``.\n",
+    "category": [
+      "training",
+      "fastgs-pano"
+    ],
+    "docs": "Stage-1 or stage-2 FastGS training. Data-source selection determines\nwhich subtree(s) of the input dataset are loaded:\n\n* ``original`` \u2014 reads ``sparse/0/`` + ``<images_dir>/``.\n* ``fixed``    \u2014 reads ``sparse_fixed/0/`` + ``images_fixed/``.\n* ``both``     \u2014 loads both, keeps camera lists separate.\n\n### Dataset shape\n\nThis branch's ``scene/dataset_readers.py`` reads COLMAP\n``sparse/0/*.bin`` (with a ``.txt`` fallback) plus the images\ndirectory named by ``params.images``. When ``data_sources=both``,\nwire the input from ``fastgs-colmap-overlay`` so both original and\n``_fixed`` subtrees sit under one root.\n\n### Dynamic mode (--dynamic)\n\nEnables the deformation head + per-frame time coordinate. Image\nstems MUST match ``frame_XXXXX[_face]`` (regex in\n``dynamic/deformation.frame_key``). ``bbox`` input, if wired,\noverrides the ``<source>/person_bbox.ply`` auto-detection.\nTraining resume is disabled in dynamic mode (raises at boot).\n\n### Staged densification\n\nLists are passed as space-free comma strings and split in the shell.\nSame schema as ``scripts/config.sh`` DENSIFY_MILESTONES,\nDENSIFICATION_INTERVAL, GRAD_ABS_THRESH.\n\n* ``densify_milestones = \"7000,10000\"`` \u2192 two switch iterations.\n* ``densification_interval = \"500,250,100\"`` \u2192 three stage intervals.\n* ``grad_abs_thresh = \"0.0002,0.0001,0.00005\"`` \u2192 three thresholds.\n\nLength ``M`` for milestones implies ``M+1`` for the two lists (one\nper stage). Leave milestones empty for the single-stage default.\n\n### Focused sampling\n\n``focus_camera_index`` OR ``focus_image_stem`` (mutually exclusive).\nOnce set, ``focus_from_iter`` and ``focus_sample_probability`` bias\nthe training-batch sampler toward that target.\n",
+    "source_entry": "/cloud/cloud-ssd1/FastGS-Pano/train.py",
+    "manifest_path": "/cloud/cloud-ssd1/FastGS-Pano/packs/fastgs-pano-train@0.1.0/manifest.yaml",
+    "source_dir": "/cloud/cloud-ssd1/FastGS-Pano/packs",
+    "arrayable": false,
+    "node_viewers": [],
+    "hide_default_output_previews": false
+  },
+  {
+    "name": "fastgs-silhouette-train",
+    "version": "0.1.0",
+    "manifest_hash": "4f84cca7d4c376833d425d26a7de0b5dcab3b7f4357e7f3c923df1a68e4c23b2",
+    "node_ids": [
+      "c6ad6211-18ff-4a0a-9108-67f370d25072"
+    ],
+    "inputs": {
+      "colmap": {
+        "tags": [
+          "colmap-folder"
+        ],
+        "required": true,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": "Dataset root that FastGS's colmap loader accepts. Must contain ``sparse/0/`` + ``<images_dir>/``. For data_sources=both, additionally ``sparse_fixed/0/`` + ``images_fixed/``. Retagged 2026-09-22 \u2014 accepts the new canonical ``[colmap-folder]`` from ``merge-colmap@0.4.0`` and ``fastgs-colmap-overlay``.\n",
+        "arrayed": false,
+        "scalar": false,
+        "dim_labels": [],
+        "content_dims_from": null
+      },
+      "depths": {
+        "tags": [
+          "inv-depth-npy"
+        ],
+        "required": false,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": "Optional metric z-depth .npy dir. Filenames must match image stems (e.g. frame_00000_front.npy).",
+        "arrayed": false,
+        "scalar": false,
+        "dim_labels": [],
+        "content_dims_from": null
+      },
+      "masks": {
+        "tags": [
+          "mask"
+        ],
+        "required": true,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": "Per-frame binary PNG masks (white=valid), materialized as a directory. Filenames match image stems.",
+        "arrayed": true,
+        "scalar": false,
+        "dim_labels": [
+          "frame"
+        ],
+        "content_dims_from": null
+      },
+      "bbox": {
+        "tags": [
+          "ply-bbox"
+        ],
+        "required": false,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": "Optional person_bbox.ply for dynamic mode; overrides <source>/person_bbox.ply autodetect.",
+        "arrayed": false,
+        "scalar": false,
+        "dim_labels": [],
+        "content_dims_from": null
+      }
+    },
+    "outputs": {
+      "ply": {
+        "tags": [
+          "ply-3dgs"
+        ],
+        "storage": "file",
+        "description": "Static Gaussian PLY for direct viewing or download.",
+        "arrayed": false,
+        "scalar": false,
+        "tags_from": null,
+        "dim_labels": [],
+        "dim_labels_from": null,
+        "dim_labels_from_input": null,
+        "dim_labels_drop_outer": 0,
+        "preview": null
+      },
+      "gs_ckpt": {
+        "tags": [
+          "fastgs-model"
+        ],
+        "storage": "dir",
+        "description": "Trained model dir: point_cloud/iteration_<iter>/point_cloud.ply, chkpnt<iter>.pth, cameras.json, cfg_args, and (dynamic mode) deform/iteration_<iter>/deform.pth.\n",
+        "arrayed": false,
+        "scalar": false,
+        "tags_from": null,
+        "dim_labels": [],
+        "dim_labels_from": null,
+        "dim_labels_from_input": null,
+        "dim_labels_drop_outer": 0,
+        "preview": null
+      }
+    },
+    "params": {
+      "silhouette_loss": {
+        "type": "enum",
+        "default": "bce",
+        "description": null,
+        "optional": false
+      },
+      "silhouette_weight": {
+        "type": "float",
+        "default": 0.1,
+        "description": null,
+        "optional": false
+      },
+      "iterations": {
+        "type": "int",
+        "default": 30000,
+        "description": null,
+        "optional": false
+      },
+      "data_sources": {
+        "type": "enum",
+        "default": "original",
+        "description": null,
+        "optional": false
+      },
+      "images_dir_name": {
+        "type": "string",
+        "default": "images",
+        "description": "-i argument to train.py. Change to e.g. images_2 to train on half-res.",
+        "optional": false
+      },
+      "resolution": {
+        "type": "int",
+        "default": -1,
+        "description": "--resolution; -1 keeps source. 2 halves width/height.",
+        "optional": false
+      },
+      "mult": {
+        "type": "float",
+        "default": 0.5,
+        "description": "Rasterization tile-compactness multiplier.",
+        "optional": false
+      },
+      "optimizer_type": {
+        "type": "enum",
+        "default": "default",
+        "description": null,
+        "optional": false
+      },
+      "frame_gpu_budget": {
+        "type": "int",
+        "default": -1,
+        "description": "-1 keeps all frame payloads resident; N caches at most N views.",
+        "optional": false
+      },
+      "densify_from_iter": {
+        "type": "int",
+        "default": 500,
+        "description": null,
+        "optional": false
+      },
+      "densify_until_iter": {
+        "type": "int",
+        "default": 15000,
+        "description": null,
+        "optional": false
+      },
+      "opacity_reset_interval": {
+        "type": "int",
+        "default": 3000,
+        "description": null,
+        "optional": false
+      },
+      "max_gaussians": {
+        "type": "int",
+        "default": -1,
+        "description": "Stop densification once the model exceeds this count. -1 disables.",
+        "optional": false
+      },
+      "densify_milestones": {
+        "type": "string",
+        "default": "",
+        "description": "Comma-separated switch iterations, e.g. \"7000,10000\". Empty = single stage.",
+        "optional": false
+      },
+      "densification_interval": {
+        "type": "string",
+        "default": "100",
+        "description": "Comma-separated per-stage intervals (length must equal densify_milestones+1).",
+        "optional": false
+      },
+      "grad_abs_thresh": {
+        "type": "string",
+        "default": "0.0002",
+        "description": "Comma-separated per-stage split thresholds (length must equal densify_milestones+1).",
+        "optional": false
+      },
+      "depth_l1_weight_init": {
+        "type": "float",
+        "default": 0.0,
+        "description": null,
+        "optional": false
+      },
+      "depth_l1_weight_final": {
+        "type": "float",
+        "default": 0.0,
+        "description": null,
+        "optional": false
+      },
+      "dynamic": {
+        "type": "bool",
+        "default": false,
+        "description": "Enable the deformation head. Image stems must be frame_XXXXX[_face].",
+        "optional": false
+      },
+      "focus_camera_index": {
+        "type": "int",
+        "default": -1,
+        "description": "0-based camera index to bias toward. -1 disables focus mode.",
+        "optional": false
+      },
+      "focus_image_stem": {
+        "type": "string",
+        "default": "",
+        "description": "Alternative to focus_camera_index. Empty = disabled. Takes precedence if both set.",
+        "optional": false
+      },
+      "focus_from_iter": {
+        "type": "int",
+        "default": 10000,
+        "description": null,
+        "optional": false
+      },
+      "focus_sample_probability": {
+        "type": "float",
+        "default": 0.5,
+        "description": null,
+        "optional": false
+      },
+      "sh_degree": {
+        "type": "int",
+        "default": 3,
+        "description": "SH degree for the Gaussian appearance model. 3 = full quality (default); 0 = diffuse only (fastest smoke).",
+        "optional": false
+      },
+      "white_background": {
+        "type": "bool",
+        "default": false,
+        "description": "Render against white BG instead of black. Match your dataset's convention.",
+        "optional": false
+      },
+      "eval": {
+        "type": "bool",
+        "default": false,
+        "description": "Enable train/test split behaviour in the loader.",
+        "optional": false
+      },
+      "split_dir": {
+        "type": "string",
+        "default": "",
+        "description": "Optional directory containing explicit train.txt and test.txt view lists.",
+        "optional": false
+      },
+      "deform_warm_up": {
+        "type": "int",
+        "default": 3000,
+        "description": "Iterations before the deform head is enabled. dynamic=true only.",
+        "optional": false
+      },
+      "deform_lr_init": {
+        "type": "float",
+        "default": 0.0008,
+        "description": "Initial LR for the deform head. dynamic=true only.",
+        "optional": false
+      },
+      "deform_lr_final": {
+        "type": "float",
+        "default": 1.6e-06,
+        "description": "Final LR for the deform head. dynamic=true only.",
+        "optional": false
+      },
+      "deform_reg_weight": {
+        "type": "float",
+        "default": 0.01,
+        "description": "Regularisation weight for the deform head. dynamic=true only.",
+        "optional": false
+      }
+    },
+    "description": "Static FastGS training with independent masked RGB loss and differentiable alpha silhouette supervision.",
+    "category": [
+      "training",
+      "fastgs-pano"
+    ],
+    "docs": "Uses the installed FastGS trainer without modifying its repository.\nRGB loss only uses masks; an additional binary cross-entropy alpha loss (or optional L1 loss)\nsupervises foreground opacity and background transparency. No alpha\nchannel is inserted into ground-truth RGB. Dynamic mode is unsupported.\nOutputs per-1000-step loss records and CUDA memory/time statistics.\n",
+    "source_entry": "train_masked.py",
+    "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/packs/fastgs-silhouette-train@0.1.0/manifest.yaml",
+    "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/packs",
+    "arrayable": false,
+    "node_viewers": [],
+    "hide_default_output_previews": false
+  },
+  {
+    "name": "person-gray-mask",
+    "version": "0.1.0",
+    "manifest_hash": "b945a94c4150d41fdcae48f572929115e7ae08c0f56b7f80a23f44cc1d5d1a42",
+    "node_ids": [
+      "c6ad6211-18ff-4a0a-9108-67f370d25072"
+    ],
+    "inputs": {
+      "colmap": {
+        "tags": [
+          "colmap-folder"
+        ],
+        "required": true,
+        "require_axis_label_match": true,
+        "storage": "dir",
+        "description": null,
+        "arrayed": false,
+        "scalar": false,
+        "dim_labels": [],
+        "content_dims_from": null
+      }
+    },
+    "outputs": {
+      "masks": {
+        "tags": [
+          "mask",
+          "image"
+        ],
+        "storage": "dir",
+        "description": "arrayed<mask>[frame], sorted by filename. The image co-tag declares the existing single-image file contract for every mask leaf. The aggregate is a directory; each element is one file named <image-stem>.png (storage: file), decoded as single-channel uint8 at the source image width and height. Values are 0 (background) or 255 (foreground / valid RGB loss). Validated before success: nonempty inputs, unique stems, exact PNG filename coverage, matching image dimensions, binary values, and foreground coverage strictly between 5% and 95%. Hidden .done is an execution marker, not an array element.",
+        "arrayed": true,
+        "scalar": false,
+        "tags_from": null,
+        "dim_labels": [
+          "frame"
+        ],
+        "dim_labels_from": null,
+        "dim_labels_from_input": null,
+        "dim_labels_drop_outer": 0,
+        "preview": {
+          "viewer": "image",
+          "member": null
+        }
+      },
+      "report": {
+        "tags": [
+          "directory"
+        ],
+        "storage": "dir",
+        "description": null,
+        "arrayed": false,
+        "scalar": false,
+        "tags_from": null,
+        "dim_labels": [],
+        "dim_labels_from": null,
+        "dim_labels_from_input": null,
+        "dim_labels_drop_outer": 0,
+        "preview": null
+      }
+    },
+    "params": {},
+    "description": "Gray-wall foreground extraction with adaptive Lab color seeds and GrabCut. Validates every image stem and size; white means valid RGB loss.",
+    "category": [
+      "preprocessing",
+      "masks"
+    ],
+    "docs": null,
+    "source_entry": "mask.py",
+    "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/packs/person-gray-mask@0.1.0/manifest.yaml",
+    "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/packs",
+    "arrayable": false,
+    "node_viewers": [],
+    "hide_default_output_previews": false
+  }
+]
