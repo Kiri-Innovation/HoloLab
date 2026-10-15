@@ -101,6 +101,7 @@ import { netBus, useReconnectTick } from "./net";
 import { CanvasContext } from "./canvas/CanvasContext";
 import { aggregateJobsToRuntime } from "./canvas/nodeRuntime";
 import { MobileShell, useIsMobilePortrait } from "./canvas/MobileShell";
+import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
 import { PackPalette } from "./canvas/PackPalette";
 import { ComputeNodesPanel } from "./canvas/ComputeNodesPanel";
 import { MinimapToggleButton } from "./canvas/MinimapToggleButton";
@@ -1339,6 +1340,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const rfWrapper = useRef<HTMLDivElement>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
+  const [fitInitialGraph, setFitInitialGraph] = useState(true);
+  const [creationAnchor, setCreationAnchor] = useState<{ x: number; y: number } | null>(null);
+  const closeCreationMenu = useCallback(() => setCreationAnchor(null), []);
+
   // --- dynamic minZoom: fit the full node chain horizontally ----------
   const [dynamicMinZoom, setDynamicMinZoom] = useState<number>(0.05);
   const minZoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1379,14 +1384,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     e.dataTransfer.dropEffect = "copy";
   }, []);
 
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
+  // Both palette drops and context-menu choices use the same viewport conversion
+  // and node defaults. The menu retains the original screen anchor when clamped.
+  const createNodeAtScreen = useCallback(
+    (screen: { x: number; y: number }, choice: { name: string; version: string } | null) => {
       if (!rfInstance || !rfWrapper.current) return;
-      const view = e.dataTransfer.getData("application/hololab-view");
-      const raw = e.dataTransfer.getData("application/hololab-pack");
-      if (!raw && !view) return;
-      const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      // Cancel the initial deferred fit when the first node is user-created.
+      // Otherwise an empty workflow jumps away from the requested drop point.
+      setFitInitialGraph(false);
+      const position = rfInstance.screenToFlowPosition(screen);
+      const view = choice === null;
       if (view) {
         setNodes((ns) => ns.concat({
           id: mintId("view"),
@@ -1397,8 +1404,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         }));
         return;
       }
-      const { name, version } = JSON.parse(raw) as { name: string; version: string };
-      const pack = catalogByKey.get(`${name}@${version}`);
+      const pack = choice && catalogByKey.get(`${choice.name}@${choice.version}`);
       if (!pack) return;
 
       const node: Node<AlgorithmNodeData> = {
@@ -1415,6 +1421,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     },
     [rfInstance, catalogByKey, setNodes],
   );
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const view = e.dataTransfer.getData("application/hololab-view");
+    const raw = e.dataTransfer.getData("application/hololab-pack");
+    if (!raw && !view) return;
+    createNodeAtScreen({ x: e.clientX, y: e.clientY }, view ? null : JSON.parse(raw));
+  }, [createNodeAtScreen]);
 
   // --- selection → NodeInspector ---------------------------------------
   const selectedNode = useMemo(() => nodes.find((n) => n.selected) || null, [nodes]);
@@ -2634,8 +2648,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             onConnect={onConnect}
             onConnectEnd={onConnectEnd}
             onInit={setRfInstance}
+            panOnDrag={[0, 1]}
+            onPaneContextMenu={(event) => {
+              if (!(event.target instanceof Element) || !event.target.classList.contains("react-flow__pane")) return;
+              event.preventDefault();
+              setCreationAnchor({ x: event.clientX, y: event.clientY });
+            }}
             deleteKeyCode="Backspace"
-            fitView
+            fitView={fitInitialGraph}
             minZoom={dynamicMinZoom}
             proOptions={{ hideAttribution: true }}
           >
@@ -2655,6 +2675,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           </ReactFlow>
         )}
       </CanvasContext.Provider>
+      {creationAnchor && !viewingSnapshot && (
+        <NodeCreationMenu key={`${creationAnchor.x},${creationAnchor.y}`} catalog={catalog} anchor={creationAnchor}
+          onClose={closeCreationMenu} onCreate={choice => {
+            createNodeAtScreen(creationAnchor, choice.kind === "leaf" ? choice.pack : null);
+            closeCreationMenu();
+          }} />
+      )}
       {snapshotError && (
         <div
           style={{
