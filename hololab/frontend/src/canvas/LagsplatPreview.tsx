@@ -14,5 +14,15 @@ export function LagsplatPreview({ baseUrl }: { baseUrl: string }) {
     frame.addEventListener("load", send);
     return () => frame.removeEventListener("load", send);
   }, [baseUrl]);
-  return <iframe ref={ref} title="LaGSplat Viewer" src="/lagsplat-viewer.html" style={{ width: "100%", height: 270, border: 0 }} />;
+  return (
+    <div style={{ height: 220, overflow: "hidden" }}>
+      <iframe
+        ref={ref}
+        title="LaGSplat Viewer"
+        src="/lagsplat-viewer.html"
+        scrolling="no"
+        style={{ display: "block", width: "100%", height: "100%", border: 0 }}
+      />
+    </div>
+  );
 }
