@@ -1,0 +1,18 @@
+{
+  "node_count": 12,
+  "edge_count": 18,
+  "is_dag": true,
+  "validation_issues": [],
+  "unchanged_protected_files": 871,
+  "other_workflows_unchanged": 12,
+  "other_artifact_rows_unchanged": 38375,
+  "removed_packs_absent": true,
+  "preserved_packs_present": true,
+  "health": {
+    "status": "ok",
+    "version": "0.0.1",
+    "protocol_v_min": 1,
+    "protocol_v_max": 1,
+    "ts": 1792032181.7138736
+  }
+}

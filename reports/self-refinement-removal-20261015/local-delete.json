@@ -1,0 +1,6 @@
+{
+  "method": "path-checked shutil.rmtree",
+  "path": "output/hololab/deliveries/steven-self-refinement-20261014",
+  "remaining": false,
+  "files": 30
+}

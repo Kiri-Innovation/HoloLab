@@ -1,0 +1,2890 @@
+{
+  "commits": [
+    {
+      "repository": "hololab",
+      "original_commit": "5634979c5806f605d16e0129b78007cb150ea485",
+      "revert_commit": "e641848a7a2a9c89ed3c00a80ed8967f40bab813",
+      "files": [
+        "packs/refinement-compare@0.1.0/manifest.yaml",
+        "packs/refinement-compare@0.1.0/run.py",
+        "packs/replace-colmap-images@0.1.0/manifest.yaml",
+        "packs/replace-colmap-images@0.1.0/run.py",
+        "reports/steven-self-refinement-20261014.md",
+        "tests/test_replace_colmap_images.py"
+      ]
+    },
+    {
+      "repository": "/cloud/cloud-ssd1/FastGS-Pano",
+      "original_commit": "7e408937303d58bfd5c8150859fb172aae445377",
+      "revert_commit": "b181d18b52aa01aabf4dbae7434a9b57336a1783",
+      "files": [
+        "packs/fastgs-camera-array@0.1.0/manifest.yaml",
+        "packs/fastgs-camera-array@0.1.0/run.py",
+        "packs/fastgs-refine-ply@0.1.0/manifest.yaml",
+        "packs/fastgs-refine-ply@0.1.0/run.py"
+      ]
+    },
+    {
+      "repository": "tryouts/Difix3D",
+      "original_commit": "9f120f376b1d1089aad359e887de7fbb8232c988",
+      "revert_commit": "81a638f4ff8faa2f322902532b6faefe189c4fe0",
+      "files": [
+        "packs/difix-image@0.1.0/manifest.yaml",
+        "packs/difix-image@0.1.0/run.py"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "refine-render-before",
+      "kind": "algorithm",
+      "algorithm_name": "fastgs-camera-array",
+      "algorithm_version": "0.1.0",
+      "view_type": null,
+      "title": "Self-refine \u00b7 original 93 poses",
+      "position": {
+        "x": 2800.0,
+        "y": 1000.0
+      },
+      "params": {},
+      "assigned_node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "resolved_outputs": {
+        "images": {
+          "tags": [
+            "image"
+          ],
+          "arrayed": true,
+          "dim_labels": [
+            "frame"
+          ]
+        },
+        "references": {
+          "tags": [
+            "image"
+          ],
+          "arrayed": true,
+          "dim_labels": [
+            "frame"
+          ]
+        },
+        "model": {
+          "tags": [
+            "ply-3dgs"
+          ],
+          "arrayed": false,
+          "dim_labels": []
+        },
+        "audit": {
+          "tags": [
+            "text"
+          ],
+          "arrayed": false,
+          "dim_labels": []
+        }
+      },
+      "port_types": {
+        "schemaVersion": 1,
+        "inputs": {
+          "colmap": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "colmap-folder"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "colmap-folder"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "colmap-folder"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "ply": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "ply-3dgs"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        },
+        "outputs": {
+          "images": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "frame"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "references": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "frame"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "model": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "ply-3dgs"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "audit": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "text"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "text"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "text"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        }
+      },
+      "latest_run": {
+        "job_id": "7dd35ba9-5bcb-4e9d-a2ca-4590908bf81e",
+        "snapshot_id": "8db73969-d01a-4dec-9654-6b508e55ab67",
+        "snapshot_created_ts": 1791980937.9606981,
+        "state": "done",
+        "fail_reason": null,
+        "algorithm_name": "fastgs-camera-array",
+        "algorithm_version": "0.1.0",
+        "job_created_ts": 1791989442.7020078,
+        "output_handles": {
+          "images": {
+            "runtime_shape": {
+              "handleId": "7637d068-6df7-4766-a9ed-6b03c30643e0",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "image"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    {
+                      "label": "frame",
+                      "role": "collection",
+                      "size": {
+                        "evidence": {
+                          "status": "complete",
+                          "value": 93,
+                          "source": "directory-tree-scan"
+                        }
+                      }
+                    }
+                  ],
+                  "source": "handle-shape-probe"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "7637d068-6df7-4766-a9ed-6b03c30643e0",
+            "tags": [
+              "image"
+            ],
+            "dim_labels": [
+              "frame"
+            ],
+            "dim_sizes": [
+              93
+            ],
+            "element_count": 93,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          },
+          "references": {
+            "runtime_shape": {
+              "handleId": "be63ead8-ce6d-4d75-aad0-c2567bbd9b43",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "image"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    {
+                      "label": "frame",
+                      "role": "collection",
+                      "size": {
+                        "evidence": {
+                          "status": "complete",
+                          "value": 93,
+                          "source": "directory-tree-scan"
+                        }
+                      }
+                    }
+                  ],
+                  "source": "handle-shape-probe"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "be63ead8-ce6d-4d75-aad0-c2567bbd9b43",
+            "tags": [
+              "image"
+            ],
+            "dim_labels": [
+              "frame"
+            ],
+            "dim_sizes": [
+              93
+            ],
+            "element_count": 93,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          },
+          "model": {
+            "runtime_shape": {
+              "handleId": "0c7aa415-26a3-41db-a522-6098cdb2e11d",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "ply-3dgs"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "shape-not-measured"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "0c7aa415-26a3-41db-a522-6098cdb2e11d",
+            "tags": [
+              "ply-3dgs"
+            ],
+            "dim_labels": [],
+            "dim_sizes": null,
+            "element_count": null,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          },
+          "audit": {
+            "runtime_shape": {
+              "handleId": "21fd9678-0185-4b0f-8519-5119c9be2751",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "text"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "shape-not-measured"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "21fd9678-0185-4b0f-8519-5119c9be2751",
+            "tags": [
+              "text"
+            ],
+            "dim_labels": [],
+            "dim_sizes": null,
+            "element_count": null,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          }
+        }
+      }
+    },
+    {
+      "id": "refine-difix",
+      "kind": "algorithm",
+      "algorithm_name": "difix-image",
+      "algorithm_version": "0.1.0",
+      "view_type": null,
+      "title": "Difix \u00b7 per-image fan-out",
+      "position": {
+        "x": 3180.0,
+        "y": 1000.0
+      },
+      "params": {},
+      "assigned_node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+      "arrayed_toggle": true,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "resolved_outputs": {
+        "image": {
+          "tags": [
+            "image"
+          ],
+          "arrayed": true,
+          "dim_labels": [
+            "frame"
+          ]
+        }
+      },
+      "port_types": {
+        "schemaVersion": 1,
+        "inputs": {
+          "image": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "map-input",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "image"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": null
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "reference": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "map-input",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "image"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": null
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        },
+        "outputs": {
+          "image": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "collect-output",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "image"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        }
+      },
+      "latest_run": {
+        "job_id": "fddd3aa3-52f2-40d3-a989-8db57f1241aa",
+        "snapshot_id": "8db73969-d01a-4dec-9654-6b508e55ab67",
+        "snapshot_created_ts": 1791980937.9606981,
+        "state": "done",
+        "fail_reason": null,
+        "algorithm_name": "difix-image",
+        "algorithm_version": "0.1.0",
+        "job_created_ts": 1791989544.060358,
+        "output_handles": {
+          "image": {
+            "runtime_shape": {
+              "handleId": "9ccf1fd9-6536-4643-b0dc-3f694ac1ae3e",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "image"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    {
+                      "label": "frame",
+                      "role": "collection",
+                      "size": {
+                        "evidence": {
+                          "status": "complete",
+                          "value": 93,
+                          "source": "directory-tree-scan"
+                        }
+                      }
+                    }
+                  ],
+                  "source": "handle-shape-probe"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "9ccf1fd9-6536-4643-b0dc-3f694ac1ae3e",
+            "tags": [
+              "image"
+            ],
+            "dim_labels": [
+              "frame"
+            ],
+            "dim_sizes": [
+              93
+            ],
+            "element_count": 93,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          }
+        }
+      }
+    },
+    {
+      "id": "refine-data",
+      "kind": "algorithm",
+      "algorithm_name": "replace-colmap-images",
+      "algorithm_version": "0.1.0",
+      "view_type": null,
+      "title": "Replace all GT \u00b7 exact stems",
+      "position": {
+        "x": 3560.0,
+        "y": 1000.0
+      },
+      "params": {},
+      "assigned_node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "resolved_outputs": {
+        "folder": {
+          "tags": [
+            "colmap-folder"
+          ],
+          "arrayed": false,
+          "dim_labels": []
+        }
+      },
+      "port_types": {
+        "schemaVersion": 1,
+        "inputs": {
+          "colmap": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "colmap-folder"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "colmap-folder"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "colmap-folder"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "images": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "frame"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        },
+        "outputs": {
+          "folder": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "colmap-folder"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "colmap-folder"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "colmap-folder"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        }
+      },
+      "latest_run": {
+        "job_id": "05448762-01c9-4c23-a395-9a95efb53338",
+        "snapshot_id": "8db73969-d01a-4dec-9654-6b508e55ab67",
+        "snapshot_created_ts": 1791980937.9606981,
+        "state": "done",
+        "fail_reason": null,
+        "algorithm_name": "replace-colmap-images",
+        "algorithm_version": "0.1.0",
+        "job_created_ts": 1791990428.193723,
+        "output_handles": {
+          "folder": {
+            "runtime_shape": {
+              "handleId": "bc8008be-ffbe-46f7-9688-98b8ac08c5f5",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "colmap-folder"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "shape-not-measured"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "bc8008be-ffbe-46f7-9688-98b8ac08c5f5",
+            "tags": [
+              "colmap-folder"
+            ],
+            "dim_labels": [],
+            "dim_sizes": null,
+            "element_count": 2,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          }
+        }
+      }
+    },
+    {
+      "id": "refine-train",
+      "kind": "algorithm",
+      "algorithm_name": "fastgs-refine-ply",
+      "algorithm_version": "0.1.0",
+      "view_type": null,
+      "title": "Continue frozen PLY \u00b7 3000 iterations",
+      "position": {
+        "x": 3940.0,
+        "y": 1000.0
+      },
+      "params": {},
+      "assigned_node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "resolved_outputs": {
+        "model": {
+          "tags": [
+            "fastgs-model"
+          ],
+          "arrayed": false,
+          "dim_labels": []
+        },
+        "ply": {
+          "tags": [
+            "ply-3dgs"
+          ],
+          "arrayed": false,
+          "dim_labels": []
+        }
+      },
+      "port_types": {
+        "schemaVersion": 1,
+        "inputs": {
+          "colmap": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "colmap-folder"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "colmap-folder"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "colmap-folder"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "ply": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "ply-3dgs"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "masks": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "mask-dir"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "mask-dir"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "mask-dir"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        },
+        "outputs": {
+          "model": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "fastgs-model"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "fastgs-model"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "fastgs-model"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "ply": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "ply-3dgs"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        }
+      },
+      "latest_run": {
+        "job_id": "391822cb-aa35-4b8e-8e73-d4b589101e79",
+        "snapshot_id": "8db73969-d01a-4dec-9654-6b508e55ab67",
+        "snapshot_created_ts": 1791980937.9606981,
+        "state": "done",
+        "fail_reason": null,
+        "algorithm_name": "fastgs-refine-ply",
+        "algorithm_version": "0.1.0",
+        "job_created_ts": 1791990488.2449284,
+        "output_handles": {
+          "model": {
+            "runtime_shape": {
+              "handleId": "aeffb92a-0869-4a95-b669-bdff8892da05",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "fastgs-model"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "shape-not-measured"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "aeffb92a-0869-4a95-b669-bdff8892da05",
+            "tags": [
+              "fastgs-model"
+            ],
+            "dim_labels": [],
+            "dim_sizes": null,
+            "element_count": 1,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          },
+          "ply": {
+            "runtime_shape": {
+              "handleId": "b9c940d7-3311-46bc-b311-59027bd89972",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "ply-3dgs"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "shape-not-measured"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "b9c940d7-3311-46bc-b311-59027bd89972",
+            "tags": [
+              "ply-3dgs"
+            ],
+            "dim_labels": [],
+            "dim_sizes": null,
+            "element_count": null,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          }
+        }
+      }
+    },
+    {
+      "id": "refine-render-after",
+      "kind": "algorithm",
+      "algorithm_name": "fastgs-camera-array",
+      "algorithm_version": "0.1.0",
+      "view_type": null,
+      "title": "After \u00b7 identical poses",
+      "position": {
+        "x": 4320.0,
+        "y": 1000.0
+      },
+      "params": {},
+      "assigned_node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "resolved_outputs": {
+        "images": {
+          "tags": [
+            "image"
+          ],
+          "arrayed": true,
+          "dim_labels": [
+            "frame"
+          ]
+        },
+        "references": {
+          "tags": [
+            "image"
+          ],
+          "arrayed": true,
+          "dim_labels": [
+            "frame"
+          ]
+        },
+        "model": {
+          "tags": [
+            "ply-3dgs"
+          ],
+          "arrayed": false,
+          "dim_labels": []
+        },
+        "audit": {
+          "tags": [
+            "text"
+          ],
+          "arrayed": false,
+          "dim_labels": []
+        }
+      },
+      "port_types": {
+        "schemaVersion": 1,
+        "inputs": {
+          "colmap": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "colmap-folder"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "colmap-folder"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "colmap-folder"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "ply": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "ply-3dgs"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        },
+        "outputs": {
+          "images": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "frame"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "references": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "frame"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "model": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "ply-3dgs"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "ply-3dgs"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "audit": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "text"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "text"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "text"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        }
+      },
+      "latest_run": {
+        "job_id": "ebfe8a11-7263-4ed9-8f1d-906f420b244f",
+        "snapshot_id": "8db73969-d01a-4dec-9654-6b508e55ab67",
+        "snapshot_created_ts": 1791980937.9606981,
+        "state": "done",
+        "fail_reason": null,
+        "algorithm_name": "fastgs-camera-array",
+        "algorithm_version": "0.1.0",
+        "job_created_ts": 1791990523.2849095,
+        "output_handles": {
+          "images": {
+            "runtime_shape": {
+              "handleId": "b00533a1-7417-48de-b519-eff12a39fcfc",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "image"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    {
+                      "label": "frame",
+                      "role": "collection",
+                      "size": {
+                        "evidence": {
+                          "status": "complete",
+                          "value": 93,
+                          "source": "directory-tree-scan"
+                        }
+                      }
+                    }
+                  ],
+                  "source": "handle-shape-probe"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "b00533a1-7417-48de-b519-eff12a39fcfc",
+            "tags": [
+              "image"
+            ],
+            "dim_labels": [
+              "frame"
+            ],
+            "dim_sizes": [
+              93
+            ],
+            "element_count": 93,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          },
+          "references": {
+            "runtime_shape": {
+              "handleId": "bff05cae-6f3d-4a48-ac0a-44b362ba4bf3",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "image"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    {
+                      "label": "frame",
+                      "role": "collection",
+                      "size": {
+                        "evidence": {
+                          "status": "complete",
+                          "value": 93,
+                          "source": "directory-tree-scan"
+                        }
+                      }
+                    }
+                  ],
+                  "source": "handle-shape-probe"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "bff05cae-6f3d-4a48-ac0a-44b362ba4bf3",
+            "tags": [
+              "image"
+            ],
+            "dim_labels": [
+              "frame"
+            ],
+            "dim_sizes": [
+              93
+            ],
+            "element_count": 93,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          },
+          "model": {
+            "runtime_shape": {
+              "handleId": "9361349f-37f7-48c8-9f6e-9601052a6b87",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "ply-3dgs"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "shape-not-measured"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "9361349f-37f7-48c8-9f6e-9601052a6b87",
+            "tags": [
+              "ply-3dgs"
+            ],
+            "dim_labels": [],
+            "dim_sizes": null,
+            "element_count": null,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          },
+          "audit": {
+            "runtime_shape": {
+              "handleId": "8749248c-0de1-4a28-a887-27fa02226641",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "text"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "shape-not-measured"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "8749248c-0de1-4a28-a887-27fa02226641",
+            "tags": [
+              "text"
+            ],
+            "dim_labels": [],
+            "dim_sizes": null,
+            "element_count": null,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          }
+        }
+      }
+    },
+    {
+      "id": "refine-compare",
+      "kind": "algorithm",
+      "algorithm_name": "refinement-compare",
+      "algorithm_version": "0.1.0",
+      "view_type": null,
+      "title": "Before / Difix / after comparison",
+      "position": {
+        "x": 4700.0,
+        "y": 1000.0
+      },
+      "params": {},
+      "assigned_node_id": "c6ad6211-18ff-4a0a-9108-67f370d25072",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "resolved_outputs": {
+        "report": {
+          "tags": [
+            "text"
+          ],
+          "arrayed": false,
+          "dim_labels": []
+        }
+      },
+      "port_types": {
+        "schemaVersion": 1,
+        "inputs": {
+          "before": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "frame"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "after": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "frame"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "fixed": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "frame"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "references": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "image"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "frame"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "frame"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "image"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "masks": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "mask-dir"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "mask-dir"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "mask-dir"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        },
+        "outputs": {
+          "report": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "text"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "text"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "text"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        }
+      },
+      "latest_run": {
+        "job_id": "f76ded4e-720f-4795-8f59-2181c4047e3b",
+        "snapshot_id": "8db73969-d01a-4dec-9654-6b508e55ab67",
+        "snapshot_created_ts": 1791980937.9606981,
+        "state": "done",
+        "fail_reason": null,
+        "algorithm_name": "refinement-compare",
+        "algorithm_version": "0.1.0",
+        "job_created_ts": 1791990628.3663235,
+        "output_handles": {
+          "report": {
+            "runtime_shape": {
+              "handleId": "3cd851da-4162-4054-b78d-0fb4589b6b20",
+              "tags": {
+                "evidence": {
+                  "status": "complete",
+                  "value": [
+                    "text"
+                  ],
+                  "source": "registered-handle-metadata"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "shape-not-measured"
+                }
+              },
+              "internalCounts": [],
+              "schemaVersion": 1
+            },
+            "handle_id": "3cd851da-4162-4054-b78d-0fb4589b6b20",
+            "tags": [
+              "text"
+            ],
+            "dim_labels": [],
+            "dim_sizes": null,
+            "element_count": null,
+            "internal_count": null,
+            "internal_count_kind": null,
+            "internal_count_items": null,
+            "deleted": false
+          }
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "steven-merge-folder-refine-render-before-colmap",
+      "source": "steven-merge",
+      "sourceHandle": "folder",
+      "target": "refine-render-before",
+      "targetHandle": "colmap",
+      "source_label": "merge-colmap",
+      "target_label": "Self-refine \u00b7 original 93 poses"
+    },
+    {
+      "id": "refine-render-before-images-refine-difix-image",
+      "source": "refine-render-before",
+      "sourceHandle": "images",
+      "target": "refine-difix",
+      "targetHandle": "image",
+      "source_label": "Self-refine \u00b7 original 93 poses",
+      "target_label": "Difix \u00b7 per-image fan-out"
+    },
+    {
+      "id": "refine-render-before-references-refine-difix-reference",
+      "source": "refine-render-before",
+      "sourceHandle": "references",
+      "target": "refine-difix",
+      "targetHandle": "reference",
+      "source_label": "Self-refine \u00b7 original 93 poses",
+      "target_label": "Difix \u00b7 per-image fan-out"
+    },
+    {
+      "id": "steven-merge-folder-refine-data-colmap",
+      "source": "steven-merge",
+      "sourceHandle": "folder",
+      "target": "refine-data",
+      "targetHandle": "colmap",
+      "source_label": "merge-colmap",
+      "target_label": "Replace all GT \u00b7 exact stems"
+    },
+    {
+      "id": "refine-difix-image-refine-data-images",
+      "source": "refine-difix",
+      "sourceHandle": "image",
+      "target": "refine-data",
+      "targetHandle": "images",
+      "source_label": "Difix \u00b7 per-image fan-out",
+      "target_label": "Replace all GT \u00b7 exact stems"
+    },
+    {
+      "id": "refine-data-folder-refine-train-colmap",
+      "source": "refine-data",
+      "sourceHandle": "folder",
+      "target": "refine-train",
+      "targetHandle": "colmap",
+      "source_label": "Replace all GT \u00b7 exact stems",
+      "target_label": "Continue frozen PLY \u00b7 3000 iterations"
+    },
+    {
+      "id": "refine-render-before-model-refine-train-ply",
+      "source": "refine-render-before",
+      "sourceHandle": "model",
+      "target": "refine-train",
+      "targetHandle": "ply",
+      "source_label": "Self-refine \u00b7 original 93 poses",
+      "target_label": "Continue frozen PLY \u00b7 3000 iterations"
+    },
+    {
+      "id": "steven-person-mask-masks-refine-train-masks",
+      "source": "steven-person-mask",
+      "sourceHandle": "masks",
+      "target": "refine-train",
+      "targetHandle": "masks",
+      "source_label": "person-gray-mask",
+      "target_label": "Continue frozen PLY \u00b7 3000 iterations"
+    },
+    {
+      "id": "steven-merge-folder-refine-render-after-colmap",
+      "source": "steven-merge",
+      "sourceHandle": "folder",
+      "target": "refine-render-after",
+      "targetHandle": "colmap",
+      "source_label": "merge-colmap",
+      "target_label": "After \u00b7 identical poses"
+    },
+    {
+      "id": "refine-train-ply-refine-render-after-ply",
+      "source": "refine-train",
+      "sourceHandle": "ply",
+      "target": "refine-render-after",
+      "targetHandle": "ply",
+      "source_label": "Continue frozen PLY \u00b7 3000 iterations",
+      "target_label": "After \u00b7 identical poses"
+    },
+    {
+      "id": "refine-render-before-images-refine-compare-before",
+      "source": "refine-render-before",
+      "sourceHandle": "images",
+      "target": "refine-compare",
+      "targetHandle": "before",
+      "source_label": "Self-refine \u00b7 original 93 poses",
+      "target_label": "Before / Difix / after comparison"
+    },
+    {
+      "id": "refine-render-before-references-refine-compare-references",
+      "source": "refine-render-before",
+      "sourceHandle": "references",
+      "target": "refine-compare",
+      "targetHandle": "references",
+      "source_label": "Self-refine \u00b7 original 93 poses",
+      "target_label": "Before / Difix / after comparison"
+    },
+    {
+      "id": "refine-render-after-images-refine-compare-after",
+      "source": "refine-render-after",
+      "sourceHandle": "images",
+      "target": "refine-compare",
+      "targetHandle": "after",
+      "source_label": "After \u00b7 identical poses",
+      "target_label": "Before / Difix / after comparison"
+    },
+    {
+      "id": "refine-difix-image-refine-compare-fixed",
+      "source": "refine-difix",
+      "sourceHandle": "image",
+      "target": "refine-compare",
+      "targetHandle": "fixed",
+      "source_label": "Difix \u00b7 per-image fan-out",
+      "target_label": "Before / Difix / after comparison"
+    },
+    {
+      "id": "steven-person-mask-masks-refine-compare-masks",
+      "source": "steven-person-mask",
+      "sourceHandle": "masks",
+      "target": "refine-compare",
+      "targetHandle": "masks",
+      "source_label": "person-gray-mask",
+      "target_label": "Before / Difix / after comparison"
+    }
+  ],
+  "delivery_files": [
+    {
+      "path": "preservation.json",
+      "size": 136
+    },
+    {
+      "path": "REPORT.md",
+      "size": 10830
+    },
+    {
+      "path": "image-lineage.json",
+      "size": 26414
+    },
+    {
+      "path": "camera-comparison.json",
+      "size": 113
+    },
+    {
+      "path": "render-dispatch.json",
+      "size": 213
+    },
+    {
+      "path": "workflow-after.json",
+      "size": 189761
+    },
+    {
+      "path": "commits.json",
+      "size": 177
+    },
+    {
+      "path": "refine-train-job.json",
+      "size": 1012
+    },
+    {
+      "path": "person_refined.ply",
+      "size": 43503707
+    },
+    {
+      "path": "workflow-save-payload.json",
+      "size": 189730
+    },
+    {
+      "path": "job-details.json",
+      "size": 6610
+    },
+    {
+      "path": "sparse-preservation.json",
+      "size": 838
+    },
+    {
+      "path": "refine-render-before-job.json",
+      "size": 1145
+    },
+    {
+      "path": "difix-shards.json",
+      "size": 88721
+    },
+    {
+      "path": "refine-data-job.json",
+      "size": 888
+    },
+    {
+      "path": "jobs.json",
+      "size": 1560
+    },
+    {
+      "path": "refine-difix-job.json",
+      "size": 917
+    },
+    {
+      "path": "refine-compare-job.json",
+      "size": 1053
+    },
+    {
+      "path": "workflow-before.json",
+      "size": 109074
+    },
+    {
+      "path": "difix-weights.json",
+      "size": 2456
+    },
+    {
+      "path": "refine-render-after-job.json",
+      "size": 1195
+    },
+    {
+      "path": "SHELVED.md",
+      "size": 501
+    },
+    {
+      "path": "training.json",
+      "size": 611
+    },
+    {
+      "path": "comparison/frame_000046.png",
+      "size": 1020909
+    },
+    {
+      "path": "comparison/summary.json",
+      "size": 1442
+    },
+    {
+      "path": "comparison/per_view.json",
+      "size": 80160
+    },
+    {
+      "path": "comparison/frame_000023.png",
+      "size": 1045146
+    },
+    {
+      "path": "comparison/frame_000000.png",
+      "size": 1111541
+    },
+    {
+      "path": "comparison/frame_000092.png",
+      "size": 1182953
+    },
+    {
+      "path": "comparison/frame_000069.png",
+      "size": 1042643
+    }
+  ],
+  "snapshot_preserved": {
+    "snapshot_id": "8db73969-d01a-4dec-9654-6b508e55ab67",
+    "workflow_id": "ca5d26f1-b30a-4c03-9511-31e4cb151d99",
+    "job_count": 114,
+    "live_jobs": [],
+    "blocked": false,
+    "artifacts": {
+      "exclusive_count": 113,
+      "shared_count": 13,
+      "exclusive_bytes": 1212867780
+    },
+    "jobs": {
+      "exclusive_count": 103,
+      "shared_count": 11
+    }
+  },
+  "jobs": [
+    {
+      "job_id": "7dd35ba9-5bcb-4e9d-a2ca-4590908bf81e",
+      "node": "refine-render-before",
+      "created_ts": 1791989442.7020078
+    },
+    {
+      "job_id": "fddd3aa3-52f2-40d3-a989-8db57f1241aa",
+      "node": "refine-difix",
+      "created_ts": 1791989544.060358
+    },
+    {
+      "job_id": "05448762-01c9-4c23-a395-9a95efb53338",
+      "node": "refine-data",
+      "created_ts": 1791990428.193723
+    },
+    {
+      "job_id": "391822cb-aa35-4b8e-8e73-d4b589101e79",
+      "node": "refine-train",
+      "created_ts": 1791990488.2449284
+    },
+    {
+      "job_id": "ebfe8a11-7263-4ed9-8f1d-906f420b244f",
+      "node": "refine-render-after",
+      "created_ts": 1791990523.2849095
+    },
+    {
+      "job_id": "f76ded4e-720f-4795-8f59-2181c4047e3b",
+      "node": "refine-compare",
+      "created_ts": 1791990628.3663235
+    }
+  ],
+  "owned_job_ids": [
+    "05448762-01c9-4c23-a395-9a95efb53338",
+    "05d809f5-c5fc-4890-848f-e9d54052999f",
+    "0801f0ea-62a2-496a-9902-5308093a31aa",
+    "08f478b4-15d9-4ad8-a680-54d237f5355c",
+    "090d04cf-cbd0-4f2f-9430-4b0d5e2081f9",
+    "0964b42e-415a-400f-b6f4-f8434cadedb8",
+    "0b21d49b-a3be-44f4-89f0-851b26d6b2f8",
+    "0e729e6d-e25b-4d8f-9166-603c67319439",
+    "117b16cd-0702-4e46-a5c3-a5fc4dfff9a8",
+    "1232203e-7b59-4126-9cb9-ae37bf7cf44d",
+    "135b5673-d14a-4ae0-8543-9a7b42a8ec59",
+    "13d40633-968b-47b5-97d3-e0fa22af01d6",
+    "142b7266-9596-47aa-a006-d9a2b342322d",
+    "146b5330-bf8a-428d-9d8c-7a5704afe09a",
+    "158f38b7-a1cb-4250-9ea9-6d0008296672",
+    "187b39e4-0426-43b2-a13a-2f963579fc98",
+    "1ed99490-2156-4933-9de5-0b479a9d72d9",
+    "2249c028-36fc-4d4c-a55a-e253779b323f",
+    "22f357a9-6998-4dca-ab93-08fc2110d507",
+    "2a6e9ee6-49da-4bc9-9b2f-9ceb7e6afea0",
+    "2b48511c-2bce-478a-98fe-935bae3b3ed1",
+    "2d082b41-d31f-4314-a390-000335e1f53c",
+    "2f91c070-203d-4389-9941-c891e2829fae",
+    "3257f4a8-6533-494b-89a4-74817ae6f681",
+    "34c7ec7e-3e7f-4ec2-95e6-3ee9235407da",
+    "3531f74c-b1c0-4635-bd7e-7b126c04ca15",
+    "36203abe-f569-41ec-8f21-8662d718af74",
+    "391822cb-aa35-4b8e-8e73-d4b589101e79",
+    "395b474c-3a35-49f5-b6c1-f7bfe77aa453",
+    "3c502f81-f384-4c9d-8299-f36d087d6586",
+    "3d187e21-fcc8-4cc3-a11c-87b0e22b7b8e",
+    "3e8f3cea-95a5-4741-ac31-76f4f2444f8c",
+    "48bada8b-48c5-4119-9879-3d72ddf076a7",
+    "49bf8dc7-ff2d-4843-ba92-a20155ce13b7",
+    "4de1e70e-e6dc-4719-bbf6-5755a83d394c",
+    "5021535e-11b1-4a3f-b568-59efd35310c6",
+    "541bd694-0489-4754-91b7-1f77473f2776",
+    "5496845f-a35e-4e59-9b0b-3551e160a04e",
+    "5a209c31-4b72-4f9b-abda-6f8eb7b4c42a",
+    "5e09a67c-f7ab-452c-accb-50d2986f85fb",
+    "5ef5c5a5-7c60-4bc9-9600-de16ecd6197a",
+    "5f7bef7b-bdc9-4042-a42e-8056197c2fc7",
+    "620f438c-639a-4706-af5e-6378bab390b3",
+    "672f2082-5f32-412d-a671-5b9392f56434",
+    "683373b9-a768-4c00-9c5c-8af897b0a4e8",
+    "688235b6-56f0-4f17-815f-08e73d1a6530",
+    "68aed056-4e11-4e3f-879a-435c5bb8da11",
+    "6e08aa52-4d98-4ab3-b04c-b50709d4f8eb",
+    "72ba9dd8-5373-45d1-a5c3-54ac5f69d197",
+    "766e0477-f865-4e42-855f-2dc9dde771c2",
+    "77d77bf8-c2f7-431c-8740-8a0d5ea138e4",
+    "7bcc32af-5035-4d9d-b2b9-b639140b9936",
+    "7dd35ba9-5bcb-4e9d-a2ca-4590908bf81e",
+    "811fe550-44d1-4ce0-bb51-2a483f822a12",
+    "86e5e0cf-d540-4dbf-9252-0335cb1444ce",
+    "879b8f2c-1d0f-4d30-b704-f072f9de1f7b",
+    "8aa88c93-7d10-4461-9d2f-d0dfc76fac8c",
+    "9100dcb5-d939-413a-b4c0-5314e44833f2",
+    "9d13704d-167d-4b91-8c8f-54f82426d1be",
+    "a381f006-0292-446c-9b90-ea48c5d66722",
+    "a41fc6e1-46c3-40b3-a30d-af37b4e8410d",
+    "a4bd9334-0641-489d-939a-868d6ae92eed",
+    "a6eb98d1-c115-4266-b375-05af18ba7a61",
+    "a7705f40-1442-441b-a5e1-2afbe5e1cd7b",
+    "a8d980ce-a88a-4e37-b950-e2bef4690c96",
+    "a93c31c0-a299-4bed-b6c3-4ba1ab942da0",
+    "aa7c5a2f-4c6e-4708-8f27-69c4f25fb8c4",
+    "abbf7a89-ef68-4a6f-a57a-b27a56d7b016",
+    "af3f7e6c-1095-4fe2-a500-d4ee4a7d6775",
+    "b1210a56-6bf6-4066-8d44-da1153e7714d",
+    "b2dfa82d-da42-46ee-9946-fd0dae1828ca",
+    "b3d258aa-6cb8-4463-b6da-fc71fd33fff4",
+    "b3ef120d-b719-4b24-bc9b-fca3dfca66f4",
+    "b43daad0-e2a6-46c6-82ba-15612fe8bc49",
+    "b64416f5-26d3-4597-beed-ec73db7361d2",
+    "b92ccfe3-5427-475b-8d2e-95744d249ea1",
+    "c1a20c7d-da98-45aa-9b6b-0d1ed189db64",
+    "c68eee56-192e-4d85-b923-55fd36750bac",
+    "c7cd6546-c1ea-4231-91c7-d28e877b5d3a",
+    "cb194b02-ca47-436b-987c-ac51e7ef9764",
+    "cf15ca29-8c45-401a-980b-82b164a9bec1",
+    "d5743559-9ba0-4b9a-836c-6448f4ebea0c",
+    "d685d5bb-6842-4b7e-9447-bad6f22d50c9",
+    "d784be44-836e-4412-bea9-0ee2f880eec6",
+    "dd65eb6d-bc52-4f33-a91e-dd8adfe045b8",
+    "dd66ebd7-7705-4545-bab3-de3f31b38ae6",
+    "e14c7a7a-5db2-47de-87ef-6883fd55819b",
+    "e6869c78-35fe-4b97-a30d-9c2a682ba022",
+    "e7e635fc-b689-4792-bd91-8874202a4c81",
+    "ebfe8a11-7263-4ed9-8f1d-906f420b244f",
+    "ee0aec34-6dc6-40c5-9a68-790b439db9c6",
+    "eefc9f78-fde5-453a-8c26-6ed4da47ca22",
+    "f22d233a-3646-42e7-a636-4da26ca5bffc",
+    "f35c2319-b671-4452-8f63-f317a530bc02",
+    "f5c01c68-84c3-4487-ac3b-37bc53f572bc",
+    "f76ded4e-720f-4795-8f59-2181c4047e3b",
+    "fbce1868-bbc5-49a9-ae66-2f639d6c32d8",
+    "fc12f85a-89f7-4caf-a052-f7f1bbbb6ca6",
+    "fddd3aa3-52f2-40d3-a989-8db57f1241aa"
+  ]
+}

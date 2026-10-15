@@ -1,0 +1,42 @@
+[
+  {
+    "kind": "nodes",
+    "id": "steven-undistort",
+    "field": "position",
+    "before": {
+      "x": 1660.0,
+      "y": 350.0
+    },
+    "after": {
+      "x": 1660.0,
+      "y": 449.5447738258222
+    }
+  },
+  {
+    "kind": "nodes",
+    "id": "steven-clean-fastgs",
+    "field": "title",
+    "before": "Clean person \u00b7 masked RGB + alpha",
+    "after": null
+  },
+  {
+    "kind": "nodes",
+    "id": "steven-person-export",
+    "field": "position",
+    "before": {
+      "x": 3340.0,
+      "y": 440.0
+    },
+    "after": {
+      "x": 3242.7857535238522,
+      "y": 322.72567091766314
+    }
+  },
+  {
+    "kind": "nodes",
+    "id": "steven-person-export",
+    "field": "title",
+    "before": "Person PLY \u00b7 foreground observed",
+    "after": null
+  }
+]
