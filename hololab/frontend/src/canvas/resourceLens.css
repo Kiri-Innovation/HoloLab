@@ -1,4 +1,7 @@
 .hl-pulse-lens-layout { display: grid; grid-template-columns: minmax(280px, 340px) minmax(300px, 1fr); gap: 12px; align-items: start; }
+/* Pulse owns scrolling; its 14px top padding supplies the sticky inset. */
+.hl-pulse-lens-layout > [data-pulse-node] { position: sticky; top: 0; }
+.hl-node-metrics:has(.hl-pulse-lens-layout) { overscroll-behavior: contain; }
 .hl-node-metrics { container-type: inline-size; }
 .hl-resource-lens { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-2); color: var(--text-body); }
 .hl-resource-lens header { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
@@ -12,7 +15,10 @@
 .hl-metric-action { cursor: pointer; border-radius: var(--radius-sm); }
 .hl-metric-action:hover, .hl-metric-action[aria-pressed="true"] { background: var(--accent-soft); }
 .hl-metric-action:focus-visible { outline: 2px solid var(--accent); }
-@container (max-width: 660px) { .hl-pulse-lens-layout { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 660px) {
+  .hl-pulse-lens-layout { grid-template-columns: minmax(0, 1fr); }
+  .hl-pulse-lens-layout > [data-pulse-node] { position: static; }
+}
 
 .hl-process-details { padding-bottom: 8px; min-width: 0; }
 .hl-process-details summary { cursor: pointer; color: var(--accent); margin-bottom: 8px; width: fit-content; }
