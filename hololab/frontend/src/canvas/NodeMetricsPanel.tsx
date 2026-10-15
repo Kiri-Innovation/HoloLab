@@ -229,6 +229,7 @@ function NodeCard({ card, onMetric, active, onSettings }: { onSettings?: (nodeId
         />
         <span
           style={{
+            minWidth: 0,
             fontWeight: 600,
             color: "var(--text)",
             overflow: "hidden",
@@ -239,7 +240,6 @@ function NodeCard({ card, onMetric, active, onSettings }: { onSettings?: (nodeId
         >
           {card.node_name}
         </span>
-        {online && onSettings && <button type="button" className="hl-compute-settings" aria-label={`Node settings · ${card.node_name}`} onClick={() => onSettings(card.node_id)}>⚙</button>}
         {!online && (
           <span
             style={{
@@ -258,6 +258,8 @@ function NodeCard({ card, onMetric, active, onSettings }: { onSettings?: (nodeId
         <span
           style={{
             marginLeft: "auto",
+            flexShrink: 0,
+            whiteSpace: "nowrap",
             fontFamily: "var(--font-mono)",
             fontSize: "var(--fs-micro)",
             color: "var(--text-subtle)",
@@ -265,6 +267,7 @@ function NodeCard({ card, onMetric, active, onSettings }: { onSettings?: (nodeId
         >
           {card.node_id.slice(0, 8)}
         </span>
+        {online && onSettings && <button type="button" className="hl-compute-settings" style={{ flexShrink: 0, alignSelf: "flex-start" }} aria-label={`Node settings · ${card.node_name}`} onClick={() => onSettings(card.node_id)}>⚙</button>}
       </div>
 
       {(card.gpuName || card.totalVramGb != null) && (
