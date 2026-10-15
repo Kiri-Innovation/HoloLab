@@ -1,0 +1,46 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: video-side-by-side
+version: 0.1.0
+description: Place two videos side by side for comparison.
+category: video/editing
+source_entry: run.py
+docs: |-
+  Height 0 uses the smaller input height rounded down to even; explicit heights must be even. Preserves each aspect ratio, uses the left clip frame rate and stops at the shorter clip.
+  CPU-only, two encoder/filter threads. Requires ffmpeg/ffprobe with libx264 in logical environment kiri. Outputs silent video: audio is intentionally discarded. H.264/yuv420p, CRF 20, faststart; odd dimensions are padded to even. Input clips are never modified.
+inputs:
+  left:
+    tags:
+    - video-source
+    storage: dir
+  right:
+    tags:
+    - video-source
+    storage: dir
+params:
+  height:
+    type: int
+    default: 0
+    min: 0
+    max: 4096
+outputs:
+  video:
+    tags:
+    - video-source
+    storage: dir
+    description: One silent H.264/yuv420p MP4 (output.mp4), ready for browser preview.
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 2
+    mem_gb: 2
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/run.py" <<'HOLOLAB_VIDEO_CONFIG'
+    {{ {'inputs': inputs, 'outputs': outputs, 'params': params} | tojson }}
+    HOLOLAB_VIDEO_CONFIG
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
