@@ -1,0 +1,41 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: video-concat
+version: 0.1.0
+description: Concatenate an ordered collection of matching video clips.
+category: video/editing
+source_entry: run.py
+docs: |-
+  Clips are ordered by entry name (zero-pad numeric names). Consumes one collection per invocation, not fan-out. Any outer axis label is accepted. Width, height, frame rate and pixel aspect ratio must match; codecs are re-encoded. No automatic scaling.
+  CPU-only, two encoder/filter threads. Requires ffmpeg/ffprobe with libx264 in logical environment kiri. Outputs silent video: audio is intentionally discarded. H.264/yuv420p, CRF 20, faststart; odd dimensions are padded to even. Input clips are never modified.
+inputs:
+  videos:
+    tags:
+    - video-source
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - clip
+    require_axis_label_match: false
+params: {}
+outputs:
+  video:
+    tags:
+    - video-source
+    storage: dir
+    description: One silent H.264/yuv420p MP4 (output.mp4), ready for browser preview.
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 2
+    mem_gb: 2
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/run.py" <<'HOLOLAB_VIDEO_CONFIG'
+    {{ {'inputs': inputs, 'outputs': outputs, 'params': params} | tojson }}
+    HOLOLAB_VIDEO_CONFIG
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
