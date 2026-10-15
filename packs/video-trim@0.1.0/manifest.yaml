@@ -1,0 +1,45 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: video-trim
+version: 0.1.0
+description: Trim a video by start time and duration in seconds.
+category: video/editing
+source_entry: run.py
+docs: |-
+  Accurate re-encoded trim; requests past the end stop at the last frame.
+  CPU-only, two encoder/filter threads. Requires ffmpeg/ffprobe with libx264 in logical environment kiri. Outputs silent video: audio is intentionally discarded. H.264/yuv420p, CRF 20, faststart; odd dimensions are padded to even. Input clips are never modified.
+inputs:
+  video:
+    tags:
+    - video-source
+    storage: dir
+params:
+  start_seconds:
+    type: float
+    default: 0
+    min: 0
+  duration_seconds:
+    type: float
+    default: 5
+    min: 0.001
+outputs:
+  video:
+    tags:
+    - video-source
+    storage: dir
+    description: One silent H.264/yuv420p MP4 (output.mp4), ready for browser preview.
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 2
+    mem_gb: 2
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/run.py" <<'HOLOLAB_VIDEO_CONFIG'
+    {{ {'inputs': inputs, 'outputs': outputs, 'params': params} | tojson }}
+    HOLOLAB_VIDEO_CONFIG
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
