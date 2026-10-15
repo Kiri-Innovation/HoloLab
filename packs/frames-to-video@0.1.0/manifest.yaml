@@ -1,0 +1,45 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: frames-to-video
+version: 0.1.0
+description: Encode an ordered PNG or JPEG frame collection as MP4.
+category: video/editing
+source_entry: run.py
+docs: |-
+  Flat [frame] collection, sorted by entry name (zero-pad numeric names). All frames must share dimensions. Nested camera/frame collections must first be reduced to one frame collection.
+  CPU-only, two encoder/filter threads. Requires ffmpeg/ffprobe with libx264 in logical environment kiri. Outputs silent video: audio is intentionally discarded. H.264/yuv420p, CRF 20, faststart; odd dimensions are padded to even. Input clips are never modified.
+inputs:
+  frames:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - frame
+params:
+  fps:
+    type: float
+    default: 30
+    min: 0.1
+    max: 120
+outputs:
+  video:
+    tags:
+    - video-source
+    storage: dir
+    description: One silent H.264/yuv420p MP4 (output.mp4), ready for browser preview.
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 2
+    mem_gb: 2
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/run.py" <<'HOLOLAB_VIDEO_CONFIG'
+    {{ {'inputs': inputs, 'outputs': outputs, 'params': params} | tojson }}
+    HOLOLAB_VIDEO_CONFIG
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
