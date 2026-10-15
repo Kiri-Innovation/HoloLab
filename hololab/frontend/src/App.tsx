@@ -286,7 +286,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const leftDock = useResizableSlot("hl-layout-left", 300, 180, 420);
   const rightDock = useResizableSlot("hl-layout-inspector-right", 380, 320, 400);
   const bottomDock = useResizableSlot("hl-layout-bottom", 400, 160, Number.POSITIVE_INFINITY);
-  const [rightTab, setRightTab] = useState<"inspector" | "runs">("inspector");
+  const [rightTab, setRightTab] = useState<"inspector" | "jobs" | "runs">("jobs");
   const [minimapOpen, setMinimapOpen] = useState(false);
 
   // Bumped by the WS lifecycle on true reconnects (previously connected →
@@ -2750,7 +2750,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         </div>
       ) : null;
   const nodesSlot = <ComputeNodesPanel nodes={computeNodes} metricsByNode={metricsByNode} />;
-  const hasInspection = Boolean(edgeInspectorProps || (viewingSnapshot ? snapshotSelectedGraphNodeId : selectedAlgorithmData));
   const dockSelection = viewingSnapshot
     ? snapshotSelectedGraphNodeId ?? snapshotSelectedEdgeId
     : selectedNode?.id ?? selectedEdge?.id;
@@ -2768,7 +2767,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       onRerunFromHere={onRerunFromHere}
     />
   ) : !selectedNode || !selectedAlgorithmData ? (
-    jobsSlot
+    <p className="hl-dock-empty">Select a node or connection to inspect it.</p>
   ) : (
     <NodeInspector
       computeNodesById={computeNodesById}
@@ -2931,19 +2930,26 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
             if (!keys.includes(event.key)) return;
             event.preventDefault();
-            const next = event.key === "Home" ? "inspector" : event.key === "End" ? "runs" : rightTab === "inspector" ? "runs" : "inspector";
+            const tabs = ["inspector", "jobs", "runs"] as const;
+            const index = tabs.indexOf(rightTab);
+            const next = event.key === "Home" ? tabs[0] : event.key === "End" ? tabs[2]
+              : tabs[(index + (event.key === "ArrowRight" ? 1 : 2)) % tabs.length];
             setRightTab(next);
             document.getElementById(`hl-dock-tab-${next}`)?.focus();
           }}>
-          {(["inspector", "runs"] as const).map(tab => <button key={tab} type="button"
+          {(["inspector", "jobs", "runs"] as const).map(tab => <button key={tab} type="button"
             role="tab" id={`hl-dock-tab-${tab}`} aria-controls={`hl-dock-panel-${tab}`}
             aria-selected={rightTab === tab} tabIndex={rightTab === tab ? 0 : -1}
-            onClick={() => setRightTab(tab)}>{tab === "inspector" ? "Inspector" : "Runs"}</button>)}
+            onClick={() => setRightTab(tab)}>{tab === "inspector" ? "Inspector" : tab === "jobs" ? "Jobs" : "Runs"}</button>)}
         </div>
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-inspector"
           aria-labelledby="hl-dock-tab-inspector" hidden={rightTab !== "inspector"}>
           {assignmentSlot}
-          <div className="hl-sidebar-content">{hasInspection ? inspectorSlot : jobsSlot}</div>
+          <div className="hl-sidebar-content">{inspectorSlot}</div>
+        </div>
+        <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-jobs"
+          aria-labelledby="hl-dock-tab-jobs" hidden={rightTab !== "jobs"}>
+          {jobsSlot}
         </div>
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-runs"
           aria-labelledby="hl-dock-tab-runs" hidden={rightTab !== "runs"}>
