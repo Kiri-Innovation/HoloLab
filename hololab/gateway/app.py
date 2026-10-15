@@ -219,6 +219,8 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
         # Populated when the gateway sends a request frame, drained by
         # _dispatch_node_frame when the matching _resp arrives.
         app.state.pending_config_replies: dict[str, asyncio.Future[Any]] = {}
+        app.state.pending_path_browses = {}
+        app.state.path_browse_locks = {}
         app.state.pending_resource_lenses = {}
         app.state.pending_process_terminations = {}
         app.state.resource_lens_locks = {}
@@ -529,6 +531,40 @@ def _mount_routes(app: FastAPI) -> None:
                 app.state.resource_lens_cache.pop(node_id, None)
                 for metric in ("gpu", "cpu", "mem"):
                     app.state.resource_lens_cache.pop((node_id, metric), None)
+
+    @app.get("/api/nodes/{node_id}/paths", tags=["nodes"])
+    async def browse_node_paths(
+        node_id: str, path: str = "/", prefix: str = "", offset: int = 0, limit: int = 100
+    ) -> dict[str, Any]:
+        from pydantic import ValidationError
+
+        from hololab.protocol.messages import PathBrowseReq
+
+        session = app.state.registry.get_session(node_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="Compute node is offline")
+        req_id = str(uuid.uuid4())
+        try:
+            payload = PathBrowseReq(
+                req_id=req_id, path=path, prefix=prefix, offset=offset, limit=limit
+            )
+        except ValidationError as exc:
+            raise HTTPException(status_code=400, detail="Invalid path browsing parameters") from exc
+        lock = app.state.path_browse_locks.setdefault(node_id, asyncio.Lock())
+        async with lock:
+            reply = await _await_node_reply(
+                app,
+                session,
+                "path_browse_req",
+                payload,
+                req_id,
+                pending_key="pending_path_browses",
+                timeout_s=5,
+            )
+        data = reply["data"]
+        if data.get("error"):
+            raise HTTPException(status_code=data.get("status", 400), detail=data["error"])
+        return {"node_id": node_id, **data}
 
     @app.get("/api/nodes/{node_id}/resources/{metric}", tags=["nodes"])
     async def get_vram_lens(node_id: str, metric: str) -> dict[str, Any]:
@@ -3275,7 +3311,11 @@ async def _await_node_reply(
     pending: dict[str, asyncio.Future[Any]] = getattr(app.state, pending_key)
     loop = asyncio.get_running_loop()
     fut: asyncio.Future[dict[str, Any]] = loop.create_future()
-    if pending_key in ("pending_resource_lenses", "pending_process_terminations"):
+    if pending_key in (
+        "pending_resource_lenses",
+        "pending_process_terminations",
+        "pending_path_browses",
+    ):
         fut.node_session = session
     pending[req_id] = fut
 
@@ -3573,6 +3613,15 @@ async def _dispatch_node_frame(
             fut = pending.pop(payload.req_id, None)
             if fut is not None and not fut.done():
                 fut.set_result(payload.model_dump())
+        return
+
+    if kind == "path_browse_resp":
+        pending = app.state.pending_path_browses
+        entry = pending.get(payload.req_id)
+        if entry is not None and getattr(entry, "node_session", None) is session:
+            pending.pop(payload.req_id, None)
+            if not entry.done():
+                entry.set_result(payload.model_dump())
         return
 
     if kind in ("resource_lens_resp", "process_terminate_resp"):

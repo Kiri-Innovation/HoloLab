@@ -1,0 +1,26 @@
+.hl-path-field { display: flex; gap: 6px; min-width: 0; }
+.hl-path-field input { min-width: 0; flex: 1; font-family: var(--font-mono); }
+.hl-path-input small, .hl-path-hint { color: var(--text-muted); font-size: var(--fs-xs); }
+.hl-path-suggestions { position: fixed; z-index: 1100; box-sizing: border-box; max-height: min(280px, 40vh); overflow: auto; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-2); }
+.hl-path-suggestions [role=option] { padding: 6px 10px; overflow-wrap: anywhere; cursor: pointer; font-family: var(--font-mono); }
+.hl-path-suggestions [aria-selected=true], .hl-path-entry[aria-selected=true] { background: var(--accent-soft); color: var(--accent); }
+.hl-path-suggestions small { display: block; padding: 6px 10px; }
+.hl-path-dialog { width: min(840px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); box-sizing: border-box; overflow: auto; padding: 18px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); font: var(--fs-sm) var(--font-sans); }
+.hl-path-dialog::backdrop { background: #0008; }
+.hl-path-dialog header, .hl-path-dialog footer, .hl-path-pages { display: flex; align-items: center; gap: 8px; }
+.hl-path-dialog header { justify-content: space-between; }
+.hl-path-dialog h3 { margin: 0 0 12px; font-size: var(--fs-md); }
+.hl-path-dialog button { cursor: pointer; }
+.hl-path-dialog button:disabled { cursor: default; opacity: .5; }
+.hl-path-dialog form label { display: block; margin-bottom: 4px; }
+.hl-path-dialog nav { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 10px; }
+.hl-path-dialog nav button { overflow-wrap: anywhere; max-width: 100%; }
+.hl-path-list { height: min(360px, 40dvh); min-height: 120px; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.hl-path-entry { display: grid; grid-template-columns: minmax(120px, 1fr) 70px 90px 160px; gap: 10px; padding: 10px; cursor: pointer; border-bottom: 1px solid var(--border-subtle); }
+.hl-path-entry span { overflow-wrap: anywhere; }
+.hl-path-entry small { color: var(--text-muted); }
+.hl-path-entry[aria-disabled=true] { opacity: .5; }
+.hl-path-pages { margin: 8px 0 14px; justify-content: flex-end; }
+.hl-path-dialog footer { justify-content: flex-end; flex-wrap: wrap; }
+.hl-path-dialog footer > span { margin-right: auto; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .hl-path-entry { grid-template-columns: minmax(0, 1fr) 70px; } .hl-path-entry small:nth-last-child(-n+2) { display: none; } .hl-path-dialog { padding: 12px; } }

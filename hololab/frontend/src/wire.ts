@@ -261,6 +261,8 @@ export interface InputPortSpec extends PortSpec {
 }
 
 export interface ParamSpec {
+  must_exist?: boolean | null;
+  path_kind?: "any" | "file" | "directory" | null;
   type: string;
   default: unknown;
   description: string | null;

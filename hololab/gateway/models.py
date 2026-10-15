@@ -12,7 +12,7 @@ so a change here is one file to edit and the JSON shape is obvious.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -157,6 +157,8 @@ class OutputPortSpecOut(BaseModel):
 
 
 class ParamSpecOut(BaseModel):
+    must_exist: bool | None = None
+    path_kind: Literal["any", "file", "directory"] | None = None
     type: str
     default: Any | None = None
     description: str | None = None

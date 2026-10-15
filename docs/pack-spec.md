@@ -400,7 +400,7 @@ mismatched downstream types are surfaced by snapshot validation.
 
 ### Params — scalar knobs, distinct from ports
 
-Params are typed scalars — `int`, `float`, `bool`, `string`, `enum`. They
+Params are typed scalars — `int`, `float`, `bool`, `string`, `enum`, `path`. They
 never carry tags; they never appear as connectable ports. Pack authors
 declare them for the user's inspector form.
 
@@ -415,6 +415,52 @@ params:
     values: ["fast", "quality"]
     default: "quality"
 ```
+
+### Path parameters
+
+`path` is a parameter UI/validation hint, not a port type or Type IR tag.
+Workflow JSON still stores an ordinary string; existing string values need no
+migration. Paths refer to the **assigned compute node**, not the browser host.
+
+```yaml
+params:
+  video_path:
+    type: path
+    must_exist: true
+    path_kind: file
+```
+
+`must_exist` defaults to true; false permits a future output path. `path_kind`
+is `any` (default), `file`, or `directory`. These fields only apply to path
+parameters. Existing paths must match the kind even when `must_exist` is false.
+The node accepts absolute paths and `~` home expansion, follows symlinks and
+checks existence before starting the pack. Missing, empty, non-string and
+wrong-kind values produce a readable job error. OS access errors are reported;
+validation cannot prevent files changing before execution.
+
+The Web control provides prefix suggestions (Tab/Enter to complete) and a `+`
+browser with location, breadcrumbs and keyboard selection. It requires an
+assigned online node. `GET /api/nodes/{node_id}/paths?path=...&prefix=...&offset=0&limit=100`
+uses the existing registered-node WebSocket and returns metadata only: names,
+kinds, sizes, modification times, symlink flags and `next_offset`.
+At most 200 entries are returned and 4096 new entries examined per page.
+Prefix matching is case-sensitive. Scan-order offsets are not a snapshot;
+restart pagination after directory changes. Each page sorts directories first.
+Inaccessible/broken entries are unavailable; symlink navigation follows targets.
+
+The existing node-control trust boundary applies: node sessions have identity
+tokens, but Gateway REST has no separate user authentication. Browsing exposes
+metadata available to the node's OS account, beyond the artifact root; keep
+this control plane within trusted access. No file-content, modification or
+shell-execution endpoint is added. Pack commands must still serialize paths
+safely: `single-video-source` uses JSON stdin to preserve shell metacharacters.
+
+**Upgrade order:** upgrade Gateway, node and frontend before enabling a
+`type: path` manifest. Old nodes reject the new enum member and their scanner
+removes invalid packs from the catalog. Existing strings and the
+`single-video-source@0.1.0` identity stay unchanged; a runtime upgrade is
+required. A node without browsing support times out rather than browsing the
+Gateway's filesystem.
 
 ### Runtime
 

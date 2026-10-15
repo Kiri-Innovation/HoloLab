@@ -4,11 +4,14 @@ import { useState, type CSSProperties } from "react";
 import type { CatalogPack, GraphNode } from "../wire";
 import { MarkdownView } from "../ui/MarkdownView";
 import { Modal } from "../ui/Modal";
+import { PathInput } from "./PathInput";
+import type { ComputeNode } from "../wire";
 import { DimListEditor } from "./DimListEditor";
 
 export interface NodeInspectorProps {
   selected: GraphNode | null;
   pack: CatalogPack | null;
+  computeNodesById?: Record<string, ComputeNode>;
   onChange: (patch: Partial<GraphNode>) => void;
   onDelete: () => void;
 }
@@ -55,6 +58,7 @@ const TAG: CSSProperties = {
 export function NodeInspector({
   selected,
   pack,
+  computeNodesById,
   onChange,
   onDelete,
 }: NodeInspectorProps) {
@@ -298,6 +302,17 @@ export function NodeInspector({
           </div>
         ) : (
           Object.entries(pack.params).map(([name, spec]) => {
+            if (spec.type === "path") {
+              return <div key={name} style={FIELD}>
+                <div style={LABEL}><code>{name}</code><span style={TAG}>path</span></div>
+                <PathInput key={`${selected.id}:${name}:${selected.assigned_node_id}`} name={name}
+                  value={String(selected.params[name] ?? spec.default ?? "")}
+                  nodeId={selected.assigned_node_id ?? null} pathKind={spec.path_kind}
+                  initialDirectory={computeNodesById?.[selected.assigned_node_id ?? ""]?.workspace_root ?? "/"}
+                  onChange={value => onChange({ params: { ...selected.params, [name]: value } })} />
+                {spec.description && <div style={HINT}>{spec.description}</div>}
+              </div>;
+            }
             // list[str] gets the DimListEditor: pack authors mark ordered-
             // label params (regroup's ``input_dims`` / ``output_dims``)
             // with this type so the inspector can render a proper editor

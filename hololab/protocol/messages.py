@@ -618,6 +618,19 @@ class WorkflowUpdated(BaseModel):
     origin: str | None = None
 
 
+class PathBrowseReq(BaseModel):
+    req_id: str
+    path: str = Field(max_length=4096)
+    prefix: str = Field(default="", max_length=255)
+    offset: int = Field(default=0, ge=0, le=1_000_000)
+    limit: int = Field(default=100, ge=1, le=200)
+
+
+class PathBrowseResp(BaseModel):
+    req_id: str
+    data: dict[str, Any]
+
+
 class ResourceLensReq(BaseModel):
     req_id: str
     metric: str = "vram"

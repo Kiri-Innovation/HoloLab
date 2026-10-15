@@ -28,6 +28,8 @@ _KIND_REGISTRY: dict[str, type[BaseModel]] = {
     "node_metrics": messages.NodeMetrics,
     "process_terminate_req": messages.ProcessTerminateReq,
     "process_terminate_resp": messages.ProcessTerminateResp,
+    "path_browse_req": messages.PathBrowseReq,
+    "path_browse_resp": messages.PathBrowseResp,
     "resource_lens_req": messages.ResourceLensReq,
     "resource_lens_resp": messages.ResourceLensResp,
     "packs_updated": messages.PacksUpdated,

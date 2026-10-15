@@ -29,6 +29,7 @@ class ParamType(str, Enum):
     FLOAT = "float"
     BOOL = "bool"
     STRING = "string"
+    PATH = "path"
     ENUM = "enum"
     # Small ordered list of strings — used by structural knobs like
     # ``regroup.input_dims`` / ``regroup.output_dims`` that name arrayed
@@ -239,6 +240,17 @@ class ParamSpec(BaseModel):
     max: float | int | None = None
     values: list[Any] | None = None  # required for enum
     optional: bool = False
+    must_exist: bool | None = Field(default=None, strict=True)
+    path_kind: Literal["any", "file", "directory"] | None = None
+
+    @model_validator(mode="after")
+    def _check_path(self) -> ParamSpec:
+        if self.type is ParamType.PATH:
+            if self.default is not None and not isinstance(self.default, str):
+                raise ValueError("path default must be a string")
+        elif self.must_exist is not None or self.path_kind is not None:
+            raise ValueError("must_exist/path_kind apply only to path parameters")
+        return self
 
     @model_validator(mode="after")
     def _check_enum(self) -> ParamSpec:

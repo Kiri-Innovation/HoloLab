@@ -767,6 +767,10 @@ class NodeRuntime:
                     task = asyncio.create_task(self._process_terminate_reply(payload))
                     lens_tasks.add(task)
                     task.add_done_callback(lens_tasks.discard)
+                elif env.kind == "path_browse_req":
+                    task = asyncio.create_task(self._path_browse_reply(payload))
+                    lens_tasks.add(task)
+                    task.add_done_callback(lens_tasks.discard)
                 elif env.kind == "resource_lens_req":
                     task = asyncio.create_task(
                         self._resource_lens_reply(payload.req_id, payload.metric)
@@ -810,6 +814,20 @@ class NodeRuntime:
         await self._safe_send(
             "process_terminate_resp", ProcessTerminateResp(req_id=payload.req_id, data=data)
         )
+
+    async def _path_browse_reply(self, request) -> None:
+        from hololab.node.path_browser import list_path
+        from hololab.protocol.messages import PathBrowseResp
+
+        if not hasattr(self, "_path_browse_lock"):
+            self._path_browse_lock = asyncio.Lock()
+        async with self._path_browse_lock:
+            data = await asyncio.to_thread(
+                list_path, request.path, request.prefix, request.offset, request.limit
+            )
+            await self._safe_send(
+                "path_browse_resp", PathBrowseResp(req_id=request.req_id, data=data)
+            )
 
     async def _resource_lens_reply(self, req_id: str, metric: str = "vram") -> None:
         from hololab.node.resource_lens import ACTIVE, sample_resource
@@ -1394,6 +1412,18 @@ class NodeRuntime:
                 exit_code=None,
                 message=f"pack {key[0]}@{key[1]} is not installed on this node",
             )
+            return
+
+        # Path strings are interpreted on the selected node, before rendering
+        # or starting any pack process. Persisted workflow values stay unchanged.
+        from hololab.manifest.path_params import resolve_path_params
+
+        try:
+            assign.params = await asyncio.to_thread(
+                resolve_path_params, pack.manifest.params, assign.params
+            )
+        except ValueError as exc:
+            await self._send_job_fail(assign.job_id, JobFailReason.USER_ERROR, message=str(exc))
             return
 
         # Resolve conda env.

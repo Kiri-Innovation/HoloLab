@@ -2763,6 +2763,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     jobsSlot
   ) : (
     <NodeInspector
+      computeNodesById={computeNodesById}
       selected={
         selectedNode && selectedAlgorithmData
           ? {

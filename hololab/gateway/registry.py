@@ -604,6 +604,8 @@ class NodeRegistry:
                                 "default": s.default,
                                 "description": s.description,
                                 "optional": s.optional,
+                                "must_exist": s.must_exist,
+                                "path_kind": s.path_kind,
                             }
                             for n, s in manifest.params.items()
                         }
