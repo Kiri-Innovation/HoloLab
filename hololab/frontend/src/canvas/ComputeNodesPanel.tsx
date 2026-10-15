@@ -7,186 +7,32 @@
 // persists to config.yaml, hot-restarts its file server on
 // workspace-root changes, and echoes back the effective config.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type {
   ComputeNode,
+  NodeMetrics,
   NodeEffectiveConfig,
   PackInventoryEntry,
 } from "../wire";
 import { ApiError, getNodeConfig, patchNodeConfig } from "../api";
+import { NodeMetricsPanel } from "./NodeMetricsPanel";
 import { flopsAvailable } from "../flops";
 
 export interface ComputeNodesPanelProps {
   nodes: ComputeNode[];
+  metricsByNode: Record<string, NodeMetrics[]>;
+  assignment?: ReactNode;
   onConfigChanged?: (nodeId: string) => void;
 }
 
-export function ComputeNodesPanel({ nodes, onConfigChanged }: ComputeNodesPanelProps) {
+export function ComputeNodesPanel({ nodes, metricsByNode, assignment, onConfigChanged }: ComputeNodesPanelProps) {
   const [drawerFor, setDrawerFor] = useState<string | null>(null);
   const drawerNode = drawerFor ? nodes.find((n) => n.node_id === drawerFor) : null;
 
   return (
-    <div className="hl-dock hl-compute-panel"
-      style={{
-        padding: "14px 14px 20px",
-        overflow: "auto",
-        height: "100%",
-        fontSize: "var(--fs-sm)",
-        color: "var(--text-body)",
-      }}
-    >
-      <h2 className="hl-section-title"
-        style={{
-          fontSize: 10,
-          fontWeight: 600,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          color: "var(--text-subtle)",
-          margin: "0 0 10px",
-        }}
-      >
-        Compute nodes
-      </h2>
-      {nodes.length === 0 && (
-        <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
-          No compute nodes connected.
-        </div>
-      )}
-      {nodes.map((n) => (
-        <div
-          key={n.node_id}
-          className="hl-dock-card"
-          style={{
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-md)",
-            padding: "10px 12px",
-            marginBottom: 8,
-            background: "var(--surface-2)",
-            position: "relative",
-            transition: "border-color var(--dur-fast) var(--ease)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "var(--radius-pill)",
-                    background: "var(--success)",
-                  }}
-                />
-                <span
-                  style={{
-                    fontWeight: 600,
-                    fontSize: "var(--fs-sm)",
-                    color: "var(--text)",
-                  }}
-                >
-                  {n.node_name}
-                </span>
-              </div>
-              <div
-                style={{
-                  fontSize: "var(--fs-micro)",
-                  color: "var(--text-subtle)",
-                  fontFamily: "var(--font-mono)",
-                  marginTop: 3,
-                }}
-              >
-                {n.node_id.slice(0, 8)}
-              </div>
-              {n.gpu.count > 0 && (
-                <div
-                  style={{
-                    fontSize: "var(--fs-xs)",
-                    color: "var(--text-body)",
-                    marginTop: 6,
-                  }}
-                >
-                  {n.gpu.name || "GPU"}
-                  <span style={{ color: "var(--text-subtle)" }}> · </span>
-                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {n.gpu.total_vram_gb?.toFixed(1)} GiB
-                  </span>
-                </div>
-              )}
-              <div
-                style={{
-                  fontSize: "var(--fs-micro)",
-                  color: "var(--text-muted)",
-                  marginTop: 4,
-                }}
-              >
-                {n.packs.length} pack{n.packs.length === 1 ? "" : "s"}
-              </div>
-              {n.workspace_root && (
-                <div
-                  style={{
-                    fontSize: "var(--fs-micro)",
-                    color: "var(--text-muted)",
-                    marginTop: 8,
-                    fontFamily: "var(--font-mono)",
-                    wordBreak: "break-all",
-                    lineHeight: 1.4,
-                  }}
-                  title={n.workspace_root}
-                >
-                  ↳ {n.workspace_root}
-                </div>
-              )}
-              {n.legacy_workspace_roots.length > 0 && (
-                <div
-                  style={{
-                    fontSize: "var(--fs-micro)",
-                    color: "var(--text-subtle)",
-                    marginTop: 3,
-                  }}
-                  title={n.legacy_workspace_roots.join("\n")}
-                >
-                  + {n.legacy_workspace_roots.length} legacy root
-                  {n.legacy_workspace_roots.length === 1 ? "" : "s"}
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setDrawerFor(n.node_id)}
-              data-tooltip="节点设置" aria-label="节点设置" aria-description="Node settings"
-              style={{
-                border: "1px solid var(--border)",
-                background: "var(--surface)",
-                color: "var(--text-muted)",
-                borderRadius: "var(--radius-sm)",
-                width: "var(--control-h-sm)",
-                height: "var(--control-h-sm)",
-                cursor: "pointer",
-                fontSize: 13,
-                padding: 0,
-                lineHeight: 1,
-                transition: "background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--surface-hover)";
-                e.currentTarget.style.color = "var(--text)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--surface)";
-                e.currentTarget.style.color = "var(--text-muted)";
-              }}
-            >
-              ⚙
-            </button>
-          </div>
-        </div>
-      ))}
+    <div className="hl-compute-panel">
+      {assignment}
+      <NodeMetricsPanel nodes={nodes} metricsByNode={metricsByNode} onSettings={setDrawerFor} />
       {drawerNode && (
         <NodeSettingsDrawer
           node={drawerNode}

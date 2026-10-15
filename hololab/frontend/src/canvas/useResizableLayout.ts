@@ -8,7 +8,9 @@ export interface ResizableSlot {
 
 function readStoredSize(key: string, fallback: number, min: number, max: number): number {
   try {
-    const stored = Number(window.localStorage.getItem(key));
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) return fallback;
+    const stored = Number(raw);
     return Number.isFinite(stored) ? Math.min(max, Math.max(min, stored)) : fallback;
   } catch {
     return fallback;

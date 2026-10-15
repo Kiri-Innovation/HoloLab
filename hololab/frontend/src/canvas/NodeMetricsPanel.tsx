@@ -1,4 +1,4 @@
-// Bottom inspector's empty-state view: one card per compute node
+// Unified compute sidebar: one card per compute node
 // showing live CPU / memory / GPU-utilisation / VRAM plus a small
 // sparkline for each metric. Sits behind an unselected canvas so the
 // operator can eyeball cluster load while planning the next run.
@@ -33,6 +33,7 @@ const CHART_MIN_WIDTH = 120;
 export interface NodeMetricsPanelProps {
   nodes: ComputeNode[];
   metricsByNode: Record<string, NodeMetrics[]>;
+  onSettings?: (nodeId: string) => void;
 }
 
 interface NodeCardModel {
@@ -45,7 +46,7 @@ interface NodeCardModel {
   totalVramGb: number | null;
 }
 
-export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps) {
+export function NodeMetricsPanel({ nodes, metricsByNode, onSettings }: NodeMetricsPanelProps) {
   const [lens, setLens] = useState<{ nodeId: string; metric: ResourceMetric } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousScroll = useRef({ top: 0, left: 0 });
@@ -111,9 +112,9 @@ export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps
       ref={panelRef}
       className="hl-node-metrics"
       style={{
-        padding: "14px 18px 20px",
+        padding: "10px 14px",
         overflow: "auto",
-        height: "100%",
+        height: "auto",
         fontSize: "var(--fs-sm)",
         color: "var(--text-body)",
       }}
@@ -136,10 +137,10 @@ export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps
             margin: 0,
           }}
         >
-          Compute node pulse
+          Compute nodes · pulse
         </h3>
         <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
-          Nothing selected · live CPU / memory / GPU
+          Live metrics
         </span>
       </div>
 
@@ -149,7 +150,7 @@ export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps
         </div>
       ) : lens ? (
         <div className="hl-pulse-lens-layout">
-          {cards.filter(c => c.node_id === lens.nodeId).map(c => <NodeCard key={c.node_id} card={c} onMetric={metric => openLens(c.node_id, metric)} active={lens.metric} />)}
+          {cards.filter(c => c.node_id === lens.nodeId).map(c => <NodeCard key={c.node_id} card={c} onSettings={onSettings} onMetric={metric => openLens(c.node_id, metric)} active={lens.metric} />)}
           <VramLens key={`${lens.nodeId}:${lens.metric}`} metric={lens.metric} nodeId={lens.nodeId} latest={cards.find(c => c.node_id === lens.nodeId)?.latest?.gpus?.[0] ?? null} onBack={closeLens} />
         </div>
       ) : (
@@ -161,7 +162,7 @@ export function NodeMetricsPanel({ nodes, metricsByNode }: NodeMetricsPanelProps
           }}
         >
           {cards.map((c) => (
-            <NodeCard key={c.node_id} card={c} onMetric={metric => openLens(c.node_id, metric)} />
+            <NodeCard key={c.node_id} card={c} onSettings={onSettings} onMetric={metric => openLens(c.node_id, metric)} />
           ))}
         </div>
       )}
@@ -178,7 +179,7 @@ const CARD_STYLE: CSSProperties = {
   background: "var(--surface-2)",
 };
 
-function NodeCard({ card, onMetric, active }: { card: NodeCardModel; onMetric: (metric: ResourceMetric) => void; active?: ResourceMetric }) {
+function NodeCard({ card, onMetric, active, onSettings }: { onSettings?: (nodeId: string) => void; card: NodeCardModel; onMetric: (metric: ResourceMetric) => void; active?: ResourceMetric }) {
   const { history, latest, online } = card;
 
   // For multi-GPU rigs we sparkline the first GPU (index 0) — most
@@ -238,6 +239,7 @@ function NodeCard({ card, onMetric, active }: { card: NodeCardModel; onMetric: (
         >
           {card.node_name}
         </span>
+        {online && onSettings && <button type="button" className="hl-compute-settings" aria-label={`Node settings · ${card.node_name}`} onClick={() => onSettings(card.node_id)}>⚙</button>}
         {!online && (
           <span
             style={{

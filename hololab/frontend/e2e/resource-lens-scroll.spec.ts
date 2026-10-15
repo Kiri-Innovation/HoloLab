@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('long process list keeps the device visible and restores normal layout', async ({ page }) => {
+test('sidebar process list scrolls without overflow and restores focus', async ({ page }) => {
   page.on('pageerror', e => { throw e; });
   await page.routeWebSocket('**', () => {});
   await page.route('**/api/**', async route => {
@@ -12,7 +12,6 @@ test('long process list keeps the device visible and restores normal layout', as
     await route.fulfill({contentType: 'application/json', body: JSON.stringify(body)});
   });
   await page.setViewportSize({width: 1440, height: 1000});
-  await page.addInitScript(() => localStorage.setItem('hl-layout-bottom', '460'));
   await page.goto('/w/lens-scroll');
   const panel = page.locator('.hl-node-metrics');
   await panel.getByRole('button', {name: 'Open CPU resource lens'}).first().click();
@@ -25,9 +24,10 @@ test('long process list keeps the device visible and restores normal layout', as
       await panel.evaluate((el, f) => {el.scrollTop = (el.scrollHeight-el.clientHeight)*f;}, fraction);
       await page.waitForTimeout(100);
       const p = await panel.boundingBox(); const c = await card.boundingBox();
-      expect(c!.y).toBeGreaterThanOrEqual(p!.y);
-      expect(c!.y+c!.height).toBeLessThanOrEqual(p!.y+p!.height);
-      if (fraction > 0) expect(c!.y-p!.y).toBeCloseTo(14, 0);
+      // The inspector sidebar uses the existing narrow, stacked lens layout.
+      expect(await card.evaluate(el => getComputedStyle(el).position)).toBe('static');
+      expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+      if (fraction > 0) expect(await panel.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
       measurements.push({theme, state, cardTop: c!.y, panelTop: p!.y, scrollTop: await panel.evaluate(el => el.scrollTop)});
       await panel.screenshot({path: `test-results/lens-scroll-${theme}-${state}.png`});
     }
@@ -35,6 +35,7 @@ test('long process list keeps the device visible and restores normal layout', as
   console.log(JSON.stringify(measurements));
   await page.keyboard.press('Escape');
   await expect(card).toHaveCount(2);
+  await expect(panel.getByRole('button', {name: 'Open CPU resource lens'}).first()).toBeFocused();
   expect(await card.first().evaluate(el => getComputedStyle(el).position)).toBe('static');
   await panel.getByRole('button', {name: 'Open CPU resource lens'}).first().click();
   await page.setViewportSize({width: 390, height: 844});

@@ -1,0 +1,40 @@
+import { test, expect } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+const pack = { name:'inspector-demo',version:'1.0',manifest_hash:'demo',node_ids:['compute-a'],description:'Inspector layout verification',category:[],docs:'# Inspector demo\nParameter documentation remains available.',inputs:{},outputs:{},arrayable:true,params:{threshold:{type:'float',default:0.1,description:'Minimum confidence threshold used when filtering input samples.'},iterations:{type:'int',default:10000,description:'Maximum number of iterations.'},...Object.fromEntries(Array.from({length:12},(_,i)=>[`setting_${i+1}`,{type:'float',default:0.5}]))}};
+const graph={nodes:[{id:'demo-node',algorithm_name:pack.name,algorithm_version:pack.version,position:{x:100,y:100},params:{},assigned_node_id:'compute-a',arrayed_toggle:false}],edges:[]};
+test('sidebar selection, autosave, assignment, deletion and theme screenshots',async({page})=>{
+ const before=process.env.INSPECTOR_BEFORE==='1';
+ const output='../../reports/inspector-sidebar-20261015'; mkdirSync(output,{recursive:true});
+ const saved:any[]=[]; let currentGraph = structuredClone(graph); let runReads = 0;
+ page.on('pageerror',e=>{throw e;});
+ await page.routeWebSocket('**', () => {});
+ await page.route('**/api/**',async route=>{
+  const path=new URL(route.request().url()).pathname; let body:any=[];
+  if(path.endsWith('/runs')) { runReads++; }
+  else if(path==='/api/pack-catalog')body=[pack];
+  else if(path==='/api/nodes')body=[{node_id:'compute-a',node_name:'Studio GPU',gpu:{count:1,name:'RTX 4090',total_vram_gb:24},packs:[pack],connected_ts:1,advertised_url:null,workspace_root:'/workspace',legacy_workspace_roots:[],flops_executor_id:null,packs_dir:'/packs',pack_dirs:['/packs']}];
+  else if(path==='/api/nodes/metrics/history')body={sample_interval_s:3,nodes:{'compute-a':Array.from({length:20},(_,i)=>({ts:i+1,cpu_percent:20+i%7,mem_used_gb:12,mem_total_gb:64,gpus:[{index:0,name:'RTX 4090',util_percent:34+i%5,mem_used_mb:4096,mem_total_mb:24576}]}))}};
+  else if(path==='/api/workflows/inspector-demo')body={workflow_id:'inspector-demo',name:'Inspector interaction review',graph:currentGraph,created_ts:1,updated_ts:1};
+  else if(path==='/api/workflows'&&route.request().method()==='POST'){saved.push(route.request().postDataJSON()); currentGraph=saved.at(-1).graph; body={workflow_id:'inspector-demo',name:'Inspector interaction review',updated_ts:1+saved.length};}
+  else if(path==='/api/jobs')body=[{job_id:'demo-job',algorithm_name:pack.name,algorithm_version:pack.version,state:'done',graph_node_id:'demo-node',workflow_id:'inspector-demo',created_ts:1,updated_ts:2}];
+  await route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
+ });
+ await page.setViewportSize({width:1440,height:1000});
+ await page.goto(`${before?'http://127.0.0.1:4174':process.env.INSPECTOR_URL||'http://127.0.0.1:5173'}/w/inspector-demo`);
+ const node=page.locator('[data-hololab-node="algorithm"]'); await expect(node).toBeVisible();
+ for(const selected of [false,true]){if(selected)await node.click();for(const theme of ['light','dark']){await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.waitForTimeout(300);await page.screenshot({path:`${output}/${before?'before':'after'}-${selected?'selected':'unselected'}-${theme}.png`});}}
+ if(before)return;
+ const sidebar=page.locator('.hl-inspector-sidebar');await expect(sidebar.locator('.hl-node-inspector')).toBeVisible();expect((await sidebar.boundingBox())!.width).toBe(380);expect(await sidebar.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+ await expect(sidebar.getByText('Recent jobs',{exact:true})).toHaveCount(0);
+ await sidebar.getByRole('textbox',{name:'setting_12',exact:true}).scrollIntoViewIfNeeded();
+ await expect(sidebar.getByRole('textbox',{name:'setting_12',exact:true})).toBeVisible();
+ await sidebar.getByRole('textbox',{name:'threshold',exact:true}).fill('0.25');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.params?.threshold).toBe(0.25);
+ await sidebar.getByLabel('Assigned node').selectOption('');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.assigned_node_id).toBe(null);
+ await sidebar.getByLabel('Assigned node').selectOption('compute-a');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.assigned_node_id).toBe('compute-a');
+ await sidebar.getByRole('button',{name:'About',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Parameter documentation');await page.keyboard.press('Escape');
+ await sidebar.getByRole('button',{name:'Delete node',exact:true}).click();await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0); await expect(node).toHaveCount(0);await expect(sidebar.getByText('Recent jobs',{exact:true})).toBeVisible();await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0);
+ await sidebar.locator('.hl-sidebar-runs > summary').click();
+ const previousReads=runReads;
+ await sidebar.locator('.hl-sidebar-runs').getByRole('button',{name:'刷新',exact:true}).click();
+ await expect.poll(()=>runReads).toBeGreaterThan(previousReads);
+});

@@ -6,8 +6,7 @@ import { CanvasControls } from "./canvas/CanvasControls";
 //   - top:    WorkflowToolbar (name, save/run, run summary chip)
 //   - left:   PackPalette
 //   - middle: xyflow canvas (algorithm-node instances)
-//   - right:  ComputeNodesPanel
-//   - bottom: NodeInspector + RecentJobsPanel (split half/half)
+//   - right:  unified compute pulse, selection inspector / recent jobs, run history
 
 import { CanvasToastAnchor } from "./ui/Toast";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -105,8 +104,9 @@ import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
 import { PackPalette } from "./canvas/PackPalette";
 import { ComputeNodesPanel } from "./canvas/ComputeNodesPanel";
 import { MinimapToggleButton } from "./canvas/MinimapToggleButton";
+import "./canvas/inspector.css";
 import { NodeInspector } from "./canvas/NodeInspector";
-import { NodeMetricsPanel, METRICS_HISTORY_LIMIT } from "./canvas/NodeMetricsPanel";
+import { METRICS_HISTORY_LIMIT } from "./canvas/NodeMetricsPanel";
 import { EdgeInspector } from "./canvas/EdgeInspector";
 import { TypedEdge, type TypedEdgeData } from "./canvas/TypedEdge";
 import {
@@ -281,13 +281,9 @@ interface AppInnerProps {
 }
 
 function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
-  // Dock measurements are intentionally independent: changing a sidebar does
-  // not change either the inspector height or the split inside another dock.
+  // Independent sidebar widths; the inspector keeps the full canvas height.
   const leftDock = useResizableSlot("hl-layout-left", 300, 180, 420);
-  const rightDock = useResizableSlot("hl-layout-right", 360, 240, 480);
-  const bottomDock = useResizableSlot("hl-layout-bottom", 400, 160, Number.POSITIVE_INFINITY);
-  const rightSplit = useResizableSlot("hl-layout-right-split", 180, 120, 560);
-  const bottomSplit = useResizableSlot("hl-layout-bottom-split", 340, 240, 720);
+  const rightDock = useResizableSlot("hl-layout-inspector-right", 380, 320, 400);
   const [minimapOpen, setMinimapOpen] = useState(false);
 
   // Bumped by the WS lifecycle on true reconnects (previously connected →
@@ -304,7 +300,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [running, setRunning] = useState(false);
 
   // Per-node rolling metric history for the "server pulse" panel that
-  // fills the inspector's empty state. Seeded from the gateway's
+  // fills the unified compute sidebar. Seeded from the gateway's
   // in-memory buffer on mount and topped up in real time from WS
   // ``node_metrics`` frames. Bounded per node so a long session doesn't
   // grow this map unboundedly — cap matches the gateway ring.
@@ -912,6 +908,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const onNodesDelete = useCallback(
     (deleted: Node[]) => {
       const ids = new Set(deleted.map((node) => node.id));
+      // Catalog recovery must not resurrect intentionally deleted draft nodes.
+      const wire = lastHydratedWireRef.current;
+      if (wire) lastHydratedWireRef.current = {
+        ...wire,
+        nodes: wire.nodes.filter(node => !ids.has(node.id)),
+        edges: wire.edges.filter(edge => !ids.has(edge.source) && !ids.has(edge.target)),
+      };
       setNodes((current) => current.filter((node) => !ids.has(node.id)));
       setEdges((current) => current.filter((edge) => !ids.has(edge.source) && !ids.has(edge.target)));
     },
@@ -1742,11 +1745,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const onInspectorDelete = useCallback(() => {
     if (!selectedNode) return;
-    setNodes((ns) => ns.filter((n) => n.id !== selectedNode.id));
-    setEdges((es) =>
-      es.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id),
-    );
-  }, [selectedNode, setNodes, setEdges]);
+    onNodesDelete([selectedNode]);
+  }, [selectedNode, onNodesDelete]);
 
   // --- click a Jobs row → select the corresponding canvas node --------
   const onSelectGraphNode = useCallback(
@@ -2705,7 +2705,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   );
 
   const packsSlot = <PackPalette catalog={catalog} onRefresh={refreshCatalog} />;
-  const nodesSlot = <ComputeNodesPanel nodes={computeNodes} />;
+
   const runsSlot = workflowId ? (
     <RunsPanel
       workflowId={workflowId}
@@ -2728,6 +2728,28 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     />
   );
   const selectedAlgorithmData = selectedNode ? algorithmNodeData(selectedNode.data) : null;
+  const nodesSlot = (
+    <ComputeNodesPanel nodes={computeNodes} metricsByNode={metricsByNode}
+      assignment={!viewingSnapshot && selectedAlgorithmData ? (
+        <div className="hl-compute-assignment">
+          <label htmlFor="hl-assigned-node">Assigned node</label>
+          <select id="hl-assigned-node" value={selectedAlgorithmData.assigned_node_id || ""}
+            title={`Compute nodes serving ${selectedAlgorithmData.pack.name}@${selectedAlgorithmData.pack.version}`}
+            onChange={e => onInspectorChange({ assigned_node_id: e.target.value || null })}>
+            <option value="">— unassigned —</option>
+            {selectedAlgorithmData.assigned_node_id && !computeNodes.some(cn => cn.node_id === selectedAlgorithmData.assigned_node_id && cn.packs.some(p => p.name === selectedAlgorithmData.pack.name && p.version === selectedAlgorithmData.pack.version)) && (
+              <option value={selectedAlgorithmData.assigned_node_id}>{selectedAlgorithmData.assigned_node_id} · unavailable</option>
+            )}
+            {computeNodes.filter(cn => cn.packs.some(p => p.name === selectedAlgorithmData.pack.name && p.version === selectedAlgorithmData.pack.version)).map(cn => (
+              <option key={cn.node_id} value={cn.node_id}>{cn.node_name} · {cn.node_id.slice(0, 6)}</option>
+            ))}
+          </select>
+          {!computeNodes.some(cn => cn.packs.some(p => p.name === selectedAlgorithmData.pack.name && p.version === selectedAlgorithmData.pack.version)) && <small style={{ gridColumn: "1 / -1", color: "var(--error)" }}>No online compute node offers this pack.</small>}
+        </div>
+      ) : null}
+    />
+  );
+  const hasInspection = Boolean(edgeInspectorProps || (viewingSnapshot ? snapshotSelectedGraphNodeId : selectedAlgorithmData));
   const inspectorSlot = edgeInspectorProps ? (
     <EdgeInspector {...edgeInspectorProps} />
   ) : viewingSnapshot ? (
@@ -2738,10 +2760,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       onRerunFromHere={onRerunFromHere}
     />
   ) : !selectedNode || !selectedAlgorithmData ? (
-    // Nothing selected on the draft canvas — show live server pulse
-    // instead of a blank placeholder so the operator can gauge cluster
-    // load while planning the next run.
-    <NodeMetricsPanel nodes={computeNodes} metricsByNode={metricsByNode} />
+    jobsSlot
   ) : (
     <NodeInspector
       selected={
@@ -2792,7 +2811,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           : null
       }
       pack={selectedAlgorithmData?.pack ?? null}
-      computeNodes={computeNodes}
       onChange={onInspectorChange}
       onDelete={onInspectorDelete}
     />
@@ -2827,7 +2845,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           nodes={nodesSlot}
           runs={runsSlot}
           jobs={jobsSlot}
-          inspect={inspectorSlot}
+          inspect={<div className="hl-mobile-inspector">{nodesSlot}{inspectorSlot}</div>}
           selectionId={mobileSelectionId}
           latestSnapshotId={latestSnapshotId}
         />
@@ -2840,13 +2858,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       className="hl-app-shell hl-workspace"
       style={{
         display: "grid",
-        gridTemplateRows: `auto minmax(0, 1fr) 6px ${bottomDock.value}px`,
+        gridTemplateRows: "auto minmax(0, 1fr)",
         gridTemplateColumns: `${leftDock.value}px 6px minmax(0, 1fr) 6px ${rightDock.value}px`,
         gridTemplateAreas: `
           "top top top top top"
           "left left-split mid right-split right"
-          "bottom-split bottom-split bottom-split bottom-split bottom-split"
-          "bottom bottom bottom bottom bottom"
         `,
         height: "100vh",
         background: "var(--bg)",
@@ -2890,7 +2906,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
       <div style={{ gridArea: "right-split", minHeight: 0 }}>
         <Splitter
-          label="Resize compute sidebar"
+          label="Resize inspector sidebar"
           onResize={rightDock.resize}
           onReset={rightDock.reset}
           orientation="vertical"
@@ -2898,84 +2914,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         />
       </div>
 
-      {/* Right sidebar: Compute Nodes (top, auto-height) stacked over the
-          Runs list (fills the rest with its own scroll). The Runs section
-          is toggled from the toolbar — hiding it hands the entire right
-          column to Compute Nodes. There's no workflow-agnostic runs view,
-          so we also fall back to the nodes-only layout when no workflow
-          is loaded (Gallery→open flow). */}
-      <aside
-        className="hl-panel"
-        style={{
-          gridArea: "right",
-          border: "1px solid var(--border)",
-          borderLeft: "none",
-          background: "var(--surface)",
-          overflow: "hidden",
-          display: "grid",
-          // Both regions retain a usable minimum and scroll independently.
-          // With no workflow there is no run history, so the nodes panel gets
-          // the entire column instead.
-          gridTemplateRows: workflowId
-            ? `${rightSplit.value}px 6px minmax(120px, 1fr)`
-            : "1fr",
-        }}
-      >
-        <div style={{ minHeight: 0, overflow: "auto" }}>{nodesSlot}</div>
-        {runsSlot && (
-          <>
-            <Splitter
-              label="Resize compute nodes and run history"
-              onResize={rightSplit.resize}
-              onReset={rightSplit.reset}
-              orientation="horizontal"
-            />
-            <div
-              style={{
-                minHeight: 0,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              {runsSlot}
-            </div>
-          </>
-        )}
+      <aside className="hl-panel hl-inspector-sidebar" style={{ gridArea: "right" }}>
+        <div className="hl-sidebar-compute">{nodesSlot}</div>
+        <div className="hl-sidebar-content">
+          {hasInspection ? inspectorSlot : jobsSlot}
+        </div>
+        {runsSlot && <details className="hl-sidebar-runs">
+          <summary>Run history · snapshots</summary>
+          <div>{runsSlot}</div>
+        </details>}
       </aside>
-
-      <div style={{ gridArea: "bottom-split", minWidth: 0 }}>
-        <Splitter
-          label="Resize inspector"
-          onResize={bottomDock.resize}
-          onReset={bottomDock.reset}
-          orientation="horizontal"
-          reverse
-        />
-      </div>
-
-      <section
-        className="hl-inspector"
-        style={{
-          gridArea: "bottom",
-          borderTop: "none",
-          background: "var(--surface)",
-          minHeight: 0,
-          overflow: "hidden",
-          display: "grid",
-          gridTemplateColumns: `minmax(240px, 1fr) 6px ${bottomSplit.value}px`,
-        }}
-      >
-        <div style={{ overflow: "hidden" }}>{inspectorSlot}</div>
-        <Splitter
-          label="Resize inspector and recent jobs"
-          onResize={bottomSplit.resize}
-          onReset={bottomSplit.reset}
-          orientation="vertical"
-          reverse
-        />
-        <div style={{ minWidth: 0, overflow: "hidden" }}>{jobsSlot}</div>
-      </section>
     </div>
   );
 }

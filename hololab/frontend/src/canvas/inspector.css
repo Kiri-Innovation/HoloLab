@@ -1,0 +1,25 @@
+.hl-inspector-sidebar { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface); overflow: hidden; }
+.hl-sidebar-compute { flex: 0 0 auto; max-height: 38%; overflow: auto; border-bottom: 1px solid var(--border); }
+.hl-sidebar-content { flex: 1; min-height: 0; overflow: auto; }
+.hl-compute-assignment { padding: 12px 14px 0; display: grid; grid-template-columns: 94px minmax(0, 1fr); align-items: center; gap: 8px; font-size: var(--fs-xs); }
+.hl-compute-assignment select { width: 100%; min-width: 0; text-align: left; }
+.hl-compute-settings { border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer; }
+.hl-sidebar-runs { flex: 0 0 auto; border-top: 1px solid var(--border); font-size: var(--fs-xs); }
+.hl-sidebar-runs > summary { padding: 10px 14px; cursor: pointer; color: var(--text-muted); }
+.hl-sidebar-runs > div { height: 210px; overflow: auto; display: flex; flex-direction: column; }
+.hl-node-inspector { text-align: left; }
+.hl-node-inspector input { min-width: 0; }
+.hl-inspector-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 4px 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.hl-inspector-field > div:first-child { flex-wrap: wrap; overflow-wrap: anywhere; margin-top: 4px; }
+.hl-inspector-field > .hl-field-help { grid-column: 1 / -1; }
+.hl-field-help { font-size: var(--fs-xs); color: var(--text-muted); }
+.hl-field-help summary { cursor: pointer; width: fit-content; font-size: 10px; }
+.hl-field-help:not([open]) { max-height: 14px; }
+.hl-mobile-inspector { height: 100%; overflow: auto; }
+.hl-mobile-inspector > .hl-node-inspector { height: auto !important; overflow: visible !important; }
+.hl-inspector-heading { flex-wrap: wrap; }
+.hl-inspector-heading > div:first-child { flex-basis: 100%; }
+.hl-sidebar-compute { display: flex; overflow: hidden; }
+.hl-sidebar-compute .hl-compute-panel { min-height: 0; width: 100%; display: flex; flex-direction: column; }
+.hl-sidebar-compute .hl-node-metrics { min-height: 0; }
+.hl-compute-assignment { flex-shrink: 0; }
