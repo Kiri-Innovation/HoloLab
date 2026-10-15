@@ -1,3 +1,4 @@
+import { WorkflowConflictDialog } from "./canvas/WorkflowConflictDialog";
 import { CanvasControls } from "./canvas/CanvasControls";
 // Blueprint canvas — the top-level shell.
 //
@@ -846,6 +847,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   // --- workflow model ---------------------------------------------------
   const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [workflowName, setWorkflowName] = useState<string>("untitled");
   // The ``updated_ts`` we last observed for this draft — seeded on load
   // and bumped on every successful save. Fed into the autosave hook as
@@ -2158,12 +2160,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           { current_updated_ts: currentTs },
         );
       }
-      window.alert(
-        "This workflow was modified in another tab (or by an agent) after " +
-          "you opened it. Reload the page to see the fresh version; your " +
-          "unsaved edits will be lost. (Save is parked until you reload " +
-          "to protect the other writer's changes.)",
-      );
+      setConflictDialogOpen(true);
     },
   });
 
@@ -2774,6 +2771,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     />
   );
 
+  const conflictDialog = <WorkflowConflictDialog open={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} />;
+
   // Mobile portrait: swap to the tab shell. Above the 900px breakpoint
   // ``isMobile`` is always false so this branch is dead code for
   // desktop — no CSS or grid changes leak into the wide layout.
@@ -2783,26 +2782,29 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         ? snapshotSelectedGraphNodeId ?? snapshotSelectedEdgeId ?? null
         : selectedNode?.id ?? selectedEdge?.id ?? null;
     return (
-      <MobileShell
-        topbar={topbarSlot}
-        canvas={
-          <div
-            ref={rfWrapper}
-            onDragOver={onDragOver}
-            onDrop={onDrop}
-            style={{ position: "absolute", inset: 0 }}
-          >
-            {canvasContentSlot}
-          </div>
-        }
-        packs={packsSlot}
-        nodes={nodesSlot}
-        runs={runsSlot}
-        jobs={jobsSlot}
-        inspect={inspectorSlot}
-        selectionId={mobileSelectionId}
-        latestSnapshotId={latestSnapshotId}
-      />
+      <>
+        {conflictDialog}
+        <MobileShell
+          topbar={topbarSlot}
+          canvas={
+            <div
+              ref={rfWrapper}
+              onDragOver={onDragOver}
+              onDrop={onDrop}
+              style={{ position: "absolute", inset: 0 }}
+            >
+              {canvasContentSlot}
+            </div>
+          }
+          packs={packsSlot}
+          nodes={nodesSlot}
+          runs={runsSlot}
+          jobs={jobsSlot}
+          inspect={inspectorSlot}
+          selectionId={mobileSelectionId}
+          latestSnapshotId={latestSnapshotId}
+        />
+      </>
     );
   }
 
@@ -2824,6 +2826,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         color: "var(--text-body)",
       }}
     >
+      {conflictDialog}
       <div className="hl-topbar" style={{ gridArea: "top" }}>
         {topbarSlot}
       </div>
