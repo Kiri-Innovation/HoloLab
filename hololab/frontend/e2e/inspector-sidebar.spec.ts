@@ -26,17 +26,41 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  if(before)return;
  const sidebar=page.locator('.hl-inspector-sidebar');await expect(sidebar.locator('.hl-node-inspector')).toBeVisible();expect((await sidebar.boundingBox())!.width).toBe(380);expect(await sidebar.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
  await expect(sidebar.getByText('Recent jobs',{exact:true})).toHaveCount(0);
- await expect(sidebar.locator('.hl-sidebar-runs')).toHaveCount(0);
+ await expect(sidebar.getByRole('tab')).toHaveCount(2);
  await expect(page.locator('.hl-compute-dock .hl-node-metrics')).toBeVisible();
  await sidebar.getByRole('textbox',{name:'setting_12',exact:true}).scrollIntoViewIfNeeded();
  await expect(sidebar.getByRole('textbox',{name:'setting_12',exact:true})).toBeVisible();
- await sidebar.getByRole('textbox',{name:'threshold',exact:true}).fill('0.25');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.params?.threshold).toBe(0.25);
+ await sidebar.getByRole('textbox',{name:'threshold',exact:true}).click();
+ await sidebar.getByRole('textbox',{name:'threshold',exact:true}).press('ControlOrMeta+A');
+ await sidebar.getByRole('textbox',{name:'threshold',exact:true}).pressSequentially('25');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.params?.threshold, {timeout:5000}).toBe(25);
+
+ const inspectorTab=sidebar.getByRole('tab',{name:'Inspector',exact:true});
+ const runsTab=sidebar.getByRole('tab',{name:'Runs',exact:true});
+ for(const tab of ['Inspector','Runs']) {
+   await sidebar.getByRole('tab',{name:tab,exact:true}).click();
+   for(const theme of ['light','dark']) {
+     await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+     await page.waitForTimeout(300);
+     await page.screenshot({path:`${output}/dock-${tab}-${theme}.png`});
+   }
+ }
+ await expect(sidebar.getByRole('textbox',{name:'threshold',exact:true})).not.toBeVisible();
+ await runsTab.press('ArrowLeft');
+ await expect(inspectorTab).toBeFocused();
+ await expect(sidebar.getByRole('textbox',{name:'threshold',exact:true})).toHaveValue('25');
+ await runsTab.click(); await node.click();
+ await expect(inspectorTab).toHaveAttribute('aria-selected','true');
+ await expect(sidebar.getByRole('textbox',{name:'threshold',exact:true})).toHaveValue('25');
  await sidebar.getByLabel('Assigned node').selectOption('');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.assigned_node_id).toBe(null);
  await sidebar.getByLabel('Assigned node').selectOption('compute-a');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.assigned_node_id).toBe('compute-a');
  await sidebar.getByRole('button',{name:'About',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Parameter documentation');await page.keyboard.press('Escape');
  await sidebar.getByRole('button',{name:'Delete node',exact:true}).click();await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0); await expect(node).toHaveCount(0);await expect(sidebar.getByText('Recent jobs',{exact:true})).toBeVisible();await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0);
- await sidebar.locator('.hl-sidebar-runs > summary').click();
+ await sidebar.getByRole('tab',{name:'Runs',exact:true}).click();
  const previousReads=runReads;
- await sidebar.locator('.hl-sidebar-runs').getByRole('button',{name:'刷新',exact:true}).click();
+ await sidebar.getByRole('tabpanel',{name:'Runs',exact:true}).getByRole('button',{name:'刷新',exact:true}).click();
  await expect.poll(()=>runReads).toBeGreaterThan(previousReads);
+ await page.setViewportSize({width:390,height:844});
+ await page.getByRole('tab',{name:'Runs',exact:true}).click();
+ await expect(page.locator('.hl-inspector-sidebar')).toHaveCount(0);
+ await page.screenshot({path:`${output}/dock-mobile.png`});
 });

@@ -286,6 +286,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const leftDock = useResizableSlot("hl-layout-left", 300, 180, 420);
   const rightDock = useResizableSlot("hl-layout-inspector-right", 380, 320, 400);
   const bottomDock = useResizableSlot("hl-layout-bottom", 400, 160, Number.POSITIVE_INFINITY);
+  const [rightTab, setRightTab] = useState<"inspector" | "runs">("inspector");
   const [minimapOpen, setMinimapOpen] = useState(false);
 
   // Bumped by the WS lifecycle on true reconnects (previously connected →
@@ -941,6 +942,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   }, [nodes, onNodesDelete, viewingSnapshot]);
   const onNodeClick: NodeMouseHandler = useCallback(
     (event, clicked) => {
+      setRightTab("inspector");
       const keepExisting = event.ctrlKey || event.metaKey;
       setNodes((current) =>
         current.map((node) => ({
@@ -2749,6 +2751,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       ) : null;
   const nodesSlot = <ComputeNodesPanel nodes={computeNodes} metricsByNode={metricsByNode} />;
   const hasInspection = Boolean(edgeInspectorProps || (viewingSnapshot ? snapshotSelectedGraphNodeId : selectedAlgorithmData));
+  const dockSelection = viewingSnapshot
+    ? snapshotSelectedGraphNodeId ?? snapshotSelectedEdgeId
+    : selectedNode?.id ?? selectedEdge?.id;
+  useEffect(() => {
+    if (dockSelection) setRightTab("inspector");
+  }, [dockSelection, Boolean(viewingSnapshot)]);
+
   const inspectorSlot = edgeInspectorProps ? (
     <EdgeInspector {...edgeInspectorProps} />
   ) : viewingSnapshot ? (
@@ -2917,14 +2926,29 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       </div>
 
       <aside className="hl-panel hl-inspector-sidebar" style={{ gridArea: "right" }}>
-        {assignmentSlot}
-        <div className="hl-sidebar-content">
-          {hasInspection ? inspectorSlot : jobsSlot}
+        <div className="hl-dock-tabs" role="tablist" aria-label="Right dock"
+          onKeyDown={event => {
+            const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+            if (!keys.includes(event.key)) return;
+            event.preventDefault();
+            const next = event.key === "Home" ? "inspector" : event.key === "End" ? "runs" : rightTab === "inspector" ? "runs" : "inspector";
+            setRightTab(next);
+            document.getElementById(`hl-dock-tab-${next}`)?.focus();
+          }}>
+          {(["inspector", "runs"] as const).map(tab => <button key={tab} type="button"
+            role="tab" id={`hl-dock-tab-${tab}`} aria-controls={`hl-dock-panel-${tab}`}
+            aria-selected={rightTab === tab} tabIndex={rightTab === tab ? 0 : -1}
+            onClick={() => setRightTab(tab)}>{tab === "inspector" ? "Inspector" : "Runs"}</button>)}
         </div>
-        {!hasInspection && runsSlot && <details className="hl-sidebar-runs">
-          <summary>Run history · snapshots</summary>
-          <div>{runsSlot}</div>
-        </details>}
+        <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-inspector"
+          aria-labelledby="hl-dock-tab-inspector" hidden={rightTab !== "inspector"}>
+          {assignmentSlot}
+          <div className="hl-sidebar-content">{hasInspection ? inspectorSlot : jobsSlot}</div>
+        </div>
+        <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-runs"
+          aria-labelledby="hl-dock-tab-runs" hidden={rightTab !== "runs"}>
+          {runsSlot ?? <p className="hl-dock-empty">Open a workflow to view its runs.</p>}
+        </div>
       </aside>
       <div style={{ gridArea: "bottom-split", minWidth: 0 }}>
         <Splitter label="Resize compute panel" onResize={bottomDock.resize}
