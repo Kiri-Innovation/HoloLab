@@ -1,0 +1,58 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: video-text-overlay
+version: 0.1.0
+description: Add a literal text title to a video.
+category: video/editing
+source_entry: run.py
+docs: |-
+  Nine positions; white text on a translucent black box. Requires ffmpeg drawtext and a font discoverable by fontconfig; glyph coverage depends on installed fonts.
+  CPU-only, two encoder/filter threads. Requires ffmpeg/ffprobe with libx264 in logical environment kiri. Outputs silent video: audio is intentionally discarded. H.264/yuv420p, CRF 20, faststart; odd dimensions are padded to even. Input clips are never modified.
+inputs:
+  video:
+    tags:
+    - video-source
+    storage: dir
+params:
+  text:
+    type: string
+    default: HoloLab demo
+  position:
+    type: enum
+    default: top-center
+    values:
+    - top-left
+    - top-center
+    - top-right
+    - middle-left
+    - middle-center
+    - middle-right
+    - bottom-left
+    - bottom-center
+    - bottom-right
+  font_size:
+    type: int
+    default: 32
+    min: 1
+    max: 256
+outputs:
+  video:
+    tags:
+    - video-source
+    storage: dir
+    description: One silent H.264/yuv420p MP4 (output.mp4), ready for browser preview.
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 2
+    mem_gb: 2
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/run.py" <<'HOLOLAB_VIDEO_CONFIG'
+    {{ {'inputs': inputs, 'outputs': outputs, 'params': params} | tojson }}
+    HOLOLAB_VIDEO_CONFIG
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
