@@ -16,6 +16,14 @@ test('bottom compute dock keeps the device visible while the lens scrolls', asyn
   const panel = page.locator('.hl-node-metrics');
   await expect(page.locator('.hl-compute-dock .hl-node-metrics')).toBeVisible();
   await expect(page.locator('.hl-inspector-sidebar .hl-node-metrics')).toHaveCount(0);
+  const sidebar = await page.locator('.hl-inspector-sidebar').boundingBox();
+  const dock = await page.locator('.hl-compute-dock').boundingBox();
+  expect(sidebar!.y + sidebar!.height).toBe(1000);
+  expect(dock!.x + dock!.width).toBeLessThanOrEqual(sidebar!.x);
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(t => document.documentElement.dataset.theme = t, theme);
+    await page.screenshot({path: `test-results/pulse-closed-${theme}.png`});
+  }
   await panel.getByRole('button', {name: 'Open CPU resource lens'}).first().click();
   const card = panel.locator('[data-pulse-node]');
   await expect(panel.locator('.hl-resource-process')).toHaveCount(32);
@@ -42,6 +50,11 @@ test('bottom compute dock keeps the device visible while the lens scrolls', asyn
   await expect(panel.getByRole('button', {name: 'Open CPU resource lens'}).first()).toBeFocused();
   expect(await card.first().evaluate(el => getComputedStyle(el).position)).toBe('static');
   await panel.getByRole('button', {name: 'Open CPU resource lens'}).first().click();
+  await page.setViewportSize({width: 1000, height: 1000});
+  await expect(card).toHaveCount(1);
+  expect(await card.evaluate(el => getComputedStyle(el).position)).toBe('static');
+  expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.screenshot({path: 'test-results/lens-scroll-compact.png'});
   await page.setViewportSize({width: 390, height: 844});
   await page.getByRole('tab', {name: 'Nodes', exact: true}).click();
   await panel.getByRole('button', {name: 'Open CPU resource lens'}).first().click();

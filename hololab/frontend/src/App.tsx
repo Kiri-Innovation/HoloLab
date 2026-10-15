@@ -2863,8 +2863,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         gridTemplateAreas: `
           "top top top top top"
           "left left-split mid right-split right"
-          "bottom-split bottom-split bottom-split bottom-split bottom-split"
-          "bottom bottom bottom bottom bottom"
+          "bottom-split bottom-split bottom-split right-split right"
+          "bottom bottom bottom right-split right"
         `,
         height: "100vh",
         background: "var(--bg)",
