@@ -10,6 +10,7 @@ import type { NodeRuntime } from "./AlgorithmNode";
 import { stateColour } from "./AlgorithmNode";
 import { CopyRefButton } from "./CopyRefButton";
 import { JobLogModal } from "./JobLogModal";
+import "./recent-jobs.css";
 
 export interface RecentJobRow {
   job_id: string;
@@ -44,22 +45,6 @@ export interface RecentJobsPanelProps {
   onSelectGraphNode: (graphNodeId: string) => void;
   currentWorkflowId: string | null;
 }
-
-const CARD: React.CSSProperties = {
-  padding: "7px 14px",
-  borderBottom: "1px solid var(--border)",
-  fontSize: "var(--fs-sm)",
-  color: "var(--text-body)",
-  display: "grid",
-  // dot · title · progress · elapsed · [stop-btn] · [log-btn] · [copy-ref]
-  // The stop column reserves its width unconditionally so terminal rows
-  // don't shift the log + copy buttons leftward.
-  gridTemplateColumns: "10px 1fr auto auto auto auto auto",
-  gap: 10,
-  alignItems: "center",
-  cursor: "pointer",
-  transition: "background var(--dur-fast) var(--ease)",
-};
 
 function formatElapsed(start: number, end: number): string {
   const secs = Math.max(0, Math.round(end - start));
@@ -441,37 +426,9 @@ export function RecentJobsPanel({
         color: "var(--text-body)",
       }}
     >
-      <div
-        style={{
-          padding: "10px 14px",
-          fontWeight: 600,
-          fontSize: 10,
-          textTransform: "uppercase",
-          color: "var(--text-subtle)",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--surface-2)",
-          letterSpacing: "0.08em",
-          position: "sticky",
-          top: 0,
-          zIndex: 1,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
+      <div className="hl-jobs-heading">
         <span>Recent jobs</span>
-        {currentWorkflowId && (
-          <span
-            style={{
-              fontWeight: 400,
-              textTransform: "none",
-              letterSpacing: 0,
-              color: "var(--text-muted)",
-            }}
-          >
-            · current workflow
-          </span>
-        )}
+        {currentWorkflowId && <span className="hl-jobs-scope">Current workflow</span>}
         {liveCount > 0 && (
           <button
             type="button"
@@ -942,12 +899,9 @@ function SingleJobRow({
   label?: string;
   indent?: boolean;
 }) {
-  const style: React.CSSProperties = indent
-    ? { ...CARD, padding: "5px 14px 5px 34px", background: "var(--surface-2)" }
-    : CARD;
   return (
     <div
-      style={style}
+      className={`hl-job-row${indent ? " hl-job-row--shard" : ""}`}
       onClick={() => job.graph_node_id && onSelectGraphNode(job.graph_node_id)}
       aria-description={job.job_id}
       onMouseEnter={(e) => {
@@ -1007,40 +961,42 @@ function SingleJobRow({
       >
         {elapsedFor(job, now)}
       </div>
-      {STOPPABLE.has(job.state) ? (
-        <StopButton
+      <div className="hl-job-actions">
+        {STOPPABLE.has(job.state) ? (
+          <StopButton
+            onClick={(e) => {
+              e.stopPropagation();
+              onRequestStop(job);
+            }}
+            disabled={pending}
+            title={pending ? "Stopping…" : `Stop ${job.algorithm_name}`}
+          />
+        ) : (
+          <StopSlotPlaceholder />
+        )}
+        <ViewLogButton
           onClick={(e) => {
             e.stopPropagation();
-            onRequestStop(job);
+            onOpenLog({
+              jobId: job.job_id,
+              primer: {
+                algorithm_name: job.algorithm_name,
+                algorithm_version: job.algorithm_version,
+                state: job.state,
+                fail_reason: job.fail_reason ?? null,
+                elapsed: elapsedFor(job, now),
+              },
+            });
           }}
-          disabled={pending}
-          title={pending ? "Stopping…" : `Stop ${job.algorithm_name}`}
+          state={job.state}
         />
-      ) : (
-        <StopSlotPlaceholder />
-      )}
-      <ViewLogButton
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpenLog({
-            jobId: job.job_id,
-            primer: {
-              algorithm_name: job.algorithm_name,
-              algorithm_version: job.algorithm_version,
-              state: job.state,
-              fail_reason: job.fail_reason ?? null,
-              elapsed: elapsedFor(job, now),
-            },
-          });
-        }}
-        state={job.state}
-      />
-      <CopyRefButton
-        kind="job"
-        id={job.job_id}
-        comment={`${job.algorithm_name} · ${job.state}`}
-        size="xs"
-      />
+        <CopyRefButton
+          kind="job"
+          id={job.job_id}
+          comment={`${job.algorithm_name} · ${job.state}`}
+          size="xs"
+        />
+      </div>
     </div>
   );
 }
@@ -1131,7 +1087,7 @@ function GroupJobRow({
   return (
     <>
       <div
-        style={CARD}
+        className="hl-job-row"
         onClick={onToggleExpand}
         aria-description={parent.job_id}
         onMouseEnter={(e) => {
@@ -1235,47 +1191,49 @@ function GroupJobRow({
         >
           {elapsed}
         </div>
-        {groupStoppable ? (
-          <StopButton
+        <div className="hl-job-actions">
+          {groupStoppable ? (
+            <StopButton
+              onClick={(e) => {
+                e.stopPropagation();
+                onRequestStop(
+                  parent,
+                  `${parent.algorithm_name} ×${total}`,
+                );
+              }}
+              disabled={parentPending}
+              title={
+                parentPending
+                  ? "Stopping…"
+                  : `Stop ${parent.algorithm_name} ×${total} (cascades to all live shards)`
+              }
+            />
+          ) : (
+            <StopSlotPlaceholder />
+          )}
+          <ViewLogButton
             onClick={(e) => {
               e.stopPropagation();
-              onRequestStop(
-                parent,
-                `${parent.algorithm_name} ×${total}`,
-              );
+              onOpenLog({
+                jobId: parent.job_id,
+                primer: {
+                  algorithm_name: parent.algorithm_name,
+                  algorithm_version: parent.algorithm_version,
+                  state,
+                  fail_reason: parent.fail_reason ?? null,
+                  elapsed,
+                },
+              });
             }}
-            disabled={parentPending}
-            title={
-              parentPending
-                ? "Stopping…"
-                : `Stop ${parent.algorithm_name} ×${total} (cascades to all live shards)`
-            }
+            state={state}
           />
-        ) : (
-          <StopSlotPlaceholder />
-        )}
-        <ViewLogButton
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenLog({
-              jobId: parent.job_id,
-              primer: {
-                algorithm_name: parent.algorithm_name,
-                algorithm_version: parent.algorithm_version,
-                state,
-                fail_reason: parent.fail_reason ?? null,
-                elapsed,
-              },
-            });
-          }}
-          state={state}
-        />
-        <CopyRefButton
-          kind="job"
-          id={parent.job_id}
-          comment={`${parent.algorithm_name} ×${total} · ${state}`}
-          size="xs"
-        />
+          <CopyRefButton
+            kind="job"
+            id={parent.job_id}
+            comment={`${parent.algorithm_name} ×${total} · ${state}`}
+            size="xs"
+          />
+        </div>
       </div>
       {expanded && (
         <>

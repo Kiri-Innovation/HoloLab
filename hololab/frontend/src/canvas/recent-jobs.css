@@ -1,0 +1,33 @@
+.hl-jobs-heading {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-3); border-bottom: 1px solid var(--border);
+  background: var(--surface); color: var(--text-body);
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold);
+}
+.hl-jobs-scope { margin-left: auto; color: var(--text-muted); font-weight: var(--fw-regular); }
+.hl-job-row {
+  display: grid;
+  grid-template-columns: var(--space-2) minmax(0, 1fr) 7ch 4ch auto;
+  gap: var(--space-2); align-items: center;
+  min-height: var(--space-9); padding: var(--space-2) var(--space-3);
+  box-sizing: border-box; border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--fs-sm); color: var(--text-body); cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.hl-job-row--shard { background: var(--surface-2); }
+.hl-job-row--shard > :first-child { width: var(--space-1) !important; height: var(--space-1) !important; justify-self: center; }
+.hl-job-row > :nth-child(2) { min-width: 0; }
+.hl-job-row > :nth-child(2) strong { font-weight: var(--fw-medium) !important; overflow: hidden; text-overflow: ellipsis; }
+.hl-job-row > :nth-child(3), .hl-job-row > :nth-child(4) { text-align: right; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.hl-job-actions { display: flex; align-items: center; gap: var(--space-1); }
+.hl-job-actions button { flex-shrink: 0; border-color: transparent !important; background: transparent !important; }
+.hl-job-actions button:hover { background: var(--surface-hover) !important; }
+.hl-job-actions > span { flex-shrink: 0; }
+/* Keep the pack name readable; version metadata sits below it. */
+.hl-job-row > :nth-child(2) { white-space: normal !important; flex-wrap: wrap; gap: 0 var(--space-1) !important; }
+.hl-job-row > :nth-child(2) strong { display: block; white-space: nowrap; flex: 1 0 calc(100% - var(--space-4)); }
+.hl-job-row > :nth-child(2) > span:not([aria-hidden]) { margin-left: 0 !important; font-size: var(--fs-micro) !important; }
+.hl-job-row > :nth-child(2) > strong + span { display: inline-block; }
+/* Batched progress can be longer than a simple 51/51 fraction. */
+.hl-job-row > :nth-child(3) { white-space: normal !important; overflow-wrap: anywhere; }

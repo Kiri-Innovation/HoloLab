@@ -16,6 +16,8 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
   else if(path==='/api/nodes/metrics/history')body={sample_interval_s:3,nodes:{'compute-a':Array.from({length:20},(_,i)=>({ts:i+1,cpu_percent:20+i%7,mem_used_gb:12,mem_total_gb:64,gpus:[{index:0,name:'RTX 4090',util_percent:34+i%5,mem_used_mb:4096,mem_total_mb:24576}]}))}};
   else if(path==='/api/workflows/inspector-demo')body={workflow_id:'inspector-demo',name:'Inspector interaction review',graph:currentGraph,created_ts:1,updated_ts:1};
   else if(path==='/api/workflows'&&route.request().method()==='POST'){saved.push(route.request().postDataJSON()); currentGraph=saved.at(-1).graph; body={workflow_id:'inspector-demo',name:'Inspector interaction review',updated_ts:1+saved.length};}
+  else if(path==='/api/jobs/demo-job/log')body={lines:[],truncated:false};
+  else if(path==='/api/jobs/demo-job')body={job_id:'demo-job',state:'done',algorithm_name:pack.name,algorithm_version:pack.version};
   else if(path==='/api/jobs')body=[{job_id:'demo-job',algorithm_name:pack.name,algorithm_version:pack.version,state:'done',graph_node_id:'demo-node',workflow_id:'inspector-demo',created_ts:1,updated_ts:2}];
   await route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
  });
@@ -24,6 +26,18 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  if(!before) {
    await expect(page.locator('.hl-inspector-sidebar').getByRole('tab',{name:'Jobs',exact:true})).toHaveAttribute('aria-selected','true');
    await expect(page.locator('.hl-inspector-sidebar').getByText('Recent jobs',{exact:true})).toBeVisible();
+ }
+ if(!before) {
+   const jobsPanel=page.locator('#hl-dock-panel-jobs');
+   await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async(text:string)=>{(window as any).__copiedJob=text;}}}));
+   await jobsPanel.getByRole('button',{name:'View job log',exact:true}).click();
+   await expect(page.locator('[data-hl-job-log-modal]')).toBeVisible();
+   await page.getByRole('button',{name:'Close',exact:true}).click();
+   await jobsPanel.getByRole('button',{name:'复制引用给 AI',exact:true}).click();
+   await expect.poll(()=>page.evaluate(()=>(window as any).__copiedJob)).toContain('demo-job');
+   await jobsPanel.locator('.hl-job-row > :nth-child(2)').click();
+   await expect(page.getByRole('tab',{name:'Inspector',exact:true})).toHaveAttribute('aria-selected','true');
+   await page.getByRole('tab',{name:'Jobs',exact:true}).click();
  }
  const node=page.locator('[data-hololab-node="algorithm"]'); await expect(node).toBeVisible();
  for(const selected of [false,true]){if(selected)await node.click();for(const theme of ['light','dark']){await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.waitForTimeout(300);await page.screenshot({path:`${output}/${before?'before':'after'}-${selected?'selected':'unselected'}-${theme}.png`});}}

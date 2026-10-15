@@ -21,9 +21,11 @@
 .hl-compute-dock .hl-compute-panel { height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .hl-compute-dock .hl-node-metrics { flex: 1; min-height: 0; box-sizing: border-box; }
 
-.hl-dock-tabs { display: flex; flex-shrink: 0; min-height: 34px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
-.hl-dock-tabs [role=tab] { border: 0; border-radius: 0; border-right: 1px solid var(--border); border-bottom: 2px solid transparent; padding: 8px 14px; background: transparent; color: var(--text-muted); font: inherit; font-size: var(--fs-xs); font-weight: 600; cursor: pointer; }
-.hl-dock-tabs [role=tab][aria-selected=true] { background: var(--surface); color: var(--text); border-bottom-color: var(--accent); }
+/* A quiet tab strip separates the dock from the workflow toolbar. */
+.hl-dock-tabs { display: flex; flex-shrink: 0; gap: var(--space-1); padding: var(--space-2) var(--space-3) 0; min-height: var(--panel-header-height); border-bottom: 1px solid var(--border); background: var(--surface); }
+.hl-dock-tabs [role=tab] { border: 0; border-radius: 0; border-bottom: 2px solid transparent; padding: var(--space-2); background: transparent; color: var(--text-muted); font: inherit; font-weight: var(--fw-medium); cursor: pointer; }
+.hl-dock-tabs [role=tab][aria-selected=true] { color: var(--text); border-bottom-color: var(--accent); }
+.hl-dock-tabs [role=tab]:hover { color: var(--text); }
 .hl-dock-tabs [role=tab]:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
 .hl-dock-panel { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .hl-dock-panel[hidden] { display: none; }
