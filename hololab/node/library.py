@@ -22,6 +22,7 @@ import httpx
 
 from hololab.library_transport import open_library_file
 from hololab.logging import get_logger
+from hololab.node.library_checkpoints import archive, assert_current, checkpoint
 
 log = get_logger("node.library")
 RANGE_SIZE = 8 * 1024**2
@@ -188,7 +189,8 @@ class LibraryWorker:
 
             root_fd = owned(os.open(self.root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW))
             parent_fd = owned(descend(root_fd, parts[:-1]))
-            temp_fd = owned(descend(root_fd, [".hololab-tmp", transfer_id]))
+            temp_fd, checkpoint_area = checkpoint(root_fd, transfer_id)
+            owned(temp_fd)
             lock_fd = owned(
                 os.open("owner.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600, dir_fd=temp_fd)
             )
@@ -198,6 +200,7 @@ class LibraryWorker:
                 raise TransferError(
                     "Another local worker owns this transfer", code="busy", retryable=True
                 ) from exc
+            assert_current(root_fd, checkpoint_area, transfer_id, temp_fd)
             journal = read_journal(temp_fd)
             if journal is not None and journal["identity"] != identity:
                 raise TransferError("Persisted transfer identity differs", code="identity_conflict")
@@ -239,12 +242,18 @@ class LibraryWorker:
                 with contextlib.suppress(FileNotFoundError):
                     os.unlink("payload.part", dir_fd=temp_fd)
                 os.fsync(temp_fd)
+                await io_work(archive, root_fd, transfer_id, temp_fd, checkpoint_area)
                 self.confirmed_bytes = task["size_bytes"]
                 return {
                     "status": "success",
                     "confirmed_bytes": task["size_bytes"],
                     "sha256": task["sha256"],
                 }
+            if checkpoint_area == ".hololab-receipts":
+                await io_work(
+                    archive, root_fd, transfer_id, temp_fd, checkpoint_area, ".hololab-tmp"
+                )
+                checkpoint_area = ".hololab-tmp"
             if journal["state"] == "ready":
                 # Externally removed file: recover from staging on a later claim.
                 journal.update(state="receiving", confirmed_bytes=0)
@@ -367,6 +376,7 @@ class LibraryWorker:
                 await io_work(write_journal, temp_fd, journal)
                 os.unlink("payload.part", dir_fd=temp_fd)
                 os.fsync(temp_fd)
+                await io_work(archive, root_fd, transfer_id, temp_fd, checkpoint_area)
         return {
             "status": "success",
             "confirmed_bytes": task["size_bytes"],
@@ -429,6 +439,9 @@ class LibraryWorker:
             response.raise_for_status()
             task = response.json()["transfer"]
         if task is None:
+            from hololab.node.library_checkpoints import reap
+
+            await reap(self, client)
             return False
         self.confirmed_bytes = 0
         keeper = asyncio.create_task(self._keepalive(client, task))

@@ -18,6 +18,7 @@ from hololab.node.library import (
     safe_components,
     write_journal,
 )
+from hololab.node.library_checkpoints import assert_current, checkpoint
 
 
 def rename_noreplace(parent, old, new):
@@ -104,7 +105,8 @@ def apply_operation(worker, task):
             for tid in entry["download_ids"]:
                 if str(uuid.UUID(tid)) != tid:
                     raise ValueError("Invalid download identity")
-                directory = owned(descend(root, [".hololab-tmp", tid]))
+                directory, area = checkpoint(root, tid)
+                owned(directory)
                 lock = owned(
                     os.open(
                         "owner.lock",
@@ -114,6 +116,7 @@ def apply_operation(worker, task):
                     )
                 )
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                assert_current(root, area, tid, directory)
                 journal = read_journal(directory)
                 if journal:
                     ji = journal["identity"]

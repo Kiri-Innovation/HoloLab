@@ -477,3 +477,29 @@ async def content(
             "Cache-Control": "no-store",
         },
     )
+
+
+class CheckpointQuery(BaseModel):
+    transfer_ids: list[uuid.UUID] = Field(max_length=100)
+
+
+@router.post("/nodes/{node_id}/transfers/checkpoints")
+async def checkpoint_states(
+    node_id: str,
+    body: CheckpointQuery,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+):
+    """Authoritative terminal states for local checkpoint GC; never infer from age."""
+    lib = service(request)
+    await authenticate(lib, node_id, authorization)
+    result = {}
+    async with lib.db.read() as conn:
+        for transfer_id in body.transfer_ids:
+            tid = str(transfer_id)
+            async with conn.execute(
+                "SELECT target_node_id,state FROM library_transfers WHERE transfer_id=?", (tid,)
+            ) as cur:
+                row = await cur.fetchone()
+            result[tid] = "gone" if row is None else row[1] if row[0] == node_id else "unknown"
+    return {"states": result}

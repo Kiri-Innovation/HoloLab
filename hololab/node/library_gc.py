@@ -16,6 +16,7 @@ from hololab.node.library import (
     read_journal,
     safe_components,
 )
+from hololab.node.library_checkpoints import assert_current, checkpoint, discard
 
 
 async def remove_copy(worker, client, task):
@@ -34,7 +35,8 @@ async def remove_copy(worker, client, task):
         for tid in sorted(task["download_ids"]):
             if str(uuid.UUID(tid)) != tid:
                 raise TransferError("Invalid download identity", code="invalid_task")
-            directory = owned(descend(root, [".hololab-tmp", tid]))
+            directory, area = checkpoint(root, tid)
+            owned(directory)
             lock = owned(
                 os.open(
                     "owner.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600, dir_fd=directory
@@ -46,6 +48,7 @@ async def remove_copy(worker, client, task):
                 raise TransferError(
                     "Download is still stopping; cleanup will retry", code="busy", retryable=True
                 ) from exc
+            assert_current(root, area, tid, directory)
             journal = read_journal(directory)
             if journal:
                 identity = journal["identity"]
@@ -58,7 +61,7 @@ async def remove_copy(worker, client, task):
                         code="ownership_conflict",
                     )
                 journals.append(journal)
-            temp_dirs.append(directory)
+            temp_dirs.append((directory, area, tid))
         try:
             before = os.stat(parts[-1], dir_fd=parent, follow_symlinks=False)
         except FileNotFoundError:
@@ -100,10 +103,6 @@ async def remove_copy(worker, client, task):
             os.fsync(parent)
         else:
             await worker.renew(client, task)
-        # Never recursively remove a caller-supplied path. Only known checkpoint files.
-        for directory in temp_dirs:
-            for name in ("payload.part", "state.json", "state.tmp"):
-                with contextlib.suppress(FileNotFoundError):
-                    os.unlink(name, dir_fd=directory)
-            os.fsync(directory)
+        for directory, area, tid in temp_dirs:
+            await io_work(discard, root, area, tid, directory)
     return {"status": "success", "confirmed_bytes": 0}

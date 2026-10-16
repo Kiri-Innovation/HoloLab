@@ -102,7 +102,7 @@ async def test_modified_or_unowned_files_refused(isolated, change):
         path.unlink()
         path.mkdir()
     else:
-        for journal in (root / "n1/.hololab-tmp").glob("*/state.json"):
+        for journal in (root / "n1/.hololab-receipts").glob("*/state.json"):
             journal.unlink()
     await delete(client, session["resource_id"])
     await worker(root).run_once(client)
@@ -126,7 +126,7 @@ async def test_active_download_is_fenced_and_busy_cleanup_waits(isolated):
     w = worker(root)
     # Real materialization journal and writer lock, before any receipt.
     await w.materialize(client, task)
-    directory = root / "n1/.hololab-tmp" / task["transfer_id"]
+    directory = root / "n1/.hololab-receipts" / task["transfer_id"]
     fd = os.open(directory / "owner.lock", os.O_RDWR)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
