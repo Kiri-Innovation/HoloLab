@@ -84,11 +84,10 @@
 .hl-compute-dock .hl-pulse-heading { display: none !important; }
 
 /* Node parameter sections flow together inside the dock content scroller. */
-.hl-inspector-summary, .hl-inspector-execution, .hl-inspector-package { flex-shrink: 0; min-width: 0; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.hl-inspector-summary, .hl-inspector-execution { flex-shrink: 0; min-width: 0; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
 .hl-inspector-description { flex-basis: 100%; margin: 0; font-size: var(--fs-xs); line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
 .hl-inspector-execution { padding-top: 14px; }
 .hl-inspector-execution .hl-compute-assignment { padding: 0; }
-.hl-inspector-package { padding-top: 14px; }
 .hl-inspector-parameters { flex: none; overflow: visible; padding-right: 4px; }
 
 .hl-inspector-description .hl-inspector-docs-toggle { display: inline; height: auto; min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--accent); font: inherit; font-size: inherit !important; line-height: inherit; white-space: nowrap; cursor: pointer; vertical-align: baseline; transition: none; }
@@ -98,3 +97,12 @@
 .hl-inspector-docs { flex-basis: 100%; min-width: 0; box-sizing: border-box; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface-alt); overflow: visible; font-size: var(--fs-xs); line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
 .hl-inspector-docs > div { font-size: inherit !important; }
 .hl-inspector-docs :is(h1,h2,h3,p,ul,ol,pre) { font-size: inherit !important; line-height: inherit !important; }
+
+/* Derived package metadata shares the parameter grid, without an editable input. */
+.hl-inspector-package-field [data-hl-open-source] {
+  min-width: 0; box-sizing: border-box; height: var(--control-h-sm);
+  background: var(--parameter-control-bg) !important;
+  border-color: var(--border-subtle) !important;
+  font-size: var(--fs-xs) !important;
+}
+.hl-inspector-package-field [data-hl-open-source]:hover { border-color: var(--border) !important; }

@@ -138,17 +138,17 @@ export function NodeInspector({
         <h3 style={SECTION_TITLE}>Run on</h3>
         {assignment}
       </section>}
-      <section className="hl-inspector-package" aria-label="Package">
-        <h3 style={SECTION_TITLE}>Package</h3>
-        <OpenSourceButton
-          pack={pack}
-          computeNode={packageComputeNode}
-          variant="row"
-          label="manifest.yaml"
-        />
-      </section>
       <div className="hl-inspector-parameters" role="region" aria-label="Parameters">
         <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Parameters</h3>
+        <div className="hl-inspector-field hl-inspector-package-field" style={FIELD}>
+          <ParameterLabel name="package" type="path" />
+          <OpenSourceButton
+            pack={pack}
+            computeNode={packageComputeNode}
+            variant="row"
+            label="manifest.yaml"
+          />
+        </div>
         {pack.arrayable && (
           <>
             <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Fan-out</h3>

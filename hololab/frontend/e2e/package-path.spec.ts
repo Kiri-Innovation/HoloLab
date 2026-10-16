@@ -29,27 +29,30 @@ for(const bridge of [false,true]) test(`package path keeps whole trailing segmen
  const panel=page.locator('.hl-node-inspector');
  const mode=panel.getByLabel('motion_mask_mode',{exact:true});
 
+ await expect(panel.getByRole('region',{name:'Package',exact:true})).toHaveCount(0);
+ await expect(panel.locator('.hl-inspector-field').first()).toContainText('package');
+ await expect(panel.locator('.hl-inspector-package-field .hl-parameter-type')).toHaveText('path');
  const row=panel.locator('[data-hl-open-source]');
  const label=row.locator('[data-hl-package-path] > span').first();
  await expect(label).toHaveText('…/manifest.yaml');
- await panel.getByRole('region',{name:'Package',exact:true}).evaluate(el=>(el as HTMLElement).style.width='410px');
- await expect(label).toHaveText('…/fastgs-silhouette-train@0.1.0/manifest.yaml');
- await panel.getByRole('region',{name:'Package',exact:true}).evaluate(el=>(el as HTMLElement).style.width='');
+ await panel.locator('.hl-inspector-package-field').evaluate(el=>(el as HTMLElement).style.width='680px');
+ await expect(label).toContainText('fastgs-silhouette-train@0.1.0/manifest.yaml');
+ await panel.locator('.hl-inspector-package-field').evaluate(el=>(el as HTMLElement).style.width='');
  await expect(row).toHaveAttribute('title',target);
  expect(await label.evaluate(el=>el.getBoundingClientRect().width<=el.parentElement!.clientWidth)).toBe(true);
  mkdirSync('/tmp/package-path',{recursive:true});
  for(const theme of ['light','dark']){
   await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.waitForTimeout(250);
-  await panel.getByRole('region',{name:'Package',exact:true}).screenshot({path:`/tmp/package-path/${bridge?'clickable':'readonly'}-${theme}.png`});
+  await panel.getByRole('region',{name:'Parameters',exact:true}).screenshot({path:`/tmp/package-path/${bridge?'clickable':'readonly'}-${theme}.png`});
  }
- await panel.getByRole('region',{name:'Package',exact:true}).evaluate(el=>(el as HTMLElement).style.width='150px');
+ await panel.locator('.hl-inspector-package-field').evaluate(el=>(el as HTMLElement).style.width='300px');
  await expect(label).toHaveText('…/manifest.yaml');
  expect(await label.evaluate(el=>el.getBoundingClientRect().width<=el.parentElement!.clientWidth)).toBe(true);
- await panel.getByRole('region',{name:'Package',exact:true}).screenshot({path:`/tmp/package-path/narrow-${bridge}.png`});
+ await panel.locator('.hl-inspector-package-field').screenshot({path:`/tmp/package-path/narrow-${bridge}.png`});
  if(bridge){
   await row.click();await expect.poll(()=>page.evaluate(()=>(window as any).__opened?.path)).toBe(target);
  } else {
-  await panel.getByRole('region',{name:'Package',exact:true}).evaluate(el=>(el as HTMLElement).style.width='');
+  await panel.locator('.hl-inspector-package-field').evaluate(el=>(el as HTMLElement).style.width='');
   await page.setViewportSize({width:390,height:700});await page.getByRole('tab',{name:'Inspect',exact:true}).click();
   await expect(label).toContainText('manifest.yaml');
   await page.screenshot({path:'/tmp/package-path/mobile.png'});
