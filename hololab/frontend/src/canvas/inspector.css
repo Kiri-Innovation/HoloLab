@@ -21,40 +21,35 @@
 .hl-compute-dock .hl-compute-panel { height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .hl-compute-dock .hl-node-metrics { flex: 1; min-height: 0; box-sizing: border-box; }
 
-/* Window tabs: the selected window shares the panel surface below it. */
+/* Window chrome sits behind the selected panel, in both themes. */
 .hl-dock-tabs {
+  --dock-tab-rail: var(--surface-alt);
   display: flex; flex-shrink: 0; flex-wrap: nowrap;
   height: var(--control-h-md); min-width: 0;
-  background: var(--surface-alt);
+  background: var(--dock-tab-rail);
 }
-.hl-dock-tabs::after { content: ""; flex: 1; border-bottom: 1px solid var(--border); }
+:root[data-theme="dark"] .hl-dock-tabs { --dock-tab-rail: var(--bg); }
+.hl-dock-tabs::after { content: ""; flex: 1; border-bottom: 1px solid var(--border-subtle); }
 .hl-dock-tabs [role=tab] {
-  position: relative; min-width: 0; flex: 0 1 auto; box-sizing: border-box;
-  padding: 0 var(--space-3); border: 0 !important; border-radius: 0;
-  /* Generic button hover must not redraw the window frame. */
-  box-shadow: inset 0 -1px var(--border);
-  background: var(--surface-alt); color: var(--text-muted);
+  position: relative; min-width: 0; flex: 0 1 calc(var(--space-8) * 2); box-sizing: border-box;
+  padding: 0 var(--space-4); border: 0 !important; border-radius: 0;
+  /* Frame strokes stay fixed; generic button hover cannot recolor them. */
+  box-shadow: inset -1px 0 var(--border-subtle), inset 0 -1px var(--border-subtle);
+  background: var(--dock-tab-rail); color: var(--text-muted);
   font: inherit; font-size: var(--fs-xs) !important; font-weight: var(--fw-regular);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-/* Separators belong to the dock frame, not to the button hover state. */
-.hl-dock-tabs [role=tab]::after {
-  content: ""; position: absolute; right: 0;
-  top: var(--space-2); bottom: var(--space-2); width: 1px;
-  background: var(--border); pointer-events: none;
-}
-/* Approach the content surface gently, without making hover look selected. */
+.hl-dock-tabs [role=tab]::after { content: none; }
 .hl-dock-tabs [role=tab]:not([aria-selected=true]):hover {
-  background: color-mix(in srgb, var(--surface-alt) 55%, var(--surface));
-  color: color-mix(in srgb, var(--text-muted) 60%, var(--text));
+  background: color-mix(in srgb, var(--dock-tab-rail) 50%, var(--surface));
+  color: var(--text);
 }
 .hl-dock-tabs [role=tab][aria-selected=true] {
   background: var(--surface); color: var(--text);
-  box-shadow: none;
+  box-shadow: inset 0 1px var(--border-strong), inset -1px 0 var(--border-subtle);
 }
-.hl-dock-tabs [role=tab][aria-selected=true]::after { display: none; }
 .hl-dock-tabs [role=tab]:focus-visible { outline: 1px solid var(--text-muted); outline-offset: -3px; }
 .hl-dock-panel { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .hl-dock-panel[hidden] { display: none; }
