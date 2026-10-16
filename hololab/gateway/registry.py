@@ -603,6 +603,7 @@ class NodeRegistry:
                         entry["params"] = {
                             n: {
                                 "type": s.type.value,
+                                "values": s.values,
                                 "default": s.default,
                                 "description": s.description,
                                 "optional": s.optional,

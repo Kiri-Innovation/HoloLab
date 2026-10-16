@@ -309,6 +309,37 @@ export function NodeInspector({
                 </div>
               );
             }
+            if (spec.type === "enum") {
+              const current = Object.prototype.hasOwnProperty.call(selected.params, name)
+                ? selected.params[name] : spec.default;
+              const values = spec.values ?? [];
+              const index = values.findIndex((value) => value === current);
+              const warningId = `enum-warning-${selected.id}-${name}`;
+              return (
+                <div key={name} className="hl-inspector-field" style={FIELD}>
+                  <ParameterLabel name={name} type={spec.type} optional={spec.optional} />
+                  {index >= 0 ? (
+                    <select aria-label={name} value={String(index)} style={{
+                      width: "100%", minWidth: 0, paddingRight: 24,
+                      // The compact parameter background resets the global select chevron.
+                      backgroundImage: "linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%)",
+                      backgroundPosition: "calc(100% - 14px) 50%, calc(100% - 9px) 50%",
+                      backgroundSize: "5px 5px, 5px 5px", backgroundRepeat: "no-repeat",
+                    }}
+                      onChange={(e) => onChange({ params: { ...selected.params, [name]: values[Number(e.target.value)] } })}>
+                      {values.map((value, optionIndex) => <option key={optionIndex} value={optionIndex}>{String(value)}</option>)}
+                    </select>
+                  ) : (
+                    <input aria-label={name} aria-describedby={warningId} value={String(current ?? "")}
+                      onChange={(e) => onChange({ params: { ...selected.params, [name]: e.target.value } })} />
+                  )}
+                  {index < 0 && <small id={warningId} style={{ gridColumn: "1 / -1", color: "var(--text-muted)" }}>
+                    {values.length ? "Current value is not in the available options." : "No enum options are declared; the current value is preserved."}
+                  </small>}
+                  {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
+                </div>
+              );
+            }
             const current =
               (selected.params[name] as string | number | boolean | undefined) ??
               (spec.default as string | number | boolean | undefined) ??
