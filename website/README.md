@@ -110,7 +110,7 @@ location / {
 
 This is a client-rendered static site: unknown page URLs display the app's 404
 view after the fallback, so the HTTP response remains 200 unless the hosting
-layer supplies route-aware 404 handling. It has no backend or product API proxy.
+layer supplies route-aware 404 handling. It has no embedded backend; Library requires the API proxy described below.
 Canonical links use the public domain. Route-specific HTML includes localized
 titles, descriptions, canonical/alternate links, and language metadata before JS runs. Server rendering and full-text search are not included in this batch.
 
@@ -122,3 +122,39 @@ With preview running, `PRODUCT_URL=http://<product-host>:8828 npm run test:visua
 performs a read-only Gallery comparison and writes local comparison boards. It
 blocks non-read HTTP requests and never opens an editable workflow. Reference
 screenshots and measured styles stay under ignored `test-results/visual/`.
+
+## Library API connection
+
+`/library` and `/zh-CN/library` use same-origin `/api` requests. The static bundle
+cannot connect itself to a Gateway: configure a reverse proxy at deployment.
+Do not send `/api` requests to the SPA fallback. Keep the deployment's existing
+access control on this route; the website does not add a separate login system.
+For example, add this inside the HTTPS server, with the correct Gateway address:
+
+```nginx
+location /api/ {
+    client_max_body_size 9m; # fixed upload parts are 8 MiB
+    proxy_pass http://127.0.0.1:8828;
+    proxy_read_timeout 300s; # completion verifies and assembles the whole file
+}
+```
+
+Development `npm run dev` proxies to `http://127.0.0.1:8828`; set
+`HOLOLAB_GATEWAY_URL` to change that target. The production preview is static and
+needs the same external API proxy for live uploads.
+
+Files are hashed incrementally in a Worker using hash-wasm (WebCrypto does not
+expose incremental digests). Individual 8 MiB chunks use WebCrypto SHA-256 and
+at most three PUT requests run concurrently, with files processed sequentially.
+No complete-file ArrayBuffer is allocated. On refresh, the server session
+survives but browser File objects do not: select the original file again. Size
+and full checksum must match before only missing parts are sent. Completed
+resources have no delete button until the backend supports resource deletion.
+The resource list currently inherits the backend's 1,000-resource limit.
+
+Run `npm run test:library` against the dev server for isolated, mocked API tests.
+For opt-in real acceptance, supply a synthetic video:
+`LIBRARY_TEST_VIDEO=/tmp/demo.mp4 node tests/library-live.mjs`.
+This creates a dedicated folder and a real resource; it never deletes existing
+resources. Screenshots and the returned resource ID are saved under
+`/tmp/hololab-library/`.

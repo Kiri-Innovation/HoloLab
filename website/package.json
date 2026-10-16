@@ -17,11 +17,13 @@
     "test:browser": "node tests/browser.mjs",
     "test:visual": "node tests/visual.mjs",
     "postbuild": "node scripts/localize-html.mjs",
-    "test:metadata": "node tests/metadata.mjs"
+    "test:metadata": "node tests/metadata.mjs",
+    "test:library": "node tests/library.mjs"
   },
   "dependencies": {
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "hash-wasm": "4.12.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.10",

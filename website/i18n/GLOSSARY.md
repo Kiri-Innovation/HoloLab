@@ -4,6 +4,7 @@ English is the editorial source. Update the English document first, then its com
 
 | English | Chinese | Usage |
 | --- | --- | --- |
+| Library | 资源库 | Files registered for distribution to compute nodes |
 | Workflow | 工作流 | A graph edited on the canvas |
 | Node / graph node | 节点 / 画布节点 | An algorithm step, not a compute device |
 | Compute node | 计算设备 | The machine running tasks |
