@@ -4,6 +4,7 @@ import { useId, useState, useRef, useEffect, useLayoutEffect, type ReactNode, ty
 import { createPortal } from "react-dom";
 import type { CatalogPack, GraphNode } from "../wire";
 import { MarkdownView } from "../ui/MarkdownView";
+import { EnumSelect } from "./EnumSelect";
 import { PathInput } from "./PathInput";
 import type { ComputeNode } from "../wire";
 import { DimListEditor } from "./DimListEditor";
@@ -319,16 +320,8 @@ export function NodeInspector({
                 <div key={name} className="hl-inspector-field" style={FIELD}>
                   <ParameterLabel name={name} type={spec.type} optional={spec.optional} />
                   {index >= 0 ? (
-                    <select aria-label={name} value={String(index)} style={{
-                      width: "100%", minWidth: 0, paddingRight: 24,
-                      // The compact parameter background resets the global select chevron.
-                      backgroundImage: "linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%)",
-                      backgroundPosition: "calc(100% - 14px) 50%, calc(100% - 9px) 50%",
-                      backgroundSize: "5px 5px, 5px 5px", backgroundRepeat: "no-repeat",
-                    }}
-                      onChange={(e) => onChange({ params: { ...selected.params, [name]: values[Number(e.target.value)] } })}>
-                      {values.map((value, optionIndex) => <option key={optionIndex} value={optionIndex}>{String(value)}</option>)}
-                    </select>
+                    <EnumSelect key={`${selected.id}:${name}`} name={name} values={values} index={index}
+                      onChange={(value) => onChange({ params: { ...selected.params, [name]: value } })} />
                   ) : (
                     <input aria-label={name} aria-describedby={warningId} value={String(current ?? "")}
                       onChange={(e) => onChange({ params: { ...selected.params, [name]: e.target.value } })} />

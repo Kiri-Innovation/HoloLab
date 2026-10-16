@@ -1,0 +1,23 @@
+.hl-inspector-field .hl-enum-select {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  width: 100%; min-width: 0; height: var(--control-h-sm); padding: 0 6px;
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
+  background: var(--parameter-control-bg); color: var(--text-body);
+  font: inherit; font-size: var(--fs-xs); text-align: left; cursor: pointer;
+}
+.hl-enum-select > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hl-inspector-field .hl-enum-select:hover { background: var(--parameter-control-bg); border-color: var(--border); }
+.hl-inspector-field .hl-enum-select:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 1px; }
+.hl-enum-options {
+  position: fixed; z-index: 12000; box-sizing: border-box; padding: 3px;
+  overflow-y: auto; overscroll-behavior: contain;
+  background: var(--overlay); color: var(--text-body); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-2); font-size: var(--fs-xs);
+}
+.hl-enum-options [role=option] {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr); align-items: center;
+  gap: 4px; height: 28px; padding: 0 4px; cursor: pointer;
+}
+.hl-enum-options [role=option] > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hl-enum-options [role=option][aria-selected=true] { font-weight: var(--fw-medium); }
+.hl-enum-options [role=option][data-active=true] { background: var(--surface-hover); }
