@@ -29,6 +29,28 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
   const [rect, setRect] = useState<{ left: number; top?: number; bottom?: number; width: number; maxHeight: number }>({ left: 0, top: 0, width: 300, maxHeight: 280 });
   const [open, setOpen] = useState(false);
   const [location, setLocation] = useState("/");
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [favoriteError, setFavoriteError] = useState("");
+  const favoriteKey = nodeId ? `hololab.path-favorites.v1:${encodeURIComponent(nodeId)}` : null;
+  useEffect(() => {
+    setFavoriteError("");
+    try {
+      const stored: unknown = JSON.parse(localStorage.getItem(favoriteKey ?? "") ?? "[]");
+      setFavorites(Array.isArray(stored) ? [...new Set(stored.filter((p): p is string => typeof p === "string" && p.startsWith("/")))].slice(0, 20) : []);
+    } catch { setFavorites([]); }
+  }, [favoriteKey, open]);
+  function saveFavorites(next: string[]) {
+    try {
+      if (!favoriteKey) return;
+      localStorage.setItem(favoriteKey, JSON.stringify(next));
+      setFavorites(next); setFavoriteError("");
+    } catch { setFavoriteError("Could not save favorites in this browser."); }
+  }
+  const favoritePath = location || "/";
+  const isFavorite = favorites.includes(favoritePath);
+  function toggleFavorite() {
+    saveFavorites(isFavorite ? favorites.filter(p => p !== favoritePath) : [favoritePath, ...favorites].slice(0, 20));
+  }
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<Page | null>(null);
   const [selected, setSelected] = useState(-1);
@@ -130,16 +152,18 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
     </div>, document.body)}
     {createPortal(<dialog ref={dialog} className="hl-path-dialog" aria-labelledby={`${id}-title`} onCancel={() => setOpen(false)} onClose={() => setOpen(false)}>
       <header><h3 id={`${id}-title`}>Browse compute node · {name}</h3><button type="button" aria-label="Close path browser" onClick={() => setOpen(false)}>×</button></header>
-      <div><label htmlFor={`${id}-location`}>Location</label><div className="hl-path-field"><input id={`${id}-location`} value={location} aria-controls={`${id}-entries`} aria-activedescendant={chosen ? `${id}-entry-${selected}` : undefined} onChange={e => { setLocation(e.target.value); setOffset(0); setSelected(-1); }} onKeyDown={e => entryKeys(e, true)} /></div></div>
+      <div><label htmlFor={`${id}-location`}>Location</label><div className="hl-path-field"><input id={`${id}-location`} value={location} aria-controls={`${id}-entries`} aria-activedescendant={chosen ? `${id}-entry-${selected}` : undefined} onChange={e => { setLocation(e.target.value); setOffset(0); setSelected(-1); }} onKeyDown={e => entryKeys(e, true)} /><button type="button" className="hl-path-favorite-toggle" aria-label={isFavorite ? "Remove current path from favorites" : "Favorite current path"} aria-pressed={isFavorite} disabled={!nodeId || !favoritePath.startsWith("/")} onClick={toggleFavorite}><span aria-hidden="true">{isFavorite ? "★" : "☆"}</span></button></div></div>
+      {favorites.length > 0 && <div className="hl-path-favorites" role="group" aria-label="Favorite paths">{favorites.map(path => <span className="hl-path-favorite" key={path}><button type="button" title={path} onClick={() => { setLocation(path); setOffset(0); setSelected(-1); }}>{path}</button><button type="button" aria-label={`Remove favorite ${path}`} onClick={() => saveFavorites(favorites.filter(p => p !== path))}>×</button></span>)}</div>}
+      {favoriteError && <p role="status" className="hl-path-hint">{favoriteError}</p>}
       <nav aria-label="Path breadcrumbs"><button type="button" onClick={() => navigate("/")}>/</button>{crumbs.map((part, i) => <button type="button" key={i} onClick={() => navigate("/" + crumbs.slice(0, i + 1).join("/"))}>{part} /</button>)}</nav>
-      <p className="hl-path-hint">Files are on the selected compute node. Double-click a folder to open it. ↗ indicates a symlink.</p>
-      {error && <p role="alert">{error}</p>}
       <div ref={listbox} id={`${id}-entries`} className="hl-path-list" role="listbox" aria-label="Directory entries" aria-busy={busy} tabIndex={0} aria-activedescendant={chosen ? `${id}-entry-${selected}` : undefined} onKeyDown={e => entryKeys(e)}>
+        {error && <p role="alert">{error}</p>}
         {busy && <p role="status">Loading…</p>}
         {!busy && page?.entries.length === 0 && <p>No entries in this page.</p>}
         {page?.entries.map((entry, index) => <div role="option" id={`${id}-entry-${index}`} aria-selected={index === selected} aria-disabled={!valid(entry) && entry.kind !== "directory"} key={entry.path} className="hl-path-entry" onClick={() => { setSelected(index); listbox.current?.focus(); }} onDoubleClick={() => entry.kind === "directory" ? navigate(entry.path) : choose(entry)}><span>{entry.kind === "directory" ? "▸ " : ""}{entry.name}{entry.symlink ? " ↗" : ""}</span><small>{entry.kind}</small><small>{entry.kind === "file" && entry.size !== null ? `${entry.size.toLocaleString()} B` : "—"}</small><small>{entry.modified_ts ? new Date(entry.modified_ts * 1000).toLocaleString() : "—"}</small></div>)}
       </div>
       <div className="hl-path-pages"><button type="button" disabled={!offset || busy} onClick={() => setOffset(0)}>First page</button><button type="button" disabled={page?.next_offset == null || busy} onClick={() => setOffset(page!.next_offset!)}>Next page</button></div>
+      <p className="hl-path-hint">Files are on the selected compute node. Double-click a folder to open it. ↗ indicates a symlink.</p>
       <footer><span>{chosen?.name ?? "Select an entry"}</span><button type="button" onClick={() => setOpen(false)}>Cancel</button>{pathKind !== "file" && <button type="button" disabled={!page || busy} onClick={() => { onChange(page!.path); setOpen(false); }}>Use this directory</button>}<button type="button" className="hl-button hl-button--primary" disabled={!chosen || !valid(chosen) || busy} onClick={() => chosen && choose(chosen)}>Select</button></footer>
     </dialog>, document.body)}
   </div>;
