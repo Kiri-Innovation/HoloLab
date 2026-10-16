@@ -124,14 +124,16 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  await expect(sidebar.getByRole('textbox',{name:'threshold',exact:true})).toHaveValue('25');
  await sidebar.getByLabel('Assigned node').selectOption('');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.assigned_node_id).toBe(null);
  await sidebar.getByLabel('Assigned node').selectOption('compute-a');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.assigned_node_id).toBe('compute-a');
- await sidebar.getByRole('button',{name:'About',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Parameter documentation');await page.keyboard.press('Escape');
+ await expect(sidebar.getByRole('button',{name:'About',exact:true})).toHaveCount(0);
+ await expect(sidebar.getByRole('button',{name:'Delete node',exact:true})).toHaveCount(0);
+ await expect(sidebar.getByRole('region',{name:'Pack documentation'})).toContainText('Parameter documentation');
  await page.setViewportSize({width:390,height:844});
  await page.getByRole('tab',{name:'Inspect',exact:true}).click();
  await expect(page.getByRole('region',{name:'Node overview'})).toContainText(pack.description);
  await expect(page.getByRole('region',{name:'Run on'}).getByLabel('Assigned node')).toBeVisible();
  await page.screenshot({path:`${output}/sections-mobile.png`});
  await page.setViewportSize({width:1440,height:1000});
- await sidebar.getByRole('button',{name:'Delete node',exact:true}).click();await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0); await expect(node).toHaveCount(0);await expect(runsTab).toHaveAttribute('aria-selected','true');await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0);
+ await node.click(); await page.keyboard.press('Delete');await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0); await expect(node).toHaveCount(0);await expect(runsTab).toHaveAttribute('aria-selected','true');await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0);
  await sidebar.getByRole('tab',{name:'Runs',exact:true}).click();
  const previousReads=runReads;
  await sidebar.getByRole('tabpanel',{name:'Runs',exact:true}).getByRole('button',{name:'刷新',exact:true}).click();

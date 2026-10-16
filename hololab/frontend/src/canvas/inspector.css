@@ -69,3 +69,7 @@
 @media (max-width: 660px) {
   .hl-mobile-inspector .hl-inspector-parameters { flex: none; overflow: visible; }
 }
+
+.hl-inspector-docs { flex-basis: 100%; min-width: 0; max-height: 3em; overflow: auto; font-size: var(--fs-xs); line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
+.hl-inspector-docs > div { font-size: inherit !important; }
+.hl-inspector-docs :is(h1,h2,h3,p,ul,ol,pre) { margin: 0 !important; font-size: inherit !important; line-height: inherit !important; }

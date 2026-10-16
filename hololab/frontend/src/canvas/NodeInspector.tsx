@@ -1,9 +1,8 @@
 // Compact right-sidebar parameter editor. Changes use the existing draft autosave.
 
-import { useState, type ReactNode, type CSSProperties } from "react";
+import { type ReactNode, type CSSProperties } from "react";
 import type { CatalogPack, GraphNode } from "../wire";
 import { MarkdownView } from "../ui/MarkdownView";
-import { Modal } from "../ui/Modal";
 import { PathInput } from "./PathInput";
 import type { ComputeNode } from "../wire";
 import { DimListEditor } from "./DimListEditor";
@@ -13,7 +12,6 @@ export interface NodeInspectorProps {
   pack: CatalogPack | null;
   computeNodesById?: Record<string, ComputeNode>;
   onChange: (patch: Partial<GraphNode>) => void;
-  onDelete: () => void;
   assignment?: ReactNode;
 }
 
@@ -61,10 +59,8 @@ export function NodeInspector({
   pack,
   computeNodesById,
   onChange,
-  onDelete,
   assignment,
 }: NodeInspectorProps) {
-  const [docsOpen, setDocsOpen] = useState(false);
 
   if (!selected || !pack) {
     return (
@@ -140,54 +136,7 @@ export function NodeInspector({
             </div>
           </div>
           {pack.description?.trim() && <p className="hl-inspector-description">{pack.description}</p>}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            {hasDocs && (
-              <button
-                type="button"
-                onClick={() => setDocsOpen(true)}
-                data-tooltip="查看文档" aria-label="About" aria-description="Show pack docs"
-                style={{
-                  background: "transparent",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-muted)",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  padding: "4px 8px",
-                  borderRadius: "var(--radius-sm)",
-                  cursor: "pointer",
-                }}
-              >
-                About
-              </button>
-            )}
-            <button
-              onClick={onDelete}
-              style={{
-                background: "transparent",
-                border: "1px solid var(--border)",
-                color: "var(--error)",
-                fontSize: "var(--fs-xs)",
-                fontWeight: 500,
-                padding: "4px 10px",
-                borderRadius: "var(--radius-sm)",
-                cursor: "pointer",
-                transition:
-                  "background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--error-soft)";
-                e.currentTarget.style.borderColor = "var(--error)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.borderColor = "var(--border)";
-              }}
-            >
-              Delete node
-            </button>
-          </div>
+          {hasDocs && pack.docs!.trim() !== pack.description?.trim() && <div className="hl-inspector-docs" role="region" aria-label="Pack documentation" tabIndex={0}><MarkdownView source={pack.docs!} /></div>}
         </div>
 
       </section>
@@ -415,15 +364,7 @@ export function NodeInspector({
         )}
       </div>
 
-      {hasDocs && (
-        <Modal
-          open={docsOpen}
-          onClose={() => setDocsOpen(false)}
-          title={`About · ${pack.name}@${pack.version}`}
-        >
-          <MarkdownView source={pack.docs!} />
-        </Modal>
-      )}
+
     </div>
   );
 }

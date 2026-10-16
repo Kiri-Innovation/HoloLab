@@ -1747,11 +1747,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     [selectedNode, setNodes],
   );
 
-  const onInspectorDelete = useCallback(() => {
-    if (!selectedNode) return;
-    onNodesDelete([selectedNode]);
-  }, [selectedNode, onNodesDelete]);
-
   // --- click a Jobs row → select the corresponding canvas node --------
   const onSelectGraphNode = useCallback(
     (graphNodeId: string) => {
@@ -2822,7 +2817,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       }
       pack={selectedAlgorithmData?.pack ?? null}
       onChange={onInspectorChange}
-      onDelete={onInspectorDelete}
     />
   );
 
