@@ -1,6 +1,7 @@
 // Compact right-sidebar parameter editor. Changes use the existing draft autosave.
 
-import { useId, useState, type ReactNode, type CSSProperties } from "react";
+import { useId, useState, useRef, useEffect, useLayoutEffect, type ReactNode, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import type { CatalogPack, GraphNode } from "../wire";
 import { MarkdownView } from "../ui/MarkdownView";
 import { PathInput } from "./PathInput";
@@ -137,7 +138,7 @@ export function NodeInspector({
             <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Fan-out</h3>
             <div className="hl-inspector-field" style={FIELD}>
               <label className="hl-inspector-toggle-label">
-                <span>并行处理数组输入</span>
+                <span>并行处理数组输入 <span className="hl-parameter-type">bool</span></span>
                 <input
                   type="checkbox"
                   data-hl-arrayed-toggle=""
@@ -146,16 +147,16 @@ export function NodeInspector({
                   style={{ marginTop: 2 }}
                 />
               </label>
-                  <details className="hl-field-help"><summary aria-label="How fan-out works" title="How fan-out works">?</summary><div style={{ ...HINT, marginTop: 2 }}>
+                  <ParameterHelp name="Fan-out">
                     勾选后此节点的输入/输出端口变为 <code>arrayed&lt;T&gt;</code>；
                     运行时框架对每个数组元素起一个 sub-job，
                     产物聚合在 <code>{"{parent}/{port}/{element_id}/"}</code>。
-                  </div></details>
+                  </ParameterHelp>
             </div>
             {selected.arrayed_toggle ? (
               <div className="hl-inspector-field hl-inspector-field--nested" style={FIELD}>
                 <div style={LABEL}>
-                  <span>并行执行数</span>
+                  <span>并行执行数</span><span className="hl-parameter-type">int</span>
                 </div>
                 <input
                   type="number"
@@ -178,17 +179,17 @@ export function NodeInspector({
                     textAlign: "left",
                   }}
                 />
-                <details className="hl-field-help"><summary aria-label="Structural parameter help" title="Help">?</summary><div style={{ ...HINT, marginTop: 4 }}>
+                <ParameterHelp name="parallelism">
                   同时派发的 shard 上限（1–8，默认 1 = 串行）。
                   实际并发 = min(本值, 节点守护进程 <code>max_concurrent_jobs</code>)。
                   改动会 Fork 新的快照。
-                </div></details>
+                </ParameterHelp>
               </div>
             ) : null}
             {selected.arrayed_toggle ? (
               <div className="hl-inspector-field hl-inspector-field--nested" style={FIELD}>
                 <div style={LABEL}>
-                  <span>批处理大小</span>
+                  <span>批处理大小</span><span className="hl-parameter-type">int</span>
                 </div>
                 <input
                   type="number"
@@ -210,12 +211,12 @@ export function NodeInspector({
                     textAlign: "left",
                   }}
                 />
-                <details className="hl-field-help"><summary aria-label="Structural parameter help" title="Help">?</summary><div style={{ ...HINT, marginTop: 4 }}>
+                <ParameterHelp name="batch_size">
                   每个 shard 子进程处理的数组元素数（默认 1 = 每元素一个 job）。
                   <code>N</code> 元素 + <code>batch_size=B</code> ⇒ <code>ceil(N/B)</code> 个 shard；
                   批内任一元素失败即整批失败（<code>set -euo pipefail</code>）。
                   改动会 Fork 新的快照。
-                </div></details>
+                </ParameterHelp>
               </div>
             ) : null}
           </>
@@ -229,13 +230,13 @@ export function NodeInspector({
           Object.entries(pack.params).map(([name, spec]) => {
             if (spec.type === "path") {
               return <div key={name} className="hl-inspector-field" style={FIELD}>
-                <div style={LABEL} title={`${name} · path`}><code>{name}</code></div>
+                <ParameterLabel name={name} type={spec.type} optional={spec.optional} />
                 <PathInput key={`${selected.id}:${name}:${selected.assigned_node_id}`} name={name}
                   value={String(selected.params[name] ?? spec.default ?? "")}
                   nodeId={selected.assigned_node_id ?? null} pathKind={spec.path_kind}
                   initialDirectory={computeNodesById?.[selected.assigned_node_id ?? ""]?.workspace_root ?? "/"}
                   onChange={value => onChange({ params: { ...selected.params, [name]: value } })} />
-                {spec.description && <details className="hl-field-help"><summary aria-label={`Help for ${name}`} title={`Help for ${name}`}>?</summary><div style={HINT}>{spec.description}</div></details>}
+                {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
               </div>;
             }
             // list[str] gets the DimListEditor: pack authors mark ordered-
@@ -277,7 +278,7 @@ export function NodeInspector({
                   : undefined;
               return (
                 <div key={name} className="hl-inspector-field" style={FIELD}>
-                  <div style={LABEL} title={`${name} · ${spec.type}${spec.optional ? " · optional" : ""}`}><code>{name}</code></div>
+                  <ParameterLabel name={name} type={spec.type} optional={spec.optional} />
                   <DimListEditor
                     value={arr}
                     onChange={(next) =>
@@ -289,7 +290,7 @@ export function NodeInspector({
                     ariaName={name}
                     placeholder="dim label"
                   />
-                  {spec.description && <details className="hl-field-help"><summary aria-label={`Help for ${name}`} title={`Help for ${name}`}>?</summary><div style={HINT}>{spec.description}</div></details>}
+                  {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
                 </div>
               );
             }
@@ -300,7 +301,7 @@ export function NodeInspector({
             const isNumeric = spec.type === "int" || spec.type === "float";
             return (
               <div key={name} className="hl-inspector-field" style={FIELD}>
-                <div style={LABEL} title={`${name} · ${spec.type}${spec.optional ? " · optional" : ""}`}><code>{name}</code></div>
+                <ParameterLabel name={name} type={spec.type} optional={spec.optional} />
                 <input
                   aria-label={name}
                   value={String(current)}
@@ -319,7 +320,7 @@ export function NodeInspector({
                     textAlign: "left",
                   }}
                 />
-                {spec.description && <details className="hl-field-help"><summary aria-label={`Help for ${name}`} title={`Help for ${name}`}>?</summary><div style={HINT}>{spec.description}</div></details>}
+                {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
               </div>
             );
           })
@@ -329,6 +330,75 @@ export function NodeInspector({
 
     </div>
   );
+}
+
+function ParameterLabel({ name, type, optional }: { name: string; type: string; optional?: boolean }) {
+  return <div style={LABEL} title={`${name}${optional ? " · optional" : ""}`}>
+    <code>{name}</code><span className="hl-parameter-type" title={type}>{type}</span>
+  </div>;
+}
+
+function ParameterHelp({ name, children }: { name: string; children: ReactNode }) {
+  const id = useId();
+  const anchor = useRef<HTMLButtonElement>(null);
+  const card = useRef<HTMLDivElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<CSSProperties>({ visibility: "hidden" });
+  const cancelTimer = () => clearTimeout(timer.current);
+  const close = () => { cancelTimer(); setOpen(false); };
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+  useLayoutEffect(() => {
+    if (!open || !anchor.current || !card.current) return;
+    const place = () => {
+      if (!anchor.current || !card.current) return;
+      const row = anchor.current.closest(".hl-inspector-field")!.getBoundingClientRect();
+      const visibleArea = anchor.current.closest(".hl-inspector-parameters")!.getBoundingClientRect();
+      if (!row.width || row.bottom < Math.max(0, visibleArea.top) || row.top > Math.min(window.innerHeight, visibleArea.bottom)) {
+        setOpen(false);
+        return;
+      }
+      const panel = anchor.current.closest(".hl-node-inspector")!.getBoundingClientRect();
+      const bubble = card.current.getBoundingClientRect();
+      const edge = 8;
+      const viewportWidth = document.documentElement.clientWidth;
+      const viewportHeight = window.innerHeight;
+      let left = panel.left - bubble.width - edge;
+      let top = row.top;
+      if (left < edge) {
+        left = panel.right + edge;
+        if (left + bubble.width > viewportWidth - edge) {
+          left = Math.max(edge, Math.min(row.left, viewportWidth - bubble.width - edge));
+          top = row.bottom + edge;
+        }
+      }
+      top = Math.max(edge, Math.min(top, viewportHeight - bubble.height - edge));
+      setPosition({ left, top, visibility: "visible" });
+    };
+    place();
+    const dismiss = () => { clearTimeout(timer.current); setOpen(false); };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") dismiss(); };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, children]);
+
+  return <>
+    <button ref={anchor} type="button" className="hl-parameter-help"
+      aria-label={`Help for ${name}`} aria-describedby={open ? id : undefined}
+      onPointerEnter={() => { cancelTimer(); timer.current = setTimeout(() => setOpen(true), 150); }}
+      onPointerLeave={close}
+      onFocus={() => { cancelTimer(); setOpen(true); }} onBlur={close}
+    >?</button>
+    {open && createPortal(<div ref={card} id={id} role="tooltip"
+      className="hl-parameter-tooltip" style={position}>{children}</div>, document.body)}
+  </>;
 }
 
 function PackDescription({ pack }: { pack: CatalogPack }) {
