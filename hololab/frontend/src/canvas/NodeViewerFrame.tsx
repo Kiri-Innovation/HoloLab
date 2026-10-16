@@ -8,6 +8,13 @@ export interface LiveViewerFrame {
   node_id: string | null;
 }
 
+// A pack viewer may request its natural content height via postMessage. Keep
+// enough room for a useful diagnostic/dashboard while preventing a malformed
+// or overly ambitious pack asset from making a canvas node unbounded.
+const DEFAULT_VIEWER_HEIGHT = 336;
+const MIN_VIEWER_HEIGHT = 160;
+const MAX_VIEWER_HEIGHT = 520;
+
 /** A pack-owned iframe. It is a style/isolation boundary, not a sandbox for
  * mutually-hostile code: packs execute on the trusted developer node. */
 export function NodeViewerFrame({
@@ -33,6 +40,7 @@ export function NodeViewerFrame({
   const [loaded, setLoaded] = useState(false);
   const [assetError, setAssetError] = useState<string | null>(null);
   const [historyFrames, setHistoryFrames] = useState<LiveViewerFrame[]>([]);
+  const [viewerHeight, setViewerHeight] = useState(DEFAULT_VIEWER_HEIGHT);
   const nodeId = (frames.length ? frames[frames.length - 1].node_id : null)
     ?? historyTarget?.node_id
     ?? assignedNodeId;
@@ -55,6 +63,28 @@ export function NodeViewerFrame({
       });
     return () => controller.abort();
   }, [src]);
+
+  useEffect(() => {
+    setViewerHeight(DEFAULT_VIEWER_HEIGHT);
+  }, [src]);
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      const iframe = iframeRef.current;
+      if (
+        !iframe
+        || event.origin !== window.location.origin
+        || event.source !== iframe.contentWindow
+        || event.data?.type !== "hololab-viewer-resize"
+        || event.data?.viewer_id !== viewer.id
+      ) return;
+      const requested = Number(event.data.height);
+      if (!Number.isFinite(requested)) return;
+      setViewerHeight(Math.min(MAX_VIEWER_HEIGHT, Math.max(MIN_VIEWER_HEIGHT, Math.ceil(requested))));
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [viewer.id]);
 
   useEffect(() => {
     if (!historyTarget) {
@@ -153,7 +183,7 @@ export function NodeViewerFrame({
       title={viewer.title ?? viewer.id}
       sandbox="allow-scripts allow-same-origin"
       onLoad={() => setLoaded(true)}
-      style={{ width: "100%", height: 336, border: 0, display: "block", background: "#101216" }}
+      style={{ width: "100%", height: viewerHeight, border: 0, display: "block", background: "#101216" }}
     />
   );
 }
