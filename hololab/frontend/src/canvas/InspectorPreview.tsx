@@ -5,7 +5,7 @@ import { NodePreviews, useNodePreviewSelection } from "./NodePreviews";
 export function InspectorPreview({ data }: { data: AlgorithmNodeData }) {
   const selection = useNodePreviewSelection(data, true);
   return <section className="hl-inspector-preview" aria-label="Preview">
-    <h3>Preview</h3>
+    <h3>RECENT RUN</h3>
     <div className="hl-inspector-preview-body">
       <NodePreviews data={{ ...data, readOnly: true }} selection={selection} inspector />
     </div>
