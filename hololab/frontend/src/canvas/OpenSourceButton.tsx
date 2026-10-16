@@ -131,6 +131,15 @@ function normalisePath(path: string): string {
   return (isAbsolute ? "/" : "") + stack.join("/");
 }
 
+/** Keep a long absolute path recognisable in a one-line inspector row.
+ * The leading workspace root and final pack/file pair carry the useful
+ * identity; the complete target remains available through ``title``. */
+function middleEllipsizePath(path: string): string {
+  const parts = path.split("/").filter(Boolean);
+  if (parts.length <= 4) return path;
+  return `/${parts[0]}/…/${parts.slice(-2).join("/")}`;
+}
+
 /** Plain-click target: the pack's manifest.yaml.
  *
  *  Prefers the node-reported ``pack.manifest_path`` (authoritative under
@@ -199,6 +208,11 @@ export function OpenSourceButton({
     return () => window.clearTimeout(t);
   }, [showGuide]);
 
+  const packsDir = computeNode?.packs_dir ?? null;
+  const manifestTarget = resolveManifestTarget(pack, packsDir);
+  const rowPath = manifestTarget ?? label;
+  const rowLabel = middleEllipsizePath(rowPath);
+
   // The compact header affordance stays absent when Cocoder integration is
   // unavailable, preserving its established layout. The inspector metadata
   // row must still identify the package's configuration file, however.
@@ -207,8 +221,8 @@ export function OpenSourceButton({
     return (
       <span
         data-hl-open-source=""
-        aria-label={`${label}（Cocoder 不可用）`}
-        title="Cocoder 不可用"
+        aria-label={`${rowPath}（Cocoder 不可用）`}
+        title={rowPath}
         style={{
           display: "block",
           height: "var(--control-h-sm)",
@@ -219,18 +233,19 @@ export function OpenSourceButton({
           color: "var(--text-muted)",
           fontFamily: "var(--font-mono)",
           fontSize: "var(--fs-sm)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
-        {label}
+        {rowLabel}
       </span>
     );
   }
 
   const deviceId = computeNode?.flops_executor_id ?? null;
   const configured = !!deviceId && deviceId.trim().length > 0;
-  const packsDir = computeNode?.packs_dir ?? null;
   const nodeLabel = computeNode?.node_name ?? "this node";
-  const manifestTarget = resolveManifestTarget(pack, packsDir);
   const codeTarget = resolveCodeTarget(pack, packsDir);
   const hasSourceEntry = !!pack.source_entry;
 
@@ -308,9 +323,10 @@ export function OpenSourceButton({
         type="button"
         onClick={onClick}
         disabled={status.kind === "loading"}
-        data-tooltip={status.kind === "err" ? status.msg : variant === "row" ? `打开 ${label}` : "查看代码"}
-        aria-label={variant === "row" ? `打开 ${label}` : "查看代码"}
+        data-tooltip={status.kind === "err" ? status.msg : variant === "row" ? `打开 ${rowPath}` : "查看代码"}
+        aria-label={variant === "row" ? `打开 ${rowPath}` : "查看代码"}
         aria-description={title}
+        title={variant === "row" ? rowPath : undefined}
         data-hl-open-source=""
         data-hl-configured={configured ? "1" : "0"}
         data-hl-source-has-entry={hasSourceEntry ? "1" : "0"}
@@ -329,6 +345,9 @@ export function OpenSourceButton({
           fontSize: "var(--fs-sm)",
           fontFamily: variant === "row" ? "var(--font-mono)" : undefined,
           lineHeight: 1,
+          whiteSpace: variant === "row" ? "nowrap" : undefined,
+          overflow: variant === "row" ? "hidden" : undefined,
+          textOverflow: variant === "row" ? "ellipsis" : undefined,
           transition:
             "background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease)",
         }}
@@ -340,7 +359,7 @@ export function OpenSourceButton({
         ) : status.kind === "err" ? (
           "!"
         ) : variant === "row" ? (
-          label
+          rowLabel
         ) : (
           <CodeGlyph colour={colour} />
         )}
