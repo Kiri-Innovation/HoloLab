@@ -32,12 +32,17 @@
   min-width: 0; flex: 0 1 auto; box-sizing: border-box;
   padding: 0 var(--space-3); border: 0; border-radius: 0;
   border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
-  background: transparent; color: var(--text-muted);
+  background: var(--surface-alt); color: var(--text-muted);
   font: inherit; font-size: var(--fs-xs) !important; font-weight: var(--fw-regular);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-.hl-dock-tabs [role=tab]:hover { background: var(--surface-hover); color: var(--text); }
+/* Approach the content surface gently, without making hover look selected. */
+.hl-dock-tabs [role=tab]:not([aria-selected=true]):hover {
+  background: color-mix(in srgb, var(--surface-alt) 55%, var(--surface));
+  color: color-mix(in srgb, var(--text-muted) 60%, var(--text));
+}
 .hl-dock-tabs [role=tab][aria-selected=true] {
   background: var(--surface); color: var(--text);
   border-bottom-color: transparent;
