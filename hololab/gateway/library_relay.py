@@ -208,3 +208,26 @@ async def complete(
             return await lib.complete(session["upload_id"])
         except OSError as exc:
             raise HTTPException(507, f"Relay assembly error: {exc.strerror}") from exc
+
+
+async def restart_abandoned_upload(conn, lib, task):
+    """Manual retry reacquires quota after a failed relay's abandoned parts expired."""
+    async with conn.execute(
+        "SELECT state,expected_size FROM library_upload_sessions WHERE upload_id=?",
+        (task["source_ref"],),
+    ) as cur:
+        state, size = await cur.fetchone()
+    if state == "cancelling":
+        raise HTTPException(409, "Abandoned relay cleanup is still in progress; retry shortly")
+    if state != "cancelled":
+        return
+    async with conn.execute(
+        "SELECT COALESCE(SUM(reserved_bytes),0) FROM library_upload_sessions"
+    ) as cur:
+        used = (await cur.fetchone())[0]
+    if size > lib.config.max_file_bytes or used + size * 2 > lib.config.staging_quota_bytes:
+        raise HTTPException(507, "Not enough staging quota to restart the relay upload")
+    await conn.execute(
+        "UPDATE library_upload_sessions SET state='uploading',reserved_bytes=?,last_error=NULL,last_activity_ts=? WHERE upload_id=?",
+        (size * 2, time.time(), task["source_ref"]),
+    )

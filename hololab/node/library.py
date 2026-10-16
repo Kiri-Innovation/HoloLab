@@ -134,12 +134,19 @@ class LibraryWorker:
         self.received_bytes = 0
         self.ranges: list[tuple[int, int]] = []
 
+    def task_prefix(self, task):
+        return (
+            self.prefix.replace("/transfers", "/deletions")
+            if task.get("action") == "delete"
+            else self.prefix
+        )
+
     def headers(self, task: dict) -> dict:
         return {**self.auth, "X-Transfer-Lease": task["lease_token"]}
 
     async def renew(self, client: httpx.AsyncClient, task: dict):
         response = await client.post(
-            self.base + self.prefix + f"/{task['transfer_id']}/heartbeat",
+            self.base + self.task_prefix(task) + f"/{task['transfer_id']}/heartbeat",
             headers=self.headers(task),
             json={"confirmed_bytes": self.confirmed_bytes},
         )
@@ -403,9 +410,20 @@ class LibraryWorker:
         }
 
     async def run_once(self, client: httpx.AsyncClient) -> bool:
-        response = await client.post(self.base + self.prefix + "/claim", headers=self.auth)
-        response.raise_for_status()
-        task = response.json()["transfer"]
+        response = await client.post(
+            self.base + self.prefix.replace("/transfers", "/deletions") + "/claim",
+            headers=self.auth,
+        )
+        # Rolling deployment: old Gateways do not expose cleanup claims yet.
+        if response.status_code == 404:
+            task = None
+        else:
+            response.raise_for_status()
+            task = response.json()["transfer"]
+        if task is None:
+            response = await client.post(self.base + self.prefix + "/claim", headers=self.auth)
+            response.raise_for_status()
+            task = response.json()["transfer"]
         if task is None:
             return False
         self.confirmed_bytes = 0
@@ -417,7 +435,12 @@ class LibraryWorker:
             route=task.get("route", "gateway_staging"),
         )
         operation = self.relay_upload if task.get("action") == "relay_upload" else self.materialize
-        download = asyncio.create_task(operation(client, task))
+        if task.get("action") == "delete":
+            from hololab.node.library_gc import remove_copy
+
+            download = asyncio.create_task(remove_copy(self, client, task))
+        else:
+            download = asyncio.create_task(operation(client, task))
         try:
             done, _ = await asyncio.wait({keeper, download}, return_when=asyncio.FIRST_COMPLETED)
             if keeper in done:
@@ -475,7 +498,7 @@ class LibraryWorker:
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await task_to_stop
         response = await client.post(
-            self.base + self.prefix + f"/{task['transfer_id']}/receipt",
+            self.base + self.task_prefix(task) + f"/{task['transfer_id']}/receipt",
             headers=self.headers(task),
             json=result,
         )

@@ -37,3 +37,8 @@
 .library-layout > .sidebar { grid-column: 1; grid-row: 1; padding-left: 24px; height: calc(100dvh - 64px); }
 .library-layout > .library-page { grid-column: 2; grid-row: 1; }
 .library-page td:nth-child(2), .library-page td:nth-child(3) { white-space: nowrap; }
+
+.library-page .library-delete { color: #dc4545; }
+.library-page .library-delete-confirm { background: #b42332; color: #fff; border-color: #b42332; }
+.library-page .library-delete-confirm:hover { background: #921b28; }
+.library-pagination { display: flex; gap: 12px; align-items: center; margin-top: 16px; }

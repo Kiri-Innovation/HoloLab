@@ -1,15 +1,17 @@
+import { locale } from '../i18n';
 export const CHUNK = 8 * 1024 ** 2;
 // Production uses the website's same-origin /api reverse proxy.
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, { ...init, credentials: 'same-origin' });
   const body = await response.json().catch(() => null);
+  if (response.status === 409 && typeof body?.detail === 'string' && body.detail.includes('name already exists')) throw new Error(locale === 'en' ? 'A file or folder with this name already exists. Choose another name; overwriting is not allowed.' : '该目录已存在同名文件或文件夹。请更换名称，不允许覆盖。');
   if (!response.ok) throw new Error(typeof body?.detail === 'string' ? body.detail : `HTTP ${response.status}`);
   if (!body) throw new Error('Invalid API response');
   return body as T;
 }
 export const json = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 export type Session = { upload_id: string; resource_id: string; version: number; state: string; expected_size: number; expected_sha256: string; chunk_size: number; parts?: { part_index: number; size_bytes: number }[]; last_error: string | null; purpose?: string };
-export type Resource = { resource_id: string; name: string; folder_id: string; resource_type: string; size_bytes: number; status: string; ready_count: number; target_count: number; placements: { node_id: string; node_name: string; online: number; desired_state: string; observed_state: string; last_error: string | null }[]; transfers: { last_error: string | null }[] };
+export type Resource = { resource_id: string; name: string; folder_id: string; resource_type: string; size_bytes: number; status: string; remaining_nodes?: number; gc_errors?: { last_error: string }[]; ready_count: number; target_count: number; placements: { node_id: string; node_name: string; online: number; desired_state: string; observed_state: string; last_error: string | null }[]; transfers: { last_error: string | null }[] };
 export type Folder = { folder_id: string; parent_id: string | null; name: string };
 export type Device = { node_id: string; node_name: string; online?: boolean };
 export function hashFile(file: File, progress: (bytes: number) => void, signal: AbortSignal): Promise<string> {

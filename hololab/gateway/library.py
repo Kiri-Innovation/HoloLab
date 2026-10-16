@@ -158,7 +158,7 @@ class Library:
                     elif session["state"] == "completed":
                         await disk_work(self._remove_parts, session["upload_id"])
                         await self.execute(
-                            "UPDATE library_upload_sessions SET reserved_bytes=expected_size WHERE upload_id=?",
+                            "UPDATE library_upload_sessions SET reserved_bytes=CASE WHEN EXISTS (SELECT 1 FROM library_staging_objects s WHERE s.staging_id=library_upload_sessions.upload_id AND s.state IN ('ready','purging')) THEN expected_size ELSE 0 END WHERE upload_id=?",
                             (session["upload_id"],),
                         )
                         from hololab.gateway.library_transfers import enqueue
@@ -167,7 +167,7 @@ class Library:
                             await enqueue(conn, row["resource_id"], row["version"])
 
                         await self.db.write(schedule)
-                    elif session["state"] != "cancelled":
+                    elif session["state"] not in {"cancelled", "deleted"}:
                         await self.reconcile(session)
                         if session["state"] == "completing":
                             await self.execute(
@@ -351,6 +351,11 @@ class Library:
 
     async def part(self, upload_id: str, index: int, digest: str, request: Request) -> dict:
         session = await self.session(upload_id)
+        resources = await self.rows(
+            "SELECT lifecycle FROM library_resources WHERE resource_id=?", (session["resource_id"],)
+        )
+        if not resources or resources[0]["lifecycle"] != "active":
+            raise HTTPException(409, "Resource is being deleted; upload is fenced")
         if session["state"] != "uploading":
             raise HTTPException(409, f"Session is {session['state']}; cannot upload parts")
         count = (session["expected_size"] + CHUNK_SIZE - 1) // CHUNK_SIZE
@@ -475,10 +480,15 @@ class Library:
 
     async def complete(self, upload_id: str) -> dict:
         session = await self.session(upload_id)
+        resources = await self.rows(
+            "SELECT lifecycle FROM library_resources WHERE resource_id=?", (session["resource_id"],)
+        )
+        if not resources or resources[0]["lifecycle"] != "active":
+            raise HTTPException(409, "Resource is being deleted; upload is fenced")
         if session["state"] == "completed":
             await disk_work(self._remove_parts, upload_id)
             await self.execute(
-                "UPDATE library_upload_sessions SET reserved_bytes=expected_size WHERE upload_id=?",
+                "UPDATE library_upload_sessions SET reserved_bytes=CASE WHEN EXISTS (SELECT 1 FROM library_staging_objects s WHERE s.staging_id=library_upload_sessions.upload_id AND s.state IN ('ready','purging')) THEN expected_size ELSE 0 END WHERE upload_id=?",
                 (upload_id,),
             )
             return await self.detail(upload_id)
@@ -537,7 +547,7 @@ class Library:
         await self.db.write(write)
         await disk_work(self._remove_parts, upload_id)
         await self.execute(
-            "UPDATE library_upload_sessions SET reserved_bytes=expected_size WHERE upload_id=?",
+            "UPDATE library_upload_sessions SET reserved_bytes=CASE WHEN EXISTS (SELECT 1 FROM library_staging_objects s WHERE s.staging_id=library_upload_sessions.upload_id AND s.state IN ('ready','purging')) THEN expected_size ELSE 0 END WHERE upload_id=?",
             (upload_id,),
         )
         return await self.detail(upload_id)
@@ -556,7 +566,12 @@ class Library:
                 "UPDATE library_upload_sessions SET state='cancelled',reserved_bytes=0,last_activity_ts=? WHERE upload_id=?",
                 (time.time(), session["upload_id"]),
             )
-            if session.get("purpose") == "relay":
+            async with conn.execute(
+                "SELECT lifecycle FROM library_resources WHERE resource_id=?",
+                (session["resource_id"],),
+            ) as cur:
+                resource = await cur.fetchone()
+            if session.get("purpose") == "relay" or not resource or resource[0] != "active":
                 return
             await conn.execute(
                 "UPDATE library_resources SET lifecycle='deleted',deleted_ts=? WHERE resource_id=?",
@@ -575,6 +590,13 @@ class Library:
 
     async def cancel(self, upload_id: str) -> dict:
         session = await self.session(upload_id)
+        resources = await self.rows(
+            "SELECT lifecycle FROM library_resources WHERE resource_id=?", (session["resource_id"],)
+        )
+        if session["state"] != "cancelled" and (
+            not resources or resources[0]["lifecycle"] != "active"
+        ):
+            raise HTTPException(409, "Resource deletion is already in progress")
         if session["state"] == "completed":
             raise HTTPException(
                 409, "Upload already completed; resource deletion is a separate GC operation"
@@ -669,9 +691,14 @@ async def cancel_upload(upload_id: str, request: Request):
 
 
 @router.get("/folders")
-async def list_folders(request: Request):
+async def list_folders(
+    request: Request, limit: int = Query(1000, ge=1, le=1000), offset: int = Query(0, ge=0)
+):
     return {
-        "folders": await service(request).rows("SELECT * FROM library_folders ORDER BY created_ts")
+        "folders": await service(request).rows(
+            "SELECT * FROM library_folders ORDER BY created_ts,folder_id LIMIT ? OFFSET ?",
+            (limit, offset),
+        )
     }
 
 

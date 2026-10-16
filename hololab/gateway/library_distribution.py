@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 import time
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from hololab.gateway.library import service
 from hololab.library_transport import capability
@@ -145,6 +145,7 @@ async def resource_status(lib, resource_id):
     else:
         status = "distributing" if desired else "staged"
     result.update(
+        remaining_nodes=len({p["node_id"] for p in placements if p["observed_state"] != "absent"}),
         status=status,
         ready_count=ready,
         target_count=total,
@@ -155,6 +156,10 @@ async def resource_status(lib, resource_id):
         "SELECT transfer_id,target_node_id,action,route,source_node_id,state,attempts,confirmed_bytes,next_retry_ts,last_error,fallback_reason FROM library_transfers WHERE resource_id=? AND version=?",
         (resource_id, result["current_version"]),
     )
+    result["gc_errors"] = await lib.rows(
+        "SELECT last_error FROM library_upload_sessions WHERE resource_id=? AND last_error IS NOT NULL",
+        (resource_id,),
+    )
     return result
 
 
@@ -164,9 +169,36 @@ async def get_resource(resource_id: str, request: Request):
 
 
 @router.get("/resources")
-async def list_resources(request: Request):
+async def list_resources(
+    request: Request,
+    limit: int = Query(default=1000, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    folder_id: str | None = None,
+):
     lib = service(request)
+    condition = "deleted_ts IS NULL AND lifecycle<>'deleted'"
+    args = ()
+    if folder_id is not None:
+        condition += " AND folder_id=?"
+        args = (folder_id,)
     rows = await lib.rows(
-        "SELECT resource_id FROM library_resources WHERE deleted_ts IS NULL ORDER BY created_ts DESC LIMIT 1000"
+        f"SELECT resource_id FROM library_resources WHERE {condition} ORDER BY created_ts DESC,resource_id LIMIT ? OFFSET ?",
+        (*args, limit, offset),
     )
-    return {"resources": [await resource_status(lib, row["resource_id"]) for row in rows]}
+    total = (
+        await lib.rows(f"SELECT COUNT(*) AS total FROM library_resources WHERE {condition}", args)
+    )[0]["total"]
+    resources = []
+    for row in rows:
+        try:
+            resources.append(await resource_status(lib, row["resource_id"]))
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            # GC may finish between the page query and fetching an individual row.
+    return {
+        "resources": resources,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }

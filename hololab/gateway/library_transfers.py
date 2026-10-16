@@ -201,10 +201,15 @@ async def retry_transfer(transfer_id: str, request: Request):
             or task["desired_state"] != "present"
         ):
             raise HTTPException(409, "Only failed or waiting active transfers may be retried")
+        from hololab.gateway.library_relay import restart_abandoned_upload
+
         state = "pending"
+        if task["action"] == "relay_upload":
+            await restart_abandoned_upload(conn, lib, task)
         if task["relay_transfer_id"]:
             upstream = await task_row(conn, task["relay_transfer_id"])
             if upstream["state"] == "failed":
+                await restart_abandoned_upload(conn, lib, upstream)
                 await conn.execute(
                     "UPDATE library_transfers SET state='pending',attempts=0,next_retry_ts=NULL,lease_token=NULL,lease_until=NULL,last_error=NULL WHERE transfer_id=?",
                     (upstream["transfer_id"],),
@@ -238,7 +243,7 @@ async def claim(
     async def write(conn):
         # Exhausted crashed workers must not leave an immortal running placement.
         async with conn.execute(
-            "SELECT transfer_id,action FROM library_transfers WHERE target_node_id=? AND state='running' AND lease_until<=? AND attempts>=?",
+            "SELECT transfer_id,action FROM library_transfers WHERE action<>'delete' AND target_node_id=? AND state='running' AND lease_until<=? AND attempts>=?",
             (node_id, now, MAX_ATTEMPTS),
         ) as cur:
             expired = await cur.fetchall()
@@ -269,7 +274,7 @@ async def claim(
         async with conn.execute(
             "SELECT t.transfer_id FROM library_transfers t JOIN library_resources r ON r.resource_id=t.resource_id "
             "JOIN library_placements p ON p.resource_id=t.resource_id AND p.version=t.version AND p.node_id=t.target_node_id "
-            "WHERE t.target_node_id=? AND t.attempts<? AND r.lifecycle='active' AND p.desired_state='present' "
+            "WHERE t.action<>'delete' AND t.target_node_id=? AND t.attempts<? AND r.lifecycle='active' AND p.desired_state='present' "
             "AND (SELECT COUNT(*) FROM library_transfers active WHERE active.resource_id=t.resource_id AND active.version=t.version AND active.state='running' AND active.lease_until>?)<? "
             "AND r.delete_epoch=t.delete_epoch AND ((t.state IN ('pending','waiting') AND COALESCE(t.next_retry_ts,0)<=?) "
             "OR (t.state='running' AND t.lease_until<=?)) ORDER BY t.rowid LIMIT 1",

@@ -37,6 +37,8 @@ from hololab.gateway.library import router as library_router
 from hololab.gateway.library_config import LibraryConfig
 from hololab.gateway.library_distribution import router as library_distribution_router
 from hololab.gateway.library_distribution import scheduler, signal_work
+from hololab.gateway.library_gc import gc_loop
+from hololab.gateway.library_gc import router as library_gc_router
 from hololab.gateway.library_relay import router as library_relay_router
 from hololab.gateway.library_transfers import router as library_transfers_router
 from hololab.gateway.metrics import (
@@ -246,6 +248,8 @@ def create_app(
         app.state.pending_handle_checks: dict[str, asyncio.Future[Any]] = {}
         app.state.pending_artifact_deletes: dict[str, asyncio.Future[Any]] = {}
 
+        app.state.library_gc_event = asyncio.Event()
+        app.state.library_gc_task = asyncio.create_task(gc_loop(app), name="library-gc")
         app.state.library_schedule_event = asyncio.Event()
         app.state.library_scheduler_task = asyncio.create_task(
             scheduler(app), name="library-scheduler"
@@ -270,6 +274,7 @@ def create_app(
             "orphan_finalizer_task",
             "latency_task",
             "library_scheduler_task",
+            "library_gc_task",
         ):
             task = getattr(app.state, attr, None)
             if task is not None:
@@ -286,6 +291,7 @@ def create_app(
 
     # Routes MUST be registered before the ``/`` static mount, since starlette
     # dispatches in registration order and a ``Mount("/")`` catches every path.
+    app.include_router(library_gc_router)
     app.include_router(library_router)
     app.include_router(library_transfers_router)
     app.include_router(library_relay_router)
