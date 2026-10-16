@@ -598,6 +598,41 @@ CREATE TABLE library_operation_nodes (
 )
 
 
+# V19 — remember directory recipients even after resource GC removes placements.
+MIGRATIONS.append(
+    (
+        19,
+        """
+CREATE TABLE library_folder_nodes (
+ folder_id TEXT NOT NULL REFERENCES library_folders(folder_id) ON DELETE CASCADE,
+ node_id TEXT NOT NULL REFERENCES nodes(node_id),
+ PRIMARY KEY(folder_id,node_id)
+);
+INSERT OR IGNORE INTO library_folder_nodes(folder_id,node_id)
+WITH RECURSIVE owners(folder_id,node_id) AS (
+ SELECT r.folder_id,p.node_id FROM library_placements p JOIN library_resources r USING(resource_id)
+ UNION
+ SELECT o.entity_id,n.node_id FROM library_operations o JOIN library_operation_nodes n USING(operation_id)
+ JOIN library_folders f ON f.folder_id=o.entity_id WHERE o.kind='rename_folder' AND n.state='completed'
+ UNION
+ SELECT f.parent_id,o.node_id FROM owners o JOIN library_folders f USING(folder_id) WHERE f.parent_id IS NOT NULL
+) SELECT folder_id,node_id FROM owners;
+CREATE TRIGGER library_remember_directory_recipient AFTER INSERT ON library_placements
+BEGIN
+ INSERT OR IGNORE INTO library_folder_nodes(folder_id,node_id)
+ SELECT folder_id,NEW.node_id FROM (
+  WITH RECURSIVE ancestors(folder_id) AS (
+   SELECT folder_id FROM library_resources WHERE resource_id=NEW.resource_id
+   UNION
+   SELECT f.parent_id FROM library_folders f JOIN ancestors a USING(folder_id) WHERE f.parent_id IS NOT NULL
+  ) SELECT folder_id FROM ancestors
+ );
+END;
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

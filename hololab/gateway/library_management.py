@@ -107,7 +107,11 @@ async def begin(request, kind, entity_id, name=None):
             )
         if await rows(
             conn,
-            "SELECT 1 FROM library_transfers WHERE state NOT IN ('completed','cancelled','failed') UNION ALL SELECT 1 FROM library_upload_sessions WHERE state NOT IN ('completed','cancelled','failed') UNION ALL SELECT 1 FROM library_resources WHERE lifecycle<>'active'",
+            # Cancellation retains a resource tombstone (lifecycle='deleted').
+            # It is terminal history, not work awaiting a deletion receipt.
+            "SELECT 1 FROM library_transfers WHERE state IN ('pending','running','waiting','waiting_source') "
+            "UNION ALL SELECT 1 FROM library_upload_sessions WHERE state IN ('uploading','completing','cancelling') "
+            "UNION ALL SELECT 1 FROM library_resources WHERE lifecycle='deleting'",
         ):
             raise HTTPException(
                 409,
@@ -158,10 +162,12 @@ async def begin(request, kind, entity_id, name=None):
             state="pending",
             created_ts=time.time(),
         )
-        # Include every registered node for folders: an empty physical directory
-        # can remain after its last resource was garbage-collected.
+        # Durable directory recipients survive resource GC. Unrelated historical
+        # node identities must never become mandatory rename/delete participants.
         nodes = (
-            await rows(conn, "SELECT node_id FROM nodes")
+            await rows(
+                conn, "SELECT node_id FROM library_folder_nodes WHERE folder_id=?", (entity_id,)
+            )
             if kind.endswith("folder")
             else await rows(
                 conn,

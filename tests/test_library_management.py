@@ -34,7 +34,7 @@ async def finish(client, root, op):
     assert result["state"] == "completed", result
 
 
-async def ingest(client, fid, data=b"video bytes", name="clip.mp4"):
+async def ingest(client, fid, data=b"video bytes", name="clip.mp4", targets=None):
     r = await client.post(
         "/api/library/uploads",
         json={
@@ -42,7 +42,7 @@ async def ingest(client, fid, data=b"video bytes", name="clip.mp4"):
             "folder_id": fid,
             "size_bytes": len(data),
             "sha256": sha(data),
-            "target_node_ids": ["n1"],
+            "target_node_ids": ["n1"] if targets is None else targets,
         },
     )
     assert r.status_code == 201, r.text
@@ -62,8 +62,9 @@ async def ingest(client, fid, data=b"video bytes", name="clip.mp4"):
 async def test_rename_nonempty_folder_and_resource_then_gc(isolated):
     app, c, root = isolated
     fid = await folder(c)
-    s = await ingest(c, fid)
+    s = await ingest(c, fid, targets=["n1", "n2"])
     await worker(root).run_once(c)
+    await worker(root, "n2").run_once(c)
     r = await c.post(f"/api/library/folders/{fid}/rename", json={"name": "Renamed"})
     assert r.status_code == 202, r.text
     op = r.json()
@@ -83,6 +84,7 @@ async def test_rename_nonempty_folder_and_resource_then_gc(isolated):
     assert (root / "n1/Renamed/new.mp4").exists()
     assert (await c.delete("/api/library/resources/" + s["resource_id"])).status_code == 202
     await worker(root).run_once(c)
+    await worker(root, "n2").run_once(c)
     await collect(app.state.library)
     assert not (root / "n1/Renamed/new.mp4").exists()  # renamed ownership journal accepted by GC
     r = await c.delete("/api/library/folders/" + fid)
@@ -116,6 +118,8 @@ async def test_empty_delete_nonempty_and_name_refusals(isolated):
 async def test_failed_node_retry_and_duplicate_receipt(isolated):
     app, c, root = isolated
     fid = await folder(c)
+    # The directory belonged to n1 before its last resource was collected.
+    await app.state.library.execute("INSERT INTO library_folder_nodes VALUES (?,?)", (fid, "n1"))
     (root / "n1/Original").mkdir(parents=True)
     (root / "n1/Original/external").write_text("keep")
     op = (await c.delete("/api/library/folders/" + fid)).json()
@@ -247,3 +251,79 @@ async def test_pending_namespace_survives_startup_and_refuses_overwrite(isolated
     operation = (await c.get("/api/library/operations/" + result.json()["operation_id"])).json()
     assert operation["state"] == "pending"
     assert "overwriting" in operation["nodes"][0]["last_error"]
+
+
+async def test_delete_then_rename_and_delete_with_cancelled_upload_history(isolated):
+    app, c, root = isolated
+    await app.state.library.execute("UPDATE nodes SET online=0 WHERE node_id='n2'")
+    # Real cancellation leaves exactly the terminal tombstone seen in production.
+    response = await c.post(
+        "/api/library/uploads",
+        json={
+            "filename": "smoke-test-20mb.bin",
+            "size_bytes": 3,
+            "sha256": sha(b"old"),
+            "target_node_ids": [],
+        },
+    )
+    cancelled = response.json()
+    assert (await c.delete("/api/library/uploads/" + cancelled["upload_id"])).status_code == 200
+    tombstone = await app.state.library.rows(
+        "SELECT lifecycle FROM library_resources WHERE resource_id=?",
+        (cancelled["resource_id"],),
+    )
+    assert tombstone == [{"lifecycle": "deleted"}]
+    fid = await folder(c, "mgmt-e2e-demo")
+    session = await ingest(c, fid)
+    await worker(root).run_once(c)
+    assert (await c.delete("/api/library/resources/" + session["resource_id"])).status_code == 202
+    # No acknowledgement yet: the guard must still reject a real deletion.
+    response = await c.post(f"/api/library/folders/{fid}/rename", json={"name": "Renamed"})
+    assert response.status_code == 409
+    await worker(root).run_once(c)
+    await collect(app.state.library)
+    assert (await c.get("/api/library/resources/" + session["resource_id"])).status_code == 404
+    # No arbitrary sleep: immediately usable after the final GC acknowledgement.
+    response = await c.post(f"/api/library/folders/{fid}/rename", json={"name": "Renamed"})
+    assert response.status_code == 202, response.text
+    assert [n["node_id"] for n in response.json()["nodes"]] == ["n1"]
+    await finish(c, root, response.json())
+    assert (root / "n1/Renamed").is_dir()
+    assert not (root / "n1/mgmt-e2e-demo").exists()
+    response = await c.delete("/api/library/folders/" + fid)
+    assert response.status_code == 202, response.text
+    await finish(c, root, response.json())
+    assert not (root / "n1/Renamed").exists()
+    # The fix does not depend on deleting unrelated cancellation history.
+    assert await app.state.library.rows(
+        "SELECT 1 FROM library_resources WHERE resource_id=? AND lifecycle='deleted'",
+        (cancelled["resource_id"],),
+    )
+
+
+async def test_evicted_upload_is_terminal_but_failed_cleanup_still_blocks(isolated):
+    app, c, root = isolated
+    fid = await folder(c)
+    session = await ingest(c, fid)
+    await worker(root).run_once(c)
+    # Evicting staging preserves a terminal completed upload with no reservation.
+    await collect(app.state.library)
+    states = await app.state.library.rows(
+        "SELECT state,reserved_bytes FROM library_upload_sessions WHERE upload_id=?",
+        (session["upload_id"],),
+    )
+    assert states == [{"state": "completed", "reserved_bytes": 0}]
+    response = await c.post(f"/api/library/folders/{fid}/rename", json={"name": "Renamed"})
+    assert response.status_code == 202, response.text
+    await finish(c, root, response.json())
+    assert (root / "n1/Renamed/clip.mp4").exists()
+    # A failed deletion is not terminal at the resource level: still needs cleanup.
+    (root / "n1/Renamed/clip.mp4").write_bytes(b"modified")
+    assert (await c.delete("/api/library/resources/" + session["resource_id"])).status_code == 202
+    await worker(root).run_once(c)
+    assert (await c.get("/api/library/resources/" + session["resource_id"])).json()[
+        "status"
+    ] == "deleting"
+    assert (
+        await c.post(f"/api/library/folders/{fid}/rename", json={"name": "Must not move"})
+    ).status_code == 409
