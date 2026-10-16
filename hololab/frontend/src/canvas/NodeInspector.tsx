@@ -16,6 +16,7 @@ export interface NodeInspectorProps {
   computeNodesById?: Record<string, ComputeNode>;
   onChange: (patch: Partial<GraphNode>) => void;
   assignment?: ReactNode;
+  preview?: ReactNode;
 }
 
 const SECTION_TITLE: CSSProperties = {
@@ -52,6 +53,7 @@ export function NodeInspector({
   computeNodesById,
   onChange,
   assignment,
+  preview,
 }: NodeInspectorProps) {
 
   if (!selected || !pack) {
@@ -365,8 +367,7 @@ export function NodeInspector({
           })
         )}
       </div>
-
-
+      {preview}
     </div>
   );
 }

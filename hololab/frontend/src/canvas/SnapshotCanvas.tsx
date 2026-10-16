@@ -67,6 +67,7 @@ const NODE_TYPES = { algorithm: AlgorithmNode, view: ViewNode };
 
 export interface SnapshotCanvasProps {
   snapshot: SnapshotDetail;
+  onPreviewData?: (value: { snapshotId: string; nodeId: string; data: AlgorithmNodeData } | null) => void;
   catalog: CatalogPack[];
   // Currently-selected graph_node_id (drives the bottom inspector) —
   // owned by App so it can also drive the inspector.
@@ -82,6 +83,7 @@ export interface SnapshotCanvasProps {
 
 export function SnapshotCanvas({
   snapshot,
+  onPreviewData,
   catalog,
   selectedGraphNodeId,
   onSelectionChange,
@@ -337,6 +339,11 @@ export function SnapshotCanvas({
     previewOpenByGraphNode,
     togglePreview,
   ]);
+
+  useEffect(() => {
+    const selected = initial.nodes.find(node => node.id === selectedGraphNodeId && node.type === "algorithm");
+    onPreviewData?.(selected ? { snapshotId: snapshot.snapshot_id, nodeId: selected.id, data: selected.data as AlgorithmNodeData } : null);
+  }, [initial.nodes, selectedGraphNodeId, snapshot.snapshot_id, onPreviewData]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<AlgorithmNodeData>>(
     initial.nodes,

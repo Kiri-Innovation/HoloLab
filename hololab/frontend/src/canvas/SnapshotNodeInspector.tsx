@@ -1,17 +1,14 @@
 // Read-only variant of NodeInspector for the snapshot canvas view.
 //
-// Mounts into the same bottom slot NodeInspector uses on the draft view,
-// so the visual rhythm of "select a node → its detail appears at the
-// bottom" carries across into past-run inspection. But here every field
+// Shares the Inspector dock with the draft editor. Here every field
 // is frozen: params, input handles, output handles, plus the run outcome
 // (state, progress, fail reason).
 //
-// Layout mirrors NodeInspector: left column = pack docs (clamped preview
-// + "View full" modal), right column = everything else and scrolls. When
-// the panel is dragged narrow the docs column collapses into an "ABOUT"
-// chip inline with the Node heading.
+// The dock owns scrolling, including the trailing preview. Wide panels keep
+// the documentation column; narrow panels stack details and parameters, with
+// an ABOUT button for the full documentation.
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { CatalogPack, SnapshotJob } from "../wire";
 import { stateColour } from "./AlgorithmNode";
 import { MarkdownView } from "../ui/MarkdownView";
@@ -21,6 +18,7 @@ export interface SnapshotNodeInspectorProps {
   // The graph node the user selected on the read-only canvas. When
   // ``null`` we show the empty-state hint so the slot doesn't look broken.
   graphNodeId: string | null;
+  preview?: ReactNode;
   // The pack for that graph node, resolved from the catalog. Might be
   // null if the pack has since been removed — we show a placeholder.
   pack: CatalogPack | null;
@@ -64,6 +62,7 @@ const NARROW_WIDTH_PX = 520;
 
 export function SnapshotNodeInspector({
   graphNodeId,
+  preview,
   pack,
   job,
   onRerunFromHere,
@@ -133,13 +132,15 @@ export function SnapshotNodeInspector({
       ref={rootRef}
       style={{
         padding: "14px 20px 20px",
-        height: "100%",
+        height: "auto",
+        boxSizing: "border-box",
         fontSize: "var(--fs-sm)",
         color: "var(--text-body)",
         display: "grid",
         gridTemplateColumns: showLeftColumn ? "minmax(220px, 300px) 1fr" : "1fr",
         columnGap: 24,
-        overflow: "hidden",
+        overflow: "visible",
+        minWidth: 0,
         minHeight: 0,
       }}
     >
@@ -151,10 +152,10 @@ export function SnapshotNodeInspector({
         style={{
           minWidth: 0,
           minHeight: 0,
-          overflowY: "auto",
+          overflowY: "visible",
           paddingRight: 4,
           display: "grid",
-          gridTemplateColumns: "minmax(220px, 300px) 1fr",
+          gridTemplateColumns: narrow ? "minmax(0, 1fr)" : "minmax(220px, 300px) minmax(0, 1fr)",
           columnGap: 24,
         }}
       >
@@ -382,6 +383,7 @@ export function SnapshotNodeInspector({
         </div>
       </div>
 
+      {preview && <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>{preview}</div>}
       {hasDocs && (
         <Modal
           open={docsOpen}

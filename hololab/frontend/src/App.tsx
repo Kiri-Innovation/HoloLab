@@ -1,3 +1,4 @@
+import { InspectorPreview } from "./canvas/InspectorPreview";
 import { FrameSelectedShortcut } from "./canvas/FrameSelectedShortcut";
 import { WorkflowConflictDialog } from "./canvas/WorkflowConflictDialog";
 import { CanvasControls } from "./canvas/CanvasControls";
@@ -879,6 +880,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // (The draft view derives ``selectedEdge`` from xyflow's own
   // ``edge.selected`` flag — same pattern the existing draft node
   // selection uses via ``selectedNode``.)
+  const [snapshotPreviewData, setSnapshotPreviewData] = useState<{ snapshotId: string; nodeId: string; data: AlgorithmNodeData } | null>(null);
   const [snapshotSelectedEdgeId, setSnapshotSelectedEdgeId] = useState<
     string | null
   >(null);
@@ -2632,6 +2634,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               }}
             />
             <SnapshotCanvas
+              onPreviewData={setSnapshotPreviewData}
               snapshot={viewingSnapshot}
               catalog={catalog}
               selectedGraphNodeId={snapshotSelectedGraphNodeId}
@@ -2768,6 +2771,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       pack={snapshotSelectedPack}
       job={snapshotSelectedJob}
       onRerunFromHere={onRerunFromHere}
+      preview={snapshotPreviewData?.snapshotId === viewingSnapshot.snapshot_id && snapshotPreviewData.nodeId === snapshotSelectedGraphNodeId ?
+        <CanvasContext.Provider value={canvasContextValue}>
+          <InspectorPreview key={`${snapshotPreviewData.snapshotId}:${snapshotPreviewData.nodeId}`} data={snapshotPreviewData.data} />
+        </CanvasContext.Provider> : null}
     />
   ) : !selectedNode || !selectedAlgorithmData ? (
     <p className="hl-dock-empty">Select a node or connection to inspect it.</p>
@@ -2775,6 +2782,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     <NodeInspector
       computeNodesById={computeNodesById}
       assignment={assignmentSlot}
+      preview={<CanvasContext.Provider value={canvasContextValue}>
+        <InspectorPreview key={selectedNode.id} data={selectedAlgorithmData} />
+      </CanvasContext.Provider>}
       selected={
         selectedNode && selectedAlgorithmData
           ? {
