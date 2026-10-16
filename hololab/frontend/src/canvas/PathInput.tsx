@@ -28,7 +28,6 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
   const [active, setActive] = useState(0);
   const [rect, setRect] = useState<{ left: number; top?: number; bottom?: number; width: number; maxHeight: number }>({ left: 0, top: 0, width: 300, maxHeight: 280 });
   const [open, setOpen] = useState(false);
-  const [directory, setDirectory] = useState("/");
   const [location, setLocation] = useState("/");
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<Page | null>(null);
@@ -42,7 +41,7 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
     setSuggestions([]); setHint("Loading…"); setActive(0);
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      const { path, prefix } = split(value || initialDirectory + "/");
+      const { path, prefix } = value ? split(value) : { path: initialDirectory || "/", prefix: "" };
       list(nodeId, path, prefix, 0, controller.signal).then(data => {
         if (controller.signal.aborted) return;
         setSuggestions(data.entries.filter(e => e.kind === "directory" || valid(e)));
@@ -73,12 +72,15 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
     if (!open || !nodeId) return;
     const controller = new AbortController();
     setBusy(true); setError(""); setSelected(-1); setPage(null);
-    list(nodeId, directory, "", offset, controller.signal).then(data => {
-      if (!controller.signal.aborted) { setPage(data); setLocation(data.path); }
-    }).catch(e => { if (!controller.signal.aborted) setError(e.message); })
-      .finally(() => { if (!controller.signal.aborted) setBusy(false); });
-    return () => controller.abort();
-  }, [open, nodeId, directory, offset]);
+    const timer = setTimeout(() => {
+      const { path, prefix } = split(location || "/");
+      list(nodeId, path, prefix, offset, controller.signal).then(data => {
+        if (!controller.signal.aborted) setPage(data);
+      }).catch(e => { if (!controller.signal.aborted) setError(e.message); })
+        .finally(() => { if (!controller.signal.aborted) setBusy(false); });
+    }, 250);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [open, nodeId, location, offset]);
   useEffect(() => { popup.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" }); }, [active]);
   useEffect(() => { listbox.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" }); }, [selected]);
   function showSuggestions() {
@@ -95,13 +97,22 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
     setSuggest(entry.kind === "directory");
     input.current?.focus();
   }
-  function navigate(path: string) { setDirectory(path); setLocation(path); setOffset(0); setSelected(-1); }
+  function navigate(path: string) { setLocation(path.endsWith("/") ? path : path + "/"); setOffset(0); setSelected(-1); }
   function choose(entry: Entry) { if (valid(entry)) { onChange(entry.path); setOpen(false); input.current?.focus(); } }
   const chosen = page?.entries[selected];
-  const crumbs = (page?.path ?? directory).split("/").filter(Boolean);
+  const crumbs = (page?.path ?? split(location || "/").path).split("/").filter(Boolean);
+  function entryKeys(e: React.KeyboardEvent, allowTab = false) {
+    if (!page?.entries.length || busy) return;
+    if (["ArrowDown", "ArrowUp", "Enter"].includes(e.key) || (allowTab && e.key === "Tab" && chosen && !e.shiftKey)) { e.preventDefault(); e.stopPropagation(); }
+    if (e.key === "ArrowDown") setSelected(i => Math.min(i + 1, page.entries.length - 1));
+    if (e.key === "ArrowUp") setSelected(i => Math.max(0, i - 1));
+    if ((e.key === "Enter" || (allowTab && e.key === "Tab" && !e.shiftKey)) && chosen) {
+      if (chosen.kind === "directory") navigate(chosen.path); else choose(chosen);
+    }
+  }
   return <div className="hl-path-input">
     <div className="hl-path-field">
-      <input ref={input} aria-label={name} role="combobox" aria-autocomplete="list" aria-expanded={suggest && !!nodeId} aria-controls={suggest ? `${id}-suggestions` : undefined} aria-activedescendant={suggest && suggestions[active] ? `${id}-suggestion-${active}` : undefined} value={value} placeholder="Absolute path on the compute node" onFocus={showSuggestions} onChange={e => { onChange(e.target.value); showSuggestions(); }} onBlur={() => setSuggest(false)} onKeyDown={e => {
+      <input ref={input} aria-label={name} role="combobox" aria-autocomplete="list" aria-expanded={suggest && !!nodeId} aria-controls={suggest ? `${id}-suggestions` : undefined} aria-activedescendant={suggest && suggestions[active] ? `${id}-suggestion-${active}` : undefined} value={value || initialDirectory || "/"} placeholder="Absolute path on the compute node" onFocus={showSuggestions} onChange={e => { onChange(e.target.value); showSuggestions(); }} onBlur={() => setSuggest(false)} onKeyDown={e => {
         if (e.key === "Escape") { setSuggest(false); e.stopPropagation(); }
         if (suggest && suggestions.length && ["ArrowDown", "ArrowUp", "Tab", "Enter"].includes(e.key)) {
           e.preventDefault(); e.stopPropagation();
@@ -110,7 +121,7 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
           else complete(suggestions[active]);
         }
       }} />
-      <button type="button" aria-label={`Browse paths for ${name}`} disabled={!nodeId} onClick={() => { setSuggest(false); navigate(value ? split(value).path : initialDirectory); setOpen(true); }}>+</button>
+      <button type="button" aria-label={`Browse paths for ${name}`} disabled={!nodeId} onClick={() => { setSuggest(false); navigate(value ? split(value).path : initialDirectory || "/"); setOpen(true); }}>+</button>
     </div>
     {!nodeId && <small>Select a compute node to browse its files.</small>}
     {suggest && nodeId && createPortal(<div ref={popup} className="hl-path-suggestions" style={rect} onMouseDown={e => e.preventDefault()}>
@@ -119,17 +130,11 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
     </div>, document.body)}
     {createPortal(<dialog ref={dialog} className="hl-path-dialog" aria-labelledby={`${id}-title`} onCancel={() => setOpen(false)} onClose={() => setOpen(false)}>
       <header><h3 id={`${id}-title`}>Browse compute node · {name}</h3><button type="button" aria-label="Close path browser" onClick={() => setOpen(false)}>×</button></header>
-      <form onSubmit={e => { e.preventDefault(); navigate(location); }}><label htmlFor={`${id}-location`}>Location</label><div className="hl-path-field"><input id={`${id}-location`} value={location} onChange={e => setLocation(e.target.value)} /><button type="submit">Go</button></div></form>
+      <div><label htmlFor={`${id}-location`}>Location</label><div className="hl-path-field"><input id={`${id}-location`} value={location} aria-controls={`${id}-entries`} aria-activedescendant={chosen ? `${id}-entry-${selected}` : undefined} onChange={e => { setLocation(e.target.value); setOffset(0); setSelected(-1); }} onKeyDown={e => entryKeys(e, true)} /></div></div>
       <nav aria-label="Path breadcrumbs"><button type="button" onClick={() => navigate("/")}>/</button>{crumbs.map((part, i) => <button type="button" key={i} onClick={() => navigate("/" + crumbs.slice(0, i + 1).join("/"))}>{part} /</button>)}</nav>
       <p className="hl-path-hint">Files are on the selected compute node. Double-click a folder to open it. ↗ indicates a symlink.</p>
       {error && <p role="alert">{error}</p>}
-      <div ref={listbox} className="hl-path-list" role="listbox" aria-label="Directory entries" aria-busy={busy} tabIndex={0} aria-activedescendant={chosen ? `${id}-entry-${selected}` : undefined} onKeyDown={e => {
-        if (!page?.entries.length) return;
-        if (["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) { e.preventDefault(); e.stopPropagation(); }
-        if (e.key === "ArrowDown") setSelected(i => Math.min(i + 1, page.entries.length - 1));
-        if (e.key === "ArrowUp") setSelected(i => Math.max(0, i - 1));
-        if (e.key === "Enter" && chosen) { if (chosen.kind === "directory") navigate(chosen.path); else choose(chosen); }
-      }}>
+      <div ref={listbox} id={`${id}-entries`} className="hl-path-list" role="listbox" aria-label="Directory entries" aria-busy={busy} tabIndex={0} aria-activedescendant={chosen ? `${id}-entry-${selected}` : undefined} onKeyDown={e => entryKeys(e)}>
         {busy && <p role="status">Loading…</p>}
         {!busy && page?.entries.length === 0 && <p>No entries in this page.</p>}
         {page?.entries.map((entry, index) => <div role="option" id={`${id}-entry-${index}`} aria-selected={index === selected} aria-disabled={!valid(entry) && entry.kind !== "directory"} key={entry.path} className="hl-path-entry" onClick={() => { setSelected(index); listbox.current?.focus(); }} onDoubleClick={() => entry.kind === "directory" ? navigate(entry.path) : choose(entry)}><span>{entry.kind === "directory" ? "▸ " : ""}{entry.name}{entry.symlink ? " ↗" : ""}</span><small>{entry.kind}</small><small>{entry.kind === "file" && entry.size !== null ? `${entry.size.toLocaleString()} B` : "—"}</small><small>{entry.modified_ts ? new Date(entry.modified_ts * 1000).toLocaleString() : "—"}</small></div>)}
