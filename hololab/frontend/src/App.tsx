@@ -96,6 +96,7 @@ import {
   isViewGraphNode,
 } from "./canvas/nodeMeta";
 import { Artifacts } from "./Artifacts";
+import Library from "./library/Library";
 import { Gallery } from "./Gallery";
 import { netBus, useReconnectTick } from "./net";
 import { CanvasContext } from "./canvas/CanvasContext";
@@ -159,8 +160,9 @@ function mintId(prefix: string): string {
   return `${prefix}${Date.now().toString(36)}${(ID_COUNTER++).toString(36)}`;
 }
 
-// Tiny path-router: three top-level screens.
+// Tiny path-router: four top-level screens.
 //   ``/``               — landing page (Gallery)
+//   ``/library``        — cross-workflow input assets
 //   ``/artifacts``      — cleanup / inventory page
 //   ``/w/<id>``         — canvas view for one workflow
 //
@@ -187,10 +189,12 @@ function mintId(prefix: string): string {
 type Route =
   | { kind: "gallery" }
   | { kind: "artifacts" }
+  | { kind: "library" }
   | { kind: "canvas"; workflowId: string };
 
 function parseRoute(): Route {
   const path = window.location.pathname;
+  if (path === "/library" || path === "/library/") return { kind: "library" };
   if (path === "/artifacts" || path.startsWith("/artifacts/")) {
     return { kind: "artifacts" };
   }
@@ -255,9 +259,10 @@ export default function App() {
 
   if (route.kind === "gallery") {
     return (
-      <Gallery onOpen={navigateToCanvas} onOpenArtifacts={navigateToArtifacts} />
+      <Gallery onOpen={navigateToCanvas} onOpenArtifacts={navigateToArtifacts} onOpenLibrary={() => pushPath("/library")} />
     );
   }
+  if (route.kind === "library") return <Library onBack={navigateToGallery} />;
   if (route.kind === "artifacts") {
     return <Artifacts onBackToGallery={navigateToGallery} />;
   }

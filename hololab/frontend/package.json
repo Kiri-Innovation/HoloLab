@@ -11,11 +11,14 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "predev": "node scripts/build-vendor.mjs --ensure",
-    "build:vendor": "node scripts/build-vendor.mjs"
+    "build:vendor": "node scripts/build-vendor.mjs",
+    "test:library": "node e2e/library.mjs && node e2e/library-delete.mjs",
+    "test:library:live": "node e2e/library-live.mjs"
   },
   "dependencies": {
     "@xyflow/react": "^12.3.0",
     "dompurify": "^3.4.15",
+    "hash-wasm": "4.12.0",
     "marked": "^18.0.13",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
