@@ -252,6 +252,8 @@ async def purge_session(lib, session):
 
 
 async def collect(lib):
+    if await lib.rows("SELECT 1 FROM library_operations WHERE state='pending'"):
+        return
     sessions = await lib.rows("SELECT upload_id FROM library_upload_sessions")
     for item in sessions:
         uid = item["upload_id"]
@@ -291,9 +293,22 @@ async def collect(lib):
                             await lib._cancel(session)
                     else:
                         await lib.cancel(uid)
-                elif session["state"] == "completed" and session["reserved_bytes"]:
+                elif (
+                    session["state"] == "completed"
+                    and session["reserved_bytes"]
+                    and not getattr(lib, "download_pins", {}).get(session["resource_id"])
+                ):
 
                     async def eligible(conn, session=session, uid=uid):
+                        async with conn.execute(
+                            "SELECT 1 FROM library_transfers WHERE source_ref=? AND fallback_reason='browser_download'",
+                            (uid,),
+                        ) as cur:
+                            if (
+                                await cur.fetchone()
+                                and time.time() - session["last_activity_ts"] < 1800
+                            ):
+                                return False  # Browser retries can reuse a completed NAT relay.
                         async with conn.execute(
                             "SELECT COUNT(*),SUM(observed_state='ready' AND desired_state='present') FROM library_placements WHERE resource_id=? AND version=?",
                             (session["resource_id"], session["version"]),

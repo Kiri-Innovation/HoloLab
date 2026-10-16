@@ -113,6 +113,7 @@ class Library:
         self.root = config.staging_root.expanduser().resolve()
         self._init_lock = asyncio.Lock()
         self._locks: dict[str, asyncio.Lock] = {}
+        self.namespace_lock = asyncio.Lock()
         self._lock_file = None
 
     async def rows(self, sql: str, args=()) -> list[dict]:
@@ -150,6 +151,10 @@ class Library:
         if not sessions:
             return
         await self.initialize()
+        # Namespace operations begin only when uploads/transfers are quiescent.
+        # Preserve their writer fence across restarts until node receipts arrive.
+        if await self.rows("SELECT 1 FROM library_operations WHERE state='pending'"):
+            return
         try:
             for session in sessions:
                 async with self.lock(session["upload_id"]):

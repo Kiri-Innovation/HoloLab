@@ -15,6 +15,7 @@ const resource={resource_id:'r1',folder_id:'projects',name:'resume.mp4',resource
 await page.route('**/api/**',async route=>{
  const req=route.request(),url=new URL(req.url());let body;
  if(url.pathname==='/api/nodes') body=[{node_id:'online',node_name:'Studio GPU',online:true},{node_id:'offline',node_name:'Offline node',online:false}];
+ else if(url.pathname==='/api/library/operations') body={operations:[]};
  else if(url.pathname==='/api/library/folders' && req.method()==='POST') {const data=req.postDataJSON();assert.equal(data.parent_id,'projects');folders.push({folder_id:'new',...data});body=folders.at(-1);}
  else if(url.pathname==='/api/library/folders') body={folders};
  else if(url.pathname==='/api/library/resources') body={total:session?1:0,resources:session&&url.searchParams.get('folder_id')==='projects'?[{...resource,status:deleting?'deleting':complete?'ready':'uploading',remaining_nodes:1}]:[]};

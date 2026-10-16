@@ -410,6 +410,10 @@ class LibraryWorker:
         }
 
     async def run_once(self, client: httpx.AsyncClient) -> bool:
+        from hololab.node.library_management import run_management
+
+        if await run_management(self, client):
+            return True
         response = await client.post(
             self.base + self.prefix.replace("/transfers", "/deletions") + "/claim",
             headers=self.auth,

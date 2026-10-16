@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import json
 import os
+import sqlite3
 import time
 import uuid
 from dataclasses import replace
@@ -37,8 +38,10 @@ from hololab.gateway.library import router as library_router
 from hololab.gateway.library_config import LibraryConfig
 from hololab.gateway.library_distribution import router as library_distribution_router
 from hololab.gateway.library_distribution import scheduler, signal_work
+from hololab.gateway.library_download import router as library_download_router
 from hololab.gateway.library_gc import gc_loop
 from hololab.gateway.library_gc import router as library_gc_router
+from hololab.gateway.library_management import router as library_management_router
 from hololab.gateway.library_relay import router as library_relay_router
 from hololab.gateway.library_transfers import router as library_transfers_router
 from hololab.gateway.metrics import (
@@ -166,6 +169,12 @@ def create_app(
 
     app = FastAPI(title="HoloLab Gateway", version="0.0.1")
 
+    @app.exception_handler(sqlite3.IntegrityError)
+    async def namespace_conflict(request, exc):
+        if str(exc).startswith("Library directory operation is pending"):
+            return JSONResponse(status_code=409, content={"detail": str(exc)})
+        raise exc
+
     from hololab.persistence.diagnostics import LatencyMiddleware, enabled, monitor_loop
 
     if enabled():
@@ -291,6 +300,8 @@ def create_app(
 
     # Routes MUST be registered before the ``/`` static mount, since starlette
     # dispatches in registration order and a ``Mount("/")`` catches every path.
+    app.include_router(library_management_router)
+    app.include_router(library_download_router)
     app.include_router(library_gc_router)
     app.include_router(library_router)
     app.include_router(library_transfers_router)

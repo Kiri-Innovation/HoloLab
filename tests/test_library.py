@@ -217,7 +217,7 @@ async def test_upgrade_v14_and_reopen(tmp_path):
         async with db.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'library_%'"
         ) as cur:
-            assert len(await cur.fetchall()) == 8
+            assert len(await cur.fetchall()) == 10
 
 
 def test_concurrent_quota_reservations(tmp_path):

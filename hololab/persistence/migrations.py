@@ -568,6 +568,36 @@ MIGRATIONS.append(
 )
 
 
+# V18 — durable Library namespace operations. Namespace writes are serialized
+# while a physical rename is awaiting receipts; reads and receipts remain live.
+MIGRATIONS.append(
+    (
+        18,
+        """
+CREATE TABLE library_operations (
+ operation_id TEXT PRIMARY KEY, kind TEXT NOT NULL, entity_id TEXT NOT NULL,
+ old_path TEXT NOT NULL, new_path TEXT, new_name TEXT, state TEXT NOT NULL,
+ created_ts REAL NOT NULL
+);
+CREATE TABLE library_operation_nodes (
+ operation_id TEXT NOT NULL REFERENCES library_operations(operation_id),
+ node_id TEXT NOT NULL REFERENCES nodes(node_id), payload TEXT NOT NULL,
+ state TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+ next_retry_ts REAL NOT NULL DEFAULT 0, last_error TEXT,
+ PRIMARY KEY(operation_id,node_id)
+);
+"""
+        + "\n".join(
+            f"CREATE TRIGGER library_namespace_{table}_{action.lower()} BEFORE {action} ON library_{table} "
+            "WHEN EXISTS(SELECT 1 FROM library_operations WHERE state='pending') "
+            "BEGIN SELECT RAISE(ABORT,'Library directory operation is pending; wait for node acknowledgements'); END;"
+            for table in ("folders", "resources", "placements", "transfers", "upload_sessions")
+            for action in ("INSERT", "UPDATE", "DELETE")
+        ),
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

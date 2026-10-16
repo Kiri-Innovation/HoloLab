@@ -93,3 +93,6 @@
 .library-folder-popup input { width: 100%; box-sizing: border-box; min-width: 0; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; }
 .library-folder-popup small { color: var(--text-muted); }
 .library-folder-popup p { margin: 0; color: var(--error); overflow-wrap: anywhere; max-height: 64px; overflow: auto; }
+.library-folder-popup .library-menu-danger, .library-folder-delete [role=alert] { color: var(--error); }
+.library-folder-delete .library-delete-confirm { background: var(--error); color: var(--text-inverse); border-color: var(--error); }
+.library-operation { border: 1px solid var(--border); padding: 12px; margin-top: 16px; background: var(--surface); }
