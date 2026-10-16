@@ -84,3 +84,12 @@
   .library-gallery { grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); gap: 12px; }
   .library-drag-frame { padding: 16px; }
 }
+/* Keep the blank directory surface available for contextual creation. */
+.library-resources { min-height: 60vh; }
+.library-folder-popup { position: fixed; z-index: 10000; width: 280px; max-width: calc(100vw - 16px); box-sizing: border-box; padding: 4px; background: var(--bg-elevated, var(--surface)); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: 0 12px 32px #0005; color: var(--text); font: var(--fs-sm) var(--font-sans); }
+.library-folder-popup button { display: block; height: auto; width: 100%; padding: 8px 12px; text-align: left; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.library-folder-popup button:hover, .library-folder-popup button:focus-visible { background: var(--surface-hover); }
+.library-folder-popup form { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+.library-folder-popup input { width: 100%; box-sizing: border-box; min-width: 0; padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; }
+.library-folder-popup small { color: var(--text-muted); }
+.library-folder-popup p { margin: 0; color: var(--error); overflow-wrap: anywhere; max-height: 64px; overflow: auto; }
