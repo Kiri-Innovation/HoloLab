@@ -243,6 +243,23 @@ class ParamSpec(BaseModel):
     must_exist: bool | None = Field(default=None, strict=True)
     path_kind: Literal["any", "file", "directory"] | None = None
 
+    def validate_enum_value(self, name: str, value: Any) -> None:
+        """Validate a new dispatch, without changing persisted workflow values."""
+        if self.type is not ParamType.ENUM:
+            return
+        # bool is an int in Python, but not a numeric enum value on the wire.
+        if not any(
+            value == option
+            and (
+                type(value) is type(option)
+                or (type(value) in (int, float) and type(option) in (int, float))
+            )
+            for option in (self.values or [])
+        ):
+            raise ValueError(
+                f"parameter {name!r}: value {value!r} is not allowed; allowed values: {self.values!r}"
+            )
+
     @model_validator(mode="after")
     def _check_path(self) -> ParamSpec:
         if self.type is ParamType.PATH:
