@@ -1,7 +1,7 @@
 // Run history — bottom section of the right sidebar.
 //
-// One view: every past snapshot for the current workflow, newest first,
-// with favorited runs pinned to the top (within their own time-sorted group).
+// One view: every past snapshot for the current workflow, newest first.
+// Favorites only affect the star, never the order.
 // Clicking a row opens the run on the canvas in read-only mode.
 //
 // V12 additions: per-run star (favorite) and Markdown note.
@@ -239,14 +239,6 @@ function RunListView({
   // Per-row expanded note preview.
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
 
-  // Favorites pinned above non-favorites, each group sorted newest first.
-  const sorted = useMemo(() => {
-    if (!runs) return [];
-    const favs = runs.filter((r) => r.favorite);
-    const rest = runs.filter((r) => !r.favorite);
-    return [...favs, ...rest];
-  }, [runs]);
-
   const openConfirm = useCallback(async (snapshotId: string) => {
     setMenu(null);
     setConfirm({ snapshotId, preview: null, loading: true, deleting: false, error: null });
@@ -431,7 +423,7 @@ function RunListView({
           document.body,
         )}
 
-      {sorted.map((r) => {
+      {runs.map((r) => {
         const active = r.snapshot_id === currentSnapshotId;
         const favorited = r.favorite ?? false;
         const hasNote = !!(r.note && r.note.trim());
@@ -516,23 +508,6 @@ function RunListView({
                       当前
                     </span>
                   )}
-                  {favorited && (
-                    <span
-                      title="已收藏"
-                      style={{
-                        padding: "1px 6px",
-                        borderRadius: "var(--radius-pill)",
-                        background: "var(--warning-soft, rgba(200, 162, 0, 0.12))",
-                        color: "var(--warning, #c8a200)",
-                        fontSize: 9,
-                        fontWeight: 600,
-                        letterSpacing: "0.03em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      收藏
-                    </span>
-                  )}
                 </div>
                 <div
                   style={{
@@ -582,7 +557,9 @@ function RunListView({
               >
                 <StatePips counts={r.state_counts} />
                 <IconButton
-                  title={favorited ? "取消收藏" : "收藏此 run（置顶）"}
+                  title={favorited ? "取消收藏" : "收藏此 run"}
+                  activeColor="#f5c518"
+                  pressed={favorited}
                   active={favorited}
                   onClick={() => onToggleFavorite(r.snapshot_id, favorited)}
                 >
@@ -633,11 +610,15 @@ function RunListView({
 function IconButton({
   title,
   active,
+  activeColor = "var(--accent, #4a9eff)",
+  pressed,
   onClick,
   children,
 }: {
   title: string;
   active: boolean;
+  activeColor?: string;
+  pressed?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -645,6 +626,7 @@ function IconButton({
     <button
       type="button"
       data-tooltip={title} aria-label={title}
+      aria-pressed={pressed}
       onClick={onClick}
       style={{
         display: "inline-flex",
@@ -657,7 +639,7 @@ function IconButton({
         border: "none",
         borderRadius: "var(--radius-sm, 4px)",
         cursor: "pointer",
-        color: active ? "var(--accent, #4a9eff)" : "var(--text-subtle)",
+        color: active ? activeColor : "var(--text-subtle)",
         opacity: active ? 1 : 0.6,
         transition: "color var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease)",
         flexShrink: 0,
