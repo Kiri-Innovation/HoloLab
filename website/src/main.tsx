@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import content from './content/docs/index.json';
-import Library from './library/Library';
 import './styles/site.css';
 import './styles/i18n.css';
 import './styles/screenshots.css';
@@ -14,8 +13,7 @@ const pathname = window.location.pathname.replace(/\/$/, '') || '/';
 const current = docs.find(doc => doc.href === pathname);
 const section = sections.find(s => s.href === pathname || s.id === current?.section);
 const isHome = pathname === '/' || pathname === '/zh-CN';
-const isLibrary = pathname === localize('/library');
-const isFound = isLibrary || isHome || !!current || !!section;
+const isFound = isHome || !!current || !!section;
 
 function ThemeControl() {
   const [theme, setTheme] = useState<Theme>(() => { try { const t = localStorage.getItem('hololab.website.theme'); return t === 'dark' || t === 'light' ? t : 'system'; } catch { return 'system'; } });
@@ -42,7 +40,7 @@ function LanguageControl() {
   }}><option value="en">English</option><option value="zh-CN">简体中文</option></select>;
 }
 function Header() {
-  return <header className="header"><div className="header-inner"><a className="brand" href={localize('/')} aria-label={t('homeLabel')}>HoloLab</a><nav aria-label={t('nav')}><a href={localize('/')} aria-current={isHome ? 'page' : undefined}>{t('overview')}</a><a href={localize('/docs')} aria-current={section ? 'page' : undefined}>{t('docs')}</a><a href={localize('/library')} aria-current={isLibrary ? 'page' : undefined}>{t('library')}</a></nav><LanguageControl /><ThemeControl /></div></header>;
+  return <header className="header"><div className="header-inner"><a className="brand" href={localize('/')} aria-label={t('homeLabel')}>HoloLab</a><nav aria-label={t('nav')}><a href={localize('/')} aria-current={isHome ? 'page' : undefined}>{t('overview')}</a><a href={localize('/docs')} aria-current={section ? 'page' : undefined}>{t('docs')}</a></nav><LanguageControl /><ThemeControl /></div></header>;
 }
 function Pipeline() {
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
@@ -70,7 +68,7 @@ function DocNav() {
         <ul>{entries.filter(d => d.group === group).map(d => <li key={d.slug}><a className="doc-link" aria-current={current?.slug === d.slug ? 'page' : undefined} href={d.href}>{d.title}</a></li>)}</ul>
       </section>)}
     </section>;
-  })}<section className="nav-section"><h2><a className="section-link" href={localize('/library')} aria-current={isLibrary ? 'page' : undefined}>{t('library')}</a></h2></section></nav>;
+  })}</nav>;
 }
 const introductions = { use: t('useIntro'), build: t('buildIntro'), reference: t('referenceIntro') };
 function DocsIndex() {
@@ -101,18 +99,18 @@ function Documentation() {
 function App() {
   useEffect(() => {
     const canonicalPath = isHome ? localize('/') : pathname;
-    const title = `${current?.title ?? (isLibrary ? t('library') : isHome ? t('homeTitle') : section?.title ?? t('notFound'))} — HoloLab`;
+    const title = `${current?.title ?? (isHome ? t('homeTitle') : section?.title ?? t('notFound'))} — HoloLab`;
     document.title = title;
     document.documentElement.lang = locale;
     document.querySelector('link[rel="canonical"]')?.setAttribute('href', `https://hololab.xenotech.studio${canonicalPath}`);
-    document.querySelector('meta[name="description"]')?.setAttribute('content', current ? `${current.title} · HoloLab` : isLibrary ? `${t('library')} · HoloLab` : t('intro'));
+    document.querySelector('meta[name="description"]')?.setAttribute('content', current ? `${current.title} · HoloLab` : t('intro'));
     document.querySelector('meta[property="og:locale"]')?.setAttribute('content', locale === 'en' ? 'en_US' : 'zh_CN');
     for (const language of ['en', 'zh-CN', 'x-default'] as const) {
       document.querySelector(`link[hreflang="${language}"]`)?.setAttribute('href', `https://hololab.xenotech.studio${localize(canonicalPath, language === 'zh-CN' ? 'zh-CN' : 'en')}`);
     }
     if (window.location.hash) { try { document.getElementById(decodeURIComponent(window.location.hash.slice(1)))?.scrollIntoView(); } catch { /* An invalid user-entered fragment is harmless. */ } }
   }, []);
-  return <><a className="skip" href="#main">{t('skip')}</a><Header />{isHome ? <Home /> : isLibrary ? <div className="library-layout"><aside className="sidebar"><DocNav /></aside><Library /></div> : isFound ? <Documentation /> : <main id="main" className="not-found"><div className="eyebrow">404</div><h1>{t('notFound')}</h1><p>{t('notFoundBody')}</p><a className="button primary" href={localize('/docs')}>{t('backDocs')} →</a></main>}{(isHome || isLibrary || !isFound) && <Footer />}</>;
+  return <><a className="skip" href="#main">{t('skip')}</a><Header />{isHome ? <Home /> : isFound ? <Documentation /> : <main id="main" className="not-found"><div className="eyebrow">404</div><h1>{t('notFound')}</h1><p>{t('notFoundBody')}</p><a className="button primary" href={localize('/docs')}>{t('backDocs')} →</a></main>}{(isHome || !isFound) && <Footer />}</>;
 }
 
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
