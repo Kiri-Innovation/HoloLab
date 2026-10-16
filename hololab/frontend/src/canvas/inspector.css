@@ -6,12 +6,14 @@
 .hl-node-inspector { text-align: left; }
 .hl-node-inspector input { min-width: 0; }
 /* Compact rows stay local to the editable parameter section. */
+.hl-inspector-parameters { --parameter-control-bg: var(--surface-alt); }
+:root[data-theme="dark"] .hl-inspector-parameters { --parameter-control-bg: var(--bg); }
 .hl-inspector-parameters .hl-inspector-field { --label-width: 46%; position: relative; display: grid; grid-template-columns: minmax(0, var(--label-width)) minmax(0, 1fr); align-items: start; gap: 0 8px; padding: 0; border: 0; }
 .hl-inspector-parameters .hl-inspector-field > div:first-child { min-width: 0; min-height: var(--control-h-sm); padding-right: 16px; box-sizing: border-box; }
 .hl-inspector-parameters .hl-inspector-field > div:first-child code { font-family: var(--font-sans); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hl-inspector-parameters .hl-inspector-field > :is(input, .hl-path-input, [data-hl-dim-list-editor]) { min-width: 0; width: 100%; }
 .hl-inspector-parameters .hl-inspector-field input:not([type=checkbox]),
-.hl-inspector-parameters .hl-inspector-field select { height: var(--control-h-sm); min-height: 0; padding: 0 6px; box-sizing: border-box; border-color: var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-alt); color: var(--text-body); font-size: var(--fs-xs) !important; }
+.hl-inspector-parameters .hl-inspector-field select { height: var(--control-h-sm); min-height: 0; padding: 0 6px; box-sizing: border-box; border-color: var(--border-subtle); border-radius: var(--radius-sm); background: var(--parameter-control-bg); color: var(--text-body); font-size: var(--fs-xs) !important; }
 .hl-inspector-parameters .hl-inspector-field input:hover { border-color: var(--border); }
 .hl-inspector-parameters .hl-inspector-field input:focus-visible { border-color: var(--border-focus); }
 .hl-inspector-parameters .hl-path-field { gap: 2px; }

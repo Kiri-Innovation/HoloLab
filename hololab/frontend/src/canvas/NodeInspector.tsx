@@ -24,7 +24,7 @@ const SECTION_TITLE: CSSProperties = {
   margin: "0 0 10px",
 };
 
-const FIELD: CSSProperties = { marginBottom: 2 };
+const FIELD: CSSProperties = { marginBottom: 6 };
 
 const LABEL: CSSProperties = {
   display: "flex",
