@@ -1,6 +1,6 @@
 // Compact right-sidebar parameter editor. Changes use the existing draft autosave.
 
-import { type ReactNode, type CSSProperties } from "react";
+import { useId, useState, type ReactNode, type CSSProperties } from "react";
 import type { CatalogPack, GraphNode } from "../wire";
 import { MarkdownView } from "../ui/MarkdownView";
 import { PathInput } from "./PathInput";
@@ -24,16 +24,16 @@ const SECTION_TITLE: CSSProperties = {
   margin: "0 0 10px",
 };
 
-const FIELD: CSSProperties = { marginBottom: 8 };
+const FIELD: CSSProperties = { marginBottom: 2 };
 
 const LABEL: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 6,
   fontSize: "var(--fs-xs)",
-  fontWeight: 500,
-  color: "var(--text-body)",
-  marginBottom: 4,
+  fontWeight: 400,
+  color: "var(--text-muted)",
+  marginBottom: 0,
 };
 
 const HINT: CSSProperties = {
@@ -41,17 +41,6 @@ const HINT: CSSProperties = {
   color: "var(--text-muted)",
   marginTop: 4,
   lineHeight: 1.4,
-};
-
-const TAG: CSSProperties = {
-  fontSize: 9.5,
-  fontWeight: 600,
-  letterSpacing: "0.03em",
-  textTransform: "uppercase",
-  padding: "1px 5px",
-  borderRadius: "var(--radius-sm)",
-  background: "var(--surface-alt)",
-  color: "var(--text-muted)",
 };
 
 export function NodeInspector({
@@ -81,8 +70,6 @@ export function NodeInspector({
       </div>
     );
   }
-
-  const hasDocs = !!pack.docs && pack.docs.trim().length > 0;
 
   return (
     <div
@@ -135,8 +122,7 @@ export function NodeInspector({
               v{pack.version}
             </div>
           </div>
-          {pack.description?.trim() && <p className="hl-inspector-description">{pack.description}</p>}
-          {hasDocs && pack.docs!.trim() !== pack.description?.trim() && <div className="hl-inspector-docs" role="region" aria-label="Pack documentation" tabIndex={0}><MarkdownView source={pack.docs!} /></div>}
+          <PackDescription key={`${selected.id}:${pack.name}:${pack.version}`} pack={pack} />
         </div>
 
       </section>
@@ -149,16 +135,9 @@ export function NodeInspector({
         {pack.arrayable && (
           <>
             <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Fan-out</h3>
-            <div style={FIELD}>
-              <label
-                style={{
-                  ...LABEL,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 8,
-                }}
-              >
+            <div className="hl-inspector-field" style={FIELD}>
+              <label className="hl-inspector-toggle-label">
+                <span>并行处理数组输入</span>
                 <input
                   type="checkbox"
                   data-hl-arrayed-toggle=""
@@ -166,21 +145,17 @@ export function NodeInspector({
                   onChange={(e) => onChange({ arrayed_toggle: e.target.checked })}
                   style={{ marginTop: 2 }}
                 />
-                <div>
-                  <div style={{ fontWeight: 500 }}>并行处理数组输入</div>
-                  <details className="hl-field-help"><summary>How fan-out works</summary><div style={{ ...HINT, marginTop: 2 }}>
+              </label>
+                  <details className="hl-field-help"><summary aria-label="How fan-out works" title="How fan-out works">?</summary><div style={{ ...HINT, marginTop: 2 }}>
                     勾选后此节点的输入/输出端口变为 <code>arrayed&lt;T&gt;</code>；
                     运行时框架对每个数组元素起一个 sub-job，
                     产物聚合在 <code>{"{parent}/{port}/{element_id}/"}</code>。
                   </div></details>
-                </div>
-              </label>
             </div>
             {selected.arrayed_toggle ? (
-              <div style={FIELD}>
+              <div className="hl-inspector-field hl-inspector-field--nested" style={FIELD}>
                 <div style={LABEL}>
                   <span>并行执行数</span>
-                  <span style={TAG}>structural</span>
                 </div>
                 <input
                   type="number"
@@ -197,13 +172,13 @@ export function NodeInspector({
                     onChange({ parallelism: clamped });
                   }}
                   style={{
-                    width: 72,
+                    width: "100%",
                     fontFamily: "var(--font-mono)",
                     fontVariantNumeric: "tabular-nums",
                     textAlign: "left",
                   }}
                 />
-                <details className="hl-field-help"><summary>Help</summary><div style={{ ...HINT, marginTop: 4 }}>
+                <details className="hl-field-help"><summary aria-label="Structural parameter help" title="Help">?</summary><div style={{ ...HINT, marginTop: 4 }}>
                   同时派发的 shard 上限（1–8，默认 1 = 串行）。
                   实际并发 = min(本值, 节点守护进程 <code>max_concurrent_jobs</code>)。
                   改动会 Fork 新的快照。
@@ -211,10 +186,9 @@ export function NodeInspector({
               </div>
             ) : null}
             {selected.arrayed_toggle ? (
-              <div style={FIELD}>
+              <div className="hl-inspector-field hl-inspector-field--nested" style={FIELD}>
                 <div style={LABEL}>
                   <span>批处理大小</span>
-                  <span style={TAG}>structural</span>
                 </div>
                 <input
                   type="number"
@@ -230,13 +204,13 @@ export function NodeInspector({
                     onChange({ batch_size: clamped });
                   }}
                   style={{
-                    width: 72,
+                    width: "100%",
                     fontFamily: "var(--font-mono)",
                     fontVariantNumeric: "tabular-nums",
                     textAlign: "left",
                   }}
                 />
-                <details className="hl-field-help"><summary>Help</summary><div style={{ ...HINT, marginTop: 4 }}>
+                <details className="hl-field-help"><summary aria-label="Structural parameter help" title="Help">?</summary><div style={{ ...HINT, marginTop: 4 }}>
                   每个 shard 子进程处理的数组元素数（默认 1 = 每元素一个 job）。
                   <code>N</code> 元素 + <code>batch_size=B</code> ⇒ <code>ceil(N/B)</code> 个 shard；
                   批内任一元素失败即整批失败（<code>set -euo pipefail</code>）。
@@ -254,14 +228,14 @@ export function NodeInspector({
         ) : (
           Object.entries(pack.params).map(([name, spec]) => {
             if (spec.type === "path") {
-              return <div key={name} style={FIELD}>
-                <div style={LABEL}><code>{name}</code><span style={TAG}>path</span></div>
+              return <div key={name} className="hl-inspector-field" style={FIELD}>
+                <div style={LABEL} title={`${name} · path`}><code>{name}</code></div>
                 <PathInput key={`${selected.id}:${name}:${selected.assigned_node_id}`} name={name}
                   value={String(selected.params[name] ?? spec.default ?? "")}
                   nodeId={selected.assigned_node_id ?? null} pathKind={spec.path_kind}
                   initialDirectory={computeNodesById?.[selected.assigned_node_id ?? ""]?.workspace_root ?? "/"}
                   onChange={value => onChange({ params: { ...selected.params, [name]: value } })} />
-                {spec.description && <div style={HINT}>{spec.description}</div>}
+                {spec.description && <details className="hl-field-help"><summary aria-label={`Help for ${name}`} title={`Help for ${name}`}>?</summary><div style={HINT}>{spec.description}</div></details>}
               </div>;
             }
             // list[str] gets the DimListEditor: pack authors mark ordered-
@@ -303,13 +277,7 @@ export function NodeInspector({
                   : undefined;
               return (
                 <div key={name} className="hl-inspector-field" style={FIELD}>
-                  <div style={LABEL}>
-                    <code style={{ fontFamily: "var(--font-mono)" }}>{name}</code>
-                    <span style={TAG}>{spec.type}</span>
-                    {spec.optional ? (
-                      <span style={{ ...TAG, color: "var(--text-subtle)" }}>optional</span>
-                    ) : null}
-                  </div>
+                  <div style={LABEL} title={`${name} · ${spec.type}${spec.optional ? " · optional" : ""}`}><code>{name}</code></div>
                   <DimListEditor
                     value={arr}
                     onChange={(next) =>
@@ -321,7 +289,7 @@ export function NodeInspector({
                     ariaName={name}
                     placeholder="dim label"
                   />
-                  {spec.description && <details className="hl-field-help"><summary>Help</summary><div style={HINT}>{spec.description}</div></details>}
+                  {spec.description && <details className="hl-field-help"><summary aria-label={`Help for ${name}`} title={`Help for ${name}`}>?</summary><div style={HINT}>{spec.description}</div></details>}
                 </div>
               );
             }
@@ -332,13 +300,7 @@ export function NodeInspector({
             const isNumeric = spec.type === "int" || spec.type === "float";
             return (
               <div key={name} className="hl-inspector-field" style={FIELD}>
-                <div style={LABEL}>
-                  <code style={{ fontFamily: "var(--font-mono)" }}>{name}</code>
-                  <span style={TAG}>{spec.type}</span>
-                  {spec.optional ? (
-                    <span style={{ ...TAG, color: "var(--text-subtle)" }}>optional</span>
-                  ) : null}
-                </div>
+                <div style={LABEL} title={`${name} · ${spec.type}${spec.optional ? " · optional" : ""}`}><code>{name}</code></div>
                 <input
                   aria-label={name}
                   value={String(current)}
@@ -351,13 +313,13 @@ export function NodeInspector({
                   }}
                   style={{
                     width: "100%",
-                    maxWidth: isNumeric ? 160 : 260,
+                    maxWidth: "100%",
                     fontFamily: isNumeric ? "var(--font-mono)" : "inherit",
                     fontVariantNumeric: isNumeric ? "tabular-nums" : "normal",
                     textAlign: "left",
                   }}
                 />
-                {spec.description && <details className="hl-field-help"><summary>Help</summary><div style={HINT}>{spec.description}</div></details>}
+                {spec.description && <details className="hl-field-help"><summary aria-label={`Help for ${name}`} title={`Help for ${name}`}>?</summary><div style={HINT}>{spec.description}</div></details>}
               </div>
             );
           })
@@ -367,6 +329,31 @@ export function NodeInspector({
 
     </div>
   );
+}
+
+function PackDescription({ pack }: { pack: CatalogPack }) {
+  const [expanded, setExpanded] = useState(false);
+  const docsId = useId();
+  const hasDocs = !!pack.docs?.trim();
+
+  return <>
+    {(pack.description?.trim() || hasDocs) && (
+      <p className="hl-inspector-description">
+        {pack.description}
+        {hasDocs && <>{pack.description?.trim() ? " " : null}<button
+          type="button"
+          className="hl-inspector-docs-toggle"
+          aria-expanded={expanded}
+          aria-controls={docsId}
+          onClick={() => setExpanded(value => !value)}
+        >{expanded ? "Show Less" : "Read More"}</button></>}
+      </p>
+    )}
+    {hasDocs && <div id={docsId} className="hl-inspector-docs" hidden={!expanded}
+      role="region" aria-label="Pack documentation" tabIndex={0}>
+      <MarkdownView source={pack.docs!} />
+    </div>}
+  </>;
 }
 
 function coerce(raw: string, type: string): unknown {
