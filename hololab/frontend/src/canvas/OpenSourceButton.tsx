@@ -134,8 +134,9 @@ function normalisePath(path: string): string {
 /** Retain the longest character suffix that fits, without reversing the path.
  * Keep LTR rendering: RTL ellipsis can reorder punctuation in mixed paths. */
 function PackagePath({ path }: { path: string }) {
+  const displayPath = path.endsWith("/manifest.yaml") ? path.slice(0, -"/manifest.yaml".length) || "/" : path;
   const ref = useRef<HTMLSpanElement>(null);
-  const [text, setText] = useState(path);
+  const [text, setText] = useState(displayPath);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -145,9 +146,9 @@ function PackagePath({ path }: { path: string }) {
     el.appendChild(probe);
     const update = () => {
       const fits = (value: string) => { probe.textContent = value; return probe.getBoundingClientRect().width <= el.clientWidth; };
-      let next = path;
+      let next = displayPath;
       if (!fits(next)) {
-        const chars = Array.from(path); // Never split a UTF-16 surrogate pair.
+        const chars = Array.from(displayPath); // Never split a UTF-16 surrogate pair.
         let low = 0;
         let high = chars.length;
         while (low < high) {
@@ -156,12 +157,8 @@ function PackagePath({ path }: { path: string }) {
           else low = mid + 1;
         }
         const suffix = chars.slice(low).join("");
-        // A manifest filename alone says nothing about which package this is.
-        // This is a display rule, not a claim about the directory's contents.
-        next = path.endsWith("/manifest.yaml") && suffix.length <= "/manifest.yaml".length
-          ? "…" : `…${suffix}`;
+        next = `…${suffix}`;
       }
-      if (path === "manifest.yaml") next = "…";
       setText(next);
     };
     update();
@@ -169,7 +166,7 @@ function PackagePath({ path }: { path: string }) {
     observer.observe(el);
     void document.fonts.ready.then(() => { if (!disposed && el.isConnected) update(); });
     return () => { disposed = true; observer.disconnect(); probe.remove(); };
-  }, [path]);
+  }, [displayPath]);
   return <span style={{ display: "flex", alignItems: "center", gap: 2, width: "100%", minWidth: 0, height: "100%" }}>
     <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
       flex: "0 0 16px", height: 16, boxSizing: "border-box", border: "1px solid var(--border-subtle)",
