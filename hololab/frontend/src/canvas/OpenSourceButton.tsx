@@ -131,7 +131,7 @@ function normalisePath(path: string): string {
   return (isAbsolute ? "/" : "") + stack.join("/");
 }
 
-/** Drop whole leading path segments, retaining the longest suffix that fits.
+/** Retain the longest character suffix that fits, without reversing the path.
  * Keep LTR rendering: RTL ellipsis can reorder punctuation in mixed paths. */
 function PackagePath({ path }: { path: string }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -147,12 +147,21 @@ function PackagePath({ path }: { path: string }) {
       const fits = (value: string) => { probe.textContent = value; return probe.getBoundingClientRect().width <= el.clientWidth; };
       let next = path;
       if (!fits(next)) {
-        const parts = path.split("/").filter(Boolean);
-        for (let start = 1; start < parts.length; start++) {
-          next = `…/${parts.slice(start).join("/")}`;
-          if (fits(next)) break;
+        const chars = Array.from(path); // Never split a UTF-16 surrogate pair.
+        let low = 0;
+        let high = chars.length;
+        while (low < high) {
+          const mid = Math.floor((low + high) / 2);
+          if (fits(`…${chars.slice(mid).join("")}`)) high = mid;
+          else low = mid + 1;
         }
+        const suffix = chars.slice(low).join("");
+        // A manifest filename alone says nothing about which package this is.
+        // This is a display rule, not a claim about the directory's contents.
+        next = path.endsWith("/manifest.yaml") && suffix.length <= "/manifest.yaml".length
+          ? "…" : `…${suffix}`;
       }
+      if (path === "manifest.yaml") next = "…";
       setText(next);
     };
     update();

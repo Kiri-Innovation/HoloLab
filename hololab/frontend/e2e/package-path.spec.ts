@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {mkdirSync} from 'node:fs';
-for(const bridge of [false,true]) test(`package path keeps whole trailing segments (bridge=${bridge})`,async({page})=>{
+for(const bridge of [false,true]) test(`package path keeps character suffixes (bridge=${bridge})`,async({page})=>{
  const legacy=false;
  const target='/cloud/实验项目/cloud-ssd1/a-very-long-workspace-directory/packs/fastgs-silhouette-train@0.1.0/manifest.yaml';
  if(bridge) await page.addInitScript(()=>{(window as any).flops={version:1,showDocument:async(args:any)=>{(window as any).__opened=args;return {success:true};}};});
@@ -34,7 +34,7 @@ for(const bridge of [false,true]) test(`package path keeps whole trailing segmen
  await expect(panel.locator('.hl-inspector-package-field .hl-parameter-type')).toHaveText('path');
  const row=panel.locator('[data-hl-open-source]');
  const label=row.locator('[data-hl-package-path] > span').first();
- await expect(label).toHaveText('…/manifest.yaml');
+ await expect(label).toHaveText(/^….+\/manifest\.yaml$/);
  await panel.locator('.hl-inspector-package-field').evaluate(el=>(el as HTMLElement).style.width='680px');
  await expect(label).toContainText('fastgs-silhouette-train@0.1.0/manifest.yaml');
  await panel.locator('.hl-inspector-package-field').evaluate(el=>(el as HTMLElement).style.width='');
@@ -45,10 +45,13 @@ for(const bridge of [false,true]) test(`package path keeps whole trailing segmen
   await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.waitForTimeout(250);
   await panel.getByRole('region',{name:'Parameters',exact:true}).screenshot({path:`/tmp/package-path/${bridge?'clickable':'readonly'}-${theme}.png`});
  }
- await panel.locator('.hl-inspector-package-field').evaluate(el=>(el as HTMLElement).style.width='300px');
- await expect(label).toHaveText('…/manifest.yaml');
+ await panel.locator('.hl-inspector-package-field').evaluate(el=>(el as HTMLElement).style.width='230px');
+ await expect(label).toHaveText('…');
  expect(await label.evaluate(el=>el.getBoundingClientRect().width<=el.parentElement!.clientWidth)).toBe(true);
- await panel.locator('.hl-inspector-package-field').screenshot({path:`/tmp/package-path/narrow-${bridge}.png`});
+ for(const theme of ['light','dark']){
+  await page.evaluate(t=>document.documentElement.dataset.theme=t,theme); await page.waitForTimeout(250);
+  await panel.locator('.hl-inspector-package-field').screenshot({path:`/tmp/package-path/manifest-only-${bridge}-${theme}.png`});
+ }
  if(bridge){
   await row.click();await expect.poll(()=>page.evaluate(()=>(window as any).__opened?.path)).toBe(target);
  } else {
