@@ -29,14 +29,21 @@
 }
 .hl-dock-tabs::after { content: ""; flex: 1; border-bottom: 1px solid var(--border); }
 .hl-dock-tabs [role=tab] {
-  min-width: 0; flex: 0 1 auto; box-sizing: border-box;
-  padding: 0 var(--space-3); border: 0; border-radius: 0;
-  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  position: relative; min-width: 0; flex: 0 1 auto; box-sizing: border-box;
+  padding: 0 var(--space-3); border: 0 !important; border-radius: 0;
+  /* Generic button hover must not redraw the window frame. */
+  box-shadow: inset 0 -1px var(--border);
   background: var(--surface-alt); color: var(--text-muted);
   font: inherit; font-size: var(--fs-xs) !important; font-weight: var(--fw-regular);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+/* Separators belong to the dock frame, not to the button hover state. */
+.hl-dock-tabs [role=tab]::after {
+  content: ""; position: absolute; right: 0;
+  top: var(--space-2); bottom: var(--space-2); width: 1px;
+  background: var(--border); pointer-events: none;
 }
 /* Approach the content surface gently, without making hover look selected. */
 .hl-dock-tabs [role=tab]:not([aria-selected=true]):hover {
@@ -45,9 +52,10 @@
 }
 .hl-dock-tabs [role=tab][aria-selected=true] {
   background: var(--surface); color: var(--text);
-  border-bottom-color: transparent;
+  box-shadow: none;
 }
-.hl-dock-tabs [role=tab]:focus-visible { outline: 1px solid var(--text-muted); outline-offset: -3px; box-shadow: none; }
+.hl-dock-tabs [role=tab][aria-selected=true]::after { display: none; }
+.hl-dock-tabs [role=tab]:focus-visible { outline: 1px solid var(--text-muted); outline-offset: -3px; }
 .hl-dock-panel { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .hl-dock-panel[hidden] { display: none; }
 .hl-dock-empty { padding: 14px; color: var(--text-muted); font-size: var(--fs-xs); }

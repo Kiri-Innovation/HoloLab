@@ -45,6 +45,17 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  const sidebar=page.locator('.hl-inspector-sidebar');await expect(sidebar.locator('.hl-node-inspector')).toBeVisible();expect((await sidebar.boundingBox())!.width).toBe(380);expect(await sidebar.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
  await expect(sidebar.getByText('Recent jobs',{exact:true})).not.toBeVisible();
  await expect(sidebar.getByRole('tab')).toHaveCount(3);
+ // Window-frame strokes must not inherit generic button hover/press borders.
+ for (const name of ['Inspector','Jobs']) {
+   const tab=sidebar.getByRole('tab',{name,exact:true});
+   await page.mouse.move(500,100);
+   const frame=await tab.evaluate(el=>({border:getComputedStyle(el).borderWidth,shadow:getComputedStyle(el).boxShadow,width:el.getBoundingClientRect().width}));
+   await tab.hover();
+   await page.mouse.down();
+   expect(await tab.evaluate(el=>({border:getComputedStyle(el).borderWidth,shadow:getComputedStyle(el).boxShadow,width:el.getBoundingClientRect().width}))).toEqual(frame);
+   await page.mouse.move(500,100); await page.mouse.up();
+ }
+
  await expect(page.locator('.hl-compute-dock .hl-node-metrics')).toBeVisible();
  await sidebar.getByRole('textbox',{name:'setting_12',exact:true}).scrollIntoViewIfNeeded();
  await expect(sidebar.getByRole('textbox',{name:'setting_12',exact:true})).toBeVisible();
