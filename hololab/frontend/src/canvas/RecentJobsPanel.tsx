@@ -418,7 +418,7 @@ export function RecentJobsPanel({
   };
 
   return (
-    <div
+    <div className="hl-recent-jobs"
       style={{
         overflow: "auto",
         height: "100%",

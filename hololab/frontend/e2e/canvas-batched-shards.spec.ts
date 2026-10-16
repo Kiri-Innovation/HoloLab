@@ -264,6 +264,7 @@ test.describe("Batched shard progress — element counts alongside batches", () 
     }));
 
     await page.goto(`/w/${WORKFLOW_ID}`);
+    await page.getByRole("tab", {name: "Jobs", exact: true}).click();
 
     // Panel row: element count ×21 (three shards of 8+8+5). Progress
     // cell reads "8/21 · 1/3b" — elements first (domain progress),
@@ -297,6 +298,7 @@ test.describe("Batched shard progress — element counts alongside batches", () 
     }));
 
     await page.goto(`/w/${WORKFLOW_ID}`);
+    await page.getByRole("tab", {name: "Jobs", exact: true}).click();
 
     // No batch suffix — plain "1/6" as before batching existed. The
     // "b" suffix is the tell for a batched run; its absence here is
