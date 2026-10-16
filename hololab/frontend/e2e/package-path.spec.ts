@@ -44,6 +44,7 @@ for(const bridge of [false,true]) test(`package path keeps whole trailing segmen
  }
  await panel.getByRole('region',{name:'Package',exact:true}).evaluate(el=>(el as HTMLElement).style.width='150px');
  await expect(label).toHaveText('…/manifest.yaml');
+ expect(await label.evaluate(el=>el.getBoundingClientRect().width<=el.parentElement!.clientWidth)).toBe(true);
  await panel.getByRole('region',{name:'Package',exact:true}).screenshot({path:`/tmp/package-path/narrow-${bridge}.png`});
  if(bridge){
   await row.click();await expect.poll(()=>page.evaluate(()=>(window as any).__opened?.path)).toBe(target);

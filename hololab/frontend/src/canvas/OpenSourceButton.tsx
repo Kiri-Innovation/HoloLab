@@ -161,9 +161,16 @@ function PackagePath({ path }: { path: string }) {
     void document.fonts.ready.then(() => { if (!disposed && el.isConnected) update(); });
     return () => { disposed = true; observer.disconnect(); probe.remove(); };
   }, [path]);
-  return <span ref={ref} data-hl-package-path="" style={{ display: "block", width: "100%", minWidth: 0,
+  return <span style={{ display: "flex", alignItems: "center", gap: 2, width: "100%", minWidth: 0, height: "100%" }}>
+    <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center",
+      flex: "0 0 16px", height: 16, boxSizing: "border-box", border: "1px solid var(--border-subtle)",
+      borderRadius: "var(--radius-sm)", background: "var(--surface-alt)", color: "var(--text-muted)" }}>
+      <CodeGlyph colour="currentColor" />
+    </span>
+    <span ref={ref} data-hl-package-path="" style={{ display: "block", flex: "1 1 0", minWidth: 0,
     direction: "ltr", unicodeBidi: "isolate", whiteSpace: "nowrap", overflow: "hidden", textAlign: "left" }}>
-    <span>{text}</span>
+      <span>{text}</span>
+    </span>
   </span>;
 }
 
