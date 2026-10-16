@@ -2772,6 +2772,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   ) : (
     <NodeInspector
       computeNodesById={computeNodesById}
+      assignment={assignmentSlot}
       selected={
         selectedNode && selectedAlgorithmData
           ? {
@@ -2854,7 +2855,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           nodes={nodesSlot}
           runs={runsSlot}
           jobs={jobsSlot}
-          inspect={<div className="hl-mobile-inspector">{assignmentSlot}{inspectorSlot}</div>}
+          inspect={<div className="hl-mobile-inspector">{inspectorSlot}</div>}
           selectionId={mobileSelectionId}
           latestSnapshotId={latestSnapshotId}
         />
@@ -2945,7 +2946,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         </div>
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-inspector"
           aria-labelledby="hl-dock-tab-inspector" hidden={rightTab !== "inspector"}>
-          {assignmentSlot}
           <div className="hl-sidebar-content">{inspectorSlot}</div>
         </div>
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-runs"

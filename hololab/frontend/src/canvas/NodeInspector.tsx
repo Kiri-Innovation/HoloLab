@@ -1,6 +1,6 @@
 // Compact right-sidebar parameter editor. Changes use the existing draft autosave.
 
-import { useState, type CSSProperties } from "react";
+import { useState, type ReactNode, type CSSProperties } from "react";
 import type { CatalogPack, GraphNode } from "../wire";
 import { MarkdownView } from "../ui/MarkdownView";
 import { Modal } from "../ui/Modal";
@@ -14,6 +14,7 @@ export interface NodeInspectorProps {
   computeNodesById?: Record<string, ComputeNode>;
   onChange: (patch: Partial<GraphNode>) => void;
   onDelete: () => void;
+  assignment?: ReactNode;
 }
 
 const SECTION_TITLE: CSSProperties = {
@@ -61,6 +62,7 @@ export function NodeInspector({
   computeNodesById,
   onChange,
   onDelete,
+  assignment,
 }: NodeInspectorProps) {
   const [docsOpen, setDocsOpen] = useState(false);
 
@@ -94,21 +96,14 @@ export function NodeInspector({
         height: "100%",
         fontSize: "var(--fs-sm)",
         color: "var(--text-body)",
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr)",
-        columnGap: 24,
+        display: "flex",
+        flexDirection: "column",
+        boxSizing: "border-box",
         overflow: "hidden",
         minHeight: 0,
       }}
     >
-      <div
-        style={{
-          minWidth: 0,
-          minHeight: 0,
-          overflowY: "auto",
-          paddingRight: 4,
-        }}
-      >
+      <section className="hl-inspector-summary" aria-label="Node overview">
         <div
           className="hl-inspector-heading"
           style={{
@@ -144,6 +139,7 @@ export function NodeInspector({
               v{pack.version}
             </div>
           </div>
+          {pack.description?.trim() && <p className="hl-inspector-description">{pack.description}</p>}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
             {hasDocs && (
               <button
@@ -194,6 +190,13 @@ export function NodeInspector({
           </div>
         </div>
 
+      </section>
+      {assignment && <section className="hl-inspector-execution" aria-label="Run on">
+        <h3 style={SECTION_TITLE}>Run on</h3>
+        {assignment}
+      </section>}
+      <div className="hl-inspector-parameters" role="region" aria-label="Parameters">
+        <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Parameters</h3>
         {pack.arrayable && (
           <>
             <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Fan-out</h3>
@@ -295,7 +298,6 @@ export function NodeInspector({
           </>
         )}
 
-        <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Parameters</h3>
         {Object.keys(pack.params).length === 0 ? (
           <div style={{ ...HINT, color: "var(--text-subtle)" }}>
             This pack takes no parameters.

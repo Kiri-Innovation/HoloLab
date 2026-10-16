@@ -46,6 +46,11 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  if(before)return;
  const sidebar=page.locator('.hl-inspector-sidebar');await expect(sidebar.locator('.hl-node-inspector')).toBeVisible();expect((await sidebar.boundingBox())!.width).toBe(380);expect(await sidebar.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
  await expect(sidebar.getByText('Recent jobs',{exact:true})).not.toBeVisible();
+ await expect(sidebar.getByRole('region',{name:'Node overview'})).toContainText(pack.description);
+ await expect(sidebar.getByRole('region',{name:'Run on'}).getByLabel('Assigned node')).toBeVisible();
+ expect(await sidebar.locator('.hl-node-inspector').evaluate(el=>Array.from(el.children).slice(0,3).map(child=>child.getAttribute('aria-label')))).toEqual(['Node overview','Run on','Parameters']);
+ const summaryTop=(await sidebar.locator('.hl-inspector-summary').boundingBox())!.y;
+
  await expect(sidebar.getByRole('tab')).toHaveCount(2);
  // Window-frame strokes must not inherit generic button hover/press borders.
  for (const name of ['Inspector','Runs']) {
@@ -62,6 +67,7 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  await expect(page.locator('.hl-compute-dock .hl-node-metrics')).toBeVisible();
  await sidebar.getByRole('textbox',{name:'setting_12',exact:true}).scrollIntoViewIfNeeded();
  await expect(sidebar.getByRole('textbox',{name:'setting_12',exact:true})).toBeVisible();
+ expect((await sidebar.locator('.hl-inspector-summary').boundingBox())!.y).toBe(summaryTop);
  await sidebar.getByRole('textbox',{name:'threshold',exact:true}).click();
  await sidebar.getByRole('textbox',{name:'threshold',exact:true}).press('ControlOrMeta+A');
  await sidebar.getByRole('textbox',{name:'threshold',exact:true}).pressSequentially('25');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.params?.threshold, {timeout:5000}).toBe(25);
@@ -119,6 +125,12 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  await sidebar.getByLabel('Assigned node').selectOption('');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.assigned_node_id).toBe(null);
  await sidebar.getByLabel('Assigned node').selectOption('compute-a');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.assigned_node_id).toBe('compute-a');
  await sidebar.getByRole('button',{name:'About',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Parameter documentation');await page.keyboard.press('Escape');
+ await page.setViewportSize({width:390,height:844});
+ await page.getByRole('tab',{name:'Inspect',exact:true}).click();
+ await expect(page.getByRole('region',{name:'Node overview'})).toContainText(pack.description);
+ await expect(page.getByRole('region',{name:'Run on'}).getByLabel('Assigned node')).toBeVisible();
+ await page.screenshot({path:`${output}/sections-mobile.png`});
+ await page.setViewportSize({width:1440,height:1000});
  await sidebar.getByRole('button',{name:'Delete node',exact:true}).click();await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0); await expect(node).toHaveCount(0);await expect(runsTab).toHaveAttribute('aria-selected','true');await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0);
  await sidebar.getByRole('tab',{name:'Runs',exact:true}).click();
  const previousReads=runReads;
