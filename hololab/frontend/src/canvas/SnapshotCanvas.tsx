@@ -1,3 +1,4 @@
+import { FrameSelectedShortcut } from "./FrameSelectedShortcut";
 import { CanvasControls } from "./CanvasControls";
 // Read-only xyflow canvas that renders a past run's frozen graph.
 //
@@ -468,6 +469,7 @@ export function SnapshotCanvas({
         />
       </Panel>
       {minimapOpen && <MiniMap pannable />}
+      <FrameSelectedShortcut nodeId={selectedGraphNodeId} />
       <CanvasControls showInteractive={false} />
       <CanvasToastAnchor />
       <Background gap={20} color="var(--rf-grid)" />

@@ -1,3 +1,4 @@
+import { FrameSelectedShortcut } from "./canvas/FrameSelectedShortcut";
 import { WorkflowConflictDialog } from "./canvas/WorkflowConflictDialog";
 import { CanvasControls } from "./canvas/CanvasControls";
 // Blueprint canvas — the top-level shell.
@@ -2663,6 +2664,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             minZoom={dynamicMinZoom}
             proOptions={{ hideAttribution: true }}
           >
+            <FrameSelectedShortcut nodeId={selectedNode?.id ?? null} />
             <CanvasControls />
             <CanvasToastAnchor />
             <Panel
