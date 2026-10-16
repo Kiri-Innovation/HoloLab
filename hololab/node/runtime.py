@@ -375,6 +375,10 @@ class NodeRuntime:
         # :mod:`hololab.node.metrics`.
         metrics_task = asyncio.create_task(self._metrics_loop(), name="hololab-node-metrics")
 
+        from hololab.node.library import poll_library
+
+        library_task = asyncio.create_task(poll_library(self), name="hololab-node-library")
+
         try:
             await self._connect_loop()
         finally:
@@ -383,7 +387,7 @@ class NodeRuntime:
             # ``hololab start`` restart hits EADDRINUSE on 8829.
             with contextlib.suppress(Exception):
                 await self._stop_file_server()
-            for t in (self._watch_task, sweep_task, metrics_task):
+            for t in (self._watch_task, sweep_task, metrics_task, library_task):
                 if t is None:
                     continue
                 t.cancel()

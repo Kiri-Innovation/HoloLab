@@ -161,6 +161,12 @@ class Library:
                             "UPDATE library_upload_sessions SET reserved_bytes=expected_size WHERE upload_id=?",
                             (session["upload_id"],),
                         )
+                        from hololab.gateway.library_transfers import enqueue
+
+                        async def schedule(conn, row=session):
+                            await enqueue(conn, row["resource_id"], row["version"])
+
+                        await self.db.write(schedule)
                     elif session["state"] != "cancelled":
                         await self.reconcile(session)
                         if session["state"] == "completing":
@@ -519,6 +525,9 @@ class Library:
                 "UPDATE library_resource_versions SET sha256=?,ingest_state='staged' WHERE resource_id=? AND version=?",
                 (digest, session["resource_id"], session["version"]),
             )
+            from hololab.gateway.library_transfers import enqueue
+
+            await enqueue(conn, session["resource_id"], session["version"])
             # Keep peak reservation until redundant parts have been removed.
             await conn.execute(
                 "UPDATE library_upload_sessions SET state='completed',last_activity_ts=?,last_error=NULL WHERE upload_id=?",

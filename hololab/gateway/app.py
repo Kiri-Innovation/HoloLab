@@ -35,6 +35,7 @@ from hololab.gateway.jobs import Job, JobState, JobStateMachine, event_from_tran
 from hololab.gateway.library import Library
 from hololab.gateway.library import router as library_router
 from hololab.gateway.library_config import LibraryConfig
+from hololab.gateway.library_transfers import router as library_transfers_router
 from hololab.gateway.metrics import (
     DEFAULT_SAMPLE_INTERVAL_S as METRICS_SAMPLE_INTERVAL_S,
 )
@@ -273,6 +274,7 @@ def create_app(
     # Routes MUST be registered before the ``/`` static mount, since starlette
     # dispatches in registration order and a ``Mount("/")`` catches every path.
     app.include_router(library_router)
+    app.include_router(library_transfers_router)
     _mount_routes(app)
     if not dev_mode:
         _mount_static(app)

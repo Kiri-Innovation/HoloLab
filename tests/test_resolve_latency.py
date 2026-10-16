@@ -62,8 +62,16 @@ exec:
     assert loader.call_count == 1
 
     old = path.stat()
-    path.write_text(source.replace("image", "video"))  # Same size, restored mtime.
-    os.utime(path, ns=(old.st_atime_ns, old.st_mtime_ns))
+    # This test exercises ctime invalidation. Some filesystems assign the
+    # same ctime to writes within one clock tick; establish the precondition
+    # explicitly instead of depending on how slowly preceding tests ran.
+    for _ in range(100):
+        path.write_text(source.replace("image", "video"))  # Same size, restored mtime.
+        os.utime(path, ns=(old.st_atime_ns, old.st_mtime_ns))
+        if path.stat().st_ctime_ns != old.st_ctime_ns:
+            break
+        time.sleep(0.002)
+    assert path.stat().st_ctime_ns != old.st_ctime_ns
     assert registry.get_output_port_spec("demo", "0.1.0", "out").tags == ["video"]
     assert loader.call_count == 2
     path.unlink()

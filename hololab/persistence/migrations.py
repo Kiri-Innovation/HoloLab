@@ -544,6 +544,10 @@ MIGRATIONS.append(
 )
 
 
+# V16 — fencing tokens for leased node-pulled Library transfers.
+MIGRATIONS.append((16, "ALTER TABLE library_transfers ADD COLUMN lease_token TEXT;"))
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

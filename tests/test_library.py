@@ -212,8 +212,8 @@ async def test_upgrade_v14_and_reopen(tmp_path):
         await db.execute("DELETE FROM schema_version")
         await db.execute("INSERT INTO schema_version VALUES (14)")
         await db.commit()
-        assert await apply_migrations(db) == 15
-        assert await apply_migrations(db) == 15
+        assert await apply_migrations(db) == MIGRATIONS[-1][0]
+        assert await apply_migrations(db) == MIGRATIONS[-1][0]
         async with db.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'library_%'"
         ) as cur:
@@ -300,7 +300,7 @@ def test_cancel_complete_race(tmp_path):
         assert payload.exists() == (session["state"] == "completed")
 
 
-def test_target_placement_is_intent_only(tmp_path):
+def test_target_placement_enqueues_pending_transfer(tmp_path):
     with TestClient(app_at(tmp_path)) as client:
         # Seed only the temporary registry; phase 1 never connects to devices.
         with sqlite3.connect(tmp_path / "db.sqlite") as db:
@@ -319,7 +319,7 @@ def test_target_placement_is_intent_only(tmp_path):
             assert db.execute(
                 "SELECT relative_path,observed_state,version FROM library_placements"
             ).fetchall() == [("videos/clip.mp4", "pending", 1)]
-            assert db.execute("SELECT COUNT(*) FROM library_transfers").fetchone()[0] == 0
+            assert db.execute("SELECT COUNT(*) FROM library_transfers").fetchone()[0] == 1
 
 
 def test_duplicate_retry_does_not_allocate_and_missing_part_repairs(tmp_path, monkeypatch):
