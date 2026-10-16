@@ -17,7 +17,7 @@
 //
 // See docs/cobrowser-integration.md#jump-to-source.
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CatalogPack, ComputeNode } from "../wire";
 import { flopsAvailable, flopsShowDocument } from "../flops";
 import { FlopsExecutorGuide } from "./FlopsExecutorGuide";
@@ -131,13 +131,40 @@ function normalisePath(path: string): string {
   return (isAbsolute ? "/" : "") + stack.join("/");
 }
 
-/** Keep a long absolute path recognisable in a one-line inspector row.
- * The leading workspace root and final pack/file pair carry the useful
- * identity; the complete target remains available through ``title``. */
-function middleEllipsizePath(path: string): string {
-  const parts = path.split("/").filter(Boolean);
-  if (parts.length <= 4) return path;
-  return `/${parts[0]}/…/${parts.slice(-2).join("/")}`;
+/** Drop whole leading path segments, retaining the longest suffix that fits.
+ * Keep LTR rendering: RTL ellipsis can reorder punctuation in mixed paths. */
+function PackagePath({ path }: { path: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [text, setText] = useState(path);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let disposed = false;
+    const probe = document.createElement("span");
+    Object.assign(probe.style, { position: "absolute", visibility: "hidden", whiteSpace: "nowrap", pointerEvents: "none" });
+    el.appendChild(probe);
+    const update = () => {
+      const fits = (value: string) => { probe.textContent = value; return probe.getBoundingClientRect().width <= el.clientWidth; };
+      let next = path;
+      if (!fits(next)) {
+        const parts = path.split("/").filter(Boolean);
+        for (let start = 1; start < parts.length; start++) {
+          next = `…/${parts.slice(start).join("/")}`;
+          if (fits(next)) break;
+        }
+      }
+      setText(next);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    void document.fonts.ready.then(() => { if (!disposed && el.isConnected) update(); });
+    return () => { disposed = true; observer.disconnect(); probe.remove(); };
+  }, [path]);
+  return <span ref={ref} data-hl-package-path="" style={{ display: "block", width: "100%", minWidth: 0,
+    direction: "ltr", unicodeBidi: "isolate", whiteSpace: "nowrap", overflow: "hidden", textAlign: "left" }}>
+    <span>{text}</span>
+  </span>;
 }
 
 /** Plain-click target: the pack's manifest.yaml.
@@ -211,7 +238,6 @@ export function OpenSourceButton({
   const packsDir = computeNode?.packs_dir ?? null;
   const manifestTarget = resolveManifestTarget(pack, packsDir);
   const rowPath = manifestTarget ?? label;
-  const rowLabel = middleEllipsizePath(rowPath);
 
   // The compact header affordance stays absent when Cocoder integration is
   // unavailable, preserving its established layout. The inspector metadata
@@ -238,7 +264,7 @@ export function OpenSourceButton({
           textOverflow: "ellipsis",
         }}
       >
-        {rowLabel}
+        <PackagePath path={rowPath} />
       </span>
     );
   }
@@ -318,7 +344,7 @@ export function OpenSourceButton({
     : `${nodeLabel} has no Flops executor id — click for details`;
 
   return (
-    <span style={{ position: "relative", display: "inline-block" }}>
+    <span style={{ position: "relative", display: variant === "row" ? "block" : "inline-block", minWidth: 0 }}>
       <button
         type="button"
         onClick={onClick}
@@ -359,7 +385,7 @@ export function OpenSourceButton({
         ) : status.kind === "err" ? (
           "!"
         ) : variant === "row" ? (
-          rowLabel
+          <PackagePath path={rowPath} />
         ) : (
           <CodeGlyph colour={colour} />
         )}
