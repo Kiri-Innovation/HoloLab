@@ -143,8 +143,8 @@ function PackagePath({ path }: { path: string }) {
     let disposed = false;
     const probe = document.createElement("span");
     Object.assign(probe.style, { position: "absolute", visibility: "hidden", whiteSpace: "nowrap", pointerEvents: "none" });
-    el.appendChild(probe);
     const update = () => {
+      el.appendChild(probe);
       const fits = (value: string) => { probe.textContent = value; return probe.getBoundingClientRect().width <= el.clientWidth; };
       let next = displayPath;
       if (!fits(next)) {
@@ -159,6 +159,9 @@ function PackagePath({ path }: { path: string }) {
         const suffix = chars.slice(low).join("");
         next = `…${suffix}`;
       }
+      // Hidden absolute text still contributes to ancestor scroll extents.
+      // Keep the probe in the DOM only during synchronous measurement.
+      probe.remove();
       setText(next);
     };
     update();
