@@ -21,6 +21,7 @@ export type MobileTab = "packs" | "nodes" | "runs" | "jobs" | "inspect";
 
 export interface MobileShellProps {
   topbar: ReactNode;
+  runFocusRequest?: { snapshotId: string; nonce: number } | null;
   canvas: ReactNode;
   packs: ReactNode;
   nodes: ReactNode;
@@ -127,6 +128,7 @@ const TABS: readonly TabDef[] = [
 ];
 
 export function MobileShell({
+  runFocusRequest,
   topbar,
   canvas,
   packs,
@@ -138,6 +140,7 @@ export function MobileShell({
   latestSnapshotId,
 }: MobileShellProps) {
   const [active, setActive] = useState<MobileTab>("packs");
+  useEffect(() => { if (runFocusRequest) setActive("runs"); }, [runFocusRequest]);
 
   // Skip the value observed on mount so a stored selection / prior
   // snapshot id doesn't yank the operator off the default PACKS tab

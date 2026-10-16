@@ -45,6 +45,7 @@ export interface RunsPanelProps {
   draftDiff?: DiffItem[];
   onSnapshotDeleted?: (snapshotId: string) => void;
   refreshSignal?: number;
+  focusRequest?: { snapshotId: string; nonce: number } | null;
 }
 
 export function RunsPanel({
@@ -54,7 +55,45 @@ export function RunsPanel({
   draftDiff = [],
   onSnapshotDeleted,
   refreshSignal,
+  focusRequest,
 }: RunsPanelProps) {
+  const root = useRef<HTMLDivElement>(null);
+  const [focusMessage, setFocusMessage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusRequest) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let animation: Animation | undefined;
+    let row: HTMLElement | undefined;
+    setFocusMessage(null);
+    void (async () => {
+      try {
+        // Re-fetch once per explicit navigation, including runs added since mount.
+        const rows = await listWorkflowRuns(workflowId);
+        if (cancelled) return;
+        setRuns(rows);
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        if (cancelled) return;
+        row = Array.from(root.current?.querySelectorAll<HTMLElement>("[data-hl-run-id]") ?? [])
+          .find(el => el.dataset.hlRunId === focusRequest.snapshotId);
+        if (!row) {
+          setFocusMessage(`Run ${focusRequest.snapshotId.slice(0, 8)} is not in this workflow's current list. It may have been removed.`);
+          return;
+        }
+        row.scrollIntoView({ block: "center", behavior: "instant" });
+        row.dataset.hlRunHighlight = "true";
+        const style = getComputedStyle(row);
+        animation = row.animate([
+          { backgroundColor: style.getPropertyValue("--accent-soft"), boxShadow: `inset 3px 0 ${style.getPropertyValue("--accent")}` },
+          { backgroundColor: style.backgroundColor, boxShadow: "inset 3px 0 transparent" },
+        ], { duration: 2000, easing: "ease-out" });
+        timer = setTimeout(() => row?.removeAttribute("data-hl-run-highlight"), 2000);
+      } catch {
+        if (!cancelled) setFocusMessage("Could not locate this run. Refresh the list and try again.");
+      }
+    })();
+    return () => { cancelled = true; clearTimeout(timer); animation?.cancel(); row?.removeAttribute("data-hl-run-highlight"); };
+  }, [focusRequest, workflowId]);
   const [runs, setRuns] = useState<RunSummaryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,6 +161,7 @@ export function RunsPanel({
 
   return (
     <div
+      ref={root}
       className="hl-runs-panel"
       style={{
         flex: 1,
@@ -134,6 +174,7 @@ export function RunsPanel({
       }}
     >
       <Header onRefresh={refresh} />
+      {focusMessage && <p role="status" style={{ margin: 0, padding: 12, color: "var(--text-muted)" }}>{focusMessage}</p>}
       {error && (
         <div
           style={{
@@ -432,6 +473,7 @@ function RunListView({
           <div
             key={r.snapshot_id}
             data-hl-run-row=""
+            data-hl-run-id={r.snapshot_id}
             style={{
               borderBottom: "1px solid var(--border-subtle)",
               background: active ? "var(--accent-soft)" : "transparent",

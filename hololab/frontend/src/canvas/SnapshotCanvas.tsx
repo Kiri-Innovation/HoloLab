@@ -197,6 +197,7 @@ export function SnapshotCanvas({
             ok: true as const,
             w,
             target: {
+              snapshot_id: snapshot.snapshot_id,
               port_name: w.portName,
               handle_id: info.handle_id,
               node_id: info.node_id,

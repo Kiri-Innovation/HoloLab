@@ -56,6 +56,8 @@ export interface PreviewShard {
 // lookup after a done job_update carries an output_handles map. Kept on
 // node data so re-renders don't re-fetch. See App.tsx for the flow.
 export interface PreviewTarget {
+  /** Run whose job association supplied this preview (not necessarily the newest run). */
+  snapshot_id?: string | null;
   port_name: string;
   handle_id: string;
   // Compute node id that produced this handle. The Cobrowser "Open in

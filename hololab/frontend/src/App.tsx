@@ -800,6 +800,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               if (!r) continue;
               const [port_name, info] = r;
               targets[port_name] = {
+                snapshot_id: p.snapshot_id ?? null,
                 port_name,
                 handle_id: info.handle_id,
                 node_id: info.node_id,
@@ -2335,6 +2336,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           }
 
           const perGraphPreviewWork: Array<{
+            snapshotId: string;
             graphNodeId: string;
             portName: string;
             handleId: string;
@@ -2406,6 +2408,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 job.output_handles ?? {},
               )) {
                 perGraphPreviewWork.push({
+                  snapshotId: snap.snapshot_id,
                   graphNodeId: gnid,
                   portName,
                   handleId,
@@ -2429,6 +2432,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               if (!r) continue;
               const bucket = (targets[r.graphNodeId] ??= {});
               bucket[r.portName] = {
+                snapshot_id: r.snapshotId,
                 port_name: r.portName,
                 handle_id: r.info.handle_id,
                 node_id: r.info.node_id,
@@ -2715,8 +2719,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const packsSlot = <PackPalette catalog={catalog} onRefresh={refreshCatalog} />;
 
+  const [runFocusRequest, setRunFocusRequest] = useState<{ snapshotId: string; nonce: number } | null>(null);
+  useEffect(() => { setRunFocusRequest(null); }, [workflowId]);
+  const showPreviewRun = (snapshotId: string) => {
+    setRightTab("runs");
+    setRunFocusRequest(previous => ({ snapshotId, nonce: (previous?.nonce ?? 0) + 1 }));
+  };
+
   const runsSlot = workflowId ? (
     <RunsPanel
+      focusRequest={runFocusRequest}
       workflowId={workflowId}
       onOpenSnapshot={(sid) => void onOpenSnapshot(sid)}
       currentSnapshotId={viewingSnapshot?.snapshot_id ?? latestSnapshotId}
@@ -2773,7 +2785,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       onRerunFromHere={onRerunFromHere}
       preview={snapshotPreviewData?.snapshotId === viewingSnapshot.snapshot_id && snapshotPreviewData.nodeId === snapshotSelectedGraphNodeId ?
         <CanvasContext.Provider value={canvasContextValue}>
-          <InspectorPreview key={`${snapshotPreviewData.snapshotId}:${snapshotPreviewData.nodeId}`} data={snapshotPreviewData.data} />
+          <InspectorPreview key={`${snapshotPreviewData.snapshotId}:${snapshotPreviewData.nodeId}`} data={snapshotPreviewData.data} onShowRun={showPreviewRun} />
         </CanvasContext.Provider> : null}
     />
   ) : !selectedNode || !selectedAlgorithmData ? (
@@ -2783,7 +2795,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       computeNodesById={computeNodesById}
       assignment={assignmentSlot}
       preview={<CanvasContext.Provider value={canvasContextValue}>
-        <InspectorPreview key={selectedNode.id} data={selectedAlgorithmData} />
+        <InspectorPreview key={selectedNode.id} data={selectedAlgorithmData} onShowRun={showPreviewRun} />
       </CanvasContext.Provider>}
       selected={
         selectedNode && selectedAlgorithmData
@@ -2851,6 +2863,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       <>
         {conflictDialog}
         <MobileShell
+          runFocusRequest={runFocusRequest}
           topbar={topbarSlot}
           canvas={
             <div
