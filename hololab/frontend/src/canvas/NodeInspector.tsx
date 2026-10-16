@@ -84,14 +84,14 @@ export function NodeInspector({
       className="hl-node-inspector"
       style={{
         padding: "14px",
-        height: "100%",
+        height: "auto",
         fontSize: "var(--fs-sm)",
         color: "var(--text-body)",
         display: "flex",
         flexDirection: "column",
         boxSizing: "border-box",
-        overflow: "hidden",
-        minHeight: 0,
+        overflow: "visible",
+        minHeight: "100%",
       }}
     >
       <section className="hl-inspector-summary" aria-label="Node overview">
@@ -394,7 +394,7 @@ function ParameterHelp({ name, children }: { name: string; children: ReactNode }
     const place = () => {
       if (!anchor.current || !card.current) return;
       const row = anchor.current.closest(".hl-inspector-field")!.getBoundingClientRect();
-      const visibleArea = anchor.current.closest(".hl-inspector-parameters")!.getBoundingClientRect();
+      const visibleArea = anchor.current.closest(".hl-sidebar-content, .hl-mobile-inspector")!.getBoundingClientRect();
       if (!row.width || row.bottom < Math.max(0, visibleArea.top) || row.top > Math.min(window.innerHeight, visibleArea.bottom)) {
         setOpen(false);
         return;
