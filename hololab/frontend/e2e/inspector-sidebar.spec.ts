@@ -24,7 +24,7 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  await page.setViewportSize({width:1440,height:1000});
  await page.goto(`${before?'http://127.0.0.1:4174':process.env.INSPECTOR_URL||'http://127.0.0.1:5173'}/w/inspector-demo`);
  if(!before) {
-   await expect(page.locator('.hl-inspector-sidebar').getByRole('tab',{name:'Inspector',exact:true})).toHaveAttribute('aria-selected','true');
+   await expect(page.locator('.hl-inspector-sidebar').getByRole('tab',{name:'Runs',exact:true})).toHaveAttribute('aria-selected','true');
    await expect(page.getByRole('tab',{name:'Compute Nodes · Pulse',exact:true})).toHaveAttribute('aria-selected','true');
    await page.getByRole('tab',{name:'Jobs',exact:true}).click();
    await expect(page.locator('.hl-compute-dock').getByText('Recent jobs',{exact:true})).toBeVisible();
@@ -92,14 +92,34 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  await expect(page.locator('.react-flow__node.selected')).toHaveCount(1);
  await page.waitForTimeout(1000);
  await expect(page.getByRole('tab',{name:'Jobs',exact:true})).toHaveAttribute('aria-selected','true');
- await runsTab.click();
- await node.click();
- await expect(inspectorTab).toHaveAttribute('aria-selected','true');
+ const pane=page.locator('.react-flow__pane');
+ for(const theme of ['light','dark']) {
+   await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+   await runsTab.click();
+   // Clicking an already-selected node does not change selection or steal the tab.
+   await node.click();
+   await expect(runsTab).toHaveAttribute('aria-selected','true');
+   await inspectorTab.click();
+   await pane.click({position:{x:20,y:20}});
+   await expect(runsTab).toHaveAttribute('aria-selected','true');
+   await page.screenshot({path:`${output}/selection-cleared-${theme}.png`});
+   // A manual choice with no selection also survives ordinary rerenders.
+   await inspectorTab.click();
+   await expect(sidebar.getByText('Select a node or connection to inspect it.')).toBeVisible();
+   await page.waitForTimeout(350);
+   await expect(inspectorTab).toHaveAttribute('aria-selected','true');
+   await runsTab.click();
+   await node.click();
+   await expect(inspectorTab).toHaveAttribute('aria-selected','true');
+   await expect(sidebar.getByRole('textbox',{name:'threshold',exact:true})).toHaveValue('25');
+   await expect(page.getByRole('tab',{name:'Jobs',exact:true})).toHaveAttribute('aria-selected','true');
+   await page.screenshot({path:`${output}/selection-active-${theme}.png`});
+ }
  await expect(sidebar.getByRole('textbox',{name:'threshold',exact:true})).toHaveValue('25');
  await sidebar.getByLabel('Assigned node').selectOption('');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.assigned_node_id).toBe(null);
  await sidebar.getByLabel('Assigned node').selectOption('compute-a');await expect.poll(()=>saved.at(-1)?.graph?.nodes[0]?.assigned_node_id).toBe('compute-a');
  await sidebar.getByRole('button',{name:'About',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Parameter documentation');await page.keyboard.press('Escape');
- await sidebar.getByRole('button',{name:'Delete node',exact:true}).click();await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0); await expect(node).toHaveCount(0);await expect(sidebar.getByText('Select a node or connection to inspect it.')).toBeVisible();await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0);
+ await sidebar.getByRole('button',{name:'Delete node',exact:true}).click();await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0); await expect(node).toHaveCount(0);await expect(runsTab).toHaveAttribute('aria-selected','true');await expect.poll(()=>saved.at(-1)?.graph?.nodes.length).toBe(0);
  await sidebar.getByRole('tab',{name:'Runs',exact:true}).click();
  const previousReads=runReads;
  await sidebar.getByRole('tabpanel',{name:'Runs',exact:true}).getByRole('button',{name:'刷新',exact:true}).click();

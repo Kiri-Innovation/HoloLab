@@ -287,7 +287,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const rightDock = useResizableSlot("hl-layout-inspector-right", 380, 320, 400);
   const bottomDock = useResizableSlot("hl-layout-bottom", 400, 160, Number.POSITIVE_INFINITY);
   const [bottomTab, setBottomTab] = useState<"pulse" | "jobs">("pulse");
-  const [rightTab, setRightTab] = useState<"inspector" | "runs">("inspector");
+  const [rightTab, setRightTab] = useState<"inspector" | "runs">("runs");
   const [minimapOpen, setMinimapOpen] = useState(false);
 
   // Bumped by the WS lifecycle on true reconnects (previously connected →
@@ -943,7 +943,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   }, [nodes, onNodesDelete, viewingSnapshot]);
   const onNodeClick: NodeMouseHandler = useCallback(
     (event, clicked) => {
-      setRightTab("inspector");
       const keepExisting = event.ctrlKey || event.metaKey;
       setNodes((current) =>
         current.map((node) => ({
@@ -2755,7 +2754,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     ? snapshotSelectedGraphNodeId ?? snapshotSelectedEdgeId
     : selectedNode?.id ?? selectedEdge?.id;
   useEffect(() => {
-    if (dockSelection) setRightTab("inspector");
+    // Follow selection changes, without overriding a manually chosen tab on rerenders.
+    setRightTab(dockSelection ? "inspector" : "runs");
   }, [dockSelection, Boolean(viewingSnapshot)]);
 
   const inspectorSlot = edgeInspectorProps ? (
