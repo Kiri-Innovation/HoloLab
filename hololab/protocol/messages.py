@@ -46,6 +46,12 @@ class GpuInfo(BaseModel):
     cuda_version: str | None = None
 
 
+class LibraryWake(BaseModel):
+    """Gateway → capable node: durable Library work may be available."""
+
+    reason: str = "pending_transfers"
+
+
 class Register(BaseModel):
     """Sent by the node on connect. Gateway responds with RegisterOk/Err.
 
@@ -71,6 +77,7 @@ class Register(BaseModel):
     workspace relocation.
     """
 
+    library_wakeup: bool = False
     node_name: str
     v_min: int
     v_max: int

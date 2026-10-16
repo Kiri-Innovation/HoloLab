@@ -22,6 +22,7 @@ from hololab.protocol import messages
 # changes, a protocol version bump.
 _KIND_REGISTRY: dict[str, type[BaseModel]] = {
     "register": messages.Register,
+    "library_wake": messages.LibraryWake,
     "register_ok": messages.RegisterOk,
     "register_err": messages.RegisterErr,
     "heartbeat": messages.Heartbeat,

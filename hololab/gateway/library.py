@@ -556,6 +556,8 @@ class Library:
                 "UPDATE library_upload_sessions SET state='cancelled',reserved_bytes=0,last_activity_ts=? WHERE upload_id=?",
                 (time.time(), session["upload_id"]),
             )
+            if session.get("purpose") == "relay":
+                return
             await conn.execute(
                 "UPDATE library_resources SET lifecycle='deleted',deleted_ts=? WHERE resource_id=?",
                 (time.time(), session["resource_id"]),
@@ -626,6 +628,8 @@ async def put_part(
     x_chunk_sha256: Annotated[str, Header(pattern=SHA256)],
 ):
     lib = service(request)
+    if (await lib.session(upload_id)).get("purpose") == "relay":
+        raise HTTPException(403, "Use the authenticated relay endpoint")
     async with lib.lock(upload_id):
         await lib.initialize()
         try:
@@ -637,9 +641,15 @@ async def put_part(
 @router.post("/uploads/{upload_id}/complete")
 async def complete_upload(upload_id: str, request: Request):
     lib = service(request)
+    if (await lib.session(upload_id)).get("purpose") == "relay":
+        raise HTTPException(403, "Use the authenticated relay endpoint")
     async with lib.lock(upload_id):
         try:
-            return await lib.complete(upload_id)
+            result = await lib.complete(upload_id)
+            from hololab.gateway.library_distribution import signal_work
+
+            signal_work(request.app)
+            return result
         except OSError as exc:
             raise HTTPException(507, f"Cannot assemble upload: {exc.strerror}") from exc
 
@@ -647,6 +657,8 @@ async def complete_upload(upload_id: str, request: Request):
 @router.delete("/uploads/{upload_id}")
 async def cancel_upload(upload_id: str, request: Request):
     lib = service(request)
+    if (await lib.session(upload_id)).get("purpose") == "relay":
+        raise HTTPException(403, "Use the authenticated relay endpoint")
     async with lib.lock(upload_id):
         try:
             return await lib.cancel(upload_id)

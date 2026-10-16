@@ -35,6 +35,9 @@ from hololab.gateway.jobs import Job, JobState, JobStateMachine, event_from_tran
 from hololab.gateway.library import Library
 from hololab.gateway.library import router as library_router
 from hololab.gateway.library_config import LibraryConfig
+from hololab.gateway.library_distribution import router as library_distribution_router
+from hololab.gateway.library_distribution import scheduler, signal_work
+from hololab.gateway.library_relay import router as library_relay_router
 from hololab.gateway.library_transfers import router as library_transfers_router
 from hololab.gateway.metrics import (
     DEFAULT_SAMPLE_INTERVAL_S as METRICS_SAMPLE_INTERVAL_S,
@@ -243,6 +246,11 @@ def create_app(
         app.state.pending_handle_checks: dict[str, asyncio.Future[Any]] = {}
         app.state.pending_artifact_deletes: dict[str, asyncio.Future[Any]] = {}
 
+        app.state.library_schedule_event = asyncio.Event()
+        app.state.library_scheduler_task = asyncio.create_task(
+            scheduler(app), name="library-scheduler"
+        )
+
         app.state.heartbeat_task = asyncio.create_task(
             _heartbeat_sweeper(app), name="hololab-heartbeat-sweeper"
         )
@@ -257,7 +265,12 @@ def create_app(
 
     @app.on_event("shutdown")
     async def _shutdown() -> None:
-        for attr in ("heartbeat_task", "orphan_finalizer_task", "latency_task"):
+        for attr in (
+            "heartbeat_task",
+            "orphan_finalizer_task",
+            "latency_task",
+            "library_scheduler_task",
+        ):
             task = getattr(app.state, attr, None)
             if task is not None:
                 task.cancel()
@@ -275,6 +288,8 @@ def create_app(
     # dispatches in registration order and a ``Mount("/")`` catches every path.
     app.include_router(library_router)
     app.include_router(library_transfers_router)
+    app.include_router(library_relay_router)
+    app.include_router(library_distribution_router)
     _mount_routes(app)
     if not dev_mode:
         _mount_static(app)
@@ -3219,6 +3234,8 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
         )
         async with session.send_lock:
             await ws.send_text(encode("register_ok", ok, v=chosen_v))
+        session.library_wakeup = payload.library_wakeup
+        signal_work(app)
 
         log.info(
             "node connected",

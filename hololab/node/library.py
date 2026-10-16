@@ -20,12 +20,13 @@ from typing import Any
 
 import httpx
 
+from hololab.library_transport import open_library_file
 from hololab.logging import get_logger
 
 log = get_logger("node.library")
 RANGE_SIZE = 8 * 1024**2
 BLOCK_SIZE = 64 * 1024
-POLL_SECONDS = 3
+POLL_SECONDS = 30
 HEARTBEAT_SECONDS = 20
 
 
@@ -34,6 +35,11 @@ class TransferError(Exception):
         super().__init__(message)
         self.code = code
         self.retryable = retryable
+
+
+class PeerUnavailable(TransferError):
+    def __init__(self, message: str):
+        super().__init__(message, code="peer_unavailable", retryable=True)
 
 
 async def io_work(fn, *args):
@@ -138,6 +144,9 @@ class LibraryWorker:
             json={"confirmed_bytes": self.confirmed_bytes},
         )
         response.raise_for_status()
+        task.update(
+            {k: v for k, v in response.json().items() if k in {"peer_url", "peer_capability"}}
+        )
 
     async def _keepalive(self, client: httpx.AsyncClient, task: dict):
         while True:
@@ -258,13 +267,25 @@ class LibraryWorker:
                         "If-Range": f'"{task["sha256"]}"',
                         "Accept-Encoding": "identity",
                     }
+                    url = self.base + self.prefix + f"/{transfer_id}/content"
+                    peer = task.get("route") == "peer_direct"
+                    if peer:
+                        url = task.get("peer_url")
+                        if not url or not task.get("peer_capability"):
+                            raise PeerUnavailable("Source has no advertised library endpoint")
+                        headers.pop("Authorization", None)
+                        headers.pop("X-Transfer-Lease", None)
+                        headers["X-Library-Capability"] = task["peer_capability"]
                     self.ranges.append((offset, end))
                     written = 0
                     try:
                         async with client.stream(
                             "GET",
-                            self.base + self.prefix + f"/{transfer_id}/content",
+                            url,
                             headers=headers,
+                            timeout=httpx.Timeout(15, connect=3)
+                            if peer
+                            else httpx.Timeout(60, connect=10),
                         ) as response:
                             response.raise_for_status()
                             if (
@@ -297,10 +318,12 @@ class LibraryWorker:
                         journal.update(state="receiving", confirmed_bytes=offset)
                         await io_work(write_journal, temp_fd, journal)
                         self.confirmed_bytes = offset
-                    except BaseException:
+                    except BaseException as exc:
                         # No partial Range is acknowledged or retained across retry.
                         stream.truncate(offset)
                         os.fsync(stream.fileno())
+                        if peer and isinstance(exc, (httpx.HTTPError, TransferError)):
+                            raise PeerUnavailable(str(exc)) from exc
                         raise
                 if digest.hexdigest() != task["sha256"]:
                     stream.truncate(0)
@@ -308,6 +331,8 @@ class LibraryWorker:
                     journal.update(state="receiving", confirmed_bytes=0)
                     await io_work(write_journal, temp_fd, journal)
                     self.confirmed_bytes = 0
+                    if task.get("route") == "peer_direct":
+                        raise PeerUnavailable("Peer file SHA-256 mismatch")
                     raise TransferError(
                         "Downloaded file SHA-256 mismatch", code="checksum_mismatch", retryable=True
                     )
@@ -341,6 +366,42 @@ class LibraryWorker:
             "sha256": task["sha256"],
         }
 
+    async def relay_upload(self, client: httpx.AsyncClient, task: dict) -> dict:
+        url = self.base + self.prefix + f"/{task['transfer_id']}/upload"
+        response = await client.get(url, headers=self.headers(task))
+        response.raise_for_status()
+        session = response.json()
+        if session["state"] != "completed":
+            existing = {p["part_index"]: p["sha256"] for p in session["parts"]}
+            digest = hashlib.sha256()
+            with open_library_file(self.root, task["relative_path"]) as stream:
+                if os.fstat(stream.fileno()).st_size != task["size_bytes"]:
+                    raise TransferError("Relay source size changed", code="checksum_mismatch")
+                index = 0
+                while block := await io_work(stream.read, RANGE_SIZE):
+                    digest.update(block)
+                    chunk_hash = hashlib.sha256(block).hexdigest()
+                    await self.renew(client, task)
+                    if existing.get(index) != chunk_hash:
+                        response = await client.put(
+                            url + f"/parts/{index}",
+                            content=block,
+                            headers={**self.headers(task), "X-Chunk-SHA256": chunk_hash},
+                        )
+                        response.raise_for_status()
+                    self.confirmed_bytes += len(block)
+                    index += 1
+            if digest.hexdigest() != task["sha256"]:
+                raise TransferError("Relay source SHA-256 changed", code="checksum_mismatch")
+            response = await client.post(url + "/complete", headers=self.headers(task))
+            response.raise_for_status()
+        self.confirmed_bytes = task["size_bytes"]
+        return {
+            "status": "success",
+            "confirmed_bytes": task["size_bytes"],
+            "sha256": task["sha256"],
+        }
+
     async def run_once(self, client: httpx.AsyncClient) -> bool:
         response = await client.post(self.base + self.prefix + "/claim", headers=self.auth)
         response.raise_for_status()
@@ -349,7 +410,14 @@ class LibraryWorker:
             return False
         self.confirmed_bytes = 0
         keeper = asyncio.create_task(self._keepalive(client, task))
-        download = asyncio.create_task(self.materialize(client, task))
+        log.info(
+            "library transfer started",
+            transfer_id=task["transfer_id"],
+            action=task.get("action", "download"),
+            route=task.get("route", "gateway_staging"),
+        )
+        operation = self.relay_upload if task.get("action") == "relay_upload" else self.materialize
+        download = asyncio.create_task(operation(client, task))
         try:
             done, _ = await asyncio.wait({keeper, download}, return_when=asyncio.FIRST_COMPLETED)
             if keeper in done:
@@ -358,6 +426,26 @@ class LibraryWorker:
         except asyncio.CancelledError:
             raise
         except (TransferError, httpx.HTTPError, OSError, ValueError, KeyError) as exc:
+            if isinstance(exc, PeerUnavailable):
+                keeper.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await keeper
+                try:
+                    response = await client.post(
+                        self.base + self.prefix + f"/{task['transfer_id']}/relay",
+                        headers=self.headers(task),
+                        json={"reason": str(exc)[:1000] or "Peer unavailable"},
+                    )
+                    response.raise_for_status()
+                    log.info(
+                        "library fallback requested",
+                        transfer_id=task["transfer_id"],
+                        route="gateway_relay",
+                        reason=str(exc),
+                    )
+                    return True
+                except httpx.HTTPError as relay_error:
+                    exc = relay_error
             if isinstance(exc, TransferError):
                 code, retryable = exc.code, exc.retryable
             elif isinstance(exc, httpx.HTTPStatusError):
@@ -369,11 +457,16 @@ class LibraryWorker:
                 code, retryable = "network", True
             else:
                 code, retryable = "local_io", False
+            detail = str(exc)
+            if isinstance(exc, httpx.HTTPStatusError):
+                # Keep readable quota/storage errors for placement status and UI.
+                with contextlib.suppress(ValueError, httpx.ResponseNotRead):
+                    detail += ": " + str(exc.response.json().get("detail", ""))
             result = {
                 "status": "failed",
                 "confirmed_bytes": self.confirmed_bytes,
                 "error_code": code,
-                "error": str(exc)[:2000],
+                "error": detail[:2000],
                 "retryable": retryable,
             }
         finally:
@@ -402,7 +495,7 @@ async def poll_library(runtime: Any) -> None:
         timeout=httpx.Timeout(60, connect=10), follow_redirects=False
     ) as client:
         while True:
-            await runtime._ws_ready.wait()
+            runtime._library_wake.clear()
             if runtime._node_id and runtime._node_token:
                 worker = LibraryWorker(
                     runtime._config.library_root,
@@ -415,4 +508,5 @@ async def poll_library(runtime: Any) -> None:
                         continue
                 except Exception as exc:
                     log.warning("library poll failed; will retry", error=str(exc))
-            await asyncio.sleep(POLL_SECONDS)
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(runtime._library_wake.wait(), timeout=POLL_SECONDS)

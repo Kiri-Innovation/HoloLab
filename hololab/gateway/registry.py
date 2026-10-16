@@ -70,6 +70,8 @@ class NodeSession:
     # scalar ``packs_dir``, the registry wraps it in a single-entry
     # list at register time.
     pack_dirs: list[str] = field(default_factory=list)
+    # Opt-in keeps older nodes from receiving an unknown envelope kind.
+    library_wakeup: bool = False
     # ``token_issued`` is set when this session's register frame either
     # minted a fresh node_token or the gateway is (re-)issuing one. The
     # socket handler forwards it in RegisterOk so the node can persist it

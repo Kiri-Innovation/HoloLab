@@ -548,6 +548,26 @@ MIGRATIONS.append(
 MIGRATIONS.append((16, "ALTER TABLE library_transfers ADD COLUMN lease_token TEXT;"))
 
 
+# V17 — source selection, outbound relay jobs and upload ownership.
+MIGRATIONS.append(
+    (
+        17,
+        """
+    ALTER TABLE library_transfers ADD COLUMN action TEXT NOT NULL DEFAULT 'download';
+    ALTER TABLE library_transfers ADD COLUMN route TEXT NOT NULL DEFAULT 'gateway_staging';
+    ALTER TABLE library_transfers ADD COLUMN source_node_id TEXT;
+    ALTER TABLE library_transfers ADD COLUMN relay_transfer_id TEXT;
+    ALTER TABLE library_transfers ADD COLUMN fallback_reason TEXT;
+    ALTER TABLE library_upload_sessions ADD COLUMN purpose TEXT NOT NULL DEFAULT 'ingest';
+    ALTER TABLE library_upload_sessions ADD COLUMN uploader_node_id TEXT;
+    DROP INDEX ix_library_active_transfer;
+    CREATE UNIQUE INDEX ix_library_active_transfer ON library_transfers(resource_id,version,target_node_id)
+        WHERE state IN ('pending','running','waiting','waiting_source');
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

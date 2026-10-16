@@ -15,6 +15,10 @@ class LibraryConfig(BaseModel):
     staging_quota_bytes: int = Field(default=200 * 1024**3, gt=0)
     max_file_bytes: int = Field(default=100 * 1024**3, gt=0)
 
+    max_concurrent_transfers: int = Field(default=3, ge=1)
+    max_transfers_per_node: int = Field(default=1, ge=1)
+    max_transfers_per_resource: int = Field(default=3, ge=1)
+
     @classmethod
     def from_env(cls, *, default_root: Path | None = None) -> LibraryConfig:
         values: dict = {}

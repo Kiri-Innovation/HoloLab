@@ -41,6 +41,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         prog="hololab-fileserver",
         description="HoloLab node file server (child process).",
     )
+    p.add_argument("--library-root", type=Path)
+    p.add_argument("--library-config", type=Path)
     p.add_argument("--host", required=True, help="Bind host, e.g. 127.0.0.1.")
     p.add_argument("--port", type=int, required=True, help="Bind port.")
     p.add_argument(
@@ -81,8 +83,12 @@ def main(argv: list[str] | None = None) -> int:
 
     configure_logging(level="DEBUG" if args.verbose else "INFO")
 
+    from hololab.node.config import load_node_config
+
     app = create_fileserver_app(
         workspace_root=args.workspace_root,
+        library_root=args.library_root,
+        library_token_provider=lambda: load_node_config(args.library_config).node_token,
         legacy_workspace_roots=list(args.legacy_root),
         pack_dirs=list(args.pack_dir),
     )

@@ -175,6 +175,8 @@ def _conditional_304(
 def create_fileserver_app(
     *,
     workspace_root: Path,
+    library_root: Path | None = None,
+    library_token_provider=None,
     legacy_workspace_roots: list[Path] | None = None,
     pack_dirs: list[Path] | None = None,
 ) -> FastAPI:
@@ -196,6 +198,9 @@ def create_fileserver_app(
     """
 
     app = FastAPI(title="HoloLab Node FileServer")
+    from hololab.node.library_server import mount_library_reads
+
+    mount_library_reads(app, library_root, library_token_provider)
     primary = workspace_root.resolve()
     legacy = [p.resolve() for p in (legacy_workspace_roots or [])]
     all_roots: list[Path] = [primary, *legacy]

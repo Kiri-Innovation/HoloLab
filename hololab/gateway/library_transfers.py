@@ -1,4 +1,4 @@
-"""Durable node-pulled library transfers. No inbound connection to nodes."""
+"""Durable node-claimed transfers with Gateway staging and optional peer reads."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from hololab.gateway.library import CHUNK_SIZE, Library, service
+from hololab.gateway.library_distribution import choose_source, signal_work, source_details
 
 LEASE_SECONDS = 120
 MAX_ATTEMPTS = 5
@@ -57,9 +58,9 @@ async def enqueue(conn, resource_id: str, version: int) -> None:
                 continue
         await conn.execute(
             "INSERT INTO library_transfers(transfer_id,resource_id,version,target_node_id,source_ref,delete_epoch) "
-            "SELECT ?,?,?,?,s.staging_id,r.delete_epoch FROM library_staging_objects s "
-            "JOIN library_resources r ON r.resource_id=s.resource_id "
-            "WHERE s.resource_id=? AND s.version=? AND s.state='ready' AND r.lifecycle='active' LIMIT 1",
+            "SELECT ?,?,?,?,NULL,r.delete_epoch FROM library_resource_versions v "
+            "JOIN library_resources r ON r.resource_id=v.resource_id "
+            "WHERE v.resource_id=? AND v.version=? AND v.sha256 IS NOT NULL AND r.lifecycle='active' LIMIT 1",
             (str(uuid.uuid4()), resource_id, version, node_id, resource_id, version),
         )
 
@@ -77,17 +78,18 @@ async def authenticate(lib: Library, node_id: str, authorization: str | None) ->
 
 async def task_row(conn, transfer_id: str) -> dict:
     async with conn.execute(
-        "SELECT t.*,s.size_bytes,s.sha256,s.storage_key,p.relative_path,p.desired_state,"
+        "SELECT t.*,v.size_bytes,v.sha256,s.storage_key,p.relative_path,p.desired_state,"
         "r.lifecycle,r.delete_epoch AS resource_epoch "
-        "FROM library_transfers t JOIN library_staging_objects s ON s.staging_id=t.source_ref "
+        "FROM library_transfers t JOIN library_resource_versions v ON v.resource_id=t.resource_id AND v.version=t.version "
+        "LEFT JOIN library_staging_objects s ON s.staging_id=t.source_ref AND s.state='ready' "
         "JOIN library_resources r ON r.resource_id=t.resource_id "
         "JOIN library_placements p ON p.resource_id=t.resource_id AND p.version=t.version "
-        "AND p.node_id=t.target_node_id WHERE t.transfer_id=? AND s.state='ready'",
+        "AND p.node_id=t.target_node_id WHERE t.transfer_id=?",
         (transfer_id,),
     ) as cur:
         row = await cur.fetchone()
         if row is None:
-            raise HTTPException(404, "Transfer or staging source not found")
+            raise HTTPException(404, "Transfer or placement not found")
         return dict(zip([c[0] for c in cur.description], row, strict=True))
 
 
@@ -123,6 +125,11 @@ def public_task(task: dict) -> dict:
             "lease_until",
             "attempts",
             "delete_epoch",
+            "action",
+            "route",
+            "source_node_id",
+            "source_ref",
+            "fallback_reason",
         )
     }
 
@@ -133,12 +140,12 @@ async def create_transfer(body: TransferCreate, request: Request):
 
     async def write(conn):
         async with conn.execute(
-            "SELECT 1 FROM library_resources r JOIN library_staging_objects s ON r.resource_id=s.resource_id "
-            "WHERE r.resource_id=? AND s.version=? AND r.lifecycle='active' AND s.state='ready'",
+            "SELECT 1 FROM library_resources r JOIN library_resource_versions v ON r.resource_id=v.resource_id "
+            "WHERE r.resource_id=? AND v.version=? AND r.lifecycle='active' AND v.sha256 IS NOT NULL",
             (body.resource_id, body.version),
         ) as cur:
             if not await cur.fetchone():
-                raise HTTPException(409, "Resource has no ready staging source")
+                raise HTTPException(409, "Resource version has not completed ingestion")
         async with conn.execute(
             "SELECT online FROM nodes WHERE node_id=?", (body.target_node_id,)
         ) as cur:
@@ -168,14 +175,16 @@ async def create_transfer(body: TransferCreate, request: Request):
             row = await cur.fetchone()
         return {"transfer_id": row[0], "state": row[1]}
 
-    return await lib.db.write(write)
+    result = await lib.db.write(write)
+    signal_work(request.app)
+    return result
 
 
 @router.get("/transfers")
 async def list_transfers(request: Request):
     return {
         "transfers": await service(request).rows(
-            "SELECT transfer_id,resource_id,version,target_node_id,state,confirmed_bytes,attempts,next_retry_ts,lease_until,last_error FROM library_transfers ORDER BY rowid DESC LIMIT 1000"
+            "SELECT transfer_id,resource_id,version,target_node_id,state,confirmed_bytes,attempts,next_retry_ts,lease_until,last_error,action,route,source_node_id,fallback_reason FROM library_transfers ORDER BY rowid DESC LIMIT 1000"
         )
     }
 
@@ -192,17 +201,30 @@ async def retry_transfer(transfer_id: str, request: Request):
             or task["desired_state"] != "present"
         ):
             raise HTTPException(409, "Only failed or waiting active transfers may be retried")
+        state = "pending"
+        if task["relay_transfer_id"]:
+            upstream = await task_row(conn, task["relay_transfer_id"])
+            if upstream["state"] == "failed":
+                await conn.execute(
+                    "UPDATE library_transfers SET state='pending',attempts=0,next_retry_ts=NULL,lease_token=NULL,lease_until=NULL,last_error=NULL WHERE transfer_id=?",
+                    (upstream["transfer_id"],),
+                )
+            if upstream["state"] != "completed":
+                state = "waiting_source"
         await conn.execute(
-            "UPDATE library_transfers SET state='pending',attempts=0,next_retry_ts=NULL,lease_token=NULL,lease_until=NULL,last_error=NULL WHERE transfer_id=?",
-            (transfer_id,),
+            "UPDATE library_transfers SET state=?,attempts=0,next_retry_ts=NULL,lease_token=NULL,lease_until=NULL,last_error=NULL WHERE transfer_id=?",
+            (state, transfer_id),
         )
-        await conn.execute(
-            "UPDATE library_placements SET observed_state='pending',last_error=NULL WHERE resource_id=? AND version=? AND node_id=?",
-            (task["resource_id"], task["version"], task["target_node_id"]),
-        )
+        if task["action"] != "relay_upload":
+            await conn.execute(
+                "UPDATE library_placements SET observed_state=?,last_error=NULL WHERE resource_id=? AND version=? AND node_id=?",
+                (state, task["resource_id"], task["version"], task["target_node_id"]),
+            )
+        return {"transfer_id": transfer_id, "state": state}
 
-    await lib.db.write(write)
-    return {"transfer_id": transfer_id, "state": "pending"}
+    result = await lib.db.write(write)
+    signal_work(request.app)
+    return result
 
 
 @router.post("/nodes/{node_id}/transfers/claim")
@@ -216,26 +238,42 @@ async def claim(
     async def write(conn):
         # Exhausted crashed workers must not leave an immortal running placement.
         async with conn.execute(
-            "SELECT transfer_id FROM library_transfers WHERE target_node_id=? AND state='running' AND lease_until<=? AND attempts>=?",
+            "SELECT transfer_id,action FROM library_transfers WHERE target_node_id=? AND state='running' AND lease_until<=? AND attempts>=?",
             (node_id, now, MAX_ATTEMPTS),
         ) as cur:
             expired = await cur.fetchall()
-        for (transfer_id,) in expired:
+        for transfer_id, action in expired:
             await conn.execute(
                 "UPDATE library_transfers SET state='failed',last_error='Lease expired after maximum attempts' WHERE transfer_id=?",
                 (transfer_id,),
             )
+            if action == "relay_upload":
+                from hololab.gateway.library_relay import fail_dependents
+
+                await fail_dependents(conn, transfer_id, "Lease expired after maximum attempts")
+                continue
             await conn.execute(
                 "UPDATE library_placements SET observed_state='failed',last_error='Lease expired after maximum attempts' WHERE (resource_id,version,node_id) IN (SELECT resource_id,version,target_node_id FROM library_transfers WHERE transfer_id=?)",
                 (transfer_id,),
             )
         async with conn.execute(
+            "SELECT COUNT(*),COALESCE(SUM(target_node_id=?),0) FROM library_transfers WHERE state='running' AND lease_until>?",
+            (node_id, now),
+        ) as cur:
+            total, per_node = await cur.fetchone()
+        if (
+            total >= lib.config.max_concurrent_transfers
+            or per_node >= lib.config.max_transfers_per_node
+        ):
+            return {"transfer": None}
+        async with conn.execute(
             "SELECT t.transfer_id FROM library_transfers t JOIN library_resources r ON r.resource_id=t.resource_id "
             "JOIN library_placements p ON p.resource_id=t.resource_id AND p.version=t.version AND p.node_id=t.target_node_id "
             "WHERE t.target_node_id=? AND t.attempts<? AND r.lifecycle='active' AND p.desired_state='present' "
+            "AND (SELECT COUNT(*) FROM library_transfers active WHERE active.resource_id=t.resource_id AND active.version=t.version AND active.state='running' AND active.lease_until>?)<? "
             "AND r.delete_epoch=t.delete_epoch AND ((t.state IN ('pending','waiting') AND COALESCE(t.next_retry_ts,0)<=?) "
             "OR (t.state='running' AND t.lease_until<=?)) ORDER BY t.rowid LIMIT 1",
-            (node_id, MAX_ATTEMPTS, now, now),
+            (node_id, MAX_ATTEMPTS, now, lib.config.max_transfers_per_resource, now, now),
         ) as cur:
             row = await cur.fetchone()
         if not row:
@@ -246,13 +284,34 @@ async def claim(
             (secrets.token_urlsafe(32), now + LEASE_SECONDS, transfer_id),
         )
         task = await task_row(conn, transfer_id)
+        if not await choose_source(conn, lib, task):
+            state = "failed" if task["attempts"] >= MAX_ATTEMPTS else "waiting"
+            await conn.execute(
+                "UPDATE library_transfers SET state=?,next_retry_ts=?,lease_until=NULL,last_error='No verified source available' WHERE transfer_id=?",
+                (
+                    state,
+                    now + min(60, 2 ** task["attempts"]) + secrets.randbelow(1000) / 1000,
+                    transfer_id,
+                ),
+            )
+            await conn.execute(
+                "UPDATE library_placements SET observed_state=?,last_error='No verified source available' WHERE resource_id=? AND version=? AND node_id=?",
+                (state, task["resource_id"], task["version"], node_id),
+            )
+            return {"transfer": None}
+        task = await task_row(conn, transfer_id)
+        if task["action"] == "relay_upload":
+            return {"transfer": public_task(task)}
         await conn.execute(
             "UPDATE library_placements SET observed_state='downloading',last_error=NULL WHERE resource_id=? AND version=? AND node_id=?",
             (task["resource_id"], task["version"], node_id),
         )
         return {"transfer": public_task(task)}
 
-    return await lib.db.write(write)
+    result = await lib.db.write(write)
+    if result["transfer"]:
+        result["transfer"].update(await source_details(lib, result["transfer"]))
+    return result
 
 
 @router.post("/nodes/{node_id}/transfers/{transfer_id}/heartbeat")
@@ -277,9 +336,11 @@ async def heartbeat(
             "UPDATE library_transfers SET confirmed_bytes=?,lease_until=? WHERE transfer_id=?",
             (body.confirmed_bytes, until, transfer_id),
         )
-        return {"lease_until": until}
+        return {"lease_until": until, "task": public_task(task)}
 
-    return await lib.db.write(write)
+    result = await lib.db.write(write)
+    result.update(await source_details(lib, result.pop("task")))
+    return result
 
 
 @router.post("/nodes/{node_id}/transfers/{transfer_id}/receipt")
@@ -302,10 +363,17 @@ async def receipt(
         if body.status == "success":
             if body.sha256 != task["sha256"] or body.confirmed_bytes != task["size_bytes"]:
                 raise HTTPException(422, "Receipt size/SHA-256 does not match resource version")
+            if task["action"] == "relay_upload" and not task["storage_key"]:
+                raise HTTPException(409, "Relay staging is not complete")
             await conn.execute(
                 "UPDATE library_transfers SET state='completed',confirmed_bytes=?,last_error=NULL WHERE transfer_id=?",
                 (body.confirmed_bytes, transfer_id),
             )
+            if task["action"] == "relay_upload":
+                from hololab.gateway.library_relay import release_dependents
+
+                await release_dependents(conn, task)
+                return {"state": "completed"}
             await conn.execute(
                 "UPDATE library_placements SET observed_state='ready',verified_sha256=?,verified_ts=?,last_error=NULL WHERE resource_id=? AND version=? AND node_id=?",
                 (body.sha256, time.time(), task["resource_id"], task["version"], node_id),
@@ -327,13 +395,21 @@ async def receipt(
                 transfer_id,
             ),
         )
+        if task["action"] == "relay_upload":
+            if state == "failed":
+                from hololab.gateway.library_relay import fail_dependents
+
+                await fail_dependents(conn, transfer_id, error)
+            return {"state": state}
         await conn.execute(
             "UPDATE library_placements SET observed_state=?,last_error=? WHERE resource_id=? AND version=? AND node_id=?",
             (state, error, task["resource_id"], task["version"], node_id),
         )
         return {"state": state}
 
-    return await lib.db.write(write)
+    result = await lib.db.write(write)
+    signal_work(request.app)
+    return result
 
 
 @router.get("/nodes/{node_id}/transfers/{transfer_id}/content")
@@ -367,6 +443,8 @@ async def content(
             "Range outside object or larger than 8 MiB",
             headers={"Content-Range": f"bytes */{size}"},
         )
+    if not task["storage_key"]:
+        raise HTTPException(503, "No ready Gateway staging object")
     path = lib.root / task["storage_key"]
     if not path.is_file() or path.stat().st_size != size:
         raise HTTPException(503, "Staging payload is unavailable")

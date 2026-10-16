@@ -185,6 +185,7 @@ class NodeRuntime:
         self._protocol_v = PROTOCOL_V_MAX
         self._node_id = config.node_id
         self._node_token = config.node_token
+        self._library_wake = asyncio.Event()
         self._send_lock = asyncio.Lock()
 
         # Set once the handshake completes on a fresh WS, cleared as
@@ -423,6 +424,9 @@ class NodeRuntime:
             "--workspace-root",
             str(cfg.workspace_root),
         ]
+        argv += ["--library-root", str(cfg.library_root)]
+        if self._config_path is not None:
+            argv += ["--library-config", str(self._config_path)]
         for p in cfg.legacy_workspace_roots:
             argv += ["--legacy-root", str(p)]
         for p in cfg.pack_dirs:
@@ -657,6 +661,7 @@ class NodeRuntime:
         ]
 
         reg = Register(
+            library_wakeup=True,
             node_name=self._config.node_name,
             v_min=PROTOCOL_V_MIN,
             v_max=PROTOCOL_V_MAX,
@@ -739,6 +744,7 @@ class NodeRuntime:
         # (``_locate_handle``) that were blocked waiting for a live
         # session across a gateway restart.
         self._ws_ready.set()
+        self._library_wake.set()
 
     async def _session_loop(self) -> None:
         """Heartbeat + incoming frame dispatch, in parallel."""
@@ -754,7 +760,9 @@ class NodeRuntime:
                     log.warning("bad frame", error=str(exc))
                     continue
 
-                if env.kind == "job_assign":
+                if env.kind == "library_wake":
+                    self._library_wake.set()
+                elif env.kind == "job_assign":
                     assert isinstance(payload, JobAssign)
                     self._spawn_job(payload)
                 elif env.kind == "job_cancel":
