@@ -143,7 +143,7 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
           else complete(suggestions[active]);
         }
       }} />
-      <button type="button" aria-label={`Browse paths for ${name}`} disabled={!nodeId} onClick={() => { setSuggest(false); navigate(value ? split(value).path : initialDirectory || "/"); setOpen(true); }}>+</button>
+      <button type="button" aria-label={`Browse paths for ${name}`} disabled={!nodeId} onClick={() => { setSuggest(false); navigate(value ? split(value).path : initialDirectory || "/"); setOpen(true); }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" /></svg></button>
     </div>
     {!nodeId && <small>Select a compute node to browse its files.</small>}
     {suggest && nodeId && createPortal(<div ref={popup} className="hl-path-suggestions" style={rect} onMouseDown={e => e.preventDefault()}>
