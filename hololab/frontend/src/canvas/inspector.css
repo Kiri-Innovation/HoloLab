@@ -23,7 +23,11 @@
 .hl-inspector-parameters .hl-parameter-help { position: absolute; top: 4px; left: calc(var(--label-width) - 12px); width: 12px; height: 16px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-subtle); font-size: var(--fs-micro) !important; line-height: 16px; cursor: help; }
 .hl-inspector-parameters .hl-parameter-help:is(:hover, :focus-visible) { background: transparent; color: var(--accent); }
 .hl-inspector-parameters .hl-parameter-help:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 2px; }
-.hl-parameter-tooltip { position: fixed; z-index: 12000; width: 320px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); box-sizing: border-box; overflow: auto; padding: 10px 12px; background: var(--overlay); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-2); color: var(--text-body); font-size: var(--fs-xs); line-height: 1.5; overflow-wrap: anywhere; white-space: pre-line; pointer-events: none; }
+.hl-parameter-tooltip { position: fixed; z-index: 12000; width: 320px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); box-sizing: border-box; overflow: visible; background: var(--overlay); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-2); color: var(--text-body); font-size: var(--fs-xs); line-height: 1.5; overflow-wrap: anywhere; white-space: pre-line; pointer-events: none; }
+.hl-parameter-tooltip-content { max-height: calc(100vh - 18px); box-sizing: border-box; overflow: auto; padding: 10px 12px; }
+.hl-parameter-tooltip-arrow { position: absolute; top: var(--parameter-arrow-y, 12px); left: -5px; width: 8px; height: 8px; box-sizing: border-box; transform: translateY(-50%) rotate(45deg); background: var(--overlay); border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.hl-parameter-tooltip[data-arrow-side="right"] .hl-parameter-tooltip-arrow { left: auto; right: -5px; border: 0; border-top: 1px solid var(--border); border-right: 1px solid var(--border); }
+
 .hl-inspector-parameters .hl-inspector-field--nested > div:first-child { padding-left: 12px; }
 .hl-inspector-parameters .hl-inspector-toggle-label { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 1fr); gap: 8px; min-height: var(--control-h-sm); align-items: center; font-size: var(--fs-xs); color: var(--text-muted); cursor: pointer; }
 .hl-inspector-parameters .hl-inspector-toggle-label input { justify-self: start; margin: 0; }

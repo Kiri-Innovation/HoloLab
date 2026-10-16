@@ -344,6 +344,7 @@ function ParameterHelp({ name, children }: { name: string; children: ReactNode }
   const card = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const [open, setOpen] = useState(false);
+  const [arrowSide, setArrowSide] = useState<"left" | "right">("left");
   const [position, setPosition] = useState<CSSProperties>({ visibility: "hidden" });
   const cancelTimer = () => clearTimeout(timer.current);
   const close = () => { cancelTimer(); setOpen(false); };
@@ -366,15 +367,21 @@ function ParameterHelp({ name, children }: { name: string; children: ReactNode }
       const viewportHeight = window.innerHeight;
       let left = panel.left - bubble.width - edge;
       let top = row.top;
+      let side: "left" | "right" = "left";
       if (left < edge) {
         left = panel.right + edge;
+        side = "right";
         if (left + bubble.width > viewportWidth - edge) {
           left = Math.max(edge, Math.min(row.left, viewportWidth - bubble.width - edge));
           top = row.bottom + edge;
+          side = "left";
         }
       }
       top = Math.max(edge, Math.min(top, viewportHeight - bubble.height - edge));
-      setPosition({ left, top, visibility: "visible" });
+      const trigger = anchor.current.getBoundingClientRect();
+      const arrowY = Math.max(8, Math.min(trigger.top + trigger.height / 2 - top - 1, bubble.height - 10));
+      setArrowSide(side);
+      setPosition({ left, top, visibility: "visible", "--parameter-arrow-y": `${arrowY}px` } as CSSProperties);
     };
     place();
     const dismiss = () => { clearTimeout(timer.current); setOpen(false); };
@@ -397,7 +404,10 @@ function ParameterHelp({ name, children }: { name: string; children: ReactNode }
       onFocus={() => { cancelTimer(); setOpen(true); }} onBlur={close}
     >?</button>
     {open && createPortal(<div ref={card} id={id} role="tooltip"
-      className="hl-parameter-tooltip" style={position}>{children}</div>, document.body)}
+      className="hl-parameter-tooltip" data-arrow-side={arrowSide} style={position}>
+      <span className="hl-parameter-tooltip-arrow" aria-hidden="true" />
+      <div className="hl-parameter-tooltip-content">{children}</div>
+    </div>, document.body)}
   </>;
 }
 
