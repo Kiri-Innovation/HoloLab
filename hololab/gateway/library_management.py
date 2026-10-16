@@ -82,8 +82,53 @@ async def operation(lib, oid):
     found = await lib.rows("SELECT * FROM library_operations WHERE operation_id=?", (oid,))
     if not found:
         raise HTTPException(404, "Directory operation not found")
+    if found[0]["kind"] == "delete_tree":
+        snapshot = json.loads(found[0]["payload"])
+        holders = await lib.rows(
+            """
+          SELECT f.folder_id,n.node_id,n.node_name,n.online
+          FROM library_folder_nodes f JOIN nodes n USING(node_id)
+          WHERE f.folder_id IN (SELECT value FROM json_each(?))
+          AND NOT EXISTS (
+            SELECT 1 FROM library_operation_nodes done JOIN library_operations child USING(operation_id)
+            WHERE child.entity_id=f.folder_id AND json_extract(child.payload,'$.parent_operation_id')=?
+            AND done.node_id=f.node_id AND done.state='completed'
+          )
+        """,
+            (json.dumps(snapshot["folder_ids"]), oid),
+        )
+        counts = dict.fromkeys(snapshot["folder_ids"], 0)
+        by_node = {}
+        for holder in holders:
+            counts[holder["folder_id"]] += 1
+            by_node[holder["node_id"]] = {
+                key: value for key, value in holder.items() if key != "folder_id"
+            }
+        nodes = [{**node, "state": "pending", "last_error": None} for node in by_node.values()]
+        errors = await lib.rows(
+            """
+          SELECT n.node_id,n.state,n.last_error FROM library_operation_nodes n
+          JOIN library_operations o USING(operation_id)
+          WHERE json_extract(o.payload,'$.parent_operation_id')=? AND n.state<>'completed'
+          UNION ALL SELECT target_node_id,state,last_error FROM library_transfers
+          WHERE action='delete' AND resource_id IN (SELECT value FROM json_each(?)) AND state<>'completed'
+        """,
+            (oid, json.dumps(snapshot["resource_ids"])),
+        )
+        for node in nodes:
+            for error in errors:
+                if error["node_id"] == node["node_id"] and error["last_error"]:
+                    node.update(error)
+        return {
+            **found[0],
+            **snapshot,
+            "nodes": nodes,
+            "remaining_nodes": len(nodes),
+            "folder_remaining_nodes": counts,
+        }
     return {
         **found[0],
+        "folder_ids": [found[0]["entity_id"]] if found[0]["kind"] == "delete_folder" else [],
         "nodes": await lib.rows(
             "SELECT p.node_id,n.node_name,n.online,p.state,p.attempts,p.last_error FROM library_operation_nodes p JOIN nodes n USING(node_id) WHERE operation_id=?",
             (oid,),
@@ -101,7 +146,9 @@ async def begin(request, kind, entity_id, name=None):
     async def write(conn):
         if getattr(lib, "download_pins", {}):
             raise HTTPException(409, "Browser downloads are active; retry when they finish")
-        if await rows(conn, "SELECT 1 FROM library_operations WHERE state='pending'"):
+        if await rows(
+            conn, "SELECT 1 FROM library_operations WHERE state IN ('pending','cascading')"
+        ):
             raise HTTPException(
                 409, "Another directory operation is pending; wait for node acknowledgements"
             )
@@ -198,7 +245,8 @@ async def begin(request, kind, entity_id, name=None):
                     entries.append({**p, "download_ids": [r["transfer_id"] for r in ids]})
             payloads.append((node["node_id"], json.dumps({**op, "entries": entries})))
         await conn.execute(
-            "INSERT INTO library_operations VALUES (?,?,?,?,?,?,?,?)", tuple(op.values())
+            "INSERT INTO library_operations(operation_id,kind,entity_id,old_path,new_path,new_name,state,created_ts) VALUES (?,?,?,?,?,?,?,?)",
+            tuple(op.values()),
         )
         for node, payload in payloads:
             await conn.execute(
@@ -229,7 +277,9 @@ async def rename_resource(resource_id: str, body: FolderCreate, request: Request
 
 
 @router.delete("/folders/{folder_id}", status_code=202)
-async def delete_folder(folder_id: str, request: Request):
+async def delete_folder(folder_id: str, request: Request, recursive: bool = False):
+    if recursive:
+        return await begin_cascade(request, folder_id)
     return await begin(request, "delete_folder", folder_id)
 
 
@@ -240,7 +290,7 @@ async def operations(request: Request):
         "operations": [
             await operation(lib, r["operation_id"])
             for r in await lib.rows(
-                "SELECT operation_id FROM library_operations WHERE state='pending'"
+                "SELECT operation_id FROM library_operations WHERE state IN ('pending','cascading') AND (payload IS NULL OR json_extract(payload,'$.parent_operation_id') IS NULL)"
             )
         ]
     }
@@ -254,6 +304,27 @@ async def get_operation(operation_id: str, request: Request):
 @router.post("/operations/{operation_id}/retry")
 async def retry(operation_id: str, request: Request):
     lib = service(request)
+    parent = await operation(lib, operation_id)
+    if parent["kind"] == "delete_tree":
+
+        async def reset(conn):
+            await conn.execute(
+                "UPDATE library_operation_nodes SET state='pending',attempts=0,next_retry_ts=0,last_error=NULL WHERE state='failed' AND operation_id IN (SELECT operation_id FROM library_operations WHERE json_extract(payload,'$.parent_operation_id')=?)",
+                (operation_id,),
+            )
+            await conn.execute(
+                "UPDATE library_transfers SET state='pending',attempts=0,next_retry_ts=NULL,lease_until=NULL,lease_token=NULL,last_error=NULL WHERE action='delete' AND state='failed' AND resource_id IN (SELECT value FROM json_each(?))",
+                (json.dumps(parent["resource_ids"]),),
+            )
+
+        await lib.db.write(reset)
+        from hololab.gateway.library_gc import signal_gc
+
+        signal_gc(request.app)
+        result = await operation(lib, operation_id)
+        for node in result["nodes"]:
+            await wake_node(request.app, node["node_id"])
+        return result
     await lib.execute(
         "UPDATE library_operation_nodes SET state='pending',attempts=0,next_retry_ts=0,last_error=NULL WHERE operation_id=? AND state='failed'",
         (operation_id,),
@@ -334,4 +405,147 @@ async def receipt(
         await finish(conn, op)
 
     await lib.db.write(write)
+    from hololab.gateway.library_gc import signal_gc
+
+    signal_gc(request.app)
     return await operation(lib, operation_id)
+
+
+async def deletion_snapshot(conn, folder_id):
+    if folder_id == "root":
+        raise HTTPException(409, "The Library root cannot be deleted")
+    found = await rows(conn, "SELECT 1 FROM library_folders WHERE folder_id=?", (folder_id,))
+    if not found:
+        raise HTTPException(404, "Library folder not found")
+    folders = await rows(
+        conn,
+        """
+        WITH RECURSIVE tree(folder_id,depth) AS (
+          SELECT folder_id,0 FROM library_folders WHERE folder_id=?
+          UNION ALL SELECT f.folder_id,t.depth+1 FROM library_folders f
+          JOIN tree t ON f.parent_id=t.folder_id
+        ) SELECT folder_id,depth FROM tree ORDER BY depth DESC,folder_id
+    """,
+        (folder_id,),
+    )
+    ids = [f["folder_id"] for f in folders]
+    resources = await rows(
+        conn,
+        "SELECT resource_id FROM library_resources WHERE folder_id IN (SELECT value FROM json_each(?))",
+        (json.dumps(ids),),
+    )
+    return {
+        "folder_ids": ids,
+        "resource_ids": [r["resource_id"] for r in resources],
+        "resource_count": len(resources),
+        "subfolder_count": len(ids) - 1,
+    }
+
+
+@router.get("/folders/{folder_id}/delete-preview")
+async def delete_preview(folder_id: str, request: Request):
+    async def read(conn):
+        return await deletion_snapshot(conn, folder_id)
+
+    return await service(request).db.write(read)
+
+
+async def begin_cascade(request, folder_id):
+    from hololab.gateway.library_distribution import signal_work
+    from hololab.gateway.library_gc import mark_resource_deleted, signal_gc
+
+    lib = service(request)
+
+    async def write(conn):
+        # Replays never increment epochs or recreate acknowledged tasks.
+        existing = await rows(
+            conn,
+            "SELECT operation_id FROM library_operations WHERE kind='delete_tree' AND entity_id=? ORDER BY created_ts DESC LIMIT 1",
+            (folder_id,),
+        )
+        if existing:
+            return existing[0]["operation_id"]
+        if getattr(lib, "download_pins", {}):
+            raise HTTPException(409, "Wait for browser downloads to finish before deleting folders")
+        if await rows(
+            conn,
+            """
+          SELECT 1 FROM library_operations WHERE state IN ('pending','cascading')
+          UNION ALL SELECT 1 FROM library_transfers WHERE state IN ('pending','running','waiting','waiting_source')
+          UNION ALL SELECT 1 FROM library_upload_sessions WHERE state IN ('uploading','completing','cancelling')
+          UNION ALL SELECT 1 FROM library_resources WHERE lifecycle='deleting'
+        """,
+        ):
+            raise HTTPException(
+                409,
+                "Wait for uploads, distribution and deletions to finish before deleting folders",
+            )
+        snapshot = await deletion_snapshot(conn, folder_id)
+        path = await folder_path(conn, folder_id)
+        oid = str(uuid.uuid4())
+        # One transaction: snapshot + epochs + jobs, or no destructive changes.
+        for rid in snapshot["resource_ids"]:
+            await mark_resource_deleted(conn, rid)
+        await conn.execute(
+            "INSERT INTO library_operations(operation_id,kind,entity_id,old_path,state,created_ts,payload) VALUES (?,'delete_tree',?,?,'cascading',?,?)",
+            (oid, folder_id, path, time.time(), json.dumps(snapshot)),
+        )
+        return oid
+
+    async with lib.namespace_lock:
+        oid = await lib.db.write(write)
+    signal_work(request.app)
+    signal_gc(request.app)
+    return await operation(lib, oid)
+
+
+async def advance_cascades(lib):
+    """Resume from durable snapshots, then use existing node rmdir tasks bottom-up."""
+
+    async def write(conn):
+        if await rows(conn, "SELECT 1 FROM library_operations WHERE state='pending'"):
+            return
+        for job in await rows(conn, "SELECT * FROM library_operations WHERE state='cascading'"):
+            snapshot = json.loads(job["payload"])
+            if await rows(
+                conn,
+                "SELECT 1 FROM library_resources WHERE resource_id IN (SELECT value FROM json_each(?))",
+                (json.dumps(snapshot["resource_ids"]),),
+            ):
+                continue
+            for fid in snapshot["folder_ids"]:
+                if not await rows(conn, "SELECT 1 FROM library_folders WHERE folder_id=?", (fid,)):
+                    continue
+                # No recursive filesystem removal: unknown local contents remain protected.
+                op = dict(
+                    operation_id=str(uuid.uuid4()),
+                    kind="delete_folder",
+                    entity_id=fid,
+                    old_path=await folder_path(conn, fid),
+                    new_path=None,
+                    new_name=None,
+                    state="pending",
+                    created_ts=time.time(),
+                )
+                await conn.execute(
+                    "INSERT INTO library_operations(operation_id,kind,entity_id,old_path,new_path,new_name,state,created_ts,payload) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (*op.values(), json.dumps({"parent_operation_id": job["operation_id"]})),
+                )
+                nodes = await rows(
+                    conn, "SELECT node_id FROM library_folder_nodes WHERE folder_id=?", (fid,)
+                )
+                for node in nodes:
+                    await conn.execute(
+                        "INSERT INTO library_operation_nodes(operation_id,node_id,payload) VALUES (?,?,?)",
+                        (op["operation_id"], node["node_id"], json.dumps({**op, "entries": []})),
+                    )
+                await finish(conn, op)
+                if nodes:
+                    return
+            await conn.execute(
+                "UPDATE library_operations SET state='completed' WHERE operation_id=?",
+                (job["operation_id"],),
+            )
+
+    async with lib.namespace_lock:
+        await lib.db.write(write)

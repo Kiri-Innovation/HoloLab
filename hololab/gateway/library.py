@@ -153,7 +153,9 @@ class Library:
         await self.initialize()
         # Namespace operations begin only when uploads/transfers are quiescent.
         # Preserve their writer fence across restarts until node receipts arrive.
-        if await self.rows("SELECT 1 FROM library_operations WHERE state='pending'"):
+        if await self.rows(
+            "SELECT 1 FROM library_operations WHERE state IN ('pending','cascading')"
+        ):
             return
         try:
             for session in sessions:

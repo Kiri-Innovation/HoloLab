@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { api, json, type Folder, type Resource, type Device } from './api';
 
 // Follow ProcessMenu's portal, focus and dismissal pattern without its process actions.
-export default function GalleryFolderMenu({ folderId, disabled, onCreated, children, folders, resources, devices, onOpen, onDelete, path }: {
+export default function GalleryFolderMenu({ folderId, disabled, onCreated, children, folders, resources, onOpen, onDelete, path }: {
   folderId: string; disabled: boolean; onCreated: () => Promise<void>; children: ReactNode;
   folders: Folder[]; resources: Resource[]; devices: Device[]; onOpen: (id: string) => void;
   onDelete: (resource: Resource) => void; path: (id: string) => string;
@@ -11,7 +11,12 @@ export default function GalleryFolderMenu({ folderId, disabled, onCreated, child
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const [target, setTarget] = useState<Folder | Resource | null>(null);
   const [deleting, setDeleting] = useState<Folder | null>(null);
+  const [summary, setSummary] = useState<{resource_count:number; subfolder_count:number} | null>(null);
+  const zh = document.documentElement.lang.toLowerCase().startsWith('zh') || navigator.language.toLowerCase().startsWith('zh');
+  const title = summary ? (zh ? '连同内容一起删除？' : 'Delete folder with contents?') : (zh ? '删除文件夹？' : 'Delete folder?');
   const confirmation = useRef<HTMLDialogElement>(null);
+  const cancelConfirmation = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (summary) cancelConfirmation.current?.focus(); }, [summary]);
   useEffect(() => { if (deleting) confirmation.current?.showModal(); else confirmation.current?.close(); }, [deleting]);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
@@ -63,17 +68,23 @@ export default function GalleryFolderMenu({ folderId, disabled, onCreated, child
     setPosition({ left: Math.max(8, Math.min(event.clientX, innerWidth - 288)), top: Math.max(8, Math.min(event.clientY, innerHeight - 156)) });
   }}>
     {children}
-    {deleting && createPortal(<dialog ref={confirmation} className="library-dialog library-folder-delete" aria-label="Delete folder?" onCancel={() => setDeleting(null)}>
-      <h2>Delete folder?</h2><p><strong>{deleting.name}</strong></p><p>{path(deleting.folder_id)}</p>
-      <p>Only empty folders can be deleted. Every registered device confirms removal of its local directory; offline devices remain pending.</p>
-      <p>{devices.map(n => `${n.node_name}${n.online === false ? ' · Offline' : ''}`).join(', ') || 'No registered devices'}</p>
+    {deleting && createPortal(<dialog ref={confirmation} className="library-dialog library-folder-delete" aria-label={title} onCancel={event => { if (busy) event.preventDefault(); else setDeleting(null); }}>
+      <h2>{title}</h2><p><strong>{deleting.name}</strong></p><p>{path(deleting.folder_id)}</p>
+      {summary ? <p>{zh ? `该文件夹包含 ${summary.resource_count} 个资源、${summary.subfolder_count} 个子文件夹，将从所有设备删除。两阶段清理期间，离线设备保持挂起。此操作无法撤销。` : `This folder contains ${summary.resource_count} resource${summary.resource_count === 1 ? '' : 's'} and ${summary.subfolder_count} subfolder${summary.subfolder_count === 1 ? '' : 's'}. All copies will be deleted from every device. Cleanup waits for offline devices to reconnect. This cannot be undone.`}</p> : <p>{zh ? '将先检查文件夹内容；非空文件夹需要再次确认。离线设备上线后确认目录清理。' : 'Contents will be checked first; deleting a non-empty folder requires another confirmation. Offline devices confirm cleanup when they reconnect.'}</p>}
       {error && <p role="alert">{error}</p>}
-      <footer><button disabled={busy} onClick={() => setDeleting(null)}>Cancel</button><button className="library-delete-confirm" disabled={busy} onClick={async () => {
+      <footer><button ref={cancelConfirmation} disabled={busy} onClick={() => setDeleting(null)}>{zh ? '取消' : 'Cancel'}</button><button className="library-delete-confirm" disabled={busy} onClick={async () => {
         if (submitting.current) return; submitting.current = true; setBusy(true); setError('');
-        try { await api(`/library/folders/${deleting.folder_id}`, {method:'DELETE'}); setDeleting(null); await onCreated(); }
+        try {
+          if (!summary) {
+            const preview = await api<{resource_count:number; subfolder_count:number}>(`/library/folders/${deleting.folder_id}/delete-preview`);
+            if (preview.resource_count || preview.subfolder_count) { setSummary(preview); return; }
+          }
+          await api(`/library/folders/${deleting.folder_id}${summary ? '?recursive=true' : ''}`, {method:'DELETE'});
+          setDeleting(null); await onCreated();
+        }
         catch (e) { setError(e instanceof Error ? e.message : String(e)); }
         finally { submitting.current = false; setBusy(false); }
-      }}>Delete folder</button></footer>
+      }}>{busy ? (zh ? '正在处理…' : 'Working…') : summary ? (zh ? '全部删除' : 'Delete everything') : (zh ? '删除文件夹' : 'Delete folder')}</button></footer>
     </dialog>, document.body)}
     {position && createPortal(<div ref={popup} className="library-folder-popup" style={position} onContextMenu={e => e.preventDefault()} onBlur={event => {
       if (!event.currentTarget.contains(event.relatedTarget as Node | null)) close();
@@ -88,7 +99,7 @@ export default function GalleryFolderMenu({ folderId, disabled, onCreated, child
         {target && !('resource_id' in target) && <>
           <button role="menuitem" onClick={() => { close(); onOpen(target.folder_id); }}>Open</button>
           <button role="menuitem" onClick={() => { setName(target.name); setEditing(true); }}>Rename</button>
-          <button role="menuitem" className="library-menu-danger" onClick={() => { close(); setError(''); setDeleting(target); }}>Delete</button>
+          <button role="menuitem" className="library-menu-danger" onClick={() => { close(); setError(''); setSummary(null); setDeleting(target); }}>Delete</button>
         </>}
         {target && 'resource_id' in target && <>
           <button role="menuitem" disabled={target.status === 'deleting'} onClick={() => { close(); window.open(`/api/library/resources/${target.resource_id}/download`, '_blank', 'noopener'); }}>Download</button>

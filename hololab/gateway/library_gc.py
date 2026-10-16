@@ -13,7 +13,7 @@ from typing import Annotated
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from hololab.gateway.library import disk_work, fsync_dir, service
-from hololab.gateway.library_distribution import resource_status, signal_work
+from hololab.gateway.library_distribution import resource_status, signal_work, wake_node
 from hololab.gateway.library_transfers import (
     LEASE_SECONDS,
     MAX_ATTEMPTS,
@@ -34,49 +34,53 @@ def signal_gc(app):
         event.set()
 
 
+async def mark_resource_deleted(conn, resource_id):
+    async with conn.execute(
+        "SELECT lifecycle,delete_epoch FROM library_resources WHERE resource_id=?",
+        (resource_id,),
+    ) as cur:
+        row = await cur.fetchone()
+    if not row:
+        raise HTTPException(404, "Library resource not found")
+    lifecycle, epoch = row
+    if lifecycle == "deleting":
+        # Explicit retry only requeues failed cleanup; successful nodes stay absent.
+        await conn.execute(
+            "UPDATE library_transfers SET state='pending',attempts=0,next_retry_ts=NULL,lease_until=NULL,lease_token=NULL,last_error=NULL WHERE resource_id=? AND action='delete' AND state='failed'",
+            (resource_id,),
+        )
+        return
+    epoch += 1
+    await conn.execute(
+        "UPDATE library_resources SET lifecycle='deleting',delete_epoch=?,delete_requested_ts=?,deleted_ts=NULL WHERE resource_id=?",
+        (epoch, time.time(), resource_id),
+    )
+    await conn.execute(
+        "UPDATE library_transfers SET state='cancelled',lease_until=NULL WHERE resource_id=? AND state IN ('pending','running','waiting','waiting_source')",
+        (resource_id,),
+    )
+    # Even unacknowledged downloads may have published before a lost receipt.
+    async with conn.execute(
+        "SELECT version,node_id FROM library_placements WHERE resource_id=?", (resource_id,)
+    ) as cur:
+        placements = await cur.fetchall()
+    for version, node_id in placements:
+        await conn.execute(
+            "INSERT INTO library_transfers(transfer_id,resource_id,version,target_node_id,delete_epoch,action,route) VALUES (?,?,?,?,?,'delete','local_cleanup')",
+            (str(uuid.uuid4()), resource_id, version, node_id, epoch),
+        )
+    await conn.execute(
+        "UPDATE library_placements SET desired_state='absent',observed_state='deleting',last_error=NULL WHERE resource_id=?",
+        (resource_id,),
+    )
+
+
 @router.delete("/resources/{resource_id}", status_code=202)
 async def delete_resource(resource_id: str, request: Request):
     lib = service(request)
 
     async def write(conn):
-        async with conn.execute(
-            "SELECT lifecycle,delete_epoch FROM library_resources WHERE resource_id=?",
-            (resource_id,),
-        ) as cur:
-            row = await cur.fetchone()
-        if not row:
-            raise HTTPException(404, "Library resource not found")
-        lifecycle, epoch = row
-        if lifecycle == "deleting":
-            # Explicit retry only requeues failed cleanup; successful nodes stay absent.
-            await conn.execute(
-                "UPDATE library_transfers SET state='pending',attempts=0,next_retry_ts=NULL,lease_until=NULL,lease_token=NULL,last_error=NULL WHERE resource_id=? AND action='delete' AND state='failed'",
-                (resource_id,),
-            )
-            return
-        epoch += 1
-        await conn.execute(
-            "UPDATE library_resources SET lifecycle='deleting',delete_epoch=?,delete_requested_ts=?,deleted_ts=NULL WHERE resource_id=?",
-            (epoch, time.time(), resource_id),
-        )
-        await conn.execute(
-            "UPDATE library_transfers SET state='cancelled',lease_until=NULL WHERE resource_id=? AND state IN ('pending','running','waiting','waiting_source')",
-            (resource_id,),
-        )
-        # Even unacknowledged downloads may have published before a lost receipt.
-        async with conn.execute(
-            "SELECT version,node_id FROM library_placements WHERE resource_id=?", (resource_id,)
-        ) as cur:
-            placements = await cur.fetchall()
-        for version, node_id in placements:
-            await conn.execute(
-                "INSERT INTO library_transfers(transfer_id,resource_id,version,target_node_id,delete_epoch,action,route) VALUES (?,?,?,?,?,'delete','local_cleanup')",
-                (str(uuid.uuid4()), resource_id, version, node_id, epoch),
-            )
-        await conn.execute(
-            "UPDATE library_placements SET desired_state='absent',observed_state='deleting',last_error=NULL WHERE resource_id=?",
-            (resource_id,),
-        )
+        await mark_resource_deleted(conn, resource_id)
 
     await lib.db.write(write)
     try:
@@ -361,6 +365,9 @@ async def collect(lib):
                 await conn.execute(f"DELETE FROM {table} WHERE resource_id=?", (rid,))
 
     await lib.db.write(finalize)
+    from hololab.gateway.library_management import advance_cascades
+
+    await advance_cascades(lib)
 
 
 async def gc_loop(app):
@@ -373,5 +380,10 @@ async def gc_loop(app):
         app.state.library_gc_event.clear()
         try:
             await collect(app.state.library)
+            for node in await app.state.library.rows(
+                "SELECT DISTINCT node_id FROM library_operation_nodes WHERE state='pending' AND next_retry_ts<=?",
+                (time.time(),),
+            ):
+                await wake_node(app, node["node_id"])
         except Exception as exc:
             log.warning("Library GC will retry", error=str(exc))

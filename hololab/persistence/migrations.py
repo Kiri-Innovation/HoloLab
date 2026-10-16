@@ -633,6 +633,30 @@ END;
 )
 
 
+# V20 — durable recursive deletion snapshots; keep resource GC writable.
+MIGRATIONS.append(
+    (
+        20,
+        """
+ALTER TABLE library_operations ADD COLUMN payload TEXT;
+"""
+        + "\n".join(
+            f"CREATE TRIGGER library_cascade_{table}_insert BEFORE INSERT ON library_{table} "
+            "WHEN EXISTS(SELECT 1 FROM library_operations WHERE state='cascading') "
+            "BEGIN SELECT RAISE(ABORT,'Library directory operation is pending; recursive deletion is in progress'); END;"
+            for table in ("folders", "resources", "upload_sessions")
+        )
+        + "\n".join(
+            f"CREATE TRIGGER library_cascade_transfers_{action.lower()} BEFORE {action} ON library_transfers "
+            "WHEN NEW.action<>'delete' AND NEW.state IN ('pending','running','waiting','waiting_source') "
+            "AND EXISTS(SELECT 1 FROM library_operations WHERE state='cascading') "
+            "BEGIN SELECT RAISE(ABORT,'Library directory operation is pending; recursive deletion is in progress'); END;"
+            for action in ("INSERT", "UPDATE")
+        ),
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 
