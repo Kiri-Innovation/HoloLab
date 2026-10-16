@@ -84,10 +84,11 @@
 .hl-compute-dock .hl-pulse-heading { display: none !important; }
 
 /* Node parameter mode: overview, execution target, then scrollable settings. */
-.hl-inspector-summary, .hl-inspector-execution { flex-shrink: 0; min-width: 0; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.hl-inspector-summary, .hl-inspector-execution, .hl-inspector-package { flex-shrink: 0; min-width: 0; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
 .hl-inspector-description { flex-basis: 100%; margin: 0; font-size: var(--fs-xs); line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
 .hl-inspector-execution { padding-top: 14px; }
 .hl-inspector-execution .hl-compute-assignment { padding: 0; }
+.hl-inspector-package { padding-top: 14px; }
 .hl-inspector-parameters { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
 @media (max-width: 660px) {
   .hl-mobile-inspector .hl-inspector-parameters { flex: none; overflow: visible; }

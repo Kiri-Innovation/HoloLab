@@ -31,6 +31,10 @@ export interface OpenSourceButtonProps {
    *  clicking shows the guide callout. */
   computeNode: ComputeNode | null;
   onDark?: boolean;
+  /** ``row`` keeps the exact same open-target behaviour as the header icon,
+   * but renders a low-emphasis filename for inspector metadata. */
+  variant?: "icon" | "row";
+  label?: string;
 }
 
 type Callout = { title: string; detail?: string };
@@ -172,6 +176,8 @@ export function OpenSourceButton({
   pack,
   computeNode,
   onDark = false,
+  variant = "icon",
+  label = "manifest.yaml",
 }: OpenSourceButtonProps) {
   const [available, setAvailable] = useState<boolean>(() => flopsAvailable());
   useEffect(() => {
@@ -193,7 +199,32 @@ export function OpenSourceButton({
     return () => window.clearTimeout(t);
   }, [showGuide]);
 
-  if (!available) return null;
+  // The compact header affordance stays absent when Cocoder integration is
+  // unavailable, preserving its established layout. The inspector metadata
+  // row must still identify the package's configuration file, however.
+  if (!available) {
+    if (variant !== "row") return null;
+    return (
+      <span
+        data-hl-open-source=""
+        aria-label={`${label}（Cocoder 不可用）`}
+        title="Cocoder 不可用"
+        style={{
+          display: "block",
+          height: "var(--control-h-sm)",
+          padding: "0 6px",
+          lineHeight: "var(--control-h-sm)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-sm)",
+          color: "var(--text-muted)",
+          fontFamily: "var(--font-mono)",
+          fontSize: "var(--fs-sm)",
+        }}
+      >
+        {label}
+      </span>
+    );
+  }
 
   const deviceId = computeNode?.flops_executor_id ?? null;
   const configured = !!deviceId && deviceId.trim().length > 0;
@@ -277,8 +308,8 @@ export function OpenSourceButton({
         type="button"
         onClick={onClick}
         disabled={status.kind === "loading"}
-        data-tooltip={status.kind === "err" ? status.msg : "查看代码"}
-        aria-label="查看代码"
+        data-tooltip={status.kind === "err" ? status.msg : variant === "row" ? `打开 ${label}` : "查看代码"}
+        aria-label={variant === "row" ? `打开 ${label}` : "查看代码"}
         aria-description={title}
         data-hl-open-source=""
         data-hl-configured={configured ? "1" : "0"}
@@ -286,16 +317,17 @@ export function OpenSourceButton({
         style={{
           display: "inline-flex",
           alignItems: "center",
-          justifyContent: "center",
-          width: "var(--control-h-sm)",
+          justifyContent: variant === "row" ? "flex-start" : "center",
+          width: variant === "row" ? "100%" : "var(--control-h-sm)",
           height: "var(--control-h-sm)",
-          padding: 0,
+          padding: variant === "row" ? "0 6px" : 0,
           borderRadius: "var(--radius-sm)",
           border,
           background: bg,
           color: colour,
           cursor: status.kind === "loading" ? "wait" : "pointer",
           fontSize: "var(--fs-sm)",
+          fontFamily: variant === "row" ? "var(--font-mono)" : undefined,
           lineHeight: 1,
           transition:
             "background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease)",
@@ -307,6 +339,8 @@ export function OpenSourceButton({
           "✓"
         ) : status.kind === "err" ? (
           "!"
+        ) : variant === "row" ? (
+          label
         ) : (
           <CodeGlyph colour={colour} />
         )}

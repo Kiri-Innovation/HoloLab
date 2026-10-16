@@ -7,6 +7,7 @@ import { MarkdownView } from "../ui/MarkdownView";
 import { PathInput } from "./PathInput";
 import type { ComputeNode } from "../wire";
 import { DimListEditor } from "./DimListEditor";
+import { OpenSourceButton } from "./OpenSourceButton";
 
 export interface NodeInspectorProps {
   selected: GraphNode | null;
@@ -72,6 +73,11 @@ export function NodeInspector({
     );
   }
 
+  const packageComputeNode =
+    (selected.assigned_node_id ? computeNodesById?.[selected.assigned_node_id] : null)
+    ?? (pack.node_ids ?? []).map((nodeId) => computeNodesById?.[nodeId]).find(Boolean)
+    ?? null;
+
   return (
     <div
       className="hl-node-inspector"
@@ -131,6 +137,15 @@ export function NodeInspector({
         <h3 style={SECTION_TITLE}>Run on</h3>
         {assignment}
       </section>}
+      <section className="hl-inspector-package" aria-label="Package">
+        <h3 style={SECTION_TITLE}>Package</h3>
+        <OpenSourceButton
+          pack={pack}
+          computeNode={packageComputeNode}
+          variant="row"
+          label="manifest.yaml"
+        />
+      </section>
       <div className="hl-inspector-parameters" role="region" aria-label="Parameters">
         <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Parameters</h3>
         {pack.arrayable && (
