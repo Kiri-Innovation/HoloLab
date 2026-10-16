@@ -118,6 +118,10 @@ class NodeConfig(BaseModel):
     # resolvable via the preview proxy without a copy.
     workspace_root: Path = Field(default_factory=default_workspace_root)
 
+    # Library content is separate from disposable job workspaces.
+    # Materialization/configuration UI is introduced in the next stage.
+    library_root: Path = Field(default_factory=lambda: Path.home() / "hololab" / "library")
+
     # Optional fast-path root for **input staging** only — the per-job
     # directory exposed to packs as ``{{ staging_dir }}``. Point this at
     # a tmpfs mount (e.g. ``/dev/shm/hololab``) to let I/O-heavy packs

@@ -32,6 +32,9 @@ from hololab.gateway.execution import (
 from hololab.gateway.handles import Handle, HandleBook
 from hololab.gateway.hub import FrontendHub
 from hololab.gateway.jobs import Job, JobState, JobStateMachine, event_from_transition
+from hololab.gateway.library import Library
+from hololab.gateway.library import router as library_router
+from hololab.gateway.library_config import LibraryConfig
 from hololab.gateway.metrics import (
     DEFAULT_SAMPLE_INTERVAL_S as METRICS_SAMPLE_INTERVAL_S,
 )
@@ -145,7 +148,9 @@ ORPHAN_GRACE_S = 300.0
 ORPHAN_FINALIZER_INTERVAL_S = 30.0
 
 
-def create_app(*, db_path: Path | None = None) -> FastAPI:
+def create_app(
+    *, db_path: Path | None = None, library_config: LibraryConfig | None = None
+) -> FastAPI:
     """Construct the FastAPI app. Called by CLI or tests.
 
     When ``HOLOLAB_DEV=1`` is set in the environment, the ``/`` static mount
@@ -194,6 +199,15 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
             app.state.latency_task = asyncio.create_task(monitor_loop(), name="latency-monitor")
 
         app.state.db = db
+        try:
+            config = library_config or LibraryConfig.from_env(
+                default_root=db_path.parent / "staging" if db_path is not None else None
+            )
+            app.state.library = Library(db, config)
+            await app.state.library.startup()
+        except BaseException:
+            await db.close()
+            raise
         app.state.registry = NodeRegistry(db)
         app.state.jobs_store = JobsStore(db)
         app.state.snapshot_jobs = SnapshotJobsStore(db)
@@ -248,6 +262,9 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
+        library = getattr(app.state, "library", None)
+        if library is not None:
+            library.close()
         db = getattr(app.state, "db", None)
         if db is not None:
             await db.close()
@@ -255,6 +272,7 @@ def create_app(*, db_path: Path | None = None) -> FastAPI:
 
     # Routes MUST be registered before the ``/`` static mount, since starlette
     # dispatches in registration order and a ``Mount("/")`` catches every path.
+    app.include_router(library_router)
     _mount_routes(app)
     if not dev_mode:
         _mount_static(app)

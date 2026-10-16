@@ -425,6 +425,125 @@ MIGRATIONS.append(
 )
 
 
+# V15 — Library registry and durable resumable upload bookkeeping.
+MIGRATIONS.append(
+    (
+        15,
+        """
+        CREATE TABLE library_folders (
+            folder_id TEXT PRIMARY KEY,
+            parent_id TEXT REFERENCES library_folders(folder_id),
+            name TEXT NOT NULL,
+            normalized_name TEXT NOT NULL,
+            created_ts REAL NOT NULL,
+            UNIQUE(parent_id, normalized_name)
+        );
+        INSERT INTO library_folders VALUES ('root', NULL, '', '', 0);
+        CREATE TABLE library_resources (
+            resource_id TEXT PRIMARY KEY,
+            folder_id TEXT NOT NULL REFERENCES library_folders(folder_id),
+            name TEXT NOT NULL,
+            normalized_name TEXT NOT NULL,
+            current_version INTEGER NOT NULL DEFAULT 1 CHECK(current_version > 0),
+            lifecycle TEXT NOT NULL DEFAULT 'active',
+            delete_epoch INTEGER NOT NULL DEFAULT 0,
+            delete_requested_ts REAL,
+            deleted_ts REAL,
+            created_ts REAL NOT NULL
+        );
+        CREATE UNIQUE INDEX ix_library_resource_name
+            ON library_resources(folder_id, normalized_name) WHERE deleted_ts IS NULL;
+        CREATE TABLE library_resource_versions (
+            resource_id TEXT NOT NULL REFERENCES library_resources(resource_id),
+            version INTEGER NOT NULL CHECK(version > 0),
+            storage TEXT NOT NULL DEFAULT 'file',
+            resource_type TEXT NOT NULL DEFAULT 'generic',
+            tags_json TEXT NOT NULL DEFAULT '[]',
+            type_metadata_json TEXT NOT NULL DEFAULT '{}',
+            size_bytes INTEGER NOT NULL CHECK(size_bytes >= 0),
+            sha256 TEXT,
+            manifest_sha256 TEXT,
+            ingest_state TEXT NOT NULL DEFAULT 'uploading',
+            created_ts REAL NOT NULL,
+            PRIMARY KEY(resource_id, version)
+        );
+        CREATE TABLE library_placements (
+            resource_id TEXT NOT NULL,
+            version INTEGER NOT NULL,
+            node_id TEXT NOT NULL REFERENCES nodes(node_id),
+            root_generation INTEGER NOT NULL DEFAULT 1,
+            relative_path TEXT NOT NULL,
+            desired_state TEXT NOT NULL DEFAULT 'present',
+            observed_state TEXT NOT NULL DEFAULT 'pending',
+            verified_sha256 TEXT,
+            verified_ts REAL,
+            delete_ack_epoch INTEGER,
+            last_error TEXT,
+            PRIMARY KEY(resource_id, version, node_id),
+            FOREIGN KEY(resource_id, version)
+                REFERENCES library_resource_versions(resource_id, version)
+        );
+        CREATE TABLE library_upload_sessions (
+            upload_id TEXT PRIMARY KEY,
+            resource_id TEXT NOT NULL,
+            version INTEGER NOT NULL,
+            expected_size INTEGER NOT NULL CHECK(expected_size >= 0),
+            expected_sha256 TEXT NOT NULL,
+            chunk_size INTEGER NOT NULL,
+            state TEXT NOT NULL DEFAULT 'uploading',
+            reserved_bytes INTEGER NOT NULL CHECK(reserved_bytes >= 0),
+            staging_key TEXT NOT NULL UNIQUE,
+            created_ts REAL NOT NULL,
+            last_activity_ts REAL NOT NULL,
+            expires_ts REAL,
+            last_error TEXT,
+            FOREIGN KEY(resource_id, version)
+                REFERENCES library_resource_versions(resource_id, version)
+        );
+        CREATE TABLE library_upload_parts (
+            upload_id TEXT NOT NULL REFERENCES library_upload_sessions(upload_id),
+            part_index INTEGER NOT NULL CHECK(part_index >= 0),
+            size_bytes INTEGER NOT NULL CHECK(size_bytes >= 0),
+            sha256 TEXT NOT NULL,
+            PRIMARY KEY(upload_id, part_index)
+        );
+        CREATE TABLE library_transfers (
+            transfer_id TEXT PRIMARY KEY,
+            resource_id TEXT NOT NULL,
+            version INTEGER NOT NULL,
+            target_node_id TEXT NOT NULL REFERENCES nodes(node_id),
+            source_ref TEXT,
+            state TEXT NOT NULL DEFAULT 'pending',
+            confirmed_bytes INTEGER NOT NULL DEFAULT 0,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            next_retry_ts REAL,
+            lease_until REAL,
+            delete_epoch INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            FOREIGN KEY(resource_id, version)
+                REFERENCES library_resource_versions(resource_id, version)
+        );
+        CREATE UNIQUE INDEX ix_library_active_transfer
+            ON library_transfers(resource_id, version, target_node_id)
+            WHERE state IN ('pending', 'running', 'waiting');
+        CREATE TABLE library_staging_objects (
+            staging_id TEXT PRIMARY KEY,
+            resource_id TEXT NOT NULL,
+            version INTEGER NOT NULL,
+            storage_key TEXT NOT NULL UNIQUE,
+            state TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL,
+            sha256 TEXT NOT NULL,
+            created_ts REAL NOT NULL,
+            expires_ts REAL,
+            FOREIGN KEY(resource_id, version)
+                REFERENCES library_resource_versions(resource_id, version)
+        );
+        """,
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 
