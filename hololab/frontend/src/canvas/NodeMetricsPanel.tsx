@@ -119,7 +119,7 @@ export function NodeMetricsPanel({ nodes, metricsByNode, onSettings }: NodeMetri
         color: "var(--text-body)",
       }}
     >
-      <div
+      <div className="hl-pulse-heading"
         style={{
           display: "flex",
           alignItems: "baseline",

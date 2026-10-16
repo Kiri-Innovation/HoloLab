@@ -24,11 +24,13 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  await page.setViewportSize({width:1440,height:1000});
  await page.goto(`${before?'http://127.0.0.1:4174':process.env.INSPECTOR_URL||'http://127.0.0.1:5173'}/w/inspector-demo`);
  if(!before) {
-   await expect(page.locator('.hl-inspector-sidebar').getByRole('tab',{name:'Jobs',exact:true})).toHaveAttribute('aria-selected','true');
-   await expect(page.locator('.hl-inspector-sidebar').getByText('Recent jobs',{exact:true})).toBeVisible();
+   await expect(page.locator('.hl-inspector-sidebar').getByRole('tab',{name:'Inspector',exact:true})).toHaveAttribute('aria-selected','true');
+   await expect(page.getByRole('tab',{name:'Compute Nodes · Pulse',exact:true})).toHaveAttribute('aria-selected','true');
+   await page.getByRole('tab',{name:'Jobs',exact:true}).click();
+   await expect(page.locator('.hl-compute-dock').getByText('Recent jobs',{exact:true})).toBeVisible();
  }
  if(!before) {
-   const jobsPanel=page.locator('#hl-dock-panel-jobs');
+   const jobsPanel=page.locator('#hl-bottom-panel-jobs');
    await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async(text:string)=>{(window as any).__copiedJob=text;}}}));
    await jobsPanel.getByRole('button',{name:'View job log',exact:true}).click();
    await expect(page.locator('[data-hl-job-log-modal]')).toBeVisible();
@@ -44,9 +46,9 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  if(before)return;
  const sidebar=page.locator('.hl-inspector-sidebar');await expect(sidebar.locator('.hl-node-inspector')).toBeVisible();expect((await sidebar.boundingBox())!.width).toBe(380);expect(await sidebar.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
  await expect(sidebar.getByText('Recent jobs',{exact:true})).not.toBeVisible();
- await expect(sidebar.getByRole('tab')).toHaveCount(3);
+ await expect(sidebar.getByRole('tab')).toHaveCount(2);
  // Window-frame strokes must not inherit generic button hover/press borders.
- for (const name of ['Inspector','Jobs']) {
+ for (const name of ['Inspector','Runs']) {
    const tab=sidebar.getByRole('tab',{name,exact:true});
    await page.mouse.move(500,100);
    const frame=await tab.evaluate(el=>({border:getComputedStyle(el).borderWidth,shadow:getComputedStyle(el).boxShadow,width:el.getBoundingClientRect().width}));
@@ -56,6 +58,7 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
    await page.mouse.move(500,100); await page.mouse.up();
  }
 
+ await page.getByRole('tab',{name:'Compute Nodes · Pulse',exact:true}).click();
  await expect(page.locator('.hl-compute-dock .hl-node-metrics')).toBeVisible();
  await sidebar.getByRole('textbox',{name:'setting_12',exact:true}).scrollIntoViewIfNeeded();
  await expect(sidebar.getByRole('textbox',{name:'setting_12',exact:true})).toBeVisible();
@@ -65,7 +68,7 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
 
  const inspectorTab=sidebar.getByRole('tab',{name:'Inspector',exact:true});
  const runsTab=sidebar.getByRole('tab',{name:'Runs',exact:true});
- for(const tab of ['Inspector','Jobs','Runs']) {
+ for(const tab of ['Inspector','Runs']) {
    await sidebar.getByRole('tab',{name:tab,exact:true}).click();
    for(const theme of ['light','dark']) {
      await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
@@ -75,15 +78,21 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  }
  await expect(sidebar.getByRole('textbox',{name:'threshold',exact:true})).not.toBeVisible();
  await runsTab.press('ArrowLeft');
- await expect(sidebar.getByRole('tab',{name:'Jobs',exact:true})).toBeFocused();
- await page.keyboard.press('ArrowLeft');
  await expect(inspectorTab).toBeFocused();
+ for(const tab of ['Compute Nodes · Pulse','Jobs']) {
+   await page.getByRole('tab',{name:tab,exact:true}).click();
+   for(const theme of ['light','dark']) {
+     await page.evaluate(t=>document.documentElement.dataset.theme=t,theme); await page.waitForTimeout(300);
+     await page.screenshot({path:`${output}/bottom-${tab==='Jobs'?'jobs':'pulse'}-${theme}.png`});
+   }
+ }
  await expect(sidebar.getByRole('textbox',{name:'threshold',exact:true})).toHaveValue('25');
- await sidebar.getByRole('tab',{name:'Jobs',exact:true}).click();
- await expect(sidebar.getByText('Recent jobs',{exact:true})).toBeVisible();
+ await page.getByRole('tab',{name:'Jobs',exact:true}).click();
+ await expect(page.locator('.hl-compute-dock').getByText('Recent jobs',{exact:true})).toBeVisible();
  await expect(page.locator('.react-flow__node.selected')).toHaveCount(1);
  await page.waitForTimeout(1000);
- await expect(sidebar.getByRole('tab',{name:'Jobs',exact:true})).toHaveAttribute('aria-selected','true');
+ await expect(page.getByRole('tab',{name:'Jobs',exact:true})).toHaveAttribute('aria-selected','true');
+ await runsTab.click();
  await node.click();
  await expect(inspectorTab).toHaveAttribute('aria-selected','true');
  await expect(sidebar.getByRole('textbox',{name:'threshold',exact:true})).toHaveValue('25');
@@ -98,5 +107,7 @@ test('sidebar selection, autosave, assignment, deletion and theme screenshots',a
  await page.setViewportSize({width:390,height:844});
  await page.getByRole('tab',{name:'Runs',exact:true}).click();
  await expect(page.locator('.hl-inspector-sidebar')).toHaveCount(0);
+ await page.getByRole('tab',{name:'Jobs',exact:true}).click();
+ await expect(page.getByText('Recent jobs',{exact:true})).toBeVisible();
  await page.screenshot({path:`${output}/dock-mobile.png`});
 });

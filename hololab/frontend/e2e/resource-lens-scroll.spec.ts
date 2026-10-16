@@ -8,6 +8,8 @@ test('bottom compute dock keeps the device visible while the lens scrolls', asyn
     let body: unknown = [];
     if (path === '/api/nodes') body = ['node-a', 'node-b'].map(node_id => ({ node_id, node_name: node_id === "node-a" ? "Studio GPU" : "Compute node with a deliberately long display name", packs: [], gpu: {count: 0}, connected_ts: 1, advertised_url: null, workspace_root: null, legacy_workspace_roots: [], flops_executor_id: null, packs_dir: null }));
     if (path === '/api/nodes/metrics/history') body = {sample_interval_s: 3, nodes: {'node-a': [{ts: 1, cpu_percent: 52.2, mem_used_gb: 20, mem_total_gb: 64, gpus: []}]}};
+    if (path.endsWith('/config')) body = {config:{node_name:'Studio GPU',workspace_root:'/workspace',legacy_workspace_roots:[],pack_dirs:[],advertised_url:null,flops_executor_id:null,file_server_host:'127.0.0.1',file_server_port:9000}};
+    if (path === '/api/jobs') body = Array.from({length:40},(_,i)=>({job_id:`scroll-job-${i}`,workflow_id:'lens-scroll',algorithm_name:`example-job-${i}`,algorithm_version:'1',state:'done',created_ts:1,updated_ts:2,graph_node_id:null}));
     if (path.endsWith('/resources/cpu')) body = {metric: 'cpu', ts: 1700000000, total_percent: 52.2, sample_window_s: .3, processes: Array.from({length: 32}, (_, i) => ({pid: 1000+i, name: `example-worker-${i+1}`, owner: 'external', usage_percent: 32-i, cmdline: `python worker.py --worker ${i+1}`, can_terminate: false})), gpus: [], error: null};
     await route.fulfill({contentType: 'application/json', body: JSON.stringify(body)});
   });
@@ -40,6 +42,10 @@ test('bottom compute dock keeps the device visible while the lens scrolls', asyn
     await expectSettingsAtTopRight();
     await page.screenshot({path: `test-results/pulse-closed-${theme}.png`});
   }
+  await panel.getByRole('button', {name:/^Node settings/}).first().click();
+  await expect(page.locator('.hl-node-drawer')).toBeVisible();
+  await expect(page.locator('.hl-node-drawer input').first()).toHaveValue('Studio GPU');
+  await page.locator('.hl-node-drawer').getByRole('button',{name:'关闭',exact:true}).click();
   await panel.getByRole('button', {name: 'Open CPU resource lens'}).first().click();
   const card = panel.locator('[data-pulse-node]');
   await expect(panel.locator('.hl-resource-process')).toHaveCount(32);
@@ -61,6 +67,21 @@ test('bottom compute dock keeps the device visible while the lens scrolls', asyn
       await page.screenshot({path: `test-results/lens-scroll-${theme}-${state}.png`});
     }
   }
+  const scrollBefore = await panel.evaluate(el => el.scrollTop);
+  await page.getByRole('tab', {name: 'Jobs', exact: true}).click();
+  await expect(panel).not.toBeVisible();
+  const jobsScroll=page.locator('#hl-bottom-panel-jobs > div');
+  const jobsOffset=await jobsScroll.evaluate(el=>{el.scrollTop=300;return el.scrollTop;});
+  expect(jobsOffset).toBeGreaterThan(0);
+
+  await page.getByRole('tab', {name: 'Compute Nodes · Pulse', exact: true}).click();
+  await expect(panel.locator('.hl-resource-process')).toHaveCount(32);
+  expect(await panel.evaluate(el => el.scrollTop)).toBe(scrollBefore);
+  await page.getByRole('tab', {name: 'Jobs', exact: true}).click();
+  expect(await jobsScroll.evaluate(el=>el.scrollTop)).toBe(jobsOffset);
+  await page.getByRole('tab', {name: 'Jobs', exact: true}).press('ArrowLeft');
+  await expect(page.getByRole('tab', {name: 'Compute Nodes · Pulse', exact: true})).toHaveAttribute('aria-selected','true');
+  await panel.getByRole('button', {name: 'All compute nodes'}).focus();
   console.log(JSON.stringify(measurements));
   await page.keyboard.press('Escape');
   await expect(card).toHaveCount(2);

@@ -91,7 +91,7 @@ test("VRAM lens loads on demand, restores fleet, handles errors and themes", asy
   await expect(lens).toHaveCount(0);
   fail = false;
   await page.setViewportSize({width: 390, height: 844});
-  await page.getByRole('tab', {name: 'Inspect', exact: true}).click();
+  await page.getByRole('tab', {name: 'Nodes', exact: true}).click();
   await panel.getByRole('button', {name:'Open VRAM resource lens'}).first().click();
   await expect(lens).not.toHaveAttribute('aria-busy', 'true');
   expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);

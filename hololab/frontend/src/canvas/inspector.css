@@ -17,7 +17,7 @@
 .hl-inspector-heading > div:first-child { flex-basis: 100%; }
 .hl-compute-assignment { flex-shrink: 0; }
 
-.hl-compute-dock { min-height: 0; min-width: 0; overflow: hidden; background: var(--surface); }
+.hl-compute-dock { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; background: var(--surface); }
 .hl-compute-dock .hl-compute-panel { height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .hl-compute-dock .hl-node-metrics { flex: 1; min-height: 0; box-sizing: border-box; }
 
@@ -56,3 +56,6 @@
 .hl-dock-empty { padding: 14px; color: var(--text-muted); font-size: var(--fs-xs); }
 /* Keep Runs' heading on the same surface as its selected window tab. */
 .hl-dock-panel .hl-runs-panel > .hl-panel-header { background: var(--surface) !important; }
+
+.hl-bottom-tabs [role=tab]:first-child { flex-basis: auto; }
+.hl-compute-dock .hl-pulse-heading { display: none !important; }

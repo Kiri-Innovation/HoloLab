@@ -286,7 +286,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const leftDock = useResizableSlot("hl-layout-left", 300, 180, 420);
   const rightDock = useResizableSlot("hl-layout-inspector-right", 380, 320, 400);
   const bottomDock = useResizableSlot("hl-layout-bottom", 400, 160, Number.POSITIVE_INFINITY);
-  const [rightTab, setRightTab] = useState<"inspector" | "jobs" | "runs">("jobs");
+  const [bottomTab, setBottomTab] = useState<"pulse" | "jobs">("pulse");
+  const [rightTab, setRightTab] = useState<"inspector" | "runs">("inspector");
   const [minimapOpen, setMinimapOpen] = useState(false);
 
   // Bumped by the WS lifecycle on true reconnects (previously connected →
@@ -2930,26 +2931,22 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
             if (!keys.includes(event.key)) return;
             event.preventDefault();
-            const tabs = ["inspector", "jobs", "runs"] as const;
+            const tabs = ["inspector", "runs"] as const;
             const index = tabs.indexOf(rightTab);
-            const next = event.key === "Home" ? tabs[0] : event.key === "End" ? tabs[2]
-              : tabs[(index + (event.key === "ArrowRight" ? 1 : 2)) % tabs.length];
+            const next = event.key === "Home" ? tabs[0] : event.key === "End" ? tabs[tabs.length - 1]
+              : tabs[(index + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
             setRightTab(next);
             document.getElementById(`hl-dock-tab-${next}`)?.focus();
           }}>
-          {(["inspector", "jobs", "runs"] as const).map(tab => <button key={tab} type="button"
+          {(["inspector", "runs"] as const).map(tab => <button key={tab} type="button"
             role="tab" id={`hl-dock-tab-${tab}`} aria-controls={`hl-dock-panel-${tab}`}
             aria-selected={rightTab === tab} tabIndex={rightTab === tab ? 0 : -1}
-            onClick={() => setRightTab(tab)}>{tab === "inspector" ? "Inspector" : tab === "jobs" ? "Jobs" : "Runs"}</button>)}
+            onClick={() => setRightTab(tab)}>{tab === "inspector" ? "Inspector" : "Runs"}</button>)}
         </div>
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-inspector"
           aria-labelledby="hl-dock-tab-inspector" hidden={rightTab !== "inspector"}>
           {assignmentSlot}
           <div className="hl-sidebar-content">{inspectorSlot}</div>
-        </div>
-        <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-jobs"
-          aria-labelledby="hl-dock-tab-jobs" hidden={rightTab !== "jobs"}>
-          {jobsSlot}
         </div>
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-runs"
           aria-labelledby="hl-dock-tab-runs" hidden={rightTab !== "runs"}>
@@ -2960,8 +2957,29 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         <Splitter label="Resize compute panel" onResize={bottomDock.resize}
           onReset={bottomDock.reset} orientation="horizontal" reverse />
       </div>
-      <section className="hl-compute-dock" aria-label="Compute node pulse" style={{ gridArea: "bottom" }}>
-        {nodesSlot}
+      <section className="hl-compute-dock" aria-label="Bottom dock" style={{ gridArea: "bottom" }}>
+        <div className="hl-dock-tabs hl-bottom-tabs" role="tablist" aria-label="Bottom dock"
+          onKeyDown={event => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+            event.preventDefault();
+            const next = event.key === "Home" ? "pulse" : event.key === "End" ? "jobs"
+              : bottomTab === "pulse" ? "jobs" : "pulse";
+            setBottomTab(next);
+            document.getElementById(`hl-bottom-tab-${next}`)?.focus();
+          }}>
+          {(["pulse", "jobs"] as const).map(tab => <button key={tab} type="button"
+            role="tab" id={`hl-bottom-tab-${tab}`} aria-controls={`hl-bottom-panel-${tab}`}
+            aria-selected={bottomTab === tab} tabIndex={bottomTab === tab ? 0 : -1}
+            onClick={() => setBottomTab(tab)}>{tab === "pulse" ? "Compute Nodes · Pulse" : "Jobs"}</button>)}
+        </div>
+        <div className="hl-dock-panel" role="tabpanel" id="hl-bottom-panel-pulse"
+          aria-labelledby="hl-bottom-tab-pulse" hidden={bottomTab !== "pulse"}>
+          {nodesSlot}
+        </div>
+        <div className="hl-dock-panel" role="tabpanel" id="hl-bottom-panel-jobs"
+          aria-labelledby="hl-bottom-tab-jobs" hidden={bottomTab !== "jobs"}>
+          {jobsSlot}
+        </div>
       </section>
     </div>
   );
