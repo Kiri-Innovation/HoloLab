@@ -380,7 +380,7 @@ function ParameterHelp({ name, children }: { name: string; children: ReactNode }
       top = Math.max(edge, Math.min(top, viewportHeight - bubble.height - edge));
       const trigger = anchor.current.getBoundingClientRect();
       const arrowY = Math.max(8, Math.min(trigger.top + trigger.height / 2 - top - 1, bubble.height - 10));
-      setArrowSide(side);
+      setArrowSide(side === "left" ? "right" : "left");
       setPosition({ left, top, visibility: "visible", "--parameter-arrow-y": `${arrowY}px` } as CSSProperties);
     };
     place();
