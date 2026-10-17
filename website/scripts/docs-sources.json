@@ -260,7 +260,7 @@
   },
   {
     "source": "website/content/en/use/agent-oriented.md",
-    "slug": "agent-oriented",
+    "slug": "use/agent-oriented",
     "section": "use",
     "title": "Everything Agent-Oriented",
     "group": "快速开始",
@@ -270,7 +270,7 @@
   },
   {
     "source": "website/content/zh/use/agent-oriented.md",
-    "slug": "agent-oriented",
+    "slug": "use/agent-oriented",
     "section": "use",
     "title": "一切面向 Agent",
     "group": "快速开始",
