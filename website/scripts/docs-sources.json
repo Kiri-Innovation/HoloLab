@@ -264,7 +264,7 @@
     "section": "use",
     "title": "Everything Agent-Oriented",
     "group": "快速开始",
-    "order": 15,
+    "order": 25,
     "locale": "en",
     "contentLanguage": "en"
   },
@@ -274,7 +274,7 @@
     "section": "use",
     "title": "一切面向 Agent",
     "group": "快速开始",
-    "order": 15,
+    "order": 25,
     "locale": "zh-CN",
     "contentLanguage": "zh-CN"
   }

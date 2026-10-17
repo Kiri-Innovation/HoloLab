@@ -1,7 +1,7 @@
 ---
 title: Everything Agent-Oriented
 group: Quick start
-order: 15
+order: 25
 ---
 # Everything Agent-Oriented
 
