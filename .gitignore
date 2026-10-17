@@ -39,6 +39,9 @@ node_modules/
 hololab/frontend/test-results/
 hololab/frontend/playwright-report/
 hololab/frontend/e2e-screenshots/
+# Generated validation reports and screenshots (not visual-test baselines)
+hololab/frontend/reports/
+hololab/frontend/e2e/screenshots/
 
 # IDE
 .idea/
