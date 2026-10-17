@@ -257,5 +257,25 @@
     "order": 20,
     "locale": "zh-CN",
     "contentLanguage": "en"
+  },
+  {
+    "source": "website/content/en/use/agent-oriented.md",
+    "slug": "agent-oriented",
+    "section": "use",
+    "title": "Everything Agent-Oriented",
+    "group": "快速开始",
+    "order": 15,
+    "locale": "en",
+    "contentLanguage": "en"
+  },
+  {
+    "source": "website/content/zh/use/agent-oriented.md",
+    "slug": "agent-oriented",
+    "section": "use",
+    "title": "Everything Agent-Oriented",
+    "group": "快速开始",
+    "order": 15,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN"
   }
 ]
