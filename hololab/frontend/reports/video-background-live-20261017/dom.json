@@ -1,0 +1,969 @@
+{
+  "initial": {
+    "src": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/_preview/320x180/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov?fps=15",
+    "poster": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/_thumb/320x180/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov?at=1",
+    "videoWidth": 320,
+    "videoHeight": 180,
+    "currentTime": 6,
+    "readyState": 4,
+    "layers": [
+      {
+        "tag": "DIV",
+        "class": "hololab-node",
+        "rect": {
+          "x": 346,
+          "y": 92,
+          "width": 418.0098876953125,
+          "height": 481.96002197265625,
+          "top": 92,
+          "right": 764.0098876953125,
+          "bottom": 573.9600219726562,
+          "left": 346
+        },
+        "backgroundColor": "rgb(250, 250, 250)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "1px solid rgb(189, 189, 189)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "nodrag",
+        "rect": {
+          "x": 347.22943115234375,
+          "y": 234.4806671142578,
+          "width": 415.55096435546875,
+          "height": 338.24993896484375,
+          "top": 234.4806671142578,
+          "right": 762.7803955078125,
+          "bottom": 572.7306060791016,
+          "left": 347.22943115234375
+        },
+        "backgroundColor": "rgb(23, 32, 51)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "8px",
+        "border": "",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "hl-video-preview",
+        "rect": {
+          "x": 357.0649719238281,
+          "y": 282.4288330078125,
+          "width": 395.8799743652344,
+          "height": 280.4661865234375,
+          "top": 282.4288330078125,
+          "right": 752.9449462890625,
+          "bottom": 562.89501953125,
+          "left": 357.0649719238281
+        },
+        "backgroundColor": "rgb(23, 32, 51)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "8px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "",
+        "rect": {
+          "x": 366.9004821777344,
+          "y": 292.264404296875,
+          "width": 376.2088928222656,
+          "height": 211.61746215820312,
+          "top": 292.264404296875,
+          "right": 743.109375,
+          "bottom": 503.8818664550781,
+          "left": 366.9004821777344
+        },
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "",
+        "rect": {
+          "x": 366.9004821777344,
+          "y": 292.264404296875,
+          "width": 376.2088928222656,
+          "height": 211.61746215820312,
+          "top": 292.264404296875,
+          "right": 743.109375,
+          "bottom": 503.8818664550781,
+          "left": 366.9004821777344
+        },
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "",
+        "rect": {
+          "x": 366.9004821777344,
+          "y": 292.264404296875,
+          "width": 376.2088928222656,
+          "height": 211.61746215820312,
+          "top": 292.264404296875,
+          "right": 743.109375,
+          "bottom": 503.8818664550781,
+          "left": 366.9004821777344
+        },
+        "backgroundColor": "rgb(0, 0, 0)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "1px solid rgb(217, 217, 217)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "VIDEO",
+        "class": "",
+        "rect": {
+          "x": 368.12994384765625,
+          "y": 293.49383544921875,
+          "width": 373.75,
+          "height": 209.15859985351562,
+          "top": 293.49383544921875,
+          "right": 741.8799438476562,
+          "bottom": 502.6524353027344,
+          "left": 368.12994384765625
+        },
+        "backgroundColor": "rgb(0, 0, 0)",
+        "backgroundImage": "none",
+        "objectFit": "cover",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      }
+    ]
+  },
+  "modes": [
+    {
+      "mode": "black",
+      "src": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/_preview/320x180/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov?fps=15",
+      "poster": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/_thumb/320x180/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov?at=1",
+      "videoWidth": 320,
+      "videoHeight": 180,
+      "currentTime": 6,
+      "readyState": 4,
+      "layers": [
+        {
+          "tag": "DIV",
+          "class": "hololab-node",
+          "rect": {
+            "x": 346,
+            "y": 92,
+            "width": 418.0098876953125,
+            "height": 481.96002197265625,
+            "top": 92,
+            "right": 764.0098876953125,
+            "bottom": 573.9600219726562,
+            "left": 346
+          },
+          "backgroundColor": "rgb(250, 250, 250)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "1px solid rgb(189, 189, 189)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "nodrag",
+          "rect": {
+            "x": 347.22943115234375,
+            "y": 234.4806671142578,
+            "width": 415.55096435546875,
+            "height": 338.24993896484375,
+            "top": 234.4806671142578,
+            "right": 762.7803955078125,
+            "bottom": 572.7306060791016,
+            "left": 347.22943115234375
+          },
+          "backgroundColor": "rgb(23, 32, 51)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "8px",
+          "border": "",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "hl-video-preview",
+          "rect": {
+            "x": 357.0649719238281,
+            "y": 282.4288330078125,
+            "width": 395.8799743652344,
+            "height": 280.4661865234375,
+            "top": 282.4288330078125,
+            "right": 752.9449462890625,
+            "bottom": 562.89501953125,
+            "left": 357.0649719238281
+          },
+          "backgroundColor": "rgb(23, 32, 51)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "8px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "",
+          "rect": {
+            "x": 366.9004821777344,
+            "y": 292.264404296875,
+            "width": 376.2088928222656,
+            "height": 211.61746215820312,
+            "top": 292.264404296875,
+            "right": 743.109375,
+            "bottom": 503.8818664550781,
+            "left": 366.9004821777344
+          },
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "",
+          "rect": {
+            "x": 366.9004821777344,
+            "y": 292.264404296875,
+            "width": 376.2088928222656,
+            "height": 211.61746215820312,
+            "top": 292.264404296875,
+            "right": 743.109375,
+            "bottom": 503.8818664550781,
+            "left": 366.9004821777344
+          },
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "",
+          "rect": {
+            "x": 366.9004821777344,
+            "y": 292.264404296875,
+            "width": 376.2088928222656,
+            "height": 211.61746215820312,
+            "top": 292.264404296875,
+            "right": 743.109375,
+            "bottom": 503.8818664550781,
+            "left": 366.9004821777344
+          },
+          "backgroundColor": "rgb(0, 0, 0)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "1px solid rgb(217, 217, 217)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "VIDEO",
+          "class": "",
+          "rect": {
+            "x": 368.12994384765625,
+            "y": 293.49383544921875,
+            "width": 373.75,
+            "height": 209.15859985351562,
+            "top": 293.49383544921875,
+            "right": 741.8799438476562,
+            "bottom": 502.6524353027344,
+            "left": 368.12994384765625
+          },
+          "backgroundColor": "rgb(0, 0, 0)",
+          "backgroundImage": "none",
+          "objectFit": "cover",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        }
+      ]
+    },
+    {
+      "mode": "transparent",
+      "src": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/_preview/320x180/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov?fps=15",
+      "poster": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/_thumb/320x180/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov?at=1",
+      "videoWidth": 320,
+      "videoHeight": 180,
+      "currentTime": 6,
+      "readyState": 4,
+      "layers": [
+        {
+          "tag": "DIV",
+          "class": "hololab-node",
+          "rect": {
+            "x": 346,
+            "y": 92,
+            "width": 418.0098876953125,
+            "height": 481.96002197265625,
+            "top": 92,
+            "right": 764.0098876953125,
+            "bottom": 573.9600219726562,
+            "left": 346
+          },
+          "backgroundColor": "rgb(250, 250, 250)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "1px solid rgb(189, 189, 189)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "nodrag",
+          "rect": {
+            "x": 347.22943115234375,
+            "y": 234.4806671142578,
+            "width": 415.55096435546875,
+            "height": 338.24993896484375,
+            "top": 234.4806671142578,
+            "right": 762.7803955078125,
+            "bottom": 572.7306060791016,
+            "left": 347.22943115234375
+          },
+          "backgroundColor": "rgb(23, 32, 51)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "8px",
+          "border": "",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "hl-video-preview",
+          "rect": {
+            "x": 357.0649719238281,
+            "y": 282.4288330078125,
+            "width": 395.8799743652344,
+            "height": 280.4661865234375,
+            "top": 282.4288330078125,
+            "right": 752.9449462890625,
+            "bottom": 562.89501953125,
+            "left": 357.0649719238281
+          },
+          "backgroundColor": "rgb(23, 32, 51)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "8px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "",
+          "rect": {
+            "x": 366.9004821777344,
+            "y": 292.264404296875,
+            "width": 376.2088928222656,
+            "height": 211.61746215820312,
+            "top": 292.264404296875,
+            "right": 743.109375,
+            "bottom": 503.8818664550781,
+            "left": 366.9004821777344
+          },
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "",
+          "rect": {
+            "x": 366.9004821777344,
+            "y": 292.264404296875,
+            "width": 376.2088928222656,
+            "height": 211.61746215820312,
+            "top": 292.264404296875,
+            "right": 743.109375,
+            "bottom": 503.8818664550781,
+            "left": 366.9004821777344
+          },
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "",
+          "rect": {
+            "x": 366.9004821777344,
+            "y": 292.264404296875,
+            "width": 376.2088928222656,
+            "height": 211.61746215820312,
+            "top": 292.264404296875,
+            "right": 743.109375,
+            "bottom": 503.8818664550781,
+            "left": 366.9004821777344
+          },
+          "backgroundColor": "rgb(0, 0, 0)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "1px solid rgb(217, 217, 217)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "VIDEO",
+          "class": "",
+          "rect": {
+            "x": 368.12994384765625,
+            "y": 293.49383544921875,
+            "width": 373.75,
+            "height": 209.15859985351562,
+            "top": 293.49383544921875,
+            "right": 741.8799438476562,
+            "bottom": 502.6524353027344,
+            "left": 368.12994384765625
+          },
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "backgroundImage": "none",
+          "objectFit": "cover",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        }
+      ]
+    },
+    {
+      "mode": "checkerboard",
+      "src": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/_preview/320x180/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov?fps=15",
+      "poster": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/_thumb/320x180/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov?at=1",
+      "videoWidth": 320,
+      "videoHeight": 180,
+      "currentTime": 6,
+      "readyState": 4,
+      "layers": [
+        {
+          "tag": "DIV",
+          "class": "hololab-node",
+          "rect": {
+            "x": 346,
+            "y": 92,
+            "width": 418.0098876953125,
+            "height": 481.96002197265625,
+            "top": 92,
+            "right": 764.0098876953125,
+            "bottom": 573.9600219726562,
+            "left": 346
+          },
+          "backgroundColor": "rgb(250, 250, 250)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "1px solid rgb(189, 189, 189)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "nodrag",
+          "rect": {
+            "x": 347.22943115234375,
+            "y": 234.4806671142578,
+            "width": 415.55096435546875,
+            "height": 338.24993896484375,
+            "top": 234.4806671142578,
+            "right": 762.7803955078125,
+            "bottom": 572.7306060791016,
+            "left": 347.22943115234375
+          },
+          "backgroundColor": "rgb(23, 32, 51)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "8px",
+          "border": "",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "hl-video-preview",
+          "rect": {
+            "x": 357.0649719238281,
+            "y": 282.4288330078125,
+            "width": 395.8799743652344,
+            "height": 280.4661865234375,
+            "top": 282.4288330078125,
+            "right": 752.9449462890625,
+            "bottom": 562.89501953125,
+            "left": 357.0649719238281
+          },
+          "backgroundColor": "rgb(23, 32, 51)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "8px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "",
+          "rect": {
+            "x": 366.9004821777344,
+            "y": 292.264404296875,
+            "width": 376.2088928222656,
+            "height": 211.61746215820312,
+            "top": 292.264404296875,
+            "right": 743.109375,
+            "bottom": 503.8818664550781,
+            "left": 366.9004821777344
+          },
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "",
+          "rect": {
+            "x": 366.9004821777344,
+            "y": 292.264404296875,
+            "width": 376.2088928222656,
+            "height": 211.61746215820312,
+            "top": 292.264404296875,
+            "right": 743.109375,
+            "bottom": 503.8818664550781,
+            "left": 366.9004821777344
+          },
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "DIV",
+          "class": "",
+          "rect": {
+            "x": 366.9004821777344,
+            "y": 292.264404296875,
+            "width": 376.2088928222656,
+            "height": 211.61746215820312,
+            "top": 292.264404296875,
+            "right": 743.109375,
+            "bottom": 503.8818664550781,
+            "left": 366.9004821777344
+          },
+          "backgroundColor": "rgb(0, 0, 0)",
+          "backgroundImage": "none",
+          "objectFit": "fill",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "1px solid rgb(217, 217, 217)",
+          "before": "none",
+          "after": "none"
+        },
+        {
+          "tag": "VIDEO",
+          "class": "",
+          "rect": {
+            "x": 368.12994384765625,
+            "y": 293.49383544921875,
+            "width": 373.75,
+            "height": 209.15859985351562,
+            "top": 293.49383544921875,
+            "right": 741.8799438476562,
+            "bottom": 502.6524353027344,
+            "left": 368.12994384765625
+          },
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "backgroundImage": "repeating-conic-gradient(rgb(216, 216, 216) 0%, rgb(216, 216, 216) 25%, rgb(176, 176, 176) 0%, rgb(176, 176, 176) 50%)",
+          "objectFit": "cover",
+          "objectPosition": "50% 50%",
+          "padding": "0px",
+          "border": "0px none rgb(248, 250, 252)",
+          "before": "none",
+          "after": "none"
+        }
+      ]
+    }
+  ],
+  "magenta": {
+    "src": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/_preview/320x180/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov?fps=15",
+    "poster": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/_thumb/320x180/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov?at=1",
+    "videoWidth": 320,
+    "videoHeight": 180,
+    "currentTime": 6,
+    "readyState": 4,
+    "layers": [
+      {
+        "tag": "DIV",
+        "class": "hololab-node",
+        "rect": {
+          "x": 346,
+          "y": 92,
+          "width": 418.0098876953125,
+          "height": 481.96002197265625,
+          "top": 92,
+          "right": 764.0098876953125,
+          "bottom": 573.9600219726562,
+          "left": 346
+        },
+        "backgroundColor": "rgb(250, 250, 250)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "1px solid rgb(189, 189, 189)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "nodrag",
+        "rect": {
+          "x": 347.22943115234375,
+          "y": 234.4806671142578,
+          "width": 415.55096435546875,
+          "height": 338.24993896484375,
+          "top": 234.4806671142578,
+          "right": 762.7803955078125,
+          "bottom": 572.7306060791016,
+          "left": 347.22943115234375
+        },
+        "backgroundColor": "rgb(23, 32, 51)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "8px",
+        "border": "",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "hl-video-preview",
+        "rect": {
+          "x": 357.0649719238281,
+          "y": 282.4288330078125,
+          "width": 395.8799743652344,
+          "height": 280.4661865234375,
+          "top": 282.4288330078125,
+          "right": 752.9449462890625,
+          "bottom": 562.89501953125,
+          "left": 357.0649719238281
+        },
+        "backgroundColor": "rgb(23, 32, 51)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "8px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "",
+        "rect": {
+          "x": 366.9004821777344,
+          "y": 292.264404296875,
+          "width": 376.2088928222656,
+          "height": 211.61746215820312,
+          "top": 292.264404296875,
+          "right": 743.109375,
+          "bottom": 503.8818664550781,
+          "left": 366.9004821777344
+        },
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "",
+        "rect": {
+          "x": 366.9004821777344,
+          "y": 292.264404296875,
+          "width": 376.2088928222656,
+          "height": 211.61746215820312,
+          "top": 292.264404296875,
+          "right": 743.109375,
+          "bottom": 503.8818664550781,
+          "left": 366.9004821777344
+        },
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "",
+        "rect": {
+          "x": 366.9004821777344,
+          "y": 292.264404296875,
+          "width": 376.2088928222656,
+          "height": 211.61746215820312,
+          "top": 292.264404296875,
+          "right": 743.109375,
+          "bottom": 503.8818664550781,
+          "left": 366.9004821777344
+        },
+        "backgroundColor": "rgb(0, 0, 0)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "1px solid rgb(217, 217, 217)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "VIDEO",
+        "class": "",
+        "rect": {
+          "x": 368.12994384765625,
+          "y": 293.49383544921875,
+          "width": 373.75,
+          "height": 209.15859985351562,
+          "top": 293.49383544921875,
+          "right": 741.8799438476562,
+          "bottom": 502.6524353027344,
+          "left": 368.12994384765625
+        },
+        "backgroundColor": "rgb(255, 0, 255)",
+        "backgroundImage": "none",
+        "objectFit": "cover",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      }
+    ]
+  },
+  "original": {
+    "src": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov",
+    "poster": "http://127.0.0.1:8828/proxy/c6ad6211-18ff-4a0a-9108-67f370d25072/_thumb/320x180/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov?at=1",
+    "videoWidth": 868,
+    "videoHeight": 1012,
+    "currentTime": 6,
+    "readyState": 4,
+    "layers": [
+      {
+        "tag": "DIV",
+        "class": "hololab-node",
+        "rect": {
+          "x": 346,
+          "y": 92,
+          "width": 418.0098876953125,
+          "height": 540.8194580078125,
+          "top": 92,
+          "right": 764.0098876953125,
+          "bottom": 632.8194580078125,
+          "left": 346
+        },
+        "backgroundColor": "rgb(250, 250, 250)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "1px solid rgb(0, 120, 212)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "nodrag",
+        "rect": {
+          "x": 347.22943115234375,
+          "y": 234.4806671142578,
+          "width": 415.55096435546875,
+          "height": 397.109375,
+          "top": 234.4806671142578,
+          "right": 762.7803955078125,
+          "bottom": 631.5900421142578,
+          "left": 347.22943115234375
+        },
+        "backgroundColor": "rgb(23, 32, 51)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "8px",
+        "border": "",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "hl-video-preview",
+        "rect": {
+          "x": 357.0649719238281,
+          "y": 282.4288330078125,
+          "width": 395.8799743652344,
+          "height": 339.32568359375,
+          "top": 282.4288330078125,
+          "right": 752.9449462890625,
+          "bottom": 621.7545166015625,
+          "left": 357.0649719238281
+        },
+        "backgroundColor": "rgb(23, 32, 51)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "8px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "",
+        "rect": {
+          "x": 366.9004821777344,
+          "y": 292.264404296875,
+          "width": 376.2088928222656,
+          "height": 270.4769287109375,
+          "top": 292.264404296875,
+          "right": 743.109375,
+          "bottom": 562.7413330078125,
+          "left": 366.9004821777344
+        },
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "DIV",
+        "class": "",
+        "rect": {
+          "x": 366.9004821777344,
+          "y": 292.264404296875,
+          "width": 376.2088928222656,
+          "height": 270.4769287109375,
+          "top": 292.264404296875,
+          "right": 743.109375,
+          "bottom": 562.7413330078125,
+          "left": 366.9004821777344
+        },
+        "backgroundColor": "rgb(0, 0, 0)",
+        "backgroundImage": "none",
+        "objectFit": "fill",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      },
+      {
+        "tag": "VIDEO",
+        "class": "",
+        "rect": {
+          "x": 366.9004821777344,
+          "y": 292.264404296875,
+          "width": 376.2088928222656,
+          "height": 270.4769287109375,
+          "top": 292.264404296875,
+          "right": 743.109375,
+          "bottom": 562.7413330078125,
+          "left": 366.9004821777344
+        },
+        "backgroundColor": "rgba(0, 0, 0, 0)",
+        "backgroundImage": "repeating-conic-gradient(rgb(216, 216, 216) 0%, rgb(216, 216, 216) 25%, rgb(176, 176, 176) 0%, rgb(176, 176, 176) 50%)",
+        "objectFit": "contain",
+        "objectPosition": "50% 50%",
+        "padding": "0px",
+        "border": "0px none rgb(248, 250, 252)",
+        "before": "none",
+        "after": "none"
+      }
+    ]
+  }
+}
