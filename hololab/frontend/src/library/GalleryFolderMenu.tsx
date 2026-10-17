@@ -1,3 +1,4 @@
+import { writeToClipboard } from '../canvas/referenceAction';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { api, json, type Folder, type Resource, type Device } from './api';
@@ -103,7 +104,7 @@ export default function GalleryFolderMenu({ folderId, disabled, onCreated, child
         </>}
         {target && 'resource_id' in target && <>
           <button role="menuitem" disabled={target.status === 'deleting'} onClick={() => { close(); window.open(`/api/library/resources/${target.resource_id}/download`, '_blank', 'noopener'); }}>Download</button>
-          <button role="menuitem" onClick={async () => { try { await navigator.clipboard.writeText(path(target.folder_id).replace(/\/$/, '') + '/' + target.name); close(); } catch { setError('Could not copy the Library-relative path. Check clipboard permissions.'); } }}>Copy path</button>
+          <button role="menuitem" onClick={async () => { try { if (!await writeToClipboard(path(target.folder_id).replace(/\/$/, '') + '/' + target.name)) throw new Error('Clipboard unavailable'); close(); } catch { setError('Could not copy the Library-relative path. Check clipboard permissions.'); } }}>Copy path</button>
           <button role="menuitem" className="library-menu-danger" onClick={() => { close(); onDelete(target); }}>Delete</button>
         </>}
         {error && <p role="alert">{error}</p>}

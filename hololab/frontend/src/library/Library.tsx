@@ -1,3 +1,4 @@
+import { newId } from '../newId';
 import GalleryFolderMenu from './GalleryFolderMenu';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getComputeNodes } from '../api';
@@ -190,7 +191,7 @@ export default function Library({ onBack }: { onBack: () => void }) {
   function start() {
     const validTargets = targets.filter(id => nodes.some(n => n.node_id === id && n.online !== false));
     if (!validTargets.length) return;
-    const newTasks = files.map(file => ({ id: crypto.randomUUID(), name: file.name, size: file.size, bytes: 0, phase: 'queued' }));
+    const newTasks = files.map(file => ({ id: newId(), name: file.name, size: file.size, bytes: 0, phase: 'queued' }));
     setTasks(old => [...newTasks, ...old]);
     files.forEach((file, i) => schedule(newTasks[i], file, { folder: destination, targets: validTargets }));
     setFiles([]);
@@ -201,7 +202,7 @@ export default function Library({ onBack }: { onBack: () => void }) {
   }
   function resume(session: Session, file: File) {
     const existing = tasks.find(task => task.session?.upload_id === session.upload_id);
-    const task: Task = { id: existing?.id ?? crypto.randomUUID(), name: file.name, size: file.size, bytes: 0, phase: 'queued', session };
+    const task: Task = { id: existing?.id ?? newId(), name: file.name, size: file.size, bytes: 0, phase: 'queued', session };
     setTasks(old => [task, ...old.filter(item => item.id !== task.id)]);
     schedule(task, file, { folder: 'root', targets: [] });
   }

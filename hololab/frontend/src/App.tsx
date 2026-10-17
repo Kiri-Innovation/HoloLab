@@ -1,3 +1,4 @@
+import { newId } from "./newId";
 import { InspectorPreview } from "./canvas/InspectorPreview";
 import { FrameSelectedShortcut } from "./canvas/FrameSelectedShortcut";
 import { WorkflowConflictDialog } from "./canvas/WorkflowConflictDialog";
@@ -413,14 +414,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const workflowUpdatedTsRef = useRef<number | undefined>(undefined);
   // Opaque per-tab id — sent as ``origin`` on every save and echoed on
   // the ``workflow_updated`` broadcast so this tab can distinguish its
-  // own round-trip from a genuine remote update. crypto.randomUUID is
-  // universally available in target browsers; fall back to a random
-  // string for the rare non-secure-context test harness.
-  const originIdRef = useRef<string>(
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? (crypto as { randomUUID: () => string }).randomUUID()
-      : `origin-${Math.random().toString(36).slice(2)}-${Date.now()}`,
-  );
+  // own round-trip from a genuine remote update, including HTTP LAN deployments.
+  const originIdRef = useRef<string>(newId());
   // Populated by a useEffect after ``autosave`` + ``onLoad`` are defined.
   // The WS effect calls into this ref so it doesn't need to be
   // re-registered whenever those change identity — that would tear down

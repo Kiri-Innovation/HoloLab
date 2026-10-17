@@ -1,3 +1,4 @@
+import { sha256 } from 'hash-wasm';
 export const CHUNK = 8 * 1024 ** 2;
 // The product is served by Gateway; all requests stay same-origin.
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -42,7 +43,7 @@ export async function sendMissing(file: File, session: Session, progress: (bytes
       const index = missing[next++];
       try {
         const chunk = await file.slice(index * CHUNK, (index + 1) * CHUNK).arrayBuffer();
-        const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', chunk)), b => b.toString(16).padStart(2, '0')).join('');
+        const digest = await sha256(new Uint8Array(chunk));
         await api(`/library/uploads/${session.upload_id}/parts/${index}`, { method: 'PUT', headers: { 'X-Chunk-Sha256': digest }, body: chunk, signal });
         done += chunk.byteLength; progress(done);
       } catch (error) { failure = error; }
