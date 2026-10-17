@@ -1,9 +1,9 @@
 ---
-title: Everything Agent-Oriented
+title: 一切面向 Agent
 group: 快速开始
 order: 15
 ---
-# Everything Agent-Oriented
+# 一切面向 Agent
 
 你可以在画布上工作，遇到问题时把具体对象交给 agent，不必先在对话里重新描述现场。HoloLab 给人提供可视化工作区，也让 agent 通过结构化接口读取同一份工作流和执行记录。
 
