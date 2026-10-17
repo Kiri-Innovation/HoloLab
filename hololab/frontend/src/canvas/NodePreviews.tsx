@@ -214,7 +214,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
           // behavior back — wheel over the drawer zooms the canvas
           // like it does anywhere else, unless a specific descendant
           // opts out via xyflow's ``nowheel`` (none in this file yet).
-          className="nodrag hl-node-preview"
+          className="nodrag"
           style={{
             padding: 8,
             borderTop: "1px solid var(--border)",

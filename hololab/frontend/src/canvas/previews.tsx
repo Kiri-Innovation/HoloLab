@@ -1522,8 +1522,6 @@ function VideoGridPreview({
           data-hl-cols={layout.cols}
           data-hl-tile-count={videoEntries.length}
           style={{
-            // Transparent zoom must reveal the card, not the playing grid below.
-            visibility: zoomedIdx !== null ? "hidden" : undefined,
             display: "grid",
             gridTemplateColumns: `repeat(${layout.cols}, 1fr)`,
             gap: GRID_GAP,
@@ -1622,7 +1620,7 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label }: TileProps)
       style={{
         position: "relative",
         aspectRatio: "16 / 9",
-        background: "var(--video-background)",
+        background: "#000",
         borderRadius: "var(--radius-sm)",
         overflow: "hidden",
         border: "1px solid var(--border, rgba(255,255,255,0.08))",
@@ -1651,7 +1649,7 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label }: TileProps)
           width: "100%",
           height: "100%",
           objectFit: "cover",
-          background: "transparent",
+          background: "var(--video-background)",
           // Absent a decoded frame the browser paints the ``poster``;
           // once metadata + first frame arrive, the frame replaces it.
           pointerEvents: "none",
@@ -1723,7 +1721,7 @@ function ZoomOverlay({
       style={{
         position: "absolute",
         inset: 0,
-        background: "var(--video-background)",
+        background: "#000",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1745,7 +1743,7 @@ function ZoomOverlay({
           width: "100%",
           height: "100%",
           objectFit: "contain",
-          background: "transparent",
+          background: "var(--video-background)",
         }}
       />
       <button

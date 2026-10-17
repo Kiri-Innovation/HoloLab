@@ -1,0 +1,164 @@
+[
+  {
+    "mode": "black",
+    "geometry": {
+      "width": 306,
+      "height": 220,
+      "sourceWidth": 180,
+      "sourceHeight": 320,
+      "fit": "contain"
+    },
+    "card": {
+      "color": "rgb(250, 250, 250)",
+      "image": "none"
+    },
+    "drawer": {
+      "color": "rgb(23, 32, 51)",
+      "image": "none"
+    },
+    "region1": {
+      "color": "rgb(23, 32, 51)",
+      "image": "none"
+    },
+    "parent": {
+      "color": "rgb(0, 0, 0)",
+      "image": "none"
+    },
+    "region2": {
+      "color": "rgb(0, 0, 0)",
+      "image": "none"
+    },
+    "pixels": {
+      "region1": [
+        23,
+        32,
+        51
+      ],
+      "region2": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "content": [
+        3,
+        195,
+        254
+      ]
+    }
+  },
+  {
+    "mode": "transparent",
+    "geometry": {
+      "width": 306,
+      "height": 220,
+      "sourceWidth": 180,
+      "sourceHeight": 320,
+      "fit": "contain"
+    },
+    "card": {
+      "color": "rgb(250, 250, 250)",
+      "image": "none"
+    },
+    "drawer": {
+      "color": "rgb(23, 32, 51)",
+      "image": "none"
+    },
+    "region1": {
+      "color": "rgb(23, 32, 51)",
+      "image": "none"
+    },
+    "parent": {
+      "color": "rgb(0, 0, 0)",
+      "image": "none"
+    },
+    "region2": {
+      "color": "rgba(0, 0, 0, 0)",
+      "image": "none"
+    },
+    "pixels": {
+      "region1": [
+        23,
+        32,
+        51
+      ],
+      "region2": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "content": [
+        3,
+        195,
+        254
+      ]
+    }
+  },
+  {
+    "mode": "checkerboard",
+    "geometry": {
+      "width": 306,
+      "height": 220,
+      "sourceWidth": 180,
+      "sourceHeight": 320,
+      "fit": "contain"
+    },
+    "card": {
+      "color": "rgb(250, 250, 250)",
+      "image": "none"
+    },
+    "drawer": {
+      "color": "rgb(23, 32, 51)",
+      "image": "none"
+    },
+    "region1": {
+      "color": "rgb(23, 32, 51)",
+      "image": "none"
+    },
+    "parent": {
+      "color": "rgb(0, 0, 0)",
+      "image": "none"
+    },
+    "region2": {
+      "color": "rgba(0, 0, 0, 0)",
+      "image": "repeating-conic-gradient(rgb(216, 216, 216) 0%, rgb(216, 216, 216) 25%, rgb(176, 176, 176) 0%, rgb(176, 176, 176) 50%)"
+    },
+    "pixels": {
+      "region1": [
+        23,
+        32,
+        51
+      ],
+      "region2": [
+        [
+          176,
+          176,
+          176
+        ],
+        [
+          216,
+          216,
+          216
+        ]
+      ],
+      "content": [
+        3,
+        195,
+        254
+      ]
+    }
+  }
+]
