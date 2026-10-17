@@ -43,6 +43,12 @@ hololab/frontend/e2e-screenshots/
 hololab/frontend/reports/
 hololab/frontend/e2e/screenshots/
 
+# Root-level validation outputs; keep report prose/audit records and test fixtures.
+/reports/**/*.png
+/reports/library-reference/
+/test-results/
+/playwright-report/
+
 # IDE
 .idea/
 .vscode/
