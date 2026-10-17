@@ -6,7 +6,7 @@ export type { RefKind } from "./referenceAction";
 
 // All outcomes use one global notice per operation/batch, even after unmount.
 // Keep diagnostics out of node layout; a brief red icon identifies the source.
-function showReferenceResult(result: ReferenceOutcome) {
+export function showReferenceResult(result: ReferenceOutcome) {
   showToast({
     message: result.message,
     tone: result.state === "err" || result.insertionError ? "error" : "success",

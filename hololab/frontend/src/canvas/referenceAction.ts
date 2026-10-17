@@ -2,6 +2,8 @@ import { flopsInsertReference, flopsInsertReferenceAvailable, type FlopsInsertRe
 import { referenceSnapshotDocument, resolveReference } from "./referenceSnapshot";
 
 export type RefKind =
+  | "library-resource"
+  | "library-folder"
   | "workflow"
   | "run"
   | "job"
@@ -73,7 +75,7 @@ export async function writeToClipboard(text: string): Promise<boolean> {
 
 async function insertOne({ kind, id, comment, referenceDisplay }: ReferenceInput) {
   const token = formatToken(kind, id, comment);
-  const path = kind === "workflow" ? `w/${id}` : id ? `${kind}/${id}` : kind;
+  const path = kind === "library-resource" ? `api/library/resources/${id}` : kind === "library-folder" ? `library?folder=${id}` : kind === "workflow" ? `w/${id}` : id ? `${kind}/${id}` : kind;
   // The resolver DTO is the one snapshot source for every UI anchor.
   // If the gateway is temporarily unavailable, retain a useful, clearly
   // limited reference rather than silently claiming a full resource view.
@@ -144,4 +146,16 @@ export async function sendReferences(references: ReferenceInput[]): Promise<Refe
       `已插入 ${i}/${references.length} 条；第 ${i + 1} 条插入失败：${reason}（剩余 ${references.length - i} 条未插入）`);
   }
   return { state: "inserted", message: `已插入 Flops 输入框（${references.length} 条）` };
+}
+
+// Shared with the process lens: one bridge attempt, then clipboard + feedback.
+export async function insertOrCopyReference(payload: FlopsInsertReferenceParams, text: string): Promise<ReferenceOutcome> {
+  if (!flopsInsertReferenceAvailable()) return copyReferenceText(text);
+  try {
+    const result = await flopsInsertReference(payload);
+    if (result.success) return { state: "inserted", message: "已插入 Flops 输入框" };
+    return copyReferenceText(text, `插入失败：${result.reason || "接口未提供原因"}`);
+  } catch {
+    return copyReferenceText(text, "插入未确认，不自动重试");
+  }
 }

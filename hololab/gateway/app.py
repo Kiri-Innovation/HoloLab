@@ -1249,6 +1249,38 @@ def _mount_routes(app: FastAPI) -> None:
         book: HandleBook = app.state.handles
         registry: NodeRegistry = app.state.registry
 
+        if parsed.kind == "library-resource":
+            from hololab.gateway.library_distribution import resource_status
+
+            resource = await resource_status(app.state.library, parsed.id)
+            return {
+                "kind": parsed.kind,
+                "ref": parsed.canonical(),
+                "resource": resource,
+                "related": {
+                    "resource": f"/api/library/resources/{parsed.id}",
+                    "folder": f"/api/resolve?ref=hololab://library-folder/{resource['folder_id']}",
+                    "page": f"/library?folder={resource['folder_id']}",
+                },
+            }
+
+        if parsed.kind == "library-folder":
+            folders = await app.state.library.rows(
+                "SELECT * FROM library_folders WHERE folder_id=?", (parsed.id,)
+            )
+            if not folders:
+                raise HTTPException(status_code=404, detail="Library folder not found")
+            return {
+                "kind": parsed.kind,
+                "ref": parsed.canonical(),
+                "resource": folders[0],
+                "related": {
+                    "resources": f"/api/library/resources?folder_id={parsed.id}",
+                    "folders": "/api/library/folders",
+                    "page": f"/library?folder={parsed.id}",
+                },
+            }
+
         if parsed.kind == "workflow":
             row = await workflows_store.get_draft(parsed.id)
             if row is None:

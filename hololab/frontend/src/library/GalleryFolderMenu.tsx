@@ -1,3 +1,5 @@
+import { copyLibraryReference } from './libraryReference';
+import { showReferenceResult } from '../canvas/CopyRefButton';
 import { writeToClipboard } from '../canvas/referenceAction';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -66,7 +68,7 @@ export default function GalleryFolderMenu({ folderId, disabled, onCreated, child
     if (!entry && element.closest('button, input')) return;
     setTarget(entry?.dataset.folderId ? folders.find(f => f.folder_id === entry.dataset.folderId) ?? null : entry?.dataset.resourceId ? resources.find(r => r.resource_id === entry.dataset.resourceId) ?? null : null);
     event.preventDefault(); setEditing(false); setName(''); setError('');
-    setPosition({ left: Math.max(8, Math.min(event.clientX, innerWidth - 288)), top: Math.max(8, Math.min(event.clientY, innerHeight - 156)) });
+    setPosition({ left: Math.max(8, Math.min(event.clientX, innerWidth - 288)), top: Math.max(8, Math.min(event.clientY, innerHeight - 208)) });
   }}>
     {children}
     {deleting && createPortal(<dialog ref={confirmation} className="library-dialog library-folder-delete" aria-label={title} onCancel={event => { if (busy) event.preventDefault(); else setDeleting(null); }}>
@@ -97,6 +99,7 @@ export default function GalleryFolderMenu({ folderId, disabled, onCreated, child
         {error && <p role="alert">{error}</p>}
       </form> : <div role="menu" aria-label="Gallery actions">
         {!target && <button role="menuitem" onClick={() => setEditing(true)}>New folder</button>}
+        {target && <button role="menuitem" onClick={async () => { close(); showReferenceResult(await copyLibraryReference(target, path)); }}>{zh ? '复制引用' : 'Copy reference'}</button>}
         {target && !('resource_id' in target) && <>
           <button role="menuitem" onClick={() => { close(); onOpen(target.folder_id); }}>Open</button>
           <button role="menuitem" onClick={() => { setName(target.name); setEditing(true); }}>Rename</button>

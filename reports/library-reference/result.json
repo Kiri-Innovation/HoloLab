@@ -1,0 +1,44 @@
+{
+  "origin": "http://117.50.186.141:8828",
+  "candidateAssets": "/tmp/hololab-library-reference-dist",
+  "api": "live, unmodified, read-only",
+  "realCoBrowser": false,
+  "productionMenu": "Download\nCopy path\nDelete",
+  "resource": {
+    "id": "f74c772c-4870-4e6e-80ad-5a2950261aae",
+    "name": "Screen Recording 2026-10-15 at 11.27.41.mov"
+  },
+  "clipboard": "hololab://library-resource/f74c772c-4870-4e6e-80ad-5a2950261aae\nLibrary resource \"Screen Recording 2026-10-15 at 11.27.41.mov\" (generic, 41971713 bytes, ready)\nLibrary-relative path: \"/Screen Recording 2026-10-15 at 11.27.41.mov\"\nPlacements: kiri4090 (c6ad6211-18ff-4a0a-9108-67f370d25072; ready; online)\nPage: http://117.50.186.141:8828/library\nResolve: http://117.50.186.141:8828/api/resolve?ref=hololab%3A%2F%2Flibrary-resource%2Ff74c772c-4870-4e6e-80ad-5a2950261aae\nResource API: http://117.50.186.141:8828/api/library/resources/f74c772c-4870-4e6e-80ad-5a2950261aae",
+  "secureContext": false,
+  "simulatedBridgePayload": [
+    {
+      "schemaVersion": 1,
+      "provider": "hololab",
+      "type": "library_resource",
+      "resource": {
+        "uri": "http://117.50.186.141:8828/api/library/resources/f74c772c-4870-4e6e-80ad-5a2950261aae"
+      },
+      "display": {
+        "title": "Screen Recording 2026-10-15 at 11.27.41.mov",
+        "subtitle": "Library · generic, 41971713 bytes, ready",
+        "icon": "document"
+      },
+      "access": {
+        "mode": "link_only"
+      },
+      "snapshot": {
+        "text": "hololab://library-resource/f74c772c-4870-4e6e-80ad-5a2950261aae\nLibrary resource \"Screen Recording 2026-10-15 at 11.27.41.mov\" (generic, 41971713 bytes, ready)\nLibrary-relative path: \"/Screen Recording 2026-10-15 at 11.27.41.mov\"\nPlacements: kiri4090 (c6ad6211-18ff-4a0a-9108-67f370d25072; ready; online)\nPage: http://117.50.186.141:8828/library\nResolve: http://117.50.186.141:8828/api/resolve?ref=hololab%3A%2F%2Flibrary-resource%2Ff74c772c-4870-4e6e-80ad-5a2950261aae\nResource API: http://117.50.186.141:8828/api/library/resources/f74c772c-4870-4e6e-80ad-5a2950261aae",
+        "mediaType": "text/plain"
+      }
+    }
+  ],
+  "simulatedRejectionFallback": "passed",
+  "folderMenu": "skipped: no live folder card; covered by unit/API tests",
+  "checks": {
+    "frontend_tests": 35,
+    "backend_tests": 40,
+    "build": "passed; existing chunk-size warning",
+    "deployment": "not deployed or restarted; candidate frontend injected only into test browser",
+    "backend_resolver": "isolated TestClient tests, not production"
+  }
+}

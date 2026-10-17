@@ -58,6 +58,8 @@ from dataclasses import dataclass
 _SCHEME_PREFIX = "hololab://"
 _ALLOWED_KINDS = frozenset(
     (
+        "library-resource",
+        "library-folder",
         "workflow",
         "run",
         "job",
@@ -229,6 +231,8 @@ def split_graph_node_id(ident: str) -> tuple[str, str]:
 
 
 def _validate_id(kind: str, ident: str) -> None:
+    if kind == "library-folder" and ident == "root":
+        return
     if kind == "pack":
         if not _PACK_ID_RE.match(ident):
             raise RefParseError(f"pack id must be name@version, got {ident!r}")
