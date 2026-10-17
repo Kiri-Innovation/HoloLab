@@ -2,10 +2,12 @@ apiVersion: hololab.dev/v1
 kind: Algorithm
 name: video-trim
 version: 0.1.0
-description: Trim a video by start time and duration in seconds.
+description: Trim a video by start and end time, or duration, in seconds.
 category: video/editing
 source_entry: run.py
 docs: |-
+  Keeps [start_seconds, end_seconds). Optional end_seconds takes precedence over duration_seconds, including saved/default duration values; it must be greater than start_seconds.
+  Omit end_seconds (or set it to null) to use duration_seconds (default 5 seconds). start_seconds defaults to 0.
   Accurate re-encoded trim; requests past the end stop at the last frame.
   CPU-only, two encoder/filter threads. Requires ffmpeg/ffprobe with libx264 in logical environment kiri. Outputs silent video: audio is intentionally discarded. H.264/yuv420p, CRF 20, faststart; odd dimensions are padded to even. Input clips are never modified.
 inputs:
@@ -22,6 +24,10 @@ params:
     type: float
     default: 5
     min: 0.001
+  end_seconds:
+    type: float
+    optional: true
+    description: Exclusive end time in seconds; overrides duration_seconds when set. Must exceed start_seconds.
 outputs:
   video:
     tags:

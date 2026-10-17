@@ -17,7 +17,7 @@ class PackTest(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.src = self.clip("source", "160x120")
 
-    def clip(self, name, size, rate=12):
+    def clip(self, name, size, rate=12, duration=1):
         folder = self.root / name
         folder.mkdir()
         subprocess.run(
@@ -30,7 +30,7 @@ class PackTest(unittest.TestCase):
                 "-i",
                 f"testsrc2=size={size}:rate={rate}",
                 "-t",
-                "1",
+                str(duration),
                 "-c:v",
                 "libx264",
                 "-threads",
@@ -89,6 +89,33 @@ class PackTest(unittest.TestCase):
                 {"start_seconds": start, "duration_seconds": duration},
                 ok=False,
             )
+
+    def test_end_overrides_duration(self):
+        for duration in (5, 28, 0):
+            data = self.execute(
+                {"video": self.src},
+                {"start_seconds": 0.25, "end_seconds": 0.75, "duration_seconds": duration},
+            )
+            self.assertAlmostEqual(float(data["format"]["duration"]), 0.5, places=2)
+
+    def test_invalid_end(self):
+        for end in (0.25, 0, -1, float("nan"), float("inf")):
+            error = self.execute(
+                {"video": self.src}, {"start_seconds": 0.25, "end_seconds": end}, ok=False
+            )
+            self.assertIn("end_seconds", error)
+
+    def test_end_past_video(self):
+        data = self.execute({"video": self.src}, {"start_seconds": 0.25, "end_seconds": 10})
+        self.assertAlmostEqual(float(data["format"]["duration"]), 0.75, places=2)
+
+    def test_defaults_and_null_end(self):
+        src = self.clip("long", "160x120", duration=6)
+        for params in ({}, {"end_seconds": None}, {"duration_seconds": 5}):
+            data = self.execute({"video": src}, params)
+            self.assertAlmostEqual(float(data["format"]["duration"]), 5, places=2)
+        data = self.execute({"video": self.src}, {"end_seconds": None, "duration_seconds": 0.5})
+        self.assertAlmostEqual(float(data["format"]["duration"]), 0.5, places=2)
 
 
 if __name__ == "__main__":
