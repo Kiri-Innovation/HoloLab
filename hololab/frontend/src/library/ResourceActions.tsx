@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { flopsInsertReferenceAvailable } from '../flops';
 import { insertOrCopyReference } from '../canvas/referenceAction';
 import { showReferenceResult } from '../canvas/CopyRefButton';
 import { libraryReference } from './libraryReference';
@@ -44,18 +45,47 @@ export default function ResourceActions({ resource, path, onDelete }: {
       window.removeEventListener('resize', dismiss); window.removeEventListener('scroll', dismiss, true);
     };
   }, [position]);
+  const canInsert = flopsInsertReferenceAvailable();
   const referenceLabel = zh ? '引用给 Agent' : 'Reference for Agent';
   const menuLabel = zh ? '资源菜单' : 'Resource menu';
   return <div className="library-resource-actions">
-    <button type="button" className="library-resource-action" disabled={busy} aria-label={referenceLabel} data-tooltip={referenceLabel} onClick={async () => {
+    <button type="button" className="library-resource-action" disabled={busy} aria-busy={busy} aria-label={referenceLabel} data-tooltip={referenceLabel} onClick={async () => {
       setBusy(true);
       try {
         const { payload, text } = libraryReference(resource, path);
         showReferenceResult(await insertOrCopyReference(payload, text));
       } finally { setBusy(false); }
     }}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 6H3v7h4c0 2-1 3-3 4v2c4-1 6-4 6-8V6ZM21 6h-7v7h4c0 2-1 3-3 4v2c4-1 6-4 6-8V6Z" /></svg>
-      {busy ? '…' : zh ? '引用' : 'Reference'}
+      {busy ? <span aria-hidden="true">…</span> : (
+        <svg
+          width={canInsert ? 12 : 14}
+          height={canInsert ? 12 : 14}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={canInsert ? 2.2 : 2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          focusable="false"
+          data-reference-icon={canInsert ? "quote" : "clipboard"}
+          style={{ flexShrink: 0 }}
+        >
+          {canInsert ? (
+            // Match CopyRefButton's bridge-aware icon paths and stroke.
+            <>
+              <path d="M10 6H3v7h4c0 2-1 3-3 4v2c4-1 6-4 6-8V6Z" />
+              <path d="M21 6h-7v7h4c0 2-1 3-3 4v2c4-1 6-4 6-8V6Z" />
+            </>
+          ) : (
+            <>
+              <rect x="9" y="3" width="6" height="4" rx="1" />
+              <path d="M9 5H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3" />
+              <path d="M8 11h8M8 15h8" />
+            </>
+          )}
+        </svg>
+      )}
     </button>
     <button ref={trigger} type="button" className="library-resource-action library-resource-kebab" aria-label={menuLabel} data-tooltip={menuLabel} aria-haspopup="menu" aria-expanded={!!position} aria-controls={position ? id : undefined} onClick={() => {
       if (position) { close(); return; }
