@@ -1,134 +1,80 @@
-// Read-only documentation capture. Raw inspection material stays in ignored test-results.
+// Read-only STG documentation capture; raw material stays in ignored test-results.
 import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
-process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = '1';
-const origin = 'http://117.50.186.141:8828';
-const prefix = '3711480d';
-const out = 'test-results/doc-ui';
-await mkdir(out, { recursive: true });
-const browser = await chromium.launch({ args: ['--no-proxy-server'] });
-const audit = { workflow: prefix, blockedWrites: [], themes: [] };
-async function sanitize(page, name) {
-  await page.addStyleTag({ content: `
-    [data-hl-node-title] > span:nth-child(2), [data-hl-node-footer] > div:first-child > span:first-child { visibility:hidden!important; }
-    .react-flow__node:not([data-id="tri"]) .hololab-node > .nodrag { visibility:hidden!important; }
-    img, video, .react-flow__minimap { visibility:hidden!important; }
-    .hl-topbar input { visibility:hidden!important; }
-    [role="tooltip"] { display:none!important; }
-  ` });
-  await page.evaluate(name => {
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    const nodes=[]; while(walker.nextNode()) nodes.push(walker.currentNode);
-    for(const n of nodes) {
-      if(n.parentElement.closest('script,style')) continue;
-      if(n.textContent.includes(name) || /\b[a-z]+\d{4}\b|\b[0-9a-f]{8}(?:-[0-9a-f-]+)?\b|\d{4}-\d{2}-\d{2}|frame_\d+|\d+\s*(?:天前|小时前|分钟前)|\bupdated\b|\b\d+[dhms]\s+ago\b|\/(?:cloud|home|mnt|root|tmp|data|Users|opt)\//i.test(n.textContent)) n.textContent='—';
-    }
-    for(const e of document.querySelectorAll('[title],[data-tooltip],[aria-description]')) {
-      // Prevent native tooltips from exposing metadata during capture.
-      e.removeAttribute('title');e.removeAttribute('data-tooltip');e.removeAttribute('aria-description');
-    }
-  }, name);
-  // The one retained viewer is a point cloud. Hide its UI, keeping only the 3D canvas.
-  for(const f of page.frames().slice(1)) await f.evaluate(() => {
-    const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);while(walker.nextNode())walker.currentNode.textContent='';
-    document.querySelectorAll('img,video,input,button,select').forEach(e=>e.style.visibility='hidden');
-  }).catch(()=>{});
+process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY='1';
+const origin='http://117.50.186.141:8828',workflow='3711480d-e858-453c-bf5b-76af602e9805',out='test-results/doc-ui';
+await mkdir(out,{recursive:true});
+const browser=await chromium.launch({args:['--no-proxy-server']});
+const audit={workflow,blockedWrites:[],themes:[],bounds:{}};
+async function sanitize(page,name){
+ await page.addStyleTag({content:`.hl-topbar input,.react-flow__minimap,img,video{visibility:hidden!important} [data-hl-node-title]>span:nth-child(2),[data-hl-node-footer]>div:first-child>span:first-child{visibility:hidden!important}.react-flow__node:not([data-id="tri"]) iframe{visibility:hidden!important}[role="tooltip"]{display:none!important}`});
+ await page.evaluate(name=>{
+  window.__docScrub?.disconnect();
+  const sensitive=/\b[0-9a-f]{8}(?:-[0-9a-f-]+)?\b|\d{4}-\d{2}-\d{2}|\b\d{1,2}:\d{2}:\d{2}\b|frame[_-]?\d+|\b\d+(?:\.\d+)?\s*(?:ms|s|m|h|d)\b|\d+\s*(?:天前|小时前|分钟前)|\/(?:cloud|home|mnt|root|tmp|data|Users|opt)\//i;
+  const scrub=()=>{
+   const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+   for(const n of nodes){if(n.parentElement.closest('script,style'))continue;if(n.textContent.includes(name)||/kiri4090/i.test(n.textContent)||sensitive.test(n.textContent))n.textContent='—';}
+   for(const el of document.querySelectorAll('[title],[data-tooltip],[aria-description]')){el.removeAttribute('title');el.removeAttribute('data-tooltip');el.removeAttribute('aria-description');}
+  };
+  const observer=new MutationObserver(()=>{observer.disconnect();scrub();observer.observe(document.body,{subtree:true,childList:true,characterData:true});});
+  scrub();observer.observe(document.body,{subtree:true,childList:true,characterData:true});window.__docScrub=observer;
+ },name);
+ // Keep only the previously public point-cloud canvas; no source imagery or viewer metadata.
+ for(const f of page.frames().slice(1))await f.evaluate(()=>{
+  const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);while(w.nextNode())if(!w.currentNode.parentElement.closest('script,style'))w.currentNode.textContent='';
+  document.querySelectorAll('img,video,input,button,select').forEach(e=>e.style.visibility='hidden');
+ }).catch(()=>{});
 }
-async function shot(page, locator, name, theme) {
-  await page.mouse.move(0,0);
-  const box=await locator.boundingBox();if(!box)throw Error('Missing '+name);
-  await page.screenshot({path:`${out}/${name}-${theme}.png`,clip:{x:Math.max(0,box.x),y:Math.max(0,box.y),width:Math.min(box.width,1600-Math.max(0,box.x)),height:Math.min(box.height,1050-Math.max(0,box.y))},timeout:10000});console.log('captured',name,theme);
+async function shot(p,locator,name,theme,height,width){
+ await p.mouse.move(0,0);const b=await locator.boundingBox();if(!b)throw Error('Missing '+name);const v=p.viewportSize();
+ await p.screenshot({path:`${out}/${name}-${theme}.png`,clip:{x:Math.max(0,b.x),y:Math.max(0,b.y),width:Math.min(width??b.width,v.width-Math.max(0,b.x)),height:Math.min(height??b.height,v.height-Math.max(0,b.y))},timeout:20000,animations:'disabled'});console.log('captured',name,theme);
 }
-try {
-for(const theme of ['light','dark']) {
-  let approvedId = null;
-  const c=await browser.newContext({viewport:{width:1600,height:1050},deviceScaleFactor:2,serviceWorkers:'block',colorScheme:theme});
-  await c.route('**/*', route => {
-    if(['image','media'].includes(route.request().resourceType())) return route.abort();
-    if(!['GET','HEAD','OPTIONS'].includes(route.request().method())) {audit.blockedWrites.push({method:route.request().method(),path:new URL(route.request().url()).pathname.replace(/[0-9a-f]{8}-[0-9a-f-]+/g,':id'),theme});return route.abort();}
-    if(approvedId && new URL(route.request().url()).pathname === '/api/artifacts') {
-      const url=new URL(route.request().url());url.searchParams.set('workflow_id',approvedId);return route.continue({url:url.href});
-    }
-    return route.continue();
-  });
-  await c.addInitScript(theme=>localStorage.setItem('hololab.theme',theme),theme);
-  const p=await c.newPage();p.setDefaultTimeout(10000);console.log('start',theme);
-  await p.goto(origin,{waitUntil:'domcontentloaded',timeout:20000});
-  await p.locator('.hl-workflow-card').first().waitFor();
-  const response=await p.request.get(origin+'/api/workflows',{timeout:10000});
-  const rows=await response.json();const target=rows.find(r=>r.workflow_id.startsWith(prefix));if(!target)throw Error('Approved workflow not found');approvedId=target.workflow_id;
-  if(process.env.CAPTURE_ARTIFACTS_ONLY !== '1') {
-  await p.evaluate(name=>{
-    for(const card of document.querySelectorAll('.hl-workflow-card'))if(!card.textContent.includes(name))card.remove();
-    const card=document.querySelector('.hl-workflow-card');if(!card)throw Error('STG card absent');
-    // Keep a single approved entry in the existing gallery layout.
-    document.querySelector('.hl-gallery-grid').style.gridTemplateColumns='360px';
-  },target.name);
-  await sanitize(p,target.name);
-  await p.evaluate(()=>{document.querySelector('.hl-topbar').style.width='900px';});
-  await p.screenshot({path:`${out}/gallery-${theme}.png`,clip:{x:0,y:0,width:900,height:300},animations:'disabled'});
-  await p.goto(origin+'/w/'+target.workflow_id,{waitUntil:'domcontentloaded',timeout:20000});
-  await p.locator('.react-flow__node[data-id="tri"] iframe').waitFor({timeout:20000});
-  await p.waitForTimeout(5000);
-  await p.getByPlaceholder('Search packs…').fill('frame-extraction');
-  await p.waitForTimeout(500);
-  await sanitize(p,target.name);
-  await p.evaluate(()=>{
-    document.querySelector('.hl-workspace').style.gridTemplateColumns='300px 6px minmax(0, 1fr) 6px 300px';
-    for(const e of document.querySelectorAll('.hl-pack-leaf'))if(!e.textContent.trim().startsWith('frame-extraction')) e.remove();
-    for(const e of document.querySelectorAll('.hl-pack-folder'))if(e.textContent.trim()==='rig')e.style.display='none';
-    const v=document.querySelector('.react-flow__viewport'),box=document.querySelector('.react-flow');
-    const nodes=[...document.querySelectorAll('.react-flow__node')].map(e=>{const m=new DOMMatrix(getComputedStyle(e).transform);return {x:m.m41,y:m.m42,w:e.offsetWidth,h:e.offsetHeight};});
-    const x=Math.min(...nodes.map(n=>n.x)),y=Math.min(...nodes.map(n=>n.y)),w=Math.max(...nodes.map(n=>n.x+n.w))-x,h=Math.max(...nodes.map(n=>n.y+n.h))-y;
-    const scale=Math.min((box.clientWidth-40)/w,(box.clientHeight-40)/h);
-    v.style.transform=`translate(${20-x*scale}px,${(box.clientHeight-h*scale)/2-y*scale}px) scale(${scale})`;
-  });
-  await shot(p,p.locator('.hl-workspace'),'canvas',theme);
-  const panels=p.locator('aside.hl-panel');
-  await shot(p,panels.first(),'packs-part',theme);
-  await shot(p,panels.nth(1).locator(':scope > div').first(),'devices-part',theme);
-  if(process.env.CAPTURE_PANELS_ONLY === '1') { await c.close();continue; }
-  // Capture history and the current workflow's task panel as actually shown (possibly empty).
-  await shot(p,panels.nth(1).locator(':scope > div').last(),'runs-part',theme);
-  await shot(p,p.locator('.hl-inspector > div').last(),'jobs-part',theme);
-  const toolbar=p.locator('.hl-topbar');
-  const run=p.locator('.hl-topbar button').filter({hasText:/^Run$/});
-  const rb=await run.boundingBox(),tb=await toolbar.boundingBox();
-  await p.screenshot({path:`${out}/run-${theme}.png`,clip:{x:Math.max(tb.x,rb.x-300),y:tb.y,width:Math.min(440,1600-Math.max(tb.x,rb.x-300)),height:tb.height},animations:'disabled'});
-  // Only change the browser's visual viewport transform: no graph interaction or persistence.
-  async function focus(ids,scale) {
-    await p.evaluate(({ids,scale})=>{
-      const viewport=document.querySelector('.react-flow__viewport'),container=document.querySelector('.react-flow');
-      const positions=ids.map(id=>{const e=document.querySelector(`.react-flow__node[data-id="${id}"]`);const m=new DOMMatrix(getComputedStyle(e).transform);return {x:m.m41,y:m.m42,w:e.offsetWidth,h:e.offsetHeight};});
-      const x=Math.min(...positions.map(p=>p.x)),y=Math.min(...positions.map(p=>p.y));
-      viewport.style.transform=`translate(${30-x*scale}px,${30-y*scale}px) scale(${scale})`;
-    },{ids,scale});
-    await p.waitForTimeout(300);
-  }
-  await focus(['fx'],1);
-  const nb=await p.locator('.react-flow__node[data-id="fx"]').boundingBox();await p.screenshot({path:`${out}/node-part-${theme}.png`,clip:{x:nb.x,y:nb.y,width:nb.width,height:190}});
-  await focus(['src','fx'],1);
-  const a=await p.locator('.react-flow__node[data-id="src"]').boundingBox(),z=await p.locator('.react-flow__node[data-id="fx"]').boundingBox();
-  await p.screenshot({path:`${out}/ports-${theme}.png`,clip:{x:a.x-8,y:Math.min(a.y,z.y)-8,width:z.x+z.width-a.x+16,height:190},animations:'disabled'});
-  await focus(['tri'],1.2);
-  await shot(p,p.locator('.react-flow__node[data-id="tri"]'),'preview',theme);
-  // Inspect actual localized labels without exporting workflow metadata.
-  audit.themes.push({theme, chineseLabels:await p.locator('body').evaluate(e=>[...new Set(e.innerText.match(/[\u4e00-\u9fff]+/g)||[])].filter(s=>s.length>1))});
-  }
-  await p.goto(origin+'/artifacts',{waitUntil:'domcontentloaded',timeout:20000});
-  await p.locator('select').first().waitFor();
-  const select=p.locator('select').filter({has:p.locator(`option[value="${target.workflow_id}"]`)});
-  await select.selectOption(target.workflow_id);
-  await p.waitForTimeout(1000);
-  await sanitize(p,target.name);
-  await p.evaluate(()=>{
-    // No other workflow labels, even inside dropdowns, survive into the capture.
-    document.querySelectorAll('select').forEach(s=>{for(const o of [...s.options])if(!o.selected)o.remove();});
-    document.querySelectorAll('code').forEach(e=>e.textContent='—');
-  });
-  await p.screenshot({path:`${out}/artifacts-${theme}.png`,clip:{x:0,y:0,width:1600,height:570},animations:'disabled'});
-  await c.close();
+// Reframe only this browser viewport; do not change graph positions or save layout.
+async function focus(p,ids,maxScale=1){
+ await p.evaluate(({ids,maxScale})=>{
+  const v=document.querySelector('.react-flow__viewport'),c=document.querySelector('.react-flow');
+  const ps=ids.map(id=>{const e=document.querySelector(`.react-flow__node[data-id="${id}"]`),m=new DOMMatrix(getComputedStyle(e).transform);return{x:m.m41,y:m.m42,w:e.offsetWidth,h:e.offsetHeight};});
+  const x=Math.min(...ps.map(p=>p.x)),y=Math.min(...ps.map(p=>p.y)),w=Math.max(...ps.map(p=>p.x+p.w))-x,h=Math.max(...ps.map(p=>p.y+p.h))-y,s=Math.min(maxScale,(c.clientWidth-60)/w,(c.clientHeight-60)/h);
+  v.style.transform=`translate(${(c.clientWidth-w*s)/2-x*s}px,${(c.clientHeight-h*s)/2-y*s}px) scale(${s})`;
+ },{ids,maxScale});await p.waitForTimeout(250);
 }
-await writeFile(`${out}/${process.env.CAPTURE_PANELS_ONLY === '1' ? 'audit-panels' : process.env.CAPTURE_ARTIFACTS_ONLY === '1' ? 'audit-artifacts' : 'audit'}.json`,JSON.stringify(audit,null,2));
-} finally { await browser.close(); }
-console.log('Captured approved STG views in both themes; write requests blocked:',audit.blockedWrites.length);
+try{for(const theme of ['light','dark']){
+ const c=await browser.newContext({viewport:{width:1600,height:1050},deviceScaleFactor:2,serviceWorkers:'block',colorScheme:theme});
+ await c.route('**/*',async r=>{
+  const q=r.request(),u=new URL(q.url());
+  if(!['GET','HEAD','OPTIONS'].includes(q.method())){audit.blockedWrites.push({method:q.method(),path:u.pathname,theme});return r.abort();}
+  if(['image','media'].includes(q.resourceType()))return r.abort();
+  if(u.origin===origin&&u.pathname==='/api/workflows'){const response=await r.fetch(),rows=await response.json();return r.fulfill({response,json:rows.filter(x=>x.workflow_id===workflow)});}
+  if(u.origin===origin&&u.pathname==='/api/artifacts'){u.searchParams.set('workflow_id',workflow);return r.continue({url:u.href});}
+  return r.continue();
+ });
+ await c.addInitScript(t=>localStorage.setItem('hololab.theme',t),theme);
+ const p=await c.newPage();p.setDefaultTimeout(15000);
+ await p.goto(origin,{waitUntil:'domcontentloaded'});await p.locator('.hl-workflow-card').waitFor();
+ const target=await(await p.request.get(`${origin}/api/workflows/${workflow}`)).json();
+ await sanitize(p,target.name);await shot(p,p.locator('.hl-workflow-card'),'gallery',theme);
+ await p.goto(`${origin}/w/${workflow}`,{waitUntil:'domcontentloaded'});await p.locator('.react-flow__node[data-id="tri"] iframe').waitFor({timeout:30000});await p.waitForTimeout(5000);
+ await p.getByPlaceholder('Search packs…').fill('frame-extraction');await p.waitForTimeout(400);
+ const chineseLabels=await p.locator('body').evaluate(e=>[...new Set(e.innerText.match(/[\u4e00-\u9fff]+/g)||[])].filter(s=>s.length>1));
+ await sanitize(p,target.name);await focus(p,await p.locator('.react-flow__node').evaluateAll(ns=>ns.map(n=>n.dataset.id)));
+ audit.bounds[theme]=await p.evaluate(()=>Object.fromEntries(Object.entries({canvas:'.react-flow',packs:'aside.hl-panel',history:'.hl-inspector-sidebar',jobs:'#hl-bottom-tab-jobs',preview:'.react-flow__node[data-id="tri"] iframe'}).map(([k,s])=>[k,document.querySelector(s)?.getBoundingClientRect().toJSON()])));
+ await shot(p,p.locator('.hl-workspace'),'canvas',theme);
+ await shot(p,p.locator('aside.hl-panel').first(),'packs-part',theme,290);
+ await shot(p,p.locator('.hl-compute-dock'),'devices-part',theme,330,420);
+ await p.getByRole('tab',{name:'Jobs',exact:true}).click();await p.waitForTimeout(500);
+ await shot(p,p.locator('.hl-compute-dock'),'jobs-part',theme,350);
+ await shot(p,p.locator('.hl-inspector-sidebar'),'runs-part',theme,350);
+ await p.getByRole('tab',{name:'Compute Nodes · Pulse',exact:true}).click();
+ const rb=await p.locator('.hl-topbar button').filter({hasText:/^Run$/}).boundingBox();
+ await p.screenshot({path:`${out}/run-${theme}.png`,clip:{x:rb.x-220,y:0,width:1600-rb.x+220,height:48},animations:'disabled'});
+ await focus(p,['fx']);await shot(p,p.locator('.react-flow__node[data-id="fx"]'),'node-part',theme,200);
+ await focus(p,['src','fx']);const a=await p.locator('.react-flow__node[data-id="src"]').boundingBox(),z=await p.locator('.react-flow__node[data-id="fx"]').boundingBox();
+ await p.screenshot({path:`${out}/ports-${theme}.png`,clip:{x:Math.min(a.x,z.x)-6,y:Math.min(a.y,z.y)-6,width:Math.max(a.x+a.width,z.x+z.width)-Math.min(a.x,z.x)+12,height:Math.min(200,Math.max(a.height,z.height))},animations:'disabled'});
+ await focus(p,['tri']);await sanitize(p,target.name);await shot(p,p.locator('.react-flow__node[data-id="tri"]'),'preview',theme);
+ audit.themes.push({theme,chineseLabels});
+ await p.goto(`${origin}/artifacts`,{waitUntil:'domcontentloaded'});
+ const select=p.locator('select').filter({has:p.locator(`option[value="${workflow}"]`)});await select.selectOption(workflow);await p.waitForTimeout(1000);await sanitize(p,target.name);
+ await p.evaluate(()=>{document.querySelectorAll('select').forEach(s=>{for(const o of [...s.options])if(!o.selected)o.remove();});document.querySelectorAll('code').forEach(e=>e.textContent='—');});
+ await p.screenshot({path:`${out}/artifacts-${theme}.png`,clip:{x:0,y:0,width:1600,height:570},animations:'disabled'});await c.close();
+}await writeFile(`${out}/audit.json`,JSON.stringify(audit,null,2));}finally{await browser.close();}
+console.log('Captured STG views; blocked writes:',audit.blockedWrites.length);

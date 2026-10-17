@@ -14,12 +14,14 @@ for theme in ["light", "dark"]:
     def load(name, theme=theme):
         return Image.open(source / f"{name}-{theme}.png").convert("RGB")
 
-    def paired(left, right, left_height=None, right_height=None):
+    def paired(left, right, left_height=None, right_height=None, right_width=None):
         a, b = load(left), load(right)
         if left_height:
             a = a.crop((0, 0, a.width, min(a.height, left_height)))
         if right_height:
             b = b.crop((0, 0, b.width, min(b.height, right_height)))
+        if right_width:
+            b = b.crop((0, 0, min(b.width, right_width), b.height))
         bg = a.getpixel((0, 0))
         pad = 32
         result = Image.new(
@@ -32,9 +34,12 @@ for theme in ["light", "dark"]:
     images = {
         name: load(name) for name in ["gallery", "canvas", "ports", "run", "artifacts", "preview"]
     }
+    images["ports"] = images["ports"].crop((0, 0, images["ports"].width, 280))
     images["panels"] = paired("packs-part", "devices-part", left_height=600)
-    images["add-node"] = paired("packs-part", "node-part", left_height=600)
-    images["runs-jobs"] = paired("runs-part", "jobs-part", left_height=650, right_height=650)
+    images["add-node"] = paired("packs-part", "node-part", left_height=326, right_height=276)
+    images["runs-jobs"] = paired(
+        "runs-part", "jobs-part", left_height=650, right_height=280, right_width=760
+    )
     for name, image in images.items():
         file = out / f"{name}-{theme}.webp"
         limit = (400 if name == "canvas" else 200) * 1024

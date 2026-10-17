@@ -16,13 +16,13 @@ order: 20
 列表为空时，先检查设备是否在线，以及设备设置里的 **Pack sources** 是否包含 manifest 所在位置。搜索只筛选已经发现的 Pack，不会下载或安装算法。
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/add-node-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/add-node-light.webp" alt="Packs 中的 frame-extraction 与 STG 画布上的同名节点，局部截图并列；未执行添加操作。" width="1400" height="664" loading="lazy" decoding="async" /></picture>
+<picture><source srcset="/images/docs/add-node-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/add-node-light.webp" alt="Packs 中的 frame-extraction 与 STG 画布上的同名节点，局部截图并列；未执行添加操作。" width="1400" height="390" loading="lazy" decoding="async" /></picture>
 <figcaption>Packs 中的 frame-extraction 与 STG 画布上的同名节点，局部截图并列；未执行添加操作。</figcaption>
 </figure>
 
 ## 配置参数和设备
 
-选中画布上的算法节点，在检查面板的 **Parameters** 修改参数，在 **Compute node** 选择提供该 Pack 的计算设备。不要留下 `unassigned`：执行前会检查设备分配。
+选中画布上的算法节点，在右栏 **Inspector** 标签页的 **Parameters** 修改参数，在 **Run on** 段选择提供该 Pack 的计算设备。不要留下 `unassigned`：执行前会检查设备分配。
 
 不同 Pack 提供不同参数。路径类参数需要按算法实际运行的设备填写；浏览器所在电脑的路径不一定能被计算设备访问。
 
@@ -35,7 +35,7 @@ order: 20
 把所需的必填输入接好，保持流程没有循环。输入含义和参数约束仍以所选算法为准。
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/ports-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/ports-light.webp" alt="STG 链中视频来源与抽帧节点的端口和已有连线；未改动连接。" width="1470" height="380" loading="lazy" decoding="async" /></picture>
+<picture><source srcset="/images/docs/ports-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/ports-light.webp" alt="STG 链中视频来源与抽帧节点的端口和已有连线；未改动连接。" width="1462" height="280" loading="lazy" decoding="async" /></picture>
 <figcaption>STG 链中视频来源与抽帧节点的端口和已有连线；未改动连接。</figcaption>
 </figure>
 
@@ -44,7 +44,7 @@ order: 20
 画布修改会自动保存，顶部有保存状态提示。等状态显示 **Saved** 后，再点击右上角 **Run**。若保存失败，先点击 **Save failed · Retry** 重试；如果提示另一个页面修改了工作流，先处理冲突再运行。
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/run-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/run-light.webp" alt="顶部运行工具栏的局部截图；Run 按钮未点击。" width="726" height="104" loading="lazy" decoding="async" /></picture>
+<picture><source srcset="/images/docs/run-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/run-light.webp" alt="顶部运行工具栏的局部截图；Run 按钮未点击。" width="566" height="96" loading="lazy" decoding="async" /></picture>
 <figcaption>顶部运行工具栏的局部截图；Run 按钮未点击。</figcaption>
 </figure>
 
@@ -54,7 +54,7 @@ order: 20
 
 ## 跟踪和停止任务
 
-画布节点与任务面板会显示状态；进度取决于 Pack 是否提供了可解析的进度信息。任务行提供查看日志入口。
+画布节点与底部 dock 的 **Jobs** 标签页会显示状态；进度取决于 Pack 是否提供了可解析的进度信息。任务行提供查看日志入口。
 
 需要停止时，使用任务行的停止操作；有确认弹窗时核对范围后再确认。停止不代表成功完成，也不会自动补齐未生成的输出。
 

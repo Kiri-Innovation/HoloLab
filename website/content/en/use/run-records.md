@@ -39,7 +39,7 @@ To answer “which parameters did reconstruction use?”, look at its **Job**, n
 Its output directory is an **Artifact**. An artifact reference, or **Handle**, records its ID, device, path, output port, and producing Job. Downstream tasks use input references to access it; the files remain on the execution device. A registered directory may contain many files, so the artifact count is neither a file count nor a fixed number per node.
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/preview-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/preview-light.webp" alt="The actual point-cloud preview from colmap-triangulate in the STG pipeline. Frame names and artifact references are hidden; no source imagery is shown. Some product labels remain in Chinese." width="844" height="1236" loading="lazy" decoding="async" /></picture>
+<picture><source srcset="/images/docs/preview-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/preview-light.webp" alt="The actual point-cloud preview from colmap-triangulate in the STG pipeline. Frame names and artifact references are hidden; no source imagery is shown. Some product labels remain in Chinese." width="704" height="1030" loading="lazy" decoding="async" /></picture>
 <figcaption>The actual point-cloud preview from colmap-triangulate in the STG pipeline. Frame names and artifact references are hidden; no source imagery is shown. Some product labels remain in Chinese.</figcaption>
 </figure>
 
@@ -84,14 +84,14 @@ Start with your question; you do not need to memorize the IDs.
 
 | Your question | Where to go | What you can inspect |
 | --- | --- | --- |
-| Which graph did I run, and which steps executed? | Open the workflow → **Runs** on the right → select a record | The workflow snapshot and related tasks; historical snapshots are read-only |
-| Which step failed, and why? | Workflow → **Recent jobs** panel → **View logs / View failure logs** | Logs and failure details for that Job |
+| Which graph did I run, and which steps executed? | Open the workflow → the **Runs** tab in the right dock → select a record | The workflow snapshot and related tasks; historical snapshots are read-only |
+| Which step failed, and why? | Workflow → bottom dock → **Jobs** → **Recent jobs** → **View logs / View failure logs** | Logs and failure details for that Job |
 | What was produced, and does it still exist? | Workflow list → **Artifacts** → find the artifact | Source algorithm, output port, and file path; check whether the files exist |
 | Can I see the result directly? | Canvas → a node’s artifact preview | Previews for supported types; no viewer does not mean no files were generated |
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/runs-jobs-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/runs-jobs-light.webp" alt="Cropped Run history and Recent jobs panels for STG, shown side by side. The current task panel was empty at capture time; historical runs were available. Timestamps and record IDs are hidden." width="1054" height="714" loading="lazy" decoding="async" /></picture>
-<figcaption>Cropped Run history and Recent jobs panels for STG, shown side by side. The current task panel was empty at capture time; historical runs were available. Timestamps and record IDs are hidden.</figcaption>
+<picture><source srcset="/images/docs/runs-jobs-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/runs-jobs-light.webp" alt="Paired STG crops: the right dock’s Runs tab and the bottom dock’s Jobs tab. These panels occupy different regions of the interface; Recent jobs was empty at capture time. Timestamps and record IDs are hidden." width="1616" height="714" loading="lazy" decoding="async" /></picture>
+<figcaption>Paired STG crops: the right dock’s Runs tab and the bottom dock’s Jobs tab. These panels occupy different regions of the interface; Recent jobs was empty at capture time. Timestamps and record IDs are hidden.</figcaption>
 </figure>
 
 **Current limitation:** filtering artifacts by Run still uses the producing Job’s original run record. It may omit artifacts from Jobs inherited from an earlier Run. Clear the Run filter and check the source algorithm and file path, or open the original Run. An empty filtered view does not prove the files are gone.

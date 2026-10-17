@@ -39,7 +39,7 @@ order: 35
 输出目录则是**产物（Artifact）**。系统用一个产物引用 **Handle** 记录它的编号、所在设备、路径、输出端口和生产它的 Job；下游任务通过输入引用使用它，实际文件仍在执行设备上。一个登记的目录可以包含很多文件，所以产物数量不等于文件数量，也不固定等于节点数量。
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/preview-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/preview-light.webp" alt="STG 链中 colmap-triangulate 的真实点云预览；帧名与产物引用已隐藏，未展示原始影像。" width="844" height="1236" loading="lazy" decoding="async" /></picture>
+<picture><source srcset="/images/docs/preview-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/preview-light.webp" alt="STG 链中 colmap-triangulate 的真实点云预览；帧名与产物引用已隐藏，未展示原始影像。" width="704" height="1030" loading="lazy" decoding="async" /></picture>
 <figcaption>STG 链中 colmap-triangulate 的真实点云预览；帧名与产物引用已隐藏，未展示原始影像。</figcaption>
 </figure>
 
@@ -84,14 +84,14 @@ order: 35
 
 | 想查什么 | 界面路径 | 能看到什么 |
 | --- | --- | --- |
-| 当时用了哪张图、哪些步骤跑过 | 打开工作流 → 右侧 **Runs** → 点击记录 | 工作流快照与相关任务；历史快照是只读视图 |
-| 哪一步失败、日志说了什么 | 工作流 → **Recent jobs** 任务面板 → **查看日志 / 查看失败日志** | 对应 Job 的日志与失败信息 |
+| 当时用了哪张图、哪些步骤跑过 | 打开工作流 → 右栏 **Runs** 标签页 → 点击记录 | 工作流快照与相关任务；历史快照是只读视图 |
+| 哪一步失败、日志说了什么 | 工作流 → 底部 dock → **Jobs** → **Recent jobs** → **查看日志 / 查看失败日志** | 对应 Job 的日志与失败信息 |
 | 输出是什么、还在不在 | 工作流列表页 → **Artifacts** → 查找产物 | 来源算法、输出端口与文件路径；可检查文件是否存在 |
 | 想直接看结果 | 画布 → 节点的产物预览 | 受支持类型的预览；没有预览器不代表没生成文件 |
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/runs-jobs-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/runs-jobs-light.webp" alt="STG 的 Run history 与 Recent jobs 局部截图并列。采集时当前任务面板为空，历史记录仍可见；时间与记录标识已隐藏。" width="1054" height="714" loading="lazy" decoding="async" /></picture>
-<figcaption>STG 的 Run history 与 Recent jobs 局部截图并列。采集时当前任务面板为空，历史记录仍可见；时间与记录标识已隐藏。</figcaption>
+<picture><source srcset="/images/docs/runs-jobs-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/runs-jobs-light.webp" alt="STG 的右栏 Runs 标签页与底部 Jobs 标签页局部截图并列；两者实际位于界面的不同区域，采集时 Recent jobs 为空。时间与记录标识已隐藏。" width="1616" height="714" loading="lazy" decoding="async" /></picture>
+<figcaption>STG 的右栏 Runs 标签页与底部 Jobs 标签页局部截图并列；两者实际位于界面的不同区域，采集时 Recent jobs 为空。时间与记录标识已隐藏。</figcaption>
 </figure>
 
 **当前限制**：按 Run 筛选产物时，筛选依据仍是生产 Job 首次所属的运行记录，因此可能漏掉从旧 Run 继承的 Job 产物。找不到时，可以取消 Run 筛选，按来源算法和文件路径核对，或回看原来的 Run；不要仅凭筛选结果判断文件已经丢失。

@@ -51,7 +51,7 @@ cd ../..
 打开后首先看到工作流列表。点击已有工作流即可进入，也可以点击 **+ New workflow**；列表为空时还有 **+ Create your first workflow** 入口。新建后会打开空画布，地址变为同一主机和端口下的 `/w/<workflow_id>`，可以收藏这个页面，下次直接回到该工作流。
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/gallery-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/gallery-light.webp" alt="工作流列表，仅保留 classic STG 示例；名称、更新时间和其他工作流已隐藏。" width="1800" height="600" loading="lazy" decoding="async" /></picture>
+<picture><source srcset="/images/docs/gallery-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/gallery-light.webp" alt="工作流列表，仅保留 classic STG 示例；名称、更新时间和其他工作流已隐藏。" width="656" height="280" loading="lazy" decoding="async" /></picture>
 <figcaption>工作流列表，仅保留 classic STG 示例；名称、更新时间和其他工作流已隐藏。</figcaption>
 </figure>
 
@@ -59,22 +59,22 @@ cd ../..
 
 - **① 画布区**：中央区域放置节点和连线，用来组织工作流的步骤与连接。
 - **② Packs**：左侧面板列出可用算法，通过 **Search packs…** 搜索，再将对应节点添加到画布。
-- **③ 运行与状态**：顶部的 **Run** 用来启动工作流；**Recent jobs** 显示任务状态并提供日志入口，右侧的 **Runs** 可以回看运行记录。
+- **③ 运行与状态**：顶部的 **Run** 用来启动工作流；底部 dock 的 **Jobs** 标签页内是 **Recent jobs** 与任务日志入口；右侧 dock 的 **Runs** 标签页可以回看运行记录。
 - **④ 产物**：展开节点预览可查看受支持的输出；要查找产物清单，回到工作流列表，打开 **Artifacts**（`/artifacts`）。
 
 <figure class="doc-screenshot">
-<div class="annotated-canvas"><picture><source srcset="/images/docs/canvas-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/canvas-light.webp" alt="编号对应上方列表：① 画布区，② Packs，③ Run / Run history / Recent jobs，④ 节点预览。Artifacts 产物清单在另一页面。原始影像预览及标识已隐藏。" width="3200" height="2100" loading="lazy" decoding="async" /></picture>
+<div class="annotated-canvas"><picture><source srcset="/images/docs/canvas-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/canvas-light.webp" alt="编号对应上方列表：① 画布区，② Packs，③ 顶部 Run / 右栏 Runs / 底部 Jobs 标签，④ 节点预览。Artifacts 产物清单在另一页面。原始影像预览及标识已隐藏。" width="3200" height="2100" loading="lazy" decoding="async" /></picture>
 <div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-canvas"><span class="region-number">1</span></span><span class="canvas-region region-packs"><span class="region-number">2</span></span><span class="canvas-region region-run"><span class="region-number">3</span></span><span class="canvas-region region-history"><span class="region-number">3</span></span><span class="canvas-region region-jobs"><span class="region-number">3</span></span><span class="canvas-region region-preview"><span class="region-number">4</span></span></div></div>
-<figcaption>编号对应上方列表：① 画布区，② Packs，③ Run / Run history / Recent jobs，④ 节点预览。Artifacts 产物清单在另一页面。原始影像预览及标识已隐藏。</figcaption>
+<figcaption>编号对应上方列表：① 画布区，② Packs，③ 顶部 Run / 右栏 Runs / 底部 Jobs 标签，④ 节点预览。Artifacts 产物清单在另一页面。原始影像预览及标识已隐藏。</figcaption>
 </figure>
 
 ## 先确认设备和 Pack
 
-进入工作流后，在 **Compute nodes** 面板确认计算设备在线。**Packs** 列表来自计算节点扫描到的 manifest；看得到 Pack 不代表它所需的算法环境已安装。
+进入工作流后，在底部 dock 的 **Compute Nodes · Pulse** 标签页确认计算设备在线；设备卡右上角的齿轮是设置入口。**Packs** 列表来自计算节点扫描到的 manifest；看得到 Pack 不代表它所需的算法环境已安装。
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/panels-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/panels-light.webp" alt="Packs 与 Compute nodes 的局部截图并列：算法入口与设备状态；设备名称、ID 和路径已隐藏。" width="1294" height="664" loading="lazy" decoding="async" /></picture>
-<figcaption>Packs 与 Compute nodes 的局部截图并列：算法入口与设备状态；设备名称、ID 和路径已隐藏。</figcaption>
+<picture><source srcset="/images/docs/panels-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/panels-light.webp" alt="左侧 Packs 面板与底部 Compute Nodes · Pulse 标签页的局部截图并列：算法入口与设备状态；设备名称、ID 和路径已隐藏。" width="1536" height="724" loading="lazy" decoding="async" /></picture>
+<figcaption>左侧 Packs 面板与底部 Compute Nodes · Pulse 标签页的局部截图并列：算法入口与设备状态；设备名称、ID 和路径已隐藏。</figcaption>
 </figure>
 
 计算节点的配置默认在 `~/.hololab/node/config.yaml`。例如，一个 Pack 声明使用 `research` 环境时，需要在设备上配置对应的实际路径：
