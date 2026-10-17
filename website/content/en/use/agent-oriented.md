@@ -7,13 +7,13 @@ order: 15
 
 You can work on the canvas and hand a specific question to an agent without reconstructing the scene in a chat. HoloLab gives people a visual workspace and agents structured access to the same workflows and execution records.
 
-## Point to the thing you mean
+## Everything referrable
 
 Instead of describing “the node that failed,” use its reference action. Workflows, canvas nodes, Runs, Jobs, output Handles, Packs and compute nodes have `hololab://` references; `hololab://workflows` and `hololab://artifacts` refer to whole lists. A reference identifies an object within an instance, so give the agent the instance address too.
 
 In the Flops embedded browser, the action inserts a reference into the conversation input. In a regular browser, it copies reference text for you to paste. The inserted reference includes a Markdown summary labeled `hololab.reference-snapshot/v1`, with identity, state, context and navigation sections. It is a summary captured at that moment; the agent can resolve the reference again for current data.
 
-## Read the state, not a screenshot
+## Everything agent-readable
 
 An agent can call `GET /api/resolve?ref=hololab://…` to inspect the object and follow its related links. For a canvas node, the response includes saved parameters, upstream and downstream connections, and the latest execution attribution and output Handles when available.
 
@@ -27,7 +27,7 @@ related      → links to further API reads
 
 The resolver returns JSON; the four-section Markdown summary above is built from it. Job logs are available at `/api/jobs/<id>/log`, and Run snapshots at `/api/snapshots/<id>`. That lets an agent investigate a failed step without reading status from pixels. Judging whether a render looks right still requires looking at the output.
 
-## Give the agent the operating guide
+## Everything included in a skill
 
 The repository's `skill/SKILL.md` explains how to check an instance, resolve references, edit and run workflows, wait for results, inspect outputs and logs, and cancel work. It also points to the Pack authoring and specification documents in `docs/`.
 
