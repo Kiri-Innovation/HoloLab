@@ -6,7 +6,10 @@ description: Overlay one image on a video with proportional scaling and nine pos
 category: video/editing
 source_entry: run.py
 docs: |-
-  Connect single-image-source.image (scalar image file) to image. The still repeats through the video end.
+  Connect single-image-source.image (scalar image file) to image. The still repeats within the selected window.
+  Window is [start_seconds, end_seconds): end overrides duration_seconds; otherwise start + duration is used.
+  Omit both end and duration for the remainder of the main video (legacy default). The output is never trimmed.
+  Optional offset_x_ratio / offset_y_ratio override each position axis independently: top-left coordinate as a fraction of frame width/height, clamped inside margins.
   width_ratio sets the target fraction of video width; aspect-preserving scaling also fits inside both pixel margins.
   margin is pixels on each edge; impossible margins are rejected. opacity multiplies existing image alpha.
   CPU-only, two encoder/filter threads. Requires ffmpeg/ffprobe with libx264 in logical environment kiri. Outputs silent video: audio is intentionally discarded. H.264/yuv420p, CRF 20, faststart; odd dimensions are padded to even. Input clips are never modified.
@@ -21,6 +24,31 @@ inputs:
     storage: file
     description: One image file, for example from single-image-source.image.
 params:
+  start_seconds:
+    type: float
+    default: 0
+    min: 0
+  end_seconds:
+    type: float
+    optional: true
+    description: Exclusive window end; overrides duration_seconds. Must exceed start_seconds.
+  duration_seconds:
+    type: float
+    optional: true
+    min: 0.001
+    description: Positive window duration when end is absent; omit both for the remainder of the video.
+  offset_x_ratio:
+    type: float
+    optional: true
+    min: 0
+    max: 1
+    description: Left edge as a fraction of frame width; overrides horizontal position and clamps inside margins.
+  offset_y_ratio:
+    type: float
+    optional: true
+    min: 0
+    max: 1
+    description: Top edge as a fraction of frame height; overrides vertical position and clamps inside margins.
   position:
     type: enum
     default: top-right
