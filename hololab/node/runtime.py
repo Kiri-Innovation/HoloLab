@@ -1065,6 +1065,7 @@ class NodeRuntime:
         return {
             "node_name": cfg.node_name,
             "workspace_root": str(cfg.workspace_root),
+            "library_root": str(cfg.library_root.expanduser().resolve()),
             "legacy_workspace_roots": [str(p) for p in cfg.legacy_workspace_roots],
             "file_server_host": cfg.file_server_host,
             "file_server_port": cfg.file_server_port,

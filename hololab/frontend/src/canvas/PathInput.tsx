@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./pathInput.css";
+import { PathLibraryBrowser } from "./PathLibraryBrowser";
 
 type Entry = { name: string; path: string; kind: "directory" | "file" | "other" | "unavailable"; symlink: boolean; size: number | null; modified_ts: number | null };
 type Page = { path: string; parent: string; entries: Entry[]; next_offset: number | null };
@@ -28,6 +29,7 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
   const [active, setActive] = useState(0);
   const [rect, setRect] = useState<{ left: number; top?: number; bottom?: number; width: number; maxHeight: number }>({ left: 0, top: 0, width: 300, maxHeight: 280 });
   const [open, setOpen] = useState(false);
+  const [source, setSource] = useState("filesystem");
   const [location, setLocation] = useState("/");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [favoriteError, setFavoriteError] = useState("");
@@ -91,7 +93,7 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
     if (open) dialog.current?.showModal(); else dialog.current?.close();
   }, [open]);
   useEffect(() => {
-    if (!open || !nodeId) return;
+    if (!open || !nodeId || source !== "filesystem") return;
     const controller = new AbortController();
     setBusy(true); setError(""); setSelected(-1); setPage(null);
     const timer = setTimeout(() => {
@@ -102,7 +104,7 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
         .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [open, nodeId, location, offset]);
+  }, [open, nodeId, location, offset, source]);
   useEffect(() => { popup.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" }); }, [active]);
   useEffect(() => { listbox.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" }); }, [selected]);
   function showSuggestions() {
@@ -143,7 +145,7 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
           else complete(suggestions[active]);
         }
       }} />
-      <button type="button" aria-label={`Browse paths for ${name}`} disabled={!nodeId} onClick={() => { setSuggest(false); navigate(value ? split(value).path : initialDirectory || "/"); setOpen(true); }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" /></svg></button>
+      <button type="button" aria-label={`Browse paths for ${name}`} disabled={!nodeId} onClick={() => { setSuggest(false); setSource("filesystem"); navigate(value ? split(value).path : initialDirectory || "/"); setOpen(true); }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" /></svg></button>
     </div>
     {!nodeId && <small>Select a compute node to browse its files.</small>}
     {suggest && nodeId && createPortal(<div ref={popup} className="hl-path-suggestions" style={rect} onMouseDown={e => e.preventDefault()}>
@@ -152,6 +154,8 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
     </div>, document.body)}
     {createPortal(<dialog ref={dialog} className="hl-path-dialog" aria-labelledby={`${id}-title`} onCancel={() => setOpen(false)} onClose={() => setOpen(false)}>
       <header><h3 id={`${id}-title`}>Browse compute node · {name}</h3><button type="button" aria-label="Close path browser" onClick={() => setOpen(false)}>×</button></header>
+      <div className="hl-path-sources" role="group" aria-label="Path source"><button type="button" aria-pressed={source === "filesystem"} onClick={() => setSource("filesystem")}>Compute node</button><button type="button" aria-pressed={source === "library"} onClick={() => setSource("library")}>Library</button></div>
+      {open && source === "library" && nodeId ? <PathLibraryBrowser nodeId={nodeId} pathKind={pathKind} onCancel={() => setOpen(false)} onSelect={path => { onChange(path); setOpen(false); input.current?.focus(); }} /> : <>
       <div><label htmlFor={`${id}-location`}>Location</label><div className="hl-path-field"><input id={`${id}-location`} value={location} aria-controls={`${id}-entries`} aria-activedescendant={chosen ? `${id}-entry-${selected}` : undefined} onChange={e => { setLocation(e.target.value); setOffset(0); setSelected(-1); }} onKeyDown={e => entryKeys(e, true)} /><button type="button" className="hl-path-favorite-toggle" aria-label={isFavorite ? "Remove current path from favorites" : "Favorite current path"} aria-pressed={isFavorite} disabled={!nodeId || !favoritePath.startsWith("/")} onClick={toggleFavorite}><span aria-hidden="true">{isFavorite ? "★" : "☆"}</span></button></div></div>
       {favorites.length > 0 && <div className="hl-path-favorites" role="group" aria-label="Favorite paths">{favorites.map(path => <span className="hl-path-favorite" key={path}><button type="button" title={path} onClick={() => { setLocation(path); setOffset(0); setSelected(-1); }}>{path}</button><button type="button" aria-label={`Remove favorite ${path}`} onClick={() => saveFavorites(favorites.filter(p => p !== path))}>×</button></span>)}</div>}
       {favoriteError && <p role="status" className="hl-path-hint">{favoriteError}</p>}
@@ -165,6 +169,7 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
       <div className="hl-path-pages"><button type="button" disabled={!offset || busy} onClick={() => setOffset(0)}>First page</button><button type="button" disabled={page?.next_offset == null || busy} onClick={() => setOffset(page!.next_offset!)}>Next page</button></div>
       <p className="hl-path-hint">Files are on the selected compute node. Double-click a folder to open it. ↗ indicates a symlink.</p>
       <footer><span>{chosen?.name ?? "Select an entry"}</span><button type="button" onClick={() => setOpen(false)}>Cancel</button>{pathKind !== "file" && <button type="button" disabled={!page || busy} onClick={() => { onChange(page!.path); setOpen(false); }}>Use this directory</button>}<button type="button" className="hl-button hl-button--primary" disabled={!chosen || !valid(chosen) || busy} onClick={() => chosen && choose(chosen)}>Select</button></footer>
+      </>}
     </dialog>, document.body)}
   </div>;
 }

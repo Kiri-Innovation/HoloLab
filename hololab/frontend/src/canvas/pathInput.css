@@ -32,3 +32,10 @@
 .hl-path-favorite button { border: 0; background: transparent; }
 .hl-path-favorite button:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--fs-xs); }
 .hl-path-favorite button:last-child { flex-shrink: 0; }
+
+.hl-path-sources { display: flex; gap: 6px; margin-bottom: 12px; }
+.hl-path-sources [aria-pressed=true], .hl-path-library-entry[aria-pressed=true] { background: var(--accent-soft); color: var(--accent); }
+.hl-path-library-entry { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; text-align: left; border: 0; border-bottom: 1px solid var(--border-subtle); border-radius: 0; background: var(--surface); color: var(--text); }
+.hl-path-library-entry span { overflow-wrap: anywhere; min-width: 0; }
+.hl-path-library-entry small { color: var(--text-muted); flex-shrink: 0; }
+.hl-path-library-list p { padding: 0 12px; color: var(--text-muted); }

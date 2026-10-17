@@ -12,6 +12,8 @@ for (const theme of ['light', 'dark']) {
       if (u.pathname === '/api/nodes/metrics/history') body = {sample_interval_s:5,nodes:{}};
       if (u.pathname === '/api/artifacts/summary') body = {total_bytes:0,exclusive_bytes:0,artifact_count:0};
       if (u.pathname === '/api/nodes/device/paths') body = {path:'/media',parent:'/',next_offset:null,entries:[{name:'classic-stg.mp4',path:'/media/classic-stg.mp4',kind:'file',symlink:false,size:2048,modified_ts:1},{name:'renders',path:'/media/renders',kind:'directory',symlink:false,size:null,modified_ts:1}].filter(e=>e.name.startsWith(u.searchParams.get('prefix')||''))};
+      // Autosave must preserve the workflow URL before the favorites reload.
+      if (u.pathname === '/api/workflows' && route.request().method() === 'POST') body = {workflow_id:'path-test',updated_ts:2};
       await route.fulfill({json:body});
     });
     await page.goto('/w/path-test');
