@@ -20,6 +20,7 @@ import type {
   HandleSummaryEntry,
   OutputPreviewSpec,
 } from "../wire";
+import { useVideoBackground, VideoBackgroundButton } from "./VideoBackground";
 import { LazyThumb } from "./LazyThumb";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { LagsplatPreview } from "./LagsplatPreview";
@@ -672,8 +673,9 @@ function summariseListing(summary: HandleSummary): {
 // ---------------------------------------------------------------------------
 
 function VideoPreview({ url }: { url: string }) {
+  const background = useVideoBackground();
   return (
-    <div style={PREVIEW_SHELL}>
+    <div className="hl-video-preview hl-video-native" data-video-background={background} style={{ ...PREVIEW_SHELL, position: "relative" }}>
       <video
         src={url}
         controls
@@ -682,10 +684,11 @@ function VideoPreview({ url }: { url: string }) {
           display: "block",
           width: "100%",
           maxHeight: 260,
-          background: "var(--media-surface)",
+          background: "var(--video-background)",
           borderRadius: "var(--radius-sm)",
         }}
       />
+      <VideoBackgroundButton mode={background} />
     </div>
   );
 }
@@ -1405,6 +1408,7 @@ function VideoGridPreview({
   producingNode,
   entryLabel,
 }: VideoGridProps) {
+  const background = useVideoBackground();
   const [state, setState] = useState<
     { kind: "loading" } | { kind: "ok"; summary: HandleSummary } | { kind: "err"; message: string }
   >({ kind: "loading" });
@@ -1488,6 +1492,8 @@ function VideoGridPreview({
 
   return (
     <div
+      className="hl-video-preview"
+      data-video-background={background}
       data-hl-video-array=""
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -1516,6 +1522,8 @@ function VideoGridPreview({
           data-hl-cols={layout.cols}
           data-hl-tile-count={videoEntries.length}
           style={{
+            // Transparent zoom must reveal the card, not the playing grid below.
+            visibility: zoomedIdx !== null ? "hidden" : undefined,
             display: "grid",
             gridTemplateColumns: `repeat(${layout.cols}, 1fr)`,
             gap: GRID_GAP,
@@ -1548,6 +1556,7 @@ function VideoGridPreview({
             producingNode={producingNode}
           />
         )}
+        <VideoBackgroundButton mode={background} />
       </div>
       <VideoArrayControls sync={sync} />
     </div>
@@ -1613,7 +1622,7 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label }: TileProps)
       style={{
         position: "relative",
         aspectRatio: "16 / 9",
-        background: "#000",
+        background: "var(--video-background)",
         borderRadius: "var(--radius-sm)",
         overflow: "hidden",
         border: "1px solid var(--border, rgba(255,255,255,0.08))",
@@ -1642,7 +1651,7 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label }: TileProps)
           width: "100%",
           height: "100%",
           objectFit: "cover",
-          background: "#000",
+          background: "transparent",
           // Absent a decoded frame the browser paints the ``poster``;
           // once metadata + first frame arrive, the frame replaces it.
           pointerEvents: "none",
@@ -1714,7 +1723,7 @@ function ZoomOverlay({
       style={{
         position: "absolute",
         inset: 0,
-        background: "#000",
+        background: "var(--video-background)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1736,7 +1745,7 @@ function ZoomOverlay({
           width: "100%",
           height: "100%",
           objectFit: "contain",
-          background: "#000",
+          background: "transparent",
         }}
       />
       <button
@@ -2025,6 +2034,7 @@ function useVideoArrayKeyboard(sync: VideoArraySync, hovered: boolean): void {
     if (!hovered) return;
     const onKey = (e: KeyboardEvent) => {
       const active = document.activeElement as HTMLElement | null;
+      if (active?.closest(".hl-video-background-button")) return;
       const tag = active?.tagName?.toLowerCase();
       if (
         tag === "input" &&

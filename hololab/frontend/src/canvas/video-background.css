@@ -1,0 +1,49 @@
+.hl-video-preview {
+  --video-check-light: #d8d8d8;
+  --video-check-dark: #b0b0b0;
+  --video-background: #000;
+}
+:root[data-theme="dark"] .hl-video-preview {
+  --video-check-light: #454545;
+  --video-check-dark: #303030;
+}
+.hl-video-preview[data-video-background="transparent"] { --video-background: transparent; }
+.hl-video-preview[data-video-background="checkerboard"] {
+  /* A 16px repeat contains four 8px squares. */
+  --video-background: repeating-conic-gradient(var(--video-check-light) 0% 25%, var(--video-check-dark) 0% 50%) 0 0 / 16px 16px;
+}
+/* Only video drawers release their inverse surfaces, all the way to the card. */
+.hl-node-preview:has(.hl-video-preview[data-video-background="transparent"]),
+.hl-video-preview[data-video-background="transparent"] {
+  --inverse-surface: transparent;
+  --text-on-dark: var(--text-body);
+  --inverse-muted: var(--text-muted);
+}
+.hl-video-background-button {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #ffffff40;
+  border-radius: var(--radius-sm);
+  background: #20202080;
+  color: #fff;
+  opacity: .65;
+  cursor: pointer;
+}
+.hl-video-background-button:hover,
+.hl-video-background-button:focus-visible { opacity: 1; background: #202020df; }
+.hl-video-background-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hl-video-native .hl-video-background-button { bottom: 58px; }
+.hl-video-background-icon { width: 14px; height: 14px; border: 1px solid #ddd; border-radius: 2px; }
+.hl-video-background-icon[data-mode="black"] { background: #000; }
+.hl-video-background-icon[data-mode="transparent"] { background: transparent; border-style: dashed; }
+.hl-video-background-icon[data-mode="checkerboard"] { background: repeating-conic-gradient(#ccc 0% 25%, #666 0% 50%) 0 0 / 8px 8px; }
+
+.hl-video-preview[data-video-background="transparent"] [data-hl-zoom-overlay] {
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
