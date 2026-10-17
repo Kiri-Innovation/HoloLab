@@ -31,11 +31,19 @@ GET /_preview/{W}x{H}/{sub:path}?fps=N
 
 Same shape as `/_thumb`. Emits `video/mp4`.
 
-- `W`, `H`: target box (aspect-preserved with letterbox padding, matches
-  the thumb behavior). Guardrail: 1..1024 on each axis
+- `W`, `H`: bounding box. Output preserves aspect ratio, uses even dimensions
+  for yuv420p, and has no encoded padding (e.g. 868×1012 → 154×180
+  inside 320×180). The frontend supplies CSS letterboxing.
+  Guardrail: 1..1024 on each axis
 - `fps`: 1..60, default 15
-- Cached under `{workspace_root}/.hololab-previews/{sha256(source path,
-  mtime, WxH, fps)[:32]}.mp4`
+- Cached under `{workspace_root}/.hololab-previews/v2-contain-{sha256(source path,
+  mtime, WxH, fps)[:32]}.mp4`. The version is also in the ETag.
+- After generating a replacement, or serving a full cache hit, remove the
+  matching unversioned legacy MP4. Other variants are retired on their next
+  access; failed transcodes retain the old file. No manual cache clearing.
+- Frontend requests include `v=2-contain` to bypass browser-cached padded
+  responses. Source Last-Modified alone cannot validate a transcode recipe;
+  preview conditional responses use the versioned ETag.
 - Cache invalidates automatically when the source file's mtime changes
 - Concurrent transcodes across the whole process are capped at
   `_PREVIEW_TRANSCODE_CONCURRENCY = 4` so a 21-tile grid opening cold
@@ -46,9 +54,8 @@ ffmpeg invocation:
 ```
 ffmpeg -nostdin -loglevel error
        -i <source>
-       -vf "scale=W:H:force_original_aspect_ratio=decrease,
-            pad=W:H:(ow-iw)/2:(oh-ih)/2:color=black"
-       -r <fps>
+       -vf "scale=W:H:force_original_aspect_ratio=decrease:force_divisible_by=2,
+            fps=<fps>"
        -c:v libx264 -preset ultrafast -profile:v baseline -pix_fmt yuv420p -crf 28
        -an
        -movflags +faststart
@@ -76,7 +83,8 @@ Rationale for each flag:
   file so `<video preload="metadata">` returns something playable
   within the first few KiB. Without this the browser blocks on the
   whole download to learn the duration
-- `-r <fps>` — grid tiles are 50–80 px; the eye can't tell 15 fps
+- `fps=<fps>` — preserves the source timeline while resampling frames.
+  Grid tiles are 50–80 px; the eye can't tell 15 fps
   from 30 fps at that size, and halving the framerate roughly halves
   the encode cost + output size
 
@@ -100,7 +108,13 @@ Every subsequent visit is warm-cache instant.
 
 `previews.tsx`:
 
-- Grid tiles → `<video src={node}/_preview/{PREVIEW_W}x{PREVIEW_H}/...?fps={PREVIEW_FPS}`
+- Grid tiles → `<video src={node}/_preview/{PREVIEW_W}x{PREVIEW_H}/...?fps={PREVIEW_FPS}&v=2-contain`,
+  `object-fit: contain` in the existing 16:9 tile. Natural media dimensions
+  do not determine grid layout. Background modes apply to the video element;
+  its tile background is transparent so transparent mode reveals the preview shell.
+- Video posters request `/_thumb/...?at=1&unpadded=true`, which opts into
+  the same aspect-preserving, even-sized output and a distinct cache key.
+  Other thumbnail consumers retain fixed-size padded thumbnails.
 - Zoom overlay → `<video src={node}/{sub}` (full-res source; only one
   decoder is active while zoomed)
 

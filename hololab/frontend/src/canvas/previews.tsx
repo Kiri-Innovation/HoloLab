@@ -1580,12 +1580,12 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label }: TileProps)
   // (see filterEntries). Encode per segment so the slash survives.
   const encodedEntry = encodePathSegments(entry.name);
   const memberSub = `${dirSub}/${encodedEntry}`;
-  const thumbUrl = `${nodeRoot}/_thumb/${THUMB_W}x${THUMB_H}/${memberSub}?at=${THUMB_AT_SECONDS}`;
+  const thumbUrl = `${nodeRoot}/_thumb/${THUMB_W}x${THUMB_H}/${memberSub}?at=${THUMB_AT_SECONDS}&unpadded=true`;
   // Grid tiles stream the low-res proxy (see PREVIEW_W/H/FPS above and
   // the node's ``/_preview`` endpoint). The full-res source is only
   // used by the ZoomOverlay, which decodes exactly one video at a
   // time.
-  const previewUrl = `${nodeRoot}/_preview/${PREVIEW_W}x${PREVIEW_H}/${memberSub}?fps=${PREVIEW_FPS}`;
+  const previewUrl = `${nodeRoot}/_preview/${PREVIEW_W}x${PREVIEW_H}/${memberSub}?fps=${PREVIEW_FPS}&v=2-contain`;
 
   const size = entry.size_bytes ?? 0;
   const tooltip = `${entry.name} · ${humanBytes(size)}`;
@@ -1620,7 +1620,7 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label }: TileProps)
       style={{
         position: "relative",
         aspectRatio: "16 / 9",
-        background: "#000",
+        background: "transparent",
         borderRadius: "var(--radius-sm)",
         overflow: "hidden",
         border: "1px solid var(--border, rgba(255,255,255,0.08))",
@@ -1648,7 +1648,7 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label }: TileProps)
           display: "block",
           width: "100%",
           height: "100%",
-          objectFit: "cover",
+          objectFit: "contain",
           background: "var(--video-background)",
           // Absent a decoded frame the browser paints the ``poster``;
           // once metadata + first frame arrive, the frame replaces it.
@@ -1704,7 +1704,7 @@ function ZoomOverlay({
   const encodedEntry = encodePathSegments(entry.name);
   const videoUrl = `${baseUrl.replace(/\/$/, "")}/${encodedEntry}`;
   const thumbSub = `${dirSub}/${encodedEntry}`;
-  const thumbUrl = `${nodeRoot}/_thumb/${THUMB_W}x${THUMB_H}/${thumbSub}?at=${THUMB_AT_SECONDS}`;
+  const thumbUrl = `${nodeRoot}/_thumb/${THUMB_W}x${THUMB_H}/${thumbSub}?at=${THUMB_AT_SECONDS}&unpadded=true`;
 
   // Same stable-setRef pattern as VideoTile — see comment there for
   // why the ref indirection matters.

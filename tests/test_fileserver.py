@@ -574,3 +574,111 @@ def test_thumb_extract_concurrency_capped(tmp_path: Path) -> None:
     assert peak <= fs._THUMB_EXTRACT_CONCURRENCY, (
         f"thumb ffmpeg peak {peak} exceeded cap {fs._THUMB_EXTRACT_CONCURRENCY}"
     )
+
+
+@pytest.mark.skipif(
+    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+    reason="ffmpeg and ffprobe are required",
+)
+@pytest.mark.parametrize(
+    "shape,expected",
+    [
+        ("868x1012", (154, 180)),
+        ("640x360", (320, 180)),
+        ("400x400", (180, 180)),
+        ("642x358", (320, 178)),
+    ],
+)
+def test_preview_natural_aspect_and_legacy_cache(tmp_path: Path, shape, expected) -> None:
+    import hashlib
+    import json
+    from email.utils import formatdate
+
+    src = tmp_path / "source.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"color=c=red:s={shape}:d=1:r=15",
+            "-pix_fmt",
+            "yuv420p",
+            str(src),
+        ],
+        check=True,
+    )
+    stat = src.stat()
+    digest = hashlib.sha256(
+        f"{src.resolve()}|{stat.st_mtime_ns}|320x180|fps=15".encode()
+    ).hexdigest()[:32]
+    cache = tmp_path / ".hololab-previews"
+    cache.mkdir()
+    legacy = cache / f"{digest}.mp4"
+    legacy.write_bytes(b"old padded proxy")
+    with TestClient(create_fileserver_app(workspace_root=tmp_path)) as client:
+        response = client.get(
+            "/_preview/320x180/source.mp4",
+            headers={
+                "If-None-Match": f'"{digest}"',
+                "If-Modified-Since": formatdate(stat.st_mtime, usegmt=True),
+            },
+        )
+        assert response.status_code == 200
+        assert not legacy.exists()
+        output = cache / f"v2-contain-{digest}.mp4"
+        data = json.loads(
+            subprocess.check_output(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=width,height,pix_fmt",
+                    "-of",
+                    "json",
+                    str(output),
+                ]
+            )
+        )["streams"][0]
+        assert (data["width"], data["height"]) == expected
+        assert data["pix_fmt"] == "yuv420p"
+        assert (
+            client.get(
+                "/_preview/320x180/source.mp4", headers={"If-None-Match": response.headers["etag"]}
+            ).status_code
+            == 304
+        )
+        # Date-only validation from the old recipe must not resurrect padded data.
+        assert (
+            client.get(
+                "/_preview/320x180/source.mp4",
+                headers={"If-Modified-Since": formatdate(stat.st_mtime, usegmt=True)},
+            ).status_code
+            == 200
+        )
+        poster = client.get("/_thumb/320x180/source.mp4?at=0&unpadded=true")
+        assert poster.status_code == 200
+        poster_path = tmp_path / "poster.jpg"
+        poster_path.write_bytes(poster.content)
+        dims = json.loads(
+            subprocess.check_output(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=width,height",
+                    "-of",
+                    "json",
+                    str(poster_path),
+                ]
+            )
+        )["streams"][0]
+        assert (dims["width"], dims["height"]) == expected

@@ -63,6 +63,7 @@ _STILL_IMAGE_EXTS = frozenset({".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 _PREVIEW_MAX_DIM = 1024
 _PREVIEW_MAX_FPS = 60
 _PREVIEW_CACHE_DIRNAME = ".hololab-previews"
+_PREVIEW_VERSION = "v2-contain"
 
 # Cap concurrent ffmpeg transcodes across the whole process. Each
 # transcode is a short-lived CPU burn (single-digit seconds for a 10s
@@ -305,6 +306,7 @@ def create_fileserver_app(
         dims: str,
         sub: str,
         at: float = Query(default=1.0, ge=0.0, le=3600.0),
+        unpadded: bool = Query(default=False),
         if_none_match: str | None = Header(default=None, alias="if-none-match"),
         if_modified_since: str | None = Header(default=None, alias="if-modified-since"),
     ):
@@ -327,6 +329,7 @@ def create_fileserver_app(
             height,
             at,
             cache_root=primary,
+            unpadded=unpadded,
             if_none_match=if_none_match,
             if_modified_since=if_modified_since,
         )
@@ -426,11 +429,12 @@ async def _thumb_response(
     at: float,
     *,
     cache_root: Path,
+    unpadded: bool = False,
     if_none_match: str | None = None,
     if_modified_since: str | None = None,
 ) -> Response:
     """Return a JPEG frame of ``video`` at ``at`` seconds, resized to fit
-    ``width``x``height`` (aspect preserved, letterbox padded).
+    ``width``x``height`` (aspect preserved, padded unless ``unpadded``).
 
     Caches results keyed by (path, mtime_ns, w, h, at). Cache misses shell
     out to ffmpeg with ``-frames:v 1 -update 1`` to write exactly one JPEG,
@@ -454,6 +458,8 @@ async def _thumb_response(
         raise HTTPException(status_code=500, detail=f"stat failed: {exc}") from exc
 
     key_material = f"{video.resolve()}|{stat.st_mtime_ns}|{width}x{height}|{at:.3f}".encode()
+    if unpadded:
+        key_material += b"|unpadded-v1"
     digest = hashlib.sha256(key_material).hexdigest()[:32]
 
     # Conditional-request short-circuit: the ETag is a pure function of
@@ -463,7 +469,7 @@ async def _thumb_response(
         etag=digest,
         mtime_ns=stat.st_mtime_ns,
         if_none_match=if_none_match,
-        if_modified_since=if_modified_since,
+        if_modified_since=None if unpadded else if_modified_since,
     )
     if not_modified is not None:
         return not_modified
@@ -491,6 +497,10 @@ async def _thumb_response(
         f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
         f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"
     )
+    if unpadded:
+        # Opt-in video posters match the natural-aspect proxy, without
+        # changing the fixed-size thumbnails used by image viewers.
+        vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2"
     # Still-image inputs (JPEG/PNG/…) MUST skip ``-ss``: their demuxer
     # reports duration 0, so any seek lands past the sole available frame
     # and ffmpeg silently writes zero bytes (rc=0, empty output → caller
@@ -579,7 +589,7 @@ async def _preview_response(
     ``width``x``height`` at ``fps`` frames per second.
 
     Cached on disk under ``.hololab-previews/`` keyed by
-    (path, mtime_ns, w, h, fps). Cache misses shell out to ffmpeg with
+    (transcode version, path, mtime_ns, w, h, fps). Cache misses run ffmpeg with
     ``ultrafast``/``baseline``/``+faststart`` — decoder work stays on
     the node (which typically has a real CPU) while the frontend
     streams the ~100 KiB output.
@@ -599,19 +609,22 @@ async def _preview_response(
         raise HTTPException(status_code=500, detail=f"stat failed: {exc}") from exc
 
     key_material = f"{video.resolve()}|{stat.st_mtime_ns}|{width}x{height}|fps={fps}".encode()
-    digest = hashlib.sha256(key_material).hexdigest()[:32]
+    legacy_digest = hashlib.sha256(key_material).hexdigest()[:32]
+    digest = f"{_PREVIEW_VERSION}-{legacy_digest}"
 
     not_modified = _conditional_304(
         etag=digest,
         mtime_ns=stat.st_mtime_ns,
         if_none_match=if_none_match,
-        if_modified_since=if_modified_since,
+        # Source mtime alone cannot validate a different transcode recipe.
+        if_modified_since=None,
     )
     if not_modified is not None:
         return not_modified
 
     cache_dir = cache_root / _PREVIEW_CACHE_DIRNAME
     cache_path = cache_dir / f"{digest}.mp4"
+    legacy_path = cache_dir / f"{legacy_digest}.mp4"
 
     cache_headers = _cache_headers(
         max_age=_PREVIEW_CLIENT_CACHE_SECONDS,
@@ -620,6 +633,7 @@ async def _preview_response(
     )
 
     if cache_path.is_file() and cache_path.stat().st_size > 0:
+        legacy_path.unlink(missing_ok=True)
         return FileResponse(cache_path, media_type="video/mp4", headers=cache_headers)
 
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -628,8 +642,9 @@ async def _preview_response(
     # the same filesystem.
     tmp_path = cache_path.with_suffix(f".tmp.{os.getpid()}.mp4")
 
-    # Same letterbox scale/pad as ``/_thumb`` so grid tiles line up
-    # frame-to-frame with their poster thumbnails. Framerate is set
+    # Keep natural aspect ratio; the browser owns letterbox backgrounds.
+    # Even dimensions are required by the unchanged yuv420p encoder.
+    # Framerate is set
     # via the ``fps=`` FILTER (not ``-r``) — ``fps=N`` resamples by
     # dropping or duplicating frames while preserving the source's
     # timeline, which keeps output duration == source duration to
@@ -650,8 +665,7 @@ async def _preview_response(
     # something playable in the first few KiB, not after the whole
     # download.
     vf = (
-        f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
+        f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
         f"fps={fps}"
     )
     cmd = [
@@ -702,6 +716,9 @@ async def _preview_response(
         raise HTTPException(status_code=500, detail=f"preview transcode failed: {detail}")
 
     tmp_path.replace(cache_path)
+    # Retire only this source/dimensions/fps legacy entry, and only after
+    # its replacement exists. Unvisited variants are retired on demand.
+    legacy_path.unlink(missing_ok=True)
     return FileResponse(cache_path, media_type="video/mp4", headers=cache_headers)
 
 

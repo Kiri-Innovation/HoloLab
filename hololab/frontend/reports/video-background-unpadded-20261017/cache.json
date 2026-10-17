@@ -1,0 +1,27 @@
+{
+  "root": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab",
+  "source": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/0eb1b412-e095-4f9d-b55a-5862cf9fc705/j/3a752d62-1815-4c5c-978b-4a0a2983d6f4/videos_dir/input.mov",
+  "resolvedSource": "/root/hololab/library/Screen Recording 2026-10-15 at 11.27.41.mov",
+  "beforeCount": 40,
+  "beforeBytes": 4061663,
+  "legacy": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/.hololab-previews/272c2fa409bd87e3b5f797a52babfcec.mp4",
+  "legacyExists": true,
+  "afterCount": 40,
+  "legacyExistsAfter": false,
+  "new": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/.hololab-previews/v2-contain-272c2fa409bd87e3b5f797a52babfcec.mp4",
+  "newExists": true,
+  "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "width": 154,
+        "height": 180,
+        "pix_fmt": "yuv420p",
+        "r_frame_rate": "15/1",
+        "duration": "36.533333"
+      }
+    ]
+  }
+}
