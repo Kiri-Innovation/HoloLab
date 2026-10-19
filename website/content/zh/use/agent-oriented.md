@@ -12,8 +12,8 @@ order: 25
 不用描述“刚才失败的那个节点”，直接使用它的引用入口。工作流、画布节点、Run、Job、产物引用（Handle）、Pack 和计算设备都有 `hololab://` 引用；`hololab://workflows` 和 `hololab://artifacts` 则指向整个列表。引用标识的是实例内的对象，因此也要把实例地址告诉 agent。
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/reference-entry-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-entry-light.webp" alt="STG 的 frame-extraction 节点：标题右侧、运行三角按钮左边的剪贴板图标是引用入口。图中未展示原始影像或设备信息。" width="744" height="280" loading="lazy" decoding="async" /></picture>
-<figcaption>STG 的 frame-extraction 节点：标题右侧、运行三角按钮左边的剪贴板图标是引用入口。图中未展示原始影像或设备信息。</figcaption>
+<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-entry-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-entry-light.webp" alt="STG 的 frame-extraction 节点：标题右侧、运行三角按钮左边的剪贴板图标是引用入口。图中未展示原始影像或设备信息。" width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">引用入口</span></span></div></div>
+<figcaption>高亮框即引用入口。STG 的 frame-extraction 节点：标题右侧、运行三角按钮左边的剪贴板图标是引用入口。图中未展示原始影像或设备信息。</figcaption>
 </figure>
 
 <div class="flops-only">

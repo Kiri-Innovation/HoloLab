@@ -12,8 +12,8 @@ You can work on the canvas and hand a specific question to an agent without reco
 Instead of describing “the node that failed,” use its reference action. Workflows, canvas nodes, Runs, Jobs, output Handles, Packs and compute nodes have `hololab://` references; `hololab://workflows` and `hololab://artifacts` refer to whole lists. A reference identifies an object within an instance, so give the agent the instance address too.
 
 <figure class="doc-screenshot">
-<picture><source srcset="/images/docs/reference-entry-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-entry-light.webp" alt="The frame-extraction node in STG. The clipboard icon to the left of the Run triangle is the reference action. Source imagery and device details are excluded." width="744" height="280" loading="lazy" decoding="async" /></picture>
-<figcaption>The frame-extraction node in STG. The clipboard icon to the left of the Run triangle is the reference action. Source imagery and device details are excluded.</figcaption>
+<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-entry-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-entry-light.webp" alt="The frame-extraction node in STG. The clipboard icon to the left of the Run triangle is the reference action. Source imagery and device details are excluded." width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">Reference</span></span></div></div>
+<figcaption>The highlighted box marks the reference action. The frame-extraction node in STG. The clipboard icon to the left of the Run triangle is the reference action. Source imagery and device details are excluded.</figcaption>
 </figure>
 
 <div class="flops-only">

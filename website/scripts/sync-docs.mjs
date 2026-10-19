@@ -162,7 +162,7 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
       schema.tagNames = [...new Set([...schema.tagNames, 'figure', 'figcaption', 'picture', 'source', 'img'])];
       schema.attributes.figure = [['className', ...(doc.diagrams ? ['concept-diagram'] : []), 'doc-screenshot'], 'ariaLabel'];
       schema.attributes.div = [...(schema.attributes.div ?? []), ['className', 'annotated-canvas', 'canvas-annotations'], 'ariaHidden'];
-      schema.attributes.span = [...(schema.attributes.span ?? []), ['className', 'canvas-region', 'region-number', 'region-canvas', 'region-packs', 'region-run', 'region-history', 'region-jobs', 'region-preview']];
+      schema.attributes.span = [...(schema.attributes.span ?? []), ['className', 'canvas-region', 'region-number', 'region-canvas', 'region-packs', 'region-run', 'region-history', 'region-jobs', 'region-preview', 'region-reference', 'reference-label']];
       schema.attributes.source = ['srcSet', ['media', '(prefers-color-scheme: dark)'], ['type', 'image/webp']];
       schema.attributes.img = ['src', 'alt', 'width', 'height', ['loading', 'lazy'], ['decoding', 'async']];
     }
