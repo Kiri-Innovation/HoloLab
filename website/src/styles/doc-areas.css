@@ -1,9 +1,9 @@
 /* Area navigation stays separate from the current area's chapter groups. */
 .doc-areas { position: sticky; top: 64px; z-index: 9; background: var(--bg); border-bottom: 1px solid var(--border-subtle); }
 .doc-areas > div { max-width: 1360px; margin: auto; padding: 0 32px; display: flex; gap: 28px; }
-.doc-areas a { display: block; padding: 12px 0; color: var(--text-muted); font-size: 14px; white-space: nowrap; border-bottom: 2px solid transparent; }
+.doc-areas a { display: block; padding: 12px 0; color: var(--text-muted); font-size: 14px; white-space: nowrap; border-bottom: 2px solid transparent; transition: color 150ms ease, border-color 150ms ease; }
 .doc-areas a[aria-current] { color: var(--text); border-bottom-color: var(--text); }
-.doc-areas a:hover { color: var(--text); }
+.doc-areas a:hover { color: var(--text); text-decoration: none; }
 .doc-areas a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .doc-areas + .docs-layout { min-height: calc(100vh - 112px); }
 .doc-areas + .docs-layout .sidebar { top: 112px; height: calc(100vh - 112px - var(--docs-footer-height)); }
