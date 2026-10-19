@@ -29,9 +29,8 @@ hololab://graph-node/<workflow-id>/fx  # frame-extraction
 <div class="flops-only">
 
 <figure class="doc-screenshot">
-<!-- Replace this placeholder with the reviewed Flops screenshot and localized alt text. -->
-<div class="reference-placeholder">Flops screenshot pending</div>
-<figcaption>This will show the reference pill inserted into the Flops conversation input. This is a placeholder, not a product screenshot.</figcaption>
+<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-flops-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-flops-light.webp" alt="Illustration: the interface state in a Flops environment. The highlighted action represents inserting a reference into the conversation. The bridge and chat-arrow icon were simulated for this capture; this is not a capture from Flops itself." width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">Insert reference</span></span></div></div>
+<figcaption>Illustration: the interface state in a Flops environment. The highlighted action represents inserting a reference into the conversation. The bridge and chat-arrow icon were simulated for this capture; this is not a capture from Flops itself.</figcaption>
 </figure>
 
 In the Flops embedded browser, the action inserts a reference into the conversation input. The inserted reference includes a Markdown summary labeled `hololab.reference-snapshot/v1`, with identity, state, context and navigation sections. It is a summary captured at that moment; the agent can resolve the reference again for current data.

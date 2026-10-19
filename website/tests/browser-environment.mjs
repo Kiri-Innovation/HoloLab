@@ -29,11 +29,13 @@ try {
     assert.ok((await readFile('../skill/SKILL.md', 'utf8')).includes(skillExcerpt));
     assert.equal(await page.locator('article .no-flops-only').isVisible(), !flops);
     assert.equal(await page.locator('article .no-flops-only figure').isVisible(), !flops);
-    assert.equal(await page.locator('.reference-placeholder').isVisible(), flops);
+    assert.equal(await page.locator('article .flops-only figure').isVisible(), flops);
     assert.equal((await page.locator('article .no-flops-only code.language-text').textContent()).trim(), 'hololab://graph-node/<workflow-id>/fx  # frame-extraction');
     for (const theme of ['light', 'dark']) {
       await page.locator('.theme-control').selectOption(theme);
-      if (!flops) await page.waitForFunction(theme => { const img = document.querySelector('article .doc-screenshot img'); return img.complete && img.naturalWidth > 0 && img.currentSrc.endsWith(`-${theme}.webp`); }, theme);
+      const selector = flops ? 'article .flops-only img' : 'article .no-flops-only img';
+      await page.locator(selector).scrollIntoViewIfNeeded();
+      await page.waitForFunction(({theme, selector}) => { const img = document.querySelector(selector); return img.complete && img.naturalWidth > 0 && img.currentSrc.endsWith(`-${theme}.webp`); }, {theme, selector});
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       await page.locator(flops ? 'article .flops-only' : 'article .no-flops-only').screenshot({ path: `${output}/${language}-${mode}-${theme}-reference.png` });
       await page.screenshot({ path: `${output}/${language}-${mode}-${theme}.png`, fullPage: true });

@@ -34,7 +34,7 @@ async function focus(p,ids,maxScale=1){
   v.style.transform=`translate(${(c.clientWidth-w*s)/2-x*s}px,${(c.clientHeight-h*s)/2-y*s}px) scale(${s})`;
  },{ids,maxScale});await p.waitForTimeout(250);
 }
-try { for (const theme of ['light','dark']) {
+try { for (const mode of (process.env.CAPTURE_ENV ? [process.env.CAPTURE_ENV] : ['ordinary','flops'])) for (const theme of ['light','dark']) {
  const c=await browser.newContext({viewport:{width:1600,height:1050},deviceScaleFactor:2,serviceWorkers:'block',colorScheme:theme});
  await c.route('**/*', async route => {
   const q=route.request();
@@ -43,16 +43,23 @@ try { for (const theme of ['light','dark']) {
   return route.continue();
  });
  await c.addInitScript(t=>localStorage.setItem('hololab.theme',t),theme);
+ // Documentation-only simulation, installed before the product bootstraps.
+ if(mode==='flops') await c.addInitScript(()=>{window.flops={version:1,insertReference:async()=>({success:true})};});
  const p=await c.newPage();
  const target=await(await p.request.get(`${origin}/api/workflows/${workflow}`)).json();
  await p.goto(`${origin}/w/${workflow}`,{waitUntil:'domcontentloaded'});
  const node=p.locator('.react-flow__node[data-id="fx"]');await node.waitFor({timeout:30000});await p.waitForTimeout(3000);
  await focus(p,['fx']);await sanitize(p,target.name);
- const reference=node.getByRole('button',{name:/复制引用给 AI/}).first();
+ const reference=node.getByRole('button',{name:mode==='flops'?/引用到 Flops/:/复制引用给 AI/}).first();
+ if(mode==='flops') await reference.evaluate(button=>{
+  // Replace only this session's icon, never the product component. A chat
+  // bubble with an arrow conveys insertion without inventing a chat UI.
+  button.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3l4 3v-3h3M14 13h8m-3-3 3 3-3 3"/></svg>';
+ });
  await reference.hover();await p.waitForTimeout(800);
  const box=await node.boundingBox();
- await p.screenshot({path:`${out}/reference-entry-${theme}.png`,clip:{x:box.x-10,y:box.y-35,width:box.width+20,height:140},animations:'disabled'});
- audit.themes.push({theme,referenceLabel:await reference.getAttribute('aria-label')});
+ await p.screenshot({path:`${out}/${mode==='flops'?'reference-flops':'reference-entry'}-${theme}.png`,clip:{x:box.x-10,y:box.y-35,width:box.width+20,height:140},animations:'disabled'});
+ audit.themes.push({mode,theme,referenceLabel:await reference.getAttribute('aria-label')});
  await c.close();
 } await writeFile(`${out}/audit.json`,JSON.stringify(audit,null,2)); }
 finally {await browser.close();}

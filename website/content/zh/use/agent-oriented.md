@@ -29,9 +29,8 @@ hololab://graph-node/<workflow-id>/fx  # frame-extraction
 <div class="flops-only">
 
 <figure class="doc-screenshot">
-<!-- Replace this placeholder with the reviewed Flops screenshot and localized alt text. -->
-<div class="reference-placeholder">待补充 Flops 真机截图</div>
-<figcaption>此处将展示引用 pill 插入 Flops 对话输入框后的实际画面；目前为截图占位。</figcaption>
+<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-flops-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-flops-light.webp" alt="示意图：Flops 环境下的界面状态。高亮入口表示将引用插入对话；桥接环境与对话箭头图标仅在采集时模拟，并非 Flops 真机截图。" width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">插入对话</span></span></div></div>
+<figcaption>示意图：Flops 环境下的界面状态。高亮入口表示将引用插入对话；桥接环境与对话箭头图标仅在采集时模拟，并非 Flops 真机截图。</figcaption>
 </figure>
 
 在 Flops 内嵌浏览器中，引用会插入对话输入框。插入的引用附带一份标记为 `hololab.reference-snapshot/v1` 的 Markdown 摘要，分为 identity、state、context 和 navigation 四部分。它记录的是引用时的情况；agent 可以重新解析引用，获取当前数据。
