@@ -82,19 +82,9 @@ agent 可以调用 `GET /api/resolve?ref=hololab://…` 读取对象，再沿返
 
 </div>
 
+等待运行完成、汇总各任务状态这类细节，技能里已有现成步骤，不需要你自己写轮询。
+
 这让 agent 在当前任务中读取并使用操作指南，不等于安装到它的持久技能库。目前实例没有自动下载或安装技能的端点。这份技能是附带后续文档入口的操作指南，并非把所有手册都打包在一个文件里。
-
-例如，技能用以下请求等待运行完成并读取各任务状态，无需自己写轮询。`$HOLO` 是实例地址，`$SNAP` 是运行返回的快照 ID，以下保留原文：
-
-<div class="copyable-code">
-
-```bash
-# c) LONG-POLL until done — one call, up to timeout seconds
-curl -s "$HOLO/api/snapshots/$SNAP?wait_for_state=done&timeout=1800" \
-  | jq '{waited, wait_timed_out, jobs: [.jobs[] | {algorithm_name, state}]}'
-```
-
-</div>
 
 ## 先试一个只读问题
 

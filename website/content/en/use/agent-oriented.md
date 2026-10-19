@@ -83,19 +83,9 @@ Keep edits and runs within the scope of the task I give you.
 
 </div>
 
+The skill already includes steps for waiting for a run to finish and collecting task states, so you do not need to write your own polling loop.
+
 This asks the agent to read and use the guide for the current task; it does not install it into a persistent skill library. The instance currently has no automatic skill-download or installation endpoint. The skill is an operating guide with links to further documentation, not a bundle containing every manual.
-
-For example, the skill uses this request to wait for completion and read task states instead of writing a polling loop. `$HOLO` is the instance address and `$SNAP` is the snapshot ID returned by a run. This excerpt is verbatim:
-
-<div class="copyable-code">
-
-```bash
-# c) LONG-POLL until done — one call, up to timeout seconds
-curl -s "$HOLO/api/snapshots/$SNAP?wait_for_state=done&timeout=1800" \
-  | jq '{waited, wait_timed_out, jobs: [.jobs[] | {algorithm_name, state}]}'
-```
-
-</div>
 
 ## Try a read-only question first
 

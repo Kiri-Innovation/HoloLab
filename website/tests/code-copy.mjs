@@ -8,7 +8,7 @@ try {
 for(const lang of ['en','zh-CN']) {
  const context=await b.newContext({permissions:['clipboard-read','clipboard-write'],viewport:{width:1280,height:1800}});
  const p=await context.newPage();await p.goto(`${origin}${lang==='en'?'':'/zh-CN'}/docs/use/agent-oriented`);
- const blocks=p.locator('.copyable-code');assert.equal(await blocks.count(),2);
+ const blocks=p.locator('.copyable-code');assert.equal(await blocks.count(),1);
  for(const block of await blocks.all()) {
   await block.getByRole('button').click();
   assert.equal(await p.evaluate(()=>navigator.clipboard.readText()),await block.locator('code').textContent());
@@ -33,5 +33,5 @@ for(const lang of ['en','zh-CN']) {
  await p.setViewportSize({width:390,height:844});assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  await context.close();
 }
-console.log('Passed: EN/ZH both blocks copy exact text; fallback/error guidance; themes and 390px layout.');
+console.log('Passed: EN/ZH instruction block copies exact text; fallback/error guidance; themes and 390px layout.');
 }finally{await b.close();}

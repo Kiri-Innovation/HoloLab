@@ -25,8 +25,7 @@ try {
     assert.equal(excerpt.resource.state, 'done');
     assert.equal(excerpt.resource.algorithm_name, 'image-undistort');
     assert.deepEqual(Object.keys(excerpt), ['kind', 'ref', 'resource', 'related']);
-    const skillExcerpt = (await page.locator('code.language-bash').textContent()).trim();
-    assert.ok((await readFile('../skill/SKILL.md', 'utf8')).includes(skillExcerpt));
+    assert.equal(await page.locator('code.language-bash').count(), 0);
     assert.equal(await page.locator('article .no-flops-only').isVisible(), !flops);
     assert.equal(await page.locator('article .no-flops-only figure').isVisible(), !flops);
     assert.equal(await page.locator('article .no-flops-only .reference-label').textContent(), language === 'en' ? 'Copy reference info' : '复制引用信息');
