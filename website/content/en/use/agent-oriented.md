@@ -37,7 +37,7 @@ In the Flops embedded browser, the action inserts a reference into the conversat
 
 </div>
 
-For the complete list of supported objects, see the [supported references table](#supported-references) at the end of this page.
+For the complete list of supported objects, see the [supported references table](#support-quick-reference) at the end of this page.
 
 ## Everything agent-readable
 
@@ -67,6 +67,8 @@ This excerpt comes from a completed Job in the STG workflow. Only selected field
 
 The resolver returns JSON; the four-section Markdown reference summary is built from it. Job logs are available at `/api/jobs/<id>/log`, and Run snapshots at `/api/snapshots/<id>`. That lets an agent investigate a failed step without reading status from pixels. Judging whether a render looks right still requires looking at the output.
 
+For reading endpoints and when to use them, see [Readable interfaces](#readable-interfaces) at the end of this page.
+
 ## Everything included in a skill
 
 The repository's [skill/SKILL.md](https://github.com/Kiri-Innovation/HoloLab/blob/main/skill/SKILL.md) is HoloLab's operating guide. It covers resolving references, editing and running workflows, waiting for results, inspecting outputs and logs, and cancelling tasks.
@@ -95,7 +97,9 @@ Give an agent with HTTP access your instance address, the skill file and a Job r
 
 For the entities themselves, see [Introducing HoloLab](/docs/introduction) and [Artifacts and run records](/docs/use/run-records). Next: [Your first workflow →](/docs/use/workflows).
 
-## Supported references
+## Support quick reference
+
+### Reference objects
 
 These objects are currently supported. The last column describes what resolving each reference provides.
 
@@ -114,3 +118,31 @@ These objects are currently supported. The last column describes what resolving 
 | Library folder | `hololab://library-folder/<id>` | Name, parent folder and resource-list link. |
 
 `<id>` is the object ID; the library root is `hololab://library-folder/root`. Use `run` for a snapshot and `handle` for a single output; `snapshot` and `artifact` are not supported kinds.
+
+### Readable interfaces
+
+These read-only interfaces cover the skill’s inspection workflow; dispatching and other write operations are not included. Replace `<id>` with the corresponding object ID.
+
+| Method + path | Returns | When to use it |
+|---|---|---|
+| `GET /api/health` | Service status and protocol version | Check that the instance is reachable. |
+| `GET /api/overview` | Devices, workflows and recent task overview | Get an initial view of the instance. |
+| `GET /api/resolve?ref=hololab://…` | Object data and related links | Follow a reference into its context. |
+| `GET /api/workflows` | Workflow list and latest run summaries | Find a workflow to work with. |
+| `GET /api/workflows/<id>` | Draft graph and parameters | Inspect the current draft. |
+| `GET /api/workflows/<id>/runs` | Past runs and state rollups | Find a run to investigate. |
+| `GET /api/snapshots/<id>` | Frozen graph and associated tasks | Inspect what ran. |
+| `GET /api/snapshots/<id>?wait_for_state=done&timeout=1800` | Run details and timeout indicator | Wait for all tasks to succeed; check the returned state on timeout. |
+| `GET /api/jobs?workflow_id=<id>&state=failed&limit=5` | Filtered task list | Narrow down failed tasks. |
+| `GET /api/jobs/<id>` | State, progress, parameters, inputs and outputs | Inspect an individual task. |
+| `GET /api/jobs/<id>/log?tail=200&stream=both` | Tail of stdout / stderr logs | Read errors before suggesting changes. |
+| `GET /api/handles/<id>` | Output metadata and proxy URL | Inspect an output and find its download URL. |
+| `GET /api/handles/<id>/summary` | Server-parsed output summary | Inspect metadata before downloading large files. |
+| `GET /api/artifacts?workflow_id=<id>` | Artifact inventory, sizes and attribution | Find a workflow’s output files. |
+| `GET /api/artifacts/summary` | Artifact counts, sizes and per-workflow totals | Review storage use. |
+| `GET /api/artifacts/<handle-id>/lineage` | Artifact ancestors and descendants | Trace an output’s provenance. |
+| `GET /api/nodes` | Connected devices, GPUs and Packs | Check available compute nodes. |
+| `GET /api/nodes/metrics/history?since=<timestamp>` | CPU, memory and GPU history | Inspect resource-use trends. |
+| `GET /api/pack-catalog` | Port and parameter declarations from connected nodes | Check a Pack’s interface before editing. |
+| `GET /api/packs` | Persistent Pack inventory | Find previously registered Packs, including offline ones. |
+| `GET /api/snapshots/<id>/deletion-preview` | Expected impact of deleting a run | Review cleanup impact without deleting anything. |

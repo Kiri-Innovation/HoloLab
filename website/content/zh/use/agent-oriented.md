@@ -67,6 +67,8 @@ agent 可以调用 `GET /api/resolve?ref=hololab://…` 读取对象，再沿返
 
 解析接口返回 JSON，引用中的四段式 Markdown 摘要由它生成。任务日志可从 `/api/jobs/<id>/log` 读取，运行快照可从 `/api/snapshots/<id>` 读取。agent 因而可以调查失败步骤，不必从界面像素里辨认状态；但要判断渲染效果好不好，仍然需要看产物。
 
+可读取哪些接口、各自在什么时候用，见文末的[可读接口](#可读接口)。
+
 ## 一切包含在技能中
 
 仓库中的 [skill/SKILL.md](https://github.com/Kiri-Innovation/HoloLab/blob/main/skill/SKILL.md) 是 HoloLab 的操作指南，涵盖解析引用、编辑和运行工作流、等待结果、读取产物与日志，以及取消任务。
@@ -96,6 +98,8 @@ agent 可以调用 `GET /api/resolve?ref=hololab://…` 读取对象，再沿返
 
 ## 支持范围速查表
 
+### 引用对象
+
 目前已支持以下对象；说明列是解析引用后可读取的信息。
 
 | 对象 | 引用格式 | 可读取的信息 |
@@ -113,3 +117,31 @@ agent 可以调用 `GET /api/resolve?ref=hololab://…` 读取对象，再沿返
 | 资源库文件夹 | `hololab://library-folder/<id>` | 名称、父文件夹与资源列表入口。 |
 
 `<id>` 是对象 ID；资源库根文件夹用 `hololab://library-folder/root`。运行快照使用 `run`，单个产物使用 `handle`；`snapshot` 和 `artifact` 不是支持的 kind。
+
+### 可读接口
+
+以下只读接口覆盖技能中的主要查阅流程，不含派发等写操作；`<id>` 请替换为对应对象的 ID。
+
+| 方法 + 路径 | 返回什么 | 什么时候用 |
+|---|---|---|
+| `GET /api/health` | 服务状态与协议版本 | 确认实例可访问。 |
+| `GET /api/overview` | 设备、工作流与最近任务概况 | 先了解实例当前状态。 |
+| `GET /api/resolve?ref=hololab://…` | 对象数据与关联链接 | 从引用进入具体上下文。 |
+| `GET /api/workflows` | 工作流列表与最近运行摘要 | 找到要处理的工作流。 |
+| `GET /api/workflows/<id>` | 草稿节点图与参数 | 读取当前编辑内容。 |
+| `GET /api/workflows/<id>/runs` | 历史运行与状态汇总 | 找到要回查的运行。 |
+| `GET /api/snapshots/<id>` | 冻结节点图与关联任务 | 还原某次运行的上下文。 |
+| `GET /api/snapshots/<id>?wait_for_state=done&timeout=1800` | 运行详情与等待是否超时 | 等待全部任务成功；超时后检查返回状态。 |
+| `GET /api/jobs?workflow_id=<id>&state=failed&limit=5` | 按条件筛选的任务列表 | 缩小失败排查范围。 |
+| `GET /api/jobs/<id>` | 状态、进度、参数与输入输出 | 检查一个任务的执行情况。 |
+| `GET /api/jobs/<id>/log?tail=200&stream=both` | stdout / stderr 日志尾部 | 建议修改前先看报错。 |
+| `GET /api/handles/<id>` | 产物元数据与文件代理地址 | 了解产物并获取下载入口。 |
+| `GET /api/handles/<id>/summary` | 服务端解析的产物摘要 | 先读摘要，避免下载大文件。 |
+| `GET /api/artifacts?workflow_id=<id>` | 产物清单、大小与归属 | 查找工作流的输出文件。 |
+| `GET /api/artifacts/summary` | 产物数量、大小及工作流汇总 | 了解存储占用。 |
+| `GET /api/artifacts/<handle-id>/lineage` | 产物的上下游来源关系 | 追查产物从何而来。 |
+| `GET /api/nodes` | 在线设备、GPU 与 Pack | 确认可用计算设备。 |
+| `GET /api/nodes/metrics/history?since=<timestamp>` | CPU、内存、GPU 历史采样 | 查看资源占用趋势。 |
+| `GET /api/pack-catalog` | 已连接设备的端口与参数声明 | 编辑前核对 Pack 接口。 |
+| `GET /api/packs` | 持久保存的 Pack 清单 | 查找曾登记过的包；不代表当前在线。 |
+| `GET /api/snapshots/<id>/deletion-preview` | 删除该运行的预计影响 | 清理前核查影响；此请求不执行删除。 |
