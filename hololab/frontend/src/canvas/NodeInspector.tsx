@@ -4,10 +4,8 @@ import { useId, useState, useRef, useEffect, useLayoutEffect, type ReactNode, ty
 import { createPortal } from "react-dom";
 import type { CatalogPack, GraphNode } from "../wire";
 import { MarkdownView } from "../ui/MarkdownView";
-import { ArrayParameterInput, ParameterInput, Vec3ArrayParameterInput } from "./ParameterInput";
+import { PackParameterField, packParameterRows } from "./PackParameterField";
 import type { ComputeNode } from "../wire";
-import { DimListEditor } from "./DimListEditor";
-import { arrayParamsForEditor } from "./arrayMigration";
 import { ParameterPinButton } from "./ParameterPinButton";
 import { parameterPinKey } from "./parameterPins";
 import { OpenSourceButton } from "./OpenSourceButton";
@@ -17,6 +15,7 @@ export interface NodeInspectorProps {
   pack: CatalogPack | null;
   computeNodesById?: Record<string, ComputeNode>;
   onChange: (patch: Partial<GraphNode>) => void;
+  onParamsChange: (patch: Record<string, unknown>) => void;
   assignment?: ReactNode;
   preview?: ReactNode;
   pinnedParams?: string[];
@@ -56,6 +55,7 @@ export function NodeInspector({
   pack,
   computeNodesById,
   onChange,
+  onParamsChange,
   assignment,
   preview,
   pinnedParams = [],
@@ -82,12 +82,6 @@ export function NodeInspector({
     );
   }
 
-  const editableParams = arrayParamsForEditor(pack.name, pack.version, selected.params);
-  const vec3Columns = ["x", "y", "scale"].map(key => editableParams[key] ?? pack.params[key]?.default ?? []);
-  const groupedVec3 = pack.name === "vec3-array-source" && pack.version === "0.1.0"
-    && ["x", "y", "scale"].every(key => pack.params[key]?.type === "array" && pack.params[key]?.items === "float")
-    && vec3Columns.every(value => Array.isArray(value))
-    && new Set(vec3Columns.map(value => (value as unknown[]).length)).size === 1;
   const pin = (names: string[]) => onTogglePin ? <ParameterPinButton names={names}
     algorithmKey={parameterPinKey(pack)} pinned={pinnedParams} onToggle={onTogglePin} /> : null;
   const packageComputeNode =
@@ -259,84 +253,18 @@ export function NodeInspector({
             This pack takes no parameters.
           </div>
         ) : (
-          Object.entries(pack.params).map(([name, spec]) => {
-            // list[str] gets the DimListEditor: pack authors mark ordered-
-            // label params (regroup's ``input_dims`` / ``output_dims``)
-            // with this type so the inspector can render a proper editor
-            // instead of a comma-separated string blob in a text input.
-            // Passive permutation hint when ``output_dims`` doesn't match
-            // ``input_dims`` — the backend enforces, this is just early
-            // signal for the operator.
-            if (spec.type === "list[str]" || spec.type === "list<str>") {
-              const raw =
-                (selected.params[name] as unknown) ??
-                (spec.default as unknown) ??
-                [];
-              const arr = Array.isArray(raw)
-                ? raw.map((v) => String(v ?? ""))
-                : [];
-              const otherName =
-                name === "output_dims"
-                  ? "input_dims"
-                  : name === "input_dims"
-                    ? "output_dims"
-                    : null;
-              // Only apply the permutation-hint when this looks like the
-              // regroup pattern (both params exist AND we're editing
-              // output_dims) — comparing input_dims to output_dims in
-              // both directions would double-warn.
-              const matchAgainst =
-                otherName === "input_dims" && pack.params[otherName]
-                  ? (
-                      (selected.params[otherName] as unknown) ??
-                      (pack.params[otherName].default as unknown) ??
-                      []
-                    )
-                  : undefined;
-              const matchArr =
-                Array.isArray(matchAgainst)
-                  ? matchAgainst.map((v) => String(v ?? ""))
-                  : undefined;
-              return (
-                <div key={name} className={`hl-inspector-field${onTogglePin ? " hl-inspector-field--pinnable" : ""}`} style={FIELD}>
-                  <ParameterLabel name={name} type={spec.type} optional={spec.optional} />
-                  <DimListEditor
-                    value={arr}
-                    onChange={(next) =>
-                      onChange({
-                        params: { ...selected.params, [name]: next },
-                      })
-                    }
-                    matchAgainst={matchArr}
-                    ariaName={name}
-                    placeholder="dim label"
-                  />
-                  {pin([name])}
-                  {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
-                </div>
-              );
-            }
-            if (groupedVec3 && (name === "y" || name === "scale")) return null;
-            if (groupedVec3 && name === "x") return <div key="transforms" className={`hl-inspector-field${onTogglePin ? " hl-inspector-field--pinnable" : ""}`} style={FIELD}>
-              <ParameterLabel name="transform" type="x / y / scale" />
-              <Vec3ArrayParameterInput specs={pack.params} params={editableParams}
-                nodeId={selected.assigned_node_id ?? null} initialDirectory="/"
-                onChange={patch => onChange({ params: { ...editableParams, ...patch } })} />
-              {pin(["x", "y", "scale"])}
-            </div>;
-            const Input = spec.type === "array" ? ArrayParameterInput : ParameterInput;
-            const current = Object.prototype.hasOwnProperty.call(editableParams, name)
-              ? editableParams[name] : spec.default ?? (spec.type === "array" ? [] : "");
-            return <div key={name} className={`hl-inspector-field${onTogglePin ? " hl-inspector-field--pinnable" : ""}`} style={FIELD}>
-              <ParameterLabel name={name} type={spec.type === "array" ? `array<${spec.items}>` : spec.type} optional={spec.optional} />
-              <Input key={`${selected.id}:${name}:${selected.assigned_node_id}`} name={name} spec={spec} value={current}
+          packParameterRows(pack, selected.params).map(({ name, spec, names, label, type }) =>
+            <div key={name} className={`hl-inspector-field${onTogglePin ? " hl-inspector-field--pinnable" : ""}`} style={FIELD}>
+              <ParameterLabel name={label} type={type} optional={spec.optional} />
+              <PackParameterField key={`${selected.id}:${name}:${selected.assigned_node_id}`}
+                pack={pack} params={selected.params} name={name} names={names}
                 nodeId={selected.assigned_node_id ?? null}
                 initialDirectory={computeNodesById?.[selected.assigned_node_id ?? ""]?.workspace_root ?? "/"}
-                onChange={value => onChange({ params: { ...editableParams, [name]: value } })} />
-              {pin([name])}
+                onChange={onParamsChange} />
+              {pin(names)}
               {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
-            </div>;
-          })
+            </div>
+          )
         )}
       </div>
       {preview}

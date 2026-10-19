@@ -1,3 +1,4 @@
+import { mergeParameterPatch } from "./canvas/PackParameterField";
 import { parameterPinKey, toggleParameterPins } from "./canvas/parameterPins";
 import { ExecutableNode } from "./canvas/AssemblyNode";
 import { ASSEMBLE, assemblyPresentation, assemblyFields, newAssembly } from "./canvas/assembly";
@@ -1135,6 +1136,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // dimensions later changed — e.g. drawer open/close — recovered on
   // the next resize tick). Context reads stay fresh without touching
   // node identities. See ``canvas/CanvasContext.ts``.
+  const updateNodeParams = useCallback((nodeId: string, patch: Record<string, unknown>) => {
+    setNodes(current => current.map(node => {
+      if (node.id !== nodeId || (node.data as ViewNodeData).kind === "view") return node;
+      const data = node.data as AlgorithmNodeData;
+      return { ...node, data: { ...data, params: mergeParameterPatch(data.pack, data.params ?? {}, patch) } };
+    }));
+  }, [setNodes]);
+
   const computeNodesById = useMemo<Record<string, ComputeNode>>(() => {
     const out: Record<string, ComputeNode> = {};
     for (const cn of computeNodes) out[cn.node_id] = cn;
@@ -1741,7 +1750,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                     patch.assigned_node_id !== undefined
                       ? patch.assigned_node_id
                       : n.data.assigned_node_id,
-                  ...(patch.params ? { params: patch.params } : {}),
+                  ...(patch.params ? { params: mergeParameterPatch((n.data as AlgorithmNodeData).pack, (n.data as AlgorithmNodeData).params ?? {}, patch.params) } : {}),
                   ...(patch.arrayed_toggle !== undefined
                     ? { arrayed_toggle: patch.arrayed_toggle }
                     : {}),
@@ -2800,6 +2809,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     <p className="hl-dock-empty">Select a node or connection to inspect it.</p>
   ) : (
     <NodeInspector
+      onParamsChange={patch => updateNodeParams(selectedNode.id, patch)}
       pinnedParams={pinnedParams[parameterPinKey(selectedAlgorithmData.pack)] ?? []}
       onTogglePin={names => setPinnedParams(current => toggleParameterPins(current, parameterPinKey(selectedAlgorithmData.pack), names))}
       computeNodesById={computeNodesById}
