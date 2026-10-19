@@ -437,6 +437,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // run-then-dispatch, a WS-triggered snapshot bump) falls through to
   // the effect's normal fetch.
   const seededSnapshotIdRef = useRef<string | null>(null);
+  const [pinnedParams, setPinnedParams] = useState<Record<string, string[]>>({});
   const [previewOpenByGraphNode, setPreviewOpenByGraphNode] = useState<
     Record<string, string | null>
   >({});
@@ -1771,6 +1772,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // --- graph <-> wire ---------------------------------------------------
   const toGraph = useCallback((): WorkflowGraph => {
     return {
+      pinned_params: pinnedParams,
       nodes: nodes.map((n) => {
         if ((n.data as ViewNodeData).kind === "view") {
           const d = n.data as ViewNodeData;
@@ -1816,10 +1818,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         targetHandle: e.targetHandle ?? "",
       })),
     } as unknown as WorkflowGraph;
-  }, [nodes, edges, previewOpenByGraphNode]);
+  }, [nodes, edges, previewOpenByGraphNode, pinnedParams]);
 
   const fromGraph = useCallback(
     (graph: WorkflowGraph): void => {
+      setPinnedParams(graph.pinned_params ?? {});
       // Seed the observer-state map from the graph's own cosmetic
       // fields — this replaces the pre-existing localStorage seed.
       // Any graph node with a stored preview_open opens its drawer on

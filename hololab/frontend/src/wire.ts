@@ -559,6 +559,8 @@ export interface GraphEdge {
 }
 
 export interface WorkflowGraph {
+  /** Cosmetic, scoped to algorithm name@version; frozen with snapshots. */
+  pinned_params?: Record<string, string[]>;
   nodes: GraphNode[];
   edges: GraphEdge[];
 }

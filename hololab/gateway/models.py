@@ -622,6 +622,7 @@ class WorkflowGraphOut(BaseModel):
     Humans on the canvas never see these extra fields — they're additive.
     """
 
+    pinned_params: dict[str, list[str]] = Field(default_factory=dict)
     nodes: list[GraphNodeOut]
     edges: list[GraphEdgeOut]
     is_dag: bool = Field(description="False if the graph has a cycle — cannot be run.")

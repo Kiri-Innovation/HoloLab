@@ -210,6 +210,7 @@ class WorkflowGraph(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    pinned_params: dict[str, list[str]] = Field(default_factory=dict)
     nodes: list[GraphNode] = Field(default_factory=list)
     edges: list[GraphEdge] = Field(default_factory=list)
     is_dag: bool | None = Field(default=None, exclude=True)
@@ -1660,6 +1661,7 @@ def agent_graph_dict(
         edges_out.append(d)
 
     return {
+        "pinned_params": graph.pinned_params,
         "nodes": ordered_nodes,
         "edges": edges_out,
         "is_dag": is_dag,
