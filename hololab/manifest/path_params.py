@@ -8,6 +8,21 @@ from hololab.manifest.schema import ParamSpec, ParamType
 def resolve_path_params(specs: dict[str, ParamSpec], params: dict) -> dict:
     result = dict(params)
     for name, spec in specs.items():
+        if spec.type is ParamType.ARRAY and spec.items is ParamType.PATH:
+            value = params.get(name, spec.default)
+            spec.validate_array_value(name, value)
+            if value is None and spec.optional:
+                continue
+            element = spec.model_copy(
+                update={"type": ParamType.PATH, "items": None, "default": None, "optional": False}
+            )
+            result[name] = [
+                resolve_path_params({f"{name}[{i}]": element}, {f"{name}[{i}]": item})[
+                    f"{name}[{i}]"
+                ]
+                for i, item in enumerate(value)
+            ]
+            continue
         if spec.type is not ParamType.PATH:
             continue
         value = params.get(name, spec.default)

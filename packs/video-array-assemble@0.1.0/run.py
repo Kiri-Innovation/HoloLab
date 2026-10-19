@@ -51,7 +51,8 @@ def source(raw, index):
 
 
 def run(config):
-    paths = json.loads(config["params"]["paths_json"])
+    params = config["params"]
+    paths = params["paths"] if "paths" in params else json.loads(params["paths_json"])
     if not isinstance(paths, list) or not paths:
         raise ValueError("paths_json must be a nonempty JSON array of absolute video paths")
     clips = [source(raw, index) for index, raw in enumerate(paths)]

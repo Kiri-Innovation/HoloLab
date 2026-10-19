@@ -1,0 +1,12 @@
+[
+  {
+    "paths_json": "[\"/tmp/hololab-array-e2e/a.mp4\",\"/tmp/hololab-array-e2e/b.mp4\"]"
+  },
+  {
+    "items": "[{\"offset\":0},{\"offset\":0.25}]"
+  },
+  {
+    "items": "[{\"transform\":[0,0,1]},{\"transform\":[0.4,0.2,0.5]}]"
+  },
+  {}
+]

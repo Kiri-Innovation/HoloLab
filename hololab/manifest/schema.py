@@ -7,6 +7,7 @@ together.
 from __future__ import annotations
 
 import hashlib
+import math
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
@@ -20,11 +21,12 @@ API_VERSION = "hololab.dev/v1"
 class ParamType(str, Enum):
     """Closed set of parameter types.
 
-    Scalars plus a small list wrapper: ``list[str]`` for structural knobs
+    Scalars, native arrays, plus a small list wrapper: ``list[str]`` for structural knobs
     like ``regroup.input_dims`` where the value is a small ordered list
     of dim labels. Ports are still typed by tag; params never carry tags.
     """
 
+    ARRAY = "array"
     INT = "int"
     FLOAT = "float"
     BOOL = "bool"
@@ -227,13 +229,14 @@ class OutputSpec(BaseModel):
 class ParamSpec(BaseModel):
     """Declared user-facing parameter for an algorithm node.
 
-    Params are scalar knobs (``int``, ``float``, ``bool``, ``string``,
-    ``enum``) — completely distinct from ports. They never carry tags.
+    Params are scalar knobs or homogeneous scalar arrays, completely distinct
+    from ports. They never carry tags.
     """
 
     model_config = ConfigDict(extra="ignore")
 
     type: ParamType
+    items: ParamType | None = None
     default: Any = None
     description: str | None = None
     min: float | int | None = None
@@ -242,6 +245,59 @@ class ParamSpec(BaseModel):
     optional: bool = False
     must_exist: bool | None = Field(default=None, strict=True)
     path_kind: Literal["any", "file", "directory"] | None = None
+
+    def validate_array_value(self, name: str, value: Any) -> None:
+        """Strict native arrays only; existing scalar validation is unchanged."""
+        if self.type is not ParamType.ARRAY:
+            return
+        if value is None and self.optional:
+            return
+        if not isinstance(value, list):
+            raise ValueError(f"parameter {name!r}: expected an array")
+        for index, item in enumerate(value):
+            label = f"{name}[{index}]"
+            valid = {
+                ParamType.STRING: isinstance(item, str),
+                ParamType.PATH: isinstance(item, str),
+                ParamType.INT: type(item) is int,
+                ParamType.FLOAT: type(item) in (int, float),
+                ParamType.BOOL: type(item) is bool,
+                ParamType.ENUM: True,
+            }.get(self.items, False)
+            if not valid:
+                raise ValueError(f"parameter {label!r}: expected {self.items.value}")
+            if self.items in (ParamType.INT, ParamType.FLOAT):
+                try:
+                    finite = math.isfinite(item)
+                except OverflowError:
+                    finite = False
+                if not finite:
+                    raise ValueError(f"parameter {label!r}: expected a finite number")
+                if self.min is not None and item < self.min:
+                    raise ValueError(f"parameter {label!r}: must be >= {self.min}")
+                if self.max is not None and item > self.max:
+                    raise ValueError(f"parameter {label!r}: must be <= {self.max}")
+            if self.items is ParamType.ENUM:
+                self.model_copy(update={"type": ParamType.ENUM}).validate_enum_value(label, item)
+
+    @model_validator(mode="after")
+    def _check_array(self) -> ParamSpec:
+        if self.type is not ParamType.ARRAY:
+            if self.items is not None:
+                raise ValueError("items applies only to array parameters")
+            return self
+        if self.items is None or self.items in (ParamType.ARRAY, ParamType.LIST_STR):
+            raise ValueError("array items must declare a scalar parameter type")
+        if self.min is not None and self.max is not None and self.min > self.max:
+            raise ValueError("array element min must be <= max")
+        if self.items is ParamType.ENUM:
+            if not self.values:
+                raise ValueError("array of enum must declare values")
+            if any(type(v) not in (str, int, float, bool) for v in self.values):
+                raise ValueError("array enum values must be scalars")
+        if self.default is not None:
+            self.validate_array_value("default", self.default)
+        return self
 
     def validate_enum_value(self, name: str, value: Any) -> None:
         """Validate a new dispatch, without changing persisted workflow values."""
@@ -265,7 +321,9 @@ class ParamSpec(BaseModel):
         if self.type is ParamType.PATH:
             if self.default is not None and not isinstance(self.default, str):
                 raise ValueError("path default must be a string")
-        elif self.must_exist is not None or self.path_kind is not None:
+        elif (self.must_exist is not None or self.path_kind is not None) and not (
+            self.type is ParamType.ARRAY and self.items is ParamType.PATH
+        ):
             raise ValueError("must_exist/path_kind apply only to path parameters")
         return self
 

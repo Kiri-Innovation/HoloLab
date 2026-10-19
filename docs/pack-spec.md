@@ -398,7 +398,7 @@ When nothing is wired into `data` yet, `arrayfy.out` stays `[any]` so the
 canvas remains permissive during graph construction; once `data` is wired,
 mismatched downstream types are surfaced by snapshot validation.
 
-### Params — scalar knobs, distinct from ports
+### Params — scalar and array controls, distinct from ports
 
 Params are typed scalars — `int`, `float`, `bool`, `string`, `enum`, `path`. They
 never carry tags; they never appear as connectable ports. Pack authors
@@ -415,6 +415,52 @@ params:
     values: ["fast", "quality"]
     default: "quality"
 ```
+
+### Native array parameters (IR semantics)
+
+Declare `type: array` and `items: int|float|bool|string|enum|path`. Values and
+`default` are JSON arrays, not JSON strings. Nested arrays, object elements and
+`list[str]` elements are rejected. The existing specialized `list[str]` parameter
+and scalar behavior remain unchanged; this has no port/tag/connection semantics.
+
+```yaml
+params:
+  offsets:
+    type: array
+    items: float
+    default: [0, 0.5]
+    min: 0
+  paths:
+    type: array
+    items: path
+    default: []
+    path_kind: file
+```
+
+`min`/`max` constrain each numeric element (inclusive), not array length. Numeric
+values must be finite; booleans and numeric strings are not numbers. `values`
+applies to every enum element. `must_exist`/`path_kind` apply to every path and
+are checked on the executing node. Array defaults are validated when loading a
+manifest; execution validates supplied values before starting a process. Empty
+arrays are legal in the IR; a pack may require nonempty inputs. `optional: true`
+permits an absent/null whole array, never null elements. Omitted defaults remain
+null; authors should use `default: []` for initially empty editors.
+
+Inspector uses the same scalar controls for each row, with remove and append
+buttons. Invalid stored values are preserved until explicitly replaced.
+
+The initial three source packs retain execution compatibility with their legacy
+JSON strings through a name/version-scoped adapter. `video-array-assemble` now
+uses `paths: array<path>`; `float-array-source` uses `items: array<float>` and
+optional `ids: array<string>`. `vec3-array-source` uses three equal-length arrays
+`x`, `y`, `scale` plus optional `ids`, avoiding nested/object arrays or a new
+vector scalar. Inspector presents these three arrays as one x/y/scale row per
+transform and appends/removes all three components together. Empty IDs bind sorted reference videos; explicit IDs retain their
+original alignment contract. Legacy values are not rewritten by workflow GET or
+execution; editing them in Inspector saves native values through normal autosave.
+Deploy the updated parameter schema/runtime before relying on new manifests;
+an already-running old Python process cannot learn a new enum member by hot
+reloading manifests alone.
 
 ### Path parameters
 

@@ -1432,8 +1432,12 @@ class NodeRuntime:
         from hololab.manifest.path_params import resolve_path_params
 
         try:
+            from hololab.manifest.array_migration import migrate_array_params
+
+            assign.params = migrate_array_params(*key, assign.params)
             for name, spec in pack.manifest.params.items():
                 spec.validate_enum_value(name, assign.params.get(name, spec.default))
+                spec.validate_array_value(name, assign.params.get(name, spec.default))
             assign.params = await asyncio.to_thread(
                 resolve_path_params, pack.manifest.params, assign.params
             )

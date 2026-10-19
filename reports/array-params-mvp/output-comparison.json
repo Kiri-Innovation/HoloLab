@@ -1,0 +1,13 @@
+{
+  "offsets": {
+    "0000": "51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+    "0001": "7747240b40ef7064f499d4ddd256767cba251ce7c2cc4b26faf542d9a2c5c104"
+  },
+  "transforms": {
+    "0000": "c5690e8ddb1ccabb6ace60c206d31cccd9d333f9d04861505c51acb15d43cc92",
+    "0001": "b5697f100608e2c9bc1064dfb4cfaf61921f08f8c43dbe249b911d13fe961682"
+  },
+  "compose": {
+    "output.mp4": "f05cfe085752c2f54de1668b097250271b85b4227deeccb31ca8228a72404254"
+  }
+}

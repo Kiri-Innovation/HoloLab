@@ -1,0 +1,195 @@
+{
+  "id": "f7e51883-cbf1-4421-a472-474112f2e4b9",
+  "hotRegistration": true,
+  "nativeRun": {
+    "run": {
+      "workflow_id": "f7e51883-cbf1-4421-a472-474112f2e4b9",
+      "snapshot_id": "b058e0c2-dff5-4182-84f1-28473edc4222",
+      "node_count": 4,
+      "view_node_count": 0,
+      "mode": "graph"
+    },
+    "jobs": [
+      {
+        "job_id": "45b6d27a-a3b9-464a-9bb4-83a50b1e72ef",
+        "workflow_id": "f7e51883-cbf1-4421-a472-474112f2e4b9",
+        "node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+        "graph_node_id": "compose",
+        "algorithm_name": "compose-video",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 1,
+          "total": 1
+        },
+        "fail_reason": null,
+        "created_ts": 1792388808.4183664,
+        "updated_ts": 1792388808.6858168,
+        "started_ts": 1792388808.667599,
+        "parent_job_id": null,
+        "shard_element_id": null,
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "2a119eab-f500-47fc-8ecc-3e23507213c7",
+        "workflow_id": "f7e51883-cbf1-4421-a472-474112f2e4b9",
+        "node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+        "graph_node_id": "transforms",
+        "algorithm_name": "vec3-array-source",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 1,
+          "total": 1
+        },
+        "fail_reason": null,
+        "created_ts": 1792388808.3625996,
+        "updated_ts": 1792388808.4172435,
+        "started_ts": 1792388808.4073305,
+        "parent_job_id": null,
+        "shard_element_id": null,
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "dcbec8aa-28a8-4fb9-8418-7f7ec76f3d3c",
+        "workflow_id": "f7e51883-cbf1-4421-a472-474112f2e4b9",
+        "node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+        "graph_node_id": "offsets",
+        "algorithm_name": "float-array-source",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 1,
+          "total": 1
+        },
+        "fail_reason": null,
+        "created_ts": 1792388808.3061016,
+        "updated_ts": 1792388808.3613474,
+        "started_ts": 1792388808.3524146,
+        "parent_job_id": null,
+        "shard_element_id": null,
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "ad4d5a71-3214-41d1-ac59-c3f69a622bb3",
+        "workflow_id": "f7e51883-cbf1-4421-a472-474112f2e4b9",
+        "node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+        "graph_node_id": "videos",
+        "algorithm_name": "video-array-assemble",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 1,
+          "total": 1
+        },
+        "fail_reason": null,
+        "created_ts": 1792388808.1660938,
+        "updated_ts": 1792388808.3050823,
+        "started_ts": 1792388808.2940838,
+        "parent_job_id": null,
+        "shard_element_id": null,
+        "shard_element_ids": null,
+        "expected_shards": null
+      }
+    ]
+  },
+  "legacyRun": {
+    "run": {
+      "workflow_id": "6d554753-5cfc-45c4-aa7d-a64feecf8b24",
+      "snapshot_id": "356d2f56-047f-4fdf-be09-7b576883ab02",
+      "node_count": 4,
+      "view_node_count": 0,
+      "mode": "graph"
+    },
+    "jobs": [
+      {
+        "job_id": "f20fbd4f-f512-43ac-84e5-6a07a469b910",
+        "workflow_id": "6d554753-5cfc-45c4-aa7d-a64feecf8b24",
+        "node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+        "graph_node_id": "compose",
+        "algorithm_name": "compose-video",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 1,
+          "total": 1
+        },
+        "fail_reason": null,
+        "created_ts": 1792388809.4317825,
+        "updated_ts": 1792388809.6804702,
+        "started_ts": 1792388809.6697779,
+        "parent_job_id": null,
+        "shard_element_id": null,
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "6a4f2e50-f0e9-4670-8c68-cf267a72e958",
+        "workflow_id": "6d554753-5cfc-45c4-aa7d-a64feecf8b24",
+        "node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+        "graph_node_id": "transforms",
+        "algorithm_name": "vec3-array-source",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 1,
+          "total": 1
+        },
+        "fail_reason": null,
+        "created_ts": 1792388809.3790855,
+        "updated_ts": 1792388809.4309235,
+        "started_ts": 1792388809.4218976,
+        "parent_job_id": null,
+        "shard_element_id": null,
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "fcfca310-389a-42ad-9c8a-ea54fa4620df",
+        "workflow_id": "6d554753-5cfc-45c4-aa7d-a64feecf8b24",
+        "node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+        "graph_node_id": "offsets",
+        "algorithm_name": "float-array-source",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 1,
+          "total": 1
+        },
+        "fail_reason": null,
+        "created_ts": 1792388809.3228352,
+        "updated_ts": 1792388809.3781104,
+        "started_ts": 1792388809.368769,
+        "parent_job_id": null,
+        "shard_element_id": null,
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "f6663fa3-ff0f-4666-893f-78ad78b5a748",
+        "workflow_id": "6d554753-5cfc-45c4-aa7d-a64feecf8b24",
+        "node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+        "graph_node_id": "videos",
+        "algorithm_name": "video-array-assemble",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 1,
+          "total": 1
+        },
+        "fail_reason": null,
+        "created_ts": 1792388809.1828523,
+        "updated_ts": 1792388809.3213675,
+        "started_ts": 1792388809.310133,
+        "parent_job_id": null,
+        "shard_element_id": null,
+        "shard_element_ids": null,
+        "expected_shards": null
+      }
+    ]
+  },
+  "legacyParamsUnchanged": true
+}

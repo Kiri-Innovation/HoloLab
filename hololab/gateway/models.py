@@ -157,6 +157,10 @@ class OutputPortSpecOut(BaseModel):
 
 
 class ParamSpecOut(BaseModel):
+    items: str | None = None
+    min: float | int | None = None
+    max: float | int | None = None
+    values: list[Any] | None = None
     must_exist: bool | None = None
     path_kind: Literal["any", "file", "directory"] | None = None
     type: str

@@ -1,0 +1,783 @@
+{
+  "nodes": [
+    {
+      "id": "videos",
+      "kind": "algorithm",
+      "algorithm_name": "video-array-assemble",
+      "algorithm_version": "0.1.0",
+      "view_type": null,
+      "title": null,
+      "position": {
+        "x": 80,
+        "y": 150
+      },
+      "params": {
+        "paths": [
+          "/tmp/hololab-array-e2e/a.mp4",
+          "/tmp/hololab-array-e2e/b.mp4"
+        ]
+      },
+      "assigned_node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "resolved_outputs": {
+        "videos": {
+          "tags": [
+            "video-source"
+          ],
+          "arrayed": true,
+          "dim_labels": [
+            "layer"
+          ]
+        }
+      },
+      "port_types": {
+        "schemaVersion": 1,
+        "inputs": {},
+        "outputs": {
+          "videos": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "video-source"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "layer"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        }
+      },
+      "latest_run": null
+    },
+    {
+      "id": "offsets",
+      "kind": "algorithm",
+      "algorithm_name": "float-array-source",
+      "algorithm_version": "0.1.0",
+      "view_type": null,
+      "title": null,
+      "position": {
+        "x": 310,
+        "y": 150
+      },
+      "params": {
+        "items": [
+          0,
+          0.25
+        ]
+      },
+      "assigned_node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "resolved_outputs": {
+        "offsets": {
+          "tags": [
+            "float"
+          ],
+          "arrayed": true,
+          "dim_labels": [
+            "layer"
+          ]
+        }
+      },
+      "port_types": {
+        "schemaVersion": 1,
+        "inputs": {
+          "videos": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "video-source"
+              ],
+              "require_axis_label_match": false,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "layer"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        },
+        "outputs": {
+          "offsets": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "float"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "layer"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "float"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "float"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        }
+      },
+      "latest_run": null
+    },
+    {
+      "id": "transforms",
+      "kind": "algorithm",
+      "algorithm_name": "vec3-array-source",
+      "algorithm_version": "0.1.0",
+      "view_type": null,
+      "title": null,
+      "position": {
+        "x": 540,
+        "y": 150
+      },
+      "params": {
+        "x": [
+          0,
+          0.4
+        ],
+        "y": [
+          0,
+          0.2
+        ],
+        "scale": [
+          1,
+          0.5
+        ]
+      },
+      "assigned_node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "resolved_outputs": {
+        "transforms": {
+          "tags": [
+            "vec3"
+          ],
+          "arrayed": true,
+          "dim_labels": [
+            "layer"
+          ]
+        }
+      },
+      "port_types": {
+        "schemaVersion": 1,
+        "inputs": {
+          "videos": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "video-source"
+              ],
+              "require_axis_label_match": false,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "layer"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        },
+        "outputs": {
+          "transforms": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "vec3"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "layer"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "vec3"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "vec3"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        }
+      },
+      "latest_run": null
+    },
+    {
+      "id": "compose",
+      "kind": "algorithm",
+      "algorithm_name": "compose-video",
+      "algorithm_version": "0.1.0",
+      "view_type": null,
+      "title": null,
+      "position": {
+        "x": 770,
+        "y": 150
+      },
+      "params": {},
+      "assigned_node_id": "88e64082-0398-4c39-a70a-16e3fec4a513",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "resolved_outputs": {
+        "video": {
+          "tags": [
+            "video-source"
+          ],
+          "arrayed": false,
+          "dim_labels": []
+        }
+      },
+      "port_types": {
+        "schemaVersion": 1,
+        "inputs": {
+          "videos": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "video-source"
+              ],
+              "require_axis_label_match": false,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "layer"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "transforms": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "vec3"
+              ],
+              "require_axis_label_match": false,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "layer"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "vec3"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "vec3"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          },
+          "offsets": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "float"
+              ],
+              "require_axis_label_match": false,
+              "arrayed": true,
+              "scalar": false,
+              "dim_labels": [
+                "layer"
+              ],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": null,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "float"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "aggregate": {
+                "kind": "array",
+                "axis": {
+                  "label": "layer"
+                },
+                "element": {
+                  "kind": "object",
+                  "tags": [
+                    "float"
+                  ],
+                  "contentAxes": []
+                }
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        },
+        "outputs": {
+          "video": {
+            "schemaVersion": 1,
+            "declaration": {
+              "tags": [
+                "video-source"
+              ],
+              "require_axis_label_match": true,
+              "arrayed": false,
+              "scalar": false,
+              "dim_labels": [],
+              "tags_from": null,
+              "dim_labels_from": null,
+              "dim_labels_from_input": null,
+              "dim_labels_drop_outer": 0,
+              "content_dims_from": null
+            },
+            "views": {
+              "participation": "none",
+              "invocation": {
+                "kind": "object",
+                "tags": [
+                  "video-source"
+                ],
+                "contentAxes": []
+              },
+              "aggregate": {
+                "kind": "object",
+                "tags": [
+                  "video-source"
+                ],
+                "contentAxes": []
+              }
+            },
+            "runtime": {
+              "handleId": null,
+              "tags": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "axes": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              },
+              "internalCounts": []
+            }
+          }
+        }
+      },
+      "latest_run": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "source": "videos",
+      "sourceHandle": "videos",
+      "target": "offsets",
+      "targetHandle": "videos",
+      "source_label": "video-array-assemble",
+      "target_label": "float-array-source"
+    },
+    {
+      "id": "e1",
+      "source": "videos",
+      "sourceHandle": "videos",
+      "target": "transforms",
+      "targetHandle": "videos",
+      "source_label": "video-array-assemble",
+      "target_label": "vec3-array-source"
+    },
+    {
+      "id": "e2",
+      "source": "videos",
+      "sourceHandle": "videos",
+      "target": "compose",
+      "targetHandle": "videos",
+      "source_label": "video-array-assemble",
+      "target_label": "compose-video"
+    },
+    {
+      "id": "e3",
+      "source": "offsets",
+      "sourceHandle": "offsets",
+      "target": "compose",
+      "targetHandle": "offsets",
+      "source_label": "float-array-source",
+      "target_label": "compose-video"
+    },
+    {
+      "id": "e4",
+      "source": "transforms",
+      "sourceHandle": "transforms",
+      "target": "compose",
+      "targetHandle": "transforms",
+      "source_label": "vec3-array-source",
+      "target_label": "compose-video"
+    }
+  ],
+  "is_dag": true,
+  "topology_text": "video-array-assemble[videos] → float-array-source[videos]\nvideo-array-assemble[videos] → vec3-array-source[videos]\nvideo-array-assemble[videos] → compose-video[videos]\nfloat-array-source[offsets] → compose-video[offsets]\nvec3-array-source[transforms] → compose-video[transforms]"
+}

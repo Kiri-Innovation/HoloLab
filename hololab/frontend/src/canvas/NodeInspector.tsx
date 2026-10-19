@@ -4,10 +4,10 @@ import { useId, useState, useRef, useEffect, useLayoutEffect, type ReactNode, ty
 import { createPortal } from "react-dom";
 import type { CatalogPack, GraphNode } from "../wire";
 import { MarkdownView } from "../ui/MarkdownView";
-import { EnumSelect } from "./EnumSelect";
-import { PathInput } from "./PathInput";
+import { ArrayParameterInput, ParameterInput, Vec3ArrayParameterInput } from "./ParameterInput";
 import type { ComputeNode } from "../wire";
 import { DimListEditor } from "./DimListEditor";
+import { arrayParamsForEditor } from "./arrayMigration";
 import { OpenSourceButton } from "./OpenSourceButton";
 
 export interface NodeInspectorProps {
@@ -76,6 +76,12 @@ export function NodeInspector({
     );
   }
 
+  const editableParams = arrayParamsForEditor(pack.name, pack.version, selected.params);
+  const vec3Columns = ["x", "y", "scale"].map(key => editableParams[key] ?? pack.params[key]?.default ?? []);
+  const groupedVec3 = pack.name === "vec3-array-source" && pack.version === "0.1.0"
+    && ["x", "y", "scale"].every(key => pack.params[key]?.type === "array" && pack.params[key]?.items === "float")
+    && vec3Columns.every(value => Array.isArray(value))
+    && new Set(vec3Columns.map(value => (value as unknown[]).length)).size === 1;
   const packageComputeNode =
     (selected.assigned_node_id ? computeNodesById?.[selected.assigned_node_id] : null)
     ?? (pack.node_ids ?? []).map((nodeId) => computeNodesById?.[nodeId]).find(Boolean)
@@ -246,17 +252,6 @@ export function NodeInspector({
           </div>
         ) : (
           Object.entries(pack.params).map(([name, spec]) => {
-            if (spec.type === "path") {
-              return <div key={name} className="hl-inspector-field" style={FIELD}>
-                <ParameterLabel name={name} type={spec.type} optional={spec.optional} />
-                <PathInput key={`${selected.id}:${name}:${selected.assigned_node_id}`} name={name}
-                  value={String(selected.params[name] ?? spec.default ?? "")}
-                  nodeId={selected.assigned_node_id ?? null} pathKind={spec.path_kind}
-                  initialDirectory={computeNodesById?.[selected.assigned_node_id ?? ""]?.workspace_root ?? "/"}
-                  onChange={value => onChange({ params: { ...selected.params, [name]: value } })} />
-                {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
-              </div>;
-            }
             // list[str] gets the DimListEditor: pack authors mark ordered-
             // label params (regroup's ``input_dims`` / ``output_dims``)
             // with this type so the inspector can render a proper editor
@@ -312,58 +307,24 @@ export function NodeInspector({
                 </div>
               );
             }
-            if (spec.type === "enum") {
-              const current = Object.prototype.hasOwnProperty.call(selected.params, name)
-                ? selected.params[name] : spec.default;
-              const values = spec.values ?? [];
-              const index = values.findIndex((value) => value === current);
-              const warningId = `enum-warning-${selected.id}-${name}`;
-              return (
-                <div key={name} className="hl-inspector-field" style={FIELD}>
-                  <ParameterLabel name={name} type={spec.type} optional={spec.optional} />
-                  {index >= 0 ? (
-                    <EnumSelect key={`${selected.id}:${name}`} name={name} values={values} index={index}
-                      onChange={(value) => onChange({ params: { ...selected.params, [name]: value } })} />
-                  ) : (
-                    <input aria-label={name} aria-describedby={warningId} value={String(current ?? "")}
-                      onChange={(e) => onChange({ params: { ...selected.params, [name]: e.target.value } })} />
-                  )}
-                  {index < 0 && <small id={warningId} style={{ gridColumn: "1 / -1", color: "var(--text-muted)" }}>
-                    {values.length ? "Current value is not in the available options." : "No enum options are declared; the current value is preserved."}
-                  </small>}
-                  {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
-                </div>
-              );
-            }
-            const current =
-              (selected.params[name] as string | number | boolean | undefined) ??
-              (spec.default as string | number | boolean | undefined) ??
-              "";
-            const isNumeric = spec.type === "int" || spec.type === "float";
-            return (
-              <div key={name} className="hl-inspector-field" style={FIELD}>
-                <ParameterLabel name={name} type={spec.type} optional={spec.optional} />
-                <input
-                  aria-label={name}
-                  value={String(current)}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    const parsed = coerce(raw, spec.type);
-                    onChange({
-                      params: { ...selected.params, [name]: parsed },
-                    });
-                  }}
-                  style={{
-                    width: "100%",
-                    maxWidth: "100%",
-                    fontFamily: isNumeric ? "var(--font-mono)" : "inherit",
-                    fontVariantNumeric: isNumeric ? "tabular-nums" : "normal",
-                    textAlign: "left",
-                  }}
-                />
-                {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
-              </div>
-            );
+            if (groupedVec3 && (name === "y" || name === "scale")) return null;
+            if (groupedVec3 && name === "x") return <div key="transforms" className="hl-inspector-field" style={FIELD}>
+              <ParameterLabel name="transform" type="x / y / scale" />
+              <Vec3ArrayParameterInput specs={pack.params} params={editableParams}
+                nodeId={selected.assigned_node_id ?? null} initialDirectory="/"
+                onChange={patch => onChange({ params: { ...editableParams, ...patch } })} />
+            </div>;
+            const Input = spec.type === "array" ? ArrayParameterInput : ParameterInput;
+            const current = Object.prototype.hasOwnProperty.call(editableParams, name)
+              ? editableParams[name] : spec.default ?? (spec.type === "array" ? [] : "");
+            return <div key={name} className="hl-inspector-field" style={FIELD}>
+              <ParameterLabel name={name} type={spec.type === "array" ? `array<${spec.items}>` : spec.type} optional={spec.optional} />
+              <Input key={`${selected.id}:${name}:${selected.assigned_node_id}`} name={name} spec={spec} value={current}
+                nodeId={selected.assigned_node_id ?? null}
+                initialDirectory={computeNodesById?.[selected.assigned_node_id ?? ""]?.workspace_root ?? "/"}
+                onChange={value => onChange({ params: { ...editableParams, [name]: value } })} />
+              {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
+            </div>;
           })
         )}
       </div>
@@ -474,17 +435,4 @@ function PackDescription({ pack }: { pack: CatalogPack }) {
       <MarkdownView source={pack.docs!} />
     </div>}
   </>;
-}
-
-function coerce(raw: string, type: string): unknown {
-  if (type === "int") {
-    const n = Number.parseInt(raw, 10);
-    return Number.isFinite(n) ? n : raw;
-  }
-  if (type === "float") {
-    const n = Number.parseFloat(raw);
-    return Number.isFinite(n) ? n : raw;
-  }
-  if (type === "bool") return raw === "true" || raw === "1";
-  return raw;
 }

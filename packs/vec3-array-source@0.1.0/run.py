@@ -48,7 +48,31 @@ def safe_id(value):
 
 
 def run(config):
-    items = json.loads(config["params"]["items"], object_pairs_hook=unique_object)
+    params = config["params"]
+    if isinstance(params.get("items"), str):
+        # Standalone callers retain the original strict legacy parser.
+        items = json.loads(params["items"], object_pairs_hook=unique_object)
+    else:
+        ids = params.get("ids", [])
+        if not isinstance(ids, list):
+            raise ValueError("ids must be an array")
+        if VECTOR:
+            columns = [params.get(key, []) for key in ("x", "y", "scale")]
+            if (
+                any(not isinstance(col, list) for col in columns)
+                or len({len(col) for col in columns}) != 1
+            ):
+                raise ValueError("x, y and scale must be arrays with matching lengths")
+            raw_values = [list(v) for v in zip(*columns, strict=True)]
+        else:
+            raw_values = params.get("items", [])
+            if not isinstance(raw_values, list):
+                raise ValueError("items must be an array")
+        if ids and len(ids) != len(raw_values):
+            raise ValueError("ids count must match values count")
+        items = [
+            {FIELD: value, **({"id": ids[i]} if ids else {})} for i, value in enumerate(raw_values)
+        ]
     if not isinstance(items, list) or not items:
         raise ValueError("items must be a nonempty JSON array of objects")
     reference = None

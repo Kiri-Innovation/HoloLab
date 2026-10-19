@@ -261,6 +261,9 @@ export interface InputPortSpec extends PortSpec {
 }
 
 export interface ParamSpec {
+  items?: string | null;
+  min?: number | null;
+  max?: number | null;
   values?: (string | number)[] | null;
   must_exist?: boolean | null;
   path_kind?: "any" | "file" | "directory" | null;

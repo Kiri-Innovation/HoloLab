@@ -603,6 +603,9 @@ class NodeRegistry:
                         entry["params"] = {
                             n: {
                                 "type": s.type.value,
+                                "items": s.items.value if s.items else None,
+                                "min": s.min,
+                                "max": s.max,
                                 "values": s.values,
                                 "default": s.default,
                                 "description": s.description,
