@@ -5,6 +5,8 @@ import './styles/site.css';
 import './styles/i18n.css';
 import './styles/screenshots.css';
 import './browser-environment';
+import { attachCodeCopy } from './code-copy';
+import './styles/code-copy.css';
 import './styles/browser-environment.css';
 import { locale, localeKey, localize, t, label } from './i18n';
 
@@ -81,6 +83,7 @@ function Footer() {
   return <footer className="footer"><a className="brand" href={localize('/')}>HoloLab</a><span>{t('footer')}</span><a href={localize('/docs')}>{t('docs')} ↗</a></footer>;
 }
 function Documentation() {
+  useEffect(() => attachCodeCopy({ copy: t('copyCode'), copied: t('copiedCode'), failed: t('copyCodeFailed') }), []);
   useEffect(() => {
     // Follow the site's resolved theme, including a manual override of the OS theme.
     const syncPictures = () => {

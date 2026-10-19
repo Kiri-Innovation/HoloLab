@@ -1,0 +1,6 @@
+.copyable-code { margin: 32px 0; min-width: 0; }
+.code-copy-bar { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-bottom: 6px; color: var(--text-muted); font-size: 12px; }
+.code-copy-bar button { flex-shrink: 0; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-body); cursor: pointer; font: inherit; }
+.code-copy-bar button:hover { background: var(--surface-hover); }
+.code-copy-bar button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.prose .copyable-code pre { margin: 0; }

@@ -67,9 +67,26 @@ agent 可以调用 `GET /api/resolve?ref=hololab://…` 读取对象，再沿返
 
 ## 一切包含在技能中
 
-仓库中的 `skill/SKILL.md` 介绍如何检查实例、解析引用、编辑和运行工作流、等待结果、读取产物与日志，以及取消任务。它也指向 `docs/` 中的 Pack 编写指南和规范。
+仓库中的 [skill/SKILL.md](https://github.com/Kiri-Innovation/HoloLab/blob/main/skill/SKILL.md) 是 HoloLab 的操作指南，涵盖解析引用、编辑和运行工作流、等待结果、读取产物与日志，以及取消任务。
 
-例如，技能中用这一条请求等待运行完成并读取各任务状态，无需自己写轮询。`$HOLO` 是实例地址，`$SNAP` 是运行返回的快照 ID；以下为原文摘录，并未在本次采集中执行：
+准备好实例地址，把下面这段话复制给能访问该实例的 agent；先将 `<URL>` 替换为你的地址。链接指向纯文本技能文件，便于 agent 直接读取。
+
+<div class="copyable-code">
+
+```text
+请读取 https://raw.githubusercontent.com/Kiri-Innovation/HoloLab/main/skill/SKILL.md
+并把它作为操作 HoloLab 的技能指南。我的实例地址是 <URL>。
+行动前先解析我粘贴的 hololab:// 引用；使用长轮询等待运行结果；
+建议修改前先读取相关日志。涉及修改或运行时，请遵循我给出的任务范围。
+```
+
+</div>
+
+这让 agent 在当前任务中读取并使用操作指南，不等于安装到它的持久技能库。目前实例没有自动下载或安装技能的端点。这份技能是附带后续文档入口的操作指南，并非把所有手册都打包在一个文件里。
+
+例如，技能用以下请求等待运行完成并读取各任务状态，无需自己写轮询。`$HOLO` 是实例地址，`$SNAP` 是运行返回的快照 ID，以下保留原文：
+
+<div class="copyable-code">
 
 ```bash
 # c) LONG-POLL until done — one call, up to timeout seconds
@@ -77,7 +94,7 @@ curl -s "$HOLO/api/snapshots/$SNAP?wait_for_state=done&timeout=1800" \
   | jq '{waited, wait_timed_out, jobs: [.jobs[] | {algorithm_name, state}]}'
 ```
 
-让 agent 从仓库副本读取这个文件，或通过它支持的技能机制装载。只提供实例 URL 不会自动安装技能：目前实例没有自动下载或安装技能的端点。这份技能是附带后续文档入口的操作指南，并非把所有手册都打包在一个文件里。
+</div>
 
 ## 先试一个只读问题
 

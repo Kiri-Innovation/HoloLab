@@ -59,5 +59,8 @@
   "backDocs": "Back to docs",
   "homeTitle": "Visual workflows for vision algorithms",
   "englishNotice": "English original. A Chinese edition is planned for the next batch.",
-  "futureNotice": "The “Future direction” section describes plans that are not implemented."
+  "futureNotice": "The “Future direction” section describes plans that are not implemented.",
+  "copyCode": "Copy",
+  "copiedCode": "Copied",
+  "copyCodeFailed": "Copy failed; select the text to copy manually."
 }

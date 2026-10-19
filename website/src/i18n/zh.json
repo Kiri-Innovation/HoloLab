@@ -59,5 +59,8 @@
   "backDocs": "返回文档",
   "homeTitle": "视觉算法工作流",
   "englishNotice": "英文原文；中文版将在后续批次补齐。",
-  "futureNotice": "“Future direction” 部分为未实现的计划。"
+  "futureNotice": "“Future direction” 部分为未实现的计划。",
+  "copyCode": "复制",
+  "copiedCode": "已复制",
+  "copyCodeFailed": "复制失败，请选中文本手动复制。"
 }

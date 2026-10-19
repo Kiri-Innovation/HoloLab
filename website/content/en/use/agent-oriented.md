@@ -67,9 +67,27 @@ The resolver returns JSON; the four-section Markdown reference summary is built 
 
 ## Everything included in a skill
 
-The repository's `skill/SKILL.md` explains how to check an instance, resolve references, edit and run workflows, wait for results, inspect outputs and logs, and cancel work. It also points to the Pack authoring and specification documents in `docs/`.
+The repository's [skill/SKILL.md](https://github.com/Kiri-Innovation/HoloLab/blob/main/skill/SKILL.md) is HoloLab's operating guide. It covers resolving references, editing and running workflows, waiting for results, inspecting outputs and logs, and cancelling tasks.
 
-For example, the skill uses one request to wait for completion and read task states instead of writing a polling loop. `$HOLO` is the instance address and `$SNAP` is the snapshot ID returned by a run. This is a verbatim excerpt; it was not executed during capture:
+Give an agent that can reach your instance the message below, replacing `<URL>` with your instance address first. The link points to the plain-text skill file so the agent can read it directly.
+
+<div class="copyable-code">
+
+```text
+Read https://raw.githubusercontent.com/Kiri-Innovation/HoloLab/main/skill/SKILL.md
+and use it as your operating skill for HoloLab. My instance is at <URL>.
+Resolve any hololab:// references I paste before acting. Use long-polling
+for run results, and read relevant logs before suggesting changes.
+Keep edits and runs within the scope of the task I give you.
+```
+
+</div>
+
+This asks the agent to read and use the guide for the current task; it does not install it into a persistent skill library. The instance currently has no automatic skill-download or installation endpoint. The skill is an operating guide with links to further documentation, not a bundle containing every manual.
+
+For example, the skill uses this request to wait for completion and read task states instead of writing a polling loop. `$HOLO` is the instance address and `$SNAP` is the snapshot ID returned by a run. This excerpt is verbatim:
+
+<div class="copyable-code">
 
 ```bash
 # c) LONG-POLL until done — one call, up to timeout seconds
@@ -77,7 +95,7 @@ curl -s "$HOLO/api/snapshots/$SNAP?wait_for_state=done&timeout=1800" \
   | jq '{waited, wait_timed_out, jobs: [.jobs[] | {algorithm_name, state}]}'
 ```
 
-Ask your agent to read that file from a checkout, or load it through the agent's supported skill mechanism. Providing an instance URL alone does not install the skill: there is currently no automatic skill-download or installation endpoint on the instance. The skill is an operating guide with links to further documentation, not a bundle containing every manual.
+</div>
 
 ## Try a read-only question first
 
