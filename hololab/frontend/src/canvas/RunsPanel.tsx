@@ -71,6 +71,16 @@ export function RunsPanel({
     setFocusTarget(null);
   }, []);
 
+  const returnToInspector = useCallback(() => {
+    closeFocus();
+    // Activate the existing desktop/mobile tab without changing node selection.
+    const tab = document.querySelector<HTMLButtonElement>(
+      '#hl-dock-tab-inspector, [data-hl-mobile-tab="inspect"]',
+    );
+    tab?.click();
+    tab?.focus({ preventScroll: true });
+  }, [closeFocus]);
+
   // Runs remains mounted in the desktop dock. Closing its tab must also
   // dismiss the portal and cancel a navigation still waiting for the network.
   useLayoutEffect(() => {
@@ -202,7 +212,7 @@ export function RunsPanel({
       }}
     >
       <Header onRefresh={refresh} />
-      {focusTarget && <RunFocusBubble target={focusTarget} onClose={closeFocus} />}
+      {focusTarget && <RunFocusBubble target={focusTarget} onClose={closeFocus} onBack={returnToInspector} />}
       {focusMessage && <p role="status" style={{ margin: 0, padding: 12, color: "var(--text-muted)" }}>{focusMessage}</p>}
       {error && (
         <div

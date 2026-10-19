@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import "./run-focus-bubble.css";
 
 /** A persistent, row-anchored notice outside the list's overflow clipping. */
-export function RunFocusBubble({ target, onClose }: { target: HTMLElement; onClose: () => void }) {
+export function RunFocusBubble({ target, onClose, onBack }: { target: HTMLElement; onClose: () => void; onBack: () => void }) {
   const bubble = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const element = bubble.current!;
@@ -58,6 +58,7 @@ export function RunFocusBubble({ target, onClose }: { target: HTMLElement; onClo
   return createPortal(
     <div ref={bubble} className="hl-run-focus-bubble" data-hl-run-focus={target.dataset.hlRunId}>
       <span className="hl-run-focus-arrow" aria-hidden="true" />
+      <button type="button" aria-label="返回 Inspector" title="返回 Inspector" onClick={onBack}>←</button>
       <span role="status"><code>{target.dataset.hlRunId?.slice(0, 8)}</code> · 来自 Inspector 预览</span>
       <button type="button" aria-label="关闭 run 定位提示" onClick={onClose}>×</button>
     </div>, document.body,
