@@ -14,8 +14,8 @@ order: 25
 <div class="no-flops-only">
 
 <figure class="doc-screenshot">
-<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-entry-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-entry-light.webp" alt="STG 的 frame-extraction 节点：标题右侧、运行三角按钮左边的剪贴板图标是引用入口。图中未展示原始影像或设备信息。" width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">引用入口</span></span></div></div>
-<figcaption>高亮框即引用入口。STG 的 frame-extraction 节点：标题右侧、运行三角按钮左边的剪贴板图标是引用入口。图中未展示原始影像或设备信息。</figcaption>
+<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-entry-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-entry-light.webp" alt="高亮框标出“复制引用信息”：STG 节点标题右侧、运行按钮左边的剪贴板图标。" width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">复制引用信息</span></span></div></div>
+<figcaption>高亮框标出“复制引用信息”：STG 节点标题右侧、运行按钮左边的剪贴板图标。</figcaption>
 </figure>
 
 点击高亮入口会复制引用文本，供你粘贴到与 agent 的对话中。复制的是 `hololab://` 引用及可选注释，不包含 Markdown 摘要。下面是该节点的复制结果（工作流 ID 已脱敏）：
@@ -29,8 +29,8 @@ hololab://graph-node/<workflow-id>/fx  # frame-extraction
 <div class="flops-only">
 
 <figure class="doc-screenshot">
-<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-flops-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-flops-light.webp" alt="示意图：Flops 环境下的界面状态。高亮入口表示将引用插入对话；桥接环境与对话箭头图标仅在采集时模拟，并非 Flops 真机截图。" width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">插入对话</span></span></div></div>
-<figcaption>示意图：Flops 环境下的界面状态。高亮入口表示将引用插入对话；桥接环境与对话箭头图标仅在采集时模拟，并非 Flops 真机截图。</figcaption>
+<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-flops-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-flops-light.webp" alt="示意图：模拟 Flops 环境下的“引用到 Flops”。成对引号图标与产品源码一致；普通浏览器使用剪贴板图标。本图并非 Flops 真机截图。" width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">引用到 Flops</span></span></div></div>
+<figcaption>示意图：模拟 Flops 环境下的“引用到 Flops”。成对引号图标与产品源码一致；普通浏览器使用剪贴板图标。本图并非 Flops 真机截图。</figcaption>
 </figure>
 
 在 Flops 内嵌浏览器中，引用会插入对话输入框。插入的引用附带一份标记为 `hololab.reference-snapshot/v1` 的 Markdown 摘要，分为 identity、state、context 和 navigation 四部分。它记录的是引用时的情况；agent 可以重新解析引用，获取当前数据。

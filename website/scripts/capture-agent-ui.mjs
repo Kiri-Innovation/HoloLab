@@ -1,6 +1,6 @@
 // Read-only STG documentation capture; raw material stays in ignored test-results.
 import { chromium } from '@playwright/test';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
 process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY='1';
 const origin='http://117.50.186.141:8828',workflow='3711480d-e858-453c-bf5b-76af602e9805',out='test-results/agent-oriented';
 await mkdir(out,{recursive:true});
@@ -34,7 +34,7 @@ async function focus(p,ids,maxScale=1){
   v.style.transform=`translate(${(c.clientWidth-w*s)/2-x*s}px,${(c.clientHeight-h*s)/2-y*s}px) scale(${s})`;
  },{ids,maxScale});await p.waitForTimeout(250);
 }
-try { for (const mode of (process.env.CAPTURE_ENV ? [process.env.CAPTURE_ENV] : ['ordinary','flops'])) for (const theme of ['light','dark']) {
+try { for (const mode of (process.env.CAPTURE_ENV ? [process.env.CAPTURE_ENV] : ['ordinary','flops'])) for (const theme of (process.env.CAPTURE_THEME ? [process.env.CAPTURE_THEME] : ['light','dark'])) {
  const c=await browser.newContext({viewport:{width:1600,height:1050},deviceScaleFactor:2,serviceWorkers:'block',colorScheme:theme});
  await c.route('**/*', async route => {
   const q=route.request();
@@ -51,11 +51,19 @@ try { for (const mode of (process.env.CAPTURE_ENV ? [process.env.CAPTURE_ENV] : 
  const node=p.locator('.react-flow__node[data-id="fx"]');await node.waitFor({timeout:30000});await p.waitForTimeout(3000);
  await focus(p,['fx']);await sanitize(p,target.name);
  const reference=node.getByRole('button',{name:mode==='flops'?/引用到 Flops/:/复制引用给 AI/}).first();
- if(mode==='flops') await reference.evaluate(button=>{
-  // Replace only this session's icon, never the product component. A chat
-  // bubble with an arrow conveys insertion without inventing a chat UI.
-  button.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3l4 3v-3h3M14 13h8m-3-3 3 3-3 3"/></svg>';
- });
+ if(mode==='flops') {
+  // Verbatim canInsert glyph from CopyRefButton.tsx; fail if source drifts.
+  const paths=['M10 6H3v7h4c0 2-1 3-3 4v2c4-1 6-4 6-8V6Z','M21 6h-7v7h4c0 2-1 3-3 4v2c4-1 6-4 6-8V6Z'];
+  const source=await readFile('../hololab/frontend/src/canvas/CopyRefButton.tsx','utf8');
+  if(!paths.every(d=>source.includes(`<path d="${d}" />`)))throw Error('Product reference glyph changed; review capture.');
+  await reference.evaluate((button,paths)=>{
+   // Older running instances may not yet include this source revision.
+   // Match its exact SVG in this capture only; never modify product code.
+   button.innerHTML=`<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" data-reference-icon="quote" style="flex-shrink:0">${paths.map(d=>`<path d="${d}" />`).join('')}</svg>`;
+  },paths);
+  const actual=await reference.locator('svg').evaluate(svg=>({paths:[...svg.querySelectorAll('path')].map(p=>p.getAttribute('d')),width:svg.getAttribute('width'),stroke:svg.getAttribute('stroke-width')}));
+  if(JSON.stringify(actual.paths)!==JSON.stringify(paths)||actual.width!=='12'||actual.stroke!=='2.2')throw Error('Captured glyph does not match product source');
+ }
  await reference.hover();await p.waitForTimeout(800);
  const box=await node.boundingBox();
  await p.screenshot({path:`${out}/${mode==='flops'?'reference-flops':'reference-entry'}-${theme}.png`,clip:{x:box.x-10,y:box.y-35,width:box.width+20,height:140},animations:'disabled'});

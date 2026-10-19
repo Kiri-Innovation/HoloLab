@@ -14,8 +14,8 @@ Instead of describing “the node that failed,” use its reference action. Work
 <div class="no-flops-only">
 
 <figure class="doc-screenshot">
-<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-entry-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-entry-light.webp" alt="The frame-extraction node in STG. The clipboard icon to the left of the Run triangle is the reference action. Source imagery and device details are excluded." width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">Reference</span></span></div></div>
-<figcaption>The highlighted box marks the reference action. The frame-extraction node in STG. The clipboard icon to the left of the Run triangle is the reference action. Source imagery and device details are excluded.</figcaption>
+<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-entry-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-entry-light.webp" alt="The highlighted clipboard icon marks “Copy reference info” in the STG node header, to the left of Run." width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">Copy reference info</span></span></div></div>
+<figcaption>The highlighted clipboard icon marks “Copy reference info” in the STG node header, to the left of Run.</figcaption>
 </figure>
 
 Click the highlighted action to copy reference text for your agent conversation. It contains a `hololab://` reference and an optional comment, not a Markdown summary. This is the node’s copied text, with the workflow ID redacted:
@@ -29,8 +29,8 @@ hololab://graph-node/<workflow-id>/fx  # frame-extraction
 <div class="flops-only">
 
 <figure class="doc-screenshot">
-<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-flops-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-flops-light.webp" alt="Illustration: the interface state in a Flops environment. The highlighted action represents inserting a reference into the conversation. The bridge and chat-arrow icon were simulated for this capture; this is not a capture from Flops itself." width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">Insert reference</span></span></div></div>
-<figcaption>Illustration: the interface state in a Flops environment. The highlighted action represents inserting a reference into the conversation. The bridge and chat-arrow icon were simulated for this capture; this is not a capture from Flops itself.</figcaption>
+<div class="annotated-canvas"><picture><source srcset="/images/docs/reference-flops-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-flops-light.webp" alt="Illustration: “Reference to Flops” in a simulated Flops environment. The paired quotation marks match the product source; ordinary browsers use a clipboard icon. This is not a capture from Flops itself." width="744" height="280" loading="lazy" decoding="async" /></picture><div class="canvas-annotations" aria-hidden="true"><span class="canvas-region region-reference"><span class="reference-label">Reference to Flops</span></span></div></div>
+<figcaption>Illustration: “Reference to Flops” in a simulated Flops environment. The paired quotation marks match the product source; ordinary browsers use a clipboard icon. This is not a capture from Flops itself.</figcaption>
 </figure>
 
 In the Flops embedded browser, the action inserts a reference into the conversation input. The inserted reference includes a Markdown summary labeled `hololab.reference-snapshot/v1`, with identity, state, context and navigation sections. It is a summary captured at that moment; the agent can resolve the reference again for current data.

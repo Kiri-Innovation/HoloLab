@@ -29,6 +29,8 @@ try {
     assert.ok((await readFile('../skill/SKILL.md', 'utf8')).includes(skillExcerpt));
     assert.equal(await page.locator('article .no-flops-only').isVisible(), !flops);
     assert.equal(await page.locator('article .no-flops-only figure').isVisible(), !flops);
+    assert.equal(await page.locator('article .no-flops-only .reference-label').textContent(), language === 'en' ? 'Copy reference info' : '复制引用信息');
+    assert.equal(await page.locator('article .flops-only .reference-label').textContent(), language === 'en' ? 'Reference to Flops' : '引用到 Flops');
     assert.equal(await page.locator('article .flops-only figure').isVisible(), flops);
     assert.equal((await page.locator('article .no-flops-only code.language-text').textContent()).trim(), 'hololab://graph-node/<workflow-id>/fx  # frame-extraction');
     for (const theme of ['light', 'dark']) {
