@@ -15,6 +15,51 @@ def ffmpeg(*args):
 
 
 class ComposeTest(unittest.TestCase):
+    def test_short_layer_at_fractional_offset(self):
+        # A 30 fps single frame spans [0.1, 0.133333...) after shifting.
+        # On an 8 fps canvas it must appear at 0.125, and nowhere else.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            videos, offsets = root / "videos", root / "offsets"
+            videos.mkdir()
+            offsets.mkdir()
+            for ident, color, rate, count in [("0000", "red", 8, 8), ("0001", "blue", 30, 1)]:
+                layer = videos / ident
+                layer.mkdir()
+                ffmpeg(
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    f"color={color}:s=160x120:r={rate}",
+                    "-frames:v",
+                    count,
+                    "-c:v",
+                    "libx264",
+                    layer / "video.mp4",
+                )
+                (offsets / ident).write_text("0" if ident == "0000" else "0.1")
+            result = subprocess.run(
+                [sys.executable, str(PACK / "run.py")],
+                input=json.dumps(
+                    {
+                        "inputs": {"videos": str(videos), "offsets": str(offsets)},
+                        "params": {},
+                        "outputs": {"video": str(root / "out")},
+                    }
+                ),
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            raw = ffmpeg("-i", root / "out/output.mp4", "-f", "rawvideo", "-pix_fmt", "rgb24", "-")
+            size = 160 * 120 * 3
+            self.assertEqual(len(raw), 8 * size)
+            for index in range(8):
+                pixel = raw[index * size : index * size + 3]
+                channel = 2 if index == 1 else 0
+                self.assertGreater(pixel[channel], 200, f"Wrong layer at frame {index}")
+                self.assertLess(pixel[0 if channel == 2 else 2], 20)
+
     def test_composition(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

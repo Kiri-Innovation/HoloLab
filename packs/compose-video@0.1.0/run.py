@@ -158,17 +158,20 @@ def run(i, p, out):
             x, y = transform[0] * width, transform[1] * height
         if not all(math.isfinite(v) for v in (x, y)):
             raise ValueError(f"transforms[{ids[index]}]: position exceeds finite pixel range")
-        # Normalize source timestamps BEFORE trimming; shift using the output
-        # time base, so low-fps layers can start at sub-source-frame offsets.
+        # Keep source timestamps: pre-resampling a short layer can discard all
+        # its frames before its offset is applied. Framesync samples it on the
+        # canvas clock. Hold its last frame only within the natural-duration
+        # window; enable prevents any frozen tail after that window ends.
+        # AVTB permits offsets finer than the source frame interval.
         filters.append(
             f"[{index + 1}:v:0]setpts=PTS-STARTPTS,trim=duration={float(duration)},"
-            f"scale={sw}:{sh},setsar=1,format=rgba,fps={rate},"
+            f"scale={sw}:{sh},setsar=1,format=rgba,"
             f"settb=AVTB,setpts=PTS+{float(start)}/TB[l{index}]"
         )
         previous = "0:v" if index == 0 else f"c{index - 1}"
         filters.append(
             f"[{previous}][l{index}]overlay=x={x}:y={y}:format=auto:"
-            f"eof_action=pass:repeatlast=0:enable='gte(t,{float(start)})*lt(t,{float(end)})'[c{index}]"
+            f"eof_action=repeat:repeatlast=1:enable='gte(t,{float(start)})*lt(t,{float(end)})'[c{index}]"
         )
     encode(
         [
