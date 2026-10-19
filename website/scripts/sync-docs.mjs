@@ -167,9 +167,11 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
       schema.attributes.img = ['src', 'alt', 'width', 'height', ['loading', 'lazy'], ['decoding', 'async']];
     }
     if (doc.environmentContent) {
-      const attributes = schema.attributes.div ?? [];
-      const classes = attributes.filter(attribute => Array.isArray(attribute) && attribute[0] === 'className').flatMap(attribute => attribute.slice(1));
-      schema.attributes.div = [...attributes.filter(attribute => !(Array.isArray(attribute) && attribute[0] === 'className')), ['className', ...classes, 'flops-only', 'no-flops-only']];
+      for (const tag of ['div', ...(doc.screenshots ? ['figure', 'picture', 'img'] : [])]) {
+        const attributes = schema.attributes[tag] ?? [];
+        const classes = attributes.filter(attribute => Array.isArray(attribute) && attribute[0] === 'className').flatMap(attribute => attribute.slice(1));
+        schema.attributes[tag] = [...attributes.filter(attribute => !(Array.isArray(attribute) && attribute[0] === 'className')), ['className', ...classes, 'flops-only', 'no-flops-only']];
+      }
     }
     const renderer = unified().use(remarkRehype, { allowDangerousHtml: !!(doc.diagrams || doc.screenshots || doc.environmentContent) });
     if (doc.diagrams || doc.screenshots || doc.environmentContent) renderer.use(rehypeRaw);

@@ -1,3 +1,4 @@
-.flops-only { display: none; }
+.flops-only, .doc-screenshot .flops-only { display: none; }
 html[data-flops="1"] .flops-only { display: revert; }
+html[data-flops="1"] .doc-screenshot picture.flops-only { display: block; }
 html[data-flops="1"] .no-flops-only { display: none; }

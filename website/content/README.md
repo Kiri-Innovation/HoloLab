@@ -10,7 +10,7 @@ Your paragraph with `inline code`.
 </div>
 ```
 
-Set `"environmentContent": true` on that document's entries in `scripts/docs-sources.json` (both languages). Only these two classes are permitted by this option; HTML remains sanitized. Keep each language's paragraph in its own Markdown file.
+Set `"environmentContent": true` on that document's entries in `scripts/docs-sources.json` (both languages). With `"screenshots": true`, the same classes also work directly on `figure`, `picture`, and `img` elements. Prefer wrapping a whole figure when its caption is also environment-specific. Only these two classes are permitted by this option; HTML remains sanitized. Keep each language's paragraph in its own Markdown file.
 
 The website matches the product's `flopsInsertReferenceAvailable()` check: `window.flops.version === 1` and a callable `insertReference`. An empty object is not sufficient. CoBrowser injects the bridge before page scripts; the website checks before React mounts. Flops-only content is hidden by default, avoiding a flash in ordinary browsers. This is presentation, not access control.
 

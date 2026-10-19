@@ -11,9 +11,22 @@ order: 25
 
 不用描述“刚才失败的那个节点”，直接使用它的引用入口。工作流、画布节点、Run、Job、产物引用（Handle）、Pack 和计算设备都有 `hololab://` 引用；`hololab://workflows` 和 `hololab://artifacts` 则指向整个列表。引用标识的是实例内的对象，因此也要把实例地址告诉 agent。
 
+<figure class="doc-screenshot">
+<picture><source srcset="/images/docs/reference-entry-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" /><img src="/images/docs/reference-entry-light.webp" alt="STG 的 frame-extraction 节点：标题右侧、运行三角按钮左边的剪贴板图标是引用入口。图中未展示原始影像或设备信息。" width="744" height="280" loading="lazy" decoding="async" /></picture>
+<figcaption>STG 的 frame-extraction 节点：标题右侧、运行三角按钮左边的剪贴板图标是引用入口。图中未展示原始影像或设备信息。</figcaption>
+</figure>
+
 <div class="flops-only">
 
-在 Flops 内嵌浏览器中，引用会插入对话输入框；普通浏览器会复制引用文本，供你粘贴。插入的引用附带一份标记为 `hololab.reference-snapshot/v1` 的 Markdown 摘要，分为 identity、state、context 和 navigation 四部分。它记录的是引用时的情况；agent 可以重新解析引用，获取当前数据。
+在 Flops 内嵌浏览器中，引用会插入对话输入框。插入的引用附带一份标记为 `hololab.reference-snapshot/v1` 的 Markdown 摘要，分为 identity、state、context 和 navigation 四部分。它记录的是引用时的情况；agent 可以重新解析引用，获取当前数据。
+
+</div>
+
+<!-- Flops input-pill screenshot: add here when a reviewed real-device capture is available. -->
+
+<div class="no-flops-only">
+
+普通浏览器会复制引用文本，供你粘贴到与 agent 的对话中。
 
 </div>
 
@@ -21,19 +34,41 @@ order: 25
 
 agent 可以调用 `GET /api/resolve?ref=hololab://…` 读取对象，再沿返回的关联链接继续查。对于画布节点，响应包含已保存的参数、上下游连接，以及存在时的最近执行归属和输出 Handle。
 
-下面是解析响应的结构示意，省略了具体数据：
+下面摘自这条 STG 工作流中一个已完成 Job 的真实解析响应，仅保留部分字段；记录 ID 已替换为占位符。`ref` 标识对象，`resource` 给出任务状态与算法上下文，`related` 提供后续读取入口。
 
-```text
-kind + ref   → 指的是哪个对象？
-resource     → 对象数据与上下文
-related      → 继续读取的 API 链接
+```json
+{
+  "kind": "job",
+  "ref": "hololab://job/<job-id>",
+  "resource": {
+    "job_id": "<job-id>",
+    "graph_node_id": "und",
+    "algorithm_name": "image-undistort",
+    "algorithm_version": "0.5.0",
+    "state": "done",
+    "progress": null
+  },
+  "related": {
+    "log": "/api/jobs/<job-id>/log",
+    "workflow": "/api/workflows/<workflow-id>",
+    "snapshot": "/api/snapshots/<snapshot-id>"
+  }
+}
 ```
 
-解析接口返回 JSON，上面的四段式 Markdown 摘要由它生成。任务日志可从 `/api/jobs/<id>/log` 读取，运行快照可从 `/api/snapshots/<id>` 读取。agent 因而可以调查失败步骤，不必从界面像素里辨认状态；但要判断渲染效果好不好，仍然需要看产物。
+解析接口返回 JSON，引用中的四段式 Markdown 摘要由它生成。任务日志可从 `/api/jobs/<id>/log` 读取，运行快照可从 `/api/snapshots/<id>` 读取。agent 因而可以调查失败步骤，不必从界面像素里辨认状态；但要判断渲染效果好不好，仍然需要看产物。
 
 ## 一切包含在技能中
 
 仓库中的 `skill/SKILL.md` 介绍如何检查实例、解析引用、编辑和运行工作流、等待结果、读取产物与日志，以及取消任务。它也指向 `docs/` 中的 Pack 编写指南和规范。
+
+例如，技能中用这一条请求等待运行完成并读取各任务状态，无需自己写轮询。`$HOLO` 是实例地址，`$SNAP` 是运行返回的快照 ID；以下为原文摘录，并未在本次采集中执行：
+
+```bash
+# c) LONG-POLL until done — one call, up to timeout seconds
+curl -s "$HOLO/api/snapshots/$SNAP?wait_for_state=done&timeout=1800" \
+  | jq '{waited, wait_timed_out, jobs: [.jobs[] | {algorithm_name, state}]}'
+```
 
 让 agent 从仓库副本读取这个文件，或通过它支持的技能机制装载。只提供实例 URL 不会自动安装技能：目前实例没有自动下载或安装技能的端点。这份技能是附带后续文档入口的操作指南，并非把所有手册都打包在一个文件里。
 

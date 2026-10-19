@@ -6,9 +6,9 @@ const output = 'test-results/browser-environment';
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ args: ['--no-proxy-server'] });
 try {
-  for (const language of ['en', 'zh-CN']) for (const mode of ['ordinary', 'empty-bridge', 'flops', 'mobile']) {
+  for (const language of ['en', 'zh-CN']) for (const mode of ['ordinary', 'empty-bridge', 'flops', 'mobile', 'mobile-ordinary']) {
     const flops = mode === 'flops' || mode === 'mobile';
-    const page = await browser.newPage({ viewport: mode === 'mobile' ? { width: 390, height: 844 } : { width: 1280, height: 1000 } });
+    const page = await browser.newPage({ viewport: mode.startsWith('mobile') ? { width: 390, height: 844 } : { width: 1280, height: 1000 } });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(({ flops, mode }) => {
@@ -21,12 +21,23 @@ try {
     assert.equal(await page.locator('article .flops-only').isVisible(), flops);
     assert.match(await page.locator('article .flops-only').textContent(), /hololab.reference-snapshot\/v1/);
     assert.equal(await page.locator('article .flops-only code').count(), 1);
-    // Exercise the reverse class without adding irrelevant copy to the article.
-    await page.evaluate(() => { const el = document.createElement('div'); el.className = 'no-flops-only'; el.textContent = 'Ordinary browser'; document.querySelector('article').append(el); });
-    assert.equal(await page.locator('.no-flops-only').isVisible(), !flops);
-    await page.locator('.no-flops-only').evaluate(el => el.remove());
+    const excerpt = JSON.parse(await page.locator('code.language-json').textContent());
+    assert.equal(excerpt.resource.state, 'done');
+    assert.equal(excerpt.resource.algorithm_name, 'image-undistort');
+    assert.deepEqual(Object.keys(excerpt), ['kind', 'ref', 'resource', 'related']);
+    const skillExcerpt = (await page.locator('code.language-bash').textContent()).trim();
+    assert.ok((await readFile('../skill/SKILL.md', 'utf8')).includes(skillExcerpt));
+    assert.equal(await page.locator('article .no-flops-only').isVisible(), !flops);
+    // Exercise direct picture classes on the real shared illustration.
+    const picture = page.locator('article .doc-screenshot picture');
+    await picture.evaluate(el => el.classList.add('flops-only'));
+    assert.equal(await picture.isVisible(), flops);
+    await picture.evaluate(el => { el.classList.remove('flops-only'); el.classList.add('no-flops-only'); });
+    assert.equal(await picture.isVisible(), !flops);
+    await picture.evaluate(el => el.classList.remove('no-flops-only'));
     for (const theme of ['light', 'dark']) {
       await page.locator('.theme-control').selectOption(theme);
+      await page.waitForFunction(theme => { const img = document.querySelector('article .doc-screenshot img'); return img.complete && img.naturalWidth > 0 && img.currentSrc.endsWith(`-${theme}.webp`); }, theme);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       await page.screenshot({ path: `${output}/${language}-${mode}-${theme}.png`, fullPage: true });
     }
