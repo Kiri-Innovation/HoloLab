@@ -1,0 +1,70 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: compose-video
+version: 0.1.0
+description: Composite ordered video layers with per-layer transforms and start offsets.
+category: video/editing
+source_entry: run.py
+docs: |-
+  Consumes the whole array in one invocation (no fan-out). Non-dot entry names sort lexically; later layers are on top. Zero-pad numeric IDs. Each video element is one video file or a directory containing exactly one video.
+  Optional transforms/offsets directories must have exactly the same entry names as videos, including extensions. Each attribute leaf is a file. Hidden entries are ignored. No index guessing, broadcasting or partial arrays.
+  float contract: one finite decimal number (scientific notation allowed), whitespace around it allowed. Offsets must be >= 0. vec3 contract: a JSON array of exactly three finite numbers [x_ratio, y_ratio, scale]; booleans/strings are invalid and scale must be > 0.
+  x/y are the layer's top-left relative to canvas width/height. Out-of-bounds content is clipped, never repositioned. First contain the display-aspect-correct layer in the canvas, then multiply both dimensions by scale; unlike overlay width_ratio, scale is NOT a fraction of canvas width.
+  Without transforms, each layer is contained and centered with scale=1. Without offsets, all layers start at 0. Each layer plays from source time 0 and disappears at its natural video-stream end; it never freezes or loops.
+  Canvas is the first layer's display size (rotation and SAR accounted for), padded to even. fps omitted/null uses the first layer's average frame rate (fallback nominal rate). Output is CFR; VFR sources are resampled. Total duration is max(offset + natural video duration), rounded UP to an output frame. Black canvas remains visible in gaps. fps override must be >0 and <=240.
+  CPU-only, two encoder/filter threads, env kiri. Silent H.264/yuv420p, CRF 20, faststart. Input media is never modified.
+inputs:
+  videos:
+    tags:
+    - video-source
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - layer
+    require_axis_label_match: false
+  transforms:
+    tags:
+    - vec3
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - layer
+    required: false
+    require_axis_label_match: false
+  offsets:
+    tags:
+    - float
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - layer
+    required: false
+    require_axis_label_match: false
+params:
+  fps:
+    type: float
+    optional: true
+    min: 0.001
+    max: 240
+    description: CFR output rate; omit to use bottom-layer average frame rate.
+outputs:
+  video:
+    tags:
+    - video-source
+    storage: dir
+    description: One silent H.264/yuv420p MP4 (output.mp4), ready for browser preview.
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 2
+    mem_gb: 2
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/run.py" <<'HOLOLAB_VIDEO_CONFIG'
+    {{ {'inputs': inputs, 'outputs': outputs, 'params': params} | tojson }}
+    HOLOLAB_VIDEO_CONFIG
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
