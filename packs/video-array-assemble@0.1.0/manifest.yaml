@@ -1,0 +1,40 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: video-array-assemble
+version: 0.1.0
+description: Assemble ordered video paths into a layer array.
+category: source/video
+source_entry: run.py
+docs: |-
+  paths_json is a nonempty JSON array of absolute paths on the selected compute node. Each path is a video file or a directory containing exactly one supported video (.mp4/.mov/.mkv/.avi/.webm/.m4v). Order in the JSON list is layer order, NOT sorted path order. Repeated paths are allowed.
+  Output videos/0000/<original-name>, videos/0001/<original-name>, ... contains symlinks to the original files; no pixels are changed. IDs are zero-based, at least four digits (all IDs widen together above 10000 items). Later layers are on top in compose-video. Missing, ambiguous or unreadable video streams fail before publication.
+  Local paths do not create workflow dependencies or resolve library URIs. Run upstream producers first and retain the source files. Connect videos to compose-video.videos and to the optional videos reference of the two attribute-source packs.
+  CPU-only, env kiri. Uses a fresh empty output directory; validates before publishing. No ASE parameter binding or dynamic input ports.
+params:
+  paths_json:
+    type: string
+    description: Ordered JSON array of absolute video-file or single-video-directory
+      paths.
+outputs:
+  videos:
+    tags:
+    - video-source
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - layer
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 0.1
+    mem_gb: 0.5
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/run.py" <<'HOLOLAB_ARRAY_CONFIG'
+    {{ {'inputs': inputs, 'outputs': outputs, 'params': params} | tojson }}
+    HOLOLAB_ARRAY_CONFIG
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]

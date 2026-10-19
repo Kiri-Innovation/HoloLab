@@ -1,0 +1,51 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: vec3-array-source
+version: 0.1.0
+description: Produce ID-aligned vec3 attributes for compose-video.
+category: source/array
+source_entry: run.py
+docs: |-
+  items is a nonempty JSON array of objects, e.g. [{"id":"0000","transform":[0.65,0.05,0.3]}]. Only id and transform keys are allowed. Duplicate IDs/keys, unsafe filenames, non-finite numbers, booleans and numeric strings are rejected.
+  Connect videos from video-array-assemble (or another arrayed<video-source>) to bind IDs. Then items may all omit id: values are assigned to lexically sorted non-dot reference element names, with exact count matching. When IDs are explicit their set must exactly match the reference; input item order does not override IDs. Mixing explicit/implicit IDs is an error. The reference is read-only, not passed through.
+  Without videos, first run video-array-assemble, inspect its element names (normally 0000, 0001, ...), and supply those exact IDs in every item. Files have exactly those names, with no added extension. Compose-video still checks alignment downstream.
+  transform must be exactly three finite numbers [x_ratio,y_ratio,scale], with scale > 0. x/y are top-left canvas ratios, allowed outside 0..1; scale multiplies the contain-to-canvas size (NOT overlay width_ratio). Output leaves are JSON arrays.
+  CPU-only, env kiri. Uses a fresh empty output directory; validates before publishing. No ASE parameter binding or dynamic input ports.
+inputs:
+  videos:
+    tags:
+    - video-source
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - layer
+    required: false
+    require_axis_label_match: false
+params:
+  items:
+    type: string
+    description: JSON objects with transform and optional id. Omit all ids only when
+      videos is connected.
+outputs:
+  transforms:
+    tags:
+    - vec3
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - layer
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 0.1
+    mem_gb: 0.5
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/run.py" <<'HOLOLAB_ARRAY_CONFIG'
+    {{ {'inputs': inputs, 'outputs': outputs, 'params': params} | tojson }}
+    HOLOLAB_ARRAY_CONFIG
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
