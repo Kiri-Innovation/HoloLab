@@ -137,6 +137,7 @@ export function useDraftAutosave(opts: {
   const optsRef = useRef(opts);
   optsRef.current = opts;
   const [status, setStatus] = useState<SaveStatus>("idle");
+  const [syncRevision, setSyncRevision] = useState(0);
   const lastSavedSerialised = useRef<string>("");
   const inFlight = useRef<Promise<void> | null>(null);
   const savedOnce = useRef<boolean>(false);
@@ -223,7 +224,7 @@ export function useDraftAutosave(opts: {
     return () => {
       window.clearTimeout(t);
     };
-  }, [opts.enabled, opts.serialisedSnapshot, doSave, status]);
+  }, [opts.enabled, opts.serialisedSnapshot, doSave, status, syncRevision]);
 
   // ``beforeunload`` flush. sendBeacon is fire-and-forget; the
   // gateway's POST /api/workflows endpoint accepts the same body
@@ -265,6 +266,10 @@ export function useDraftAutosave(opts: {
     // no save fires. Callers should call this BEFORE they mutate the
     // draft state (so the effect's next tick reads the loaded state,
     // not the previous workflow's).
+    // Re-loading identical data must still stamp the clean baseline. Otherwise
+    // the effect dependencies do not change and the first subsequent edit is
+    // mistaken for hydration and silently skipped.
+    setSyncRevision(revision => revision + 1);
     lastSavedSerialised.current = "";
     savedOnce.current = false;
     baseUpdatedTs.current = updatedTs;

@@ -41,3 +41,36 @@ async def test_pin_persistence_snapshot_and_conflict(tmp_path):
             )
     finally:
         await db.close()
+
+
+def test_pin_http_roundtrip_and_snapshot_freeze(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from hololab.gateway.app import create_app
+
+    with TestClient(create_app(db_path=tmp_path / "pin-api.sqlite")) as client:
+        payload = {
+            "name": "pins",
+            "graph": {"nodes": [], "edges": [], "pinned_params": {"demo@1": ["count"]}},
+        }
+        response = client.post("/api/workflows", json=payload)
+        assert response.status_code == 200, response.text
+        workflow_id = response.json()["workflow_id"]
+        current = client.get(f"/api/workflows/{workflow_id}").json()
+        assert current["graph"]["pinned_params"] == {"demo@1": ["count"]}
+
+        async def snapshot():
+            return await client.app.state.workflows.create_snapshot(
+                workflow_id=workflow_id, graph=WorkflowGraph.model_validate(current["graph"])
+            )
+
+        snap = client.portal.call(snapshot)
+        payload.update(workflow_id=workflow_id, base_updated_ts=current["updated_ts"])
+        payload["graph"]["pinned_params"] = {"demo@1": ["label"]}
+        assert client.post("/api/workflows", json=payload).status_code == 200
+        frozen = client.get(f"/api/snapshots/{snap.snapshot_id}")
+        assert frozen.status_code == 200
+        assert frozen.json()["graph"]["pinned_params"] == {"demo@1": ["count"]}
+        assert client.get(f"/api/workflows/{workflow_id}").json()["graph"]["pinned_params"] == {
+            "demo@1": ["label"]
+        }

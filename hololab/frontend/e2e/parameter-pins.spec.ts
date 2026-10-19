@@ -1,12 +1,20 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 
-async function fixture(page: Page) {
-  const pack = { name:'pin-demo',version:'1.0',manifest_hash:'pins',node_ids:['compute'],description:'Parameter pin regression fixture',
-    docs:'# Parameter pins\nPin display is shared; values belong to individual nodes.', inputs:{},outputs:{},arrayable:true,
+async function fixture(page: Page, grouped = false) {
+  const pack:any = { name:'pin-demo',version:'1.0',manifest_hash:'pins',node_ids:['compute'],description:'Parameter pin regression fixture',
+    docs:'# Parameter pins\nPin display is shared; values belong to individual nodes.', inputs:{input:{tags:['text'],arrayed:false}},outputs:{output:{tags:['text'],arrayed:false}},arrayable:true,
     params:{count:{type:'int',default:1,description:'Independent iteration count.'},mode:{type:'enum',default:1,values:[1,2,'2']},label:{type:'string',default:'hello'}} };
+  if(grouped) Object.assign(pack,{name:'vec3-array-source',version:'0.1.0',params:{
+    x:{type:'array',items:'float',default:[1]},y:{type:'array',items:'float',default:[2]},scale:{type:'array',items:'float',default:[1]}
+  }});
+  else Object.assign(pack.params,{
+    enabled:{type:'bool',default:false},path:{type:'path',default:'/tmp/input.mp4'},
+    items:{type:'array',items:'float',default:[1]},
+    input_dims:{type:'list[str]',default:['camera']},output_dims:{type:'list[str]',default:['camera']}
+  });
   const catalog = [pack, {...pack,version:'2.0'}];
-  let graph:any={nodes:['a','b','c'].map((id,i)=>({id,algorithm_name:pack.name,algorithm_version:i===2?'2.0':'1.0',position:{x:40+i*250,y:100},params:{count:i+1},assigned_node_id:'compute',arrayed_toggle:i===1})),edges:[]};
+  let graph:any={nodes:['a','b','c'].map((id,i)=>({id,algorithm_name:pack.name,algorithm_version:i===2?'2.0':pack.version,position:{x:40+i*250,y:100},params:{count:i+1},assigned_node_id:'compute',arrayed_toggle:i===1})),edges:[{id:'a-b',source:'a',sourceHandle:'output',target:'b',targetHandle:'input'}]};
   const saved:any[]=[];
   await page.routeWebSocket('**',()=>{});
   await page.route('**/api/**',async route=>{
@@ -23,7 +31,7 @@ async function fixture(page: Page) {
   await page.setViewportSize({width:1600,height:1050});
   await page.goto('/w/pins');
   await expect(page.locator('[data-hololab-node="algorithm"]')).toHaveCount(3);
-  return {saved};
+  return {saved,initialGraph:graph};
 }
 
 test('workflow pins share display, not values, and survive save/reload',async({page})=>{
@@ -53,6 +61,7 @@ test('workflow pins share display, not values, and survive save/reload',async({p
   mkdirSync('/tmp/parameter-pins',{recursive:true});
   for(const theme of ['light','dark']){
     await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+    await page.waitForTimeout(250);
     await page.screenshot({path:`/tmp/parameter-pins/draft-${theme}.png`});
   }
   await page.reload();
@@ -61,10 +70,12 @@ test('workflow pins share display, not values, and survive save/reload',async({p
   await inspector.getByRole('button',{name:'Unpin count on all pin-demo@1.0 nodes in this workflow',exact:true}).click();
   await expect(node('a').getByLabel('count',{exact:true})).toHaveCount(0);
   await expect(node('b').getByLabel('count',{exact:true})).toHaveCount(0);
+  await expect(page.locator('.react-flow__edge-path').first()).toBeVisible();
+  expect(await page.locator('.react-flow__edge-path').first().getAttribute('d')).not.toContain('NaN');
   await page.setViewportSize({width:390,height:800});
   await page.getByRole('tab',{name:'Inspect',exact:true}).click();
   await expect(inspector.getByLabel('mode',{exact:true})).toBeVisible();
-  // The pre-existing global toolbar overflows at 390px; pin controls must not.
+  // The existing global toolbar can overflow; the Inspector controls must fit.
   expect(await inspector.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await inspector.getByLabel('mode',{exact:true}).scrollIntoViewIfNeeded();
   await page.screenshot({path:'/tmp/parameter-pins/narrow.png'});
@@ -82,6 +93,81 @@ test('snapshot uses frozen pins, hides missing fields, and cannot edit',async({p
   mkdirSync('/tmp/parameter-pins',{recursive:true});
   for(const theme of ['light','dark']){
     await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+    await page.waitForTimeout(250);
     await page.screenshot({path:`/tmp/parameter-pins/snapshot-${theme}.png`});
   }
+});
+
+test('pinned array, path, bool and list controls share the Inspector editors',async({page})=>{
+  const {saved}=await fixture(page);
+  const node=page.locator('.react-flow__node[data-id="a"]');
+  await node.locator('[data-hololab-node="algorithm"]').click({position:{x:70,y:20}});
+  const inspector=page.locator('.hl-node-inspector');
+  for(const name of ['enabled','path','items','output_dims'])
+    await inspector.getByRole('button',{name:`Pin ${name} on all pin-demo@1.0 nodes in this workflow`,exact:true}).click();
+  const pinned=node.getByRole('group',{name:'Pinned parameters',exact:true});
+  await pinned.getByLabel('enabled',{exact:true}).check();
+  await expect(inspector.getByLabel('enabled',{exact:true})).toBeChecked();
+  await pinned.getByLabel('path',{exact:true}).fill('/tmp/edited.mp4');
+  await expect(inspector.getByLabel('path',{exact:true})).toHaveValue('/tmp/edited.mp4');
+  await pinned.getByLabel('items[0]',{exact:true}).fill('3.5');
+  await pinned.getByRole('button',{name:'Add items item',exact:true}).click();
+  await expect(inspector.getByLabel('items[0]',{exact:true})).toHaveValue('3.5');
+  await expect(inspector.getByLabel('items[1]',{exact:true})).toHaveValue('0');
+  const labels=await pinned.locator('input').evaluateAll(elements=>elements.map(el=>el.getAttribute('aria-label')));
+  expect(labels.some(label=>label?.startsWith('output_dims'))).toBe(true);
+  await expect.poll(()=>saved.at(-1)?.graph.nodes[0].params.items).toEqual([3.5,0]);
+  expect(saved.at(-1).graph.nodes[0].params.enabled).toBe(true);
+  expect(saved.at(-1).graph.nodes[0].params.path).toBe('/tmp/edited.mp4');
+  // Typing F in a pinned text input must not frame/pan the canvas.
+  const viewport=page.locator('.react-flow__viewport').first();
+  const before=await viewport.getAttribute('style');
+  await pinned.getByLabel('path',{exact:true}).press('f');
+  await expect(viewport).toHaveAttribute('style',before!);
+});
+
+test('transform pin toggles x/y/scale as one row and grows node bounds',async({page})=>{
+  const {saved}=await fixture(page,true);
+  const node=page.locator('.react-flow__node[data-id="a"]');
+  await node.locator('[data-hololab-node="algorithm"]').click({position:{x:70,y:20}});
+  const inspector=page.locator('.hl-node-inspector');
+  const before=(await node.boundingBox())!.height;
+  await inspector.getByRole('button',{name:'Pin x / y / scale on all vec3-array-source@0.1.0 nodes in this workflow',exact:true}).click();
+  const pinned=node.getByRole('group',{name:'Pinned parameters',exact:true});
+  await expect(pinned.getByRole('group',{name:'transform array',exact:true})).toBeVisible();
+  await pinned.getByLabel('x[0]',{exact:true}).fill('7');
+  await expect(inspector.getByLabel('x[0]',{exact:true})).toHaveValue('7');
+  await expect.poll(()=>saved.at(-1)?.graph.pinned_params).toEqual({'vec3-array-source@0.1.0':['x','y','scale']});
+  await expect.poll(async()=>(await node.boundingBox())!.height).toBeGreaterThan(before);
+  await pinned.getByRole('button',{name:'Add transform item',exact:true}).click();
+  await expect(inspector.getByLabel('scale[1]',{exact:true})).toHaveValue('1');
+  await inspector.getByRole('button',{name:'Unpin x / y / scale on all vec3-array-source@0.1.0 nodes in this workflow',exact:true}).click();
+  await expect(page.getByRole('group',{name:'Pinned parameters',exact:true})).toHaveCount(0);
+  await expect.poll(async()=>(await node.boundingBox())!.height).toBeCloseTo(before,0);
+});
+
+test('legacy enum pins preserve invalid values until explicitly edited',async({page})=>{
+  const {initialGraph,saved}=await fixture(page);
+  initialGraph.nodes[0].params.mode='legacy-value';
+  initialGraph.pinned_params={'pin-demo@1.0':['mode','removed']};
+  await page.reload();
+  const node=page.locator('.react-flow__node[data-id="a"]');
+  const pinned=node.getByRole('group',{name:'Pinned parameters',exact:true});
+  await expect(pinned.getByLabel('mode',{exact:true})).toHaveValue('legacy-value');
+  await expect(pinned).toContainText('Current value is not in the available options.');
+  await expect(pinned).not.toContainText('removed');
+  await pinned.getByLabel('mode',{exact:true}).fill('updated-legacy');
+  await node.locator('[data-hololab-node="algorithm"]').click({position:{x:70,y:20}});
+  await expect(page.locator('.hl-node-inspector').getByLabel('mode',{exact:true})).toHaveValue('updated-legacy');
+  await expect.poll(()=>saved.at(-1)?.graph.nodes[0].params.mode).toBe('updated-legacy');
+  expect(saved.at(-1).graph.pinned_params['pin-demo@1.0']).toEqual(['mode','removed']);
+});
+
+test('reloading an identical graph does not swallow the next edit',async({page})=>{
+  await page.goto('/e2e/fixtures/parameter-pins.html?autosave');
+  await page.getByRole('button',{name:'Reload unchanged workflow'}).click();
+  await expect(page.getByLabel('Reloads')).toHaveText('1');
+  await expect(page.getByLabel('Saves')).toHaveText('[]');
+  await page.getByLabel('Value',{exact:true}).fill('first edit');
+  await expect(page.getByLabel('Saves')).toHaveText('["first edit"]');
 });
