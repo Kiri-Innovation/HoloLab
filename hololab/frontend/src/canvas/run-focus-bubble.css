@@ -1,0 +1,11 @@
+/* Match Inspector field tooltip tokens, without coupling its selectors/lifecycle. */
+.hl-run-focus-bubble { position: fixed; z-index: 12000; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 16px); box-sizing: border-box; padding: 10px 12px; background: var(--overlay); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-2); color: var(--text-body); font-size: var(--fs-xs); line-height: 1.5; }
+.hl-run-focus-bubble [role="status"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hl-run-focus-bubble code { font-family: var(--font-mono); }
+.hl-run-focus-bubble button { flex-shrink: 0; width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 16px; line-height: 1; }
+.hl-run-focus-bubble button:hover { background: var(--surface-hover); color: var(--text); }
+.hl-run-focus-bubble button:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 2px; }
+.hl-run-focus-arrow { position: absolute; top: var(--run-arrow-y, 12px); left: -5px; width: 8px; height: 8px; box-sizing: border-box; transform: translateY(-50%) rotate(45deg); background: var(--overlay); border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.hl-run-focus-bubble[data-arrow-side="right"] .hl-run-focus-arrow { left: auto; right: -5px; border: 0; border-top: 1px solid var(--border); border-right: 1px solid var(--border); }
+.hl-run-focus-bubble[data-arrow-side="bottom"] .hl-run-focus-arrow { top: auto; bottom: -5px; left: 20px; transform: rotate(-45deg); }
+.hl-run-focus-bubble[data-arrow-side="top"] .hl-run-focus-arrow { top: -5px; left: 20px; transform: rotate(135deg); }

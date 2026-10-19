@@ -7,7 +7,8 @@
 // V12 additions: per-run star (favorite) and Markdown note.
 
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { RunFocusBubble } from "./RunFocusBubble";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import type {
@@ -48,6 +49,9 @@ export interface RunsPanelProps {
   focusRequest?: { snapshotId: string; nonce: number } | null;
 }
 
+// The mobile tab shell unmounts panels; do not replay a consumed request on return.
+const consumedFocusRequests = new WeakSet<object>();
+
 export function RunsPanel({
   workflowId,
   onOpenSnapshot,
@@ -59,42 +63,66 @@ export function RunsPanel({
 }: RunsPanelProps) {
   const root = useRef<HTMLDivElement>(null);
   const [focusMessage, setFocusMessage] = useState<string | null>(null);
+  const [runs, setRuns] = useState<RunSummaryRow[] | null>(null);
+  const [focusTarget, setFocusTarget] = useState<HTMLElement | null>(null);
+  const pendingFocus = useRef<string | null>(null);
+  const closeFocus = useCallback(() => {
+    pendingFocus.current = null;
+    setFocusTarget(null);
+  }, []);
+
+  // Runs remains mounted in the desktop dock. Closing its tab must also
+  // dismiss the portal and cancel a navigation still waiting for the network.
+  useLayoutEffect(() => {
+    const panel = root.current?.closest('[role="tabpanel"]');
+    if (!panel) return;
+    const observer = new MutationObserver(() => {
+      if (panel.hasAttribute("hidden")) closeFocus();
+    });
+    observer.observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+    return () => observer.disconnect();
+  }, [closeFocus]);
+
+  const locateFocus = useCallback(() => {
+    if (!pendingFocus.current) return;
+    const row = Array.from(root.current?.querySelectorAll<HTMLElement>("[data-hl-run-id]") ?? [])
+      .find(el => el.dataset.hlRunId === pendingFocus.current);
+    if (!row) return;
+    row.scrollIntoView({ block: "center", behavior: "instant" });
+    pendingFocus.current = null;
+    setFocusTarget(row);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (focusRequest && consumedFocusRequests.has(focusRequest)) return;
+    if (focusRequest) consumedFocusRequests.add(focusRequest);
+    setFocusTarget(null);
+    setFocusMessage(null);
+    pendingFocus.current = focusRequest?.snapshotId ?? null;
+    locateFocus();
+  }, [focusRequest, workflowId, locateFocus]);
+
+  // Locate newly fetched rows before paint; existing rows never wait for I/O.
+  useLayoutEffect(locateFocus, [runs, locateFocus]);
+
   useEffect(() => {
     if (!focusRequest) return;
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let animation: Animation | undefined;
-    let row: HTMLElement | undefined;
-    setFocusMessage(null);
-    void (async () => {
-      try {
-        // Re-fetch once per explicit navigation, including runs added since mount.
-        const rows = await listWorkflowRuns(workflowId);
-        if (cancelled) return;
-        setRuns(rows);
-        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-        if (cancelled) return;
-        row = Array.from(root.current?.querySelectorAll<HTMLElement>("[data-hl-run-id]") ?? [])
-          .find(el => el.dataset.hlRunId === focusRequest.snapshotId);
-        if (!row) {
-          setFocusMessage(`Run ${focusRequest.snapshotId.slice(0, 8)} is not in this workflow's current list. It may have been removed.`);
-          return;
-        }
-        row.scrollIntoView({ block: "center", behavior: "instant" });
-        row.dataset.hlRunHighlight = "true";
-        const style = getComputedStyle(row);
-        animation = row.animate([
-          { backgroundColor: style.getPropertyValue("--accent-soft"), boxShadow: `inset 3px 0 ${style.getPropertyValue("--accent")}` },
-          { backgroundColor: style.backgroundColor, boxShadow: "inset 3px 0 transparent" },
-        ], { duration: 2000, easing: "ease-out" });
-        timer = setTimeout(() => row?.removeAttribute("data-hl-run-highlight"), 2000);
-      } catch {
-        if (!cancelled) setFocusMessage("Could not locate this run. Refresh the list and try again.");
+    void listWorkflowRuns(workflowId).then(rows => {
+      if (cancelled) return;
+      setRuns(rows);
+      if (!rows.some(row => row.snapshot_id === focusRequest.snapshotId)) {
+        closeFocus();
+        setFocusMessage(`Run ${focusRequest.snapshotId.slice(0, 8)} is not in this workflow's current list. It may have been removed.`);
       }
-    })();
-    return () => { cancelled = true; clearTimeout(timer); animation?.cancel(); row?.removeAttribute("data-hl-run-highlight"); };
-  }, [focusRequest, workflowId]);
-  const [runs, setRuns] = useState<RunSummaryRow[] | null>(null);
+    }).catch(() => {
+      if (!cancelled && pendingFocus.current) {
+        closeFocus();
+        setFocusMessage("Could not locate this run. Refresh the list and try again.");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [focusRequest, workflowId, closeFocus]);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -174,6 +202,7 @@ export function RunsPanel({
       }}
     >
       <Header onRefresh={refresh} />
+      {focusTarget && <RunFocusBubble target={focusTarget} onClose={closeFocus} />}
       {focusMessage && <p role="status" style={{ margin: 0, padding: 12, color: "var(--text-muted)" }}>{focusMessage}</p>}
       {error && (
         <div

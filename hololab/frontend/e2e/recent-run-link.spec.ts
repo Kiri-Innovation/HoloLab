@@ -1,11 +1,11 @@
 import {test,expect} from '@playwright/test';
 import {mkdirSync} from 'node:fs';
-for(const theme of ['light','dark']) test(`recent preview links to its attributed run ${theme}`,async({page})=>{
+for(const theme of ['light','dark']) test(`recent preview links to its attributed run ${theme}`,async({page},info)=>{
  const old='12345678-old-preview-run', latest='87654321-latest-run';
  const pack={name:'image-test',version:'1.0.0',node_ids:['compute'],manifest_hash:'test',inputs:{},outputs:{image:{tags:['image'],arrayed:false,dim_labels:[],preview:null}},params:{amount:{type:'int',default:1}}};
  let graph:any={nodes:[{id:'n',algorithm_name:pack.name,algorithm_version:pack.version,position:{x:20,y:20},params:{amount:1},assigned_node_id:'compute',preview_open:'image'}],edges:[]};
  const job={job_id:'job',graph_node_id:'n',algorithm_name:pack.name,algorithm_version:pack.version,state:'done',params:{amount:1},input_handles:{},output_handles:{image:'handle'},created_ts:1};
- let missing=false;let saved:any;
+ let missing=false;let saved:any;let slowRuns=false;
  await page.routeWebSocket('**',()=>{});
  await page.route('**/test-image.svg',r=>r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="gray"/></svg>'}));
  await page.route('**/api/**',async r=>{
@@ -14,31 +14,58 @@ for(const theme of ['light','dark']) test(`recent preview links to its attribute
   else if(path==='/api/nodes')body=[{node_id:'compute',node_name:'Compute',packs:[pack],gpu:{count:0}}];
   else if(path==='/api/nodes/metrics/history')body={sample_interval_s:3,nodes:{}};
   else if(path==='/api/workflows/fixture')body={workflow_id:'fixture',name:'Run link regression',graph,created_ts:1,updated_ts:1};
-  else if(path==='/api/workflows/fixture/runs')body=(missing?[latest]:[latest,old]).map((id,i)=>({snapshot_id:id,workflow_id:'fixture',created_ts:10-i,state:'done',state_counts:{done:1},node_count:1,job_count:1}));
+  else if(path==='/api/workflows/fixture/runs')body=(missing?[latest]:[latest,...Array.from({length:6},(_,i)=>`filler-${i}`),old,...Array.from({length:35},(_,i)=>`older-${i}`)]).map((id,i)=>({snapshot_id:id,workflow_id:'fixture',created_ts:10-i,state:'done',state_counts:{done:1},node_count:1,job_count:1}));
   else if(path.startsWith('/api/snapshots/'))body={snapshot_id:path.split('/').at(-1),workflow_id:'fixture',graph,jobs:path.endsWith(old)?[job]:[],created_ts:1};
   else if(path==='/api/handles/handle')body={handle_id:'handle',node_id:'compute',storage:'file',tags:['image'],proxy_url:'/test-image.svg',absolute_path:'/test/output.svg',deleted_ts:null,preview:null};
   else if(path==='/api/workflows'&&r.request().method()==='POST'){saved=r.request().postDataJSON();graph=saved.graph;body={workflow_id:'fixture',updated_ts:1};}
+  if(slowRuns && path==='/api/workflows/fixture/runs') await new Promise(resolve=>setTimeout(resolve,800));
   await r.fulfill({json:body});
  });
- await page.setViewportSize({width:1400,height:1000});await page.goto('/w/fixture');
+ await page.setViewportSize({width:1400,height:740});await page.goto('/w/fixture');
  await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
  await page.locator('.react-flow__node[data-id="n"]').click();
  const preview=page.locator('.hl-inspector-preview');const link=preview.getByRole('button',{name:`Show run ${old} in Runs`});
  await expect(preview.locator('img')).toBeVisible();await expect(preview.locator('code')).toHaveText('12345678');await expect(preview.locator('code')).toHaveAttribute('title',old);
  const field=page.locator('.hl-node-inspector').getByLabel('amount',{exact:true});await field.fill('7');await field.press('Tab');await expect.poll(()=>saved?.graph.nodes[0].params.amount).toBe(7);
  mkdirSync('/tmp/recent-run-link',{recursive:true});await preview.screenshot({path:`/tmp/recent-run-link/header-${theme}.png`});
+ slowRuns=true;
+ await link.evaluate(el => el.addEventListener('click', () => {
+   const started=performance.now();
+   const observer=new MutationObserver(() => {
+     const bubble=document.querySelector('[data-hl-run-focus]');
+     if(bubble && bubble.getBoundingClientRect().width && getComputedStyle(bubble).visibility==='visible') {
+       (window as any).jumpMs=performance.now()-started;observer.disconnect();
+     }
+   });
+   observer.observe(document.body,{childList:true,subtree:true,attributes:true});
+ },{once:true}));
  await link.click();const sidebar=page.locator('.hl-inspector-sidebar');
  await expect(sidebar.getByRole('tab',{name:'Runs',exact:true})).toHaveAttribute('aria-selected','true');
- const row=sidebar.locator(`[data-hl-run-id="${old}"]`);await expect(row).toHaveAttribute('data-hl-run-highlight','true');await expect(row).toBeInViewport();
- await sidebar.screenshot({path:`/tmp/recent-run-link/highlight-${theme}.png`});
- await expect(row).not.toHaveAttribute('data-hl-run-highlight','true',{timeout:4000});
+ const row=sidebar.locator(`[data-hl-run-id="${old}"]`);const bubble=page.locator('[data-hl-run-focus]');
+ await expect(bubble).toBeVisible();await expect(row).toBeInViewport();
+ const jumpMs=await page.evaluate(()=>(window as any).jumpMs);expect(jumpMs).toBeLessThan(200);console.log(`${theme}: click to bubble ${jumpMs.toFixed(1)}ms with 800ms API delay`);
+ await expect(row).not.toHaveAttribute('data-hl-run-highlight','true');
+ await page.screenshot({path:info.outputPath(`bubble-${theme}.png`)});
+ await page.waitForTimeout(2200);await expect(bubble).toBeVisible();
+ await bubble.getByRole('button',{name:'关闭 run 定位提示'}).click();await expect(bubble).toHaveCount(0);
+ await page.screenshot({path:info.outputPath(`closed-${theme}.png`)});
  await sidebar.getByRole('tab',{name:'Inspector',exact:true}).click();await expect(field).toHaveValue('7');
- await link.click();await expect(row).toHaveAttribute('data-hl-run-highlight','true');
+ await link.click();await expect(bubble).toBeVisible();
+ await row.evaluate(el => { el.parentElement!.scrollTop = el.parentElement!.scrollHeight; });await expect(bubble).toBeHidden();
+ await row.scrollIntoViewIfNeeded();await expect(bubble).toBeVisible();
  await sidebar.getByRole('tab',{name:'Inspector',exact:true}).click();
- await page.setViewportSize({width:390,height:844});await page.getByRole('tab',{name:'Inspect',exact:true}).click();
+ await expect(bubble).toHaveCount(0);
+ await sidebar.getByRole('tab',{name:'Runs',exact:true}).click();await expect(bubble).toHaveCount(0);
+ await sidebar.getByRole('tab',{name:'Inspector',exact:true}).click();
+ await page.setViewportSize({width:390,height:844});
+ await page.getByRole('tab',{name:'Inspect',exact:true}).click();
  await page.locator('.hl-inspector-preview').getByRole('button',{name:`Show run ${old} in Runs`}).click();
- await expect(page.locator('[data-hl-mobile-tab="runs"]')).toHaveAttribute('aria-selected','true');
- await expect(page.locator(`[data-hl-run-id="${old}"]`)).toHaveAttribute('data-hl-run-highlight','true');
+ await expect(bubble).toBeVisible();
+ const bounds=await bubble.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(8);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(382);
+ await page.screenshot({path:info.outputPath(`narrow-${theme}.png`)});
+ await bubble.getByRole('button',{name:'关闭 run 定位提示'}).click();await expect(bubble).toHaveCount(0);
+ await page.getByRole('tab',{name:'Inspect',exact:true}).click();
+ await page.locator('[data-hl-mobile-tab="runs"]').click();await expect(bubble).toHaveCount(0);
  missing=true;
  await page.getByRole('tab',{name:'Inspect',exact:true}).click();await page.locator('.hl-inspector-preview').getByRole('button',{name:`Show run ${old} in Runs`}).click();
  await expect(page.getByRole('status')).toContainText('not in this workflow');
