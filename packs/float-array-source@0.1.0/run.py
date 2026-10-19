@@ -34,28 +34,12 @@ def finite(value, label):
     return result
 
 
-def safe_id(value):
-    if (
-        not isinstance(value, str)
-        or not value
-        or value.startswith(".")
-        or any(c in value for c in "/\\")
-        or any(ord(c) < 32 or ord(c) == 127 for c in value)
-        or len(value.encode("utf-8")) > 255
-    ):
-        raise ValueError(f"invalid layer id: {value!r}; expected a visible, single filename")
-    return value
-
-
 def run(config):
     params = config["params"]
     if isinstance(params.get("items"), str):
         # Standalone callers retain the original strict legacy parser.
         items = json.loads(params["items"], object_pairs_hook=unique_object)
     else:
-        ids = params.get("ids", [])
-        if not isinstance(ids, list):
-            raise ValueError("ids must be an array")
         if VECTOR:
             columns = [params.get(key, []) for key in ("x", "y", "scale")]
             if (
@@ -68,39 +52,20 @@ def run(config):
             raw_values = params.get("items", [])
             if not isinstance(raw_values, list):
                 raise ValueError("items must be an array")
-        if ids and len(ids) != len(raw_values):
-            raise ValueError("ids count must match values count")
-        items = [
-            {FIELD: value, **({"id": ids[i]} if ids else {})} for i, value in enumerate(raw_values)
-        ]
+        items = [{FIELD: value} for value in raw_values]
     if not isinstance(items, list) or not items:
         raise ValueError("items must be a nonempty JSON array of objects")
-    reference = None
-    if "videos" in config.get("inputs", {}):
-        root = Path(config["inputs"]["videos"])
-        if not root.is_dir():
-            raise ValueError("videos reference must be an array directory")
-        reference = sorted(p.name for p in root.iterdir() if not p.name.startswith("."))
-        if not reference or len(reference) != len(items):
-            raise ValueError(f"items count {len(items)} must match videos count {len(reference)}")
-    explicit = []
     for index, item in enumerate(items):
-        if not isinstance(item, dict) or FIELD not in item or set(item) - {"id", FIELD}:
+        if not isinstance(item, dict) or set(item) != {FIELD}:
             raise ValueError(
-                f"items[{index}]: expected an object with {FIELD!r} and optional id only"
+                f"items[{index}]: expected only {FIELD!r}; IDs are no longer supported"
             )
-        explicit.append("id" in item)
-    if any(explicit) and not all(explicit):
-        raise ValueError("items must either all specify id or all omit it")
-    if not any(explicit) and reference is None:
-        raise ValueError(
-            "items without id require the videos reference input; otherwise supply ids"
-        )
+    if params.get("ids"):
+        raise ValueError("ids are no longer supported; array order determines alignment")
+    padding = max(4, len(str(len(items) - 1)))
     values = {}
     for index, item in enumerate(items):
-        key = safe_id(item["id"] if explicit[index] else reference[index])
-        if key in values:
-            raise ValueError(f"duplicate layer id: {key}")
+        key = f"{index:0{padding}d}"
         label = f"items[{key}].{FIELD}"
         raw = item[FIELD]
         if VECTOR:
@@ -114,11 +79,6 @@ def run(config):
             if value < 0:
                 raise ValueError(f"{label}: offset must be >= 0")
         values[key] = json.dumps(value, allow_nan=False) + "\n"
-    if reference is not None and set(values) != set(reference):
-        raise ValueError(
-            f"layer IDs must match videos; missing={sorted(set(reference) - set(values))}, "
-            f"extra={sorted(set(values) - set(reference))}"
-        )
     out = Path(config["outputs"][PORT])
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists() and (not out.is_dir() or any(out.iterdir())):

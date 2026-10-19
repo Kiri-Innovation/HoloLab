@@ -131,7 +131,14 @@ class ComposeTest(unittest.TestCase):
                 return [raw[k : k + n] for k in range(0, len(raw), n)]
 
             inputs = {"videos": videos, "offsets": offsets, "transforms": transforms}
+            # Different names and insertion order: only lexical position matters.
+            for folder, prefix in [(transforms, "transform-"), (offsets, "offset-")]:
+                for item in list(folder.iterdir()):
+                    item.rename(folder / (prefix + item.name))
             frames = run(inputs)
+            for folder, prefix in [(transforms, "transform-"), (offsets, "offset-")]:
+                for item in list(folder.iterdir()):
+                    item.rename(folder / item.name.removeprefix(prefix))
             self.assertEqual(len(frames), 16)  # Last layer outlives the base.
 
             def pixel(frame, x, y):
@@ -166,7 +173,7 @@ class ComposeTest(unittest.TestCase):
                 run(inputs, False)
             (offsets / "0002").write_text("0")
             (offsets / "0002").rename(offsets / "other")
-            run(inputs, False)  # Same count is insufficient: IDs must match.
+            run(inputs)  # Different attribute IDs still align by position.
             (offsets / "other").unlink()
             run(inputs, False)
 

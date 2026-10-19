@@ -26,16 +26,12 @@ def attributes(path, ids, label, vector=False):
     root = Path(path)
     if not root.is_dir():
         raise ValueError(f"{label}: expected an array directory")
-    files = {p.name: p for p in entries(root)}
-    if set(files) != set(ids):
-        raise ValueError(
-            f"{label}: layer IDs must match videos; "
-            f"missing={sorted(set(ids) - set(files))}, extra={sorted(set(files) - set(ids))}"
-        )
+    files = entries(root)
+    if len(files) != len(ids):
+        raise ValueError(f"{label} has {len(files)} layers; videos has {len(ids)} layers")
     values = []
-    for key in ids:
-        item = files[key]
-        context = f"{label}[{key}]"
+    for index, item in enumerate(files):
+        context = f"{label}[{index}] ({item.name})"
         if not item.is_file():
             raise ValueError(f"{context}: expected one file")
         raw = item.read_text().strip()

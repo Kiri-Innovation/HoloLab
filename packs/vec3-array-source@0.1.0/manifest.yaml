@@ -2,30 +2,17 @@ apiVersion: hololab.dev/v1
 kind: Algorithm
 name: vec3-array-source
 version: 0.1.0
-description: Produce ID-aligned vec3 attributes for compose-video.
+description: Initialize ordered vec3 attributes for compose-video.
 category: source/array
 source_entry: run.py
 docs: |-
   x, y and scale are native float arrays of equal length, one component per layer. Scale must be > 0; x/y are top-left canvas ratios.
-  ids is an optional string array. Leave empty when videos is connected to bind lexically sorted video IDs; otherwise provide one explicit ID per layer. Duplicate IDs and count mismatches are rejected.
-  Legacy JSON-string items remain accepted at execution and are converted when edited in Inspector.
+  Pure initialization: no input ports or IDs. Values are emitted in parameter order as 0000, 0001, ... (padding grows uniformly beyond 9999).
+  compose-video pairs arrays by position, not by filename. Supply exactly one value per video layer.
+  Legacy JSON-string items without IDs remain accepted by standalone execution.
   CPU-only, env kiri. Uses a fresh empty output directory; validates before publishing. No ASE parameter binding or dynamic input ports.
-inputs:
-  videos:
-    tags:
-    - video-source
-    storage: dir
-    arrayed: true
-    dim_labels:
-    - layer
-    required: false
-    require_axis_label_match: false
+inputs: {}
 params:
-  ids:
-    type: array
-    items: string
-    default: []
-    description: Optional explicit layer IDs; leave empty to use the connected videos order.
   x:
     type: array
     items: float
