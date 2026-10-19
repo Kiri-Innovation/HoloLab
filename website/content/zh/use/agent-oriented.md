@@ -9,25 +9,7 @@ order: 25
 
 ## 一切皆可引用
 
-不用描述“刚才失败的那个节点”，直接使用它的引用入口。工作流、画布节点、Run、Job、产物引用（Handle）、Pack 和计算设备都有 `hololab://` 引用；`hololab://workflows` 和 `hololab://artifacts` 则指向整个列表。引用标识的是实例内的对象，因此也要把实例地址告诉 agent。
-
-目前已支持以下对象；说明列是解析引用后可读取的信息。
-
-| 对象 | 引用格式 | 可读取的信息 |
-|---|---|---|
-| 工作流 | `hololab://workflow/<id>` | 草稿节点图、参数与最近运行摘要。 |
-| 工作流节点 | `hololab://graph-node/<workflow-id>/<node-id>` | 参数、可用时的端口类型、上下游与最近任务产物。 |
-| 运行记录（快照） | `hololab://run/<id>` | 该次运行的节点图、关联任务与等待结果的入口。 |
-| 任务记录 | `hololab://job/<id>` | 状态、进度、失败原因、参数、输入输出与日志入口。 |
-| 产物引用 | `hololab://handle/<id>` | 类型标签、大小、输出端口、文件与摘要入口。 |
-| 算法包 | `hololab://pack/<name>@<version>` | 输入输出、参数声明与提供该包的设备。 |
-| 计算设备 | `hololab://node/<id>` | 设备信息、GPU 与可用 Pack。 |
-| 工作流列表 | `hololab://workflows` | 工作流数量、名称、节点数与最近运行摘要。 |
-| 产物汇总 | `hololab://artifacts` | 产物数量、总大小、按工作流汇总与列表入口。 |
-| 资源库资源 | `hololab://library-resource/<id>` | 当前版本、类型、大小、设备分布与传输状态。 |
-| 资源库文件夹 | `hololab://library-folder/<id>` | 名称、父文件夹与资源列表入口。 |
-
-`<id>` 是对象 ID；资源库根文件夹用 `hololab://library-folder/root`。运行快照使用 `run`，单个产物使用 `handle`；`snapshot` 和 `artifact` 不是支持的 kind。
+不用描述“刚才失败的那个节点”，直接使用它的引用入口，把 `hololab://` 引用交给 agent。引用标识的是实例内的对象，因此也要把实例地址告诉 agent。
 
 <div class="no-flops-only">
 
@@ -54,6 +36,8 @@ hololab://graph-node/<workflow-id>/fx  # frame-extraction
 在 Flops 内嵌浏览器中，引用会插入对话输入框。插入的引用附带一份标记为 `hololab.reference-snapshot/v1` 的 Markdown 摘要，分为 identity、state、context 和 navigation 四部分。它记录的是引用时的情况；agent 可以重新解析引用，获取当前数据。
 
 </div>
+
+目前支持的引用对象，见文末的[支持范围速查表](#支持范围速查表)。
 
 ## 一切皆可被 agent 读取
 
@@ -109,3 +93,23 @@ agent 可以调用 `GET /api/resolve?ref=hololab://…` 读取对象，再沿返
 把实例地址、技能文件和一条 Job 引用交给能访问该实例 HTTP 接口的 agent，问它：“这个任务为什么失败？先读参数和日志，再建议怎么改。”第一次交接就有了具体对象，也不需要另起一次运行。
 
 实体概念见[介绍 HoloLab](/docs/introduction)和[产物与运行记录](/docs/use/run-records)。接下来：[第一个工作流 →](/docs/use/workflows)。
+
+## 支持范围速查表
+
+目前已支持以下对象；说明列是解析引用后可读取的信息。
+
+| 对象 | 引用格式 | 可读取的信息 |
+|---|---|---|
+| 工作流 | `hololab://workflow/<id>` | 草稿节点图、参数与最近运行摘要。 |
+| 工作流节点 | `hololab://graph-node/<workflow-id>/<node-id>` | 参数、可用时的端口类型、上下游与最近任务产物。 |
+| 运行记录（快照） | `hololab://run/<id>` | 该次运行的节点图、关联任务与等待结果的入口。 |
+| 任务记录 | `hololab://job/<id>` | 状态、进度、失败原因、参数、输入输出与日志入口。 |
+| 产物引用 | `hololab://handle/<id>` | 类型标签、大小、输出端口、文件与摘要入口。 |
+| 算法包 | `hololab://pack/<name>@<version>` | 输入输出、参数声明与提供该包的设备。 |
+| 计算设备 | `hololab://node/<id>` | 设备信息、GPU 与可用 Pack。 |
+| 工作流列表 | `hololab://workflows` | 工作流数量、名称、节点数与最近运行摘要。 |
+| 产物汇总 | `hololab://artifacts` | 产物数量、总大小、按工作流汇总与列表入口。 |
+| 资源库资源 | `hololab://library-resource/<id>` | 当前版本、类型、大小、设备分布与传输状态。 |
+| 资源库文件夹 | `hololab://library-folder/<id>` | 名称、父文件夹与资源列表入口。 |
+
+`<id>` 是对象 ID；资源库根文件夹用 `hololab://library-folder/root`。运行快照使用 `run`，单个产物使用 `handle`；`snapshot` 和 `artifact` 不是支持的 kind。

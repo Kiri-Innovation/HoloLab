@@ -9,25 +9,7 @@ You can work on the canvas and hand a specific question to an agent without reco
 
 ## Everything referrable
 
-Instead of describing “the node that failed,” use its reference action. Workflows, canvas nodes, Runs, Jobs, output Handles, Packs and compute nodes have `hololab://` references; `hololab://workflows` and `hololab://artifacts` refer to whole lists. A reference identifies an object within an instance, so give the agent the instance address too.
-
-These objects are currently supported. The last column describes what resolving each reference provides.
-
-| Object | Reference format | What you can read |
-|---|---|---|
-| Workflow | `hololab://workflow/<id>` | Draft graph, parameters and latest run summary. |
-| Workflow node | `hololab://graph-node/<workflow-id>/<node-id>` | Parameters, port types when available, connections and latest task outputs. |
-| Run (snapshot) | `hololab://run/<id>` | Graph snapshot, associated tasks and a link for waiting on results. |
-| Job | `hololab://job/<id>` | State, progress, failure details, parameters, inputs, outputs and log link. |
-| Output Handle | `hololab://handle/<id>` | Type tags, size, output port, file access and summary links. |
-| Pack | `hololab://pack/<name>@<version>` | Inputs, outputs, parameter declarations and devices providing the Pack. |
-| Compute node | `hololab://node/<id>` | Device information, GPU and available Packs. |
-| Workflow index | `hololab://workflows` | Workflow count, names, node counts and latest run summaries. |
-| Artifact index | `hololab://artifacts` | Artifact count, total size, per-workflow summaries and inventory link. |
-| Library resource | `hololab://library-resource/<id>` | Current version, type, size, placements and transfer status. |
-| Library folder | `hololab://library-folder/<id>` | Name, parent folder and resource-list link. |
-
-`<id>` is the object ID; the library root is `hololab://library-folder/root`. Use `run` for a snapshot and `handle` for a single output; `snapshot` and `artifact` are not supported kinds.
+Instead of describing “the node that failed,” use its reference action to hand the agent a `hololab://` reference. It identifies an object within an instance, so give the agent the instance address too.
 
 <div class="no-flops-only">
 
@@ -54,6 +36,8 @@ hololab://graph-node/<workflow-id>/fx  # frame-extraction
 In the Flops embedded browser, the action inserts a reference into the conversation input. The inserted reference includes a Markdown summary labeled `hololab.reference-snapshot/v1`, with identity, state, context and navigation sections. It is a summary captured at that moment; the agent can resolve the reference again for current data.
 
 </div>
+
+For the complete list of supported objects, see the [supported references table](#supported-references) at the end of this page.
 
 ## Everything agent-readable
 
@@ -110,3 +94,23 @@ This asks the agent to read and use the guide for the current task; it does not 
 Give an agent with HTTP access your instance address, the skill file and a Job reference. Ask: “Why did this task fail? Read its parameters and logs before suggesting a change.” This makes the first handoff concrete without starting another run.
 
 For the entities themselves, see [Introducing HoloLab](/docs/introduction) and [Artifacts and run records](/docs/use/run-records). Next: [Your first workflow →](/docs/use/workflows).
+
+## Supported references
+
+These objects are currently supported. The last column describes what resolving each reference provides.
+
+| Object | Reference format | What you can read |
+|---|---|---|
+| Workflow | `hololab://workflow/<id>` | Draft graph, parameters and latest run summary. |
+| Workflow node | `hololab://graph-node/<workflow-id>/<node-id>` | Parameters, port types when available, connections and latest task outputs. |
+| Run (snapshot) | `hololab://run/<id>` | Graph snapshot, associated tasks and a link for waiting on results. |
+| Job | `hololab://job/<id>` | State, progress, failure details, parameters, inputs, outputs and log link. |
+| Output Handle | `hololab://handle/<id>` | Type tags, size, output port, file access and summary links. |
+| Pack | `hololab://pack/<name>@<version>` | Inputs, outputs, parameter declarations and devices providing the Pack. |
+| Compute node | `hololab://node/<id>` | Device information, GPU and available Packs. |
+| Workflow index | `hololab://workflows` | Workflow count, names, node counts and latest run summaries. |
+| Artifact index | `hololab://artifacts` | Artifact count, total size, per-workflow summaries and inventory link. |
+| Library resource | `hololab://library-resource/<id>` | Current version, type, size, placements and transfer status. |
+| Library folder | `hololab://library-folder/<id>` | Name, parent folder and resource-list link. |
+
+`<id>` is the object ID; the library root is `hololab://library-folder/root`. Use `run` for a snapshot and `handle` for a single output; `snapshot` and `artifact` are not supported kinds.
