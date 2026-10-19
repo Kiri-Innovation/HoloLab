@@ -12,8 +12,12 @@ import './styles/browser-environment.css';
 import { locale, localeKey, localize, t, label } from './i18n';
 
 type Theme = 'light' | 'dark' | 'system';
-const sections = content.sections.map(s => ({ ...s, href: localize(s.href), title: t(s.id as 'learn' | 'contributor') }));
+const sections = content.sections.map(s => ({ ...s, href: localize(s.href), entryHref: content.docs.find(d => d.locale === locale && d.section === s.id)!.href, title: t(s.id as 'learn' | 'contributor') }));
 const docs = content.docs.filter(d => d.locale === locale).map(d => ({ ...d, title: label(d.title), group: label(d.group) }));
+const requestedPath = window.location.pathname.replace(/\/$/, '') || '/';
+const directory = sections.find(s => s.href === requestedPath || s.aliases.some(href => localize(href) === requestedPath));
+// Old directory links open the first article without adding a history entry.
+if (directory) history.replaceState(null, '', directory.entryHref + location.search + location.hash);
 const pathname = window.location.pathname.replace(/\/$/, '') || '/';
 const current = docs.find(doc => doc.href === pathname);
 const section = sections.find(s => s.href === pathname || s.aliases.some(href => localize(href) === pathname) || s.id === current?.section);
@@ -67,7 +71,7 @@ function DocNav() {
     const entries = docs.filter(d => d.section === s.id);
     const groups = [...new Set(entries.map(d => d.group))];
     return <section className="nav-section" key={s.id} aria-label={s.title}>
-      <h2><a className="section-link" aria-current={pathname === s.href ? 'page' : undefined} href={s.href}>{s.title}</a></h2>
+      <h2><a className="section-link" aria-current={pathname === s.href ? 'page' : undefined} href={s.entryHref}>{s.title}</a></h2>
       {groups.map(group => <section className="nav-group" key={group} aria-label={group}>
         <h3>{group}</h3>
         <ul>{entries.filter(d => d.group === group).map(d => <li key={d.slug}><a className="doc-link" aria-current={current?.slug === d.slug ? 'page' : undefined} href={d.href}>{d.title}</a></li>)}</ul>
@@ -75,13 +79,8 @@ function DocNav() {
     </section>;
   })}</nav>;
 }
-const introductions = { learn: t('learnIntro'), contributor: t('contributorIntro') };
 function DocAreas() {
-  return <nav className="doc-areas" aria-label={t('docAreas')}><div>{sections.map(s => <a key={s.id} href={s.href} aria-current={section?.id === s.id ? 'page' : undefined}>{s.title}</a>)}</div></nav>;
-}
-function DocsIndex() {
-  const entries = docs.filter(d => d.section === section?.id);
-  return <><div className="eyebrow">{t('docEyebrow')}</div><h1>{section?.title}</h1><p className="page-intro">{introductions[(section?.id ?? 'learn') as keyof typeof introductions]}</p><div className="doc-cards">{entries.map((d,i) => <a key={d.slug} href={d.href}><span className="doc-number">{String(i+1).padStart(2, '0')}</span><div><strong>{d.title}</strong><small>{d.group}</small></div><span>→</span></a>)}</div></>;
+  return <nav className="doc-areas" aria-label={t('docAreas')}><div>{sections.map(s => <a key={s.id} href={s.entryHref} aria-current={section?.id === s.id ? 'page' : undefined}>{s.title}</a>)}</div></nav>;
 }
 function Footer() {
   return <footer className="footer"><a className="brand" href={localize('/')}>HoloLab</a><span>{t('footer')}</span><a href={localize('/docs')}>{t('docs')} ↗</a></footer>;
@@ -103,7 +102,7 @@ function Documentation() {
   }, []);
   const siblings = docs.filter(d => d.section === current?.section);
   const index = siblings.findIndex(d => d.slug === current?.slug);
-  return <><DocAreas /><div className="docs-layout"><aside className="sidebar"><DocNav /></aside><main id="main" className="document"><details className="mobile-nav"><summary>{t('browse')}</summary><DocNav /></details>{current ? <><div className="breadcrumb"><a href={section?.href}>{section?.title}</a><span>/</span>{current.group}</div>{current.contentLanguage !== locale && <p className="reference-note">{t('englishNotice')}</p>}{current.slug === 'reference/artifacts' && <p className="reference-note">{t('futureNotice')}</p>}<article lang={current.contentLanguage} className="prose" dangerouslySetInnerHTML={{ __html: current.html }} /><nav className="page-turn" aria-label={t('pageTurn')}>{siblings[index-1] ? <a href={siblings[index-1].href}><small>{t('previous')}</small>← {siblings[index-1].title}</a> : <span/>}{siblings[index+1] && <a href={siblings[index+1].href}><small>{t('next')}</small>{siblings[index+1].title} →</a>}</nav></> : <DocsIndex />}</main><aside className="toc" aria-label={t('tocLabel')}>{current && <><span>{t('toc')}</span>{current.headings.filter(h => h.depth === 2).map(h => <a key={h.id} href={`#${h.id}`}>{h.title}</a>)}</>}</aside><div className="docs-footer"><Footer /></div></div></>;
+  return <><DocAreas /><div className="docs-layout"><aside className="sidebar"><DocNav /></aside><main id="main" className="document"><details className="mobile-nav"><summary>{t('browse')}</summary><DocNav /></details>{current ? <><div className="breadcrumb"><a href={section?.entryHref}>{section?.title}</a><span>/</span>{current.group}</div>{current.contentLanguage !== locale && <p className="reference-note">{t('englishNotice')}</p>}{current.slug === 'reference/artifacts' && <p className="reference-note">{t('futureNotice')}</p>}<article lang={current.contentLanguage} className="prose" dangerouslySetInnerHTML={{ __html: current.html }} /><nav className="page-turn" aria-label={t('pageTurn')}>{siblings[index-1] ? <a href={siblings[index-1].href}><small>{t('previous')}</small>← {siblings[index-1].title}</a> : <span/>}{siblings[index+1] && <a href={siblings[index+1].href}><small>{t('next')}</small>{siblings[index+1].title} →</a>}</nav></> : null}</main><aside className="toc" aria-label={t('tocLabel')}>{current && <><span>{t('toc')}</span>{current.headings.filter(h => h.depth === 2).map(h => <a key={h.id} href={`#${h.id}`}>{h.title}</a>)}</>}</aside><div className="docs-footer"><Footer /></div></div></>;
 }
 function App() {
   useEffect(() => {

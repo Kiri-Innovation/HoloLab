@@ -10,13 +10,16 @@ try {
   for (const locale of ['en', 'zh-CN']) {
     const prefix = locale === 'en' ? '' : '/zh-CN';
     const page = await browser.newPage({viewport: {width: 1440, height: 1100}});
+    await page.goto(origin + prefix + '/docs?source=test#intro');
+    await page.waitForURL(origin + prefix + '/docs/introduction?source=test#intro');
+    assert.equal(await page.locator('.doc-cards').count(), 0);
     const areas = page.locator('.doc-areas');
     const links = areas.locator('a');
     const check = async (section) => {
       assert.equal(await links.count(), 2);
       const expected = docs.filter(d => d.locale === locale && d.section === section).map(d => d.href).sort();
       assert.deepEqual((await page.locator('.sidebar .doc-link').evaluateAll(es => es.map(e => e.getAttribute('href')))).sort(), expected);
-      assert.equal(await areas.locator('a[aria-current="page"]').getAttribute('href'), prefix + (section === 'learn' ? '/docs' : '/docs/contributor'));
+      assert.equal(await areas.locator('a[aria-current="page"]').getAttribute('href'), prefix + (section === 'learn' ? '/docs/introduction' : '/docs/contributor/about'));
       assert.equal(await page.locator('html').getAttribute('lang'), locale);
       const header = await page.locator('.header').boundingBox(), tabs = await areas.boundingBox();
       assert.ok(Math.abs(tabs.y - header.y - header.height) < 1, 'tabs directly below header');
@@ -27,11 +30,15 @@ try {
       await page.locator('.theme-control').selectOption(theme);
       for (const [index, section] of [[1, 'contributor'], [0, 'learn']]) {
         await links.nth(index).click();
-        await page.waitForURL(origin + prefix + (index ? '/docs/contributor' : '/docs'));
+        await page.waitForURL(origin + prefix + (index ? '/docs/contributor/about' : '/docs/introduction'));
         await check(section);
         await page.screenshot({path: `${output}${locale}-${theme}-${section}.png`});
         await page.screenshot({path: `${output}${locale}-${theme}-${section}-tabs.png`, clip: {x: 0, y: 0, width: 1440, height: 170}});
       }
+      await page.goBack();
+      await page.waitForURL(origin + prefix + '/docs/contributor/about');
+      await page.goForward();
+      await page.waitForURL(origin + prefix + '/docs/introduction');
       // Article membership is independent of its legacy /build URL prefix.
       for (const [slug, section] of [['build/writing-a-pack', 'learn'], ['build/architecture', 'contributor']]) {
         await page.goto(origin + prefix + '/docs/' + slug);
@@ -41,7 +48,7 @@ try {
     await page.setViewportSize({width: 360, height: 800});
     await page.goto(origin + prefix + '/docs');
     await links.nth(1).click();
-    assert.equal(new URL(page.url()).pathname, prefix + '/docs/contributor');
+    assert.equal(new URL(page.url()).pathname, prefix + '/docs/contributor/about');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.locator('.mobile-nav summary').click();
     assert.equal(await page.locator('.mobile-nav .doc-link').count(), 3);
@@ -53,7 +60,7 @@ try {
   const page = await browser.newPage();
   await page.goto(origin + '/docs/contributor');
   await page.locator('.language-control').selectOption('zh-CN');
-  await page.waitForURL(origin + '/zh-CN/docs/contributor');
+  await page.waitForURL(origin + '/zh-CN/docs/contributor/about');
   assert.equal(await page.locator('.doc-areas a[aria-current="page"]').textContent(), '开发者文档');
   console.log('PASS: header/tab geometry, two-way switching, section-only sidebar, legacy article membership, language retention/switching, light/dark, mobile, and home exclusion.');
 } finally { await browser.close(); }
