@@ -661,6 +661,7 @@ class NodeRuntime:
         ]
 
         reg = Register(
+            intrinsics=["array-assemble"],
             library_wakeup=True,
             node_name=self._config.node_name,
             v_min=PROTOCOL_V_MIN,
@@ -1416,6 +1417,10 @@ class NodeRuntime:
         path — byte-identical to pre-V14 behaviour.
         """
 
+        if assign.intrinsic is not None:
+            await self._run_array_assemble(assign, cancel_event)
+            return
+
         key = (assign.algorithm_name, assign.algorithm_version)
         pack = self._packs.get(key)
         if pack is None:
@@ -1978,6 +1983,86 @@ class NodeRuntime:
         # the operator can inspect; the background sweeper cleans those
         # after the retention window.
         self._purge_scratch_now(assign.job_id)
+
+    async def _run_array_assemble(self, assign: JobAssign, cancel_event: asyncio.Event) -> None:
+        """System task using normal handle transport and subprocess cancellation."""
+        import os
+        import shlex
+        import sys
+
+        from hololab.gateway.array_assemble import AssemblySlots, ordered_inputs
+        from hololab.node.executor import ExecPlan, run_subprocess
+
+        try:
+            if (
+                assign.algorithm_name != "@builtin/array-assemble"
+                or assign.intrinsic.get("operation") != "array-assemble"
+            ):
+                raise ValueError("unknown intrinsic operation")
+            config = AssemblySlots.model_validate(assign.intrinsic["assembly"])
+            ordered = ordered_inputs(config, assign.input_handles)
+            paths = await self._resolve_input_handles(assign.input_handles)
+            by_handle = {handle: paths[slot] for slot, handle in assign.input_handles.items()}
+            entries = []
+            for element_id, handle in ordered:
+                info = await self._locate_handle_cached(handle)
+                entries.append((element_id, by_handle[handle], bool(info.local_path)))
+            root = (
+                Path(self._config.workspace_root) / "w" / assign.workflow_id / "j" / assign.job_id
+            )
+            root.mkdir(parents=True, exist_ok=True)
+            payload = root / "assembly.json"
+            output = root / "out"
+            payload.write_text(json.dumps({"entries": entries, "output": str(output)}))
+            worker = Path(__file__).with_name("array_assemble.py")
+            plan = ExecPlan(
+                shell=f"{shlex.quote(sys.executable)} {shlex.quote(str(worker))} {shlex.quote(str(payload))}",
+                conda_bin="",
+                conda_prefix="",
+                working_dir=root,
+                cached_env=dict(os.environ),
+            )
+
+            async def execute():
+                return await run_subprocess(
+                    plan,
+                    on_log=lambda *_: None,
+                    on_progress=lambda *_: None,
+                    cancel_event=cancel_event,
+                )
+
+            if self._exec_semaphore is not None:
+                async with self._exec_semaphore:
+                    result = await execute()
+            else:
+                result = await execute()
+            if result.cancelled:
+                await self._send_job_fail(
+                    assign.job_id, JobFailReason.CANCELLED, message="array-assemble cancelled"
+                )
+                return
+            if result.exit_code:
+                raise ValueError("\n".join(result.stderr_tail) or "array-assemble worker failed")
+            handle_id = str(uuid.uuid4())
+            await self._safe_send(
+                "handle_register",
+                HandleRegister(
+                    handle_id=handle_id,
+                    node_id=self._node_id,
+                    storage="dir",
+                    tags=["any"],
+                    path=str(output),
+                    job_id=assign.job_id,
+                    output_port_name="out",
+                ),
+            )
+            await self._send(
+                "job_done", JobDone(job_id=assign.job_id, output_handles={"out": handle_id})
+            )
+        except Exception as exc:
+            await self._send_job_fail(
+                assign.job_id, JobFailReason.USER_ERROR, message=f"array-assemble: {exc}"
+            )
 
     async def _register_output_handles(
         self, pack: LoadedPack, job_id: str, outputs: dict[str, str]

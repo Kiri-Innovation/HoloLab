@@ -77,6 +77,7 @@ class Register(BaseModel):
     workspace relocation.
     """
 
+    intrinsics: list[str] = Field(default_factory=list)
     library_wakeup: bool = False
     node_name: str
     v_min: int
@@ -231,6 +232,7 @@ class JobAssign(BaseModel):
     #arrayed-and-arrayable.
     """
 
+    intrinsic: dict[str, Any] | None = None
     job_id: str
     workflow_id: str
     algorithm_name: str

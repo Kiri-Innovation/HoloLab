@@ -23,6 +23,22 @@ export function validateConnection(conn: Connection, ctx: EdgeTypeCtx,
   const src = ctx.nodes.find(n => n.id === conn.source);
   const tgt = ctx.nodes.find(n => n.id === conn.target);
   if (!src || !tgt) return reject('节点信息尚未加载。');
+  if (tgt.kind === 'intrinsic' && tgt.assembly) {
+    const a = tgt.assembly;
+    if (!a.slots.includes(conn.targetHandle)) return reject('组装输入槽不存在。');
+    if (ctx.edges.some(e => e.target === conn.target && e.targetHandle === conn.targetHandle)) return reject('此输入槽已有连线。');
+    const source = effectiveOutputType(conn.source, conn.sourceHandle, ctx);
+    if (!source.tags.length || source.tags.includes('any')) return reject('组装需要已确定的具体类型。');
+    if (source.arrayed && source.dimLabels.length >= 2) return reject('组装结果不能超过两层数组。');
+    const inputs = ctx.edges.filter(e => e.target === conn.target);
+    const anchor = inputs.find(e => e.targetHandle === a.type_anchor_slot) ?? a.slots.map(s => inputs.find(e => e.targetHandle === s)).find(Boolean);
+    if (anchor) {
+      const expected = effectiveOutputType(anchor.source, anchor.sourceHandle, ctx);
+      const key = (t: typeof source) => JSON.stringify([Array.from(new Set(t.tags)).sort(),t.arrayed,t.dimLabels]);
+      if (key(source) !== key(expected)) return reject(`组装要求严格同型：需要 ${formatTypeLabelLong(expected)}，收到 ${formatTypeLabelLong(source)}。`);
+    }
+    return {ok:true};
+  }
   const srcPack = ctx.catalogByKey.get(`${src.algorithm_name}@${src.algorithm_version}`);
   const pack = ctx.catalogByKey.get(`${tgt.algorithm_name}@${tgt.algorithm_version}`);
   const input = pack?.inputs[conn.targetHandle];

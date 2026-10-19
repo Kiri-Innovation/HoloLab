@@ -71,6 +71,7 @@ class NodeSession:
     # list at register time.
     pack_dirs: list[str] = field(default_factory=list)
     # Opt-in keeps older nodes from receiving an unknown envelope kind.
+    intrinsics: list[str] = field(default_factory=list)
     library_wakeup: bool = False
     # ``token_issued`` is set when this session's register frame either
     # minted a fresh node_token or the gateway is (re-)issuing one. The
@@ -394,6 +395,7 @@ class NodeRegistry:
                     "node_name": s.node_name,
                     "gpu": s.gpu.model_dump(),
                     "packs": [p.model_dump() for p in s.packs],
+                    "intrinsics": list(s.intrinsics),
                     "connected_ts": s.connected_ts,
                     "advertised_url": s.advertised_url,
                     "workspace_root": s.workspace_root,

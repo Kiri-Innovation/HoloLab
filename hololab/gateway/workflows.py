@@ -21,6 +21,7 @@ from typing import Any, Literal
 import aiosqlite
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from hololab.gateway.array_assemble import AssemblySlots, port_view
 from hololab.gateway.port_type_ir import (
     Declaration,
     PortTypeIR,
@@ -77,7 +78,9 @@ class GraphNode(BaseModel):
     # frontend-only node type.  A view is a graph resident, but is never a
     # pack instance or an execution unit.  Old graphs predate the field and
     # are normalized to ``algorithm`` before validation.
-    kind: Literal["algorithm", "view"] = "algorithm"
+    kind: Literal["algorithm", "view", "intrinsic"] = "algorithm"
+    operation: Literal["array-assemble"] | None = None
+    assembly: AssemblySlots | None = None
     algorithm_name: str | None = None
     algorithm_version: str | None = None
     position: GraphPosition = Field(default_factory=GraphPosition)
@@ -139,6 +142,21 @@ class GraphNode(BaseModel):
 
     @model_validator(mode="after")
     def _kind_fields(self) -> GraphNode:
+        if self.kind == "intrinsic":
+            if self.operation != "array-assemble" or self.assembly is None:
+                raise ValueError("intrinsic requires array-assemble operation and assembly slots")
+            if self.params or self.arrayed_toggle or self.view_type is not None:
+                raise ValueError("array-assemble cannot have params, fan-out, or view_type")
+            if self.algorithm_name not in (
+                None,
+                "@builtin/array-assemble",
+            ) or self.algorithm_version not in (None, "1"):
+                raise ValueError("intrinsic identity is reserved")
+            self.algorithm_name = "@builtin/array-assemble"
+            self.algorithm_version = "1"
+            return self
+        if self.operation is not None or self.assembly is not None:
+            raise ValueError("only intrinsic nodes can declare assembly configuration")
         if self.kind == "algorithm":
             if not self.algorithm_name or not self.algorithm_version:
                 raise ValueError("algorithm nodes require algorithm_name and algorithm_version")
@@ -155,9 +173,9 @@ class GraphNode(BaseModel):
 
 
 def is_algorithm_node(node: GraphNode) -> bool:
-    """The sole execution boundary for graph residents."""
+    """Legacy predicate for executable residents: pack algorithms or intrinsics."""
 
-    return node.kind == "algorithm"
+    return node.kind in ("algorithm", "intrinsic")
 
 
 class GraphEdge(BaseModel):
@@ -795,6 +813,11 @@ def effective_output_tags(
     itself, etc.) are still guarded so the check never loops.
     """
 
+    if node.kind == "intrinsic":
+        from hololab.gateway.array_assemble import legacy, resolve
+
+        return legacy(resolve(node, graph, node_by_id, packs_by_key))["tags"]
+
     visited: set[tuple[str, str]] = set() if _visited is None else _visited
     key = (node.id, port_name)
     if key in visited:
@@ -814,7 +837,7 @@ def effective_output_tags(
         up = node_by_id.get(edge.source)
         if up is None:
             break
-        up_pack = packs_by_key.get((up.algorithm_name, up.algorithm_version))
+        up_pack = port_view(up, packs_by_key)
         if up_pack is None:
             break
         return effective_output_tags(
@@ -879,7 +902,7 @@ def _invocation_output_dim_labels(
             up = node_by_id.get(edge.source)
             if up is None:
                 return None
-            up_pack = packs_by_key.get((up.algorithm_name, up.algorithm_version))
+            up_pack = port_view(up, packs_by_key)
             if up_pack is None:
                 return None
             upstream_labels = effective_output_dim_labels(
@@ -898,7 +921,7 @@ def _invocation_output_dim_labels(
             if edge.target != node.id or edge.targetHandle != port.tags_from:
                 continue
             up = node_by_id.get(edge.source)
-            up_pack = packs_by_key.get((up.algorithm_name, up.algorithm_version)) if up else None
+            up_pack = port_view(up, packs_by_key) if up else None
             if not up_pack:
                 return None
             dims = effective_output_dim_labels(
@@ -912,6 +935,10 @@ def _invocation_output_dim_labels(
 def effective_output_dim_labels(
     node, pack, port_name, graph, node_by_id, packs_by_key, _visited=None
 ):
+    if node.kind == "intrinsic":
+        from hololab.gateway.array_assemble import legacy, resolve
+
+        return legacy(resolve(node, graph, node_by_id, packs_by_key))["dim_labels"]
     visited = set() if _visited is None else set(_visited)
     key = (node.id, port_name)
     if key in visited:
@@ -936,11 +963,7 @@ def effective_output_dim_labels(
         ):
             continue
         upstream = node_by_id.get(edge.source)
-        upstream_pack = (
-            packs_by_key.get((upstream.algorithm_name, upstream.algorithm_version))
-            if upstream
-            else None
-        )
+        upstream_pack = port_view(upstream, packs_by_key) if upstream else None
         if upstream_pack:
             dims = effective_output_dim_labels(
                 upstream,
@@ -1064,7 +1087,7 @@ async def resolve_handle_output_tags(
     node = node_by_id.get(graph_node_id)
     if node is None:
         return raw_tags
-    pack = packs_by_key.get((node.algorithm_name, node.algorithm_version))
+    pack = port_view(node, packs_by_key)
     if pack is None:
         return raw_tags
 
@@ -1092,7 +1115,7 @@ def validate_snapshot(
         if not is_algorithm_node(node):
             continue
         key = (node.algorithm_name, node.algorithm_version)
-        if key not in packs_by_key:
+        if node.kind != "intrinsic" and key not in packs_by_key:
             issues.append(
                 ValidationIssue(
                     where=f"node:{node.id}",
@@ -1117,7 +1140,7 @@ def validate_snapshot(
             )
             continue
         offered = packs_offered_by_node.get(node.assigned_node_id, set())
-        if key not in offered:
+        if node.kind != "intrinsic" and key not in offered:
             issues.append(
                 ValidationIssue(
                     where=f"node:{node.id}",
@@ -1127,6 +1150,15 @@ def validate_snapshot(
                     ),
                 )
             )
+
+    for node in graph.nodes:
+        if node.kind == "intrinsic":
+            from hololab.gateway.array_assemble import resolve
+
+            try:
+                resolve(node, graph, node_by_id, packs_by_key, strict=True)
+            except ValueError as exc:
+                issues.append(ValidationIssue(where=f"node:{node.id}", message=str(exc)))
 
     # Rule 3: DAG.
     try:
@@ -1171,8 +1203,8 @@ def validate_snapshot(
                 ValidationIssue(where=f"edge:{edge.id}", message="view nodes have no output ports")
             )
             continue
-        src_pack = packs_by_key.get((src.algorithm_name, src.algorithm_version))
-        tgt_pack = packs_by_key.get((tgt.algorithm_name, tgt.algorithm_version))
+        src_pack = port_view(src, packs_by_key)
+        tgt_pack = port_view(tgt, packs_by_key)
         if src_pack is None or tgt_pack is None:
             continue  # already reported above
         if edge.sourceHandle not in src_pack.outputs:
@@ -1237,7 +1269,7 @@ def validate_snapshot(
                     )
                 )
             continue
-        pack = packs_by_key.get((node.algorithm_name, node.algorithm_version))
+        pack = port_view(node, packs_by_key)
         if pack is None:
             continue
         for port_name, port in pack.inputs.items():
@@ -1496,6 +1528,10 @@ def resolved_port_types(
     Legacy resolved fields remain a lossless projection, not a re-rendering.
     Aggregate fields are already lifted: never wrap them a second time.
     """
+    if node.kind == "intrinsic":
+        from hololab.gateway.array_assemble import resolved_ports
+
+        return resolved_ports(node, graph, node_by_id, packs_by_key)
     outputs = _effective_output_fields(node, pack, graph, node_by_id, packs_by_key)
     fanout = pack.arrayable and node.arrayed_toggle
     groups = {}
@@ -1604,7 +1640,7 @@ def agent_graph_dict(
         # without misleading ``algorithm_name: null`` fields.
         d = n.model_dump(exclude_none=True)
         if packs_by_key is not None and is_algorithm_node(n):
-            pack = packs_by_key.get((n.algorithm_name, n.algorithm_version))
+            pack = port_view(n, packs_by_key)
             if pack is not None:
                 types, legacy_outputs = resolved_port_types(n, pack, graph, by_id, packs_by_key)
                 d["resolved_outputs"] = legacy_outputs
@@ -1674,7 +1710,9 @@ async def _output_handles_for_job(
     node_by_id: dict[str, GraphNode] = {n.id: n for n in graph.nodes} if graph is not None else {}
     resolver_node = node_by_id.get(graph_node_id) if graph_node_id else None
     resolver_pack = (
-        packs_by_key.get((algorithm_name, algorithm_version)) if packs_by_key is not None else None
+        port_view(resolver_node, packs_by_key)
+        if packs_by_key is not None and resolver_node is not None
+        else None
     )
 
     handles = await book.list_by_job(job_id)

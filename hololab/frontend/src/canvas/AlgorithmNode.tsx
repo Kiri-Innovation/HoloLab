@@ -105,6 +105,7 @@ export interface PreviewTarget {
 }
 
 export interface AlgorithmNodeData extends Record<string, unknown> {
+  assembly?: import("./assembly").AssemblyConfig;
   pack: CatalogPack;
   arrayed_toggle?: boolean;
   assigned_node_id: string | null;

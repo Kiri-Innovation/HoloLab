@@ -398,6 +398,7 @@ export interface NodeMetrics {
 // ---------------------------------------------------------------------------
 
 export interface ComputeNode {
+  intrinsics?: string[];
   node_id: string;
   node_name: string;
   gpu: GpuInfo;
@@ -504,7 +505,9 @@ export interface LatestRun {
 export interface GraphNode {
   id: string;
   // Missing means algorithm for graphs saved before view stickers shipped.
-  kind?: "algorithm" | "view";
+  kind?: "algorithm" | "view" | "intrinsic";
+  operation?: "array-assemble";
+  assembly?: import("./canvas/assembly").AssemblyConfig;
   algorithm_name: string;
   algorithm_version: string;
   position: { x: number; y: number };

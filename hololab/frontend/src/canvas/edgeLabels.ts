@@ -63,6 +63,7 @@ function walkTags(
   visited.add(key);
   const node = ctx.nodes.find((n) => n.id === nodeId);
   if (!node || !isAlgorithmGraphNode(node)) return [];
+  if (node.kind === 'intrinsic') return effectiveOutputType(nodeId, portName, ctx).tags;
   const pack = ctx.catalogByKey.get(
     `${node.algorithm_name}@${node.algorithm_version}`,
   );
@@ -128,6 +129,7 @@ function invocationDimLabels(
 function walkDimLabels(nodeId: string, portName: string, ctx: EdgeTypeCtx, visited: Set<string>): string[] | null {
   const node = ctx.nodes.find(n => n.id === nodeId);
   if (!node || !isAlgorithmGraphNode(node)) return null;
+  if (node.kind === 'intrinsic') return effectiveOutputType(nodeId, portName, ctx).dimLabels;
   const pack = ctx.catalogByKey.get(`${node.algorithm_name}@${node.algorithm_version}`);
   const dims = invocationDimLabels(nodeId, portName, ctx, new Set(visited));
   if (dims === null || !pack || !pack.arrayable || !node.arrayed_toggle) return dims;
@@ -160,6 +162,15 @@ export function effectiveOutputType(
 ): EdgeType {
   const node = ctx.nodes.find((n) => n.id === nodeId);
   if (!node || !isAlgorithmGraphNode(node)) return { tags: [], arrayed: false, dimLabels: [] };
+  if (node.kind === 'intrinsic' && node.assembly) {
+    const a = node.assembly;
+    const inbound = ctx.edges.filter(e => e.target === nodeId);
+    const anchor = inbound.find(e => e.targetHandle === a.type_anchor_slot)
+      ?? a.slots.map(slot => inbound.find(e => e.targetHandle === slot)).find(Boolean);
+    if (!anchor || portName !== 'out') return {tags: [], arrayed:true, dimLabels:[a.axis_label]};
+    const element = effectiveOutputType(anchor.source, anchor.sourceHandle, {...ctx, edges:ctx.edges.filter(e => e.target !== nodeId)});
+    return {...element, arrayed:true, dimLabels:[a.axis_label, ...(element.arrayed ? element.dimLabels : [])]};
+  }
   const pack = ctx.catalogByKey.get(
     `${node.algorithm_name}@${node.algorithm_version}`,
   );

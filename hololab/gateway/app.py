@@ -1977,6 +1977,18 @@ def _mount_routes(app: FastAPI) -> None:
             online_node_ids=online_node_ids,
             packs_offered_by_node=packs_offered_by_node,
         )
+        for node in row.graph.nodes:
+            if node.kind == "intrinsic":
+                session = registry.get_session(node.assigned_node_id)
+                if session is not None and node.operation not in session.intrinsics:
+                    from hololab.gateway.workflows import ValidationIssue
+
+                    issues.append(
+                        ValidationIssue(
+                            where=f"node:{node.id}",
+                            message="compute node must be upgraded to support array-assemble",
+                        )
+                    )
         if issues:
             raise HTTPException(status_code=422, detail={"issues": issues_to_json(issues)})
 
@@ -2009,7 +2021,9 @@ def _mount_routes(app: FastAPI) -> None:
         return {
             "workflow_id": workflow_id,
             "snapshot_id": snapshot.snapshot_id,
-            "node_count": sum(1 for n in snapshot.graph.nodes if n.kind == "algorithm"),
+            "node_count": sum(
+                1 for n in snapshot.graph.nodes if n.kind in ("algorithm", "intrinsic")
+            ),
             "view_node_count": sum(1 for n in snapshot.graph.nodes if n.kind == "view"),
             "mode": "graph",
         }
@@ -2190,7 +2204,7 @@ def _mount_routes(app: FastAPI) -> None:
         # the executor dispatches jobs one at a time in topological
         # order (see execution.run_snapshot). Without this the wait
         # would return prematurely after the first node.
-        total_nodes = sum(1 for n in snap.graph.nodes if n.kind == "algorithm")
+        total_nodes = sum(1 for n in snap.graph.nodes if n.kind in ("algorithm", "intrinsic"))
 
         def _matches(jobs: list[dict[str, Any]], target: str) -> bool:
             terminal = {"done", "failed", "cancelled", "orphaned"}
@@ -2464,7 +2478,7 @@ def _mount_routes(app: FastAPI) -> None:
         for gnode in old_snap.graph.nodes:
             if gnode.id not in to_rerun:
                 continue
-            if gnode.kind != "algorithm":
+            if gnode.kind not in ("algorithm", "intrinsic"):
                 continue
             if gnode.assigned_node_id is None or gnode.assigned_node_id not in online_node_ids:
                 raise HTTPException(
@@ -3283,6 +3297,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
         )
         async with session.send_lock:
             await ws.send_text(encode("register_ok", ok, v=chosen_v))
+        session.intrinsics = list(payload.intrinsics)
         session.library_wakeup = payload.library_wakeup
         signal_work(app)
 
@@ -3530,6 +3545,10 @@ async def _resolve_handle_display_meta(
     preview = infer_preview_for_output(explicit_preview, resolved_tags)
 
     raw_dim_labels = None
+    if job is not None and job.algorithm_name == "@builtin/array-assemble":
+        raw_dim_labels = await _resolve_derived_dim_labels(
+            job, handle.output_port_name, registry=registry, workflows=workflows
+        )
     if port_spec is not None:
         raw_dim_labels = list(port_spec.dim_labels) or ([""] if port_spec.arrayed else [])
         if job is not None:
@@ -3601,7 +3620,9 @@ async def _resolve_derived_dim_labels(
         return None
 
     packs_by_key = packs_by_key_from_catalog(registry.catalog_json())
-    pack = packs_by_key.get((graph_node.algorithm_name, graph_node.algorithm_version))
+    from hololab.gateway.array_assemble import port_view
+
+    pack = port_view(graph_node, packs_by_key)
     if pack is None:
         return None
 
@@ -3971,7 +3992,8 @@ async def _dispatch_node_frame(
             producer = registry.get_session(handle.node_id)
             http_url: str | None = None
             if producer is not None and producer.advertised_url:
-                http_url = producer.advertised_url.rstrip("/") + "/" + handle.path.lstrip("/")
+                sub = strip_workspace_prefix(producer, handle.path)
+                http_url = producer.advertised_url.rstrip("/") + "/" + sub.lstrip("/")
             resp = HandleLocateResp(
                 handle_id=payload.handle_id,
                 node_id=handle.node_id,

@@ -1,3 +1,5 @@
+import { ExecutableNode } from "./AssemblyNode";
+import { ASSEMBLE, assemblyPresentation } from "./assembly";
 import { FrameSelectedShortcut } from "./FrameSelectedShortcut";
 import { CanvasControls } from "./CanvasControls";
 // Read-only xyflow canvas that renders a past run's frozen graph.
@@ -50,7 +52,6 @@ import type {
 } from "../wire";
 import { getHandle, patchSnapshotGraphNodeCosmetic } from "../api";
 import {
-  AlgorithmNode,
   type AlgorithmNodeData,
   type NodeRuntime,
   type PreviewTarget,
@@ -63,7 +64,7 @@ import { TypedEdge, type TypedEdgeData } from "./TypedEdge";
 import { effectiveOutputType, formatTypeLabel, formatTypeLabelLong } from "./edgeLabels";
 import { seedEdgeSummaryFacts } from "./edgeSummaryCache";
 
-const NODE_TYPES = { algorithm: AlgorithmNode, view: ViewNode };
+const NODE_TYPES = { algorithm: ExecutableNode, view: ViewNode };
 
 export interface SnapshotCanvasProps {
   snapshot: SnapshotDetail;
@@ -272,7 +273,7 @@ export function SnapshotCanvas({
       }
       const pack =
         catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`) ??
-        stubPack(gn.algorithm_name, gn.algorithm_version);
+        (gn.algorithm_name === ASSEMBLE ? assemblyPresentation() : stubPack(gn.algorithm_name, gn.algorithm_version));
       const runtime: NodeRuntime | undefined = runtimeByGraphNodeId[gn.id];
       return {
         id: gn.id,
@@ -281,6 +282,7 @@ export function SnapshotCanvas({
         selected: gn.id === selectedGraphNodeId,
         data: {
           pack,
+          assembly: gn.assembly,
           arrayed_toggle: gn.arrayed_toggle,
           assigned_node_id: gn.assigned_node_id,
           params: gn.params,

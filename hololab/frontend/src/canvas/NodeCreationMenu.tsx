@@ -1,3 +1,4 @@
+import { ASSEMBLE } from "./assembly";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CatalogPack } from "../wire";
@@ -102,7 +103,7 @@ export function NodeCreationMenu({ catalog, anchor, onCreate, onClose }: {
             style={{ paddingLeft: 20 + node.depth * 12 }}
             onMouseMove={() => setSelected(node.path)} onClick={() => onCreate(node)}
             title={node.kind === "leaf" ? node.pack.description ?? undefined : "Preview an input artifact"}>
-            <span>{node.kind === "leaf" ? node.pack.name : node.label}</span>
+            <span>{node.kind === "leaf" ? (node.pack.name === ASSEMBLE ? "array-assemble" : node.pack.name) : node.label}</span>
             {node.kind === "leaf" && <small>v{node.pack.version}</small>}
           </div>
         ))}

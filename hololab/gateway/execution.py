@@ -1397,6 +1397,9 @@ async def _dispatch_job(
             f"assigned compute node {gnode.assigned_node_id!r} is no longer connected"
         )
 
+    if gnode.kind == "intrinsic" and gnode.operation not in session.intrinsics:
+        raise WorkflowRunError("compute node must be upgraded to support array-assemble")
+
     job = Job(
         job_id=str(uuid.uuid4()),
         workflow_id=workflow_id,
@@ -1428,6 +1431,9 @@ async def _dispatch_job(
         params=assigned.params,
         input_handles=assigned.input_handles,
         graph_node_id=assigned.graph_node_id,
+        intrinsic={"operation": gnode.operation, "assembly": gnode.assembly.model_dump()}
+        if gnode.kind == "intrinsic"
+        else None,
     )
     frame = encode("job_assign", assign_msg, v=session.protocol_v)
     try:
@@ -1581,7 +1587,7 @@ async def dispatch_graph_node(
     if graph_node_id not in node_by_id:
         raise DispatchError(f"graph node {graph_node_id!r} not in current graph")
     gnode = node_by_id[graph_node_id]
-    if gnode.kind != "algorithm":
+    if gnode.kind not in ("algorithm", "intrinsic"):
         raise DispatchError(f"graph node {graph_node_id!r} is a view and cannot be dispatched")
 
     if gnode.assigned_node_id is None:

@@ -71,6 +71,7 @@ class PackInventoryEntryOut(BaseModel):
 
 
 class NodeInfo(BaseModel):
+    intrinsics: list[str] = Field(default_factory=list)
     node_id: str
     node_name: str
     gpu: GpuInfoOut
@@ -535,6 +536,8 @@ class LatestRunOut(BaseModel):
 
 
 class GraphNodeOut(BaseModel):
+    operation: str | None = None
+    assembly: dict[str, Any] | None = None
     id: str
     kind: str = "algorithm"
     # ``kind: view`` is a genuine discriminator, not an algorithm with a

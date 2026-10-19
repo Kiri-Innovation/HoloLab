@@ -1,3 +1,5 @@
+import { ExecutableNode } from "./canvas/AssemblyNode";
+import { ASSEMBLE, assemblyPresentation, assemblyFields, newAssembly } from "./canvas/assembly";
 import { newId } from "./newId";
 import { InspectorPreview } from "./canvas/InspectorPreview";
 import { FrameSelectedShortcut } from "./canvas/FrameSelectedShortcut";
@@ -80,7 +82,6 @@ import {
   type NodeStaleness,
 } from "./canvas/staleness";
 import {
-  AlgorithmNode,
   PREVIEW_TOGGLE_EVENT,
   RUN_NODE_EVENT,
   type AlgorithmNodeData,
@@ -134,7 +135,7 @@ import {
   type RecentJobRow,
 } from "./canvas/RecentJobsPanel";
 
-const NODE_TYPES = { algorithm: AlgorithmNode, view: ViewNode };
+const NODE_TYPES = { algorithm: ExecutableNode, view: ViewNode };
 
 // Cheap value-level equality for the aggregated NodeRuntime so the
 // setNodes runtime-sync effect can keep node identity stable across
@@ -450,7 +451,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const refreshCatalog = useCallback(async () => {
     try {
       const [cat, nodes] = await Promise.all([getPackCatalog(), getComputeNodes()]);
-      setCatalog(cat);
+      setCatalog([...cat, assemblyPresentation(nodes.filter(n => n.intrinsics?.includes("array-assemble")).map(n => n.node_id))]);
       setComputeNodes(nodes);
     } catch (e) {
       console.warn("catalog refresh failed", e);
@@ -1309,7 +1310,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const connectionContext = useMemo(() => ({
     nodes: nodes.flatMap(n => {
       const d = algorithmDataForNode(n);
-      return d ? [{ id: n.id, algorithm_name: d.pack.name, algorithm_version: d.pack.version,
+      return d ? [{ ...assemblyFields(d.assembly), id: n.id, algorithm_name: d.pack.name, algorithm_version: d.pack.version,
         position: n.position, params: d.params ?? {}, arrayed_toggle: d.arrayed_toggle,
         assigned_node_id: d.assigned_node_id }] : [];
     }),
@@ -1331,6 +1332,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         console.warn(`edge rejected: ${verdict.actual} → ${verdict.expected} incompatible`);
         return;
       }
+      setNodes(ns => ns.map(n => {
+        const d = algorithmDataForNode(n);
+        if(n.id !== conn.target || !d?.assembly || d.assembly.type_anchor_slot) return n;
+        return {...n, data: {...n.data, assembly: {...d.assembly, type_anchor_slot: conn.targetHandle}}};
+      }));
       setEdges((es) =>
         addEdge(
           {
@@ -1424,6 +1430,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         position,
         data: {
           pack,
+          assembly: pack.name === ASSEMBLE ? newAssembly() : undefined,
           assigned_node_id: pack.node_ids[0] ?? null, // default to the first eligible
           ...({ arrayed_toggle: false, parallelism: 1, batch_size: 1 } as object),
         },
@@ -1783,6 +1790,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         };
         return {
           id: n.id,
+          ...assemblyFields(d.assembly),
           algorithm_name: d.pack.name,
           algorithm_version: d.pack.version,
           position: { x: n.position.x, y: n.position.y },
@@ -1872,6 +1880,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             position: gn.position,
             data: {
               pack,
+              assembly: gn.assembly,
               assigned_node_id: gn.assigned_node_id,
               ...({ params: gn.params } as object),
               ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),

@@ -1,3 +1,4 @@
+import { ASSEMBLE } from "./assembly";
 // Left sidebar: hierarchical, searchable palette of available packs.
 //
 // The tree is grouped by each pack's ``manifest.category`` (a slash-hierarchy
@@ -192,7 +193,7 @@ function PackLeaf({
           fontWeight: 500,
         }}
       >
-        <Highlight text={pack.name} query={query} />
+        <Highlight text={pack.name === ASSEMBLE ? "array-assemble" : pack.name} query={query} />
       </span>
       <span
         style={{

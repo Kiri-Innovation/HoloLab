@@ -182,6 +182,7 @@ function selfDirtyReasons(
     algorithm_version: sn.algorithm_version,
     params: sn.params ?? {},
   }, packDefaults);
+  if (JSON.stringify(dn.assembly ?? null) !== JSON.stringify(sn.assembly ?? null)) reasons.push("组装槽位、顺序或轴名已改");
   if ((dn.assigned_node_id ?? null) !== (sn.assigned_node_id ?? null)) {
     reasons.push("执行节点已更改");
   }
