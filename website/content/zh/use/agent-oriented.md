@@ -11,7 +11,11 @@ order: 25
 
 不用描述“刚才失败的那个节点”，直接使用它的引用入口。工作流、画布节点、Run、Job、产物引用（Handle）、Pack 和计算设备都有 `hololab://` 引用；`hololab://workflows` 和 `hololab://artifacts` 则指向整个列表。引用标识的是实例内的对象，因此也要把实例地址告诉 agent。
 
+<div class="flops-only">
+
 在 Flops 内嵌浏览器中，引用会插入对话输入框；普通浏览器会复制引用文本，供你粘贴。插入的引用附带一份标记为 `hololab.reference-snapshot/v1` 的 Markdown 摘要，分为 identity、state、context 和 navigation 四部分。它记录的是引用时的情况；agent 可以重新解析引用，获取当前数据。
+
+</div>
 
 ## 一切皆可被 agent 读取
 

@@ -11,7 +11,11 @@ You can work on the canvas and hand a specific question to an agent without reco
 
 Instead of describing “the node that failed,” use its reference action. Workflows, canvas nodes, Runs, Jobs, output Handles, Packs and compute nodes have `hololab://` references; `hololab://workflows` and `hololab://artifacts` refer to whole lists. A reference identifies an object within an instance, so give the agent the instance address too.
 
+<div class="flops-only">
+
 In the Flops embedded browser, the action inserts a reference into the conversation input. In a regular browser, it copies reference text for you to paste. The inserted reference includes a Markdown summary labeled `hololab.reference-snapshot/v1`, with identity, state, context and navigation sections. It is a summary captured at that moment; the agent can resolve the reference again for current data.
+
+</div>
 
 ## Everything agent-readable
 

@@ -1,0 +1,3 @@
+.flops-only { display: none; }
+html[data-flops="1"] .flops-only { display: revert; }
+html[data-flops="1"] .no-flops-only { display: none; }

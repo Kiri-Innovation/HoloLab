@@ -185,3 +185,19 @@ test('reviewed screenshot pictures retain theme sources and reject remote or mis
   await f.configure([{ ...entry, source: 'docs/a.md' }]);
   await assert.rejects(f.run(), /website-owned/);
 });
+
+test('browser-specific paragraphs retain only approved classes and Markdown', async t => {
+  const f = await fixture(t);
+  await mkdir(path.join(f.root, 'website/content/en/use'), { recursive: true });
+  const entry = { ...f.sources[0], source: 'website/content/en/use/a.md', environmentContent: true, diagrams: true };
+  await f.configure([entry]);
+  await f.write(entry.source, '# A\n\n<div class="flops-only arbitrary" onclick="bad()">\n\nBridge `summary`.\n\n</div>\n\n<div class="no-flops-only">\n\nCopy text.\n\n</div>\n\n<script>bad()</script>');
+  await f.run();
+  const html = (await f.index()).docs[0].html;
+  assert.match(html, /class="flops-only"/);
+  assert.match(html, /class="no-flops-only"/);
+  assert.match(html, /<code>summary<\/code>/);
+  assert.doesNotMatch(html, /arbitrary|onclick|<script/);
+  await f.configure([{ ...entry, source: 'docs/a.md' }]);
+  await assert.rejects(f.run(), /website-owned/);
+});

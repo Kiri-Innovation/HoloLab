@@ -4,6 +4,8 @@ import content from './content/docs/index.json';
 import './styles/site.css';
 import './styles/i18n.css';
 import './styles/screenshots.css';
+import './browser-environment';
+import './styles/browser-environment.css';
 import { locale, localeKey, localize, t, label } from './i18n';
 
 type Theme = 'light' | 'dark' | 'system';

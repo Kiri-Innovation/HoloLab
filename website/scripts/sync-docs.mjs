@@ -65,7 +65,8 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
   const docs = [];
   for (const entry of sources) {
     if (!object(entry)) fail('Invalid source entry');
-    for (const key of Object.keys(entry)) if (!['source', 'slug', 'section', 'title', 'group', 'order', 'diagrams', 'screenshots', 'locale', 'contentLanguage', 'legacySource'].includes(key)) fail(`Unknown source field: ${key}`);
+    for (const key of Object.keys(entry)) if (!['source', 'slug', 'section', 'title', 'group', 'order', 'diagrams', 'screenshots', 'environmentContent', 'locale', 'contentLanguage', 'legacySource'].includes(key)) fail(`Unknown source field: ${key}`);
+    if (entry.environmentContent !== undefined && (typeof entry.environmentContent !== 'boolean' || !entry.source?.startsWith('website/content/'))) fail('Environment content is only allowed in website-owned content');
     if (entry.diagrams !== undefined && (typeof entry.diagrams !== 'boolean' || !entry.source?.startsWith('website/content/'))) fail('Diagrams are only allowed in website-owned content');
     if (entry.screenshots !== undefined && (typeof entry.screenshots !== 'boolean' || !entry.source?.startsWith('website/content/'))) fail('Screenshots are only allowed in website-owned content');
     if (entry.locale !== undefined && !['en', 'zh-CN'].includes(entry.locale)) fail('Invalid locale');
@@ -165,8 +166,13 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
       schema.attributes.source = ['srcSet', ['media', '(prefers-color-scheme: dark)'], ['type', 'image/webp']];
       schema.attributes.img = ['src', 'alt', 'width', 'height', ['loading', 'lazy'], ['decoding', 'async']];
     }
-    const renderer = unified().use(remarkRehype, { allowDangerousHtml: !!(doc.diagrams || doc.screenshots) });
-    if (doc.diagrams || doc.screenshots) renderer.use(rehypeRaw);
+    if (doc.environmentContent) {
+      const attributes = schema.attributes.div ?? [];
+      const classes = attributes.filter(attribute => Array.isArray(attribute) && attribute[0] === 'className').flatMap(attribute => attribute.slice(1));
+      schema.attributes.div = [...attributes.filter(attribute => !(Array.isArray(attribute) && attribute[0] === 'className')), ['className', ...classes, 'flops-only', 'no-flops-only']];
+    }
+    const renderer = unified().use(remarkRehype, { allowDangerousHtml: !!(doc.diagrams || doc.screenshots || doc.environmentContent) });
+    if (doc.diagrams || doc.screenshots || doc.environmentContent) renderer.use(rehypeRaw);
     if (doc.screenshots) renderer.use(() => async tree => {
       const images = [];
       visit(tree, 'element', node => {

@@ -266,7 +266,8 @@
     "group": "快速开始",
     "order": 25,
     "locale": "en",
-    "contentLanguage": "en"
+    "contentLanguage": "en",
+    "environmentContent": true
   },
   {
     "source": "website/content/zh/use/agent-oriented.md",
@@ -276,6 +277,7 @@
     "group": "快速开始",
     "order": 25,
     "locale": "zh-CN",
-    "contentLanguage": "zh-CN"
+    "contentLanguage": "zh-CN",
+    "environmentContent": true
   }
 ]
