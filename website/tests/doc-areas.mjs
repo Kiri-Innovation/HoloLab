@@ -11,7 +11,7 @@ try {
     const prefix = locale === 'en' ? '' : '/zh-CN';
     const page = await browser.newPage({viewport: {width: 1440, height: 1100}});
     await page.goto(origin + prefix + '/docs?source=test#intro');
-    await page.waitForURL(origin + prefix + '/docs/introduction?source=test#intro');
+    await page.waitForURL(origin + prefix + '/docs/use/introduction?source=test#intro');
     assert.equal(await page.locator('.doc-cards').count(), 0);
     const areas = page.locator('.doc-areas');
     const links = areas.locator('a');
@@ -19,7 +19,7 @@ try {
       assert.equal(await links.count(), 2);
       const expected = docs.filter(d => d.locale === locale && d.section === section).map(d => d.href).sort();
       assert.deepEqual((await page.locator('.sidebar .doc-link').evaluateAll(es => es.map(e => e.getAttribute('href')))).sort(), expected);
-      assert.equal(await areas.locator('a[aria-current="page"]').getAttribute('href'), prefix + (section === 'learn' ? '/docs/introduction' : '/docs/contributor/about'));
+      assert.equal(await areas.locator('a[aria-current="page"]').getAttribute('href'), prefix + (section === 'learn' ? '/docs/use/introduction' : '/docs/contributor/about'));
       assert.equal(await page.locator('html').getAttribute('lang'), locale);
       const header = await page.locator('.header').boundingBox(), tabs = await areas.boundingBox();
       assert.ok(Math.abs(tabs.y - header.y - header.height) < 1, 'tabs directly below header');
@@ -30,7 +30,7 @@ try {
       await page.locator('.theme-control').selectOption(theme);
       for (const [index, section] of [[1, 'contributor'], [0, 'learn']]) {
         await links.nth(index).click();
-        await page.waitForURL(origin + prefix + (index ? '/docs/contributor/about' : '/docs/introduction'));
+        await page.waitForURL(origin + prefix + (index ? '/docs/contributor/about' : '/docs/use/introduction'));
         await check(section);
         await page.screenshot({path: `${output}${locale}-${theme}-${section}.png`});
         await page.screenshot({path: `${output}${locale}-${theme}-${section}-tabs.png`, clip: {x: 0, y: 0, width: 1440, height: 170}});
@@ -38,7 +38,7 @@ try {
       await page.goBack();
       await page.waitForURL(origin + prefix + '/docs/contributor/about');
       await page.goForward();
-      await page.waitForURL(origin + prefix + '/docs/introduction');
+      await page.waitForURL(origin + prefix + '/docs/use/introduction');
       // Article membership is independent of its legacy /build URL prefix.
       for (const [slug, section] of [['build/writing-a-pack', 'learn'], ['build/architecture', 'contributor']]) {
         await page.goto(origin + prefix + '/docs/' + slug);

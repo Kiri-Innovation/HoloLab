@@ -18,7 +18,7 @@ try {
   for (const locale of ['en', 'zh-CN']) {
     const prefix = locale === 'en' ? '' : '/zh-CN';
     for (const theme of ['light', 'dark']) {
-      for (const [name, route] of [['home', `${prefix}/`], ['quick-start', `${prefix}/docs/quick-start`], ['introduction', `${prefix}/docs/introduction`], ['run-records', `${prefix}/docs/use/run-records`]]) {
+      for (const [name, route] of [['home', `${prefix}/`], ['quick-start', `${prefix}/docs/quick-start`], ['introduction', `${prefix}/docs/use/introduction`], ['run-records', `${prefix}/docs/use/run-records`]]) {
         await page.goto(origin + route);
         await page.locator('.theme-control').selectOption(theme);
         await page.locator('main h1').waitFor();
@@ -50,7 +50,7 @@ try {
         await noOverflow(route);
       }
       for (const theme of ['light', 'dark']) {
-        for (const [name, route] of [['home', `${prefix}/`], ['introduction', `${prefix}/docs/introduction`]]) {
+        for (const [name, route] of [['home', `${prefix}/`], ['introduction', `${prefix}/docs/use/introduction`]]) {
           await page.goto(origin + route);
           await page.locator('.theme-control').selectOption(theme);
           await page.screenshot({ path: `${output}${locale}-mobile-${width}-${name}-${theme}.png`, fullPage: true });

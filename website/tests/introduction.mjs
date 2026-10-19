@@ -13,7 +13,7 @@ try {
   for (const [device, width, height] of [['desktop',1440,900],['mobile',390,844]]) {
     await page.setViewportSize({ width, height });
     for (const theme of ['light','dark']) {
-      await page.goto(origin + '/docs/introduction');
+      await page.goto(origin + '/docs/use/introduction');
       await page.getByLabel('主题', { exact:true }).selectOption(theme);
       await page.waitForFunction(t => document.documentElement.dataset.theme === t, theme);
       assert.equal(await page.locator('article h1').innerText(), '介绍 HoloLab');

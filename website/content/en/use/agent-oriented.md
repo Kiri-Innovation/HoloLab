@@ -95,7 +95,7 @@ This asks the agent to read and use the guide for the current task; it does not 
 
 Give an agent with HTTP access your instance address, the skill file and a Job reference. Ask: “Why did this task fail? Read its parameters and logs before suggesting a change.” This makes the first handoff concrete without starting another run.
 
-For the entities themselves, see [Introducing HoloLab](/docs/introduction) and [Artifacts and run records](/docs/use/run-records). Next: [Your first workflow →](/docs/use/workflows).
+For the entities themselves, see [Introducing HoloLab](/docs/use/introduction) and [Artifacts and run records](/docs/use/run-records). Next: [Your first workflow →](/docs/use/workflows).
 
 ## Support quick reference
 

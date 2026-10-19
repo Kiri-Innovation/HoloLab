@@ -94,7 +94,7 @@ agent 可以调用 `GET /api/resolve?ref=hololab://…` 读取对象，再沿返
 
 把实例地址、技能文件和一条 Job 引用交给能访问该实例 HTTP 接口的 agent，问它：“这个任务为什么失败？先读参数和日志，再建议怎么改。”第一次交接就有了具体对象，也不需要另起一次运行。
 
-实体概念见[介绍 HoloLab](/docs/introduction)和[产物与运行记录](/docs/use/run-records)。接下来：[第一个工作流 →](/docs/use/workflows)。
+实体概念见[介绍 HoloLab](/docs/use/introduction)和[产物与运行记录](/docs/use/run-records)。接下来：[第一个工作流 →](/docs/use/workflows)。
 
 ## 支持范围速查表
 

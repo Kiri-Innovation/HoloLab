@@ -43,7 +43,7 @@ The two areas are `learn` (`/docs`) and `contributor` (`/docs/contributor`).
 Section `aliases` retain the old `/docs/build` and `/docs/reference` indexes as
 Learn entry points; directory routes open the first article with history replacement,
 preserving the query and fragment. Area tabs link directly to the first article
-(`/docs/introduction` or `/docs/contributor/about`); article URLs are unchanged. Each alias also receives localized
+(`/docs/use/introduction` or `/docs/contributor/about`); article URLs are unchanged. Each alias also receives localized
 HTML metadata.
 
 Generated files in `src/content/docs/` are ignored. The sync validates publication
