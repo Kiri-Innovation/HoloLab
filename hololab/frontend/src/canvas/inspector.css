@@ -140,3 +140,11 @@
 .hl-inspector-preview-run code { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--text-muted); }
 .hl-inspector-preview-run button { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; flex-shrink: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; }
 .hl-inspector-preview-run button:hover { background: var(--surface-hover); color: var(--text); }
+
+/* Pins reserve a trailing hit target without moving help or changing the editors. */
+.hl-inspector-parameters .hl-inspector-field--pinnable { padding-right: 28px; }
+.hl-inspector-parameters .hl-inspector-field--pinnable .hl-parameter-help { left: calc((100% - 28px) * .46 - 12px); }
+.hl-inspector-parameters .hl-parameter-pin { position: absolute; right: 0; top: 0; width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; color: var(--text-subtle); border-radius: var(--radius-sm); }
+.hl-inspector-parameters .hl-parameter-pin[aria-pressed=true] { color: var(--accent); }
+.hl-inspector-parameters .hl-parameter-pin:hover { background: var(--surface-alt); color: var(--text-body); }
+.hl-inspector-parameters .hl-parameter-pin:focus-visible { outline: 1px solid var(--border-focus); outline-offset: -1px; }

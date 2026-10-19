@@ -1,3 +1,4 @@
+import { parameterPinKey, toggleParameterPins } from "./canvas/parameterPins";
 import { ExecutableNode } from "./canvas/AssemblyNode";
 import { ASSEMBLE, assemblyPresentation, assemblyFields, newAssembly } from "./canvas/assembly";
 import { newId } from "./newId";
@@ -2799,6 +2800,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     <p className="hl-dock-empty">Select a node or connection to inspect it.</p>
   ) : (
     <NodeInspector
+      pinnedParams={pinnedParams[parameterPinKey(selectedAlgorithmData.pack)] ?? []}
+      onTogglePin={names => setPinnedParams(current => toggleParameterPins(current, parameterPinKey(selectedAlgorithmData.pack), names))}
       computeNodesById={computeNodesById}
       assignment={assignmentSlot}
       preview={<CanvasContext.Provider value={canvasContextValue}>

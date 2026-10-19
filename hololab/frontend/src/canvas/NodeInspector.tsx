@@ -8,6 +8,8 @@ import { ArrayParameterInput, ParameterInput, Vec3ArrayParameterInput } from "./
 import type { ComputeNode } from "../wire";
 import { DimListEditor } from "./DimListEditor";
 import { arrayParamsForEditor } from "./arrayMigration";
+import { ParameterPinButton } from "./ParameterPinButton";
+import { parameterPinKey } from "./parameterPins";
 import { OpenSourceButton } from "./OpenSourceButton";
 
 export interface NodeInspectorProps {
@@ -17,6 +19,8 @@ export interface NodeInspectorProps {
   onChange: (patch: Partial<GraphNode>) => void;
   assignment?: ReactNode;
   preview?: ReactNode;
+  pinnedParams?: string[];
+  onTogglePin?: (names: string[]) => void;
 }
 
 const SECTION_TITLE: CSSProperties = {
@@ -54,6 +58,8 @@ export function NodeInspector({
   onChange,
   assignment,
   preview,
+  pinnedParams = [],
+  onTogglePin,
 }: NodeInspectorProps) {
 
   if (!selected || !pack) {
@@ -82,6 +88,8 @@ export function NodeInspector({
     && ["x", "y", "scale"].every(key => pack.params[key]?.type === "array" && pack.params[key]?.items === "float")
     && vec3Columns.every(value => Array.isArray(value))
     && new Set(vec3Columns.map(value => (value as unknown[]).length)).size === 1;
+  const pin = (names: string[]) => onTogglePin ? <ParameterPinButton names={names}
+    algorithmKey={parameterPinKey(pack)} pinned={pinnedParams} onToggle={onTogglePin} /> : null;
   const packageComputeNode =
     (selected.assigned_node_id ? computeNodesById?.[selected.assigned_node_id] : null)
     ?? (pack.node_ids ?? []).map((nodeId) => computeNodesById?.[nodeId]).find(Boolean)
@@ -290,7 +298,7 @@ export function NodeInspector({
                   ? matchAgainst.map((v) => String(v ?? ""))
                   : undefined;
               return (
-                <div key={name} className="hl-inspector-field" style={FIELD}>
+                <div key={name} className={`hl-inspector-field${onTogglePin ? " hl-inspector-field--pinnable" : ""}`} style={FIELD}>
                   <ParameterLabel name={name} type={spec.type} optional={spec.optional} />
                   <DimListEditor
                     value={arr}
@@ -303,26 +311,29 @@ export function NodeInspector({
                     ariaName={name}
                     placeholder="dim label"
                   />
+                  {pin([name])}
                   {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
                 </div>
               );
             }
             if (groupedVec3 && (name === "y" || name === "scale")) return null;
-            if (groupedVec3 && name === "x") return <div key="transforms" className="hl-inspector-field" style={FIELD}>
+            if (groupedVec3 && name === "x") return <div key="transforms" className={`hl-inspector-field${onTogglePin ? " hl-inspector-field--pinnable" : ""}`} style={FIELD}>
               <ParameterLabel name="transform" type="x / y / scale" />
               <Vec3ArrayParameterInput specs={pack.params} params={editableParams}
                 nodeId={selected.assigned_node_id ?? null} initialDirectory="/"
                 onChange={patch => onChange({ params: { ...editableParams, ...patch } })} />
+              {pin(["x", "y", "scale"])}
             </div>;
             const Input = spec.type === "array" ? ArrayParameterInput : ParameterInput;
             const current = Object.prototype.hasOwnProperty.call(editableParams, name)
               ? editableParams[name] : spec.default ?? (spec.type === "array" ? [] : "");
-            return <div key={name} className="hl-inspector-field" style={FIELD}>
+            return <div key={name} className={`hl-inspector-field${onTogglePin ? " hl-inspector-field--pinnable" : ""}`} style={FIELD}>
               <ParameterLabel name={name} type={spec.type === "array" ? `array<${spec.items}>` : spec.type} optional={spec.optional} />
               <Input key={`${selected.id}:${name}:${selected.assigned_node_id}`} name={name} spec={spec} value={current}
                 nodeId={selected.assigned_node_id ?? null}
                 initialDirectory={computeNodesById?.[selected.assigned_node_id ?? ""]?.workspace_root ?? "/"}
                 onChange={value => onChange({ params: { ...editableParams, [name]: value } })} />
+              {pin([name])}
               {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}
             </div>;
           })
