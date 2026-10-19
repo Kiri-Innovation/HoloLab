@@ -11,7 +11,7 @@
   },
   {
     "id": "contributor",
-    "title": "贡献者文档",
+    "title": "开发者文档",
     "href": "/docs/contributor",
     "order": 20,
     "aliases": []

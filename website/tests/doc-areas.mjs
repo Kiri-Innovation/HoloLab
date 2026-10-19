@@ -44,7 +44,7 @@ try {
     assert.equal(new URL(page.url()).pathname, prefix + '/docs/contributor');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.locator('.mobile-nav summary').click();
-    assert.equal(await page.locator('.mobile-nav .doc-link').count(), 2);
+    assert.equal(await page.locator('.mobile-nav .doc-link').count(), 3);
     await page.screenshot({path: `${output}${locale}-mobile.png`});
     await page.goto(origin + prefix + '/');
     assert.equal(await areas.count(), 0, 'home has no documentation-area tabs');
@@ -54,6 +54,6 @@ try {
   await page.goto(origin + '/docs/contributor');
   await page.locator('.language-control').selectOption('zh-CN');
   await page.waitForURL(origin + '/zh-CN/docs/contributor');
-  assert.equal(await page.locator('.doc-areas a[aria-current="page"]').textContent(), '贡献者文档');
+  assert.equal(await page.locator('.doc-areas a[aria-current="page"]').textContent(), '开发者文档');
   console.log('PASS: header/tab geometry, two-way switching, section-only sidebar, legacy article membership, language retention/switching, light/dark, mobile, and home exclusion.');
 } finally { await browser.close(); }

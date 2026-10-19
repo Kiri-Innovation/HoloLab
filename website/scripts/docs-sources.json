@@ -307,5 +307,27 @@
     "environmentContent": true,
     "screenshots": true,
     "navigationOrder": 30
+  },
+  {
+    "source": "website/content/en/contributor/about.md",
+    "slug": "contributor/about",
+    "section": "contributor",
+    "title": "About these docs",
+    "group": "Overview",
+    "order": 0,
+    "locale": "en",
+    "contentLanguage": "en",
+    "navigationOrder": 0
+  },
+  {
+    "source": "website/content/zh/contributor/about.md",
+    "slug": "contributor/about",
+    "section": "contributor",
+    "title": "关于此文档",
+    "group": "概览",
+    "order": 0,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "navigationOrder": 0
   }
 ]
