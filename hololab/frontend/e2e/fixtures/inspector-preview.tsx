@@ -29,7 +29,7 @@ function Fixture(){
  <ReactFlowProvider>{mode==='snapshot'?<SnapshotCanvas snapshot={snapshot as SnapshotDetail} catalog={[pack]} selectedGraphNodeId={selected} onSelectionChange={setSelected} selectedEdgeId={null} onEdgeSelectionChange={()=>{}} onPreviewData={setPreview}/>:<ReactFlow nodes={[{id:'n',type:'algorithm',position:{x:50,y:50},data}]} nodeTypes={nodeTypes}/>}</ReactFlowProvider>
  <aside className="hl-inspector-sidebar"><div className="hl-sidebar-content">{mode==='snapshot'
  ? <SnapshotNodeInspector graphNodeId={selected} pack={pack} job={snapshot.jobs[0]} preview={preview&&<InspectorPreview data={preview.data}/>}/>
- : <NodeInspector selected={graphNode} pack={pack} onChange={()=>{}} preview={<InspectorPreview data={data}/>}/>}</div></aside>
+ : <NodeInspector selected={graphNode} pack={pack} onChange={()=>{}} onParamsChange={()=>{}} preview={<InspectorPreview data={data}/>}/>}</div></aside>
  </div></CanvasContext.Provider>;
 }
 createRoot(document.getElementById('root')!).render(<Fixture/>);

@@ -148,3 +148,10 @@
 .hl-inspector-parameters .hl-parameter-pin[aria-pressed=true] { color: var(--accent); }
 .hl-inspector-parameters .hl-parameter-pin:hover { background: var(--surface-alt); color: var(--text-body); }
 .hl-inspector-parameters .hl-parameter-pin:focus-visible { outline: 1px solid var(--border-focus); outline-offset: -1px; }
+
+.hl-pinned-parameters { padding: 8px 10px; border-top: 1px solid var(--border-subtle); min-width: 0; font-size: var(--fs-xs); }
+.hl-pinned-parameters .hl-inspector-field { --label-width: 42%; margin-bottom: 6px; }
+.hl-pinned-parameters .hl-inspector-field:last-child { margin-bottom: 0; }
+.hl-pinned-parameters .hl-inspector-field > div:first-child { padding-right: 0; }
+.hl-pinned-label { display: flex; align-items: center; gap: 4px; color: var(--text-muted); }
+.hl-pinned-readonly { min-width: 0; min-height: var(--control-h-sm); overflow-wrap: anywhere; color: var(--text-body); font-family: var(--font-mono); }

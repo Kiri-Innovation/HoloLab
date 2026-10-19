@@ -1,3 +1,4 @@
+import { PinnedParameters } from "./PinnedParameters";
 import { NodePreviews, useNodePreviewSelection } from "./NodePreviews";
 import { PortHandle } from "./PortHandle";
 // Custom xyflow node for one algorithm-pack instance.
@@ -134,6 +135,8 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   // past snapshot has no clean meaning; the user re-runs from the
   // draft). Draft canvas leaves it undefined.
   readOnly?: boolean;
+  /** Snapshot-frozen pins; draft pins come from workflow context. */
+  pinnedParams?: string[];
   // Result-staleness badge state — driven by canvas/staleness.ts against
   // the latest snapshot graph. ``null`` (or omitted) means fresh /
   // in-flight — the existing status dot already tells the story and no
@@ -668,6 +671,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           })}
         </div>
       </div>
+
+      <PinnedParameters id={id} data={data as AlgorithmNodeData} />
 
       {/* FOOTER — run result: elapsed + relative-time + progress + actions.
           Header carries identity (compute-node · version); footer is

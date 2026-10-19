@@ -20,3 +20,12 @@ it("announces workflow scope and uses filled plus pressed state", () => {
   expect(button.props["aria-label"]).toContain("all demo@1 nodes in this workflow");
   expect(button.props.children.props.fill).toBe("currentColor");
 });
+
+it("pin-only changes do not count as execution changes", async () => {
+  const { diffGraphs } = await import("./diffGraphs");
+  const { computeStaleness } = await import("./staleness");
+  const graph = { nodes: [{ id: "n", algorithm_name: "demo", algorithm_version: "1", params: { value: 1 }, position: { x: 0, y: 0 }, assigned_node_id: null }], edges: [] };
+  const pinned = { ...graph, pinned_params: { "demo@1": ["value"] } };
+  expect(diffGraphs(pinned, graph)).toEqual([]);
+  expect(computeStaleness(pinned, graph, {})).toEqual(computeStaleness(graph, graph, {}));
+});

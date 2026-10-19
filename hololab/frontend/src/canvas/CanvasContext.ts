@@ -40,6 +40,8 @@ export interface CanvasContextValue {
   // pending → "cleaned"; then handles land → real preview). See the
   // block comment on the placeholder computation in AlgorithmNode.tsx.
   hydrating: boolean;
+  pinnedParams?: Record<string, string[]>;
+  onParamsChange?: (nodeId: string, patch: Record<string, unknown>) => void;
 }
 
 const DEFAULT: CanvasContextValue = {

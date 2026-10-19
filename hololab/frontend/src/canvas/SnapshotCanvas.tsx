@@ -296,6 +296,7 @@ export function SnapshotCanvas({
           // run on the current draft head, not resurrect this snapshot).
           // The Run button in PreviewPlaceholder hides on this flag.
           readOnly: true,
+          pinnedParams: snapshot.graph.pinned_params?.[`${gn.algorithm_name}@${gn.algorithm_version}`] ?? [],
         },
       };
     });

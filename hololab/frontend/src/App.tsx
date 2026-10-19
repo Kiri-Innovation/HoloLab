@@ -1156,8 +1156,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       workflow_name: workflowName || "untitled",
       computeNodesById,
       hydrating,
+      pinnedParams,
+      onParamsChange: updateNodeParams,
     }),
-    [workflowId, workflowName, computeNodesById, hydrating],
+    [workflowId, workflowName, computeNodesById, hydrating, pinnedParams, updateNodeParams],
   );
 
   // Push job runtime + resolved previews + previewOpen into each node's
