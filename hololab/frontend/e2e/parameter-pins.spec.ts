@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 
-async function fixture(page: Page, grouped = false) {
+async function fixture(page: Page, grouped = false, defaults = false) {
   const pack:any = { name:'pin-demo',version:'1.0',manifest_hash:'pins',node_ids:['compute'],description:'Parameter pin regression fixture',
     docs:'# Parameter pins\nPin display is shared; values belong to individual nodes.', inputs:{input:{tags:['text'],arrayed:false}},outputs:{output:{tags:['text'],arrayed:false}},arrayable:true,
     params:{count:{type:'int',default:1,description:'Independent iteration count.'},mode:{type:'enum',default:1,values:[1,2,'2']},label:{type:'string',default:'hello'}} };
@@ -13,6 +13,7 @@ async function fixture(page: Page, grouped = false) {
     items:{type:'array',items:'float',default:[1]},
     input_dims:{type:'list[str]',default:['camera']},output_dims:{type:'list[str]',default:['camera']}
   });
+  if (defaults) { pack.params.count.pinned = true; pack.params.mode.pinned = true; }
   const catalog = [pack, {...pack,version:'2.0'}];
   let graph:any={nodes:['a','b','c'].map((id,i)=>({id,algorithm_name:pack.name,algorithm_version:i===2?'2.0':pack.version,position:{x:40+i*250,y:100},params:{count:i+1},assigned_node_id:'compute',arrayed_toggle:i===1})),edges:[{id:'a-b',source:'a',sourceHandle:'output',target:'b',targetHandle:'input'}]};
   const saved:any[]=[];
@@ -170,4 +171,28 @@ test('reloading an identical graph does not swallow the next edit',async({page})
   await expect(page.getByLabel('Saves')).toHaveText('[]');
   await page.getByLabel('Value',{exact:true}).fill('first edit');
   await expect(page.getByLabel('Saves')).toHaveText('["first edit"]');
+});
+
+
+test('manifest defaults appear immediately and first toggle freezes an explicit override',async({page})=>{
+  const {saved}=await fixture(page,false,true);
+  const node=page.locator('.react-flow__node[data-id="a"]');
+  await expect(node.getByLabel('count',{exact:true})).toHaveValue('1');
+  await node.locator('[data-hololab-node="algorithm"]').click({position:{x:70,y:20}});
+  const inspector=page.locator('.hl-node-inspector');
+  const count=inspector.getByRole('button',{name:'Unpin count on all pin-demo@1.0 nodes in this workflow',exact:true});
+  await expect(count).toHaveAttribute('aria-pressed','true');
+  mkdirSync('/tmp/default-parameter-pins',{recursive:true});
+  for(const theme of ['light','dark']){
+    await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+    await page.waitForTimeout(350);
+    await page.screenshot({path:`/tmp/default-parameter-pins/default-${theme}.png`});
+  }
+  await count.click();
+  await expect.poll(()=>saved.at(-1)?.graph.pinned_params).toEqual({'pin-demo@1.0':['mode']});
+  await inspector.getByRole('button',{name:'Unpin mode on all pin-demo@1.0 nodes in this workflow',exact:true}).click();
+  await expect.poll(()=>saved.at(-1)?.graph.pinned_params).toEqual({'pin-demo@1.0':[]});
+  await page.reload();
+  await expect(node.getByRole('group',{name:'Pinned parameters',exact:true})).toHaveCount(0);
+  await expect(page.locator('.react-flow__node[data-id="c"]').getByLabel('count',{exact:true})).toHaveValue('3');
 });

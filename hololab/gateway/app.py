@@ -1993,7 +1993,7 @@ def _mount_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=422, detail={"issues": issues_to_json(issues)})
 
         snapshot = await app.state.workflows.create_snapshot(
-            workflow_id=workflow_id, graph=row.graph
+            workflow_id=workflow_id, graph=row.graph, catalog=registry.catalog_json()
         )
 
         async def _run() -> None:

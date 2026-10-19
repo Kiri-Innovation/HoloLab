@@ -788,3 +788,27 @@ across sources is **first-wins** + a warning. See
 
 See `hololab/manifest/schema.py` for the pydantic models. This document
 stays in sync with the schema; report drift as a PR.
+
+### Default pinned parameters
+
+A parameter may declare `pinned: true` to show its editor inside canvas nodes by
+default. This is a strict boolean, defaults to `false`, and follows parameter
+declaration order:
+
+```yaml
+params:
+  iterations:
+    type: int
+    default: 1000
+    pinned: true
+```
+
+Defaults apply only when `workflow.graph.pinned_params` has no explicit entry
+for that exact `name@version`. An explicit empty list disables all defaults.
+The first pin toggle copies the effective set into the workflow before applying
+the change. Values remain per-node; only display configuration is shared.
+New snapshots freeze the effective set, including empty sets. Existing snapshots
+never pick up later manifest defaults. Removed parameters are not rendered, and
+explicit configurations do not carry over between versions. Only actual Pack
+parameters support this flag; package source and Fan-out controls do not.
+Use `pinned`, not aliases such as `pin` or `default_pinned` (rejected by validation).

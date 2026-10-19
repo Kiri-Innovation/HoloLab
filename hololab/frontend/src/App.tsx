@@ -1,5 +1,5 @@
 import { mergeParameterPatch } from "./canvas/PackParameterField";
-import { parameterPinKey, toggleParameterPins } from "./canvas/parameterPins";
+import { effectiveParameterPins, parameterPinKey, toggleParameterPins } from "./canvas/parameterPins";
 import { ExecutableNode } from "./canvas/AssemblyNode";
 import { ASSEMBLE, assemblyPresentation, assemblyFields, newAssembly } from "./canvas/assembly";
 import { newId } from "./newId";
@@ -2812,8 +2812,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   ) : (
     <NodeInspector
       onParamsChange={patch => updateNodeParams(selectedNode.id, patch)}
-      pinnedParams={pinnedParams[parameterPinKey(selectedAlgorithmData.pack)] ?? []}
-      onTogglePin={names => setPinnedParams(current => toggleParameterPins(current, parameterPinKey(selectedAlgorithmData.pack), names))}
+      pinnedParams={effectiveParameterPins(pinnedParams, selectedAlgorithmData.pack)}
+      onTogglePin={names => setPinnedParams(current => toggleParameterPins(current, parameterPinKey(selectedAlgorithmData.pack), names, effectiveParameterPins(current, selectedAlgorithmData.pack)))}
       computeNodesById={computeNodesById}
       assignment={assignmentSlot}
       preview={<CanvasContext.Provider value={canvasContextValue}>

@@ -74,3 +74,67 @@ def test_pin_http_roundtrip_and_snapshot_freeze(tmp_path):
         assert client.get(f"/api/workflows/{workflow_id}").json()["graph"]["pinned_params"] == {
             "demo@1": ["label"]
         }
+
+
+def test_manifest_default_pin_strict_and_unknown_pin_fields():
+    from hololab.manifest.schema import ParamSpec
+
+    assert ParamSpec(type="int", pinned=True).pinned is True
+    assert ParamSpec(type="int").pinned is False
+    for value in ("true", 1, None):
+        with pytest.raises(ValidationError):
+            ParamSpec(type="int", pinned=value)
+    for key in ("pin", "pinned_params", "default_pinned"):
+        with pytest.raises(ValidationError, match="Unknown pin field"):
+            ParamSpec.model_validate({"type": "int", key: True})
+
+
+async def test_snapshot_materializes_defaults_without_changing_draft(tmp_path):
+    from hololab.gateway.models import ParamSpecOut
+    from hololab.gateway.workflows import GraphNode, freeze_parameter_pins
+
+    graph = WorkflowGraph(nodes=[GraphNode(id="n", algorithm_name="demo", algorithm_version="1")])
+    catalog = [
+        {
+            "name": "demo",
+            "version": "1",
+            "params": {"count": {"type": "int", "pinned": True}, "label": {"type": "string"}},
+        }
+    ]
+    assert ParamSpecOut.model_validate(catalog[0]["params"]["count"]).pinned
+    frozen = freeze_parameter_pins(graph, catalog)
+    assert frozen.pinned_params == {"demo@1": ["count"]}
+    assert graph.pinned_params == {}
+    explicit = graph.model_copy(update={"pinned_params": {"demo@1": []}})
+    assert freeze_parameter_pins(explicit, catalog).pinned_params == {"demo@1": []}
+    assert freeze_parameter_pins(graph, []).pinned_params == {"demo@1": []}
+    db = await open_database(tmp_path / "defaults.sqlite")
+    try:
+        store = WorkflowStore(db)
+        draft = await store.save_draft(workflow_id=None, name="defaults", graph=graph)
+        snap = await store.create_snapshot(
+            workflow_id=draft.workflow_id, graph=graph, catalog=catalog
+        )
+        catalog[0]["params"]["count"]["pinned"] = False
+        assert (await store.get_snapshot(snap.snapshot_id)).graph.pinned_params == {
+            "demo@1": ["count"]
+        }
+        assert (await store.get_draft(draft.workflow_id)).graph.pinned_params == {}
+    finally:
+        await db.close()
+
+
+def test_transform_defaults_freeze_as_one_row():
+    from hololab.gateway.workflows import GraphNode, freeze_parameter_pins
+
+    graph = WorkflowGraph(
+        nodes=[GraphNode(id="n", algorithm_name="vec3-array-source", algorithm_version="0.1.0")]
+    )
+    params = {
+        name: {"type": "array", "items": "float", "pinned": name == "x"}
+        for name in ("x", "y", "scale")
+    }
+    frozen = freeze_parameter_pins(
+        graph, [{"name": "vec3-array-source", "version": "0.1.0", "params": params}]
+    )
+    assert frozen.pinned_params == {"vec3-array-source@0.1.0": ["x", "y", "scale"]}

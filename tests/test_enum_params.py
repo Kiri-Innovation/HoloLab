@@ -27,7 +27,7 @@ def test_enum_catalog_preserves_values(tmp_path):
 
     source = Path("packs/single-video-source@0.1.0/manifest.yaml")
     data = yaml.safe_load(source.read_text())
-    data["params"]["mode"] = {"type": "enum", "values": [1, "auto"], "default": 1}
+    data["params"]["mode"] = {"type": "enum", "values": [1, "auto"], "default": 1, "pinned": True}
     path = tmp_path / "manifest.yaml"
     path.write_text(yaml.safe_dump(data))
     registry = NodeRegistry(None)
@@ -45,6 +45,7 @@ def test_enum_catalog_preserves_values(tmp_path):
         ],
     )
     spec = registry.catalog_json()[0]["params"]["mode"]
+    assert spec["pinned"] is True
     assert spec["values"] == [1, "auto"]
     assert type(spec["values"][0]) is int
 
@@ -65,7 +66,11 @@ def test_runtime_rejects_enum_before_environment_or_process():
         _send_job_fail=fail,
     )
     assign = SimpleNamespace(
-        algorithm_name="demo", algorithm_version="1", job_id="test", params={"mode": "legacy"}
+        algorithm_name="demo",
+        algorithm_version="1",
+        job_id="test",
+        params={"mode": "legacy"},
+        intrinsic=None,
     )
     asyncio.run(NodeRuntime._run_job(runtime, assign, asyncio.Event()))
     fail.assert_awaited_once()

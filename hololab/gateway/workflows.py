@@ -477,6 +477,7 @@ class WorkflowStore:
         workflow_id: str,
         graph: WorkflowGraph,
         parent_snapshot_id: str | None = None,
+        catalog: list[dict[str, Any]] | None = None,
     ) -> SnapshotRow:
         """Create a new snapshot row.
 
@@ -486,6 +487,8 @@ class WorkflowStore:
         walking every ``snapshot_jobs`` attribution.
         """
 
+        if catalog is not None:
+            graph = freeze_parameter_pins(graph, catalog)
         snapshot_id = str(uuid.uuid4())
         graph_json = graph.model_dump_json(exclude_none=True)
         now = time.time()
@@ -1957,3 +1960,29 @@ async def latest_runs_for_snapshot(
             "output_handles": output_handles,
         }
     return out
+
+
+def freeze_parameter_pins(graph: WorkflowGraph, catalog: list[dict[str, Any]]) -> WorkflowGraph:
+    """Freeze defaults without mutating the editable draft or explicit overrides."""
+    pins = {key: list(names) for key, names in graph.pinned_params.items()}
+    packs = {f"{pack['name']}@{pack['version']}": pack for pack in catalog}
+    for node in graph.nodes:
+        if node.kind != "algorithm":
+            continue
+        key = f"{node.algorithm_name}@{node.algorithm_version}"
+        if key not in pins:
+            params = packs.get(key, {}).get("params", {})
+            defaults = [name for name, spec in params.items() if spec.get("pinned") is True]
+            group = ("x", "y", "scale")
+            if (
+                key == "vec3-array-source@0.1.0"
+                and all(
+                    params.get(name, {}).get("type") == "array"
+                    and params[name].get("items") == "float"
+                    for name in group
+                )
+                and any(name in defaults for name in group)
+            ):
+                defaults = [name for name in params if name in defaults or name in group]
+            pins[key] = defaults
+    return graph.model_copy(update={"pinned_params": pins}, deep=True)

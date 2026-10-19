@@ -243,6 +243,17 @@ class ParamSpec(BaseModel):
     max: float | int | None = None
     values: list[Any] | None = None  # required for enum
     optional: bool = False
+    pinned: bool = Field(default=False, strict=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_pin_aliases(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            for key in value:
+                if key != "pinned" and (key.startswith("pin") or "pinned" in key):
+                    raise ValueError(f"Unknown pin field {key!r}; use pinned: true/false")
+        return value
+
     must_exist: bool | None = Field(default=None, strict=True)
     path_kind: Literal["any", "file", "directory"] | None = None
 

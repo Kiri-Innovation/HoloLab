@@ -158,6 +158,7 @@ class OutputPortSpecOut(BaseModel):
 
 
 class ParamSpecOut(BaseModel):
+    pinned: bool = False
     items: str | None = None
     min: float | int | None = None
     max: float | int | None = None

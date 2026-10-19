@@ -609,6 +609,7 @@ class NodeRegistry:
                                 "min": s.min,
                                 "max": s.max,
                                 "values": s.values,
+                                "pinned": s.pinned,
                                 "default": s.default,
                                 "description": s.description,
                                 "optional": s.optional,

@@ -261,6 +261,7 @@ export interface InputPortSpec extends PortSpec {
 }
 
 export interface ParamSpec {
+  pinned?: boolean;
   items?: string | null;
   min?: number | null;
   max?: number | null;

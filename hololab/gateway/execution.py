@@ -1617,7 +1617,9 @@ async def dispatch_graph_node(
 
     if base_snapshot_id is None:
         # No base → new snapshot, first attribution.
-        snap = await workflows_store.create_snapshot(workflow_id=workflow_id, graph=graph)
+        snap = await workflows_store.create_snapshot(
+            workflow_id=workflow_id, graph=graph, catalog=registry.catalog_json()
+        )
         target_snapshot_id = snap.snapshot_id
         operation = "continue"
     elif existing_job_id is None:
@@ -1639,6 +1641,7 @@ async def dispatch_graph_node(
             workflow_id=workflow_id,
             graph=graph,
             parent_snapshot_id=parent_snapshot_id,
+            catalog=registry.catalog_json(),
         )
         target_snapshot_id = snap.snapshot_id
         await snapshot_jobs.attribute_many(target_snapshot_id, inherited)

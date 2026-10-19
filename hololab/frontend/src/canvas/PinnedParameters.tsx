@@ -3,13 +3,13 @@ import { useUpdateNodeInternals } from "@xyflow/react";
 import type { AlgorithmNodeData } from "./AlgorithmNode";
 import { useCanvasContext } from "./CanvasContext";
 import { PackParameterField, packParameterRows } from "./PackParameterField";
-import { parameterPinKey } from "./parameterPins";
+import { effectiveParameterPins } from "./parameterPins";
 import { arrayParamsForEditor } from "./arrayMigration";
 
 /** Presentation only: uses the same fields and update path as Inspector. */
 export function PinnedParameters({ id, data }: { id: string; data: AlgorithmNodeData }) {
   const context = useCanvasContext();
-  const pins = data.readOnly ? data.pinnedParams ?? [] : context.pinnedParams?.[parameterPinKey(data.pack)] ?? [];
+  const pins = data.readOnly ? data.pinnedParams ?? [] : effectiveParameterPins(context.pinnedParams ?? {}, data.pack);
   const params = data.params ?? {};
   const rows = packParameterRows(data.pack, params).filter(row => row.names.some(name => pins.includes(name)));
   const signature = rows.map(row => row.name).join("\0");
