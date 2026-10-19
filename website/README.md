@@ -36,6 +36,13 @@ and `content/zh/use/`. Six repository `docs/*.md` files remain read-only publica
 sources for development/reference pages pending batch 2. The allowlist is
 `scripts/docs-sources.json`; sections and deferred targets have separate mappings.
 Frontmatter `title`, `group`, and `order` override mapping defaults.
+The optional `navigationOrder` in `docs-sources.json` controls website navigation
+without changing repository frontmatter; it takes precedence over `order` for
+sorting only. `section` controls navigation membership independently of `slug`.
+The two areas are `learn` (`/docs`) and `contributor` (`/docs/contributor`).
+Section `aliases` retain the old `/docs/build` and `/docs/reference` indexes as
+Learn entry points; article URLs are unchanged. Each alias also receives localized
+HTML metadata.
 
 Generated files in `src/content/docs/` are ignored. The sync validates publication
 boundaries and heading anchors, rewrites links to the current language, and removes

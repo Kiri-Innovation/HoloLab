@@ -13,7 +13,7 @@ for (const locale of ['en', 'zh-CN']) {
   const prefix = locale === 'en' ? '' : '/zh-CN';
   const routes = [
     { href: `${prefix}/`, title: dictionary.homeTitle },
-    ...sections.map(s => ({ href: prefix + s.href, title: dictionary[s.id] })),
+    ...sections.flatMap(s => [s.href, ...(s.aliases ?? [])].map(href => ({ href: prefix + href, title: dictionary[s.id] }))),
     ...docs.filter(d => d.locale === locale).map(d => ({ href: d.href, title: locale === 'en' ? labels[d.title] ?? d.title : d.title })),
   ];
   for (const route of routes) {

@@ -55,6 +55,11 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
     if (!object(s) || !/^[a-z]+$/.test(s.id) || !word(s.title) || !Number.isSafeInteger(s.order) || s.order < 0 || !/^\/docs(?:\/[a-z-]+)?$/.test(s.href)) fail('Invalid section');
     if (sectionIds.has(s.id) || routes.has(s.href)) fail(`Duplicate section: ${s.id}`);
     sectionIds.add(s.id); routes.add(s.href); routes.add(`/zh-CN${s.href}`);
+    if (s.aliases !== undefined && !Array.isArray(s.aliases)) fail("Invalid section aliases");
+    for (const alias of s.aliases ?? []) {
+      if (!/^\/docs(?:\/[a-z-]+)?$/.test(alias) || routes.has(alias)) fail(`Invalid or duplicate section alias: ${alias}`);
+      routes.add(alias); routes.add(`/zh-CN${alias}`);
+    }
   }
   const sourcePath = (source) => {
     if (!word(source) || path.isAbsolute(source) || source.includes('\\') || source.split('/').some(s => !s || s === '.' || s === '..') || !source.endsWith('.md')) fail(`Unsafe source path: ${source}`);
@@ -65,7 +70,7 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
   const docs = [];
   for (const entry of sources) {
     if (!object(entry)) fail('Invalid source entry');
-    for (const key of Object.keys(entry)) if (!['source', 'slug', 'section', 'title', 'group', 'order', 'diagrams', 'screenshots', 'environmentContent', 'locale', 'contentLanguage', 'legacySource'].includes(key)) fail(`Unknown source field: ${key}`);
+    for (const key of Object.keys(entry)) if (!['source', 'slug', 'section', 'title', 'group', 'order', 'diagrams', 'screenshots', 'environmentContent', 'locale', 'contentLanguage', 'legacySource', 'navigationOrder'].includes(key)) fail(`Unknown source field: ${key}`);
     if (entry.environmentContent !== undefined && (typeof entry.environmentContent !== 'boolean' || !entry.source?.startsWith('website/content/'))) fail('Environment content is only allowed in website-owned content');
     if (entry.diagrams !== undefined && (typeof entry.diagrams !== 'boolean' || !entry.source?.startsWith('website/content/'))) fail('Diagrams are only allowed in website-owned content');
     if (entry.screenshots !== undefined && (typeof entry.screenshots !== 'boolean' || !entry.source?.startsWith('website/content/'))) fail('Screenshots are only allowed in website-owned content');
@@ -84,6 +89,7 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
     const actual = await realpath(file);
     if (actual !== file) fail(`Symlink source is not allowed: ${entry.source}`);
     const { body, meta } = frontmatter(await readFile(file, 'utf8'), entry.source);
+    if (entry.navigationOrder !== undefined && (!Number.isSafeInteger(entry.navigationOrder) || entry.navigationOrder < 0)) fail(`${entry.source}: invalid navigationOrder`);
     const resolved = { ...entry, ...meta };
     metadata(resolved, entry.source);
     const tree = parser.parse(body), slugger = new GithubSlugger(), headings = [];
@@ -200,7 +206,7 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
       await writeFile(destination, doc.markdown);
     }
     const published = docs.map(({ file, linkFile, tree, markdown, ...doc }) => doc);
-    await writeFile(path.join(staging, 'index.json'), JSON.stringify({ sections: sections.sort((a,b) => a.order-b.order), docs: published.sort((a,b) => a.order-b.order) }, null, 2));
+    await writeFile(path.join(staging, 'index.json'), JSON.stringify({ sections: sections.sort((a,b) => a.order-b.order), docs: published.sort((a,b) => (a.navigationOrder ?? a.order)-(b.navigationOrder ?? b.order)) }, null, 2));
     await rm(output, { recursive: true, force: true });
     await rename(staging, output);
   } finally { await rm(staging, { recursive: true, force: true }); }

@@ -201,3 +201,21 @@ test('browser-specific paragraphs retain only approved classes and Markdown', as
   await f.configure([{ ...entry, source: 'docs/a.md' }]);
   await assert.rejects(f.run(), /website-owned/);
 });
+
+test('navigation regrouping preserves article URLs and source metadata', async t => {
+  const f = await fixture(t);
+  await f.write('docs/a.md', '---\ntitle: A\ngroup: Start\norder: 0\n---\n# A\n');
+  await f.configure(f.sources.map((s,i) => ({ ...s, section: 'learn', navigationOrder: i === 0 ? 20 : 10 })));
+  await f.write('config/docs-sections.json', JSON.stringify([
+    { id: 'learn', title: 'Learn HoloLab', href: '/docs', order: 10, aliases: ['/docs/build', '/docs/reference'] },
+    { id: 'contributor', title: 'Contributor Doc', href: '/docs/contributor', order: 20 },
+  ]));
+  await f.run();
+  const {docs, sections} = await f.index();
+  assert.deepEqual(docs.map(d => d.href), ['/docs/reference/nested/b', '/docs/use/a']);
+  assert.equal(docs[1].order, 0); // Repository frontmatter remains intact.
+  assert.equal(docs[1].section, 'learn');
+  assert.deepEqual(sections[0].aliases, ['/docs/build', '/docs/reference']);
+  await f.configure([{ ...f.sources[0], navigationOrder: -1 }, f.sources[1]]);
+  await assert.rejects(f.run(), /invalid navigationOrder/);
+});

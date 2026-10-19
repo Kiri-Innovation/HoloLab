@@ -38,15 +38,6 @@
   "footer": "Connect vision algorithms into workflows.",
   "docNav": "Documentation navigation",
   "docEyebrow": "HoloLab docs",
-  "use": "Use",
-  "build": "Develop",
-  "reference": "Reference",
-  "useTitle": "Get started with HoloLab",
-  "buildTitle": "Developer docs",
-  "referenceTitle": "Reference docs",
-  "useIntro": "Install HoloLab, build your first workflow, and inspect the results.",
-  "buildIntro": "Write a Pack and learn how algorithms, workflows, and the type system fit together.",
-  "referenceIntro": "Detailed rules for Packs, workflow files, artifacts, and workspaces.",
   "browse": "Browse docs",
   "pageTurn": "Previous and next pages",
   "previous": "Previous",
@@ -62,5 +53,10 @@
   "futureNotice": "The “Future direction” section describes plans that are not implemented.",
   "copyCode": "Copy",
   "copiedCode": "Copied",
-  "copyCodeFailed": "Copy failed; select the text to copy manually."
+  "copyCodeFailed": "Copy failed; select the text to copy manually.",
+  "learn": "Learn HoloLab",
+  "contributor": "Contributor Doc",
+  "learnIntro": "Install and use HoloLab, build workflows, and integrate algorithms with Packs.",
+  "contributorIntro": "Understand HoloLab’s architecture and type system before contributing to the implementation.",
+  "docAreas": "Documentation areas"
 }

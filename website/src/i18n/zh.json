@@ -38,15 +38,6 @@
   "footer": "视觉算法，连接成工作流。",
   "docNav": "文档导航",
   "docEyebrow": "HoloLab 文档",
-  "use": "使用",
-  "build": "开发",
-  "reference": "参考",
-  "useTitle": "开始使用 HoloLab",
-  "buildTitle": "开发文档",
-  "referenceTitle": "参考文档",
-  "useIntro": "从安装开始，在画布上跑通第一个工作流，再查看结果。",
-  "buildIntro": "从编写 Pack 开始，了解算法如何接入，以及工作流和类型系统如何运行。",
-  "referenceIntro": "查阅 Pack、工作流格式，以及产物与工作空间的详细规则。",
   "browse": "浏览文档",
   "pageTurn": "上一篇和下一篇",
   "previous": "上一篇",
@@ -62,5 +53,10 @@
   "futureNotice": "“Future direction” 部分为未实现的计划。",
   "copyCode": "复制",
   "copiedCode": "已复制",
-  "copyCodeFailed": "复制失败，请选中文本手动复制。"
+  "copyCodeFailed": "复制失败，请选中文本手动复制。",
+  "learn": "学习 HoloLab",
+  "contributor": "贡献者文档",
+  "learnIntro": "安装和使用 HoloLab，搭建工作流，并通过 Pack 接入算法。",
+  "contributorIntro": "了解 HoloLab 的架构和类型系统，为参与实现做准备。",
+  "docAreas": "文档分区"
 }
