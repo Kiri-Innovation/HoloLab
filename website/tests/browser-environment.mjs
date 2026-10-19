@@ -28,17 +28,14 @@ try {
     const skillExcerpt = (await page.locator('code.language-bash').textContent()).trim();
     assert.ok((await readFile('../skill/SKILL.md', 'utf8')).includes(skillExcerpt));
     assert.equal(await page.locator('article .no-flops-only').isVisible(), !flops);
-    // Exercise direct picture classes on the real shared illustration.
-    const picture = page.locator('article .doc-screenshot picture');
-    await picture.evaluate(el => el.classList.add('flops-only'));
-    assert.equal(await picture.isVisible(), flops);
-    await picture.evaluate(el => { el.classList.remove('flops-only'); el.classList.add('no-flops-only'); });
-    assert.equal(await picture.isVisible(), !flops);
-    await picture.evaluate(el => el.classList.remove('no-flops-only'));
+    assert.equal(await page.locator('article .no-flops-only figure').isVisible(), !flops);
+    assert.equal(await page.locator('.reference-placeholder').isVisible(), flops);
+    assert.equal((await page.locator('article .no-flops-only code.language-text').textContent()).trim(), 'hololab://graph-node/<workflow-id>/fx  # frame-extraction');
     for (const theme of ['light', 'dark']) {
       await page.locator('.theme-control').selectOption(theme);
-      await page.waitForFunction(theme => { const img = document.querySelector('article .doc-screenshot img'); return img.complete && img.naturalWidth > 0 && img.currentSrc.endsWith(`-${theme}.webp`); }, theme);
+      if (!flops) await page.waitForFunction(theme => { const img = document.querySelector('article .doc-screenshot img'); return img.complete && img.naturalWidth > 0 && img.currentSrc.endsWith(`-${theme}.webp`); }, theme);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await page.locator(flops ? 'article .flops-only' : 'article .no-flops-only').screenshot({ path: `${output}/${language}-${mode}-${theme}-reference.png` });
       await page.screenshot({ path: `${output}/${language}-${mode}-${theme}.png`, fullPage: true });
     }
     assert.deepEqual(errors, []);
