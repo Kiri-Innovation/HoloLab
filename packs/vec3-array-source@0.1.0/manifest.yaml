@@ -16,16 +16,19 @@ params:
   x:
     type: array
     items: float
+    pinned: true
     default: []
     description: x component, one per video layer; x/y/scale lengths must match.
   y:
     type: array
     items: float
+    pinned: true
     default: []
     description: y component, one per video layer; x/y/scale lengths must match.
   scale:
     type: array
     items: float
+    pinned: true
     default: []
     description: scale component, one per video layer; x/y/scale lengths must match.
 outputs:

@@ -16,6 +16,7 @@ params:
   items:
     type: array
     items: float
+    pinned: true
     default: []
     min: 0
     description: Offsets in seconds, one per video layer.
