@@ -10,6 +10,7 @@ import {SnapshotCanvas} from '../../src/canvas/SnapshotCanvas';
 const pack:any={name:'pin-demo',version:'1.0',node_ids:[],manifest_hash:'fixture',params:{count:{type:'int',default:1},label:{type:'string',default:'current default'}},inputs:{},outputs:{}};
 const snapshot:any={snapshot_id:'frozen',workflow_id:'fixture',created_ts:1,
   graph:{pinned_params:{'pin-demo@1.0':['count','removed']},nodes:[{id:'n',algorithm_name:pack.name,algorithm_version:pack.version,position:{x:80,y:80},params:{count:42,label:'historical'},assigned_node_id:null}],edges:[]},jobs:[]};
+if (new URLSearchParams(location.search).has("preview-width")) pack.outputs = {out:{tags:["unknown-test-artifact"],storage:"dir"}};
 function AutosaveFixture() {
   const [value,setValue]=useState('original');
   const [saved,setSaved]=useState<string[]>([]);

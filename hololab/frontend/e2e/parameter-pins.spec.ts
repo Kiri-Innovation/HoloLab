@@ -196,3 +196,39 @@ test('manifest defaults appear immediately and first toggle freezes an explicit 
   await expect(node.getByRole('group',{name:'Pinned parameters',exact:true})).toHaveCount(0);
   await expect(page.locator('.react-flow__node[data-id="c"]').getByLabel('count',{exact:true})).toHaveValue('3');
 });
+
+
+test('preview expansion widens an output without a viewer and collapse restores width',async({page})=>{
+  await fixture(page);
+  const node=page.locator('.react-flow__node[data-id="a"] [data-hololab-node="algorithm"]');
+  await node.click({position:{x:70,y:20}});
+  const width=()=>node.evaluate(e=>getComputedStyle(e).width);
+  mkdirSync('/tmp/node-preview-width',{recursive:true});
+  for(const theme of ['light','dark']){
+    await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+    await expect.poll(width).toBe('220px');
+    await page.waitForTimeout(200);
+    await page.screenshot({path:`/tmp/node-preview-width/collapsed-${theme}.png`});
+    await node.getByRole('button',{name:'展开预览',exact:true}).click();
+    await expect.poll(width).toBe('340px');
+    await expect(node).toContainText('尚未运行过');
+    await page.screenshot({path:`/tmp/node-preview-width/expanded-${theme}.png`});
+    await node.getByRole('button',{name:'收起预览',exact:true}).click();
+    await expect.poll(width).toBe('220px');
+    await page.screenshot({path:`/tmp/node-preview-width/restored-${theme}.png`});
+    expect(await page.locator('.react-flow__edge-path').first().getAttribute('d')).not.toContain('NaN');
+  }
+});
+
+
+test('snapshot preview without a viewer also expands and collapses',async({page})=>{
+  await page.route('**/api/**',r=>r.fulfill({json:[]}));
+  await page.goto('/e2e/fixtures/parameter-pins.html?preview-width');
+  const node=page.locator('[data-hololab-node="algorithm"]');
+  const width=()=>node.evaluate(e=>getComputedStyle(e).width);
+  await expect.poll(width).toBe('220px');
+  await node.getByRole('button',{name:'展开预览',exact:true}).click();
+  await expect.poll(width).toBe('340px');
+  await node.getByRole('button',{name:'收起预览',exact:true}).click();
+  await expect.poll(width).toBe('220px');
+});

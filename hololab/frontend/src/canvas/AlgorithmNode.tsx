@@ -373,7 +373,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const { defaultNodeViewer, expandables, currentPreview } = previewSelection;
   const expanded = currentPreview?.name ?? null;
   const width =
-    (defaultNodeViewer || (expanded && currentPreview?.kind === "viewer"))
+    (defaultNodeViewer || expanded)
       ? NODE_WIDTH_EXPANDED
       : NODE_WIDTH;
   const runInFlight =
