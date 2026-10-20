@@ -40,11 +40,11 @@ inputs:
 params:
   silhouette_loss: {type: enum, values: [bce, l1], default: bce}
   silhouette_weight: {type: float, default: 0.1, min: 0.0}
-  iterations:              { type: int,  default: 30000, min: 1 }
+  iterations:              { pinned: true, type: int,  default: 30000, min: 1 }
   data_sources:            { type: enum, values: [original, fixed, both], default: original }
   images_dir_name:         { type: string, default: "images",
                              description: "-i argument to train.py. Change to e.g. images_2 to train on half-res." }
-  resolution:              { type: int,   default: -1,
+  resolution:              { pinned: true, type: int,   default: -1,
                              description: "--resolution; -1 keeps source. 2 halves width/height." }
   mult:                    { type: float, default: 0.5,
                              description: "Rasterization tile-compactness multiplier." }
@@ -70,7 +70,7 @@ params:
   depth_l1_weight_final:   { type: float, default: 0.0 }
 
   # Dynamic mode
-  dynamic:                 { type: bool, default: false,
+  dynamic:                 { pinned: true, type: bool, default: false,
                              description: "Enable the deformation head. Image stems must be frame_XXXXX[_face]." }
 
   # Focused sampling (mutex within the mode)
