@@ -13,6 +13,8 @@ order: 10
 
 ## 从源码安装
 
+如果你已在 Kiri4DGS 仓库内工作，HoloLab 已作为子模块包含在 `hololab/` 中，无需再次克隆。进入该目录，确认已按下文说明初始化子模块后，从 `python3 -m venv .venv-runtime` 开始执行后续步骤。
+
 在终端执行：
 
 ```bash

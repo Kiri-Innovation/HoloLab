@@ -13,6 +13,8 @@ Installing from source requires Python 3.10 or later, Node.js 22, and Git. Algor
 
 ## Install from source
 
+If you already work in the Kiri4DGS repository, HoloLab is included as a submodule in `hololab/`, so there is no need to clone it again. Enter that directory, make sure its submodules are initialized as described below, and continue from `python3 -m venv .venv-runtime`.
+
 Run these commands in a terminal:
 
 ```bash
