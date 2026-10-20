@@ -15,3 +15,7 @@ Set `"environmentContent": true` on that document's entries in `scripts/docs-sou
 The website matches the product's `flopsInsertReferenceAvailable()` check: `window.flops.version === 1` and a callable `insertReference`. An empty object is not sufficient. CoBrowser injects the bridge before page scripts; the website checks before React mounts. Flops-only content is hidden by default, avoiding a flash in ordinary browsers. This is presentation, not access control.
 
 The current build emits localized HTML heads and a client-rendered document body. Paragraphs remain in the generated content bundle and rendered DOM, including when hidden; static route HTML has no document body. No-JavaScript readers cannot read the page body under the existing architecture.
+
+## Navigation metadata
+
+The `group` in `scripts/docs-sources.json` controls website navigation, overriding source frontmatter. Keep website-owned Markdown frontmatter in sync. Shared documents under the repository’s `docs/` keep their own metadata; website grouping does not require changing those files.

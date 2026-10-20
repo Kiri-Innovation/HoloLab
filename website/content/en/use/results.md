@@ -1,6 +1,6 @@
 ---
 title: View results
-group: Runs and results
+group: Full Features Intro
 order: 30
 ---
 # View results

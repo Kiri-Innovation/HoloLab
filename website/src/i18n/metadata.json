@@ -1,14 +1,11 @@
 {
   "快速开始": "Quick start",
-  "运行与结果": "Runs and results",
-  "数据与存储": "Data and storage",
-  "接入算法": "Algorithm integration",
   "系统设计": "System design",
-  "接口与格式": "Interfaces and formats",
   "编写 Pack": "Write a Pack",
   "HoloLab 架构": "HoloLab architecture",
   "端口类型系统": "Port type system",
   "Pack 规范": "Pack specification",
   "工作流 Schema": "Workflow schema",
-  "产物与工作空间": "Artifacts and workspaces"
+  "产物与工作空间": "Artifacts and workspaces",
+  "详细功能介绍": "Full Features Intro"
 }

@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting
-group: Runs and results
+group: Full Features Intro
 order: 40
 ---
 # Troubleshooting

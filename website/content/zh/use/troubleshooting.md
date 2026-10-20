@@ -1,6 +1,6 @@
 ---
 title: 排错
-group: 运行与结果
+group: 详细功能介绍
 order: 40
 ---
 # 排错

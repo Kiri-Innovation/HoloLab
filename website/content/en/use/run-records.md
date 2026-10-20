@@ -1,6 +1,6 @@
 ---
 title: Artifacts and run history
-group: Runs and results
+group: Full Features Intro
 order: 35
 ---
 # Artifacts and run history

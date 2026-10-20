@@ -90,7 +90,8 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
     if (actual !== file) fail(`Symlink source is not allowed: ${entry.source}`);
     const { body, meta } = frontmatter(await readFile(file, 'utf8'), entry.source);
     if (entry.navigationOrder !== undefined && (!Number.isSafeInteger(entry.navigationOrder) || entry.navigationOrder < 0)) fail(`${entry.source}: invalid navigationOrder`);
-    const resolved = { ...entry, ...meta };
+    // Navigation groups belong to the website, including for shared repository docs.
+    const resolved = { ...entry, ...meta, group: entry.group };
     metadata(resolved, entry.source);
     const tree = parser.parse(body), slugger = new GithubSlugger(), headings = [];
     visit(tree, 'heading', node => {
