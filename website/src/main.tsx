@@ -71,9 +71,8 @@ function DocNav() {
     const entries = docs.filter(d => d.section === s.id);
     const groups = [...new Set(entries.map(d => d.group))];
     return <section className="nav-section" key={s.id} aria-label={s.title}>
-      <h2><a className="section-link" aria-current={pathname === s.href ? 'page' : undefined} href={s.entryHref}>{s.title}</a></h2>
       {groups.map(group => <section className="nav-group" key={group} aria-label={group}>
-        <h3>{group}</h3>
+        <h2>{group}</h2>
         <ul>{entries.filter(d => d.group === group).map(d => <li key={d.slug}><a className="doc-link" aria-current={current?.slug === d.slug ? 'page' : undefined} href={d.href}>{d.title}</a></li>)}</ul>
       </section>)}
     </section>;

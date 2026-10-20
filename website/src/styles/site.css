@@ -60,11 +60,8 @@ h1,h2,h3 { color: var(--text); font-weight: var(--fw-semibold); line-height: var
 .docs-footer .footer { min-height: var(--docs-footer-height); line-height: 22px; }
 .sidebar { grid-column: sidebar; grid-row: 1 / span 2; align-self: start; padding: 40px 0; position: sticky; top: 64px; height: calc(100vh - 64px - var(--docs-footer-height)); overflow-y: auto; overscroll-behavior-y: contain; }
 .nav-section { margin-bottom: 32px; }
-.nav-section h2 { font-size: 16px; line-height: 1.5; }
-.section-link { color: var(--text); font-weight: 600; }
-.section-link[aria-current] { color: var(--accent); }
-.nav-group { margin-top: 16px; }
-.nav-group h3 { font-size: 14px; font-weight: 400; line-height: 1.5; color: var(--text-muted); margin-bottom: 8px; }
+.nav-group + .nav-group { margin-top: 16px; }
+.nav-group h2 { font-size: 16px; font-weight: 600; line-height: 1.5; color: var(--text); margin: 0; cursor: default; }
 .nav-group ul { list-style: none; margin: 0; padding: 0; }
 .doc-link { display: block; font-size: 16px; color: var(--text-muted); padding: 5px 0; line-height: 1.5; }
 .doc-link[aria-current] { color: var(--accent); font-weight: 600; }
