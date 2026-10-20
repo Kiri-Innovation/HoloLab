@@ -155,3 +155,7 @@
 .hl-pinned-parameters .hl-inspector-field > div:first-child { padding-right: 0; }
 .hl-pinned-label { display: flex; align-items: center; gap: 4px; color: var(--text-muted); }
 .hl-pinned-readonly { min-width: 0; min-height: var(--control-h-sm); overflow-wrap: anywhere; color: var(--text-body); font-family: var(--font-mono); }
+
+/* Keep the full value-cell hit area while placing the native checkbox at its left edge. */
+.hl-pinned-checkbox { display: flex; align-items: flex-start; min-width: 0; width: 100%; }
+.hl-pinned-checkbox > input[type=checkbox] { flex: none; margin-left: 0; }

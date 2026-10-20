@@ -28,17 +28,19 @@ export function PinnedParameters({ id, data }: { id: string; data: AlgorithmNode
   return <div ref={root} className="hl-pinned-parameters hl-inspector-parameters nodrag nopan nowheel"
     role="group" aria-label="Pinned parameters" onKeyDown={event => event.stopPropagation()}
     onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
-    {rows.map(({ name, names, label, type }) => <div className="hl-inspector-field" key={name}>
+    {rows.map(({ name, names, label, type }) => {
+      const field = <PackParameterField key={`${id}:${name}:${data.assigned_node_id}`} pack={data.pack} params={params}
+        name={name} names={names} nodeId={data.assigned_node_id}
+        initialDirectory={context.computeNodesById[data.assigned_node_id ?? ""]?.workspace_root ?? "/"}
+        onChange={patch => context.onParamsChange?.(id, patch)} />;
+      return <div className="hl-inspector-field" key={name}>
       <div className="hl-pinned-label" title={`${label} · ${type}`}><code>{label}</code><span className="hl-parameter-type">{type}</span></div>
       {data.readOnly ? <div className="hl-pinned-readonly" aria-label={`${label} (read only)`}>
         {names.map(key => {
           const value = Object.prototype.hasOwnProperty.call(editable, key) ? editable[key] : data.pack.params[key]?.default;
           return <div key={key}>{names.length > 1 ? `${key}: ` : ""}{value === undefined ? "—" : typeof value === "string" ? value : JSON.stringify(value)}</div>;
         })}
-      </div> : <PackParameterField key={`${id}:${name}:${data.assigned_node_id}`} pack={data.pack} params={params}
-        name={name} names={names} nodeId={data.assigned_node_id}
-        initialDirectory={context.computeNodesById[data.assigned_node_id ?? ""]?.workspace_root ?? "/"}
-        onChange={patch => context.onParamsChange?.(id, patch)} />}
-    </div>)}
+      </div> : type === "bool" ? <label className="hl-pinned-checkbox">{field}</label> : field}
+    </div>; })}
   </div>;
 }
