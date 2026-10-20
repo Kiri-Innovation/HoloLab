@@ -105,12 +105,14 @@ inputs:
 
 params:
   use_gpu:
+    pinned: true
     type: int
     default: 1
     min: 0
     max: 1
     description: "1 = CUDA SIFT + matching; 0 = CPU fallback."
   refine_intrinsics:
+    pinned: true
     type: bool
     default: false
     description: >
@@ -121,6 +123,7 @@ params:
       those unconditionally. Passes ``--refine_intrinsics 1`` to COLMAP
       when true.
   sift_max_num_features:
+    pinned: true
     type: int
     default: 8192
     min: 512

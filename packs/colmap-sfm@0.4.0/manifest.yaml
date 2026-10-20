@@ -72,6 +72,7 @@ inputs:
 
 params:
   use_gpu:
+    pinned: true
     type: int
     default: 1
     min: 0
@@ -83,16 +84,19 @@ params:
     min: 512
     description: "SIFT downscale cap (--SiftExtraction.max_image_size)."
   max_num_features:
+    pinned: true
     type: int
     default: 8192
     min: 512
     description: "SIFT feature cap per image."
   camera_assignment:
+    pinned: true
     type: enum
     values: [single, per_folder, per_image]
     default: single
     description: "COLMAP intrinsic sharing: one shared camera, one per folder, or one per image."
   camera_model:
+    pinned: true
     type: enum
     values: [SIMPLE_PINHOLE, PINHOLE, SIMPLE_RADIAL, RADIAL, OPENCV, FULL_OPENCV]
     default: OPENCV
@@ -102,6 +106,7 @@ params:
     default: ""
     description: "Optional comma-separated COLMAP camera parameters used as initialization. Empty = EXIF/default focal initialization."
   default_focal_length_factor:
+    pinned: true
     type: float
     default: 1.2
     min: 0.01
