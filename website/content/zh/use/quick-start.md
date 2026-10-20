@@ -13,13 +13,26 @@ order: 10
 
 ## 从源码安装
 
-如果你已在 Kiri4DGS 仓库内工作，HoloLab 已作为子模块包含在 `hololab/` 中，无需再次克隆。进入该目录，确认已按下文说明初始化子模块后，从 `python3 -m venv .venv-runtime` 开始执行后续步骤。
+### 获取代码（二选一）
 
-在终端执行：
+**全新克隆。** 前端构建会自动构建随仓库固定版本的 ColmapUtil 子模块，因此克隆时需要 `--recurse-submodules`。在终端执行：
 
 ```bash
 git clone --recurse-submodules https://github.com/Kiri-Innovation/HoloLab.git
 cd HoloLab
+```
+
+**已有仓库（包括 Kiri4DGS）。** 无需再次克隆。如果你在 Kiri4DGS 仓库内工作，HoloLab 已作为子模块包含在 `hololab/` 中，从 Kiri4DGS 根目录执行 `cd hololab`；其他已有仓库用户进入自己的 HoloLab 根目录。然后在 HoloLab 根目录初始化并更新子模块：
+
+```bash
+git submodule update --init --recursive
+```
+
+### 安装与构建（通用）
+
+完成上面任一选项后，在 HoloLab 根目录执行以下命令。虚拟环境路径适用于 Linux 和 macOS。
+
+```bash
 python3 -m venv .venv-runtime
 .venv-runtime/bin/pip install -e ".[dev]"
 cd hololab/frontend
@@ -27,8 +40,6 @@ npm ci
 npm run build
 cd ../..
 ```
-
-上面的虚拟环境路径适用于 Linux 和 macOS。前端构建会自动构建随仓库固定版本的 ColmapUtil 子模块，因此克隆时需要 `--recurse-submodules`。如果已有仓库，先运行 `git submodule update --init --recursive`。
 
 ## 启动服务
 

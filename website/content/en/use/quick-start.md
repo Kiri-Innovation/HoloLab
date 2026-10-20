@@ -13,13 +13,26 @@ Installing from source requires Python 3.10 or later, Node.js 22, and Git. Algor
 
 ## Install from source
 
-If you already work in the Kiri4DGS repository, HoloLab is included as a submodule in `hololab/`, so there is no need to clone it again. Enter that directory, make sure its submodules are initialized as described below, and continue from `python3 -m venv .venv-runtime`.
+### Get the code (choose one)
 
-Run these commands in a terminal:
+**Clone a new checkout.** The frontend build also builds the pinned ColmapUtil submodule, so cloning requires `--recurse-submodules`. Run these commands in a terminal:
 
 ```bash
 git clone --recurse-submodules https://github.com/Kiri-Innovation/HoloLab.git
 cd HoloLab
+```
+
+**Use an existing checkout (including Kiri4DGS).** There is no need to clone again. If you work in the Kiri4DGS repository, HoloLab is included as a submodule in `hololab/`; run `cd hololab` from the Kiri4DGS root. For any other existing checkout, enter its HoloLab root directory. Then initialize and update its submodules from the HoloLab root:
+
+```bash
+git submodule update --init --recursive
+```
+
+### Install and build (both options)
+
+After completing either option above, run the following commands from the HoloLab root. These virtual environment paths work on Linux and macOS.
+
+```bash
 python3 -m venv .venv-runtime
 .venv-runtime/bin/pip install -e ".[dev]"
 cd hololab/frontend
@@ -27,8 +40,6 @@ npm ci
 npm run build
 cd ../..
 ```
-
-These virtual environment paths work on Linux and macOS. The frontend build also builds the pinned ColmapUtil submodule, so clone with `--recurse-submodules`. For an existing checkout, run `git submodule update --init --recursive` first.
 
 ## Start the services
 
