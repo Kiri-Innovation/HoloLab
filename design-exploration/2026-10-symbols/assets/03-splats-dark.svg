@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-labelledby="title desc">
-<title id="title">粒片 / Splats — dark</title>
-<desc id="desc">Name-independent algorithm pipeline symbol. Original hand-authored vector exploration.</desc>
-<g fill="none" stroke="#cccccc" stroke-width="2.5">
-  <ellipse cx="12" cy="9" rx="9" ry="4" transform="rotate(-25 12 9)"/>
-  <ellipse cx="20" cy="22" rx="9" ry="4" transform="rotate(-25 20 22)"/>
-</g>
-<ellipse cx="16" cy="15.5" rx="10" ry="3.5" transform="rotate(-25 16 15.5)" fill="#89d185"/>
-</svg>
