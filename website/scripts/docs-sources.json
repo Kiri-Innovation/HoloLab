@@ -329,5 +329,29 @@
     "locale": "zh-CN",
     "contentLanguage": "zh-CN",
     "navigationOrder": 0
+  },
+  {
+    "source": "website/content/en/use/nodes-and-links.md",
+    "slug": "use/nodes-and-links",
+    "section": "learn",
+    "title": "Nodes, data types, and links",
+    "group": "Full Features Intro",
+    "order": 27,
+    "locale": "en",
+    "contentLanguage": "en",
+    "screenshots": true,
+    "navigationOrder": 35
+  },
+  {
+    "source": "website/content/zh/use/nodes-and-links.md",
+    "slug": "use/nodes-and-links",
+    "section": "learn",
+    "title": "节点、数据类型与连线",
+    "group": "详细功能介绍",
+    "order": 27,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "screenshots": true,
+    "navigationOrder": 35
   }
 ]
