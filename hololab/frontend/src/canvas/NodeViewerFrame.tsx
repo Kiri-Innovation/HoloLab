@@ -51,6 +51,8 @@ export function NodeViewerFrame({
   const [assetError, setAssetError] = useState<string | null>(null);
   const [historyFrames, setHistoryFrames] = useState<LiveViewerFrame[]>([]);
   const [viewerHeight, setViewerHeight] = useState(DEFAULT_VIEWER_HEIGHT);
+  // SplaTV is a square viewport; diagnostic viewers retain content sizing.
+  const squareViewport = packName === "stg-to-splatv" && viewer.id === "splatv_scene";
   const sentWorkflowDefaultRef = useRef(false);
   const nodeId = (frames.length ? frames[frames.length - 1].node_id : null)
     ?? historyTarget?.node_id
@@ -99,13 +101,14 @@ export function NodeViewerFrame({
       if (event.data?.type !== "hololab-viewer-resize" || event.data?.viewer_id !== viewer.id) {
         return;
       }
+      if (squareViewport) return;
       const requested = Number(event.data.height);
       if (!Number.isFinite(requested)) return;
       setViewerHeight(Math.min(MAX_VIEWER_HEIGHT, Math.max(MIN_VIEWER_HEIGHT, Math.ceil(requested))));
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [viewer.id, onWorkflowDefaultChange]);
+  }, [viewer.id, onWorkflowDefaultChange, squareViewport]);
 
   useEffect(() => {
     if (!historyTarget) {
@@ -222,7 +225,7 @@ export function NodeViewerFrame({
       title={viewer.title ?? viewer.id}
       sandbox="allow-scripts allow-same-origin"
       onLoad={() => setLoaded(true)}
-      style={{ width: "100%", height: viewerHeight, border: 0, display: "block", background: "#101216" }}
+      style={{ width: "100%", height: squareViewport ? "auto" : viewerHeight, aspectRatio: squareViewport ? "1 / 1" : undefined, border: 0, display: "block", background: "#101216" }}
     />
   );
 }
