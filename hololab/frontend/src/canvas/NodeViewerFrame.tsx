@@ -80,6 +80,10 @@ export function NodeViewerFrame({
   }, [src]);
 
   useEffect(() => {
+    if (!workflowViewLoaded) sentWorkflowDefaultRef.current = false;
+  }, [workflowViewLoaded]);
+
+  useEffect(() => {
     function onMessage(event: MessageEvent) {
       const iframe = iframeRef.current;
       if (

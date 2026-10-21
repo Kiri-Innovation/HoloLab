@@ -3617,6 +3617,10 @@ function Colmap3DPreview({
   }, []);
 
   useEffect(() => {
+    if (!viewer_view_loaded) sentWorkflowDefaultRef.current = false;
+  }, [viewer_view_loaded]);
+
+  useEffect(() => {
     if (!handshaken || !viewer_view_loaded || sentWorkflowDefaultRef.current) return;
     sentWorkflowDefaultRef.current = true;
     iframeRef.current?.contentWindow?.postMessage(
