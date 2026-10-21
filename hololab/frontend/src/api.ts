@@ -316,7 +316,7 @@ export const deleteWorkflow = (workflow_id: string) =>
 
 export const runWorkflow = (workflow_id: string) =>
   resilientFetch(`/api/workflows/${workflow_id}/run`, { method: "POST" }).then(
-    json<{ workflow_id: string; snapshot_id: string; node_count: number }>,
+    json<{ workflow_id: string; snapshot_id: string | null; node_count: number }>,
   );
 
 // -- run history --------------------------------------------------------------

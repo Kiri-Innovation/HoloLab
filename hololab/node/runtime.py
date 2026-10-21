@@ -661,7 +661,7 @@ class NodeRuntime:
         ]
 
         reg = Register(
-            intrinsics=["array-assemble"],
+            intrinsics=["array-assemble", "constant-v1"],
             library_wakeup=True,
             node_name=self._config.node_name,
             v_min=PROTOCOL_V_MIN,
@@ -747,6 +747,28 @@ class NodeRuntime:
         self._ws_ready.set()
         self._library_wake.set()
 
+    async def _ensure_constant_reply(self, payload):
+        from hololab.node.constants import materialize
+        from hololab.protocol.messages import EnsureConstantResp
+
+        if not hasattr(self, "_constant_locks"):
+            self._constant_locks = {}
+        lock = self._constant_locks.setdefault(payload.digest, asyncio.Lock())
+        path, error = None, None
+        try:
+            async with lock:
+                path = await asyncio.to_thread(
+                    materialize, self._config.workspace_root, payload.digest, payload.value
+                )
+        except Exception as exc:
+            error = str(exc)
+        await self._safe_send(
+            "ensure_constant_resp",
+            EnsureConstantResp(
+                req_id=payload.req_id, digest=payload.digest, path=path, error=error
+            ),
+        )
+
     async def _session_loop(self) -> None:
         """Heartbeat + incoming frame dispatch, in parallel."""
 
@@ -761,7 +783,11 @@ class NodeRuntime:
                     log.warning("bad frame", error=str(exc))
                     continue
 
-                if env.kind == "library_wake":
+                if env.kind == "ensure_constant_req":
+                    task = asyncio.create_task(self._ensure_constant_reply(payload))
+                    lens_tasks.add(task)
+                    task.add_done_callback(lens_tasks.discard)
+                elif env.kind == "library_wake":
                     self._library_wake.set()
                 elif env.kind == "job_assign":
                     assert isinstance(payload, JobAssign)

@@ -1,3 +1,4 @@
+import { isConstantName } from "./constants";
 // Read-only variant of NodeInspector for the snapshot canvas view.
 //
 // Shares the Inspector dock with the draft editor. Here every field
@@ -26,6 +27,7 @@ export interface SnapshotNodeInspectorProps {
   // snapshot. Missing = the run stopped before this node dispatched, or
   // the node was never wired to a run.
   job: SnapshotJob | null;
+  frozenParams?: Record<string, unknown>;
   // Rerun-from action. Fired when the user clicks "Re-run from here" —
   // creates a new snapshot with reused upstream and re-executed
   // downstream, then navigates the App to view it.
@@ -66,6 +68,7 @@ export function SnapshotNodeInspector({
   pack,
   job,
   onRerunFromHere,
+  frozenParams,
 }: SnapshotNodeInspectorProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [narrow, setNarrow] = useState(false);
@@ -123,6 +126,11 @@ export function SnapshotNodeInspector({
       </div>
     );
   }
+
+  if (pack && isConstantName(pack.name)) return <div ref={rootRef} style={{padding: 20}}>
+    <strong>{pack.name.replace('@builtin/constant-', '')}</strong>
+    <p>constant · 快照中的值</p><pre>{JSON.stringify(frozenParams ?? {}, null, 2)}</pre>
+  </div>;
 
   const hasDocs = !!pack?.docs && pack.docs.trim().length > 0;
   const showLeftColumn = hasDocs && !narrow;

@@ -537,6 +537,7 @@ class LatestRunOut(BaseModel):
 
 
 class GraphNodeOut(BaseModel):
+    constant: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)
     operation: str | None = None
     assembly: dict[str, Any] | None = None
     id: str
@@ -784,6 +785,7 @@ class SnapshotJobOut(BaseModel):
 
 
 class SnapshotDetail(BaseModel):
+    preparation_error: str | None = None
     """One run: frozen graph + every job attached to it."""
 
     snapshot_id: str

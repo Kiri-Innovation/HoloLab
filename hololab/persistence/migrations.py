@@ -657,6 +657,30 @@ ALTER TABLE library_operations ADD COLUMN payload TEXT;
 )
 
 
+MIGRATIONS.append(
+    (
+        21,
+        """
+CREATE TABLE snapshot_preparation_errors (snapshot_id TEXT PRIMARY KEY REFERENCES snapshots(snapshot_id) ON DELETE CASCADE, message TEXT NOT NULL);
+CREATE TABLE constant_values (
+ digest TEXT PRIMARY KEY, value_json TEXT NOT NULL
+);
+CREATE TABLE snapshot_constants (
+ snapshot_id TEXT NOT NULL REFERENCES snapshots(snapshot_id) ON DELETE CASCADE,
+ graph_node_id TEXT NOT NULL, output_port TEXT NOT NULL,
+ digest TEXT NOT NULL REFERENCES constant_values(digest),
+ PRIMARY KEY(snapshot_id, graph_node_id, output_port)
+);
+CREATE TABLE constant_materializations (
+ digest TEXT NOT NULL REFERENCES constant_values(digest), node_id TEXT NOT NULL,
+ handle_id TEXT NOT NULL REFERENCES handles(handle_id),
+ PRIMARY KEY(digest, node_id)
+);
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

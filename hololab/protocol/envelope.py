@@ -21,6 +21,8 @@ from hololab.protocol import messages
 # Adding a new message kind requires a matching entry here and, on breaking
 # changes, a protocol version bump.
 _KIND_REGISTRY: dict[str, type[BaseModel]] = {
+    "ensure_constant_req": messages.EnsureConstantReq,
+    "ensure_constant_resp": messages.EnsureConstantResp,
     "register": messages.Register,
     "library_wake": messages.LibraryWake,
     "register_ok": messages.RegisterOk,

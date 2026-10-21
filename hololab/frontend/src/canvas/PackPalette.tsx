@@ -193,7 +193,7 @@ function PackLeaf({
           fontWeight: 500,
         }}
       >
-        <Highlight text={pack.name === ASSEMBLE ? "array-assemble" : pack.name} query={query} />
+        <Highlight text={pack.name === ASSEMBLE ? "array-assemble" : pack.name.replace("@builtin/constant-", "")} query={query} />
       </span>
       <span
         style={{

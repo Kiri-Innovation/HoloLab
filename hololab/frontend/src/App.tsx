@@ -1,3 +1,4 @@
+import { constantFields, constantPresentation } from "./canvas/constants";
 import { mergeParameterPatch } from "./canvas/PackParameterField";
 import { effectiveParameterPins, parameterPinKey, toggleParameterPins } from "./canvas/parameterPins";
 import { ExecutableNode } from "./canvas/AssemblyNode";
@@ -454,7 +455,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const refreshCatalog = useCallback(async () => {
     try {
       const [cat, nodes] = await Promise.all([getPackCatalog(), getComputeNodes()]);
-      setCatalog([...cat, assemblyPresentation(nodes.filter(n => n.intrinsics?.includes("array-assemble")).map(n => n.node_id))]);
+      setCatalog([...cat, constantPresentation(false), constantPresentation(true), assemblyPresentation(nodes.filter(n => n.intrinsics?.includes("array-assemble")).map(n => n.node_id))]);
       setComputeNodes(nodes);
     } catch (e) {
       console.warn("catalog refresh failed", e);
@@ -1323,7 +1324,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const connectionContext = useMemo(() => ({
     nodes: nodes.flatMap(n => {
       const d = algorithmDataForNode(n);
-      return d ? [{ ...assemblyFields(d.assembly), id: n.id, algorithm_name: d.pack.name, algorithm_version: d.pack.version,
+      return d ? [{ ...assemblyFields(d.assembly), ...constantFields(d.pack.name), id: n.id, algorithm_name: d.pack.name, algorithm_version: d.pack.version,
         position: n.position, params: d.params ?? {}, arrayed_toggle: d.arrayed_toggle,
         assigned_node_id: d.assigned_node_id }] : [];
     }),
@@ -1804,7 +1805,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         };
         return {
           id: n.id,
-          ...assemblyFields(d.assembly),
+          ...assemblyFields(d.assembly), ...constantFields(d.pack.name),
           algorithm_name: d.pack.name,
           algorithm_version: d.pack.version,
           position: { x: n.position.x, y: n.position.y },
@@ -2223,6 +2224,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         ).workflow_id;
       setWorkflowId(wid);
       const runResult = await runWorkflow(wid);
+      if (!runResult.snapshot_id) return;
       // The toolbar starts a whole graph; every node may replace its output.
       // Apply the same dispatch-time rule as the per-node play button.
       resetAllNodeViewersForWorkflowRun();
@@ -2801,6 +2803,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       graphNodeId={snapshotSelectedGraphNodeId}
       pack={snapshotSelectedPack}
       job={snapshotSelectedJob}
+      frozenParams={viewingSnapshot.graph.nodes.find(n => n.id === snapshotSelectedGraphNodeId)?.params}
       onRerunFromHere={onRerunFromHere}
       preview={snapshotPreviewData?.snapshotId === viewingSnapshot.snapshot_id && snapshotPreviewData.nodeId === snapshotSelectedGraphNodeId ?
         <CanvasContext.Provider value={canvasContextValue}>

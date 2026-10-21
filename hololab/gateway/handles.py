@@ -225,11 +225,14 @@ class HandleBook:
                 f"""
                 SELECT {", ".join("h." + c.strip() for c in self._COLS.split(","))}
                 FROM handles h
-                JOIN jobs j ON h.job_id = j.job_id
-                WHERE j.snapshot_id = ?
+                LEFT JOIN jobs j ON h.job_id = j.job_id
+                WHERE j.snapshot_id = ? OR h.handle_id IN (
+                  SELECT cm.handle_id FROM constant_materializations cm
+                  JOIN snapshot_constants sc ON sc.digest=cm.digest WHERE sc.snapshot_id=?
+                )
                 ORDER BY h.created_ts DESC
                 """,
-                (snapshot_id,),
+                (snapshot_id, snapshot_id),
             ) as cur,
         ):
             rows = await cur.fetchall()
@@ -251,11 +254,15 @@ class HandleBook:
                 f"""
                 SELECT {", ".join("h." + c.strip() for c in self._COLS.split(","))}
                 FROM handles h
-                JOIN jobs j ON h.job_id = j.job_id
-                WHERE j.workflow_id = ?
+                LEFT JOIN jobs j ON h.job_id = j.job_id
+                WHERE j.workflow_id = ? OR h.handle_id IN (
+                  SELECT cm.handle_id FROM constant_materializations cm
+                  JOIN snapshot_constants sc ON sc.digest=cm.digest
+                  JOIN snapshots s ON s.snapshot_id=sc.snapshot_id WHERE s.workflow_id=?
+                )
                 ORDER BY h.created_ts DESC
                 """,
-                (workflow_id,),
+                (workflow_id, workflow_id),
             ) as cur,
         ):
             rows = await cur.fetchall()
@@ -317,10 +324,14 @@ class HandleBook:
                     COUNT(*) AS total,
                     SUM(CASE WHEN deleted_ts IS NOT NULL THEN 1 ELSE 0 END) AS deleted
                 FROM handles h
-                JOIN jobs j ON h.job_id = j.job_id
-                WHERE j.workflow_id = ?
+                LEFT JOIN jobs j ON h.job_id = j.job_id
+                WHERE j.workflow_id = ? OR h.handle_id IN (
+                  SELECT cm.handle_id FROM constant_materializations cm
+                  JOIN snapshot_constants sc ON sc.digest=cm.digest
+                  JOIN snapshots s ON s.snapshot_id=sc.snapshot_id WHERE s.workflow_id=?
+                )
                 """,
-                (workflow_id,),
+                (workflow_id, workflow_id),
             ) as cur,
         ):
             row = await cur.fetchone()
@@ -340,10 +351,13 @@ class HandleBook:
                     COUNT(*) AS total,
                     SUM(CASE WHEN deleted_ts IS NOT NULL THEN 1 ELSE 0 END) AS deleted
                 FROM handles h
-                JOIN jobs j ON h.job_id = j.job_id
-                WHERE j.snapshot_id = ?
+                LEFT JOIN jobs j ON h.job_id = j.job_id
+                WHERE j.snapshot_id = ? OR h.handle_id IN (
+                  SELECT cm.handle_id FROM constant_materializations cm
+                  JOIN snapshot_constants sc ON sc.digest=cm.digest WHERE sc.snapshot_id=?
+                )
                 """,
-                (snapshot_id,),
+                (snapshot_id, snapshot_id),
             ) as cur,
         ):
             row = await cur.fetchone()

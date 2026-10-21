@@ -1,3 +1,4 @@
+import { isConstantName } from "./constants";
 // Compact right-sidebar parameter editor. Changes use the existing draft autosave.
 
 import { useId, useState, useRef, useEffect, useLayoutEffect, type ReactNode, type CSSProperties } from "react";
@@ -144,13 +145,13 @@ export function NodeInspector({
         </div>
 
       </section>
-      {assignment && <section className="hl-inspector-execution" aria-label="Run on">
+      {!isConstantName(pack.name) && assignment && <section className="hl-inspector-execution" aria-label="Run on">
         <h3 style={SECTION_TITLE}>Run on</h3>
         {assignment}
       </section>}
       <div className="hl-inspector-parameters" role="region" aria-label="Parameters">
         <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Parameters</h3>
-        <div className="hl-inspector-field hl-inspector-package-field" style={FIELD}>
+        {!isConstantName(pack.name) && <div className="hl-inspector-field hl-inspector-package-field" style={FIELD}>
           <ParameterLabel name="package" type="path" />
           <OpenSourceButton
             pack={pack}
@@ -158,7 +159,7 @@ export function NodeInspector({
             variant="row"
             label="manifest.yaml"
           />
-        </div>
+        </div>}
         {pack.arrayable && (
           <>
             <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Fan-out</h3>

@@ -102,8 +102,15 @@ def ordered_inputs(config: AssemblySlots, incoming: dict[str, str]) -> list[tupl
 
 def port_view(node, packs):
     """Internal adapter to existing port consumers; never a catalog pack."""
+    from hololab.constants import OPERATIONS, is_constant
     from hololab.gateway.workflows import InputPortView, OutputPortView, PackHandle
 
+    if is_constant(node):
+        _, tag, port = OPERATIONS[node.operation]
+        return PackHandle(
+            inputs={},
+            outputs={port: OutputPortView(tags=(tag,), arrayed=True, dim_labels=("layer",))},
+        )
     if node.kind != "intrinsic":
         return packs.get((node.algorithm_name, node.algorithm_version))
     return PackHandle(

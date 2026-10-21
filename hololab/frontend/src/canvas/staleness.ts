@@ -1,3 +1,4 @@
+import { isConstantName, constantSignature } from "./constants";
 // Per-node result staleness against the latest snapshot.
 //
 // A node is "stale" when clicking Run right now would materially change
@@ -299,9 +300,16 @@ export function computeStaleness(
   const order = topoOrder(draftNodes, draftEdges);
   const draftById = new Map<string, GraphNode>(draftNodes.map((n) => [n.id, n]));
 
+  const changedConstants = new Set<string>();
   for (const id of order) {
     const dn = draftById.get(id);
     if (!dn) continue;
+    if (isConstantName(dn.algorithm_name)) {
+      const frozen = snapById.get(id);
+      if (!frozen || constantSignature(dn.algorithm_name, dn.params) !== constantSignature(frozen.algorithm_name, frozen.params)) changedConstants.add(id);
+      out[id] = null;
+      continue;
+    }
     const rt = runtimes[id];
     if (rt && IN_FLIGHT.has(rt.state)) {
       // In-flight: the status dot already tells the state story, but
@@ -367,7 +375,7 @@ export function computeStaleness(
     // before we get here for every predecessor p.
     let upstreamStale = false;
     for (const p of preds.get(id) ?? []) {
-      if (out[p] != null) {
+      if (out[p] != null || changedConstants.has(p)) {
         upstreamStale = true;
         break;
       }

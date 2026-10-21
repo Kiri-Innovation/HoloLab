@@ -1,3 +1,5 @@
+import { ConstantNode } from "./ConstantNode";
+import { isConstantName } from "./constants";
 import { useEffect, useMemo, useRef } from "react";
 import {
   Handle, Position, useReactFlow, useUpdateNodeInternals,
@@ -11,6 +13,7 @@ import { newId } from "../newId";
 
 /** Share the existing executable-node plumbing, not pack execution semantics. */
 export function ExecutableNode(props: NodeProps) {
+  if (isConstantName((props.data as AlgorithmNodeData).pack?.name ?? "")) return <ConstantNode {...props} />;
   return (props.data as AlgorithmNodeData).pack?.name === ASSEMBLE
     ? <AssemblyNode {...props} /> : <AlgorithmNode {...props} />;
 }

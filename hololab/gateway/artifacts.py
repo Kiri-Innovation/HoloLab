@@ -179,6 +179,20 @@ async def delete_artifact(
     for history.
     """
 
+    if handle.job_id is None:
+        async with (
+            app.state.db.read() as conn,
+            conn.execute(
+                "SELECT 1 FROM constant_materializations cm JOIN snapshot_constants sc ON cm.digest=sc.digest WHERE cm.handle_id=? LIMIT 1",
+                (handle.handle_id,),
+            ) as cur,
+        ):
+            referenced = await cur.fetchone()
+        if referenced:
+            raise HTTPException(
+                status_code=409,
+                detail="constant cache is referenced by a snapshot; delete its references before cleaning it",
+            )
     if node_session is None:
         raise HTTPException(
             status_code=409, detail=f"producing node {handle.node_id!r} is not connected"

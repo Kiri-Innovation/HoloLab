@@ -7,7 +7,7 @@ export function packParameterRows(pack: CatalogPack, params: Record<string, unkn
   const editable = arrayParamsForEditor(pack.name, pack.version, params);
   const keys = ["x", "y", "scale"];
   const columns = keys.map(key => editable[key] ?? pack.params[key]?.default ?? []);
-  const grouped = pack.name === "vec3-array-source" && pack.version === "0.1.0"
+  const grouped = ((pack.name === "vec3-array-source" && pack.version === "0.1.0") || pack.name === "@builtin/constant-vec3-array")
     && keys.every(key => pack.params[key]?.type === "array" && pack.params[key]?.items === "float")
     && columns.every(Array.isArray)
     && new Set(columns.map(value => (value as unknown[]).length)).size === 1;

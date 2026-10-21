@@ -148,6 +148,7 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
           ))}
       </span>
       <div style={{ flex: 1 }} />
+      {snapshot.preparation_error && <span role="alert">{snapshot.preparation_error}</span>}
       {error && <span style={{ color: "var(--error)" }}>{error}</span>}
       <button
         type="button"

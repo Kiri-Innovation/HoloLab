@@ -660,3 +660,16 @@ class ProcessTerminateReq(BaseModel):
 class ProcessTerminateResp(BaseModel):
     req_id: str
     data: dict[str, Any]
+
+
+class EnsureConstantReq(BaseModel):
+    req_id: str
+    digest: str
+    value: dict[str, Any]
+
+
+class EnsureConstantResp(BaseModel):
+    req_id: str
+    digest: str
+    path: str | None = None
+    error: str | None = None

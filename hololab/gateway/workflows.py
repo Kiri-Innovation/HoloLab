@@ -79,7 +79,9 @@ class GraphNode(BaseModel):
     # pack instance or an execution unit.  Old graphs predate the field and
     # are normalized to ``algorithm`` before validation.
     kind: Literal["algorithm", "view", "intrinsic"] = "algorithm"
-    operation: Literal["array-assemble"] | None = None
+    operation: Literal["array-assemble", "constant-float-array", "constant-vec3-array"] | None = (
+        None
+    )
     assembly: AssemblySlots | None = None
     algorithm_name: str | None = None
     algorithm_version: str | None = None
@@ -91,6 +93,7 @@ class GraphNode(BaseModel):
     # POST the same graph JSON it just GET'd — the field is accepted on
     # input and dropped on serialize (``exclude=True``), so the on-disk
     # graph stays canonical and callers don't have to strip it manually.
+    constant: dict[str, Any] | None = Field(default=None, exclude=True)
     resolved_outputs: dict[str, Any] | None = Field(default=None, exclude=True)
     port_types: PortTypes | None = Field(default=None, exclude=True)
     # Read-only: computed on every GET by
@@ -142,6 +145,26 @@ class GraphNode(BaseModel):
 
     @model_validator(mode="after")
     def _kind_fields(self) -> GraphNode:
+        from hololab.constants import is_constant
+
+        if is_constant(self):
+            if (
+                self.assembly is not None
+                or self.arrayed_toggle
+                or self.view_type is not None
+                or self.assigned_node_id is not None
+            ):
+                raise ValueError(
+                    "constants cannot have assembly, fan-out, views or device assignment"
+                )
+            expected = "@builtin/" + self.operation
+            if self.algorithm_name not in (None, expected) or self.algorithm_version not in (
+                None,
+                "1",
+            ):
+                raise ValueError("constant intrinsic identity is reserved")
+            self.algorithm_name, self.algorithm_version = expected, "1"
+            return self
         if self.kind == "intrinsic":
             if self.operation != "array-assemble" or self.assembly is None:
                 raise ValueError("intrinsic requires array-assemble operation and assembly slots")
@@ -170,6 +193,12 @@ class GraphNode(BaseModel):
             if self.assigned_node_id is not None or self.params:
                 raise ValueError("view nodes cannot have params or assigned_node_id")
         return self
+
+
+def is_task_node(node: GraphNode) -> bool:
+    from hololab.constants import is_constant
+
+    return is_algorithm_node(node) and not is_constant(node)
 
 
 def is_algorithm_node(node: GraphNode) -> bool:
@@ -499,6 +528,19 @@ class WorkflowStore:
                 "created_ts, parent_snapshot_id) VALUES (?, ?, ?, ?, ?)",
                 (snapshot_id, workflow_id, graph_json, now, parent_snapshot_id),
             )
+            from hololab.constants import OPERATIONS, constant_value, is_constant
+
+            for node in graph.nodes:
+                if is_constant(node):
+                    digest, value = constant_value(node.operation, node.params)
+                    await conn.execute(
+                        "INSERT OR IGNORE INTO constant_values VALUES (?, ?)",
+                        (digest, json.dumps(value)),
+                    )
+                    await conn.execute(
+                        "INSERT INTO snapshot_constants VALUES (?, ?, ?, ?)",
+                        (snapshot_id, node.id, OPERATIONS[node.operation][2], digest),
+                    )
 
         await self._db.write(_write)
         return SnapshotRow(
@@ -654,7 +696,7 @@ def execution_topological_order(graph: WorkflowGraph) -> list[str]:
     catches malformed cycles while a sticker can never create a Job.
     """
 
-    algorithms = {n.id for n in graph.nodes if is_algorithm_node(n)}
+    algorithms = {n.id for n in graph.nodes if is_task_node(n)}
     execution_graph = WorkflowGraph(
         nodes=[n for n in graph.nodes if n.id in algorithms],
         edges=[e for e in graph.edges if e.source in algorithms and e.target in algorithms],
@@ -817,7 +859,7 @@ def effective_output_tags(
     itself, etc.) are still guarded so the check never loops.
     """
 
-    if node.kind == "intrinsic":
+    if node.kind == "intrinsic" and node.operation == "array-assemble":
         from hololab.gateway.array_assemble import legacy, resolve
 
         return legacy(resolve(node, graph, node_by_id, packs_by_key))["tags"]
@@ -939,7 +981,7 @@ def _invocation_output_dim_labels(
 def effective_output_dim_labels(
     node, pack, port_name, graph, node_by_id, packs_by_key, _visited=None
 ):
-    if node.kind == "intrinsic":
+    if node.kind == "intrinsic" and node.operation == "array-assemble":
         from hololab.gateway.array_assemble import legacy, resolve
 
         return legacy(resolve(node, graph, node_by_id, packs_by_key))["dim_labels"]
@@ -1116,6 +1158,14 @@ def validate_snapshot(
 
     # Rules 1 + 2: pack exists on assigned node (views have neither).
     for node in graph.nodes:
+        from hololab.constants import constant_value, is_constant
+
+        if is_constant(node):
+            try:
+                constant_value(node.operation, node.params)
+            except ValueError as exc:
+                issues.append(ValidationIssue(where=f"node:{node.id}", message=str(exc)))
+            continue
         if not is_algorithm_node(node):
             continue
         key = (node.algorithm_name, node.algorithm_version)
@@ -1156,7 +1206,7 @@ def validate_snapshot(
             )
 
     for node in graph.nodes:
-        if node.kind == "intrinsic":
+        if node.kind == "intrinsic" and node.operation == "array-assemble":
             from hololab.gateway.array_assemble import resolve
 
             try:
@@ -1532,7 +1582,7 @@ def resolved_port_types(
     Legacy resolved fields remain a lossless projection, not a re-rendering.
     Aggregate fields are already lifted: never wrap them a second time.
     """
-    if node.kind == "intrinsic":
+    if node.kind == "intrinsic" and node.operation == "array-assemble":
         from hololab.gateway.array_assemble import resolved_ports
 
         return resolved_ports(node, graph, node_by_id, packs_by_key)
@@ -1649,7 +1699,15 @@ def agent_graph_dict(
                 types, legacy_outputs = resolved_port_types(n, pack, graph, by_id, packs_by_key)
                 d["resolved_outputs"] = legacy_outputs
                 d["port_types"] = types.model_dump()
-        if latest_runs is not None:
+        from hololab.constants import constant_value, is_constant
+
+        if is_constant(n):
+            try:
+                digest, value = constant_value(n.operation, n.params)
+                d["constant"] = {"status": "ready", "digest": digest, "value": value}
+            except ValueError as exc:
+                d["constant"] = {"status": "invalid", "error": str(exc)}
+        if latest_runs is not None and not is_constant(n):
             # Explicit ``None`` on absence so the field is always present
             # on the wire — agents can then rely on ``node.latest_run``
             # existing without a ``hasattr``/``in`` dance.
@@ -1966,7 +2024,15 @@ def freeze_parameter_pins(graph: WorkflowGraph, catalog: list[dict[str, Any]]) -
     """Freeze defaults without mutating the editable draft or explicit overrides."""
     pins = {key: list(names) for key, names in graph.pinned_params.items()}
     packs = {f"{pack['name']}@{pack['version']}": pack for pack in catalog}
+    from hololab.constants import is_constant
+
     for node in graph.nodes:
+        if is_constant(node):
+            key = f"{node.algorithm_name}@{node.algorithm_version}"
+            pins.setdefault(
+                key, ["x", "y", "scale"] if node.operation == "constant-vec3-array" else ["items"]
+            )
+            continue
         if node.kind != "algorithm":
             continue
         key = f"{node.algorithm_name}@{node.algorithm_version}"

@@ -63,7 +63,7 @@ def test_pack_migration():
     }
     assert isinstance(raw["items"], str)
     assert migrate_array_params("other", "0.1.0", raw) == raw
-    for name in ("vec3-array-source", "float-array-source", "video-array-assemble"):
+    for name in ("video-array-assemble",):
         manifest, _ = load_manifest(Path(f"packs/{name}@0.1.0/manifest.yaml"))
         assert all(spec.type.value == "array" for spec in manifest.params.values())
 
@@ -89,19 +89,12 @@ def test_migration_with_merged_defaults():
     ],
 )
 def test_native_source_outputs(tmp_path, name, params, port, expected):
-    import importlib.util
+    from hololab.constants import constant_value
+    from hololab.node.constants import materialize
 
-    spec = importlib.util.spec_from_file_location(
-        "array_source", Path("packs") / f"{name}@0.1.0/run.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    ref = tmp_path / "ref"
-    ref.mkdir()
-    for key in ("0000", "0001"):
-        (ref / key).mkdir()
-    output = tmp_path / "out"
-    module.run({"params": params, "inputs": {"videos": str(ref)}, "outputs": {port: str(output)}})
+    operation = "constant-" + name.removesuffix("-source")
+    digest, value = constant_value(operation, params)
+    output = Path(materialize(tmp_path, digest, value))
     assert [p.read_text() for p in sorted(output.iterdir())] == expected
 
 
@@ -122,7 +115,11 @@ def test_runtime_rejects_array_before_process():
         _send_job_fail=fail,
     )
     assign = SimpleNamespace(
-        algorithm_name="demo", algorithm_version="1", job_id="test", params={"items": [True]}
+        algorithm_name="demo",
+        algorithm_version="1",
+        job_id="test",
+        params={"items": [True]},
+        intrinsic=None,
     )
     asyncio.run(NodeRuntime._run_job(runtime, assign, asyncio.Event()))
     fail.assert_awaited_once()

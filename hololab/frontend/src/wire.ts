@@ -507,7 +507,7 @@ export interface GraphNode {
   id: string;
   // Missing means algorithm for graphs saved before view stickers shipped.
   kind?: "algorithm" | "view" | "intrinsic";
-  operation?: "array-assemble";
+  operation?: "array-assemble" | "constant-float-array" | "constant-vec3-array";
   assembly?: import("./canvas/assembly").AssemblyConfig;
   algorithm_name: string;
   algorithm_version: string;
@@ -642,6 +642,7 @@ export interface SnapshotJob {
 }
 
 export interface SnapshotDetail {
+  preparation_error?: string | null;
   snapshot_id: string;
   workflow_id: string;
   created_ts: number;

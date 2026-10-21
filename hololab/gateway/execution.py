@@ -143,6 +143,17 @@ async def run_snapshot(
             continue
 
         gnode = node_by_id[graph_node_id]
+        from hololab.constants import OPERATIONS, is_constant
+        from hololab.gateway.constants import ensure_input
+
+        for edge in graph.edges:
+            source = node_by_id.get(edge.source)
+            if edge.target == graph_node_id and source and is_constant(source):
+                outputs_by_graph_node[source.id] = {
+                    OPERATIONS[source.operation][2]: await ensure_input(
+                        app, snapshot_id, source, gnode
+                    )
+                }
         try:
             input_handles = _wire_inputs(gnode, graph, outputs_by_graph_node)
         except WorkflowRunError:
@@ -1587,6 +1598,10 @@ async def dispatch_graph_node(
     if graph_node_id not in node_by_id:
         raise DispatchError(f"graph node {graph_node_id!r} not in current graph")
     gnode = node_by_id[graph_node_id]
+    from hololab.constants import is_constant
+
+    if is_constant(gnode):
+        raise DispatchError("常量无需运行, 请运行消费节点")
     if gnode.kind not in ("algorithm", "intrinsic"):
         raise DispatchError(f"graph node {graph_node_id!r} is a view and cannot be dispatched")
 
@@ -1615,6 +1630,23 @@ async def dispatch_graph_node(
             ):
                 existing_job_id = candidate
 
+    changed_constants = set()
+    if base_snapshot_id is not None:
+        from hololab.constants import constant_value
+
+        baseline = await workflows_store.get_snapshot(base_snapshot_id)
+        previous = {n.id: n for n in baseline.graph.nodes} if baseline else {}
+        for node in graph.nodes:
+            if is_constant(node):
+                old = previous.get(node.id)
+                if (
+                    old is None
+                    or not is_constant(old)
+                    or constant_value(node.operation, node.params)[0]
+                    != constant_value(old.operation, old.params)[0]
+                ):
+                    changed_constants.add(node.id)
+
     if base_snapshot_id is None:
         # No base → new snapshot, first attribution.
         snap = await workflows_store.create_snapshot(
@@ -1622,7 +1654,7 @@ async def dispatch_graph_node(
         )
         target_snapshot_id = snap.snapshot_id
         operation = "continue"
-    elif existing_job_id is None:
+    elif existing_job_id is None and not changed_constants:
         # Continue on the existing snapshot.
         target_snapshot_id = base_snapshot_id
         operation = "continue"
@@ -1630,6 +1662,8 @@ async def dispatch_graph_node(
         # Fork: create a child snapshot; inherit every parent-snapshot
         # attribution except the target node and its downstream closure.
         forbidden = downstream_closure(graph, graph_node_id) | {graph_node_id}
+        for constant_id in changed_constants:
+            forbidden |= downstream_closure(graph, constant_id)
         parent_attributions = await snapshot_jobs.list_attributions(base_snapshot_id)
         inherited = [
             (row["job_id"], row["graph_node_id"])
@@ -1822,6 +1856,19 @@ async def _resolve_inputs_from_snapshot(
         if edge.target != graph_node_id:
             continue
         source_gnode = edge.source
+        from hololab.constants import is_constant
+        from hololab.gateway.constants import ensure_input
+
+        source = next(n for n in graph.nodes if n.id == source_gnode)
+        if is_constant(source):
+            consumer = next(n for n in graph.nodes if n.id == graph_node_id)
+            try:
+                wired[edge.targetHandle] = await ensure_input(
+                    app, target_snapshot_id, source, consumer
+                )
+            except ValueError as exc:
+                raise DispatchError(str(exc)) from exc
+            continue
         upstream_job_id = await snapshot_jobs.get_job_at(target_snapshot_id, source_gnode)
         if upstream_job_id is None:
             # No attribution row at all — the upstream slot has never

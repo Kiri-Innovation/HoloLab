@@ -1,3 +1,4 @@
+import { isConstantName, constantPresentation } from "./constants";
 import { ExecutableNode } from "./AssemblyNode";
 import { ASSEMBLE, assemblyPresentation } from "./assembly";
 import { FrameSelectedShortcut } from "./FrameSelectedShortcut";
@@ -273,7 +274,7 @@ export function SnapshotCanvas({
       }
       const pack =
         catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`) ??
-        (gn.algorithm_name === ASSEMBLE ? assemblyPresentation() : stubPack(gn.algorithm_name, gn.algorithm_version));
+        (isConstantName(gn.algorithm_name) ? constantPresentation(gn.algorithm_name.endsWith("vec3-array")) : gn.algorithm_name === ASSEMBLE ? assemblyPresentation() : stubPack(gn.algorithm_name, gn.algorithm_version));
       const runtime: NodeRuntime | undefined = runtimeByGraphNodeId[gn.id];
       return {
         id: gn.id,
@@ -296,7 +297,7 @@ export function SnapshotCanvas({
           // run on the current draft head, not resurrect this snapshot).
           // The Run button in PreviewPlaceholder hides on this flag.
           readOnly: true,
-          pinnedParams: snapshot.graph.pinned_params?.[`${gn.algorithm_name}@${gn.algorithm_version}`] ?? [],
+          pinnedParams: snapshot.graph.pinned_params?.[`${gn.algorithm_name}@${gn.algorithm_version}`] ?? (isConstantName(gn.algorithm_name) ? Object.keys(pack.params) : []),
         },
       };
     });

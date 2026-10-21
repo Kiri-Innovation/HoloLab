@@ -1185,12 +1185,23 @@ def _mount_routes(app: FastAPI) -> None:
             return None
         latest = snapshots[0]  # newest first
         jobs = await jobs_store.list_by_snapshot(latest.snapshot_id)
+        async with (
+            app.state.db.read() as conn,
+            conn.execute(
+                "SELECT message FROM snapshot_preparation_errors WHERE snapshot_id=?",
+                (latest.snapshot_id,),
+            ) as cur,
+        ):
+            preparation_failure = await cur.fetchone()
+
         state_counts: dict[str, int] = {}
         for j in jobs:
             state_counts[j["state"]] = state_counts.get(j["state"], 0) + 1
         # Same rollup rules the runs endpoint uses so the Gallery
         # pip and the Runs panel pip agree at a glance.
-        if not jobs:
+        if preparation_failure:
+            rollup = "failed"
+        elif not jobs:
             rollup = "pending"
         elif state_counts.get("failed", 0) > 0:
             rollup = "failed"
@@ -1208,6 +1219,7 @@ def _mount_routes(app: FastAPI) -> None:
             "state": rollup,
             "state_counts": state_counts,
             "job_count": len(jobs),
+            **({"preparation_error": preparation_failure[0]} if preparation_failure else {}),
         }
 
     @app.get(
@@ -1504,6 +1516,37 @@ def _mount_routes(app: FastAPI) -> None:
                         f"{workflow_id!r}'s current draft"
                     ),
                 )
+
+            from hololab.constants import constant_value, is_constant
+
+            if is_constant(gnode):
+                try:
+                    digest, value = constant_value(gnode.operation, gnode.params)
+                    constant = {"status": "ready", "digest": digest, "value": value}
+                except ValueError as exc:
+                    constant = {"status": "invalid", "error": str(exc)}
+                return {
+                    "kind": "graph-node",
+                    "ref": parsed.canonical(),
+                    "resource": {
+                        "workflow_id": workflow_id,
+                        "graph_node_id": graph_node_id,
+                        "current_draft": gnode.model_dump(),
+                        "constant": constant,
+                        "latest_attribution": None,
+                        "drift": False,
+                        "upstream": [],
+                        "downstream": [
+                            {
+                                "target_graph_node": e.target,
+                                "port": e.sourceHandle,
+                                "target_port": e.targetHandle,
+                            }
+                            for e in draft.graph.edges
+                            if e.source == graph_node_id
+                        ],
+                    },
+                }
 
             # Compute upstream / downstream edges as a self-describing
             # summary — agents can traverse without re-parsing the graph.
@@ -1993,6 +2036,16 @@ def _mount_routes(app: FastAPI) -> None:
         if issues:
             raise HTTPException(status_code=422, detail={"issues": issues_to_json(issues)})
 
+        from hololab.gateway.workflows import is_task_node
+
+        if not any(is_task_node(n) for n in row.graph.nodes):
+            return {
+                "workflow_id": workflow_id,
+                "snapshot_id": None,
+                "node_count": 0,
+                "mode": "constants",
+                "message": "常量无需运行",
+            }
         snapshot = await app.state.workflows.create_snapshot(
             workflow_id=workflow_id, graph=row.graph, catalog=registry.catalog_json()
         )
@@ -2005,10 +2058,17 @@ def _mount_routes(app: FastAPI) -> None:
                     graph=snapshot.graph,
                     workflow_id=workflow_id,
                 )
-            except WorkflowRunError as exc:
-                log.warning(
-                    "workflow run aborted", snapshot_id=snapshot.snapshot_id, error=str(exc)
-                )
+            except (WorkflowRunError, ValueError) as exc:
+                message = str(exc)
+
+                async def record_error(conn):
+                    await conn.execute(
+                        "INSERT OR REPLACE INTO snapshot_preparation_errors VALUES (?, ?)",
+                        (snapshot.snapshot_id, message),
+                    )
+
+                await app.state.db.write(record_error)
+                log.warning("workflow run aborted", snapshot_id=snapshot.snapshot_id, error=message)
 
         # We deliberately don't await this — the REST call returns while the
         # DAG is still executing in the background; job_update broadcasts drive
@@ -2022,9 +2082,7 @@ def _mount_routes(app: FastAPI) -> None:
         return {
             "workflow_id": workflow_id,
             "snapshot_id": snapshot.snapshot_id,
-            "node_count": sum(
-                1 for n in snapshot.graph.nodes if n.kind in ("algorithm", "intrinsic")
-            ),
+            "node_count": sum(1 for n in snapshot.graph.nodes if is_task_node(n)),
             "view_node_count": sum(1 for n in snapshot.graph.nodes if n.kind == "view"),
             "mode": "graph",
         }
@@ -2078,6 +2136,16 @@ def _mount_routes(app: FastAPI) -> None:
                 rollup = "running"
             else:
                 rollup = "pending"
+            async with (
+                app.state.db.read() as conn,
+                conn.execute(
+                    "SELECT message FROM snapshot_preparation_errors WHERE snapshot_id=?",
+                    (snap.snapshot_id,),
+                ) as cur,
+            ):
+                preparation_failure = await cur.fetchone()
+            if preparation_failure:
+                rollup = "failed"
             # Cheap artifact rollup — a DB-only count so this endpoint
             # stays snappy. The Artifacts page opts into the real
             # filesystem check via ``?check=1`` on /api/artifacts.
@@ -2205,7 +2273,9 @@ def _mount_routes(app: FastAPI) -> None:
         # the executor dispatches jobs one at a time in topological
         # order (see execution.run_snapshot). Without this the wait
         # would return prematurely after the first node.
-        total_nodes = sum(1 for n in snap.graph.nodes if n.kind in ("algorithm", "intrinsic"))
+        from hololab.gateway.workflows import is_task_node
+
+        total_nodes = sum(1 for n in snap.graph.nodes if is_task_node(n))
 
         def _matches(jobs: list[dict[str, Any]], target: str) -> bool:
             terminal = {"done", "failed", "cancelled", "orphaned"}
@@ -2237,6 +2307,15 @@ def _mount_routes(app: FastAPI) -> None:
             deadline = time.time() + capped_timeout
             poll_interval = 0.5
             while not _matches(jobs, wait_for_state):
+                async with (
+                    app.state.db.read() as conn,
+                    conn.execute(
+                        "SELECT 1 FROM snapshot_preparation_errors WHERE snapshot_id=?",
+                        (snapshot_id,),
+                    ) as cur,
+                ):
+                    if await cur.fetchone():
+                        break
                 if time.time() >= deadline:
                     wait_timed_out = True
                     break
@@ -2258,7 +2337,16 @@ def _mount_routes(app: FastAPI) -> None:
             cache=app.state.summary_cache,
             packs_by_key=packs_by_key,
         )
+        async with (
+            app.state.db.read() as conn,
+            conn.execute(
+                "SELECT message FROM snapshot_preparation_errors WHERE snapshot_id=?",
+                (snapshot_id,),
+            ) as cur,
+        ):
+            error_row = await cur.fetchone()
         return {
+            "preparation_error": error_row[0] if error_row else None,
             "snapshot_id": snap.snapshot_id,
             "workflow_id": snap.workflow_id,
             "created_ts": snap.created_ts,
@@ -2402,7 +2490,13 @@ def _mount_routes(app: FastAPI) -> None:
             )
 
         to_rerun = downstream_closure(old_snap.graph, graph_node_id)
-        to_reuse = node_ids - to_rerun
+        from hololab.gateway.workflows import is_task_node
+
+        task_ids = {n.id for n in old_snap.graph.nodes if is_task_node(n)}
+        if graph_node_id not in task_ids:
+            raise HTTPException(status_code=422, detail="常量无需运行, 请运行消费节点")
+        to_rerun &= task_ids
+        to_reuse = task_ids - to_rerun
 
         # Old-snapshot jobs indexed by graph_node_id for the reuse plan.
         # A fan-out gnode has one parent job (parent_job_id NULL, holds the
@@ -3721,6 +3815,12 @@ async def _dispatch_node_frame(
             fut = pending.pop(payload.req_id, None)
             if fut is not None and not fut.done():
                 fut.set_result(payload.model_dump())
+        return
+
+    if kind == "ensure_constant_resp":
+        entry = getattr(app.state, "pending_constants", {}).get(payload.req_id)
+        if entry is not None and entry[0] is session and not entry[1].done():
+            entry[1].set_result(payload)
         return
 
     if kind == "path_browse_resp":
