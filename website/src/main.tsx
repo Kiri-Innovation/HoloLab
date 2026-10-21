@@ -49,7 +49,7 @@ function LanguageControl() {
   }}><option value="en">English</option><option value="zh-CN">简体中文</option></select>;
 }
 function Header() {
-  return <header className="header"><div className="header-inner"><a className="brand" href={localize('/')} aria-label={t('homeLabel')}>HoloLab</a><nav aria-label={t('nav')}><a href={localize('/')} aria-current={isHome ? 'page' : undefined}>{t('overview')}</a><a href={localize('/docs')} aria-current={section ? 'page' : undefined}>{t('docs')}</a></nav><LanguageControl /><ThemeControl /></div></header>;
+  return <header className="header"><div className="header-inner"><a className="brand" href={localize('/')} aria-label={t('homeLabel')}><img src="/hololab-icon.svg" width="20" height="20" alt="" aria-hidden="true" style={{ verticalAlign: "middle", marginRight: 6, flexShrink: 0 }} />HoloLab</a><nav aria-label={t('nav')}><a href={localize('/')} aria-current={isHome ? 'page' : undefined}>{t('overview')}</a><a href={localize('/docs')} aria-current={section ? 'page' : undefined}>{t('docs')}</a></nav><LanguageControl /><ThemeControl /></div></header>;
 }
 function Pipeline() {
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');

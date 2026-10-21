@@ -189,6 +189,7 @@ function GalleryHeader({
           letterSpacing: "-0.01em",
         }}
       >
+        <img src="/hololab-icon.svg" width="20" height="20" alt="" aria-hidden="true" style={{ verticalAlign: "middle", marginRight: 6, flexShrink: 0 }} />
         HoloLab
       </div>
       <div style={{ color: "var(--text-muted)" }}>· workflows</div>

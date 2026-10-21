@@ -1,0 +1,138 @@
+[
+  {
+    "name": "product",
+    "theme": "light",
+    "title": "HoloLab",
+    "icons": [
+      {
+        "href": "http://127.0.0.1:8828/favicon-16.png",
+        "sizes": "16x16"
+      },
+      {
+        "href": "http://127.0.0.1:8828/favicon-32.png",
+        "sizes": "32x32"
+      },
+      {
+        "href": "http://127.0.0.1:8828/favicon-48.png",
+        "sizes": "48x48"
+      },
+      {
+        "href": "http://127.0.0.1:8828/favicon.svg",
+        "sizes": "any"
+      }
+    ],
+    "logoLoaded": true
+  },
+  {
+    "name": "website",
+    "theme": "light",
+    "title": "Visual workflows for vision algorithms — HoloLab",
+    "icons": [
+      {
+        "href": "http://127.0.0.1:5200/favicon-16.png",
+        "sizes": "16x16"
+      },
+      {
+        "href": "http://127.0.0.1:5200/favicon-32.png",
+        "sizes": "32x32"
+      },
+      {
+        "href": "http://127.0.0.1:5200/favicon-48.png",
+        "sizes": "48x48"
+      },
+      {
+        "href": "http://127.0.0.1:5200/favicon.svg",
+        "sizes": "any"
+      }
+    ],
+    "logoLoaded": true
+  },
+  {
+    "name": "product/artifacts",
+    "theme": "light",
+    "logo": 1
+  },
+  {
+    "name": "product/library",
+    "theme": "light",
+    "logo": 1
+  },
+  {
+    "name": "website-mobile",
+    "theme": "light",
+    "overflow": false
+  },
+  {
+    "name": "product",
+    "theme": "dark",
+    "title": "HoloLab",
+    "icons": [
+      {
+        "href": "http://127.0.0.1:8828/favicon-16.png",
+        "sizes": "16x16"
+      },
+      {
+        "href": "http://127.0.0.1:8828/favicon-32.png",
+        "sizes": "32x32"
+      },
+      {
+        "href": "http://127.0.0.1:8828/favicon-48.png",
+        "sizes": "48x48"
+      },
+      {
+        "href": "http://127.0.0.1:8828/favicon.svg",
+        "sizes": "any"
+      }
+    ],
+    "logoLoaded": true
+  },
+  {
+    "name": "website",
+    "theme": "dark",
+    "title": "Visual workflows for vision algorithms — HoloLab",
+    "icons": [
+      {
+        "href": "http://127.0.0.1:5200/favicon-16.png",
+        "sizes": "16x16"
+      },
+      {
+        "href": "http://127.0.0.1:5200/favicon-32.png",
+        "sizes": "32x32"
+      },
+      {
+        "href": "http://127.0.0.1:5200/favicon-48.png",
+        "sizes": "48x48"
+      },
+      {
+        "href": "http://127.0.0.1:5200/favicon.svg",
+        "sizes": "any"
+      }
+    ],
+    "logoLoaded": true
+  },
+  {
+    "name": "product/artifacts",
+    "theme": "dark",
+    "logo": 1
+  },
+  {
+    "name": "product/library",
+    "theme": "dark",
+    "logo": 1
+  },
+  {
+    "name": "website-mobile",
+    "theme": "dark",
+    "overflow": false
+  },
+  {
+    "name": "workspace",
+    "theme": "light",
+    "logo": 1
+  },
+  {
+    "name": "workspace",
+    "theme": "dark",
+    "logo": 1
+  }
+]
