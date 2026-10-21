@@ -3549,6 +3549,7 @@ function Colmap3DPreview({
   // remount. Once true it stays true; used only to gate the initial data
   // send (waiting for the receiver to exist) and to hide the boot overlay.
   const [handshaken, setHandshaken] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
   const sentWorkflowDefaultRef = useRef(false);
   const [activated, setActivated] = useState(false);
   // Deferred loading indicator for data swaps *after* the boot handshake.
@@ -3606,8 +3607,9 @@ function Colmap3DPreview({
     function onMessage(e: MessageEvent) {
       const iframe = iframeRef.current;
       if (!iframe || e.source !== iframe.contentWindow) return;
-      const d = e.data as { type?: string; view?: unknown } | null;
+      const d = e.data as { type?: string; view?: unknown; viewer_id?: string } | null;
       if (d?.type === "colmap-ready") setHandshaken(true);
+      if (d?.type === "hololab-viewer-ready" && d.viewer_id === "colmap") setCameraReady(true);
       if (d?.type === "hololab-viewer-camera-default") {
         setViewerDefault?.(d.view && typeof d.view === "object" ? d.view as Record<string, unknown> : null);
       }
@@ -3621,7 +3623,7 @@ function Colmap3DPreview({
   }, [viewer_view_loaded]);
 
   useEffect(() => {
-    if (!handshaken || !viewer_view_loaded || sentWorkflowDefaultRef.current) return;
+    if (!cameraReady || !viewer_view_loaded || sentWorkflowDefaultRef.current) return;
     sentWorkflowDefaultRef.current = true;
     iframeRef.current?.contentWindow?.postMessage(
       {
@@ -3631,7 +3633,7 @@ function Colmap3DPreview({
       },
       window.location.origin,
     );
-  }, [handshaken, viewer_view_loaded, viewer_view_managed, viewer_view]);
+  }, [cameraReady, viewer_view_loaded, viewer_view_managed, viewer_view]);
 
   // Effect B — post the payload whenever the request tuple changes (and
   // the iframe is ready to receive). Cache-hit swaps resolve within a
