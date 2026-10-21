@@ -1,4 +1,4 @@
-"""Real ffmpeg coverage of timing, z-order, defaults, clipping and contracts."""
+"""Real ffmpeg coverage of timing, z-order, required inputs, clipping and contracts."""
 
 import json
 import subprocess
@@ -23,6 +23,8 @@ class ComposeTest(unittest.TestCase):
             videos, offsets = root / "videos", root / "offsets"
             videos.mkdir()
             offsets.mkdir()
+            transforms = root / "transforms"
+            transforms.mkdir()
             for ident, color, rate, count in [("0000", "red", 8, 8), ("0001", "blue", 30, 1)]:
                 layer = videos / ident
                 layer.mkdir()
@@ -38,11 +40,16 @@ class ComposeTest(unittest.TestCase):
                     layer / "video.mp4",
                 )
                 (offsets / ident).write_text("0" if ident == "0000" else "0.1")
+                (transforms / ident).write_text("[0,0,1]")
             result = subprocess.run(
                 [sys.executable, str(PACK / "run.py")],
                 input=json.dumps(
                     {
-                        "inputs": {"videos": str(videos), "offsets": str(offsets)},
+                        "inputs": {
+                            "videos": str(videos),
+                            "offsets": str(offsets),
+                            "transforms": str(transforms),
+                        },
                         "params": {},
                         "outputs": {"video": str(root / "out")},
                     }
@@ -123,7 +130,7 @@ class ComposeTest(unittest.TestCase):
                 self.assertEqual(result.returncode == 0, ok, result.stderr)
                 if not ok:
                     self.assertIn("Video pack:", result.stderr)
-                    return
+                    return result.stderr
                 raw = ffmpeg(
                     "-i", root / "out/output.mp4", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"
                 )
@@ -148,10 +155,9 @@ class ComposeTest(unittest.TestCase):
             self.assertLess(max(frames[9]), 10)  # Gap stays black, no frozen base.
             self.assertGreater(pixel(frames[13], 100, 40)[1], 200)  # Later green wins over blue.
             self.assertLess(max(pixel(frames[13], 20, 20)), 10)
-            frames = run({"videos": videos})
-            self.assertEqual(len(frames), 8)
-            self.assertGreater(pixel(frames[0], 80, 60)[1], 200)
-            self.assertGreater(pixel(frames[6], 80, 60)[0], 200)  # Base returns after top EOF.
+            for missing in ("transforms", "offsets"):
+                error = run({k: v for k, v in inputs.items() if k != missing}, False)
+                self.assertIn(f"required input {missing!r} is not provided", error)
             (transforms / "0002").write_text("[-0.2,-0.2,1]")
             frames = run(inputs)
             self.assertGreater(pixel(frames[13], 0, 0)[1], 200)  # Off-canvas clipping.
@@ -175,7 +181,9 @@ class ComposeTest(unittest.TestCase):
             (offsets / "0002").rename(offsets / "other")
             run(inputs)  # Different attribute IDs still align by position.
             (offsets / "other").unlink()
-            run(inputs, False)
+            self.assertIn("offsets has 2 layers; videos has 3 layers", run(inputs, False))
+            (transforms / "0002").unlink()
+            self.assertIn("transforms has 2 layers; videos has 3 layers", run(inputs, False))
 
 
 if __name__ == "__main__":

@@ -7,10 +7,10 @@ category: video/editing
 source_entry: run.py
 docs: |-
   Consumes the whole array in one invocation (no fan-out). Non-dot entry names sort lexically; later layers are on top. Zero-pad numeric IDs. Each video element is one video file or a directory containing exactly one video.
-  Optional transforms/offsets are paired with videos by position along the layer axis: independently sort each directory by non-dot entry name, then pair element 0 with 0, etc. Filenames need not match; video IDs are preserved. Connected arrays must have exactly the video count. Each attribute leaf is a file. Hidden entries are ignored. No broadcasting or partial arrays.
+  Required transforms/offsets are paired with videos by position along the layer axis: independently sort each directory by non-dot entry name, then pair element 0 with 0, etc. Filenames need not match; video IDs are preserved. Both arrays must have exactly the video count. Each attribute leaf is a file. Hidden entries are ignored. No broadcasting or partial arrays.
   float contract: one finite decimal number (scientific notation allowed), whitespace around it allowed. Offsets must be >= 0. vec3 contract: a JSON array of exactly three finite numbers [x_ratio, y_ratio, scale]; booleans/strings are invalid and scale must be > 0.
   x/y are the layer's top-left relative to canvas width/height. Out-of-bounds content is clipped, never repositioned. First contain the display-aspect-correct layer in the canvas, then multiply both dimensions by scale; unlike overlay width_ratio, scale is NOT a fraction of canvas width.
-  Without transforms, each layer is contained and centered with scale=1. Without offsets, all layers start at 0. Each layer plays from source time 0 and disappears at its natural video-stream end; it never freezes or loops.
+  Both transforms and offsets must be supplied explicitly; there are no position or start-time defaults. Each layer plays from source time 0 and disappears at its natural video-stream end; it never freezes or loops.
   Canvas is the first layer's display size (rotation and SAR accounted for), padded to even. fps omitted/null uses the first layer's average frame rate (fallback nominal rate). Output is CFR; VFR sources are resampled. Total duration is max(offset + natural video duration), rounded UP to an output frame. Black canvas remains visible in gaps. fps override must be >0 and <=240.
   CPU-only, two encoder/filter threads, env kiri. Silent H.264/yuv420p, CRF 20, faststart. Input media is never modified.
 inputs:
@@ -29,7 +29,7 @@ inputs:
     arrayed: true
     dim_labels:
     - layer
-    required: false
+    required: true
     require_axis_label_match: false
   offsets:
     tags:
@@ -38,7 +38,7 @@ inputs:
     arrayed: true
     dim_labels:
     - layer
-    required: false
+    required: true
     require_axis_label_match: false
 params:
   fps:

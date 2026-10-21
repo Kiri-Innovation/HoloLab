@@ -114,6 +114,9 @@ def info(path):
 
 
 def run(i, p, out):
+    for port in ("videos", "transforms", "offsets"):
+        if port not in i:
+            raise ValueError(f"required input {port!r} is not provided")
     root = Path(i["videos"])
     if not root.is_dir():
         raise ValueError("videos must be an array directory")
@@ -121,10 +124,8 @@ def run(i, p, out):
     if not layers:
         raise ValueError("videos must contain at least one layer")
     ids = [layer.name for layer in layers]
-    transforms = attributes(i["transforms"], ids, "transforms", True) if "transforms" in i else None
-    offsets = (
-        attributes(i["offsets"], ids, "offsets") if "offsets" in i else [Fraction(0)] * len(ids)
-    )
+    transforms = attributes(i["transforms"], ids, "transforms", True)
+    offsets = attributes(i["offsets"], ids, "offsets")
     clips = [video(layer) for layer in layers]
     metadata = [info(clip) for clip in clips]
     width, height = [max(2, math.ceil(v / 2) * 2) for v in metadata[0][:2]]
@@ -142,16 +143,13 @@ def run(i, p, out):
         args += ["-i", str(clip)]
         iw, ih, duration, _ = data
         factor = min(width / iw, height / ih)
-        transform = transforms[index] if transforms is not None else None
-        scale = transform[2] if transform else 1
+        transform = transforms[index]
+        scale = transform[2]
         sizes = [iw * factor * scale, ih * factor * scale]
         if not all(math.isfinite(v) for v in sizes):
             raise ValueError(f"transforms[{ids[index]}]: scale exceeds finite pixel range")
         sw, sh = [max(1, round(v)) for v in sizes]
-        if transform is None:
-            x, y = (width - sw) / 2, (height - sh) / 2
-        else:
-            x, y = transform[0] * width, transform[1] * height
+        x, y = transform[0] * width, transform[1] * height
         if not all(math.isfinite(v) for v in (x, y)):
             raise ValueError(f"transforms[{ids[index]}]: position exceeds finite pixel range")
         # Keep source timestamps: pre-resampling a short layer can discard all
