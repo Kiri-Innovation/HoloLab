@@ -27,8 +27,39 @@ function workflowGraph(resource: Record<string, unknown>) {
   } | undefined;
 }
 
+// Runs are lineage snapshots, not a single process lifetime. Reused jobs may
+// predate the snapshot; do not invent run start/end times from job timestamps.
+function runJobs(r: Record<string, unknown>): Record<string, unknown>[] {
+  return Array.isArray(r.jobs) ? r.jobs : [];
+}
+function runState(r: Record<string, unknown>) {
+  const jobs = runJobs(r);
+  const counts: Record<string, number> = {};
+  for (const j of jobs) {
+    const state = String(j.state ?? "unknown");
+    counts[state] = (counts[state] ?? 0) + 1;
+  }
+  const status = !jobs.length ? "pending" : counts.failed ? "failed"
+    : counts.cancelled && !counts.running ? "cancelled"
+    : jobs.every(j => j.state === "done") ? "done"
+    : counts.running || counts.assigned ? "running" : "pending";
+  return {
+    resolver_status: r.resolver_status ?? "available",
+    status: r.resolver_status === "unavailable" ? "unknown" : status,
+    created_ts: r.created_ts ?? null,
+    started_ts: null,
+    ended_ts: null,
+    trigger: null,
+    timing_note: "Run start/end and trigger are not recorded; reused jobs may predate this snapshot.",
+    job_count: r.resolver_status === "unavailable" ? null : jobs.length,
+    state_counts: counts,
+    state_basis: "associated_jobs_same_rollup_as_runs_list",
+  };
+}
+
 function stateFor(resolved: ResolvedReference): Record<string, unknown> {
   const r = resolved.resource;
+  if (resolved.kind === "run") return runState(r);
   if (resolved.kind === "workflow") {
     const graph = workflowGraph(r);
     return {
@@ -51,6 +82,23 @@ function stateFor(resolved: ResolvedReference): Record<string, unknown> {
 
 function contextFor(resolved: ResolvedReference): Record<string, unknown> {
   const r = resolved.resource;
+  if (resolved.kind === "run") {
+    const nodes = workflowGraph(r)?.nodes ?? [];
+    const jobs = runJobs(r);
+    return {
+      workflow_id: r.workflow_id ?? null,
+      node_count: nodes.length,
+      nodes: nodes.slice(0, 30).map(n => ({
+        id: n.id, algorithm_name: n.algorithm_name, algorithm_version: n.algorithm_version,
+      })),
+      jobs: jobs.slice(0, 30).map(j => ({
+        job_id: j.job_id, graph_node_id: j.graph_node_id,
+        algorithm_name: j.algorithm_name, state: j.state,
+      })),
+      omitted_node_count: Math.max(0, nodes.length - 30),
+      omitted_job_count: Math.max(0, jobs.length - 30),
+    };
+  }
   if (resolved.kind === "workflow") {
     const nodes = workflowGraph(r)?.nodes ?? [];
     const stateCounts: Record<string, number> = {};
@@ -107,11 +155,15 @@ export function referenceSnapshotDocument(
   const navigation = {
     instance_base_url: instanceBaseUrl,
     resolve: resolveUrl.toString(),
+    ...(resolved.kind === "run" && resolved.resource.snapshot_id ? {
+      run_record: `/api/snapshots/${resolved.resource.snapshot_id}`,
+    } : {}),
     ...(resolved.related ?? {}),
   };
   const identity = {
-    kind: resolved.kind,
+    kind: resolved.kind === "run" ? "external:hololab:run" : resolved.kind,
     ref: resolved.ref,
+    ...(resolved.kind === "run" ? { run_id: resolved.resource.snapshot_id ?? null } : {}),
     ...(resolved.kind === "workflow" ? {
       workflow_id: resolved.resource.workflow_id ?? null,
       name: resolved.resource.name ?? null,
@@ -121,7 +173,7 @@ export function referenceSnapshotDocument(
     "# HoloLab reference snapshot",
     "",
     "- schema: `hololab.reference-snapshot/v1`",
-    `- kind: \`${resolved.kind}\``,
+    `- kind: \`${identity.kind}\``,
     `- ref: \`${resolved.ref}\``,
     "",
     "## identity",

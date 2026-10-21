@@ -215,6 +215,8 @@ def test_resolve_run(tmp_path: Path) -> None:
         assert r.status_code == 200
         body = r.json()
         assert body["kind"] == "run"
+        assert body["related"]["run_record"] == f"/api/snapshots/{snap_id}"
+        assert client.get(body["related"]["run_record"]).status_code == 200
         assert body["resource"]["snapshot_id"] == snap_id
         # wait_for_done link is one of the hop targets.
         assert "wait_for_done" in body["related"]

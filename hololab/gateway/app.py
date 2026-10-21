@@ -1344,6 +1344,7 @@ def _mount_routes(app: FastAPI) -> None:
                 },
                 "related": {
                     "workflow": f"/api/workflows/{snap.workflow_id}",
+                    "run_record": f"/api/snapshots/{snap.snapshot_id}",
                     "runs_list": f"/api/workflows/{snap.workflow_id}/runs",
                     "wait_for_done": (
                         f"/api/snapshots/{snap.snapshot_id}?wait_for_state=done&timeout=1800"

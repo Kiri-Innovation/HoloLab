@@ -8,6 +8,7 @@
 
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CopyRefButton } from "./CopyRefButton";
 import { RunFocusBubble } from "./RunFocusBubble";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
@@ -637,6 +638,8 @@ function RunListView({
                 onKeyDown={(e) => e.stopPropagation()}
               >
                 <StatePips counts={r.state_counts} />
+                <CopyRefButton kind="run" id={r.snapshot_id} size="xs"
+                  referenceDisplay={{ title: `Run ${r.snapshot_id.slice(0, 8)}`, subtitle: `${r.state} · ${r.job_count} jobs` }} />
                 <IconButton
                   title={favorited ? "取消收藏" : "收藏此 run"}
                   activeColor="#f5c518"

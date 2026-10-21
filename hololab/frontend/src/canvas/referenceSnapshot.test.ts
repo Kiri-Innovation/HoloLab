@@ -50,3 +50,29 @@ describe("workflow reference snapshot", () => {
     expect(section(empty, "state")).toMatchObject({ node_count: 0, last_run: null });
   });
 });
+
+describe("run reference snapshot", () => {
+  const run: ResolvedReference = {kind:"run", ref:"hololab://run/run-id", resource:{
+    snapshot_id:"run-id", workflow_id:"wf", created_ts:200,
+    graph:{nodes:[{id:"n",algorithm_name:"train",algorithm_version:"1",params:{secret:"omit"}}],edges:[]},
+    jobs:[{job_id:"old-job",graph_node_id:"n",algorithm_name:"train",state:"done",started_ts:10,updated_ts:20,params:{secret:"omit"},input_handles:{huge:"omit"},log:"omit"}],
+  }, related:{workflow:"/api/workflows/wf"}};
+  it("uses a typed compact snapshot and deep navigation without invented lifecycle times", () => {
+    const doc=referenceSnapshotDocument(run,"http://host:8828");
+    expect(section(doc,"identity")).toEqual({kind:"external:hololab:run",ref:run.ref,run_id:"run-id"});
+    expect(section(doc,"state")).toMatchObject({status:"done",job_count:1,created_ts:200,started_ts:null,ended_ts:null,trigger:null});
+    expect(section(doc,"navigation").run_record).toBe("/api/snapshots/run-id");
+    expect(section(doc,"context").jobs[0].job_id).toBe("old-job");
+    expect(doc).not.toContain('"omit"');
+  });
+  it("bounds nodes and jobs and counts all states", () => {
+    const doc=referenceSnapshotDocument({...run,resource:{...run.resource,jobs:Array.from({length:80},(_,i)=>({job_id:String(i),state:i===79?"failed":"done"}))}}, "http://host:8828");
+    expect(section(doc,"state")).toMatchObject({status:"failed",job_count:80,state_counts:{done:79,failed:1}});
+    expect(section(doc,"context").jobs).toHaveLength(30);
+    expect(section(doc,"context").omitted_job_count).toBe(50);
+  });
+  it("marks missing resolvers as unknown, not an empty pending run", () => {
+    const doc=referenceSnapshotDocument({...run,resource:{resolver_status:"unavailable"}}, "http://host:8828");
+    expect(section(doc,"state")).toMatchObject({status:"unknown",job_count:null,resolver_status:"unavailable"});
+  });
+});

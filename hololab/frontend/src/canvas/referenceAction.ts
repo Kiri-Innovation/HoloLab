@@ -75,7 +75,7 @@ export async function writeToClipboard(text: string): Promise<boolean> {
 
 async function insertOne({ kind, id, comment, referenceDisplay }: ReferenceInput) {
   const token = formatToken(kind, id, comment);
-  const path = kind === "library-resource" ? `api/library/resources/${id}` : kind === "library-folder" ? `library?folder=${id}` : kind === "workflow" ? `w/${id}` : id ? `${kind}/${id}` : kind;
+  const path = kind === "run" ? `api/snapshots/${id}` : kind === "library-resource" ? `api/library/resources/${id}` : kind === "library-folder" ? `library?folder=${id}` : kind === "workflow" ? `w/${id}` : id ? `${kind}/${id}` : kind;
   // The resolver DTO is the one snapshot source for every UI anchor.
   // If the gateway is temporarily unavailable, retain a useful, clearly
   // limited reference rather than silently claiming a full resource view.
