@@ -450,6 +450,7 @@ function Header({
           fontFamily: "var(--font-sans)",
         }}
       >
+        <span aria-hidden="true" style={{ color: "var(--text-subtle)", fontSize: "var(--fs-md)" }}>←</span>
         HoloLab
       </button>
       <div style={{ color: "var(--text-muted)" }}>· artifacts</div>

@@ -98,6 +98,7 @@ export function WorkflowToolbar({
           letterSpacing: "-0.01em",
         }}
       >
+        <span aria-hidden="true" style={{ color: "var(--text-subtle)", fontSize: "var(--fs-md)" }}>←</span>
         HoloLab
       </button>
       <div
