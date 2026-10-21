@@ -925,47 +925,16 @@ function SplatvPreview({ url }: { url: string }) {
       </div>
     );
 
-  const h = state.header;
+  const viewerUrl = `/colmaputil/index.html?embed=splatv&src=${encodeURIComponent(url)}`;
   return (
     <div style={PREVIEW_SHELL}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "auto 1fr",
-          gap: "4px 12px",
-          fontSize: 11,
-          maxHeight: 220,
-        }}
-      >
-        <Field label="magic" value={h.magicHex} />
-        <Field label="file size" value={humanBytes(h.totalSize)} />
-        <Field label="header" value={`${humanBytes(h.jsonLen)} JSON`} />
-        <Field
-          label="texture"
-          value={h.texWidth && h.texHeight ? `${h.texWidth} × ${Math.round(h.texHeight)}` : "?"}
-        />
-        <Field label="gaussians" value={h.gaussianCount != null ? h.gaussianCount.toLocaleString() : "?"} />
-        <Field label="cameras" value={h.cameraCount != null ? String(h.cameraCount) : "?"} />
-      </div>
-      <div style={{ marginTop: "var(--space-2)", fontSize: "var(--fs-micro)", color: "var(--inverse-muted)" }}>
-        Interactive 4D viewer is a follow-up. Download{" "}
-        <a href={url} style={{ color: "var(--info)" }} target="_blank" rel="noreferrer">
-          the .splatv
-        </a>{" "}
-        to open in an external SplaTV viewer.
-      </div>
+      <iframe
+        src={viewerUrl}
+        title="SplaTV 4D viewer"
+        sandbox="allow-scripts allow-same-origin"
+        style={{ width: "100%", height: 360, border: 0, display: "block", background: "#0b0d12" }}
+      />
     </div>
-  );
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <>
-      <div style={{ color: "var(--inverse-muted)", textAlign: "right" }}>{label}</div>
-      <div style={{ color: "var(--text-on-dark)", fontFamily: "var(--font-mono)" }}>
-        {value}
-      </div>
-    </>
   );
 }
 

@@ -159,6 +159,9 @@ export function NodeViewerFrame({
         type: "hololab-viewer-state",
         viewer_id: viewer.id,
         frames: allFrames,
+        // A node-owned viewer can consume its declared history output even
+        // when it is a scalar file rather than a frame sequence.
+        history_url: historyTarget?.proxy_url ?? null,
         running,
         progress: progress ?? null,
       },
