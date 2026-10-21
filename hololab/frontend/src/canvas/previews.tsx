@@ -25,6 +25,7 @@ import { LazyThumb } from "./LazyThumb";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { LagsplatPreview } from "./LagsplatPreview";
 import { useCanvasContext } from "./CanvasContext";
+import { WORKFLOW_FACTORY_VIEW } from "./workflowFactoryView";
 
 // ---------------------------------------------------------------------------
 // Common shell
@@ -3628,7 +3629,9 @@ function Colmap3DPreview({
     iframeRef.current?.contentWindow?.postMessage(
       {
         type: "hololab-viewer-camera",
-        view: viewer_view ?? null,
+        view: viewer_view ?? WORKFLOW_FACTORY_VIEW,
+        factory_view: WORKFLOW_FACTORY_VIEW,
+        has_default: viewer_view != null,
         managed: viewer_view_managed,
       },
       window.location.origin,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { NodeViewerSpec } from "../wire";
 import type { WorkflowViewerView } from "../api";
 import { getHandleSummary } from "../api";
+import { WORKFLOW_FACTORY_VIEW } from "./workflowFactoryView";
 
 export interface LiveViewerFrame {
   proxy_url: string;
@@ -199,6 +200,7 @@ export function NodeViewerFrame({
       type: "hololab-viewer-state",
       viewer_id: viewer.id,
       workflow_view: workflowView ?? null,
+      workflow_factory_view: WORKFLOW_FACTORY_VIEW,
       workflow_view_managed: workflowViewManaged,
     }, window.location.origin);
   }, [loaded, workflowViewLoaded, workflowViewManaged, workflowView, viewer.id]);
