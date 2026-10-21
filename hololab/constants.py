@@ -17,8 +17,14 @@ def is_constant(node):
     return node.kind == "intrinsic" and node.operation in OPERATIONS
 
 
-def constant_value(operation, params, version=1):
-    if version != 1 or operation not in OPERATIONS:
+def constant_value(operation, params, version=None):
+    """Accept formatted values; retain v1 encoding when losslessly compatible.
+
+    Explicit v1 decoding preserves the historical range-restricted contract.
+    New values outside that legacy subset use v2, whose numbers have no domain
+    restrictions. Stable encoding keeps existing snapshot bindings replayable.
+    """
+    if version not in (None, 1, 2) or operation not in OPERATIONS:
         raise ValueError(f"unsupported constant contract: {operation}@{version}")
     vector = operation == "constant-vec3-array"
     allowed = {"x", "y", "scale"} if vector else {"items"}
@@ -32,6 +38,7 @@ def constant_value(operation, params, version=1):
     if not columns[0]:
         raise ValueError("constant array must not be empty")
     normalized = []
+    legacy_compatible = True
     for col, key in zip(columns, ("x", "y", "scale") if vector else ("items",), strict=True):
         values = []
         for i, raw in enumerate(col):
@@ -47,9 +54,15 @@ def constant_value(operation, params, version=1):
                 raise ValueError(f"{key}[{i}]: expected a finite number")
             value = float(raw)
             if (key == "scale" and value <= 0) or (key == "items" and value < 0):
-                raise ValueError(f"{key}[{i}]: expected {'> 0' if key == 'scale' else '>= 0'}")
+                legacy_compatible = False
+                if version == 1:
+                    raise ValueError(
+                        f"legacy v1 {key}[{i}]: expected {'> 0' if key == 'scale' else '>= 0'}"
+                    )
             values.append(0.0 if value == 0 else value)
         normalized.append(values)
+    if version is None:
+        version = 1 if legacy_compatible else 2
     payload = {
         "contract_version": version,
         "operation": operation,
@@ -62,6 +75,8 @@ def constant_value(operation, params, version=1):
 
 
 def validate_payload(payload):
+    if payload.get("contract_version") not in (1, 2):
+        raise ValueError("unsupported constant contract version")
     vector = payload.get("operation") == "constant-vec3-array"
     values = payload.get("values", [])
     if vector:

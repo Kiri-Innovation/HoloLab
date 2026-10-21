@@ -44,13 +44,13 @@ def attributes(path, ids, label, vector=False):
                 raise ValueError(f"{context}: expected JSON [x_ratio, y_ratio, scale]")
             value = [finite(v, context) for v in value]
             if value[2] <= 0:
-                raise ValueError(f"{context}: scale must be > 0")
+                raise ValueError(f"{context}: scale={value[2]!r}; expected scale > 0")
         else:
             if not DECIMAL.fullmatch(raw) or not math.isfinite(float(raw)):
                 raise ValueError(f"{context}: expected one finite decimal number")
             value = Fraction(raw)
             if value < 0:
-                raise ValueError(f"{context}: offset must be >= 0")
+                raise ValueError(f"{context}: offset={raw}; expected offset >= 0 seconds")
         values.append(value)
     return values
 

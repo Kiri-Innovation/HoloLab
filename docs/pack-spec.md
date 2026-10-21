@@ -812,3 +812,26 @@ never pick up later manifest defaults. Removed parameters are not rendered, and
 explicit configurations do not carry over between versions. Only actual Pack
 parameters support this flag; package source and Fan-out controls do not.
 Use `pinned`, not aliases such as `pin` or `default_pinned` (rejected by validation).
+
+
+### Constant values: format versus algorithm ranges
+
+平台只保证“符合《格式》的值”送达算法；取值范围由算法内部校验。
+若需要在画布上显式保证值域，应使用 clamp 类显式节点；本期不实现 clamp。
+
+Workflow constants validate nonempty arrays, finite numeric elements (not
+booleans or numeric strings), and exactly three components per vec3. They do
+not impose nonnegative floats or positive third vector components. Consumers
+such as `compose-video` validate offsets >= 0 and scale > 0 themselves, reporting
+the offending layer, value and permitted range. These rules concern constant
+port values; existing manifest parameter `min`/`max` behavior is unchanged.
+
+Constant wire contract v2 supports this unrestricted finite-number domain.
+Explicit v1 decoding retains its historical range restrictions. Automatic
+encoding chooses v1 for values in the legacy subset and v2 otherwise: existing
+content digests, snapshot bindings and device caches remain unchanged. Both
+versions retain ordered values and include the contract version in the digest.
+No historical data is rewritten. Gateway and consumer node Python processes
+must be upgraded together before v2 values can be consumed; pack hot reload
+alone does not update this Python contract. Frontend range diagnostics must
+also be aligned in a separate change; they are not the algorithm's authority.
