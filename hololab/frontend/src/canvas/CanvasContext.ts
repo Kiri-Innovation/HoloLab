@@ -19,6 +19,7 @@
 
 import { createContext, useContext } from "react";
 import type { ComputeNode } from "../wire";
+import type { WorkflowViewerView } from "../api";
 
 export interface CanvasContextValue {
   // The workflow this canvas is rendering (draft or snapshot). Used to
@@ -42,6 +43,14 @@ export interface CanvasContextValue {
   hydrating: boolean;
   pinnedParams?: Record<string, string[]>;
   onParamsChange?: (nodeId: string, patch: Record<string, unknown>) => void;
+  /** The workflow-wide default view, read once by each viewer at open time. */
+  viewer_view: WorkflowViewerView | null;
+  /** True once the server lookup completed (including an empty default). */
+  viewer_view_loaded: boolean;
+  /** False when this canvas has no reachable workflow-view service. */
+  viewer_view_managed: boolean;
+  /** Called only by an explicit “set/reset default view” action. */
+  setViewerDefault?: (view: WorkflowViewerView | null) => void;
 }
 
 const DEFAULT: CanvasContextValue = {
@@ -49,6 +58,9 @@ const DEFAULT: CanvasContextValue = {
   workflow_name: "untitled",
   computeNodesById: {},
   hydrating: false,
+  viewer_view: null,
+  viewer_view_loaded: false,
+  viewer_view_managed: false,
 };
 
 export const CanvasContext = createContext<CanvasContextValue>(DEFAULT);

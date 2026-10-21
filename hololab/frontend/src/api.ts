@@ -67,6 +67,20 @@ export class ApiError extends Error {
 export const getPackCatalog = () =>
   resilientFetch("/api/pack-catalog").then(json<CatalogPack[]>);
 
+export type WorkflowViewerView = Record<string, unknown>;
+
+export const getWorkflowViewerView = (workflowId: string) =>
+  resilientFetch(`/api/workflows/${encodeURIComponent(workflowId)}/viewer-view`).then(
+    json<{ workflow_id: string; view: WorkflowViewerView | null }>,
+  );
+
+export const putWorkflowViewerView = (workflowId: string, view: WorkflowViewerView | null) =>
+  resilientFetch(`/api/workflows/${encodeURIComponent(workflowId)}/viewer-view`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ view }),
+  }).then(json<{ workflow_id: string; view: WorkflowViewerView | null; updated_ts: number }>);
+
 export const getComputeNodes = () =>
   resilientFetch("/api/nodes").then(json<ComputeNode[]>);
 

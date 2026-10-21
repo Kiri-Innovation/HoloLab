@@ -191,7 +191,14 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
   inspector?: boolean;
 }) {
   const { pack, previews, previewShards, runtime, arrayed_toggle, assigned_node_id, readOnly } = data;
-  const { computeNodesById, hydrating } = useCanvasContext();
+  const {
+    computeNodesById,
+    hydrating,
+    viewer_view,
+    viewer_view_loaded,
+    viewer_view_managed,
+    setViewerDefault,
+  } = useCanvasContext();
   const { currentPreview, defaultNodeViewer, defaultNodeViewerFrames } = selection;
   const expanded = currentPreview?.name ?? null;
   const runState = runtime?.state;
@@ -484,6 +491,10 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
             }
             running={runInFlight}
             progress={runtime?.progress ?? null}
+            workflowView={viewer_view}
+            workflowViewLoaded={viewer_view_loaded}
+            workflowViewManaged={viewer_view_managed}
+            onWorkflowDefaultChange={setViewerDefault}
           />
         </div>
       )}

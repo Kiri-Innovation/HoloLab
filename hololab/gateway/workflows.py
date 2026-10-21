@@ -449,6 +449,53 @@ class WorkflowStore:
             updated_ts=row[4],
         )
 
+    # -- workflow-wide viewer state ---------------------------------------
+
+    async def get_viewer_view(self, workflow_id: str) -> dict[str, Any] | None:
+        """Return the workflow's shared camera view, if one was saved."""
+        async with (
+            self._db.read() as conn,
+            conn.execute(
+                "SELECT view_json FROM workflow_viewer_views WHERE workflow_id=?",
+                (workflow_id,),
+            ) as cur,
+        ):
+            row = await cur.fetchone()
+        return json.loads(row[0]) if row is not None else None
+
+    async def put_viewer_view(self, workflow_id: str, view: dict[str, Any] | None) -> float:
+        """Last-write-wins shared view update; ``None`` resets to factory."""
+        now = time.time()
+        missing = False
+
+        async def _write(conn: aiosqlite.Connection) -> None:
+            nonlocal missing
+            async with conn.execute(
+                "SELECT 1 FROM workflows WHERE workflow_id=?", (workflow_id,)
+            ) as cur:
+                if await cur.fetchone() is None:
+                    missing = True
+                    return
+            if view is None:
+                await conn.execute(
+                    "DELETE FROM workflow_viewer_views WHERE workflow_id=?", (workflow_id,)
+                )
+            else:
+                await conn.execute(
+                    """
+                    INSERT INTO workflow_viewer_views(workflow_id, view_json, updated_ts)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(workflow_id) DO UPDATE SET
+                        view_json=excluded.view_json, updated_ts=excluded.updated_ts
+                    """,
+                    (workflow_id, json.dumps(view, separators=(",", ":")), now),
+                )
+
+        await self._db.write(_write)
+        if missing:
+            raise KeyError(workflow_id)
+        return now
+
     async def list_drafts(self) -> list[dict[str, Any]]:
         """List drafts for the Gallery landing page.
 

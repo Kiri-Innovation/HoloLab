@@ -681,6 +681,23 @@ CREATE TABLE constant_materializations (
 )
 
 
+# V22 — one durable camera/view state per workflow.  It deliberately lives
+# outside the graph JSON: changing the operator's viewpoint must not race the
+# graph's optimistic-lock / autosave path.
+MIGRATIONS.append(
+    (
+        22,
+        """
+CREATE TABLE workflow_viewer_views (
+ workflow_id TEXT PRIMARY KEY REFERENCES workflows(workflow_id) ON DELETE CASCADE,
+ view_json TEXT NOT NULL,
+ updated_ts REAL NOT NULL
+);
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

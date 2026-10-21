@@ -24,6 +24,7 @@ import { useVideoBackground, VideoBackgroundButton } from "./VideoBackground";
 import { LazyThumb } from "./LazyThumb";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { LagsplatPreview } from "./LagsplatPreview";
+import { useCanvasContext } from "./CanvasContext";
 
 // ---------------------------------------------------------------------------
 // Common shell
@@ -3530,6 +3531,12 @@ function Colmap3DPreview({
   title,
   imagesBaseUrl,
 }: Colmap3DPreviewProps) {
+  const {
+    viewer_view,
+    viewer_view_loaded,
+    viewer_view_managed,
+    setViewerDefault,
+  } = useCanvasContext();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -3542,6 +3549,7 @@ function Colmap3DPreview({
   // remount. Once true it stays true; used only to gate the initial data
   // send (waiting for the receiver to exist) and to hide the boot overlay.
   const [handshaken, setHandshaken] = useState(false);
+  const sentWorkflowDefaultRef = useRef(false);
   const [activated, setActivated] = useState(false);
   // Deferred loading indicator for data swaps *after* the boot handshake.
   // Set true only if a payload fetch takes >500 ms; cache-hit swaps are
@@ -3598,12 +3606,28 @@ function Colmap3DPreview({
     function onMessage(e: MessageEvent) {
       const iframe = iframeRef.current;
       if (!iframe || e.source !== iframe.contentWindow) return;
-      const d = e.data as { type?: string } | null;
+      const d = e.data as { type?: string; view?: unknown } | null;
       if (d?.type === "colmap-ready") setHandshaken(true);
+      if (d?.type === "hololab-viewer-camera-default") {
+        setViewerDefault?.(d.view && typeof d.view === "object" ? d.view as Record<string, unknown> : null);
+      }
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, []);
+
+  useEffect(() => {
+    if (!handshaken || !viewer_view_loaded || sentWorkflowDefaultRef.current) return;
+    sentWorkflowDefaultRef.current = true;
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        type: "hololab-viewer-camera",
+        view: viewer_view ?? null,
+        managed: viewer_view_managed,
+      },
+      window.location.origin,
+    );
+  }, [handshaken, viewer_view_loaded, viewer_view_managed, viewer_view]);
 
   // Effect B — post the payload whenever the request tuple changes (and
   // the iframe is ready to receive). Cache-hit swaps resolve within a

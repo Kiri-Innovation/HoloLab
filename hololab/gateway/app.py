@@ -1687,6 +1687,35 @@ def _mount_routes(app: FastAPI) -> None:
 
     # -- workflows -----------------------------------------------------------
 
+    @app.get("/api/workflows/{workflow_id}/viewer-view", tags=["workflows"])
+    async def get_workflow_viewer_view(workflow_id: str) -> dict[str, Any]:
+        store: WorkflowStore = app.state.workflows
+        if await store.get_draft(workflow_id) is None:
+            raise HTTPException(status_code=404, detail="workflow not found")
+        return {"workflow_id": workflow_id, "view": await store.get_viewer_view(workflow_id)}
+
+    @app.put("/api/workflows/{workflow_id}/viewer-view", tags=["workflows"])
+    async def put_workflow_viewer_view(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        view = body.get("view")
+        if view is not None:
+            if not isinstance(view, dict):
+                raise HTTPException(status_code=400, detail="view must be an object or null")
+            if view.get("v") not in (None, 2):
+                raise HTTPException(status_code=400, detail="unsupported view version")
+            for key in ("pos", "orbitTarget"):
+                value = view.get(key)
+                if value is not None and (
+                    not isinstance(value, list)
+                    or len(value) != 3
+                    or not all(isinstance(v, int | float) for v in value)
+                ):
+                    raise HTTPException(status_code=400, detail=f"{key} must be a 3-number array")
+        try:
+            updated_ts = await app.state.workflows.put_viewer_view(workflow_id, view)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="workflow not found") from None
+        return {"workflow_id": workflow_id, "view": view, "updated_ts": updated_ts}
+
     @app.get(
         "/api/workflows",
         response_model=list[WorkflowSummaryOut],

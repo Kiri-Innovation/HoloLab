@@ -66,11 +66,14 @@ import {
   getRecentJobs,
   getSnapshot,
   getWorkflow,
+  getWorkflowViewerView,
   listWorkflowRuns,
   patchWorkflowGraphNodeCosmetic,
   rerunFromNode,
   runWorkflow,
   saveWorkflow,
+  putWorkflowViewerView,
+  type WorkflowViewerView,
 } from "./api";
 import { validateConnection } from "./canvas/connectionValidation";
 import { useConnectionFeedback } from "./canvas/ConnectionFeedback";
@@ -856,6 +859,52 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   // --- workflow model ---------------------------------------------------
   const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const [viewerView, setViewerView] = useState<WorkflowViewerView | null>(null);
+  const [viewerViewLoaded, setViewerViewLoaded] = useState(false);
+  const [viewerViewManaged, setViewerViewManaged] = useState(false);
+
+  // Default camera state is deliberately outside the graph/autosave
+  // transaction. It changes only through the viewer's explicit “set/reset
+  // default” commands; normal orbit/zoom remains local to that viewer.
+  useEffect(() => {
+    if (!workflowId) {
+      setViewerView(null);
+      setViewerViewLoaded(true);
+      setViewerViewManaged(false);
+      return;
+    }
+    setViewerView(null);
+    setViewerViewLoaded(false);
+    setViewerViewManaged(false);
+    let cancelled = false;
+    void getWorkflowViewerView(workflowId)
+      .then(({ view }) => {
+        if (cancelled) return;
+        setViewerView(view);
+        setViewerViewManaged(true);
+        setViewerViewLoaded(true);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.warn("workflow viewer-view load failed", error);
+        setViewerViewLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, [workflowId]);
+
+  const setWorkflowViewerDefault = useCallback((view: WorkflowViewerView | null) => {
+    const workflow = workflowIdRef.current;
+    if (!workflow) return;
+    // This function is intentionally called only for an explicit context-menu
+    // action. Never turn camera drags into workflow writes.
+    void putWorkflowViewerView(workflow, view)
+      .then(() => {
+        setViewerView(view);
+        setViewerViewManaged(true);
+        setViewerViewLoaded(true);
+      })
+      .catch((error) => console.warn("workflow default viewer-view save failed", error));
+  }, []);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [workflowName, setWorkflowName] = useState<string>("untitled");
   // The ``updated_ts`` we last observed for this draft — seeded on load
@@ -1159,8 +1208,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       hydrating,
       pinnedParams,
       onParamsChange: updateNodeParams,
+      viewer_view: viewerView,
+      viewer_view_loaded: viewerViewLoaded,
+      viewer_view_managed: viewerViewManaged,
+      setViewerDefault: setWorkflowViewerDefault,
     }),
-    [workflowId, workflowName, computeNodesById, hydrating, pinnedParams, updateNodeParams],
+    [workflowId, workflowName, computeNodesById, hydrating, pinnedParams, updateNodeParams, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
   );
 
   // Push job runtime + resolved previews + previewOpen into each node's

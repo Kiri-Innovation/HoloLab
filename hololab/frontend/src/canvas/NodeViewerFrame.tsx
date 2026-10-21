@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { NodeViewerSpec } from "../wire";
+import type { WorkflowViewerView } from "../api";
 import { getHandleSummary } from "../api";
 
 export interface LiveViewerFrame {
@@ -26,6 +27,10 @@ export function NodeViewerFrame({
   historyTarget,
   running,
   progress,
+  workflowView,
+  workflowViewLoaded,
+  workflowViewManaged,
+  onWorkflowDefaultChange,
 }: {
   viewer: NodeViewerSpec;
   packName: string;
@@ -35,12 +40,17 @@ export function NodeViewerFrame({
   historyTarget?: { handle_id: string; proxy_url: string; node_id: string } | null;
   running: boolean;
   progress?: { current: number; total: number } | null;
+  workflowView?: WorkflowViewerView | null;
+  workflowViewLoaded: boolean;
+  workflowViewManaged: boolean;
+  onWorkflowDefaultChange?: (view: WorkflowViewerView | null) => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [assetError, setAssetError] = useState<string | null>(null);
   const [historyFrames, setHistoryFrames] = useState<LiveViewerFrame[]>([]);
   const [viewerHeight, setViewerHeight] = useState(DEFAULT_VIEWER_HEIGHT);
+  const sentWorkflowDefaultRef = useRef(false);
   const nodeId = (frames.length ? frames[frames.length - 1].node_id : null)
     ?? historyTarget?.node_id
     ?? assignedNodeId;
@@ -66,6 +76,7 @@ export function NodeViewerFrame({
 
   useEffect(() => {
     setViewerHeight(DEFAULT_VIEWER_HEIGHT);
+    sentWorkflowDefaultRef.current = false;
   }, [src]);
 
   useEffect(() => {
@@ -75,16 +86,21 @@ export function NodeViewerFrame({
         !iframe
         || event.origin !== window.location.origin
         || event.source !== iframe.contentWindow
-        || event.data?.type !== "hololab-viewer-resize"
-        || event.data?.viewer_id !== viewer.id
       ) return;
+      if (event.data?.type === "hololab-viewer-camera-default") {
+        onWorkflowDefaultChange?.(event.data.view && typeof event.data.view === "object" ? event.data.view : null);
+        return;
+      }
+      if (event.data?.type !== "hololab-viewer-resize" || event.data?.viewer_id !== viewer.id) {
+        return;
+      }
       const requested = Number(event.data.height);
       if (!Number.isFinite(requested)) return;
       setViewerHeight(Math.min(MAX_VIEWER_HEIGHT, Math.max(MIN_VIEWER_HEIGHT, Math.ceil(requested))));
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [viewer.id]);
+  }, [viewer.id, onWorkflowDefaultChange]);
 
   useEffect(() => {
     if (!historyTarget) {
@@ -168,6 +184,20 @@ export function NodeViewerFrame({
       window.location.origin,
     );
   }, [allFrames, loaded, running, progress?.current, progress?.total, viewer.id]);
+
+  // A workflow default is an opening preference, not a live camera bus:
+  // viewers already open must retain their own interactive orbit/zoom.
+  useEffect(() => {
+    const target = iframeRef.current?.contentWindow;
+    if (!target || !loaded || !workflowViewLoaded || sentWorkflowDefaultRef.current) return;
+    sentWorkflowDefaultRef.current = true;
+    target.postMessage({
+      type: "hololab-viewer-state",
+      viewer_id: viewer.id,
+      workflow_view: workflowView ?? null,
+      workflow_view_managed: workflowViewManaged,
+    }, window.location.origin);
+  }, [loaded, workflowViewLoaded, workflowViewManaged, workflowView, viewer.id]);
 
   if (!src) {
     return (
