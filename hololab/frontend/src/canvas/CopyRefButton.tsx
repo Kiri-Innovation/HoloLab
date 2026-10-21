@@ -21,6 +21,8 @@ export function showReferenceResult(result: ReferenceOutcome) {
 
 interface ButtonOptions {
   disabled?: boolean;
+  // Let a host row supply its existing button chrome without duplicating reference behavior.
+  renderButton?: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => React.ReactNode;
   // Visual size preset. "sm" fits inside a compact toolbar / card
   // header (default); "xs" is for dense rows like RecentJobsPanel.
   size?: "sm" | "xs";
@@ -84,8 +86,7 @@ export function CopyRefButton(props: CopyRefButtonProps) {
           ? "var(--inverse-muted)"
           : "var(--text-muted)";
 
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+  const button = (
       <button
         type="button"
         onClick={doReference}
@@ -147,6 +148,8 @@ export function CopyRefButton(props: CopyRefButtonProps) {
           )}
         {label && <span>{label}</span>}
       </button>
-    </span>
   );
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+    {props.renderButton ? props.renderButton(button.props) : button}
+  </span>;
 }

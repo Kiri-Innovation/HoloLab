@@ -638,7 +638,7 @@ function RunListView({
                 onKeyDown={(e) => e.stopPropagation()}
               >
                 <StatePips counts={r.state_counts} />
-                <CopyRefButton kind="run" id={r.snapshot_id} size="xs"
+                <CopyRefButton kind="run" id={r.snapshot_id} size="xs" renderButton={renderRunReferenceButton}
                   referenceDisplay={{ title: `Run ${r.snapshot_id.slice(0, 8)}`, subtitle: `${r.state} · ${r.job_count} jobs` }} />
                 <IconButton
                   title={favorited ? "取消收藏" : "收藏此 run"}
@@ -691,11 +691,21 @@ function RunListView({
 // Icon button
 // ---------------------------------------------------------------------------
 
+function renderRunReferenceButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <IconButton title={props["aria-label"] ?? ""} active={false}
+    disabled={props.disabled} description={props["aria-description"]}
+    onClick={props.onClick}>
+    {props.children}
+  </IconButton>;
+}
+
 function IconButton({
   title,
   active,
   activeColor = "var(--accent, #4a9eff)",
   pressed,
+  disabled,
+  description,
   onClick,
   children,
 }: {
@@ -703,7 +713,9 @@ function IconButton({
   active: boolean;
   activeColor?: string;
   pressed?: boolean;
-  onClick: () => void;
+  disabled?: boolean;
+  description?: string;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
   children: React.ReactNode;
 }) {
   return (
@@ -711,6 +723,8 @@ function IconButton({
       type="button"
       data-tooltip={title} aria-label={title}
       aria-pressed={pressed}
+      aria-description={description}
+      disabled={disabled}
       onClick={onClick}
       style={{
         display: "inline-flex",
