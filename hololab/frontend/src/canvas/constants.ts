@@ -22,7 +22,6 @@ export function constantError(name: string, params: Record<string, unknown>): st
   for (let c = 0; c < keys.length; c++) for (let i = 0; i < arrays[c].length; i++) {
     const v = arrays[c][i];
     if (typeof v !== 'number' || !Number.isFinite(v)) return `${keys[c]}[${i}]: 必须是有限数字`;
-    if (keys[c] === 'scale' && v <= 0 || keys[c] === 'items' && v < 0) return `${keys[c]}[${i}]: 超出允许范围`;
   }
   return null;
 }

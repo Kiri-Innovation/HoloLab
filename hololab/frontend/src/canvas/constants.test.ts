@@ -29,3 +29,26 @@ it('constant changes dirty consumers but never require running the constant', ()
   expect(result.c).toBeNull();
   expect(result.t?.kind).toBe('upstream_dirty');
 });
+
+
+describe('constant format validation has no algorithm ranges', () => {
+  it('accepts negative floats and nonpositive vector components', () => {
+    const scalar = constantPresentation(false);
+    const vector = constantPresentation(true);
+    expect(constantError(scalar.name, {items: [0, -1]})).toBeNull();
+    expect(constantError(vector.name, {x: [-1, 0], y: [0, -2], scale: [0, -1]})).toBeNull();
+    expect(constantSignature(scalar.name, {items: [-1]})).not.toMatch(/^invalid:/);
+    for (const pack of [scalar, vector]) for (const spec of Object.values(pack.params)) {
+      expect(spec.min).toBeUndefined();
+      expect(spec.max).toBeUndefined();
+    }
+  });
+  it.each([NaN, Infinity, -Infinity, true, '2'])('rejects malformed number %s', value => {
+    expect(constantError(constantPresentation(false).name, {items: [value]})).toContain('有限数字');
+    expect(constantError(constantPresentation(true).name, {x: [0], y: [0], scale: [value]})).toContain('有限数字');
+  });
+  it('rejects empty arrays and incomplete vectors', () => {
+    expect(constantError(constantPresentation(false).name, {items: []})).toBe('数组不能为空');
+    expect(constantError(constantPresentation(true).name, {x: [0], y: [0], scale: []})).toContain('数量必须相同');
+  });
+});

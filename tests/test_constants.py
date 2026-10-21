@@ -35,7 +35,7 @@ def test_constant_contract_and_cache(tmp_path):
         materialize(blocked, digest, value)
 
 
-@pytest.mark.parametrize("value", [True, "2", float("nan"), float("inf"), -1])
+@pytest.mark.parametrize("value", [True, "2", float("nan"), float("inf")])
 def test_invalid_constant(value):
     with pytest.raises(ValueError):
         constant_value("constant-float-array", {"items": [value]})
