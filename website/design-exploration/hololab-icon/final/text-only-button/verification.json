@@ -1,0 +1,42 @@
+[
+  {
+    "name": "workspace",
+    "theme": "light",
+    "text": "HoloLab",
+    "align": "center",
+    "justify": "center",
+    "padding": "0px 12px",
+    "fontSize": "13px",
+    "favicon": "/favicon.svg"
+  },
+  {
+    "name": "artifacts",
+    "theme": "light",
+    "text": "HoloLab",
+    "align": "center",
+    "justify": "center",
+    "padding": "0px 12px",
+    "fontSize": "13px",
+    "favicon": "/favicon.svg"
+  },
+  {
+    "name": "workspace",
+    "theme": "dark",
+    "text": "HoloLab",
+    "align": "center",
+    "justify": "center",
+    "padding": "0px 12px",
+    "fontSize": "13px",
+    "favicon": "/favicon.svg"
+  },
+  {
+    "name": "artifacts",
+    "theme": "dark",
+    "text": "HoloLab",
+    "align": "center",
+    "justify": "center",
+    "padding": "0px 12px",
+    "fontSize": "13px",
+    "favicon": "/favicon.svg"
+  }
+]

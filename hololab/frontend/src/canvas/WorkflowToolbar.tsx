@@ -98,8 +98,6 @@ export function WorkflowToolbar({
           letterSpacing: "-0.01em",
         }}
       >
-        <span style={{ color: "var(--text-subtle)", fontSize: "var(--fs-md)" }}>‹</span>
-        <img src="/hololab-icon.svg" width="20" height="20" alt="" aria-hidden="true" style={{ verticalAlign: "middle", marginRight: 6, flexShrink: 0 }} />
         HoloLab
       </button>
       <div
