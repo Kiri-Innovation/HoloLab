@@ -1,3 +1,4 @@
+import { CanvasInlineValues } from "./CanvasInlineValues";
 import { inputValueProblems } from "./inlineValues";
 import { PinnedParameters } from "./PinnedParameters";
 import { NodePreviews, useNodePreviewSelection } from "./NodePreviews";
@@ -690,6 +691,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         </div>
       </div>
 
+      <CanvasInlineValues id={id} inputs={pack.inputs} values={(data as AlgorithmNodeData).port_values}
+        connected={connectedInputs} fanout={arrayedOn} frozen={readOnly} />
       <PinnedParameters id={id} data={data as AlgorithmNodeData} />
 
       {/* FOOTER — run result: elapsed + relative-time + progress + actions.

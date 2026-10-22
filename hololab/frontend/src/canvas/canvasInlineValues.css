@@ -1,0 +1,23 @@
+.hl-canvas-inline { border-top: 1px solid var(--border-subtle); padding: 8px 12px; min-width: 0; color: var(--text-body); background: var(--surface-alt); font-size: var(--fs-xs); }
+.hl-inline-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; color: var(--text-subtle); font-size: var(--fs-micro); line-height: 1.5; }
+.hl-inline-heading > :first-child { text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
+.hl-inline-heading > :last-child { white-space: nowrap; }
+.hl-inline-field { min-width: 0; margin-top: 8px; }
+.hl-inline-field-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 3px; min-width: 0; }
+.hl-inline-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hl-inline-type { color: var(--text-subtle); font: var(--fs-micro) var(--font-mono); flex-shrink: 0; }
+.hl-inline-rows { border-left: 2px solid var(--border); padding-left: 6px; }
+.hl-inline-row { display: grid; grid-template-columns: 18px minmax(0,1fr); gap: 6px; align-items: baseline; line-height: 1.65; }
+.hl-inline-index { font: var(--fs-micro) var(--font-mono); color: var(--text-subtle); }
+.hl-canvas-inline code { font-family: var(--font-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.hl-inline-row code, .hl-inline-scalar { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.hl-inline-empty { font-family: var(--font-mono); color: var(--text-muted); }
+.hl-inline-empty span { font-family: var(--font-sans); margin-left: 6px; font-size: var(--fs-micro); color: var(--text-subtle); }
+.hl-inline-navigation { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 4px; color: var(--text-muted); font-size: var(--fs-micro); }
+.hl-inline-navigation button { height: 22px; min-height: 0; max-width: 100%; padding: 0 5px; border: 1px solid transparent; background: transparent; color: var(--text-muted); font-size: var(--fs-micro) !important; }
+.hl-inline-navigation button:hover:not(:disabled) { background: var(--surface); border-color: var(--border); color: var(--text-body); }
+.hl-inline-navigation button:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 1px; }
+.hl-inline-navigation button:disabled { opacity: .4; }
+.hl-canvas-inline[data-compact] { padding: 6px 12px; }
+/* Only label pinned fields when both kinds of values coexist on the card. */
+.hl-canvas-inline-wrap[data-values] + .hl-pinned-parameters::before { content: 'Pinned parameters'; display: block; margin-bottom: 6px; font-size: var(--fs-micro); color: var(--text-subtle); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
