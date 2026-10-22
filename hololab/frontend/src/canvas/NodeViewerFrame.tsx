@@ -3,6 +3,7 @@ import type { NodeViewerSpec } from "../wire";
 import type { WorkflowViewerView } from "../api";
 import { getHandleSummary } from "../api";
 import { WORKFLOW_FACTORY_VIEW } from "./workflowFactoryView";
+import { versionedViewerUrl } from "./viewerBuild";
 import { useViewerInteraction, ViewerInteractionShield, viewerInteractionBorder } from "./ViewerInteraction";
 
 export interface LiveViewerFrame {
@@ -60,7 +61,7 @@ export function NodeViewerFrame({
     ?? historyTarget?.node_id
     ?? assignedNodeId;
   const src = nodeId
-    ? `/pack-assets/${encodeURIComponent(nodeId)}/${encodeURIComponent(packName)}/${encodeURIComponent(packVersion)}/${viewer.entry.split("/").map(encodeURIComponent).join("/")}`
+    ? versionedViewerUrl(`/pack-assets/${encodeURIComponent(nodeId)}/${encodeURIComponent(packName)}/${encodeURIComponent(packVersion)}/${viewer.entry.split("/").map(encodeURIComponent).join("/")}`)
     : null;
 
   useEffect(() => {

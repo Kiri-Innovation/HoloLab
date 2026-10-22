@@ -65,8 +65,9 @@ class SPAStaticFiles(StaticFiles):
     """
 
     async def get_response(self, path: str, scope: Scope):  # type: ignore[override]
+        navigation = path.endswith(".html") or path in ("", ".", "/")
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, scope)
         except HTTPException as exc:
             if exc.status_code != 404:
                 raise
@@ -82,4 +83,10 @@ class SPAStaticFiles(StaticFiles):
                 raise
             # Serve the SPA shell. ``super().get_response`` handles
             # ETag / Last-Modified etc. correctly for us.
-            return await super().get_response("index.html", scope)
+            response = await super().get_response("index.html", scope)
+            navigation = True
+        # HTML chooses content-hashed JS/CSS. Revalidate navigation documents
+        # (including 304 responses) without disabling caching for those assets.
+        if navigation or response.headers.get("content-type", "").startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response

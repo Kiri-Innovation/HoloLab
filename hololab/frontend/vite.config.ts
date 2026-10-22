@@ -5,6 +5,9 @@ import react from "@vitejs/plugin-react";
 // /api, /ws, and /proxy so the frontend can pretend it is same-origin.
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __EMBED_BUILD_ID__: JSON.stringify(`hl-${Date.now().toString(36)}`),
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

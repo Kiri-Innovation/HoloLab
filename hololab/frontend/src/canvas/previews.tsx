@@ -26,6 +26,7 @@ import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { LagsplatPreview } from "./LagsplatPreview";
 import { useCanvasContext } from "./CanvasContext";
 import { WORKFLOW_FACTORY_VIEW } from "./workflowFactoryView";
+import { versionedViewerUrl } from "./viewerBuild";
 import { useViewerInteraction, ViewerInteractionShield, viewerInteractionBorder } from "./ViewerInteraction";
 
 // ---------------------------------------------------------------------------
@@ -928,7 +929,7 @@ function SplatvPreview({ url }: { url: string }) {
       </div>
     );
 
-  const viewerUrl = `/colmaputil/index.html?embed=splatv&src=${encodeURIComponent(url)}`;
+  const viewerUrl = versionedViewerUrl(`/colmaputil/index.html?embed=splatv&src=${encodeURIComponent(url)}`);
   return (
     <div style={PREVIEW_SHELL}>
       <iframe
@@ -3685,7 +3686,7 @@ function Colmap3DPreview({
         // footer, leaving only the 3D visualizer. It also arms the
         // EmbedDataListener which broadcasts ``colmap-ready`` on
         // mount so we know when it's safe to postMessage.
-        src="/colmaputil/index.html?embed=1"
+        src={versionedViewerUrl("/colmaputil/index.html?embed=1")}
         title={title}
         // allow-scripts: viewer needs JS. allow-same-origin: served
         // from same origin (vite proxy in dev, SPA mount in prod) so
