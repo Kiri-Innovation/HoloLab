@@ -353,5 +353,71 @@
     "contentLanguage": "zh-CN",
     "screenshots": true,
     "navigationOrder": 35
+  },
+  {
+    "source": "website/content/en/contributor/rebuild-and-distribute.md",
+    "slug": "contributor/rebuild-and-distribute",
+    "section": "contributor",
+    "title": "Rebuild a workflow on another machine",
+    "group": "System design",
+    "order": 40,
+    "locale": "en",
+    "contentLanguage": "en",
+    "navigationOrder": 130
+  },
+  {
+    "source": "website/content/zh/contributor/rebuild-and-distribute.md",
+    "slug": "contributor/rebuild-and-distribute",
+    "section": "contributor",
+    "title": "让工作流在另一台机器上重建",
+    "group": "系统设计",
+    "order": 40,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "navigationOrder": 130
+  },
+  {
+    "source": "website/content/en/contributor/package-identity-registry.md",
+    "slug": "contributor/package-identity-registry",
+    "section": "contributor",
+    "title": "Fix algorithm dependencies with package identity",
+    "group": "System design",
+    "order": 50,
+    "locale": "en",
+    "contentLanguage": "en",
+    "navigationOrder": 140
+  },
+  {
+    "source": "website/content/zh/contributor/package-identity-registry.md",
+    "slug": "contributor/package-identity-registry",
+    "section": "contributor",
+    "title": "用包身份与注册表固定算法依赖",
+    "group": "系统设计",
+    "order": 50,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "navigationOrder": 140
+  },
+  {
+    "source": "website/content/en/contributor/variables-bindings-snapshots.md",
+    "slug": "contributor/variables-bindings-snapshots",
+    "section": "contributor",
+    "title": "Preserve execution meaning with variables and snapshots",
+    "group": "System design",
+    "order": 60,
+    "locale": "en",
+    "contentLanguage": "en",
+    "navigationOrder": 150
+  },
+  {
+    "source": "website/content/zh/contributor/variables-bindings-snapshots.md",
+    "slug": "contributor/variables-bindings-snapshots",
+    "section": "contributor",
+    "title": "用变量、本地绑定与快照保留执行语义",
+    "group": "系统设计",
+    "order": 60,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "navigationOrder": 150
   }
 ]
