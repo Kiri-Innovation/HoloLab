@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import { useStore } from '@xyflow/react';
 import type { InputPortSpec } from '../wire';
 import { inputValue, supportsInline } from './inlineValues';
 import { ParameterInput } from './ParameterInput';
@@ -18,9 +17,7 @@ export function inlineType(spec: InputPortSpec, value: unknown, array: boolean):
 export const InlinePortCard = memo(function InlinePortCard({ id, name, spec, value, array, frozen = false }: {
   id: string; name: string; spec: InputPortSpec; value: unknown; array: boolean; frozen?: boolean;
 }) {
-  const hidden = useStore(s => s.transform[2] < 0.6);
   const { onInlineValueChange, onInspectInput } = useCanvasContext();
-  if (hidden) return null;
   const scalar = !array && spec.tags[0] === 'float';
   return <div className="hl-inline-port-card nodrag nopan nowheel" aria-label={`${name} inline value`}
     onKeyDown={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}

@@ -1,5 +1,10 @@
-.hl-inline-port-card { position:absolute; right:calc(100% + 32px); top:50%; transform:translateY(-50%); width:148px; height:34px; box-sizing:border-box; display:flex; align-items:center; gap:8px; padding:5px 8px; border:1px solid var(--border-subtle); border-radius:var(--radius-md); background:var(--surface); color:var(--text-body); font-size:var(--fs-xs); box-shadow:0 2px 5px #00000012; }
-.hl-inline-port-card::after { content:""; position:absolute; left:100%; top:50%; width:18px; border-top:1px solid var(--border-subtle); pointer-events:none; }
+/* Match the port row inset; overlap the node border by 1px to form one surface.
+   Leave the final 14px non-interactive so the handle remains fully hittable. */
+.hl-inline-port-card { position:absolute; right:calc(100% + var(--space-3)); top:50%; transform:translateY(-50%); width:148px; height:34px; box-sizing:border-box; display:flex; align-items:center; gap:8px; padding:5px 14px 5px 8px; border:1px solid var(--border-strong); border-right:0; border-radius:var(--radius-md) 0 0 var(--radius-md); background:var(--surface-2); color:var(--text-body); font-size:var(--fs-xs); pointer-events:none; }
+/* Fan-out frames extend 6px beyond the inner node, as do their handles. */
+.hl-arrayed-frame .hl-inline-port-card { right:calc(100% + var(--space-3) + 6px); }
+.hl-inline-port-card fieldset, .hl-inline-port-card > button { pointer-events:auto; }
+.hl-inline-port-card ~ .react-flow__handle { z-index:3; }
 .hl-inline-port-card code { font-family:var(--font-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hl-inline-port-card fieldset { border:0; padding:0; margin:0; min-width:0; flex:1; }
 .hl-inline-port-card input { height:24px; box-sizing:border-box; font-size:var(--fs-xs); }

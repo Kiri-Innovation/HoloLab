@@ -51,11 +51,10 @@ describe('port card rendering', () => {
   it('keeps historical scalar values read-only', () => {
     expect(render(false,true)).toContain('<fieldset disabled=""');
   });
-  it('hides cards at 50%, shows them at 80%', () => {
-    view.zoom=.5;
-    expect(render()).toBe('');
-    view.zoom=.8;
-    expect(render()).toContain('hl-inline-port-card');
+  it.each([1, .5, .25])('keeps scalar and array cards at zoom %s', zoom => {
+    view.zoom=zoom;
+    expect(render()).toContain('type="number"');
+    expect(render(true)).toContain('float[2]');
     view.zoom=1;
   });
 });
