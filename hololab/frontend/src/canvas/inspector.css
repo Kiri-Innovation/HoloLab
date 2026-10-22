@@ -84,7 +84,7 @@
 .hl-compute-dock .hl-pulse-heading { display: none !important; }
 
 /* Node parameter sections flow together inside the dock content scroller. */
-.hl-inspector-summary, .hl-inspector-execution { flex-shrink: 0; min-width: 0; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.hl-inspector-summary, .hl-inspector-execution, .hl-inspector-inputs { flex-shrink: 0; min-width: 0; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
 .hl-inspector-description { flex-basis: 100%; margin: 0; font-size: var(--fs-xs); line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
 .hl-inspector-execution { padding-top: 14px; }
 .hl-inspector-execution .hl-compute-assignment { padding: 0; }
@@ -169,3 +169,6 @@
 .hl-inspector-input-hint { min-width: 0; color: var(--text-muted); overflow-wrap: anywhere; }
 .hl-inspector-input-controls button { justify-self: start; max-width: 100%; height: var(--control-h-sm); min-height: 0; padding: 0 6px; font-size: var(--fs-xs) !important; }
 .hl-inspector-input-controls textarea { width: 100%; min-width: 0; box-sizing: border-box; background: var(--parameter-control-bg); font-size: var(--fs-xs); }
+
+/* End the input section like Run on, without adding a second row gap. */
+.hl-inspector-inputs .hl-inspector-input-field:last-child { margin-bottom: 0; }
