@@ -1,3 +1,4 @@
+import { missingRequiredInputs } from "./requiredInputs";
 import { PinnedParameters } from "./PinnedParameters";
 import { NodePreviews, useNodePreviewSelection } from "./NodePreviews";
 import { PortHandle } from "./PortHandle";
@@ -13,7 +14,7 @@ import { NodeRunControl } from "./NodeRunControl";
 import { nodeStatus } from "./nodeStatus";
 import { NodeStatusDot } from "../ui/NodeStatusTooltip";
 import { NodeTitleTooltip } from "../ui/NodeTitleTooltip";
-import { Position, type NodeProps } from "@xyflow/react";
+import { Position, useStore, type NodeProps } from "@xyflow/react";
 import type {
   CatalogPack,
   OutputPreviewSpec,
@@ -367,6 +368,10 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
   const inputEntries = Object.entries(pack.inputs);
   const outputEntries = Object.entries(pack.outputs);
+  const connectedInputs = useStore(s => JSON.stringify(s.edges.filter(e => e.target === id).map(e => e.targetHandle)));
+  const wiredInputs: (string | null)[] = JSON.parse(connectedInputs);
+  const missingInputs = missingRequiredInputs(pack.inputs, wiredInputs);
+  const inputProblem = missingInputs.length ? `缺少必填输入：${missingInputs.join("、")}。运行会被拒绝，请连接这些输入。` : undefined;
   const runState = runtime?.state;
   const runColour = stateColour(runState);
   const previewSelection = useNodePreviewSelection(data as AlgorithmNodeData);
@@ -382,8 +387,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const [runClickPending, setRunClickPending] = useState(false);
   const [runErrorMsg, setRunErrorMsg] = useState<string | null>(null);
 
+  useEffect(() => { if (!inputProblem) setRunErrorMsg(null); }, [inputProblem]);
+
   const handleRunClick = async () => {
     if (runInFlight || runClickPending) return;
+    if (inputProblem) { setRunErrorMsg(inputProblem); return; }
     setRunClickPending(true);
     setRunErrorMsg(null);
     try {
@@ -470,7 +478,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           position: "relative",
         }}
       >
-        <NodeStatusDot state={runState} status={nodeStatus({ state: runState, stale: staleness, failReason: runtime?.fail_reason, readOnly })} />
+        <NodeStatusDot state={runState} status={nodeStatus({ state: runState, stale: staleness, failReason: runtime?.fail_reason, readOnly, missingInputs })} />
         <NodeTitleTooltip
           name={pack.name} version={pack.version} device={assignedLabel}
           style={{
@@ -540,10 +548,10 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           )}
           {!readOnly && (
             <NodeRunControl pending={runClickPending} state={runState} jobId={runtime?.job_id}
-              stale={staleness?.kind === "self_dirty"} onRun={handleRunClick} />
+              stale={staleness?.kind === "self_dirty"} blockedReason={inputProblem} onRun={handleRunClick} />
           )}
         </div>
-        {runErrorMsg && (
+        {runErrorMsg && !inputProblem && (
           <div
             style={{
               position: "absolute",
@@ -566,6 +574,12 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         )}
       </div>
 
+      {inputProblem && <button type="button" className="nodrag" data-hl-missing-inputs=""
+        title={inputProblem} onClick={e => { e.stopPropagation(); setRunErrorMsg(inputProblem); }}
+        style={{display: "block", width: "100%", border: 0, background: "transparent", color: "var(--status-failed)", padding: "6px 12px", fontSize: "var(--fs-xs)", textAlign: "left", overflowWrap: "anywhere"}}>
+        缺少必填输入：{missingInputs.join("、")}
+        {runErrorMsg === inputProblem && <span style={{display: "block", marginTop: 4}}>运行会被拒绝，请连接这些输入。</span>}
+      </button>}
       {/* BODY — inputs left column, outputs right column, independent stacks */}
       <div
         style={{
@@ -590,18 +604,21 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   nodeId={id}
                   declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle, spec.scalar) }}
                   type="target"
+                  issue={missingInputs.includes(portName) ? "必填输入未连接。运行会被拒绝，请连接此输入。" : undefined}
                   position={Position.Left}
                   id={portName}
                   style={{
                     ...DOT,
-                    background: firstTagColour(spec.tags),
+                    background: !wiredInputs.includes(portName) ? "var(--surface-2)" : firstTagColour(spec.tags),
                     ...(isArrayed ? ARRAYED_DOT_OVERLAY : {}),
+                    ...(missingInputs.includes(portName) ? {border: "2px solid var(--status-failed)", boxShadow: "0 0 0 2px var(--surface-2), 0 0 0 3px var(--status-failed)"} : {}),
                   }}
                   data-tags={spec.tags.join(",")}
                   data-required={spec.required ? "1" : "0"}
                   data-hl-arrayed-port={isArrayed ? "" : undefined}
                 />
                 <PortHandle asText nodeId={id} id={portName} type="target" position={Position.Left}
+                  issue={missingInputs.includes(portName) ? "必填输入未连接。运行会被拒绝，请连接此输入。" : undefined}
                   handleId={undefined}
                   declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle, spec.scalar) }}
                   style={{
@@ -660,7 +677,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   id={portName}
                   style={{
                     ...DOT,
-                    background: firstTagColour(spec.tags),
+                    background: inputProblem ? "var(--text-subtle)" : firstTagColour(spec.tags),
                     ...(isArrayed ? ARRAYED_DOT_OVERLAY : {}),
                   }}
                   data-tags={spec.tags.join(",")}
@@ -749,7 +766,10 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         </div>
       </div>
 
-      <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={() => dispatchRunNode(id)} />
+      {inputProblem && firstArtifactTarget && <div data-hl-historical-preview="" style={{padding: "6px 12px", fontSize: "var(--fs-xs)", color: "var(--text-muted)", overflowWrap: "anywhere"}}>
+        历史运行产物 · 不代表当前配置可运行
+      </div>}
+      <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={inputProblem ? undefined : () => dispatchRunNode(id)} />
     </div>
   );
 

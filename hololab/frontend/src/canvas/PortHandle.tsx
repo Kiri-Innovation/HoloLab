@@ -7,8 +7,8 @@ import type { TypedEdgeData } from "./TypedEdge";
 import { useTypeSummary } from "./useTypeSummary";
 
 /** No wrapper or geometry changes: the original Handle remains the connection anchor. */
-export function PortHandle({ nodeId, declared, handleId, asText, ...props }: ComponentProps<typeof Handle> & {
-  asText?: boolean; nodeId: string; declared: EdgeType; handleId?: string;
+export function PortHandle({ nodeId, declared, handleId, asText, issue, ...props }: ComponentProps<typeof Handle> & {
+  issue?: string; asText?: boolean; nodeId: string; declared: EdgeType; handleId?: string;
 }) {
   const node = useStore(s => s.nodeLookup.get(nodeId)?.data) as AlgorithmNodeData | undefined;
   const fanout = Boolean(node?.arrayed_toggle && node?.pack.arrayable);
@@ -19,6 +19,11 @@ export function PortHandle({ nodeId, declared, handleId, asText, ...props }: Com
   const data = edge?.data as TypedEdgeData | undefined;
   const actual = useTypeSummary(data?.edgeType ?? declared, data?.handleId ?? handleId);
   const attributes = typeTooltip(props.id ?? '', props.type === 'source' ? data?.edgeType ?? declared : declared, actual, {fanout, handleId: data?.handleId ?? handleId, direction: props.type === 'target' ? 'input' : 'output', broadcast: props.type === 'target' && Boolean(raw?.scalar)}, raw);
+  if (issue) {
+    attributes["data-tooltip"] = issue;
+    attributes["aria-label"] += `；${issue}`;
+    attributes["data-tooltip-type"] = "";
+  }
   if (asText) return <span style={props.style} {...attributes}>{props.children}</span>;
-  return <Handle {...props} className="hl-port-handle" {...attributes} />;
+  return <Handle {...props} className="hl-port-handle" data-hl-required-missing={issue ? "" : undefined} {...attributes} />;
 }

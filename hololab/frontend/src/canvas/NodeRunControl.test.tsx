@@ -15,3 +15,11 @@ it("blocks cancellation while the job identity is missing",()=>{
   const html=renderToStaticMarkup(<NodeRunControl state="running" pending={false} onRun={()=>{}}/>);
   expect(html).toContain('disabled=""');expect(html).toContain('正在获取任务信息');
 });
+it('explains blocked reruns without disabling stop', () => {
+  const reason='缺少必填输入：transforms。运行会被拒绝';
+  const idle=renderToStaticMarkup(<NodeRunControl state="done" pending={false} blockedReason={reason} onRun={()=>{}}/>);
+  expect(idle).toContain(reason);
+  const running=renderToStaticMarkup(<NodeRunControl state="running" jobId="parent" pending={false} blockedReason={reason} onRun={()=>{}}/>);
+  expect(running).toContain('停止运行（需确认；不是暂停）');
+  expect(running).not.toContain('disabled=""');
+});

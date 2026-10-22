@@ -7,8 +7,8 @@ import { showToast } from "../ui/Toast";
 export const canStopNode = (state?: string) => ["pending", "assigned", "running", "orphaned"].includes(state ?? "");
 
 /** Cancels the current generation's representative parent, including its live shards. */
-export function NodeRunControl({ state, jobId, pending, stale, onRun }: {
-  state?: string; jobId?: string; pending: boolean; stale?: boolean; onRun: () => void;
+export function NodeRunControl({ state, jobId, pending, stale, blockedReason, onRun }: {
+  state?: string; jobId?: string; pending: boolean; stale?: boolean; blockedReason?: string; onRun: () => void;
 }) {
   const stoppable = canStopNode(state);
   const [confirmJob, setConfirmJob] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export function NodeRunControl({ state, jobId, pending, stale, onRun }: {
   return <>
     <button ref={trigger} type="button" className={`hl-node-run-control nodrag${stoppable ? " hl-node-stop-control" : ""}`}
       disabled={disabled} aria-label={label}
-      data-tooltip={!jobId && stoppable ? "正在获取任务信息，暂不能停止" : stoppable && !busy ? "停止运行（需确认；不是暂停）" : label}
+      data-tooltip={blockedReason && !stoppable ? blockedReason : !jobId && stoppable ? "正在获取任务信息，暂不能停止" : stoppable && !busy ? "停止运行（需确认；不是暂停）" : label}
       onClick={e => { e.stopPropagation(); if (stoppable && jobId) { setError(null); setConfirmJob(jobId); } else if (!disabled) onRun(); }}
       style={{ border: `1px solid ${staleTint ? "var(--warning)" : "var(--border-strong)"}`,
         background: busy ? "var(--surface-3)" : staleTint ? "var(--warning-soft)" : "var(--surface-raised)",

@@ -8,6 +8,7 @@ export interface NodeStatusPresentation {
   action: string;
 }
 export interface NodeStatusInput {
+  missingInputs?: string[];
   state?: string;
   stale?: NodeStaleness | null;
   /** Separate input also defines precedence for defensive/future combinations. */
@@ -17,7 +18,7 @@ export interface NodeStatusInput {
 }
 
 /** Presentation only: never mutate runtime, scheduling, or shared job colours. */
-export function nodeStatus({ state, stale, drift = false, failReason, readOnly = false }: NodeStatusInput): NodeStatusPresentation {
+export function nodeStatus({ state, stale, drift = false, failReason, readOnly = false, missingInputs = [] }: NodeStatusInput): NodeStatusPresentation {
   const known = !state || ["pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted"].includes(state);
   const oldParams = !readOnly && (drift || stale?.kind === "inflight_old_params");
   const staleReason = stale?.changeReasons?.join("\n") ?? stale?.title;
@@ -48,6 +49,12 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
     const labels: Record<string, string> = { pending: "等待执行", assigned: "已分配，等待启动", running: "正在运行" };
     result = { tone: "info", conclusion: labels[state!], reason: state === "pending" ? "任务已提交，尚未开始。" : state === "assigned" ? "任务已分配给执行设备。" : "任务正在执行。",
       action: "可在任务面板查看进度和日志，无需重复提交。" };
+  }
+  if (!readOnly && missingInputs.length) {
+    const reason = `缺少必填输入：${missingInputs.join("、")}`;
+    if (!state || ["done", "cancelled"].includes(state)) {
+      result = {tone: "neutral", conclusion: "当前不可运行", reason, action: "连接必填输入后再运行；已有产物属于历史运行。"};
+    } else result.reason += `\n${reason}；按当前配置重新运行会被拒绝。`;
   }
   // Append configuration evidence, not a second (possibly conflicting) runtime verdict.
   if (!readOnly && known && staleReason && !result.reason.includes(staleReason)) result.reason += `\n${staleReason}`;

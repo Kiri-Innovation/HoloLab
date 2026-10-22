@@ -59,3 +59,20 @@ it("keeps stop intent distinct and translates recorded failure categories", () =
   expect(nodeStatus({state:"failed",failReason:"system_error"}).reason).toContain("系统");
   expect(nodeStatus({state:"interrupted"}).reason).toContain("未记录具体原因");
 });
+
+it('missing required inputs override a healthy result without changing drift', () => {
+  const stale = Object.freeze({kind: 'self_dirty' as const, title:'连线已改变'});
+  const status = nodeStatus({state:'done', stale, missingInputs:['transforms']});
+  expect(status.tone).toBe('neutral');
+  expect(status.conclusion).toBe('当前不可运行');
+  expect(status.reason).toContain('transforms');
+  expect(status.reason).toContain(stale.title);
+  expect(nodeStatus({state:'done', missingInputs:[]}).tone).toBe('success');
+  expect(nodeStatus({state:'done', readOnly:true, missingInputs:['transforms']}).tone).toBe('success');
+});
+it.each(['failed','orphaned','running','pending','assigned'])('preserves %s while noting missing inputs', state => {
+  const original = nodeStatus({state});
+  const blocked = nodeStatus({state, missingInputs:['transforms']});
+  expect(blocked.tone).toBe(original.tone);
+  expect(blocked.reason).toContain('transforms');
+});
