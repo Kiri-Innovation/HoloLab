@@ -183,7 +183,7 @@ async def delete_artifact(
         async with (
             app.state.db.read() as conn,
             conn.execute(
-                "SELECT 1 FROM constant_materializations cm JOIN snapshot_constants sc ON cm.digest=sc.digest WHERE cm.handle_id=? LIMIT 1",
+                "SELECT 1 FROM constant_materializations cm JOIN snapshot_value_bindings sc ON cm.digest=sc.digest WHERE cm.handle_id=? LIMIT 1",
                 (handle.handle_id,),
             ) as cur,
         ):

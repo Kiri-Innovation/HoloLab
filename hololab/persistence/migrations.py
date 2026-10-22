@@ -698,6 +698,24 @@ CREATE TABLE workflow_viewer_views (
 )
 
 
+MIGRATIONS.append(
+    (
+        23,
+        """
+CREATE TABLE snapshot_input_values (
+ snapshot_id TEXT NOT NULL REFERENCES snapshots(snapshot_id) ON DELETE CASCADE,
+ graph_node_id TEXT NOT NULL, input_port TEXT NOT NULL,
+ digest TEXT NOT NULL REFERENCES constant_values(digest),
+ PRIMARY KEY(snapshot_id, graph_node_id, input_port)
+);
+CREATE VIEW snapshot_value_bindings AS
+ SELECT snapshot_id, graph_node_id, digest FROM snapshot_constants
+ UNION ALL SELECT snapshot_id, graph_node_id, digest FROM snapshot_input_values;
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

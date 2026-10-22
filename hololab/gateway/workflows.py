@@ -87,6 +87,7 @@ class GraphNode(BaseModel):
     algorithm_version: str | None = None
     position: GraphPosition = Field(default_factory=GraphPosition)
     params: dict[str, Any] = Field(default_factory=dict)
+    port_values: dict[str, Any] = Field(default_factory=dict)
     assigned_node_id: str | None = None
     # Read-only: computed on every GET by :func:`agent_graph_dict` from
     # the pack catalog. Declared here so an agent (or the frontend) can
@@ -565,6 +566,17 @@ class WorkflowStore:
 
         if catalog is not None:
             graph = freeze_parameter_pins(graph, catalog)
+        from hololab.inline_values import effective_inline
+
+        graph = graph.model_copy(deep=True)
+        packs = packs_by_key_from_catalog(catalog or [])
+        input_bindings = {}
+        for node in graph.nodes:
+            pack = packs.get((node.algorithm_name, node.algorithm_version))
+            if pack:
+                input_bindings[node.id] = effective_inline(node, graph, pack)
+                for port, (_, payload) in input_bindings[node.id].items():
+                    node.port_values[port] = payload["value"]
         snapshot_id = str(uuid.uuid4())
         graph_json = graph.model_dump_json(exclude_none=True)
         now = time.time()
@@ -575,6 +587,21 @@ class WorkflowStore:
                 "created_ts, parent_snapshot_id) VALUES (?, ?, ?, ?, ?)",
                 (snapshot_id, workflow_id, graph_json, now, parent_snapshot_id),
             )
+            if catalog is None and parent_snapshot_id:
+                await conn.execute(
+                    "INSERT INTO snapshot_input_values SELECT ?, graph_node_id, input_port, digest FROM snapshot_input_values WHERE snapshot_id=?",
+                    (snapshot_id, parent_snapshot_id),
+                )
+            for node_id, bindings in input_bindings.items():
+                for port, (digest, value) in bindings.items():
+                    await conn.execute(
+                        "INSERT OR IGNORE INTO constant_values VALUES (?, ?)",
+                        (digest, json.dumps(value)),
+                    )
+                    await conn.execute(
+                        "INSERT INTO snapshot_input_values VALUES (?, ?, ?, ?)",
+                        (snapshot_id, node_id, port, digest),
+                    )
             from hololab.constants import OPERATIONS, constant_value, is_constant
 
             for node in graph.nodes:
@@ -767,6 +794,9 @@ class InputPortView:
     dim_labels: tuple[str, ...] = ()
     content_dims_from: str | None = None
     require_axis_label_match: bool = True
+    inline: bool | None = None
+    inline_default: Any = None
+    storage: str = "dir"
 
 
 @dataclass(frozen=True)
@@ -1095,13 +1125,16 @@ def packs_by_key_from_catalog(
                 n: InputPortView(
                     tags=tuple(i["tags"]),
                     required=bool(i.get("required", True)),
+                    inline=i.get("inline"),
+                    inline_default=i.get("inline_default"),
+                    storage=i.get("storage", "dir"),
                     arrayed=bool(i.get("arrayed", False)),
                     scalar=bool(i.get("scalar", False)),
                     dim_labels=tuple(i.get("dim_labels", []) or []),
                     content_dims_from=i.get("content_dims_from"),
                     require_axis_label_match=i.get("require_axis_label_match", True),
                 )
-                for n, i in entry["inputs"].items()
+                for n, i in entry.get("inputs", {}).items()
             },
             outputs={
                 n: OutputPortView(
@@ -1114,7 +1147,7 @@ def packs_by_key_from_catalog(
                     dim_labels_from_input=o.get("dim_labels_from_input"),
                     dim_labels_drop_outer=int(o.get("dim_labels_drop_outer") or 0),
                 )
-                for n, o in entry["outputs"].items()
+                for n, o in entry.get("outputs", {}).items()
             },
             arrayable=bool(entry.get("arrayable", False)),
             param_defaults={
@@ -1373,9 +1406,16 @@ def validate_snapshot(
         pack = port_view(node, packs_by_key)
         if pack is None:
             continue
+        from hololab.inline_values import effective_inline
+
+        try:
+            literals = effective_inline(node, graph, pack)
+        except ValueError as exc:
+            issues.append(ValidationIssue(where=f"node:{node.id}", message=str(exc)))
+            literals = {}
         for port_name, port in pack.inputs.items():
             wires = incoming_edges.get((node.id, port_name), [])
-            if port.required and not wires:
+            if port.required and not wires and port_name not in literals:
                 issues.append(
                     ValidationIssue(
                         where=f"node:{node.id}",

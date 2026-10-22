@@ -55,10 +55,15 @@ async def _ensure_input(app, snapshot_id, source, consumer):
             raise ValueError("frozen constant differs from the snapshot value")
 
     await app.state.db.write(bind)
+    return await ensure_value(app, snapshot_id, source.id, port, digest, value, consumer)
+
+
+async def ensure_value(app, snapshot_id, source_id, port, digest, value, consumer):
     session = app.state.registry.get_session(consumer.assigned_node_id)
-    context = f"常量输入准备失败: {source.id} → {consumer.assigned_node_id}"
-    if session is None or "constant-v1" not in session.intrinsics:
-        raise ValueError(context + ": device is offline or lacks constant-v1 support")
+    context = f"常量输入准备失败: {source_id}.{port} → {consumer.assigned_node_id}"
+    capability = "literal-v3" if value.get("contract_version") == 3 else "constant-v1"
+    if session is None or capability not in session.intrinsics:
+        raise ValueError(context + f": device is offline or lacks {capability} support")
     if not hasattr(app.state, "constant_locks"):
         app.state.constant_locks = {}
         app.state.pending_constants = {}
@@ -95,7 +100,7 @@ async def _ensure_input(app, snapshot_id, source, consumer):
             Handle(
                 handle_id=handle_id,
                 node_id=session.node_id,
-                storage="dir",
+                storage=value.get("storage", "dir"),
                 tags=value["tags"],
                 path=response.path,
                 job_id=None,
@@ -111,3 +116,42 @@ async def _ensure_input(app, snapshot_id, source, consumer):
 
         await app.state.db.write(remember)
         return handle_id
+
+
+async def ensure_inline_inputs(app, snapshot_id, consumer, wired):
+    # Snapshot binding is authoritative, including declared defaults. Never re-read draft/catalog.
+    async with (
+        app.state.db.read() as conn,
+        conn.execute(
+            "SELECT b.input_port, b.digest, v.value_json FROM snapshot_input_values b "
+            "JOIN constant_values v ON v.digest=b.digest WHERE b.snapshot_id=? AND b.graph_node_id=?",
+            (snapshot_id, consumer.id),
+        ) as cur,
+    ):
+        rows = await cur.fetchall()
+    for port, digest, raw in rows:
+        if port in wired:
+            continue
+        try:
+            wired[port] = await ensure_value(
+                app, snapshot_id, consumer.id, port, digest, json.loads(raw), consumer
+            )
+        except ValueError as exc:
+            message = str(exc)
+
+            async def failed(conn, message=message):
+                await conn.execute(
+                    "INSERT OR REPLACE INTO snapshot_preparation_errors VALUES (?, ?)",
+                    (snapshot_id, message),
+                )
+
+            await app.state.db.write(failed)
+            raise
+
+    async def cleared(conn):
+        await conn.execute(
+            "DELETE FROM snapshot_preparation_errors WHERE snapshot_id=?", (snapshot_id,)
+        )
+
+    await app.state.db.write(cleared)
+    return wired

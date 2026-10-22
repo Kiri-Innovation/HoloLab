@@ -255,6 +255,9 @@ export interface OutputPortSpec extends PortSpec {
 }
 
 export interface InputPortSpec extends PortSpec {
+  content_dims_from?: string | null;
+  inline?: boolean | null;
+  inline_default?: unknown;
   /** Defaults to true; false relaxes axis names only, never collection depth or tags. */
   require_axis_label_match?: boolean;
   required: boolean;
@@ -513,6 +516,7 @@ export interface GraphNode {
   algorithm_version: string;
   position: { x: number; y: number };
   params: Record<string, unknown>;
+  port_values?: Record<string, unknown>;
   assigned_node_id: string | null;
   // Structural — when the pack is ``arrayable``, this checkbox promotes
   // every non-arrayed port to arrayed at wire time and fan-outs at

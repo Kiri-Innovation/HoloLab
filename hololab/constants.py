@@ -75,6 +75,16 @@ def constant_value(operation, params, version=None):
 
 
 def validate_payload(payload):
+    if payload.get("contract_version") == 3:
+        from hololab.inline_values import literal_value
+
+        tags = payload.get("tags", [])
+        if len(tags) != 1:
+            raise ValueError("literal requires exactly one value type")
+        digest, expected = literal_value(tags[0], payload.get("value"), payload.get("axes", []))
+        if payload != expected:
+            raise ValueError("literal payload does not match its declared contract")
+        return digest
     if payload.get("contract_version") not in (1, 2):
         raise ValueError("unsupported constant contract version")
     vector = payload.get("operation") == "constant-vec3-array"

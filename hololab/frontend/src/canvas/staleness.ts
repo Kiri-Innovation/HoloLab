@@ -1,3 +1,4 @@
+import { inlineIdentity } from "./inlineValues";
 import { isConstantName, constantSignature } from "./constants";
 // Per-node result staleness against the latest snapshot.
 //
@@ -174,6 +175,7 @@ function selfDirtyReasons(
   draftEdges: readonly GraphEdge[],
   snapEdges: readonly GraphEdge[],
   packDefaults: PackDefaults,
+  portDefaults: PackDefaults,
 ): string[] {
   if (sn == null) {
     return ["快照中不存在此节点（新增/未参与上次运行）"];
@@ -183,6 +185,7 @@ function selfDirtyReasons(
     algorithm_version: sn.algorithm_version,
     params: sn.params ?? {},
   }, packDefaults);
+  if (inlineIdentity(dn, draftEdges, portDefaults(dn.algorithm_name, dn.algorithm_version)) !== inlineIdentity(sn, snapEdges)) reasons.push("端口内联值已改");
   if (JSON.stringify(dn.assembly ?? null) !== JSON.stringify(sn.assembly ?? null)) reasons.push("组装槽位、顺序或轴名已改");
   if ((dn.assigned_node_id ?? null) !== (sn.assigned_node_id ?? null)) {
     reasons.push("执行节点已更改");
@@ -282,6 +285,7 @@ export function computeStaleness(
   // sites keep working, just with the same false positives they had
   // before. Real call sites should pass ``packDefaultsFromCatalog``.
   packDefaults: PackDefaults = () => ({}),
+  portDefaults: PackDefaults = () => ({}),
 ): Record<string, NodeStaleness | null> {
   const out: Record<string, NodeStaleness | null> = {};
   // A view is an observer, not an executable graph vertex. Excluding view
@@ -334,6 +338,8 @@ export function computeStaleness(
           algorithm_version: inflightJob.algorithm_version,
           params: inflightJob.params ?? {},
         }, packDefaults);
+        const frozenNode = snapById.get(id);
+        if (frozenNode && inlineIdentity(dn, draftEdges, portDefaults(dn.algorithm_name, dn.algorithm_version)) !== inlineIdentity(frozenNode, snapEdges)) driftReasons.push("端口内联值已改");
         if (driftReasons.length > 0) {
           const jobShort = inflightJob.job_id.slice(0, 7);
           out[id] = {
@@ -352,7 +358,7 @@ export function computeStaleness(
     // reset). We still gate on runtime.state === "done" to decide "does
     // this node have any fresh output right now".
     const sn = snap ? (snapById.get(id) ?? null) : null;
-    const selfReasons = selfDirtyReasons(dn, sn, draftEdges, snapEdges, packDefaults);
+    const selfReasons = selfDirtyReasons(dn, sn, draftEdges, snapEdges, packDefaults, portDefaults);
     const changeReasons = [...selfReasons];
     const hasDoneOutput = rt?.state === "done";
     if (!hasDoneOutput && selfReasons.length === 0) {

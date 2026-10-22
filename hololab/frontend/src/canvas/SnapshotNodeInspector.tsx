@@ -28,6 +28,7 @@ export interface SnapshotNodeInspectorProps {
   // the node was never wired to a run.
   job: SnapshotJob | null;
   frozenParams?: Record<string, unknown>;
+  frozenPortValues?: Record<string, unknown>;
   // Rerun-from action. Fired when the user clicks "Re-run from here" —
   // creates a new snapshot with reused upstream and re-executed
   // downstream, then navigates the App to view it.
@@ -69,6 +70,7 @@ export function SnapshotNodeInspector({
   job,
   onRerunFromHere,
   frozenParams,
+  frozenPortValues,
 }: SnapshotNodeInspectorProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [narrow, setNarrow] = useState(false);
@@ -192,6 +194,7 @@ export function SnapshotNodeInspector({
               </button>
             )}
           </div>
+          {frozenPortValues && Object.keys(frozenPortValues).length > 0 && <section><h3>快照中的输入值</h3><pre style={CODE}>{JSON.stringify(frozenPortValues, null, 2)}</pre></section>}
           <div style={{ marginBottom: 14 }}>
             {pack ? (
               <>

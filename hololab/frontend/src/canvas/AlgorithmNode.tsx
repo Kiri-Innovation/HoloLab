@@ -1,4 +1,4 @@
-import { missingRequiredInputs } from "./requiredInputs";
+import { inputValueProblems } from "./inlineValues";
 import { PinnedParameters } from "./PinnedParameters";
 import { NodePreviews, useNodePreviewSelection } from "./NodePreviews";
 import { PortHandle } from "./PortHandle";
@@ -113,6 +113,7 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   assigned_node_id: string | null;
   /** Draft node parameters, included in the CoBrowser reference snapshot. */
   params?: Record<string, unknown>;
+  port_values?: Record<string, unknown>;
   runtime?: NodeRuntime;
   // Resolved preview URLs for each output port that has a preview
   // declaration AND has produced a handle. Key is the output port name.
@@ -370,8 +371,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const outputEntries = Object.entries(pack.outputs);
   const connectedInputs = useStore(s => JSON.stringify(s.edges.filter(e => e.target === id).map(e => e.targetHandle)));
   const wiredInputs: (string | null)[] = JSON.parse(connectedInputs);
-  const missingInputs = missingRequiredInputs(pack.inputs, wiredInputs);
-  const inputProblem = missingInputs.length ? `缺少必填输入：${missingInputs.join("、")}。运行会被拒绝，请连接这些输入。` : undefined;
+  const missingInputs = inputValueProblems(pack.inputs, (data as AlgorithmNodeData).port_values ?? {}, wiredInputs, arrayedOn);
+  const inputProblem = missingInputs.length ? `输入未就绪：${missingInputs.join("、")}。运行会被拒绝，请检查输入来源和值。` : undefined;
   const runState = runtime?.state;
   const runColour = stateColour(runState);
   const previewSelection = useNodePreviewSelection(data as AlgorithmNodeData);
@@ -478,7 +479,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           position: "relative",
         }}
       >
-        <NodeStatusDot state={runState} status={nodeStatus({ state: runState, stale: staleness, failReason: runtime?.fail_reason, readOnly, missingInputs })} />
+        <NodeStatusDot state={runState} status={nodeStatus({ state: runState, stale: staleness, failReason: runtime?.fail_reason, missingInputs, readOnly })} />
         <NodeTitleTooltip
           name={pack.name} version={pack.version} device={assignedLabel}
           style={{
@@ -577,8 +578,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       {inputProblem && <button type="button" className="nodrag" data-hl-missing-inputs=""
         title={inputProblem} onClick={e => { e.stopPropagation(); setRunErrorMsg(inputProblem); }}
         style={{display: "block", width: "100%", height: "auto", whiteSpace: "normal", lineHeight: 1.5, border: 0, background: "transparent", color: "var(--status-failed)", padding: "6px 12px", fontSize: "var(--fs-xs)", textAlign: "left", overflowWrap: "anywhere"}}>
-        缺少必填输入：{missingInputs.join("、")}
-        {runErrorMsg === inputProblem && <span style={{display: "block", marginTop: 4}}>运行会被拒绝，请连接这些输入。</span>}
+        输入未就绪：{missingInputs.join("、")}
+        {runErrorMsg === inputProblem && <span style={{display: "block", marginTop: 4}}>运行会被拒绝，请检查输入来源和值。</span>}
       </button>}
       {/* BODY — inputs left column, outputs right column, independent stacks */}
       <div
@@ -604,7 +605,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   nodeId={id}
                   declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle, spec.scalar) }}
                   type="target"
-                  issue={missingInputs.includes(portName) ? "必填输入未连接。运行会被拒绝，请连接此输入。" : undefined}
+                  issue={missingInputs.includes(portName) ? "输入缺失或值格式无效。运行会被拒绝，请检查输入来源和值。" : undefined}
                   position={Position.Left}
                   id={portName}
                   style={{
@@ -618,7 +619,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   data-hl-arrayed-port={isArrayed ? "" : undefined}
                 />
                 <PortHandle asText nodeId={id} id={portName} type="target" position={Position.Left}
-                  issue={missingInputs.includes(portName) ? "必填输入未连接。运行会被拒绝，请连接此输入。" : undefined}
+                  issue={missingInputs.includes(portName) ? "输入缺失或值格式无效。运行会被拒绝，请检查输入来源和值。" : undefined}
                   handleId={undefined}
                   declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle, spec.scalar) }}
                   style={{

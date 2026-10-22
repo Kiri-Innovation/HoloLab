@@ -835,3 +835,49 @@ No historical data is rewritten. Gateway and consumer node Python processes
 must be upgraded together before v2 values can be consumed; pack hot reload
 alone does not update this Python contract. Frontend range diagnostics must
 also be aligned in a separate change; they are not the algorithm's authority.
+
+### Inline input values (socket literals)
+
+**Execution semantics:** an input resolves in this order: connected upstream
+handle, explicit `GraphNode.port_values[port]`, visible `inputs.<port>.inline_default`.
+A missing/null literal is unset; `0` and `[]` are actual values. Required inputs
+with no source fail validation; optional inputs stay absent. A failed upstream
+never falls back to a literal. `params.default` and algorithm-computed behavior
+are not port defaults.
+
+Concrete `float` / `vec3` ports allow literals by default; `inline: false`
+opts out. Scalar declarations must use `storage: file`; arrays use `storage: dir`
+and their ordinary axis declaration. `inline: true` on resource/ambiguous tags
+is rejected. No paths, images, videos, wildcard or tag-union literals exist.
+Example: `port_values: {transforms: [[0,0,1],[0.727,0.0198,0.25]], offsets: [0,2.5]}`.
+Inspector adapts vec3 rows to x/y/scale columns without storing three independent
+arrays. Platform validation checks finite numeric elements, shape and axis depth;
+algorithms own ranges and cross-input lengths. Empty literal arrays are legal.
+
+A scalar float file contains one JSON number; a scalar vec3 file contains exactly
+three JSON numbers `[x,y,z]`. Arrays contain lexically ordered zero-padded entries
+`0000`, `0001`, ...; nested collection containers preserve axes (maximum depth two).
+A fan-out input literal describes the complete aggregate; broadcast inputs retain
+their declared shape. A literal never adds a task or a hidden constant node.
+
+Wire contract v3 is origin-independent (`operation: literal`, tags, axes, storage,
+normalized value). Version and ordered content participate in the digest. Existing
+standalone constants retain v1/v2 encodings but share validation dispatch,
+`ensure_constant`, device locks, cache, retry and jobless handle registration.
+New devices advertise `literal-v3`; older devices reject preparation explicitly.
+
+Snapshots freeze resolved defaults and input bindings in `snapshot_input_values`.
+Historical reruns copy these bindings, including their contract versions, without
+reading the current draft/catalog. Old snapshots without bindings retain their old
+semantics. Input and output constant bindings share cache query/cleanup protection
+through `snapshot_value_bindings`; deleting one snapshot cannot delete a cache
+referenced by another. Wired backup values persist but do not affect drift;
+unwired changes do. Input editor availability does not imply algorithm validity.
+
+Phase one edits values in Inspector; direct canvas-port editing remains phase two.
+After upgrading gateway and node (no hot patch of running Python), restore the
+agreed MiddleCutPro inline transform with
+`python -m hololab.gateway.migrate_inline_middlecutpro --apply --run`.
+Without `--apply` this command only prints a reviewable payload. It touches only
+MiddleCutPro's `compose-final.port_values.transforms`, uses optimistic save,
+requires the new device capability and refuses to replace a connected input.

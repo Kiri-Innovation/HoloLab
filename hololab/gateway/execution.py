@@ -159,6 +159,9 @@ async def run_snapshot(
         except WorkflowRunError:
             raise
 
+        from hololab.gateway.constants import ensure_inline_inputs
+
+        input_handles = await ensure_inline_inputs(app, snapshot_id, gnode, input_handles)
         pack_entry = catalog_by_key.get((gnode.algorithm_name, gnode.algorithm_version))
         needs_fanout = bool(
             gnode.arrayed_toggle and pack_entry is not None and pack_entry.get("arrayable", False)
@@ -1636,7 +1639,38 @@ async def dispatch_graph_node(
 
         baseline = await workflows_store.get_snapshot(base_snapshot_id)
         previous = {n.id: n for n in baseline.graph.nodes} if baseline else {}
+        from hololab.inline_values import effective_inline
+
+        packs = packs_by_key_from_catalog(registry.catalog_json())
+        frozen_inputs = {}
+        async with (
+            app.state.db.read() as conn,
+            conn.execute(
+                "SELECT graph_node_id,input_port,digest FROM snapshot_input_values WHERE snapshot_id=?",
+                (base_snapshot_id,),
+            ) as cur,
+        ):
+            for node_id, port, digest in await cur.fetchall():
+                frozen_inputs.setdefault(node_id, {})[port] = digest
         for node in graph.nodes:
+            old = previous.get(node.id)
+            pack = packs.get((node.algorithm_name, node.algorithm_version))
+            if pack and {
+                p: item[0] for p, item in effective_inline(node, graph, pack).items()
+            } != frozen_inputs.get(node.id, {}):
+                changed_constants.add(node.id)
+            old_edges = {
+                (e.source, e.sourceHandle, e.targetHandle)
+                for e in (baseline.graph.edges if baseline else [])
+                if e.target == node.id
+            }
+            new_edges = {
+                (e.source, e.sourceHandle, e.targetHandle)
+                for e in graph.edges
+                if e.target == node.id
+            }
+            if old_edges != new_edges:
+                changed_constants.add(node.id)
             if is_constant(node):
                 old = previous.get(node.id)
                 if (
@@ -1663,7 +1697,7 @@ async def dispatch_graph_node(
         # attribution except the target node and its downstream closure.
         forbidden = downstream_closure(graph, graph_node_id) | {graph_node_id}
         for constant_id in changed_constants:
-            forbidden |= downstream_closure(graph, constant_id)
+            forbidden |= downstream_closure(graph, constant_id) | {constant_id}
         parent_attributions = await snapshot_jobs.list_attributions(base_snapshot_id)
         inherited = [
             (row["job_id"], row["graph_node_id"])
@@ -1681,6 +1715,11 @@ async def dispatch_graph_node(
         await snapshot_jobs.attribute_many(target_snapshot_id, inherited)
         operation = "fork"
 
+    frozen_snapshot = await workflows_store.get_snapshot(target_snapshot_id)
+    graph = frozen_snapshot.graph
+    # Dispatch parameters retain the existing Continue behavior; input bindings
+    # always come from the selected immutable snapshot. Historical reruns use
+    # their frozen node through the separate rerun path.
     # -- Resolve inputs from the target snapshot's existing attributions ----
     input_handles = await _resolve_inputs_from_snapshot(
         app,
@@ -1920,4 +1959,26 @@ async def _resolve_inputs_from_snapshot(
                 f"{edge.sourceHandle!r}"
             )
         wired[edge.targetHandle] = handle_id
-    return wired
+    from hololab.gateway.constants import ensure_inline_inputs
+
+    consumer = next(n for n in graph.nodes if n.id == graph_node_id)
+    try:
+        wired = await ensure_inline_inputs(app, target_snapshot_id, consumer, wired)
+        entry = next(
+            (
+                p
+                for p in app.state.registry.catalog_json()
+                if (p["name"], p["version"])
+                == (consumer.algorithm_name, consumer.algorithm_version)
+            ),
+            None,
+        )
+        if entry:
+            for name, spec in entry["inputs"].items():
+                if spec.get("required", True) and name not in wired:
+                    raise DispatchError(
+                        f"required input {name!r} has no connection or literal value"
+                    )
+        return wired
+    except ValueError as exc:
+        raise DispatchError(str(exc)) from exc

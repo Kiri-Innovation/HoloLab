@@ -661,7 +661,7 @@ class NodeRuntime:
         ]
 
         reg = Register(
-            intrinsics=["array-assemble", "constant-v1"],
+            intrinsics=["array-assemble", "constant-v1", "literal-v3"],
             library_wakeup=True,
             node_name=self._config.node_name,
             v_min=PROTOCOL_V_MIN,

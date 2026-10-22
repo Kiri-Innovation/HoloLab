@@ -76,6 +76,8 @@ class InputSpec(BaseModel):
 
     tags: list[str] = Field(default_factory=list)
     required: bool = True
+    inline: bool | None = None
+    inline_default: Any = None
     # Named collection axes must agree unless this input explicitly opts out.
     require_axis_label_match: bool = Field(default=True, strict=True)
     storage: StorageForm = StorageForm.DIR
@@ -87,6 +89,18 @@ class InputSpec(BaseModel):
     # Legacy generic layout hint. It never changes fan-out enumeration depth;
     # image declarations reject it (images have no intrinsic collection axes).
     content_dims_from: str | None = None
+
+    @model_validator(mode="after")
+    def _inline_declaration(self) -> InputSpec:
+        from types import SimpleNamespace
+
+        from hololab.inline_values import input_literal, supports_inline
+
+        if self.inline is True and not supports_inline(self):
+            raise ValueError("inline supports only float/vec3 value ports")
+        if self.inline_default is not None:
+            input_literal(SimpleNamespace(port_values={}), "default", self)
+        return self
 
     @model_validator(mode="after")
     def _tags_non_empty(self) -> InputSpec:

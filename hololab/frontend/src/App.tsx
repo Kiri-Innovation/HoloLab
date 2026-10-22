@@ -1,3 +1,4 @@
+import { inlineDefaults } from "./canvas/inlineValues";
 import { constantFields, constantPresentation } from "./canvas/constants";
 import { mergeParameterPatch } from "./canvas/PackParameterField";
 import { effectiveParameterPins, parameterPinKey, toggleParameterPins } from "./canvas/parameterPins";
@@ -1378,7 +1379,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     nodes: nodes.flatMap(n => {
       const d = algorithmDataForNode(n);
       return d ? [{ ...assemblyFields(d.assembly), ...constantFields(d.pack.name), id: n.id, algorithm_name: d.pack.name, algorithm_version: d.pack.version,
-        position: n.position, params: d.params ?? {}, arrayed_toggle: d.arrayed_toggle,
+        position: n.position, params: d.params ?? {}, port_values: (d as AlgorithmNodeData).port_values ?? {}, arrayed_toggle: d.arrayed_toggle,
         assigned_node_id: d.assigned_node_id }] : [];
     }),
     catalogByKey: new Map(nodes.flatMap(n => {
@@ -1543,7 +1544,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         // Real params — effectiveOutputType reads dim_labels_from here
         // (e.g. regroup.out → output_dims) so the chip renders the
         // right labels before any handle summary lands.
-        params: d.params ?? {},
+        params: d.params ?? {}, port_values: (d as AlgorithmNodeData).port_values ?? {},
         assigned_node_id: data.assigned_node_id,
         arrayed_toggle: Boolean(d.arrayed_toggle),
       };
@@ -1718,7 +1719,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         algorithm_name: data.pack.name,
         algorithm_version: data.pack.version,
         position: n.position,
-        params: d.params ?? {},
+        params: d.params ?? {}, port_values: (d as AlgorithmNodeData).port_values ?? {},
         assigned_node_id: data.assigned_node_id,
         arrayed_toggle: Boolean(d.arrayed_toggle),
       };
@@ -1806,6 +1807,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                     patch.assigned_node_id !== undefined
                       ? patch.assigned_node_id
                       : n.data.assigned_node_id,
+                  ...(patch.port_values ? {port_values: patch.port_values} : {}),
                   ...(patch.params ? { params: mergeParameterPatch((n.data as AlgorithmNodeData).pack, (n.data as AlgorithmNodeData).params ?? {}, patch.params) } : {}),
                   ...(patch.arrayed_toggle !== undefined
                     ? { arrayed_toggle: patch.arrayed_toggle }
@@ -1862,7 +1864,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           algorithm_name: d.pack.name,
           algorithm_version: d.pack.version,
           position: { x: n.position.x, y: n.position.y },
-          params: d.params ?? {},
+          params: d.params ?? {}, port_values: (d as AlgorithmNodeData).port_values ?? {},
           assigned_node_id: d.assigned_node_id,
           // Structural — see docs/pack-spec.md#arrayed-and-arrayable.
           arrayed_toggle: Boolean(d.arrayed_toggle),
@@ -1951,7 +1953,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               pack,
               assembly: gn.assembly,
               assigned_node_id: gn.assigned_node_id,
-              ...({ params: gn.params } as object),
+              ...({ params: gn.params, port_values: gn.port_values } as object),
               ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
               ...({ parallelism: gn.parallelism ?? 1 } as object),
               ...({ batch_size: gn.batch_size ?? 1 } as object),
@@ -2114,7 +2116,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const draftDiff = useMemo<DiffItem[]>(
     () =>
       workflowId !== null && latestSnapshotGraph !== null
-        ? diffGraphs(toGraph(), latestSnapshotGraph, packDefaultsFromCatalog(catalogByKey))
+        ? diffGraphs(toGraph(), latestSnapshotGraph, packDefaultsFromCatalog(catalogByKey), (name, version) => inlineDefaults(catalogByKey.get(`${name}@${version}`)))
         : [],
     [workflowId, latestSnapshotGraph, toGraph, catalogByKey],
   );
@@ -2147,6 +2149,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             // "参数已改" false positive on a run whose current draft the
             // operator hasn't touched.
             packDefaultsFromCatalog(catalogByKey),
+            (name, version) => inlineDefaults(catalogByKey.get(`${name}@${version}`)),
           )
         : {},
     [workflowId, latestSnapshotGraph, runtimeByGraphNode, latestSnapshotJobs, toGraph, catalogByKey],
@@ -2857,6 +2860,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       pack={snapshotSelectedPack}
       job={snapshotSelectedJob}
       frozenParams={viewingSnapshot.graph.nodes.find(n => n.id === snapshotSelectedGraphNodeId)?.params}
+      frozenPortValues={viewingSnapshot.graph.nodes.find(n => n.id === snapshotSelectedGraphNodeId)?.port_values}
       onRerunFromHere={onRerunFromHere}
       preview={snapshotPreviewData?.snapshotId === viewingSnapshot.snapshot_id && snapshotPreviewData.nodeId === snapshotSelectedGraphNodeId ?
         <CanvasContext.Provider value={canvasContextValue}>
@@ -2867,6 +2871,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     <p className="hl-dock-empty">Select a node or connection to inspect it.</p>
   ) : (
     <NodeInspector
+      inputSources={Object.fromEntries(edges.filter(e=>e.target===selectedNode.id).map(e=>[e.targetHandle ?? '', (nodes.find(n=>n.id===e.source)?.data as AlgorithmNodeData)?.pack?.name ?? e.source]))}
       onParamsChange={patch => updateNodeParams(selectedNode.id, patch)}
       pinnedParams={effectiveParameterPins(pinnedParams, selectedAlgorithmData.pack)}
       onTogglePin={names => setPinnedParams(current => toggleParameterPins(current, parameterPinKey(selectedAlgorithmData.pack), names, effectiveParameterPins(current, selectedAlgorithmData.pack)))}
@@ -2891,6 +2896,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                     params?: Record<string, unknown>;
                   }
                 ).params ?? {},
+              port_values: selectedAlgorithmData.port_values,
               assigned_node_id: selectedAlgorithmData.assigned_node_id,
               arrayed_toggle: Boolean(
                 (

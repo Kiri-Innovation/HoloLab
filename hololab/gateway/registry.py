@@ -557,6 +557,8 @@ class NodeRegistry:
                             n: {
                                 "tags": s.tags,
                                 "required": s.required,
+                                "inline": s.inline,
+                                "inline_default": s.inline_default,
                                 "require_axis_label_match": s.require_axis_label_match,
                                 "storage": s.storage.value,
                                 "description": s.description,

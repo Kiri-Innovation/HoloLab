@@ -1,3 +1,4 @@
+import { InlineInputEditor } from "./InlineInputEditor";
 import { isConstantName } from "./constants";
 // Compact right-sidebar parameter editor. Changes use the existing draft autosave.
 
@@ -13,6 +14,7 @@ import { OpenSourceButton } from "./OpenSourceButton";
 
 export interface NodeInspectorProps {
   selected: GraphNode | null;
+  inputSources?: Record<string,string>;
   pack: CatalogPack | null;
   computeNodesById?: Record<string, ComputeNode>;
   onChange: (patch: Partial<GraphNode>) => void;
@@ -53,6 +55,7 @@ const HINT: CSSProperties = {
 
 export function NodeInspector({
   selected,
+  inputSources,
   pack,
   computeNodesById,
   onChange,
@@ -149,6 +152,7 @@ export function NodeInspector({
         <h3 style={SECTION_TITLE}>Run on</h3>
         {assignment}
       </section>}
+      {Object.keys(pack.inputs).length > 0 && <InlineInputEditor node={selected} pack={pack} sources={inputSources} onChange={port_values=>onChange({port_values})} />}
       <div className="hl-inspector-parameters" role="region" aria-label="Parameters">
         <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Parameters</h3>
         {!isConstantName(pack.name) && <div className="hl-inspector-field hl-inspector-package-field" style={FIELD}>

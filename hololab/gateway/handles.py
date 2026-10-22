@@ -228,7 +228,7 @@ class HandleBook:
                 LEFT JOIN jobs j ON h.job_id = j.job_id
                 WHERE j.snapshot_id = ? OR h.handle_id IN (
                   SELECT cm.handle_id FROM constant_materializations cm
-                  JOIN snapshot_constants sc ON sc.digest=cm.digest WHERE sc.snapshot_id=?
+                  JOIN snapshot_value_bindings sc ON sc.digest=cm.digest WHERE sc.snapshot_id=?
                 )
                 ORDER BY h.created_ts DESC
                 """,
@@ -257,7 +257,7 @@ class HandleBook:
                 LEFT JOIN jobs j ON h.job_id = j.job_id
                 WHERE j.workflow_id = ? OR h.handle_id IN (
                   SELECT cm.handle_id FROM constant_materializations cm
-                  JOIN snapshot_constants sc ON sc.digest=cm.digest
+                  JOIN snapshot_value_bindings sc ON sc.digest=cm.digest
                   JOIN snapshots s ON s.snapshot_id=sc.snapshot_id WHERE s.workflow_id=?
                 )
                 ORDER BY h.created_ts DESC
@@ -327,7 +327,7 @@ class HandleBook:
                 LEFT JOIN jobs j ON h.job_id = j.job_id
                 WHERE j.workflow_id = ? OR h.handle_id IN (
                   SELECT cm.handle_id FROM constant_materializations cm
-                  JOIN snapshot_constants sc ON sc.digest=cm.digest
+                  JOIN snapshot_value_bindings sc ON sc.digest=cm.digest
                   JOIN snapshots s ON s.snapshot_id=sc.snapshot_id WHERE s.workflow_id=?
                 )
                 """,
@@ -354,7 +354,7 @@ class HandleBook:
                 LEFT JOIN jobs j ON h.job_id = j.job_id
                 WHERE j.snapshot_id = ? OR h.handle_id IN (
                   SELECT cm.handle_id FROM constant_materializations cm
-                  JOIN snapshot_constants sc ON sc.digest=cm.digest WHERE sc.snapshot_id=?
+                  JOIN snapshot_value_bindings sc ON sc.digest=cm.digest WHERE sc.snapshot_id=?
                 )
                 """,
                 (snapshot_id, snapshot_id),

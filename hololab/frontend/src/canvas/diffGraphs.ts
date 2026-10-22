@@ -1,3 +1,4 @@
+import { inlineIdentity } from "./inlineValues";
 // Structural diff between two WorkflowGraph objects.
 //
 // Only structural fields are compared; cosmetic fields (position, preview_open)
@@ -39,6 +40,7 @@ export function diffGraphs(
   // returns ``{}`` so legacy callers reproduce the pre-normalisation
   // compare exactly.
   packDefaults: PackDefaults = () => ({}),
+  portDefaults: PackDefaults = () => ({}),
 ): DiffItem[] {
   const items: DiffItem[] = [];
 
@@ -77,6 +79,7 @@ export function diffGraphs(
     const sn = snapById.get(dn.id);
     if (!sn) continue;
     const label = nodeName(dn);
+    if (inlineIdentity(dn, draftEdges, portDefaults(dn.algorithm_name, dn.algorithm_version)) !== inlineIdentity(sn, snapEdges)) items.push({description: `节点 ${label} 端口内联值已改`});
 
     if (
       dn.algorithm_name !== sn.algorithm_name ||

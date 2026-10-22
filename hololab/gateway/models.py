@@ -137,6 +137,8 @@ class PortSpecOut(BaseModel):
 
     tags: list[str]
     required: bool = True
+    inline: bool | None = None
+    inline_default: Any = None
     storage: str = "dir"
     description: str | None = None
     arrayed: bool = False
@@ -551,6 +553,7 @@ class GraphNodeOut(BaseModel):
     title: str | None = None
     position: dict[str, float] = Field(default_factory=lambda: {"x": 0.0, "y": 0.0})
     params: dict[str, Any] = Field(default_factory=dict)
+    port_values: dict[str, Any] = Field(default_factory=dict)
     assigned_node_id: str | None = None
     # Structural — when the pack is ``arrayable``, this per-node checkbox
     # promotes non-arrayed ports to arrayed at wire time and fan-outs at

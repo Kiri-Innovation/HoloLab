@@ -1653,6 +1653,25 @@ def _mount_routes(app: FastAPI) -> None:
 
             draft_packs = packs_by_key_from_catalog(registry.catalog_json())
             draft_pack = draft_packs.get((gnode.algorithm_name, gnode.algorithm_version))
+            if draft_pack is not None and latest_snapshot_id:
+                from hololab.inline_values import effective_inline
+
+                try:
+                    current_values = {
+                        p: item[0]
+                        for p, item in effective_inline(gnode, draft.graph, draft_pack).items()
+                    }
+                    async with (
+                        app.state.db.read() as conn,
+                        conn.execute(
+                            "SELECT input_port,digest FROM snapshot_input_values WHERE snapshot_id=? AND graph_node_id=?",
+                            (latest_snapshot_id, gnode.id),
+                        ) as cur,
+                    ):
+                        frozen_values = dict(await cur.fetchall())
+                    resource["drift"] = resource["drift"] or current_values != frozen_values
+                except ValueError:
+                    resource["drift"] = True
             if draft_pack is not None:
                 draft_types, _ = resolved_port_types(
                     gnode,
