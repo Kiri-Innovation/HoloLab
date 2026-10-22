@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 const ACTIVATED = "hololab-viewer-interaction-activated";
 
@@ -41,7 +41,7 @@ export function viewerInteractionBorder(activated: boolean) {
   return activated ? "1.5px solid var(--accent)" : "1px solid var(--border-strong)";
 }
 
-export function ViewerInteractionShield({ activate }: { activate: () => void }) {
+export function ViewerInteractionShield({ activate }: { activate: (event: ReactMouseEvent<HTMLDivElement>) => void }) {
   return <div onClick={activate} style={{
     position: "absolute", inset: 0, zIndex: 10,
     cursor: "default", background: "transparent",

@@ -119,6 +119,7 @@ export function NodeViewerFrame({
         const domain = ['canvas', 'timeline'].includes(event.data.focus) ? event.data.focus : null;
         setFocusDomain(domain);
         if (domain) activateRef.current();
+        else if (document.activeElement === iframe) wrapperRef.current?.focus({ preventScroll: true });
         return;
       }
       if (event.data?.type === "hololab-viewer-camera-default") {
@@ -246,7 +247,7 @@ export function NodeViewerFrame({
     return <div style={{ padding: 12, color: "var(--status-failed)", fontSize: 11 }}>{assetError}</div>;
   }
   return (
-    <div ref={wrapperRef} data-viewer-interaction={squareViewport ? (activated ? "active" : "inactive") : undefined} style={{ position: "relative" }}>
+    <div ref={wrapperRef} tabIndex={squareViewport ? -1 : undefined} data-viewer-interaction={squareViewport ? (activated ? "active" : "inactive") : undefined} style={{ position: "relative", outline: "none" }}>
     <iframe
       ref={iframeRef}
       src={src}
@@ -255,7 +256,15 @@ export function NodeViewerFrame({
       onLoad={() => setLoaded(true)}
       style={{ width: "100%", height: squareViewport ? "auto" : viewerHeight, aspectRatio: squareViewport ? "1 / 1" : undefined, boxSizing: "border-box", border: squareViewport ? viewerInteractionBorder(activated && (!dualFocusReady || focusDomain === 'canvas')) : 0, borderRadius: squareViewport ? "var(--radius-sm)" : undefined, display: "block", background: "#101216" }}
     />
-    {squareViewport && !dualFocusReady && !activated && <ViewerInteractionShield activate={activate} />}
+    {squareViewport && (!activated || (dualFocusReady && !focusDomain)) && <ViewerInteractionShield activate={(event) => {
+      activate();
+      if (!dualFocusReady) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      iframeRef.current?.contentWindow?.postMessage({ type: 'hololab-viewer-focus-host', activate_at: {
+        x: (event.clientX - rect.left) / rect.width,
+        y: (event.clientY - rect.top) / rect.height,
+      } }, location.origin);
+    }} />}
     </div>
   );
 }
