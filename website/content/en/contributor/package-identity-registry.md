@@ -1,6 +1,6 @@
 ---
 title: Fix algorithm dependencies with package identity
-group: System design
+group: Collaboration and reproducibility
 order: 50
 ---
 # Fix algorithm dependencies with package identity

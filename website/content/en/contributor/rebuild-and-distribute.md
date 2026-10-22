@@ -1,6 +1,6 @@
 ---
 title: Rebuild a workflow on another machine
-group: System design
+group: Collaboration and reproducibility
 order: 40
 ---
 # Rebuild a workflow on another machine

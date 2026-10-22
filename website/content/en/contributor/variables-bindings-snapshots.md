@@ -1,6 +1,6 @@
 ---
 title: Preserve execution meaning with variables and snapshots
-group: System design
+group: Collaboration and reproducibility
 order: 60
 ---
 # Preserve execution meaning with variables and snapshots
