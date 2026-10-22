@@ -1,4 +1,4 @@
-import { InlineInputEditor } from "./InlineInputEditor";
+import { InlineInputEditor, unconnectedInputs } from "./InlineInputEditor";
 import { isConstantName } from "./constants";
 // Compact right-sidebar parameter editor. Changes use the existing draft autosave.
 
@@ -152,7 +152,7 @@ export function NodeInspector({
         <h3 style={SECTION_TITLE}>Run on</h3>
         {assignment}
       </section>}
-      {Object.keys(pack.inputs).length > 0 && <section className="hl-inspector-inputs hl-inspector-parameters" aria-label="Input values">
+      {unconnectedInputs(pack, inputSources).length > 0 && <section className="hl-inspector-inputs hl-inspector-parameters" aria-label="Input values">
         <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Input values</h3>
         <InlineInputEditor node={selected} pack={pack} sources={inputSources} onChange={port_values=>onChange({port_values})} />
       </section>}

@@ -1,4 +1,5 @@
-import { expect, it } from 'vitest';
+import { NodeInspector } from './NodeInspector';
+import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { InlineInputEditor } from './InlineInputEditor';
 import {
@@ -8,6 +9,7 @@ import {
 } from './inlineValues';
 import { computeStaleness } from './staleness';
 import type { CatalogPack, GraphNode, InputPortSpec } from '../wire';
+vi.mock('./OpenSourceButton', () => ({ OpenSourceButton: () => null }));
 const spec = {
   tags: ['float'],
   storage: 'file',
@@ -144,8 +146,8 @@ it('renders source and visible default with reusable scalar/array editors', () =
       onChange={() => {}}
     />,
   );
-  expect(wired).toContain('← float-array');
-  expect(wired).toContain('备用值不生效');
+  expect(wired).toBe('');
+  expect(node.port_values).toEqual({ value: 0 });
   const vector = renderToStaticMarkup(
     <InlineInputEditor
       node={{
@@ -169,4 +171,20 @@ it('renders source and visible default with reusable scalar/array editors', () =
   expect(vector).toContain('transform array');
   expect(vector).toContain('0.727');
   expect(vector).toContain('Add transform item');
+});
+
+it('omits the entire input section when wired or portless, retains unset optional inputs', () => {
+  const pack = {name:'consume',version:'1',inputs:{value:{...spec,required:false}},outputs:{},params:{},description:''} as unknown as CatalogPack;
+  const render = (inputs: CatalogPack['inputs'], sources: Record<string,string> = {}) => renderToStaticMarkup(
+    <NodeInspector selected={{...node,port_values:{}}} pack={{...pack,inputs}} inputSources={sources} onChange={()=>{}} onParamsChange={()=>{}} assignment={<span>Device</span>} />
+  );
+  const optional = render(pack.inputs);
+  expect(optional).toContain('aria-label="Input values"');
+  expect(optional).toContain('设置内联值');
+  const wired = render(pack.inputs, {value:'upstream'});
+  expect(wired).not.toContain('hl-inspector-inputs');
+  expect(wired).toContain('hl-inspector-execution');
+  expect(wired).toContain('aria-label="Parameters"');
+  expect(render({})).not.toContain('hl-inspector-inputs');
+  expect(render({value:spec})).toContain('设置内联值');
 });

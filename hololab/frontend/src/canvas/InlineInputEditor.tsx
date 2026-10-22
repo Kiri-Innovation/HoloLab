@@ -53,6 +53,10 @@ function NestedLiteralEditor({
     </>
   );
 }
+export function unconnectedInputs(pack: CatalogPack, sources: Record<string, string> = {}) {
+  return Object.entries(pack.inputs).filter(([name]) => !Object.prototype.hasOwnProperty.call(sources, name));
+}
+
 export function InlineInputEditor({
   node,
   pack,
@@ -66,8 +70,7 @@ export function InlineInputEditor({
 }) {
   return (
     <>
-      {Object.entries(pack.inputs).map(([name, spec]) => {
-        const source = sources[name];
+      {unconnectedInputs(pack, sources).map(([name, spec]) => {
         const values = node.port_values ?? {};
         const value = inputValue(spec, values, name);
         const set = (v: unknown) => onChange({ ...values, [name]: v });
@@ -160,15 +163,12 @@ export function InlineInputEditor({
           <div key={name} className="hl-inspector-field hl-inspector-input-field">
             <div className="hl-inspector-input-label"><code>{name}</code></div>
             <div className="hl-inspector-input-source">
-              {source
-                ? `← ${source}${editable ? "（内联备用值不生效）" : ""}`
-                : values[name] != null
+              {values[name] != null
                   ? '内联值'
                   : spec.inline_default != null
                     ? '端口默认值'
                     : '未设置'}
             </div>
-            {source && editable && <div className="hl-inspector-input-hint">连线优先；断线后恢复内联值。</div>}
             {editable && (
               <div className={`hl-inspector-input-controls${array || vector ? ' hl-inspector-input-controls--wide' : ''}`}>
                 {value == null ? (
@@ -188,12 +188,11 @@ export function InlineInputEditor({
                 )}
               </div>
             )}
-            {!editable && !source && (
+            {!editable && (
               <div className="hl-inspector-input-hint">请连接上游{spec.required ? '（必填）' : ''}</div>
             )}
             {error && (
               <div className="hl-inspector-input-hint" role="alert" style={{ color: 'var(--status-failed)' }}>
-                {source ? '备用值：' : ''}
                 {error}
               </div>
             )}
