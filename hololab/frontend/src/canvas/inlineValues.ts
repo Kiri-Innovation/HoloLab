@@ -84,3 +84,31 @@ export function inlineDefaults(pack?: {
       .map(([k, p]) => [k, p.inline_default]),
   );
 }
+
+/** Fresh draft values only. Never apply this to a frozen snapshot. */
+export function freshInlineValue(spec: InputPortSpec, fanout = false): unknown {
+  if (!supportsInline(spec)) return undefined;
+  if (spec.inline_default != null) return structuredClone(spec.inline_default);
+  if (spec.arrayed || spec.dim_labels?.length || (fanout && !spec.scalar)) return [];
+  return spec.tags[0] === 'vec3' ? [0, 0, 0] : 0;
+}
+export function reconcileInlineValues(
+  inputs: Record<string, InputPortSpec>, values: Record<string, unknown> = {},
+  connected: (string | null | undefined)[], fanout = false,
+): Record<string, unknown> {
+  let next = values;
+  for (const name of connected) {
+    if (name && Object.prototype.hasOwnProperty.call(next, name)) {
+      if (next === values) next = {...values};
+      delete next[name];
+    }
+  }
+  for (const [name,spec] of Object.entries(inputs)) {
+    if (connected.includes(name) || next[name] != null) continue;
+    const value = freshInlineValue(spec, fanout);
+    if (value === undefined) continue;
+    if (next === values) next = {...values};
+    next[name] = value;
+  }
+  return next;
+}

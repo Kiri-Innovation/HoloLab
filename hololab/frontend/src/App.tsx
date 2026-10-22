@@ -1,3 +1,4 @@
+import { reconcileInlineValues } from './canvas/inlineValues';
 import { inlineDefaults } from "./canvas/inlineValues";
 import { constantFields, constantPresentation } from "./canvas/constants";
 import { mergeParameterPatch } from "./canvas/PackParameterField";
@@ -937,6 +938,25 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   >(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<any>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<TypedEdgeData>>([]);
+  // Reconcile every draft edge mutation (connect, keyboard/multi-delete,
+  // upstream-node deletion, hydration). Snapshots render through a separate canvas.
+  useEffect(() => {
+    if (viewingSnapshot) return;
+    setNodes(current => {
+      let changed = false;
+      const next = current.map(n => {
+        const d = algorithmDataForNode(n);
+        if (!d) return n;
+        const values = reconcileInlineValues(d.pack.inputs, d.port_values,
+          edges.filter(e => e.target === n.id).map(e => e.targetHandle),
+          !!(d.arrayed_toggle && d.pack.arrayable));
+        if (values === d.port_values || (!d.port_values && !Object.keys(values).length)) return n;
+        changed = true;
+        return {...n, data: {...n.data, port_values: values}};
+      });
+      return changed ? next : current;
+    });
+  }, [edges, nodes, viewingSnapshot, setNodes]);
   // Stable refs so onSelectEdge doesn't depend on edges/nodes and
   // doesn't need to be recreated (which would remount all TypedEdge
   // instances via edgeTypes useMemo).
@@ -1864,7 +1884,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           algorithm_name: d.pack.name,
           algorithm_version: d.pack.version,
           position: { x: n.position.x, y: n.position.y },
-          params: d.params ?? {}, port_values: (d as AlgorithmNodeData).port_values ?? {},
+          params: d.params ?? {}, port_values: reconcileInlineValues(d.pack.inputs, d.port_values, edges.filter(e => e.target === n.id).map(e => e.targetHandle), !!(d.arrayed_toggle && d.pack.arrayable)),
           assigned_node_id: d.assigned_node_id,
           // Structural — see docs/pack-spec.md#arrayed-and-arrayable.
           arrayed_toggle: Boolean(d.arrayed_toggle),
@@ -1953,7 +1973,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               pack,
               assembly: gn.assembly,
               assigned_node_id: gn.assigned_node_id,
-              ...({ params: gn.params, port_values: gn.port_values } as object),
+              ...({ params: gn.params, port_values: reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) } as object),
               ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
               ...({ parallelism: gn.parallelism ?? 1 } as object),
               ...({ batch_size: gn.batch_size ?? 1 } as object),

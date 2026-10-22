@@ -357,6 +357,13 @@ class WorkflowStore:
         base-check.
         """
 
+        # Draft-only cleanup: a connected input has no stored inline backup.
+        # Snapshot creation/replay deliberately keeps its historical semantics.
+        graph = graph.model_copy(deep=True)
+        by_id = {node.id: node for node in graph.nodes}
+        for edge in graph.edges:
+            if edge.target in by_id:
+                by_id[edge.target].port_values.pop(edge.targetHandle, None)
         wid = workflow_id or str(uuid.uuid4())
         graph_json = graph.model_dump_json(exclude_none=True)
         now = time.time()

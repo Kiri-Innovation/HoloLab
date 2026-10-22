@@ -5,7 +5,7 @@ import {
   ParameterInput,
   Vec3ArrayParameterInput,
 } from './ParameterInput';
-import { inlineError, inputValue, supportsInline } from './inlineValues';
+import { inlineError, inputValue, supportsInline, freshInlineValue } from './inlineValues';
 const numberSpec: ParamSpec = {
   type: 'float',
   default: null,
@@ -72,7 +72,7 @@ export function InlineInputEditor({
     <>
       {unconnectedInputs(pack, sources).map(([name, spec]) => {
         const values = node.port_values ?? {};
-        const value = inputValue(spec, values, name);
+        const value = inputValue(spec, values, name) ?? freshInlineValue(spec, !!(node.arrayed_toggle && pack.arrayable));
         const set = (v: unknown) => onChange({ ...values, [name]: v });
         const fanout = !!(node.arrayed_toggle && pack.arrayable);
         const error = inlineError(spec, value, fanout);
@@ -167,25 +167,11 @@ export function InlineInputEditor({
                   ? '内联值'
                   : spec.inline_default != null
                     ? '端口默认值'
-                    : '未设置'}
+                    : editable ? '类型默认值' : '未设置'}
             </div>
             {editable && (
               <div className={`hl-inspector-input-controls${array || vector ? ' hl-inspector-input-controls--wide' : ''}`}>
-                {value == null ? (
-                  <button
-                    type="button"
-                    onClick={() => set(array ? [] : vector ? [0, 0, 0] : 0)}
-                  >
-                    设置内联值
-                  </button>
-                ) : (
-                  editor
-                )}
-                {values[name] != null && (
-                  <button type="button" onClick={() => set(null)}>
-                    清除内联值
-                  </button>
-                )}
+                {editor}
               </div>
             )}
             {!editable && (

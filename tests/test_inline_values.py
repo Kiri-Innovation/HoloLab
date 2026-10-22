@@ -251,3 +251,29 @@ def test_workflow_api_preserves_inline_values(tmp_path):
         assert client.get("/api/workflows/" + wid).json()["graph"]["nodes"][0]["port_values"] == {
             "value": 0
         }
+
+
+@pytest.mark.asyncio
+async def test_draft_save_removes_wired_backups_without_rewriting_history(tmp_path):
+    db = Database(tmp_path / "cleanup.sqlite")
+    await db.open()
+    try:
+        store = WorkflowStore(db)
+        g = graph({"value": 0.727})
+        original = await store.save_draft(name="cleanup", graph=g, workflow_id=None)
+        snap = await store.create_snapshot(
+            workflow_id=original.workflow_id, graph=g, catalog=catalog()
+        )
+        g.edges.append(
+            GraphEdge(
+                id="edge", source="source", sourceHandle="out", target="task", targetHandle="value"
+            )
+        )
+        await store.save_draft(name="cleanup", graph=g, workflow_id=original.workflow_id)
+        draft = await store.get_draft(original.workflow_id)
+        assert draft.graph.nodes[0].port_values == {}
+        assert g.nodes[0].port_values == {"value": 0.727}
+        historical = await store.get_snapshot(snap.snapshot_id)
+        assert historical.graph.nodes[0].port_values == {"value": 0.727}
+    finally:
+        await db.close()

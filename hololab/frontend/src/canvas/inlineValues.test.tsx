@@ -3,7 +3,7 @@ import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { InlineInputEditor } from './InlineInputEditor';
 import {
-  inputValueProblems,
+  inputValueProblems, freshInlineValue, reconcileInlineValues,
   inlineIdentity,
   inlineError,
 } from './inlineValues';
@@ -180,11 +180,34 @@ it('omits the entire input section when wired or portless, retains unset optiona
   );
   const optional = render(pack.inputs);
   expect(optional).toContain('aria-label="Input values"');
-  expect(optional).toContain('设置内联值');
+  expect(optional).toContain('value="0"');
+  expect(optional).not.toContain('设置内联值');
+  expect(optional).not.toContain('清除内联值');
   const wired = render(pack.inputs, {value:'upstream'});
   expect(wired).not.toContain('hl-inspector-inputs');
   expect(wired).toContain('hl-inspector-execution');
   expect(wired).toContain('aria-label="Parameters"');
   expect(render({})).not.toContain('hl-inspector-inputs');
-  expect(render({value:spec})).toContain('设置内联值');
+  expect(render({value:spec})).toContain('value="0"');
+});
+
+it('creates fresh format defaults and discards connected values across all edge replacements', () => {
+  expect(freshInlineValue(spec)).toBe(0);
+  expect(freshInlineValue({...spec,tags:['vec3']})).toEqual([0,0,0]);
+  expect(freshInlineValue({...spec,arrayed:true})).toEqual([]);
+  expect(freshInlineValue({...spec,tags:['vec3'],arrayed:true})).toEqual([]);
+  expect(freshInlineValue({...spec,tags:['image']})).toBeUndefined();
+  expect(freshInlineValue(spec,true)).toEqual([]);
+  const defaults={...spec,tags:['vec3'],inline_default:[1,2,3]};
+  const copy=freshInlineValue(defaults) as number[];copy[0]=9;
+  expect(defaults.inline_default).toEqual([1,2,3]);
+  const inputs={a:spec,b:{...spec,required:false}};
+  const old={a:.727,b:4};
+  const wired=reconcileInlineValues(inputs,old,['a','b']);
+  expect(wired).toEqual({});expect(old).toEqual({a:.727,b:4});
+  const disconnected=reconcileInlineValues(inputs,wired,[]);
+  expect(disconnected).toEqual({a:0,b:0});
+  expect(reconcileInlineValues(inputs,disconnected,[])).toBe(disconnected);
+  // A replacement/replayed edge set is reconciled identically, not from undo values.
+  expect(reconcileInlineValues(inputs,disconnected,['a'])).toEqual({b:0});
 });
