@@ -3,6 +3,7 @@ import type { NodeViewerSpec } from "../wire";
 import type { WorkflowViewerView } from "../api";
 import { getHandleSummary } from "../api";
 import { WORKFLOW_FACTORY_VIEW } from "./workflowFactoryView";
+import { useViewerInteraction, ViewerInteractionShield, viewerInteractionBorder } from "./ViewerInteraction";
 
 export interface LiveViewerFrame {
   proxy_url: string;
@@ -53,6 +54,7 @@ export function NodeViewerFrame({
   const [viewerHeight, setViewerHeight] = useState(DEFAULT_VIEWER_HEIGHT);
   // SplaTV is a square viewport; diagnostic viewers retain content sizing.
   const squareViewport = packName === "stg-to-splatv" && viewer.id === "splatv_scene";
+  const { wrapperRef, activated, activate } = useViewerInteraction(squareViewport);
   const sentWorkflowDefaultRef = useRef(false);
   const nodeId = (frames.length ? frames[frames.length - 1].node_id : null)
     ?? historyTarget?.node_id
@@ -219,13 +221,16 @@ export function NodeViewerFrame({
     return <div style={{ padding: 12, color: "var(--status-failed)", fontSize: 11 }}>{assetError}</div>;
   }
   return (
+    <div ref={wrapperRef} data-viewer-interaction={squareViewport ? (activated ? "active" : "inactive") : undefined} style={{ position: "relative" }}>
     <iframe
       ref={iframeRef}
       src={src}
       title={viewer.title ?? viewer.id}
       sandbox="allow-scripts allow-same-origin"
       onLoad={() => setLoaded(true)}
-      style={{ width: "100%", height: squareViewport ? "auto" : viewerHeight, aspectRatio: squareViewport ? "1 / 1" : undefined, border: 0, display: "block", background: "#101216" }}
+      style={{ width: "100%", height: squareViewport ? "auto" : viewerHeight, aspectRatio: squareViewport ? "1 / 1" : undefined, boxSizing: "border-box", border: squareViewport ? viewerInteractionBorder(activated) : 0, borderRadius: squareViewport ? "var(--radius-sm)" : undefined, display: "block", background: "#101216" }}
     />
+    {squareViewport && !activated && <ViewerInteractionShield activate={activate} />}
+    </div>
   );
 }

@@ -26,6 +26,7 @@ import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { LagsplatPreview } from "./LagsplatPreview";
 import { useCanvasContext } from "./CanvasContext";
 import { WORKFLOW_FACTORY_VIEW } from "./workflowFactoryView";
+import { useViewerInteraction, ViewerInteractionShield, viewerInteractionBorder } from "./ViewerInteraction";
 
 // ---------------------------------------------------------------------------
 // Common shell
@@ -3539,7 +3540,6 @@ function Colmap3DPreview({
     setViewerDefault,
   } = useCanvasContext();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const reconnectTick = useReconnectTick();
   const retry = useRetryTick();
@@ -3552,7 +3552,7 @@ function Colmap3DPreview({
   const [handshaken, setHandshaken] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const sentWorkflowDefaultRef = useRef(false);
-  const [activated, setActivated] = useState(false);
+  const { wrapperRef: interactionRef, activated, activate } = useViewerInteraction();
   // Deferred loading indicator for data swaps *after* the boot handshake.
   // Set true only if a payload fetch takes >500 ms; cache-hit swaps are
   // < 20 ms and even brief network fetches (~200-400 ms) usually finish
@@ -3573,31 +3573,6 @@ function Colmap3DPreview({
     }, 200);
     return () => clearTimeout(timer);
   }, [zoom]);
-
-  // Deactivate on click-outside or Esc — always live, setActivated(false)
-  // is a no-op when already inactive so there's no conditional guard.
-  //
-  // Must use capture phase (true) because xyflow nodes use d3-drag which calls
-  // stopImmediatePropagation() on mousedown, killing all bubble-phase listeners
-  // before they reach the document. Capture fires top-down before d3-drag's
-  // handler, so it cannot be suppressed. Only nodrag elements bypass d3-drag
-  // (that's why the drawer blank space worked but canvas/other nodes didn't).
-  useEffect(() => {
-    function onDown(e: MouseEvent) {
-      if (!wrapperRef.current || wrapperRef.current.contains(e.target as Node))
-        return;
-      setActivated(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setActivated(false);
-    }
-    document.addEventListener("mousedown", onDown, true);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown, true);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
 
   // Effect A — handshake listener, mounted once. ``colmap-ready`` is
   // broadcast by ColmapUtil's EmbedDataListener at iframe boot; since the
@@ -3703,7 +3678,7 @@ function Colmap3DPreview({
   }, [reconnectTick, retry.tick, handshaken]);
 
   return (
-    <div ref={wrapperRef} style={{ position: "relative" }}>
+    <div ref={interactionRef} data-viewer-interaction={activated ? "active" : "inactive"} style={{ position: "relative" }}>
       <iframe
         ref={iframeRef}
         // ``?embed=1`` hides ColmapUtil's InitiationPage / sidebar /
@@ -3719,9 +3694,7 @@ function Colmap3DPreview({
         style={{
           width: "100%",
           height: COLMAP_IFRAME_HEIGHT,
-          border: activated
-            ? "1.5px solid var(--accent)"
-            : "1px solid var(--border-strong)",
+          border: viewerInteractionBorder(activated),
           borderRadius: "var(--radius-sm)",
           background: "#000",
           display: "block",
@@ -3783,16 +3756,7 @@ function Colmap3DPreview({
           Sits above the loading overlay (z:10 vs nothing) so the first
           click on a loaded viewer activates rather than firing into the iframe. */}
       {handshaken && !error && !activated && (
-        <div
-          onClick={() => setActivated(true)}
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 10,
-            cursor: "default",
-            background: "transparent",
-          }}
-        />
+        <ViewerInteractionShield activate={activate} />
       )}
     </div>
   );
