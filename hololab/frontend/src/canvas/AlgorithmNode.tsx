@@ -576,7 +576,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
 
       {inputProblem && <button type="button" className="nodrag" data-hl-missing-inputs=""
         title={inputProblem} onClick={e => { e.stopPropagation(); setRunErrorMsg(inputProblem); }}
-        style={{display: "block", width: "100%", border: 0, background: "transparent", color: "var(--status-failed)", padding: "6px 12px", fontSize: "var(--fs-xs)", textAlign: "left", overflowWrap: "anywhere"}}>
+        style={{display: "block", width: "100%", height: "auto", whiteSpace: "normal", lineHeight: 1.5, border: 0, background: "transparent", color: "var(--status-failed)", padding: "6px 12px", fontSize: "var(--fs-xs)", textAlign: "left", overflowWrap: "anywhere"}}>
         缺少必填输入：{missingInputs.join("、")}
         {runErrorMsg === inputProblem && <span style={{display: "block", marginTop: 4}}>运行会被拒绝，请连接这些输入。</span>}
       </button>}
