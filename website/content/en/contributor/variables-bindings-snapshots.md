@@ -48,7 +48,7 @@ A snapshot is the basis for reconstructing a run. Sufficient evidence lets anoth
 
 The original machine choices and variable values preserve historical facts. They do not automatically become valid bindings on another machine. A recipient uses the shared recipe and packages, refers to the record, and supplies bindings appropriate to their environment. Execution records themselves remain local state.
 
-The current implementation captures only part of the recipe and part of the bindings. It lacks hashes, environment identity, and input data identity. These gaps explain why saving a graph alone cannot describe the full conditions of a past execution.
+> **Transitional note (delete once implemented)**: the current implementation captures only part of the recipe and part of the bindings. It lacks hashes, environment identity, and input data identity. These gaps explain why saving a graph alone cannot describe the full conditions of a past execution.
 
 ## Connect a release to existing snapshots
 

@@ -38,6 +38,8 @@ To classify a field, ask: **On another machine or execution endpoint, should thi
 
 ## Why committing the existing JSON is insufficient
 
+> **Transitional section**: this section describes the implementation before the split, purely to explain the motivation. Once the split lands, remove this section together with its heading.
+
 The current implementation stores the whole workflow in a `draft_json` JSON blob, mixing several kinds of information:
 
 | Fields | Role |
