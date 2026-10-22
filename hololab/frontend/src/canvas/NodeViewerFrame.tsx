@@ -18,6 +18,8 @@ export interface LiveViewerFrame {
 const DEFAULT_VIEWER_HEIGHT = 336;
 const MIN_VIEWER_HEIGHT = 160;
 const MAX_VIEWER_HEIGHT = 520;
+// Capture before workflow navigation canonicalizes the URL and drops its query.
+const DEBUG_VIEWERS = new URLSearchParams(window.location.search).get("debug") === "1";
 
 /** A pack-owned iframe. It is a style/isolation boundary, not a sandbox for
  * mutually-hostile code: packs execute on the trusted developer node. */
@@ -70,7 +72,7 @@ export function NodeViewerFrame({
     ?? historyTarget?.node_id
     ?? assignedNodeId;
   const src = nodeId
-    ? versionedViewerUrl(`/pack-assets/${encodeURIComponent(nodeId)}/${encodeURIComponent(packName)}/${encodeURIComponent(packVersion)}/${viewer.entry.split("/").map(encodeURIComponent).join("/")}`)
+    ? versionedViewerUrl(`/pack-assets/${encodeURIComponent(nodeId)}/${encodeURIComponent(packName)}/${encodeURIComponent(packVersion)}/${viewer.entry.split("/").map(encodeURIComponent).join("/")}${DEBUG_VIEWERS ? "?debug=1" : ""}`)
     : null;
 
   useEffect(() => {
