@@ -1215,6 +1215,33 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     }));
   }, [setNodes]);
 
+  const updateInlineValue = useCallback((nodeId: string, port: string, value: unknown) => {
+    if (viewingSnapshot) return;
+    setNodes(current => current.map(node => {
+      if (node.id !== nodeId || (node.data as ViewNodeData).kind === "view") return node;
+      const data = node.data as AlgorithmNodeData;
+      return { ...node, data: { ...data, port_values: { ...data.port_values, [port]: value } } };
+    }));
+  }, [setNodes, viewingSnapshot]);
+
+  const [inputFocusRequest, setInputFocusRequest] = useState(0);
+  const inspectInput = useCallback((nodeId: string, port: string) => {
+    setNodes(current => current.map(node => ({ ...node, selected: node.id === nodeId })));
+    setRightTab("inspector");
+    setInputFocusRequest(value => value + 1);
+    // Selection mounts the Inspector on the next render; wait for its field.
+    let attempts = 0;
+    const focus = () => {
+      const rows = document.querySelectorAll<HTMLElement>("[data-inline-port]");
+      const row = Array.from(rows).find(el => el.dataset.inlinePort === port && el.getClientRects().length);
+      if (row) {
+        row.scrollIntoView({ block: "nearest" });
+        row.querySelector<HTMLElement>("input, textarea, button")?.focus({ preventScroll: true });
+      } else if (++attempts < 10) requestAnimationFrame(focus);
+    };
+    requestAnimationFrame(focus);
+  }, [setNodes]);
+
   const computeNodesById = useMemo<Record<string, ComputeNode>>(() => {
     const out: Record<string, ComputeNode> = {};
     for (const cn of computeNodes) out[cn.node_id] = cn;
@@ -1229,12 +1256,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       hydrating,
       pinnedParams,
       onParamsChange: updateNodeParams,
+      onInlineValueChange: updateInlineValue,
+      onInspectInput: inspectInput,
       viewer_view: viewerView,
       viewer_view_loaded: viewerViewLoaded,
       viewer_view_managed: viewerViewManaged,
       setViewerDefault: setWorkflowViewerDefault,
     }),
-    [workflowId, workflowName, computeNodesById, hydrating, pinnedParams, updateNodeParams, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
+    [workflowId, workflowName, computeNodesById, hydrating, pinnedParams, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
   );
 
   // Push job runtime + resolved previews + previewOpen into each node's
@@ -2967,6 +2996,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       <>
         {conflictDialog}
         <MobileShell
+          inputFocusRequest={inputFocusRequest}
           runFocusRequest={runFocusRequest}
           topbar={topbarSlot}
           canvas={

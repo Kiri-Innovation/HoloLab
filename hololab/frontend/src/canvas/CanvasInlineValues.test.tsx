@@ -1,66 +1,61 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import {
-  InlineValuesPanel,
-  inlineCell,
-  type InlineField,
-} from './CanvasInlineValues';
+import { CanvasContext } from './CanvasContext';
+import { InlinePortCard } from './CanvasInlineValues';
+const view = vi.hoisted(() => ({ zoom: 1 }));
+vi.mock('@xyflow/react', () => ({useStore: (select: (s: unknown) => unknown) => select({transform:[0,0,view.zoom]})}));
+import { activeInlineValue, inlineType } from './CanvasInlineValues';
 import type { InputPortSpec } from '../wire';
-const spec = {
-  tags: ['float'],
-  storage: 'file',
-  required: true,
-} as InputPortSpec;
-const field = (value: unknown, array = false): InlineField => ({
-  name: 'offset',
-  spec,
-  value,
-  array,
+const spec = {tags:['float'],storage:'file',required:true} as InputPortSpec;
+describe('port inline cards', () => {
+  it('only exposes active supported values, preserving zero', () => {
+    expect(activeInlineValue(spec,{offset:0},'offset',false)).toBe(0);
+    expect(activeInlineValue(spec,{offset:2},'offset',true)).toBeUndefined();
+    expect(activeInlineValue({...spec,tags:['int']},{offset:2},'offset',false)).toBeUndefined();
+    expect(activeInlineValue(spec,{},'offset',false)).toBeUndefined();
+  });
+  it('keeps frozen snapshot values distinct from current defaults', () => {
+    const defaults = {...spec,inline_default:3};
+    expect(activeInlineValue(defaults,{},'offset',false)).toBe(3);
+    expect(activeInlineValue(defaults,{},'offset',false,true)).toBeUndefined();
+  });
+  it('formats scalar, compound and empty array types', () => {
+    expect(inlineType(spec,0,false)).toBe('float');
+    expect(inlineType({...spec,tags:['vec3']},[[0,0,1],[1,1,1]],true)).toBe('vec3[2]');
+    expect(inlineType(spec,[],true)).toBe('float[0]');
+  });
+  it('does not read array elements, regardless of length', () => {
+    const value = new Proxy(new Array(100000), {get(target,key) {
+      if (key !== 'length') throw Error('Must not traverse array');
+      return target.length;
+    }});
+    expect(inlineType(spec,value,true)).toBe('float[100000]');
+  });
 });
-describe('canvas inline preview', () => {
-  it('shows exact scalar and vector values, including zero and invalid values', () => {
-    expect(inlineCell(0)).toBe('0');
-    expect(inlineCell([0, 0.727, 0.25])).toBe('0 · 0.727 · 0.25');
-    expect(inlineCell(Infinity)).toBe('Invalid value');
-    const html = renderToStaticMarkup(
-      <InlineValuesPanel fields={[field(0)]} />,
-    );
-    expect(html).toContain('read only');
-    expect(html).toContain('>0</code>');
+
+describe('port card rendering', () => {
+  const render = (array = false, frozen = false) => renderToStaticMarkup(
+    <CanvasContext.Provider value={{workflow_id:null,workflow_name:'test',computeNodesById:{},hydrating:false,
+      viewer_view:null,viewer_view_loaded:false,viewer_view_managed:false,
+      onInlineValueChange:()=>{},onInspectInput:()=>{}}}>
+      <InlinePortCard id="node" name="offset" spec={spec} value={array ? [0,2] : 0} array={array} frozen={frozen}/>
+    </CanvasContext.Provider>);
+  it('uses an editable numeric control for a float and a pencil action for arrays', () => {
+    expect(render()).toContain('type="number"');
+    expect(render()).toContain('value="0"');
+    expect(render(true)).toContain('float[2]');
+    expect(render(true)).toContain('Edit offset in Inspector');
+    expect(render(true)).not.toContain('type="number"');
+    expect(render(true)).not.toContain('Show more');
   });
-  it('bounds array reads regardless of array size', () => {
-    let reads = 0;
-    const values = new Proxy(new Array(100000).fill(0.727), {
-      get(target, key, receiver) {
-        if (typeof key === 'string' && /^\d+$/.test(key)) reads++;
-        return Reflect.get(target, key, receiver);
-      },
-    });
-    const html = renderToStaticMarkup(
-      <InlineValuesPanel fields={[field(values, true)]} />,
-    );
-    expect(reads).toBe(3);
-    expect(html).toContain('99997 remaining');
-    expect((html.match(/class="hl-inline-row"/g) ?? []).length).toBe(3);
+  it('keeps historical scalar values read-only', () => {
+    expect(render(false,true)).toContain('<fieldset disabled=""');
   });
-  it('has empty and compact modes without mounting array rows', () => {
-    expect(renderToStaticMarkup(<InlineValuesPanel fields={[]} />)).toBe('');
-    expect(
-      renderToStaticMarkup(<InlineValuesPanel fields={[field([], true)]} />),
-    ).toContain('Empty array');
-    const html = renderToStaticMarkup(
-      <InlineValuesPanel fields={[field([1, 2, 3], true)]} compact />,
-    );
-    expect(html).toContain('zoom in');
-    expect(html).not.toContain('hl-inline-row');
-  });
-  it('limits simultaneous ports to four', () => {
-    const fields = Array.from({ length: 100 }, (_, i) => ({
-      ...field(i),
-      name: `port-${i}`,
-    }));
-    const html = renderToStaticMarkup(<InlineValuesPanel fields={fields} />);
-    expect((html.match(/class="hl-inline-field"/g) ?? []).length).toBe(4);
-    expect(html).toContain('Next input fields');
+  it('hides cards at 50%, shows them at 80%', () => {
+    view.zoom=.5;
+    expect(render()).toBe('');
+    view.zoom=.8;
+    expect(render()).toContain('hl-inline-port-card');
+    view.zoom=1;
   });
 });

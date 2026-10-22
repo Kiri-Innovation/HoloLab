@@ -43,6 +43,8 @@ export interface CanvasContextValue {
   hydrating: boolean;
   pinnedParams?: Record<string, string[]>;
   onParamsChange?: (nodeId: string, patch: Record<string, unknown>) => void;
+  onInlineValueChange?: (nodeId: string, port: string, value: unknown) => void;
+  onInspectInput?: (nodeId: string, port: string) => void;
   /** The workflow-wide default view, read once by each viewer at open time. */
   viewer_view: WorkflowViewerView | null;
   /** True once the server lookup completed (including an empty default). */

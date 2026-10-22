@@ -1,4 +1,4 @@
-import { CanvasInlineValues } from "./CanvasInlineValues";
+import { InlinePortCard, activeInlineValue } from "./CanvasInlineValues";
 import { inputValueProblems } from "./inlineValues";
 import { PinnedParameters } from "./PinnedParameters";
 import { NodePreviews, useNodePreviewSelection } from "./NodePreviews";
@@ -600,8 +600,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
               arrayed_toggle,
               spec.scalar,
             );
+            const inline = activeInlineValue(spec, (data as AlgorithmNodeData).port_values, portName, wiredInputs.includes(portName), readOnly);
             return (
-              <div key={`in-${portName}`} style={{ ...PORT_ROW, position: "relative" }}>
+              <div key={`in-${portName}`} style={{ ...PORT_ROW, position: "relative", ...(inline != null ? {minHeight: 42} : {}) }}>
+                {inline != null && <InlinePortCard id={id} name={portName} spec={spec} value={inline}
+                  array={!!(isArrayed || spec.dim_labels?.length)} frozen={readOnly} />}
                 <PortHandle
                   nodeId={id}
                   declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle, spec.scalar) }}
@@ -691,8 +694,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         </div>
       </div>
 
-      <CanvasInlineValues id={id} inputs={pack.inputs} values={(data as AlgorithmNodeData).port_values}
-        connected={connectedInputs} fanout={arrayedOn} frozen={readOnly} />
       <PinnedParameters id={id} data={data as AlgorithmNodeData} />
 
       {/* FOOTER — run result: elapsed + relative-time + progress + actions.

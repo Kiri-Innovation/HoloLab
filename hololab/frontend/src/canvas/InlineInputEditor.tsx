@@ -160,7 +160,7 @@ export function InlineInputEditor({
             );
         }
         return (
-          <div key={name} className="hl-inspector-field hl-inspector-input-field">
+          <div key={name} data-inline-port={name} className="hl-inspector-field hl-inspector-input-field">
             <div className="hl-inspector-input-label"><code>{name}</code></div>
             <div className="hl-inspector-input-source">
               {values[name] != null

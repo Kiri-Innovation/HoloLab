@@ -21,6 +21,7 @@ export type MobileTab = "packs" | "nodes" | "runs" | "jobs" | "inspect";
 
 export interface MobileShellProps {
   topbar: ReactNode;
+  inputFocusRequest?: number;
   runFocusRequest?: { snapshotId: string; nonce: number } | null;
   canvas: ReactNode;
   packs: ReactNode;
@@ -128,6 +129,7 @@ const TABS: readonly TabDef[] = [
 ];
 
 export function MobileShell({
+  inputFocusRequest,
   runFocusRequest,
   topbar,
   canvas,
@@ -140,6 +142,7 @@ export function MobileShell({
   latestSnapshotId,
 }: MobileShellProps) {
   const [active, setActive] = useState<MobileTab>("packs");
+  useEffect(() => { if (inputFocusRequest) setActive("inspect"); }, [inputFocusRequest]);
   useEffect(() => { if (runFocusRequest) setActive("runs"); }, [runFocusRequest]);
 
   // Skip the value observed on mount so a stored selection / prior

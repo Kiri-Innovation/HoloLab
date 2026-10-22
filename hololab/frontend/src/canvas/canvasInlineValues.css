@@ -1,23 +1,8 @@
-.hl-canvas-inline { border-top: 1px solid var(--border-subtle); padding: 8px 12px; min-width: 0; color: var(--text-body); background: var(--surface-alt); font-size: var(--fs-xs); }
-.hl-inline-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; color: var(--text-subtle); font-size: var(--fs-micro); line-height: 1.5; }
-.hl-inline-heading > :first-child { text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
-.hl-inline-heading > :last-child { white-space: nowrap; }
-.hl-inline-field { min-width: 0; margin-top: 8px; }
-.hl-inline-field-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 3px; min-width: 0; }
-.hl-inline-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hl-inline-type { color: var(--text-subtle); font: var(--fs-micro) var(--font-mono); flex-shrink: 0; }
-.hl-inline-rows { border-left: 2px solid var(--border); padding-left: 6px; }
-.hl-inline-row { display: grid; grid-template-columns: 18px minmax(0,1fr); gap: 6px; align-items: baseline; line-height: 1.65; }
-.hl-inline-index { font: var(--fs-micro) var(--font-mono); color: var(--text-subtle); }
-.hl-canvas-inline code { font-family: var(--font-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-.hl-inline-row code, .hl-inline-scalar { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.hl-inline-empty { font-family: var(--font-mono); color: var(--text-muted); }
-.hl-inline-empty span { font-family: var(--font-sans); margin-left: 6px; font-size: var(--fs-micro); color: var(--text-subtle); }
-.hl-inline-navigation { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 4px; color: var(--text-muted); font-size: var(--fs-micro); }
-.hl-inline-navigation button { height: 22px; min-height: 0; max-width: 100%; padding: 0 5px; border: 1px solid transparent; background: transparent; color: var(--text-muted); font-size: var(--fs-micro) !important; }
-.hl-inline-navigation button:hover:not(:disabled) { background: var(--surface); border-color: var(--border); color: var(--text-body); }
-.hl-inline-navigation button:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 1px; }
-.hl-inline-navigation button:disabled { opacity: .4; }
-.hl-canvas-inline[data-compact] { padding: 6px 12px; }
-/* Only label pinned fields when both kinds of values coexist on the card. */
-.hl-canvas-inline-wrap[data-values] + .hl-pinned-parameters::before { content: 'Pinned parameters'; display: block; margin-bottom: 6px; font-size: var(--fs-micro); color: var(--text-subtle); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
+.hl-inline-port-card { position:absolute; right:calc(100% + 32px); top:50%; transform:translateY(-50%); width:148px; height:34px; box-sizing:border-box; display:flex; align-items:center; gap:8px; padding:5px 8px; border:1px solid var(--border-subtle); border-radius:var(--radius-md); background:var(--surface); color:var(--text-body); font-size:var(--fs-xs); box-shadow:0 2px 5px #00000012; }
+.hl-inline-port-card::after { content:""; position:absolute; left:100%; top:50%; width:18px; border-top:1px solid var(--border-subtle); pointer-events:none; }
+.hl-inline-port-card code { font-family:var(--font-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hl-inline-port-card fieldset { border:0; padding:0; margin:0; min-width:0; flex:1; }
+.hl-inline-port-card input { height:24px; box-sizing:border-box; font-size:var(--fs-xs); }
+.hl-inline-port-card > button { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; padding:0; border:0; background:transparent; color:inherit; cursor:pointer; font-size:inherit; }
+.hl-inline-port-card > button svg { flex-shrink:0; color:var(--text-muted); }
+.hl-inline-port-card:focus-within, .hl-inline-port-card:hover { border-color:var(--text-muted); }
