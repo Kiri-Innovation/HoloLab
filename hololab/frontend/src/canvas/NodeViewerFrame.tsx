@@ -56,6 +56,15 @@ export function NodeViewerFrame({
   // SplaTV is a square viewport; diagnostic viewers retain content sizing.
   const squareViewport = packName === "stg-to-splatv" && viewer.id === "splatv_scene";
   const { wrapperRef, activated, activate } = useViewerInteraction(squareViewport);
+  const [dualFocusReady, setDualFocusReady] = useState(false);
+  const [focusDomain, setFocusDomain] = useState<string | null>(null);
+  const activateRef = useRef(activate);
+  activateRef.current = activate;
+  useEffect(() => {
+    if (!squareViewport || !dualFocusReady || activated) return;
+    setFocusDomain(null);
+    iframeRef.current?.contentWindow?.postMessage({ type: 'hololab-viewer-focus-host', active: false }, location.origin);
+  }, [squareViewport, dualFocusReady, activated]);
   const sentWorkflowDefaultRef = useRef(false);
   const nodeId = (frames.length ? frames[frames.length - 1].node_id : null)
     ?? historyTarget?.node_id
@@ -82,6 +91,8 @@ export function NodeViewerFrame({
 
   useEffect(() => {
     setViewerHeight(DEFAULT_VIEWER_HEIGHT);
+    setDualFocusReady(false);
+    setFocusDomain(null);
     sentWorkflowDefaultRef.current = false;
   }, [src]);
 
@@ -97,6 +108,17 @@ export function NodeViewerFrame({
         || event.origin !== window.location.origin
         || event.source !== iframe.contentWindow
       ) return;
+      if (squareViewport && event.data?.viewer_id === viewer.id && event.data?.type === 'hololab-viewer-focus-ready') {
+        setDualFocusReady(true);
+        iframe.contentWindow?.postMessage({ type: 'hololab-viewer-focus-host', active: false, accent: getComputedStyle(wrapperRef.current!).getPropertyValue('--accent').trim() }, location.origin);
+        return;
+      }
+      if (squareViewport && event.data?.viewer_id === viewer.id && event.data?.type === 'hololab-viewer-focus') {
+        const domain = ['canvas', 'timeline'].includes(event.data.focus) ? event.data.focus : null;
+        setFocusDomain(domain);
+        if (domain) activateRef.current();
+        return;
+      }
       if (event.data?.type === "hololab-viewer-camera-default") {
         onWorkflowDefaultChange?.(event.data.view && typeof event.data.view === "object" ? event.data.view : null);
         return;
@@ -229,9 +251,9 @@ export function NodeViewerFrame({
       title={viewer.title ?? viewer.id}
       sandbox="allow-scripts allow-same-origin"
       onLoad={() => setLoaded(true)}
-      style={{ width: "100%", height: squareViewport ? "auto" : viewerHeight, aspectRatio: squareViewport ? "1 / 1" : undefined, boxSizing: "border-box", border: squareViewport ? viewerInteractionBorder(activated) : 0, borderRadius: squareViewport ? "var(--radius-sm)" : undefined, display: "block", background: "#101216" }}
+      style={{ width: "100%", height: squareViewport ? "auto" : viewerHeight, aspectRatio: squareViewport ? "1 / 1" : undefined, boxSizing: "border-box", border: squareViewport ? viewerInteractionBorder(activated && (!dualFocusReady || focusDomain === 'canvas')) : 0, borderRadius: squareViewport ? "var(--radius-sm)" : undefined, display: "block", background: "#101216" }}
     />
-    {squareViewport && !activated && <ViewerInteractionShield activate={activate} />}
+    {squareViewport && !dualFocusReady && !activated && <ViewerInteractionShield activate={activate} />}
     </div>
   );
 }
