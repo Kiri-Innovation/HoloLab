@@ -65,8 +65,7 @@ export function InlineInputEditor({
   onChange: (values: Record<string, unknown>) => void;
 }) {
   return (
-    <section aria-label="Input values">
-      <h3>输入值</h3>
+    <>
       {Object.entries(pack.inputs).map(([name, spec]) => {
         const source = sources[name];
         const values = node.port_values ?? {};
@@ -158,9 +157,9 @@ export function InlineInputEditor({
             );
         }
         return (
-          <div key={name} style={{ marginBottom: 14, minWidth: 0 }}>
-            <strong>{name}</strong>{' '}
-            <small>
+          <div key={name} className="hl-inspector-field hl-inspector-input-field">
+            <div className="hl-inspector-input-label"><code>{name}</code></div>
+            <div className="hl-inspector-input-source">
               {source
                 ? `← ${source}${editable ? "（内联备用值不生效）" : ""}`
                 : values[name] != null
@@ -168,10 +167,10 @@ export function InlineInputEditor({
                   : spec.inline_default != null
                     ? '端口默认值'
                     : '未设置'}
-            </small>
-            {source && editable && <div>连线优先；断线后恢复内联值。</div>}
+            </div>
+            {source && editable && <div className="hl-inspector-input-hint">连线优先；断线后恢复内联值。</div>}
             {editable && (
-              <>
+              <div className={`hl-inspector-input-controls${array || vector ? ' hl-inspector-input-controls--wide' : ''}`}>
                 {value == null ? (
                   <button
                     type="button"
@@ -187,13 +186,13 @@ export function InlineInputEditor({
                     清除内联值
                   </button>
                 )}
-              </>
+              </div>
             )}
             {!editable && !source && (
-              <small>请连接上游{spec.required ? '（必填）' : ''}</small>
+              <div className="hl-inspector-input-hint">请连接上游{spec.required ? '（必填）' : ''}</div>
             )}
             {error && (
-              <div role="alert" style={{ color: 'var(--status-failed)' }}>
+              <div className="hl-inspector-input-hint" role="alert" style={{ color: 'var(--status-failed)' }}>
                 {source ? '备用值：' : ''}
                 {error}
               </div>
@@ -201,6 +200,6 @@ export function InlineInputEditor({
           </div>
         );
       })}
-    </section>
+    </>
   );
 }

@@ -152,7 +152,10 @@ export function NodeInspector({
         <h3 style={SECTION_TITLE}>Run on</h3>
         {assignment}
       </section>}
-      {Object.keys(pack.inputs).length > 0 && <InlineInputEditor node={selected} pack={pack} sources={inputSources} onChange={port_values=>onChange({port_values})} />}
+      {Object.keys(pack.inputs).length > 0 && <section className="hl-inspector-inputs hl-inspector-parameters" aria-label="Input values">
+        <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Input values</h3>
+        <InlineInputEditor node={selected} pack={pack} sources={inputSources} onChange={port_values=>onChange({port_values})} />
+      </section>}
       <div className="hl-inspector-parameters" role="region" aria-label="Parameters">
         <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Parameters</h3>
         {!isConstantName(pack.name) && <div className="hl-inspector-field hl-inspector-package-field" style={FIELD}>
