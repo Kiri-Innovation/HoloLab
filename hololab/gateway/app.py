@@ -3243,6 +3243,34 @@ def _mount_routes(app: FastAPI) -> None:
             order=order,
         )
 
+    @app.post("/api/nodes/{node_id}/code-baseline", tags=["packs"])
+    async def refresh_code_baseline(node_id: str, body: dict[str, str]) -> dict:
+        from hololab.protocol.messages import CodeIdentityReq
+
+        session = app.state.registry.get_session(node_id)
+        if session is None or not getattr(session, "content_identity", False):
+            raise HTTPException(409, "Node unavailable or requires content identity upgrade")
+        name, version = body.get("name", ""), body.get("version", "")
+        wire_name, wire_version = offered_identity(session.packs, name, version)
+        req_id = str(uuid.uuid4())
+        response = await _await_node_reply(
+            app,
+            session,
+            "code_identity_req",
+            CodeIdentityReq(
+                req_id=req_id,
+                algorithm_name=wire_name,
+                algorithm_version=wire_version,
+                refresh_cold=True,
+            ),
+            req_id,
+            pending_key="pending_code_identities",
+            timeout_s=300,
+        )
+        if response.get("error"):
+            raise HTTPException(422, response["error"])
+        return response["record"]
+
     @app.get(
         "/api/jobs/{job_id}",
         response_model=JobDetail,

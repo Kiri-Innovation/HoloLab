@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import errno
+import json
 import os
 import signal
 import socket
@@ -506,6 +507,26 @@ def status(
 # ---------------------------------------------------------------------------
 # `hololab pack ...`
 # ---------------------------------------------------------------------------
+
+
+@pack_app.command("release")
+@pack_app.command("rebaseline")
+def pack_rebaseline(
+    pack_dir: Path,
+    baseline_dir: Path | None = typer.Option(None, help="Node code_baselines_dir override"),
+) -> None:
+    """Refresh the cold baseline for a release (or manually); existing runs stay unchanged.
+
+    This records local release evidence. It does not publish or export an archive.
+    """
+    from hololab.content_scope import Baselines, capture
+    from hololab.node.config import NodeConfig
+
+    path = pack_dir / "manifest.yaml" if pack_dir.is_dir() else pack_dir
+    record = capture(
+        path, Baselines(baseline_dir or NodeConfig().code_baselines_dir), refresh_cold=True
+    )
+    typer.echo(json.dumps(record, ensure_ascii=False, indent=2))
 
 
 @pack_app.command("validate")
