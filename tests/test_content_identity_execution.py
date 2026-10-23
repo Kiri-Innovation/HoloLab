@@ -123,12 +123,13 @@ async def test_capture_uses_selected_node_and_history_keeps_identity(monkeypatch
     monkeypatch.setattr("hololab.gateway.app._await_node_reply", rpc)
     await capture_code_identities(app, graph)
     assert rpc.call_args.args[1] is session
-    assert graph.nodes[0].code_identity == record
+    expected = {**record, "effective_params": {}}
+    assert graph.nodes[0].code_identity == expected
     snapshot = SimpleNamespace(graph=graph)
     frozen = await historical_execution(app, snapshot)
-    assert frozen.nodes[0].code_identity == record
+    assert frozen.nodes[0].code_identity == expected
     frozen.nodes[0].code_identity["hot"]["sha256"] = "changed copy"
-    assert snapshot.graph.nodes[0].code_identity == record
+    assert snapshot.graph.nodes[0].code_identity == expected
     session.content_identity = False
     await capture_code_identities(app, graph)
     assert graph.nodes[0].code_identity is None  # Old protocol, explicit unrecorded path.

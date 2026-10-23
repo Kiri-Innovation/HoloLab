@@ -793,6 +793,7 @@ class SnapshotJobOut(BaseModel):
 
 
 class SnapshotDetail(BaseModel):
+    code_evidence: dict[str, Any] = Field(default_factory=dict)
     preparation_error: str | None = None
     """One run: frozen graph + every job attached to it."""
 

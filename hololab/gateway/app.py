@@ -2468,7 +2468,10 @@ def _mount_routes(app: FastAPI) -> None:
             ) as cur,
         ):
             error_row = await cur.fetchone()
+        from hololab.gateway.preparation import snapshot_code_evidence
+
         return {
+            "code_evidence": snapshot_code_evidence(snap.graph),
             "preparation_error": error_row[0] if error_row else None,
             "snapshot_id": snap.snapshot_id,
             "workflow_id": snap.workflow_id,

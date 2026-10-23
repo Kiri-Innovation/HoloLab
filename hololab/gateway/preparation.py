@@ -461,4 +461,18 @@ async def capture_code_identities(app, graph: WorkflowGraph, *, required=None) -
         )
         if response.get("error") or not response.get("record"):
             raise ValueError(response.get("error") or "Missing content identity response")
-        node.code_identity = response["record"]
+        node.code_identity = copy.deepcopy(response["record"])
+        node.code_identity["effective_params"] = copy.deepcopy(node.params)
+
+
+def snapshot_code_evidence(graph: WorkflowGraph) -> dict:
+    """Read frozen evidence only. Never fill missing identities from today's catalog."""
+    return {
+        node.id: {
+            "status": "recorded" if node.code_identity else "unrecorded",
+            "code_identity": copy.deepcopy(node.code_identity),
+            "effective_params": copy.deepcopy(node.params),
+        }
+        for node in graph.nodes
+        if node.kind == "algorithm"
+    }
