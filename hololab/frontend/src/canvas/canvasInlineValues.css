@@ -11,16 +11,3 @@
 .hl-inline-port-card > button { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; padding:0; border:0; background:transparent; color:inherit; cursor:pointer; font-size:inherit; }
 .hl-inline-port-card > button svg { flex-shrink:0; color:var(--text-muted); }
 .hl-inline-port-card:focus-within, .hl-inline-port-card:hover { border-color:var(--text-muted); }
-
-/* Row rules belong to the node, not the attached tab. Draw them above tab
-   backgrounds; only the tab's vertical join is concealed. No layout shift. */
-.hl-node-input-ports:has(.hl-inline-port-card) > div + div::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: calc(-1 * var(--space-3));
-  right: calc(-100% - var(--space-2) - var(--space-3));
-  border-top: 1px solid var(--border-strong);
-  z-index: 2;
-  pointer-events: none;
-}

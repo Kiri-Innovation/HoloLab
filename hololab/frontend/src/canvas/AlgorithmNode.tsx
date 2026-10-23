@@ -594,7 +594,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
           minHeight: 24,
         }}
       >
-        <div className="hl-node-input-ports" style={{ display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
           {inputEntries.map(([portName, spec]) => {
             const isArrayed = effectivePortArrayed(
               spec.arrayed,
