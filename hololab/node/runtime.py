@@ -555,6 +555,9 @@ class NodeRuntime:
                     manifest_hash=p.manifest_hash,
                     root=p.manifest.root,
                     cold=p.manifest.cold,
+                    requires=p.manifest.requires.model_dump()
+                    if p.manifest.requires is not None
+                    else None,
                     manifest_path=str(p.manifest_path),
                     source_dir=str(p.source_dir),
                 )
@@ -599,6 +602,9 @@ class NodeRuntime:
                             manifest_hash=p.manifest_hash,
                             root=p.manifest.root,
                             cold=p.manifest.cold,
+                            requires=p.manifest.requires.model_dump()
+                            if p.manifest.requires is not None
+                            else None,
                             manifest_path=str(p.manifest_path),
                             source_dir=str(p.source_dir),
                         )
@@ -661,6 +667,9 @@ class NodeRuntime:
                 manifest_hash=p.manifest_hash,
                 root=p.manifest.root,
                 cold=p.manifest.cold,
+                requires=p.manifest.requires.model_dump()
+                if p.manifest.requires is not None
+                else None,
                 manifest_path=str(p.manifest_path),
                 source_dir=str(p.source_dir),
             )
@@ -671,6 +680,7 @@ class NodeRuntime:
             intrinsics=["array-assemble", "constant-v1", "literal-v3"],
             library_wakeup=True,
             content_identity=True,
+            environment_checks=True,
             node_name=self._config.node_name,
             v_min=PROTOCOL_V_MIN,
             v_max=PROTOCOL_V_MAX,
@@ -814,6 +824,10 @@ class NodeRuntime:
                     task = asyncio.create_task(self._process_terminate_reply(payload))
                     lens_tasks.add(task)
                     task.add_done_callback(lens_tasks.discard)
+                elif env.kind == "capability_req":
+                    task = asyncio.create_task(self._capability_reply(payload))
+                    lens_tasks.add(task)
+                    task.add_done_callback(lens_tasks.discard)
                 elif env.kind == "code_identity_req":
                     task = asyncio.create_task(self._code_identity_reply(payload))
                     lens_tasks.add(task)
@@ -870,6 +884,36 @@ class NodeRuntime:
             "process_terminate_resp", ProcessTerminateResp(req_id=payload.req_id, data=data)
         )
 
+    async def _environment_report(self, manifest, *, fresh=False):
+        from hololab.node.capabilities import CapabilityChecker
+
+        if not hasattr(self, "_capability_checker"):
+            self._capability_checker = CapabilityChecker()
+        prefix = self._config.envs.get(manifest.runtime.env)
+        return await asyncio.to_thread(
+            self._capability_checker.check,
+            manifest,
+            self._config.envs,
+            self._config.conda_bin,
+            getattr(self, "_env_cache", {}).get(prefix),
+            fresh=fresh,
+        )
+
+    async def _capability_reply(self, request) -> None:
+        from hololab.manifest import load_manifest
+        from hololab.protocol.messages import CapabilityResp
+
+        try:
+            pack = self._packs[
+                installed_key(self._packs, request.algorithm_name, request.algorithm_version)
+            ]
+            manifest, _ = load_manifest(pack.manifest_path)
+            report = await self._environment_report(manifest, fresh=request.fresh)
+            response = CapabilityResp(req_id=request.req_id, report=report)
+        except Exception as exc:
+            response = CapabilityResp(req_id=request.req_id, error=str(exc))
+        await self._safe_send("capability_resp", response)
+
     async def _code_identity_reply(self, request) -> None:
         from hololab.content_scope import Baselines, capture
         from hololab.protocol.messages import CodeIdentityResp
@@ -878,12 +922,20 @@ class NodeRuntime:
             pack = self._packs[
                 installed_key(self._packs, request.algorithm_name, request.algorithm_version)
             ]
+            from hololab.manifest import load_manifest
+            from hololab.node.capabilities import enforce
+
+            manifest, _ = load_manifest(pack.manifest_path)
+            environment = await self._environment_report(manifest, fresh=True)
+            if not request.refresh_cold:
+                enforce(environment)
             record = await asyncio.to_thread(
                 capture,
                 pack.manifest_path,
                 Baselines(self._config.code_baselines_dir),
                 refresh_cold=request.refresh_cold,
             )
+            record["environment"] = environment  # Evidence only, never included in sha256.
             response = CodeIdentityResp(req_id=request.req_id, record=record)
         except Exception as exc:
             response = CodeIdentityResp(req_id=request.req_id, error=str(exc))
@@ -1792,6 +1844,10 @@ class NodeRuntime:
                 from hololab.content_scope import verify
 
                 await asyncio.to_thread(verify, pack.manifest_path, assign.code_identity)
+            if pack.manifest.requires is not None:
+                from hololab.node.capabilities import enforce
+
+                enforce(await self._environment_report(pack.manifest, fresh=True))
 
         # Idempotency check. Non-batched only; batched shards always
         # re-execute (see the ``idempotency_marker=None`` override

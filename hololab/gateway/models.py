@@ -176,6 +176,7 @@ class ParamSpecOut(BaseModel):
 class CatalogPackEntry(BaseModel):
     root: str = "."
     cold: list[str] = Field(default_factory=list)
+    requires: dict[str, Any] | None = None
 
     """One deduped entry in ``GET /api/pack-catalog``."""
 

@@ -33,6 +33,8 @@ _KIND_REGISTRY: dict[str, type[BaseModel]] = {
     "process_terminate_resp": messages.ProcessTerminateResp,
     "code_identity_req": messages.CodeIdentityReq,
     "code_identity_resp": messages.CodeIdentityResp,
+    "capability_req": messages.CapabilityReq,
+    "capability_resp": messages.CapabilityResp,
     "prepare_params_req": messages.PrepareParamsReq,
     "prepare_params_resp": messages.PrepareParamsResp,
     "path_browse_req": messages.PathBrowseReq,

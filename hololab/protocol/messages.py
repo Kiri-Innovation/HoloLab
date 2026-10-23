@@ -25,6 +25,7 @@ class PackInventoryEntry(BaseModel):
     version: str
     root: str = "."
     cold: list[str] = Field(default_factory=list)
+    requires: dict[str, Any] | None = None
     manifest_hash: str  # sha256 of the manifest.yaml file; changes on edits
     # Absolute path of the manifest.yaml on the producing node. With the
     # polymorphic pack_dirs contract this is what the frontend's
@@ -89,6 +90,7 @@ class Register(BaseModel):
     intrinsics: list[str] = Field(default_factory=list)
     library_wakeup: bool = False
     content_identity: bool = False
+    environment_checks: bool = False
     node_name: str
     v_min: int
     v_max: int
@@ -721,4 +723,17 @@ class CodeIdentityReq(BaseModel):
 class CodeIdentityResp(BaseModel):
     req_id: str
     record: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class CapabilityReq(BaseModel):
+    req_id: str
+    algorithm_name: str
+    algorithm_version: str
+    fresh: bool = False
+
+
+class CapabilityResp(BaseModel):
+    req_id: str
+    report: dict[str, Any] | None = None
     error: str | None = None

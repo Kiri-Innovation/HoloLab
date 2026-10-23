@@ -1113,6 +1113,9 @@ async def _dispatch_prepared_shard(
     wire_name, wire_version = offered_identity(
         session.packs, shard.algorithm_name, shard.algorithm_version
     )
+    from hololab.gateway.capabilities import require_check_support
+
+    require_check_support(session, gnode)
     if gnode.code_identity and not getattr(session, "content_identity", False):
         raise WorkflowRunError("Compute node must support recorded content identity")
     await store.set_code_identity(shard.job_id, gnode.code_identity)
@@ -1402,6 +1405,9 @@ async def _dispatch_job(
         if gnode.kind == "intrinsic"
         else offered_identity(session.packs, gnode.algorithm_name, gnode.algorithm_version)
     )
+    from hololab.gateway.capabilities import require_check_support
+
+    require_check_support(session, gnode)
     if gnode.code_identity and not getattr(session, "content_identity", False):
         raise WorkflowRunError("Compute node must support recorded content identity")
     job = Job(

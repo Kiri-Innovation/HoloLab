@@ -170,6 +170,11 @@ async def prepare_execution(
     relevant = [i for i in result.execution["issues"] if i["node_id"] in required]
     if relevant:
         raise ValueError(relevant[0]["message"])
+    from hololab.gateway.capabilities import check_workflow
+
+    result.execution["environment_checks"] = await check_workflow(
+        app, result, required=required, fresh=True, strict=True
+    )
     for node in result.nodes:
         if node.kind == "algorithm" and node.id in required:
             selected = app.state.registry.get_session(node.assigned_node_id)
@@ -432,6 +437,9 @@ async def capture_code_identities(app, graph: WorkflowGraph, *, required=None) -
         session = app.state.registry.get_session(node.assigned_node_id)
         if session is None:
             raise ValueError(f"{node.id}: execution node unavailable")
+        from hololab.gateway.capabilities import require_check_support
+
+        require_check_support(session, node)
         if not getattr(session, "content_identity", False):
             entry = next(
                 (

@@ -75,6 +75,7 @@ class NodeSession:
     intrinsics: list[str] = field(default_factory=list)
     library_wakeup: bool = False
     content_identity: bool = False
+    environment_checks: bool = False
     # ``token_issued`` is set when this session's register frame either
     # minted a fresh node_token or the gateway is (re-)issuing one. The
     # socket handler forwards it in RegisterOk so the node can persist it
@@ -528,6 +529,7 @@ class NodeRegistry:
                         "manifest_hash": pk.manifest_hash,
                         "root": getattr(pk, "root", "."),
                         "cold": getattr(pk, "cold", []),
+                        "requires": getattr(pk, "requires", None),
                         "node_ids": [],
                         "inputs": {},
                         "outputs": {},
@@ -579,6 +581,11 @@ class NodeRegistry:
                         entry["source_entry"] = manifest.source_entry
                         entry["root"] = manifest.root
                         entry["cold"] = manifest.cold
+                        entry["requires"] = (
+                            manifest.requires.model_dump()
+                            if manifest.requires is not None
+                            else None
+                        )
                         entry["arrayable"] = manifest.arrayable
                         entry["node_viewers"] = [
                             viewer.model_dump() for viewer in manifest.node_viewers

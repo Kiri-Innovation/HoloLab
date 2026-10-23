@@ -257,6 +257,7 @@ def create_app(
         app.state.pending_path_browses = {}
         app.state.pending_parameter_preparations = {}
         app.state.pending_code_identities = {}
+        app.state.pending_capabilities = {}
         app.state.path_browse_locks = {}
         app.state.pending_resource_lenses = {}
         app.state.pending_process_terminations = {}
@@ -1713,6 +1714,16 @@ def _mount_routes(app: FastAPI) -> None:
         raise HTTPException(status_code=500, detail=f"unhandled kind {parsed.kind!r}")
 
     # -- workflows -----------------------------------------------------------
+
+    @app.post("/api/capabilities/check", tags=["workflows"])
+    async def capability_check(body: dict[str, Any]) -> dict[str, Any]:
+        from hololab.gateway.capabilities import check_workflow
+
+        try:
+            graph = WorkflowGraph.model_validate(body["graph"])
+            return {"nodes": await check_workflow(app, graph, fresh=bool(body.get("fresh", False)))}
+        except (ValueError, KeyError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     from hololab.gateway.submission import install_submission_guard
 
@@ -3602,6 +3613,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
         session.intrinsics = list(payload.intrinsics)
         session.library_wakeup = payload.library_wakeup
         session.content_identity = payload.content_identity
+        session.environment_checks = payload.environment_checks
         signal_work(app)
 
         log.info(
@@ -3721,6 +3733,7 @@ async def _await_node_reply(
         "pending_path_browses",
         "pending_parameter_preparations",
         "pending_code_identities",
+        "pending_capabilities",
     ):
         fut.node_session = session
     pending[req_id] = fut
@@ -4002,9 +4015,11 @@ async def _dispatch_node_frame(
     # deadline still fires.
     session.last_heartbeat_ts = time.time()
 
-    if kind in ("prepare_params_resp", "code_identity_resp"):
+    if kind in ("prepare_params_resp", "code_identity_resp", "capability_resp"):
         pending = (
-            app.state.pending_code_identities
+            app.state.pending_capabilities
+            if kind == "capability_resp"
+            else app.state.pending_code_identities
             if kind == "code_identity_resp"
             else app.state.pending_parameter_preparations
         )
