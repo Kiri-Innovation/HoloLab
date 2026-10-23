@@ -272,7 +272,7 @@ def test_current_main_chain_edges_and_broadcast_contract():
         "regroup-by-frame@0.1.1",
     ]
     packs = catalog(names)
-    stg_path = ROOT.parent / "SpacetimeGaussians/stg-train@0.3.0/manifest.yaml"
+    stg_path = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.3.0/manifest.yaml"
     if not stg_path.exists():
         pytest.skip("external stg pack checkout is not installed")
     stg, _ = load_manifest(stg_path)

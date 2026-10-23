@@ -9,7 +9,9 @@ from what's on disk:
     2. **A directory containing ``manifest.yaml``** → the directory itself
        is a pack (index.html-style default). The recommended layout for
        colocating a manifest with its algorithm code.
-    3. **A directory NOT containing ``manifest.yaml``** → each subdirectory
+    3. **A repository containing ``packs/``** → scan that explicit container only.
+       Sibling output/data/code trees are never searched.
+    4. **A directory NOT containing ``manifest.yaml`` or ``packs/``** → each subdirectory
        is scanned for its own ``manifest.yaml``. Preserves the historical
        ``packs/<name>@<version>/`` repository layout.
 
@@ -20,7 +22,7 @@ directory names are no longer required to match. Cross-source conflicts on
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from hololab.logging import get_logger
@@ -122,10 +124,16 @@ def scan_packs(pack_source: Path) -> list[LoadedPack]:
             )
         ]
 
+    # Repository layout: only its explicit packs/ container is searched.
+    # Do not recurse through output/, data/ or arbitrary algorithm trees.
+    container = pack_source / "packs"
+    if container.is_dir():
+        return [replace(pack, source_dir=pack_source) for pack in scan_packs(container)]
+
     # Mode 3 — directory of pack subdirectories (legacy repo layout).
     out: list[LoadedPack] = []
     for entry in sorted(pack_source.iterdir()):
-        if not entry.is_dir():
+        if entry.name in {"output", "outputs", "data", "assets", ".git"} or not entry.is_dir():
             continue
         manifest_path = entry / "manifest.yaml"
         if not manifest_path.is_file():

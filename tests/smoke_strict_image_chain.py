@@ -160,7 +160,7 @@ def main():
         {"cams": work / "und-cams", "points": work / "tri-points", "images": work / "und-images"},
         {"folder": work / "merged/frame0"},
     )
-    stg = ROOT.parent / "SpacetimeGaussians/stg-train@0.3.0"
+    stg = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.3.0"
     m, _ = load_manifest(stg / "manifest.yaml")
     params = {k: v.default for k, v in m.params.items()}
     params.update(iterations=1, duration=1, batch=2, resolution=1, preprocesspoints=0)

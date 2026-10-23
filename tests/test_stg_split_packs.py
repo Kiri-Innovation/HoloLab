@@ -18,13 +18,13 @@ ROOT = Path("/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians")
     ],
 )
 def test_split_stg_manifests_load(relative: str, name: str, version: str) -> None:
-    manifest, _ = load_manifest(ROOT / relative)
+    manifest, _ = load_manifest(ROOT / "packs" / relative)
     assert manifest.name == name
     assert manifest.version == version
 
 
 def test_init_emits_semantic_state_and_supervision() -> None:
-    manifest, _ = load_manifest(ROOT / "stg-init@0.1.0/manifest.yaml")
+    manifest, _ = load_manifest(ROOT / "packs" / "stg-init@0.1.0/manifest.yaml")
     assert manifest.inputs["colmap_frames"].arrayed is True
     assert manifest.inputs["colmap_frames"].tags == ["colmap-folder"]
     assert manifest.inputs["flow_dir"].tags == ["t4w_flow"]
@@ -34,7 +34,7 @@ def test_init_emits_semantic_state_and_supervision() -> None:
 
 
 def test_init_renders_when_optional_flow_is_unwired() -> None:
-    manifest, _ = load_manifest(ROOT / "stg-init@0.1.0/manifest.yaml")
+    manifest, _ = load_manifest(ROOT / "packs" / "stg-init@0.1.0/manifest.yaml")
     rendered = render_manifest(
         manifest,
         RenderContext(
@@ -50,7 +50,7 @@ def test_init_renders_when_optional_flow_is_unwired() -> None:
 
 
 def test_train_has_only_progress_and_diagnostic_knobs() -> None:
-    manifest, _ = load_manifest(ROOT / "stg-train@0.4.0/manifest.yaml")
+    manifest, _ = load_manifest(ROOT / "packs" / "stg-train@0.4.0/manifest.yaml")
     assert set(manifest.params) == {"iterations", "save_cam"}
     assert manifest.params["iterations"].min == 1
     assert manifest.inputs["state"].tags == ["stg-training-state"]
@@ -97,6 +97,6 @@ def test_every_template_reference_is_declared_or_runtime_builtin(
     relative: str, allowed: set[str]
 ) -> None:
     """Prevent optional/unwired ports from becoming StrictUndefined regressions."""
-    raw = (ROOT / relative).read_text()
+    raw = (ROOT / "packs" / relative).read_text()
     refs = {match.strip() for match in re.findall(r"\{\{\s*(.*?)\s*\}\}", raw)}
     assert refs <= allowed | {"package_root", "manifest_dir"}

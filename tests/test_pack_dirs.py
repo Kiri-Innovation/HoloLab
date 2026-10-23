@@ -46,6 +46,22 @@ def _write_manifest(pack_dir: Path, name: str, version: str) -> None:
     )
 
 
+def test_repository_container_does_not_scan_outputs(tmp_path: Path) -> None:
+    _write_manifest(tmp_path / "packs/arbitrary-directory", "real", "1.0.0")
+    _write_manifest(tmp_path / "output/accidental", "output-copy", "1.0.0")
+    _write_manifest(tmp_path / "other/accidental", "other-copy", "1.0.0")
+    found = scan_packs(tmp_path)
+    assert [(p.manifest.name, p.manifest.version) for p in found] == [("real", "1.0.0")]
+    assert found[0].source_dir == tmp_path
+    assert found[0].pack_dir == tmp_path / "packs/arbitrary-directory"
+
+
+def test_legacy_container_skips_output_tree(tmp_path: Path) -> None:
+    _write_manifest(tmp_path / "real", "real", "1.0.0")
+    _write_manifest(tmp_path / "output/accidental", "output-copy", "1.0.0")
+    assert [p.manifest.name for p in scan_packs(tmp_path)] == ["real"]
+
+
 # ---------------------------------------------------------------------------
 # Scanner
 # ---------------------------------------------------------------------------

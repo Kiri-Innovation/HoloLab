@@ -23,7 +23,9 @@ import pytest
 
 from hololab.manifest import RenderContext, load_manifest, render_manifest
 
-_MANIFEST = Path("/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/stg-train@0.3.0/manifest.yaml")
+_MANIFEST = Path(
+    "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs/stg-train@0.3.0/manifest.yaml"
+)
 _CONFIGPATH = Path(
     "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/configs/n3d_full/sharp4dgs_export.json"
 )

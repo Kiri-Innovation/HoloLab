@@ -21,7 +21,7 @@ exec:
 根目录的 `.packignore` 使用 pathspec 的 gitignore 语义，不读取 `.gitignore`。
 可自由排除代码，无警告或拦截；选中 manifest 和 `.packignore` 自身始终纳入控制身份。
 固定排除 `.git`、`__pycache__`、`*.pyc`、`.pytest_cache`、`.mypy_cache`、`.ruff_cache`、`*.swp`、`.DS_Store`。
-STG 使用 `/output/`、`/outputs/`、`/data/`、`/assets/`。忽略项只读元数据来统计，不读内容。
+STG 使用 `/output/`、`/outputs/`、`/data/`、`/assets/`、`/packs/*`。忽略项只读元数据来统计，不读内容。
 符号链接只记目标字符串，绝不跟随，因此目标代码本身不受覆盖。
 
 每个文件按可执行位记 100644/100755，链接记 120000；条目为
@@ -58,7 +58,7 @@ STG 的 Utils/STG_Viewer、HoloViewerPy editable、simple_knn 原生 editable、
 源文件目录之外的配置、数据、解释器、conda 和原生二进制不自动冻结或验证。
 打包/导出后置；未来导出必须消费 `Scope.entries()` 的 hot/cold 条目，不能另写忽略规则。
 
-## 本地验收（2026-10-23）
+## 本地验收（2026-10-23，迁入 packs/ 之前的记录）
 
 真实 `stg-init@0.1.1` / STG 根的记录：
 
@@ -88,3 +88,55 @@ python -m pytest tests/test_content_scope.py tests/test_content_identity_executi
 
 重启升级后的 gateway/node（由操作者执行），提交一次运行，打开运行日志详情展开
 “声明范围身份”即可核对证据。历史记录没有身份时显示“历史运行 / 旧节点未记录”。
+
+## STG packs/ 迁移（2026-10-23）
+
+11 个包现在位于 `SpacetimeGaussians/packs/`：
+`stg-init@0.1.0`、`stg-init@0.1.1`、`stg-train@0.2.0`、`stg-train@0.3.0`、
+`stg-train@0.4.0` 至 `stg-train@0.4.6`。manifest 均声明 `root: ../..`。
+源文件仍在 STG 仓根；cwd `.`、相对 config、输出 marker/live_globs 不变；
+5 个 viewer 的 entry 改成 `packs/<包>/viewers/training-diagnostics/index.html`。
+`history_index` 仍相对 history_output，未改。
+
+共享 `.packignore` 增加 `/packs/*`，无需每包的 `!` 例外。
+统一枚举器强制保留选中 manifest，穿过被忽略的祖先目录读取它；兄弟包和所有 viewers
+均排除在身份之外（包含本包 viewers），但静态服务仍可读取这些文件。
+如果以后需要把 viewer 也纳入身份，应单独设计内容声明，不能往共享忽略规则里逐一
+恢复所有包，否则会重新引入兄弟包耦合。
+
+发现机制原先是直接目录加一层 scope 目录搜索，并非无限递归。
+现在如果配置的仓根含 `packs/`，只扫描该容器；旧目录布局仍支持，排除 output/outputs/data/assets/.git。
+目录名不是包身份，仍以 manifest 的 name/version 匹配。当前节点配置的是 STG 仓根，无需改配置。
+
+本次实测（stg-init@0.1.1）：
+
+| 项目 | 结果 |
+| --- | --- |
+| 迁移前热范围 | 155 文件 / 1,168,043 字节 / 一次扫描含哈希 26.38 ms |
+| 迁移后热范围 | 130 文件 / 1,084,499 字节 / 7 次中位数 20.83 ms |
+| 全树元数据枚举 | 25,225 文件 + 2,101 链接 / 93,420,722,701 字节 / 1.38 s |
+| 节点发现 / Gateway catalog | 11 / 11 |
+| Viewer 静态 HTTP 验证 | 15 个文件全部 200，字节与磁盘一致 |
+
+实际包目录有 26 文件（11 manifest + 15 viewer），并非题述 29；保留选中 manifest，
+排除其余 25 文件，因此热范围为 130。兄弟 manifest 修改不改变主身份，
+本包 manifest 或 stg_state.py 修改会失败，均在临时副本断言。
+
+最小真实执行：临时数据库记录、内存传输的 Gateway JobAssign 已派发成功；
+读取迁移后的真实 manifest 并校验身份，再经真实 run_subprocess 执行
+`/cloud/cloud-ssd1/envs/kiri/bin/python <root>/stg_state.py init --help`，退出码 0。
+这是入口/派发冒烟，不是完整 GPU 训练；没有向生产 Gateway 提交训练任务，也未重启服务。
+
+兼容性：旧工作流按 name/version 解析新位置；真实快照
+`60f92f19-e950-4a54-8613-326cae43734a` 的 STG 节点没有历史 code_identity，仍走旧记录兼容路径。
+已有 code_identity 的旧运行因 manifest/.packignore 字节改变会拒绝重试，需重新提交/Fork，
+不覆盖旧摘要。旧绝对 manifest 路径、显式配置到旧包目录的 pack_dirs、缓存的旧 viewer URL
+没有文件系统别名；刷新 catalog 或把显式配置改到新路径。历史证据里的原路径保留原样。
+
+自验（hololab 仓）：
+
+```bash
+python -m pytest tests/test_pack_dirs.py tests/test_stg_pack_layout.py tests/test_stg_content_acceptance.py -q -s
+```
+
+服务由操作者重启加载发现逻辑更新；刷新界面后核对 STG 11 个包和新的 manifest 位置。
