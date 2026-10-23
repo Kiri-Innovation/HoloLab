@@ -1765,16 +1765,6 @@ def _mount_routes(app: FastAPI) -> None:
             "issues": prepared.execution["issues"],
         }
 
-    @app.post("/api/workflows/{workflow_id}/copy-recipe", tags=["workflows"])
-    async def copy_workflow_recipe(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
-        try:
-            row = await app.state.workflows.copy_recipe(
-                workflow_id, body.get("name", "Recipe copy")
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return {"workflow_id": row.workflow_id, "name": row.name, "updated_ts": row.updated_ts}
-
     @app.get("/api/workflows/{workflow_id}/viewer-view", tags=["workflows"])
     async def get_workflow_viewer_view(workflow_id: str) -> dict[str, Any]:
         store: WorkflowStore = app.state.workflows

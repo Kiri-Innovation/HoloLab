@@ -8,7 +8,7 @@ from hololab.gateway.workflows import WorkflowGraph, WorkflowStore
 from hololab.persistence.db import Database
 
 
-@pytest.mark.parametrize("operation", ["create", "copy_recipe", "update"])
+@pytest.mark.parametrize("operation", ["create", "update"])
 async def test_workflow_write_reads_back_while_another_cursor_is_unfinished(tmp_path, operation):
     db = Database(Path(tmp_path / "readers.sqlite"))
     await db.open()
@@ -19,15 +19,12 @@ async def test_workflow_write_reads_back_while_another_cursor_is_unfinished(tmp_
         # Two rows ensure fetchone does NOT exhaust/finalize this SELECT.
         async with db.read() as reader, reader.execute("SELECT workflow_id FROM workflows") as held:
             assert await held.fetchone() is not None
-            if operation == "copy_recipe":
-                result = await store.copy_recipe(source.workflow_id, "copied")
-            else:
-                result = await store.save_draft(
-                    workflow_id=source.workflow_id if operation == "update" else None,
-                    name="saved",
-                    graph=source.graph,
-                )
-            assert result.name == ("copied" if operation == "copy_recipe" else "saved")
+            result = await store.save_draft(
+                workflow_id=source.workflow_id if operation == "update" else None,
+                name="saved",
+                graph=source.graph,
+            )
+            assert result.name == "saved"
             assert await store.get_draft(result.workflow_id) == result
             async with db.read() as fresh:
                 assert fresh is not reader

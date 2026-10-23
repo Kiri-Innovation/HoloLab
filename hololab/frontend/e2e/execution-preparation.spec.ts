@@ -55,6 +55,5 @@ test('Inspector shows gateway effective values and environment path warning', as
   await expect(page.locator('.hl-node-inspector pre')).toContainText('"count": 12');
   await expect(page.locator('.hl-node-inspector pre')).toContainText('/compute/data');
   await expect(page.locator('.hl-node-inspector')).toContainText('尚未变量化');
-  await expect(page.getByRole('button',{name:'复制配方（不带设备）',exact:true})).toBeVisible();
   await page.screenshot({path:'/tmp/hololab-effective-parameters.png'});
 });

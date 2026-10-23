@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from hololab.gateway.recipe import Bindings, compose_graph, copy_recipe, split_graph
+from hololab.gateway.recipe import Bindings, compose_graph, split_graph
 from hololab.gateway.workflows import GraphNode, WorkflowConflict, WorkflowGraph, WorkflowStore
 from hololab.persistence.db import open_database
 
@@ -25,8 +25,9 @@ def test_split_roundtrip():
     g = graph()
     recipe, bindings, view = split_graph(g)
     assert compose_graph(recipe, bindings, view) == g
-    assert compose_graph(recipe, Bindings({}), view).nodes[0].assigned_node_id is None
-    assert copy_recipe(g).nodes[0].params == g.nodes[0].params
+    unbound = compose_graph(recipe, Bindings({}), view)
+    assert unbound.nodes[0].assigned_node_id is None
+    assert unbound.nodes[0].params == g.nodes[0].params
     assert g.nodes[0].assigned_node_id == "device"
 
 
@@ -57,8 +58,6 @@ async def test_lazy_migration_and_downgrade(tmp_path):
         assert saved.graph == old.graph
         with pytest.raises(WorkflowConflict):
             await store.save_draft(workflow_id="w", name="bad", graph=graph(), base_updated_ts=1)
-        copied = await store.copy_recipe("w", "copy")
-        assert copied.graph.nodes[0].assigned_node_id is None
         await store.restore_legacy_bindings("w")
         assert (await store.get_draft("w")).graph == old.graph
         await store.save_draft(workflow_id="w", name="again", graph=old.graph)

@@ -462,14 +462,6 @@ class WorkflowStore:
         async with self._db.read() as conn:
             return await self._read_row(conn, workflow_id)
 
-    async def copy_recipe(self, workflow_id: str, name: str) -> WorkflowRow:
-        from hololab.gateway.recipe import copy_recipe
-
-        source = await self.get_draft(workflow_id)
-        if source is None:
-            raise ValueError("workflow not found")
-        return await self.save_draft(workflow_id=None, name=name, graph=copy_recipe(source.graph))
-
     async def restore_legacy_bindings(self, workflow_id: str) -> None:
         """Explicit downgrade; atomically recombine current bindings, never an old backup."""
 

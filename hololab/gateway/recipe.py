@@ -67,8 +67,3 @@ def compose_graph(recipe: Recipe, bindings: Bindings, view: ViewState) -> Workfl
     graph.nodes.extend(n.model_copy(deep=True) for n in view.views.nodes)
     graph.edges.extend(e.model_copy(deep=True) for e in view.views.edges)
     return graph
-
-
-def copy_recipe(graph: WorkflowGraph) -> WorkflowGraph:
-    recipe, _, view = split_graph(graph)
-    return compose_graph(recipe, Bindings({}), view)

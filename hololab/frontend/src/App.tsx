@@ -2708,17 +2708,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       summary={workflowId ? runSummary : null}
       onNameChange={setWorkflowName}
       onRun={onRun}
-      onCopyRecipe={async () => {
-        await onSave();
-        if (!workflowId) throw new Error("请先保存工作流");
-        const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}/copy-recipe`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: `${workflowName} (copy)` }),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.detail ?? "无法复制配方");
-        window.location.assign(`/w/${encodeURIComponent(result.workflow_id)}`);
-      }}
       onExitToGallery={onExitToGallery}
       saveStatus={autosave.status}
       onSaveRetry={autosave.save}
