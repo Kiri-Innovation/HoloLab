@@ -353,7 +353,7 @@ export function computeStaleness(
 export function stalenessEqual(a: NodeStaleness | null | undefined, b: NodeStaleness | null | undefined): boolean {
   if (a === b) return true;
   if (a == null || b == null) return a == null && b == null;
-  return a.kind === b.kind && a.title === b.title;
+  return a.kind === b.kind && a.title === b.title && JSON.stringify(a.changeReasons) === JSON.stringify(b.changeReasons);
 }
 
 // Earliest self_dirty node in topological order — the "start rerunning
