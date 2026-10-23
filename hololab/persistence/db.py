@@ -42,7 +42,6 @@ class Database:
     def __init__(self, path: Path) -> None:
         self._path = path
         self._writer_conn: aiosqlite.Connection | None = None
-        self._reader_conn: aiosqlite.Connection | None = None
         self._writer_task: asyncio.Task[None] | None = None
         # (fn, future). fn is a callable taking the writer connection.
         self._writer_queue: asyncio.Queue[
@@ -59,18 +58,11 @@ class Database:
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
         self._writer_conn = await aiosqlite.connect(self._path)
-        self._reader_conn = await aiosqlite.connect(self._path)
-
-        from hololab.persistence.diagnostics import enabled, instrument_reader
-
-        if enabled():
-            instrument_reader(self._reader_conn)
-
-        # WAL + foreign keys on both connections.
-        for conn in (self._writer_conn, self._reader_conn):
-            await conn.execute("PRAGMA journal_mode=WAL")
-            await conn.execute("PRAGMA foreign_keys=ON")
-            await conn.execute("PRAGMA synchronous=NORMAL")
+        # WAL is persistent for the database. Readers own separate connections;
+        # sharing one would also share snapshots held by unfinished SELECTs.
+        for pragma in ("journal_mode=WAL", "foreign_keys=ON", "synchronous=NORMAL"):
+            async with self._writer_conn.execute(f"PRAGMA {pragma}"):
+                pass
 
         await apply_migrations(self._writer_conn)
 
@@ -90,8 +82,6 @@ class Database:
             )
             await self._writer_task
 
-        if self._reader_conn is not None:
-            await self._reader_conn.close()
         if self._writer_conn is not None:
             await self._writer_conn.close()
 
@@ -227,15 +217,30 @@ class Database:
 
     @asynccontextmanager
     async def read(self):
-        """Yield the reader connection for a SELECT.
+        """Lease an isolated, consistent read snapshot for this context only.
 
-        Multiple readers are safe because SQLite in WAL mode allows concurrent
-        reads with the ongoing writer.
+        An unfinished SELECT pins a connection's WAL snapshot even when
+        sqlite's ``in_transaction`` is false. A shared reader therefore lets
+        unrelated requests hide newly committed rows from each other. Each
+        context owns its connection (including nested reads), and closing it
+        releases every cursor and transaction on success, error or cancellation.
+        An explicit transaction keeps multi-query reads, such as recipe plus
+        bindings, consistent without leaking their snapshot into another read.
         """
-
-        if self._reader_conn is None:
+        if self._writer_conn is None or self._closed:
             raise RuntimeError("database is not open")
-        yield self._reader_conn
+        async with aiosqlite.connect(self._path, isolation_level=None) as conn:
+            from hololab.persistence.diagnostics import enabled, instrument_reader
+
+            if enabled():
+                instrument_reader(conn)
+            for statement in ("PRAGMA foreign_keys=ON", "PRAGMA query_only=ON", "BEGIN"):
+                async with conn.execute(statement):
+                    pass
+            try:
+                yield conn
+            finally:
+                await conn.rollback()
 
 
 async def open_database(path: Path) -> Database:
