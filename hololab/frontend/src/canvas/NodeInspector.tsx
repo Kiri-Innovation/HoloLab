@@ -10,7 +10,11 @@ import { PackParameterField, packParameterRows } from "./PackParameterField";
 import type { ComputeNode } from "../wire";
 import { ParameterPinButton } from "./ParameterPinButton";
 import { parameterPinKey } from "./parameterPins";
+import { parameterDifferences, parameterDifferenceText } from "./parameterDifferences";
 import { OpenSourceButton } from "./OpenSourceButton";
+
+// Capture on page load, like NodeViewerFrame: workflow navigation can rewrite the URL.
+const DEBUG_PARAMETERS = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1";
 
 export interface NodeInspectorProps {
   effectiveParams?: Record<string, unknown>;
@@ -90,6 +94,9 @@ export function NodeInspector({
     );
   }
 
+  const differences = preparationStatus ? [] : parameterDifferences(pack, selected.params, effectiveParams, environmentParams);
+  const differenceText = differences.map(parameterDifferenceText).join("；");
+
   const pin = (names: string[]) => onTogglePin ? <ParameterPinButton names={names}
     algorithmKey={parameterPinKey(pack)} pinned={pinnedParams} onToggle={onTogglePin} /> : null;
   const packageComputeNode =
@@ -162,11 +169,14 @@ export function NodeInspector({
       </section>}
       <div className="hl-inspector-parameters" role="region" aria-label="Parameters">
         <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Parameters</h3>
-        <details style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)", marginBottom: 8 }}>
+        {differenceText && <div role="status" className="hl-parameter-difference" title={differenceText}
+          style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)", marginBottom: 8,
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{differenceText}</div>}
+        {DEBUG_PARAMETERS && <details style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)", marginBottom: 8 }}>
           <summary>将实际使用的参数</summary>
           {preparationStatus ? <p role="status">{preparationStatus}</p> : <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(effectiveParams ?? {}, null, 2)}</pre>}
           {environmentParams.length > 0 && <p>环境相关、尚未变量化：{environmentParams.join(", ")}</p>}
-        </details>
+        </details>}
         {!isConstantName(pack.name) && <div className="hl-inspector-field hl-inspector-package-field" style={FIELD}>
           <ParameterLabel name="package" type="path" />
           <OpenSourceButton

@@ -19,6 +19,17 @@ export function packParameterRows(pack: CatalogPack, params: Record<string, unkn
   });
 }
 
+/** The value presented by the existing editor, not execution-time resolution. */
+export function parameterEditorValue(pack: CatalogPack, params: Record<string, unknown>, name: string, grouped = false): unknown {
+  const editable = arrayParamsForEditor(pack.name, pack.version, params);
+  const spec = pack.params[name];
+  if (grouped || spec.type === "list[str]" || spec.type === "list<str>") {
+    return editable[name] ?? spec.default ?? [];
+  }
+  return Object.prototype.hasOwnProperty.call(editable, name)
+    ? editable[name] : spec.default ?? (spec.type === "array" ? [] : "");
+}
+
 /** One dispatch path for Inspector and canvas; callbacks contain only changed fields. */
 export function PackParameterField({ pack, params, name, names, nodeId, initialDirectory, onChange }: {
   pack: CatalogPack; params: Record<string, unknown>; name: string; names: string[];
@@ -30,7 +41,7 @@ export function PackParameterField({ pack, params, name, names, nodeId, initialD
   if (names.length > 1) return <Vec3ArrayParameterInput specs={pack.params} params={editable}
     nodeId={nodeId} initialDirectory={initialDirectory} onChange={onChange} />;
   if (spec.type === "list[str]" || spec.type === "list<str>") {
-    const raw = editable[name] ?? spec.default ?? [];
+    const raw = parameterEditorValue(pack, params, name);
     const other = name === "output_dims" && pack.params.input_dims
       ? editable.input_dims ?? pack.params.input_dims.default ?? [] : undefined;
     return <DimListEditor value={Array.isArray(raw) ? raw.map(v => String(v ?? "")) : []}
@@ -38,8 +49,7 @@ export function PackParameterField({ pack, params, name, names, nodeId, initialD
       ariaName={name} placeholder="dim label" onChange={value => onChange({ [name]: value })} />;
   }
   const Input = spec.type === "array" ? ArrayParameterInput : ParameterInput;
-  const value = Object.prototype.hasOwnProperty.call(editable, name)
-    ? editable[name] : spec.default ?? (spec.type === "array" ? [] : "");
+  const value = parameterEditorValue(pack, params, name);
   return <Input name={name} spec={spec} value={value} nodeId={nodeId} initialDirectory={initialDirectory}
     onChange={next => onChange({ [name]: next })} />;
 }
