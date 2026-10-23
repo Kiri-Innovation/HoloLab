@@ -147,7 +147,7 @@ export function Preview({
   // Existing handles/older running gateways may not yet carry inferred specs.
   // Keep explicit pack overrides authoritative.
   if (!spec && tags?.includes('ply-3dgs') && storage === 'file') {
-    return <PlyGaussianPreview url={baseUrl} />;
+    return <GaussianScenePreview url={baseUrl} />;
   }
   // Image is one file. Only explicit collections use sequence viewers.
   if (tags?.includes("image") && storage === "file") return <ImagePreview url={baseUrl} />;
@@ -369,7 +369,7 @@ export function Preview({
 
   switch (spec.viewer) {
     case "ply-3dgs":
-      return <PlyGaussianPreview url={url} />;
+      return <GaussianScenePreview url={url} />;
     case "splatv":
       return <SplatvPreview url={url} />;
     case "lagsplat":
@@ -901,12 +901,12 @@ function humanBytes(n: number | null | undefined): string {
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
 }
 
-function PlyGaussianPreview({ url }: { url: string }) {
+function GaussianScenePreview({ url, staticPly = true }: { url: string; staticPly?: boolean }) {
   const { viewer_view, viewer_view_loaded, viewer_view_managed, setViewerDefault } = useCanvasContext();
   return <NodeViewerFrame key={url}
-    viewer={{ id: 'splatv_scene', title: '3D Gaussian PLY', renderer: 'iframe', entry: '', default: true }}
+    viewer={{ id: 'splatv_scene', title: staticPly ? '3D Gaussian PLY' : 'SplaTV 4D viewer', renderer: 'iframe', entry: '', default: true }}
     packName="" packVersion="" assignedNodeId={null} frames={[]} running={false}
-    sceneUrl={`/colmaputil/index.html?embed=splatv&format=ply-3dgs&src=${encodeURIComponent(url)}`}
+    sceneUrl={`/colmaputil/index.html?embed=splatv${staticPly ? '&format=ply-3dgs' : ''}&src=${encodeURIComponent(url)}`}
     workflowView={viewer_view} workflowViewLoaded={viewer_view_loaded}
     workflowViewManaged={viewer_view_managed} onWorkflowDefaultChange={setViewerDefault}
   />;
@@ -948,15 +948,9 @@ function SplatvPreview({ url }: { url: string }) {
       </div>
     );
 
-  const viewerUrl = versionedViewerUrl(`/colmaputil/index.html?embed=splatv&src=${encodeURIComponent(url)}`);
   return (
     <div style={PREVIEW_SHELL}>
-      <iframe
-        src={viewerUrl}
-        title="SplaTV 4D viewer"
-        sandbox="allow-scripts allow-same-origin"
-        style={{ width: "100%", height: 360, border: 0, display: "block", background: "#0b0d12" }}
-      />
+      <GaussianScenePreview url={url} staticPly={false} />
     </div>
   );
 }
