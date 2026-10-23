@@ -43,7 +43,7 @@ from hololab.node.env_cache import warmup_env_cache
 from hololab.node.executor import ExecPlan, ExecResult, run_subprocess
 from hololab.node.orphan_cleanup import cleanup_workspace_orphans
 from hololab.node.packs import LoadedPack, scan_multi_packs
-from hololab.package_identity import offered_identity
+from hololab.package_identity import installed_key
 from hololab.protocol import (
     ArtifactDeleteReq,
     ArtifactDeleteResp,
@@ -865,11 +865,7 @@ class NodeRuntime:
 
         try:
             pack = self._packs[
-                offered_identity(
-                    [p.manifest for p in self._packs.values()],
-                    request.algorithm_name,
-                    request.algorithm_version,
-                )
+                installed_key(self._packs, request.algorithm_name, request.algorithm_version)
             ]
             params = await asyncio.to_thread(
                 resolve_path_params, pack.manifest.params, request.params, check_exists=False
@@ -1474,7 +1470,7 @@ class NodeRuntime:
 
         key = (assign.algorithm_name, assign.algorithm_version)
         try:
-            wire_key = offered_identity([p.manifest for p in self._packs.values()], *key)
+            wire_key = installed_key(self._packs, *key)
             pack = self._packs.get(wire_key)
         except ValueError as exc:
             await self._send_job_fail(

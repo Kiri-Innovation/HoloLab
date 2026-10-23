@@ -1,3 +1,4 @@
+import { samePackage } from "../packageIdentity";
 // "Jump to source" — canvas-header code-icon button. Two-tier behaviour:
 //
 //   Plain click       → the pack's manifest.yaml (``pack.manifest_path``)
@@ -252,7 +253,10 @@ export function OpenSourceButton({
   }, [showGuide]);
 
   const packsDir = computeNode?.packs_dir ?? null;
-  const manifestTarget = resolveManifestTarget(pack, packsDir);
+  const registered = computeNode?.packs.find(p => samePackage(p.name, p.version, pack.name, pack.version));
+  // Legacy nodes may omit manifest_path; the physical fallback uses their spelling.
+  const sourcePack = !pack.manifest_path && registered ? {...pack, name: registered.name} : pack;
+  const manifestTarget = resolveManifestTarget(sourcePack, packsDir);
   const rowPath = manifestTarget ?? label;
 
   // The compact header affordance stays absent when Cocoder integration is
@@ -288,7 +292,7 @@ export function OpenSourceButton({
   const deviceId = computeNode?.flops_executor_id ?? null;
   const configured = !!deviceId && deviceId.trim().length > 0;
   const nodeLabel = computeNode?.node_name ?? "this node";
-  const codeTarget = resolveCodeTarget(pack, packsDir);
+  const codeTarget = resolveCodeTarget(sourcePack, packsDir);
   const hasSourceEntry = !!pack.source_entry;
 
   const onClick = async (e: React.MouseEvent) => {

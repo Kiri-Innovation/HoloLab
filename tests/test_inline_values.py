@@ -28,7 +28,7 @@ def catalog(default=None):
     return [
         {
             "name": "consume",
-            "version": "1",
+            "version": "1.0.0",
             "inputs": {
                 "value": {
                     "tags": ["float"],
@@ -46,7 +46,7 @@ def graph(values=None):
     node = GraphNode(
         id="task",
         algorithm_name="consume",
-        algorithm_version="1",
+        algorithm_version="1.0.0",
         assigned_node_id="a",
         port_values=values or {},
     )
@@ -102,9 +102,9 @@ def test_schema_and_required_and_precedence():
     packs = packs_by_key_from_catalog(catalog(2))
     g = graph({"value": 0})
     node = g.nodes[0]
-    assert effective_inline(node, g, packs[("consume", "1")])["value"][1]["value"] == 0
+    assert effective_inline(node, g, packs[("consume", "1.0.0")])["value"][1]["value"] == 0
     node.port_values["value"] = None
-    assert effective_inline(node, g, packs[("consume", "1")])["value"][1]["value"] == 2
+    assert effective_inline(node, g, packs[("consume", "1.0.0")])["value"][1]["value"] == 2
     source = GraphNode(
         id="source", kind="intrinsic", operation="constant-float-array", params={"items": [1]}
     )
@@ -115,13 +115,13 @@ def test_schema_and_required_and_precedence():
         )
     )
     node.port_values["value"] = "invalid backup"
-    assert effective_inline(node, g, packs[("consume", "1")]) == {}
+    assert effective_inline(node, g, packs[("consume", "1.0.0")]) == {}
     g = graph()
     issues = validate_snapshot(
         g,
         packs_by_key=packs_by_key_from_catalog(catalog()),
         online_node_ids={"a"},
-        packs_offered_by_node={"a": {("consume", "1")}},
+        packs_offered_by_node={"a": {("consume", "1.0.0")}},
     )
     assert any("'value'" in i.message and "required" in i.message for i in issues)
     g.nodes[0].port_values = {"value": -1}
@@ -129,7 +129,7 @@ def test_schema_and_required_and_precedence():
         g,
         packs_by_key=packs_by_key_from_catalog(catalog()),
         online_node_ids={"a"},
-        packs_offered_by_node={"a": {("consume", "1")}},
+        packs_offered_by_node={"a": {("consume", "1.0.0")}},
     )
 
 
@@ -203,7 +203,7 @@ async def test_failed_wire_never_uses_backup_literal():
     from hololab.gateway.jobs import JobState
 
     g = graph({"value": -1})
-    g.nodes.append(GraphNode(id="source", algorithm_name="produce", algorithm_version="1"))
+    g.nodes.append(GraphNode(id="source", algorithm_name="produce", algorithm_version="1.0.0"))
     g.edges.append(
         GraphEdge(id="e", source="source", sourceHandle="out", target="task", targetHandle="value")
     )

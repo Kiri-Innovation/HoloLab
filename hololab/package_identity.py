@@ -103,3 +103,12 @@ def validate_graph_identities(graph) -> None:
     for node in graph.nodes:
         if node.kind == "algorithm":
             validate_identity(node.algorithm_name, node.algorithm_version)
+
+
+def installed_key(packs: dict, name: str, version: str) -> tuple[str, str]:
+    matches = [key for key in packs if same_package(*key, name, version)]
+    if len(matches) > 1:
+        raise ValueError(f"ambiguous package aliases for {canonical_name(name)}@{version}")
+    if not matches:
+        raise ValueError(f"package {name}@{version} is not installed")
+    return matches[0]

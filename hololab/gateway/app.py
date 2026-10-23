@@ -103,7 +103,12 @@ from hololab.gateway.workflows import (
     validate_snapshot,
 )
 from hololab.logging import get_logger
-from hololab.package_identity import offered_identity, same_package, validate_identity
+from hololab.package_identity import (
+    offered_identity,
+    same_package,
+    validate_graph_identities,
+    validate_identity,
+)
 from hololab.paths import frontend_dist_dir, gateway_sqlite_path
 from hololab.persistence.db import open_database
 from hololab.persistence.diagnostics import phase
@@ -2118,6 +2123,10 @@ def _mount_routes(app: FastAPI) -> None:
 
         registry: NodeRegistry = app.state.registry
 
+        try:
+            validate_graph_identities(row.graph)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         # Build validation inputs from the catalog + connected sessions.
         packs_by_key = packs_by_key_from_catalog(registry.catalog_json())
         online_node_ids = {s.node_id for s in registry.all_sessions()}

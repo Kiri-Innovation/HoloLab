@@ -50,7 +50,27 @@ from hololab.gateway.workflows import (
 from hololab.manifest.render import rendered_output_paths
 from hololab.manifest.schema import Manifest
 from hololab.persistence.db import open_database
-from hololab.protocol.messages import GpuInfo, JobFailReason
+from hololab.protocol.messages import GpuInfo, JobFailReason, PackInventoryEntry
+
+
+@pytest.fixture(autouse=True)
+async def close_test_databases(monkeypatch):
+    """Drain store-only test writers before the event loop closes."""
+    databases = []
+    original = open_database
+
+    async def tracked_open(path):
+        db = await original(path)
+        databases.append(db)
+        return db
+
+    monkeypatch.setitem(globals(), "open_database", tracked_open)
+    try:
+        yield
+    finally:
+        for db in databases:
+            await db.close()
+
 
 # ---------------------------------------------------------------------------
 # Unit — rendered_output_paths shard override
@@ -294,7 +314,7 @@ def _fake_online_node(
         ws=ws,
         advertised_url=None,
         gpu=GpuInfo(),
-        packs=[],
+        packs=[PackInventoryEntry(name="fanout-demo", version="0.1.0", manifest_hash="test")],
         protocol_v=1,
         workspace_root=str(workspace_root),
     )

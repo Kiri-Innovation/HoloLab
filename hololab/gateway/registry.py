@@ -353,6 +353,10 @@ class NodeRegistry:
             for pk in session.packs:
                 if not same_package(pk.name, pk.version, algorithm_name, algorithm_version):
                     continue
+                try:
+                    offered_identity(session.packs, algorithm_name, algorithm_version)
+                except ValueError:
+                    continue
                 candidates: list[_Path] = []
                 if pk.manifest_path:
                     candidates.append(_Path(pk.manifest_path))
@@ -509,10 +513,11 @@ class NodeRegistry:
 
         for session in self._sessions.values():
             for pk in session.packs:
+                conflict = None
                 try:
                     offered_identity(session.packs, pk.name, pk.version)
-                except ValueError:
-                    continue
+                except ValueError as exc:
+                    conflict = str(exc)
                 key = package_key(pk.name, pk.version)
                 entry = by_key.setdefault(
                     key,
@@ -535,6 +540,23 @@ class NodeRegistry:
                         "hide_default_output_previews": False,
                     },
                 )
+                if conflict:
+                    # Keep a non-executable placeholder: dropping the catalog row would
+                    # make the frontend drop an existing graph node on hydration.
+                    if not entry["node_ids"]:
+                        entry.update(
+                            description=conflict,
+                            manifest_hash="",
+                            manifest_path=None,
+                            source_dir=None,
+                        )
+                    continue
+                if not entry["node_ids"]:
+                    entry.update(
+                        manifest_hash=pk.manifest_hash,
+                        manifest_path=pk.manifest_path,
+                        source_dir=pk.source_dir,
+                    )
                 if session.node_id not in entry["node_ids"]:
                     entry["node_ids"].append(session.node_id)
 

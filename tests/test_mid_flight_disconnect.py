@@ -41,7 +41,7 @@ from hololab.gateway.jobs import Job, JobState
 from hololab.gateway.registry import JobsStore, NodeSession
 from hololab.gateway.workflows import GraphNode
 from hololab.persistence.db import open_database
-from hololab.protocol.messages import GpuInfo, JobFailReason
+from hololab.protocol.messages import GpuInfo, JobFailReason, PackInventoryEntry
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -58,7 +58,7 @@ def _make_session(*, node_id: str, send_side_effect: Any = None) -> NodeSession:
         ws=ws,
         advertised_url=None,
         gpu=GpuInfo(),
-        packs=[],
+        packs=[PackInventoryEntry(name="demo", version="0.1.0", manifest_hash="test")],
         protocol_v=1,
         workspace_root="/tmp/ws-not-used-in-test",
     )

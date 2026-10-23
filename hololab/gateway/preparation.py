@@ -156,6 +156,12 @@ async def prepare_execution(
     from hololab.gateway.app import _await_node_reply
     from hololab.protocol.messages import PrepareParamsReq
 
+    validate_graph_identities(graph)
+    for node in graph.nodes:
+        if node.kind == "algorithm" and (required is None or node.id in required):
+            session = app.state.registry.get_session(node.assigned_node_id)
+            if session is not None:
+                offered_identity(session.packs, node.algorithm_name, node.algorithm_version)
     catalog = copy.deepcopy(app.state.registry.catalog_json())
     result = resolve_recipe(graph, catalog)
     required = required if required is not None else {n.id for n in graph.nodes if n.kind != "view"}

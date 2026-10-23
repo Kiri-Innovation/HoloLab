@@ -20,13 +20,13 @@ def test_pack_init_creates_valid_manifest(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.output
 
-    pack_dir = tmp_path / "sample-algo@0.1.0"
+    pack_dir = tmp_path / "kiri" / "sample-algo@0.1.0"
     assert (pack_dir / "manifest.yaml").is_file()
     assert (pack_dir / "README.md").is_file()
 
     # The scaffolded manifest must round-trip through the real validator.
     manifest, _sha = load_manifest(pack_dir / "manifest.yaml")
-    assert manifest.name == "sample-algo"
+    assert manifest.name == "kiri/sample-algo"
     assert manifest.version == "0.1.0"
     assert "out_dir" in manifest.outputs
 
@@ -37,8 +37,8 @@ def test_pack_init_rejects_bad_spec(tmp_path: Path) -> None:
 
 
 def test_pack_init_refuses_to_overwrite(tmp_path: Path) -> None:
-    target = tmp_path / "already-there@0.1.0"
-    target.mkdir()
+    target = tmp_path / "kiri" / "already-there@0.1.0"
+    target.mkdir(parents=True)
     result = runner.invoke(
         app, ["pack", "init", "already-there@0.1.0", "--packs-dir", str(tmp_path)]
     )

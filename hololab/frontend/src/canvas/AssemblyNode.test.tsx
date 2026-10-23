@@ -29,7 +29,7 @@ it("does not allow execution from historical read-only cards", () => {
 
 it.each(["float", "vec3"])("keeps %s constants non-executable", type => {
   const data = { pack: { name: `@builtin/constant-${type}-array`, params: {} }, params: { items: [0], x: [0], y: [0], scale: [1] } };
-  const html = renderToStaticMarkup(<ExecutableNode {...{ id: "constant", data } as NodeProps} />);
+  const html = renderToStaticMarkup(<ExecutableNode {...{ id: "constant", data } as unknown as NodeProps} />);
   expect(html).toContain("data-hl-constant");
   expect(html).not.toContain("hl-node-run-control");
 });

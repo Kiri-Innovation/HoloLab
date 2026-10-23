@@ -28,7 +28,7 @@ from hololab.gateway.handles import Handle
 from hololab.gateway.jobs import Job, JobState
 from hololab.gateway.registry import NodeSession
 from hololab.gateway.workflows import GraphEdge, GraphNode, WorkflowGraph
-from hololab.protocol.messages import GpuInfo
+from hololab.protocol.messages import GpuInfo, PackInventoryEntry
 
 
 def _linear_graph() -> WorkflowGraph:
@@ -72,7 +72,7 @@ def _fake_online_node(client: TestClient) -> None:
         ws=ws,
         advertised_url=None,
         gpu=GpuInfo(),
-        packs=[],
+        packs=[PackInventoryEntry(name="demo-echo", version="0.1.0", manifest_hash="test")],
         protocol_v=1,
     )
     client.app.state.registry._sessions[session.node_id] = session

@@ -1293,6 +1293,20 @@ def validate_snapshot(
         if not is_algorithm_node(node):
             continue
         key = package_key(node.algorithm_name, node.algorithm_version)
+        if node.kind != "intrinsic":
+            matches = {
+                p
+                for p in packs_offered_by_node.get(node.assigned_node_id, set())
+                if package_key(*p) == key
+            }
+            if len(matches) > 1:
+                issues.append(
+                    ValidationIssue(
+                        where=f"node:{node.id}",
+                        message=f"ambiguous package aliases for {key[0]}@{key[1]}",
+                    )
+                )
+                continue
         if node.kind != "intrinsic" and key not in alias_index(packs_by_key):
             issues.append(
                 ValidationIssue(

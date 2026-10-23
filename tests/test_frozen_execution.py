@@ -25,12 +25,14 @@ from hololab.protocol.envelope import decode
 from hololab.protocol.messages import GpuInfo, PackInventoryEntry
 
 
-def setup(client, tmp_path):
+def setup(client, tmp_path, identity_mode="legacy"):
+    name = "scope/example" if identity_mode == "dev" else "frozen-test"
+    version = "0.1.1+" if identity_mode == "dev" else "1.0.0"
     app = client.app
     catalog = [
         {
-            "name": "frozen-test",
-            "version": "1.0.0",
+            "name": name,
+            "version": version,
             "params": {"count": {"type": "int", "default": 12}},
             "inputs": {},
             "outputs": {},
@@ -40,8 +42,8 @@ def setup(client, tmp_path):
         {
             "apiVersion": "hololab.dev/v1",
             "kind": "Algorithm",
-            "name": "frozen-test",
-            "version": "1.0.0",
+            "name": name,
+            "version": version,
             "params": catalog[0]["params"],
             "outputs": {"out": {"tags": ["text"], "storage": "file"}},
             "runtime": {"env": "test"},
@@ -54,6 +56,7 @@ def setup(client, tmp_path):
         env, payload = decode(raw)
         if env.kind != "job_assign":
             return
+        assert (payload.algorithm_name, payload.algorithm_version) == (name, version)
         job = await app.state.jobs_store.get(payload.job_id)
         command = render_manifest(manifest, RenderContext(params=payload.params)).shell
         received.append((deepcopy(job.params), deepcopy(payload.params), command))
@@ -70,7 +73,7 @@ def setup(client, tmp_path):
         ws=SimpleNamespace(send_text=send),
         advertised_url=None,
         gpu=GpuInfo(),
-        packs=[PackInventoryEntry(name="frozen-test", version="1.0.0", manifest_hash="x")],
+        packs=[PackInventoryEntry(name=name, version=version, manifest_hash="x")],
         protocol_v=1,
         workspace_root=str(tmp_path),
     )
@@ -80,8 +83,8 @@ def setup(client, tmp_path):
         nodes=[
             GraphNode(
                 id="a",
-                algorithm_name="frozen-test",
-                algorithm_version="1.0.0",
+                algorithm_name="kiri/frozen-test" if identity_mode == "alias" else name,
+                algorithm_version=version,
                 assigned_node_id="node",
             )
         ]
@@ -90,10 +93,11 @@ def setup(client, tmp_path):
 
 
 @pytest.mark.parametrize("mode", ["whole", "single", "fanout"])
-def test_frozen_equals_job_equals_node_command(tmp_path, mode):
+@pytest.mark.parametrize("identity_mode", ["legacy", "alias", "dev"])
+def test_frozen_equals_job_equals_node_command(tmp_path, mode, identity_mode):
     app = create_app(db_path=tmp_path / "test.sqlite")
     with TestClient(app) as client:
-        app, catalog, graph, received = setup(client, tmp_path)
+        app, catalog, graph, received = setup(client, tmp_path, identity_mode)
 
         async def exercise():
             if mode == "fanout":
@@ -231,9 +235,10 @@ async def test_node_path_preparation_and_nonmutating_validation(tmp_path, monkey
         validate_frozen_path_params(specs, {"path": "~/future"})
 
 
-def test_failed_slot_with_changed_configuration_forks(tmp_path):
+@pytest.mark.parametrize("identity_mode", ["legacy", "alias", "dev"])
+def test_failed_slot_with_changed_configuration_forks(tmp_path, identity_mode):
     with TestClient(create_app(db_path=tmp_path / "test.sqlite")) as client:
-        app, _catalog, graph, received = setup(client, tmp_path)
+        app, _catalog, graph, received = setup(client, tmp_path, identity_mode)
 
         async def exercise():
             row = await app.state.workflows.save_draft(workflow_id=None, name="test", graph=graph)
@@ -249,6 +254,9 @@ def test_failed_slot_with_changed_configuration_forks(tmp_path):
                 await c.execute("UPDATE jobs SET state='failed' WHERE job_id=?", (one["job_id"],))
 
             await app.state.db.write(failed)
+            # Merely switching the legacy spelling is still an unchanged retry.
+            if identity_mode == "legacy":
+                row.graph.nodes[0].algorithm_name = "kiri/frozen-test"
             # Unchanged failure retry stays in the same snapshot.
             retry = await dispatch_graph_node(
                 app,
@@ -471,9 +479,12 @@ def test_fork_excludes_all_changed_branches_and_their_downstream(tmp_path):
         client.portal.call(exercise)
 
 
-def test_historical_rerun_keeps_frozen_params_despite_new_draft_and_catalog(tmp_path):
+@pytest.mark.parametrize("identity_mode", ["legacy", "alias", "dev"])
+def test_historical_rerun_keeps_frozen_params_despite_new_draft_and_catalog(
+    tmp_path, identity_mode
+):
     with TestClient(create_app(db_path=tmp_path / "rerun.sqlite")) as client:
-        app, catalog, graph, received = setup(client, tmp_path)
+        app, catalog, graph, received = setup(client, tmp_path, identity_mode)
 
         async def original():
             row = await app.state.workflows.save_draft(

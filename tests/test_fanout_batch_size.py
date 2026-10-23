@@ -322,6 +322,9 @@ async def test_batched_shard_carries_element_ids_and_paths_on_wire(tmp_path: Pat
     captured: list = []
 
     class _FakeSession:
+        from hololab.protocol.messages import PackInventoryEntry
+
+        packs = (PackInventoryEntry(name="pack", version="0.1.0", manifest_hash="test"),)
         node_id = "node-a"
         protocol_v = 1
         send_lock = MagicMock()

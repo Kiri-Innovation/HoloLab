@@ -77,15 +77,18 @@ def test_compatibility_matrix(src_arr, tgt_arr, scalar, a, b):
 
 def graph_fixture():
     source = GraphNode(
-        id="s", algorithm_name="source", algorithm_version="1", params={"dims": ["frame", "cam"]}
+        id="s",
+        algorithm_name="source",
+        algorithm_version="1.0.0",
+        params={"dims": ["frame", "cam"]},
     )
-    drop = GraphNode(id="d", algorithm_name="drop", algorithm_version="1")
-    target = GraphNode(id="t", algorithm_name="target", algorithm_version="1")
+    drop = GraphNode(id="d", algorithm_name="drop", algorithm_version="1.0.0")
+    target = GraphNode(id="t", algorithm_name="target", algorithm_version="1.0.0")
     packs = {
-        ("source", "1"): PackHandle(
+        ("source", "1.0.0"): PackHandle(
             {}, {"out": OutputPortView(("image",), True, dim_labels_from="dims")}
         ),
-        ("drop", "1"): PackHandle(
+        ("drop", "1.0.0"): PackHandle(
             {"in": InputPortView(("image",), True, True, dim_labels=("frame", "cam"))},
             {
                 "out": OutputPortView(
@@ -97,7 +100,7 @@ def graph_fixture():
                 )
             },
         ),
-        ("target", "1"): PackHandle(
+        ("target", "1.0.0"): PackHandle(
             {"in": InputPortView(("image",), True, True, dim_labels=("cam",))}, {}
         ),
     }
@@ -214,9 +217,9 @@ def test_invocation_agrees_with_physical_enumeration(content, expected):
         arrayable=True,
         param_defaults={"content": content},
     )
-    node = GraphNode(id="n", algorithm_name="p", algorithm_version="1", arrayed_toggle=True)
+    node = GraphNode(id="n", algorithm_name="p", algorithm_version="1.0.0", arrayed_toggle=True)
     graph = WorkflowGraph(nodes=[node], edges=[])
-    types, old = resolved_port_types(node, pack, graph, {"n": node}, {("p", "1"): pack})
+    types, old = resolved_port_types(node, pack, graph, {"n": node}, {("p", "1.0.0"): pack})
     assert render_type(types.inputs["frames"].views.invocation) == expected
     assert old["out"] == {"tags": ["image"], "arrayed": True, "dim_labels": ["", "frame", "cam"]}
     assert enumeration_depth("frames", asdict(spec), {"content": content}) == 1
@@ -226,7 +229,7 @@ def test_invocation_agrees_with_physical_enumeration(content, expected):
 def test_shard_output_keeps_declared_invocation_without_driving_shape():
     from hololab.gateway.workflows import resolved_port_types
 
-    node = GraphNode(id="n", algorithm_name="p", algorithm_version="1", arrayed_toggle=True)
+    node = GraphNode(id="n", algorithm_name="p", algorithm_version="1.0.0", arrayed_toggle=True)
     pack = PackHandle({}, {"out": OutputPortView(("image",), False)}, arrayable=True)
     types, old = resolved_port_types(
         node, pack, WorkflowGraph(nodes=[node], edges=[]), {"n": node}, {}

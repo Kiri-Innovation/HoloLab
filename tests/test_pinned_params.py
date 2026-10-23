@@ -93,21 +93,23 @@ async def test_snapshot_materializes_defaults_without_changing_draft(tmp_path):
     from hololab.gateway.models import ParamSpecOut
     from hololab.gateway.workflows import GraphNode, freeze_parameter_pins
 
-    graph = WorkflowGraph(nodes=[GraphNode(id="n", algorithm_name="demo", algorithm_version="1")])
+    graph = WorkflowGraph(
+        nodes=[GraphNode(id="n", algorithm_name="demo", algorithm_version="1.0.0")]
+    )
     catalog = [
         {
             "name": "demo",
-            "version": "1",
+            "version": "1.0.0",
             "params": {"count": {"type": "int", "pinned": True}, "label": {"type": "string"}},
         }
     ]
     assert ParamSpecOut.model_validate(catalog[0]["params"]["count"]).pinned
     frozen = freeze_parameter_pins(graph, catalog)
-    assert frozen.pinned_params == {"demo@1": ["count"]}
+    assert frozen.pinned_params == {"demo@1.0.0": ["count"]}
     assert graph.pinned_params == {}
-    explicit = graph.model_copy(update={"pinned_params": {"demo@1": []}})
-    assert freeze_parameter_pins(explicit, catalog).pinned_params == {"demo@1": []}
-    assert freeze_parameter_pins(graph, []).pinned_params == {"demo@1": []}
+    explicit = graph.model_copy(update={"pinned_params": {"demo@1.0.0": []}})
+    assert freeze_parameter_pins(explicit, catalog).pinned_params == {"demo@1.0.0": []}
+    assert freeze_parameter_pins(graph, []).pinned_params == {"demo@1.0.0": []}
     db = await open_database(tmp_path / "defaults.sqlite")
     try:
         store = WorkflowStore(db)
@@ -117,7 +119,7 @@ async def test_snapshot_materializes_defaults_without_changing_draft(tmp_path):
         )
         catalog[0]["params"]["count"]["pinned"] = False
         assert (await store.get_snapshot(snap.snapshot_id)).graph.pinned_params == {
-            "demo@1": ["count"]
+            "demo@1.0.0": ["count"]
         }
         assert (await store.get_draft(draft.workflow_id)).graph.pinned_params == {}
     finally:

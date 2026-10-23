@@ -1109,6 +1109,9 @@ async def _dispatch_prepared_shard(
             f"assigned compute node {gnode.assigned_node_id!r} dropped mid-fanout"
         )
 
+    wire_name, wire_version = offered_identity(
+        session.packs, shard.algorithm_name, shard.algorithm_version
+    )
     assigned = JobStateMachine.transition(shard, JobState.ASSIGNED, node_id=session.node_id)
     kind, payload = event_from_transition(shard, assigned)
     await store.update(assigned, kind, payload)
@@ -1125,11 +1128,6 @@ async def _dispatch_prepared_shard(
             "batch_element_ids and batch_input_paths must be aligned"
         )
 
-    wire_name, wire_version = (
-        (assigned.algorithm_name, assigned.algorithm_version)
-        if assigned.algorithm_name.startswith("@builtin/")
-        else offered_identity(session.packs, assigned.algorithm_name, assigned.algorithm_version)
-    )
     assign_msg = JobAssign(
         job_id=assigned.job_id,
         workflow_id=assigned.workflow_id,
@@ -1393,6 +1391,11 @@ async def _dispatch_job(
     if gnode.kind == "intrinsic" and gnode.operation not in session.intrinsics:
         raise WorkflowRunError("compute node must be upgraded to support array-assemble")
 
+    wire_name, wire_version = (
+        (gnode.algorithm_name, gnode.algorithm_version)
+        if gnode.kind == "intrinsic"
+        else offered_identity(session.packs, gnode.algorithm_name, gnode.algorithm_version)
+    )
     job = Job(
         job_id=str(uuid.uuid4()),
         workflow_id=workflow_id,
@@ -1416,11 +1419,6 @@ async def _dispatch_job(
     await store.update(assigned, kind, payload)
     _push_update(hub, assigned)
 
-    wire_name, wire_version = (
-        (assigned.algorithm_name, assigned.algorithm_version)
-        if assigned.algorithm_name.startswith("@builtin/")
-        else offered_identity(session.packs, assigned.algorithm_name, assigned.algorithm_version)
-    )
     assign_msg = JobAssign(
         job_id=assigned.job_id,
         workflow_id=assigned.workflow_id,

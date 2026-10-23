@@ -39,7 +39,7 @@ for(const bridge of [false,true]) test(`package path keeps character suffixes (b
  await expect(label).toContainText('fastgs-silhouette-train@0.1.0');
  await panel.locator('.hl-inspector-package-field').evaluate(el=>(el as HTMLElement).style.width='');
  await expect(row).toHaveAttribute('title',target);
- expect(await label.evaluate(el=>el.getBoundingClientRect().width<=el.parentElement!.clientWidth)).toBe(true);
+ await expect.poll(()=>label.evaluate(el=>el.getBoundingClientRect().width<=el.parentElement!.clientWidth)).toBe(true);
  mkdirSync('/tmp/package-directory',{recursive:true});
  for(const theme of ['light','dark']){
   await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.waitForTimeout(250);
@@ -47,7 +47,7 @@ for(const bridge of [false,true]) test(`package path keeps character suffixes (b
  }
  await panel.locator('.hl-inspector-package-field').evaluate(el=>(el as HTMLElement).style.width='230px');
  await expect(label).toHaveText(/^….+@0\.1\.0$/);
- expect(await label.evaluate(el=>el.getBoundingClientRect().width<=el.parentElement!.clientWidth)).toBe(true);
+ await expect.poll(()=>label.evaluate(el=>el.getBoundingClientRect().width<=el.parentElement!.clientWidth)).toBe(true);
  for(const theme of ['light','dark']){
   await page.evaluate(t=>document.documentElement.dataset.theme=t,theme); await page.waitForTimeout(250);
   await panel.locator('.hl-inspector-package-field').screenshot({path:`/tmp/package-directory/narrow-${bridge}-${theme}.png`});
