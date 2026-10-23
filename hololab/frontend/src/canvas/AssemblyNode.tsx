@@ -1,14 +1,15 @@
 import { ConstantNode } from "./ConstantNode";
 import { isConstantName } from "./constants";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Handle, Position, useReactFlow, useUpdateNodeInternals,
   useNodes, useEdges, type NodeProps,
 } from "@xyflow/react";
-import { AlgorithmNode, type AlgorithmNodeData } from "./AlgorithmNode";
+import { AlgorithmNode, dispatchRunNode, type AlgorithmNodeData } from "./AlgorithmNode";
 import { ASSEMBLE, assemblyFields, newAssembly, type AssemblyConfig } from "./assembly";
 import { effectiveOutputType, formatTypeLabel } from "./edgeLabels";
 import type { GraphNode } from "../wire";
+import { NodeRunControl, canStopNode } from "./NodeRunControl";
 import { newId } from "../newId";
 
 /** Share the existing executable-node plumbing, not pack execution semantics. */
@@ -20,6 +21,18 @@ export function ExecutableNode(props: NodeProps) {
 
 export function AssemblyNode({ id, data }: NodeProps) {
   const d = data as AlgorithmNodeData & { assembly?: AssemblyConfig; readOnly?: boolean };
+  const [runPending, setRunPending] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+  const runLock = useRef(false);
+  async function run() {
+    if (d.readOnly || runLock.current || canStopNode(d.runtime?.state)) return;
+    runLock.current = true;
+    setRunPending(true);
+    setRunError(null);
+    try { await dispatchRunNode(id); }
+    catch (error) { setRunError(error instanceof Error ? error.message : String(error)); }
+    finally { runLock.current = false; setRunPending(false); }
+  }
   const a = d.assembly ?? newAssembly();
   const rf = useReactFlow();
   const nodes = useNodes();
@@ -88,10 +101,15 @@ export function AssemblyNode({ id, data }: NodeProps) {
       width: 320, background: "var(--surface-2)", color: "var(--text-body)",
       border: "1px solid var(--border)", borderRadius: 8,
     }}>
-      <div style={{ padding: 12, borderBottom: "1px solid var(--border)" }}>
-        <strong>array-assemble</strong> <small>system · {d.runtime?.state ?? "idle"}</small>
-        {d.staleness && <span title={d.staleness.title} style={{ marginLeft: 8, color: "var(--status-pending)" }}>需重跑</span>}
+      <div style={{ padding: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <strong>array-assemble</strong> <small>system · {d.runtime?.state ?? "idle"}</small>
+          {d.staleness && <span title={d.staleness.title} style={{ marginLeft: 8, color: "var(--status-pending)" }}>需重跑</span>}
+        </div>
+        {!d.readOnly && <NodeRunControl pending={runPending} state={d.runtime?.state}
+          jobId={d.runtime?.job_id} stale={!!d.staleness} onRun={run} />}
       </div>
+      {runError && <div role="alert" className="nodrag nopan" style={{ padding: "6px 12px", color: "var(--status-failed)", overflowWrap: "anywhere" }}>运行失败：{runError}</div>}
       <div style={{ position: "relative", padding: "8px 16px", textAlign: "right" }}>
         {typeLabel}<Handle id="out" type="source" position={Position.Right} style={{ right: 6, background: "var(--text-muted)" }} />
       </div>

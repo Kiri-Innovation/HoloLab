@@ -316,7 +316,7 @@ export interface RunNodeDetail {
 // this fires.
 const DISPATCH_TIMEOUT_MS = 20_000;
 
-function dispatchRunNode(graph_node_id: string): Promise<void> {
+export function dispatchRunNode(graph_node_id: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     let settled = false;
     let timer: number | null = null;
