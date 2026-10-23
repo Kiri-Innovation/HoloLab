@@ -136,7 +136,7 @@ def prefill_db(
     resolved: list[tuple[str, str]] = []
     con = sqlite3.connect(str(db_path))
     try:
-        for i, name in enumerate(image_names):
+        for name in image_names:
             resolved_key = resolve_sfm_key(name, sfm_pose_by_key, numeric_index)
             if resolved_key is None:
                 continue
@@ -151,18 +151,18 @@ def prefill_db(
                 ) from exc
             params_arr = np.asarray(params, dtype=np.float64)
             resolved.append((name, resolved_key))
-            im_id = i + 1
+            im_id = len(resolved)
             cam_id = add_camera(con, model_id, width, height, params_arr)
             add_image(con, name=name, camera_id=cam_id, prior_q=qvec, prior_t=tvec, image_id=im_id)
 
             id_str = str(im_id)
             q_str = " ".join(map(str, qvec))
             t_str = " ".join(map(str, tvec))
-            images_txt_lines.append(f"{id_str} {q_str} {t_str} {id_str} {name}\n")
+            images_txt_lines.append(f"{id_str} {q_str} {t_str} {cam_id} {name}\n")
             images_txt_lines.append("\n")
 
             p_str = " ".join(params_arr.astype(str))
-            cameras_txt_lines.append(f"{id_str} {model_name} {width} {height} {p_str} \n")
+            cameras_txt_lines.append(f"{cam_id} {model_name} {width} {height} {p_str} \n")
         con.commit()
     finally:
         con.close()
@@ -181,6 +181,59 @@ def prefill_db(
             flush=True,
         )
     return resolved
+
+
+def validate_manual_references(
+    db_path: Path, manual_dir: Path, missing_pose_names: list[str]
+) -> None:
+    """Check the exact DB rows the rig/frame exporter will serialize."""
+    camera_ids = set(parse_cameras_txt(manual_dir / "cameras.txt"))
+    images = {
+        iid: (cid, name) for iid, _q, _t, cid, name in parse_images_txt(manual_dir / "images.txt")
+    }
+    errors: list[str] = []
+    with sqlite3.connect(str(db_path)) as con:
+        db_images = {
+            iid: (cid, name)
+            for iid, cid, name in con.execute("SELECT image_id, camera_id, name FROM images")
+        }
+        if db_images != images:
+            errors.append(f"DB/manual image mappings differ: DB={db_images}, manual={images}")
+        db_cameras = {row[0] for row in con.execute("SELECT camera_id FROM cameras")}
+        if db_cameras != camera_ids or {cid for cid, _ in images.values()} != camera_ids:
+            errors.append("DB/manual camera IDs and posed image camera IDs differ")
+        for iid, (cid, name) in images.items():
+            if cid not in camera_ids:
+                errors.append(f"image {name!r} (id={iid}) references missing camera {cid}")
+        tables = {
+            row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        if "rigs" in tables:
+            rigs = dict(
+                con.execute("SELECT rig_id, ref_sensor_id FROM rigs WHERE ref_sensor_type=0")
+            )
+            for rid, cid in rigs.items():
+                if cid not in camera_ids:
+                    errors.append(f"rig {rid} references missing camera {cid}")
+            frames = dict(con.execute("SELECT frame_id, rig_id FROM frames"))
+            frame_images = set()
+            for fid, iid, cid, stype in con.execute(
+                "SELECT frame_id, data_id, sensor_id, sensor_type FROM frame_data"
+            ):
+                frame_images.add(iid)
+                if stype != 0 or cid not in camera_ids or images.get(iid, (None,))[0] != cid:
+                    errors.append(f"frame {fid} references invalid camera {cid}/image {iid}")
+                if fid != iid or rigs.get(frames.get(fid)) != cid:
+                    errors.append(f"frame {fid} has no matching posed image/rig for camera {cid}")
+            if frame_images != set(images) or set(frames) != set(images):
+                errors.append("frame IDs/data IDs do not match the posed image IDs")
+    if errors:
+        raise SystemExit(
+            "Invalid manual COLMAP model before rig/frame export: "
+            + "; ".join(errors)
+            + f"; {len(missing_pose_names)} staged image(s) missing SfM poses: "
+            + (", ".join(missing_pose_names) or "(none)")
+        )
 
 
 def run(cmd: list, step: str) -> None:
@@ -269,6 +322,17 @@ def main() -> int:
 
     resolved = prefill_db(db, manual, image_names, sfm_cams, sfm_pose_by_key)
     used_names = [name for name, _key in resolved]
+    used_name_set = set(used_names)
+    missing_pose_names = [name for name in image_names if name not in used_name_set]
+    # Only the posed intersection may reach feature_extractor: otherwise it
+    # silently creates new DB cameras/images which have no manual-model pose.
+    for name in missing_pose_names:
+        (scratch_input / name).unlink()
+    print(
+        f"[colmap-triangulate/0.7] skipped {len(missing_pose_names)}/{len(image_names)} "
+        f"image(s) missing SfM poses: {', '.join(missing_pose_names) or '(none)'}",
+        flush=True,
+    )
     used_keys = {key for _name, key in resolved}
     missing_keys = sorted(set(sfm_pose_by_key) - used_keys)
     if len(used_names) < 2:
@@ -315,6 +379,7 @@ def main() -> int:
     )
 
     repair_frames_if_needed(db)
+    validate_manual_references(db, manual, missing_pose_names)
     export_manual_rigs_frames_txt(db, manual)
 
     run(
@@ -382,6 +447,7 @@ def main() -> int:
                 "used_sfm_camera_keys": sorted(used_keys),
                 "absent_sfm_camera_keys": missing_keys,
                 "used_camera_count": len(used_names),
+                "missing_pose_image_files": missing_pose_names,
             },
             indent=2,
         )
