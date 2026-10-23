@@ -11,6 +11,7 @@ import { useState } from "react";
 import type { SnapshotDetail } from "../wire";
 import { ApiError, restoreFromSnapshot } from "../api";
 import { stateColour } from "./AlgorithmNode";
+import { IdentityEvidence } from "./CodeIdentityPanel";
 import { CopyRefButton } from "./CopyRefButton";
 
 export interface SnapshotBannerProps {
@@ -119,6 +120,18 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
       >
         {snapshot.snapshot_id.slice(0, 8)}
       </span>
+      <details>
+        <summary>{Object.values(snapshot.code_evidence ?? {}).some(e => e.code_identity)
+          ? "声明范围身份" : "历史运行未记录代码身份"}</summary>
+        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, maxHeight: "60vh", overflow: "auto", padding: 16, background: "var(--surface-1)", color: "var(--text-body)", boxShadow: "var(--shadow-1)" }}>
+          {Object.keys(snapshot.code_evidence ?? {}).length === 0
+            ? <p>历史运行未记录代码身份；不会用当前代码回填。</p>
+            : Object.entries(snapshot.code_evidence ?? {}).map(([nodeId, evidence]) => <details key={nodeId}>
+              <summary>{nodeId} · {evidence.status === "recorded" ? "声明范围身份" : "历史运行未记录代码身份"}</summary>
+              <IdentityEvidence identity={evidence.code_identity} effectiveParams={evidence.effective_params} />
+            </details>)}
+        </div>
+      </details>
       <CopyRefButton
         kind="run"
         id={snapshot.snapshot_id}

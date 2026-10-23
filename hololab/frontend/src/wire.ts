@@ -650,6 +650,11 @@ export interface SnapshotJob {
 }
 
 export interface SnapshotDetail {
+  code_evidence?: Record<string, {
+    status: "recorded" | "unrecorded";
+    code_identity: Record<string, unknown> | null;
+    effective_params: Record<string, unknown>;
+  }>;
   preparation_error?: string | null;
   snapshot_id: string;
   workflow_id: string;
