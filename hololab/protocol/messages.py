@@ -673,3 +673,16 @@ class EnsureConstantResp(BaseModel):
     digest: str
     path: str | None = None
     error: str | None = None
+
+
+class PrepareParamsReq(BaseModel):
+    req_id: str
+    algorithm_name: str
+    algorithm_version: str
+    params: dict[str, Any]
+
+
+class PrepareParamsResp(BaseModel):
+    req_id: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None

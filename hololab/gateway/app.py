@@ -249,6 +249,7 @@ def create_app(
         # _dispatch_node_frame when the matching _resp arrives.
         app.state.pending_config_replies: dict[str, asyncio.Future[Any]] = {}
         app.state.pending_path_browses = {}
+        app.state.pending_parameter_preparations = {}
         app.state.path_browse_locks = {}
         app.state.pending_resource_lenses = {}
         app.state.pending_process_terminations = {}
@@ -1705,6 +1706,47 @@ def _mount_routes(app: FastAPI) -> None:
         raise HTTPException(status_code=500, detail=f"unhandled kind {parsed.kind!r}")
 
     # -- workflows -----------------------------------------------------------
+
+    @app.post("/api/workflows/{workflow_id}/prepare", tags=["workflows"])
+    async def prepare_workflow(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        from hololab.gateway.preparation import prepare_execution
+
+        row = await app.state.workflows.get_draft(workflow_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="workflow not found")
+        graph = WorkflowGraph.model_validate(body["graph"]) if "graph" in body else row.graph
+        required = (
+            {body["node_id"]}
+            if body.get("node_id")
+            else {n.id for n in graph.nodes if n.assigned_node_id}
+        )
+        try:
+            prepared = await prepare_execution(app, graph, required=required)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        token = str(uuid.uuid4())
+
+        async def write(conn):
+            await conn.execute(
+                "INSERT INTO execution_preparations VALUES (?, ?, ?, ?, ?)",
+                (
+                    token,
+                    workflow_id,
+                    prepared.execution["revision"],
+                    prepared.model_dump_json(),
+                    time.time(),
+                ),
+            )
+
+        await app.state.db.write(write)
+        return {
+            "token": token,
+            "revision": prepared.execution["revision"],
+            "graph": prepared.model_dump(),
+            "environment_params": prepared.execution["environment_params"],
+            "sources": prepared.execution["sources"],
+            "issues": prepared.execution["issues"],
+        }
 
     @app.post("/api/workflows/{workflow_id}/copy-recipe", tags=["workflows"])
     async def copy_workflow_recipe(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -3569,6 +3611,7 @@ async def _await_node_reply(
         "pending_resource_lenses",
         "pending_process_terminations",
         "pending_path_browses",
+        "pending_parameter_preparations",
     ):
         fut.node_session = session
     pending[req_id] = fut
@@ -3849,6 +3892,15 @@ async def _dispatch_node_frame(
     # stuck, WS half-dead): no frame of any kind arrives, so the
     # deadline still fires.
     session.last_heartbeat_ts = time.time()
+
+    if kind == "prepare_params_resp":
+        pending = app.state.pending_parameter_preparations
+        future = pending.get(payload.req_id)
+        if future is not None and getattr(future, "node_session", None) is session:
+            pending.pop(payload.req_id, None)
+            if not future.done():
+                future.set_result(payload.model_dump())
+        return
 
     if kind == "heartbeat":
         assert isinstance(payload, Heartbeat)

@@ -806,6 +806,10 @@ class NodeRuntime:
                     task = asyncio.create_task(self._process_terminate_reply(payload))
                     lens_tasks.add(task)
                     task.add_done_callback(lens_tasks.discard)
+                elif env.kind == "prepare_params_req":
+                    task = asyncio.create_task(self._prepare_params_reply(payload))
+                    lens_tasks.add(task)
+                    task.add_done_callback(lens_tasks.discard)
                 elif env.kind == "path_browse_req":
                     task = asyncio.create_task(self._path_browse_reply(payload))
                     lens_tasks.add(task)
@@ -853,6 +857,20 @@ class NodeRuntime:
         await self._safe_send(
             "process_terminate_resp", ProcessTerminateResp(req_id=payload.req_id, data=data)
         )
+
+    async def _prepare_params_reply(self, request) -> None:
+        from hololab.manifest.path_params import resolve_path_params
+        from hololab.protocol.messages import PrepareParamsResp
+
+        try:
+            pack = self._packs[(request.algorithm_name, request.algorithm_version)]
+            params = await asyncio.to_thread(
+                resolve_path_params, pack.manifest.params, request.params, check_exists=False
+            )
+            response = PrepareParamsResp(req_id=request.req_id, params=params)
+        except (KeyError, ValueError) as exc:
+            response = PrepareParamsResp(req_id=request.req_id, error=str(exc))
+        await self._safe_send("prepare_params_resp", response)
 
     async def _path_browse_reply(self, request) -> None:
         from hololab.node.path_browser import list_path

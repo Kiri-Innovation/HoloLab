@@ -729,6 +729,28 @@ CREATE TABLE workflow_bindings (
 )
 
 
+MIGRATIONS.append(
+    (
+        25,
+        """
+CREATE TABLE execution_preparations (
+ token TEXT PRIMARY KEY,
+ workflow_id TEXT NOT NULL REFERENCES workflows(workflow_id) ON DELETE CASCADE,
+ revision TEXT NOT NULL,
+ graph_json TEXT NOT NULL,
+ created_ts REAL NOT NULL
+);
+CREATE TABLE execution_submissions (
+ request_id TEXT PRIMARY KEY,
+ request_fingerprint TEXT NOT NULL,
+ response_json TEXT,
+ created_ts REAL NOT NULL
+);
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

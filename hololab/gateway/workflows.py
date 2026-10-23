@@ -240,6 +240,7 @@ class WorkflowGraph(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    execution: dict[str, Any] | None = None
     pinned_params: dict[str, list[str]] = Field(default_factory=dict)
     nodes: list[GraphNode] = Field(default_factory=list)
     edges: list[GraphEdge] = Field(default_factory=list)
@@ -360,6 +361,7 @@ class WorkflowStore:
         # Draft-only cleanup: a connected input has no stored inline backup.
         # Snapshot creation/replay deliberately keeps its historical semantics.
         graph = graph.model_copy(deep=True)
+        graph.execution = None
         by_id = {node.id: node for node in graph.nodes}
         for edge in graph.edges:
             if edge.target in by_id:

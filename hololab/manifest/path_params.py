@@ -5,7 +5,9 @@ from pathlib import Path
 from hololab.manifest.schema import ParamSpec, ParamType
 
 
-def resolve_path_params(specs: dict[str, ParamSpec], params: dict) -> dict:
+def resolve_path_params(
+    specs: dict[str, ParamSpec], params: dict, *, check_exists: bool = True
+) -> dict:
     result = dict(params)
     for name, spec in specs.items():
         if spec.type is ParamType.ARRAY and spec.items is ParamType.PATH:
@@ -17,9 +19,9 @@ def resolve_path_params(specs: dict[str, ParamSpec], params: dict) -> dict:
                 update={"type": ParamType.PATH, "items": None, "default": None, "optional": False}
             )
             result[name] = [
-                resolve_path_params({f"{name}[{i}]": element}, {f"{name}[{i}]": item})[
-                    f"{name}[{i}]"
-                ]
+                resolve_path_params(
+                    {f"{name}[{i}]": element}, {f"{name}[{i}]": item}, check_exists=check_exists
+                )[f"{name}[{i}]"]
                 for i, item in enumerate(value)
             ]
             continue
@@ -43,7 +45,7 @@ def resolve_path_params(specs: dict[str, ParamSpec], params: dict) -> dict:
                 exists = True
             except FileNotFoundError:
                 exists = False
-            if spec.must_exist is not False and not exists:
+            if check_exists and spec.must_exist is not False and not exists:
                 raise ValueError(
                     f"Parameter {name}: path does not exist on this compute node: {path}"
                 )
