@@ -19,9 +19,42 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
 from pathspec import GitIgnoreSpec
 
-FORMAT = 1
+FORMAT = 2
+# Only these TOP-LEVEL publishing fields are excluded. Unknown fields stay hashed.
+RELEASE_METADATA_FIELDS = frozenset(
+    {
+        "version",
+        "yank",
+        "yanked",
+        "yank_reason",
+        "yanked_at",
+        "published_at",
+        "published_as",
+    }
+)
+
+
+def normalized_manifest(raw: bytes) -> dict:
+    value = yaml.safe_load(raw)
+    if not isinstance(value, dict) or any(not isinstance(key, str) for key in value):
+        raise ValueError("manifest identity requires a mapping with string keys")
+    result = {key: item for key, item in value.items() if key not in RELEASE_METADATA_FIELDS}
+    # Avoid lossy coercion of unknown fields; their values are part of the contract.
+    json.dumps(result, sort_keys=True, allow_nan=False)
+    return result
+
+
+def hot_entries(scope: Scope, entries: list[Entry]) -> list[Entry]:
+    # The selected manifest has its own semantic identity. Its filename/location
+    # (often name@version/manifest.yaml) must not reintroduce the release version.
+    return [
+        entry for entry in entries if entry.layer == "hot" and entry.path != scope.manifest_path
+    ]
+
+
 FIXED_NAMES = {".git", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".DS_Store"}
 
 
@@ -270,13 +303,18 @@ class Baselines:
             fcntl.flock(lock, fcntl.LOCK_EX)
             if destination.exists() and not refresh:
                 return json.loads(destination.read_text())
+            previous = json.loads(destination.read_text()) if destination.exists() else None
             entries = [e for e in scope.entries() if e.layer == "cold"]
+            digest = tree_digest(entries)
             value = {
-                "sha256": tree_digest(entries),
+                "sha256": digest,
                 "baseline_at": time.time(),
                 "stats": statistics(entries),
                 "verification": "not_checked",
                 "release": scope.manifest.version,
+                "baseline_status": "updated" if refresh else "initialized",
+                "previous_sha256": previous["sha256"] if previous else None,
+                "content_changed": previous["sha256"] != digest if previous else None,
             }
             fd, tmp = tempfile.mkstemp(dir=self.directory, prefix=".baseline-")
             try:
@@ -295,7 +333,8 @@ def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> 
     scope = Scope.load(path)
     cold = baselines.get(scope, refresh=refresh_cold)
     entries = list(scope.entries())
-    hot = [e for e in entries if e.layer == "hot"]
+    hot = hot_entries(scope, entries)
+    normalized = normalized_manifest(scope.manifest_bytes)
     record = {
         "format": FORMAT,
         "source": scope.manifest.name + "@" + scope.manifest.version,
@@ -303,14 +342,24 @@ def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> 
         "path": str(scope.root),
         "recorded_at": time.time(),
         "controls": scope.controls,
-        "hot": {"sha256": tree_digest(hot), "stats": statistics(hot)},
+        "manifest": {
+            "sha256": canonical(normalized),
+            "normalized": normalized,
+            "raw_sha256": scope.controls["manifest_sha256"],
+            "excluded_fields": sorted(RELEASE_METADATA_FIELDS),
+        },
+        "hot": {
+            "sha256": tree_digest(hot),
+            "stats": statistics(hot),
+            "verification": "verified_at_submission",
+        },
         "cold": cold,
         "ignored": statistics([e for e in entries if e.layer == "ignored"]),
         "fixed_excluded": statistics([e for e in entries if e.layer == "fixed"]),
         **provenance(scope),
     }
     record["sha256"] = canonical(
-        [FORMAT, record["controls"], record["hot"]["sha256"], cold["sha256"]]
+        [FORMAT, record["hot"]["sha256"], record["manifest"]["sha256"], cold["sha256"]]
     )
     # Control files changing during enumeration cannot seal a submission.
     verify(path, record)
@@ -330,7 +379,7 @@ def mismatch(record: dict, field: str, expected: Any, actual: Any) -> None:
 
 
 def check_controls(path: Path, record: dict) -> None:
-    if record.get("format") != FORMAT:
+    if record.get("format") not in (1, FORMAT):
         mismatch(record, "format", record.get("format"), FORMAT)
     # Compare controls BEFORE parsing current manifest or applying current ignore.
     raw = path.read_bytes()
@@ -349,7 +398,8 @@ def check_controls(path: Path, record: dict) -> None:
 def verify(path: Path, record: dict) -> None:
     check_controls(path, record)
     scope = Scope.load(path)
-    actual = tree_digest(list(scope.entries(hot_only=True)))
+    entries = list(scope.entries(hot_only=True))
+    actual = tree_digest(entries if record["format"] == 1 else hot_entries(scope, entries))
     if actual != record["hot"]["sha256"]:
         mismatch(record, "hot", record["hot"]["sha256"], actual)
     # Cold baseline deliberately NOT read/recomputed here.
