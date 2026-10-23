@@ -1,8 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { EnvironmentChecks, EnvironmentEvidence, type EnvironmentReport } from "./EnvironmentChecks";
+import { capabilityGraph, EnvironmentChecks, EnvironmentEvidence, type EnvironmentReport } from "./EnvironmentChecks";
+import type { WorkflowGraph } from "../wire";
 
 describe("local capability evidence", () => {
+  it("includes implicit algorithm nodes produced by the canvas serializer", () => {
+    const graph = { nodes: [{ id: "train", algorithm_name: "demo", algorithm_version: "1", assigned_node_id: "gpu" }, { id: "view", kind: "view" }], edges: [] } as unknown as WorkflowGraph;
+    expect(capabilityGraph(graph).nodes).toEqual([{ id: "train", kind: "algorithm", algorithm_name: "demo", algorithm_version: "1", assigned_node_id: "gpu" }]);
+  });
   it("shows missing requirements and remedies instead of readiness", () => {
     const report: EnvironmentReport = { status: "missing", source: "demo@1", node_id: "gpu-node",
       issues: [{ item: "package:mmcv", required: "mmcv>=2", actual: "未安装", remedy: "手动安装后重新检查" }] };

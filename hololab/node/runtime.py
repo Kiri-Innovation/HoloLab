@@ -925,7 +925,7 @@ class NodeRuntime:
             from hololab.manifest import load_manifest
             from hololab.node.capabilities import enforce
 
-            manifest, _ = load_manifest(pack.manifest_path)
+            manifest, checked_manifest_hash = load_manifest(pack.manifest_path)
             environment = await self._environment_report(manifest, fresh=True)
             if not request.refresh_cold:
                 enforce(environment)
@@ -935,6 +935,8 @@ class NodeRuntime:
                 Baselines(self._config.code_baselines_dir),
                 refresh_cold=request.refresh_cold,
             )
+            if record["controls"]["manifest_sha256"] != checked_manifest_hash:
+                raise ValueError("环境检查期间 manifest 已变化, 请重新提交")
             record["environment"] = environment  # Evidence only, never included in sha256.
             response = CodeIdentityResp(req_id=request.req_id, record=record)
         except Exception as exc:

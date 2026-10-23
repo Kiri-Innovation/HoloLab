@@ -67,6 +67,7 @@ async def test_real_entrypoint_dispatch_smoke(tmp_path):
     record = capture(pack.manifest_path, Baselines(tmp_path / "baselines"))
     selected = session(packs)
     selected.content_identity = True
+    selected.environment_checks = True
     registry = SimpleNamespace(get_session=lambda _: selected)
     db = await open_database(tmp_path / "dispatch.sqlite")
     try:

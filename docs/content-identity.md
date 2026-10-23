@@ -34,7 +34,7 @@ canonical 是按键排序、无空格、ensure_ascii=true 的 JSON UTF-8 的 SHA
 manifest **仅排除顶层** `version`、`yank`、`yanked`、`yank_reason`、`yanked_at`、
 `published_at`、`published_as`。当前 schema 中保留的完整字段清单是：
 `apiVersion`、`kind`、`name`、`root`、`cold`、`external_code`、`description`、`category`、
-`docs`、`source_entry`、`arrayable`、`inputs`、`outputs`、`params`、`runtime`、`exec`、
+`docs`、`source_entry`、`arrayable`、`inputs`、`outputs`、`params`、`runtime`、`requires`、`exec`、
 `idempotency`、`node_viewers`、`hide_default_output_previews`、`previews`、`progress`。
 所有未知字段与嵌套字段也保留，包括 params 下名为 version 的字段。
 YAML 的注释、缩进、映射键顺序不影响语义身份；数组顺序与值影响身份。

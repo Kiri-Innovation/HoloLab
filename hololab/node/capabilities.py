@@ -19,10 +19,13 @@ from packaging.version import InvalidVersion, Version
 from hololab.node import resource_lens
 
 BOUNDARY = "本地能力检查只覆盖已声明且在可探测范围内的项; 通过不代表一定能运行。环境未冻结、未被代码身份覆盖。"
-PROBE = """import sys,json,importlib.metadata as m
+PROBE = """import sys,json,os,importlib.metadata as m
 items = list(m.distributions())
+packages = {}
+for d in items:
+ if d.metadata["Name"]: packages.setdefault(d.metadata["Name"].lower().replace("_","-"),d.version)
 print(json.dumps({"python":sys.version.split()[0],
- "packages":{d.metadata["Name"]:d.version for d in items if d.metadata["Name"]},
+ "packages":packages, "cuda_visible_devices":os.environ.get("CUDA_VISIBLE_DEVICES"),
  "paths":list(set(sys.path+[str(d.locate_file("")) for d in items]))}))
 """
 
@@ -82,6 +85,13 @@ def probe_environment(prefix: Path, conda_bin: str, activated: dict | None) -> d
     )
     data = json.loads(result.stdout)
     data["packages"] = {canonicalize_name(k): v for k, v in data["packages"].items()}
+    data["package_sources"] = dict.fromkeys(data["packages"], "python-distribution")
+    for metadata in sorted((prefix / "conda-meta").glob("*.json")):
+        item = json.loads(metadata.read_text())
+        name = canonicalize_name(item["name"])
+        if name not in data["packages"]:
+            data["packages"][name] = item["version"]
+            data["package_sources"][name] = "conda-meta"
     return data
 
 
@@ -171,6 +181,7 @@ class CapabilityChecker:
             return report
         prefix = Path(prefix_value)
         report["prefix"] = str(prefix)
+        visible = (activated or {}).get("CUDA_VISIBLE_DEVICES")
         try:
             with self._lock:
                 key = (str(prefix), conda_bin, json.dumps(activated, sort_keys=True))
@@ -194,6 +205,7 @@ class CapabilityChecker:
                     report["cache_hit"] = False
                 report["environment_fingerprint"] = self._cache[key][0]
             report["python"] = data["python"]
+            visible = data.get("cuda_visible_devices", visible)
             if contract.python:
                 spec = contract.python
                 spec = spec if spec.startswith(("=", "<", ">", "!", "~")) else "==" + spec
@@ -205,10 +217,14 @@ class CapabilityChecker:
                         "选择满足版本要求的已有 Python 环境",
                     )
             report["packages"] = {}
+            report["package_sources"] = {}
             for text in contract.packages:
                 req = Requirement(text)
                 installed = data["packages"].get(canonicalize_name(req.name))
                 report["packages"][req.name] = installed
+                report["package_sources"][req.name] = data.get("package_sources", {}).get(
+                    canonicalize_name(req.name)
+                )
                 try:
                     matches = installed is not None and (
                         not req.specifier or Version(installed) in req.specifier
@@ -232,7 +248,7 @@ class CapabilityChecker:
             )
         if contract.gpu is not None or contract.cuda:
             try:
-                hardware = probe_gpus((activated or {}).get("CUDA_VISIBLE_DEVICES"))
+                hardware = probe_gpus(visible)
                 report["hardware"] = hardware
                 if contract.gpu is not None:
                     gpu_req = contract.gpu

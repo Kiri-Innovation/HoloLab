@@ -19,6 +19,16 @@ async def check_workflow(app, graph, *, required=None, fresh=False, strict=False
     async def check(node):
         session = app.state.registry.get_session(node.assigned_node_id)
         entry = catalog.get(package_key(node.algorithm_name, node.algorithm_version), {})
+        if session is not None and getattr(session, "environment_checks", False):
+            # Catalog combines machines. A selected node's own contract wins.
+            matches = [
+                p
+                for p in session.packs
+                if package_key(p.name, p.version)
+                == package_key(node.algorithm_name, node.algorithm_version)
+            ]
+            if matches:
+                entry = {**entry, "requires": matches[0].requires}
         declared = entry.get("requires") is not None
         report = {
             "status": "undeclared",
@@ -29,6 +39,8 @@ async def check_workflow(app, graph, *, required=None, fresh=False, strict=False
             "checked_at": None,
         }
         try:
+            if not entry:
+                raise ValueError("包声明不可用, 无法确认是否声明环境要求")
             if session is None:
                 if declared:
                     raise ValueError("选择在线执行节点后重新检查")

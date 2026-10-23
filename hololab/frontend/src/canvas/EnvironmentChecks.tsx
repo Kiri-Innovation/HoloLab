@@ -20,10 +20,7 @@ export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enab
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
   // Moving cards/editing parameters does not change an environment contract.
-  const query = JSON.stringify({ nodes: graph.nodes.filter(n => n.kind === "algorithm").map(n => ({
-    id: n.id, kind: n.kind, algorithm_name: n.algorithm_name,
-    algorithm_version: n.algorithm_version, assigned_node_id: n.assigned_node_id,
-  })), edges: [] });
+  const query = JSON.stringify(capabilityGraph(graph));
   useEffect(() => {
     if (!enabled) { setReports({}); return; }
     const controller = new AbortController();
@@ -47,6 +44,13 @@ export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enab
     return () => window.removeEventListener("focus", focus);
   }, []);
   return { reports, loading, error, refresh: () => setRefresh(n => n + 1) };
+}
+
+export function capabilityGraph(graph: WorkflowGraph) {
+  return { nodes: graph.nodes.filter(n => (n.kind ?? "algorithm") === "algorithm").map(n => ({
+    id: n.id, kind: "algorithm", algorithm_name: n.algorithm_name,
+    algorithm_version: n.algorithm_version, assigned_node_id: n.assigned_node_id,
+  })), edges: [] };
 }
 
 export function EnvironmentEvidence({ report }: { report?: EnvironmentReport | null }) {

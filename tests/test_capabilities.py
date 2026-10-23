@@ -43,6 +43,19 @@ def test_real_metadata_install_invalidates_cache_without_import(tmp_path):
     )
     assert checker.check(*args)["status"] == "missing"
 
+    # A conda-only distribution has no dist-info; use its conda metadata.
+    import json
+
+    from hololab.manifest.requirements import Requirements
+
+    conda = env / "conda-meta"
+    conda.mkdir()
+    (conda / "only-conda-3.0.json").write_text(json.dumps({"name": "only-conda", "version": "3.0"}))
+    contract = manifest.model_copy(update={"requires": Requirements(packages=["only-conda>=3"])})
+    conda_report = checker.check(contract, *args[1:])
+    assert conda_report["status"] == "satisfied"
+    assert conda_report["package_sources"]["only-conda"] == "conda-meta"
+
 
 def test_undeclared_does_not_probe_missing_env(tmp_path, monkeypatch):
     from hololab.node import capabilities

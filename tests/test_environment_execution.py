@@ -18,6 +18,87 @@ from tests.test_content_scope import package
 from tests.test_scoped_packages import session
 
 
+@pytest.mark.asyncio
+async def test_satisfied_contract_runs_real_process(tmp_path, monkeypatch):
+    import yaml
+
+    from hololab.node import runtime
+
+    _, path, _ = package(tmp_path)
+    data = yaml.safe_load(path.read_text())
+    data.update(
+        requires={"python": ">=3"},
+        exec={
+            "shell": 'mkdir -p "{{ outputs.out }}"; printf ENV_CONTRACT_OK > "{{ outputs.out }}/result.txt"'
+        },
+    )
+    path.write_text(yaml.safe_dump(data))
+    pack = scan_packs(path)[0]
+    node = NodeRuntime(NodeConfig(workspace_root=tmp_path / "ws", envs={"test": sys.prefix}))
+    node._node_id = "test-node"
+    node._packs = {(pack.manifest.name, pack.manifest.version): pack}
+    node._env_cache[sys.prefix] = dict(os.environ)
+    node._send = AsyncMock()
+    node._safe_send = AsyncMock()
+    node._send_job_fail = AsyncMock()
+    executor = AsyncMock(wraps=runtime.run_subprocess)
+    monkeypatch.setattr(runtime, "run_subprocess", executor)
+    await node._run_job(
+        JobAssign(
+            job_id="satisfied", workflow_id="w", algorithm_name="demo", algorithm_version="1.0.0"
+        ),
+        asyncio.Event(),
+    )
+    executor.assert_awaited_once()
+    node._send_job_fail.assert_not_called()
+    assert any(call.args[0] == "job_done" for call in node._send.call_args_list)
+
+
+def test_old_node_cannot_accept_recorded_contract():
+    from types import SimpleNamespace
+
+    from hololab.gateway.capabilities import require_check_support
+
+    node = GraphNode(
+        id="a",
+        algorithm_name="demo",
+        algorithm_version="1.0.0",
+        code_identity={"manifest": {"normalized": {"requires": {"python": ">=3"}}}},
+    )
+    with pytest.raises(ValueError, match="升级节点"):
+        require_check_support(SimpleNamespace(packs=[]), node)
+
+
+@pytest.mark.asyncio
+async def test_submission_records_environment_without_changing_code_digest(tmp_path):
+    from hololab.content_scope import capture
+    from hololab.protocol.messages import CodeIdentityReq
+
+    _, path, baselines = package(tmp_path)
+    path.write_text(path.read_text() + '\nrequires: {python: ">=3"}\n')
+    expected = capture(path, baselines)
+    pack = scan_packs(path)[0]
+    node = NodeRuntime(
+        NodeConfig(
+            workspace_root=tmp_path / "ws",
+            envs={"test": sys.prefix},
+            code_baselines_dir=baselines.directory,
+        )
+    )
+    node._packs = {(pack.manifest.name, pack.manifest.version): pack}
+    node._env_cache[sys.prefix] = dict(os.environ)
+    node._safe_send = AsyncMock()
+    await node._code_identity_reply(
+        CodeIdentityReq(req_id="r", algorithm_name="demo", algorithm_version="1.0.0")
+    )
+    response = node._safe_send.call_args.args[1]
+    assert response.error is None
+    assert response.record["sha256"] == expected["sha256"]
+    assert response.record["environment"]["status"] == "satisfied"
+    assert response.record["environment"]["environment_covered"] is False
+    assert response.record["environment"]["runtime_verified"] is False
+
+
 def make_pack(tmp_path):
     _, path, _ = package(tmp_path)
     path.write_text(
@@ -65,6 +146,17 @@ def test_workflow_open_lists_missing_and_preparation_fails(tmp_path, monkeypatch
 
         client.portal.call(prepare)
         selected.ws.send_text.assert_not_called()  # No JobAssign.
+
+        selected.environment_checks = False
+        old_node = client.post("/api/capabilities/check", json={"graph": graph.model_dump()}).json()
+        assert old_node["nodes"]["a"]["status"] == "unknown"
+        assert "升级节点" in old_node["nodes"]["a"]["issues"][0]["actual"]
+
+        graph.nodes[0].algorithm_name = "unavailable-pack"
+        unavailable = client.post(
+            "/api/capabilities/check", json={"graph": graph.model_dump()}
+        ).json()
+        assert unavailable["nodes"]["a"]["status"] == "unknown"  # Never invent undeclared.
 
 
 @pytest.mark.asyncio
