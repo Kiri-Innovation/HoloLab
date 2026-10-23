@@ -1,3 +1,4 @@
+import { samePackage } from "../packageIdentity";
 import { inlineIdentity } from "./inlineValues";
 // Structural diff between two WorkflowGraph objects.
 //
@@ -75,8 +76,7 @@ export function diffGraphs(
     if (inlineIdentity(dn, draftEdges, portDefaults(dn.algorithm_name, dn.algorithm_version)) !== inlineIdentity(sn, snapEdges)) items.push({description: `节点 ${label} 端口内联值已改`});
 
     if (
-      dn.algorithm_name !== sn.algorithm_name ||
-      dn.algorithm_version !== sn.algorithm_version
+      !samePackage(dn.algorithm_name, dn.algorithm_version, sn.algorithm_name, sn.algorithm_version)
     ) {
       items.push({
         description: `节点 ${label} 算法: ${sn.algorithm_name}@${sn.algorithm_version} → ${dn.algorithm_name}@${dn.algorithm_version}`,

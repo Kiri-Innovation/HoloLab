@@ -2,19 +2,23 @@
 
 import json
 
+from hololab.package_identity import canonical_name
+
 
 def migrate_array_params(name: str, version: str, params: dict) -> dict:
     if version != "0.1.0":
         return params
     result = dict(params)
     if (
-        name == "video-array-assemble"
+        canonical_name(name) == "kiri/video-array-assemble"
         and ("paths" not in result or result["paths"] == [])
         and "paths_json" in result
     ):
         raw = result.pop("paths_json")
         result["paths"] = json.loads(raw) if isinstance(raw, str) else raw
-    if name in ("float-array-source", "vec3-array-source") and isinstance(result.get("items"), str):
+    if canonical_name(name) in ("kiri/float-array-source", "kiri/vec3-array-source") and isinstance(
+        result.get("items"), str
+    ):
 
         def unique(pairs):
             obj = {}
@@ -25,7 +29,7 @@ def migrate_array_params(name: str, version: str, params: dict) -> dict:
             return obj
 
         rows = json.loads(result["items"], object_pairs_hook=unique)
-        field = "offset" if name == "float-array-source" else "transform"
+        field = "offset" if canonical_name(name) == "kiri/float-array-source" else "transform"
         if (
             not isinstance(rows, list)
             or not rows

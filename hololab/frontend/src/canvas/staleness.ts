@@ -1,3 +1,4 @@
+import { samePackage } from "../packageIdentity";
 import { inlineIdentity } from "./inlineValues";
 import { isConstantName, constantSignature } from "./constants";
 // Per-node result staleness against the latest snapshot.
@@ -95,8 +96,7 @@ function paramsAndAlgoReasons(
 ): string[] {
   const reasons: string[] = [];
   if (
-    dn.algorithm_name !== frozen.algorithm_name ||
-    dn.algorithm_version !== frozen.algorithm_version
+    !samePackage(dn.algorithm_name, dn.algorithm_version, frozen.algorithm_name, frozen.algorithm_version)
   ) {
     reasons.push(
       `算法已更改: ${frozen.algorithm_name}@${frozen.algorithm_version} → ${dn.algorithm_name}@${dn.algorithm_version}`,

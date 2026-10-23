@@ -33,6 +33,7 @@ from hololab.gateway.port_type_ir import (
     views_from_aggregate,
 )
 from hololab.logging import get_logger
+from hololab.package_identity import alias_index, package_key, validate_graph_identities
 from hololab.persistence.db import Database
 
 log = get_logger("gateway.workflows")
@@ -357,6 +358,8 @@ class WorkflowStore:
         inside one transaction, so two racing saves can't both pass the
         base-check.
         """
+
+        validate_graph_identities(graph)
 
         # Draft-only cleanup: a connected input has no stored inline backup.
         # Snapshot creation/replay deliberately keeps its historical semantics.
@@ -1158,45 +1161,47 @@ def packs_by_key_from_catalog(
     else:
         entries = catalog
 
-    return {
-        key: PackHandle(
-            inputs={
-                n: InputPortView(
-                    tags=tuple(i["tags"]),
-                    required=bool(i.get("required", True)),
-                    inline=i.get("inline"),
-                    inline_default=i.get("inline_default"),
-                    storage=i.get("storage", "dir"),
-                    arrayed=bool(i.get("arrayed", False)),
-                    scalar=bool(i.get("scalar", False)),
-                    dim_labels=tuple(i.get("dim_labels", []) or []),
-                    content_dims_from=i.get("content_dims_from"),
-                    require_axis_label_match=i.get("require_axis_label_match", True),
-                )
-                for n, i in entry.get("inputs", {}).items()
-            },
-            outputs={
-                n: OutputPortView(
-                    tags=tuple(o["tags"]),
-                    arrayed=bool(o.get("arrayed", False)),
-                    tags_from=o.get("tags_from"),
-                    scalar=bool(o.get("scalar", False)),
-                    dim_labels=tuple(o.get("dim_labels", []) or []),
-                    dim_labels_from=o.get("dim_labels_from"),
-                    dim_labels_from_input=o.get("dim_labels_from_input"),
-                    dim_labels_drop_outer=int(o.get("dim_labels_drop_outer") or 0),
-                )
-                for n, o in entry.get("outputs", {}).items()
-            },
-            arrayable=bool(entry.get("arrayable", False)),
-            param_defaults={
-                name: spec["default"]
-                for name, spec in (entry.get("params") or {}).items()
-                if isinstance(spec, dict) and "default" in spec
-            },
-        )
-        for key, entry in entries.items()
-    }
+    return alias_index(
+        {
+            key: PackHandle(
+                inputs={
+                    n: InputPortView(
+                        tags=tuple(i["tags"]),
+                        required=bool(i.get("required", True)),
+                        inline=i.get("inline"),
+                        inline_default=i.get("inline_default"),
+                        storage=i.get("storage", "dir"),
+                        arrayed=bool(i.get("arrayed", False)),
+                        scalar=bool(i.get("scalar", False)),
+                        dim_labels=tuple(i.get("dim_labels", []) or []),
+                        content_dims_from=i.get("content_dims_from"),
+                        require_axis_label_match=i.get("require_axis_label_match", True),
+                    )
+                    for n, i in entry.get("inputs", {}).items()
+                },
+                outputs={
+                    n: OutputPortView(
+                        tags=tuple(o["tags"]),
+                        arrayed=bool(o.get("arrayed", False)),
+                        tags_from=o.get("tags_from"),
+                        scalar=bool(o.get("scalar", False)),
+                        dim_labels=tuple(o.get("dim_labels", []) or []),
+                        dim_labels_from=o.get("dim_labels_from"),
+                        dim_labels_from_input=o.get("dim_labels_from_input"),
+                        dim_labels_drop_outer=int(o.get("dim_labels_drop_outer") or 0),
+                    )
+                    for n, o in entry.get("outputs", {}).items()
+                },
+                arrayable=bool(entry.get("arrayable", False)),
+                param_defaults={
+                    name: spec["default"]
+                    for name, spec in (entry.get("params") or {}).items()
+                    if isinstance(spec, dict) and "default" in spec
+                },
+            )
+            for key, entry in entries.items()
+        }
+    )
 
 
 async def resolve_handle_output_tags(
@@ -1287,8 +1292,8 @@ def validate_snapshot(
             continue
         if not is_algorithm_node(node):
             continue
-        key = (node.algorithm_name, node.algorithm_version)
-        if node.kind != "intrinsic" and key not in packs_by_key:
+        key = package_key(node.algorithm_name, node.algorithm_version)
+        if node.kind != "intrinsic" and key not in alias_index(packs_by_key):
             issues.append(
                 ValidationIssue(
                     where=f"node:{node.id}",
@@ -1312,7 +1317,7 @@ def validate_snapshot(
                 )
             )
             continue
-        offered = packs_offered_by_node.get(node.assigned_node_id, set())
+        offered = {package_key(*p) for p in packs_offered_by_node.get(node.assigned_node_id, set())}
         if node.kind != "intrinsic" and key not in offered:
             issues.append(
                 ValidationIssue(
@@ -2149,7 +2154,7 @@ async def latest_runs_for_snapshot(
 def freeze_parameter_pins(graph: WorkflowGraph, catalog: list[dict[str, Any]]) -> WorkflowGraph:
     """Freeze defaults without mutating the editable draft or explicit overrides."""
     pins = {key: list(names) for key, names in graph.pinned_params.items()}
-    packs = {f"{pack['name']}@{pack['version']}": pack for pack in catalog}
+    packs = {package_key(pack["name"], pack["version"]): pack for pack in catalog}
     from hololab.constants import is_constant
 
     for node in graph.nodes:
@@ -2163,11 +2168,27 @@ def freeze_parameter_pins(graph: WorkflowGraph, catalog: list[dict[str, Any]]) -
             continue
         key = f"{node.algorithm_name}@{node.algorithm_version}"
         if key not in pins:
-            params = packs.get(key, {}).get("params", {})
+            alias_pin = next(
+                (
+                    v
+                    for k, v in pins.items()
+                    if "@" in k
+                    and package_key(*k.rsplit("@", 1))
+                    == package_key(node.algorithm_name, node.algorithm_version)
+                ),
+                None,
+            )
+            if alias_pin is not None:
+                pins[key] = list(alias_pin)
+                continue
+            params = packs.get(package_key(node.algorithm_name, node.algorithm_version), {}).get(
+                "params", {}
+            )
             defaults = [name for name, spec in params.items() if spec.get("pinned") is True]
             group = ("x", "y", "scale")
             if (
-                key == "vec3-array-source@0.1.0"
+                package_key(node.algorithm_name, node.algorithm_version)
+                == ("kiri/vec3-array-source", "0.1.0")
                 and all(
                     params.get(name, {}).get("type") == "array"
                     and params[name].get("items") == "float"

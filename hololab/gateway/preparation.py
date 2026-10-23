@@ -17,6 +17,13 @@ from hololab.gateway.workflows import WorkflowGraph, freeze_parameter_pins
 from hololab.inline_values import effective_inline
 from hololab.manifest.array_migration import migrate_array_params
 from hololab.manifest.schema import ParamSpec
+from hololab.package_identity import (
+    canonical_name,
+    offered_identity,
+    package_key,
+    same_package,
+    validate_graph_identities,
+)
 
 
 def digest(value: Any) -> str:
@@ -30,11 +37,14 @@ def digest(value: Any) -> str:
 def context_revision(graph: WorkflowGraph, catalog: list[dict]) -> str:
     recipe, bindings, _ = split_graph(graph)
     data = recipe.graph.model_dump(exclude={"execution"})
-    keys = {(n.algorithm_name, n.algorithm_version) for n in recipe.graph.nodes}
+    for node in data["nodes"]:
+        node["algorithm_name"] = canonical_name(node.get("algorithm_name"))
+    keys = {package_key(n.algorithm_name, n.algorithm_version) for n in recipe.graph.nodes}
     packs = sorted(
-        (p for p in catalog if (p["name"], p["version"]) in keys),
-        key=lambda p: (p["name"], p["version"]),
+        (p for p in catalog if package_key(p["name"], p["version"]) in keys),
+        key=lambda p: package_key(p["name"], p["version"]),
     )
+    packs = [{**p, "name": canonical_name(p["name"])} for p in packs]
     return digest([data, bindings.devices, packs])
 
 
@@ -53,14 +63,15 @@ def resolve_recipe(
     graph: WorkflowGraph, catalog: list[dict], normalized: dict[str, dict] | None = None
 ) -> WorkflowGraph:
     """Pure resolver. Missing keys differ from explicit null/empty values."""
+    validate_graph_identities(graph)
     result = freeze_parameter_pins(graph, catalog)
-    packs = {(p["name"], p["version"]): copy.deepcopy(p) for p in catalog}
+    packs = {package_key(p["name"], p["version"]): copy.deepcopy(p) for p in catalog}
     sources, environment, issues = {}, {}, []
     inline_values = {}
     for node in result.nodes:
         if node.kind != "algorithm":
             continue
-        pack = packs.get((node.algorithm_name, node.algorithm_version))
+        pack = packs.get(package_key(node.algorithm_name, node.algorithm_version))
         if pack is None:
             issues.append({"node_id": node.id, "message": "Algorithm declaration unavailable"})
             continue
@@ -96,7 +107,7 @@ def resolve_recipe(
 
 
 def semantic_node(node) -> dict:
-    return node.model_dump(
+    data = node.model_dump(
         include={
             "id",
             "kind",
@@ -112,6 +123,9 @@ def semantic_node(node) -> dict:
             "batch_size",
         }
     )
+
+    data["algorithm_name"] = canonical_name(data.get("algorithm_name"))
+    return data
 
 
 def changed_nodes(current: WorkflowGraph, frozen: WorkflowGraph) -> set[str]:
@@ -149,6 +163,13 @@ async def prepare_execution(
     if relevant:
         raise ValueError(relevant[0]["message"])
     for node in result.nodes:
+        if node.kind == "algorithm" and node.id in required:
+            selected = app.state.registry.get_session(node.assigned_node_id)
+            if selected is None:
+                raise ValueError(f"{node.id}: select an online execution node")
+            wire_name, wire_version = offered_identity(
+                selected.packs, node.algorithm_name, node.algorithm_version
+            )
         paths = result.execution["environment_params"].get(node.id, [])
         if not paths or node.id not in required:
             continue
@@ -162,8 +183,8 @@ async def prepare_execution(
             "prepare_params_req",
             PrepareParamsReq(
                 req_id=req_id,
-                algorithm_name=node.algorithm_name,
-                algorithm_version=node.algorithm_version,
+                algorithm_name=wire_name,
+                algorithm_version=wire_version,
                 params=node.params,
             ),
             req_id,
@@ -347,8 +368,12 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
             mismatch = (
                 node.id in changed
                 or digest(job.get("params", {})) != digest(node.params)
-                or job.get("algorithm_name") != node.algorithm_name
-                or job.get("algorithm_version") != node.algorithm_version
+                or not same_package(
+                    job.get("algorithm_name"),
+                    job.get("algorithm_version"),
+                    node.algorithm_name,
+                    node.algorithm_version,
+                )
             )
             states[node.id] = (
                 {

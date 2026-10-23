@@ -1,3 +1,4 @@
+import { canonicalPackageName, packageCatalogIndex, samePackage } from "./packageIdentity";
 import { useExecutionAnalysis } from "./canvas/executionAnalysis";
 import { reconcileInlineValues } from './canvas/inlineValues';
 import { constantFields, constantPresentation } from "./canvas/constants";
@@ -1128,9 +1129,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   }, [latestSnapshotId, reconnectTick]);
 
   const catalogByKey = useMemo(() => {
-    const m = new Map<string, CatalogPack>();
-    for (const p of catalog) m.set(`${p.name}@${p.version}`, p);
-    return m;
+    return packageCatalogIndex(catalog);
   }, [catalog]);
 
   // ``pendingRemeasureRef`` is declared up here (before every useEffect
@@ -1535,7 +1534,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         }));
         return;
       }
-      const pack = choice && catalogByKey.get(`${choice.name}@${choice.version}`);
+      const pack = choice && catalogByKey.get(`${canonicalPackageName(choice.name)}@${choice.version}`);
       if (!pack) return;
 
       const node: Node<AlgorithmNodeData> = {
@@ -2848,14 +2847,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             title={`Compute nodes serving ${selectedAlgorithmData.pack.name}@${selectedAlgorithmData.pack.version}`}
             onChange={e => onInspectorChange({ assigned_node_id: e.target.value || null })}>
             <option value="">— unassigned —</option>
-            {selectedAlgorithmData.assigned_node_id && !computeNodes.some(cn => cn.node_id === selectedAlgorithmData.assigned_node_id && cn.packs.some(p => p.name === selectedAlgorithmData.pack.name && p.version === selectedAlgorithmData.pack.version)) && (
+            {selectedAlgorithmData.assigned_node_id && !computeNodes.some(cn => cn.node_id === selectedAlgorithmData.assigned_node_id && cn.packs.some(p => samePackage(p.name, p.version, selectedAlgorithmData.pack.name, selectedAlgorithmData.pack.version))) && (
               <option value={selectedAlgorithmData.assigned_node_id}>{selectedAlgorithmData.assigned_node_id} · unavailable</option>
             )}
-            {computeNodes.filter(cn => cn.packs.some(p => p.name === selectedAlgorithmData.pack.name && p.version === selectedAlgorithmData.pack.version)).map(cn => (
+            {computeNodes.filter(cn => cn.packs.some(p => samePackage(p.name, p.version, selectedAlgorithmData.pack.name, selectedAlgorithmData.pack.version))).map(cn => (
               <option key={cn.node_id} value={cn.node_id}>{cn.node_name} · {cn.node_id.slice(0, 6)}</option>
             ))}
           </select>
-          {!computeNodes.some(cn => cn.packs.some(p => p.name === selectedAlgorithmData.pack.name && p.version === selectedAlgorithmData.pack.version)) && <small style={{ gridColumn: "1 / -1", color: "var(--error)" }}>No online compute node offers this pack.</small>}
+          {!computeNodes.some(cn => cn.packs.some(p => samePackage(p.name, p.version, selectedAlgorithmData.pack.name, selectedAlgorithmData.pack.version))) && <small style={{ gridColumn: "1 / -1", color: "var(--error)" }}>No online compute node offers this pack.</small>}
         </div>
       ) : null;
   const nodesSlot = <ComputeNodesPanel nodes={computeNodes} metricsByNode={metricsByNode} />;

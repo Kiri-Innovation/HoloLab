@@ -81,3 +81,25 @@ def offered_identity(packs, name: str, version: str) -> tuple[str, str]:
     if not matches:
         raise ValueError(f"package {name}@{version} is not offered by this node")
     return next(iter(matches))
+
+
+def identity_aliases(name: str, version: str) -> set[tuple[str, str]]:
+    canonical = canonical_name(name)
+    result = {(name, version), (canonical, version)}
+    if canonical.startswith(DEFAULT_SCOPE + "/"):
+        result.add((canonical.split("/", 1)[1], version))
+    return result
+
+
+def alias_index(entries: dict) -> dict:
+    return {
+        alias: value
+        for (name, version), value in entries.items()
+        for alias in identity_aliases(name, version)
+    }
+
+
+def validate_graph_identities(graph) -> None:
+    for node in graph.nodes:
+        if node.kind == "algorithm":
+            validate_identity(node.algorithm_name, node.algorithm_version)

@@ -1,5 +1,6 @@
 /** Read-time compatibility only; editing persists native parameters through normal autosave. */
 export function arrayParamsForEditor(name: string, version: string, params: Record<string, unknown>): Record<string, unknown> {
+  if (name.startsWith("kiri/")) name = name.slice(5);
   if (version !== "0.1.0") return params;
   const next = { ...params };
   try {

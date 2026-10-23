@@ -103,6 +103,7 @@ from hololab.gateway.workflows import (
     validate_snapshot,
 )
 from hololab.logging import get_logger
+from hololab.package_identity import offered_identity, validate_identity
 from hololab.paths import frontend_dist_dir, gateway_sqlite_path
 from hololab.persistence.db import open_database
 from hololab.persistence.diagnostics import phase
@@ -1923,6 +1924,8 @@ def _mount_routes(app: FastAPI) -> None:
                 base_updated_ts=base_ts,
                 require_base_updated_ts=not overwrite,
             )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         except WorkflowConflict as conflict:
             current = conflict.current
             raise HTTPException(
@@ -3303,7 +3306,11 @@ def _mount_routes(app: FastAPI) -> None:
         input_handles = body.get("input_handles", {}) or {}
         workflow_id = body.get("workflow_id", f"adhoc-{uuid.uuid4()}")
 
-        session = registry.find_session_for_pack(algorithm_name, algorithm_version)
+        try:
+            validate_identity(algorithm_name, algorithm_version)
+            session = registry.find_session_for_pack(algorithm_name, algorithm_version)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         if session is None:
             raise HTTPException(
                 status_code=409,
@@ -3354,11 +3361,14 @@ def _mount_routes(app: FastAPI) -> None:
         await store.update(assigned, kind, payload)
         _push_job_update(hub, assigned)
 
+        wire_name, wire_version = offered_identity(
+            session.packs, assigned.algorithm_name, assigned.algorithm_version
+        )
         assign_msg = JobAssign(
             job_id=assigned.job_id,
             workflow_id=assigned.workflow_id,
-            algorithm_name=assigned.algorithm_name,
-            algorithm_version=assigned.algorithm_version,
+            algorithm_name=wire_name,
+            algorithm_version=wire_version,
             params=assigned.params,
             input_handles=assigned.input_handles,
         )
