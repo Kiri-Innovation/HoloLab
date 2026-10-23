@@ -65,3 +65,73 @@ async def test_reader_error_does_not_leave_snapshot_or_connection_open(tmp_path)
         assert await store.get_draft(row.workflow_id) == row
     finally:
         await db.close()
+
+
+async def test_cancel_during_reader_connect_waits_for_cleanup(tmp_path, monkeypatch):
+    import asyncio
+
+    import aiosqlite
+
+    db = Database(tmp_path / "cancel-connect.sqlite")
+    await db.open()
+    try:
+        started, release = asyncio.Event(), asyncio.Event()
+        connect = aiosqlite.connect
+        connections = []
+
+        def slow_connect(*args, **kwargs):
+            conn = connect(*args, **kwargs)
+            original = conn._connect
+
+            async def delayed():
+                started.set()
+                await release.wait()
+                return await original()
+
+            conn._connect = delayed
+            connections.append(conn)
+            return conn
+
+        monkeypatch.setattr(aiosqlite, "connect", slow_connect)
+
+        async def read():
+            async with db.read():
+                pytest.fail("cancelled read must not reach its body")
+
+        task = asyncio.create_task(read())
+        await started.wait()
+        task.cancel()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        with pytest.raises(ValueError, match="no active connection"):
+            await connections[0].execute("SELECT 1")
+    finally:
+        await db.close()
+
+
+async def test_shutdown_closes_outstanding_reader_contexts(tmp_path):
+    import asyncio
+
+    db = Database(tmp_path / "shutdown.sqlite")
+    await db.open()
+    entered, release = asyncio.Event(), asyncio.Event()
+    readers = []
+
+    async def background_read():
+        async with db.read() as conn:
+            readers.append(conn)
+            entered.set()
+            await release.wait()
+
+    task = asyncio.create_task(background_read())
+    try:
+        await entered.wait()
+        await db.close()
+        with pytest.raises(ValueError, match="no active connection"):
+            await readers[0].execute("SELECT 1")
+        assert not db._readers
+    finally:
+        release.set()
+        await task
+        await db.close()

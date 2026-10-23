@@ -36,6 +36,25 @@ from hololab.gateway.workflows import GraphNode
 from hololab.persistence.db import open_database
 
 
+@pytest.fixture(autouse=True)
+async def close_test_databases(monkeypatch):
+    """These store-only tests must drain writers before their event loop ends."""
+    databases = []
+    original = open_database
+
+    async def tracked_open(path):
+        db = await original(path)
+        databases.append(db)
+        return db
+
+    monkeypatch.setitem(globals(), "open_database", tracked_open)
+    try:
+        yield
+    finally:
+        for db in databases:
+            await db.close()
+
+
 async def _open_stores(tmp_path: Path) -> tuple[JobsStore, HandleBook]:
     db = await open_database(tmp_path / "db.sqlite")
     return JobsStore(db), HandleBook(db)

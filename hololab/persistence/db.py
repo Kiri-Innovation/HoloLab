@@ -51,6 +51,8 @@ class Database:
             ]
         ] = asyncio.Queue()
         self._closed = False
+        self._readers: dict[aiosqlite.Connection, asyncio.Future[Any]] = {}
+        self._reader_closers: dict[aiosqlite.Connection, asyncio.Task[None]] = {}
 
     async def open(self) -> None:
         """Open connections, enable WAL, and apply migrations."""
@@ -82,6 +84,9 @@ class Database:
             )
             await self._writer_task
 
+        # Background requests may still hold read contexts at shutdown. Drain
+        # their connections before the event loop (and worker callbacks) stops.
+        await asyncio.gather(*(self._close_reader(conn) for conn in list(self._readers)))
         if self._writer_conn is not None:
             await self._writer_conn.close()
 
@@ -215,6 +220,28 @@ class Database:
         await self._writer_queue.put((fn, fut))
         return await fut
 
+    async def _close_reader(self, conn: aiosqlite.Connection) -> None:
+        opening = self._readers.get(conn)
+        if opening is None:
+            return
+        closing = self._reader_closers.get(conn)
+        if closing is None:
+
+            async def close() -> None:
+                try:
+                    # Opening is shielded by read(); wait for it before close,
+                    # including shutdown racing with an in-progress connect.
+                    with contextlib.suppress(Exception):
+                        await opening
+                    await conn.close()
+                finally:
+                    self._readers.pop(conn, None)
+                    self._reader_closers.pop(conn, None)
+
+            closing = asyncio.create_task(close())
+            self._reader_closers[conn] = closing
+        await asyncio.shield(closing)
+
     @asynccontextmanager
     async def read(self):
         """Lease an isolated, consistent read snapshot for this context only.
@@ -229,7 +256,13 @@ class Database:
         """
         if self._writer_conn is None or self._closed:
             raise RuntimeError("database is not open")
-        async with aiosqlite.connect(self._path, isolation_level=None) as conn:
+        conn = aiosqlite.connect(self._path, isolation_level=None)
+        opening = asyncio.ensure_future(conn)
+        self._readers[conn] = opening
+        try:
+            await asyncio.shield(opening)
+            if self._closed:
+                raise RuntimeError("database is not open")
             from hololab.persistence.diagnostics import enabled, instrument_reader
 
             if enabled():
@@ -237,10 +270,10 @@ class Database:
             for statement in ("PRAGMA foreign_keys=ON", "PRAGMA query_only=ON", "BEGIN"):
                 async with conn.execute(statement):
                     pass
-            try:
-                yield conn
-            finally:
-                await conn.rollback()
+            yield conn
+        finally:
+            # Closing rolls back this read transaction and releases its cursors.
+            await self._close_reader(conn)
 
 
 async def open_database(path: Path) -> Database:
