@@ -164,8 +164,8 @@ def test_toolbar_chip_renders_with_count_and_locate() -> None:
 
 def test_app_wires_staleness_memo_into_nodes() -> None:
     body = APP_TSX.read_text(encoding="utf-8")
-    assert "computeStaleness" in body, (
-        "App.tsx must call computeStaleness so nodes actually receive "
+    assert "useExecutionAnalysis" in body, (
+        "App.tsx must consume Gateway execution analysis so nodes actually receive "
         "a staleness value — without this the badge never draws."
     )
     assert "stalenessByGraphNode" in body, (

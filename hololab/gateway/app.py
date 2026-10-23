@@ -1711,6 +1711,19 @@ def _mount_routes(app: FastAPI) -> None:
 
     install_submission_guard(app)
 
+    @app.post("/api/workflows/{workflow_id}/analyze", tags=["workflows"])
+    async def analyze_workflow(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        from hololab.gateway.preparation import analyze_execution
+
+        if await app.state.workflows.get_draft(workflow_id) is None:
+            raise HTTPException(status_code=404, detail="workflow not found")
+        try:
+            return await analyze_execution(
+                app, workflow_id, WorkflowGraph.model_validate(body["graph"])
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     @app.post("/api/workflows/{workflow_id}/prepare", tags=["workflows"])
     async def prepare_workflow(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
         from hololab.gateway.preparation import prepare_execution

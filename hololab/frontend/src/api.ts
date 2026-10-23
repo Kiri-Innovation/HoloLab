@@ -328,10 +328,20 @@ export const deleteWorkflow = (workflow_id: string) =>
     json<{ workflow_id: string; state: string }>,
   );
 
-export const runWorkflow = (workflow_id: string) =>
-  resilientFetch(`/api/workflows/${workflow_id}/run`, { method: "POST" }).then(
+async function preparationHeaders(workflowId: string, nodeId?: string) {
+  const prepared = await resilientFetch(`/api/workflows/${workflowId}/prepare`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(nodeId ? { node_id: nodeId } : {}),
+  }).then(json<{ token: string }>);
+  return { "X-Preparation-Token": prepared.token, "X-Request-ID": crypto.randomUUID() };
+}
+
+export const runWorkflow = async (workflow_id: string) => {
+  const headers = await preparationHeaders(workflow_id);
+  return resilientFetch(`/api/workflows/${workflow_id}/run`, { method: "POST", headers }, { retryNonIdempotent: true }).then(
     json<{ workflow_id: string; snapshot_id: string | null; node_count: number }>,
   );
+};
 
 // -- run history --------------------------------------------------------------
 
@@ -387,7 +397,8 @@ export const restoreFromSnapshot = (workflow_id: string, snapshot_id: string) =>
 export const rerunFromNode = (snapshot_id: string, graph_node_id: string) =>
   resilientFetch(
     `/api/snapshots/${snapshot_id}/rerun-from/${encodeURIComponent(graph_node_id)}`,
-    { method: "POST" },
+    { method: "POST", headers: { "X-Request-ID": crypto.randomUUID() } },
+    { retryNonIdempotent: true },
   ).then(
     json<{
       workflow_id: string;
@@ -455,7 +466,7 @@ export const patchSnapshotGraphNodeCosmetic = (
 // (create a child snapshot) based on whether the target node already
 // has an artifact in the base. ``base_snapshot_id`` defaults to the
 // workflow's most recent snapshot when omitted.
-export const dispatchNode = (
+export const dispatchNode = async (
   workflow_id: string,
   graph_node_id: string,
   opts?: { base_snapshot_id?: string },
@@ -465,7 +476,8 @@ export const dispatchNode = (
     : "";
   return resilientFetch(
     `/api/workflows/${workflow_id}/dispatch/${encodeURIComponent(graph_node_id)}${qs}`,
-    { method: "POST" },
+    { method: "POST", headers: await preparationHeaders(workflow_id, graph_node_id) },
+    { retryNonIdempotent: true },
   ).then(
     json<{
       snapshot_id: string;

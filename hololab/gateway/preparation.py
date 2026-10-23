@@ -236,3 +236,76 @@ async def historical_execution(app, snapshot) -> WorkflowGraph:
         "packs": copy.deepcopy(app.state.registry.catalog_json()),
     }
     return graph
+
+
+async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict:
+    """Authoritative effective values and staleness for one editing revision."""
+    from hololab.constants import is_constant
+    from hololab.gateway.workflows import downstream_closure, topological_order
+
+    prepared = await prepare_execution(
+        app, graph, required={n.id for n in graph.nodes if n.assigned_node_id}
+    )
+    sid = await app.state.snapshot_jobs.get_latest_snapshot_for_workflow(workflow_id)
+    snapshot = await app.state.workflows.get_snapshot(sid) if sid else None
+    baseline = await historical_execution(app, snapshot) if snapshot else None
+    jobs = await app.state.jobs_store.list_by_snapshot(sid) if sid else []
+    latest = {}
+    for job in sorted(jobs, key=lambda j: j.get("created_ts", 0)):
+        if not job.get("parent_job_id") and job.get("graph_node_id"):
+            latest[job["graph_node_id"]] = job
+    changed = (
+        changed_nodes(prepared, baseline)
+        if baseline
+        else {n.id for n in prepared.nodes if n.kind != "view"}
+    )
+    dirty = set(changed)
+    for nid in changed:
+        dirty |= downstream_closure(prepared, nid)
+    states, diffs = {}, []
+    for node in prepared.nodes:
+        if node.kind == "view" or is_constant(node):
+            continue
+        job = latest.get(node.id)
+        reasons = []
+        if node.id in changed:
+            reasons.append("有效配置与上次运行不同")
+            diffs.append({"description": f"{node.algorithm_name or node.id}: 有效配置已变化"})
+        if job and job["state"] in ("pending", "assigned", "running", "orphaned"):
+            mismatch = (
+                job.get("params", {}) != node.params
+                or job.get("algorithm_name") != node.algorithm_name
+                or job.get("algorithm_version") != node.algorithm_version
+            )
+            states[node.id] = (
+                {
+                    "kind": "inflight_old_params",
+                    "title": "运行中的任务使用已冻结的旧配置",
+                    "changeReasons": reasons or ["实际参数与当前配置不同"],
+                }
+                if mismatch
+                else None
+            )
+        elif reasons or not job or job["state"] != "done":
+            states[node.id] = {
+                "kind": "self_dirty",
+                "title": reasons[0] if reasons else "尚无成功运行结果",
+                "changeReasons": reasons,
+            }
+            dirty |= downstream_closure(prepared, node.id)
+        else:
+            states[node.id] = None
+    for nid in topological_order(prepared):
+        if nid in states and states[nid] is None and nid in dirty:
+            states[nid] = {
+                "kind": "upstream_dirty",
+                "title": "上游输入已变化; 本节点结果基于旧输入",
+            }
+    return {
+        "revision": prepared.execution["revision"],
+        "graph": prepared.model_dump(),
+        "staleness": states,
+        "diff": diffs,
+        "environment_params": prepared.execution["environment_params"],
+        "issues": prepared.execution["issues"],
+    }

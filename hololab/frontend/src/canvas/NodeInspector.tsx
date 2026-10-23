@@ -13,6 +13,9 @@ import { parameterPinKey } from "./parameterPins";
 import { OpenSourceButton } from "./OpenSourceButton";
 
 export interface NodeInspectorProps {
+  effectiveParams?: Record<string, unknown>;
+  environmentParams?: string[];
+  preparationStatus?: string;
   selected: GraphNode | null;
   inputSources?: Record<string,string>;
   pack: CatalogPack | null;
@@ -54,6 +57,7 @@ const HINT: CSSProperties = {
 };
 
 export function NodeInspector({
+  effectiveParams, environmentParams = [], preparationStatus,
   selected,
   inputSources,
   pack,
@@ -158,6 +162,11 @@ export function NodeInspector({
       </section>}
       <div className="hl-inspector-parameters" role="region" aria-label="Parameters">
         <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Parameters</h3>
+        <details style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)", marginBottom: 8 }}>
+          <summary>将实际使用的参数</summary>
+          {preparationStatus ? <p role="status">{preparationStatus}</p> : <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(effectiveParams ?? {}, null, 2)}</pre>}
+          {environmentParams.length > 0 && <p>环境相关、尚未变量化：{environmentParams.join(", ")}</p>}
+        </details>
         {!isConstantName(pack.name) && <div className="hl-inspector-field hl-inspector-package-field" style={FIELD}>
           <ParameterLabel name="package" type="path" />
           <OpenSourceButton

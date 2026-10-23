@@ -41,7 +41,7 @@ import { isConstantName, constantSignature } from "./constants";
 // (SnapshotCanvas builds nodes independently), and AlgorithmNode
 // double-guards on ``readOnly``.
 
-import type { CatalogPack, GraphEdge, GraphNode, SnapshotJob, WorkflowGraph } from "../wire";
+import type { GraphEdge, GraphNode, SnapshotJob, WorkflowGraph } from "../wire";
 import type { NodeRuntime } from "./AlgorithmNode";
 import { isAlgorithmGraphNode } from "./nodeMeta";
 
@@ -75,27 +75,6 @@ export type PackDefaults = (name: string, version: string) => Record<string, unk
 // where a real edit gets hidden. Callers should feed the same
 // ``catalogByKey`` the App uses for the palette / hydration so the
 // versions here match what a run would actually pull.
-export function packDefaultsFromCatalog(
-  catalogByKey: ReadonlyMap<string, CatalogPack>,
-): PackDefaults {
-  return (name, version) => {
-    const pack = catalogByKey.get(`${name}@${version}`);
-    if (!pack) return {};
-    const out: Record<string, unknown> = {};
-    for (const [k, spec] of Object.entries(pack.params)) {
-      if (spec && "default" in spec) out[k] = spec.default;
-    }
-    return out;
-  };
-}
-
-function mergedParams(
-  params: Record<string, unknown> | null | undefined,
-  defaults: Record<string, unknown>,
-): Record<string, unknown> {
-  return { ...defaults, ...(params ?? {}) };
-}
-
 export interface NodeStaleness {
   kind: "self_dirty" | "upstream_dirty" | "inflight_old_params";
   // Human-readable one-line explanation for the ``title`` tooltip on
@@ -137,7 +116,7 @@ function paramsAndAlgoReasons(
     algorithm_version: string;
     params: Record<string, unknown>;
   },
-  packDefaults: PackDefaults,
+  _packDefaults: PackDefaults,
 ): string[] {
   const reasons: string[] = [];
   if (
@@ -155,8 +134,8 @@ function paramsAndAlgoReasons(
   // above, and using the wrong side's defaults would hide legitimate
   // param changes newer versions introduced. See ``packDefaultsFromCatalog``
   // for the mirror against gateway/execution.py:merged_params_with_defaults.
-  const dp = mergedParams(dn.params, packDefaults(dn.algorithm_name, dn.algorithm_version));
-  const sp = mergedParams(frozen.params, packDefaults(frozen.algorithm_name, frozen.algorithm_version));
+  const dp = dn.params ?? {};
+  const sp = frozen.params ?? {};
   const keys = new Set([...Object.keys(dp), ...Object.keys(sp)]);
   const changedParams: string[] = [];
   for (const k of keys) {
@@ -174,7 +153,7 @@ function selfDirtyReasons(
   sn: GraphNode | null,
   draftEdges: readonly GraphEdge[],
   snapEdges: readonly GraphEdge[],
-  packDefaults: PackDefaults,
+  _packDefaults: PackDefaults,
   portDefaults: PackDefaults,
 ): string[] {
   if (sn == null) {
@@ -184,7 +163,7 @@ function selfDirtyReasons(
     algorithm_name: sn.algorithm_name,
     algorithm_version: sn.algorithm_version,
     params: sn.params ?? {},
-  }, packDefaults);
+  }, _packDefaults);
   if (inlineIdentity(dn, draftEdges, portDefaults(dn.algorithm_name, dn.algorithm_version)) !== inlineIdentity(sn, snapEdges)) reasons.push("端口内联值已改");
   if (JSON.stringify(dn.assembly ?? null) !== JSON.stringify(sn.assembly ?? null)) reasons.push("组装槽位、顺序或轴名已改");
   if ((dn.assigned_node_id ?? null) !== (sn.assigned_node_id ?? null)) {

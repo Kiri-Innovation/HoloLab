@@ -1,5 +1,5 @@
+import { useExecutionAnalysis } from "./canvas/executionAnalysis";
 import { reconcileInlineValues } from './canvas/inlineValues';
-import { inlineDefaults } from "./canvas/inlineValues";
 import { constantFields, constantPresentation } from "./canvas/constants";
 import { mergeParameterPatch } from "./canvas/PackParameterField";
 import { effectiveParameterPins, parameterPinKey, toggleParameterPins } from "./canvas/parameterPins";
@@ -79,12 +79,9 @@ import {
 } from "./api";
 import { validateConnection } from "./canvas/connectionValidation";
 import { useConnectionFeedback } from "./canvas/ConnectionFeedback";
-import { diffGraphs } from "./canvas/diffGraphs";
 import type { DiffItem } from "./canvas/diffGraphs";
 import {
-  computeStaleness,
   earliestDirtyId,
-  packDefaultsFromCatalog,
   staleCount,
   stalenessEqual,
   type NodeStaleness,
@@ -2162,47 +2159,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // when no snapshot exists yet or when the draft matches (structural only —
   // position / preview_open excluded). Passed to RunsPanel to drive both the
   // sentinel row visibility and the "检查" modal content.
-  const draftDiff = useMemo<DiffItem[]>(
-    () =>
-      workflowId !== null && latestSnapshotGraph !== null
-        ? diffGraphs(toGraph(), latestSnapshotGraph, packDefaultsFromCatalog(catalogByKey), (name, version) => inlineDefaults(catalogByKey.get(`${name}@${version}`)))
-        : [],
-    [workflowId, latestSnapshotGraph, toGraph, catalogByKey],
-  );
-
-  // Per-node result staleness. Rules and rationale live in
-  // canvas/staleness.ts — same structural criteria diffGraphs already
-  // uses at the workflow scope, so the badge on a node card and the
-  // draft-diff sentinel row can't drift out of sync. Kept memoised so
-  // the runtime-sync effect below only mints new node identities when
-  // a node's staleness actually changes value. Empty {} when no
-  // workflow is open — the effect then leaves ``data.staleness``
-  // undefined and no badge draws.
-  const stalenessByGraphNode = useMemo<Record<string, NodeStaleness | null>>(
-    () =>
-      workflowId !== null
-        ? computeStaleness(
-            toGraph(),
-            latestSnapshotGraph,
-            runtimeByGraphNode,
-            // Latest snapshot's live job rows: needed for the
-            // ``inflight_old_params`` branch, which compares the
-            // frozen params on the running job against the current
-            // draft. See canvas/staleness.ts for the motivating case.
-            latestSnapshotJobs,
-            // Manifest defaults lookup so the compare normalises the
-            // sparse draft against the dispatch-merged snapshot params
-            // (mirror of gateway/execution.py:merged_params_with_defaults).
-            // Without this, every default-fill key the gateway adds at
-            // dispatch (fx.max_width, stg.iterations, …) shows up as a
-            // "参数已改" false positive on a run whose current draft the
-            // operator hasn't touched.
-            packDefaultsFromCatalog(catalogByKey),
-            (name, version) => inlineDefaults(catalogByKey.get(`${name}@${version}`)),
-          )
-        : {},
-    [workflowId, latestSnapshotGraph, runtimeByGraphNode, latestSnapshotJobs, toGraph, catalogByKey],
-  );
+  const analysisGraph = toGraph();
+  const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, [latestSnapshotGraph, latestSnapshotJobs, catalog]);
+  const draftDiff: DiffItem[] = executionAnalysis?.data?.diff ?? [];
+  const stalenessByGraphNode = useMemo<Record<string, NodeStaleness | null>>(() => {
+    if (executionAnalysis?.data) return executionAnalysis.data.staleness;
+    return Object.fromEntries(analysisGraph.nodes.filter(n => n.kind !== "view").map(n => [n.id, {
+      kind: "self_dirty" as const,
+      title: executionAnalysis?.error ?? "正在检查有效配置",
+    }]));
+  }, [executionAnalysis, JSON.stringify(analysisGraph)]);
 
   // Push the computed staleness onto each node's data. Kept in a
   // dedicated effect (not folded into the runtime-sync effect above)
@@ -2920,6 +2886,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     <p className="hl-dock-empty">Select a node or connection to inspect it.</p>
   ) : (
     <NodeInspector
+      effectiveParams={executionAnalysis?.data?.graph.nodes.find(n => n.id === selectedNode.id)?.params}
+      environmentParams={executionAnalysis?.data?.environment_params[selectedNode.id] ?? []}
+      preparationStatus={executionAnalysis?.error ?? (executionAnalysis?.data ? undefined : "正在检查有效配置")}
       inputSources={Object.fromEntries(edges.filter(e=>e.target===selectedNode.id).map(e=>[e.targetHandle ?? '', (nodes.find(n=>n.id===e.source)?.data as AlgorithmNodeData)?.pack?.name ?? e.source]))}
       onParamsChange={patch => updateNodeParams(selectedNode.id, patch)}
       pinnedParams={effectiveParameterPins(pinnedParams, selectedAlgorithmData.pack)}

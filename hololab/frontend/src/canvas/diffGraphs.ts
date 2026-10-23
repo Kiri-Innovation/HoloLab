@@ -13,13 +13,6 @@ export interface DiffItem {
   description: string;
 }
 
-function mergedParams(
-  params: Record<string, unknown> | null | undefined,
-  defaults: Record<string, unknown>,
-): Record<string, unknown> {
-  return { ...defaults, ...(params ?? {}) };
-}
-
 // Stable structural fingerprint of one edge — used for set membership.
 function edgeKey(e: GraphEdge): string {
   return `${e.source}\0${e.sourceHandle}\0${e.target}\0${e.targetHandle}`;
@@ -39,7 +32,7 @@ export function diffGraphs(
   // lockstep: neither fires on a pure default-fill difference. Default
   // returns ``{}`` so legacy callers reproduce the pre-normalisation
   // compare exactly.
-  packDefaults: PackDefaults = () => ({}),
+  _packDefaults: PackDefaults = () => ({}),
   portDefaults: PackDefaults = () => ({}),
 ): DiffItem[] {
   const items: DiffItem[] = [];
@@ -133,8 +126,8 @@ export function diffGraphs(
     // — a sparse-vs-dispatch-merged shape difference is not a real
     // change and shouldn't show up as "参数 X: (未设置) → 0". See the
     // block comment above ``packDefaults``.
-    const dp = mergedParams(dn.params, packDefaults(dn.algorithm_name, dn.algorithm_version));
-    const sp = mergedParams(sn.params, packDefaults(sn.algorithm_name, sn.algorithm_version));
+    const dp = dn.params ?? {};
+    const sp = sn.params ?? {};
     const keys = new Set([...Object.keys(dp), ...Object.keys(sp)]);
     for (const key of [...keys].sort()) {
       const dv = dp[key];
