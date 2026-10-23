@@ -1,0 +1,88 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap4d-temporal-grouping
+version: 0.1.0
+description: >
+  Materialize XMP-timestamped rig images on colmap4d's fixed time grid while
+  preserving the established HoloLab grouping and edge-trimming semantics.
+source_entry: group_temporal_images.py
+category: "tracking/rig"
+
+docs: |
+  Reads ``arrayed[cam,index]<image>`` and emits
+  ``arrayed[group,cam]<image,colmap4d-temporal-groups>``. The grouping engine is
+  the public ``colmap4d.group_by_grid`` API introduced in colmap4d 1.0.2.
+
+  Image timestamps are exposure midpoints:
+  ``wallClockEpochNs + exposureNs // 2``. Device identity comes from each
+  image's XMP ``alias`` (the preserved ``camNN`` lineage), never COLMAP
+  ``CAMERA_ID``.
+
+  The output is not a ``colmap4d-folder``: SfM has not run yet, so no valid
+  COLMAP IMAGE_ID, pose, or point cloud exists. Instead, the materialized image
+  array carries hidden ``.colmap4d-grouping/manifest.json`` and
+  ``frames.jsonl`` provenance. A post-SfM assembler can later join image names
+  to real IMAGE_IDs and write a valid colmap4d ``times`` sidecar.
+
+inputs:
+  frames:
+    tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [cam, index]
+    description: "ClockSync server-epoch JPEG tree with per-image rig XMP."
+
+params:
+  grid_ns:
+    type: int
+    default: 33333333
+    min: 1
+    description: "Fixed-grid bucket width in nanoseconds."
+  n_cams:
+    type: int
+    default: 0
+    min: 0
+    description: "Expected devices for complete buckets; 0 infers all XMP aliases."
+  trim_edges:
+    type: bool
+    default: true
+    description: "Keep the inclusive first-to-last complete span, including interior gaps."
+
+outputs:
+  groups:
+    tags: [image, colmap4d-temporal-groups]
+    arrayed: true
+    storage: dir
+    dim_labels: [group, cam]
+    description: >
+      Materialized group/camera JPEG array with hidden colmap4d grouping
+      provenance at the handle root.
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  expected_duration_min: [0.05, 2]
+  resources:
+    scratch_gb: 0.5
+    mem_gb: 2.0
+
+exec:
+  shell: |
+    set -euo pipefail
+    TRIM=()
+    if [ "{{ params.trim_edges | lower }}" = "true" ]; then
+      TRIM=(--trim-edges)
+    fi
+    python "{{ pack_dir }}/group_temporal_images.py" \
+      --frames "{{ inputs.frames }}" \
+      --output "{{ outputs.groups }}" \
+      --grid-ns {{ params.grid_ns }} \
+      --n-cams {{ params.n_cams }} \
+      "${TRIM[@]}"
+
+idempotency:
+  marker: "{{ outputs.groups }}/.hololab-done"
+
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
