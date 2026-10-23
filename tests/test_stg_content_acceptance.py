@@ -57,6 +57,19 @@ def test_real_stg_relocation_and_five_changes(tmp_path):
     sibling.write_text("a changed sibling manifest, deliberately invalid YAML: [")
     assert capture(target_manifest, baselines)["sha256"] == relocated["sha256"]
     original_manifest = target_manifest.read_bytes()
+    # Real STG release metadata must not alter semantic identity, including a
+    # release-time baseline refresh. Mutations only affect the temporary copy.
+    dev_manifest = original_manifest.replace(b"version: 0.1.1", b"version: 0.1.1+")
+    assert dev_manifest != original_manifest
+    target_manifest.write_bytes(dev_manifest)
+    dev = capture(target_manifest, baselines)
+    target_manifest.write_bytes(original_manifest)
+    released = capture(target_manifest, baselines, refresh_cold=True)
+    assert dev["sha256"] == released["sha256"] == original["sha256"]
+    target_manifest.write_bytes(original_manifest + b"\nyank: true\n")
+    assert capture(target_manifest, baselines)["sha256"] == original["sha256"]
+    target_manifest.write_bytes(original_manifest)
+    relocated = released
     target_manifest.write_bytes(original_manifest + b"\n# changed own manifest\n")
     with pytest.raises(IdentityMismatch, match="manifest"):
         verify(target_manifest, relocated)
@@ -93,9 +106,15 @@ def test_real_stg_relocation_and_five_changes(tmp_path):
     hot.write_bytes(old_hot + b"\n# changed hot code\n")
     with pytest.raises(IdentityMismatch, match="hot"):
         verify(target_manifest, relocated)
+    assert capture(target_manifest, baselines)["sha256"] != relocated["sha256"]
     hot.write_bytes(old_hot)
+    refreshed = capture(target_manifest, baselines, refresh_cold=True)
+    assert refreshed["sha256"] != relocated["sha256"]
+    assert refreshed["cold"]["baseline_status"] == "updated"
+    assert refreshed["cold"]["verification"] == "not_checked"
+    assert refreshed["cold"]["previous_sha256"] == relocated["cold"]["sha256"]
     ignore = moved / ".packignore"
     ignore.write_bytes(ignore.read_bytes() + b"\n")
     with pytest.raises(IdentityMismatch, match=r"\.packignore"):
         verify(target_manifest, relocated)
-    assert capture(target_manifest, baselines)["sha256"] != relocated["sha256"]
+    assert capture(target_manifest, baselines)["sha256"] != refreshed["sha256"]

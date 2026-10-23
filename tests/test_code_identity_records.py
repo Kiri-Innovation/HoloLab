@@ -33,6 +33,48 @@ async def test_identity_survives_reopen_and_cannot_be_replaced(tmp_path):
         await db.close()
 
 
+def test_snapshot_api_exposes_saved_evidence_without_catalog(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from hololab.gateway.app import create_app
+    from hololab.gateway.workflows import GraphNode, WorkflowGraph
+
+    frozen = {"format": 2, "sha256": "saved-identity", "effective_params": {"steps": 10}}
+    with TestClient(create_app(db_path=tmp_path / "api.sqlite")) as client:
+
+        async def seed():
+            graph = WorkflowGraph(
+                nodes=[
+                    GraphNode(
+                        id="recorded",
+                        algorithm_name="demo",
+                        algorithm_version="0.1.1+",
+                        code_identity=frozen,
+                        params={"steps": 10},
+                    ),
+                    GraphNode(id="legacy", algorithm_name="demo", algorithm_version="0.1.0"),
+                ]
+            )
+            store = client.app.state.workflows
+            draft = await store.save_draft(workflow_id=None, name="frozen", graph=graph)
+            return await store.create_snapshot(workflow_id=draft.workflow_id, graph=graph)
+
+        snapshot = client.portal.call(seed)
+        response = client.get(f"/api/snapshots/{snapshot.snapshot_id}")
+        assert response.status_code == 200, response.text
+        evidence = response.json()["code_evidence"]
+        assert evidence["recorded"] == {
+            "status": "recorded",
+            "code_identity": frozen,
+            "effective_params": {"steps": 10},
+        }
+        assert evidence["legacy"] == {
+            "status": "unrecorded",
+            "code_identity": None,
+            "effective_params": {},
+        }
+
+
 @pytest.mark.asyncio
 async def test_snapshot_freezes_evidence_and_legacy_is_never_backfilled(tmp_path):
     from types import SimpleNamespace

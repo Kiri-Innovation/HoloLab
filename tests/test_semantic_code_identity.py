@@ -1,6 +1,7 @@
 import shutil
 
 import pytest
+import yaml
 
 from hololab.content_scope import (
     RELEASE_METADATA_FIELDS,
@@ -74,3 +75,39 @@ def test_format_one_records_remain_verifiable(tmp_path):
         [1, record["controls"], record["hot"]["sha256"], record["cold"]["sha256"]]
     )
     verify(manifest, record)
+
+
+def test_old_package_without_root_cold_or_ignore(tmp_path):
+    _, manifest, baselines = package(tmp_path)
+    data = yaml.safe_load(manifest.read_bytes())
+    del data["root"], data["cold"]
+    manifest.write_text(yaml.safe_dump(data))
+    (manifest.parent / "main.py").write_text("print('legacy package')")
+    before = capture(manifest, baselines)
+    assert before["root"] == "."
+    assert before["hot"]["stats"]["files"] == 1
+    assert before["cold"]["stats"]["files"] == 0
+    assert before["controls"]["packignore_sha256"] is None
+    data["version"] = "1.0.1"
+    manifest.write_text(yaml.safe_dump(data))
+    assert capture(manifest, baselines)["sha256"] == before["sha256"]
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("exec", {"shell": "python other.py"}),
+        ("source_entry", "other.py"),
+        ("inputs", {"new_input": {"tags": ["text"]}}),
+        ("outputs", {"new_output": {"tags": ["text"]}}),
+        ("params", {"steps": {"type": "int", "default": 42}}),
+        ("runtime", {"env": "another-env"}),
+    ],
+)
+def test_execution_and_interface_changes_alter_identity(tmp_path, field, value):
+    _, manifest, baselines = package(tmp_path)
+    before = capture(manifest, baselines)
+    data = yaml.safe_load(manifest.read_bytes())
+    data[field] = value
+    manifest.write_text(yaml.safe_dump(data))
+    assert capture(manifest, baselines)["sha256"] != before["sha256"]
