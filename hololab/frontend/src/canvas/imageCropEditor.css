@@ -1,0 +1,21 @@
+.hl-image-crop-editor { padding: 8px; border-top: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text-body); font-size: var(--fs-xs); min-width: 0; }
+.hl-image-crop-editor header { display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; }
+.hl-image-crop-editor header span, .hl-image-crop-editor small { color: var(--text-muted); }
+.hl-image-crop-editor [role="status"] { padding: 5px 0; overflow-wrap: anywhere; }
+.hl-image-crop-stage { position: relative; width: 100%; background: var(--surface-alt); touch-action: none; overflow: hidden; }
+.hl-image-crop-stage canvas { position: absolute; pointer-events: none; }
+.hl-image-crop-selection { position: absolute; outline: 2px solid var(--accent); outline-offset: -1px; cursor: move; touch-action: none; }
+.hl-image-crop-selection[data-readonly="true"] { cursor: default; }
+.hl-image-crop-handle { position: absolute; width: 10px; height: 10px; min-height: 0; padding: 0; border: 1px solid var(--text-body); border-radius: 0; background: var(--surface); transform: translate(-50%, -50%); touch-action: none; }
+.hl-image-crop-n, .hl-image-crop-s { left: 50%; cursor: ns-resize; }
+.hl-image-crop-e, .hl-image-crop-w { top: 50%; cursor: ew-resize; }
+.hl-image-crop-n, .hl-image-crop-ne, .hl-image-crop-nw { top: 0; }
+.hl-image-crop-s, .hl-image-crop-se, .hl-image-crop-sw { top: 100%; }
+.hl-image-crop-e, .hl-image-crop-ne, .hl-image-crop-se { left: 100%; }
+.hl-image-crop-w, .hl-image-crop-nw, .hl-image-crop-sw { left: 0; }
+.hl-image-crop-ne, .hl-image-crop-sw { cursor: nesw-resize; }
+.hl-image-crop-nw, .hl-image-crop-se { cursor: nwse-resize; }
+.hl-image-crop-handle:disabled { cursor: default; }
+.hl-image-crop-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 8px 0; font-variant-numeric: tabular-nums; }
+.hl-image-crop-values label { display: flex; flex-direction: column; gap: 2px; }
+.hl-image-crop-values input { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; }

@@ -1,4 +1,5 @@
 import { canonicalPackageName } from "../packageIdentity";
+import { ImageCropEditor } from "./ImageCropEditor";
 import { ComposeVideoEditor } from "./ComposeVideoEditor";
 import { InlinePortCard, activeInlineValue } from "./CanvasInlineValues";
 import { inputValueProblems } from "./inlineValues";
@@ -697,6 +698,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         <ComposeVideoEditor id={id} readOnly={readOnly} />
         <details className="nodrag" onToggle={e=>setShowCompositionOutput(e.currentTarget.open)} style={{padding:8,fontSize:"var(--fs-xs)"}}><summary>上次运行产物</summary>
           {showCompositionOutput && <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={inputProblem ? undefined : () => dispatchRunNode(id)} />}
+        </details>
+      </> : canonicalPackageName(pack.name) === "kiri/image-crop" && expanded ? <>
+        <ImageCropEditor id={id} readOnly={readOnly} />
+        <details className="nodrag" style={{padding:8,fontSize:"var(--fs-xs)"}}><summary>上次运行产物</summary>
+          <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={inputProblem ? undefined : () => dispatchRunNode(id)} />
         </details>
       </> : <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={inputProblem ? undefined : () => dispatchRunNode(id)} />}
     </div>
