@@ -23,6 +23,8 @@ class PackInventoryEntry(BaseModel):
 
     name: str
     version: str
+    root: str = "."
+    cold: list[str] = Field(default_factory=list)
     manifest_hash: str  # sha256 of the manifest.yaml file; changes on edits
     # Absolute path of the manifest.yaml on the producing node. With the
     # polymorphic pack_dirs contract this is what the frontend's

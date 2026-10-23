@@ -553,6 +553,8 @@ class NodeRuntime:
                     name=p.manifest.name,
                     version=p.manifest.version,
                     manifest_hash=p.manifest_hash,
+                    root=p.manifest.root,
+                    cold=p.manifest.cold,
                     manifest_path=str(p.manifest_path),
                     source_dir=str(p.source_dir),
                 )
@@ -595,6 +597,8 @@ class NodeRuntime:
                             name=p.manifest.name,
                             version=p.manifest.version,
                             manifest_hash=p.manifest_hash,
+                            root=p.manifest.root,
+                            cold=p.manifest.cold,
                             manifest_path=str(p.manifest_path),
                             source_dir=str(p.source_dir),
                         )
@@ -655,6 +659,8 @@ class NodeRuntime:
                 name=p.manifest.name,
                 version=p.manifest.version,
                 manifest_hash=p.manifest_hash,
+                root=p.manifest.root,
+                cold=p.manifest.cold,
                 manifest_path=str(p.manifest_path),
                 source_dir=str(p.source_dir),
             )
@@ -1512,7 +1518,7 @@ class NodeRuntime:
 
         # Controls are compared before parsing mutable source declarations.
         try:
-            if assign.code_identity:
+            if getattr(assign, "code_identity", None):
                 from dataclasses import replace
 
                 from hololab.content_scope import check_controls
@@ -1521,7 +1527,6 @@ class NodeRuntime:
                 await asyncio.to_thread(check_controls, pack.manifest_path, assign.code_identity)
                 current_manifest, current_hash = load_manifest(pack.manifest_path)
                 pack = replace(pack, manifest=current_manifest, manifest_hash=current_hash)
-            package_root = pack.package_root
         except (ValueError, OSError) as exc:
             await self._send_job_fail(assign.job_id, JobFailReason.USER_ERROR, message=str(exc))
             return
@@ -1686,6 +1691,12 @@ class NodeRuntime:
             )
             return
 
+        try:
+            package_root = pack.package_root
+        except (ValueError, OSError) as exc:
+            await self._send_job_fail(assign.job_id, JobFailReason.USER_ERROR, message=str(exc))
+            return
+
         # Pre-create the destination for every element x port. For
         # ``storage: dir`` the output path itself is a directory (mkdir
         # it). For ``storage: file`` the output path is a file path —
@@ -1777,7 +1788,7 @@ class NodeRuntime:
             )
 
         async def verify_identity() -> None:
-            if assign.code_identity:
+            if getattr(assign, "code_identity", None):
                 from hololab.content_scope import verify
 
                 await asyncio.to_thread(verify, pack.manifest_path, assign.code_identity)

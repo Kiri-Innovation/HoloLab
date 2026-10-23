@@ -34,6 +34,7 @@ def _images_txt(names: list[str]) -> str:
 def test_missing_cam3_uses_the_six_present_cameras(tmp_path: Path, monkeypatch) -> None:
     """The shared SfM list has seven rows, while this group deliberately has six."""
     pytest.importorskip("numpy")
+    pytest.importorskip("torch")
     # This regression exercises only filename/pose intersection, not image
     # sampling. Keep the unit test runnable in the lightweight gateway env.
     monkeypatch.setitem(sys.modules, "cv2", types.ModuleType("cv2"))

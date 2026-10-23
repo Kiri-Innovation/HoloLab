@@ -1329,7 +1329,7 @@ async def create_reused_job_row(
         node_id=gnode.assigned_node_id,
     )
     await store.create(job)
-    await store.set_code_identity(job.job_id, gnode.code_identity)
+    await store.set_code_identity(job.job_id, await store.get_code_identity(reused_from_job_id))
     _push_update(hub, job)
     return job.job_id
 

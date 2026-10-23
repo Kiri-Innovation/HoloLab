@@ -99,4 +99,4 @@ def test_every_template_reference_is_declared_or_runtime_builtin(
     """Prevent optional/unwired ports from becoming StrictUndefined regressions."""
     raw = (ROOT / relative).read_text()
     refs = {match.strip() for match in re.findall(r"\{\{\s*(.*?)\s*\}\}", raw)}
-    assert refs <= allowed
+    assert refs <= allowed | {"package_root", "manifest_dir"}

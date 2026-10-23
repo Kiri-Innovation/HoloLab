@@ -120,3 +120,16 @@ def test_git_boundary(tmp_path):
     manifest.write_text(manifest.read_text().replace("root: ../..", "root: ../../.."))
     with pytest.raises(ValueError, match="escapes repository"):
         Scope.load(manifest)
+
+
+def test_gitignore_negation_requires_reincluding_parent(tmp_path):
+    root, manifest, baselines = package(tmp_path)
+    (root / "assets/code.py").write_text("code")
+    (root / ".packignore").write_text("/assets/\n!assets/code.py\n")
+    scope = Scope.load(manifest)
+    assert next(e for e in scope.entries() if e.relative == "assets/code.py").layer == "ignored"
+    capture(manifest, baselines)  # Full and pruned enumeration must agree.
+    (root / ".packignore").write_text("/assets/*\n!assets/code.py\n")
+    scope = Scope.load(manifest)
+    assert next(e for e in scope.entries() if e.relative == "assets/code.py").layer == "hot"
+    capture(manifest, baselines)

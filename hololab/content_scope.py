@@ -116,7 +116,7 @@ class Scope:
         return cls(
             path,
             root,
-            tuple(p.rstrip("/") for p in manifest.cold),
+            tuple(Path(p).as_posix() for p in manifest.cold),
             path.read_bytes(),
             ignore.read_bytes() if ignore.exists() else None,
             manifest,
@@ -145,7 +145,7 @@ class Scope:
             else None
         )
 
-        def walk(directory: Path, fixed_parent: bool = False):
+        def walk(directory: Path, fixed_parent: bool = False, ignored_parent: bool = False):
             for item in os.scandir(directory):
                 path = Path(item.path)
                 rel = path.relative_to(self.root).as_posix()
@@ -154,7 +154,7 @@ class Scope:
                     fixed_parent or item.name in FIXED_NAMES or item.name.endswith((".pyc", ".swp"))
                 )
                 isdir = stat.S_ISDIR(st.st_mode)
-                ignored = spec.match_file(rel + ("/" if isdir else ""))
+                ignored = ignored_parent or spec.match_file(rel + ("/" if isdir else ""))
                 control = rel in (".packignore", manifest_inside)
                 layer = (
                     "hot"
@@ -168,20 +168,19 @@ class Scope:
                     else "hot"
                 )
                 if isdir:
-                    # Ignore traversal stays with pathspec semantics; hot-only
-                    # prunes fixed and cold trees, and ignored trees only where
-                    # no negation could re-include descendants.
-                    has_negation = any(p.include is False for p in spec.patterns)
+                    # Gitignore cannot re-include a file while its parent directory
+                    # remains excluded. pathspec handles matching; carry that
+                    # traversal state so full accounting and hot checks agree.
                     contains_control = manifest_inside is not None and manifest_inside.startswith(
                         rel + "/"
                     )
                     if (
                         hot_only
                         and not contains_control
-                        and (fixed or self.is_cold(rel) or (ignored and not has_negation))
+                        and (fixed or self.is_cold(rel) or ignored)
                     ):
                         continue
-                    yield from walk(path, fixed)
+                    yield from walk(path, fixed, ignored)
                 elif stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
                     if hot_only and layer != "hot":
                         continue

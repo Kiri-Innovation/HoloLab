@@ -526,6 +526,8 @@ class NodeRegistry:
                         "name": pk.name,
                         "version": pk.version,
                         "manifest_hash": pk.manifest_hash,
+                        "root": getattr(pk, "root", "."),
+                        "cold": getattr(pk, "cold", []),
                         "node_ids": [],
                         "inputs": {},
                         "outputs": {},

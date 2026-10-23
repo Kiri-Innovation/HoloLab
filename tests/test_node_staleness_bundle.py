@@ -133,7 +133,8 @@ def test_staleness_earliest_walks_topological_order() -> None:
 
 def test_algorithm_node_passes_staleness_and_snapshot_context_to_status_dot() -> None:
     body = ALGO_NODE_TSX.read_text(encoding="utf-8")
-    assert "<NodeStatusDot" in body
+    assert "<NodeCardHeader" in body
+    assert "status={nodeStatus(" in body
     assert "stale: staleness" in body
     assert "readOnly })" in body
     assert "stale={staleness?.kind" in body
@@ -172,7 +173,9 @@ def test_app_wires_staleness_memo_into_nodes() -> None:
         "App.tsx must memoise the per-node staleness map so the sync "
         "effect only mints new node identities on real changes."
     )
-    assert "stalenessEqual" in body, (
+    assert "applyStaleness(current, stalenessByGraphNode)" in body
+    helper = (STALENESS_TS.parent / "applyStaleness.ts").read_text()
+    assert "stalenessEqual(n.data.staleness, value)" in helper, (
         "App.tsx must value-compare staleness before setNodes — a "
         "reference-equality miss on a value-equal memo would reset "
         "handleBounds on every unchanged node and drop edges during "
