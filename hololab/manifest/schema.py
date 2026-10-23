@@ -556,6 +556,18 @@ class Manifest(BaseModel):
     kind: Literal["Algorithm"]
     name: str
     version: str
+    root: str = "."
+    cold: list[str] = Field(default_factory=list)
+    external_code: list[dict[str, Any]] = Field(default_factory=list)
+
+    @field_validator("cold")
+    @classmethod
+    def _cold_paths(cls, values: list[str]) -> list[str]:
+        for value in values:
+            if not value or Path(value).is_absolute() or ".." in Path(value).parts:
+                raise ValueError("cold entries must be relative paths inside root")
+        return values
+
     description: str | None = None
     category: list[str] = Field(default_factory=list)
     docs: str | None = None
