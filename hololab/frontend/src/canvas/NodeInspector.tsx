@@ -152,7 +152,7 @@ export function NodeInspector({
                 color: "var(--text-muted)",
               }}
             >
-              v{pack.version}
+              v{pack.version}{pack.version.endsWith("+") && <span aria-label="Development version"> · dev</span>}
             </div>
           </div>
           <PackDescription key={`${selected.id}:${pack.name}:${pack.version}`} pack={pack} />

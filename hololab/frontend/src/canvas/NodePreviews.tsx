@@ -1,3 +1,4 @@
+import { packAssetUrl } from "../packageIdentity";
 // Shared preview policy and composition. Low-level viewers remain unchanged.
 import { useEffect, useMemo, useState } from "react";
 import type { CatalogPack, OutputPortSpec } from "../wire";
@@ -141,7 +142,7 @@ export function useNodePreviewSelection(data: AlgorithmNodeData, defaultOpen = f
       return;
     }
     let cancelled = false;
-    const path = `/pack-assets/${encodeURIComponent(assigned_node_id)}/${encodeURIComponent(pack.name)}/${encodeURIComponent(pack.version)}/manifest.yaml`;
+    const path = packAssetUrl(assigned_node_id, pack.name, pack.version, "manifest.yaml");
     void fetch(path, { cache: "no-store" })
       .then((response) => response.ok ? response.text() : "")
       .then((text) => {

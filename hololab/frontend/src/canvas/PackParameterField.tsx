@@ -1,3 +1,4 @@
+import { canonicalPackageName } from "../packageIdentity";
 import type { CatalogPack } from "../wire";
 import { ArrayParameterInput, ParameterInput, Vec3ArrayParameterInput } from "./ParameterInput";
 import { DimListEditor } from "./DimListEditor";
@@ -7,7 +8,7 @@ export function packParameterRows(pack: CatalogPack, params: Record<string, unkn
   const editable = arrayParamsForEditor(pack.name, pack.version, params);
   const keys = ["x", "y", "scale"];
   const columns = keys.map(key => editable[key] ?? pack.params[key]?.default ?? []);
-  const grouped = ((pack.name === "vec3-array-source" && pack.version === "0.1.0") || pack.name === "@builtin/constant-vec3-array")
+  const grouped = ((canonicalPackageName(pack.name) === "kiri/vec3-array-source" && pack.version === "0.1.0") || pack.name === "@builtin/constant-vec3-array")
     && keys.every(key => pack.params[key]?.type === "array" && pack.params[key]?.items === "float")
     && columns.every(Array.isArray)
     && new Set(columns.map(value => (value as unknown[]).length)).size === 1;

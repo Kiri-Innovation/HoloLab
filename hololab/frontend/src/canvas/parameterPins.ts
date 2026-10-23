@@ -1,3 +1,4 @@
+import { packageAliases, canonicalPackageName } from "../packageIdentity";
 /** Workflow cosmetic state. Explicit empty arrays override pack defaults. */
 export type ParameterPins = Record<string, string[]>;
 type PinPack = { name: string; version: string; params: Record<string, { pinned?: boolean; type?: string; items?: string | null }> };
@@ -5,10 +6,14 @@ export const parameterPinKey = (pack: { name: string; version: string }) => `${p
 export function effectiveParameterPins(current: ParameterPins, pack: PinPack): string[] {
   const key = parameterPinKey(pack);
   if (Object.prototype.hasOwnProperty.call(current, key)) return current[key];
+  for (const name of packageAliases(pack.name)) {
+    const alias = `${name}@${pack.version}`;
+    if (Object.prototype.hasOwnProperty.call(current, alias)) return current[alias];
+  }
   const defaults = Object.keys(pack.params).filter(name => pack.params[name].pinned === true);
   // The transform editor is one atomic row, including when a pack defaults one member.
   const group = ["x", "y", "scale"];
-  if (key === "vec3-array-source@0.1.0"
+  if (canonicalPackageName(pack.name) === "kiri/vec3-array-source" && pack.version === "0.1.0"
       && group.every(name => pack.params[name]?.type === "array" && pack.params[name]?.items === "float")
       && group.some(name => defaults.includes(name))) {
     return Object.keys(pack.params).filter(name => defaults.includes(name) || group.includes(name));

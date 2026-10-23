@@ -1,3 +1,4 @@
+import { packAssetUrl } from "../packageIdentity";
 import { useEffect, useRef, useState } from "react";
 import type { NodeViewerSpec } from "../wire";
 import type { WorkflowViewerView } from "../api";
@@ -76,7 +77,7 @@ export function NodeViewerFrame({
     ?? historyTarget?.node_id
     ?? assignedNodeId;
   const src = sceneUrl ? versionedViewerUrl(sceneUrl + (DEBUG_VIEWERS ? '&debug=1' : '')) : nodeId
-    ? versionedViewerUrl(`/pack-assets/${encodeURIComponent(nodeId)}/${encodeURIComponent(packName)}/${encodeURIComponent(packVersion)}/${viewer.entry.split("/").map(encodeURIComponent).join("/")}${DEBUG_VIEWERS ? "?debug=1" : ""}`)
+    ? versionedViewerUrl(packAssetUrl(nodeId, packName, packVersion, viewer.entry) + (DEBUG_VIEWERS ? "?debug=1" : ""))
     : null;
 
   useEffect(() => {

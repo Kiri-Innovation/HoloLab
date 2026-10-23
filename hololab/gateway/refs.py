@@ -55,6 +55,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from hololab.package_identity import parse_spec
+
 _SCHEME_PREFIX = "hololab://"
 _ALLOWED_KINDS = frozenset(
     (
@@ -86,7 +88,6 @@ _UUID_RE = re.compile(
 )
 # Pack spec ``name@version`` — same rules as manifest names (lowercase
 # alphanum + dash/underscore + digits/dots).
-_PACK_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*@\d+\.\d+\.\d+$")
 # Graph node id — same allowed alphabet as manifest names, but the
 # whole thing lives after ``<workflow_uuid>/``. We accept a slightly
 # broader charset (mixed case + digits) since graph node ids are
@@ -234,8 +235,10 @@ def _validate_id(kind: str, ident: str) -> None:
     if kind == "library-folder" and ident == "root":
         return
     if kind == "pack":
-        if not _PACK_ID_RE.match(ident):
-            raise RefParseError(f"pack id must be name@version, got {ident!r}")
+        try:
+            parse_spec(ident)
+        except ValueError as exc:
+            raise RefParseError(str(exc)) from exc
         return
     if kind == "graph-node":
         # Compound id — delegates to the shared splitter so we don't

@@ -1,3 +1,4 @@
+import { packageCatalogIndex } from "../packageIdentity";
 import { isConstantName, constantPresentation } from "./constants";
 import { ExecutableNode } from "./AssemblyNode";
 import { ASSEMBLE, assemblyPresentation } from "./assembly";
@@ -97,9 +98,7 @@ export function SnapshotCanvas({
   // render the node — just with a stub pack (empty ports) and the real
   // metadata comes from the job's algorithm_name/version fields.
   const catalogByKey = useMemo(() => {
-    const m = new Map<string, CatalogPack>();
-    for (const p of catalog) m.set(`${p.name}@${p.version}`, p);
-    return m;
+    return packageCatalogIndex(catalog);
   }, [catalog]);
 
   // Preview-job picker: for a fan-out slot (parent + N shards on the

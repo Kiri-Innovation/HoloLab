@@ -1,3 +1,4 @@
+import { canonicalPackageName } from "../packageIdentity";
 import { ComposeVideoEditor } from "./ComposeVideoEditor";
 import { InlinePortCard, activeInlineValue } from "./CanvasInlineValues";
 import { inputValueProblems } from "./inlineValues";
@@ -519,7 +520,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
               textOverflow: "ellipsis",
             }}
           >
-            {assignedLabel} · v{pack.version}
+            {assignedLabel} · v{pack.version}{pack.version.endsWith("+") ? " · dev" : ""}
           </span>
         </NodeTitleTooltip>
         <div
@@ -776,7 +777,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       {inputProblem && firstArtifactTarget && <div data-hl-historical-preview="" style={{padding: "6px 12px", fontSize: "var(--fs-xs)", color: "var(--text-muted)", overflowWrap: "anywhere"}}>
         历史运行产物 · 不代表当前配置可运行
       </div>}
-      {pack.name === "compose-video" && expanded ? <>
+      {canonicalPackageName(pack.name) === "kiri/compose-video" && expanded ? <>
         <ComposeVideoEditor id={id} readOnly={readOnly} />
         <details className="nodrag" onToggle={e=>setShowCompositionOutput(e.currentTarget.open)} style={{padding:8,fontSize:"var(--fs-xs)"}}><summary>上次运行产物</summary>
           {showCompositionOutput && <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={inputProblem ? undefined : () => dispatchRunNode(id)} />}

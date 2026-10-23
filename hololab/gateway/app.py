@@ -103,7 +103,7 @@ from hololab.gateway.workflows import (
     validate_snapshot,
 )
 from hololab.logging import get_logger
-from hololab.package_identity import offered_identity, validate_identity
+from hololab.package_identity import offered_identity, same_package, validate_identity
 from hololab.paths import frontend_dist_dir, gateway_sqlite_path
 from hololab.persistence.db import open_database
 from hololab.persistence.diagnostics import phase
@@ -1421,7 +1421,7 @@ def _mount_routes(app: FastAPI) -> None:
                 (
                     entry
                     for entry in registry.catalog_json()
-                    if entry["name"] == name and entry["version"] == version
+                    if same_package(entry["name"], entry["version"], name, version)
                 ),
                 None,
             )
@@ -3437,12 +3437,26 @@ def _mount_routes(app: FastAPI) -> None:
     @app.get("/pack-assets/{node_id}/{name}/{version}/{path:path}")
     async def pack_asset(node_id: str, name: str, version: str, path: str, request: Request) -> Any:
         """Proxy a pack-owned node-viewer asset from its producing node."""
-        return await proxy_get(
-            node_id,
-            f"/_pack/{name}/{version}/{path}",
-            request,
-            app.state.registry,
+        try:
+            validate_identity(name, version)
+            session = app.state.registry.get_session(node_id)
+            if session is None:
+                raise HTTPException(status_code=404, detail="node unavailable")
+            wire_name, wire_version = offered_identity(session.packs, name, version)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        route = (
+            f"/_scoped_pack/{wire_name}/{wire_version}/{path}"
+            if "/" in wire_name
+            else f"/_pack/{wire_name}/{wire_version}/{path}"
         )
+        return await proxy_get(node_id, route, request, app.state.registry)
+
+    @app.get("/scoped-pack-assets/{node_id}/{scope}/{name}/{version}/{path:path}")
+    async def scoped_pack_asset(
+        node_id: str, scope: str, name: str, version: str, path: str, request: Request
+    ) -> Any:
+        return await pack_asset(node_id, f"{scope}/{name}", version, path, request)
 
     @app.websocket("/ws/node")
     async def ws_node(ws: WebSocket) -> None:

@@ -40,6 +40,8 @@ import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
+from hololab.package_identity import offered_identity, validate_identity
+
 # Cap in-memory tarball size for the streaming path. Above this we fall back
 # to a spooled temporary file so a huge directory doesn't OOM the node.
 _INMEM_TAR_LIMIT_BYTES = 32 * 1024 * 1024  # 32 MiB
@@ -218,11 +220,21 @@ def create_fileserver_app(
         """
         from hololab.node.packs import scan_multi_packs
 
+        candidates = scan_multi_packs(viewer_pack_dirs)
+        try:
+            validate_identity(name, version)
+            wire_name, wire_version = offered_identity(
+                [p.manifest for p in candidates], name, version
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=409 if "ambiguous" in str(exc) else 404, detail=str(exc)
+            ) from exc
         pack = next(
             (
-                candidate
-                for candidate in scan_multi_packs(viewer_pack_dirs)
-                if (candidate.manifest.name, candidate.manifest.version) == (name, version)
+                p
+                for p in candidates
+                if (p.manifest.name, p.manifest.version) == (wire_name, wire_version)
             ),
             None,
         )
@@ -236,6 +248,10 @@ def create_fileserver_app(
         if not candidate.is_file():
             raise HTTPException(status_code=404, detail="viewer asset not found")
         return FileResponse(candidate)
+
+    @app.get("/_scoped_pack/{scope}/{name}/{version}/{asset:path}", response_model=None)
+    async def _scoped_pack_asset(scope: str, name: str, version: str, asset: str):
+        return await _pack_asset(f"{scope}/{name}", version, asset)
 
     def _resolve_under_any(sub: str) -> Path | None:
         """Return the first root where ``sub`` maps to an existing target.

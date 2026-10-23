@@ -11,3 +11,9 @@ export function packageCatalogIndex<T extends {name: string; version: string}>(p
   return new Map(packs.flatMap(pack => packageAliases(pack.name).map(name =>
     [`${name}@${pack.version}`, name === pack.name ? pack : {...pack, name}] as const)));
 }
+
+export function packAssetUrl(nodeId: string, name: string, version: string, asset: string): string {
+  const enc = encodeURIComponent;
+  const prefix = name.includes('/') ? '/scoped-pack-assets' : '/pack-assets';
+  return `${prefix}/${enc(nodeId)}/${name.split('/').map(enc).join('/')}/${enc(version)}/${asset.split('/').map(enc).join('/')}`;
+}
