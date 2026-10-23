@@ -3254,9 +3254,11 @@ def _mount_routes(app: FastAPI) -> None:
         job = await store.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
-        return _job_to_json(
+        result = _job_to_json(
             job, output_handles=await _output_handles_by_port(app.state.handles, job.job_id)
         )
+        result["code_identity"] = await store.get_code_identity(job_id)
+        return result
 
     @app.get(
         "/api/jobs/{job_id}/log",
@@ -3366,6 +3368,7 @@ def _mount_routes(app: FastAPI) -> None:
             state=JobState.PENDING,
         )
         await store.create(job)
+        await store.set_code_identity(job.job_id, prepared.nodes[0].code_identity)
         _push_job_update(hub, job)
 
         # Transition to ASSIGNED and send to node.

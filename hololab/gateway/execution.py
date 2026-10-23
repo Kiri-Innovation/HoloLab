@@ -289,6 +289,7 @@ async def _prepare_fanout(
         expected_shards=len(element_ids),
     )
     await store.create(parent_job)
+    await store.set_code_identity(parent_job.job_id, gnode.code_identity)
     # Attribute at parent-job CREATION, not after the fan-out completes.
     # A downstream ``dispatch_graph_node`` that runs while shards are in
     # flight looks the parent up via ``snapshot_jobs.get_job_at`` and
@@ -1114,6 +1115,7 @@ async def _dispatch_prepared_shard(
     )
     if gnode.code_identity and not getattr(session, "content_identity", False):
         raise WorkflowRunError("Compute node must support recorded content identity")
+    await store.set_code_identity(shard.job_id, gnode.code_identity)
     assigned = JobStateMachine.transition(shard, JobState.ASSIGNED, node_id=session.node_id)
     kind, payload = event_from_transition(shard, assigned)
     await store.update(assigned, kind, payload)
@@ -1327,6 +1329,7 @@ async def create_reused_job_row(
         node_id=gnode.assigned_node_id,
     )
     await store.create(job)
+    await store.set_code_identity(job.job_id, gnode.code_identity)
     _push_update(hub, job)
     return job.job_id
 
@@ -1412,6 +1415,7 @@ async def _dispatch_job(
         graph_node_id=gnode.id,
     )
     await store.create(job)
+    await store.set_code_identity(job.job_id, gnode.code_identity)
     # Attribute at creation, not at DONE (see the block comment on the
     # ``snapshot_jobs`` parameter above). Skipped when the caller didn't
     # pass a store — ad-hoc jobs typically don't belong to a snapshot.

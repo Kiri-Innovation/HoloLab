@@ -174,6 +174,9 @@ class ParamSpecOut(BaseModel):
 
 
 class CatalogPackEntry(BaseModel):
+    root: str = "."
+    cold: list[str] = Field(default_factory=list)
+
     """One deduped entry in ``GET /api/pack-catalog``."""
 
     name: str
@@ -420,6 +423,8 @@ class JobRow(BaseModel):
 
 
 class JobDetail(JobRow):
+    code_identity: dict[str, Any] | None = None
+
     """Full job detail for ``GET /api/jobs/{id}``."""
 
     snapshot_id: str | None = None

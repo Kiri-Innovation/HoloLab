@@ -820,6 +820,36 @@ class JobsStore:
         # when a job flips into a terminal state.
         self._terminal_waiters: dict[str, list[asyncio.Future[Job]]] = {}  # noqa: F821
 
+    async def set_code_identity(self, job_id: str, record: dict | None) -> None:
+        if record is None:
+            return
+        encoded = json.dumps(record, sort_keys=True)
+
+        async def write(conn):
+            async with conn.execute(
+                "SELECT record_json FROM job_code_identities WHERE job_id=?", (job_id,)
+            ) as cur:
+                row = await cur.fetchone()
+            if row is not None:
+                if row[0] != encoded:
+                    raise ValueError(
+                        "Recorded content identity cannot be replaced; submit a new run"
+                    )
+                return
+            await conn.execute("INSERT INTO job_code_identities VALUES (?, ?)", (job_id, encoded))
+
+        await self._db.write(write)
+
+    async def get_code_identity(self, job_id: str) -> dict | None:
+        async with (
+            self._db.read() as conn,
+            conn.execute(
+                "SELECT record_json FROM job_code_identities WHERE job_id=?", (job_id,)
+            ) as cur,
+        ):
+            row = await cur.fetchone()
+        return json.loads(row[0]) if row else None
+
     async def create(self, job: Job) -> None:  # noqa: F821 - forward ref
         from hololab.gateway.jobs import Job, JobState  # local import to avoid cycle
 

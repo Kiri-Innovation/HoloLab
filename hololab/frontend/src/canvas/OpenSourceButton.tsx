@@ -217,12 +217,14 @@ export function resolveCodeTarget(
   if (!manifestPath) return null;
   const manifestDir = manifestPath.replace(/\/[^/]*$/, "") || "/";
 
+  const root = pack.root ?? ".";
+  const packageRoot = normalisePath(root.startsWith("/") ? root : join(manifestDir, root));
   const entry = pack.source_entry;
   if (entry) {
     if (entry.startsWith("/")) return entry;
-    return normalisePath(join(manifestDir, entry));
+    return normalisePath(join(packageRoot, entry));
   }
-  return manifestDir;
+  return packageRoot;
 }
 
 export function OpenSourceButton({

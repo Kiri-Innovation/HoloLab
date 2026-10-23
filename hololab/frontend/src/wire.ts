@@ -290,6 +290,8 @@ export interface CatalogPack {
   // absolute paths are used verbatim. Null for packs that don't declare one;
   // modifier+click then falls back to opening the pack directory.
   source_entry: string | null;
+  root?: string;
+  cold?: string[];
   // Absolute path of the manifest.yaml on the producing node. The
   // plain-click "Jump to source" target — no more ``{source_dir}/
   // {name}@{version}/manifest.yaml`` guessing. Null on legacy nodes.
@@ -712,6 +714,7 @@ export interface LogTail {
 // input/output handles + fail_message + fail_exit_code). The log viewer fetches
 // this to show ``fail_message`` (the panel row only carries ``fail_reason``).
 export interface JobDetail {
+  code_identity?: Record<string, unknown> | null;
   job_id: string;
   workflow_id: string | null;
   snapshot_id: string | null;

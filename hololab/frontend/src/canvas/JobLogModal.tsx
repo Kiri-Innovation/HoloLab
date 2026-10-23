@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getJob, tailJobLog } from "../api";
 import type { JobDetail, LogLine } from "../wire";
 import { stateColour } from "./AlgorithmNode";
+import { CodeIdentityPanel } from "./CodeIdentityPanel";
 import { CopyRefButton } from "./CopyRefButton";
 
 // Requested tail size. Very generous — one SQLite range scan either way,
@@ -380,6 +381,8 @@ export function JobLogModal({ jobId, primer, onClose }: JobLogModalProps) {
             )}
           </div>
         )}
+
+        {detail && <CodeIdentityPanel detail={detail} />}
 
         {/* LOG BODY — dark, monospace, scrollable */}
         <div

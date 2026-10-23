@@ -751,6 +751,19 @@ CREATE TABLE execution_submissions (
 )
 
 
+MIGRATIONS.append(
+    (
+        26,
+        """
+CREATE TABLE job_code_identities (
+ job_id TEXT PRIMARY KEY REFERENCES jobs(job_id) ON DELETE CASCADE,
+ record_json TEXT NOT NULL
+);
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 
