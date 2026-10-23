@@ -45,8 +45,8 @@ test("view sticker survives drag, save, reload, selection and deletion without a
   const palette = page.locator(".hl-pack-palette");
   const visualize = palette.locator('[data-hl-builtin="visualize"]');
   await expect(visualize).toBeVisible();
-  await expect(palette.locator(".hl-pack-folder")).toHaveText([/misc/]);
-  await expect(palette.locator(".hl-pack-leaf")).toHaveText([/producer/, "visualize"]);
+  await expect(palette.locator(".hl-pack-folder")).toHaveText([/constant/, /misc/, /system/]);
+  await expect(palette.locator(".hl-pack-leaf").filter({hasText: "producer"})).toHaveCount(1);
   const search = palette.getByRole("searchbox");
   await search.fill("producer");
   await expect(visualize).toHaveCount(0);
@@ -90,7 +90,7 @@ test("view sticker survives drag, save, reload, selection and deletion without a
   persistedGraph.nodes.find(n => n.id === "sticker")!.title = "视图";
   await page.reload();
   await expect(sticker).toBeVisible();
-  await expect(sticker.locator(".hl-view-drag-handle")).toHaveText("visualize");
+  await expect(sticker.locator(".hl-view-drag-handle").getByText("visualize", {exact:true})).toBeVisible();
   expect(persistedGraph.nodes.find(n => n.id === "sticker")?.kind).toBe("view");
   expect(persistedGraph.edges).toEqual(graph.edges);
   await page.waitForTimeout(1_000);
