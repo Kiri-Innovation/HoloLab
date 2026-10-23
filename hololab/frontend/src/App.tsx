@@ -1,4 +1,7 @@
 import { canonicalPackageName, packageCatalogIndex, samePackage } from "./packageIdentity";
+import { AnalysisProfiler } from "./canvas/AnalysisProfiler";
+import { analysisMetrics } from "./canvas/analysisMetrics";
+import { applyStaleness } from "./canvas/applyStaleness";
 import { useExecutionAnalysis } from "./canvas/executionAnalysis";
 import { reconcileInlineValues } from './canvas/inlineValues';
 import { constantFields, constantPresentation } from "./canvas/constants";
@@ -84,7 +87,6 @@ import type { DiffItem } from "./canvas/diffGraphs";
 import {
   earliestDirtyId,
   staleCount,
-  stalenessEqual,
   type NodeStaleness,
 } from "./canvas/staleness";
 import {
@@ -295,6 +297,8 @@ interface AppInnerProps {
   // "← workflows" link and after `New` clears state.
   onExitToGallery: () => void;
 }
+
+const EMPTY_STALENESS: Record<string, NodeStaleness | null> = {};
 
 function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // Independent sidebar widths and a resizable compute dock.
@@ -581,6 +585,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           return { ...prev, [nid]: trimmed };
         });
       } else if (env.kind === "job_update") {
+        analysisMetrics.ws++;
         const p = env.payload as JobUpdatePayload;
         if (p.graph_node_id) graphNodeByJobIdRef.current[p.job_id] = p.graph_node_id;
         if (
@@ -723,6 +728,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               fail_exit_code: p.fail?.exit_code ?? null,
               fail_message: p.fail?.message ?? null,
               params: {},
+              analysis_params_pending: true,
               input_handles: {},
               output_handles: p.output_handles ?? null,
               parent_job_id: p.parent_job_id ?? null,
@@ -2159,35 +2165,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // position / preview_open excluded). Passed to RunsPanel to drive both the
   // sentinel row visibility and the "检查" modal content.
   const analysisGraph = toGraph();
-  const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, [latestSnapshotGraph, latestSnapshotJobs, catalog]);
+  const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick});
   const draftDiff: DiffItem[] = executionAnalysis?.data?.diff ?? [];
-  const stalenessByGraphNode = useMemo<Record<string, NodeStaleness | null>>(() => {
-    if (executionAnalysis?.data) return executionAnalysis.data.staleness;
-    return Object.fromEntries(analysisGraph.nodes.filter(n => n.kind !== "view").map(n => [n.id, {
-      kind: "self_dirty" as const,
-      title: executionAnalysis?.error ?? "正在检查有效配置",
-    }]));
-  }, [executionAnalysis, JSON.stringify(analysisGraph)]);
-
-  // Push the computed staleness onto each node's data. Kept in a
-  // dedicated effect (not folded into the runtime-sync effect above)
-  // because ``stalenessByGraphNode`` depends on ``toGraph``, which
-  // itself depends on ``nodes`` — putting the compute up-file next to
-  // the runtime memo would create a temporal-dead-zone loop.
-  // ``stalenessEqual`` prevents identity churn when a value-equal
-  // recomputation lands (drag / cosmetic edits re-derive the memo)
-  // — otherwise xyflow's ``adoptUserNodes`` would reset handleBounds
-  // and edges could disappear during hydration (see CanvasContext.ts
-  // for the failure mode).
+  const stalenessByGraphNode = executionAnalysis.data?.staleness ?? EMPTY_STALENESS;
   useEffect(() => {
-    setNodes((current) =>
-      current.map((n) => {
-        const d = n.data as AlgorithmNodeData;
-        const next = stalenessByGraphNode[n.id] ?? null;
-        if (stalenessEqual(d.staleness ?? null, next)) return n;
-        return { ...n, data: { ...n.data, staleness: next } };
-      }),
-    );
+    setNodes(current => applyStaleness(current, stalenessByGraphNode));
   }, [stalenessByGraphNode, setNodes]);
 
   const staleTotal = useMemo(
@@ -2717,7 +2699,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const canvasContentSlot = (
     <>
-      <CanvasContext.Provider value={canvasContextValue}>
+      {!viewingSnapshot && executionAnalysis.message && <div role="status" data-analysis-state={executionAnalysis.status}
+        style={{position:"absolute",top:8,left:"50%",transform:"translateX(-50%)",zIndex:5,
+          fontSize:"var(--fs-xs)",color:"var(--text-muted)",background:"var(--surface-2)",padding:"4px 8px",borderRadius:"var(--radius-sm)",pointerEvents:"none"}}>
+        {executionAnalysis.message}
+      </div>}
+      <AnalysisProfiler><CanvasContext.Provider value={canvasContextValue}>
         {viewingSnapshot ? (
           <>
             <SnapshotBanner
@@ -2778,7 +2765,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             <Background gap={20} color="var(--rf-grid)" />
           </ReactFlow>
         )}
-      </CanvasContext.Provider>
+      </CanvasContext.Provider></AnalysisProfiler>
       {creationAnchor && !viewingSnapshot && (
         <NodeCreationMenu key={`${creationAnchor.x},${creationAnchor.y}`} catalog={catalog} anchor={creationAnchor}
           onClose={closeCreationMenu} onCreate={choice => {
@@ -2887,7 +2874,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     <NodeInspector
       effectiveParams={executionAnalysis?.data?.graph.nodes.find(n => n.id === selectedNode.id)?.params}
       environmentParams={executionAnalysis?.data?.environment_params[selectedNode.id] ?? []}
-      preparationStatus={executionAnalysis?.error ?? (executionAnalysis?.data ? undefined : "正在检查有效配置")}
+      preparationStatus={executionAnalysis.message}
       inputSources={Object.fromEntries(edges.filter(e=>e.target===selectedNode.id).map(e=>[e.targetHandle ?? '', (nodes.find(n=>n.id===e.source)?.data as AlgorithmNodeData)?.pack?.name ?? e.source]))}
       onParamsChange={patch => updateNodeParams(selectedNode.id, patch)}
       pinnedParams={effectiveParameterPins(pinnedParams, selectedAlgorithmData.pack)}
