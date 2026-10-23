@@ -166,7 +166,16 @@ function jsonRoute(body: unknown) {
   };
 }
 
-async function stubCommon(page: import("@playwright/test").Page) {
+async function stubCommon(page: import("@playwright/test").Page, kind: 'inflight_old_params' | 'self_dirty' | null) {
+  await page.routeWebSocket('**', () => {});
+  // Gateway owns drift; the browser must not infer it from sparse historical jobs.
+  await page.route(`**/api/workflows/${WORKFLOW_ID}/analyze`, async route => {
+    const graph=route.request().postDataJSON().graph;
+    await route.fulfill({json:{revision:'test',graph,diff:[],environment_params:{},staleness:{
+      [GNID_DRIFT]:kind ? {kind,title:kind === 'inflight_old_params' ? '运行中的任务使用已冻结的旧配置' : '有效配置与上次运行不同',changeReasons:['use_gpu 已变化']} : null,
+      [GNID_MATCH]:null,
+    }}});
+  });
   await page.route("**/api/pack-catalog", jsonRoute([pack()]));
   await page.route("**/api/nodes", jsonRoute([
     {
@@ -212,7 +221,7 @@ test.describe("Canvas node — inflight_old_params chip", () => {
     const draft = draftGraph({ use_gpu: 1 }, { use_gpu: 0 });
     const snap = snapshotGraph({ use_gpu: 0 });
 
-    await stubCommon(page);
+    await stubCommon(page, 'inflight_old_params');
     await page.route(`**/api/workflows/${WORKFLOW_ID}`, jsonRoute({
       workflow_id: WORKFLOW_ID,
       name: "inflight-drift",
@@ -267,7 +276,7 @@ test.describe("Canvas node — inflight_old_params chip", () => {
     const draft = draftGraph({ use_gpu: 1 }, { use_gpu: 0 });
     const snap = snapshotGraph({ use_gpu: 0 });
 
-    await stubCommon(page);
+    await stubCommon(page, 'self_dirty');
     await page.route(`**/api/workflows/${WORKFLOW_ID}`, jsonRoute({
       workflow_id: WORKFLOW_ID,
       name: "done-drift",
@@ -313,7 +322,7 @@ test.describe("Canvas node — inflight_old_params chip", () => {
     const draft = draftGraph({ use_gpu: 1 }, { use_gpu: 1 });
     const snap = snapshotGraph({ use_gpu: 1 });
 
-    await stubCommon(page);
+    await stubCommon(page, null);
     await page.route(`**/api/workflows/${WORKFLOW_ID}`, jsonRoute({
       workflow_id: WORKFLOW_ID,
       name: "no-drift",
