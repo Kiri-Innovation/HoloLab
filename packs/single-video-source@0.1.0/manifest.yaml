@@ -36,6 +36,7 @@ docs: |
 params:
   video_path:
     type: path
+    pinned: true
     must_exist: true
     path_kind: file
     description: "Absolute path to the source video file (.mp4 / .mov / .MOV)."

@@ -1909,6 +1909,7 @@ function VideoArrayControls({ sync }: ControlsProps) {
         style={{
           width: 28,
           height: 28,
+          flexShrink: 0,
           padding: 0,
           background: "transparent",
           border: "1px solid var(--inverse-muted, rgba(255,255,255,0.35))",
@@ -1976,6 +1977,7 @@ function VideoArrayControls({ sync }: ControlsProps) {
         }}
         style={{
           flex: 1,
+          minWidth: 0,
           cursor: disabled ? "default" : "pointer",
           accentColor: "var(--info, #4aa3ff)",
         }}
