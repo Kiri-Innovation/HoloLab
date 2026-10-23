@@ -716,6 +716,19 @@ CREATE VIEW snapshot_value_bindings AS
 )
 
 
+MIGRATIONS.append(
+    (
+        24,
+        """
+CREATE TABLE workflow_bindings (
+ workflow_id TEXT PRIMARY KEY REFERENCES workflows(workflow_id) ON DELETE CASCADE,
+ bindings_json TEXT NOT NULL
+);
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

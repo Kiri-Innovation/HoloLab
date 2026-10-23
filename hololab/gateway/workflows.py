@@ -365,7 +365,12 @@ class WorkflowStore:
             if edge.target in by_id:
                 by_id[edge.target].port_values.pop(edge.targetHandle, None)
         wid = workflow_id or str(uuid.uuid4())
-        graph_json = graph.model_dump_json(exclude_none=True)
+        # A binding row is also the format marker, including an empty map.
+        devices = {n.id: n.assigned_node_id for n in graph.nodes if n.kind != "view"}
+        stored = graph.model_dump(exclude_none=True)
+        for node in stored["nodes"]:
+            node.pop("assigned_node_id", None)
+        graph_json = json.dumps(stored)
         now = time.time()
         conflict_row: WorkflowRow | None = None
         precondition_row: WorkflowRow | None = None
@@ -400,6 +405,11 @@ class WorkflowStore:
                 """,
                 (wid, name, graph_json, now, now),
             )
+            await conn.execute(
+                "INSERT INTO workflow_bindings VALUES (?, ?) ON CONFLICT(workflow_id) "
+                "DO UPDATE SET bindings_json=excluded.bindings_json",
+                (wid, json.dumps(devices)),
+            )
 
         await self._db.write(_write)
         if precondition_row is not None:
@@ -429,33 +439,49 @@ class WorkflowStore:
             row = await cur.fetchone()
         if row is None:
             return None
+        graph = WorkflowGraph.model_validate_json(row[2])
+        async with conn.execute(
+            "SELECT bindings_json FROM workflow_bindings WHERE workflow_id=?", (workflow_id,)
+        ) as cur:
+            binding = await cur.fetchone()
+        if binding is not None:
+            devices = json.loads(binding[0])
+            for node in graph.nodes:
+                node.assigned_node_id = devices.get(node.id)
         return WorkflowRow(
             workflow_id=row[0],
             name=row[1],
-            graph=WorkflowGraph.model_validate_json(row[2]),
+            graph=graph,
             created_ts=row[3],
             updated_ts=row[4],
         )
 
     async def get_draft(self, workflow_id: str) -> WorkflowRow | None:
-        async with (
-            self._db.read() as conn,
-            conn.execute(
-                "SELECT workflow_id, name, draft_json, created_ts, updated_ts "
-                "FROM workflows WHERE workflow_id=?",
-                (workflow_id,),
-            ) as cur,
-        ):
-            row = await cur.fetchone()
-        if row is None:
-            return None
-        return WorkflowRow(
-            workflow_id=row[0],
-            name=row[1],
-            graph=WorkflowGraph.model_validate_json(row[2]),
-            created_ts=row[3],
-            updated_ts=row[4],
-        )
+        async with self._db.read() as conn:
+            return await self._read_row(conn, workflow_id)
+
+    async def copy_recipe(self, workflow_id: str, name: str) -> WorkflowRow:
+        from hololab.gateway.recipe import copy_recipe
+
+        source = await self.get_draft(workflow_id)
+        if source is None:
+            raise ValueError("workflow not found")
+        return await self.save_draft(workflow_id=None, name=name, graph=copy_recipe(source.graph))
+
+    async def restore_legacy_bindings(self, workflow_id: str) -> None:
+        """Explicit downgrade; atomically recombine current bindings, never an old backup."""
+
+        async def write(conn):
+            row = await self._read_row(conn, workflow_id)
+            if row is None:
+                raise ValueError("workflow not found")
+            await conn.execute(
+                "UPDATE workflows SET draft_json=?, updated_ts=? WHERE workflow_id=?",
+                (row.graph.model_dump_json(exclude_none=True), time.time(), workflow_id),
+            )
+            await conn.execute("DELETE FROM workflow_bindings WHERE workflow_id=?", (workflow_id,))
+
+        await self._db.write(write)
 
     # -- workflow-wide viewer state ---------------------------------------
 
