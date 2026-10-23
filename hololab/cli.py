@@ -38,6 +38,7 @@ from hololab.logging import get_logger
 from hololab.manifest import load_manifest
 from hololab.node.config import load_node_config
 from hololab.node.runtime import NodeRuntime
+from hololab.package_identity import canonical_name, parse_spec, validate_name
 from hololab.paths import default_workspace_root, frontend_dist_dir
 
 app = typer.Typer(
@@ -550,7 +551,13 @@ def pack_init(
         typer.echo("error: spec must be NAME@VERSION (e.g. my-algo@0.1.0)", err=True)
         raise typer.Exit(2)
 
-    name, version = spec.split("@", 1)
+    try:
+        name, version = parse_spec(spec)
+        name = canonical_name(name)
+        validate_name(name, allow_legacy=False)
+    except ValueError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(2) from exc
     target = packs_dir / f"{name}@{version}"
     if target.exists():
         typer.echo(f"error: {target} already exists", err=True)

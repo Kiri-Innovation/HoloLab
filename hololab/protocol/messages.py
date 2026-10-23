@@ -9,7 +9,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from hololab.package_identity import validate_identity
 
 # ---------------------------------------------------------------------------
 # Node ↔ Gateway: registration and health
@@ -34,6 +36,11 @@ class PackInventoryEntry(BaseModel):
     # so an operator can tell a developer's ad-hoc pack from a
     # vendored one. See docs/writing-a-pack.md.
     source_dir: str | None = None
+
+    @model_validator(mode="after")
+    def _check_package_identity(self):
+        validate_identity(self.name, self.version)
+        return self
 
 
 class GpuInfo(BaseModel):
@@ -266,6 +273,13 @@ class JobAssign(BaseModel):
     # Non-empty means ``len(...) == len(shard_element_ids)`` — the node
     # loops over both together.
     shard_input_paths: list[dict[str, str]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_package_identity(self):
+        validate_identity(
+            self.algorithm_name, self.algorithm_version, intrinsic=self.intrinsic is not None
+        )
+        return self
 
 
 class JobAck(BaseModel):
@@ -680,6 +694,11 @@ class PrepareParamsReq(BaseModel):
     algorithm_name: str
     algorithm_version: str
     params: dict[str, Any]
+
+    @model_validator(mode="after")
+    def _check_package_identity(self):
+        validate_identity(self.algorithm_name, self.algorithm_version)
+        return self
 
 
 class PrepareParamsResp(BaseModel):

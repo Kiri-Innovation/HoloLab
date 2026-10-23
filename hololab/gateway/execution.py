@@ -56,6 +56,7 @@ from hololab.gateway.workflows import (
     resolve_handle_output_tags,
 )
 from hololab.logging import get_logger
+from hololab.package_identity import offered_identity, package_key, same_package
 from hololab.protocol import JobAssign, JobFailReason, encode
 
 log = get_logger("gateway.exec")
@@ -102,7 +103,7 @@ async def run_snapshot(
     # sees currently-connected nodes, which is exactly what snapshot
     # validation already required upstream.
     catalog_by_key: dict[tuple[str, str], dict[str, Any]] = {
-        (c["name"], c["version"]): c
+        package_key(c["name"], c["version"]): c
         for c in (
             (graph.execution or {}).get("packs", []) if graph.execution else registry.catalog_json()
         )
@@ -136,7 +137,7 @@ async def run_snapshot(
         from hololab.gateway.constants import ensure_inline_inputs
 
         input_handles = await ensure_inline_inputs(app, snapshot_id, gnode, input_handles)
-        pack_entry = catalog_by_key.get((gnode.algorithm_name, gnode.algorithm_version))
+        pack_entry = catalog_by_key.get(package_key(gnode.algorithm_name, gnode.algorithm_version))
         needs_fanout = bool(
             gnode.arrayed_toggle and pack_entry is not None and pack_entry.get("arrayable", False)
         )
@@ -1124,11 +1125,16 @@ async def _dispatch_prepared_shard(
             "batch_element_ids and batch_input_paths must be aligned"
         )
 
+    wire_name, wire_version = (
+        (assigned.algorithm_name, assigned.algorithm_version)
+        if assigned.algorithm_name.startswith("@builtin/")
+        else offered_identity(session.packs, assigned.algorithm_name, assigned.algorithm_version)
+    )
     assign_msg = JobAssign(
         job_id=assigned.job_id,
         workflow_id=assigned.workflow_id,
-        algorithm_name=assigned.algorithm_name,
-        algorithm_version=assigned.algorithm_version,
+        algorithm_name=wire_name,
+        algorithm_version=wire_version,
         params=assigned.params,
         input_handles=assigned.input_handles,
         graph_node_id=assigned.graph_node_id,
@@ -1410,11 +1416,16 @@ async def _dispatch_job(
     await store.update(assigned, kind, payload)
     _push_update(hub, assigned)
 
+    wire_name, wire_version = (
+        (assigned.algorithm_name, assigned.algorithm_version)
+        if assigned.algorithm_name.startswith("@builtin/")
+        else offered_identity(session.packs, assigned.algorithm_name, assigned.algorithm_version)
+    )
     assign_msg = JobAssign(
         job_id=assigned.job_id,
         workflow_id=assigned.workflow_id,
-        algorithm_name=assigned.algorithm_name,
-        algorithm_version=assigned.algorithm_version,
+        algorithm_name=wire_name,
+        algorithm_version=wire_version,
         params=assigned.params,
         input_handles=assigned.input_handles,
         graph_node_id=assigned.graph_node_id,
@@ -1683,7 +1694,7 @@ async def dispatch_graph_node(
         (
             c
             for c in (graph.execution or {}).get("packs", [])
-            if c["name"] == gnode.algorithm_name and c["version"] == gnode.algorithm_version
+            if same_package(c["name"], c["version"], gnode.algorithm_name, gnode.algorithm_version)
         ),
         None,
     )
@@ -1907,8 +1918,8 @@ async def _resolve_inputs_from_snapshot(
             (
                 p
                 for p in app.state.registry.catalog_json()
-                if (p["name"], p["version"])
-                == (consumer.algorithm_name, consumer.algorithm_version)
+                if package_key(p["name"], p["version"])
+                == package_key(consumer.algorithm_name, consumer.algorithm_version)
             ),
             None,
         )

@@ -14,6 +14,7 @@ from typing import Any
 import aiosqlite
 from fastapi import WebSocket
 
+from hololab.package_identity import offered_identity, package_key, same_package
 from hololab.persistence.db import Database
 from hololab.protocol.messages import GpuInfo, PackInventoryEntry
 
@@ -303,7 +304,8 @@ class NodeRegistry:
 
         for session in self._sessions.values():
             for pk in session.packs:
-                if pk.name == algorithm_name and pk.version == algorithm_version:
+                if same_package(pk.name, pk.version, algorithm_name, algorithm_version):
+                    offered_identity(session.packs, algorithm_name, algorithm_version)
                     return session
         return None
 
@@ -349,7 +351,7 @@ class NodeRegistry:
         legacy_root = _Path.cwd() / "packs"
         for session in self._sessions.values():
             for pk in session.packs:
-                if pk.name != algorithm_name or pk.version != algorithm_version:
+                if not same_package(pk.name, pk.version, algorithm_name, algorithm_version):
                     continue
                 candidates: list[_Path] = []
                 if pk.manifest_path:
@@ -507,7 +509,11 @@ class NodeRegistry:
 
         for session in self._sessions.values():
             for pk in session.packs:
-                key = (pk.name, pk.version)
+                try:
+                    offered_identity(session.packs, pk.name, pk.version)
+                except ValueError:
+                    continue
+                key = package_key(pk.name, pk.version)
                 entry = by_key.setdefault(
                     key,
                     {

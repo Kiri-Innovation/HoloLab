@@ -25,6 +25,7 @@ from pathlib import Path
 
 from hololab.logging import get_logger
 from hololab.manifest import Manifest, load_manifest
+from hololab.package_identity import package_key
 
 log = get_logger("node.packs")
 
@@ -122,6 +123,14 @@ def scan_packs(pack_source: Path) -> list[LoadedPack]:
             continue
         manifest_path = entry / "manifest.yaml"
         if not manifest_path.is_file():
+            # One additional level for scope/name@version. Never recurse into code trees.
+            for child in sorted(entry.iterdir()):
+                nested = child / "manifest.yaml"
+                if child.is_dir() and nested.is_file():
+                    loaded = _load_manifest_safely(nested)
+                    if loaded:
+                        manifest, sha = loaded
+                        out.append(LoadedPack(manifest, child, nested, sha, pack_source))
             continue
         loaded = _load_manifest_safely(manifest_path)
         if loaded is None:
@@ -165,4 +174,17 @@ def scan_multi_packs(pack_dirs: list[Path]) -> list[LoadedPack]:
                 )
                 continue
             seen[key] = pack
+    canonical = {}
+    for raw, pack in seen.items():
+        key = package_key(*raw)
+        previous = canonical.get(key)
+        if previous and previous.manifest_path.resolve() != pack.manifest_path.resolve():
+            log.error(
+                "ambiguous package aliases; dispatch disabled",
+                identity=key,
+                first=str(previous.manifest_path),
+                second=str(pack.manifest_path),
+            )
+        canonical[key] = pack
+    # Retain both spellings so inventory and runtime can reject ambiguity.
     return list(seen.values())

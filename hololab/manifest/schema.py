@@ -15,6 +15,8 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from hololab.package_identity import validate_name, validate_version
+
 API_VERSION = "hololab.dev/v1"
 
 
@@ -639,10 +641,7 @@ class Manifest(BaseModel):
     @field_validator("name")
     @classmethod
     def _check_name(cls, v: str) -> str:
-        allowed = set("abcdefghijklmnopqrstuvwxyz0123456789_-")
-        if not v or any(c not in allowed for c in v):
-            raise ValueError(f"pack name {v!r} must be lowercase [a-z0-9_-]+")
-        return v
+        return validate_name(v)
 
     @field_validator("category", mode="before")
     @classmethod
@@ -674,10 +673,7 @@ class Manifest(BaseModel):
     @field_validator("version")
     @classmethod
     def _check_semver(cls, v: str) -> str:
-        parts = v.split(".")
-        if len(parts) != 3 or not all(p.isdigit() for p in parts):
-            raise ValueError(f"version {v!r} must be semver MAJOR.MINOR.PATCH")
-        return v
+        return validate_version(v)
 
     @model_validator(mode="after")
     def _check_outputs(self) -> Manifest:
