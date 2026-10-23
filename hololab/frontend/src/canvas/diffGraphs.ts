@@ -122,10 +122,7 @@ export function diffGraphs(
       });
     }
 
-    // Normalise both sides with their own version's manifest defaults
-    // — a sparse-vs-dispatch-merged shape difference is not a real
-    // change and shouldn't show up as "参数 X: (未设置) → 0". See the
-    // block comment above ``packDefaults``.
+    // Compare supplied effective values; missing historical fields stay missing.
     const dp = dn.params ?? {};
     const sp = sn.params ?? {};
     const keys = new Set([...Object.keys(dp), ...Object.keys(sp)]);

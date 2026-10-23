@@ -31,21 +31,21 @@ def _images_txt(names: list[str]) -> str:
     return "\n".join(rows) + "\n"
 
 
-def test_missing_cam3_uses_the_six_present_cameras(tmp_path: Path) -> None:
+def test_missing_cam3_uses_the_six_present_cameras(tmp_path: Path, monkeypatch) -> None:
     """The shared SfM list has seven rows, while this group deliberately has six."""
     pytest.importorskip("numpy")
     # This regression exercises only filename/pose intersection, not image
     # sampling. Keep the unit test runnable in the lightweight gateway env.
-    sys.modules.setdefault("cv2", types.ModuleType("cv2"))
+    monkeypatch.setitem(sys.modules, "cv2", types.ModuleType("cv2"))
     kornia = types.ModuleType("kornia")
     geometry = types.ModuleType("kornia.geometry")
     calibration = types.ModuleType("kornia.geometry.calibration")
     calibration.distort_points = lambda *args, **kwargs: None
     geometry.calibration = calibration
     kornia.geometry = geometry
-    sys.modules.setdefault("kornia", kornia)
-    sys.modules.setdefault("kornia.geometry", geometry)
-    sys.modules.setdefault("kornia.geometry.calibration", calibration)
+    monkeypatch.setitem(sys.modules, "kornia", kornia)
+    monkeypatch.setitem(sys.modules, "kornia.geometry", geometry)
+    monkeypatch.setitem(sys.modules, "kornia.geometry.calibration", calibration)
     worker = _module(
         PACKS / "image-undistort@0.5.2" / "und_worker.py", "und_worker_052_missing_group"
     )

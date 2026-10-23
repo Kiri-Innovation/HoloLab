@@ -1735,7 +1735,7 @@ def _mount_routes(app: FastAPI) -> None:
         required = (
             {body["node_id"]}
             if body.get("node_id")
-            else {n.id for n in graph.nodes if n.assigned_node_id}
+            else {n.id for n in graph.nodes if n.kind != "view"}
         )
         try:
             prepared = await prepare_execution(app, graph, required=required)

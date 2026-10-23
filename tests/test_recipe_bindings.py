@@ -96,3 +96,63 @@ async def test_binding_write_failure_rolls_back_whole_save(tmp_path):
         assert restored.graph == first.graph
     finally:
         await db.close()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_saves_have_one_winner(tmp_path):
+    import asyncio
+
+    db = await open_database(tmp_path / "concurrent.sqlite")
+    try:
+        store = WorkflowStore(db)
+        first = await store.save_draft(workflow_id=None, name="initial", graph=graph())
+
+        async def save(device):
+            changed = graph()
+            changed.nodes[0].assigned_node_id = device
+            return await store.save_draft(
+                workflow_id=first.workflow_id,
+                name=device,
+                graph=changed,
+                base_updated_ts=first.updated_ts,
+            )
+
+        results = await asyncio.gather(save("one"), save("two"), return_exceptions=True)
+        assert sum(isinstance(r, WorkflowConflict) for r in results) == 1
+        saved = await store.get_draft(first.workflow_id)
+        assert saved.name == saved.graph.nodes[0].assigned_node_id
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_first_lazy_migration_failure_preserves_legacy_blob(tmp_path):
+    db = await open_database(tmp_path / "legacy-failure.sqlite")
+    try:
+        store = WorkflowStore(db)
+        raw = graph().model_dump_json()
+
+        async def seed(conn):
+            await conn.execute("INSERT INTO workflows VALUES ('w', 'legacy', ?, 1, 1)", (raw,))
+            await conn.execute(
+                "CREATE TRIGGER fail_first_binding BEFORE INSERT ON workflow_bindings BEGIN SELECT RAISE(ABORT, 'migration failed'); END"
+            )
+
+        await db.write(seed)
+        with pytest.raises(Exception, match="migration failed"):
+            await store.save_draft(
+                workflow_id="w", name="changed", graph=graph(), base_updated_ts=1
+            )
+        async with db.read() as conn:
+            row = await (
+                await conn.execute(
+                    "SELECT name,draft_json,updated_ts FROM workflows WHERE workflow_id='w'"
+                )
+            ).fetchone()
+            assert tuple(row) == ("legacy", raw, 1)
+            assert (
+                await (await conn.execute("SELECT count(*) FROM workflow_bindings")).fetchone()
+            )[0] == 0
+        assert (await store.get_draft("w")).graph.nodes[0].assigned_node_id == "device"
+    finally:
+        await db.close()

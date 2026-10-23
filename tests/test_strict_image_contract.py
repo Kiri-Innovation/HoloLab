@@ -222,7 +222,7 @@ async def test_invalid_output_never_registered(tmp_path):
     node._safe_send.assert_not_called()
 
 
-def test_real_und_rejects_single_file_as_developer_contract_mismatch(tmp_path):
+def test_real_und_stages_supported_single_file_input(tmp_path):
     request = {
         k: str(tmp_path / k)
         for k in ["cams", "images", "cams_out", "images_out", "scratch", "staging"]
@@ -239,7 +239,12 @@ def test_real_und_rejects_single_file_as_developer_contract_mismatch(tmp_path):
 import importlib.util,json,sys
 spec=importlib.util.spec_from_file_location('worker',sys.argv[1])
 worker=importlib.util.module_from_spec(spec);spec.loader.exec_module(worker)
-sys.exit(worker.process_shard(json.loads(sys.argv[2])))
+from pathlib import Path
+request=json.loads(sys.argv[2])
+source=Path(request['images'])
+staged=worker.stage_images(source, Path(request['scratch']))
+assert len(staged)==1
+assert staged[0].read_bytes()==source.read_bytes()
 """
     result = subprocess.run(
         [
@@ -253,8 +258,9 @@ sys.exit(worker.process_shard(json.loads(sys.argv[2])))
         text=True,
         timeout=30,
     )
-    assert result.returncode == 2, result.stderr
-    assert "images handle is not a directory" in result.stderr
+    # The monocular-input support predates this change: single images are
+    # staged into a one-image directory, rather than rejected by the worker.
+    assert result.returncode == 0, result.stderr
 
 
 def test_current_main_chain_edges_and_broadcast_contract():

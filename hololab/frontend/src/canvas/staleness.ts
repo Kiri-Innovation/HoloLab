@@ -47,34 +47,9 @@ import { isAlgorithmGraphNode } from "./nodeMeta";
 
 const IN_FLIGHT = new Set(["pending", "assigned", "running"]);
 
-// Look up the manifest ``params:`` defaults for a pack version. Mirrors
-// the backend's ``merged_params_with_defaults`` (gateway/execution.py) so
-// the "unchanged by default-fill" invariant is enforced on both sides:
-//
-//   * At dispatch the gateway fills every manifest default the draft
-//     doesn't override into ``Job.params`` (and the snapshot's
-//     ``graph.nodes[i].params``), then renders the shard template
-//     against the merged dict — the workflow's canonical run params.
-//   * The draft on the canvas stays sparse (only keys the operator
-//     explicitly set), because autosave preserves what the user typed
-//     rather than what the pack would compute.
-//
-// Comparing the sparse draft directly against the merged snapshot as
-// the pre-normalisation code did (``for k in union(draft, snap): if
-// dp[k] !== sp[k] flag``) flagged every default-fill key as a change
-// on every cold load. Merging defaults into both sides here brings the
-// two into the same shape so the diff surfaces only real overrides
-// (``iterations: 500 → 50``) and hides the "same-as-default" noise
-// (``max_width: undefined → 0`` when the manifest default is ``0``).
+// Compatibility signature for legacy comparison callers. Values must already be resolved.
 export type PackDefaults = (name: string, version: string) => Record<string, unknown>;
 
-// Build a PackDefaults closure over a catalog map. Missing packs return
-// an empty defaults dict — the compare then falls back to the raw
-// draft-vs-frozen diff for that node (unchanged legacy behaviour), so a
-// catalog that hasn't hydrated yet doesn't produce a false-negative
-// where a real edit gets hidden. Callers should feed the same
-// ``catalogByKey`` the App uses for the palette / hydration so the
-// versions here match what a run would actually pull.
 export interface NodeStaleness {
   kind: "self_dirty" | "upstream_dirty" | "inflight_old_params";
   // Human-readable one-line explanation for the ``title`` tooltip on

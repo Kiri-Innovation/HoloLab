@@ -76,6 +76,9 @@ def _fake_online_node(client: TestClient) -> None:
         protocol_v=1,
     )
     client.app.state.registry._sessions[session.node_id] = session
+    client.app.state.registry.catalog_json = lambda: [
+        {"name": "demo-echo", "version": "0.1.0", "inputs": {}, "outputs": {}, "params": {}}
+    ]
 
 
 def _seed_run(

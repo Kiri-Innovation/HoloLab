@@ -69,3 +69,12 @@ def test_prepare_paths_before_outputs_exist(tmp_path, monkeypatch):
     assert resolve_path_params(spec, {"path": "~/future"}, check_exists=False) == {
         "path": str(tmp_path / "future")
     }
+
+
+def test_comparison_distinguishes_boolean_from_integer():
+    g, packs = fixture()
+    frozen = resolve_recipe(g, packs)
+    frozen.nodes[0].params["flag"] = True
+    current = frozen.model_copy(deep=True)
+    current.nodes[0].params["flag"] = 1
+    assert changed_nodes(current, frozen) == {"a"}

@@ -65,35 +65,6 @@ class WorkflowRunError(RuntimeError):
     """Raised for run-time problems (upstream failed, node dropped, timeout)."""
 
 
-def merged_params_with_defaults(
-    gnode_params: dict[str, Any] | None,
-    pack_entry: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Merge manifest ``params:`` defaults with ``gnode.params`` (gnode wins).
-
-    A workflow draft records only the params the operator has touched. When
-    the manifest evolves (e.g. ``frame-extraction`` gaining
-    ``max_width`` / ``start_frame`` / ``end_frame`` after the workflow
-    was saved), the shard's Jinja2 template renders under
-    ``StrictUndefined`` and dies on ``{{ params.<new_key> }}`` — a stale
-    workflow that never gained the new keys can no longer run.
-
-    Merging manifest defaults into the effective params at dispatch time
-    keeps the shard renderable across pack evolution without asking the
-    operator to re-save every workflow when a pack adds a knob. The
-    ``gnode.params`` still wins on any key it defines, so user overrides
-    are preserved verbatim.
-    """
-
-    defaults: dict[str, Any] = {}
-    if pack_entry is not None:
-        for name, spec in (pack_entry.get("params") or {}).items():
-            if isinstance(spec, dict) and "default" in spec:
-                defaults[name] = spec["default"]
-    defaults.update(gnode_params or {})
-    return defaults
-
-
 async def run_snapshot(
     app: FastAPI,
     *,
@@ -1034,7 +1005,7 @@ async def _create_shard_row(
     stagger the ASSIGNED transitions through a semaphore.
 
     ``params`` is the parent job's already-merged effective params — see
-    :func:`merged_params_with_defaults`. Passed explicitly so every shard
+    the preparation resolver. Passed explicitly so every shard
     inherits the same rendered params as its parent (bypasses the stale-
     workflow gap where ``gnode.params`` still lacks manifest defaults).
     """
@@ -1392,9 +1363,8 @@ async def _dispatch_job(
 ) -> str:
     """Create + assign + send job_assign. Returns the newly minted job id.
 
-    ``pack_entry`` is the catalog entry for ``gnode``'s pack; when
-    provided, manifest ``params:`` defaults are merged in for any keys
-    the workflow draft doesn't set (:func:`merged_params_with_defaults`).
+    ``gnode.params`` is already frozen by preparation. ``pack_entry`` is
+    retained for caller compatibility and never supplies parameter values.
 
     ``snapshot_jobs`` is required when the caller wants attribute-at-
     creation semantics (2026-09-22 refactor): the freshly-minted job's

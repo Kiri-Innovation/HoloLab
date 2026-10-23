@@ -282,3 +282,227 @@ def test_failed_slot_with_changed_configuration_forks(tmp_path):
             assert received[-1] == ({"count": 100}, {"count": 100}, "echo 100")
 
         client.portal.call(exercise)
+
+
+def test_history_never_fills_missing_values_from_catalog(tmp_path):
+    from hololab.gateway.preparation import historical_execution
+
+    app = create_app(db_path=tmp_path / "history.sqlite")
+    with TestClient(app) as client:
+        app, catalog, graph, _received = setup(client, tmp_path)
+
+        async def exercise():
+            draft = await app.state.workflows.save_draft(
+                workflow_id=None, name="legacy", graph=graph
+            )
+            snapshot = await app.state.workflows.create_snapshot(
+                workflow_id=draft.workflow_id, graph=graph
+            )
+            assert snapshot.graph.execution is None
+            frozen = await historical_execution(app, snapshot)
+            assert frozen.nodes[0].params == {}
+            assert frozen.execution["recorded_jobs"] == {}
+            await dispatch_graph_node(
+                app,
+                workflow_id=draft.workflow_id,
+                graph=draft.graph,
+                graph_node_id="a",
+                base_snapshot_id=None,
+            )
+            sid = await app.state.snapshot_jobs.get_latest_snapshot_for_workflow(draft.workflow_id)
+            ran = await app.state.workflows.get_snapshot(sid)
+            ran.graph.execution = (
+                None  # simulate a sparse historical snapshot with actual Job evidence
+            )
+            ran.graph.nodes[0].params = {"count": 1}
+            catalog[0]["params"]["count"]["default"] = 999
+            actual = await historical_execution(app, ran)
+            assert actual.nodes[0].params == {"count": 12}
+            assert ran.graph.nodes[0].params == {"count": 1}
+
+        client.portal.call(exercise)
+
+
+def test_selected_node_normalizes_before_submission_and_dispatch_keeps_value(tmp_path, monkeypatch):
+    from hololab.gateway.app import _dispatch_node_frame
+    from hololab.node.runtime import NodeRuntime
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    with TestClient(create_app(db_path=tmp_path / "paths.sqlite")) as client:
+        app, catalog, graph, received = setup(client, tmp_path)
+        catalog[0]["params"]["path"] = {"type": "path", "default": "~/future", "must_exist": False}
+        session = app.state.registry.get_session("node")
+        original_send = session.ws.send_text
+        preparations = []
+
+        async def reply(kind, payload):
+            await _dispatch_node_frame(
+                kind,
+                payload,
+                session,
+                app.state.jobs_store,
+                app.state.handles,
+                app.state.hub,
+                app.state.registry,
+                None,
+                app,
+            )
+
+        runtime = SimpleNamespace(
+            _packs={
+                ("frozen-test", "1.0.0"): SimpleNamespace(
+                    manifest=SimpleNamespace(
+                        params={"path": ParamSpec(type="path", must_exist=False)}
+                    )
+                )
+            },
+            _safe_send=reply,
+        )
+
+        async def send(raw):
+            envelope, payload = decode(raw)
+            if envelope.kind == "prepare_params_req":
+                preparations.append(deepcopy(payload.params))
+                await NodeRuntime._prepare_params_reply(runtime, payload)
+            else:
+                if envelope.kind == "job_assign":
+                    validate_frozen_path_params(
+                        runtime._packs[("frozen-test", "1.0.0")].manifest.params, payload.params
+                    )
+                await original_send(raw)
+
+        session.ws.send_text = send
+
+        async def save():
+            return await app.state.workflows.save_draft(workflow_id=None, name="paths", graph=graph)
+
+        row = client.portal.call(save)
+        url = f"/api/workflows/{row.workflow_id}"
+        prepared = client.post(url + "/prepare", json={}).json()
+        effective = prepared["graph"]["nodes"][0]["params"]
+        assert effective["path"] == str(tmp_path / "future")
+        result = client.post(
+            url + "/run",
+            headers={"X-Preparation-Token": prepared["token"], "X-Request-ID": "path-run"},
+        )
+        assert result.status_code == 200, result.text
+        client.portal.call(asyncio.sleep, 0.05)
+        assert len(preparations) == 1
+        assert preparations[0]["path"] == "~/future"
+        assert received[0][0] == received[0][1] == effective
+        snapshot = client.portal.call(
+            app.state.workflows.get_snapshot, result.json()["snapshot_id"]
+        )
+        assert snapshot.graph.nodes[0].params == effective
+
+
+def test_full_preparation_covers_unassigned_constants(tmp_path):
+    with TestClient(create_app(db_path=tmp_path / "constants.sqlite")) as client:
+        app, _catalog, graph, _received = setup(client, tmp_path)
+        graph.nodes.append(
+            GraphNode(
+                id="c", kind="intrinsic", operation="constant-float-array", params={"items": [1]}
+            )
+        )
+
+        async def save():
+            return await app.state.workflows.save_draft(
+                workflow_id=None, name="constant", graph=graph
+            )
+
+        row = client.portal.call(save)
+        url = f"/api/workflows/{row.workflow_id}"
+        prepared = client.post(url + "/prepare", json={}).json()
+        assert prepared["graph"]["execution"]["prepared_nodes"] == ["a", "c"]
+        result = client.post(url + "/run", headers={"X-Preparation-Token": prepared["token"]})
+        assert result.status_code == 200, result.text
+
+
+def test_fork_excludes_all_changed_branches_and_their_downstream(tmp_path):
+    from hololab.gateway.execution import _dispatch_job
+    from hololab.gateway.workflows import GraphEdge
+
+    with TestClient(create_app(db_path=tmp_path / "fork-scope.sqlite")) as client:
+        app, _catalog, graph, _received = setup(client, tmp_path)
+        graph.nodes.extend(
+            graph.nodes[0].model_copy(update={"id": nid}, deep=True) for nid in ("b", "c", "d")
+        )
+        graph.edges.append(
+            GraphEdge(id="bc", source="b", sourceHandle="out", target="c", targetHandle="in")
+        )
+
+        async def exercise():
+            row = await app.state.workflows.save_draft(workflow_id=None, name="scope", graph=graph)
+            frozen = await prepare_execution(app, graph)
+            snapshot = await app.state.workflows.create_snapshot(
+                workflow_id=row.workflow_id, graph=frozen
+            )
+            # Seed completed records independently: this regression concerns reuse,
+            # not input-handle resolution (covered by the lineage suite).
+            for node in frozen.nodes:
+                await _dispatch_job(
+                    registry=app.state.registry,
+                    store=app.state.jobs_store,
+                    hub=app.state.hub,
+                    snapshot_id=snapshot.snapshot_id,
+                    workflow_id=row.workflow_id,
+                    gnode=node,
+                    input_handles={},
+                    snapshot_jobs=app.state.snapshot_jobs,
+                )
+            graph.nodes[1].params["count"] = 90  # b changes while the user clicks a
+            row = await app.state.workflows.save_draft(
+                workflow_id=row.workflow_id, name="scope", graph=graph
+            )
+            result = await dispatch_graph_node(
+                app,
+                workflow_id=row.workflow_id,
+                graph=row.graph,
+                graph_node_id="a",
+                base_snapshot_id=snapshot.snapshot_id,
+            )
+            inherited = await app.state.snapshot_jobs.list_attributions(result["snapshot_id"])
+            assert {r["graph_node_id"] for r in inherited} == {"a", "d"}
+            assert result["operation"] == "fork"
+            assert (await app.state.workflows.get_snapshot(snapshot.snapshot_id)).graph.nodes[
+                1
+            ].params == {"count": 12}
+
+        client.portal.call(exercise)
+
+
+def test_historical_rerun_keeps_frozen_params_despite_new_draft_and_catalog(tmp_path):
+    with TestClient(create_app(db_path=tmp_path / "rerun.sqlite")) as client:
+        app, catalog, graph, received = setup(client, tmp_path)
+
+        async def original():
+            row = await app.state.workflows.save_draft(
+                workflow_id=None, name="history", graph=graph
+            )
+            result = await dispatch_graph_node(
+                app,
+                workflow_id=row.workflow_id,
+                graph=row.graph,
+                graph_node_id="a",
+                base_snapshot_id=None,
+            )
+            graph.nodes[0].params["count"] = 500
+            await app.state.workflows.save_draft(
+                workflow_id=row.workflow_id, name="edited", graph=graph
+            )
+            return result
+
+        original = client.portal.call(original)
+        catalog[0]["params"]["count"]["default"] = 999
+        url = f"/api/snapshots/{original['snapshot_id']}/rerun-from/a"
+        response = client.post(url, headers={"X-Request-ID": "historical-retry"})
+        assert response.status_code == 200, response.text
+        assert (
+            client.post(url, headers={"X-Request-ID": "historical-retry"}).json() == response.json()
+        )
+        client.portal.call(asyncio.sleep, 0.05)
+        assert received == [({"count": 12}, {"count": 12}, "echo 12")] * 2
+        snapshot = client.portal.call(
+            app.state.workflows.get_snapshot, response.json()["new_snapshot_id"]
+        )
+        assert snapshot.graph.nodes[0].params == {"count": 12}

@@ -24,6 +24,7 @@ export interface WorkflowToolbarProps {
   summary: RunSummary | null;
   onNameChange: (name: string) => void;
   onRun: () => Promise<void>;
+  onCopyRecipe?: () => Promise<void>;
   // Navigate back to the Gallery landing. Replaces the old "new" and
   // "load" buttons — creating and switching between workflows is now
   // driven from the Gallery cards, not the canvas toolbar.
@@ -49,6 +50,7 @@ export function WorkflowToolbar({
   summary,
   onNameChange,
   onRun,
+  onCopyRecipe,
   onExitToGallery,
   saveStatus,
   onSaveRetry,
@@ -220,6 +222,11 @@ export function WorkflowToolbar({
           referenceDisplay={{ title: name, subtitle: `${nodeCount} 个节点 · 当前已保存流程` }}
         />
       )}
+      {onCopyRecipe && <button type="button" style={CONTROL_STYLE}
+        aria-label="复制配方（不带设备）" disabled={!workflowId || saveStatus === "saving"}
+        onClick={() => { void onCopyRecipe().catch(e => flash(`复制失败: ${e.message}`, "var(--error)")); }}>
+        复制配方
+      </button>}
       <ThemeToggle />
       <SaveStatusPill
         status={saveStatus}

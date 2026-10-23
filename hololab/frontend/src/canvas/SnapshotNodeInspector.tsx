@@ -1,3 +1,4 @@
+import { parameterEvidence } from "./parameterEvidence";
 import { isConstantName } from "./constants";
 // Read-only variant of NodeInspector for the snapshot canvas view.
 //
@@ -335,11 +336,13 @@ export function SnapshotNodeInspector({
         </div>
 
         <div style={{ minWidth: 0 }}>
-          <div style={LABEL}>Frozen params</div>
+          <div style={LABEL}>快照记录的参数</div>
           <pre style={{ ...CODE, marginBottom: 12 }}>
-            {job && Object.keys(job.params).length > 0
-              ? JSON.stringify(job.params, null, 2)
-              : "(none)"}
+            {parameterEvidence(frozenParams, Object.keys(pack?.params ?? {}))}
+          </pre>
+          <div style={LABEL}>Job 实际参数</div>
+          <pre style={{ ...CODE, marginBottom: 12 }}>
+            {parameterEvidence(job?.params, Object.keys(pack?.params ?? {}))}
           </pre>
 
           <div style={LABEL}>Input handles</div>

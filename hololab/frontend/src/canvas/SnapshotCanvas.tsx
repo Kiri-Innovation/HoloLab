@@ -272,9 +272,13 @@ export function SnapshotCanvas({
           data: { kind: "view", title: gn.title ?? "视图", target } as ViewNodeData,
         };
       }
-      const pack =
+      const declaration =
         catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`) ??
         (isConstantName(gn.algorithm_name) ? constantPresentation(gn.algorithm_name.endsWith("vec3-array")) : gn.algorithm_name === ASSEMBLE ? assemblyPresentation() : stubPack(gn.algorithm_name, gn.algorithm_version));
+      // Historical parameter labels may use today's schema, never its defaults.
+      const pack = { ...declaration, params: Object.fromEntries(
+        Object.entries(declaration.params).map(([name, spec]) => [name, { ...spec, default: undefined }]),
+      ) };
       const runtime: NodeRuntime | undefined = runtimeByGraphNodeId[gn.id];
       return {
         id: gn.id,

@@ -21,13 +21,7 @@ import pytest
 
 
 def _find_dist_js() -> Path | None:
-    dist = (
-        Path(__file__).resolve().parent.parent
-        / "hololab"
-        / "frontend"
-        / "dist"
-        / "assets"
-    )
+    dist = Path(__file__).resolve().parent.parent / "hololab" / "frontend" / "dist" / "assets"
     if not dist.is_dir():
         return None
     matches = sorted(dist.glob("index-*.js"))
@@ -108,39 +102,37 @@ def test_diff_item_data_attr(bundle_js: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_diff_node_added_copy(bundle_js: str) -> None:
-    """``diffGraphs`` produces '新增节点' for added nodes."""
-    assert "新增节点" in bundle_js
+def test_gateway_effective_diff_preserves_details():
+    from hololab.gateway.preparation import configuration_diff
+    from hololab.gateway.workflows import GraphEdge, GraphNode, WorkflowGraph
 
-
-def test_diff_node_removed_copy(bundle_js: str) -> None:
-    """``diffGraphs`` produces '删除节点' for removed nodes."""
-    assert "删除节点" in bundle_js
-
-
-def test_diff_param_changed_copy(bundle_js: str) -> None:
-    """``diffGraphs`` produces '参数' for changed params."""
-    assert "参数" in bundle_js
-
-
-def test_diff_assigned_node_copy(bundle_js: str) -> None:
-    """``diffGraphs`` produces '执行节点' for changed assigned_node_id."""
-    assert "执行节点" in bundle_js
-
-
-def test_diff_edge_added_copy(bundle_js: str) -> None:
-    """``diffGraphs`` produces '新增连线' for new edges."""
-    assert "新增连线" in bundle_js
-
-
-def test_diff_edge_removed_copy(bundle_js: str) -> None:
-    """``diffGraphs`` produces '断开连线' for removed edges."""
-    assert "断开连线" in bundle_js
-
-
-def test_diff_unset_copy(bundle_js: str) -> None:
-    """``diffGraphs`` uses '未设置' as the fallback for absent params."""
-    assert "未设置" in bundle_js
+    before = WorkflowGraph(
+        nodes=[
+            GraphNode(id="a", algorithm_name="old", algorithm_version="1", params={"x": None}),
+            GraphNode(id="removed", algorithm_name="test", algorithm_version="1"),
+        ],
+        edges=[
+            GraphEdge(id="old", source="removed", sourceHandle="out", target="a", targetHandle="in")
+        ],
+    )
+    after = WorkflowGraph(
+        nodes=[
+            GraphNode(
+                id="a",
+                algorithm_name="new",
+                algorithm_version="1",
+                assigned_node_id="device",
+                params={"x": 2},
+            ),
+            GraphNode(id="added", algorithm_name="test", algorithm_version="1"),
+        ],
+        edges=[
+            GraphEdge(id="new", source="a", sourceHandle="out", target="added", targetHandle="in")
+        ],
+    )
+    descriptions = "\n".join(item["description"] for item in configuration_diff(after, before))
+    for text in ("新增节点", "删除节点", "参数 x: null → 2", "执行节点", "新增连线", "断开连线"):
+        assert text in descriptions
 
 
 # ---------------------------------------------------------------------------

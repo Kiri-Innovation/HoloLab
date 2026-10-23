@@ -38,6 +38,17 @@ def context_revision(graph: WorkflowGraph, catalog: list[dict]) -> str:
     return digest([data, bindings.devices, packs])
 
 
+def effective_parameters(explicit: dict | None, pack: dict | None) -> dict:
+    """Only preparation fills missing keys; explicit null and empty values win."""
+    defaults = {
+        name: copy.deepcopy(spec["default"])
+        for name, spec in ((pack or {}).get("params") or {}).items()
+        if isinstance(spec, dict) and "default" in spec
+    }
+    defaults.update(copy.deepcopy(explicit or {}))
+    return defaults
+
+
 def resolve_recipe(
     graph: WorkflowGraph, catalog: list[dict], normalized: dict[str, dict] | None = None
 ) -> WorkflowGraph:
@@ -55,8 +66,7 @@ def resolve_recipe(
             continue
         specs = pack.get("params", {})
         explicit = migrate_array_params(node.algorithm_name, node.algorithm_version, node.params)
-        node.params = {k: copy.deepcopy(s["default"]) for k, s in specs.items() if "default" in s}
-        node.params.update(copy.deepcopy(explicit))
+        node.params = effective_parameters(explicit, pack)
         sources[node.id] = {k: "inline" if k in explicit else "default" for k in node.params}
         environment[node.id] = [
             k
@@ -118,7 +128,7 @@ def changed_nodes(current: WorkflowGraph, frozen: WorkflowGraph) -> set[str]:
         old = previous.get(nid)
         if (
             old is None
-            or semantic_node(node) != semantic_node(old)
+            or digest(semantic_node(node)) != digest(semantic_node(old))
             or inputs(current, nid) != inputs(frozen, nid)
         ):
             changed.add(nid)
@@ -238,6 +248,69 @@ async def historical_execution(app, snapshot) -> WorkflowGraph:
     return graph
 
 
+def configuration_diff(current: WorkflowGraph, baseline: WorkflowGraph | None) -> list[dict]:
+    """Human-readable differences of the very same effective values used by execution."""
+    before = {n.id: n for n in baseline.nodes if n.kind != "view"} if baseline else {}
+    after = {n.id: n for n in current.nodes if n.kind != "view"}
+    items = []
+
+    def add(text):
+        items.append({"description": text})
+
+    def value(mapping, key):
+        return (
+            json.dumps(mapping[key], ensure_ascii=False, sort_keys=True)
+            if key in mapping
+            else "(未设置)"
+        )
+
+    labels = {
+        "assigned_node_id": "执行节点",
+        "algorithm_name": "算法",
+        "algorithm_version": "版本",
+        "arrayed_toggle": "Fan-out",
+        "parallelism": "并行执行数",
+        "batch_size": "批处理大小",
+        "assembly": "数组组装",
+        "operation": "内建操作",
+        "kind": "节点类型",
+    }
+    for nid in sorted(before.keys() | after.keys()):
+        if nid not in before:
+            add(f"新增节点: {after[nid].algorithm_name or nid}")
+            continue
+        if nid not in after:
+            add(f"删除节点: {before[nid].algorithm_name or nid}")
+            continue
+        old, new = semantic_node(before[nid]), semantic_node(after[nid])
+        label = after[nid].algorithm_name or nid
+        for key, title in labels.items():
+            if old.get(key) != new.get(key):
+                add(f"节点 {label} {title}: {value(old, key)} → {value(new, key)}")
+        for field, title in (("params", "参数"), ("port_values", "内联输入")):
+            a, b = old.get(field, {}), new.get(field, {})
+            for key in sorted(a.keys() | b.keys()):
+                if value(a, key) != value(b, key):
+                    add(f"节点 {label} {title} {key}: {value(a, key)} → {value(b, key)}")
+
+    def edges(graph):
+        ids = {n.id for n in graph.nodes if n.kind != "view"}
+        return {
+            (e.source, e.sourceHandle, e.target, e.targetHandle)
+            for e in graph.edges
+            if e.source in ids and e.target in ids
+        }
+
+    old_edges, new_edges = edges(baseline) if baseline else set(), edges(current)
+    for title, changes in (
+        ("新增连线", new_edges - old_edges),
+        ("断开连线", old_edges - new_edges),
+    ):
+        for source, source_port, target, target_port in sorted(changes):
+            add(f"{title}: {source}.{source_port} → {target}.{target_port}")
+    return items
+
+
 async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict:
     """Authoritative effective values and staleness for one editing revision."""
     from hololab.constants import is_constant
@@ -262,7 +335,7 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
     dirty = set(changed)
     for nid in changed:
         dirty |= downstream_closure(prepared, nid)
-    states, diffs = {}, []
+    states, diffs = {}, configuration_diff(prepared, baseline)
     for node in prepared.nodes:
         if node.kind == "view" or is_constant(node):
             continue
@@ -270,10 +343,10 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
         reasons = []
         if node.id in changed:
             reasons.append("有效配置与上次运行不同")
-            diffs.append({"description": f"{node.algorithm_name or node.id}: 有效配置已变化"})
         if job and job["state"] in ("pending", "assigned", "running", "orphaned"):
             mismatch = (
-                job.get("params", {}) != node.params
+                node.id in changed
+                or digest(job.get("params", {})) != digest(node.params)
                 or job.get("algorithm_name") != node.algorithm_name
                 or job.get("algorithm_version") != node.algorithm_version
             )
