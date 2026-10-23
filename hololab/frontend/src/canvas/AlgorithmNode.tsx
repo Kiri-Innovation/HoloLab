@@ -15,8 +15,7 @@ import { PortHandle } from "./PortHandle";
 import { useEffect, useState } from "react";
 import { NodeRunControl } from "./NodeRunControl";
 import { nodeStatus } from "./nodeStatus";
-import { NodeStatusDot } from "../ui/NodeStatusTooltip";
-import { NodeTitleTooltip } from "../ui/NodeTitleTooltip";
+import { NodeCardHeader } from "./NodeCardHeader";
 import { Position, useStore, type NodeProps } from "@xyflow/react";
 import type {
   CatalogPack,
@@ -25,7 +24,6 @@ import type {
 import { effectivePortArrayed, effectivePortDimLabels, firstTagColour } from "../tags";
 import { useCanvasContext } from "./CanvasContext";
 import type { NodeStaleness } from "./staleness";
-import { CopyRefButton } from "./CopyRefButton";
 import { OpenArtifactLocationButton } from "./OpenArtifactLocationButton";
 import { OpenSourceButton } from "./OpenSourceButton";
 import type { LiveViewerFrame } from "./NodeViewerFrame";
@@ -365,8 +363,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     arrayed_toggle,
   } = data as AlgorithmNodeData;
   const {
-    workflow_id: workflowId,
-    workflow_name: workflowName,
     computeNodesById,
   } = useCanvasContext();
   const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
@@ -470,92 +466,12 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       data-preview-open={expanded || ""}
     >
       {/* HEADER — status dot + pack name (ellipsis) + action icons */}
-      <div
-        style={{
-          padding: "var(--space-2) var(--space-3)",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--surface-raised)",
-          borderRadius: "var(--radius-md) var(--radius-md) 0 0",
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-2)",
-          minHeight: 32,
-          position: "relative",
-        }}
-      >
-        <NodeStatusDot state={runState} status={nodeStatus({ state: runState, stale: staleness, failReason: runtime?.fail_reason, missingInputs, readOnly })} />
-        <NodeTitleTooltip
-          name={pack.name} version={pack.version} device={assignedLabel}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            gap: 1,
-          }}
-        >
-          <span
-            style={{
-              fontWeight: "var(--fw-semibold)",
-              fontSize: "var(--fs-md)",
-              color: "var(--text)",
-              lineHeight: "var(--lh-tight)",
-              letterSpacing: "-0.005em",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {pack.name}
-          </span>
-          <span
-            style={{
-              fontSize: "var(--fs-micro)",
-              fontFamily: "var(--font-mono)",
-              color: assigned_node_id ? "var(--text-muted)" : "var(--text-subtle)",
-              lineHeight: 1,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {assignedLabel} · v{pack.version}{pack.version.endsWith("+") ? " · dev" : ""}
-          </span>
-        </NodeTitleTooltip>
-        <div
-          style={{
-            flex: "0 0 auto",
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-1)",
-          }}
-        >
-          <OpenSourceButton
-            pack={pack}
-            computeNode={
-              assignedComputeNode ||
-              (pack.node_ids[0] && computeNodesById?.[pack.node_ids[0]]) ||
-              null
-            }
-          />
-          {workflowId && (
-            <CopyRefButton
-              kind="graph-node"
-              id={`${workflowId}/${id}`}
-              comment={`${pack.name}${runState ? ` · ${runState}` : ""}`}
-              size="xs"
-              referenceDisplay={{
-                title: `${pack.name}@${pack.version}`,
-                subtitle: `${id} · ${workflowName}`,
-              }}
-            />
-          )}
-          {!readOnly && (
-            <NodeRunControl pending={runClickPending} state={runState} jobId={runtime?.job_id}
-              stale={staleness?.kind === "self_dirty"} blockedReason={inputProblem} onRun={handleRunClick} />
-          )}
-        </div>
+      <NodeCardHeader id={id} name={pack.name} version={pack.version} device={assignedLabel}
+        subtitle={`${assignedLabel} · v${pack.version}${pack.version.endsWith("+") ? " · dev" : ""}`}
+        state={runState} status={nodeStatus({ state: runState, stale: staleness, failReason: runtime?.fail_reason, missingInputs, readOnly })}
+        leadingActions={<OpenSourceButton pack={pack} computeNode={assignedComputeNode || (pack.node_ids[0] && computeNodesById?.[pack.node_ids[0]]) || null} />}
+        actions={!readOnly && <NodeRunControl pending={runClickPending} state={runState} jobId={runtime?.job_id}
+          stale={staleness?.kind === "self_dirty"} blockedReason={inputProblem} onRun={handleRunClick} />}>
         {runErrorMsg && !inputProblem && (
           <div
             style={{
@@ -577,7 +493,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             {runErrorMsg}
           </div>
         )}
-      </div>
+      </NodeCardHeader>
 
       {inputProblem && <button type="button" className="nodrag" data-hl-missing-inputs=""
         title={inputProblem} onClick={e => { e.stopPropagation(); setRunErrorMsg(inputProblem); }}

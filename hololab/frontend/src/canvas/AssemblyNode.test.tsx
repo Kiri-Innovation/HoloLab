@@ -16,8 +16,8 @@ it.each([undefined, "idle", "done", "failed"])("offers run for %s", state => {
   expect(card({ runtime: { state } })).toContain('aria-label="运行"');
 });
 it("offers rerun together with the stale notice", () => {
-  const html = card({ staleness: { kind: "self_dirty", title: "changed" } });
-  expect(html).toContain("需重跑");
+  const html = card({ runtime: { state: "done" }, staleness: { kind: "self_dirty", title: "changed" } });
+  expect(html).toContain('data-status-tone="warning"');
   expect(html).toContain('aria-label="重新运行"');
 });
 it("uses the normal stop control for running tasks", () => {

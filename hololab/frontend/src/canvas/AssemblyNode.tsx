@@ -1,3 +1,5 @@
+import { NodeCardHeader } from "./NodeCardHeader";
+import { nodeStatus } from "./nodeStatus";
 import { ConstantNode } from "./ConstantNode";
 import { isConstantName } from "./constants";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -101,14 +103,10 @@ export function AssemblyNode({ id, data }: NodeProps) {
       width: 320, background: "var(--surface-2)", color: "var(--text-body)",
       border: "1px solid var(--border)", borderRadius: 8,
     }}>
-      <div style={{ padding: 12, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "var(--space-1)" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <strong>array-assemble</strong> <small>system · {d.runtime?.state ?? "idle"}</small>
-          {d.staleness && <span title={d.staleness.title} style={{ marginLeft: 8, color: "var(--status-pending)" }}>需重跑</span>}
-        </div>
-        {!d.readOnly && <NodeRunControl pending={runPending} state={d.runtime?.state}
-          jobId={d.runtime?.job_id} stale={!!d.staleness} onRun={run} />}
-      </div>
+      <NodeCardHeader id={id} name="array-assemble" version={d.pack?.version ?? "1"} subtitle="system"
+        state={d.runtime?.state} status={nodeStatus({ state: d.runtime?.state, stale: d.staleness, failReason: d.runtime?.fail_reason, readOnly: d.readOnly })}
+        actions={!d.readOnly && <NodeRunControl pending={runPending} state={d.runtime?.state}
+          jobId={d.runtime?.job_id} stale={!!d.staleness} onRun={run} />} />
       {runError && <div role="alert" className="nodrag nopan" style={{ padding: "6px 12px", color: "var(--status-failed)", overflowWrap: "anywhere" }}>运行失败：{runError}</div>}
       <div style={{ position: "relative", padding: "8px 16px", textAlign: "right" }}>
         {typeLabel}<Handle id="out" type="source" position={Position.Right} style={{ right: 6, background: "var(--text-muted)" }} />

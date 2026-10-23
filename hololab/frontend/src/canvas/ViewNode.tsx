@@ -1,3 +1,4 @@
+import { NodeCardHeader } from "./NodeCardHeader";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Preview } from "./previews";
 import type { PreviewTarget } from "./AlgorithmNode";
@@ -41,30 +42,11 @@ export function ViewNode({ id, data, selected }: NodeProps) {
           borderRadius: "var(--radius-sm)",
         }}
       />
-      <div
-        className="hl-view-drag-handle"
-        style={{
-          padding: "var(--space-2) var(--space-3)",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--surface-raised)",
-          borderRadius: "var(--radius-md) var(--radius-md) 0 0",
-          cursor: "grab",
-          minHeight: 32,
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
-        <span
-          style={{
-            fontWeight: "var(--fw-semibold)",
-            fontSize: "var(--fs-md)",
-            lineHeight: "var(--lh-tight)",
-            letterSpacing: "-0.005em",
-            color: "var(--text)",
-          }}
-        >
-          {displayTitle}
-        </span>
+      <div className="hl-view-drag-handle">
+        <NodeCardHeader id={id} name={displayTitle} subtitle="view"
+          status={{ tone: !target ? 'neutral' : target.deleted ? 'error' : 'success',
+            conclusion: !target ? '未连接产物' : target.deleted ? '产物已被清理' : '产物可查看',
+            reason: '此节点仅查看上游产物，不创建任务。', action: '连接上游产物后查看。' }} />
       </div>
       <div className="nodrag" style={{ padding: "var(--space-2) var(--space-3)", fontSize: "var(--fs-xs)" }}>
         {!target ? (
