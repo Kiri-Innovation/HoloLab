@@ -1112,6 +1112,8 @@ async def _dispatch_prepared_shard(
     wire_name, wire_version = offered_identity(
         session.packs, shard.algorithm_name, shard.algorithm_version
     )
+    if gnode.code_identity and not getattr(session, "content_identity", False):
+        raise WorkflowRunError("Compute node must support recorded content identity")
     assigned = JobStateMachine.transition(shard, JobState.ASSIGNED, node_id=session.node_id)
     kind, payload = event_from_transition(shard, assigned)
     await store.update(assigned, kind, payload)
@@ -1129,6 +1131,7 @@ async def _dispatch_prepared_shard(
         )
 
     assign_msg = JobAssign(
+        code_identity=gnode.code_identity,
         job_id=assigned.job_id,
         workflow_id=assigned.workflow_id,
         algorithm_name=wire_name,
@@ -1396,6 +1399,8 @@ async def _dispatch_job(
         if gnode.kind == "intrinsic"
         else offered_identity(session.packs, gnode.algorithm_name, gnode.algorithm_version)
     )
+    if gnode.code_identity and not getattr(session, "content_identity", False):
+        raise WorkflowRunError("Compute node must support recorded content identity")
     job = Job(
         job_id=str(uuid.uuid4()),
         workflow_id=workflow_id,
@@ -1420,6 +1425,7 @@ async def _dispatch_job(
     _push_update(hub, assigned)
 
     assign_msg = JobAssign(
+        code_identity=gnode.code_identity,
         job_id=assigned.job_id,
         workflow_id=assigned.workflow_id,
         algorithm_name=wire_name,

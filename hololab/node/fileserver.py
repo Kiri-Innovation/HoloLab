@@ -240,9 +240,9 @@ def create_fileserver_app(
         )
         if pack is None:
             raise HTTPException(status_code=404, detail="pack not found")
-        candidate = Path(os.path.normpath(os.path.join(str(pack.pack_dir), asset)))
+        candidate = Path(os.path.normpath(os.path.join(str(pack.package_root), asset)))
         try:
-            candidate.relative_to(pack.pack_dir)
+            candidate.relative_to(pack.package_root)
         except ValueError as exc:
             raise HTTPException(status_code=403, detail="path outside pack") from exc
         if not candidate.is_file():

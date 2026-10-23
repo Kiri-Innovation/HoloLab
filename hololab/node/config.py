@@ -160,6 +160,8 @@ class NodeConfig(BaseModel):
     legacy_workspace_roots: list[Path] = Field(default_factory=list)
 
     # Conda plumbing (explicit — never guessed from PATH)
+    code_baselines_dir: Path = Field(default_factory=lambda: node_data_dir() / "code-baselines")
+
     conda_bin: str = "conda"
     envs: dict[str, str] = Field(default_factory=dict)  # logical name → prefix path
 

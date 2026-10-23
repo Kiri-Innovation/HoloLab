@@ -256,6 +256,7 @@ def create_app(
         app.state.pending_config_replies: dict[str, asyncio.Future[Any]] = {}
         app.state.pending_path_browses = {}
         app.state.pending_parameter_preparations = {}
+        app.state.pending_code_identities = {}
         app.state.path_browse_locks = {}
         app.state.pending_resource_lenses = {}
         app.state.pending_process_terminations = {}
@@ -3347,6 +3348,9 @@ def _mount_routes(app: FastAPI) -> None:
                     ]
                 ),
             )
+            from hololab.gateway.preparation import capture_code_identities
+
+            await capture_code_identities(app, prepared)
             params = prepared.nodes[0].params
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -3374,6 +3378,7 @@ def _mount_routes(app: FastAPI) -> None:
             session.packs, assigned.algorithm_name, assigned.algorithm_version
         )
         assign_msg = JobAssign(
+            code_identity=prepared.nodes[0].code_identity,
             job_id=assigned.job_id,
             workflow_id=assigned.workflow_id,
             algorithm_name=wire_name,
@@ -3562,6 +3567,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
             await ws.send_text(encode("register_ok", ok, v=chosen_v))
         session.intrinsics = list(payload.intrinsics)
         session.library_wakeup = payload.library_wakeup
+        session.content_identity = payload.content_identity
         signal_work(app)
 
         log.info(
@@ -3680,6 +3686,7 @@ async def _await_node_reply(
         "pending_process_terminations",
         "pending_path_browses",
         "pending_parameter_preparations",
+        "pending_code_identities",
     ):
         fut.node_session = session
     pending[req_id] = fut
@@ -3961,8 +3968,12 @@ async def _dispatch_node_frame(
     # deadline still fires.
     session.last_heartbeat_ts = time.time()
 
-    if kind == "prepare_params_resp":
-        pending = app.state.pending_parameter_preparations
+    if kind in ("prepare_params_resp", "code_identity_resp"):
+        pending = (
+            app.state.pending_code_identities
+            if kind == "code_identity_resp"
+            else app.state.pending_parameter_preparations
+        )
         future = pending.get(payload.req_id)
         if future is not None and getattr(future, "node_session", None) is session:
             pending.pop(payload.req_id, None)

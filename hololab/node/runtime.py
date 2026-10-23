@@ -664,6 +664,7 @@ class NodeRuntime:
         reg = Register(
             intrinsics=["array-assemble", "constant-v1", "literal-v3"],
             library_wakeup=True,
+            content_identity=True,
             node_name=self._config.node_name,
             v_min=PROTOCOL_V_MIN,
             v_max=PROTOCOL_V_MAX,
@@ -807,6 +808,10 @@ class NodeRuntime:
                     task = asyncio.create_task(self._process_terminate_reply(payload))
                     lens_tasks.add(task)
                     task.add_done_callback(lens_tasks.discard)
+                elif env.kind == "code_identity_req":
+                    task = asyncio.create_task(self._code_identity_reply(payload))
+                    lens_tasks.add(task)
+                    task.add_done_callback(lens_tasks.discard)
                 elif env.kind == "prepare_params_req":
                     task = asyncio.create_task(self._prepare_params_reply(payload))
                     lens_tasks.add(task)
@@ -858,6 +863,25 @@ class NodeRuntime:
         await self._safe_send(
             "process_terminate_resp", ProcessTerminateResp(req_id=payload.req_id, data=data)
         )
+
+    async def _code_identity_reply(self, request) -> None:
+        from hololab.content_scope import Baselines, capture
+        from hololab.protocol.messages import CodeIdentityResp
+
+        try:
+            pack = self._packs[
+                installed_key(self._packs, request.algorithm_name, request.algorithm_version)
+            ]
+            record = await asyncio.to_thread(
+                capture,
+                pack.manifest_path,
+                Baselines(self._config.code_baselines_dir),
+                refresh_cold=request.refresh_cold,
+            )
+            response = CodeIdentityResp(req_id=request.req_id, record=record)
+        except Exception as exc:
+            response = CodeIdentityResp(req_id=request.req_id, error=str(exc))
+        await self._safe_send("code_identity_resp", response)
 
     async def _prepare_params_reply(self, request) -> None:
         from hololab.manifest.path_params import resolve_path_params
@@ -1486,6 +1510,22 @@ class NodeRuntime:
             )
             return
 
+        # Controls are compared before parsing mutable source declarations.
+        try:
+            if assign.code_identity:
+                from dataclasses import replace
+
+                from hololab.content_scope import check_controls
+                from hololab.manifest import load_manifest
+
+                await asyncio.to_thread(check_controls, pack.manifest_path, assign.code_identity)
+                current_manifest, current_hash = load_manifest(pack.manifest_path)
+                pack = replace(pack, manifest=current_manifest, manifest_hash=current_hash)
+            package_root = pack.package_root
+        except (ValueError, OSError) as exc:
+            await self._send_job_fail(assign.job_id, JobFailReason.USER_ERROR, message=str(exc))
+            return
+
         # Prepared values are immutable. Node validation must never fill defaults,
         # migrate arrays, expand home directories, or canonicalize paths here.
         from hololab.manifest.path_params import validate_frozen_path_params
@@ -1669,6 +1709,8 @@ class NodeRuntime:
                 outputs=elem_outputs,
                 params=assign.params,
                 pack_dir=str(pack.pack_dir),
+                manifest_dir=str(pack.pack_dir),
+                package_root=str(package_root),
                 workspace_root=str(self._config.workspace_root),
                 scratch_dir=scratch,
                 staging_dir=staging,
@@ -1734,12 +1776,23 @@ class NodeRuntime:
                 progress_status_file=rendered.progress_status_file,
             )
 
+        async def verify_identity() -> None:
+            if assign.code_identity:
+                from hololab.content_scope import verify
+
+                await asyncio.to_thread(verify, pack.manifest_path, assign.code_identity)
+
         # Idempotency check. Non-batched only; batched shards always
         # re-execute (see the ``idempotency_marker=None`` override
         # above). A batched marker would need per-element skip logic
         # inside the wrapper; MVP defers that — rerun-from creates
         # fresh snapshots + job_ids anyway, so no marker collision.
         if rendered.idempotency_marker and Path(rendered.idempotency_marker).exists():
+            try:
+                await verify_identity()
+            except (ValueError, OSError) as exc:
+                await self._send_job_fail(assign.job_id, JobFailReason.USER_ERROR, message=str(exc))
+                return
             log.info("job skipped: idempotency marker present", job_id=assign.job_id)
             try:
                 await asyncio.to_thread(
@@ -1889,6 +1942,7 @@ class NodeRuntime:
                             "job_id": assign.job_id,
                             "job_name": assign.algorithm_name,
                         }
+                        await verify_identity()
                         result = await run_subprocess(
                             plan,
                             on_log=on_log,
@@ -1912,6 +1966,7 @@ class NodeRuntime:
                     cpu_mask=None,
                 )
                 plan.resource_job = {"job_id": assign.job_id, "job_name": assign.algorithm_name}
+                await verify_identity()
                 result = await run_subprocess(
                     plan,
                     on_log=on_log,
@@ -1948,6 +2003,13 @@ class NodeRuntime:
         # path). Report and bail rather than let the exception silently
         # tear down the task.
         if exec_error is not None:
+            from hololab.content_scope import IdentityMismatch
+
+            if isinstance(exec_error, IdentityMismatch):
+                await self._send_job_fail(
+                    assign.job_id, JobFailReason.USER_ERROR, message=str(exec_error)
+                )
+                return
             await self._send_job_fail(
                 assign.job_id,
                 JobFailReason.ALGO_ERROR,
@@ -2615,7 +2677,7 @@ def _make_exec_plan(
         shell=rendered.shell,
         conda_bin=config.conda_bin,
         conda_prefix=env_prefix,
-        working_dir=Path(rendered.working_dir) if rendered.working_dir else pack.pack_dir,
+        working_dir=Path(rendered.working_dir) if rendered.working_dir else pack.package_root,
         progress_regex=pack.manifest.progress.stdout_regex if pack.manifest.progress else None,
         # None here means "fall back to ``conda run`` for this spawn"
         # — either the env's snapshot failed at startup or the

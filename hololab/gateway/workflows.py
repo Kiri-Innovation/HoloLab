@@ -86,6 +86,7 @@ class GraphNode(BaseModel):
     assembly: AssemblySlots | None = None
     algorithm_name: str | None = None
     algorithm_version: str | None = None
+    code_identity: dict[str, Any] | None = None
     position: GraphPosition = Field(default_factory=GraphPosition)
     params: dict[str, Any] = Field(default_factory=dict)
     port_values: dict[str, Any] = Field(default_factory=dict)

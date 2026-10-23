@@ -54,6 +54,12 @@ class LoadedPack:
     manifest_hash: str
     source_dir: Path
 
+    @property
+    def package_root(self) -> Path:
+        from hololab.content_scope import resolve_root
+
+        return resolve_root(self.manifest_path, self.manifest.root)
+
 
 def _load_manifest_safely(manifest_path: Path) -> tuple[Manifest, str] | None:
     """Load ``manifest_path``; log + return None on failure."""

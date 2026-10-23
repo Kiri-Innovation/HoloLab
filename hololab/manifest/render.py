@@ -53,6 +53,8 @@ class RenderContext:
     outputs: dict[str, str] = field(default_factory=dict)
     params: dict[str, Any] = field(default_factory=dict)
     pack_dir: str = ""
+    manifest_dir: str = ""
+    package_root: str = ""
     workspace_root: str = ""
     # Per-job intermediate directory. Node runtime resolves this to
     # ``{workspace_root}/scratch/{job_id}/`` and ``mkdir -p``s it before
@@ -84,6 +86,8 @@ class RenderContext:
             "outputs": dict(self.outputs),
             "params": dict(self.params),
             "pack_dir": self.pack_dir,
+            "manifest_dir": self.manifest_dir or self.pack_dir,
+            "package_root": self.package_root or self.pack_dir,
             "workspace_root": self.workspace_root,
             "scratch_dir": self.scratch_dir,
             # Always defined so packs can reference ``{{ staging_dir }}``
@@ -147,6 +151,9 @@ def render_manifest(manifest: Manifest, ctx: RenderContext) -> RenderedManifest:
         else None
     )
 
+    if working_dir and ctx.package_root and not Path(working_dir).is_absolute():
+        working_dir = str(Path(ctx.package_root) / working_dir)
+
     idempotency_marker = None
     if manifest.idempotency is not None:
         idempotency_marker = _render_str(
@@ -176,6 +183,19 @@ def render_manifest(manifest: Manifest, ctx: RenderContext) -> RenderedManifest:
             manifest.progress.status_file, bindings, where="progress.status_file"
         )
 
+    def rooted(value: str | None) -> str | None:
+        if value and ctx.package_root and not Path(value).is_absolute():
+            return str(Path(ctx.package_root) / value)
+        return value
+
+    idempotency_marker = rooted(idempotency_marker)
+    preview_paths = {key: rooted(value) or "" for key, value in preview_paths.items()}
+    preview_globs = {key: rooted(value) or "" for key, value in preview_globs.items()}
+    node_viewer_live_globs = {
+        key: [rooted(value) or "" for value in values]
+        for key, values in node_viewer_live_globs.items()
+    }
+    progress_status_file = rooted(progress_status_file)
     return RenderedManifest(
         shell=shell,
         working_dir=working_dir,

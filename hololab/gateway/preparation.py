@@ -39,6 +39,7 @@ def context_revision(graph: WorkflowGraph, catalog: list[dict]) -> str:
     data = recipe.graph.model_dump(exclude={"execution"})
     for node in data["nodes"]:
         node["algorithm_name"] = canonical_name(node.get("algorithm_name"))
+        node.pop("code_identity", None)
     keys = {package_key(n.algorithm_name, n.algorithm_version) for n in recipe.graph.nodes}
     packs = sorted(
         (p for p in catalog if package_key(p["name"], p["version"]) in keys),
@@ -69,6 +70,7 @@ def resolve_recipe(
     sources, environment, issues = {}, {}, []
     inline_values = {}
     for node in result.nodes:
+        node.code_identity = None  # Never trust identities supplied by a draft client.
         if node.kind != "algorithm":
             continue
         pack = packs.get(package_key(node.algorithm_name, node.algorithm_version))
@@ -249,6 +251,10 @@ async def submitted_execution(
         latest.graph, app.state.registry.catalog_json()
     ):
         raise HTTPException(status_code=409, detail="Configuration changed during preparation")
+    try:
+        await capture_code_identities(app, prepared, required=required)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     prepared.execution["draft_updated_ts"] = latest.updated_ts
     return prepared
 
@@ -413,3 +419,46 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
         "environment_params": prepared.execution["environment_params"],
         "issues": prepared.execution["issues"],
     }
+
+
+async def capture_code_identities(app, graph: WorkflowGraph, *, required=None) -> None:
+    """Submission-only RPC. Frozen historical graphs bypass this function."""
+    from hololab.gateway.app import _await_node_reply
+    from hololab.protocol.messages import CodeIdentityReq
+
+    for node in graph.nodes:
+        if node.kind != "algorithm" or (required is not None and node.id not in required):
+            continue
+        session = app.state.registry.get_session(node.assigned_node_id)
+        if session is None:
+            raise ValueError(f"{node.id}: execution node unavailable")
+        if not getattr(session, "content_identity", False):
+            entry = next(
+                (
+                    p
+                    for p in app.state.registry.catalog_json()
+                    if package_key(p["name"], p["version"])
+                    == package_key(node.algorithm_name, node.algorithm_version)
+                ),
+                {},
+            )
+            if entry.get("root", ".") != "." or entry.get("cold"):
+                raise ValueError("Compute node must be upgraded for root/cold content identity")
+            node.code_identity = (
+                None  # Legacy packages/nodes remain runnable, explicitly unverified.
+            )
+            continue
+        name, version = offered_identity(session.packs, node.algorithm_name, node.algorithm_version)
+        req_id = str(uuid.uuid4())
+        response = await _await_node_reply(
+            app,
+            session,
+            "code_identity_req",
+            CodeIdentityReq(req_id=req_id, algorithm_name=name, algorithm_version=version),
+            req_id,
+            pending_key="pending_code_identities",
+            timeout_s=300,
+        )
+        if response.get("error") or not response.get("record"):
+            raise ValueError(response.get("error") or "Missing content identity response")
+        node.code_identity = response["record"]

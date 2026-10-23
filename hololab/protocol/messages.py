@@ -86,6 +86,7 @@ class Register(BaseModel):
 
     intrinsics: list[str] = Field(default_factory=list)
     library_wakeup: bool = False
+    content_identity: bool = False
     node_name: str
     v_min: int
     v_max: int
@@ -239,6 +240,7 @@ class JobAssign(BaseModel):
     #arrayed-and-arrayable.
     """
 
+    code_identity: dict[str, Any] | None = None
     intrinsic: dict[str, Any] | None = None
     job_id: str
     workflow_id: str
@@ -704,4 +706,17 @@ class PrepareParamsReq(BaseModel):
 class PrepareParamsResp(BaseModel):
     req_id: str
     params: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+
+
+class CodeIdentityReq(BaseModel):
+    req_id: str
+    algorithm_name: str
+    algorithm_version: str
+    refresh_cold: bool = False
+
+
+class CodeIdentityResp(BaseModel):
+    req_id: str
+    record: dict[str, Any] | None = None
     error: str | None = None

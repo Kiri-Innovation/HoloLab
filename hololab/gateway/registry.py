@@ -74,6 +74,7 @@ class NodeSession:
     # Opt-in keeps older nodes from receiving an unknown envelope kind.
     intrinsics: list[str] = field(default_factory=list)
     library_wakeup: bool = False
+    content_identity: bool = False
     # ``token_issued`` is set when this session's register frame either
     # minted a fresh node_token or the gateway is (re-)issuing one. The
     # socket handler forwards it in RegisterOk so the node can persist it
@@ -574,6 +575,8 @@ class NodeRegistry:
                         entry["category"] = list(manifest.category)
                         entry["docs"] = manifest.docs
                         entry["source_entry"] = manifest.source_entry
+                        entry["root"] = manifest.root
+                        entry["cold"] = manifest.cold
                         entry["arrayable"] = manifest.arrayable
                         entry["node_viewers"] = [
                             viewer.model_dump() for viewer in manifest.node_viewers

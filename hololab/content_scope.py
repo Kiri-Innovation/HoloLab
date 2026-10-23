@@ -330,7 +330,7 @@ def mismatch(record: dict, field: str, expected: Any, actual: Any) -> None:
     )
 
 
-def verify(path: Path, record: dict) -> None:
+def check_controls(path: Path, record: dict) -> None:
     if record.get("format") != FORMAT:
         mismatch(record, "format", record.get("format"), FORMAT)
     # Compare controls BEFORE parsing current manifest or applying current ignore.
@@ -345,6 +345,10 @@ def verify(path: Path, record: dict) -> None:
     actual = sha(ignore.read_bytes()) if ignore.exists() else None
     if actual != expected["packignore_sha256"]:
         mismatch(record, ".packignore", expected["packignore_sha256"], actual)
+
+
+def verify(path: Path, record: dict) -> None:
+    check_controls(path, record)
     scope = Scope.load(path)
     actual = tree_digest(list(scope.entries(hot_only=True)))
     if actual != record["hot"]["sha256"]:
