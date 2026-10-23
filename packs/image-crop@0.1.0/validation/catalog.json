@@ -1,0 +1,124 @@
+{
+  "name": "image-crop",
+  "version": "0.1.0",
+  "manifest_hash": "9785712f030085960b50928b0c0a462b928dc6dab961ecbea78b77509039505d",
+  "node_ids": [
+    "c6ad6211-18ff-4a0a-9108-67f370d25072"
+  ],
+  "inputs": {
+    "image": {
+      "tags": [
+        "image"
+      ],
+      "required": true,
+      "inline": null,
+      "inline_default": null,
+      "require_axis_label_match": true,
+      "storage": "file",
+      "description": "One PNG, JPG/JPEG or WebP still image.",
+      "arrayed": false,
+      "scalar": false,
+      "dim_labels": [],
+      "content_dims_from": null
+    }
+  },
+  "outputs": {
+    "image": {
+      "tags": [
+        "image"
+      ],
+      "storage": "file",
+      "description": "Cropped/padded image in the original encoding and sample bit depth.",
+      "arrayed": false,
+      "scalar": false,
+      "tags_from": null,
+      "dim_labels": [],
+      "dim_labels_from": null,
+      "dim_labels_from_input": null,
+      "dim_labels_drop_outer": 0,
+      "preview": {
+        "viewer": "image",
+        "member": null
+      }
+    }
+  },
+  "params": {
+    "pad_left": {
+      "type": "float",
+      "items": null,
+      "min": null,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": 0,
+      "description": "Left pixels: positive crops, negative pads; nearest integer, half away from zero. Not a ratio.",
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "pad_top": {
+      "type": "float",
+      "items": null,
+      "min": null,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": 0,
+      "description": "Top pixels: positive crops, negative pads; nearest integer, half away from zero. Not a ratio.",
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "pad_right": {
+      "type": "float",
+      "items": null,
+      "min": null,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": 0,
+      "description": "Right pixels: positive crops, negative pads; nearest integer, half away from zero. Not a ratio.",
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "pad_bottom": {
+      "type": "float",
+      "items": null,
+      "min": null,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": 0,
+      "description": "Bottom pixels: positive crops, negative pads; nearest integer, half away from zero. Not a ratio.",
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "pad_color": {
+      "type": "string",
+      "items": null,
+      "min": null,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": "#000000",
+      "description": "Opaque border color as #RRGGBB; grayscale uses luminance. Default black.",
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    }
+  },
+  "description": "Crop a rectangle from one image, or add a constant-color border.",
+  "category": [
+    "image",
+    "processing"
+  ],
+  "docs": "Four independent float paddings, always in pixels (never ratios).\nPositive values remove pixels from that side; negative values add a border.\nRound to nearest integer, with half pixels away from zero (0.5 -> 1).\nCoordinates refer to stored pixels; no resizing, rotation or EXIF auto-orientation.\nOutput size: W - left - right by H - top - bottom after rounding.\nCrop bounds are clamped to the original image. If positive paddings remove\nall original pixels on either axis, fail clearly; outward padding cannot\nrescue an empty crop. The retained rectangle must be at least 1x1.\nPNG/JPEG/WebP encoding and sample bit depth are preserved; format is detected\nfrom bytes, so extensionless file handles work. All-zero is a byte-for-byte copy.\nJPEG crops are re-encoded at quality 95; WebP crops use lossless encoding.\nPNG supports 16-bit samples without downconversion and indexed bit depths.\nIndexed borders must use an existing opaque palette color or fail explicitly.\nLow-bit grayscale may use an equivalent palette at the same bit depth.\npad_color is opaque #RRGGBB; grayscale uses luminance (16-bit scales by 257).\nAnimated images are rejected. Output limit: 100 million pixels, 100000 per side.\n",
+  "source_entry": "crop.py",
+  "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/packs/image-crop@0.1.0/manifest.yaml",
+  "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/packs",
+  "arrayable": false,
+  "node_viewers": [],
+  "hide_default_output_previews": false
+}

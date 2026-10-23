@@ -1,0 +1,80 @@
+[
+  {
+    "case": "source",
+    "job_id": "793e8d2b-fdcf-4dec-bb6a-fb0eb794de11",
+    "state": "done",
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/1f9ec9d4-e851-4fbc-828e-5940d3f22cfa/j/793e8d2b-fdcf-4dec-bb6a-fb0eb794de11/image",
+    "size": [
+      320,
+      240
+    ],
+    "format": "PNG",
+    "sha256": "216d17b694af63a5651a86778a774b5801863a860208b980ddb6d0a0e58aef5c"
+  },
+  {
+    "case": "border",
+    "job_id": "6a99b1e9-3f7e-4dc0-8387-598711746649",
+    "state": "done",
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/1f9ec9d4-e851-4fbc-828e-5940d3f22cfa/j/6a99b1e9-3f7e-4dc0-8387-598711746649/image",
+    "size": [
+      380,
+      270
+    ],
+    "format": "PNG",
+    "sha256": "8d4bf06740ca74f5437b34f3c3d6ccbe13af3bf5ae116331780ce4198443f9c2"
+  },
+  {
+    "case": "mixed",
+    "job_id": "cb3070b7-74f2-4d53-a695-9cf16111f5b9",
+    "state": "done",
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/1f9ec9d4-e851-4fbc-828e-5940d3f22cfa/j/cb3070b7-74f2-4d53-a695-9cf16111f5b9/image",
+    "size": [
+      236,
+      270
+    ],
+    "format": "PNG",
+    "sha256": "64aa8467cc5037c7eeab6f02249bbbbb5ae93a99dfbe15ca29a821661d409503"
+  },
+  {
+    "case": "one_pixel",
+    "job_id": "ded9e466-2196-46f9-9495-4ce02f166062",
+    "state": "done",
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/1f9ec9d4-e851-4fbc-828e-5940d3f22cfa/j/ded9e466-2196-46f9-9495-4ce02f166062/image",
+    "size": [
+      1,
+      1
+    ],
+    "format": "PNG",
+    "sha256": "e878950f8091ec010cf5cc723bdea027a8539cf7147cfea199c2f666232dcd4e"
+  },
+  {
+    "case": "overflow",
+    "job_id": "9ad808c3-0edf-48b8-81d8-6367fe87efb8",
+    "state": "failed",
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/1f9ec9d4-e851-4fbc-828e-5940d3f22cfa/j/9ad808c3-0edf-48b8-81d8-6367fe87efb8/image"
+  },
+  {
+    "case": "unequal",
+    "job_id": "ed1b2819-1f3b-4331-9f8d-8f8f27a9b21c",
+    "state": "done",
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/1f9ec9d4-e851-4fbc-828e-5940d3f22cfa/j/ed1b2819-1f3b-4331-9f8d-8f8f27a9b21c/image",
+    "size": [
+      236,
+      194
+    ],
+    "format": "PNG",
+    "sha256": "73ba26d4fb0907e63258c7131fed45ed07b83cb3b184767e24f8ef04463a9b8a"
+  },
+  {
+    "case": "zero",
+    "job_id": "afce0a91-c50f-4c35-9f66-fa433be0b381",
+    "state": "done",
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/1f9ec9d4-e851-4fbc-828e-5940d3f22cfa/j/afce0a91-c50f-4c35-9f66-fa433be0b381/image",
+    "size": [
+      320,
+      240
+    ],
+    "format": "PNG",
+    "sha256": "216d17b694af63a5651a86778a774b5801863a860208b980ddb6d0a0e58aef5c"
+  }
+]

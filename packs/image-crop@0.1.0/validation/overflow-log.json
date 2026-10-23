@@ -1,0 +1,12 @@
+{
+  "job_id": "9ad808c3-0edf-48b8-81d8-6367fe87efb8",
+  "lines": [
+    {
+      "stream": "stderr",
+      "line": "image-crop: crop removes entire image: source=320x240, rounded paddings L/T/R/B=321/0/0/0; retain at least 1x1 original pixel",
+      "ts": 1792735167.2323349
+    }
+  ],
+  "total_returned": 1,
+  "truncated": false
+}

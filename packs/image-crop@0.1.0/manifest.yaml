@@ -1,0 +1,76 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: image-crop
+version: 0.1.0
+description: "Crop a rectangle from one image, or add a constant-color border."
+source_entry: crop.py
+category: "image/processing"
+docs: |
+  Four independent float paddings, always in pixels (never ratios).
+  Positive values remove pixels from that side; negative values add a border.
+  Round to nearest integer, with half pixels away from zero (0.5 -> 1).
+  Coordinates refer to stored pixels; no resizing, rotation or EXIF auto-orientation.
+  Output size: W - left - right by H - top - bottom after rounding.
+  Crop bounds are clamped to the original image. If positive paddings remove
+  all original pixels on either axis, fail clearly; outward padding cannot
+  rescue an empty crop. The retained rectangle must be at least 1x1.
+  PNG/JPEG/WebP encoding and sample bit depth are preserved; format is detected
+  from bytes, so extensionless file handles work. All-zero is a byte-for-byte copy.
+  JPEG crops are re-encoded at quality 95; WebP crops use lossless encoding.
+  PNG supports 16-bit samples without downconversion and indexed bit depths.
+  Indexed borders must use an existing opaque palette color or fail explicitly.
+  Low-bit grayscale may use an equivalent palette at the same bit depth.
+  pad_color is opaque #RRGGBB; grayscale uses luminance (16-bit scales by 257).
+  Animated images are rejected. Output limit: 100 million pixels, 100000 per side.
+inputs:
+  image:
+    tags: [image]
+    storage: file
+    description: "One PNG, JPG/JPEG or WebP still image."
+params:
+  pad_left:
+    type: float
+    default: 0
+    description: "Left pixels: positive crops, negative pads; nearest integer, half away from zero. Not a ratio."
+  pad_top:
+    type: float
+    default: 0
+    description: "Top pixels: positive crops, negative pads; nearest integer, half away from zero. Not a ratio."
+  pad_right:
+    type: float
+    default: 0
+    description: "Right pixels: positive crops, negative pads; nearest integer, half away from zero. Not a ratio."
+  pad_bottom:
+    type: float
+    default: 0
+    description: "Bottom pixels: positive crops, negative pads; nearest integer, half away from zero. Not a ratio."
+  pad_color:
+    type: string
+    default: "#000000"
+    description: "Opaque border color as #RRGGBB; grayscale uses luminance. Default black."
+outputs:
+  image:
+    tags: [image]
+    storage: file
+    description: "Cropped/padded image in the original encoding and sample bit depth."
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  expected_duration_min: [0.01, 0.05]
+  resources:
+    scratch_gb: 1
+    mem_gb: 2
+exec:
+  shell: |
+    set -euo pipefail
+    python '{{ pack_dir | replace("'", "'\"'\"'") }}/crop.py' \
+      --image '{{ inputs.image | replace("'", "'\"'\"'") }}' \
+      --output '{{ outputs.image | replace("'", "'\"'\"'") }}' \
+      --pad-left={{ params.pad_left }} --pad-top={{ params.pad_top }} \
+      --pad-right={{ params.pad_right }} --pad-bottom={{ params.pad_bottom }} \
+      --pad-color='{{ params.pad_color | replace("'", "'\"'\"'") }}'
+idempotency:
+  marker: "{{ outputs.image }}.hololab-done"
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
