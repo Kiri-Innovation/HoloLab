@@ -321,16 +321,47 @@ export function ComposeVideoEditor({
                 }}
                 onError={() => setLoadError(`无法读取素材 ${clip.id}`)}
               />
-              {selected === i && transforms.writable && (
-                <button
-                  className="hl-compose-resize"
-                  aria-label={`Resize layer ${i + 1}`}
-                  onPointerDown={(e) => start(e, i, true)}
-                />
-              )}
             </div>
           );
         })}
+        {valid &&
+          activeAt(now, os[selected], clips[selected].duration) &&
+          (() => {
+            const rect = layerRect(clips[selected], canvas, ts[selected]);
+            return (
+              <div
+                className="hl-compose-selection"
+                style={{
+                  left: `${(rect.x / canvas.width) * 100}%`,
+                  top: `${(rect.y / canvas.height) * 100}%`,
+                  width: `${(rect.width / canvas.width) * 100}%`,
+                  height: `${(rect.height / canvas.height) * 100}%`,
+                  zIndex: clips.length,
+                }}
+                onPointerMove={move}
+                onPointerUp={() => end()}
+                onPointerCancel={() => end(true)}
+              >
+                {transforms.writable && (
+                  <>
+                    <button
+                      className="hl-compose-move"
+                      aria-label={`Move layer ${selected + 1}`}
+                      title="移动所选层"
+                      onPointerDown={(e) => start(e, selected, false)}
+                    >
+                      ↔
+                    </button>
+                    <button
+                      className="hl-compose-resize"
+                      aria-label={`Resize layer ${selected + 1}`}
+                      onPointerDown={(e) => start(e, selected, true)}
+                    />
+                  </>
+                )}
+              </div>
+            );
+          })()}
       </div>
       <label className="hl-compose-scrub">
         时间 {now.toFixed(3)} / {total.toFixed(3)} s
