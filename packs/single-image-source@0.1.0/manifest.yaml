@@ -24,7 +24,9 @@ docs: |
 
 params:
   image_path:
-    type: string
+    type: path
+    must_exist: true
+    path_kind: file
     description: "Absolute path to the source image file (.png / .jpg / .jpeg / .webp)."
 
 outputs:
