@@ -37,6 +37,7 @@ dependencies = [
     "pyyaml>=6.0",
     "pillow>=10",
     "pathspec==1.0.4",
+    "packaging>=24",
 ]
 
 [project.optional-dependencies]

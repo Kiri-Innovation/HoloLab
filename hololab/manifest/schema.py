@@ -15,6 +15,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from hololab.manifest.requirements import Requirements
 from hololab.package_identity import validate_name, validate_version
 
 API_VERSION = "hololab.dev/v1"
@@ -559,6 +560,7 @@ class Manifest(BaseModel):
     root: str = "."
     cold: list[str] = Field(default_factory=list)
     external_code: list[dict[str, Any]] = Field(default_factory=list)
+    requires: Requirements | None = None
 
     @field_validator("cold")
     @classmethod
