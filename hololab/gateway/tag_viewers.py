@@ -53,6 +53,7 @@ TAG_VIEWER_REGISTRY: dict[str, OutputPreview] = {
     # already keys on the ``splatv`` tag, so packs that produce it
     # don't need to repeat themselves.
     "splatv": OutputPreview(viewer="splatv"),
+    "ply-3dgs": OutputPreview(viewer="ply-3dgs"),
     # LaGSplat checkpoint directory exported by lagsplat-train.  The model
     # tag, rather than the generic implementation-state tag, makes this a
     # portable data-class contract for any future producer.

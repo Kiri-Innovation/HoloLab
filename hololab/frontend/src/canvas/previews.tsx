@@ -24,6 +24,7 @@ import { useVideoBackground, VideoBackgroundButton } from "./VideoBackground";
 import { LazyThumb } from "./LazyThumb";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { LagsplatPreview } from "./LagsplatPreview";
+import { NodeViewerFrame } from "./NodeViewerFrame";
 import { useCanvasContext } from "./CanvasContext";
 import { WORKFLOW_FACTORY_VIEW } from "./workflowFactoryView";
 import { versionedViewerUrl } from "./viewerBuild";
@@ -143,6 +144,11 @@ export function Preview({
   dimLabels,
   partial,
 }: PreviewProps) {
+  // Existing handles/older running gateways may not yet carry inferred specs.
+  // Keep explicit pack overrides authoritative.
+  if (!spec && tags?.includes('ply-3dgs') && storage === 'file') {
+    return <PlyGaussianPreview url={baseUrl} />;
+  }
   // Image is one file. Only explicit collections use sequence viewers.
   if (tags?.includes("image") && storage === "file") return <ImagePreview url={baseUrl} />;
   if (tags?.includes("image") && storage === "dir" && arrayed) {
@@ -362,6 +368,8 @@ export function Preview({
       : baseUrl;
 
   switch (spec.viewer) {
+    case "ply-3dgs":
+      return <PlyGaussianPreview url={url} />;
     case "splatv":
       return <SplatvPreview url={url} />;
     case "lagsplat":
@@ -891,6 +899,17 @@ function humanBytes(n: number | null | undefined): string {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KiB`;
   if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MiB`;
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
+}
+
+function PlyGaussianPreview({ url }: { url: string }) {
+  const { viewer_view, viewer_view_loaded, viewer_view_managed, setViewerDefault } = useCanvasContext();
+  return <NodeViewerFrame key={url}
+    viewer={{ id: 'splatv_scene', title: '3D Gaussian PLY', renderer: 'iframe', entry: '', default: true }}
+    packName="" packVersion="" assignedNodeId={null} frames={[]} running={false}
+    sceneUrl={`/colmaputil/index.html?embed=splatv&format=ply-3dgs&src=${encodeURIComponent(url)}`}
+    workflowView={viewer_view} workflowViewLoaded={viewer_view_loaded}
+    workflowViewManaged={viewer_view_managed} onWorkflowDefaultChange={setViewerDefault}
+  />;
 }
 
 function SplatvPreview({ url }: { url: string }) {

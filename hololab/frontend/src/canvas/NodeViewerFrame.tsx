@@ -36,6 +36,7 @@ export function NodeViewerFrame({
   workflowViewLoaded,
   workflowViewManaged,
   onWorkflowDefaultChange,
+  sceneUrl,
 }: {
   viewer: NodeViewerSpec;
   packName: string;
@@ -49,14 +50,17 @@ export function NodeViewerFrame({
   workflowViewLoaded: boolean;
   workflowViewManaged: boolean;
   onWorkflowDefaultChange?: (view: WorkflowViewerView | null) => void;
+  /** Built-in Gaussian viewer uses the same focus/camera host without a pack relay. */
+  sceneUrl?: string;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
+  const [sceneReady, setSceneReady] = useState(false);
   const [assetError, setAssetError] = useState<string | null>(null);
   const [historyFrames, setHistoryFrames] = useState<LiveViewerFrame[]>([]);
   const [viewerHeight, setViewerHeight] = useState(DEFAULT_VIEWER_HEIGHT);
   // SplaTV is a square viewport; diagnostic viewers retain content sizing.
-  const squareViewport = packName === "stg-to-splatv" && viewer.id === "splatv_scene";
+  const squareViewport = !!sceneUrl || (packName === "stg-to-splatv" && viewer.id === "splatv_scene");
   const { wrapperRef, activated, activate } = useViewerInteraction(squareViewport);
   const [dualFocusReady, setDualFocusReady] = useState(false);
   const [focusDomain, setFocusDomain] = useState<string | null>(null);
@@ -71,7 +75,7 @@ export function NodeViewerFrame({
   const nodeId = (frames.length ? frames[frames.length - 1].node_id : null)
     ?? historyTarget?.node_id
     ?? assignedNodeId;
-  const src = nodeId
+  const src = sceneUrl ? versionedViewerUrl(sceneUrl + (DEBUG_VIEWERS ? '&debug=1' : '')) : nodeId
     ? versionedViewerUrl(`/pack-assets/${encodeURIComponent(nodeId)}/${encodeURIComponent(packName)}/${encodeURIComponent(packVersion)}/${viewer.entry.split("/").map(encodeURIComponent).join("/")}${DEBUG_VIEWERS ? "?debug=1" : ""}`)
     : null;
 
@@ -94,6 +98,7 @@ export function NodeViewerFrame({
   useEffect(() => {
     setViewerHeight(DEFAULT_VIEWER_HEIGHT);
     setDualFocusReady(false);
+    setSceneReady(false);
     setFocusDomain(null);
     sentWorkflowDefaultRef.current = false;
   }, [src]);
@@ -110,6 +115,10 @@ export function NodeViewerFrame({
         || event.origin !== window.location.origin
         || event.source !== iframe.contentWindow
       ) return;
+      if (sceneUrl && event.data?.type === 'hololab-viewer-ready') {
+        setSceneReady(true);
+        return;
+      }
       if (squareViewport && event.data?.viewer_id === viewer.id && event.data?.type === 'hololab-viewer-focus-ready') {
         setDualFocusReady(true);
         iframe.contentWindow?.postMessage({ type: 'hololab-viewer-focus-host', active: false, accent: getComputedStyle(wrapperRef.current!).getPropertyValue('--accent').trim() }, location.origin);
@@ -136,7 +145,7 @@ export function NodeViewerFrame({
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [viewer.id, onWorkflowDefaultChange, squareViewport]);
+  }, [viewer.id, onWorkflowDefaultChange, squareViewport, sceneUrl]);
 
   useEffect(() => {
     if (!historyTarget) {
@@ -225,8 +234,14 @@ export function NodeViewerFrame({
   // viewers already open must retain their own interactive orbit/zoom.
   useEffect(() => {
     const target = iframeRef.current?.contentWindow;
-    if (!target || !loaded || !workflowViewLoaded || sentWorkflowDefaultRef.current) return;
+    if (!target || !loaded || (sceneUrl && !sceneReady) || !workflowViewLoaded || sentWorkflowDefaultRef.current) return;
     sentWorkflowDefaultRef.current = true;
+    if (sceneUrl) {
+      target.postMessage({ type: 'hololab-viewer-camera', managed: workflowViewManaged,
+        view: workflowView ?? WORKFLOW_FACTORY_VIEW, factory_view: WORKFLOW_FACTORY_VIEW,
+        has_default: workflowView != null }, window.location.origin);
+      return;
+    }
     target.postMessage({
       type: "hololab-viewer-state",
       viewer_id: viewer.id,
@@ -234,7 +249,7 @@ export function NodeViewerFrame({
       workflow_factory_view: WORKFLOW_FACTORY_VIEW,
       workflow_view_managed: workflowViewManaged,
     }, window.location.origin);
-  }, [loaded, workflowViewLoaded, workflowViewManaged, workflowView, viewer.id]);
+  }, [loaded, sceneReady, sceneUrl, workflowViewLoaded, workflowViewManaged, workflowView, viewer.id]);
 
   if (!src) {
     return (

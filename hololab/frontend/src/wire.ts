@@ -149,7 +149,7 @@ export interface PortSpec {
 }
 
 export interface OutputPreviewSpec {
-  viewer: "splatv" | "lagsplat" | "video" | "image" | "text" | "video-grid";
+  viewer: "splatv" | "ply-3dgs" | "lagsplat" | "video" | "image" | "text" | "video-grid";
   // For single-file viewers this is a literal relative path inside a
   // dir-storage handle. For ``video-grid`` it is an optional glob (e.g.
   // ``*.mp4``) that filters the directory listing; omitted → any common
