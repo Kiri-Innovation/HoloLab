@@ -3588,7 +3588,7 @@ function Colmap3DPreview({
       cw.postMessage({ type: "set-render-scale", scale: zoomRef.current }, "*");
     }, 200);
     return () => clearTimeout(timer);
-  }, [zoom]);
+  }, [zoom, handshaken]);
 
   // Effect A — handshake listener, mounted once. ``colmap-ready`` is
   // broadcast by ColmapUtil's EmbedDataListener at iframe boot; since the
@@ -3600,7 +3600,10 @@ function Colmap3DPreview({
       const iframe = iframeRef.current;
       if (!iframe || e.source !== iframe.contentWindow) return;
       const d = e.data as { type?: string; view?: unknown; viewer_id?: string } | null;
-      if (d?.type === "colmap-ready") setHandshaken(true);
+      if (d?.type === "colmap-ready") {
+        setHandshaken(true);
+        iframe.contentWindow?.postMessage({ type: "set-render-scale", scale: zoomRef.current }, location.origin);
+      }
       if (d?.type === "hololab-viewer-ready" && d.viewer_id === "colmap") setCameraReady(true);
       if (d?.type === "hololab-viewer-camera-default") {
         setViewerDefault?.(d.view && typeof d.view === "object" ? d.view as Record<string, unknown> : null);

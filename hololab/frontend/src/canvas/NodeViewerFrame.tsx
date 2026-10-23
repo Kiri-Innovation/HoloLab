@@ -1,3 +1,4 @@
+import { useStore } from "@xyflow/react";
 import { packAssetUrl } from "../packageIdentity";
 import { useEffect, useRef, useState } from "react";
 import type { NodeViewerSpec } from "../wire";
@@ -72,6 +73,19 @@ export function NodeViewerFrame({
     setFocusDomain(null);
     iframeRef.current?.contentWindow?.postMessage({ type: 'hololab-viewer-focus-host', active: false }, location.origin);
   }, [squareViewport, dualFocusReady, activated]);
+  // CSS transforms do not resize iframe clientWidth. Send React Flow zoom
+  // separately, replaying it after iframe/inner-viewer startup.
+  const zoom = useStore((state) => state.transform[2]);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  useEffect(() => {
+    if (!squareViewport || !loaded) return;
+    const timer = setTimeout(() => {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'set-render-scale', scale: zoom }, location.origin);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [zoom, squareViewport, loaded, sceneReady, dualFocusReady]);
+
   const sentWorkflowDefaultRef = useRef(false);
   const nodeId = (frames.length ? frames[frames.length - 1].node_id : null)
     ?? historyTarget?.node_id
@@ -116,6 +130,9 @@ export function NodeViewerFrame({
         || event.origin !== window.location.origin
         || event.source !== iframe.contentWindow
       ) return;
+      if (squareViewport && ['hololab-viewer-ready', 'hololab-viewer-focus-ready'].includes(event.data?.type)) {
+        iframe.contentWindow?.postMessage({ type: 'set-render-scale', scale: zoomRef.current }, location.origin);
+      }
       if (sceneUrl && event.data?.type === 'hololab-viewer-ready') {
         setSceneReady(true);
         return;
