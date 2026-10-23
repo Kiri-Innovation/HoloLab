@@ -7,6 +7,7 @@
 // still turns 4xx business errors into ``ApiError`` unchanged. See ``net.ts``.
 
 import { pLimit, resilientFetch } from "./net";
+import { newId } from "./newId";
 import type {
   CatalogPack,
   ComputeNode,
@@ -333,7 +334,7 @@ async function preparationHeaders(workflowId: string, nodeId?: string) {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(nodeId ? { node_id: nodeId } : {}),
   }).then(json<{ token: string }>);
-  return { "X-Preparation-Token": prepared.token, "X-Request-ID": crypto.randomUUID() };
+  return { "X-Preparation-Token": prepared.token, "X-Request-ID": newId() };
 }
 
 export const runWorkflow = async (workflow_id: string) => {
@@ -397,7 +398,7 @@ export const restoreFromSnapshot = (workflow_id: string, snapshot_id: string) =>
 export const rerunFromNode = (snapshot_id: string, graph_node_id: string) =>
   resilientFetch(
     `/api/snapshots/${snapshot_id}/rerun-from/${encodeURIComponent(graph_node_id)}`,
-    { method: "POST", headers: { "X-Request-ID": crypto.randomUUID() } },
+    { method: "POST", headers: { "X-Request-ID": newId() } },
     { retryNonIdempotent: true },
   ).then(
     json<{
