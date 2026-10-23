@@ -599,6 +599,8 @@ export interface RunSummaryRow {
 // RecentJobRow because the read-only run view wants params + input
 // handles too, so the user can see "what were the frozen inputs?".
 export interface SnapshotJob {
+  /** WS rows lack frozen parameters until hydrated by REST. */
+  analysis_params_pending?: boolean;
   job_id: string;
   workflow_id: string;
   node_id: string | null;
