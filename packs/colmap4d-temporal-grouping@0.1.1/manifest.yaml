@@ -1,0 +1,84 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: colmap4d-temporal-grouping
+version: 0.1.1
+description: >
+  Materialize XMP-timestamped rig images on colmap4d's fixed time grid and
+  emit a rig_timeline visualization bundle from the same grouping result.
+source_entry: group_temporal_images.py
+category: "tracking/rig"
+
+docs: |
+  Reads ``arrayed[cam,index]<image>`` and emits both
+  ``arrayed[group,cam]<image,colmap4d-temporal-groups>`` and the legacy-compatible
+  ``rig_timeline`` PNG/HTML/report bundle. Grouping uses the public
+  ``colmap4d.group_by_grid`` API from colmap4d 1.0.2 or newer.
+
+inputs:
+  frames:
+    tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [cam, index]
+    description: "ClockSync server-epoch JPEG tree with per-image rig XMP."
+
+params:
+  grid_ns:
+    type: int
+    default: 33333333
+    min: 1
+    description: "Fixed-grid bucket width in nanoseconds."
+  n_cams:
+    type: int
+    default: 0
+    min: 0
+    description: "Expected devices for complete buckets; 0 infers all XMP aliases."
+  trim_edges:
+    type: bool
+    default: true
+    description: "Keep the inclusive first-to-last complete span, including interior gaps."
+
+outputs:
+  groups:
+    tags: [image, colmap4d-temporal-groups]
+    arrayed: true
+    storage: dir
+    dim_labels: [group, cam]
+    description: "Materialized group/camera JPEG array with hidden grouping provenance."
+  exposure_timeline:
+    tags: [rig_timeline]
+    arrayed: false
+    storage: dir
+    description: "Legacy-compatible exposure_timeline PNG/HTML/report bundle."
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  expected_duration_min: [0.05, 2]
+  resources:
+    scratch_gb: 0.5
+    mem_gb: 2.0
+
+exec:
+  shell: |
+    set -euo pipefail
+    TRIM=()
+    if [ "{{ params.trim_edges | lower }}" = "true" ]; then
+      TRIM=(--trim-edges)
+    fi
+    python "{{ pack_dir }}/group_temporal_images.py" \
+      --frames "{{ inputs.frames }}" \
+      --output "{{ outputs.groups }}" \
+      --timeline-output "{{ outputs.exposure_timeline }}" \
+      --grid-ns {{ params.grid_ns }} \
+      --n-cams {{ params.n_cams }} \
+      "${TRIM[@]}"
+    test -s "{{ outputs.exposure_timeline }}/exposure_timeline_full.png"
+    test -s "{{ outputs.exposure_timeline }}/exposure_timeline_zoom.html"
+
+idempotency:
+  marker: "{{ outputs.groups }}/.hololab-done"
+
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
