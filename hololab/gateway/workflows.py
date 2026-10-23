@@ -599,30 +599,42 @@ class WorkflowStore:
         walking every ``snapshot_jobs`` attribution.
         """
 
-        if catalog is not None:
-            graph = freeze_parameter_pins(graph, catalog)
+        if catalog is not None and graph.execution is None:
+            from hololab.gateway.preparation import resolve_recipe
+
+            graph = resolve_recipe(graph, catalog)
         from hololab.inline_values import effective_inline
 
         graph = graph.model_copy(deep=True)
-        packs = packs_by_key_from_catalog(catalog or [])
-        input_bindings = {}
-        for node in graph.nodes:
-            pack = packs.get((node.algorithm_name, node.algorithm_version))
-            if pack:
-                input_bindings[node.id] = effective_inline(node, graph, pack)
-                for port, (_, payload) in input_bindings[node.id].items():
-                    node.port_values[port] = payload["value"]
+        packs = packs_by_key_from_catalog((graph.execution or {}).get("packs", catalog or []))
+        input_bindings = (graph.execution or {}).get("inline_values", {})
+        if graph.execution is None:
+            for node in graph.nodes:
+                pack = packs.get((node.algorithm_name, node.algorithm_version))
+                if pack:
+                    input_bindings[node.id] = effective_inline(node, graph, pack)
+                    for port, (_, payload) in input_bindings[node.id].items():
+                        node.port_values[port] = payload["value"]
         snapshot_id = str(uuid.uuid4())
         graph_json = graph.model_dump_json(exclude_none=True)
         now = time.time()
 
         async def _write(conn: aiosqlite.Connection) -> None:
+            expected = (graph.execution or {}).get("draft_updated_ts")
+            if expected is not None:
+                current = await self._read_row(conn, workflow_id)
+                if current is None or current.updated_ts != expected:
+                    from fastapi import HTTPException
+
+                    raise HTTPException(
+                        status_code=409, detail="Draft changed before snapshot commit"
+                    )
             await conn.execute(
                 "INSERT INTO snapshots (snapshot_id, workflow_id, graph_json, "
                 "created_ts, parent_snapshot_id) VALUES (?, ?, ?, ?, ?)",
                 (snapshot_id, workflow_id, graph_json, now, parent_snapshot_id),
             )
-            if catalog is None and parent_snapshot_id:
+            if catalog is None and parent_snapshot_id and not input_bindings:
                 await conn.execute(
                     "INSERT INTO snapshot_input_values SELECT ?, graph_node_id, input_port, digest FROM snapshot_input_values WHERE snapshot_id=?",
                     (snapshot_id, parent_snapshot_id),

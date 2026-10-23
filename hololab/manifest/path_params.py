@@ -57,3 +57,35 @@ def resolve_path_params(
             raise ValueError(f"Parameter {name}: cannot access path: {exc}") from exc
         result[name] = str(path)
     return result
+
+
+def validate_frozen_path_params(specs: dict[str, ParamSpec], params: dict) -> None:
+    """Check execution-node paths without defaults, expansion or rewriting values."""
+    for name, spec in specs.items():
+        array = spec.type is ParamType.ARRAY and spec.items is ParamType.PATH
+        if spec.type is not ParamType.PATH and not array:
+            continue
+        value = params.get(name)
+        if value is None and spec.optional:
+            continue
+        values = value if array else [value]
+        if not isinstance(values, list):
+            raise ValueError(f"Parameter {name}: expected prepared path array")
+        for item in values:
+            if (
+                not isinstance(item, str)
+                or not item
+                or "\0" in item
+                or not Path(item).is_absolute()
+            ):
+                raise ValueError(f"Parameter {name}: path was not prepared on this node")
+            path = Path(item)
+            exists = path.exists()
+            if spec.must_exist is not False and not exists:
+                raise ValueError(
+                    f"Parameter {name}: path does not exist on this compute node: {path}"
+                )
+            if exists and spec.path_kind == "file" and not path.is_file():
+                raise ValueError(f"Parameter {name}: expected a file: {path}")
+            if exists and spec.path_kind == "directory" and not path.is_dir():
+                raise ValueError(f"Parameter {name}: expected a directory: {path}")

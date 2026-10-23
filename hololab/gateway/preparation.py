@@ -45,6 +45,7 @@ def resolve_recipe(
     result = freeze_parameter_pins(graph, catalog)
     packs = {(p["name"], p["version"]): copy.deepcopy(p) for p in catalog}
     sources, environment, issues = {}, {}, []
+    inline_values = {}
     for node in result.nodes:
         if node.kind != "algorithm":
             continue
@@ -71,9 +72,11 @@ def resolve_recipe(
             node.params = copy.deepcopy(normalized[node.id])
         inputs = effective_inline(node, result, pack)
         node.port_values = {port: value[1]["value"] for port, value in inputs.items()}
+        inline_values[node.id] = inputs
     result.execution = {
         "version": 1,
         "revision": context_revision(graph, catalog),
+        "inline_values": inline_values,
         "sources": sources,
         "environment_params": environment,
         "issues": issues,
@@ -161,3 +164,75 @@ async def prepare_execution(
         node.params = reply["params"]
     result.execution["prepared_nodes"] = sorted(required)
     return result
+
+
+async def submitted_execution(
+    app,
+    workflow_id: str,
+    graph: WorkflowGraph,
+    *,
+    required: set[str] | None = None,
+    token: str | None = None,
+) -> WorkflowGraph:
+    """Consume a prepared revision, or prepare a legacy API submission once."""
+    from fastapi import HTTPException
+
+    from hololab.gateway.submission import preparation_token
+
+    token = token or preparation_token.get()
+    if token:
+        async with (
+            app.state.db.read() as conn,
+            conn.execute(
+                "SELECT revision,graph_json FROM execution_preparations WHERE token=? AND workflow_id=?",
+                (token, workflow_id),
+            ) as cur,
+        ):
+            row = await cur.fetchone()
+        if row is None or row[0] != context_revision(graph, app.state.registry.catalog_json()):
+            raise HTTPException(
+                status_code=409,
+                detail="Preparation is stale; prepare the current configuration again",
+            )
+        prepared = WorkflowGraph.model_validate_json(row[1])
+        needed = (
+            required if required is not None else {n.id for n in graph.nodes if n.kind != "view"}
+        )
+        if not needed.issubset(set(prepared.execution.get("prepared_nodes", []))):
+            raise HTTPException(
+                status_code=409, detail="Preparation does not cover requested nodes"
+            )
+    else:
+        try:
+            prepared = await prepare_execution(app, graph, required=required)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    latest = await app.state.workflows.get_draft(workflow_id)
+    if latest is None or prepared.execution["revision"] != context_revision(
+        latest.graph, app.state.registry.catalog_json()
+    ):
+        raise HTTPException(status_code=409, detail="Configuration changed during preparation")
+    prepared.execution["draft_updated_ts"] = latest.updated_ts
+    return prepared
+
+
+async def historical_execution(app, snapshot) -> WorkflowGraph:
+    """Old records use recorded jobs, never today's parameter defaults."""
+    graph = snapshot.graph.model_copy(deep=True)
+    if graph.execution:
+        graph.execution.pop("draft_updated_ts", None)
+        return graph
+    recorded = {}
+    for node in graph.nodes:
+        jid = await app.state.snapshot_jobs.get_job_at(snapshot.snapshot_id, node.id)
+        job = await app.state.jobs_store.get(jid) if jid else None
+        if job:
+            node.params = copy.deepcopy(job.params)
+            recorded[node.id] = jid
+    graph.execution = {
+        "version": 1,
+        "legacy": True,
+        "recorded_jobs": recorded,
+        "packs": copy.deepcopy(app.state.registry.catalog_json()),
+    }
+    return graph

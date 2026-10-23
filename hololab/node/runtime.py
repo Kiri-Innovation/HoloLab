@@ -1476,19 +1476,16 @@ class NodeRuntime:
             )
             return
 
-        # Path strings are interpreted on the selected node, before rendering
-        # or starting any pack process. Persisted workflow values stay unchanged.
-        from hololab.manifest.path_params import resolve_path_params
+        # Prepared values are immutable. Node validation must never fill defaults,
+        # migrate arrays, expand home directories, or canonicalize paths here.
+        from hololab.manifest.path_params import validate_frozen_path_params
 
         try:
-            from hololab.manifest.array_migration import migrate_array_params
-
-            assign.params = migrate_array_params(*key, assign.params)
             for name, spec in pack.manifest.params.items():
-                spec.validate_enum_value(name, assign.params.get(name, spec.default))
-                spec.validate_array_value(name, assign.params.get(name, spec.default))
-            assign.params = await asyncio.to_thread(
-                resolve_path_params, pack.manifest.params, assign.params
+                spec.validate_enum_value(name, assign.params.get(name))
+                spec.validate_array_value(name, assign.params.get(name))
+            await asyncio.to_thread(
+                validate_frozen_path_params, pack.manifest.params, assign.params
             )
         except ValueError as exc:
             await self._send_job_fail(assign.job_id, JobFailReason.USER_ERROR, message=str(exc))

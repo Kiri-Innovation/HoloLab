@@ -1707,6 +1707,10 @@ def _mount_routes(app: FastAPI) -> None:
 
     # -- workflows -----------------------------------------------------------
 
+    from hololab.gateway.submission import install_submission_guard
+
+    install_submission_guard(app)
+
     @app.post("/api/workflows/{workflow_id}/prepare", tags=["workflows"])
     async def prepare_workflow(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
         from hololab.gateway.preparation import prepare_execution
@@ -2146,8 +2150,11 @@ def _mount_routes(app: FastAPI) -> None:
                 "mode": "constants",
                 "message": "常量无需运行",
             }
+        from hololab.gateway.preparation import submitted_execution
+
+        prepared = await submitted_execution(app, workflow_id, row.graph)
         snapshot = await app.state.workflows.create_snapshot(
-            workflow_id=workflow_id, graph=row.graph, catalog=registry.catalog_json()
+            workflow_id=workflow_id, graph=prepared
         )
 
         async def _run() -> None:
@@ -2684,9 +2691,12 @@ def _mount_routes(app: FastAPI) -> None:
                     ),
                 )
 
+        from hololab.gateway.preparation import historical_execution
+
+        frozen = await historical_execution(app, old_snap)
         new_snapshot = await workflows_store.create_snapshot(
             workflow_id=old_snap.workflow_id,
-            graph=old_snap.graph,
+            graph=frozen,
             parent_snapshot_id=snapshot_id,
         )
 
@@ -2705,7 +2715,7 @@ def _mount_routes(app: FastAPI) -> None:
                 await run_snapshot(
                     app,
                     snapshot_id=new_snapshot.snapshot_id,
-                    graph=old_snap.graph,
+                    graph=frozen,
                     workflow_id=old_snap.workflow_id,
                     skip_graph_nodes=to_reuse,
                     seed_outputs=reused_pre_completed,
@@ -3299,6 +3309,28 @@ def _mount_routes(app: FastAPI) -> None:
                     "check /api/nodes"
                 ),
             )
+
+        from hololab.gateway.preparation import prepare_execution
+        from hololab.gateway.workflows import GraphNode
+
+        try:
+            prepared = await prepare_execution(
+                app,
+                WorkflowGraph(
+                    nodes=[
+                        GraphNode(
+                            id="adhoc",
+                            algorithm_name=algorithm_name,
+                            algorithm_version=algorithm_version,
+                            params=params,
+                            assigned_node_id=session.node_id,
+                        )
+                    ]
+                ),
+            )
+            params = prepared.nodes[0].params
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
         job = Job(
             job_id=str(uuid.uuid4()),

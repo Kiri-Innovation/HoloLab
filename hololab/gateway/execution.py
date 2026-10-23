@@ -131,7 +131,10 @@ async def run_snapshot(
     # sees currently-connected nodes, which is exactly what snapshot
     # validation already required upstream.
     catalog_by_key: dict[tuple[str, str], dict[str, Any]] = {
-        (c["name"], c["version"]): c for c in registry.catalog_json()
+        (c["name"], c["version"]): c
+        for c in (
+            (graph.execution or {}).get("packs", []) if graph.execution else registry.catalog_json()
+        )
     }
 
     skip = set(skip_graph_nodes or ())
@@ -282,7 +285,7 @@ async def _prepare_fanout(
             f"declares no arrayed inputs — nothing to fan out over"
         )
 
-    effective_params = merged_params_with_defaults(gnode.params, pack_entry)
+    effective_params = dict(gnode.params)
 
     # Fan-out removes exactly one outer collection; the manifest describes
     # what remains for one algorithm invocation.
@@ -1420,7 +1423,7 @@ async def _dispatch_job(
         snapshot_id=snapshot_id,
         algorithm_name=gnode.algorithm_name,
         algorithm_version=gnode.algorithm_version,
-        params=merged_params_with_defaults(gnode.params, pack_entry),
+        params=dict(gnode.params),
         input_handles=input_handles,
         graph_node_id=gnode.id,
     )
@@ -1633,59 +1636,23 @@ async def dispatch_graph_node(
             ):
                 existing_job_id = candidate
 
-    changed_constants = set()
-    if base_snapshot_id is not None:
-        from hololab.constants import constant_value
+    from hololab.gateway.preparation import changed_nodes, historical_execution, submitted_execution
 
-        baseline = await workflows_store.get_snapshot(base_snapshot_id)
-        previous = {n.id: n for n in baseline.graph.nodes} if baseline else {}
-        from hololab.inline_values import effective_inline
-
-        packs = packs_by_key_from_catalog(registry.catalog_json())
-        frozen_inputs = {}
-        async with (
-            app.state.db.read() as conn,
-            conn.execute(
-                "SELECT graph_node_id,input_port,digest FROM snapshot_input_values WHERE snapshot_id=?",
-                (base_snapshot_id,),
-            ) as cur,
-        ):
-            for node_id, port, digest in await cur.fetchall():
-                frozen_inputs.setdefault(node_id, {})[port] = digest
-        for node in graph.nodes:
-            old = previous.get(node.id)
-            pack = packs.get((node.algorithm_name, node.algorithm_version))
-            if pack and {
-                p: item[0] for p, item in effective_inline(node, graph, pack).items()
-            } != frozen_inputs.get(node.id, {}):
-                changed_constants.add(node.id)
-            old_edges = {
-                (e.source, e.sourceHandle, e.targetHandle)
-                for e in (baseline.graph.edges if baseline else [])
-                if e.target == node.id
-            }
-            new_edges = {
-                (e.source, e.sourceHandle, e.targetHandle)
-                for e in graph.edges
-                if e.target == node.id
-            }
-            if old_edges != new_edges:
-                changed_constants.add(node.id)
-            if is_constant(node):
-                old = previous.get(node.id)
-                if (
-                    old is None
-                    or not is_constant(old)
-                    or constant_value(node.operation, node.params)[0]
-                    != constant_value(old.operation, old.params)[0]
-                ):
-                    changed_constants.add(node.id)
+    prepared = await submitted_execution(app, workflow_id, graph, required={graph_node_id})
+    baseline = await workflows_store.get_snapshot(base_snapshot_id) if base_snapshot_id else None
+    frozen_base = await historical_execution(app, baseline) if baseline else None
+    changed_constants = changed_nodes(prepared, frozen_base) if frozen_base else set()
+    if (
+        frozen_base
+        and graph_node_id not in (frozen_base.execution or {}).get("prepared_nodes", [])
+        and not (frozen_base.execution or {}).get("legacy")
+    ):
+        changed_constants.add(graph_node_id)
+    graph = prepared
 
     if base_snapshot_id is None:
         # No base → new snapshot, first attribution.
-        snap = await workflows_store.create_snapshot(
-            workflow_id=workflow_id, graph=graph, catalog=registry.catalog_json()
-        )
+        snap = await workflows_store.create_snapshot(workflow_id=workflow_id, graph=graph)
         target_snapshot_id = snap.snapshot_id
         operation = "continue"
     elif existing_job_id is None and not changed_constants:
@@ -1698,6 +1665,8 @@ async def dispatch_graph_node(
         forbidden = downstream_closure(graph, graph_node_id) | {graph_node_id}
         for constant_id in changed_constants:
             forbidden |= downstream_closure(graph, constant_id) | {constant_id}
+            if frozen_base:
+                forbidden |= downstream_closure(frozen_base, constant_id)
         parent_attributions = await snapshot_jobs.list_attributions(base_snapshot_id)
         inherited = [
             (row["job_id"], row["graph_node_id"])
@@ -1709,15 +1678,15 @@ async def dispatch_graph_node(
             workflow_id=workflow_id,
             graph=graph,
             parent_snapshot_id=parent_snapshot_id,
-            catalog=registry.catalog_json(),
         )
         target_snapshot_id = snap.snapshot_id
         await snapshot_jobs.attribute_many(target_snapshot_id, inherited)
         operation = "fork"
 
     frozen_snapshot = await workflows_store.get_snapshot(target_snapshot_id)
-    graph = frozen_snapshot.graph
-    # Dispatch parameters retain the existing Continue behavior; input bindings
+    graph = await historical_execution(app, frozen_snapshot)
+    gnode = next(node for node in graph.nodes if node.id == graph_node_id)
+    # All dispatch configuration comes from the selected frozen record; input bindings
     # always come from the selected immutable snapshot. Historical reruns use
     # their frozen node through the separate rerun path.
     # -- Resolve inputs from the target snapshot's existing attributions ----
@@ -1743,7 +1712,7 @@ async def dispatch_graph_node(
     pack_entry: dict[str, Any] | None = next(
         (
             c
-            for c in registry.catalog_json()
+            for c in (graph.execution or {}).get("packs", [])
             if c["name"] == gnode.algorithm_name and c["version"] == gnode.algorithm_version
         ),
         None,
