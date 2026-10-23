@@ -1,0 +1,113 @@
+.hl-compose-editor {
+  padding: 8px;
+  border-top: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-body);
+  font-size: var(--fs-xs);
+  min-width: 0;
+}
+.hl-compose-editor header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: space-between;
+}
+.hl-compose-editor header span,
+.hl-compose-editor small {
+  color: var(--text-muted);
+}
+.hl-compose-editor [role="status"] {
+  padding: 5px 0;
+  overflow-wrap: anywhere;
+}
+.hl-compose-stage {
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  width: 100%;
+  touch-action: none;
+}
+.hl-compose-layer {
+  position: absolute;
+  box-sizing: border-box;
+  cursor: move;
+  touch-action: none;
+}
+.hl-compose-layer[data-selected="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.hl-compose-layer video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+.hl-compose-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid white;
+  background: var(--accent);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.hl-compose-scrub {
+  display: block;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.hl-compose-scrub input {
+  display: block;
+  width: 100%;
+  margin: 4px 0;
+}
+.hl-compose-tracks {
+  max-height: 120px;
+  overflow: auto;
+  display: grid;
+  gap: 3px;
+}
+.hl-compose-tracks button {
+  display: grid;
+  grid-template-columns: 65px minmax(0, 1fr);
+  gap: 5px;
+  padding: 3px;
+  font: inherit;
+  text-align: left;
+}
+.hl-compose-tracks button > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hl-compose-track {
+  position: relative;
+  background: var(--surface);
+  height: 12px;
+}
+.hl-compose-track i {
+  position: absolute;
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.7;
+}
+.hl-compose-properties {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.hl-compose-properties label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.hl-compose-properties input {
+  width: 80px;
+  min-width: 0;
+}

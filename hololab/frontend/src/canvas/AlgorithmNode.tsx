@@ -1,3 +1,4 @@
+import { ComposeVideoEditor } from "./ComposeVideoEditor";
 import { InlinePortCard, activeInlineValue } from "./CanvasInlineValues";
 import { inputValueProblems } from "./inlineValues";
 import { PinnedParameters } from "./PinnedParameters";
@@ -386,6 +387,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const runInFlight =
     runState === "pending" || runState === "assigned" || runState === "running";
 
+  const [showCompositionOutput, setShowCompositionOutput] = useState(false);
   const [runClickPending, setRunClickPending] = useState(false);
   const [runErrorMsg, setRunErrorMsg] = useState<string | null>(null);
 
@@ -774,7 +776,12 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       {inputProblem && firstArtifactTarget && <div data-hl-historical-preview="" style={{padding: "6px 12px", fontSize: "var(--fs-xs)", color: "var(--text-muted)", overflowWrap: "anywhere"}}>
         历史运行产物 · 不代表当前配置可运行
       </div>}
-      <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={inputProblem ? undefined : () => dispatchRunNode(id)} />
+      {pack.name === "compose-video" && expanded ? <>
+        <ComposeVideoEditor id={id} readOnly={readOnly} />
+        <details className="nodrag" onToggle={e=>setShowCompositionOutput(e.currentTarget.open)} style={{padding:8,fontSize:"var(--fs-xs)"}}><summary>上次运行产物</summary>
+          {showCompositionOutput && <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={inputProblem ? undefined : () => dispatchRunNode(id)} />}
+        </details>
+      </> : <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={inputProblem ? undefined : () => dispatchRunNode(id)} />}
     </div>
   );
 
