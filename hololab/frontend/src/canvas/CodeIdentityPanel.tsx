@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { JobDetail } from "../wire";
+import { EnvironmentEvidence, type EnvironmentReport } from "./EnvironmentChecks";
 
 /** Historical evidence; refreshing a baseline must never rewrite this record. */
 export function CodeIdentityPanel({ detail }: { detail: JobDetail }) {
@@ -32,7 +33,7 @@ export function IdentityEvidence({ identity, effectiveParams }: {
   identity?: Record<string, unknown> | null;
   effectiveParams?: Record<string, unknown>;
 }) {
-  if (!identity) return <p>历史运行未记录代码身份；不会用当前代码回填。</p>;
+  if (!identity) return <><p>历史运行未记录代码身份；不会用当前代码回填。</p><EnvironmentEvidence /></>;
   const cold = identity.cold as { baseline_at?: number; sha256?: string; baseline_status?: string; content_changed?: boolean } | undefined;
   const hot = identity.hot as { sha256?: string; verification?: string } | undefined;
   const manifest = identity.manifest as { sha256?: string; raw_sha256?: string } | undefined;
@@ -40,6 +41,7 @@ export function IdentityEvidence({ identity, effectiveParams }: {
   const ignored = identity.ignored as { files: number; links: number; bytes: number; top_level_names: string[] } | undefined;
   const git = identity.git as { dirty: boolean | null; commit?: string; tree_sha?: string } | undefined;
   return <div style={{ overflowWrap: "anywhere" }}>
+    <EnvironmentEvidence report={identity.environment as EnvironmentReport | undefined} />
     <div>身份格式: {String(identity.format ?? "旧格式")} · 来源: {String(identity.source ?? "未知")}</div>
     <div>声明范围 SHA-256: {String(identity.sha256 ?? "未记录")}</div>
     <div>热代码 SHA-256: {hot?.sha256} · {hot?.verification === "verified_at_submission" ? "提交时已校验；启动前再次校验" : "旧格式记录"}</div>

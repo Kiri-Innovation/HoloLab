@@ -131,6 +131,7 @@ import {
 import { seedEdgeSummaryFacts } from "./canvas/edgeSummaryCache";
 import { RunsPanel } from "./canvas/RunsPanel";
 import { useDraftAutosave } from "./canvas/useDraftAutosave";
+import { CapabilityContext, EnvironmentChecks, useCapabilityChecks } from "./canvas/EnvironmentChecks";
 import { SnapshotBanner } from "./canvas/SnapshotBanner";
 import { SnapshotCanvas } from "./canvas/SnapshotCanvas";
 import { SnapshotNodeInspector } from "./canvas/SnapshotNodeInspector";
@@ -2165,6 +2166,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // position / preview_open excluded). Passed to RunsPanel to drive both the
   // sentinel row visibility and the "检查" modal content.
   const analysisGraph = toGraph();
+  const capabilityChecks = useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick]), !viewingSnapshot);
   const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick});
   const draftDiff: DiffItem[] = executionAnalysis?.data?.diff ?? [];
   const stalenessByGraphNode = executionAnalysis.data?.staleness ?? EMPTY_STALENESS;
@@ -2704,7 +2706,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           fontSize:"var(--fs-xs)",color:"var(--text-muted)",background:"var(--surface-2)",padding:"4px 8px",borderRadius:"var(--radius-sm)",pointerEvents:"none"}}>
         {executionAnalysis.message}
       </div>}
-      <AnalysisProfiler><CanvasContext.Provider value={canvasContextValue}>
+      {!viewingSnapshot && <EnvironmentChecks checks={capabilityChecks} />}
+      <CapabilityContext.Provider value={viewingSnapshot ? {} : capabilityChecks.reports}><AnalysisProfiler><CanvasContext.Provider value={canvasContextValue}>
         {viewingSnapshot ? (
           <>
             <SnapshotBanner
@@ -2765,7 +2768,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             <Background gap={20} color="var(--rf-grid)" />
           </ReactFlow>
         )}
-      </CanvasContext.Provider></AnalysisProfiler>
+      </CanvasContext.Provider></AnalysisProfiler></CapabilityContext.Provider>
       {creationAnchor && !viewingSnapshot && (
         <NodeCreationMenu key={`${creationAnchor.x},${creationAnchor.y}`} catalog={catalog} anchor={creationAnchor}
           onClose={closeCreationMenu} onCreate={choice => {

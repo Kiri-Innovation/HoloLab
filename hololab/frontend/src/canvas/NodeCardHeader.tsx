@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
+import { CapabilityContext, environmentLabel, ENVIRONMENT_BOUNDARY } from "./EnvironmentChecks";
 import { NodeStatusDot } from "../ui/NodeStatusTooltip";
 import { NodeTitleTooltip } from "../ui/NodeTitleTooltip";
 import { CopyRefButton } from "./CopyRefButton";
@@ -31,6 +32,7 @@ export function NodeCardHeader({
 }) {
   const { workflow_id: workflowId, workflow_name: workflowName } =
     useCanvasContext();
+  const environment = useContext(CapabilityContext)[id];
   return (
     <div
       style={{
@@ -46,6 +48,10 @@ export function NodeCardHeader({
       }}
     >
       <NodeStatusDot state={state} status={status} />
+      {environment && <span title={`${environmentLabel(environment)}\n${environment.issues.map(i => `${i.item}: ${JSON.stringify(i.actual)}; ${i.remedy}`).join("\n")}\n${ENVIRONMENT_BOUNDARY}`}
+        style={{ fontSize: "var(--fs-micro)", color: environment.status === "missing" || environment.status === "unknown" ? "var(--danger, #d54b4b)" : "var(--text-muted)" }}>
+        {environment.status === "satisfied" ? "声明项满足" : environmentLabel(environment)}
+      </span>}
       <NodeTitleTooltip
         name={name}
         version={version}
