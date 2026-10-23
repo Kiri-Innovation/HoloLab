@@ -13,6 +13,7 @@ import {
   type Transform,
 } from "./composeGeometry";
 import "./composeVideoEditor.css";
+import { repairComposeValue } from "./composeRepairs";
 
 /** Uses the connected handle, never a hard-coded output.mp4 from a previous compose run. */
 export function ComposeVideoEditor({
@@ -36,6 +37,9 @@ export function ComposeVideoEditor({
     (videoEdge?.data?.handleId as string | undefined) ??
     producer?.previews?.[videoEdge?.sourceHandle ?? ""]?.handle_id;
   const [clips, setClips] = useState<Clip[]>([]);
+  const [loadedHandle, setLoadedHandle] = useState<string>();
+  const [repairs, setRepairs] = useState<string[]>([]);
+  const lastRepair = useRef("");
   const [loadError, setLoadError] = useState("");
   const [time, setTime] = useState(0);
   const [selected, setSelected] = useState(0);
@@ -68,19 +72,29 @@ export function ComposeVideoEditor({
       ? constant
         ? port === "offsets"
           ? p.items
-          : Array.isArray(p.x) && Array.isArray(p.y) && Array.isArray(p.scale)
-            ? p.x.map((x, i) => [
-                x,
-                (p.y as unknown[])[i],
-                (p.scale as unknown[])[i],
-              ])
+          : [p.x, p.y, p.scale].some(Array.isArray)
+            ? Array.from(
+                {
+                  length: Math.max(
+                    ...[p.x, p.y, p.scale].map((column) =>
+                      Array.isArray(column) ? column.length : 0,
+                    ),
+                  ),
+                },
+                (_, i) =>
+                  [p.x, p.y, p.scale].map((column) =>
+                    Array.isArray(column) ? column[i] : undefined,
+                  ),
+              )
             : null
         : null
       : (self?.port_values?.[port] ??
         (readOnly ? undefined : self?.pack.inputs[port]?.inline_default));
     return {
       value,
-      writable: !readOnly && (!edge || constant),
+      writable:
+        !readOnly &&
+        (edge ? constant && !!onParamsChange : !!onInlineValueChange),
       label: edge
         ? constant
           ? `常量 ${edge.source}（修改影响所有消费者）`
@@ -149,7 +163,10 @@ export function ComposeVideoEditor({
           };
         });
         if (!rows.length) throw Error("视频数组为空");
-        if (!cancelled) setClips(rows);
+        if (!cancelled) {
+          setClips(rows);
+          setLoadedHandle(handle);
+        }
       })
       .catch((e) => {
         if (!cancelled) setLoadError(String(e.message ?? e));
@@ -159,8 +176,42 @@ export function ComposeVideoEditor({
     };
   }, [handle]);
   const ready =
+    loadedHandle === handle &&
     clips.length > 0 &&
     clips.every((c) => c.width > 0 && c.height > 0 && c.duration > 0);
+  // Compare source values, not object identity; constant bindings are reconstructed each render.
+  useEffect(() => {
+    if (!ready || readOnly) return;
+    const plans = (
+      [
+        ["transforms", transforms],
+        ["offsets", offsets],
+      ] as const
+    )
+      .filter(([, target]) => target.writable)
+      .map(([port, target]) => ({
+        port,
+        target,
+        plan: repairComposeValue(port, target.value, clips.length),
+      }))
+      .filter(({ plan }) => plan.changes.length);
+    if (!plans.length) {
+      lastRepair.current = "";
+      return;
+    }
+    const key = JSON.stringify([
+      handle,
+      plans.map(({ port, target, plan }) => [port, target.label, plan.changes]),
+    ]);
+    if (lastRepair.current === key) return;
+    lastRepair.current = key;
+    setRepairs(
+      plans.flatMap(({ target, plan }) =>
+        plan.changes.map((change) => `${change}（${target.label}）`),
+      ),
+    );
+    for (const { target, plan } of plans) target.write(plan.value);
+  });
   const error = ready
     ? (transforms.value == null && incoming("transforms")) ||
       (offsets.value == null && incoming("offsets"))
@@ -261,6 +312,28 @@ export function ComposeVideoEditor({
               ? "正在读取视频元数据…"
               : `${canvas.width} × ${canvas.height} · ${total.toFixed(3)}s`)}
       </div>
+      {repairs.length > 0 && (
+        <aside
+          className="hl-compose-repairs"
+          aria-label="Automatic corrections"
+          aria-live="polite"
+        >
+          <details open>
+            <summary>已自动修正 {repairs.length} 处</summary>
+            <ul>
+              {repairs.map((change, i) => (
+                <li key={i}>{change}</li>
+              ))}
+            </ul>
+          </details>
+          <button
+            onClick={() => setRepairs([])}
+            aria-label="Dismiss corrections"
+          >
+            关闭提示
+          </button>
+        </aside>
+      )}
       <div
         ref={stage}
         className="hl-compose-stage"
@@ -426,10 +499,21 @@ export function ComposeVideoEditor({
               disabled={!offsets.writable}
               onChange={(e) => {
                 const v = e.currentTarget.valueAsNumber;
-                if (Number.isFinite(v) && v >= 0) {
+                if (Number.isFinite(v)) {
                   const next = [...os];
                   next[selected] = v;
-                  offsets.write(next);
+                  const plan = repairComposeValue(
+                    "offsets",
+                    next,
+                    clips.length,
+                  );
+                  if (plan.changes.length)
+                    setRepairs(
+                      plan.changes.map(
+                        (change) => `${change}（${offsets.label}）`,
+                      ),
+                    );
+                  offsets.write(plan.value);
                 }
               }}
             />

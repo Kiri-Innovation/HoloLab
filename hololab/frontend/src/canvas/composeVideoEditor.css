@@ -132,3 +132,20 @@
   cursor: move;
   touch-action: none;
 }
+
+.hl-compose-repairs {
+  padding: 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.hl-compose-repairs ul {
+  margin: 6px 0;
+  padding-left: 16px;
+  max-height: 110px;
+  overflow: auto;
+}
+.hl-compose-repairs summary {
+  cursor: pointer;
+}
