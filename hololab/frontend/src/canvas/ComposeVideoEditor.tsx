@@ -246,7 +246,7 @@ export function ComposeVideoEditor({
   function start(e: React.PointerEvent, index: number, resize: boolean) {
     e.stopPropagation();
     setSelected(index);
-    if (!valid || !transforms.writable || !stage.current) return;
+    if (index === 0 || !valid || !transforms.writable || !stage.current) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     const box = stage.current.getBoundingClientRect(),
@@ -358,6 +358,7 @@ export function ComposeVideoEditor({
                 height: `${(rect.height / canvas.height) * 100}%`,
                 visibility: visible ? "visible" : "hidden",
                 zIndex: i,
+                cursor: i === 0 ? "default" : undefined,
               }}
               onPointerDown={(e) => start(e, i, false)}
               onPointerMove={move}
@@ -415,7 +416,7 @@ export function ComposeVideoEditor({
                 onPointerUp={() => end()}
                 onPointerCancel={() => end(true)}
               >
-                {transforms.writable && (
+                {selected !== 0 && transforms.writable && (
                   <>
                     <button
                       className="hl-compose-move"
@@ -487,6 +488,7 @@ export function ComposeVideoEditor({
               ? "可见"
               : "此刻隐藏"}
           </span>
+          {selected === 0 && <small>底层 · 决定画布尺寸，位置与缩放固定为 [0,0,1]</small>}
           <small>{transforms.label}</small>
           <label>
             开始时间{" "}

@@ -26,6 +26,12 @@ export function repairComposeValue(
       if (next !== old) record(path, old, next);
       return next;
     }
+    if (i === 0) {
+      if (!Array.isArray(old) || old.length !== 3 || old[0] !== 0 || old[1] !== 0 || old[2] !== 1) {
+        changes.push(`${path} ${show(old)} → [0,0,1]：底层决定画布尺寸，位置与缩放固定，已修正`);
+      }
+      return [0, 0, 1] as Transform;
+    }
     if (!Array.isArray(old)) {
       record(path, old, [0, 0, 1]);
       return [0, 0, 1] as Transform;

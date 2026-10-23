@@ -17,18 +17,18 @@ describe("compose authoring repairs", () => {
   });
   it("preserves all valid values including out-of-canvas coordinates and fractional offsets", () => {
     const t = [
-      [-3, 8, 0.2],
       [0, 0, 1],
+      [-3, 8, 0.2],
     ];
     expect(repair("transforms", t, 2)).toEqual({ value: t, changes: [] });
     expect(repair("offsets", [0, 0.125], 2).changes).toEqual([]);
   });
   it("repairs malformed rows and finite-number format without coercing strings or booleans", () => {
     expect(
-      repair("transforms", [[NaN, -4, Infinity, 7], null], 2).value,
+      repair("transforms", [null, [NaN, -4, Infinity, 7]], 2).value,
     ).toEqual([
-      [0, -4, 1],
       [0, 0, 1],
+      [0, -4, 1],
     ]);
     expect(repair("offsets", [false, "3", Infinity], 3).value).toEqual([
       0, 0, 0,
@@ -42,4 +42,11 @@ describe("compose authoring repairs", () => {
       expect(repair(port, first.value, 1).changes).toHaveLength(1);
     }
   });
+});
+
+it.each([[[0.3, 0.2, 0.5]], [], [null], [[0, 0]], [[false, 0, 1]]].map(input => ({ input })))("fixes the sole base layer and reports why: %j", ({ input }) => {
+  const result = repair("transforms", input, 1);
+  expect(result.value).toEqual([[0, 0, 1]]);
+  expect(result.changes.some(change => change.includes("底层决定画布尺寸"))).toBe(true);
+  expect(repair("transforms", result.value, 1).changes).toEqual([]);
 });
