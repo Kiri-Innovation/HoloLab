@@ -108,7 +108,12 @@ def scan_packs(pack_source: Path) -> list[LoadedPack]:
         return []
 
     # Mode 2 — directory that directly contains manifest.yaml.
-    direct = pack_source / "manifest.yaml"
+    from hololab.pack_install import installed_manifest
+
+    def manifest_at(directory):
+        return installed_manifest(directory) or directory / "manifest.yaml"
+
+    direct = manifest_at(pack_source)
     if direct.is_file():
         loaded = _load_manifest_safely(direct)
         if loaded is None:
@@ -117,7 +122,7 @@ def scan_packs(pack_source: Path) -> list[LoadedPack]:
         return [
             LoadedPack(
                 manifest=manifest,
-                pack_dir=pack_source,
+                pack_dir=direct.parent,
                 manifest_path=direct,
                 manifest_hash=sha,
                 source_dir=pack_source,
@@ -135,16 +140,16 @@ def scan_packs(pack_source: Path) -> list[LoadedPack]:
     for entry in sorted(pack_source.iterdir()):
         if entry.name in {"output", "outputs", "data", "assets", ".git"} or not entry.is_dir():
             continue
-        manifest_path = entry / "manifest.yaml"
+        manifest_path = manifest_at(entry)
         if not manifest_path.is_file():
             # One additional level for scope/name@version. Never recurse into code trees.
             for child in sorted(entry.iterdir()):
-                nested = child / "manifest.yaml"
+                nested = manifest_at(child) if child.is_dir() else child / "manifest.yaml"
                 if child.is_dir() and nested.is_file():
                     loaded = _load_manifest_safely(nested)
                     if loaded:
                         manifest, sha = loaded
-                        out.append(LoadedPack(manifest, child, nested, sha, pack_source))
+                        out.append(LoadedPack(manifest, nested.parent, nested, sha, pack_source))
             continue
         loaded = _load_manifest_safely(manifest_path)
         if loaded is None:
@@ -153,7 +158,7 @@ def scan_packs(pack_source: Path) -> list[LoadedPack]:
         out.append(
             LoadedPack(
                 manifest=manifest,
-                pack_dir=entry,
+                pack_dir=manifest_path.parent,
                 manifest_path=manifest_path,
                 manifest_hash=sha,
                 source_dir=pack_source,

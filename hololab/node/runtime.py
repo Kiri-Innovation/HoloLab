@@ -1846,6 +1846,13 @@ class NodeRuntime:
                 from hololab.content_scope import verify
 
                 await asyncio.to_thread(verify, pack.manifest_path, assign.code_identity)
+            from hololab.pack_install import receipt_for
+
+            receipt = receipt_for(pack.manifest_path)
+            if receipt:
+                from hololab.content_scope import verify
+
+                await asyncio.to_thread(verify, pack.manifest_path, receipt["identity"])
             if pack.manifest.requires is not None:
                 from hololab.node.capabilities import enforce
 

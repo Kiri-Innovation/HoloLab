@@ -547,6 +547,42 @@ def pack_publish(
     typer.echo(release.model_dump_json(indent=2))
 
 
+@pack_app.command("install")
+@pack_app.command("resolve")
+def pack_resolve_install(
+    ctx: typer.Context,
+    spec: str,
+    config: Path | None = typer.Option(None),
+    source: list[str] = typer.Option([], help="Override configured mirrors"),
+    destination: Path | None = typer.Option(
+        None, help="Installation pack directory, default first configured pack_dirs"
+    ),
+    expected_hash: str | None = typer.Option(None),
+) -> None:
+    """Resolve locally first; install only after full archive/content verification."""
+    from hololab.node.config import load_node_config
+    from hololab.pack_install import install, resolve
+
+    cfg = load_node_config(config)
+    dirs = cfg.pack_dirs
+    try:
+        if ctx.info_name == "install":
+            result = install(
+                spec, source or cfg.pack_sources, destination or dirs[0], dirs, expected_hash
+            )
+        else:
+            result = resolve(
+                spec,
+                source or cfg.pack_sources,
+                [*dirs, *([destination] if destination else [])],
+                expected_hash,
+            )
+    except (ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 @pack_app.command("validate")
 def pack_validate(pack_dir: Path) -> None:
     """Validate a pack's ``manifest.yaml`` and print a short summary."""

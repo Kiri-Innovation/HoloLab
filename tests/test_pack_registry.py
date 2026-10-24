@@ -36,3 +36,26 @@ def test_publish_preserves_dev_identity_and_rejects_overwrites(tmp_path):
     (root / "stg_state.py").write_text("changed")
     with pytest.raises(RegistryError, match="不可变版本冲突"):
         publish(manifest, source, "test")
+
+
+def test_install_checks_archive_and_content_and_is_local_first(tmp_path):
+    from hololab.node.packs import scan_packs
+    from hololab.pack_install import install, resolve
+    from hololab.pack_registry import HashMismatch
+
+    _, manifest, _ = package(tmp_path)
+    source = (tmp_path / "registry").as_uri()
+    release = publish(manifest, source, "test")
+    destination = tmp_path / "installed"
+    result = install("kiri/demo@1.0.0", [source], destination, [])
+    assert result["code_sha256"] == release.code_sha256
+    assert len(scan_packs(destination)) == 1
+    offline = resolve("demo@1.0.0", [(tmp_path / "offline").as_uri()], [destination])
+    assert offline["installed"] and offline["hash_verified"]
+    index = tmp_path / "registry/index.json"
+    value = json.loads(index.read_text())
+    value["releases"]["kiri/demo@1.0.0"]["code_sha256"] = "0" * 64
+    index.write_text(json.dumps(value))
+    with pytest.raises(HashMismatch, match="哈希不匹配"):
+        install("demo@1.0.0", [source], tmp_path / "clean", [])
+    assert not (tmp_path / "clean/kiri/demo@1.0.0").exists()

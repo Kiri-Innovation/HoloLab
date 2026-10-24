@@ -11,7 +11,7 @@ import socket
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hololab.paths import default_workspace_root, node_data_dir
 
@@ -20,6 +20,14 @@ class NodeConfig(BaseModel):
     """Machine-specific node settings, loaded from ``config.yaml``."""
 
     model_config = ConfigDict(extra="forbid")
+    pack_sources: list[str] = Field(default_factory=list)
+
+    @field_validator("pack_sources")
+    @classmethod
+    def validate_pack_sources(cls, values):
+        from hololab.pack_registry import source_url
+
+        return [source_url(value) for value in values]
 
     # Identity — see docs/architecture.md#node-identity.
     #
