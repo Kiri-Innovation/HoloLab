@@ -419,5 +419,27 @@
     "locale": "zh-CN",
     "contentLanguage": "zh-CN",
     "navigationOrder": 150
+  },
+  {
+    "source": "website/content/en/contributor/distribution-and-self-contained-packs.md",
+    "slug": "contributor/distribution-and-self-contained-packs",
+    "section": "contributor",
+    "title": "How algorithms reach the platform: three distribution models and self-contained packs",
+    "group": "Collaboration and reproducibility",
+    "order": 70,
+    "locale": "en",
+    "contentLanguage": "en",
+    "navigationOrder": 160
+  },
+  {
+    "source": "website/content/zh/contributor/distribution-and-self-contained-packs.md",
+    "slug": "contributor/distribution-and-self-contained-packs",
+    "section": "contributor",
+    "title": "算法以什么形态进平台：三种分发形态与自包含包",
+    "group": "协作和可复现能力设计",
+    "order": 70,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "navigationOrder": 160
   }
 ]
