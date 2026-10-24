@@ -1,13 +1,15 @@
 ---
-title: "How algorithms reach the platform: three distribution models and self-contained packs"
+title: "Why we chose self-contained packs"
 group: Collaboration and reproducibility
 order: 70
 ---
-# How algorithms reach the platform: three distribution models and self-contained packs
+# Why we chose self-contained packs
 
-Before writing a pack, choose how the algorithm will be distributed. That choice determines who owns the implementation, resolves dependencies, and absorbs upgrades. A directory of code does not establish those responsibilities.
+Out-of-the-box integration buys convenience through ongoing coordination of implementations and environments. Keeping algorithms independent requires explicit setup and validation for each pack. HoloLab chooses self-contained packs because resisting software decay and rebuilding workflows later matter more to us than eliminating configuration on the first run.
 
-## Choose where integration work belongs
+## The existing approaches behind our decision
+
+These are practices we weighed, not three distribution options offered by HoloLab. Each assigns responsibility for implementation, dependencies, and upgrades differently. Putting code in a directory does not settle those responsibilities.
 
 | Distribution model | Integration approach | Benefit | Cost |
 | --- | --- | --- | --- |
@@ -15,9 +17,9 @@ Before writing a pack, choose how the algorithm will be distributed. That choice
 | Share an abstraction, as in diffusers | Adapt models to a common pipeline interface and foundation | A consistent interface | Every model needs adaptation; dependency ranges such as `>=x,<y` can conflict |
 | Integrate centrally, as in ComfyUI | Rewrite implementations in the core repository and maintain them on a thin shared dependency stack | Capabilities work out of the box, without per-model integration setup | The core grows, implementations diverge from upstream, and new models keep arriving through community PRs |
 
-Out-of-the-box integration still requires an installed runtime and downloaded weights. A shared interface also leaves model-specific implementation work to someone. Distribution determines who does that work.
+Here, out-of-the-box means users do not have to assemble official repositories and plugins one model at a time. It still requires an installed runtime and downloaded weights. A shared interface also leaves model-specific implementation work to someone. Distribution determines who does that work.
 
-## ComfyUI distributes the inference code itself
+## ComfyUI earns convenience through ongoing integration
 
 The following observations come from an inspected ComfyUI instance. The counts describe that inspection, rather than every release or installation.
 
@@ -36,7 +38,17 @@ These nodes do not simply wrap diffusers. Model families have different structur
 
 Partner/API Nodes follow a separate distribution path. They expose cloud APIs through vendor partnerships; they are distinct from the local native implementations described here.
 
-## Compare the maintenance boundaries
+## HoloLab puts reproducibility at the pack boundary
+
+HoloLab's choice is **self-contained packs, environment contracts, and package identity**, with a registry handling discovery and distribution. A central place to resolve identities can support independently maintained algorithms without becoming a central repository of model implementations.
+
+**We value a workflow that survives a handoff or the passage of time more than a first run with less setup.** Running successfully today is not enough if the execution conditions cannot be explained and reconstructed later. Upgrading one algorithm's environment should leave other algorithms independent of that upgrade. We accept the work of maintaining a contract for each pack rather than making a single convenient environment our first priority.
+
+Traceable sources, fixed dependency identities, and declared execution requirements let a pipeline be reconstructed later or elsewhere. [Package identity and the registry](/docs/contributor/package-identity-registry) establish which package is required; [workflow reconstruction](/docs/contributor/rebuild-and-distribute) separates the recipe from local state. Reconstruction does not guarantee identical numerical results or artifacts.
+
+## The costs we accept at the pack boundary
+
+Self-contained packs leave integration work to be done. This comparison shows where our choice places that work and which costs we accept.
 
 | Model | Code ownership | Environment | Adding an algorithm | Main cost |
 | --- | --- | --- | --- | --- |
@@ -45,15 +57,11 @@ Partner/API Nodes follow a separate distribution path. They expose cloud APIs th
 
 “Self-contained” describes a complete execution contract. It does not require copying every dependency into the package. A pack must account for its code sources, dependencies, interfaces, and failure conditions without relying on undocumented state on its author's machine.
 
-## HoloLab puts reproducibility at the pack boundary
-
-HoloLab's choice is **self-contained packs, environment contracts, and package identity**, with a registry handling discovery and distribution. A central place to resolve identities can support independently maintained algorithms without becoming a central repository of model implementations.
-
-The aim is to resist software decay and preserve reproducibility. Upgrading one algorithm's environment should leave other algorithms independent of that upgrade. Traceable sources, fixed dependency identities, and declared execution requirements let a pipeline be reconstructed later or elsewhere. [Package identity and the registry](/docs/contributor/package-identity-registry) establish which package is required; [workflow reconstruction](/docs/contributor/rebuild-and-distribute) separates the recipe from local state. Reconstruction does not guarantee identical numerical results or artifacts.
-
 This choice retains the cost of separate environments. Every pack author must establish that the declared dependencies are sufficient, and operators may need to maintain several environments. Data crossing those boundaries needs agreed types, serialization formats, and file accessibility. An object in one process, or a path on one machine, is not automatically a usable input in another environment.
 
-## Make the pack's contract explicit
+## Put the decision into everyday pack work
+
+The following five rules turn that priority into obligations for pack authors. Explicit, validated execution conditions let future users rebuild a workflow without guessing what was on its author's machine.
 
 1. **Keep algorithm implementations in their own repositories.** The platform declares `source_entry` and the interface. The entry point connects execution to the algorithm without moving its implementation into the platform or concealing its source.
 2. **Declare dependencies in the manifest's environment requirements.** Include runtime, library, and hardware requirements. Validate them before execution and fail explicitly when they are unmet; do not silently substitute another implementation or environment.
