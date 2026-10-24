@@ -1,67 +1,70 @@
 ---
-title: "Why we chose self-contained packs"
+title: Distribute algorithms as reusable components
 group: Collaboration and reproducibility
 order: 70
 ---
-# Why we chose self-contained packs
+# Distribute algorithms as reusable components
 
-Out-of-the-box integration buys convenience through ongoing coordination of implementations and environments. Keeping algorithms independent requires explicit setup and validation for each pack. HoloLab chooses self-contained packs because resisting software decay and rebuilding workflows later matter more to us than eliminating configuration on the first run.
+**Joining a research pipeline should not require an algorithm to adopt the runtime of the entire pipeline.** HoloLab uses self-contained packs to reduce the adaptation work needed to bring an algorithm into different experiments. The algorithm keeps its code, dependencies, and execution method, exposing its capability through a thin interface that supports independent reuse and distribution.
 
-## The existing approaches behind our decision
+## Start with the unit being distributed
 
-These are practices we weighed, not three distribution options offered by HoloLab. Each assigns responsibility for implementation, dependencies, and upgrades differently. Putting code in a directory does not settle those responsibilities.
+ComfyUI serves creators who combine existing capabilities, with a mature and evolving approach to composing and delivering creative workflows. HoloLab focuses on bringing research algorithms into experiments quickly and scheduling their execution across pipelines. The distinction concerns users and units of abstraction, rather than a ranking of implementations against a shared goal.
 
-| Distribution model | Integration approach | Benefit | Cost |
-| --- | --- | --- | --- |
-| Clone each official repository | Keep each algorithm in its own repository and environment; wrap its entry point and interface | Stay aligned with upstream | Separate environments and inconsistent entry points require individual wrappers |
-| Share an abstraction, as in diffusers | Adapt models to a common pipeline interface and foundation | A consistent interface | Every model needs adaptation; dependency ranges such as `>=x,<y` can conflict |
-| Integrate centrally, as in ComfyUI | Rewrite implementations in the core repository and maintain them on a thin shared dependency stack | Capabilities work out of the box, without per-model integration setup | The core grows, implementations diverge from upstream, and new models keep arriving through community PRs |
-
-Here, out-of-the-box means users do not have to assemble official repositories and plugins one model at a time. It still requires an installed runtime and downloaded weights. A shared interface also leaves model-specific implementation work to someone. Distribution determines who does that work.
-
-## ComfyUI earns convenience through ongoing integration
-
-The following observations come from an inspected ComfyUI instance. The counts describe that inspection, rather than every release or installation.
-
-| Inspected location | Observation | Distribution consequence |
+| Concern | ComfyUI workflow delivery | HoloLab algorithm distribution |
 | --- | --- | --- |
-| `comfy/ldm/` | Native implementations for 52 model families | Cloning the repository supplies inference code |
+| Packaging unit | An individual workflow and its runtime, as in Comfy API Builds | The algorithm component itself |
+| Intended outcome | Deliver a creative workflow that others can run | Reuse an algorithm across pipelines and publish it independently |
+| Boundary being fixed | The nodes, models, and dependencies a workflow needs | An algorithm's code sources, execution requirements, and interface |
+
+**Reproducing a creative workflow and reusing an algorithm are distinct goals.** Delivering the workflow requires preserving its environment; reusing the algorithm requires a package that can participate in several pipelines and evolve independently. Each needs its own mechanisms, and both can be useful together.
+
+## ComfyUI already supports reproducible deployment
+
+By October 1, 2026, [Comfy API Builds had launched](https://blog.comfy.org/p/comfy-api-is-live-deploy-comfyui): a workflow is packaged with its custom nodes, models, and Python dependencies into a Build, from which an immutable release can be deployed as a managed endpoint or self-hosted. The official announcement explicitly says Builder helps resolve Python dependency conflicts. This delivery model centers on a workflow and the environment it needs, rather than treating the entire installation as the unit or releasing each constituent algorithm as an independent component.
+
+[comfy-cli](https://github.com/Comfy-Org/comfy-cli) also provides dependency and environment management commands including `install-deps`, `save-snapshot`, and `restore-snapshot`. The [Nodes v3 proposal published in 2025](https://blog.comfy.org/p/dependency-resolution-and-custom) explores process isolation for custom node packs; that isolation remains a proposal under refinement, not a shipped capability. HoloLab's choice follows from the need for independently reusable algorithm components, not from an absence of deployment or dependency management tools in ComfyUI.
+
+## Central integration supplies ready-to-use capabilities
+
+The following counts describe one inspected ComfyUI instance. They show how an integration supplies implementations and a coordinated runtime so creators can compose existing capabilities.
+
+| Inspected location | Observation | What it supplies |
+| --- | --- | --- |
+| `comfy/ldm/` | Native implementations for 52 model families | Inference code arrives with the repository |
 | `models/` | Only 5 manually downloaded files | Weights are acquired separately from implementations |
 | `requirements.txt` | Just 36 lines, with no diffusers dependency | Core code also has no `import diffusers`; `diffusers_convert.py` handles weight-format conversion |
-| `custom_nodes/` and `comfy_extras/` | The former was empty; the latter contained 152 built-in node files | Built-in nodes provide the available capabilities without requiring third-party plugins |
+| `custom_nodes/` and `comfy_extras/` | The former was empty; the latter contained 152 built-in node files | Built-in nodes provide capabilities without requiring third-party plugins |
 
-The implementations extend beyond generation: SAM3 covers segmentation, RT-DETR detection, MoGe geometry, and Depth-Anything-3 depth. Hunyuan3D and TripoSplat add 3D and Gaussian reconstruction capabilities.
+The implementations extend beyond generation: SAM3 covers segmentation, RT-DETR detection, MoGe geometry, and Depth-Anything-3 depth, while Hunyuan3D and TripoSplat cover 3D and Gaussian reconstruction. ComfyUI supplies adapted implementations and their supporting dependencies, making it more than a thin wrapper around diffusers. MiniMax-H3's commit history credits community developer kijai, with the implementation merged through a PR; its provenance should not be attributed directly to the model vendor or official team.
 
-These nodes do not simply wrap diffusers. Model families have different structures, and each needs its own adaptation and rewritten implementation. Community PRs supply much of this implementation work. MiniMax-H3, for example, is credited in the commit history to community developer kijai and was merged through a PR, rather than supplied by the model vendor or the official team.
+Project-published packages such as `comfy-kitchen` and `comfyui-frontend-package` have exact version pins, illustrating how implementation and environment are coordinated centrally. Users can draw on that integration without assembling each official repository, though they still need a runtime and weights. These observations explain the shape of ready-to-use integration; they are not evidence against that approach.
 
-**A flattened dependency stack makes one environment for 52 families possible.** The integration avoids both the official repositories' environments and the diffusers dependency stack. The project also publishes key packages itself and pins their exact versions, including `comfy-kitchen==…` and `comfyui-frontend-package==…`. Less setup for users means sustained implementation and dependency maintenance for the integrators.
+Partner/API Nodes are a separate distribution path. They expose cloud APIs through vendor partnerships and must be distinguished from the local native implementations above.
 
-Partner/API Nodes follow a separate distribution path. They expose cloud APIs through vendor partnerships; they are distinct from the local native implementations described here.
+## Keep the execution boundary around the algorithm
 
-## HoloLab puts reproducibility at the pack boundary
+HoloLab combines **self-contained packs, environment contracts, and package identity**, with a registry handling discovery and distribution. Implementations remain independently maintained while identities can be resolved centrally. A pipeline schedules algorithms through their interfaces without requiring them all to adopt one runtime.
 
-HoloLab's choice is **self-contained packs, environment contracts, and package identity**, with a registry handling discovery and distribution. A central place to resolve identities can support independently maintained algorithms without becoming a central repository of model implementations.
+For example, one reconstruction pack can serve pipelines with different data preparation and evaluation stages without porting its implementation for each experiment. Its author can release a new version independently, and each pipeline explicitly chooses which version to reference. Keeping the interface thin still requires specifying inputs, outputs, and execution conditions.
 
-**We value a workflow that survives a handoff or the passage of time more than a first run with less setup.** Running successfully today is not enough if the execution conditions cannot be explained and reconstructed later. Upgrading one algorithm's environment should leave other algorithms independent of that upgrade. We accept the work of maintaining a contract for each pack rather than making a single convenient environment our first priority.
+A self-contained pack accounts for its sources, dependencies, interfaces, and failure conditions without copying every dependency into the archive. [Package identity and the registry](/docs/contributor/package-identity-registry) establish which package is required; [workflow reconstruction](/docs/contributor/rebuild-and-distribute) separates the recipe from local state. Together these mechanisms support component reuse and pipeline reconstruction, without guaranteeing identical numerical results or artifacts.
 
-Traceable sources, fixed dependency identities, and declared execution requirements let a pipeline be reconstructed later or elsewhere. [Package identity and the registry](/docs/contributor/package-identity-registry) establish which package is required; [workflow reconstruction](/docs/contributor/rebuild-and-distribute) separates the recipe from local state. Reconstruction does not guarantee identical numerical results or artifacts.
+## The costs of self-contained packs
 
-## The costs we accept at the pack boundary
+Preserving an algorithm's environment leaves integration work at the package boundary. Reducing the cost of adapting algorithms to a whole pipeline means accepting the following responsibilities.
 
-Self-contained packs leave integration work to be done. This comparison shows where our choice places that work and which costs we accept.
+| Cost | Required work |
+| --- | --- |
+| Fragmented environments | Operators may need to maintain several runtimes |
+| Dependency accountability for every pack | Authors must establish that declared dependencies are sufficient, without undocumented local state |
+| Data exchange across environments | Participants must agree on data types, serialization formats, and file accessibility |
 
-| Model | Code ownership | Environment | Adding an algorithm | Main cost |
-| --- | --- | --- | --- | --- |
-| Central integration | Implementations live in the core repository and are maintained by integrators and contributors | Shared dependencies with centrally coordinated versions | Rewrite and adapt the model, then merge a PR into the core | A growing core, upstream divergence, and upgrades that affect multiple models |
-| Self-contained packs | Algorithms stay in their own repositories; packs declare sources and execution contracts | Each pack declares and validates its requirements, containing upgrade effects within its boundary | Supply an entry point, typed interface, environment declaration, and traceable identity | Fragmented environments, dependency accountability for every pack, and explicit data exchange across environments |
+An object in one process, or a path on one machine, is not automatically a usable input elsewhere. Independent upgrades also require compatible interfaces and explicit version references; a pack wrapper alone does not isolate shared runtime state.
 
-“Self-contained” describes a complete execution contract. It does not require copying every dependency into the package. A pack must account for its code sources, dependencies, interfaces, and failure conditions without relying on undocumented state on its author's machine.
+## Apply the choice in everyday pack work
 
-This choice retains the cost of separate environments. Every pack author must establish that the declared dependencies are sufficient, and operators may need to maintain several environments. Data crossing those boundaries needs agreed types, serialization formats, and file accessibility. An object in one process, or a path on one machine, is not automatically a usable input in another environment.
-
-## Put the decision into everyday pack work
-
-The following five rules turn that priority into obligations for pack authors. Explicit, validated execution conditions let future users rebuild a workflow without guessing what was on its author's machine.
+These five rules make the algorithm component a practical unit of distribution. Clear, validated boundaries allow different pipelines to use the same algorithm reliably.
 
 1. **Keep algorithm implementations in their own repositories.** The platform declares `source_entry` and the interface. The entry point connects execution to the algorithm without moving its implementation into the platform or concealing its source.
 2. **Declare dependencies in the manifest's environment requirements.** Include runtime, library, and hardware requirements. Validate them before execution and fail explicitly when they are unmet; do not silently substitute another implementation or environment.
