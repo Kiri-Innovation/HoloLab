@@ -535,6 +535,9 @@ def pack_publish(
     source: str = typer.Option(..., help="Writable file:// registry directory"),
     publisher: str = typer.Option(..., help="Publisher attribution, not a cryptographic signature"),
     authority: str = "hololab-central",
+    snapshot_db: Path | None = typer.Option(
+        None, help="Snapshot database; defaults to local gateway DB if present"
+    ),
 ) -> None:
     """Publish a new immutable version; trailing dev + is removed only in the archive."""
     from hololab.pack_publish import publish
@@ -544,7 +547,53 @@ def pack_publish(
     except (ValueError, OSError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(release.model_dump_json(indent=2))
+    from hololab.paths import gateway_sqlite_path
+    from hololab.publication_notes import annotate_path
+
+    result = release.model_dump()
+    try:
+        result["published_as_scan"] = asyncio.run(
+            annotate_path(snapshot_db or gateway_sqlite_path(), release, source)
+        )
+    except Exception as exc:
+        result["published_as_scan"] = {
+            "status": "failed",
+            "error": str(exc),
+            "retry": "hololab pack annotate",
+        }
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+@pack_app.command("yank")
+@pack_app.command("unyank")
+def pack_yank(
+    ctx: typer.Context, spec: str, source: str = typer.Option(...), reason: str | None = None
+):
+    """Change recommendation status without removing or replacing released content."""
+    from hololab.pack_publish import set_yank
+
+    try:
+        item = set_yank(spec, source, ctx.info_name == "yank", reason)
+        typer.echo(item.model_dump_json(indent=2))
+    except (ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+
+@pack_app.command("annotate")
+def pack_annotate(spec: str, source: str = typer.Option(...), snapshot_db: Path | None = None):
+    """Idempotently repair/add published_as notes after an interrupted publication."""
+    from hololab.pack_registry import find_release
+    from hololab.paths import gateway_sqlite_path
+    from hololab.publication_notes import annotate_path
+
+    try:
+        _, release = find_release(spec, [source])
+        result = asyncio.run(annotate_path(snapshot_db or gateway_sqlite_path(), release, source))
+        typer.echo(json.dumps(result, ensure_ascii=False))
+    except (ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
 
 
 @pack_app.command("install")

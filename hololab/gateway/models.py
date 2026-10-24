@@ -424,6 +424,7 @@ class JobRow(BaseModel):
 
 
 class JobDetail(JobRow):
+    published_as: list[dict[str, Any]] = Field(default_factory=list)
     code_identity: dict[str, Any] | None = None
 
     """Full job detail for ``GET /api/jobs/{id}``."""
@@ -794,6 +795,7 @@ class SnapshotJobOut(BaseModel):
 
 
 class SnapshotDetail(BaseModel):
+    published_as: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
     code_evidence: dict[str, Any] = Field(default_factory=dict)
     preparation_error: str | None = None
     """One run: frozen graph + every job attached to it."""

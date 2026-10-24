@@ -2480,8 +2480,10 @@ def _mount_routes(app: FastAPI) -> None:
         ):
             error_row = await cur.fetchone()
         from hololab.gateway.preparation import snapshot_code_evidence
+        from hololab.publication_notes import notes_for
 
         return {
+            "published_as": await notes_for(app.state.db, snapshot_id),
             "code_evidence": snapshot_code_evidence(snap.graph),
             "preparation_error": error_row[0] if error_row else None,
             "snapshot_id": snap.snapshot_id,
@@ -3300,6 +3302,11 @@ def _mount_routes(app: FastAPI) -> None:
             job, output_handles=await _output_handles_by_port(app.state.handles, job.job_id)
         )
         result["code_identity"] = await store.get_code_identity(job_id)
+        from hololab.publication_notes import notes_for
+
+        result["published_as"] = (await notes_for(app.state.db, job.snapshot_id)).get(
+            job.graph_node_id, []
+        )
         return result
 
     @app.get(

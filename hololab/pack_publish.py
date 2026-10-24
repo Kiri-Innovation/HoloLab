@@ -17,7 +17,7 @@ import yaml
 
 from hololab.content_scope import Baselines, Scope, capture
 from hololab.pack_registry import Index, RegistryError, Release, local_source
-from hololab.package_identity import canonical_name
+from hololab.package_identity import canonical_name, parse_spec
 
 
 def now() -> str:
@@ -169,3 +169,20 @@ def publish(manifest: Path, source: str, publisher: str, *, authority="hololab-c
         index.releases[key] = release
         atomic_json(index_path, index.model_dump())
         return release
+
+
+def set_yank(spec: str, source: str, yanked: bool, reason: str | None = None) -> Release:
+    name, version = parse_spec(spec)
+    root = local_source(source)
+    with authority_lock(root):
+        index = Index.model_validate_json((root / "index.json").read_bytes())
+        item = index.releases.get(f"{canonical_name(name)}@{version}")
+        if item is None:
+            raise RegistryError(f"找不到: {spec}")
+        reason = reason if yanked else None
+        if item.yanked != yanked or item.yank_reason != reason:
+            item.yanked = yanked
+            item.yank_reason = reason
+            item.yank_updated_at = now()
+            atomic_json(root / "index.json", index.model_dump())
+        return item

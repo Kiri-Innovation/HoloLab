@@ -764,6 +764,23 @@ CREATE TABLE job_code_identities (
 )
 
 
+MIGRATIONS.append(
+    (
+        27,
+        """
+CREATE TABLE published_as_notes (
+ snapshot_id TEXT NOT NULL REFERENCES snapshots(snapshot_id) ON DELETE CASCADE,
+ graph_node_id TEXT NOT NULL,
+ published_name TEXT NOT NULL,
+ published_version TEXT NOT NULL,
+ note_json TEXT NOT NULL,
+ PRIMARY KEY(snapshot_id, graph_node_id, published_name, published_version)
+);
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 
