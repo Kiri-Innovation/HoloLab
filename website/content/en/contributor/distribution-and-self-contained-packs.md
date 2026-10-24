@@ -1,5 +1,5 @@
 ---
-title: Distribute algorithms as reusable components
+title: "Discussion: distribute algorithms as reusable components"
 group: Collaboration and reproducibility
 order: 70
 ---
