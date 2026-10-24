@@ -598,6 +598,7 @@ def pack_annotate(spec: str, source: str = typer.Option(...), snapshot_db: Path 
 
 @pack_app.command("install")
 @pack_app.command("resolve")
+@pack_app.command("status")
 def pack_resolve_install(
     ctx: typer.Context,
     spec: str,
@@ -610,7 +611,7 @@ def pack_resolve_install(
 ) -> None:
     """Resolve locally first; install only after full archive/content verification."""
     from hololab.node.config import load_node_config
-    from hololab.pack_install import install, resolve
+    from hololab.pack_install import install, resolve, status
 
     cfg = load_node_config(config)
     dirs = cfg.pack_dirs
@@ -618,6 +619,10 @@ def pack_resolve_install(
         if ctx.info_name == "install":
             result = install(
                 spec, source or cfg.pack_sources, destination or dirs[0], dirs, expected_hash
+            )
+        elif ctx.info_name == "status":
+            result = status(
+                spec, source or cfg.pack_sources, [*dirs, *([destination] if destination else [])]
             )
         else:
             result = resolve(

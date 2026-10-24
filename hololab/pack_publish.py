@@ -117,8 +117,6 @@ def publish(manifest: Path, source: str, publisher: str, *, authority="hololab-c
         archive = temp / "package.tar.gz"
         with tarfile.open(archive, "w:gz", dereference=False) as tar:
             for path in sorted(content.rglob("*")):
-                if path.is_dir() and not path.is_symlink():
-                    continue
                 info = tar.gettarinfo(str(path), path.relative_to(content).as_posix())
                 info.uid = info.gid = 0
                 info.uname = info.gname = ""
@@ -141,6 +139,11 @@ def publish(manifest: Path, source: str, publisher: str, *, authority="hololab-c
                     stream.flush()
                     os.fsync(stream.fileno())
                 os.replace(staging, destination)
+                directory_fd = os.open(destination.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
             finally:
                 if os.path.exists(staging):
                     os.unlink(staging)

@@ -12,6 +12,7 @@ import type { SnapshotDetail } from "../wire";
 import { ApiError, restoreFromSnapshot } from "../api";
 import { stateColour } from "./AlgorithmNode";
 import { IdentityEvidence } from "./CodeIdentityPanel";
+import { PublishedAsNotes } from "./PublicationStatus";
 import { CopyRefButton } from "./CopyRefButton";
 
 export interface SnapshotBannerProps {
@@ -129,6 +130,7 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
             : Object.entries(snapshot.code_evidence ?? {}).map(([nodeId, evidence]) => <details key={nodeId}>
               <summary>{nodeId} · {evidence.status === "recorded" ? "声明范围身份" : "历史运行未记录代码身份"}</summary>
               <IdentityEvidence identity={evidence.code_identity} effectiveParams={evidence.effective_params} />
+              <PublishedAsNotes notes={snapshot.published_as?.[nodeId]} />
             </details>)}
         </div>
       </details>

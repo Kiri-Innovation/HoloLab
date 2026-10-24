@@ -174,6 +174,7 @@ class ParamSpecOut(BaseModel):
 
 
 class CatalogPackEntry(BaseModel):
+    publication: dict[str, Any] | None = None
     root: str = "."
     cold: list[str] = Field(default_factory=list)
     requires: dict[str, Any] | None = None

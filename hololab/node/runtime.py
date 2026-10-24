@@ -553,6 +553,7 @@ class NodeRuntime:
                     name=p.manifest.name,
                     version=p.manifest.version,
                     manifest_hash=p.manifest_hash,
+                    publication=p.publication,
                     root=p.manifest.root,
                     cold=p.manifest.cold,
                     requires=p.manifest.requires.model_dump()
@@ -600,6 +601,7 @@ class NodeRuntime:
                             name=p.manifest.name,
                             version=p.manifest.version,
                             manifest_hash=p.manifest_hash,
+                            publication=p.publication,
                             root=p.manifest.root,
                             cold=p.manifest.cold,
                             requires=p.manifest.requires.model_dump()
@@ -665,6 +667,7 @@ class NodeRuntime:
                 name=p.manifest.name,
                 version=p.manifest.version,
                 manifest_hash=p.manifest_hash,
+                publication=p.publication,
                 root=p.manifest.root,
                 cold=p.manifest.cold,
                 requires=p.manifest.requires.model_dump()
@@ -681,6 +684,7 @@ class NodeRuntime:
             library_wakeup=True,
             content_identity=True,
             environment_checks=True,
+            registry_v1=True,
             node_name=self._config.node_name,
             v_min=PROTOCOL_V_MIN,
             v_max=PROTOCOL_V_MAX,
@@ -824,6 +828,10 @@ class NodeRuntime:
                     task = asyncio.create_task(self._process_terminate_reply(payload))
                     lens_tasks.add(task)
                     task.add_done_callback(lens_tasks.discard)
+                elif env.kind == "pack_status_req":
+                    task = asyncio.create_task(self._pack_status_reply(payload))
+                    lens_tasks.add(task)
+                    task.add_done_callback(lens_tasks.discard)
                 elif env.kind == "capability_req":
                     task = asyncio.create_task(self._capability_reply(payload))
                     lens_tasks.add(task)
@@ -882,6 +890,26 @@ class NodeRuntime:
         )
         await self._safe_send(
             "process_terminate_resp", ProcessTerminateResp(req_id=payload.req_id, data=data)
+        )
+
+    async def _pack_status_reply(self, request):
+        from hololab.pack_install import status
+        from hololab.pack_registry import HashMismatch
+        from hololab.protocol.messages import PackStatusResp
+
+        try:
+            result = await asyncio.to_thread(
+                status,
+                f"{request.name}@{request.version}",
+                self._config.pack_sources,
+                self._config.pack_dirs,
+            )
+        except HashMismatch as exc:
+            result = {"state": "hash_mismatch", "message": str(exc)}
+        except (ValueError, OSError) as exc:
+            result = {"state": "unavailable", "message": str(exc)}
+        await self._safe_send(
+            "pack_status_resp", PackStatusResp(req_id=request.req_id, result=result)
         )
 
     async def _environment_report(self, manifest, *, fresh=False):

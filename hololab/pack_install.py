@@ -60,7 +60,12 @@ def inspect_local(spec: str, pack_dirs: list[Path], expected: str | None = None)
     receipt = receipt_for(pack.manifest_path)
     with tempfile.TemporaryDirectory(prefix="hololab-resolve-") as temporary:
         record = capture(pack.manifest_path, Baselines(Path(temporary)), refresh_cold=True)
-    target = expected or (receipt["release"]["code_sha256"] if receipt else None)
+    installed_hash = receipt["release"]["code_sha256"] if receipt else None
+    if expected is not None and installed_hash is not None and expected != installed_hash:
+        raise HashMismatch(
+            f"找到但哈希不匹配, 必须停止: {spec}; 期望={expected}; 安装收据={installed_hash}"
+        )
+    target = expected or installed_hash
     if target is not None and target != record["sha256"]:
         raise HashMismatch(
             f"找到但哈希不匹配, 必须停止: {spec}; 期望={target}; 本地={record['sha256']}"
@@ -93,6 +98,39 @@ def resolve(spec: str, sources: list[str], pack_dirs: list[Path], expected=None)
     }
 
 
+def status(spec: str, sources: list[str], pack_dirs: list[Path]):
+    """Explicit refresh; never labels an installation-time yank flag as current."""
+    local = inspect_local(spec, pack_dirs)
+    try:
+        source, release = find_release(spec, sources, local["code_sha256"] if local else None)
+    except HashMismatch:
+        raise
+    except RegistryError as exc:
+        if not local:
+            raise
+        return {**local, "registry_status": "unknown", "registry_message": str(exc)}
+    return {
+        **(local or {}),
+        "state": "found",
+        "source": source,
+        "registry_status": "yanked" if release.yanked else "published",
+        "publication": release.model_dump(),
+        "installed": local is not None,
+    }
+
+
+def publication_info(manifest: Path):
+    receipt = receipt_for(manifest)
+    if receipt is None:
+        return None
+    fields = ("name", "version", "code_sha256", "publisher", "published_at", "yanked")
+    return {
+        **{key: receipt["release"][key] for key in fields},
+        "source": receipt["source"],
+        "as_of": "installation",
+    }
+
+
 def extract_verified(archive: Path, content: Path, declared_size: int):
     """Never write through links; reject traversal, duplicate paths and special files."""
     with tarfile.open(archive, "r:gz") as tar:
@@ -102,14 +140,18 @@ def extract_verified(archive: Path, content: Path, declared_size: int):
         names = set()
         for member in members:
             relative = safe_relative(member.name)
-            if relative.as_posix() in names or not (member.isfile() or member.issym()):
+            if relative.as_posix() in names or not (
+                member.isfile() or member.issym() or member.isdir()
+            ):
                 raise RegistryError("duplicate or unsupported archive entry")
             names.add(relative.as_posix())
             target = content / relative
             if any(p.is_symlink() for p in target.parents if p != content.parent):
                 raise RegistryError("archive entry traverses symlink")
             target.parent.mkdir(parents=True, exist_ok=True)
-            if member.issym():
+            if member.isdir():
+                target.mkdir(exist_ok=True)
+            elif member.issym():
                 target.symlink_to(member.linkname)  # Record only; never follow.
             else:
                 with tar.extractfile(member) as stream, target.open("xb") as out:

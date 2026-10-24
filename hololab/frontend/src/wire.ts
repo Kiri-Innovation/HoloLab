@@ -278,6 +278,7 @@ export interface ParamSpec {
 }
 
 export interface CatalogPack {
+  publication?: Record<string, unknown> | null;
   name: string;
   version: string;
   manifest_hash: string;
@@ -649,7 +650,15 @@ export interface SnapshotJob {
   updated_ts: number;
 }
 
+export interface PublicationNote {
+  name: string;
+  version: string;
+  source: string;
+  code_sha256: string;
+}
+
 export interface SnapshotDetail {
+  published_as?: Record<string, PublicationNote[]>;
   code_evidence?: Record<string, {
     status: "recorded" | "unrecorded";
     code_identity: Record<string, unknown> | null;
@@ -719,6 +728,7 @@ export interface LogTail {
 // input/output handles + fail_message + fail_exit_code). The log viewer fetches
 // this to show ``fail_message`` (the panel row only carries ``fail_reason``).
 export interface JobDetail {
+  published_as?: PublicationNote[];
   code_identity?: Record<string, unknown> | null;
   job_id: string;
   workflow_id: string | null;

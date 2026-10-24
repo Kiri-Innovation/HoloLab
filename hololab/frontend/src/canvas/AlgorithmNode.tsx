@@ -27,6 +27,7 @@ import { useCanvasContext } from "./CanvasContext";
 import type { NodeStaleness } from "./staleness";
 import { OpenArtifactLocationButton } from "./OpenArtifactLocationButton";
 import { OpenSourceButton } from "./OpenSourceButton";
+import { PublicationStatus } from "./PublicationStatus";
 import type { LiveViewerFrame } from "./NodeViewerFrame";
 
 // Snapshot of the latest job run for one blueprint node. Driven by WS
@@ -470,7 +471,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       <NodeCardHeader id={id} name={pack.name} version={pack.version} device={assignedLabel}
         subtitle={`${assignedLabel} · v${pack.version}${pack.version.endsWith("+") ? " · dev" : ""}`}
         state={runState} status={nodeStatus({ state: runState, stale: staleness, failReason: runtime?.fail_reason, missingInputs, readOnly })}
-        leadingActions={<OpenSourceButton pack={pack} computeNode={assignedComputeNode || (pack.node_ids[0] && computeNodesById?.[pack.node_ids[0]]) || null} />}
+        leadingActions={<><OpenSourceButton pack={pack} computeNode={assignedComputeNode || (pack.node_ids[0] && computeNodesById?.[pack.node_ids[0]]) || null} /><PublicationStatus key={`${pack.name}@${pack.version}:${assigned_node_id}`} pack={pack} nodeId={assigned_node_id} /></>}
         actions={!readOnly && <NodeRunControl pending={runClickPending} state={runState} jobId={runtime?.job_id}
           stale={staleness?.kind === "self_dirty"} blockedReason={inputProblem} onRun={handleRunClick} />}>
         {runErrorMsg && !inputProblem && (

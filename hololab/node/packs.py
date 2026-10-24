@@ -62,6 +62,12 @@ class LoadedPack:
 
         return resolve_root(self.manifest_path, self.manifest.root)
 
+    @property
+    def publication(self):
+        from hololab.pack_install import publication_info
+
+        return publication_info(self.manifest_path)
+
 
 def _load_manifest_safely(manifest_path: Path) -> tuple[Manifest, str] | None:
     """Load ``manifest_path``; log + return None on failure."""

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { JobDetail } from "../wire";
+import { PublishedAsNotes } from "./PublicationStatus";
 import { EnvironmentEvidence, type EnvironmentReport } from "./EnvironmentChecks";
 
 /** Historical evidence; refreshing a baseline must never rewrite this record. */
@@ -23,6 +24,7 @@ export function CodeIdentityPanel({ detail }: { detail: JobDetail }) {
   const cold = identity?.cold as { baseline_at?: number } | undefined;
   return <details style={{ padding: "8px 16px", flexShrink: 0, maxHeight: 300, overflow: "auto" }}>
     <summary>声明范围身份{identity ? "" : " · 历史运行未记录代码身份"}</summary>
+    <PublishedAsNotes notes={detail.published_as} />
     <IdentityEvidence identity={identity} effectiveParams={detail.params} />
     {cold?.baseline_at && detail.node_id && <button disabled={refreshing} onClick={() => void rebaseline()}>重新基线（用于以后提交）</button>}
     {refreshStatus && <div role="status">{refreshStatus}</div>}

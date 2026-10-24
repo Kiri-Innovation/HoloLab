@@ -22,6 +22,7 @@ class PackInventoryEntry(BaseModel):
     """One installed pack the node is offering."""
 
     name: str
+    publication: dict[str, Any] | None = None
     version: str
     root: str = "."
     cold: list[str] = Field(default_factory=list)
@@ -91,6 +92,7 @@ class Register(BaseModel):
     library_wakeup: bool = False
     content_identity: bool = False
     environment_checks: bool = False
+    registry_v1: bool = False
     node_name: str
     v_min: int
     v_max: int
@@ -737,3 +739,14 @@ class CapabilityResp(BaseModel):
     req_id: str
     report: dict[str, Any] | None = None
     error: str | None = None
+
+
+class PackStatusReq(BaseModel):
+    req_id: str
+    name: str
+    version: str
+
+
+class PackStatusResp(BaseModel):
+    req_id: str
+    result: dict[str, Any]
