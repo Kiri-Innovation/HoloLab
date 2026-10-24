@@ -529,6 +529,24 @@ def pack_rebaseline(
     typer.echo(json.dumps(record, ensure_ascii=False, indent=2))
 
 
+@pack_app.command("publish")
+def pack_publish(
+    pack_dir: Path,
+    source: str = typer.Option(..., help="Writable file:// registry directory"),
+    publisher: str = typer.Option(..., help="Publisher attribution, not a cryptographic signature"),
+    authority: str = "hololab-central",
+) -> None:
+    """Publish a new immutable version; trailing dev + is removed only in the archive."""
+    from hololab.pack_publish import publish
+
+    try:
+        release = publish(pack_dir, source, publisher, authority=authority)
+    except (ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(release.model_dump_json(indent=2))
+
+
 @pack_app.command("validate")
 def pack_validate(pack_dir: Path) -> None:
     """Validate a pack's ``manifest.yaml`` and print a short summary."""
