@@ -4,7 +4,7 @@ import { isConstantName } from "./constants";
 
 import { useId, useState, useRef, useEffect, useLayoutEffect, type ReactNode, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import type { CatalogPack, GraphNode } from "../wire";
+import type { CatalogPack, GraphNode, VariableDeclarations } from "../wire";
 import { MarkdownView } from "../ui/MarkdownView";
 import { PackParameterField, packParameterRows } from "./PackParameterField";
 import type { ComputeNode } from "../wire";
@@ -17,6 +17,7 @@ import { OpenSourceButton } from "./OpenSourceButton";
 const DEBUG_PARAMETERS = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1";
 
 export interface NodeInspectorProps {
+  variables?: VariableDeclarations;
   effectiveParams?: Record<string, unknown>;
   environmentParams?: string[];
   preparationStatus?: string;
@@ -61,7 +62,7 @@ const HINT: CSSProperties = {
 };
 
 export function NodeInspector({
-  effectiveParams, environmentParams = [], preparationStatus,
+  variables, effectiveParams, environmentParams = [], preparationStatus,
   selected,
   inputSources,
   pack,
@@ -94,7 +95,7 @@ export function NodeInspector({
     );
   }
 
-  const differences = preparationStatus ? [] : parameterDifferences(pack, selected.params, effectiveParams, environmentParams);
+  const differences = preparationStatus ? [] : parameterDifferences(pack, selected.params, effectiveParams, environmentParams, {}, selected.param_bindings);
   const differenceText = differences.map(parameterDifferenceText).join("；");
 
   const pin = (names: string[]) => onTogglePin ? <ParameterPinButton names={names}
@@ -287,6 +288,13 @@ export function NodeInspector({
                 pack={pack} params={selected.params} name={name} names={names}
                 nodeId={selected.assigned_node_id ?? null}
                 initialDirectory={computeNodesById?.[selected.assigned_node_id ?? ""]?.workspace_root ?? "/"}
+                variables={variables} binding={selected.param_bindings?.[name]}
+                effectiveValue={preparationStatus ? undefined : effectiveParams?.[name]}
+                onBindingChange={variable => {
+                  const bindings = { ...selected.param_bindings };
+                  if (variable === null) delete bindings[name]; else bindings[name] = variable;
+                  onChange({ param_bindings: bindings });
+                }}
                 onChange={onParamsChange} />
               {pin(names)}
               {spec.description && <ParameterHelp key={`${selected.id}:${name}`} name={name}>{spec.description}</ParameterHelp>}

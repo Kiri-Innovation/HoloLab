@@ -509,7 +509,11 @@ export interface LatestRun {
   output_handles: Record<string, LatestOutputHandle>;
 }
 
+export interface VariableDeclaration { type: "path" | "int"; description?: string; default?: unknown; }
+export type VariableDeclarations = Record<string, VariableDeclaration>;
+
 export interface GraphNode {
+  param_bindings?: Record<string, string>;
   id: string;
   // Missing means algorithm for graphs saved before view stickers shipped.
   kind?: "algorithm" | "view" | "intrinsic";
@@ -567,6 +571,9 @@ export interface GraphEdge {
 }
 
 export interface WorkflowGraph {
+  variables?: VariableDeclarations;
+  variable_values?: Record<string, unknown>;
+  execution?: { resolved_variables?: Record<string, unknown>; [key: string]: unknown };
   /** Cosmetic, scoped to algorithm name@version; frozen with snapshots. */
   pinned_params?: Record<string, string[]>;
   nodes: GraphNode[];

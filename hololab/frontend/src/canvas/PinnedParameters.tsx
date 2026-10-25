@@ -32,6 +32,9 @@ export function PinnedParameters({ id, data }: { id: string; data: AlgorithmNode
       const field = <PackParameterField key={`${id}:${name}:${data.assigned_node_id}`} pack={data.pack} params={params}
         name={name} names={names} nodeId={data.assigned_node_id}
         initialDirectory={context.computeNodesById[data.assigned_node_id ?? ""]?.workspace_root ?? "/"}
+        variables={context.variables} binding={data.param_bindings?.[name]}
+        effectiveValue={context.effectiveParamsByNode?.[id]?.[name]}
+        onBindingChange={context.onBindingChange ? variable => context.onBindingChange?.(id, name, variable) : undefined}
         onChange={patch => context.onParamsChange?.(id, patch)} />;
       return <div className="hl-inspector-field" key={name}>
       <div className="hl-pinned-label" title={`${label} · ${type}`}><code>{label}</code><span className="hl-parameter-type">{type}</span></div>

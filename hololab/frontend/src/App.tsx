@@ -1,3 +1,5 @@
+import { WorkflowVariables } from "./canvas/WorkflowVariables";
+import type { VariableDeclarations } from "./wire";
 import { canonicalPackageName, packageCatalogIndex, samePackage } from "./packageIdentity";
 import { AnalysisProfiler } from "./canvas/AnalysisProfiler";
 import { analysisMetrics } from "./canvas/analysisMetrics";
@@ -448,6 +450,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // run-then-dispatch, a WS-triggered snapshot bump) falls through to
   // the effect's normal fetch.
   const seededSnapshotIdRef = useRef<string | null>(null);
+  const [variables, setVariables] = useState<VariableDeclarations>({});
+  const [variableValues, setVariableValues] = useState<Record<string, unknown>>({});
   const [pinnedParams, setPinnedParams] = useState<Record<string, string[]>>({});
   const [previewOpenByGraphNode, setPreviewOpenByGraphNode] = useState<
     Record<string, string | null>
@@ -1218,6 +1222,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     }));
   }, [setNodes]);
 
+  const updateParameterBinding = useCallback((nodeId: string, name: string, variable: string | null) => {
+    setNodes(current => current.map(node => {
+      if (node.id !== nodeId) return node;
+      const data = node.data as AlgorithmNodeData;
+      const bindings = {...data.param_bindings};
+      if (variable === null) delete bindings[name]; else bindings[name] = variable;
+      return {...node, data: {...data, param_bindings: bindings}};
+    }));
+  }, [setNodes]);
+
   const updateInlineValue = useCallback((nodeId: string, port: string, value: unknown) => {
     if (viewingSnapshot) return;
     setNodes(current => current.map(node => {
@@ -1257,7 +1271,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       workflow_name: workflowName || "untitled",
       computeNodesById,
       hydrating,
-      pinnedParams,
+      pinnedParams, variables,
+      onBindingChange: updateParameterBinding,
       onParamsChange: updateNodeParams,
       onInlineValueChange: updateInlineValue,
       onInspectInput: inspectInput,
@@ -1266,7 +1281,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       viewer_view_managed: viewerViewManaged,
       setViewerDefault: setWorkflowViewerDefault,
     }),
-    [workflowId, workflowName, computeNodesById, hydrating, pinnedParams, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
+    [workflowId, workflowName, computeNodesById, hydrating, pinnedParams, variables, updateParameterBinding, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
   );
 
   // Push job runtime + resolved previews + previewOpen into each node's
@@ -1859,6 +1874,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                     patch.assigned_node_id !== undefined
                       ? patch.assigned_node_id
                       : n.data.assigned_node_id,
+                  ...(patch.param_bindings ? {param_bindings: patch.param_bindings} : {}),
                   ...(patch.port_values ? {port_values: patch.port_values} : {}),
                   ...(patch.params ? { params: mergeParameterPatch((n.data as AlgorithmNodeData).pack, (n.data as AlgorithmNodeData).params ?? {}, patch.params) } : {}),
                   ...(patch.arrayed_toggle !== undefined
@@ -1892,6 +1908,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // --- graph <-> wire ---------------------------------------------------
   const toGraph = useCallback((): WorkflowGraph => {
     return {
+      variables, variable_values: variableValues,
       pinned_params: pinnedParams,
       nodes: nodes.map((n) => {
         if ((n.data as ViewNodeData).kind === "view") {
@@ -1916,6 +1933,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           algorithm_name: d.pack.name,
           algorithm_version: d.pack.version,
           position: { x: n.position.x, y: n.position.y },
+          param_bindings: d.param_bindings ?? {},
           params: d.params ?? {}, port_values: reconcileInlineValues(d.pack.inputs, d.port_values, edges.filter(e => e.target === n.id).map(e => e.targetHandle), !!(d.arrayed_toggle && d.pack.arrayable)),
           assigned_node_id: d.assigned_node_id,
           // Structural — see docs/pack-spec.md#arrayed-and-arrayable.
@@ -1938,10 +1956,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         targetHandle: e.targetHandle ?? "",
       })),
     } as unknown as WorkflowGraph;
-  }, [nodes, edges, previewOpenByGraphNode, pinnedParams]);
+  }, [nodes, edges, previewOpenByGraphNode, pinnedParams, variables, variableValues]);
 
   const fromGraph = useCallback(
     (graph: WorkflowGraph): void => {
+      setVariables(graph.variables ?? {});
+      setVariableValues(graph.variable_values ?? {});
       setPinnedParams(graph.pinned_params ?? {});
       // Seed the observer-state map from the graph's own cosmetic
       // fields — this replaces the pre-existing localStorage seed.
@@ -2005,7 +2025,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               pack,
               assembly: gn.assembly,
               assigned_node_id: gn.assigned_node_id,
-              ...({ params: gn.params, port_values: reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) } as object),
+              ...({ param_bindings: gn.param_bindings, params: gn.params, port_values: reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) } as object),
               ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
               ...({ parallelism: gn.parallelism ?? 1 } as object),
               ...({ batch_size: gn.batch_size ?? 1 } as object),
@@ -2168,6 +2188,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const analysisGraph = toGraph();
   const capabilityChecks = useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick]), !viewingSnapshot);
   const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick});
+  const resolvedCanvasContext = useMemo(() => ({...canvasContextValue,
+    effectiveParamsByNode: Object.fromEntries((executionAnalysis.data?.graph.nodes ?? []).map(n => [n.id, n.params])),
+  }), [canvasContextValue, executionAnalysis.data]);
   const draftDiff: DiffItem[] = executionAnalysis?.data?.diff ?? [];
   const stalenessByGraphNode = executionAnalysis.data?.staleness ?? EMPTY_STALENESS;
   useEffect(() => {
@@ -2707,7 +2730,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         {executionAnalysis.message}
       </div>}
       {!viewingSnapshot && <EnvironmentChecks checks={capabilityChecks} />}
-      <CapabilityContext.Provider value={viewingSnapshot ? {} : capabilityChecks.reports}><AnalysisProfiler><CanvasContext.Provider value={canvasContextValue}>
+      <CapabilityContext.Provider value={viewingSnapshot ? {} : capabilityChecks.reports}><AnalysisProfiler><CanvasContext.Provider value={resolvedCanvasContext}>
         {viewingSnapshot ? (
           <>
             <SnapshotBanner
@@ -2867,7 +2890,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       frozenPortValues={viewingSnapshot.graph.nodes.find(n => n.id === snapshotSelectedGraphNodeId)?.port_values}
       onRerunFromHere={onRerunFromHere}
       preview={snapshotPreviewData?.snapshotId === viewingSnapshot.snapshot_id && snapshotPreviewData.nodeId === snapshotSelectedGraphNodeId ?
-        <CanvasContext.Provider value={canvasContextValue}>
+        <CanvasContext.Provider value={resolvedCanvasContext}>
           <InspectorPreview key={`${snapshotPreviewData.snapshotId}:${snapshotPreviewData.nodeId}`} data={snapshotPreviewData.data} onShowRun={showPreviewRun} />
         </CanvasContext.Provider> : null}
     />
@@ -2875,6 +2898,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     <p className="hl-dock-empty">Select a node or connection to inspect it.</p>
   ) : (
     <NodeInspector
+      variables={variables}
       effectiveParams={executionAnalysis?.data?.graph.nodes.find(n => n.id === selectedNode.id)?.params}
       environmentParams={executionAnalysis?.data?.environment_params[selectedNode.id] ?? []}
       preparationStatus={executionAnalysis.message}
@@ -2884,7 +2908,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       onTogglePin={names => setPinnedParams(current => toggleParameterPins(current, parameterPinKey(selectedAlgorithmData.pack), names, effectiveParameterPins(current, selectedAlgorithmData.pack)))}
       computeNodesById={computeNodesById}
       assignment={assignmentSlot}
-      preview={<CanvasContext.Provider value={canvasContextValue}>
+      preview={<CanvasContext.Provider value={resolvedCanvasContext}>
         <InspectorPreview key={selectedNode.id} data={selectedAlgorithmData} onShowRun={showPreviewRun} />
       </CanvasContext.Provider>}
       selected={
@@ -2897,6 +2921,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 x: selectedNode.position.x,
                 y: selectedNode.position.y,
               },
+              param_bindings: selectedAlgorithmData.param_bindings,
               params:
                 (
                   selectedAlgorithmData as AlgorithmNodeData & {
@@ -2971,7 +2996,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           nodes={nodesSlot}
           runs={runsSlot}
           jobs={jobsSlot}
-          inspect={<div className="hl-mobile-inspector">{inspectorSlot}</div>}
+          inspect={<div className="hl-mobile-inspector">{!viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues}
+            onChange={(declarations, values) => { setVariables(declarations); setVariableValues(values); }} />}{inspectorSlot}</div>}
           selectionId={mobileSelectionId}
           latestSnapshotId={latestSnapshotId}
         />
@@ -3062,7 +3088,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         </div>
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-inspector"
           aria-labelledby="hl-dock-tab-inspector" hidden={rightTab !== "inspector"}>
-          <div className="hl-sidebar-content">{inspectorSlot}</div>
+          <div className="hl-sidebar-content">{!viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues}
+            onChange={(declarations, values) => { setVariables(declarations); setVariableValues(values); }} />}{inspectorSlot}</div>
         </div>
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-runs"
           aria-labelledby="hl-dock-tab-runs" hidden={rightTab !== "runs"}>

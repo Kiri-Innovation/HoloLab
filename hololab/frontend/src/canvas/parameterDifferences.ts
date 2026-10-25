@@ -31,12 +31,13 @@ export interface ParameterDifference {
 export function parameterDifferences(pack: CatalogPack, params: Record<string, unknown>,
   effective: Record<string, unknown> | undefined, environmentParams: string[] = [],
   provenance: Record<string, ParameterDifferenceReason> = {},
+  bindings: Record<string, string> = {},
 ): ParameterDifference[] {
   if (!effective) return [];
   return packParameterRows(pack, params).flatMap(row => row.names.flatMap(name => {
-    const reason = provenance[name];
+    const reason = bindings[name] !== undefined ? "workflow-variable" : provenance[name];
     // Missing history is evidence, not an invitation to consult today's defaults.
-    const displayed = reason === "history-missing" ? undefined
+    const displayed = bindings[name] !== undefined ? `→ ${bindings[name]}` : reason === "history-missing" ? undefined
       : parameterEditorValue(pack, params, name, row.names.length > 1);
     const actual = effective[name];
     if (sameParameterValue(displayed, actual)) return [];

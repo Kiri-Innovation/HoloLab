@@ -18,7 +18,7 @@
 // are always up-to-date.
 
 import { createContext, useContext } from "react";
-import type { ComputeNode } from "../wire";
+import type { ComputeNode, VariableDeclarations } from "../wire";
 import type { WorkflowViewerView } from "../api";
 
 export interface CanvasContextValue {
@@ -41,6 +41,9 @@ export interface CanvasContextValue {
   // pending → "cleaned"; then handles land → real preview). See the
   // block comment on the placeholder computation in AlgorithmNode.tsx.
   hydrating: boolean;
+  variables?: VariableDeclarations;
+  effectiveParamsByNode?: Record<string, Record<string, unknown>>;
+  onBindingChange?: (nodeId: string, name: string, variable: string | null) => void;
   pinnedParams?: Record<string, string[]>;
   onParamsChange?: (nodeId: string, patch: Record<string, unknown>) => void;
   onInlineValueChange?: (nodeId: string, port: string, value: unknown) => void;

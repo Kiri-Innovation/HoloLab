@@ -1,4 +1,6 @@
 import { canonicalPackageName } from "../packageIdentity";
+import { parameterDifferenceText } from "./parameterDifferences";
+import type { VariableDeclarations } from "../wire";
 import type { CatalogPack } from "../wire";
 import { ArrayParameterInput, ParameterInput, Vec3ArrayParameterInput } from "./ParameterInput";
 import { DimListEditor } from "./DimListEditor";
@@ -32,7 +34,7 @@ export function parameterEditorValue(pack: CatalogPack, params: Record<string, u
 }
 
 /** One dispatch path for Inspector and canvas; callbacks contain only changed fields. */
-export function PackParameterField({ pack, params, name, names, nodeId, initialDirectory, onChange }: {
+function InlinePackParameterField({ pack, params, name, names, nodeId, initialDirectory, onChange }: {
   pack: CatalogPack; params: Record<string, unknown>; name: string; names: string[];
   nodeId: string | null; initialDirectory: string;
   onChange: (patch: Record<string, unknown>) => void;
@@ -59,4 +61,40 @@ export function PackParameterField({ pack, params, name, names, nodeId, initialD
 export function mergeParameterPatch(pack: Pick<CatalogPack, "name" | "version">,
   current: Record<string, unknown>, patch: Record<string, unknown>) {
   return { ...arrayParamsForEditor(pack.name, pack.version, current), ...patch };
+}
+
+
+export function matchingVariables(variables: VariableDeclarations, type: string) {
+  return Object.entries(variables).filter(([, declaration]) => declaration.type === type).map(([name]) => name);
+}
+
+/** Binding changes never overwrite params: switching back restores the inline editor. */
+export function PackParameterField(props: Parameters<typeof InlinePackParameterField>[0] & {
+  variables?: VariableDeclarations; binding?: string; effectiveValue?: unknown;
+  onBindingChange?: (variable: string | null) => void;
+}) {
+  const { variables = {}, binding, onBindingChange, effectiveValue } = props;
+  const type = props.pack.params[props.name].type;
+  if (!onBindingChange || (type !== "path" && type !== "int") || props.names.length !== 1) {
+    return InlinePackParameterField(props);
+  }
+  const choices = matchingVariables(variables, type);
+  const bound = binding !== undefined;
+  const text = parameterDifferenceText({name: props.name, displayed: `→ ${binding ?? ""}`,
+    effective: effectiveValue, reason: "workflow-variable"});
+  return <div className="hl-variable-parameter">
+    <select aria-label={`${props.name} 输入模式`} value={bound ? "variable" : "inline"}
+      onChange={event => onBindingChange(event.target.value === "inline" ? null : choices[0] ?? "")}>
+      <option value="inline">内联值</option><option value="variable">绑定变量</option>
+    </select>
+    {bound ? <div title={text}>
+      <select aria-label={`${props.name} 绑定变量`} value={binding}
+        onChange={event => onBindingChange(event.target.value)}>
+        <option value="">选择变量</option>
+        {binding && !choices.includes(binding) && <option value={binding}>→ {binding}（缺失或类型不匹配）</option>}
+        {choices.map(variable => <option key={variable} value={variable}>→ {variable}</option>)}
+      </select>
+      <details><summary>解析值</summary>{text}</details>
+    </div> : <InlinePackParameterField {...props} />}
+  </div>;
 }
