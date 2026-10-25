@@ -253,6 +253,7 @@ class WorkflowGraph(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    recipe_dependencies: list[dict[str, Any]] = Field(default_factory=list)
     variables: dict[str, VariableDeclaration] = Field(default_factory=dict)
     variable_values: dict[str, Any] = Field(default_factory=dict)
     execution: dict[str, Any] | None = None
@@ -335,12 +336,27 @@ class SnapshotRow:
 class WorkflowStore:
     """CRUD for ``workflows`` (drafts) and ``snapshots``."""
 
-    def __init__(self, db: Database) -> None:
+    def __init__(self, db: Database, *, recipe_root=None, catalog=None) -> None:
         self._db = db
+        self.file_authority = None
+        if recipe_root is not None:
+            from hololab.gateway.file_authority import FileAuthority
+
+            self.file_authority = FileAuthority(self, recipe_root, catalog or (lambda: []))
+
+    async def save_draft(self, **kwargs) -> WorkflowRow:
+        if self.file_authority:
+            return await self.file_authority.save(**kwargs)
+        return await self._save_cached(**kwargs)
+
+    async def get_draft(self, workflow_id: str) -> WorkflowRow | None:
+        if self.file_authority:
+            return await self.file_authority.get(workflow_id)
+        return await self._get_cached(workflow_id)
 
     # -- drafts --------------------------------------------------------------
 
-    async def save_draft(
+    async def _save_cached(
         self,
         *,
         workflow_id: str | None,
@@ -399,10 +415,25 @@ class WorkflowStore:
             if graph.variables or graph.variable_values
             else devices
         )
+        local_parameters = {
+            n.id: {key: n.params[key] for key in n.local_params if key in n.params}
+            for n in graph.nodes
+            if n.local_params
+        }
+        if local_parameters:
+            if bindings.get("_format") != 2:
+                bindings = {
+                    "_format": 2,
+                    "devices": devices,
+                    "variable_values": graph.variable_values,
+                }
+            bindings["parameter_values"] = local_parameters
         stored = graph.model_dump(exclude_none=True)
         stored.pop("variable_values", None)
         for node in stored["nodes"]:
             node.pop("assigned_node_id", None)
+            for key in node.get("local_params", []):
+                node["params"].pop(key, None)
         graph_json = json.dumps(stored)
         now = time.time()
         conflict_row: WorkflowRow | None = None
@@ -458,7 +489,7 @@ class WorkflowStore:
                 workflow_id=wid,
                 note="concurrent-edit guard bypassed; migrate the client to send base_updated_ts",
             )
-        row = await self.get_draft(wid)
+        row = await self._get_cached(wid)
         assert row is not None
         return row
 
@@ -484,6 +515,8 @@ class WorkflowStore:
                 graph.variable_values = local.get("variable_values", {})
             for node in graph.nodes:
                 node.assigned_node_id = devices.get(node.id)
+                if local.get("_format") == 2:
+                    node.params.update(local.get("parameter_values", {}).get(node.id, {}))
         return WorkflowRow(
             workflow_id=row[0],
             name=row[1],
@@ -492,7 +525,7 @@ class WorkflowStore:
             updated_ts=row[4],
         )
 
-    async def get_draft(self, workflow_id: str) -> WorkflowRow | None:
+    async def _get_cached(self, workflow_id: str) -> WorkflowRow | None:
         async with self._db.read() as conn:
             return await self._read_row(conn, workflow_id)
 
@@ -602,6 +635,22 @@ class WorkflowStore:
         ]
 
     async def delete_draft(self, workflow_id: str) -> None:
+        if self.file_authority:
+            async with self.file_authority.lock:
+                path = self.file_authority.path(workflow_id)
+                if path.exists():
+                    path.rename(path.with_name(f"recipe.deleted-{uuid.uuid4().hex}.json"))
+
+                async def delete_file_record(conn):
+                    await conn.execute(
+                        "DELETE FROM workflow_recipe_files WHERE workflow_id=?", (workflow_id,)
+                    )
+                    await conn.execute(
+                        "DELETE FROM workflow_recipe_intents WHERE workflow_id=?", (workflow_id,)
+                    )
+
+                await self._db.write(delete_file_record)
+
         async def _write(conn: aiosqlite.Connection) -> None:
             await conn.execute("DELETE FROM workflows WHERE workflow_id=?", (workflow_id,))
 
@@ -633,6 +682,8 @@ class WorkflowStore:
             raise ValueError("变量绑定必须先经统一解析器准备再创建快照")
         from hololab.inline_values import effective_inline
 
+        if self.file_authority and (graph.execution or {}).get("draft_updated_ts") is not None:
+            await self.get_draft(workflow_id)
         graph = graph.model_copy(deep=True)
         packs = packs_by_key_from_catalog((graph.execution or {}).get("packs", catalog or []))
         input_bindings = (graph.execution or {}).get("inline_values", {})

@@ -241,7 +241,15 @@ def create_app(
         from hololab.gateway.handle_summary import HandleSummaryCache
 
         app.state.summary_cache = HandleSummaryCache()
-        app.state.workflows = WorkflowStore(db)
+        app.state.workflows = WorkflowStore(
+            db,
+            recipe_root=None
+            if os.environ.get("HOLOLAB_RECIPE_AUTHORITY") == "db"
+            else Path(os.environ.get("HOLOLAB_WORKFLOW_ROOT", str(path.parent / "workflows"))),
+            catalog=lambda: app.state.registry.catalog_json(),
+        )
+        if app.state.workflows.file_authority:
+            await app.state.workflows.file_authority.recover_all()
         app.state.hub = FrontendHub()
         # In-memory rolling metrics per compute node — powers the
         # "server pulse" panel that fills the inspector when the
@@ -1916,7 +1924,10 @@ def _mount_routes(app: FastAPI) -> None:
         summary="One workflow draft with agent-shaped graph (topological order + labels + topology_text).",
     )
     async def get_workflow(workflow_id: str) -> dict[str, Any]:
-        row = await app.state.workflows.get_draft(workflow_id)
+        try:
+            row = await app.state.workflows.get_draft(workflow_id)
+        except ValueError as exc:
+            raise HTTPException(422, f"配方文件无法打开: {exc}") from exc
         if row is None:
             raise HTTPException(status_code=404, detail="workflow not found")
         registry: NodeRegistry = app.state.registry
@@ -1942,6 +1953,10 @@ def _mount_routes(app: FastAPI) -> None:
             "created_ts": row.created_ts,
             "updated_ts": row.updated_ts,
         }
+
+    @app.post("/api/workflows/{workflow_id}/reload", tags=["workflows"])
+    async def reload_workflow_file(workflow_id: str):
+        return await get_workflow(workflow_id)
 
     @app.post(
         "/api/workflows",
@@ -2014,7 +2029,8 @@ def _mount_routes(app: FastAPI) -> None:
                 name=name,
                 graph=graph,
                 base_updated_ts=base_ts,
-                require_base_updated_ts=not overwrite,
+                require_base_updated_ts=not overwrite
+                or app.state.workflows.file_authority is not None,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -2023,6 +2039,7 @@ def _mount_routes(app: FastAPI) -> None:
             raise HTTPException(
                 status_code=409,
                 detail={
+                    "file_changes": getattr(conflict, "file_changes", None),
                     "code": "workflow_conflict",
                     "message": (
                         "workflow was modified concurrently — reload the current "
@@ -3017,28 +3034,18 @@ def _mount_routes(app: FastAPI) -> None:
         validated = _validate_cosmetic_patch(patch)
         workflows_store: WorkflowStore = app.state.workflows
 
-        # ``Database.write`` already serialises through the writer queue,
-        # so consecutive writes below are ordered without an explicit
-        # lock; readers use the WAL reader connection.
-        async with (
-            app.state.db.read() as conn,
-            conn.execute(
-                "SELECT draft_json FROM workflows WHERE workflow_id=?",
-                (workflow_id,),
-            ) as cur,
-        ):
-            row = await cur.fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail="workflow not found")
-        new_draft_json = _apply_cosmetic_to_graph_json(row[0], graph_node_id, validated)
-
-        async def _write_draft(conn: aiosqlite.Connection) -> None:
-            await conn.execute(
-                "UPDATE workflows SET draft_json=?, updated_ts=? WHERE workflow_id=?",
-                (new_draft_json, time.time(), workflow_id),
-            )
-
-        await app.state.db.write(_write_draft)
+        current = await workflows_store.get_draft(workflow_id)
+        if current is None:
+            raise HTTPException(404, "workflow not found")
+        patched = _apply_cosmetic_to_graph_json(
+            current.graph.model_dump_json(), graph_node_id, validated
+        )
+        await workflows_store.save_draft(
+            workflow_id=workflow_id,
+            name=current.name,
+            graph=WorkflowGraph.model_validate_json(patched),
+            base_updated_ts=current.updated_ts,
+        )
 
         # Mirror to the latest snapshot (if the workflow has any).
         snapshots = await workflows_store.list_snapshots_for_workflow(workflow_id)

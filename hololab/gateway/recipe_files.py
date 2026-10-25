@@ -78,6 +78,7 @@ def graph_from_document(document: RecipeDocument) -> WorkflowGraph:
     if contains_local(raw):
         raise ValueError("配方含绝对路径/本地句柄; 请通过本地绑定提供")
     graph = WorkflowGraph.model_validate(raw)
+    graph.recipe_dependencies = copy.deepcopy(document.dependencies)
     ids = [n.id for n in graph.nodes]
     if len(ids) != len(set(ids)):
         raise ValueError("配方节点 id 重复")
@@ -162,6 +163,10 @@ def export_recipe(graph: WorkflowGraph, name: str, catalog: list[dict]) -> Recip
                 "packignore": ".packignore (relative to package root)",
                 "requires": (pack or {}).get("requires"),
             }
+    for dependency in graph.recipe_dependencies:
+        key = f"{dependency['name']}@{dependency['version']}"
+        if key in dependencies:
+            dependencies[key] = copy.deepcopy(dependency)
     variables = {k: v.model_dump() for k, v in graph.variables.items()}
     for value in variables.values():
         if contains_local(value.get("default")):

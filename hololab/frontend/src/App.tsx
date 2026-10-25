@@ -918,6 +918,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       .catch((error) => console.warn("workflow default viewer-view save failed", error));
   }, []);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [conflictSummary, setConflictSummary] = useState<string>();
   const [workflowName, setWorkflowName] = useState<string>("untitled");
   // The ``updated_ts`` we last observed for this draft — seeded on load
   // and bumped on every successful save. Fed into the autosave hook as
@@ -2014,11 +2015,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               data: { kind: "view", title: gn.title ?? "视图" },
             } as Node<any>;
           }
-          const pack = catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`);
-          if (!pack) {
-            missingPacks.push(`${gn.algorithm_name}@${gn.algorithm_version}`);
-            return null;
-          }
+          const found = catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`);
+          const pack: CatalogPack = found ?? {
+            name: gn.algorithm_name, version: gn.algorithm_version,
+            manifest_hash: "", node_ids: [], description: "包未发现（未安装/未发现）",
+            category: [], docs: null, source_entry: null, params: {},
+            inputs: Object.fromEntries(graph.edges.filter(e => e.target === gn.id).map(e => [e.targetHandle, {tags: [], storage: "file", required: true, description: null}])),
+            outputs: Object.fromEntries(graph.edges.filter(e => e.source === gn.id).map(e => [e.sourceHandle, {tags: [], storage: "file", preview: null, description: null}])),
+          };
+          if (!found) missingPacks.push(`${gn.algorithm_name}@${gn.algorithm_version}`);
           const node: Node<AlgorithmNodeData> = {
             id: gn.id,
             type: "algorithm",
@@ -2027,7 +2032,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               pack,
               assembly: gn.assembly,
               assigned_node_id: gn.assigned_node_id,
-              ...({ local_params: gn.local_params, param_bindings: gn.param_bindings, params: gn.params, port_values: reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) } as object),
+              ...({ local_params: gn.local_params, param_bindings: gn.param_bindings, params: gn.params, port_values: found ? reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) : gn.port_values } as object),
               ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
               ...({ parallelism: gn.parallelism ?? 1 } as object),
               ...({ batch_size: gn.batch_size ?? 1 } as object),
@@ -2042,7 +2047,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         .filter(Boolean) as Node<AlgorithmNodeData>[];
       if (missingPacks.length > 0) {
         console.warn(
-          `fromGraph: dropped ${missingPacks.length} node(s) — pack(s) missing from catalog:`,
+          `fromGraph: preserved ${missingPacks.length} unresolved node(s) — pack(s) missing from catalog:`,
           missingPacks,
           "(will re-hydrate when catalog fills in)",
         );
@@ -2078,37 +2083,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     ],
   );
 
-  // Self-healing re-hydration: when catalog changes, if the last wire
-  // graph had nodes referring to packs that were missing on first pass
-  // (silently dropped by ``fromGraph``'s ``return null`` at the pack
-  // lookup), and those packs are NOW in the catalog, re-run fromGraph
-  // so the dropped nodes + their edges come back. Without this, a tab
-  // that opened before a freshly-shipped pack landed silently renders
-  // an incomplete graph until the user hard-refreshes — the symptom
-  // the classic-STG (arrayed) workflow hit on 2026-09-22 after the
-  // type-system refactor added ``image-undistort@0.4.0`` +
-  // ``merge-colmap@0.3.0`` (14 wire edges → 2 rendered).
+  // Resolve placeholders in place: preserve edits made while dependencies were absent.
   useEffect(() => {
-    const wire = lastHydratedWireRef.current;
-    if (!wire) return;
-    const referenced = wire.nodes.length;
-    if (referenced === 0) return;
-    // Count how many referenced packs resolve in the CURRENT catalog.
-    let resolvable = 0;
-    for (const gn of wire.nodes) {
-      if (isAlgorithmGraphNode(gn) && catalogByKey.has(`${gn.algorithm_name}@${gn.algorithm_version}`)) {
-        resolvable += 1;
-      }
-    }
-    // Compare to how many nodes are currently in state. If the catalog
-    // now resolves more than what state carries, we dropped some — replay.
-    if (resolvable > nodes.length) {
-      console.info(
-        `catalog gained pack(s); re-hydrating (was ${nodes.length}, now can resolve ${resolvable})`,
-      );
-      fromGraph(wire);
-    }
-  }, [catalogByKey, fromGraph, nodes.length]);
+    setNodes(previous => previous.map(node => {
+      if (node.type !== "algorithm") return node;
+      const data = node.data as AlgorithmNodeData;
+      if (data.pack.manifest_hash) return node;
+      const pack = catalogByKey.get(`${data.pack.name}@${data.pack.version}`);
+      return pack ? {...node, data: {...data, pack}} : node;
+    }));
+  }, [catalogByKey, setNodes]);
 
   // Force xyflow to re-parse handle positions after every hydration.
   //
@@ -2225,6 +2209,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   }, [rfInstance, stalenessByGraphNode, toGraph, setNodes]);
 
   const autosave = useDraftAutosave({
+    manual: true,
     serialisedSnapshot: autosaveSnapshot,
     enabled: !viewingSnapshot,
     initialBaseUpdatedTs: workflowUpdatedTs,
@@ -2260,6 +2245,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       setWorkflowUpdatedTs(updatedTs);
     },
     onConflict: (detail) => {
+      setConflictSummary("file_changes" in detail && detail.file_changes ? JSON.stringify(detail.file_changes, null, 2) : detail.message);
       // Someone else (another tab, an agent, curl) has written a
       // newer version, or we sent a save without a base_updated_ts on
       // an existing row (stale bundle). Either way the server refused
@@ -2720,6 +2706,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       saveStatus={autosave.status}
       onSaveRetry={autosave.save}
       onRecipeOpen={id => { void onLoad(id); }}
+      onRecipeReload={async () => { if (!workflowId) return; const response = await fetch(`/api/workflows/${workflowId}/reload`, {method:"POST"}); if (!response.ok) throw Error(await response.text()); await onLoad(workflowId); }}
       staleCount={staleTotal}
       onLocateEarliestStale={onLocateEarliestStale}
     />
@@ -2969,7 +2956,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     />
   );
 
-  const conflictDialog = <WorkflowConflictDialog open={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} />;
+  const conflictDialog = <WorkflowConflictDialog summary={conflictSummary} open={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} />;
 
   // Mobile portrait: swap to the tab shell. Above the 900px breakpoint
   // ``isMobile`` is always false so this branch is dead code for

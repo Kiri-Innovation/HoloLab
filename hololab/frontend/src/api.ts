@@ -275,6 +275,7 @@ export const saveWorkflow = (body: {
 // Body shape the gateway returns inside a 409 ``ApiError.detail``. Surfaced
 // through ``useDraftAutosave`` so the UI can pop a resolve-conflict dialog.
 export interface WorkflowConflictDetail {
+  file_changes?: Record<string, unknown> | null;
   code: "workflow_conflict";
   message: string;
   base_updated_ts: number;

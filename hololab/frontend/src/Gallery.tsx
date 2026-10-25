@@ -77,6 +77,7 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary }: GalleryProps
         workflow_id: row.workflow_id,
         name: trimmed,
         graph: detail.graph,
+        base_updated_ts: detail.updated_ts,
       });
       await refresh();
     },

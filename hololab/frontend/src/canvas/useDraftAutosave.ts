@@ -93,6 +93,7 @@ export interface AutosaveHandle {
 const DEBOUNCE_MS = 800;
 
 export function useDraftAutosave(opts: {
+  manual?: boolean;
   // Serialised representation of the draft that autosave watches.
   // Empty string means "no meaningful content yet" and skips saving
   // — used to gate the initial mount (before workflow hydration
@@ -191,6 +192,7 @@ export function useDraftAutosave(opts: {
           console.warn("autosave failed", err);
           setStatus(navigator.onLine === false ? "offline" : "error");
         }
+        if (current.manual) throw err;
       } finally {
         inFlight.current = null;
       }
@@ -218,19 +220,20 @@ export function useDraftAutosave(opts: {
       return;
     }
     setStatus("unsaved");
+    if (opts.manual) return;
     const t = window.setTimeout(() => {
       void doSave();
     }, DEBOUNCE_MS);
     return () => {
       window.clearTimeout(t);
     };
-  }, [opts.enabled, opts.serialisedSnapshot, doSave, status, syncRevision]);
+  }, [opts.enabled, opts.manual, opts.serialisedSnapshot, doSave, status, syncRevision]);
 
   // ``beforeunload`` flush. sendBeacon is fire-and-forget; the
   // gateway's POST /api/workflows endpoint accepts the same body
   // regardless of whether it was sent via fetch or beacon.
   useEffect(() => {
-    if (!opts.enabled) return;
+    if (!opts.enabled || opts.manual) return;
     const handler = () => {
       // Don't fire the beacon in ``conflict`` — the row has moved on,
       // sending our stale base_updated_ts just gets rejected again.
@@ -247,13 +250,13 @@ export function useDraftAutosave(opts: {
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [opts.enabled, status]);
+  }, [opts.enabled, opts.manual, status]);
 
   // Retry on ``online``: if we're in the offline state and the
   // browser reconnects, kick a save.
   useEffect(() => {
     const onOnline = () => {
-      if (status === "offline") void doSave();
+      if (status === "offline" && !optsRef.current.manual) void doSave();
     };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);

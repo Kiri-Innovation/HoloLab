@@ -125,7 +125,7 @@ export function WorkflowToolbar({
           fontWeight: 600,
         }}
       />
-      {onRecipeOpen && <RecipeFileActions workflowId={workflowId} beforeExport={onSaveRetry} onOpen={onRecipeOpen} onReload={onRecipeReload} />}
+      {onRecipeOpen && <RecipeFileActions workflowId={workflowId} beforeExport={onSaveRetry} onOpen={onRecipeOpen} onReload={onRecipeReload} onSave={onSaveRetry} />}
       {workflowId && (
         <span
           style={{

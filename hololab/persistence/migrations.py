@@ -781,6 +781,17 @@ CREATE TABLE published_as_notes (
 )
 
 
+MIGRATIONS.append(
+    (
+        28,
+        """
+CREATE TABLE workflow_recipe_files (workflow_id TEXT PRIMARY KEY, path TEXT NOT NULL, digest TEXT NOT NULL);
+CREATE TABLE workflow_recipe_intents (workflow_id TEXT PRIMARY KEY, digest TEXT NOT NULL, name TEXT NOT NULL, graph_json TEXT NOT NULL);
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 
