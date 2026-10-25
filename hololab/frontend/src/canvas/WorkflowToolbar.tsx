@@ -1,3 +1,4 @@
+import { RecipeFileActions } from "./RecipeFileActions";
 // Top bar: workflow name + autosave status pill + Run button.
 //
 // The classic Save button has been retired — the draft autosaves 800 ms
@@ -16,6 +17,8 @@ import { CHIP_STYLE, CONTROL_STYLE, PRIMARY_CONTROL_STYLE } from "../ui/controlS
 import type { SaveStatus } from "./useDraftAutosave";
 
 export interface WorkflowToolbarProps {
+  onRecipeOpen?: (id: string) => void;
+  onRecipeReload?: () => Promise<void>;
   workflowId: string | null;
   name: string;
   nodeCount: number;
@@ -41,7 +44,7 @@ export interface WorkflowToolbarProps {
 }
 
 export function WorkflowToolbar({
-  workflowId,
+  workflowId, onRecipeOpen, onRecipeReload,
   name,
   nodeCount,
   connected,
@@ -122,6 +125,7 @@ export function WorkflowToolbar({
           fontWeight: 600,
         }}
       />
+      {onRecipeOpen && <RecipeFileActions workflowId={workflowId} beforeExport={onSaveRetry} onOpen={onRecipeOpen} onReload={onRecipeReload} />}
       {workflowId && (
         <span
           style={{

@@ -97,6 +97,7 @@ class GraphNode(BaseModel):
     position: GraphPosition = Field(default_factory=GraphPosition)
     params: dict[str, Any] = Field(default_factory=dict)
     param_bindings: dict[str, str] = Field(default_factory=dict)
+    local_params: list[str] = Field(default_factory=list)
     port_values: dict[str, Any] = Field(default_factory=dict)
     assigned_node_id: str | None = None
     # Read-only: computed on every GET by :func:`agent_graph_dict` from

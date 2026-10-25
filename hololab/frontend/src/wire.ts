@@ -513,6 +513,7 @@ export interface VariableDeclaration { type: "path" | "int"; description?: strin
 export type VariableDeclarations = Record<string, VariableDeclaration>;
 
 export interface GraphNode {
+  local_params?: string[];
   param_bindings?: Record<string, string>;
   id: string;
   // Missing means algorithm for graphs saved before view stickers shipped.

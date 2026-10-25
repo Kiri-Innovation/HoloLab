@@ -1862,6 +1862,53 @@ def _mount_routes(app: FastAPI) -> None:
             row["last_run"] = await workflow_last_run(row["workflow_id"])
         return drafts
 
+    @app.get("/api/workflows/{workflow_id}/recipe", tags=["workflows"])
+    async def export_workflow_recipe(workflow_id: str):
+        from fastapi.responses import Response
+
+        from hololab.gateway.recipe_files import canonical, export_recipe
+
+        row = await app.state.workflows.get_draft(workflow_id)
+        if row is None:
+            raise HTTPException(404, "workflow not found")
+        document = export_recipe(row.graph, row.name, app.state.registry.catalog_json())
+        return Response(
+            canonical(document),
+            media_type="application/json",
+            headers={"Content-Disposition": 'attachment; filename="recipe.json"'},
+        )
+
+    @app.post("/api/recipes/check", tags=["workflows"])
+    async def check_recipe_dependencies(body: dict[str, Any]):
+        from hololab.gateway.capabilities import check_workflow
+        from hololab.gateway.recipe_files import diagnostics
+
+        try:
+            graph = WorkflowGraph.model_validate(body["graph"])
+        except (ValueError, KeyError) as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {
+            "issues": diagnostics(graph, app.state.registry.catalog_json()),
+            "environment": await check_workflow(app, graph),
+        }
+
+    @app.post("/api/recipes/import", tags=["workflows"])
+    async def import_workflow_recipe(body: dict[str, Any]):
+        from hololab.gateway.recipe_files import RecipeDocument, diagnostics, graph_from_document
+
+        try:
+            document = RecipeDocument.model_validate(body)
+            graph = graph_from_document(document)
+            row = await app.state.workflows.save_draft(
+                workflow_id=None, name=document.name, graph=graph
+            )
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {
+            "workflow_id": row.workflow_id,
+            "issues": diagnostics(graph, app.state.registry.catalog_json()),
+        }
+
     @app.get(
         "/api/workflows/{workflow_id}",
         response_model=WorkflowDetailOut,
@@ -1885,7 +1932,10 @@ def _mount_routes(app: FastAPI) -> None:
             graph=row.graph,
             packs_by_key=packs_by_key,
         )
+        from hololab.gateway.recipe_files import diagnostics
+
         return {
+            "recipe_issues": diagnostics(row.graph, registry.catalog_json()),
             "workflow_id": row.workflow_id,
             "name": row.name,
             "graph": agent_graph_dict(row.graph, packs_by_key, latest_runs=latest_runs),

@@ -547,6 +547,7 @@ class LatestRunOut(BaseModel):
 
 
 class GraphNodeOut(BaseModel):
+    local_params: list[str] = Field(default_factory=list)
     param_bindings: dict[str, str] = Field(default_factory=dict)
     constant: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)
     operation: str | None = None
@@ -668,6 +669,7 @@ class WorkflowSummary(BaseModel):
 
 
 class WorkflowDetail(BaseModel):
+    recipe_issues: list[dict[str, Any]] = Field(default_factory=list)
     workflow_id: str
     name: str
     graph: WorkflowGraphOut

@@ -1,3 +1,4 @@
+import { RecipeProblems } from "./canvas/RecipeProblems";
 import { WorkflowVariables } from "./canvas/WorkflowVariables";
 import type { VariableDeclarations } from "./wire";
 import { canonicalPackageName, packageCatalogIndex, samePackage } from "./packageIdentity";
@@ -1933,6 +1934,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           algorithm_name: d.pack.name,
           algorithm_version: d.pack.version,
           position: { x: n.position.x, y: n.position.y },
+          local_params: d.local_params ?? [],
           param_bindings: d.param_bindings ?? {},
           params: d.params ?? {}, port_values: reconcileInlineValues(d.pack.inputs, d.port_values, edges.filter(e => e.target === n.id).map(e => e.targetHandle), !!(d.arrayed_toggle && d.pack.arrayable)),
           assigned_node_id: d.assigned_node_id,
@@ -2025,7 +2027,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               pack,
               assembly: gn.assembly,
               assigned_node_id: gn.assigned_node_id,
-              ...({ param_bindings: gn.param_bindings, params: gn.params, port_values: reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) } as object),
+              ...({ local_params: gn.local_params, param_bindings: gn.param_bindings, params: gn.params, port_values: reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) } as object),
               ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
               ...({ parallelism: gn.parallelism ?? 1 } as object),
               ...({ batch_size: gn.batch_size ?? 1 } as object),
@@ -2717,6 +2719,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       onExitToGallery={onExitToGallery}
       saveStatus={autosave.status}
       onSaveRetry={autosave.save}
+      onRecipeOpen={id => { void onLoad(id); }}
       staleCount={staleTotal}
       onLocateEarliestStale={onLocateEarliestStale}
     />
@@ -2724,6 +2727,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const canvasContentSlot = (
     <>
+      {!viewingSnapshot && <RecipeProblems graph={analysisGraph} />}
       {!viewingSnapshot && executionAnalysis.message && <div role="status" data-analysis-state={executionAnalysis.status}
         style={{position:"absolute",top:8,left:"50%",transform:"translateX(-50%)",zIndex:5,
           fontSize:"var(--fs-xs)",color:"var(--text-muted)",background:"var(--surface-2)",padding:"4px 8px",borderRadius:"var(--radius-sm)",pointerEvents:"none"}}>

@@ -79,6 +79,9 @@ def resolve_recipe(
             continue
         specs = pack.get("params", {})
         explicit = migrate_array_params(node.algorithm_name, node.algorithm_version, node.params)
+        for key in node.local_params:
+            if key not in node.param_bindings and explicit.get(key) in (None, ""):
+                raise ValueError(f"节点 {node.id} 参数 {key} 需要本地值 (配方未携带绝对路径)")
         node.params = effective_parameters(explicit, pack)
         sources[node.id] = {k: "inline" if k in explicit else "default" for k in node.params}
         for parameter, variable in node.param_bindings.items():

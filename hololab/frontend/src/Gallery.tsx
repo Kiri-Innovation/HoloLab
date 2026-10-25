@@ -1,3 +1,4 @@
+import { RecipeFileActions } from "./canvas/RecipeFileActions";
 // Workflow Gallery — the landing page (route `/`).
 //
 // Figma-shaped: a card grid of every workflow, plus a "+ New workflow"
@@ -104,12 +105,13 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary }: GalleryProps
       style={{
         height: "100vh",
         display: "grid",
-        gridTemplateRows: "auto 1fr",
+        gridTemplateRows: "auto auto 1fr",
         background: "var(--bg)",
         color: "var(--text-body)",
         fontFamily: "var(--font-sans)",
       }}
     >
+      <RecipeFileActions onOpen={onOpen} />
       <GalleryHeader
         creating={creating}
         onCreate={onCreate}

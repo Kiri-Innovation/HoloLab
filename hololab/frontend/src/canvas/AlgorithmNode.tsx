@@ -115,6 +115,7 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   arrayed_toggle?: boolean;
   assigned_node_id: string | null;
   /** Draft node parameters, included in the CoBrowser reference snapshot. */
+  local_params?: string[];
   param_bindings?: Record<string, string>;
   params?: Record<string, unknown>;
   port_values?: Record<string, unknown>;
