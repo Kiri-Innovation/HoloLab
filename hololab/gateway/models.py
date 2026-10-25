@@ -547,6 +547,7 @@ class LatestRunOut(BaseModel):
 
 
 class GraphNodeOut(BaseModel):
+    param_bindings: dict[str, str] = Field(default_factory=dict)
     constant: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)
     operation: str | None = None
     assembly: dict[str, Any] | None = None
@@ -635,6 +636,8 @@ class WorkflowGraphOut(BaseModel):
     Humans on the canvas never see these extra fields — they're additive.
     """
 
+    variables: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    variable_values: dict[str, Any] = Field(default_factory=dict)
     pinned_params: dict[str, list[str]] = Field(default_factory=dict)
     nodes: list[GraphNodeOut]
     edges: list[GraphEdgeOut]

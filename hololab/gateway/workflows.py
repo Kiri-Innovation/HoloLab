@@ -51,6 +51,13 @@ class GraphPosition(BaseModel):
     y: float = 0.0
 
 
+class VariableDeclaration(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["path", "int"]
+    description: str = ""
+    default: Any = None
+
+
 class GraphNode(BaseModel):
     """One algorithm-pack instance on the blueprint.
 
@@ -89,6 +96,7 @@ class GraphNode(BaseModel):
     code_identity: dict[str, Any] | None = None
     position: GraphPosition = Field(default_factory=GraphPosition)
     params: dict[str, Any] = Field(default_factory=dict)
+    param_bindings: dict[str, str] = Field(default_factory=dict)
     port_values: dict[str, Any] = Field(default_factory=dict)
     assigned_node_id: str | None = None
     # Read-only: computed on every GET by :func:`agent_graph_dict` from
@@ -150,6 +158,8 @@ class GraphNode(BaseModel):
     def _kind_fields(self) -> GraphNode:
         from hololab.constants import is_constant
 
+        if self.kind != "algorithm" and self.param_bindings:
+            raise ValueError("only algorithm parameters support variable bindings")
         if is_constant(self):
             if (
                 self.assembly is not None
@@ -242,6 +252,8 @@ class WorkflowGraph(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    variables: dict[str, VariableDeclaration] = Field(default_factory=dict)
+    variable_values: dict[str, Any] = Field(default_factory=dict)
     execution: dict[str, Any] | None = None
     pinned_params: dict[str, list[str]] = Field(default_factory=dict)
     nodes: list[GraphNode] = Field(default_factory=list)
@@ -373,7 +385,13 @@ class WorkflowStore:
         wid = workflow_id or str(uuid.uuid4())
         # A binding row is also the format marker, including an empty map.
         devices = {n.id: n.assigned_node_id for n in graph.nodes if n.kind != "view"}
+        bindings = (
+            {"_format": 2, "devices": devices, "variable_values": graph.variable_values}
+            if graph.variables or graph.variable_values
+            else devices
+        )
         stored = graph.model_dump(exclude_none=True)
+        stored.pop("variable_values", None)
         for node in stored["nodes"]:
             node.pop("assigned_node_id", None)
         graph_json = json.dumps(stored)
@@ -414,7 +432,7 @@ class WorkflowStore:
             await conn.execute(
                 "INSERT INTO workflow_bindings VALUES (?, ?) ON CONFLICT(workflow_id) "
                 "DO UPDATE SET bindings_json=excluded.bindings_json",
-                (wid, json.dumps(devices)),
+                (wid, json.dumps(bindings)),
             )
 
         await self._db.write(_write)
@@ -451,7 +469,10 @@ class WorkflowStore:
         ) as cur:
             binding = await cur.fetchone()
         if binding is not None:
-            devices = json.loads(binding[0])
+            local = json.loads(binding[0])
+            devices = local.get("devices", {}) if local.get("_format") == 2 else local
+            if local.get("_format") == 2:
+                graph.variable_values = local.get("variable_values", {})
             for node in graph.nodes:
                 node.assigned_node_id = devices.get(node.id)
         return WorkflowRow(
@@ -1868,6 +1889,8 @@ def agent_graph_dict(
         edges_out.append(d)
 
     return {
+        "variables": {k: v.model_dump() for k, v in graph.variables.items()},
+        "variable_values": graph.variable_values,
         "pinned_params": graph.pinned_params,
         "nodes": ordered_nodes,
         "edges": edges_out,

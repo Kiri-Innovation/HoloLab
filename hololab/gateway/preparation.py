@@ -46,7 +46,7 @@ def context_revision(graph: WorkflowGraph, catalog: list[dict]) -> str:
         key=lambda p: package_key(p["name"], p["version"]),
     )
     packs = [{**p, "name": canonical_name(p["name"])} for p in packs]
-    return digest([data, bindings.devices, packs])
+    return digest([data, bindings.devices, packs, bindings.variable_values])
 
 
 def effective_parameters(explicit: dict | None, pack: dict | None) -> dict:
@@ -81,6 +81,26 @@ def resolve_recipe(
         explicit = migrate_array_params(node.algorithm_name, node.algorithm_version, node.params)
         node.params = effective_parameters(explicit, pack)
         sources[node.id] = {k: "inline" if k in explicit else "default" for k in node.params}
+        for parameter, variable in node.param_bindings.items():
+            declaration = graph.variables.get(variable)
+            prefix = f"节点 {node.id} 参数 {parameter}: 变量 {variable}"
+            if declaration is None:
+                raise ValueError(f"{prefix} 未声明 (可能已删除)")
+            spec = specs.get(parameter)
+            if spec is None or spec.get("type") != declaration.type:
+                raise ValueError(
+                    f"{prefix} 类型不匹配: 声明 {declaration.type}, 参数 {(spec or {}).get('type', '不存在')}"
+                )
+            value = graph.variable_values.get(variable, declaration.default)
+            if value is None or value == "":
+                raise ValueError(f"{prefix} 未提供值")
+            valid = isinstance(value, str) if declaration.type == "path" else type(value) is int
+            if not valid:
+                raise ValueError(
+                    f"{prefix} 值类型错误: 需要 {declaration.type}, 当前 {type(value).__name__}"
+                )
+            node.params[parameter] = copy.deepcopy(value)
+            sources[node.id][parameter] = "workflow-variable"
         environment[node.id] = [
             k
             for k, s in specs.items()
@@ -98,6 +118,11 @@ def resolve_recipe(
         inline_values[node.id] = inputs
     result.execution = {
         "version": 1,
+        "variable_values": copy.deepcopy(graph.variable_values),
+        "resolved_variables": {
+            name: copy.deepcopy(graph.variable_values.get(name, declaration.default))
+            for name, declaration in graph.variables.items()
+        },
         "revision": context_revision(graph, catalog),
         "inline_values": inline_values,
         "sources": sources,

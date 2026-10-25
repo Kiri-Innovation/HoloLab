@@ -3,7 +3,8 @@
 The legacy graph is a transport projection, never a second binding store.
 """
 
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
 
 from hololab.gateway.workflows import GraphPosition, WorkflowGraph
 
@@ -16,6 +17,7 @@ class Recipe:
 @dataclass(frozen=True)
 class Bindings:
     devices: dict[str, str | None]
+    variable_values: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,7 @@ class ViewState:
 
 def split_graph(graph: WorkflowGraph) -> tuple[Recipe, Bindings, ViewState]:
     recipe = graph.model_copy(deep=True)
+    recipe.variable_values = {}
     view_ids = {n.id for n in graph.nodes if n.kind == "view"}
     view = WorkflowGraph(
         nodes=[n.model_copy(deep=True) for n in graph.nodes if n.id in view_ids],
@@ -53,11 +56,16 @@ def split_graph(graph: WorkflowGraph) -> tuple[Recipe, Bindings, ViewState]:
         node.position = GraphPosition()
         node.preview_open = None
         node.title = None
-    return Recipe(recipe), Bindings(devices), ViewState(cosmetics, view)
+    return (
+        Recipe(recipe),
+        Bindings(devices, deepcopy(graph.variable_values)),
+        ViewState(cosmetics, view),
+    )
 
 
 def compose_graph(recipe: Recipe, bindings: Bindings, view: ViewState) -> WorkflowGraph:
     graph = recipe.graph.model_copy(deep=True)
+    graph.variable_values = deepcopy(bindings.variable_values)
     for node in graph.nodes:
         node.assigned_node_id = bindings.devices.get(node.id)
         state = view.nodes.get(node.id, {})
