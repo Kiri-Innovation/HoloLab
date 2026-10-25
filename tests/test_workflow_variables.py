@@ -204,3 +204,125 @@ def test_variable_edit_drives_analysis_dispatch_and_frozen_snapshot(tmp_path, mo
         assert client.get(f"/api/snapshots/{new}").json()["variable_evidence"]["resolved_values"][
             "dataset_dir"
         ] == str(tmp_path / "second")
+
+
+def test_deleted_variable_blocks_prepare_before_dispatch(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from hololab.gateway.app import create_app
+    from tests.test_frozen_execution import setup
+
+    with TestClient(create_app(db_path=tmp_path / "missing.sqlite")) as client:
+        app, _, graph, received = setup(client, tmp_path)
+        graph.nodes[0].param_bindings = {"count": "deleted_iterations"}
+
+        async def save():
+            return await app.state.workflows.save_draft(
+                workflow_id=None, name="missing", graph=graph
+            )
+
+        row = client.portal.call(save)
+        response = client.post(f"/api/workflows/{row.workflow_id}/prepare", json={})
+        assert response.status_code == 422
+        assert "deleted_iterations" in response.json()["detail"]
+        assert "未声明" in response.json()["detail"]
+        assert received == []
+
+
+@pytest.mark.asyncio
+async def test_old_snapshot_and_legacy_graph_need_no_variables(tmp_path):
+    from hololab.gateway.preparation import historical_execution, snapshot_variable_evidence
+    from hololab.gateway.recipe import Bindings
+
+    graph = WorkflowGraph.model_validate(
+        {
+            "nodes": [
+                {
+                    "id": "old",
+                    "algorithm_name": "demo",
+                    "algorithm_version": "1.0.0",
+                    "params": {"n": 3},
+                }
+            ]
+        }
+    )
+    assert graph.variables == graph.variable_values == {}
+    assert snapshot_variable_evidence(graph) is None
+    recipe, _, view = split_graph(workflow())
+    shared = compose_graph(recipe, Bindings({}), view)
+    assert shared.variable_values == {} and shared.nodes[0].assigned_node_id is None
+    # Frozen snapshots must never re-resolve variable declarations on retry.
+    frozen = resolve_recipe(workflow(), CATALOG)
+    frozen.variables.clear()
+    frozen.variable_values.clear()
+    from types import SimpleNamespace
+
+    result = await historical_execution(None, SimpleNamespace(graph=frozen))
+    assert result.nodes[0].params["configpath"] == "/datasets/first"
+
+
+@pytest.mark.asyncio
+async def test_path_variable_real_process_uses_frozen_then_current_value(tmp_path):
+    import asyncio
+    import os
+    import sys
+    from unittest.mock import AsyncMock
+
+    import yaml
+
+    from hololab.node.config import NodeConfig
+    from hololab.node.packs import scan_packs
+    from hololab.node.runtime import NodeRuntime
+    from hololab.protocol.messages import JobAssign
+    from tests.test_content_scope import package
+
+    root, manifest, _ = package(tmp_path)
+    data = yaml.safe_load(manifest.read_text())
+    data["params"] = {"configpath": {"type": "path", "must_exist": False}}
+    data["exec"]["shell"] = (
+        'python "{{ package_root }}/stg_state.py" "{{ params.configpath }}" "{{ outputs.out }}"'
+    )
+    manifest.write_text(yaml.safe_dump(data))
+    (root / "stg_state.py").write_text(
+        "import pathlib,sys\np=pathlib.Path(sys.argv[2]);p.mkdir(parents=True,exist_ok=True)\n(p/'actual.txt').write_text(sys.argv[1])\n"
+    )
+    pack = scan_packs(manifest)[0]
+    catalog = [{"name": "demo", "version": "1.0.0", "params": data["params"]}]
+    graph = WorkflowGraph(
+        variables={"dataset_dir": {"type": "path"}},
+        variable_values={"dataset_dir": str(tmp_path / "first")},
+        nodes=[
+            GraphNode(
+                id="a",
+                algorithm_name="demo",
+                algorithm_version="1.0.0",
+                param_bindings={"configpath": "dataset_dir"},
+            )
+        ],
+    )
+    frozen = resolve_recipe(graph, catalog)
+    graph.variable_values["dataset_dir"] = str(tmp_path / "second")
+    current = resolve_recipe(graph, catalog)
+    for label, resolved in (("frozen", frozen), ("current", current)):
+        node = NodeRuntime(NodeConfig(workspace_root=tmp_path / label, envs={"test": sys.prefix}))
+        node._node_id = "variable-probe"
+        node._packs = {("demo", "1.0.0"): pack}
+        node._env_cache[sys.prefix] = dict(os.environ)
+        node._send = AsyncMock()
+        node._safe_send = AsyncMock()
+        node._send_job_fail = AsyncMock()
+        await node._run_job(
+            JobAssign(
+                job_id=label,
+                workflow_id="variables",
+                algorithm_name="demo",
+                algorithm_version="1.0.0",
+                params=resolved.nodes[0].params,
+            ),
+            asyncio.Event(),
+        )
+        node._send_job_fail.assert_not_called()
+        files = list((tmp_path / label).rglob("actual.txt"))
+        assert len(files) == 1 and files[0].read_text() == resolved.nodes[0].params["configpath"]
+        assert any(c.args[0] == "job_done" for c in node._send.call_args_list)
+    assert frozen.nodes[0].params["configpath"] != current.nodes[0].params["configpath"]

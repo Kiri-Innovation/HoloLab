@@ -388,3 +388,78 @@ agreement with algorithm code. Snapshots preserve graph structure and version
 references, not a private copy of pack code. Migrating a historical pack does
 not rewrite saved artifact bytes. Reusing old handles still requires contract
 validation; a viewable historical result is not proof it can be executed again.
+
+## Scalar workflow variables (path / int)
+
+Variable declarations are shared recipe semantics. Local values are bindings,
+not package code identity or distributable defaults. The graph API remains the
+composed transport projection:
+
+```json
+{
+  "variables": {
+    "dataset_dir": {"type": "path", "description": "Local dataset", "default": ""},
+    "iterations": {"type": "int", "default": 10000}
+  },
+  "variable_values": {"dataset_dir": "/data/local"},
+  "nodes": [{
+    "id": "training",
+    "algorithm_name": "example",
+    "algorithm_version": "1.0.0",
+    "params": {"dataset": "/original-inline", "iterations": 500},
+    "param_bindings": {"dataset": "dataset_dir", "iterations": "iterations"}
+  }]
+}
+```
+
+`draft_json.variables` stores declarations; `workflow_bindings.bindings_json`
+stores `{"_format":2,"devices":{...},"variable_values":{...}}`. The legacy
+node-to-device map remains readable, and variable-free saves retain that format.
+`split_graph` removes local values from the recipe; `compose_graph` supplies the
+recipient's values, including an empty binding set. No database schema change
+is needed. Declarations and parameter binding names affect recipe revisions;
+local values invalidate preparation tokens but are not copied into shared intent.
+
+`preparation.resolve_recipe` is the sole resolver. It overlays bound variables
+on ordinary effective parameters before the existing node-side path
+normalization. An explicitly supplied local value wins over a declaration's
+default; absent local values use that default. Null/empty values fail for bound
+variables. Integers must be JSON integers, not booleans or numeric strings.
+Missing declarations and type mismatches fail with node, parameter and variable
+names before dispatch. Unbound variables may remain unset. No implicit
+string-to-path conversion or binding to array/enum parameters is implemented.
+
+Each `PackParameterField`, in Inspector and pinned rows, switches between inline
+and variable modes. The binding dropdown filters declarations by exact type.
+Switching modes changes `param_bindings` only, preserving `params` as the inline
+backup. The tooltip/details use the same backend-effective value and difference
+formatter as other parameter differences; pending/failed analysis does not label
+previous values as current. The workflow variable editor separates shared
+metadata/defaults from local values. Deleting a declaration keeps references
+visible so the resolver reports the missing variable.
+
+Analysis signatures include declarations, local values and bindings. Gateway
+staleness compares resolved parameters and propagates changed nodes downstream;
+there is no separate browser variable resolver. Snapshots freeze node `params`
+and retain raw local values, resolved variable values (including defaults), and
+binding provenance. `GET /api/snapshots/{id}` exposes `variable_evidence` alongside
+`code_evidence.effective_params`. Historical retry consumes frozen parameters.
+Restoring a snapshot also restores the original inline backup. Old snapshots
+without variables return no variable evidence and are never backfilled.
+
+Self-check: expand **工作流变量** in the Inspector, add a path variable and its
+local value, then switch a path parameter to **绑定变量**. Change the local value:
+the resolved-value details, next prepared/run parameters and downstream stale
+status should agree. Delete the declaration to see the named preparation error;
+add an int variable and confirm it is absent from the path dropdown. Switch back
+to inline mode to recover the previous literal. In a snapshot, expand
+**声明范围身份 → 冻结的变量值** to inspect historical values.
+
+Regression command: `python -m pytest tests/test_workflow_variables.py
+ tests/test_frozen_execution.py tests/test_recipe_bindings.py -q` (one line).
+The real-process test runs two temporary package invocations to distinguish a
+frozen path from a changed current path; no training or service restart occurs.
+The deployed `stg-train@0.4.6` currently has only integer parameters; its
+`iterations` resolves 10000 → 12000 with a variable. Older STG `configpath`
+parameters are declared string, so they cannot be bound to path variables without
+an explicit future package declaration change. Tests do not rewrite those packs.
