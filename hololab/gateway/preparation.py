@@ -118,6 +118,9 @@ def resolve_recipe(
         inline_values[node.id] = inputs
     result.execution = {
         "version": 1,
+        "parameter_inline_values": {
+            n.id: copy.deepcopy(n.params) for n in graph.nodes if n.param_bindings
+        },
         "variable_values": copy.deepcopy(graph.variable_values),
         "resolved_variables": {
             name: copy.deepcopy(graph.variable_values.get(name, declaration.default))
@@ -508,4 +511,22 @@ def snapshot_code_evidence(graph: WorkflowGraph) -> dict:
         }
         for node in graph.nodes
         if node.kind == "algorithm"
+    }
+
+
+def snapshot_variable_evidence(graph: WorkflowGraph) -> dict | None:
+    """Frozen evidence only; never resolve using the current draft or declarations."""
+    execution = graph.execution or {}
+    if not graph.variables and not graph.variable_values:
+        return None
+    if "resolved_variables" not in execution:
+        return {"status": "unrecorded", "local_values": copy.deepcopy(graph.variable_values)}
+    return {
+        "status": "recorded",
+        "declarations": {name: spec.model_dump() for name, spec in graph.variables.items()},
+        "local_values": copy.deepcopy(execution["variable_values"]),
+        "resolved_values": copy.deepcopy(execution["resolved_variables"]),
+        "parameter_bindings": {
+            n.id: copy.deepcopy(n.param_bindings) for n in graph.nodes if n.param_bindings
+        },
     }

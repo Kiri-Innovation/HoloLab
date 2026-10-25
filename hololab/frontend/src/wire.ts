@@ -665,6 +665,7 @@ export interface PublicationNote {
 }
 
 export interface SnapshotDetail {
+  variable_evidence?: {status: string; local_values?: Record<string, unknown>; resolved_values?: Record<string, unknown>; parameter_bindings?: Record<string, Record<string, string>>} | null;
   published_as?: Record<string, PublicationNote[]>;
   code_evidence?: Record<string, {
     status: "recorded" | "unrecorded";

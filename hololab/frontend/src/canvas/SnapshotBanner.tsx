@@ -125,6 +125,10 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
         <summary>{Object.values(snapshot.code_evidence ?? {}).some(e => e.code_identity)
           ? "声明范围身份" : "历史运行未记录代码身份"}</summary>
         <div style={{ position: "absolute", top: "100%", left: 0, right: 0, maxHeight: "60vh", overflow: "auto", padding: 16, background: "var(--surface-1)", color: "var(--text-body)", boxShadow: "var(--shadow-1)" }}>
+          {snapshot.variable_evidence && <details><summary>冻结的变量值</summary>
+            <p>当次本地值与解析值；后续修改变量不会改写此记录。</p>
+            <pre>{JSON.stringify(snapshot.variable_evidence, null, 2)}</pre>
+          </details>}
           {Object.keys(snapshot.code_evidence ?? {}).length === 0
             ? <p>历史运行未记录代码身份；不会用当前代码回填。</p>
             : Object.entries(snapshot.code_evidence ?? {}).map(([nodeId, evidence]) => <details key={nodeId}>

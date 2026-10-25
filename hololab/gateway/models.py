@@ -799,6 +799,7 @@ class SnapshotJobOut(BaseModel):
 
 
 class SnapshotDetail(BaseModel):
+    variable_evidence: dict[str, Any] | None = None
     published_as: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
     code_evidence: dict[str, Any] = Field(default_factory=dict)
     preparation_error: str | None = None

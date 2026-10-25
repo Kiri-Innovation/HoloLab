@@ -36,3 +36,13 @@ it('preserves array and unaffected nodes, but updates changed reasons',()=>{
  const next=applyStaleness(nodes,{a:{kind:'self_dirty',title:'dirty',changeReasons:['y']}});
  expect(next[0]).not.toBe(nodes[0]);expect(next[1]).toBe(nodes[1]);
 });
+it('invalidates the shared analysis when variable declarations, local values or bindings change',()=>{
+ const initial={...structuredClone(graph),variables:{dataset_dir:{type:'path',default:''}},variable_values:{dataset_dir:'/first'}};
+ const key=analysisSignatures(initial).edit;
+ const value=structuredClone(initial);value.variable_values.dataset_dir='/second';
+ expect(analysisSignatures(value).edit).not.toBe(key);
+ const declaration=structuredClone(initial);declaration.variables.dataset_dir.default='/default';
+ expect(analysisSignatures(declaration).edit).not.toBe(key);
+ const binding=structuredClone(initial);binding.nodes[0].param_bindings={path:'dataset_dir'};
+ expect(analysisSignatures(binding).edit).not.toBe(key);
+});

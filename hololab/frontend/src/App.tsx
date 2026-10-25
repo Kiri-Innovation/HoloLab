@@ -2189,8 +2189,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const capabilityChecks = useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick]), !viewingSnapshot);
   const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick});
   const resolvedCanvasContext = useMemo(() => ({...canvasContextValue,
-    effectiveParamsByNode: Object.fromEntries((executionAnalysis.data?.graph.nodes ?? []).map(n => [n.id, n.params])),
-  }), [canvasContextValue, executionAnalysis.data]);
+    effectiveParamsByNode: Object.fromEntries((executionAnalysis.isCurrent ? executionAnalysis.data?.graph.nodes ?? [] : []).map(n => [n.id, n.params])),
+  }), [canvasContextValue, executionAnalysis.data, executionAnalysis.isCurrent]);
   const draftDiff: DiffItem[] = executionAnalysis?.data?.diff ?? [];
   const stalenessByGraphNode = executionAnalysis.data?.staleness ?? EMPTY_STALENESS;
   useEffect(() => {

@@ -377,6 +377,14 @@ class WorkflowStore:
         # Draft-only cleanup: a connected input has no stored inline backup.
         # Snapshot creation/replay deliberately keeps its historical semantics.
         graph = graph.model_copy(deep=True)
+        inline_values = (graph.execution or {}).get("parameter_inline_values", {})
+        for node in graph.nodes:
+            if node.id in inline_values:
+                for name in node.param_bindings:
+                    if name in inline_values[node.id]:
+                        node.params[name] = inline_values[node.id][name]
+                    else:
+                        node.params.pop(name, None)
         graph.execution = None
         by_id = {node.id: node for node in graph.nodes}
         for edge in graph.edges:
@@ -620,6 +628,8 @@ class WorkflowStore:
             from hololab.gateway.preparation import resolve_recipe
 
             graph = resolve_recipe(graph, catalog)
+        if graph.execution is None and any(node.param_bindings for node in graph.nodes):
+            raise ValueError("变量绑定必须先经统一解析器准备再创建快照")
         from hololab.inline_values import effective_inline
 
         graph = graph.model_copy(deep=True)
