@@ -15,7 +15,12 @@ from hololab.gateway.recipe_files import (
     export_recipe,
     graph_from_document,
 )
-from hololab.gateway.workflows import WorkflowConflict, WorkflowGraph, WorkflowPreconditionRequired
+from hololab.gateway.workflows import (
+    WorkflowConflict,
+    WorkflowGraph,
+    WorkflowPreconditionRequired,
+    draft_graph,
+)
 
 
 def sha(raw: bytes) -> str:
@@ -100,9 +105,24 @@ class FileAuthority:
                 for key, value in old.port_values.items():
                     if key not in node.port_values and contains_local(value):
                         node.port_values[key] = value
+                from hololab.gateway.preparation import effective_parameters
+                from hololab.package_identity import package_key
+
+                pack = next(
+                    (
+                        p
+                        for p in self.catalog()
+                        if package_key(p["name"], p["version"])
+                        == package_key(old.algorithm_name, old.algorithm_version)
+                    ),
+                    None,
+                )
+                defaults = effective_parameters(old.params, pack)
                 for key in node.local_params:
                     if key in old.params:
                         node.params[key] = old.params[key]
+                    elif key not in old.local_params and key in defaults:
+                        node.params[key] = defaults[key]
         # Personal view stickers are local overlay, never file recipe content.
         views = [n.model_copy(deep=True) for n in local.nodes if n.kind == "view"]
         view_ids = {n.id for n in views}
@@ -184,12 +204,16 @@ class FileAuthority:
         self, *, workflow_id, name, graph, base_updated_ts=None, require_base_updated_ts=False
     ):
         async with self.lock:
+            graph = draft_graph(graph)
             wid = workflow_id or str(uuid.uuid4())
             await self.recover(wid)
             cached = await self.store._get_cached(wid)
             metadata = await self.metadata(wid)
             path = self.path(wid)
             current_bytes = path.read_bytes() if path.exists() else None
+            if current_bytes is not None and metadata is None:
+                cached = await self.load(wid)
+                metadata = await self.metadata(wid)
             if metadata and (current_bytes is None or sha(current_bytes) != metadata[0]):
                 if current_bytes is None:
                     raise ValueError("权威配方文件已删除; 拒绝覆盖")
@@ -214,7 +238,7 @@ class FileAuthority:
                 old_deps = {(p["name"], p["version"]): p for p in old.dependencies}
                 for dep in document.dependencies:
                     previous = old_deps.get((dep["name"], dep["version"]))
-                    if previous:
+                    if previous and not graph.recipe_dependencies:
                         dep.update(previous)
             composed = self.compose(document, graph)
             raw = canonical(document).encode()
@@ -257,6 +281,13 @@ class FileAuthority:
         ]
         return {
             "nodes": changed,
+            "parameter_differences": {
+                nid: {
+                    "editing": left[nid].params if nid in left else None,
+                    "file": right[nid].params if nid in right else None,
+                }
+                for nid in changed
+            },
             "variables_changed": local.variables != remote.variables,
             "topology_changed": local.edges != remote.edges,
             "message": "文件与当前编辑内容不同; 保留双方, 重载文件后重新应用修改",

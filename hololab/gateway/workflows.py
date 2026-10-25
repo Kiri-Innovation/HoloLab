@@ -333,6 +333,26 @@ class SnapshotRow:
     note: str | None = None
 
 
+def draft_graph(graph: WorkflowGraph) -> WorkflowGraph:
+    # Draft-only cleanup: a connected input has no stored inline backup.
+    # Snapshot creation/replay deliberately keeps its historical semantics.
+    graph = graph.model_copy(deep=True)
+    inline_values = (graph.execution or {}).get("parameter_inline_values", {})
+    for node in graph.nodes:
+        if node.id in inline_values:
+            for name in node.param_bindings:
+                if name in inline_values[node.id]:
+                    node.params[name] = inline_values[node.id][name]
+                else:
+                    node.params.pop(name, None)
+    graph.execution = None
+    by_id = {node.id: node for node in graph.nodes}
+    for edge in graph.edges:
+        if edge.target in by_id:
+            by_id[edge.target].port_values.pop(edge.targetHandle, None)
+    return graph
+
+
 class WorkflowStore:
     """CRUD for ``workflows`` (drafts) and ``snapshots``."""
 
@@ -391,22 +411,7 @@ class WorkflowStore:
 
         validate_graph_identities(graph)
 
-        # Draft-only cleanup: a connected input has no stored inline backup.
-        # Snapshot creation/replay deliberately keeps its historical semantics.
-        graph = graph.model_copy(deep=True)
-        inline_values = (graph.execution or {}).get("parameter_inline_values", {})
-        for node in graph.nodes:
-            if node.id in inline_values:
-                for name in node.param_bindings:
-                    if name in inline_values[node.id]:
-                        node.params[name] = inline_values[node.id][name]
-                    else:
-                        node.params.pop(name, None)
-        graph.execution = None
-        by_id = {node.id: node for node in graph.nodes}
-        for edge in graph.edges:
-            if edge.target in by_id:
-                by_id[edge.target].port_values.pop(edge.targetHandle, None)
+        graph = draft_graph(graph)
         wid = workflow_id or str(uuid.uuid4())
         # A binding row is also the format marker, including an empty map.
         devices = {n.id: n.assigned_node_id for n in graph.nodes if n.kind != "view"}
@@ -1951,6 +1956,7 @@ def agent_graph_dict(
         edges_out.append(d)
 
     return {
+        "recipe_dependencies": graph.recipe_dependencies,
         "variables": {k: v.model_dump() for k, v in graph.variables.items()},
         "variable_values": graph.variable_values,
         "pinned_params": graph.pinned_params,

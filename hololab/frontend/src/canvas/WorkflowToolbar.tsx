@@ -228,7 +228,7 @@ export function WorkflowToolbar({
       <SaveStatusPill
         status={saveStatus}
         onRetry={() => {
-          void onSaveRetry();
+          void onSaveRetry().catch(e => flash(String(e), "var(--error)"));
         }}
       />
       <button data-tooltip={running ? "正在运行" : "运行流程"} aria-label={running ? "正在运行" : "运行流程"}

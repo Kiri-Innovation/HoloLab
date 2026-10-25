@@ -99,10 +99,10 @@ export function SaveStatusPill({ status, onRetry }: SaveStatusPillProps) {
       type="button"
       onClick={s.interactive ? onRetry : undefined}
       disabled={!s.interactive}
-      data-tooltip={status === "error" ? "重试保存" : `自动保存：${s.label}`} aria-label={status === "error" ? "重试保存" : `自动保存：${s.label}`} aria-description={
+      data-tooltip={status === "error" ? "重试保存" : `配方保存：${s.label}`} aria-label={status === "error" ? "重试保存" : `配方保存：${s.label}`} aria-description={
         status === "error"
           ? "click to retry saving the draft"
-          : `autosave: ${s.label.toLowerCase()}`
+          : `recipe save: ${s.label.toLowerCase()}`
       }
       data-hl-save-status={status}
       style={{

@@ -637,6 +637,7 @@ class WorkflowGraphOut(BaseModel):
     Humans on the canvas never see these extra fields — they're additive.
     """
 
+    recipe_dependencies: list[dict[str, Any]] = Field(default_factory=list)
     variables: dict[str, dict[str, Any]] = Field(default_factory=dict)
     variable_values: dict[str, Any] = Field(default_factory=dict)
     pinned_params: dict[str, list[str]] = Field(default_factory=dict)

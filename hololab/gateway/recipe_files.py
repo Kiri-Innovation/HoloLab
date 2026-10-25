@@ -78,6 +78,14 @@ def graph_from_document(document: RecipeDocument) -> WorkflowGraph:
     if contains_local(raw):
         raise ValueError("配方含绝对路径/本地句柄; 请通过本地绑定提供")
     graph = WorkflowGraph.model_validate(raw)
+    from hololab.package_identity import validate_graph_identities
+
+    validate_graph_identities(graph)
+    for dep in document.dependencies:
+        if not isinstance(dep.get("name"), str) or not isinstance(dep.get("version"), str):
+            raise ValueError("依赖声明缺少 name/version")
+        if contains_local(dep):
+            raise ValueError("依赖声明含本地绝对路径")
     graph.recipe_dependencies = copy.deepcopy(document.dependencies)
     ids = [n.id for n in graph.nodes]
     if len(ids) != len(set(ids)):
@@ -104,6 +112,23 @@ def diagnostics(graph: WorkflowGraph, catalog: list[dict]) -> list[dict]:
                 }
             )
             continue
+        expected = next(
+            (
+                d.get("hash")
+                for d in graph.recipe_dependencies
+                if package_key(d["name"], d["version"])
+                == package_key(node.algorithm_name, node.algorithm_version)
+            ),
+            None,
+        )
+        if expected and not (pack.get("publication") or {}).get("code_sha256"):
+            result.append(
+                {
+                    "node_id": node.id,
+                    "code": "identity_unverified",
+                    "message": "声明了依赖哈希; 本地发布身份未记录, 执行前必须校验",
+                }
+            )
         result.append(
             {
                 "node_id": node.id,
@@ -160,7 +185,7 @@ def export_recipe(graph: WorkflowGraph, name: str, catalog: list[dict]) -> Recip
                 "version": node.algorithm_version,
                 "hash": ((pack or {}).get("publication") or {}).get("code_sha256"),
                 "root": root if not absolute(root) else None,
-                "packignore": ".packignore (relative to package root)",
+                "packignore": ".packignore",
                 "requires": (pack or {}).get("requires"),
             }
     for dependency in graph.recipe_dependencies:

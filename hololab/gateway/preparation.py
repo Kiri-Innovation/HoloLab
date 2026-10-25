@@ -77,6 +77,18 @@ def resolve_recipe(
         if pack is None:
             issues.append({"node_id": node.id, "message": "Algorithm declaration unavailable"})
             continue
+        expected = next(
+            (
+                d.get("hash")
+                for d in graph.recipe_dependencies
+                if package_key(d["name"], d["version"])
+                == package_key(node.algorithm_name, node.algorithm_version)
+            ),
+            None,
+        )
+        actual = (pack.get("publication") or {}).get("code_sha256")
+        if expected and actual and expected != actual:
+            raise ValueError(f"节点 {node.id}: 包身份不匹配; 配方={expected}; 本地={actual}")
         specs = pack.get("params", {})
         explicit = migrate_array_params(node.algorithm_name, node.algorithm_version, node.params)
         for key in node.local_params:
@@ -471,7 +483,20 @@ async def capture_code_identities(app, graph: WorkflowGraph, *, required=None) -
         from hololab.gateway.capabilities import require_check_support
 
         require_check_support(session, node)
+        expected = next(
+            (
+                d.get("hash")
+                for d in graph.recipe_dependencies
+                if package_key(d["name"], d["version"])
+                == package_key(node.algorithm_name, node.algorithm_version)
+            ),
+            None,
+        )
         if not getattr(session, "content_identity", False):
+            if expected:
+                raise ValueError(
+                    f"节点 {node.id}: 节点不能校验配方声明的代码身份 {expected}; 请升级节点"
+                )
             entry = next(
                 (
                     p
@@ -501,6 +526,10 @@ async def capture_code_identities(app, graph: WorkflowGraph, *, required=None) -
         if response.get("error") or not response.get("record"):
             raise ValueError(response.get("error") or "Missing content identity response")
         node.code_identity = copy.deepcopy(response["record"])
+        if expected and node.code_identity.get("sha256") != expected:
+            raise ValueError(
+                f"节点 {node.id}: 包身份不匹配; 配方={expected}; 本地={node.code_identity.get('sha256')}"
+            )
         node.code_identity["effective_params"] = copy.deepcopy(node.params)
 
 

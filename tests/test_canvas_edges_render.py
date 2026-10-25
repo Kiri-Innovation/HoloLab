@@ -210,7 +210,9 @@ def test_run_node_handler_captures_snapshot_id() -> None:
     assert m, "could not locate window.addEventListener(RUN_NODE_EVENT, onRun) in App.tsx"
 
     # Locate the dispatchNode call and extract its .then() argument body.
-    dn_match = re.search(r"dispatchNode\(wid,\s*graph_node_id\)\.then\(", body)
+    # Explicit file saves wrap dispatch in a promise before its result callback.
+    assert "saveRecipeRef.current().then(() => dispatchNode(wid, graph_node_id))" in body
+    dn_match = re.search(r"dispatchNode\(wid,\s*graph_node_id\)\)?\.then\(", body)
     assert dn_match, "could not find dispatchNode(wid, graph_node_id).then( in App.tsx"
     # Walk parens to extract the full .then(...) argument.
     i = dn_match.end()

@@ -13,10 +13,11 @@ export function semanticGraph(graph: WorkflowGraph | null) {
   return {
     // Pins participate in Gateway preparation; do not resolve defaults here.
     variables: graph.variables, variable_values: graph.variable_values,
+    recipe_dependencies: graph.recipe_dependencies,
     pinned_params: graph.pinned_params,
     nodes: nodes.map(n => ({id:n.id, kind:n.kind, operation:n.operation, assembly:n.assembly,
       algorithm_name:canonicalPackageName(n.algorithm_name ?? ''), algorithm_version:n.algorithm_version,
-      param_bindings:n.param_bindings, params:n.params, port_values:n.port_values, assigned_node_id:n.assigned_node_id,
+      local_params:n.local_params, param_bindings:n.param_bindings, params:n.params, port_values:n.port_values, assigned_node_id:n.assigned_node_id,
       arrayed_toggle:n.arrayed_toggle, parallelism:n.parallelism, batch_size:n.batch_size,
     })).sort((a,b) => a.id.localeCompare(b.id)),
     edges: graph.edges.filter(e => ids.has(e.source) && ids.has(e.target)).map(e => ({

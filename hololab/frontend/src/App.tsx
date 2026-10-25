@@ -107,7 +107,6 @@ import { ViewNode, type ViewNodeData } from "./canvas/ViewNode";
 import {
   algorithmDataForNode,
   algorithmNodeData,
-  isAlgorithmGraphNode,
   isViewGraphNode,
 } from "./canvas/nodeMeta";
 import { Artifacts } from "./Artifacts";
@@ -420,6 +419,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // having to re-register the listener each time workflowId changes.
   // Set below in the workflowId useEffect.
   const workflowIdRef = useRef<string | null>(null);
+  const saveRecipeRef = useRef<() => Promise<void>>(async () => {});
   // Mirrors ``workflowUpdatedTs`` so the WS ``workflow_updated`` handler
   // (registered once at mount) can compare the pushed ``updated_ts``
   // against our own base without re-subscribing on every save. Bumped
@@ -919,6 +919,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   }, []);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [conflictSummary, setConflictSummary] = useState<string>();
+  const [workflowFileError, setWorkflowFileError] = useState<string>("");
   const [workflowName, setWorkflowName] = useState<string>("untitled");
   // The ``updated_ts`` we last observed for this draft — seeded on load
   // and bumped on every successful save. Fed into the autosave hook as
@@ -1400,7 +1401,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // promise would never resolve and the caller's button would hang
       // until the dispatchRunNode timeout kicks in.
       try {
-        dispatchNode(wid, graph_node_id).then(
+        saveRecipeRef.current().then(() => dispatchNode(wid, graph_node_id)).then(
           (result) => {
             // A successful dispatch is synchronous proof of a new run even
             // if this tab's websocket is reconnecting or misses its queued
@@ -1911,6 +1912,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const toGraph = useCallback((): WorkflowGraph => {
     return {
       variables, variable_values: variableValues,
+      recipe_dependencies: lastHydratedWireRef.current?.recipe_dependencies ?? [],
       pinned_params: pinnedParams,
       nodes: nodes.map((n) => {
         if ((n.data as ViewNodeData).kind === "view") {
@@ -1937,7 +1939,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           position: { x: n.position.x, y: n.position.y },
           local_params: d.local_params ?? [],
           param_bindings: d.param_bindings ?? {},
-          params: d.params ?? {}, port_values: reconcileInlineValues(d.pack.inputs, d.port_values, edges.filter(e => e.target === n.id).map(e => e.targetHandle), !!(d.arrayed_toggle && d.pack.arrayable)),
+          params: d.params ?? {}, port_values: d.pack.manifest_hash ? reconcileInlineValues(d.pack.inputs, d.port_values, edges.filter(e => e.target === n.id).map(e => e.targetHandle), !!(d.arrayed_toggle && d.pack.arrayable)) : d.port_values,
           assigned_node_id: d.assigned_node_id,
           // Structural — see docs/pack-spec.md#arrayed-and-arrayable.
           arrayed_toggle: Boolean(d.arrayed_toggle),
@@ -2134,20 +2136,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   }, [nodes, updateNodeInternals]);
 
   // --- toolbar handlers -------------------------------------------------
-  const onSave = useCallback(async () => {
-    const result = await saveWorkflow({
-      workflow_id: workflowId ?? undefined,
-      name: workflowName || "untitled",
-      graph: toGraph(),
-      base_updated_ts: workflowUpdatedTs,
-      origin: originIdRef.current,
-    });
-    setWorkflowId(result.workflow_id);
-    workflowUpdatedTsRef.current = result.updated_ts;
-    setWorkflowUpdatedTs(result.updated_ts);
-    window.history.replaceState(null, "", `/w/${encodeURIComponent(result.workflow_id)}`);
-  }, [workflowId, workflowName, workflowUpdatedTs, toGraph]);
-
   // --- autosave ---------------------------------------------------------
   //
   // Canonical serialised form the autosave hook watches. Includes
@@ -2162,7 +2150,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // catalog has loaded and the graph has been hydrated; the hook skips
   // saving when it sees "".
   const autosaveSnapshot = useMemo(() => {
-    if (catalog.length === 0) return "";
     if (viewingSnapshot) return "";
     return JSON.stringify({ name: workflowName, graph: toGraph() });
   }, [catalog.length, viewingSnapshot, workflowName, toGraph]);
@@ -2234,6 +2221,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       }),
     }),
     onSaved: (wid, updatedTs) => {
+      workflowIdRef.current = wid;
       if (workflowId !== wid) {
         setWorkflowId(wid);
         window.history.replaceState(null, "", `/w/${encodeURIComponent(wid)}`);
@@ -2271,23 +2259,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     },
   });
 
+  saveRecipeRef.current = autosave.save;
   const onRun = useCallback(async () => {
-    if (!workflowId) {
-      await onSave();
-    }
+    await autosave.save();
+    const wid = workflowIdRef.current;
+    if (!wid) throw Error("保存后缺少工作流 ID");
     setRunning(true);
     try {
-      const wid =
-        workflowId ??
-        (
-          await saveWorkflow({
-            workflow_id: undefined,
-            name: workflowName || "untitled",
-            graph: toGraph(),
-            origin: originIdRef.current,
-          })
-        ).workflow_id;
-      setWorkflowId(wid);
       const runResult = await runWorkflow(wid);
       if (!runResult.snapshot_id) return;
       // The toolbar starts a whole graph; every node may replace its output.
@@ -2318,7 +2296,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     } finally {
       window.setTimeout(() => setRunning(false), 800);
     }
-  }, [workflowId, workflowName, toGraph, onSave, resetAllNodeViewersForWorkflowRun]);
+  }, [autosave.save, resetAllNodeViewersForWorkflowRun]);
 
   // "New workflow" is now a Gallery affordance; the toolbar navigates
   // back to the Gallery via onExitToGallery instead of clearing state
@@ -2375,7 +2353,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // otherwise the initial paint (with empty runtime/previews) would
       // still flash the terminal placeholders for one frame.
       setHydrating(true);
-      const w = await getWorkflow(id);
+      setWorkflowFileError("");
+      const w = await getWorkflow(id).catch(error => {
+        setWorkflowFileError(String(error));
+        setHydrating(false);
+        throw error;
+      });
       // Reset the autosave hook so it treats the freshly-loaded graph
       // as clean — otherwise, when the app switches workflows (or the
       // user hits reload after a WS-driven remote update), the hook
@@ -2612,7 +2595,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // getWorkflow throw; we just log and leave the canvas blank so the
   // user can hit "← workflows" to get out.
   useEffect(() => {
-    if (catalog.length === 0) return;
     if (initialWorkflowId === workflowId) return;
     void onLoad(initialWorkflowId).catch((err) => {
       console.warn("could not open workflow", initialWorkflowId, err);
@@ -2714,6 +2696,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const canvasContentSlot = (
     <>
+      {workflowFileError && <div role="alert">配方文件无法打开：{workflowFileError}</div>}
       {!viewingSnapshot && <RecipeProblems graph={analysisGraph} />}
       {!viewingSnapshot && executionAnalysis.message && <div role="status" data-analysis-state={executionAnalysis.status}
         style={{position:"absolute",top:8,left:"50%",transform:"translateX(-50%)",zIndex:5,

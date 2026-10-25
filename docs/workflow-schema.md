@@ -463,3 +463,91 @@ The deployed `stg-train@0.4.6` currently has only integer parameters; its
 `iterations` resolves 10000 → 12000 with a variable. Older STG `configpath`
 parameters are declared string, so they cannot be bound to path variables without
 an explicit future package declaration change. Tests do not rewrite those packs.
+
+## Portable JSON and authoritative files (C / D)
+
+The only recipe authority is a file. SQLite retains local device assignments,
+variable values, machine-specific inline path bindings, personal layout/view
+state, history, and a recipe cache. A successful save does **not** mean the
+workflow can run. Local package, parameter, identity and declared environment
+checks remain mandatory before execution; registry access is not required to
+open or edit a file.
+
+The default workspace is the Gateway database's parent directory. Each workflow
+uses `<workspace>/workflows/<workflow-id>/recipe.json`; set
+`HOLOLAB_WORKFLOW_ROOT` to relocate the `workflows` directory. This is the
+Gateway's workspace, not a compute node's workspace. Existing workflows create
+an initial file on first open. Once created, a missing or invalid file is an
+error, never a reason to silently restore the cache.
+
+### Portable format and UI
+
+`schema_version: 1`, `exported_at`, `name`, `graph`, `dependencies`, `diagnostics`
+form a canonical, UTF-8 JSON document (sorted object keys, sorted node/edge IDs,
+two-space indentation, final newline). Export time is informational. The graph
+carries stable IDs, topology, explicit/default parameters, pins and variable
+declarations. Dependencies retain exact name/version, a known publication hash
+(or null), root and `.packignore` reference, and declared environment needs.
+This references package contents; it does not embed or install them.
+
+Device IDs, actual variable values, coordinates, views, execution history,
+local handles and absolute paths are excluded. An absolute inline parameter
+becomes a `local_params` slot: its local value remains in bindings and the
+recipient must supply a value or bind a variable. This avoids silently changing
+a legacy string parameter into a path parameter. Absolute variable defaults
+similarly become local values. Relative defaults are materialized using the
+existing resolver. Export revalidates the result and records unresolved
+packages/parameters per node. Imports accept missing dependencies and unresolved
+variables; schema/identity syntax errors are rejected. Nodes with missing packs
+remain on the canvas and survive save. Layout is generated on import.
+
+Use **导出配方**, **从配方文件新建**, **保存配方文件**, **从文件重载**.
+Saving is explicit (run/export also flush pending edits); the file is read on
+open/reload and before submission. Import always creates a new workflow with
+no device or variable-value bindings. The checks panel says
+**保存成功 ≠ 可运行** and lists package/environment/resolution issues. It does
+not claim that undeclared environments have been verified.
+
+API equivalents:
+
+- `GET /api/workflows/{id}/recipe`: download portable JSON.
+- `POST /api/recipes/import`: validate and create a new workflow.
+- `POST /api/recipes/check`: local dependency and unified resolver diagnostics.
+- `POST /api/workflows/{id}/reload`: reread authoritative file.
+- Existing `GET /api/workflows/{id}` and `POST /api/workflows` are also file-aware.
+  Agents must pass the GET result's `updated_ts` as `base_updated_ts` when saving.
+
+### Conflicts, recovery, snapshots
+
+The existing `WorkflowConflict` / `base_updated_ts` optimistic concurrency
+contract applies to browser and agent saves. Additionally the file byte digest
+must still match the observed cache revision. A conflict returns 409 plus a
+node/variable/topology difference summary and the authoritative graph. Missing
+revision returns 428. `overwrite: true` cannot bypass file-mode guards. Keep
+local edits until deciding how to reconcile; reload deliberately replaces them.
+There is no last-writer-wins second authority.
+
+A per-store lock serializes Gateway writes. A durable SQLite intent is recorded
+before atomic file replacement (temporary sibling, fsync, rename); the file
+wins if the cache update fails. Startup/open replays matching intents. File
+bytes are rechecked immediately before replacement. External tools should use
+explicit read/edit/save and atomic replacement; this is not a filesystem sandbox
+or a lock that can stop an uncooperative external process writing in the tiny
+interval between the final check and rename. No automatic watcher or merge is
+included. Deleted workflows archive their recipe as `recipe.deleted-*.json`.
+
+Snapshots keep their frozen effective parameters, variable values and evidence.
+Retry/continue read those records, not a newly edited file. A fresh submission
+rereads the file and compares its prepared revision before creating a snapshot.
+
+### Rollback
+
+Back up the workflow directory **and** SQLite together. Before switching back
+to DB mode, open/reload each current workflow while file mode is still enabled
+so its cache reflects the desired files; stop if any file cannot be read.
+Then stop the Gateway, set `HOLOLAB_RECIPE_AUTHORITY=db`, and restart it. The
+existing DB API resumes; no files/history need deletion. This is an explicit
+operational rollback, not an automatic fallback. To return to file mode,
+reconcile any DB-only edits into the files first (or export them as new recipe
+imports), then remove the switch and restart. Files take precedence again.
+No service is restarted by migration or tests.

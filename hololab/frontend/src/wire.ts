@@ -572,6 +572,7 @@ export interface GraphEdge {
 }
 
 export interface WorkflowGraph {
+  recipe_dependencies?: Record<string, unknown>[];
   variables?: VariableDeclarations;
   variable_values?: Record<string, unknown>;
   execution?: { resolved_variables?: Record<string, unknown>; [key: string]: unknown };

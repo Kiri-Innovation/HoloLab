@@ -293,8 +293,11 @@ export function isWorkflowConflict(
 ): err is ApiError & { detail: WorkflowConflictDetail } {
   if (!(err instanceof ApiError)) return false;
   if (err.status !== 409) return false;
-  const d = err.detail as { code?: unknown } | null;
-  return !!d && typeof d === "object" && d.code === "workflow_conflict";
+  const raw = err.detail as { code?: unknown; detail?: unknown } | null;
+  const d = (raw?.code ? raw : raw?.detail) as {code?: unknown} | null;
+  if (!d || typeof d !== "object" || d.code !== "workflow_conflict") return false;
+  err.detail = d; // FastAPI wraps HTTPException payloads in {detail: ...}.
+  return true;
 }
 
 // Body shape the gateway returns inside a 428 ``ApiError.detail``. Fires
@@ -319,10 +322,11 @@ export function isWorkflowPreconditionRequired(
 ): err is ApiError & { detail: WorkflowPreconditionRequiredDetail } {
   if (!(err instanceof ApiError)) return false;
   if (err.status !== 428) return false;
-  const d = err.detail as { code?: unknown } | null;
-  return (
-    !!d && typeof d === "object" && d.code === "workflow_precondition_required"
-  );
+  const raw = err.detail as { code?: unknown; detail?: unknown } | null;
+  const d = (raw?.code ? raw : raw?.detail) as {code?: unknown} | null;
+  if (!d || typeof d !== "object" || d.code !== "workflow_precondition_required") return false;
+  err.detail = d;
+  return true;
 }
 
 export const deleteWorkflow = (workflow_id: string) =>

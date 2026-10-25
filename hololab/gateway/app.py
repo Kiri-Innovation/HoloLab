@@ -2065,8 +2065,8 @@ def _mount_routes(app: FastAPI) -> None:
                     "message": (
                         "workflow already exists and this save carried no "
                         "base_updated_ts — thread the last observed updated_ts "
-                        "through to enable the concurrent-edit guard, or send "
-                        "'overwrite: true' for an intentional unconditional write"
+                        "through to enable the concurrent-edit guard. "
+                        "File authority does not allow unconditional overwrite."
                     ),
                     "current": {
                         "workflow_id": current.workflow_id,
@@ -3037,15 +3037,24 @@ def _mount_routes(app: FastAPI) -> None:
         current = await workflows_store.get_draft(workflow_id)
         if current is None:
             raise HTTPException(404, "workflow not found")
-        patched = _apply_cosmetic_to_graph_json(
-            current.graph.model_dump_json(), graph_node_id, validated
-        )
-        await workflows_store.save_draft(
-            workflow_id=workflow_id,
-            name=current.name,
-            graph=WorkflowGraph.model_validate_json(patched),
-            base_updated_ts=current.updated_ts,
-        )
+
+        # Cosmetics belong to the local overlay, not the authoritative recipe.
+        # Patch the latest cache in the writer transaction without advancing its
+        # semantic revision or rewriting a file on a preview-caret click.
+        async def write_cosmetic(conn):
+            row = await (
+                await conn.execute(
+                    "SELECT draft_json FROM workflows WHERE workflow_id=?", (workflow_id,)
+                )
+            ).fetchone()
+            if row is None:
+                raise HTTPException(404, "workflow not found")
+            patched = _apply_cosmetic_to_graph_json(row[0], graph_node_id, validated)
+            await conn.execute(
+                "UPDATE workflows SET draft_json=? WHERE workflow_id=?", (patched, workflow_id)
+            )
+
+        await app.state.db.write(write_cosmetic)
 
         # Mirror to the latest snapshot (if the workflow has any).
         snapshots = await workflows_store.list_snapshots_for_workflow(workflow_id)

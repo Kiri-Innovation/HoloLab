@@ -1015,15 +1015,8 @@ def test_save_workflow_update_without_base_ts_returns_428(tmp_path: Path) -> Non
         assert r2.json()["name"] == "w"
 
 
-def test_save_workflow_overwrite_flag_bypasses_precondition(tmp_path: Path) -> None:
-    """``overwrite: true`` is the documented opt-out for trusted callers.
-
-    Scripts / agents that intentionally clobber (e.g. an ops tool restoring
-    a graph verbatim) don't need to thread base_updated_ts through; they
-    send ``overwrite: true`` and the CAS is skipped. The broadcast still
-    fires so live watchers re-hydrate — the opt-out doesn't silently hide
-    the write from other tabs.
-    """
+def test_save_workflow_overwrite_flag_cannot_bypass_file_precondition(tmp_path: Path) -> None:
+    """File authority requires an observed revision even for trusted agents."""
     app = create_app(db_path=tmp_path / "overwrite.sqlite")
     with TestClient(app) as client:
         r0 = client.post("/api/workflows", json=_minimal_graph_body("w"))
@@ -1038,10 +1031,10 @@ def test_save_workflow_overwrite_flag_bypasses_precondition(tmp_path: Path) -> N
                 "overwrite": True,
             },
         )
-        assert r1.status_code == 200, r1.text
+        assert r1.status_code == 428, r1.text
 
         r2 = client.get(f"/api/workflows/{wid}")
-        assert r2.json()["name"] == "clobber"
+        assert r2.json()["name"] == "w"
 
 
 def test_save_workflow_new_id_without_base_ts_is_allowed(tmp_path: Path) -> None:
