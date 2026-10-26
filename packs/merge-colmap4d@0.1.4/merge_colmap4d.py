@@ -296,10 +296,8 @@ def merge(points_root: Path, images_root: Path, cams_root: Path, output: Path) -
                 alias: {"camera_ids": sorted(set(value["camera_ids"]))}
                 for alias, value in sorted(devices.items())
             },
-            # Keep this byte-compatible with 0.1.3: 0.1.4 changes only the
-            # image-name/layout projection, not the temporal conversion.
             "conversion": {
-                "source": "hololab.merge-colmap4d@0.1.3",
+                "source": "hololab.merge-colmap4d@0.1.4",
                 "source_groups": len(group_names),
                 "input_timebase": source_timebase,
                 "midpoint_formula": "wallClockEpochNs + exposureNs // 2",
