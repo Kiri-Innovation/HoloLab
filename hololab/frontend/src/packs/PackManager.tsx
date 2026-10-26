@@ -13,7 +13,7 @@ import { EvidenceValue } from '../canvas/EvidenceValue';
 import { OpenSourceButton } from '../canvas/OpenSourceButton';
 import { writeToClipboard } from '../canvas/referenceAction';
 import { checkRecipe } from './useRecipeChecks';
-import { buildPackEntries, installedOn, installCommand, packHasProblem, recipeIssueLabel,
+import { buildPackEntries, installedOn, installCommand, packProblemReasons, packEnvironmentStatus, recipeIssueLabel,
   type InventoryPack, type PackEntry, type RegistryRelease, type WorkflowUsage } from './packManagerModel';
 import './packManager.css';
 
@@ -95,16 +95,18 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   })), edges: []}) as WorkflowGraph, [entries, nodeId]);
   const checks = useCapabilityChecks(capabilityGraph, String(revision), !loading && !!nodeId && entries.length > 0);
   const statusKey = (entry: PackEntry) => `${nodeId}:${entry.key}`;
-  const problem = (entry: PackEntry) => packHasProblem(entry, checks.reports[entry.key], central[statusKey(entry)]?.data?.state === 'hash_mismatch'
+  const reasons = (entry: PackEntry) => packProblemReasons(entry, checks.reports[entry.key], central[statusKey(entry)]?.data?.state === 'hash_mismatch'
     ? 'hash_mismatch' : central[statusKey(entry)]?.data?.registry_status);
+  const problem = (entry: PackEntry) => reasons(entry).length > 0;
+  const statusLabel = (entry: PackEntry) => reasons(entry).join('；') || packEnvironmentStatus(entry, checks.reports[entry.key]);
   const visible = entries.filter(entry => `${entry.name}@${entry.version} ${entry.catalog?.category?.join('/') || 'misc'}`.toLowerCase().includes(search.toLowerCase()));
   const summary=localOverview(entries,nodeId,checks.reports,problem);
   const sectionEntries=visible.filter(entry=>section==='attention'?problem(entry):section==='missing'?checks.reports[entry.key]?.status==='missing':section==='undeclared'?isUndeclared(entry):true);
   const selectedEntry=section==='category' ? entries.find(entry=>entry.key===selected) : undefined;
-  const healthPending=loading || checks.loading || !nodeId || entries.some(entry=>!checks.reports[entry.key]);
+  const healthPending=loading || checks.loading || !nodeId || entries.some(entry=>!checks.reports[entry.key] || checks.reports[entry.key].status==='unknown');
   const cards=(items:PackEntry[]) => <div className="hl-pack-grid hl-local-cards">{items.map(entry=><article className="hl-pack-card" key={entry.key}>
     <button className="hl-pack-project-link" onClick={()=>navigateLocal('category',entry.key)}>{entry.name} <span className="hl-pack-version">{entry.version}</span></button>
-    <p>{checks.reports[entry.key]?.status==='missing'?'声明的环境能力缺失':problem(entry)?'有待处理事项':isUndeclared(entry)?'未声明环境要求':!checks.reports[entry.key]?'环境尚未校验':'暂无已知问题'}</p>
+    <p>{statusLabel(entry)}</p>
     <small>{new Set(entry.usages.map(u=>u.workflow.workflow_id)).size} 条工作流引用 · {entry.catalog?.category?.join(' / ') || 'misc'}</small>
   </article>)}</div>;
 
@@ -144,7 +146,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       </nav>
       {nodes.length > 1 ? <label>查看机器<select aria-label="查看机器" value={nodeId} onChange={e => setNodeId(e.target.value)}>{nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name || node.node_id}</option>)}</select></label> : <p className="hl-pack-boundary">{nodes.length ? `查看 ${nodes[0].node_name || nodes[0].node_id} 上的包` : '没有已连接的机器'}</p>}
       {section==='category' && <nav aria-label="本地包目录">
-        <PackageTree items={visible.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:entry.catalog?.category ?? []}))} query={search} selected={selected} onSelect={key=>navigateLocal('category',key)} />
+        <PackageTree items={visible.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:entry.catalog?.category ?? [], status:statusLabel(entry), problem:problem(entry)}))} query={search} selected={selected} onSelect={key=>navigateLocal('category',key)} />
       </nav>}
       </div></aside>
       <section className="hl-pack-detail" aria-label="本地包内容">
@@ -179,7 +181,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
           const canInstall = !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
           return <article className="hl-pack-card" key={entry.key} data-pack-key={entry.key}>
             <header><div><h3>{entry.name}</h3><span className="hl-pack-version">{entry.version}</span></div>
-              <span className="hl-pack-state" data-problem={problem(entry)}>{problem(entry) ? '待处理' : loading || checks.loading ? '检查中' : !report ? '环境未校验' : report.status === 'undeclared' ? '环境未声明' : '无已知问题'}</span></header>
+              <span className="hl-pack-state" data-problem={problem(entry)}>{loading || checks.loading ? '检查中' : statusLabel(entry)}</span></header>
             <dl className="hl-pack-facts">
               <div className="hl-pack-code-identity"><dt>代码身份</dt><dd><EvidenceValue value={current?.data?.code_sha256 ?? entry.catalog?.publication?.code_sha256 ?? '尚未校验；查询当前发布状态可读取本地代码身份'} /></dd></div>
               <div><dt>来源</dt><dd>{hasRegistry ? '注册表' : entry.catalog ? '本地' : '来源未确认'}{(source || entry.catalog?.source_dir || entry.catalog?.manifest_path) && <EvidenceValue value={source || entry.catalog?.source_dir || entry.catalog?.manifest_path} />}</dd></div>
@@ -191,8 +193,8 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
                 {current?.data?.state === 'hash_mismatch' && <small role="alert">代码哈希不匹配，请处理身份差异后再运行。</small>}
                 {current?.data?.registry_status === 'unknown' && <small>中央状态未知，不代表已 yank；本地包仍可使用。</small>}</dd></div>
             </dl>
-            <details className="hl-pack-section" open={report?.status === 'missing'}><summary>环境 · {report ? ({undeclared:'未声明要求',missing:'声明的能力缺失',unknown:'无法确认',satisfied:'已声明的可探测项满足'} as const)[report.status] : nodeId ? '尚未完成检查' : '未选择计算节点'}</summary>
-              <EnvironmentEvidence report={report} />
+            <details className="hl-pack-section" open={report?.status === 'missing'}><summary>环境 · {report ? ({undeclared:'未声明要求',missing:'声明的能力缺失',unknown:'环境未校验',satisfied:'已声明的可探测项满足'} as const)[report.status] : nodeId ? '尚未完成检查' : '未选择计算节点'}</summary>
+              <EnvironmentEvidence report={report} headingLabel={report?.status === 'unknown' ? '环境未校验' : undefined} />
               {requires != null && <details><summary>声明的 requires</summary><EvidenceValue value={requires} /></details>}
             </details>
             <details className="hl-pack-section"><summary>使用情况与配方检查 · {entry.usages.length} 个节点 / {new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流</summary>
@@ -200,7 +202,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
               {entry.usages.map(({workflow, node, issues}) => <section className="hl-pack-usage" key={`${workflow.workflow_id}:${node.id}`}>
                 <div><button onClick={() => onOpenWorkflow(workflow.workflow_id)}>打开 {workflow.name}</button><strong>节点 {node.id}</strong><span>计算节点：{node.assigned_node_id ?? '未分配'}</span></div>
                 {workflow.checkFailed ? <p>配方检查未完成，请刷新后重试。</p> : issues.length ? <ul>{issues.map((issue, index) => <li key={index}>{recipeIssueLabel(issue)}</li>)}</ul> : <p>未发现包依赖、变量或参数问题。</p>}
-                {workflow.check?.environment?.[node.id] && <details><summary>此工作流所分配节点的环境</summary><EnvironmentEvidence report={workflow.check.environment[node.id]} /></details>}
+                {workflow.check?.environment?.[node.id] && <details><summary>此工作流所分配节点的环境</summary><EnvironmentEvidence report={workflow.check.environment[node.id]} headingLabel={workflow.check.environment[node.id].status === 'unknown' ? '环境未校验' : undefined} /></details>}
                 {Object.keys(node.param_bindings ?? {}).length > 0 && <details><summary>变量绑定与值</summary><dl className="hl-evidence-rows">{Object.entries(node.param_bindings ?? {}).map(([parameter, variable]) => <div key={parameter}><dt>{parameter} → {variable}</dt><dd>
                   {!workflow.graph.variables?.[variable] ? '变量未声明' : <><span>{workflow.graph.variables[variable].type} · {Object.prototype.hasOwnProperty.call(workflow.graph.variable_values ?? {}, variable) ? '本地值' : '共享默认值'}</span><EvidenceValue value={Object.prototype.hasOwnProperty.call(workflow.graph.variable_values ?? {}, variable) ? workflow.graph.variable_values?.[variable] : workflow.graph.variables[variable].default} /></>}
                 </dd></div>)}</dl></details>}

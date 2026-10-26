@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {buildPackEntries, installedOn, installCommand, packHasProblem} from './packManagerModel';
+import {buildPackEntries, installedOn, installCommand, packHasProblem, packProblemReasons, packEnvironmentStatus} from './packManagerModel';
 import type {CatalogPack, WorkflowGraph} from '../wire';
 
 const catalog = [{name:'train',version:'1',node_ids:['gpu'],requires:null}] as CatalogPack[];
@@ -21,8 +21,26 @@ describe('package-oriented aggregation',()=>{
     const [entry]=buildPackEntries(catalog,[],workflows);
     expect(packHasProblem(entry,{status:'undeclared',issues:[]})).toBe(false);
     expect(packHasProblem(entry,{status:'missing',issues:[]})).toBe(true);
-    expect(packHasProblem(entry,{status:'unknown',issues:[]})).toBe(true);
+    expect(packHasProblem(entry,{status:'unknown',issues:[]})).toBe(false);
     expect(packHasProblem(entry,undefined,'yanked')).toBe(true);
+  });
+  it('keeps unknown local and workflow environments informational',()=>{
+    const [entry]=buildPackEntries(catalog,[],workflows);
+    entry.usages[0].workflow={...entry.usages[0].workflow,check:{issues:[],environment:{a:{status:'unknown',issues:[]}}}};
+    expect(packHasProblem(entry,{status:'unknown',issues:[]})).toBe(false);
+    expect(packEnvironmentStatus(entry,{status:'unknown',issues:[]})).toBe('环境未校验');
+    expect(packEnvironmentStatus(entry,{status:'satisfied',issues:[]})).toBe('工作流运行节点环境未校验');
+  });
+  it('retains concrete reasons for missing dependencies, recipes, yank and identity',()=>{
+    const [entry,absent]=buildPackEntries(catalog,[],workflows);
+    const missing={status:'missing' as const,issues:[{item:'mmcv',required:'*',actual:null,remedy:'install'}]};
+    expect(packProblemReasons(entry,missing)).toEqual(['缺少环境：mmcv']);
+    expect(packProblemReasons(absent)).toEqual(['1 条工作流引用但包未安装']);
+    expect(packProblemReasons(entry,undefined,'yanked')).toEqual(['版本已 yank，不能新安装']);
+    expect(packProblemReasons(entry,undefined,'hash_mismatch')).toEqual(['代码哈希不匹配']);
+    entry.usages[0].issues=[{node_id:'a',code:'missing_parameter',message:'参数 frames 未提供值'}];
+    entry.usages[0].workflow={...entry.usages[0].workflow,checkFailed:true,check:{issues:[],environment:{a:missing}}};
+    expect(packProblemReasons(entry)).toEqual(['参数 frames 未提供值','工作流配方检查未完成，请重试','工作流运行节点缺少环境：mmcv']);
   });
   it('records every referencing node without treating offline receipts as current installs',()=>{
     const entries=buildPackEntries([], [{name:'train',version:'1',node_id:'gpu',online:false}],

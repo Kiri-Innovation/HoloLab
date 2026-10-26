@@ -35,12 +35,34 @@ export function buildPackEntries(catalog: CatalogPack[], inventory: InventoryPac
 export function installedOn(entry: PackEntry, nodeId: string) {
   return !!entry.catalog?.node_ids.includes(nodeId) || entry.inventory.some(p => p.node_id === nodeId && p.online);
 }
+export function packProblemReasons(entry: PackEntry, report?: EnvironmentReport, registryStatus?: string): string[] {
+  const reasons: string[] = [];
+  if (!entry.catalog && !entry.inventory.some(p => p.online) && entry.usages.length > 0)
+    reasons.push(`${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流引用但包未安装`);
+  if ((registryStatus !== 'published' && entry.release?.yanked === true) || registryStatus === 'yanked')
+    reasons.push('版本已 yank，不能新安装');
+  if (registryStatus === 'hash_mismatch') reasons.push('代码哈希不匹配');
+  const missingLabel = (value: EnvironmentReport) => {
+    const items = [...new Set(value.issues.map(issue => issue.item).filter(Boolean))];
+    return items.length ? `缺少环境：${items.join('、')}` : '缺少已声明的环境能力';
+  };
+  if (report?.status === 'missing') reasons.push(missingLabel(report));
+  for (const usage of entry.usages) {
+    for (const issue of usage.issues) reasons.push(recipeIssueLabel(issue));
+    if (usage.workflow.checkFailed) reasons.push('工作流配方检查未完成，请重试');
+    const environment = usage.workflow.check?.environment?.[usage.node.id];
+    if (environment?.status === 'missing') reasons.push(`工作流运行节点${missingLabel(environment)}`);
+  }
+  return [...new Set(reasons)];
+}
 export function packHasProblem(entry: PackEntry, report?: EnvironmentReport, registryStatus?: string) {
-  return (!entry.catalog && !entry.inventory.some(p => p.online) && entry.usages.length > 0)
-    || (registryStatus !== 'published' && entry.release?.yanked === true) || registryStatus === 'yanked' || registryStatus === 'hash_mismatch'
-    || report?.status === 'missing' || report?.status === 'unknown'
-    || entry.usages.some(u => u.issues.length > 0 || u.workflow.checkFailed
-      || ['missing', 'unknown'].includes(u.workflow.check?.environment?.[u.node.id]?.status ?? ''));
+  return packProblemReasons(entry, report, registryStatus).length > 0;
+}
+export function packEnvironmentStatus(entry: PackEntry, report?: EnvironmentReport) {
+  if (report?.status === 'undeclared' || (!report && entry.catalog && entry.catalog.requires == null)) return '未声明环境要求';
+  if (!report || report.status === 'unknown') return '环境未校验';
+  if (entry.usages.some(u => u.workflow.check?.environment?.[u.node.id]?.status === 'unknown')) return '工作流运行节点环境未校验';
+  return report.status === 'missing' ? '缺少已声明的环境能力' : '已声明的可探测项满足';
 }
 export function recipeIssueLabel(issue: RecipeIssue) {
   switch (issue.code) {

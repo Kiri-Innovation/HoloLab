@@ -54,9 +54,9 @@ export function capabilityGraph(graph: WorkflowGraph) {
   })), edges: [] };
 }
 
-export function EnvironmentEvidence({ report, showBoundary = true }: { report?: EnvironmentReport | null; showBoundary?: boolean }) {
+export function EnvironmentEvidence({ report, showBoundary = true, headingLabel }: { report?: EnvironmentReport | null; showBoundary?: boolean; headingLabel?: string }) {
   return <div>
-    <div className="hl-capability-heading"><strong>{environmentLabel(report ?? undefined)}</strong>
+    <div className="hl-capability-heading"><strong>{headingLabel ?? environmentLabel(report ?? undefined)}</strong>
       {report?.checked_at ? <time>检查时间 {new Date(report.checked_at * 1000).toLocaleString()}</time> : null}</div>
     {report?.status === "undeclared" && <p>包作者未声明环境要求。这是信息缺失，不会因未声明而阻止运行；实际环境是否满足尚未确认。</p>}
     {report?.issues?.map((issue, i) => <section key={i} className="hl-capability-issue">

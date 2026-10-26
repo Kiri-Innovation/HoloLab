@@ -122,3 +122,8 @@
 .hl-pack-view-nav [aria-current=page] { background: var(--surface-alt); font-weight: var(--fw-semibold); box-shadow: inset 2px 0 var(--text-body); }
 .hl-local-cards { margin-bottom: var(--space-4); }
 .hl-local-cards .hl-pack-card p, .hl-local-cards .hl-pack-card small { color: var(--text-muted); }
+
+.hl-pack-tree-group .hl-pack-leaf:has(.hl-pack-tree-status) { flex-wrap: wrap; }
+.hl-pack-leaf .hl-pack-tree-status { flex-basis: 100%; font-family: var(--font-sans); overflow-wrap: anywhere; }
+.hl-pack-tree-status[data-problem=true] { color: var(--warning); }
+.hl-pack-state { overflow-wrap: anywhere; }
