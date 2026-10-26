@@ -1,3 +1,4 @@
+import { EvidenceValue } from "./EvidenceValue";
 import { createContext, useEffect, useState } from "react";
 import type { WorkflowGraph } from "../wire";
 
@@ -32,7 +33,7 @@ export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enab
       }).then(async response => {
         if (!response.ok) throw new Error(await response.text());
         return response.json() as Promise<{ nodes: Record<string, EnvironmentReport> }>;
-      }).then(data => { if (!controller.signal.aborted) setReports(data.nodes); })
+      }).then(data => { if (!controller.signal.aborted) setReports(data.nodes ?? {}); })
         .catch(reason => { if (!controller.signal.aborted) setError(String(reason)); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 400);
@@ -53,31 +54,37 @@ export function capabilityGraph(graph: WorkflowGraph) {
   })), edges: [] };
 }
 
-export function EnvironmentEvidence({ report }: { report?: EnvironmentReport | null }) {
+export function EnvironmentEvidence({ report, showBoundary = true }: { report?: EnvironmentReport | null; showBoundary?: boolean }) {
   return <div>
-    <div>{environmentLabel(report ?? undefined)}{report?.checked_at ? ` · 检查时间 ${new Date(report.checked_at * 1000).toLocaleString()}` : ""}</div>
-    {report?.issues?.map((issue, i) => <div key={i} style={{ marginTop: 4 }}>
-      {issue.item}：要求 {JSON.stringify(issue.required)}；当前 {JSON.stringify(issue.actual)}。{issue.remedy}
-    </div>)}
-    <p style={{ color: "var(--text-muted)" }}>{ENVIRONMENT_BOUNDARY}</p>
+    <div className="hl-capability-heading"><strong>{environmentLabel(report ?? undefined)}</strong>
+      {report?.checked_at ? <time>检查时间 {new Date(report.checked_at * 1000).toLocaleString()}</time> : null}</div>
+    {report?.status === "undeclared" && <p>此包没有声明环境要求，尚不能判断是否满足运行条件。</p>}
+    {report?.issues?.map((issue, i) => <section key={i} className="hl-capability-issue">
+      <strong>{issue.item}</strong><dl className="hl-evidence-rows">
+        <div><dt>要求</dt><dd><EvidenceValue value={issue.required} /></dd></div>
+        <div><dt>当前</dt><dd><EvidenceValue value={issue.actual} /></dd></div>
+        <div><dt>处理方式</dt><dd>{issue.remedy || "请检查计算节点后重新检查。"}</dd></div>
+      </dl>
+    </section>)}
+    {showBoundary && <p className="hl-evidence-muted">{ENVIRONMENT_BOUNDARY}</p>}
   </div>;
 }
 
 export function EnvironmentChecks({ checks }: { checks: ReturnType<typeof useCapabilityChecks> }) {
-  const missing = Object.values(checks.reports).filter(r => r.status === "missing" || r.status === "unknown").length;
-  const undeclared = Object.values(checks.reports).filter(r => r.status === "undeclared").length;
-  return <details style={{ position: "absolute", top: 42, left: 12, zIndex: 8,
-    maxWidth: "min(440px, 90%)", maxHeight: "55%", overflow: "auto", background: "var(--surface-2)",
-    padding: 8, border: "1px solid var(--border)", borderRadius: 6, fontSize: "var(--fs-xs)" }}>
-    <summary style={{ color: missing ? "var(--danger, #d54b4b)" : "var(--text-muted)" }}>
-      本地能力检查 · {checks.loading ? "检查中…" : checks.error ? "查询失败" : `${missing} 项缺失/无法确认 · ${undeclared} 项未声明`}
-    </summary>
-    <button disabled={checks.loading} onClick={checks.refresh}>重新检查</button>
-    {checks.error && <p role="alert">环境未校验：{checks.error}</p>}
+  const reports = Object.values(checks.reports);
+  const missing = reports.filter(r => r.status === "missing").length;
+  const unknown = reports.filter(r => r.status === "unknown").length;
+  const undeclared = reports.filter(r => r.status === "undeclared").length;
+  return <details className="hl-evidence-panel hl-capability-panel" data-attention={missing + unknown > 0}>
+    <summary>本地能力检查 · {checks.loading ? "检查中…" : checks.error ? "未能完成检查" : reports.length
+      ? `${missing} 项缺失 · ${unknown} 项无法确认 · ${undeclared} 项未声明` : "暂无检查结果"}</summary>
+    <div className="hl-evidence-actions"><button disabled={checks.loading} onClick={checks.refresh}>重新检查</button></div>
+    {checks.error && <p role="alert">环境未校验，请检查连接后重试。</p>}
     <p>{ENVIRONMENT_BOUNDARY}</p>
-    {Object.entries(checks.reports).map(([id, report]) => <details key={id} open={report.status === "missing" || report.status === "unknown"}>
-      <summary>{id} · {report.source} · 节点 {report.node_id ?? "未选择"} · {environmentLabel(report)}</summary>
-      <EnvironmentEvidence report={report} />
+    {Object.entries(checks.reports).map(([id, report]) => <details className="hl-evidence-section" key={id} open={report.status === "missing" || report.status === "unknown"}>
+      <summary>{id} · {environmentLabel(report)}</summary>
+      <p>{report.source ?? "来源未记录"} · 计算节点 {report.node_id ?? "未选择"}</p>
+      <EnvironmentEvidence report={report} showBoundary={false} />
     </details>)}
   </details>;
 }

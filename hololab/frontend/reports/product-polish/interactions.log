@@ -1,0 +1,18 @@
+
+Running 9 tests using 2 workers
+
+(node:4147859) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4147860) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › e2e/execution-preparation.spec.ts:5:1 › late gateway analysis cannot replace the current edit (1.2s)
+  ✓  3 [chromium] › e2e/execution-preparation.spec.ts:38:1 › Inspector parameter evidence: default (1.5s)
+  ✓  2 [chromium] › e2e/product-polish.spec.ts:7:1 › recipe bytes, import navigation, variable rename/binding and capability contract (3.1s)
+  ✓  5 [chromium] › e2e/product-polish.spec.ts:60:1 › destructive actions require confirmation and internal errors stay hidden (979ms)
+  ✓  4 [chromium] › e2e/execution-preparation.spec.ts:38:1 › Inspector parameter evidence: debug (1.5s)
+  ✓  6 [chromium] › e2e/product-polish.spec.ts:78:1 › identity raw evidence requires the debug switch (762ms)
+  ✓  7 [chromium] › e2e/execution-preparation.spec.ts:38:1 › Inspector parameter evidence: difference (1.5s)
+  ✓  8 [chromium] › e2e/snapshot-banner-theme.spec.ts:4:3 › snapshot banner follows light theme (925ms)
+  ✓  9 [chromium] › e2e/snapshot-banner-theme.spec.ts:4:3 › snapshot banner follows dark theme (770ms)
+
+  9 passed (7.9s)

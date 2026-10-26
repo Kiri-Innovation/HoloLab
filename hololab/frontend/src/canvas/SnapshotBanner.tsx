@@ -1,3 +1,4 @@
+import { EvidenceValue } from "./EvidenceValue";
 // Top-of-canvas strip that appears only while the user is viewing a
 // snapshot (past run) instead of the editable draft. Clear visual
 // affordance for "you are in read-only mode".
@@ -9,7 +10,7 @@
 
 import { useState } from "react";
 import type { SnapshotDetail } from "../wire";
-import { ApiError, restoreFromSnapshot } from "../api";
+import { restoreFromSnapshot } from "../api";
 import { stateColour } from "./AlgorithmNode";
 import { IdentityEvidence } from "./CodeIdentityPanel";
 import { PublishedAsNotes } from "./PublicationStatus";
@@ -37,8 +38,7 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
   const doRestore = async () => {
     if (
       !window.confirm(
-        "Overwrite the current draft with this run's graph and parameters?\n\n" +
-          "This does not delete the run itself.",
+        "用本次运行的图和参数覆盖当前草稿？\n\n历史运行记录会保留。",
       )
     ) {
       return;
@@ -47,9 +47,8 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
     try {
       await restoreFromSnapshot(snapshot.workflow_id, snapshot.snapshot_id);
       onRestored();
-    } catch (e) {
-      const msg = e instanceof ApiError ? `HTTP ${e.status}` : (e as Error).message;
-      setError(`restore failed: ${msg}`);
+    } catch {
+      setError("未能恢复草稿，请检查连接后重试。");
     } finally {
       setRestoring(false);
     }
@@ -65,8 +64,8 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
         right: 0,
         display: "flex",
         alignItems: "center",
-        gap: 10,
-        padding: "8px 14px",
+        gap: "var(--space-2)",
+        padding: "var(--space-2) var(--space-3)",
         // Preserve the light-theme strip; dark mode uses themed surface tokens.
         background: "var(--snapshot-banner-bg)",
         color: "var(--text-inverse)",
@@ -84,19 +83,19 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
           border: "1px solid var(--inverse-border)",
           background: "transparent",
           color: "var(--text-inverse)",
-          padding: "3px 10px",
+          padding: "0 var(--space-2)",
           borderRadius: "var(--radius-sm)",
           cursor: "pointer",
           fontSize: "var(--fs-xs)",
         }}
       >
-        ‹ back to draft
+        ‹ 返回草稿
       </button>
       <span
         style={{
           background: "var(--inverse-soft)",
           color: "var(--text-inverse)",
-          padding: "2px 8px",
+          padding: "var(--space-1) var(--space-2)",
           borderRadius: "var(--radius-sm)",
           fontSize: 10,
           fontWeight: 600,
@@ -104,10 +103,10 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
           textTransform: "uppercase",
         }}
       >
-        read-only
+        只读快照
       </span>
       <span style={{ opacity: 0.85 }}>
-        run from{" "}
+        运行于{" "}
         <strong style={{ fontVariantNumeric: "tabular-nums" }}>
           {formatTs(snapshot.created_ts)}
         </strong>
@@ -124,10 +123,10 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
       <details>
         <summary>{Object.values(snapshot.code_evidence ?? {}).some(e => e.code_identity)
           ? "声明范围身份" : "历史运行未记录代码身份"}</summary>
-        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, maxHeight: "60vh", overflow: "auto", padding: 16, background: "var(--surface-1)", color: "var(--text-body)", boxShadow: "var(--shadow-1)" }}>
+        <div className="hl-evidence-panel hl-snapshot-evidence">
           {snapshot.variable_evidence && <details><summary>冻结的变量值</summary>
             <p>当次本地值与解析值；后续修改变量不会改写此记录。</p>
-            <pre>{JSON.stringify(snapshot.variable_evidence, null, 2)}</pre>
+            <EvidenceValue value={snapshot.variable_evidence} />
           </details>}
           {Object.keys(snapshot.code_evidence ?? {}).length === 0
             ? <p>历史运行未记录代码身份；不会用当前代码回填。</p>
@@ -145,7 +144,7 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
         size="xs"
         onDark
       />
-      <span style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 6 }}>
+      <span style={{ display: "flex", gap: "var(--space-1)", alignItems: "center", marginLeft: "var(--space-1)" }}>
         {["done", "failed", "running", "pending", "assigned", "cancelled", "orphaned"]
           .filter((s) => (counts[s] ?? 0) > 0)
           .map((s) => (
@@ -167,18 +166,16 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
           ))}
       </span>
       <div style={{ flex: 1 }} />
-      {snapshot.preparation_error && <span role="alert">{snapshot.preparation_error}</span>}
+      {snapshot.preparation_error && <span role="alert">准备未完成，请返回草稿检查节点参数与本地能力。</span>}
       {error && <span style={{ color: "var(--error)" }}>{error}</span>}
       <button
         type="button"
         onClick={doRestore}
         disabled={restoring}
+        className="hl-evidence-primary"
         data-tooltip={restoring ? "正在恢复" : "恢复快照"} aria-label={restoring ? "正在恢复" : "恢复快照"} aria-description="Overwrite the current draft with this run's graph and parameters"
         style={{
-          border: "1px solid var(--accent)",
-          background: restoring ? "var(--inverse-soft)" : "var(--accent)",
-          color: "var(--accent-fg)",
-          padding: "3px 12px",
+          padding: "0 var(--space-3)",
           borderRadius: "var(--radius-sm)",
           cursor: restoring ? "wait" : "pointer",
           fontSize: "var(--fs-xs)",
@@ -187,7 +184,7 @@ export function SnapshotBanner({ snapshot, onBack, onRestored }: SnapshotBannerP
           height: "var(--control-h-lg)",
         }}
       >
-        {restoring ? "restoring…" : "clone → draft"}
+        {restoring ? "正在恢复…" : "恢复到草稿"}
       </button>
     </div>
   );

@@ -1,0 +1,54 @@
+
+Running 1 test using 1 worker
+
+(node:4146369) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › e2e/inspector-sidebar.spec.ts:5:1 › sidebar selection, autosave, assignment, deletion and theme screenshots (1.6s)
+
+
+  1) [chromium] › e2e/inspector-sidebar.spec.ts:5:1 › sidebar selection, autosave, assignment, deletion and theme screenshots
+
+    TypeError: Cannot convert undefined or null to object
+        at EnvironmentChecks (http://127.0.0.1:4174/src/canvas/EnvironmentChecks.tsx:115:26)
+        at renderWithHooks (http://127.0.0.1:4174/.vite-cache/deps/chunk-QGWO6HLA.js?v=5c442ba9:11548:26)
+        at updateFunctionComponent (http://127.0.0.1:4174/.vite-cache/deps/chunk-QGWO6HLA.js?v=5c442ba9:14582:28)
+        at beginWork (http://127.0.0.1:4174/.vite-cache/deps/chunk-QGWO6HLA.js?v=5c442ba9:15924:22)
+        at HTMLUnknownElement.callCallback2 (http://127.0.0.1:4174/.vite-cache/deps/chunk-QGWO6HLA.js?v=5c442ba9:3674:22)
+        at Object.invokeGuardedCallbackDev (http://127.0.0.1:4174/.vite-cache/deps/chunk-QGWO6HLA.js?v=5c442ba9:3699:24)
+        at invokeGuardedCallback (http://127.0.0.1:4174/.vite-cache/deps/chunk-QGWO6HLA.js?v=5c442ba9:3733:39)
+        at beginWork$1 (http://127.0.0.1:4174/.vite-cache/deps/chunk-QGWO6HLA.js?v=5c442ba9:19765:15)
+        at performUnitOfWork (http://127.0.0.1:4174/.vite-cache/deps/chunk-QGWO6HLA.js?v=5c442ba9:19198:20)
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: getByRole('tab', { name: 'Inspector', exact: true })
+    Expected: "true"
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" getByRole('tab', { name: 'Inspector', exact: true }) with timeout 5000ms
+      - waiting for getByRole('tab', { name: 'Inspector', exact: true })
+      - Protocol error (Runtime.callFunctionOn): Internal server error, session closed.
+
+
+      39 |    await expect.poll(()=>page.evaluate(()=>(window as any).__copiedJob)).toContain('demo-job');
+      40 |    await jobsPanel.locator('.hl-job-row > :nth-child(2)').click();
+    > 41 |    await expect(page.getByRole('tab',{name:'Inspector',exact:true})).toHaveAttribute('aria-selected','true');
+         |                                                                      ^
+      42 |    await page.getByRole('tab',{name:'Jobs',exact:true}).click();
+      43 |  }
+      44 |  const node=page.locator('[data-hololab-node="algorithm"]'); await expect(node).toBeVisible();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/tmp/product-polish-baseline/e2e/inspector-sidebar.spec.ts:41:70
+
+    Error Context: ../../reports/product-polish/baseline-sidebar-results/inspector-sidebar-sidebar--739df-etion-and-theme-screenshots-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../reports/product-polish/baseline-sidebar-results/inspector-sidebar-sidebar--739df-etion-and-theme-screenshots-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../reports/product-polish/baseline-sidebar-results/inspector-sidebar-sidebar--739df-etion-and-theme-screenshots-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/inspector-sidebar.spec.ts:5:1 › sidebar selection, autosave, assignment, deletion and theme screenshots

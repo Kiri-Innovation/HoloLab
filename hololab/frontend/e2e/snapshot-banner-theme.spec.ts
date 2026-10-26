@@ -16,7 +16,7 @@ for (const theme of ['light', 'dark']) {
       expect(colours.border).toBe('rgb(60, 60, 60)');
     }
     await expect(page.getByRole('button',{name:'返回草稿',exact:true})).toHaveCSS('color',colours.foreground);
-    await expect(page.getByRole('button',{name:'恢复快照',exact:true})).toHaveCSS('background-color',theme==='dark'?'rgb(0, 120, 212)':'rgb(0, 120, 212)');
+    await expect(page.getByRole('button',{name:'恢复快照',exact:true})).toHaveCSS('background-color',theme==='dark'?'rgb(0, 0, 0)':'rgb(23, 23, 23)');
     await page.screenshot({path:testInfo.outputPath(`snapshot-${theme}.png`)});
     await page.getByRole('button',{name:'返回草稿',exact:true}).click();
     await expect(page.locator('body')).toHaveAttribute('data-back','true');

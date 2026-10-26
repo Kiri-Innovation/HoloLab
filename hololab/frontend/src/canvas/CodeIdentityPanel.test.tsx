@@ -25,3 +25,15 @@ it("separates verified hot content from cold baseline and exposes frozen evidenc
     "native-extension", "/outside", "iterations", "12"]) expect(html).toContain(expected);
   expect(html).not.toContain("代码已固定");
 });
+
+it("renders frozen values structurally and keeps raw records out of normal UI", () => {
+  const html = renderToStaticMarkup(<IdentityEvidence identity={{
+    sha256: "a".repeat(64), uncovered: [{path: "/native/renderer.so", declared: false}],
+    effective_params: {iterations: 24, flags: [true, false]},
+  }} />);
+  expect(html).toContain("<dl");
+  expect(html).toContain("展开完整值");
+  expect(html).toContain("/native/renderer.so");
+  expect(html).not.toContain("<pre");
+  expect(html).not.toContain("完整冻结记录");
+});

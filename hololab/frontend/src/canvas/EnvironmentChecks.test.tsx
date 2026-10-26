@@ -24,3 +24,14 @@ describe("local capability evidence", () => {
     expect(html).toContain("环境未冻结");
   });
 });
+
+it("does not expose transport failures or collapse unknown into missing", () => {
+  const html = renderToStaticMarkup(<EnvironmentChecks checks={{
+    reports: { remote: {status: "unknown", issues: []} }, loading: false,
+    error: "Traceback: /private/worker.py secret", refresh: () => {},
+  }} />);
+  expect(html).toContain("请检查连接后重试");
+  expect(html).toContain("环境无法确认");
+  expect(html).not.toContain("Traceback");
+  expect(html).not.toContain("/private");
+});

@@ -1145,6 +1145,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const catalogByKey = useMemo(() => {
     return packageCatalogIndex(catalog);
   }, [catalog]);
+  // A workflow read can finish after the catalog request. Hydrate with the
+  // current inventory, including imports opened before packs have arrived.
+  const latestCatalogByKey = useRef(catalogByKey);
+  latestCatalogByKey.current = catalogByKey;
 
   // ``pendingRemeasureRef`` is declared up here (before every useEffect
   // that seeds it) so its scope covers both the catalog-refresh effect
@@ -2017,7 +2021,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               data: { kind: "view", title: gn.title ?? "视图" },
             } as Node<any>;
           }
-          const found = catalogByKey.get(`${gn.algorithm_name}@${gn.algorithm_version}`);
+          const found = latestCatalogByKey.current.get(`${gn.algorithm_name}@${gn.algorithm_version}`);
           const pack: CatalogPack = found ?? {
             name: gn.algorithm_name, version: gn.algorithm_version,
             manifest_hash: "", node_ids: [], description: "包未发现（未安装/未发现）",
@@ -2696,14 +2700,19 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const canvasContentSlot = (
     <>
-      {workflowFileError && <div role="alert">配方文件无法打开：{workflowFileError}</div>}
-      {!viewingSnapshot && <RecipeProblems graph={analysisGraph} />}
+      {workflowFileError && <div role="alert">配方文件无法打开，请检查文件与连接后重试。</div>}
+      {!viewingSnapshot && <div className="hl-workflow-checks"><RecipeProblems graph={analysisGraph} onLocate={id => {
+        setNodes(current => current.map(node => ({...node, selected: node.id === id})));
+        setRightTab("inspector");
+        const node = rfInstance?.getNode(id);
+        if (node) void rfInstance?.setCenter(node.position.x + (node.measured?.width ?? 220) / 2,
+          node.position.y + (node.measured?.height ?? 100) / 2, {zoom: Math.min(1, Math.max(0.75, rfInstance?.getZoom() ?? 1)), duration: 300});
+      }} /><EnvironmentChecks checks={capabilityChecks} /></div>}
       {!viewingSnapshot && executionAnalysis.message && <div role="status" data-analysis-state={executionAnalysis.status}
         style={{position:"absolute",top:8,left:"50%",transform:"translateX(-50%)",zIndex:5,
           fontSize:"var(--fs-xs)",color:"var(--text-muted)",background:"var(--surface-2)",padding:"4px 8px",borderRadius:"var(--radius-sm)",pointerEvents:"none"}}>
         {executionAnalysis.message}
       </div>}
-      {!viewingSnapshot && <EnvironmentChecks checks={capabilityChecks} />}
       <CapabilityContext.Provider value={viewingSnapshot ? {} : capabilityChecks.reports}><AnalysisProfiler><CanvasContext.Provider value={resolvedCanvasContext}>
         {viewingSnapshot ? (
           <>
@@ -2971,7 +2980,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           runs={runsSlot}
           jobs={jobsSlot}
           inspect={<div className="hl-mobile-inspector">{!viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues}
-            onChange={(declarations, values) => { setVariables(declarations); setVariableValues(values); }} />}{inspectorSlot}</div>}
+            onChange={(declarations, values, rename) => {
+              setVariables(declarations); setVariableValues(values);
+              if (rename) setNodes(current => current.map(node => {
+                const data = node.data as AlgorithmNodeData;
+                if (!data.param_bindings) return node;
+                return {...node, data: {...data, param_bindings: Object.fromEntries(
+                  Object.entries(data.param_bindings).map(([parameter, variable]) => [parameter, variable === rename.from ? rename.to : variable])
+                )}};
+              }));
+            }} />}{inspectorSlot}</div>}
           selectionId={mobileSelectionId}
           latestSnapshotId={latestSnapshotId}
         />
@@ -3063,7 +3081,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-inspector"
           aria-labelledby="hl-dock-tab-inspector" hidden={rightTab !== "inspector"}>
           <div className="hl-sidebar-content">{!viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues}
-            onChange={(declarations, values) => { setVariables(declarations); setVariableValues(values); }} />}{inspectorSlot}</div>
+            onChange={(declarations, values, rename) => {
+              setVariables(declarations); setVariableValues(values);
+              if (rename) setNodes(current => current.map(node => {
+                const data = node.data as AlgorithmNodeData;
+                if (!data.param_bindings) return node;
+                return {...node, data: {...data, param_bindings: Object.fromEntries(
+                  Object.entries(data.param_bindings).map(([parameter, variable]) => [parameter, variable === rename.from ? rename.to : variable])
+                )}};
+              }));
+            }} />}{inspectorSlot}</div>
         </div>
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-runs"
           aria-labelledby="hl-dock-tab-runs" hidden={rightTab !== "runs"}>

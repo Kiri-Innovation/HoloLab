@@ -1,3 +1,4 @@
+import "./workflowEvidence.css";
 import { canonicalPackageName } from "../packageIdentity";
 import { parameterDifferenceText } from "./parameterDifferences";
 import type { VariableDeclarations } from "../wire";
@@ -94,7 +95,9 @@ export function PackParameterField(props: Parameters<typeof InlinePackParameterF
         {binding && !choices.includes(binding) && <option value={binding}>→ {binding}（缺失或类型不匹配）</option>}
         {choices.map(variable => <option key={variable} value={variable}>→ {variable}</option>)}
       </select>
-      <details><summary>解析值</summary>{text}</details>
+      {!choices.includes(binding ?? "") && <p role="status">{binding ? "声明缺失或类型不匹配；请重新选择。" : "尚未选择变量。"}</p>}
+      {!choices.length && <p>请在工作流变量中添加 {type === "int" ? "整数" : "路径"} 变量。</p>}
+      <details><summary>解析值{effectiveValue === undefined ? " · 尚未解析" : ""}</summary>{text}</details>
     </div> : <InlinePackParameterField {...props} />}
   </div>;
 }

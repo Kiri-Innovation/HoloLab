@@ -18,12 +18,13 @@ try {
  await page.waitForURL('**/w/**');
  const wid=new URL(page.url()).pathname.split('/').at(-1);
  await expect(page.locator('.react-flow__node')).toHaveCount(2);
- await expect(page.getByText('包未发现 (未安装/未发现)',{exact:false}).first()).toBeVisible();
+ await expect(page.getByText('包未发现，请确认已安装并连接计算节点。',{exact:false}).first()).toBeVisible();
  await page.reload(); // Cold open must also work with an empty external catalog.
  await expect(page.locator('.react-flow__node')).toHaveCount(2);
  await expect(page.getByPlaceholder('workflow name')).toHaveValue('Recipe browser test');
  await page.getByPlaceholder('workflow name').fill('Saved from UI');
  const save=page.waitForResponse(r=>r.url().endsWith('/api/workflows')&&r.request().method()==='POST');
+ await page.locator('.hl-recipe-menu').evaluate(el=>el.open=true);
  await page.getByRole('button',{name:'保存配方文件',exact:true}).click();
  assert.equal((await save).status(),200);
  const path=`${root}/workflows/${wid}/recipe.json`;
@@ -35,11 +36,14 @@ try {
  await writeFile(path,JSON.stringify(disk));
  await page.getByPlaceholder('workflow name').fill('Concurrent UI edit');
  const conflict=page.waitForResponse(r=>r.url().endsWith('/api/workflows')&&r.request().method()==='POST');
+ await page.locator('.hl-recipe-menu').evaluate(el=>el.open=true);
  await page.getByRole('button',{name:'保存配方文件',exact:true}).click();
  assert.equal((await conflict).status(),409);
  await expect(page.getByRole('dialog')).toBeVisible();
  await expect(page.getByRole('dialog')).toContainText('parameter_differences');
  await page.getByRole('button',{name:'暂不刷新'}).click();
+ await page.locator('.hl-recipe-menu').evaluate(el=>el.open=true);
+ page.once('dialog', dialog => dialog.accept());
  await page.getByRole('button',{name:'从文件重载'}).click();
  await expect(page.getByPlaceholder('workflow name')).toHaveValue('External edit');
  const detail=await (await page.request.get(`${origin}/api/workflows/${wid}`)).json();

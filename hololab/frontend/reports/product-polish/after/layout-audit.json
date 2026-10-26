@@ -1,0 +1,134 @@
+[
+  {
+    "theme": "light",
+    "width": 1280,
+    "pageWidth": 1280,
+    "viewport": 1280,
+    "panels": [
+      {
+        "name": "recipe",
+        "width": 1152,
+        "contentWidth": 1152
+      },
+      {
+        "name": "snapshot",
+        "width": 1152,
+        "contentWidth": 1152
+      },
+      {
+        "name": "variables",
+        "width": 564,
+        "contentWidth": 564
+      },
+      {
+        "name": "environment",
+        "width": 564,
+        "contentWidth": 564
+      },
+      {
+        "name": "identity",
+        "width": 1152,
+        "contentWidth": 1152
+      }
+    ]
+  },
+  {
+    "theme": "light",
+    "width": 390,
+    "pageWidth": 390,
+    "viewport": 390,
+    "panels": [
+      {
+        "name": "recipe",
+        "width": 342,
+        "contentWidth": 342
+      },
+      {
+        "name": "snapshot",
+        "width": 342,
+        "contentWidth": 342
+      },
+      {
+        "name": "variables",
+        "width": 342,
+        "contentWidth": 342
+      },
+      {
+        "name": "environment",
+        "width": 342,
+        "contentWidth": 342
+      },
+      {
+        "name": "identity",
+        "width": 342,
+        "contentWidth": 342
+      }
+    ]
+  },
+  {
+    "theme": "dark",
+    "width": 1280,
+    "pageWidth": 1280,
+    "viewport": 1280,
+    "panels": [
+      {
+        "name": "recipe",
+        "width": 1152,
+        "contentWidth": 1152
+      },
+      {
+        "name": "snapshot",
+        "width": 1152,
+        "contentWidth": 1152
+      },
+      {
+        "name": "variables",
+        "width": 564,
+        "contentWidth": 564
+      },
+      {
+        "name": "environment",
+        "width": 564,
+        "contentWidth": 564
+      },
+      {
+        "name": "identity",
+        "width": 1152,
+        "contentWidth": 1152
+      }
+    ]
+  },
+  {
+    "theme": "dark",
+    "width": 390,
+    "pageWidth": 390,
+    "viewport": 390,
+    "panels": [
+      {
+        "name": "recipe",
+        "width": 342,
+        "contentWidth": 342
+      },
+      {
+        "name": "snapshot",
+        "width": 342,
+        "contentWidth": 342
+      },
+      {
+        "name": "variables",
+        "width": 342,
+        "contentWidth": 342
+      },
+      {
+        "name": "environment",
+        "width": 342,
+        "contentWidth": 342
+      },
+      {
+        "name": "identity",
+        "width": 342,
+        "contentWidth": 342
+      }
+    ]
+  }
+]
