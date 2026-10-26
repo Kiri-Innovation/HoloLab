@@ -6,7 +6,7 @@ description: >
   Permute explicit collection axes, retaining either file or directory leaves
   as symlinks. Images are individual files, never implicit content dimensions.
 source_entry: regroup.py
-category: "utility/arrayed"
+category: "basic/array/regroup"
 
 docs: |
   Every input_dims entry describes a directory-container level. The final

@@ -4,7 +4,7 @@ name: flatten-array
 version: 0.1.0
 description: "Flatten any two-dimensional arrayed<T> into a one-dimensional arrayed<T>."
 source_entry: flatten_array.py
-category: "utility/arrayed"
+category: "basic/array/flatten-array"
 
 docs: |
   Generic fixed-rank array operation: `<outer>/<inner>` becomes the root-level

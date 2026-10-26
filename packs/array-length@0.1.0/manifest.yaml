@@ -6,7 +6,7 @@ description: >
   Count the elements of an ``arrayed<T>`` handle. Produces an ``int``
   scalar handle (a plain-text file with the count) that feeds into
   ``arrayfy.count`` for broadcasting a scalar T to a matching arrayed<T>.
-category: "utility/arrayed"
+category: "basic/array/array-length"
 
 docs: |
   Generic utility. Wire any arrayed<T> handle to ``arr``; the output ``n``

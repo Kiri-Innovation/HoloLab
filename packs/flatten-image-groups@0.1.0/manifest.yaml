@@ -4,7 +4,7 @@ name: flatten-image-groups
 version: 0.1.0
 description: "Flatten arrayed[group,cam]<image> into a physical one-dimensional image array."
 source_entry: flatten_image_groups.py
-category: "utility/arrayed"
+category: "basic/array/flatten-image-groups"
 
 docs: |
   Converts `<group>/<image>` into one root-level image element named

@@ -5,7 +5,7 @@ version: 0.1.0
 description: >
   Pick one element of an ``arrayed<T>`` handle by 0-based index (sorted
   subdir order). Produces the plain T handle.
-category: "utility/arrayed"
+category: "basic/array/get-index"
 
 docs: |
   Element access utility. ``idx`` is a param (static "pick this one" —

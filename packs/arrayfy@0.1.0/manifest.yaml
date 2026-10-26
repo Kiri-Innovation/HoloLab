@@ -6,7 +6,7 @@ description: >
   Broadcast a scalar T to ``arrayed<T>`` by replicating it N times via
   symlinks (zero-copy). Pairs with ``array-length`` to match the count of
   another array.
-category: "utility/arrayed"
+category: "basic/array/arrayfy"
 
 docs: |
   Utility for the explicit-broadcast pattern: no implicit scalar → array

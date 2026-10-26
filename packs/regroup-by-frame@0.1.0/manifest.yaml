@@ -10,7 +10,7 @@ description: >
   (frame x camera) at the file level, echoing source filename stems as
   element ids.
 source_entry: regroup.py
-category: "utility/arrayed"
+category: "basic/array/regroup-by-frame"
 
 docs: |
   Input layout (arrayed<frame_sequence>, one element per camera):

@@ -6,7 +6,7 @@ description: >
   **DEPRECATED** — kept for snapshot replay. Transposes
   ``arrayed<frame_sequence>`` from (camera x frame) to (frame x camera).
 source_entry: regroup.py
-category: "utility/arrayed"
+category: "basic/array/regroup-by-frame"
 
 docs: |
   Whole-array transpose. Input camera elements follow the framework fan-out

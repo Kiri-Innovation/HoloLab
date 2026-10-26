@@ -6,7 +6,7 @@ description: >
   Take a contiguous slice of an ``arrayed<T>`` handle along its outermost
   dim. Produces a same-shape ``arrayed<T>`` with fewer elements.
 source_entry: slice.py
-category: "utility/arrayed"
+category: "basic/array/slice"
 
 docs: |
   Interval selection on the outer arrayed dim — the ``arrayed<T>`` in,
