@@ -2,6 +2,7 @@ import { CommunityPacks } from './CommunityPacks';
 import { useEffect, useMemo, useState } from 'react';
 import type { CatalogPack, ComputeNode, WorkflowGraph } from '../wire';
 import type { WorkflowSummary } from '../api';
+import { CONTROL_STYLE } from '../ui/controlStyles';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { EnvironmentEvidence, useCapabilityChecks } from '../canvas/EnvironmentChecks';
 import { EvidenceValue } from '../canvas/EvidenceValue';
@@ -103,8 +104,14 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
   }
 
   return <div className="hl-app-shell hl-pack-manager">
-    <header className="hl-topbar hl-pack-topbar"><strong>HoloLab</strong><span>· Pack Manager</span>
-      <button onClick={onBack}>← Workflows</button><button onClick={onOpenLibrary}>Library</button><ThemeToggle /></header>
+    <header className="hl-topbar hl-pack-topbar">
+      <button type="button" onClick={onBack}
+        data-tooltip="返回流程列表" aria-label="返回流程列表" aria-description="back to workflows"
+        style={{...CONTROL_STYLE, fontWeight: 600, color: 'var(--text)', gap: 6, letterSpacing: '-0.01em'}}>
+        <span aria-hidden="true" style={{color: 'var(--text-subtle)', fontSize: 'var(--fs-md)'}}>←</span>
+        HoloLab
+      </button><span>· Pack Manager</span>
+      <button type="button" style={CONTROL_STYLE} onClick={onOpenLibrary}>Library</button><ThemeToggle /></header>
     <main className="hl-pack-page">
       <div className="hl-pack-heading"><div><h1>包管理</h1><p>统一查看包的安装、环境和使用情况。画布只负责编辑与运行。</p></div>
         <button disabled={loading} onClick={() => setRevision(n => n + 1)}>{loading ? '正在读取…' : '刷新全部状态'}</button></div>

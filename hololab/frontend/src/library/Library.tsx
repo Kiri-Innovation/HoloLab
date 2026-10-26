@@ -3,6 +3,7 @@ import GalleryFolderMenu from './GalleryFolderMenu';
 import ResourceActions from './ResourceActions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getComputeNodes } from '../api';
+import { CONTROL_STYLE } from '../ui/controlStyles';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { t } from './labels';
 import { api, json, hashFile, sendMissing, type Device, type Folder, type Resource, type Session } from './api';
@@ -229,7 +230,14 @@ export default function Library({ onBack, onOpenPacks }: { onBack: () => void; o
   const visibleResources = resources.filter(r => r.folder_id === folder && r.status !== 'cancelled');
   const pending = sessions.filter(s => ['uploading', 'completing'].includes(s.state) && !tasks.some(task => task.session?.upload_id === s.upload_id));
   const knownNodes = [...nodes, ...resources.flatMap(r => r.placements).filter((p, i, all) => !nodes.some(n => n.node_id === p.node_id) && all.findIndex(x => x.node_id === p.node_id) === i).map(p => ({ node_id: p.node_id, node_name: p.node_name, online: false }))];
-  return <div className="hl-app-shell library-shell"><header className="hl-topbar library-topbar"><strong><img src="/hololab-icon.svg" width="20" height="20" alt="" aria-hidden="true" style={{ verticalAlign: "middle", marginRight: 6, flexShrink: 0 }} />HoloLab</strong><span>· Library</span><button onClick={onBack}>← Workflows</button>{onOpenPacks && <button onClick={onOpenPacks}>Pack Manager</button>}<ThemeToggle /></header><main id="main" className="library-page">
+  return <div className="hl-app-shell library-shell"><header className="hl-topbar library-topbar">
+      <button type="button" onClick={onBack}
+        data-tooltip="返回流程列表" aria-label="返回流程列表" aria-description="back to workflows"
+        style={{...CONTROL_STYLE, fontWeight: 600, color: 'var(--text)', gap: 6, letterSpacing: '-0.01em'}}>
+        <span aria-hidden="true" style={{color: 'var(--text-subtle)', fontSize: 'var(--fs-md)'}}>←</span>
+        HoloLab
+      </button><span>· Library</span>
+      {onOpenPacks && <button type="button" style={CONTROL_STYLE} onClick={onOpenPacks}>Pack Manager</button>}<ThemeToggle /></header><main id="main" className="library-page">
     <div className="library-heading"><div><span className="library-eyebrow">YOUR ASSETS</span><h1>{t('library')}</h1></div><button className="button" disabled={!loaded} onClick={() => picker.current?.click()}>↑ {t('libBrowse')}</button><input className="library-file-picker" ref={picker} type="file" multiple hidden onChange={e => { receive(Array.from(e.target.files ?? [])); e.target.value = ''; }} /></div>
     <div className="library-toolbar"><nav className="library-breadcrumbs" aria-label="Folder path"><button aria-current={folder === 'root' ? 'page' : undefined} onClick={() => openFolder('root')}>Library</button>{breadcrumbs.map(item => <span key={item.folder_id}><span aria-hidden="true">/</span><button aria-current={folder === item.folder_id ? 'page' : undefined} onClick={() => openFolder(item.folder_id)}>{item.name}</button></span>)}</nav><button className="button" onClick={() => void refresh()}>{t('libRefresh')}</button><form onSubmit={e => { e.preventDefault(); void createFolder(); }}><input aria-label={t('libNewFolder')} value={folderName} onChange={e => setFolderName(e.target.value)} placeholder={t('libNewFolder')} /><button className="button" disabled={!folderName.trim() || creating || !loaded}>{t('libCreate')}</button></form></div>
     {error && <p className="library-error" role="alert">{error}</p>}
