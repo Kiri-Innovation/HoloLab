@@ -22,12 +22,18 @@ export function buildPackEntries(catalog: CatalogPack[], inventory: InventoryPac
     }
     return entries.get(key)!;
   };
-  for (const pack of inventory) entry(pack.name, pack.version).inventory.push(pack);
+  // The local tree is an inventory of what the currently connected nodes
+  // actually scan.  Historical receipts are annotation only: never let an
+  // offline node resurrect a deleted package/version in the tree.
   for (const pack of catalog) entry(pack.name, pack.version).catalog = pack;
-  for (const release of releases) entry(release.name, release.version).release = release;
+  for (const pack of inventory) entries.get(packageKey(pack.name, pack.version))?.inventory.push(pack);
+  for (const release of releases) {
+    const existing = entries.get(packageKey(release.name, release.version));
+    if (existing) existing.release = release;
+  }
   for (const workflow of workflows) for (const node of workflow.graph.nodes) {
     if ((node.kind ?? 'algorithm') !== 'algorithm') continue;
-    entry(node.algorithm_name, node.algorithm_version).usages.push({workflow, node,
+    entries.get(packageKey(node.algorithm_name, node.algorithm_version))?.usages.push({workflow, node,
       issues: (workflow.check?.issues ?? []).filter(issue => issue.node_id === node.id && issue.code !== 'environment')});
   }
   return [...entries.values()].sort((a, b) => a.key.localeCompare(b.key));
@@ -37,8 +43,6 @@ export function installedOn(entry: PackEntry, nodeId: string) {
 }
 export function packProblemReasons(entry: PackEntry, report?: EnvironmentReport, registryStatus?: string): string[] {
   const reasons: string[] = [];
-  if (!entry.catalog && !entry.inventory.some(p => p.online) && entry.usages.length > 0)
-    reasons.push(`${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流引用但包未安装`);
   if ((registryStatus !== 'published' && entry.release?.yanked === true) || registryStatus === 'yanked')
     reasons.push('版本已 yank，不能新安装');
   if (registryStatus === 'hash_mismatch') reasons.push('代码哈希不匹配');

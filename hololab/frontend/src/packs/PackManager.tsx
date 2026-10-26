@@ -135,6 +135,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const report = checks.reports[entry.key];
     const requires = entry.catalog ? entry.catalog.requires : entry.release?.requires;
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
+    const historicalNodes = entry.inventory.filter(item => !entry.catalog?.node_ids.includes(item.node_id));
     const canInstall = !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
     return <article className="hl-local-package-page" data-local-page="package" key={entry.key} data-pack-key={entry.key}>
       <nav className="hl-local-breadcrumb" aria-label="包路径"><button onClick={()=>navigateLocal('category','',entry.catalog?.category?.join('/') || 'misc')}>{entry.catalog?.category?.join(' / ') || 'misc'}</button><span aria-hidden="true">/</span><span>{displayName(entry.name)}</span></nav>
@@ -146,7 +147,9 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         <div className="hl-pack-code-identity"><dt>代码身份</dt><dd><EvidenceValue value={current?.data?.code_sha256 ?? entry.catalog?.publication?.code_sha256 ?? '尚未校验；查询当前发布状态可读取本地代码身份'} /></dd></div>
         <div><dt>来源</dt><dd>{hasRegistry ? '注册表' : entry.catalog ? '本地' : '来源未确认'}{(source || entry.catalog?.source_dir || entry.catalog?.manifest_path) && <EvidenceValue value={source || entry.catalog?.source_dir || entry.catalog?.manifest_path} />}</dd></div>
         <div><dt>安装状态</dt><dd>{!nodeId ? '请先选择检查目标' : installed ? '当前节点已发现' : entry.inventory.some(item => item.node_id === nodeId) ? '仅有历史安装记录，当前未确认' : '当前节点未发现'}
-          <small>{entry.catalog?.node_ids.length ? `在线提供：${entry.catalog.node_ids.map(id => nodes.find(n => n.node_id === id)?.node_name || id).join('、')}` : entry.inventory.length ? '有历史记录；离线不等于已卸载' : '尚无本地安装记录'}</small></dd></div>
+          <small>{entry.catalog?.node_ids.length ? `在线提供：${entry.catalog.node_ids.map(id => nodes.find(n => n.node_id === id)?.node_name || id).join('、')}` : '当前没有在线节点提供'}
+            {historicalNodes.length > 0 && `；也曾装于 ${historicalNodes.map(item => item.node_name || item.node_id).join('、')}（${historicalNodes.some(item => !item.online) ? '离线' : '历史记录'}）`}
+          </small></dd></div>
         <div><dt>Yank 状态</dt><dd>{current?.data?.registry_status === 'yanked' ? '已 yank · 禁止新安装' : current?.data?.registry_status === 'published' ? '未 yank · 已发布' : entry.release ? entry.release.yanked ? '已 yank · 禁止新安装' : '未 yank（加载注册表时）' : '未查询，不能从安装记录推断当前状态'}
           <button disabled={!nodeId || current?.busy} onClick={() => void queryStatus(entry)}>{current?.busy ? '查询中…' : '查询当前发布状态'}</button>
           {current?.failed && <small role="status">查询失败：检查节点连接及注册表支持后重试。</small>}
