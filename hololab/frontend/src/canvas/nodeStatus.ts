@@ -8,6 +8,8 @@ export interface NodeStatusPresentation {
   action: string;
 }
 export interface NodeStatusInput {
+  /** A workflow algorithm reference absent from the current local catalog. */
+  missingAlgorithm?: { name: string; version: string } | null;
   missingInputs?: string[];
   state?: string;
   stale?: NodeStaleness | null;
@@ -18,13 +20,20 @@ export interface NodeStatusInput {
 }
 
 /** Presentation only: never mutate runtime, scheduling, or shared job colours. */
-export function nodeStatus({ state, stale, drift = false, failReason, readOnly = false, missingInputs = [] }: NodeStatusInput): NodeStatusPresentation {
+export function nodeStatus({ state, stale, drift = false, failReason, readOnly = false, missingAlgorithm, missingInputs = [] }: NodeStatusInput): NodeStatusPresentation {
   const known = !state || ["pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted"].includes(state);
+  const missingCurrentAlgorithm = !readOnly && !!missingAlgorithm;
   const oldParams = !readOnly && (drift || stale?.kind === "inflight_old_params");
   const staleReason = stale?.changeReasons?.join("\n") ?? stale?.title;
   const changed = !readOnly && !!staleReason;
   let result: NodeStatusPresentation;
-  if (!known) {
+  // A missing local algorithm is more fundamental than any recorded or
+  // in-flight runtime state: the current draft cannot run this node. Snapshot
+  // views intentionally retain their historical runtime interpretation.
+  if (missingCurrentAlgorithm) {
+    const reference = `${missingAlgorithm.name}@${missingAlgorithm.version}`;
+    result = { tone: "error", conclusion: "算法未安装", reason: `本机没有 ${reference}；这个节点无法运行。`, action: "请到 Pack Manager 的社区页安装此版本，或改选本机已有的版本。" };
+  } else if (!known) {
     result = { tone: "neutral", conclusion: "状态暂不可识别", reason: `收到状态：${state}`, action: "请查看任务详情，暂不判断结果是否有效。" };
   } else if (state === "failed") {
     result = { tone: "error", conclusion: "运行失败", reason: failureReason(failReason), action: "查看日志，处理原因后重试。" };
@@ -52,13 +61,15 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
   }
   if (!readOnly && missingInputs.length) {
     const reason = `缺少必填输入：${missingInputs.join("、")}`;
-    if (!state || ["done", "cancelled"].includes(state)) {
+    if (missingCurrentAlgorithm) {
+      result.reason += `\n${reason}`;
+    } else if (!state || ["done", "cancelled"].includes(state)) {
       result = {tone: "neutral", conclusion: "当前不可运行", reason, action: "连接必填输入后再运行；已有产物属于历史运行。"};
     } else result.reason += `\n${reason}；按当前配置重新运行会被拒绝。`;
   }
   // Append configuration evidence, not a second (possibly conflicting) runtime verdict.
-  if (!readOnly && known && staleReason && !result.reason.includes(staleReason)) result.reason += `\n${staleReason}`;
-  if (!readOnly && known && oldParams && (result.tone === "error" || state === "cancelled") && !staleReason) result.reason += "\n已提交任务与当前草稿不同。";
+  if (!missingCurrentAlgorithm && !readOnly && known && staleReason && !result.reason.includes(staleReason)) result.reason += `\n${staleReason}`;
+  if (!missingCurrentAlgorithm && !readOnly && known && oldParams && (result.tone === "error" || state === "cancelled") && !staleReason) result.reason += "\n已提交任务与当前草稿不同。";
   if (readOnly) {
     result.conclusion = state === "done" ? "此快照中的运行已完成" : `此快照：${result.conclusion}`;
     if (state === "done") result.reason = "这是快照记录的完成状态，不代表当前草稿结果有效。";

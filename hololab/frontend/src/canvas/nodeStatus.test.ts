@@ -33,6 +33,20 @@ it("preserves failure evidence and distinguishes the three red states", () => {
   expect(new Set(["failed", "orphaned", "interrupted"].map(state => nodeStatus({ state }).conclusion)).size).toBe(3);
   expect(nodeStatus({ state: "orphaned" }).action).toContain("避免重复提交");
 });
+it.each([undefined, "done", "running", "failed", "orphaned"])('makes a missing algorithm the current-draft status over %s', state => {
+  const result = nodeStatus({state, stale: {kind: "self_dirty", title: "参数已改"}, missingInputs: ["images"], missingAlgorithm: {name: "kiri/colmap-sfm", version: "9.9.9"}});
+  expect(result).toMatchObject({tone: "error", conclusion: "算法未安装"});
+  expect(result.reason).toContain("kiri/colmap-sfm@9.9.9");
+  expect(result.reason).toContain("无法运行");
+  expect(result.reason).toContain("缺少必填输入：images");
+  expect(result.reason).not.toContain("参数已改");
+  expect(result.action).toContain("Pack Manager");
+});
+it("keeps snapshot status historical when its algorithm is no longer local", () => {
+  const result = nodeStatus({state: "done", readOnly: true, missingAlgorithm: {name: "kiri/colmap-sfm", version: "9.9.9"}});
+  expect(result.tone).toBe("success");
+  expect(result.conclusion).toBe("此快照中的运行已完成");
+});
 it("describes historical completion without claiming freshness", () => {
   const result=nodeStatus({ state:"done", stale:{kind:"self_dirty",title:"参数已改"},drift:true,readOnly:true });
   expect(result.tone).toBe("success");expect(result.conclusion).toBe("此快照中的运行已完成");
