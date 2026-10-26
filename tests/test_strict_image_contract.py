@@ -33,10 +33,9 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKS = ROOT / "packs"
 MAIN = (
     [f"image-undistort@{v}" for v in ["0.5.0", "0.5.1", "0.5.2"]]
-    + [f"colmap-triangulate@{v}" for v in ["0.7.2", "0.7.3", "0.7.4"]]
+    + ["colmap-triangulate@0.7.5"]
     + [
-        "colmap-sfm@0.3.0",
-        "colmap-sfm@0.4.0",
+        "colmap-sfm@0.4.2",
         "merge-colmap@0.4.0",
         "frame-extraction@0.1.0",
         "regroup-by-frame@0.1.0",
@@ -266,8 +265,8 @@ assert staged[0].read_bytes()==source.read_bytes()
 def test_current_main_chain_edges_and_broadcast_contract():
     names = [
         "image-undistort@0.5.2",
-        "colmap-triangulate@0.7.4",
-        "colmap-sfm@0.4.0",
+        "colmap-triangulate@0.7.5",
+        "colmap-sfm@0.4.2",
         "merge-colmap@0.4.0",
         "regroup-by-frame@0.1.1",
     ]
@@ -287,11 +286,14 @@ def test_current_main_chain_edges_and_broadcast_contract():
         ("stg", "stg-train@0.3.0", False),
     ]:
         alg, ver = name.split("@")
+        pack_name, pack_version = next(
+            key for key in packs if key[1] == ver and key[0].removeprefix("community/") == alg
+        )
         nodes.append(
             GraphNode(
                 id=id,
-                algorithm_name=alg,
-                algorithm_version=ver,
+                algorithm_name=pack_name,
+                algorithm_version=pack_version,
                 arrayed_toggle=toggle,
                 assigned_node_id="device",
             )

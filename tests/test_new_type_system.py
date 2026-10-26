@@ -4,8 +4,8 @@ Locks the new surface area:
 
 * Types: ``colmap-cams`` (pose+intr, no points), ``point-cloud``,
   ``colmap-folder``, ``intr``, ``pose``.
-* Packs: retained ``colmap-sfm``, ``colmap-cam-decode`` and ``merge-colmap``
-  versions; retired pack contracts are intentionally not tested.
+* Packs: retained ``colmap-sfm`` and ``merge-colmap`` versions; retired pack
+  contracts are intentionally not tested.
 
 Manifest shape tests only load YAML; script tests exercise the
 Python entries in isolation. End-to-end runs against the real COLMAP
@@ -143,11 +143,11 @@ def test_probe_intr_single_row(tmp_path: Path) -> None:
     assert res.items == (ProbeItem("intr", 1),)
 
 
-def test_colmap_sfm_v030_shape() -> None:
-    """``colmap-sfm@0.3.0`` — renamed from cams-only + splits point cloud out."""
-    m = _load("colmap-sfm", "0.3.0")
-    assert m.name == "colmap-sfm"  # renamed from ``colmap-sfm-cams-only``
-    assert m.version == "0.3.0"
+def test_colmap_sfm_v042_shape() -> None:
+    """The current SfM pack emits separate camera and point-cloud outputs."""
+    m = _load("colmap-sfm", "0.4.2")
+    assert m.name == "community/colmap-sfm"
+    assert m.version == "0.4.2"
     assert m.arrayable is False
     assert m.inputs["frames"].tags == ["image"]
     assert m.outputs["cams"].tags == ["colmap-cams"]
@@ -157,15 +157,15 @@ def test_colmap_sfm_v030_shape() -> None:
     assert m.params["max_image_size"].default == 3200
 
 
-def test_colmap_sfm_v040_camera_assignment_and_intrinsics_shape() -> None:
-    """@0.4.0 keeps @0.3.0 defaults but exposes COLMAP camera ownership.
+def test_colmap_sfm_v042_camera_assignment_and_intrinsics_shape() -> None:
+    """@0.4.2 keeps the established defaults and exposes COLMAP camera ownership.
 
     The defaults are intentionally asserted here: changing either ``single``
     or OPENCV would silently alter existing monocular/STG workflows.
     """
-    m = _load("colmap-sfm", "0.4.0")
-    assert m.name == "colmap-sfm"
-    assert m.version == "0.4.0"
+    m = _load("colmap-sfm", "0.4.2")
+    assert m.name == "community/colmap-sfm"
+    assert m.version == "0.4.2"
     assert m.params["camera_assignment"].default == "single"
     assert m.params["camera_assignment"].values == ["single", "per_folder", "per_image"]
     assert m.params["camera_model"].default == "OPENCV"
@@ -196,7 +196,7 @@ def test_merge_colmap_v040_drops_colmap_compat_alias() -> None:
     is redundant.
     """
     m = _load("merge-colmap", "0.4.0")
-    assert m.name == "merge-colmap"
+    assert m.name == "community/merge-colmap"
     assert m.version == "0.4.0"
     assert m.arrayable is True
     # Inputs unchanged from @0.3.0.
@@ -256,22 +256,7 @@ def test_merge_v040_to_stg_v030_edge_accepted() -> None:
     )
 
 
-def test_colmap_cam_decode_v010_shape() -> None:
-    """``colmap-cam-decode@0.1.0`` — colmap-cams → arrayed<pose> + arrayed<intr>."""
-    m = _load("colmap-cam-decode", "0.1.0")
-    assert m.name == "colmap-cam-decode"
-    assert m.version == "0.1.0"
-    assert m.arrayable is False
-    assert m.inputs["cams"].tags == ["colmap-cams"]
-    assert m.outputs["poses"].tags == ["pose"]
-    assert m.outputs["intrs"].tags == ["intr"]
-    assert m.outputs["poses"].arrayed is True
-    assert m.outputs["intrs"].arrayed is True
-    assert m.outputs["poses"].dim_labels == ["cam"]
-    assert m.outputs["intrs"].dim_labels == ["cam"]
-
-
-def test_merge_colmap_v010_exec_shell_branches_on_images_wire() -> None:
+def test_merge_colmap_v040_exec_shell_branches_on_images_wire() -> None:
     """Exec shell must fork into two invocations based on whether ``images`` is wired.
 
     Reason: pack render uses StrictUndefined, so a stray ``inputs.images``
@@ -282,7 +267,7 @@ def test_merge_colmap_v010_exec_shell_branches_on_images_wire() -> None:
     """
     from hololab.manifest.render import RenderContext, render_manifest
 
-    m = _load("merge-colmap", "0.1.0")
+    m = _load("merge-colmap", "0.4.0")
 
     ctx_a = RenderContext(
         inputs={"cams": "/x/cams", "points": "/x/pts"},
@@ -308,12 +293,12 @@ def test_merge_colmap_v010_exec_shell_branches_on_images_wire() -> None:
     assert "/x/arr" in shell_b, shell_b
 
 
-def test_merge_colmap_v010_shape() -> None:
-    """``merge-colmap@0.1.0`` — two modes via optional images input."""
-    m = _load("merge-colmap", "0.1.0")
-    assert m.name == "merge-colmap"
-    assert m.version == "0.1.0"
-    assert m.arrayable is False
+def test_merge_colmap_v040_shape() -> None:
+    """``merge-colmap@0.4.0`` — two modes via optional images input."""
+    m = _load("merge-colmap", "0.4.0")
+    assert m.name == "community/merge-colmap"
+    assert m.version == "0.4.0"
+    assert m.arrayable is True
     assert m.inputs["cams"].tags == ["colmap-cams"]
     assert m.inputs["points"].tags == ["point-cloud"]
     assert m.inputs["images"].tags == ["image"]
@@ -341,130 +326,11 @@ def _fake_cams(root: Path, n_cams: int) -> Path:
     return root
 
 
-def test_cam_decode_expands_shared_intr(tmp_path: Path) -> None:
-    """21 poses + 1 shared intr → 21 pose elements + 21 intr elements."""
-    mod = _load_module(
-        "_cam_decode_mod",
-        PACKS_ROOT / "colmap-cam-decode@0.1.0" / "cam_decode.py",
-    )
-    cams = _fake_cams(tmp_path / "cams", 21)
-    poses_out = tmp_path / "poses"
-    intrs_out = tmp_path / "intrs"
-
-    old = sys.argv
-    sys.argv = [
-        "cam_decode.py",
-        "--cams",
-        str(cams),
-        "--poses-out",
-        str(poses_out),
-        "--intrs-out",
-        str(intrs_out),
-    ]
-    try:
-        rc = mod.main()
-    finally:
-        sys.argv = old
-    assert rc == 0
-
-    pose_dirs = sorted(d.name for d in poses_out.iterdir() if d.is_dir())
-    intr_dirs = sorted(d.name for d in intrs_out.iterdir() if d.is_dir())
-    assert pose_dirs == [f"pose_{i:04d}" for i in range(21)]
-    assert intr_dirs == [f"intr_{i:04d}" for i in range(21)]
-    # Every pose element has a matching intr element at the same index.
-    assert len(pose_dirs) == len(intr_dirs) == 21
-
-
-def test_cam_decode_index_alignment_by_name(tmp_path: Path) -> None:
-    """Element index follows NAME order — not IMAGE_ID.
-
-    Regression guard: a future change that keys elements by IMAGE_ID
-    would break the intr[i] ↔ image[i] contract because IMAGE_ID is a
-    DB primary key set by feature_extractor and can permute across
-    SfM re-runs.
-    """
-    mod = _load_module(
-        "_cam_decode_mod2",
-        PACKS_ROOT / "colmap-cam-decode@0.1.0" / "cam_decode.py",
-    )
-    cams_dir = tmp_path / "cams"
-    cams_dir.mkdir()
-    (cams_dir / "cameras.txt").write_text(_SFM_CAMERAS)
-    # Ordering trick: NAME order is cam00 → cam01 → cam02, but IMAGE_ID is
-    # reversed. Element order must follow NAME.
-    (cams_dir / "images.txt").write_text(
-        "# Number of images: 3\n"
-        "300 0.99 0.01 0.02 0.03 30.0 0.0 0.0 1 cam02.png\n\n"
-        "100 0.99 0.01 0.02 0.03 10.0 0.0 0.0 1 cam00.png\n\n"
-        "200 0.99 0.01 0.02 0.03 20.0 0.0 0.0 1 cam01.png\n\n"
-    )
-    poses_out = tmp_path / "p"
-    intrs_out = tmp_path / "i"
-
-    old = sys.argv
-    sys.argv = [
-        "cam_decode.py",
-        "--cams",
-        str(cams_dir),
-        "--poses-out",
-        str(poses_out),
-        "--intrs-out",
-        str(intrs_out),
-    ]
-    try:
-        assert mod.main() == 0
-    finally:
-        sys.argv = old
-
-    # pose_0000 must correspond to cam00 (NAME-sorted), not cam02 (IMAGE_ID 300).
-    body = (poses_out / "pose_0000" / "images.txt").read_text()
-    assert "cam00.png" in body, body
-    body_2 = (poses_out / "pose_0002" / "images.txt").read_text()
-    assert "cam02.png" in body_2, body_2
-
-
-def test_cam_decode_intr_written_per_element(tmp_path: Path) -> None:
-    """Each ``intr_i/cameras.txt`` contains one OPENCV row with local id=1.
-
-    Downstream ``image-undistort`` reads the intr's cameras.txt directly;
-    the CAMERA_ID field must be 1 so the identity-prior images.txt (with
-    CAMERA_ID=1) parses cleanly through ``colmap model_converter``.
-    """
-    mod = _load_module(
-        "_cam_decode_mod3",
-        PACKS_ROOT / "colmap-cam-decode@0.1.0" / "cam_decode.py",
-    )
-    cams = _fake_cams(tmp_path / "cams", 3)
-    poses_out = tmp_path / "p"
-    intrs_out = tmp_path / "i"
-    old = sys.argv
-    sys.argv = [
-        "cam_decode.py",
-        "--cams",
-        str(cams),
-        "--poses-out",
-        str(poses_out),
-        "--intrs-out",
-        str(intrs_out),
-    ]
-    try:
-        assert mod.main() == 0
-    finally:
-        sys.argv = old
-    for i in range(3):
-        body = (intrs_out / f"intr_{i:04d}" / "cameras.txt").read_text()
-        data_lines = [line for line in body.splitlines() if line and not line.startswith("#")]
-        assert len(data_lines) == 1, (i, body)
-        parts = data_lines[0].split()
-        assert parts[0] == "1", (i, parts)
-        assert parts[1] == "OPENCV", (i, parts)
-
-
 def test_merge_colmap_mode_a_sparse_only(tmp_path: Path) -> None:
     """Mode A: cams + points, no images → sparse/0/ populated, no images/ dir."""
     mod = _load_module(
         "_merge_mod_a",
-        PACKS_ROOT / "merge-colmap@0.1.0" / "merge.py",
+        PACKS_ROOT / "merge-colmap@0.4.0" / "merge.py",
     )
     cams = _fake_cams(tmp_path / "cams", 3)
     points = tmp_path / "pts"
@@ -496,7 +362,7 @@ def test_merge_colmap_mode_b_with_images(tmp_path: Path) -> None:
     """Mode B: cams + points + arrayed<image> → images/ populated by symlink per NAME."""
     mod = _load_module(
         "_merge_mod_b",
-        PACKS_ROOT / "merge-colmap@0.1.0" / "merge.py",
+        PACKS_ROOT / "merge-colmap@0.4.0" / "merge.py",
     )
     cams = _fake_cams(tmp_path / "cams", 3)
     points = tmp_path / "pts"

@@ -137,7 +137,7 @@ def _probe_colmap_images_txt(path: Path) -> ProbeResult | None:
 
     ``images.txt`` always opens with ``# Number of images: N`` which is the
     authoritative count regardless of whether observation lines are blank
-    (colmap-split output) or populated (sfm output).
+    or populated.
     """
     txt = path / "images.txt" if path.is_dir() else path
     n = _parse_colmap_header_count(txt, "Number of images:")
@@ -256,9 +256,8 @@ def _probe_colmap_folder(path: Path) -> ProbeResult | None:
 def _probe_pose(path: Path) -> ProbeResult | None:
     """Count pose rows in a ``pose`` handle (COLMAP ``images.txt`` fragment).
 
-    A ``pose`` element is one row of an ``images.txt`` file. The
-    per-element output of ``colmap-cam-decode`` is one such row per cam;
-    this probe surfaces ``pose:N`` for both the single-row leaf and any
+    A ``pose`` element is one row of an ``images.txt`` file. This probe
+    surfaces ``pose:N`` for both the single-row leaf and any
     accidental multi-row bundle (so a wrong tag choice is visible).
     """
     if not path.is_dir():
@@ -328,8 +327,8 @@ def _probe_colmap(path: Path) -> ProbeResult | None:
 # Tag → probe function. First match wins when a handle carries multiple
 # tags. Keep tags here in the same casing they appear in manifests.
 _REGISTRY: dict[str, ProbeFn] = {
-    # Legacy per-file tags (colmap-split era). Kept so historic handles
-    # still probe cleanly during replay.
+    # Legacy per-file tags. Kept so historic handles still probe cleanly
+    # during replay.
     "colmap-cameras-txt": _probe_colmap_cameras_txt,
     "colmap-points-txt": _probe_colmap_points_txt,
     "colmap-images-txt": _probe_colmap_images_txt,

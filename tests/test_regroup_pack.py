@@ -327,8 +327,8 @@ def test_handle_summary_annotates_element_count_and_internal_count(tmp_path: Pat
 def test_handle_summary_scalar_dir_has_no_element_count(tmp_path: Path) -> None:
     """A scalar dir handle (files only, no subdirs) must return element_count=null.
 
-    ``colmap-split.cameras`` is a plain dir containing ``cameras.txt`` — no
-    element subdirs. The UI must receive ``null`` (absent key) so the edge
+    A camera-text bundle is a plain dir containing ``cameras.txt`` — no element
+    subdirs. The UI must receive ``null`` (absent key) so the edge
     chip shows no ``[N]`` badge, not ``[0]``.
     """
     from hololab.gateway.handle_summary import summarize_handle

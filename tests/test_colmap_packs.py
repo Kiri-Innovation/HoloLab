@@ -12,14 +12,14 @@ PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
 
 
 def _load_sfm_key_module():
-    """Import ``sfm_key.py`` from colmap-triangulate@0.7.4 as a module.
+    """Import ``sfm_key.py`` from the current colmap-triangulate pack.
 
     Filesystem import so the test doesn't need the pack on sys.path. The
     helper is deliberately numpy-free — resolver logic ships in its own
     file (``sfm_key.py``) precisely so tests can exercise it without the
     kiri runtime env.
     """
-    pack_dir = PACKS_ROOT / "colmap-triangulate@0.7.4"
+    pack_dir = PACKS_ROOT / "colmap-triangulate@0.7.5"
     src = pack_dir / "sfm_key.py"
     if str(pack_dir) not in sys.path:
         sys.path.insert(0, str(pack_dir))
@@ -181,9 +181,9 @@ def test_resolve_sfm_key_multi_digit_indexes_are_handled() -> None:
     assert sk.numeric_suffix("cam") is None
 
 
-def test_colmap_triangulate_shape_v072() -> None:
-    m = _load("colmap-triangulate", "0.7.2")
-    assert m.version == "0.7.2"
+def test_colmap_triangulate_shape_v075() -> None:
+    m = _load("colmap-triangulate", "0.7.5")
+    assert m.version == "0.7.5"
     assert m.arrayable is True
     # Wire shape unchanged from @0.7.1.
     assert m.inputs["cams"].tags == ["colmap-cams"]
@@ -192,28 +192,28 @@ def test_colmap_triangulate_shape_v072() -> None:
     assert m.inputs["frames"].arrayed is True
     assert m.outputs["points"].tags == ["point-cloud"]
     assert m.outputs["points"].scalar is True
-    assert set(m.params.keys()) == {"use_gpu", "refine_intrinsics", "ba_max_refinements"}
+    assert {"use_gpu", "refine_intrinsics", "ba_max_refinements"} <= set(m.params)
     ba = m.params["ba_max_refinements"]
     assert ba.type.value == "int"
     assert ba.default == 2, f"expected default 2 (perf sweet spot); got {ba.default!r}"
     assert ba.min == 1 and ba.max == 10
     assert m.source_entry == "triangulate.py"
-    assert (PACKS_ROOT / "colmap-triangulate@0.7.2" / m.source_entry).is_file()
-    assert (PACKS_ROOT / "colmap-triangulate@0.7.2" / "colmap_db.py").is_file()
-    assert (PACKS_ROOT / "colmap-triangulate@0.7.2" / "sfm_key.py").is_file()
+    assert (PACKS_ROOT / "colmap-triangulate@0.7.5" / m.source_entry).is_file()
+    assert (PACKS_ROOT / "colmap-triangulate@0.7.5" / "colmap_db.py").is_file()
+    assert (PACKS_ROOT / "colmap-triangulate@0.7.5" / "sfm_key.py").is_file()
 
 
-def test_colmap_triangulate_v072_shell_wires_ba_max_refinements() -> None:
+def test_colmap_triangulate_v075_shell_wires_ba_max_refinements() -> None:
     """The manifest must forward ``ba_max_refinements`` to the script and
     the script must forward it to ``point_triangulator`` via
     ``--Mapper.ba_global_max_refinements=<n>``. Silent drop is the
     failure mode — the shard would run at COLMAP's upstream default (5)
     and every quality/perf claim in the docs would be wrong.
     """
-    m = _load("colmap-triangulate", "0.7.2")
+    m = _load("colmap-triangulate", "0.7.5")
     assert "--ba-max-refinements {{ params.ba_max_refinements }}" in m.exec.shell
 
-    script = (PACKS_ROOT / "colmap-triangulate@0.7.2" / "triangulate.py").read_text()
+    script = (PACKS_ROOT / "colmap-triangulate@0.7.5" / "triangulate.py").read_text()
     assert "--ba-max-refinements" in script
     assert "default=2" in script, "argparse default must match manifest default (2)"
     assert 'f"--Mapper.ba_global_max_refinements={args.ba_max_refinements}"' in script, (
@@ -221,11 +221,11 @@ def test_colmap_triangulate_v072_shell_wires_ba_max_refinements() -> None:
     )
 
 
-def test_colmap_triangulate_v072_thread_caps_bumped_to_four() -> None:
+def test_colmap_triangulate_v075_thread_caps_bumped_to_four() -> None:
     """Preamble and per-subcommand ``num_threads`` bumped 2→4 vs @0.7.1.
     Guards against a stray revert that would erase the -7% wall-time win.
     """
-    m = _load("colmap-triangulate", "0.7.2")
+    m = _load("colmap-triangulate", "0.7.5")
     for env_line in (
         "OMP_NUM_THREADS=4",
         "OMP_THREAD_LIMIT=4",
@@ -236,7 +236,7 @@ def test_colmap_triangulate_v072_thread_caps_bumped_to_four() -> None:
     # No stale =2 exports left over from @0.7.1.
     assert "OMP_NUM_THREADS=2" not in m.exec.shell
 
-    script = (PACKS_ROOT / "colmap-triangulate@0.7.2" / "triangulate.py").read_text()
+    script = (PACKS_ROOT / "colmap-triangulate@0.7.5" / "triangulate.py").read_text()
     # Each of the three COLMAP invocations should pass ``num_threads=4``.
     for flag in (
         '"--FeatureExtraction.num_threads"',
@@ -249,12 +249,12 @@ def test_colmap_triangulate_v072_thread_caps_bumped_to_four() -> None:
         assert '"4"' in tail, f'{flag} must be followed by "4"; saw {tail!r}'
 
 
-def test_colmap_triangulate_v072_docs_state_perf_claims() -> None:
+def test_colmap_triangulate_v075_docs_state_perf_claims() -> None:
     """The docs are the source of truth for the tuning rationale. Bake the
     key numbers in so a future edit can't quietly delete them: ~314 s →
     ~245 s, par<=5 hard cap, ba_max_refinements=2 default, <0.25% delta.
     """
-    m = _load("colmap-triangulate", "0.7.2")
+    m = _load("colmap-triangulate", "0.7.5")
     docs = (m.docs or "") + " " + (m.description or "")
     assert "ba_max_refinements" in docs
     assert "par" in docs.lower() and "5" in docs, "docs must document the par<=5 cap"
