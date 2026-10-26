@@ -1,7 +1,7 @@
 ---
 title: Algorithm package registry API reference
 group: Package site
-order: 10
+order: 90
 ---
 # Algorithm package registry API reference
 

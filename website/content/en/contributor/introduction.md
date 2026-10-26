@@ -1,7 +1,7 @@
 ---
 title: Share a Pack others can verify
 group: Package site
-order: 0
+order: 80
 ---
 # Share a Pack others can verify
 

@@ -58,6 +58,5 @@
   "contributor": "开发者文档",
   "learnIntro": "安装和使用 HoloLab，搭建工作流，并通过 Pack 接入算法。",
   "contributorIntro": "了解 HoloLab 的架构和类型系统，为参与实现做准备。",
-  "docAreas": "文档分区",
-  "packs": "算法包站点"
+  "docAreas": "文档分区"
 }

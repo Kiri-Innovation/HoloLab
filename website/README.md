@@ -39,16 +39,17 @@ Frontmatter `title`, `group`, and `order` override mapping defaults.
 The optional `navigationOrder` in `docs-sources.json` controls website navigation
 without changing repository frontmatter; it takes precedence over `order` for
 sorting only. `section` controls navigation membership independently of `slug`.
-The three areas are `learn` (`/docs`), `contributor` (`/docs/contributor`), and
-`packs` (`/docs/packs`, algorithm package publication and retrieval).
+The two areas are `learn` (`/docs`) and `contributor` (`/docs/contributor`).
+Within Contributor Doc, the Package site group follows the existing groups with
+`contributor/introduction` and `contributor/registry-api`, in that order.
+Article URLs come from the `slug` in `docs-sources.json`, not the source directory.
 Section `aliases` retain the old `/docs/build` and `/docs/reference` indexes as
 Learn entry points; directory routes open the first article with history replacement,
 preserving the query and fragment. Area tabs link directly to the first article
-(`/docs/use/introduction`, `/docs/contributor/about`, or `/docs/packs/introduction`).
-The API reference now lives at `/docs/packs/registry-api`. Its former
-`/docs/contributor/registry-api` URL is not retained: section aliases only support
-directory routes and always open the first article. Each alias also receives localized
-HTML metadata.
+(`/docs/use/introduction` or `/docs/contributor/about`). Each alias also receives
+localized HTML metadata. The temporary `/docs/packs/*` article URLs are not retained:
+section aliases only support directory routes and always open the first article.
+The same routing rules apply under `/zh-CN`.
 
 Generated files in `src/content/docs/` are ignored. The sync validates publication
 boundaries and heading anchors, rewrites links to the current language, and removes

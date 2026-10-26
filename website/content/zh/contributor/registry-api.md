@@ -1,7 +1,7 @@
 ---
 title: 算法包注册表 API 参考
 group: 算法包站点
-order: 10
+order: 90
 ---
 # 算法包注册表 API 参考
 
