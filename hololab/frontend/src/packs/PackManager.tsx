@@ -105,6 +105,10 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     ? 'hash_mismatch' : central[statusKey(entry)]?.data?.registry_status);
   const problem = (entry: PackEntry) => reasons(entry).length > 0;
   const statusLabel = (entry: PackEntry) => reasons(entry).join('；') || packEnvironmentStatus(entry, checks.reports[entry.key]);
+  const categoryTrail = (entry: PackEntry) => {
+    const category = entry.catalog?.category ?? ['misc'];
+    return category.at(-1) === entry.name.split('/').pop() ? category.slice(0, -1) : category;
+  };
   const summary=localOverview(entries,nodeId,checks.reports,problem);
   const categoryEntries=entries.filter(entry=>{
     const path=entry.catalog?.category?.join('/') || 'misc';
@@ -142,8 +146,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const canInstall = !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
     return <article className="hl-local-package-page" data-local-page="package" key={entry.key} data-pack-key={entry.key}>
       <nav className="hl-local-breadcrumb" aria-label="包路径"><button onClick={()=>navigateLocal('category','',entry.catalog?.category?.join('/') || 'misc')}>{entry.catalog?.category?.join(' / ') || 'misc'}</button><span aria-hidden="true">/</span><span>{displayName(entry.name)}</span></nav>
-      <header><div><h1>{displayName(entry.name)}</h1><span className="hl-pack-version">{entry.version}</span></div>
-        <span className="hl-pack-state" data-problem={problem(entry)}>{loading || checks.loading ? '检查中' : statusLabel(entry)}</span></header>
+      <header><div><h1>{`${entry.name}@${entry.version}`}</h1><p className="hl-pack-identity-meta">{categoryTrail(entry).join(' / ')}<span aria-hidden="true"> · </span><span className="hl-pack-state" data-problem={problem(entry)}>{loading || checks.loading ? '检查中' : statusLabel(entry)}</span></p></div></header>
       {feedback}
       {entry.catalog?.description && <p className="hl-local-description">{entry.catalog.description}</p>}
       <dl className="hl-pack-facts">
@@ -230,7 +233,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       <nav className="hl-local-tree" aria-label={tree==='category' ? '按分类的本地包目录' : '按作用域的本地包目录'}>
         <PackageTree items={entries.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:tree==='scope'?[entry.scope]:entry.catalog?.category ?? [], status:statusLabel(entry), problem:problem(entry)}))} query="" displayName={displayName}
           selected={section==='category'?selected:''} selectedCategory={tree==='category' && section==='category'&&!selected?category:''}
-          onSelect={key=>navigateLocal('category',key,'',tree)} onSelectCategory={tree==='category' ? path=>navigateLocal('category','',path,tree) : undefined} />
+          onSelect={key=>navigateLocal('category',key,'',tree)} onSelectCategory={tree==='category' ? path=>navigateLocal('category','',path,tree) : undefined} collapseRedundantCategories={tree==='category'} />
       </nav>
       {nodes.length > 1 ? <label>查看机器<select aria-label="查看机器" value={nodeId} onChange={e => setNodeId(e.target.value)}>{nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name || node.node_id}</option>)}</select></label> : <p className="hl-pack-boundary">{nodes.length ? `查看 ${nodes[0].node_name || nodes[0].node_id} 上的包` : '没有已连接的机器'}</p>}
       </div></aside>

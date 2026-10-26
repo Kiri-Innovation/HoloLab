@@ -2,15 +2,26 @@ import {useEffect, useMemo, useState} from 'react';
 import {buildTree, computeMatches, type TreePack, type TreeNode} from '../canvas/packTree';
 
 export type PackageTreeItem = TreePack & {key: string; status?: string; problem?: boolean};
-export function PackageTree({items, selected, query, onSelect, displayName, selectedCategory, onSelectCategory, disabled = false}: {
+export function collapseRedundantCategory<T extends TreePack>(item: T): T {
+  const name = item.name.split('/').pop();
+  const category = item.category ?? [];
+  return name && category.at(-1) === name ? {...item, category: category.slice(0, -1)} : item;
+}
+function collapsedCategoryPath(items: PackageTreeItem[], path: string) {
+  return items.some(item => item.category.join('/') === path && collapseRedundantCategory(item).category.join('/') !== path)
+    ? path.split('/').slice(0, -1).join('/') : path;
+}
+export function PackageTree({items, selected, query, onSelect, displayName, selectedCategory, onSelectCategory, collapseRedundantCategories = false, disabled = false}: {
   displayName: (name: string) => string;
   selectedCategory: string; onSelectCategory?: (path: string) => void;
-  items: PackageTreeItem[]; selected: string; query: string; onSelect: (key: string) => void; disabled?: boolean;
+  items: PackageTreeItem[]; selected: string; query: string; onSelect: (key: string) => void; collapseRedundantCategories?: boolean; disabled?: boolean;
 }) {
-  const tree = useMemo(() => buildTree(items, {includeView: false}), [items]);
+  const treeItems = useMemo(() => collapseRedundantCategories ? items.map(collapseRedundantCategory) : items, [items, collapseRedundantCategories]);
+  const tree = useMemo(() => buildTree(treeItems, {includeView: false}), [treeItems]);
   const matches = useMemo(() => computeMatches(tree, query), [tree, query]);
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const selectedPath = selected ? treePath(tree, selected) : selectedCategory;
+  const visibleCategory = collapseRedundantCategories ? collapsedCategoryPath(items, selectedCategory) : selectedCategory;
+  const selectedPath = selected ? treePath(tree, selected) : visibleCategory;
   // Reveal restored selections even if their ancestors were previously collapsed.
   useEffect(() => {
     if (!selectedPath) return;
@@ -34,7 +45,7 @@ export function PackageTree({items, selected, query, onSelect, displayName, sele
       <div className="hl-local-folder-row">
         <button className="hl-local-folder-toggle" aria-label={`${expanded ? '收起' : '展开'} ${node.label}`} aria-expanded={expanded}
           onClick={() => setOpen(prev => ({...prev, [node.path]: !expanded}))}>{expanded ? '▾' : '▸'}</button>
-        <button className="hl-pack-folder" aria-current={onSelectCategory && selectedCategory===node.path?'page':undefined}
+        <button className="hl-pack-folder" aria-current={onSelectCategory && visibleCategory===node.path?'page':undefined}
           onClick={() => onSelectCategory
             ? (onSelectCategory(node.path), setOpen(prev => ({...prev, [node.path]: true})))
             : setOpen(prev => ({...prev, [node.path]: !(prev[node.path] ?? true)}))}>{node.label}</button>

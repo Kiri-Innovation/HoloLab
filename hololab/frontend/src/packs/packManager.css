@@ -152,8 +152,9 @@
 .hl-local-breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-5); color: var(--text-muted); overflow-wrap: anywhere; }
 .hl-local-breadcrumb button { padding: 0; border: 0; background: transparent; height: auto; text-align: left; white-space: normal; }
 .hl-local-package-page > header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: var(--space-4); }
-.hl-local-package-page > header > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-3); }
+.hl-local-package-page > header > div { min-width: 0; }
 .hl-local-package-page h1 { margin-bottom: 0; }
+.hl-pack-identity-meta { margin: var(--space-1) 0 0; color: var(--text-muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .hl-local-package-page .hl-pack-facts { padding-block: var(--space-4); }
 .hl-local-package-page > .hl-pack-section { padding-block: var(--space-4); }
 .hl-local-package-page > .hl-pack-section > summary { font-weight: var(--fw-semibold); font-size: var(--fs-md); }
