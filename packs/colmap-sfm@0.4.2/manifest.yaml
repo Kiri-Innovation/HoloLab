@@ -1,12 +1,12 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: colmap-sfm
+name: community/colmap-sfm
 version: 0.4.2
 description: >
   Run COLMAP Structure-from-Motion and emit a colmap-cams bundle plus a
   separate point-cloud output. Supports a shared camera, one camera per
   image folder, or one camera per image.
-category: "community/colmap"
+category: "reconstruction/colmap"
 
 docs: |
   Wrapper around the vanilla COLMAP CLI: ``feature_extractor`` +
