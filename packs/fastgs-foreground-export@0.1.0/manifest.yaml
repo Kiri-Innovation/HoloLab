@@ -17,6 +17,9 @@ inputs:
 outputs:
   model: {tags: [fastgs-model]}
   ply: {tags: [ply-3dgs], storage: file}
+requires:
+  packages: [torch, numpy, opencv-python]
+  gpu: {vram_gb: 4}
 runtime:
   env: fastgs
   gpu: {required: true, vram_gb_min: 4}

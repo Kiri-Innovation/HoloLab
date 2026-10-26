@@ -274,6 +274,9 @@ outputs:
       sit directly under the shard's element dir (post flatten
       migration, no ``frames/`` wrapper).
 
+requires:
+  packages: [torch, opencv-python, kornia, numpy]
+  gpu: {}
 runtime:
   env: kiri
   gpu:

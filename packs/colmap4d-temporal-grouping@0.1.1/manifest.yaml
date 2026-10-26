@@ -51,6 +51,8 @@ outputs:
     storage: dir
     description: "Legacy-compatible exposure_timeline PNG/HTML/report bundle."
 
+requires:
+  packages: [colmap4d, matplotlib, plotly]
 runtime:
   env: kiri
   gpu:

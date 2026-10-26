@@ -40,6 +40,8 @@ outputs:
     arrayed: false
     storage: dir
 
+requires:
+  packages: [colmap4d]
 runtime:
   env: kiri
   gpu:

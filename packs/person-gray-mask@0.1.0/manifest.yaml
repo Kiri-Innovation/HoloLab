@@ -27,6 +27,8 @@ outputs:
       an execution marker, not an array element.
   report:
     tags: [directory]
+requires:
+  packages: [opencv-python, numpy]
 runtime:
   env: fastgs
   gpu:

@@ -85,6 +85,8 @@ outputs:
     - video-source
     storage: dir
     description: One silent H.264/yuv420p MP4 (output.mp4), ready for browser preview.
+requires:
+  packages: [ffmpeg]
 runtime:
   env: kiri
   gpu:

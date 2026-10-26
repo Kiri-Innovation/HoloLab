@@ -171,6 +171,9 @@ outputs:
       intrinsics — points live in the raw OPENCV frame; use
       ``image-undistort`` if you need PINHOLE-aligned imagery.
 
+requires:
+  packages: [colmap, numpy]
+  gpu: {vram_gb: 2}
 runtime:
   env: kiri
   gpu:

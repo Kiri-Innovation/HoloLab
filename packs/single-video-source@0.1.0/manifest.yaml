@@ -46,6 +46,7 @@ outputs:
     tags: [video-source]
     description: "Directory containing one symlink to the source video (input.<ext>)."
 
+requires: {}
 runtime:
   env: kiri
   gpu:

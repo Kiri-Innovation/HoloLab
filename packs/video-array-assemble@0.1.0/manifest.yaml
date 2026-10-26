@@ -25,6 +25,7 @@ outputs:
     arrayed: true
     dim_labels:
     - layer
+requires: {}
 runtime:
   env: kiri
   gpu:

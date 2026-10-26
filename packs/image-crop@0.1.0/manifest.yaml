@@ -53,6 +53,8 @@ outputs:
     tags: [image]
     storage: file
     description: "Cropped/padded image in the original encoding and sample bit depth."
+requires:
+  packages: [pillow, opencv-python, numpy]
 runtime:
   env: kiri
   gpu:

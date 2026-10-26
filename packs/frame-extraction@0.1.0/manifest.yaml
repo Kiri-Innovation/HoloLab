@@ -111,6 +111,8 @@ outputs:
       the canonical ``image`` (alias-compatible with ``image_sequence`` /
       ``frame_sequence``).
 
+requires:
+  packages: [ffmpeg, opencv-python, numpy, tqdm]
 runtime:
   env: kiri
   gpu:

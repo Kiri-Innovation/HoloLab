@@ -99,6 +99,7 @@ outputs:
       ``arrayed<colmap-folder>[frame]``. Consumed by
       ``stg-train@0.3.0.colmap_frames`` (also ``colmap-folder``).
 
+requires: {}
 runtime:
   env: kiri
   gpu:

@@ -58,6 +58,8 @@ outputs:
       Materialized group/camera JPEG array with hidden colmap4d grouping
       provenance at the handle root.
 
+requires:
+  packages: [colmap4d]
 runtime:
   env: kiri
   gpu:

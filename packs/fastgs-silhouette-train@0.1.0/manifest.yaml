@@ -113,6 +113,9 @@ outputs:
       chkpnt<iter>.pth, cameras.json, cfg_args, and (dynamic mode)
       deform/iteration_<iter>/deform.pth.
 
+requires:
+  packages: [torch, numpy, opencv-python, pillow]
+  gpu: {vram_gb: 20}
 runtime:
   env: fastgs
   gpu:

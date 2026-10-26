@@ -63,6 +63,7 @@ outputs:
       its original basename. Outer dim = per-camera (one clip per rig
       camera); handle summary reports ``dim_sizes=[N_cam]``.
 
+requires: {}
 runtime:
   env: kiri
   gpu:

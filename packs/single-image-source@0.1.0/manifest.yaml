@@ -36,6 +36,7 @@ outputs:
     storage: file
     description: "Symlink to the source image file; pixels are not copied or transformed."
 
+requires: {}
 runtime:
   env: kiri
   gpu:
