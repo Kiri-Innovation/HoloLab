@@ -36,6 +36,7 @@ class Release(BaseModel):
     unpacked_bytes: int = Field(ge=0)
     manifest: str
     env: str
+    category: list[str] = Field(default_factory=list)
     requires: dict | None = None
     external: dict = Field(default_factory=dict)
     evidence: dict
