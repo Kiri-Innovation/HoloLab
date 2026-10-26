@@ -25,6 +25,7 @@ async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
   return response.json();
 }
 interface CentralStatus { code_sha256?: string; registry_status?: string; state?: string; source?: string; publication?: Record<string, unknown> }
+interface CentralComparison { state: 'identical'|'differs'|'absent'|'unknown'; central_code_sha256?: string; yanked?: boolean; source?: string; reason?: string | null }
 
 export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   onNavigate: (path: string) => void; onBack: () => void; onOpenWorkflow: (id: string) => void;
@@ -49,6 +50,8 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const leftDock = useResizableSlot('hl-layout-left', 300, 180, 420);
   const registry = useMemo<RegistryRelease[]>(() => [], []);
   const [central, setCentral] = useState<Record<string, {data?: CentralStatus; busy?: boolean; failed?: boolean}>>({});
+  const [centralComparison, setCentralComparison] = useState<Record<string, CentralComparison>>({});
+  const [centralLoading, setCentralLoading] = useState(false);
   const [commandStatus, setCommandStatus] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -87,6 +90,21 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     })();
     return () => controller.abort();
   }, [revision]);
+
+  const comparisonKeys = useMemo(() => catalog.map(pack => `${pack.name}@${pack.version}`).join(','), [catalog]);
+  async function refreshCentralComparison(fresh=false) {
+    if (!comparisonKeys) { setCentralComparison({}); return; }
+    setCentralLoading(true);
+    try {
+      const suffix = fresh ? '&refresh=true' : '';
+      const data = await read<Record<string, CentralComparison>>(`/api/packs/central-status?keys=${encodeURIComponent(comparisonKeys)}${suffix}`);
+      setCentralComparison(data);
+    } catch {
+      // The central relationship must never make the local page unusable.
+      setCentralComparison(Object.fromEntries(catalog.map(pack => [`${pack.name}@${pack.version}`, {state:'unknown', reason:'查询请求未完成'}])));
+    } finally { setCentralLoading(false); }
+  }
+  useEffect(() => { void refreshCentralComparison(); }, [comparisonKeys]);
 
   const rawEntries = useMemo(() => buildPackEntries(catalog, inventory, workflows, registry), [catalog, inventory, workflows, registry]);
   const capabilityGraph = useMemo(() => ({nodes: [...rawEntries.map(entry => ({
@@ -141,6 +159,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const current = central[statusKey(entry)];
     const yanked = current?.data?.registry_status === 'published' ? false : current?.data?.registry_status === 'yanked' || entry.release?.yanked === true;
     const hasRegistry = !!entry.catalog?.publication || !!entry.release;
+    const comparison = centralComparison[entry.key];
     const report = checks.reports[entry.key];
     const requires = entry.catalog ? entry.catalog.requires : entry.release?.requires;
     const showEnvironment = hasEnvironmentDetails(requires);
@@ -155,8 +174,16 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       {feedback}
       {entry.catalog?.description && <p className="hl-local-description">{entry.catalog.description}</p>}
       <dl className="hl-pack-facts">
-        <div className="hl-pack-code-identity"><dt>代码身份</dt><dd><EvidenceValue value={current?.data?.code_sha256 ?? entry.catalog?.publication?.code_sha256 ?? '尚未校验；查询当前发布状态可读取本地代码身份'} /></dd></div>
-        <div className="hl-pack-source"><dt>来源</dt><dd><span>{hasRegistry ? '注册表' : entry.catalog ? '本地' : '来源未确认'}</span>{sourceLocation && <EvidenceValue value={sourceLocation} truncate={false} />}</dd></div>
+        <div className="hl-pack-code-identity"><dt>代码身份</dt><dd><EvidenceValue value={entry.catalog?.code_sha256 ?? current?.data?.code_sha256 ?? entry.catalog?.publication?.code_sha256 ?? '尚未校验；本地内容身份不可用'} /></dd></div>
+        <div className="hl-pack-source"><dt>来源</dt><dd>
+          {centralLoading && !comparison ? <span>正在查询注册表…</span> : comparison?.state === 'identical' ? <><span>与注册表一致</span><small>{comparison.source} · {comparison.central_code_sha256?.slice(0,12)}</small><EvidenceValue value={comparison.central_code_sha256} /></>
+            : comparison?.state === 'differs' ? <><strong>⚠️ 注册表上有同名同版本，但内容不同</strong><small>{comparison.source} · 注册表哈希 {comparison.central_code_sha256?.slice(0,12)}</small><EvidenceValue value={comparison.central_code_sha256} /></>
+            : comparison?.state === 'absent' ? <span>注册表上没有（本地包）</span>
+            : comparison?.state === 'unknown' ? <><span>未查询（源不可达）</span><small>{comparison.reason}</small></>
+            : <span>{hasRegistry ? '注册表发布留痕' : entry.catalog ? '本地' : '来源未确认'}</span>}
+          <button disabled={centralLoading} onClick={()=>void refreshCentralComparison(true)}>{centralLoading ? '查询中…' : '刷新注册表比对'}</button>
+          {sourceLocation && <EvidenceValue value={sourceLocation} truncate={false} />}
+        </dd></div>
         <div><dt>安装状态</dt><dd>{!nodeId ? '请先选择检查目标' : installed ? '当前节点已发现' : entry.inventory.some(item => item.node_id === nodeId) ? '仅有历史安装记录，当前未确认' : '当前节点未发现'}
           <small>{entry.catalog?.node_ids.length ? `在线提供：${entry.catalog.node_ids.map(id => nodes.find(n => n.node_id === id)?.node_name || id).join('、')}` : '当前没有在线节点提供'}
             {historicalNodes.length > 0 && `；也曾装于 ${historicalNodes.map(item => item.node_name || item.node_id).join('、')}（${historicalNodes.some(item => !item.online) ? '离线' : '历史记录'}）`}
@@ -236,7 +263,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         <button role="tab" aria-selected={tree==='scope'} onClick={()=>navigateLocal(section,selected,'','scope')}>按作用域</button>
       </div>
       <nav className="hl-local-tree" aria-label={tree==='category' ? '按分类的本地包目录' : '按作用域的本地包目录'}>
-        <PackageTree items={entries.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:tree==='scope'?[entry.scope]:entry.catalog?.category ?? [], status:compactStatus(entry), problem:problem(entry)}))} query="" displayName={displayName}
+        <PackageTree items={entries.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:tree==='scope'?[entry.scope]:entry.catalog?.category ?? [], status:centralComparison[entry.key]?.state==='differs' ? '注册表内容不同' : compactStatus(entry), problem:problem(entry) || centralComparison[entry.key]?.state==='differs'}))} query="" displayName={displayName}
           selected={section==='category'?selected:''} selectedCategory={tree==='category' && section==='category'&&!selected?category:''}
           onSelect={key=>navigateLocal('category',key,'',tree)} onSelectCategory={tree==='category' ? path=>navigateLocal('category','',path,tree) : undefined} collapseRedundantCategories={tree==='category'} />
       </nav>

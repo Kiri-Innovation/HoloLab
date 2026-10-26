@@ -553,6 +553,7 @@ class NodeRuntime:
                     name=p.manifest.name,
                     version=p.manifest.version,
                     manifest_hash=p.manifest_hash,
+                    code_sha256=p.code_sha256,
                     publication=p.publication,
                     root=p.manifest.root,
                     cold=p.manifest.cold,
@@ -603,6 +604,7 @@ class NodeRuntime:
                             name=p.manifest.name,
                             version=p.manifest.version,
                             manifest_hash=p.manifest_hash,
+                            code_sha256=p.code_sha256,
                             publication=p.publication,
                             root=p.manifest.root,
                             cold=p.manifest.cold,
@@ -671,6 +673,7 @@ class NodeRuntime:
                 name=p.manifest.name,
                 version=p.manifest.version,
                 manifest_hash=p.manifest_hash,
+                code_sha256=p.code_sha256,
                 publication=p.publication,
                 root=p.manifest.root,
                 cold=p.manifest.cold,
@@ -708,6 +711,7 @@ class NodeRuntime:
             # the new multi-pack-source protocol.
             packs_dir=str(self._config.pack_dirs[0]) if self._config.pack_dirs else None,
             pack_dirs=[str(p) for p in self._config.pack_dirs],
+            pack_sources=list(self._config.pack_sources),
             # Jobs currently in our live map. Sent so the gateway can
             # reconcile against DB rows it marked ``orphaned`` when it
             # restarted, hoisting the ones we're still running back to

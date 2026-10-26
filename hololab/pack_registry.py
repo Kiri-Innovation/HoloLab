@@ -111,7 +111,7 @@ def local_source(value: str) -> Path:
     return Path(unquote(parsed.path))
 
 
-def read_index(source: str, name: str | None = None) -> Index:
+def read_index(source: str, name: str | None = None, *, timeout: float = 15) -> Index:
     """Read one package by default at call sites; no name explicitly reads the legacy index.
 
     Only local legacy publication directories fall back to index.json. HTTP
@@ -129,7 +129,7 @@ def read_index(source: str, name: str | None = None) -> Index:
             per_package = False
     url = urljoin(root, path)
     try:
-        with urlopen(url, timeout=15) as response:
+        with urlopen(url, timeout=timeout) as response:
             raw = response.read(16 * 1024 * 1024 + 1)
     except (OSError, URLError) as exc:
         raise SourceUnavailable(f"源不可达: {source}: {exc}") from exc

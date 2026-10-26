@@ -28,6 +28,9 @@ class PackInventoryEntry(BaseModel):
     cold: list[str] = Field(default_factory=list)
     requires: dict[str, Any] | None = None
     manifest_hash: str  # sha256 of the manifest.yaml file; changes on edits
+    # Declared-content identity, available even when this pack was never
+    # installed from a registry (and therefore has no publication receipt).
+    code_sha256: str | None = None
     # Absolute path of the manifest.yaml on the producing node. With the
     # polymorphic pack_dirs contract this is what the frontend's
     # "Jump to source" button opens directly — no more
@@ -134,6 +137,8 @@ class Register(BaseModel):
     # custom pack source without vendoring — see
     # docs/writing-a-pack.md.
     pack_dirs: list[str] = Field(default_factory=list)
+    # Read-only registry mirrors configured on this node.
+    pack_sources: list[str] = Field(default_factory=list)
     # Job IDs the node currently has running (i.e. still in its live
     # ``self._jobs`` map). Sent so the gateway can reconcile after a
     # restart: any DB row this node still claims stays ``running``

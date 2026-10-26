@@ -269,6 +269,11 @@ def create_app(
         # SQLite; a gateway restart re-fills the buffer from live
         # traffic within a minute. See hololab/gateway/metrics.py.
         app.state.metrics = MetricsStore()
+        # Registry content changes infrequently; the comparison endpoint owns
+        # its short-lived cache so it can never delay normal pack discovery.
+        from hololab.gateway.central_status import CentralStatusCache
+
+        app.state.central_status_cache = CentralStatusCache()
         # Correlation futures for gateway↔node request/response frames.
         # Keys: req_id (str); values: the future the REST handler awaits.
         # Populated when the gateway sends a request frame, drained by
@@ -1712,6 +1717,31 @@ def _mount_routes(app: FastAPI) -> None:
             return await asyncio.to_thread(browse, source, name)
         except Exception as exc:
             raise HTTPException(502, public_error(exc)) from exc
+
+    @app.get("/api/packs/central-status", tags=["packs"])
+    async def central_pack_status(keys: str, refresh: bool = False) -> dict[str, dict]:
+        """Compare local offered content with configured registry mirrors.
+
+        This is deliberately a best-effort observation: unavailable mirrors
+        are represented in the result, never surfaced as an API failure.
+        """
+        requested = [key.strip() for key in keys.split(",") if key.strip()]
+        if not requested or len(requested) > 250:
+            raise HTTPException(
+                422, "keys must contain 1-250 name@version values separated by commas."
+            )
+        from hololab.gateway.central_status import compare
+
+        registry: NodeRegistry = app.state.registry
+        sources = [source for session in registry.all_sessions() for source in session.pack_sources]
+        return await asyncio.to_thread(
+            compare,
+            requested,
+            registry.catalog_json(),
+            sources,
+            app.state.central_status_cache,
+            refresh=refresh,
+        )
 
     @app.post("/api/packs/install", tags=["packs"])
     async def install_pack(body: dict[str, Any]):
@@ -3749,6 +3779,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
                 flops_executor_id=payload.flops_executor_id,
                 packs_dir=payload.packs_dir,
                 pack_dirs=payload.pack_dirs,
+                pack_sources=payload.pack_sources,
             )
         except NodeAuthError as exc:
             log.warning(

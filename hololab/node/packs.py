@@ -22,6 +22,7 @@ directory names are no longer required to match. Cross-source conflicts on
 
 from __future__ import annotations
 
+import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -74,6 +75,24 @@ class LoadedPack:
         from hololab.pack_install import publication_info
 
         return publication_info(self.manifest_path)
+
+    @property
+    def code_sha256(self) -> str | None:
+        """Calculate the publication-compatible identity without a receipt."""
+        from hololab.content_scope import Baselines, capture
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="hololab-pack-identity-") as directory:
+                return capture(self.manifest_path, Baselines(Path(directory)), refresh_cold=True)[
+                    "sha256"
+                ]
+        except Exception as exc:
+            log.warning(
+                "pack content identity unavailable",
+                manifest=str(self.manifest_path),
+                error=str(exc),
+            )
+            return None
 
 
 def _load_manifest_safely(manifest_path: Path) -> tuple[Manifest, str] | None:

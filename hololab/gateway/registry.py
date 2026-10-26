@@ -71,6 +71,7 @@ class NodeSession:
     # scalar ``packs_dir``, the registry wraps it in a single-entry
     # list at register time.
     pack_dirs: list[str] = field(default_factory=list)
+    pack_sources: list[str] = field(default_factory=list)
     # Opt-in keeps older nodes from receiving an unknown envelope kind.
     intrinsics: list[str] = field(default_factory=list)
     library_wakeup: bool = False
@@ -115,6 +116,7 @@ class NodeRegistry:
         flops_executor_id: str | None = None,
         packs_dir: str | None = None,
         pack_dirs: list[str] | None = None,
+        pack_sources: list[str] | None = None,
     ) -> NodeSession:
         """Register a node, applying the three-path identity rule:
 
@@ -234,6 +236,7 @@ class NodeRegistry:
             # Multi-pack-source: prefer the modern list; fall back to
             # wrapping a legacy scalar so the wire remains consistent.
             pack_dirs=list(pack_dirs) if pack_dirs else ([packs_dir] if packs_dir else []),
+            pack_sources=list(pack_sources or []),
             token_issued=token_issued,
         )
         # If there was an old session for this node_id, drop it silently — the
@@ -531,6 +534,7 @@ class NodeRegistry:
                         "name": pk.name,
                         "version": pk.version,
                         "manifest_hash": pk.manifest_hash,
+                        "code_sha256": getattr(pk, "code_sha256", None),
                         "root": getattr(pk, "root", "."),
                         "cold": getattr(pk, "cold", []),
                         "publication": getattr(pk, "publication", None),
@@ -564,6 +568,7 @@ class NodeRegistry:
                 if not entry["node_ids"]:
                     entry.update(
                         manifest_hash=pk.manifest_hash,
+                        code_sha256=getattr(pk, "code_sha256", None),
                         manifest_path=pk.manifest_path,
                         source_dir=pk.source_dir,
                     )
