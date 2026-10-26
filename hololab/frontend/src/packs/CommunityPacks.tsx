@@ -1,11 +1,10 @@
-import {PackageTree} from './PackageTree';
-import {releaseCategory} from './releaseCategory';
+import {CategoryIndex} from './CategoryIndex';
+import {browseProjects, latestRelease, projectCategory, publishedTime, type CommunityRelease as Release, type CommunityFilter} from './communityBrowserModel';
 import {useEffect, useRef, useState} from 'react';
 import type {CatalogPack, ComputeNode} from '../wire';
 import {canonicalPackageName} from '../packageIdentity';
 import {EvidenceValue} from '../canvas/EvidenceValue';
 
-type Release = {name:string; version:string; yanked:boolean; code_sha256:string; published_at:string; publisher:string; requires:unknown; env:string; category?:unknown; evidence?:{manifest?:{normalized?:{category?:unknown}}}};
 class PublicPackError extends Error {}
 const readableError = (error:unknown) => error instanceof PublicPackError ? error.message : '请求未完成，请检查网络与节点连接后重试。';
 async function request(url:string, init?:RequestInit) {
@@ -21,6 +20,12 @@ export function CommunityPacks({active, catalog, nodes, onInstalled}: {active:bo
   const [names,setNames]=useState<string[]>([]);
   const [projects,setProjects]=useState<Record<string, {releases?:Release[]; error?:string}>>({});
   const [search,setSearch]=useState('');
+  const [index,setIndex]=useState<'recent'|'category'|'publisher'|'scope'>('recent');
+  const [category,setCategory]=useState('');
+  const [publisher,setPublisher]=useState('');
+  const [scope,setScope]=useState('');
+  const [installedFilter,setInstalledFilter]=useState<CommunityFilter['installed']>('all');
+  const dialog=useRef<HTMLDialogElement>(null);
   const [filtersOpen,setFiltersOpen]=useState(false);
   const [selected,setSelected]=useState('');
   const [busy,setBusy]=useState(false);
@@ -47,7 +52,7 @@ export function CommunityPacks({active, catalog, nodes, onInstalled}: {active:bo
           const name=list[cursor++];
           try {
             const meta=await request(`/api/packs/registry?${new URLSearchParams({source:origin,name})}`);
-            if(id===sequence.current)setProjects(p=>({...p,[name]:{releases:(Object.values(meta.releases) as Release[]).sort((a,b)=>b.published_at.localeCompare(a.published_at))}}));
+            if(id===sequence.current)setProjects(p=>({...p,[name]:{releases:(Object.values(meta.releases) as Release[]).sort((a,b)=>publishedTime(b.published_at)-publishedTime(a.published_at))}}));
           } catch(e) {if(id===sequence.current)setProjects(p=>({...p,[name]:{error:readableError(e)}}));}
         }
       }));
@@ -57,11 +62,19 @@ export function CommunityPacks({active, catalog, nodes, onInstalled}: {active:bo
   // Preserve an in-flight installation when switching views; fetch on entering the community.
   useEffect(()=>{if(active && !installing) void load();},[active,source]);
   useEffect(()=>()=>{sequence.current++;},[]);
-  const matchingNames=names.filter(name=>`${name} ${releaseCategory(projects[name]?.releases?.[0]).join('/') || 'misc'}`.toLowerCase().includes(search.toLowerCase()));
-  const choose=(name:string)=>{setSelected(name);setFiltersOpen(false);};
+  const choose=(name:string)=>setSelected(name);
+  useEffect(()=>{
+    if(selected && active) {if(!dialog.current?.open) dialog.current?.showModal();}
+    else dialog.current?.close();
+  },[selected,active]);
   const applySource=()=>{try {const url=new URL(sourceDraft);if(['https:','http:'].includes(url.protocol))setSource(sourceDraft.trim());}catch{/* Native URL validation keeps the previous source active. */}};
   const releases=projects[selected]?.releases ?? [];
   const isInstalled=(release:Release)=>installed.has(`${target}:${release.name}@${release.version}`) || catalog.some(p=>canonicalPackageName(p.name)===release.name && p.version===release.version && p.node_ids.includes(target));
+  const allProjects=names.map(name=>({name,...projects[name]}));
+  const matching=browseProjects(allProjects,{search,category:index==='category'?category:'',publisher:index==='publisher'?publisher:'',scope:index==='scope'?scope:'',installed:installedFilter},isInstalled);
+  const publishers=[...new Set(allProjects.map(project=>latestRelease(project)?.publisher).filter((value):value is string=>!!value))].sort();
+  const scopes=[...new Set(names.map(name=>name.split('/')[0]))].sort();
+  const changeIndex=(next:typeof index)=>{setIndex(next);if(next==='recent'){setCategory('');setPublisher('');setScope('');setInstalledFilter('all');}};
   async function install(release:Release) {
     const spec=`${release.name}@${release.version}`, key=`${target}:${spec}`, destinationNode=target;
     setInstalling(key);setResults(r=>({...r,[key]:'正在下载、校验并安装…'}));
@@ -76,12 +89,18 @@ export function CommunityPacks({active, catalog, nodes, onInstalled}: {active:bo
   return <section aria-label="社区包" className="hl-pack-workspace">
     <aside className="hl-dock hl-pack-sidebar">
     <div className="hl-dock-heading"><h2 className="hl-section-title">社区</h2></div>
-    <button className="hl-pack-directory-toggle" aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(!filtersOpen)}>分类与搜索 {filtersOpen ? '▴' : '▾'}</button>
+    <button className="hl-pack-directory-toggle" aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(!filtersOpen)}>浏览索引 {filtersOpen ? '▴' : '▾'}</button>
     <div className="hl-pack-directory" data-open={filtersOpen}>
-    <label className="hl-pack-search">搜索社区包<input type="search" aria-label="搜索社区包" value={search} onChange={e=>setSearch(e.target.value)} placeholder="包名或功能分类" /></label>
-    <p className="hl-pack-boundary">{names.length} 个包</p>
-    <nav aria-label="社区功能目录"><PackageTree items={matchingNames.map(name=>({key:name,name,version:'',category:releaseCategory(projects[name]?.releases?.[0])}))}
-      selected={selected} query={search} onSelect={choose} disabled={!!installing}/></nav>
+    <nav className="hl-community-index" aria-label="浏览索引">
+      {([['recent','最近更新'],['category','功能分类'],['publisher','发布者'],['scope','Scope']] as const).map(([value,label])=><button key={value} aria-current={index===value?'true':undefined} onClick={()=>changeIndex(value)}>{label}</button>)}
+    </nav>
+    {index==='category' && <><button onClick={()=>setCategory('')} aria-current={!category?'true':undefined}>全部分类</button><CategoryIndex items={allProjects.map(project=>({name:project.name,version:'',category:projectCategory(project)}))} selected={category} onSelect={setCategory}/></>}
+    {index==='publisher' && <label className="hl-pack-search">发布者<select aria-label="筛选发布者" value={publisher} onChange={e=>setPublisher(e.target.value)}><option value="">全部发布者</option>{publishers.map(value=><option key={value} value={value}>{value}</option>)}</select></label>}
+    {index==='scope' && <label className="hl-pack-search">Scope<select aria-label="筛选 scope" value={scope} onChange={e=>setScope(e.target.value)}><option value="">全部 scope</option>{scopes.map(value=><option key={value} value={value}>{value}</option>)}</select></label>}
+    <div className="hl-community-installed"><p>安装状态</p><div className="hl-community-index" aria-label="安装状态筛选">
+      {([['all','全部'],['installed','已安装'],['uninstalled','未安装']] as const).map(([value,label])=><button key={value} disabled={value!=='all' && !target} aria-pressed={installedFilter===value} onClick={()=>setInstalledFilter(value)}>{label}</button>)}
+    </div><small>{target ? `查看 ${machine} 上的安装状态` : '连接机器后可按安装状态筛选'}</small>
+    {nodes.length>1 && <select aria-label="筛选机器" value={target} disabled={!!installing} onChange={e=>setNode(e.target.value)}>{nodes.map(n=><option key={n.node_id} value={n.node_id}>{n.node_name || n.node_id}</option>)}</select>}</div>
     <details className="hl-pack-source-settings"><summary>源设置</summary>
       <label>注册表地址<input aria-label="注册表地址" type="url" required value={sourceDraft} disabled={!!installing}
         onChange={e=>setSourceDraft(e.target.value)} onBlur={e=>{if(e.target.checkValidity())applySource();}}
@@ -89,14 +108,15 @@ export function CommunityPacks({active, catalog, nodes, onInstalled}: {active:bo
       <small>修改后离开输入框或按回车，自动更新目录。</small>
     </details>
     </div></aside>
-    <div className="hl-pack-detail">
+    <div className="hl-pack-detail hl-community-browser">
+    <label className="hl-community-search">搜索社区包<input type="search" aria-label="搜索社区包" value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索包名、功能分类或发布者…" /></label>
+    <div className="hl-pack-heading"><h1>{index==='category' && category ? category : index==='publisher' && publisher ? publisher : index==='scope' && scope ? scope : '最近更新'}</h1><span>{matching.length} 个包 · 最近发布优先</span></div>
     {error && <div role="alert" className="hl-pack-notice">{error}<button onClick={()=>void load()} disabled={busy}>重试</button></div>}
     {busy && <div role="status" className="hl-pack-loading">正在读取社区包…<div className="hl-pack-grid">{[0,1,2].map(i=><div key={i} className="hl-pack-placeholder" aria-hidden="true" />)}</div></div>}
 
     {loaded && !busy && !names.length && <div className="hl-pack-empty">这个源尚未发布包。</div>}
-    {selected ? <>
-      <button disabled={!!installing} onClick={()=>setSelected('')}>← 全部社区包</button>
-      <h2>{selected}</h2>
+    <dialog ref={dialog} className="hl-community-dialog" aria-labelledby="community-detail-title" onClose={()=>setSelected('')}>
+      <header><h2 id="community-detail-title">{selected}</h2><button autoFocus aria-label="关闭包详情" onClick={()=>dialog.current?.close()}>关闭</button></header>
       {projects[selected]?.error && <p role="alert">{projects[selected].error} <button onClick={()=>void load()}>重试</button></p>}
       {!projects[selected] && <p role="status">正在读取版本…</p>}
       {projects[selected]?.releases?.length === 0 && <p>这个包没有已发布版本。</p>}
@@ -115,25 +135,27 @@ export function CommunityPacks({active, catalog, nodes, onInstalled}: {active:bo
           <button className="hl-evidence-primary" disabled={release.yanked || local || !target || !!installing} onClick={()=>void install(release)}>{installing===key?'安装中…':local?'已安装':release.yanked?'不可安装（yanked）':'安装'}</button>
           {results[key] && <p role="status">{results[key]}</p>}
         </article>;
-      })}</> : <>
-      <div className="hl-pack-heading"><h1>社区算法包</h1><span>{matchingNames.length} 个包</span></div>
-      <div className="hl-pack-grid">{matchingNames.map(name=>{
-        const project=projects[name], versions=project?.releases;
-        const latest=versions?.slice().sort((a,b)=>b.published_at.localeCompare(a.published_at))[0];
-        return <article className="hl-pack-card" key={name}>
-          <h3><button className="hl-pack-project-link" onClick={()=>choose(name)}>{name}</button></h3>
-          {!project ? <p role="status">正在读取版本…</p> : project.error ? <p role="alert">{project.error} <button onClick={()=>void load()}>重试</button></p> : <>
-            <p>{versions?.length} 个版本 · {latest?.version ?? '暂无发布版本'}</p>
-            {latest && <><p>{versions?.every(r=>r.yanked) ? '全部已 yank · 不可安装' : latest.yanked ? '最新版本已 yank · 可查看其他版本' : '最新版本可安装'} · {!target ? '等待可用机器' : versions?.some(isInstalled) ? '含已安装版本' : '未安装'}</p>
-            <dl><dt>最近发布</dt><dd>{latest.published_at}</dd><dt>发布者</dt><dd>{latest.publisher}</dd></dl>
-            <p>最新版本环境 · {latest.env || '未指定运行环境'}</p>
-            {latest.requires == null ? <p>未声明 requires，不等于环境缺失。</p> : <EvidenceValue value={latest.requires}/>}</>}
+      })}
+    </dialog>
+    <div className="hl-pack-grid hl-community-grid">{matching.map(project=>{
+      const latest=latestRelease(project), versions=project.releases;
+      return <article key={project.name} data-project={project.name} data-published-at={latest?.published_at ?? ''} className="hl-pack-card">
+        <button className="hl-community-card" onClick={()=>choose(project.name)} aria-label={`查看 ${project.name} 详情`}>
+          <strong>{project.name}</strong>
+          {!versions ? <span>{project.error ? '版本信息暂不可用' : '正在读取版本…'}</span> : <>
+            <span className="hl-pack-version">{latest?.version ?? '暂无发布版本'}</span>
+            {latest && <><time dateTime={latest.published_at}>{Number.isFinite(publishedTime(latest.published_at)) ? new Date(latest.published_at).toLocaleString() : '发布时间未知'}</time>
+            <span>发布者 · {latest.publisher || '未提供'}</span>
+            <span>分类 · {projectCategory(project).join(' / ')}</span>
+            <span>{!target ? '等待可用机器' : versions.some(isInstalled) ? '已安装' : '未安装'}</span>
+            <span>{versions.every(r=>r.yanked) ? '全部已 yank · 不可安装' : latest.yanked ? '最新版本已 yank · 查看其他版本' : '可安装'}</span></>}
           </>}
-          <button onClick={()=>choose(name)}>查看版本与详情 →</button>
-        </article>;
-      })}</div>
-      {loaded && names.length>0 && !matchingNames.length && <p className="hl-pack-empty">没有符合搜索条件的包。</p>}
-      </>}
+          <span className="hl-community-card-action">查看版本与详情 →</span>
+        </button>
+        {project.error && <p role="alert">{project.error} <button onClick={()=>void load()}>重试</button></p>}
+      </article>;
+    })}</div>
+    {loaded && !busy && names.length>0 && !matching.length && <p className="hl-pack-empty">没有符合搜索或筛选条件的包。</p>}
     </div>
   </section>;
 }
