@@ -4,7 +4,15 @@ import pytest
 
 from hololab.content_scope import capture
 from hololab.pack_publish import publish
-from hololab.pack_registry import Index, RegistryError, SourceUnavailable, find_release, read_index
+from hololab.pack_registry import (
+    OFFICIAL_REGISTRY,
+    Index,
+    RegistryError,
+    SourceUnavailable,
+    configured_sources,
+    find_release,
+    read_index,
+)
 from tests.test_content_scope import package
 
 
@@ -18,6 +26,48 @@ def test_static_source_and_absence(tmp_path):
     (tmp_path / "index.json").write_text(json.dumps({"format": 99, "authority": "x"}))
     with pytest.raises(ValueError):
         read_index(tmp_path.as_uri())
+
+
+def test_official_source_is_primary_and_user_sources_are_additive():
+    from hololab.node.config import NodeConfig
+
+    assert NodeConfig().pack_sources == []
+    assert NodeConfig().registry_sources == [OFFICIAL_REGISTRY]
+    assert NodeConfig(
+        pack_sources=[OFFICIAL_REGISTRY, "https://example.invalid"]
+    ).registry_sources == [
+        OFFICIAL_REGISTRY,
+        "https://example.invalid/",
+    ]
+
+
+def test_additional_sources_can_extend_official_without_shadowing(monkeypatch):
+    from hololab.pack_registry import Release
+
+    official = Index(authority="official")
+    extra_release = Release.model_validate(
+        {
+            "name": "kiri/demo",
+            "version": "1.0.0",
+            "code_sha256": "a" * 64,
+            "archive_sha256": "b" * 64,
+            "archive": "demo.tgz",
+            "archive_bytes": 1,
+            "unpacked_bytes": 0,
+            "manifest": "manifest.yaml",
+            "env": "test",
+            "evidence": {},
+            "published_at": "2026-01-01T00:00:00Z",
+            "publisher": "test",
+        }
+    )
+    extra = Index(authority="personal", releases={"kiri/demo@1.0.0": extra_release})
+    monkeypatch.setattr(
+        "hololab.pack_registry.read_index",
+        lambda source, name=None: official if source == OFFICIAL_REGISTRY else extra,
+    )
+    source, release = find_release("demo@1.0.0", configured_sources(["https://personal.example"]))
+    assert source == "https://personal.example/" and release == extra_release
 
 
 def test_publish_preserves_dev_identity_and_rejects_overwrites(tmp_path):

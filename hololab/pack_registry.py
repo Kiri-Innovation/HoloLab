@@ -12,6 +12,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from hololab.package_identity import canonical_name, parse_spec, validate_identity
 
+# The public registry is always the primary source.  ``NodeConfig.pack_sources``
+# contains optional additional registries; future private deployments that need
+# to replace or disable this default should extend ``configured_sources`` here.
+OFFICIAL_REGISTRY = "https://packs.xenotech.studio/"
+
 
 class RegistryError(ValueError):
     pass
@@ -104,6 +109,13 @@ def source_url(value: str) -> str:
     return value.rstrip("/") + "/"
 
 
+def configured_sources(additional: list[str] | None = None) -> list[str]:
+    """Official registry first, then de-duplicated user-added sources."""
+    return list(
+        dict.fromkeys(source_url(source) for source in [OFFICIAL_REGISTRY, *(additional or [])])
+    )
+
+
 def local_source(value: str) -> Path:
     parsed = urlparse(source_url(value))
     if parsed.scheme != "file":
@@ -145,16 +157,12 @@ def find_release(spec: str, sources: list[str], expected: str | None = None):
     name, version = parse_spec(spec)
     key = f"{canonical_name(name)}@{version}"
     errors = []
-    authority = None
     for source in sources:
         try:
             index = read_index(source, name)
         except SourceUnavailable as exc:
             errors.append(str(exc))
             continue
-        if authority is not None and authority != index.authority:
-            raise RegistryError("pack_sources must be mirrors of one authority")
-        authority = index.authority
         item = index.releases.get(key)
         if item:
             if expected is not None and item.code_sha256 != expected:

@@ -636,16 +636,18 @@ def pack_resolve_install(
     try:
         if ctx.info_name == "install":
             result = install(
-                spec, source or cfg.pack_sources, destination or dirs[0], dirs, expected_hash
+                spec, source or cfg.registry_sources, destination or dirs[0], dirs, expected_hash
             )
         elif ctx.info_name == "status":
             result = status(
-                spec, source or cfg.pack_sources, [*dirs, *([destination] if destination else [])]
+                spec,
+                source or cfg.registry_sources,
+                [*dirs, *([destination] if destination else [])],
             )
         else:
             result = resolve(
                 spec,
-                source or cfg.pack_sources,
+                source or cfg.registry_sources,
                 [*dirs, *([destination] if destination else [])],
                 expected_hash,
             )

@@ -711,7 +711,7 @@ class NodeRuntime:
             # the new multi-pack-source protocol.
             packs_dir=str(self._config.pack_dirs[0]) if self._config.pack_dirs else None,
             pack_dirs=[str(p) for p in self._config.pack_dirs],
-            pack_sources=list(self._config.pack_sources),
+            pack_sources=self._config.registry_sources,
             # Jobs currently in our live map. Sent so the gateway can
             # reconcile against DB rows it marked ``orphaned`` when it
             # restarted, hoisting the ones we're still running back to
@@ -934,7 +934,7 @@ class NodeRuntime:
             result = await asyncio.to_thread(
                 status,
                 f"{request.name}@{request.version}",
-                self._config.pack_sources,
+                self._config.registry_sources,
                 self._config.pack_dirs,
             )
         except HashMismatch as exc:

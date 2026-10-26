@@ -22,7 +22,7 @@ class NodeConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     pack_sources: list[str] = Field(
         default_factory=list,
-        description="Registry root URLs, e.g. https://packs.xenotech.studio/ (not /packs/ or /simple/).",
+        description="Additional registry root URLs. The official registry is always included first.",
     )
 
     @field_validator("pack_sources")
@@ -31,6 +31,13 @@ class NodeConfig(BaseModel):
         from hololab.pack_registry import source_url
 
         return [source_url(value) for value in values]
+
+    @property
+    def registry_sources(self) -> list[str]:
+        """Effective sources: built-in official registry plus user additions."""
+        from hololab.pack_registry import configured_sources
+
+        return configured_sources(self.pack_sources)
 
     # Identity — see docs/architecture.md#node-identity.
     #
