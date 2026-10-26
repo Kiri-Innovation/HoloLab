@@ -70,6 +70,16 @@ export function packEnvironmentStatus(entry: PackEntry, report?: EnvironmentRepo
   if (entry.usages.some(u => u.workflow.check?.environment?.[u.node.id]?.status === 'unknown')) return '工作流运行节点环境未校验';
   return report.status === 'missing' ? '缺少已声明的环境能力' : '已声明的可探测项满足';
 }
+export function hasEnvironmentDetails(requires: unknown) {
+  return requires == null || (typeof requires === 'object' && !Array.isArray(requires) && Object.keys(requires).length > 0);
+}
+export function compactPackStatus(entry: PackEntry, report?: EnvironmentReport, registryStatus?: string) {
+  const reasons = packProblemReasons(entry, report, registryStatus);
+  if (reasons.length) return reasons.join('；');
+  if (report?.status === 'undeclared' || (!report && entry.catalog?.requires == null))
+    return '未声明环境要求';
+  return '';
+}
 export function recipeIssueLabel(issue: RecipeIssue) {
   switch (issue.code) {
     case 'missing_package': return '包未发现；请检查安装位置与计算节点连接。';

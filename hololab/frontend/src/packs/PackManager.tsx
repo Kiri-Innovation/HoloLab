@@ -15,7 +15,7 @@ import { EvidenceValue } from '../canvas/EvidenceValue';
 import { OpenSourceButton } from '../canvas/OpenSourceButton';
 import { writeToClipboard } from '../canvas/referenceAction';
 import {usePackUsage} from './usePackUsage';
-import { buildPackEntries, installedOn, installCommand, packProblemReasons, packEnvironmentStatus, recipeIssueLabel,
+import { buildPackEntries, compactPackStatus, hasEnvironmentDetails, installedOn, installCommand, packProblemReasons, packEnvironmentStatus, recipeIssueLabel,
   type InventoryPack, type PackEntry, type RegistryRelease } from './packManagerModel';
 import './packManager.css';
 
@@ -106,6 +106,8 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     ? 'hash_mismatch' : central[statusKey(entry)]?.data?.registry_status);
   const problem = (entry: PackEntry) => reasons(entry).length > 0;
   const statusLabel = (entry: PackEntry) => reasons(entry).join('；') || packEnvironmentStatus(entry, checks.reports[entry.key]);
+  const compactStatus = (entry: PackEntry) => compactPackStatus(entry, checks.reports[entry.key], central[statusKey(entry)]?.data?.state === 'hash_mismatch'
+    ? 'hash_mismatch' : central[statusKey(entry)]?.data?.registry_status);
   const categoryTrail = (entry: PackEntry) => {
     return collapseRedundantCategory({name: entry.name, category: entry.catalog?.category ?? []}).category;
   };
@@ -141,6 +143,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const hasRegistry = !!entry.catalog?.publication || !!entry.release;
     const report = checks.reports[entry.key];
     const requires = entry.catalog ? entry.catalog.requires : entry.release?.requires;
+    const showEnvironment = hasEnvironmentDetails(requires);
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
     const sourceLocation = source || entry.catalog?.source_dir || entry.catalog?.manifest_path;
     const historicalNodes = entry.inventory.filter(item => !entry.catalog?.node_ids.includes(item.node_id));
@@ -148,7 +151,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const breadcrumbCategory = categoryTrail(entry);
     return <article className="hl-local-package-page" data-local-page="package" key={entry.key} data-pack-key={entry.key}>
       <nav className="hl-local-breadcrumb" aria-label="包路径">{breadcrumbCategory.length > 0 && <><button onClick={()=>navigateLocal('category','',breadcrumbCategory.join('/'))}>{breadcrumbCategory.join(' / ')}</button><span aria-hidden="true">/</span></>}<span>{displayName(entry.name)}</span></nav>
-      <header><div><h1>{`${entry.name}@${entry.version}`}</h1><p className="hl-pack-identity-meta">{breadcrumbCategory.length > 0 && <>{breadcrumbCategory.join(' / ')}<span aria-hidden="true"> · </span></>}<span className="hl-pack-state" data-problem={problem(entry)}>{loading || checks.loading ? '检查中' : statusLabel(entry)}</span></p></div></header>
+      <header><div><h1>{`${entry.name}@${entry.version}`}</h1>{(breadcrumbCategory.length > 0 || loading || checks.loading || compactStatus(entry)) && <p className="hl-pack-identity-meta">{breadcrumbCategory.length > 0 && <>{breadcrumbCategory.join(' / ')}{(loading || checks.loading || compactStatus(entry)) && <span aria-hidden="true"> · </span>}</>}{(loading || checks.loading || compactStatus(entry)) && <span className="hl-pack-state" data-problem={problem(entry)}>{loading || checks.loading ? '检查中' : compactStatus(entry)}</span>}</p>}</div></header>
       {feedback}
       {entry.catalog?.description && <p className="hl-local-description">{entry.catalog.description}</p>}
       <dl className="hl-pack-facts">
@@ -164,10 +167,10 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
           {current?.data?.state === 'hash_mismatch' && <small role="alert">代码哈希不匹配，请处理身份差异后再运行。</small>}
           {current?.data?.registry_status === 'unknown' && <small>中央状态未知，不代表已 yank；本地包仍可使用。</small>}</dd></div>
       </dl>
-      <details className="hl-pack-section" open><summary>环境 · {report ? environmentLabel(report) : nodeId ? '尚未完成检查' : '未选择计算节点'}</summary>
+      {showEnvironment && <details className="hl-pack-section" open><summary>环境 · {report ? environmentLabel(report) : nodeId ? '尚未完成检查' : '未选择计算节点'}</summary>
         <EnvironmentEvidence report={report} headingLabel={report?.status === 'unknown' ? '环境未校验' : undefined} />
         {requires != null && <details><summary>声明的 requires</summary><EvidenceValue value={requires} /></details>}
-      </details>
+      </details>}
       <details className="hl-pack-section" open><summary>使用情况与配方检查{usage.loading ? ' · 引用加载中…' : usage.error ? ' · 引用暂不可用' : ` · ${entry.usages.length} 个节点 / ${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流`}</summary>
         {!usage.loading && !usage.error && !entry.usages.length && <p>已读取的工作流草稿中没有引用此版本。</p>}
         {entry.usages.map(({workflow, node, issues}) => <section className="hl-pack-usage" key={`${workflow.workflow_id}:${node.id}`}>
@@ -233,7 +236,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         <button role="tab" aria-selected={tree==='scope'} onClick={()=>navigateLocal(section,selected,'','scope')}>按作用域</button>
       </div>
       <nav className="hl-local-tree" aria-label={tree==='category' ? '按分类的本地包目录' : '按作用域的本地包目录'}>
-        <PackageTree items={entries.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:tree==='scope'?[entry.scope]:entry.catalog?.category ?? [], status:statusLabel(entry), problem:problem(entry)}))} query="" displayName={displayName}
+        <PackageTree items={entries.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:tree==='scope'?[entry.scope]:entry.catalog?.category ?? [], status:compactStatus(entry), problem:problem(entry)}))} query="" displayName={displayName}
           selected={section==='category'?selected:''} selectedCategory={tree==='category' && section==='category'&&!selected?category:''}
           onSelect={key=>navigateLocal('category',key,'',tree)} onSelectCategory={tree==='category' ? path=>navigateLocal('category','',path,tree) : undefined} collapseRedundantCategories={tree==='category'} />
       </nav>

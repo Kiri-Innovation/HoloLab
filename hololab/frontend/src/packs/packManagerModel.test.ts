@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {buildPackEntries, installedOn, installCommand, packHasProblem, packProblemReasons, packEnvironmentStatus} from './packManagerModel';
+import {buildPackEntries, compactPackStatus, hasEnvironmentDetails, installedOn, installCommand, packHasProblem, packProblemReasons, packEnvironmentStatus} from './packManagerModel';
 import type {CatalogPack, WorkflowGraph} from '../wire';
 
 const catalog = [{name:'train',version:'1',node_ids:['gpu'],requires:null}] as CatalogPack[];
@@ -23,10 +23,17 @@ describe('package-oriented aggregation',()=>{
     expect(packHasProblem(entry,undefined,'yanked')).toBe(true);
   });
 
-  it('labels an explicit empty contract as no environment requirements',()=>{
+  it('keeps an explicit empty contract in data but omits normal status UI',()=>{
     const entry=buildPackEntries([{name:'empty',version:'1',node_ids:['n'],requires:{}}] as CatalogPack[],[],[])[0];
     expect(packEnvironmentStatus(entry)).toBe('已明确声明无环境要求');
     expect(packEnvironmentStatus(entry,{status:'satisfied',issues:[],requires:{}})).toBe('已明确声明无环境要求');
+    expect(compactPackStatus(entry,{status:'satisfied',issues:[],requires:{}})).toBe('');
+    expect(hasEnvironmentDetails({})).toBe(false);
+  });
+  it('keeps undeclared requirements visible as an authoring prompt',()=>{
+    const [entry]=buildPackEntries(catalog,[],[]);
+    expect(compactPackStatus(entry,{status:'undeclared',issues:[]})).toBe('未声明环境要求');
+    expect(hasEnvironmentDetails(null)).toBe(true);
   });
   it('keeps unknown local and workflow environments informational',()=>{
     const [entry]=buildPackEntries(catalog,[],workflows);
