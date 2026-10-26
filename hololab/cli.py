@@ -535,6 +535,12 @@ def pack_publish(
     source: str = typer.Option(..., help="Writable file:// registry directory"),
     publisher: str = typer.Option(..., help="Publisher attribution, not a cryptographic signature"),
     authority: str = "hololab-central",
+    publish_to: str | None = typer.Option(
+        None, help="Remote registry base URL, e.g. https://packs.xenotech.studio"
+    ),
+    token_env: str = typer.Option(
+        "PUBLISHER_TOKEN", help="Environment variable containing the remote publish token"
+    ),
     snapshot_db: Path | None = typer.Option(
         None, help="Snapshot database; defaults to local gateway DB if present"
     ),
@@ -543,7 +549,19 @@ def pack_publish(
     from hololab.pack_publish import publish
 
     try:
-        release = publish(pack_dir, source, publisher, authority=authority)
+        token = None
+        if publish_to is not None:
+            token = os.environ.get(token_env, "").strip(" \t\r\n\"'")
+            if not token:
+                raise ValueError(f"remote publication token is missing from ${token_env}")
+        release = publish(
+            pack_dir,
+            source,
+            publisher,
+            authority=authority,
+            publish_to=publish_to,
+            token=token,
+        )
     except (ValueError, OSError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc

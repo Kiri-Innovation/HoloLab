@@ -13,6 +13,7 @@ import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 import yaml
 
@@ -60,7 +61,61 @@ def authority_lock(root: Path):
         yield
 
 
-def publish(manifest: Path, source: str, publisher: str, *, authority="hololab-central") -> Release:
+def publish_remote(release: Release, archive: Path, publish_to: str, token: str) -> None:
+    """Submit a locally-built archive using the registry's publish-request schema."""
+    parsed = urlparse(publish_to)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise RegistryError("publish target must be an http(s) URL")
+    if not token:
+        raise RegistryError("remote publication requires a non-empty token")
+    archive_sha256 = file_hash(archive)
+    if archive_sha256 != release.archive_sha256:
+        raise RegistryError("local archive hash changed before remote publication")
+    scope, package_name = release.name.split("/", 1)
+    metadata = {
+        "scope": scope,
+        "name": package_name,
+        "version": release.version,
+        "evidence": release.evidence,
+        "external": release.external,
+        "code_sha256": release.code_sha256,
+        "archive_sha256": archive_sha256,
+        "manifest": release.manifest,
+    }
+    import httpx
+
+    try:
+        with archive.open("rb") as stream:
+            response = httpx.post(
+                publish_to.rstrip("/") + "/publish",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Idempotency-Key": hashlib.sha256(
+                        f"{release.name}@{release.version}:{archive_sha256}".encode()
+                    ).hexdigest(),
+                },
+                files={
+                    "metadata": (None, json.dumps(metadata), "application/json"),
+                    "archive": (archive.name, stream, "application/gzip"),
+                },
+                timeout=httpx.Timeout(60.0, connect=10.0),
+                trust_env=False,
+            )
+    except httpx.HTTPError as exc:
+        raise RegistryError(f"remote publication failed: {exc}") from exc
+    if response.is_error:
+        raise RegistryError(f"remote publication failed ({response.status_code}): {response.text}")
+
+
+def publish(
+    manifest: Path,
+    source: str,
+    publisher: str,
+    *,
+    authority="hololab-central",
+    publish_to: str | None = None,
+    token: str | None = None,
+) -> Release:
     root = local_source(source)
     manifest = manifest / "manifest.yaml" if manifest.is_dir() else manifest
     scope = Scope.load(manifest)
@@ -174,6 +229,8 @@ def publish(manifest: Path, source: str, publisher: str, *, authority="hololab-c
             published_at=now(),
             publisher=publisher,
         )
+        if publish_to is not None:
+            publish_remote(release, destination, publish_to, token or "")
         index.releases[key] = release
         atomic_json(index_path, index.model_dump())
         return release
