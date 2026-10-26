@@ -1,0 +1,64 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: merge-colmap4d
+version: 0.1.2
+description: "Assemble grouped points/cams and a flat timestamped image array into one colmap4d model."
+source_entry: merge_colmap4d.py
+category: "reconstruction/colmap"
+
+docs: |
+  The image input is strictly one-dimensional. Connect
+  `arrayed[group,cam]<image>` through `flatten-image-groups@0.1.0`; its
+  root-level elements are named `gXXXXXX__camN.jpg`.
+
+  This pack decodes and validates that filename convention, then checks every
+  recovered group and camera against the grouped points/cams inputs and the
+  image XMP alias. Grouping is therefore not part of the image port type, but
+  remains recoverable assembly provenance.
+
+inputs:
+  points:
+    tags: [point-cloud]
+    arrayed: true
+    storage: dir
+    dim_labels: [group]
+    require_axis_label_match: false
+  images:
+    tags: [image]
+    arrayed: true
+    storage: dir
+  cams:
+    tags: [colmap-cams]
+    arrayed: true
+    storage: dir
+    dim_labels: [group]
+    require_axis_label_match: false
+
+outputs:
+  model:
+    tags: [colmap4d]
+    arrayed: false
+    storage: dir
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 2.0
+    mem_gb: 8.0
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/merge_colmap4d.py" \
+      --points "{{ inputs.points }}" \
+      --images "{{ inputs.images }}" \
+      --cams "{{ inputs.cams }}" \
+      --output "{{ outputs.model }}"
+
+idempotency:
+  marker: "{{ outputs.model }}/.hololab-done"
+
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
