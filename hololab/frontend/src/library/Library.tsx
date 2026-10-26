@@ -20,7 +20,7 @@ function EntryIcon({ kind }: { kind: 'folder' | 'file' | 'upload' }) {
 const size = (bytes: number) => `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
 const labels: Record<string, Parameters<typeof t>[0]> = { queued: 'libQueued', hashing: 'libHashing', uploading: 'libUploading', completing: 'libVerifying', completed: 'libDistributing', ready: 'libReady', partially_ready: 'libPartial', distributing: 'libDistributing', staged: 'libStaged', failed: 'libFailed', cancelled: 'libCancelled', cancelling: 'libCancelled', pending: 'libDistributing', downloading: 'libDistributing', waiting: 'libDistributing', registered: 'libUploading' };
 const status = (value: string) => labels[value] ? t(labels[value]) : value;
-export default function Library({ onBack, onOpenPacks }: { onBack: () => void; onOpenPacks?: () => void }) {
+export default function Library({ onBack }: { onBack: () => void }) {
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const [deleting, setDeleting] = useState<Resource | null>(null);
@@ -237,7 +237,7 @@ export default function Library({ onBack, onOpenPacks }: { onBack: () => void; o
         <span aria-hidden="true" style={{color: 'var(--text-subtle)', fontSize: 'var(--fs-md)'}}>←</span>
         HoloLab
       </button><span>· Library</span>
-      {onOpenPacks && <button type="button" style={CONTROL_STYLE} onClick={onOpenPacks}>Pack Manager</button>}<ThemeToggle /></header><main id="main" className="library-page">
+      <ThemeToggle /></header><main id="main" className="library-page">
     <div className="library-heading"><div><span className="library-eyebrow">YOUR ASSETS</span><h1>{t('library')}</h1></div><button className="button" disabled={!loaded} onClick={() => picker.current?.click()}>↑ {t('libBrowse')}</button><input className="library-file-picker" ref={picker} type="file" multiple hidden onChange={e => { receive(Array.from(e.target.files ?? [])); e.target.value = ''; }} /></div>
     <div className="library-toolbar"><nav className="library-breadcrumbs" aria-label="Folder path"><button aria-current={folder === 'root' ? 'page' : undefined} onClick={() => openFolder('root')}>Library</button>{breadcrumbs.map(item => <span key={item.folder_id}><span aria-hidden="true">/</span><button aria-current={folder === item.folder_id ? 'page' : undefined} onClick={() => openFolder(item.folder_id)}>{item.name}</button></span>)}</nav><button className="button" onClick={() => void refresh()}>{t('libRefresh')}</button><form onSubmit={e => { e.preventDefault(); void createFolder(); }}><input aria-label={t('libNewFolder')} value={folderName} onChange={e => setFolderName(e.target.value)} placeholder={t('libNewFolder')} /><button className="button" disabled={!folderName.trim() || creating || !loaded}>{t('libCreate')}</button></form></div>
     {error && <p className="library-error" role="alert">{error}</p>}

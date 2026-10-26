@@ -1,4 +1,5 @@
 import { useResizableSlot } from '../canvas/useResizableLayout';
+import { PackageTree } from './PackageTree';
 import { CommunityPacks } from './CommunityPacks';
 import { useEffect, useMemo, useState } from 'react';
 import type { CatalogPack, ComputeNode, WorkflowGraph } from '../wire';
@@ -21,8 +22,8 @@ async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 interface CentralStatus { code_sha256?: string; registry_status?: string; state?: string; source?: string; publication?: Record<string, unknown> }
 
-export function PackManager({onBack, onOpenLibrary, onOpenWorkflow, onNavigate}: {
-  onNavigate: (path: string) => void; onBack: () => void; onOpenLibrary: () => void; onOpenWorkflow: (id: string) => void;
+export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
+  onNavigate: (path: string) => void; onBack: () => void; onOpenWorkflow: (id: string) => void;
 }) {
   const [catalog, setCatalog] = useState<CatalogPack[]>([]);
   const [inventory, setInventory] = useState<InventoryPack[]>([]);
@@ -92,10 +93,7 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow, onNavigate}:
   const statusKey = (entry: PackEntry) => `${nodeId}:${entry.key}`;
   const problem = (entry: PackEntry) => packHasProblem(entry, checks.reports[entry.key], central[statusKey(entry)]?.data?.state === 'hash_mismatch'
     ? 'hash_mismatch' : central[statusKey(entry)]?.data?.registry_status);
-  const visible = entries.filter(entry => (!problemsOnly || problem(entry)) && `${entry.name}@${entry.version}`.toLowerCase().includes(search.toLowerCase()));
-  const groups = new Map<string, PackEntry[]>();
-  for (const entry of visible) { const group = entry.scope; groups.set(group, [...groups.get(group) ?? [], entry]); }
-
+  const visible = entries.filter(entry => (!problemsOnly || problem(entry)) && `${entry.name}@${entry.version} ${entry.catalog?.category?.join('/') || 'misc'}`.toLowerCase().includes(search.toLowerCase()));
   const selectedEntry = visible.find(entry => entry.key === selected) ?? visible[0];
 
   async function queryStatus(entry: PackEntry) {
@@ -120,9 +118,9 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow, onNavigate}:
         {(['local', 'community'] as const).map(tab => <button key={tab} id={`pack-tab-${tab}`} role="tab" aria-controls={`pack-panel-${tab}`} aria-selected={view === tab}
           onClick={() => onNavigate(`/packs?view=${tab}`)}>{tab === 'local' ? '本地安装' : '社区'}</button>)}
       </div></div>
-      <button type="button" style={CONTROL_STYLE} onClick={onOpenLibrary}>Library</button><ThemeToggle /></header>
+      <ThemeToggle /></header>
     <main className="hl-pack-page">
-      <div id="pack-panel-community" role="tabpanel" aria-labelledby="pack-tab-community" hidden={view !== 'community'}><CommunityPacks catalog={catalog} nodes={nodes} onInstalled={() => setRevision(n => n + 1)} /></div>
+      <div id="pack-panel-community" role="tabpanel" aria-labelledby="pack-tab-community" hidden={view !== 'community'}><CommunityPacks active={view === 'community'} catalog={catalog} nodes={nodes} onInstalled={() => setRevision(n => n + 1)} /></div>
       <div id="pack-panel-local" role="tabpanel" aria-labelledby="pack-tab-local" hidden={view !== 'local'}>
       <div className="hl-pack-workspace">
       <aside className="hl-dock hl-pack-palette hl-pack-sidebar">
@@ -130,17 +128,14 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow, onNavigate}:
       <button className="hl-pack-directory-toggle" aria-expanded={directoryOpen} onClick={() => setDirectoryOpen(!directoryOpen)}>包目录 · {visible.length} 个版本 {directoryOpen ? '▴' : '▾'}</button>
       <div className="hl-pack-directory" data-open={directoryOpen}>
       <div className="hl-pack-filters"><input type="search" aria-label="搜索包" placeholder="搜索包名或版本" value={search} onChange={e => setSearch(e.target.value)} />
-        <label>检查目标<select aria-label="检查目标计算节点" value={nodeId} onChange={e => setNodeId(e.target.value)}><option value="">选择计算节点</option>{nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name || node.node_id}</option>)}</select></label>
+        {nodes.length > 1 ? <label>查看机器<select aria-label="查看机器" value={nodeId} onChange={e => setNodeId(e.target.value)}><option value="">选择计算节点</option>{nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name || node.node_id}</option>)}</select></label> : <p className="hl-pack-boundary">{nodes.length ? `查看 ${nodes[0].node_name || nodes[0].node_id} 上的包` : '没有已连接的机器'}</p>}
         <label><input type="checkbox" checked={problemsOnly} onChange={e => setProblemsOnly(e.target.checked)} />只看有问题的</label>
 </div>
       <div className="hl-pack-summary" role="status">{loading ? '正在汇总包与工作流…' : `${entries.length} 个包版本 · ${entries.filter(problem).length} 项待处理 · 显示 ${visible.length} 项`}
         {checks.loading && ' · 环境检查中…'}</div>
       <nav aria-label="本地包目录">
-      {[...groups].map(([scope, packs]) => <details key={scope} open className="hl-pack-tree-group">
-        <summary className="hl-pack-folder">{scope}<span>{packs.length}</span></summary>
-        {packs.map(entry => <button className="hl-pack-leaf" key={entry.key} aria-current={selectedEntry?.key === entry.key ? 'true' : undefined}
-          onClick={() => {setSelected(entry.key); setDirectoryOpen(false);}}><span>{entry.name.slice(entry.scope.length + 1)}</span><small>{entry.version}</small>{problem(entry) && <span aria-label="待处理">!</span>}</button>)}
-      </details>)}
+      <PackageTree items={visible.map(entry => ({key: entry.key, name: entry.name, version: entry.version, category: entry.catalog?.category ?? []}))}
+        query={search} selected={selectedEntry?.key ?? ''} onSelect={key => {setSelected(key); setDirectoryOpen(false);}} />
       {!loading && !visible.length && <p>没有符合条件的包。</p>}
       </nav></div></aside>
       <section className="hl-pack-detail" aria-label="本地包详情">

@@ -280,8 +280,8 @@ export default function App() {
       <Gallery onOpen={navigateToCanvas} onOpenArtifacts={navigateToArtifacts} onOpenLibrary={() => pushPath("/library")} onOpenPacks={() => pushPath("/packs")} />
     );
   }
-  if (route.kind === "packs") return <PackManager onNavigate={pushPath} onBack={navigateToGallery} onOpenLibrary={() => pushPath("/library")} onOpenWorkflow={navigateToCanvas} />;
-  if (route.kind === "library") return <Library onBack={navigateToGallery} onOpenPacks={() => pushPath("/packs")} />;
+  if (route.kind === "packs") return <PackManager onNavigate={pushPath} onBack={navigateToGallery} onOpenWorkflow={navigateToCanvas} />;
+  if (route.kind === "library") return <Library onBack={navigateToGallery} />;
   if (route.kind === "artifacts") {
     return <Artifacts onBackToGallery={navigateToGallery} />;
   }

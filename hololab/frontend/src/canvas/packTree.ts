@@ -1,35 +1,37 @@
 import type { CatalogPack } from "../wire";
 
-export type FolderNode = {
+export type TreePack = Pick<CatalogPack, "name" | "version" | "category"> & Partial<Pick<CatalogPack, "description">>;
+
+export type FolderNode<T extends TreePack = CatalogPack> = {
   kind: "folder";
   path: string; // "reconstruction/sharp-4dgs"
   label: string; // "sharp-4dgs"
   depth: number;
-  children: TreeNode[];
+  children: TreeNode<T>[];
 };
 
-type LeafNode = {
+type LeafNode<T extends TreePack> = {
   kind: "leaf";
   path: string; // "reconstruction/sharp-4dgs/track-to-gs-sequence@0.1.0"
   depth: number;
-  pack: CatalogPack;
+  pack: T;
 };
 
 type ViewLeafNode = { kind: "view"; path: string; depth: number; label: string };
-export type TreeNode = FolderNode | LeafNode | ViewLeafNode;
+export type TreeNode<T extends TreePack = CatalogPack> = FolderNode<T> | LeafNode<T> | ViewLeafNode;
 
-export function buildTree(catalog: CatalogPack[]): FolderNode {
-  const root: FolderNode = {
+export function buildTree<T extends TreePack>(catalog: T[], {includeView = true} = {}): FolderNode<T> {
+  const root: FolderNode<T> = {
     kind: "folder",
     path: "",
     label: "",
     depth: -1,
     children: [],
   };
-  const folderIndex = new Map<string, FolderNode>();
+  const folderIndex = new Map<string, FolderNode<T>>();
   folderIndex.set("", root);
 
-  const ensureFolder = (segments: string[]): FolderNode => {
+  const ensureFolder = (segments: string[]): FolderNode<T> => {
     let acc = "";
     let parent = root;
     for (let i = 0; i < segments.length; i++) {
@@ -64,11 +66,13 @@ export function buildTree(catalog: CatalogPack[]): FolderNode {
     });
   }
 
-  const misc = ensureFolder(["misc"]);
-  misc.children.push({ kind: "view", path: "misc/@builtin/visualize", depth: misc.depth + 1, label: "visualize" });
+  if (includeView) {
+    const misc = ensureFolder(["misc"]);
+    misc.children.push({ kind: "view", path: "misc/@builtin/visualize", depth: misc.depth + 1, label: "visualize" });
+  }
 
   // Stable sort: folders before leaves at each level, then alphabetical.
-  const sortRec = (node: FolderNode) => {
+  const sortRec = (node: FolderNode<T>) => {
     node.children.sort((a, b) => {
       if ((a.kind === "folder") !== (b.kind === "folder")) return a.kind === "folder" ? -1 : 1;
       const la = a.kind === "leaf" ? a.pack.name : a.label;
@@ -84,14 +88,14 @@ export function buildTree(catalog: CatalogPack[]): FolderNode {
 // Match by pack name / description / category segments. Case-insensitive
 // substring. Returns the set of leaf paths that match, plus the set of
 // ancestor folder paths that must be force-expanded to reveal them.
-export function computeMatches(root: FolderNode, query: string) {
+export function computeMatches<T extends TreePack>(root: FolderNode<T>, query: string) {
   const q = query.trim().toLowerCase();
   const matched = new Set<string>();
   const forceOpen = new Set<string>();
 
   if (!q) return { matched, forceOpen, active: false };
 
-  const visit = (node: TreeNode, ancestors: string[]): boolean => {
+  const visit = (node: TreeNode<T>, ancestors: string[]): boolean => {
     if (node.kind !== "folder") {
       const hay = (node.kind === "view" ? `${node.label} ${node.path}` :
         `${node.pack.name} ${node.pack.description ?? ""} ${node.path}`).toLowerCase();
