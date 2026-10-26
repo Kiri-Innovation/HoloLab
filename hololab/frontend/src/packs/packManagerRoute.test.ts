@@ -12,3 +12,9 @@ it('round-trips view selection and index parameters for reload/history',()=>{
  expect(packManagerRoute(local.slice(local.indexOf('?')))).toMatchObject({localSection:'category',pack:'kiri/sfm@0.4.1'});
  expect(packManagerRoute('?view=community&section=installed').communitySection).toBe('installed');
 });
+it('round-trips local categories independently from package and status selection',()=>{
+ const category=packManagerPath('local','category',{category:'reconstruction/colmap'});
+ expect(packManagerRoute(category.slice(category.indexOf('?')))).toMatchObject({localSection:'category',category:'reconstruction/colmap',pack:''});
+ const missing=packManagerPath('local','missing');
+ expect(packManagerRoute(missing.slice(missing.indexOf('?')))).toMatchObject({localSection:'missing',category:'',pack:''});
+});

@@ -117,8 +117,6 @@
 .hl-community-dialog h2 { overflow-wrap: anywhere; min-width: 0; }
 .hl-community-dialog > header > button { flex-shrink: 0; }
 @media (max-width: 760px) { .hl-community-dialog { padding: var(--space-3); } }
-.hl-pack-view-nav > button:first-child { margin-bottom: var(--space-3); }
-.hl-pack-view-nav > button:nth-child(2) { border-top: 1px solid var(--border); border-radius: 0; }
 .hl-pack-view-nav [aria-current=page] { background: var(--surface-alt); font-weight: var(--fw-semibold); box-shadow: inset 2px 0 var(--text-body); }
 .hl-local-cards { margin-bottom: var(--space-4); }
 .hl-local-cards .hl-pack-card p, .hl-local-cards .hl-pack-card small { color: var(--text-muted); }
@@ -127,3 +125,12 @@
 .hl-pack-leaf .hl-pack-tree-status { flex-basis: 100%; font-family: var(--font-sans); overflow-wrap: anywhere; }
 .hl-pack-tree-status[data-problem=true] { color: var(--warning); }
 .hl-pack-state { overflow-wrap: anywhere; }
+
+/* Local navigation uses the same current-page treatment at every level. */
+.hl-local-directory .hl-pack-view-nav { margin-bottom: var(--space-3); }
+.hl-local-tree { border-top: 1px solid var(--border); padding-top: var(--space-3); }
+.hl-local-folder-row { display: flex; align-items: stretch; }
+.hl-local-folder-toggle { flex-shrink: 0; border: 0; background: transparent; padding: var(--space-1); }
+.hl-local-folder-row .hl-pack-folder { min-width: 0; font-weight: var(--fw-regular); overflow-wrap: anywhere; }
+.hl-local-directory [aria-current=page] { background: var(--surface-alt); font-weight: var(--fw-semibold); box-shadow: inset 2px 0 var(--text-body); border-radius: var(--radius-sm); }
+.hl-local-directory button:hover { background: var(--surface-hover); }

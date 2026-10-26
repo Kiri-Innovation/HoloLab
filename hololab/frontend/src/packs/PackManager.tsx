@@ -37,10 +37,9 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const [nodeId, setNodeId] = useState('');
   const [search, setSearch] = useState('');
   const route=packManagerRoute(window.location.search);
-  const {view, localSection:section, pack:selected}=route;
-  const navigateLocal=(next:string,pack='')=>{if(next==='overview')setSearch('');setDirectoryOpen(false);onNavigate(packManagerPath('local',next,{pack}));};
+  const {view, localSection:section, pack:selected, category}=route;
+  const navigateLocal=(next:string,pack='',category='')=>{if(next==='overview')setSearch('');onNavigate(packManagerPath('local',next,{pack,category}));};
   useEffect(()=>{setSearch('');},[view]);
-  const [directoryOpen, setDirectoryOpen] = useState(false);
   const leftDock = useResizableSlot('hl-layout-left', 300, 180, 420);
   const registry = useMemo<RegistryRelease[]>(() => [], []);
   const [central, setCentral] = useState<Record<string, {data?: CentralStatus; busy?: boolean; failed?: boolean}>>({});
@@ -101,7 +100,11 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const statusLabel = (entry: PackEntry) => reasons(entry).join('；') || packEnvironmentStatus(entry, checks.reports[entry.key]);
   const visible = entries.filter(entry => `${entry.name}@${entry.version} ${entry.catalog?.category?.join('/') || 'misc'}`.toLowerCase().includes(search.toLowerCase()));
   const summary=localOverview(entries,nodeId,checks.reports,problem);
-  const sectionEntries=visible.filter(entry=>section==='attention'?problem(entry):section==='missing'?checks.reports[entry.key]?.status==='missing':section==='undeclared'?isUndeclared(entry):true);
+  const categoryEntries=visible.filter(entry=>{
+    const path=entry.catalog?.category?.join('/') || 'misc';
+    return !category || path===category || path.startsWith(`${category}/`);
+  });
+  const sectionEntries=(section==='category'?categoryEntries:visible).filter(entry=>section==='attention'?problem(entry):section==='missing'?checks.reports[entry.key]?.status==='missing':section==='undeclared'?isUndeclared(entry):true);
   const selectedEntry=section==='category' ? entries.find(entry=>entry.key===selected) : undefined;
   const healthPending=loading || checks.loading || !nodeId || entries.some(entry=>!checks.reports[entry.key] || checks.reports[entry.key].status==='unknown');
   const cards=(items:PackEntry[]) => <div className="hl-pack-grid hl-local-cards">{items.map(entry=><article className="hl-pack-card" key={entry.key}>
@@ -139,19 +142,20 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       <div className="hl-pack-workspace">
       <aside className="hl-dock hl-pack-palette hl-pack-sidebar">
       <div className="hl-dock-heading"><h2 className="hl-section-title">本地安装</h2><button disabled={loading} onClick={() => setRevision(n => n + 1)}>{loading ? '读取中…' : '刷新'}</button></div>
-      <button className="hl-pack-directory-toggle" aria-expanded={directoryOpen} onClick={() => setDirectoryOpen(!directoryOpen)}>包目录 · {visible.length} 个版本 {directoryOpen ? '▴' : '▾'}</button>
-      <div className="hl-pack-directory" data-open={directoryOpen}>
+      <div className="hl-pack-directory hl-local-directory">
       <nav className="hl-community-index hl-pack-view-nav" aria-label="本地视图">
-        {([['overview','总览'],['category','功能分类'],['attention',`需要注意 (${summary.attention.length})`],['missing',`环境缺失 (${summary.missing.length})`],['undeclared',`未声明 (${summary.undeclared.length})`]] as const).map(([value,label])=><button key={value} aria-current={section===value?'page':undefined} onClick={()=>navigateLocal(value)}>{label}</button>)}
+        {([['overview','总览'],['attention',`需要注意 (${summary.attention.length})`],['missing',`环境缺失 (${summary.missing.length})`],['undeclared',`未声明 (${summary.undeclared.length})`]] as const).map(([value,label])=><button key={value} aria-current={section===value?'page':undefined} onClick={()=>navigateLocal(value)}>{label}</button>)}
+      </nav>
+      <nav className="hl-local-tree" aria-label="本地包目录">
+        <PackageTree items={visible.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:entry.catalog?.category ?? [], status:statusLabel(entry), problem:problem(entry)}))} query={search}
+          selected={section==='category'?selected:''} selectedCategory={section==='category'&&!selected?category:''}
+          onSelect={key=>navigateLocal('category',key)} onSelectCategory={path=>navigateLocal('category','',path)} />
       </nav>
       {nodes.length > 1 ? <label>查看机器<select aria-label="查看机器" value={nodeId} onChange={e => setNodeId(e.target.value)}>{nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name || node.node_id}</option>)}</select></label> : <p className="hl-pack-boundary">{nodes.length ? `查看 ${nodes[0].node_name || nodes[0].node_id} 上的包` : '没有已连接的机器'}</p>}
-      {section==='category' && <nav aria-label="本地包目录">
-        <PackageTree items={visible.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:entry.catalog?.category ?? [], status:statusLabel(entry), problem:problem(entry)}))} query={search} selected={selected} onSelect={key=>navigateLocal('category',key)} />
-      </nav>}
       </div></aside>
       <section className="hl-pack-detail" aria-label="本地包内容">
       <label className="hl-community-search">搜索本地包<input type="search" aria-label="搜索包" placeholder="搜索包名、版本或功能分类…" value={search} onChange={e=>{setSearch(e.target.value);if(selected)onNavigate(packManagerPath('local',section));}} /></label>
-      <h1>{({overview:'总览',category:'功能分类',attention:'需要注意',missing:'环境缺失',undeclared:'未声明环境要求'} as const)[section]}</h1>
+      <h1>{section==='category' && category && !selected ? category.split('/').join(' / ') : ({overview:'总览',category:'功能分类',attention:'需要注意',missing:'环境缺失',undeclared:'未声明环境要求'} as const)[section]}</h1>
       <p className="hl-pack-summary" role="status">{loading ? '正在汇总包与工作流…' : `当前机器已发现 ${summary.installed} 个版本 · 清单内 ${summary.attention.length} 项待处理 · ${summary.undeclared.length} 个未声明环境要求`}{checks.loading && ' · 环境检查中…'}</p>
       {warnings.length > 0 && <div role="alert" className="hl-pack-notice">{warnings.map(message => <p key={message}>{message}</p>)}</div>}
       <p className="hl-pack-boundary">使用情况以已保存工作流草稿为准。未声明 requires 不等于环境缺失；检查通过也不保证一定能运行。</p>
