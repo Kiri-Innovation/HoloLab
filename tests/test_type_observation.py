@@ -53,7 +53,17 @@ def test_ragged_image_collection_does_not_claim_uniform_dimensions(tmp_path):
     # Ragged collections have no uniform rectangular shape; never sample the
     # first camera count and pretend it describes every frame.
     assert "dim_sizes" not in s
-    assert s["runtime_shape"]["axes"]["evidence"]["status"] == "unknown"
+    axes = s["runtime_shape"]["axes"]["evidence"]
+    assert axes["status"] == "complete"
+    assert axes["value"][0]["size"]["evidence"]["value"] == 2
+    assert axes["value"][1]["size"]["evidence"] == {
+        "status": "unknown",
+        "reason": "ragged",
+    }
+    assert axes["value"][1]["sizeRange"]["evidence"]["value"] == {
+        "min": 7,
+        "max": 21,
+    }
 
 
 def test_scalar_counts_complete_and_missing_handle_unknown(tmp_path):
@@ -85,12 +95,18 @@ def test_cache_scope_and_typed_legacy_wire_projection(tmp_path):
     assert cache.size() == 0
 
 
-def test_ragged_directory_does_not_publish_complete_shape(tmp_path):
+def test_ragged_directory_publishes_bounds_not_rectangular_shape(tmp_path):
     for relative in ["a/one", "b/one", "b/two"]:
         cams(tmp_path / relative, 21)
     s = summarize_handle(handle(tmp_path), depth=2, dim_labels=["outer", "inner"])
     assert s.get("dim_sizes") is None
-    assert s["runtime_shape"]["axes"]["evidence"]["status"] == "unknown"
+    axes = s["runtime_shape"]["axes"]["evidence"]
+    assert axes["status"] == "complete"
+    assert axes["value"][0]["size"]["evidence"]["value"] == 2
+    assert axes["value"][1]["sizeRange"]["evidence"]["value"] == {
+        "min": 1,
+        "max": 2,
+    }
 
 
 def test_http_summary_preserves_legacy_counts_and_exposes_evidence(tmp_path):

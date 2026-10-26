@@ -67,10 +67,20 @@ class Observation(Model, Generic[T]):
     legacyValue: T | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
+class AxisSizeRange(Model):
+    """Observed per-parent cardinality bounds for a ragged collection axis."""
+
+    min: int = Field(ge=0)
+    max: int = Field(ge=0)
+
+
 class ObservedAxis(Model):
     label: str | None = None
     role: Literal["collection", "content", "unknown"] = "unknown"
     size: Observation[int]
+    sizeRange: Observation[AxisSizeRange] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class InternalCount(Model):

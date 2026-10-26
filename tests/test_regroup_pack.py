@@ -506,7 +506,10 @@ def test_handle_summary_dim_sizes_image_2d_legacy_frames_dir(tmp_path: Path) -> 
     )
     res = summarize_handle(h, depth=2)
     assert "dim_sizes" not in res
-    assert res["runtime_shape"]["axes"]["evidence"]["status"] == "unknown"
+    axes = res["runtime_shape"]["axes"]["evidence"]
+    assert axes["status"] == "complete"
+    assert axes["value"][0]["size"]["evidence"]["value"] == 3
+    assert axes["value"][1]["size"]["evidence"]["reason"] == "not-measured"
 
 
 def test_handle_summary_dim_sizes_image_1d_flat(tmp_path: Path) -> None:

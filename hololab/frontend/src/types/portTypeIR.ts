@@ -32,6 +32,8 @@ export type ObservedAxis = Readonly<{
   label: string | null;
   role: 'collection' | 'content' | 'unknown';
   size: Observation<number>;
+  /** Complete per-parent bounds when a collection axis is ragged. */
+  sizeRange?: Observation<Readonly<{ min: number; max: number }>>;
 }>;
 export type RuntimeShape = Readonly<{
   handleId: string | null;

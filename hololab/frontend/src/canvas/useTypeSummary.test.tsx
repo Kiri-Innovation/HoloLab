@@ -27,5 +27,17 @@ it('ignores legacy inline counts and unavailable evidence safely',()=>{
 it('renders only structured measured dimensions, including unknown sizes',()=>{
  const type={tags:['image'],arrayed:true,dimLabels:[]};
  const facts=factsFromSummary({handle_id:'h',runtime_shape:measuredPayload(['image'],['batch','frame','cam'],[2,3,undefined],[],'h')});
- expect(formatTypeLabel(mergeTypeSummary(type,facts))).toBe('image[cam:?][frame:3][batch:2]');
+ expect(formatTypeLabel(mergeTypeSummary(type,facts))).toBe('image[cam:unmeasured][frame:3][batch:2]');
+});
+it('renders complete ragged bounds without claiming a rectangular size',()=>{
+ const type={tags:['image'],arrayed:true,dimLabels:['group','cam']};
+ const runtime_shape={schemaVersion:1,handleId:'h',tags:{evidence:{status:'complete',value:['image'],source:'metadata'}},
+  axes:{evidence:{status:'complete',source:'scan',value:[
+   {label:'group',role:'collection',size:{evidence:{status:'complete',value:159,source:'scan'}}},
+   {label:'cam',role:'collection',size:{evidence:{status:'unknown',reason:'ragged'}},
+    sizeRange:{evidence:{status:'complete',value:{min:6,max:7},source:'scan'}}},
+  ]}},internalCounts:[]};
+ const facts=factsFromSummary({handle_id:'h',runtime_shape});
+ expect(formatTypeLabel(mergeTypeSummary(type,facts))).toBe('image[cam:6–7][group:159]');
+ expect(formatTypeLabelLong(mergeTypeSummary(type,facts))).toContain('6–7 cam');
 });

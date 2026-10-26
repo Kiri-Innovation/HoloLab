@@ -141,3 +141,24 @@ def test_ragged_tree_returns_none_sizes(tmp_path: Path) -> None:
     dim_labels, dim_sizes = dim_info_for_handle(handle, dim_labels=["frame", "cam"])
     assert dim_labels == ["frame", "cam"]
     assert dim_sizes is None
+
+
+def test_ragged_summary_retains_outer_size_and_inner_range(tmp_path: Path) -> None:
+    from hololab.gateway.handle_summary import summarize_handle
+
+    for frame, count in (("frame_0000", 7), ("frame_0001", 6)):
+        leaf = tmp_path / frame
+        leaf.mkdir()
+        for cam in range(count):
+            (leaf / f"cam{cam}.jpg").touch()
+    result = summarize_handle(
+        _dir_handle(tmp_path, tags=["image"]),
+        depth=2,
+        dim_labels=["group", "cam"],
+    )
+    assert result.get("dim_sizes") is None
+    axes = result["runtime_shape"]["axes"]["evidence"]["value"]
+    assert axes[0]["label"] == "group"
+    assert axes[0]["size"]["evidence"]["value"] == 2
+    assert axes[1]["label"] == "cam"
+    assert axes[1]["sizeRange"]["evidence"]["value"] == {"min": 6, "max": 7}

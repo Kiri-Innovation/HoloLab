@@ -174,8 +174,10 @@ legacy `internal_count_items` shape; structured `internalCounts` carry evidence.
 - Uniform directory dimensions can have complete directory-tree coverage.
 - Counts read at a representative child are sampled; counts at the complete
   handle-root scope can be complete. Sample paths are relative to the handle.
-- Missing or ragged shape remains unknown. Old numbers are not upgraded to
-  measured evidence.
+- Missing shape remains unknown. Ragged shape does not publish a rectangular
+  legacy ``dim_sizes`` value; structured axis evidence retains exact outer
+  sizes and complete per-parent cardinality bounds for ragged inner axes. Old
+  numbers are not upgraded to measured evidence.
 
 Summary cache keys include `(handle_id, dim_labels)`; tombstoning invalidates the
 handle's cached scopes. `runtimeObservation.ts` validates runtime envelopes;

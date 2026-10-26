@@ -3,6 +3,7 @@
 from typing import Literal
 
 from hololab.gateway.port_type_ir import (
+    AxisSizeRange,
     CompleteEvidence,
     InternalCount,
     Model,
@@ -40,6 +41,7 @@ def observe_summary(
     content_depth: int,
     sample: str | None,
     axis_sample: str | None,
+    axis_ranges: list[tuple[int, int] | None] | None,
     accessible: bool,
 ) -> RuntimeObservation:
     """Attach scope at the probe boundary, never infer coverage from old JSON.
@@ -49,20 +51,35 @@ def observe_summary(
     if their numbers happen to match all other children. No absolute paths leak.
     """
     axes = Observation(evidence=UnknownEvidence(reason="shape-not-measured"))
-    sizes = facts.get("dim_sizes")
-    if sizes is not None:
-        directory_depth = max(0, len(sizes) - content_depth)
+    if axis_ranges is not None:
+        directory_depth = max(0, len(axis_ranges) - content_depth)
         observed = []
-        for i, size in enumerate(sizes):
+        for i, bounds in enumerate(axis_ranges):
             is_content = i >= directory_depth
+            source = "tag-content-probe" if is_content else "directory-tree-scan"
+            sample_path = axis_sample if is_content else None
+            exact = bounds is not None and bounds[0] == bounds[1]
             observed.append(
                 ObservedAxis(
                     label=labels[i] if labels and i < len(labels) else None,
                     role="content" if is_content else "collection",
-                    size=measurement(
-                        size,
-                        source="tag-content-probe" if is_content else "directory-tree-scan",
-                        sample=axis_sample if is_content else None,
+                    size=(
+                        measurement(bounds[0], source=source, sample=sample_path)
+                        if exact and bounds is not None
+                        else Observation(
+                            evidence=UnknownEvidence(
+                                reason="ragged" if bounds is not None else "not-measured"
+                            )
+                        )
+                    ),
+                    sizeRange=(
+                        measurement(
+                            AxisSizeRange(min=bounds[0], max=bounds[1]),
+                            source=source,
+                            sample=sample_path,
+                        )
+                        if bounds is not None and not exact
+                        else None
                     ),
                 )
             )

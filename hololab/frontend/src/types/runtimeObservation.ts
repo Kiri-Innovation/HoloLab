@@ -6,6 +6,8 @@ const record = (v: unknown): v is RecordValue => typeof v === 'object' && v !== 
 const string = (v: unknown): v is string => typeof v === 'string';
 const nullableString = (v: unknown) => v === null || string(v);
 const count = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
+const sizeRange = (v: unknown): v is {min:number;max:number} => record(v)
+  && count(v.min) && count(v.max) && v.min <= v.max;
 function observation<T>(value: unknown, valid: (value: unknown) => value is T): value is Observation<T> {
   if (!record(value) || !record(value.evidence)) return false;
   const e = value.evidence;
@@ -14,7 +16,8 @@ function observation<T>(value: unknown, valid: (value: unknown) => value is T): 
 }
 const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every(string);
 const axes = (v: unknown): v is ObservedAxis[] => Array.isArray(v) && v.every(a => record(a)
-  && nullableString(a.label) && ['collection', 'content', 'unknown'].includes(String(a.role)) && observation(a.size, count));
+  && nullableString(a.label) && ['collection', 'content', 'unknown'].includes(String(a.role))
+  && observation(a.size, count) && (a.sizeRange === undefined || observation(a.sizeRange, sizeRange)));
 
 export function parseRuntimeObservation(value: unknown): RuntimeShape | undefined {
   if (!record(value) || value.schemaVersion !== 1 || !nullableString(value.handleId)

@@ -343,12 +343,17 @@ Evidence has three states:
 | `sampled` | Measured at a named relative sample, such as the first sorted leaf. Does not assert the same count for all elements. |
 | `complete` | Covered the referenced handle/field scope; not a guarantee about future runs or all upstream artifacts. `source` identifies the scan, probe or metadata origin. |
 
-Directory branching factors are checked across the directory tree. Intrinsic
+Directory branching factors are checked across the directory tree. A uniform
+tree publishes exact legacy ``dim_sizes``. A ragged tree keeps that legacy
+field null, but structured runtime evidence retains every independently
+measured outer size and the complete per-parent range for a ragged axis (for
+example, ``group:159`` and ``cam:6–7``). It never promotes the maximum to an
+exact rectangular size. Intrinsic
 content dimensions may be probed only at the first leaf: an outer size can be
 complete while its inner size is sampled. Internal counts at that leaf are also
-sampled. Ragged directory trees or inaccessible data do not publish a complete
-shape. Zero is a measured value, not an unknown. An absent `dim_sizes` does not
-prove a scalar.
+sampled. Ragged directory trees do not publish a complete rectangular
+`dim_sizes`; inaccessible data does not publish measured axes. Zero is a
+measured value, not an unknown. An absent `dim_sizes` does not prove a scalar.
 
 Legacy `tags`, `dim_labels`, `dim_sizes`, `element_count`, `internal_count`, and
 `internal_count_items` keep their existing meanings. In particular, old

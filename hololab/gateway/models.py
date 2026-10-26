@@ -288,7 +288,8 @@ class HandleInfo(BaseModel):
             "Per-dim element counts, outer-first (e.g. ``[100, 21]``). Measured "
             "by walking the handle's dir tree ``len(dim_labels)`` levels. Same "
             "helper as the summary endpoint, so both fields stay consistent. "
-            "Null for scalar or file-storage handles, or ragged trees."
+            "Null for scalar or file-storage handles, or ragged trees. Ragged "
+            "axis bounds remain available in structured runtime_shape evidence."
         ),
     )
 

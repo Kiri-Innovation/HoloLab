@@ -63,9 +63,9 @@ def dim_info_for_handle(
 
     Returns ``(None, None)`` when the producing port has no declared
     dims, or when the handle isn't a dir on disk. Returns
-    ``(dim_labels, None)`` when the tree exists but the walk fails
-    (ragged layers, permission errors) — the frontend then falls back
-    to single-level.
+    ``(dim_labels, None)`` when the tree exists but is not rectangular
+    (or the walk fails). Structured ``runtime_shape`` evidence separately
+    retains exact outer sizes and ragged per-parent bounds.
     """
 
     if not dim_labels:
@@ -149,12 +149,12 @@ def _annotate_element_and_internal_counts(
     frontend uses it to render the edge chip's ``[N]``; whether the port
     is *treated* as arrayed is the graph edge's business.
 
-    ``dim_sizes`` (when ``depth`` is supplied) walks ``depth`` levels of
-    subdirs, one branching factor per level, outer dim first. It requires
-    the tree to be uniform at every level (every leaf-of-level has the
-    same subdir count) — non-uniform trees yield ``dim_sizes=null`` rather
-    than a lie. ``depth=0`` marks a scalar handle and always yields null.
-    When set, ``dim_sizes[0]`` equals ``element_count`` by construction.
+    ``dim_sizes`` (when ``depth`` is supplied) is the exact rectangular shape,
+    outer dim first. Non-uniform trees keep this legacy field null rather than
+    lying. Structured ``runtime_shape`` still publishes independently measured
+    axes and min/max cardinality for ragged layers. ``depth=0`` marks a scalar
+    handle and always yields null. When set, ``dim_sizes[0]`` equals
+    ``element_count`` by construction.
 
     ``internal_count`` samples the FIRST leaf of an arrayed dir handle
     (deterministic sorted order) descended ``depth`` levels, or the
@@ -165,6 +165,7 @@ def _annotate_element_and_internal_counts(
     element_count: int | None = None
     sample_path: Path = path
     dim_sizes: list[int] | None = None
+    axis_ranges: list[tuple[int, int] | None] | None = None
     dimension_leaf: Path | None = None
 
     if handle.storage == "dir" and path.is_dir():
@@ -179,7 +180,7 @@ def _annotate_element_and_internal_counts(
             element_count = None
 
         if depth is not None and depth >= 1:
-            dim_sizes, leaf = _measure_dim_sizes(path, depth, list(handle.tags))
+            dim_sizes, leaf, axis_ranges = _measure_dim_shape(path, depth, list(handle.tags))
             dimension_leaf = leaf
             if leaf is not None:
                 sample_path = leaf
@@ -226,6 +227,7 @@ def _annotate_element_and_internal_counts(
         content_depth=content_dim_count_for(list(handle.tags)),
         sample=sample,
         axis_sample=axis_sample,
+        axis_ranges=axis_ranges,
         accessible=path.exists(),
     ).model_dump()
 
@@ -253,35 +255,58 @@ def _measure_dim_sizes(
     ``None`` when the walk fails).
     """
 
+    sizes, sample, _ranges = _measure_dim_shape(root, depth, tags)
+    return sizes, sample
+
+
+def _measure_dim_shape(
+    root: Path, depth: int, tags: list[str]
+) -> tuple[
+    list[int] | None,
+    Path | None,
+    list[tuple[int, int] | None] | None,
+]:
+    """Measure exact rectangular sizes plus honest ragged-axis bounds.
+
+    ``dim_sizes`` remains the legacy exact rectangular shape and is therefore
+    null for a ragged tree.  The third return value retains independently
+    measured axes: an exact axis has ``(n, n)`` and a ragged axis has the
+    complete per-parent ``(min, max)`` cardinality range.  This lets runtime
+    evidence report ``group:159, cam:6..7`` without claiming ``[159, 7]``.
+    """
+
     tag_content_dims = content_dim_count_for(tags)
     dir_depth = depth - tag_content_dims
     if dir_depth < 0:
         # Malformed: pack declared fewer dims than the tag's intrinsic
         # layers demand. Refuse to guess.
-        return None, None
+        return None, None, None
 
     sizes: list[int] = []
+    ranges: list[tuple[int, int] | None] = []
+    rectangular = True
     current: list[Path] = [root]
     sample: Path | None = None
     for layer in range(dir_depth):
         next_layer: list[Path] = []
-        per_dir: int | None = None
+        counts: list[int] = []
         for parent in current:
             try:
                 kids = sorted(c for c in parent.iterdir() if not c.name.startswith("."))
                 file_leaf = "image" in tags and layer == dir_depth - 1
                 if any(not (c.is_file() if file_leaf else c.is_dir()) for c in kids):
-                    return None, None
+                    return None, None, ranges + [None] * (depth - len(ranges))
             except OSError:
-                return None, None
-            if per_dir is None:
-                per_dir = len(kids)
-            elif per_dir != len(kids):
-                return None, None
+                return None, None, ranges + [None] * (depth - len(ranges))
+            counts.append(len(kids))
             next_layer.extend(kids)
-        if per_dir is None or per_dir == 0:
-            return None, None
-        sizes.append(per_dir)
+        if not counts or max(counts) == 0:
+            return None, None, ranges + [None] * (depth - len(ranges))
+        low, high = min(counts), max(counts)
+        ranges.append((low, high))
+        if low != high:
+            rectangular = False
+        sizes.append(low)
         current = next_layer
         sample = next_layer[0]
 
@@ -289,10 +314,11 @@ def _measure_dim_sizes(
         probe_root = sample if sample is not None else root
         content = probe_content_dims(tags, probe_root)
         if content is None or len(content) != tag_content_dims or any(n <= 0 for n in content):
-            return None, sample
+            return None, sample, ranges + [None] * tag_content_dims
         sizes.extend(content)
+        ranges.extend((n, n) for n in content)
 
-    return sizes, sample
+    return (sizes if rectangular else None), sample, ranges
 
 
 # ---------------------------------------------------------------------------

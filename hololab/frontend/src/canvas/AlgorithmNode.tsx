@@ -102,8 +102,8 @@ export interface PreviewTarget {
   // generic ports whose static value is placeholder strings
   // (``["", ""]``). Null when the backend didn't have a producing port.
   dim_labels: string[] | null;
-  // Per-dim element counts, outer-first. Null for scalar / file-storage
-  // or when the walk couldn't produce a uniform shape.
+  // Exact rectangular per-dim element counts, outer-first. Null for scalar /
+  // file-storage or ragged trees; runtime_shape retains partial/range evidence.
   dim_sizes: number[] | null;
 }
 

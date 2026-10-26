@@ -30,6 +30,9 @@ outputs:
     tags_from: arr
     arrayed: true
     storage: dir
+    # One explicit unnamed collection axis. Without this placeholder,
+    # generic tags_from output inference prepends an axis to the input shape.
+    dim_labels: [""]
 
 runtime:
   env: kiri

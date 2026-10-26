@@ -6,6 +6,15 @@ export function observedValue<T>(value: Observation<T>): T | undefined {
   return value.evidence.status === 'unknown' ? undefined : value.evidence.value;
 }
 
+function axisSizeText(axis: import('./portTypeIR').ObservedAxis): string {
+  const value = observedValue(axis.size);
+  if (value != null) return String(value);
+  const range = axis.sizeRange ? observedValue(axis.sizeRange) : undefined;
+  if (range) return range.min === range.max ? String(range.min) : `${range.min}–${range.max}`;
+  return axis.size.evidence.status === 'unknown' && axis.size.evidence.reason === 'ragged'
+    ? 'varies' : 'unmeasured';
+}
+
 export type RenderOptions = {
   mode: 'declaration' | 'long' | 'compact' | 'runtime';
   runtime?: RuntimeShape;
@@ -23,9 +32,9 @@ export function renderPortType(type: TypeExpr, options: RenderOptions): string {
       return value == null || (item.key && value === 0) ? []
         : [item.key ? `${item.key}:${value}` : `${value} ${runtime.legacyCountKind ?? 'count'}`];
     });
-    const sizes = [...(observedValue(runtime.axes) ?? [])].reverse().flatMap(axis => {
-      const value = observedValue(axis.size);
-      return value == null ? [] : [axis.label ? `${value} ${axis.label}` : String(value)];
+    const sizes = [...(observedValue(runtime.axes) ?? [])].reverse().map(axis => {
+      const value = axisSizeText(axis);
+      return axis.label ? `${value} ${axis.label}` : value;
     });
     return base + (counts.length ? ` · ${counts.join(', ')}` : '') + (sizes.length ? ` · ${sizes.join(', ')}` : '');
   }
@@ -51,10 +60,10 @@ export function renderPortType(type: TypeExpr, options: RenderOptions): string {
   const countText = visible.length ? `(${visible.map(item => item.key ? `${item.key}:${item.value}` : item.value).join(' ')})` : '';
   const axes = runtime ? observedValue(runtime.axes) : undefined;
   // Unknown measured shape is not silently replaced by a declaration.
-  const dimensions = axes?.map(axis => ({ label: axis.label, size: observedValue(axis.size) }))
-    ?? (options.mode === 'compact' ? typeAxes.map(axis => ({ label: axis.label, size: undefined })) : undefined);
+  const dimensions = axes?.map(axis => ({ label: axis.label, size: axisSizeText(axis) }))
+    ?? (options.mode === 'compact' ? typeAxes.map(axis => ({ label: axis.label, size: '?' })) : undefined);
   const suffix = [...(dimensions ?? [])].reverse().map(axis =>
-    `[${axis.label ? `${axis.label}:` : ''}${axis.size ?? '?'}]`).join('');
+    `[${axis.label ? `${axis.label}:` : ''}${axis.size}]`).join('');
   if (options.mode === 'compact') {
     const tag = tags.length === 1 ? tags[0] : `${tags[0]}+${tags.length - 1}`;
     return tag + countText + suffix;

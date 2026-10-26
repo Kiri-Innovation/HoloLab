@@ -32,7 +32,7 @@ def test_manifest_is_generic_two_to_one() -> None:
     assert manifest.inputs["arr"].require_axis_label_match is False
     assert manifest.outputs["flat"].tags == ["any"]
     assert manifest.outputs["flat"].tags_from == "arr"
-    assert manifest.outputs["flat"].dim_labels == []
+    assert manifest.outputs["flat"].dim_labels == [""]
 
 
 def test_opaque_file_and_directory_leaves_are_supported(tmp_path: Path) -> None:
