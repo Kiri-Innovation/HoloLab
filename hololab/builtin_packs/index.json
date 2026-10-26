@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "distribution_version": "0.0.1",
+  "packages": [
+    {
+      "name": "builtin/get-index",
+      "version": "0.1.0",
+      "manifest": "get-index@0.1.0/manifest.yaml",
+      "code_sha256": "e3729d4696349f49386c105987288725d0f10002f2c4e89ce99e6d31577bd52d",
+      "identity_format": 2
+    },
+    {
+      "name": "builtin/array-length",
+      "version": "0.1.0",
+      "manifest": "array-length@0.1.0/manifest.yaml",
+      "code_sha256": "3764b1f85b8e7970a1ba21d773fbfeca52eaa6b1df67a52487831e43c28bda86",
+      "identity_format": 2
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/get-index
+version: 0.1.0
+description: "Pick one element from an arrayed handle by its zero-based index."
+category: "utility/arrayed"
+inputs:
+  arr:
+    tags: [any]
+    arrayed: true
+    description: "Any arrayed<T> handle."
+params:
+  idx:
+    type: int
+    default: 0
+    min: 0
+    description: "Zero-based position in sorted immediate non-dot entries."
+outputs:
+  item:
+    tags: [any]
+    tags_from: arr
+    dim_labels_from_input: arr
+    dim_labels_drop_outer: 1
+    description: "The selected element, represented as a symlink."
+runtime:
+  mode: host
+  gpu:
+    required: false
+exec:
+  python: run.py
+  args: ["--input", "{{ inputs.arr }}", "--output", "{{ outputs.item }}", "--idx", "{{ params.idx }}"]

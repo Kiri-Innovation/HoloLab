@@ -40,6 +40,10 @@ class PackInventoryEntry(BaseModel):
     # so an operator can tell a developer's ad-hoc pack from a
     # vendored one. See docs/writing-a-pack.md.
     source_dir: str | None = None
+    # Assigned by a trusted node loading path; manifest content never
+    # supplies this label.
+    origin: str = "local"
+    bundled_identity: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def _check_package_identity(self):

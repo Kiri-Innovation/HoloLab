@@ -137,6 +137,7 @@ class RenderedManifest:
     preview_globs: dict[str, str]  # preview_id → glob (empty for path-only)
     node_viewer_live_globs: dict[str, list[str]]
     progress_status_file: str | None
+    python_args: list[str] = field(default_factory=list)
 
 
 def render_manifest(manifest: Manifest, ctx: RenderContext) -> RenderedManifest:
@@ -197,6 +198,7 @@ def render_manifest(manifest: Manifest, ctx: RenderContext) -> RenderedManifest:
     }
     progress_status_file = rooted(progress_status_file)
     return RenderedManifest(
+        python_args=[_render_str(arg, bindings, where="exec.args") for arg in manifest.exec.args],
         shell=shell,
         working_dir=working_dir,
         idempotency_marker=idempotency_marker,

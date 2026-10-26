@@ -56,7 +56,7 @@ def test_endpoint_installs_and_refreshes_catalog(registry, tmp_path, monkeypatch
         assert response.json()["destination"] == str(destination)
         assert scan_multi_packs([destination])[0].manifest.name == "demo"
         catalog = client.get("/api/pack-catalog").json()
-        assert catalog[0]["name"] == "demo"
+        assert any(pack["name"] == "demo" for pack in catalog)
         check = client.post(
             "/api/recipes/check",
             json={
@@ -183,8 +183,9 @@ async def test_real_websocket_install(registry, tmp_path):
             assert response.status_code == 200, response.text
             assert response.json()["hash_verified"]
             catalog = (await client.get("/api/pack-catalog")).json()
-            assert catalog[0]["name"] == "demo"
-            assert catalog[0]["publication"]["code_sha256"] == registry["release"].code_sha256
+            assert any(pack["name"] == "demo" for pack in catalog)
+            demo = next(pack for pack in catalog if pack["name"] == "demo")
+            assert demo["publication"]["code_sha256"] == registry["release"].code_sha256
     finally:
         for task in [node_task, runtime._watch_task]:
             if task:

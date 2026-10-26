@@ -1,0 +1,23 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/array-length
+version: 0.1.0
+description: "Count an arrayed handle's immediate non-dot elements."
+category: "utility/arrayed"
+inputs:
+  arr:
+    tags: [any]
+    arrayed: true
+    description: "Any arrayed<T> handle."
+outputs:
+  n:
+    tags: [int]
+    storage: file
+    description: "A base-10 integer file with the element count."
+runtime:
+  mode: host
+  gpu:
+    required: false
+exec:
+  python: run.py
+  args: ["--input", "{{ inputs.arr }}", "--output", "{{ outputs.n }}"]

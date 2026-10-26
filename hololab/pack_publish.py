@@ -1,4 +1,5 @@
 """Local-authority writer. All mutations serialized; index is the commit point."""
+# ruff: noqa: RUF001 -- Chinese operator-facing errors.
 
 from __future__ import annotations
 
@@ -63,6 +64,10 @@ def publish(manifest: Path, source: str, publisher: str, *, authority="hololab-c
     root = local_source(source)
     manifest = manifest / "manifest.yaml" if manifest.is_dir() else manifest
     scope = Scope.load(manifest)
+    from hololab.bundled import is_builtin
+
+    if is_builtin(scope.manifest.name):
+        raise RegistryError("builtin 是保留命名空间，由 HoloLab 提供；不能发布")
     if manifest.absolute() != manifest.resolve():
         raise RegistryError("publication manifest must not traverse symlinks")
     if root.resolve().is_relative_to(scope.root):

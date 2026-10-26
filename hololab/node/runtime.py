@@ -561,6 +561,8 @@ class NodeRuntime:
                     else None,
                     manifest_path=str(p.manifest_path),
                     source_dir=str(p.source_dir),
+                    origin=p.origin,
+                    bundled_identity=p.bundled_identity,
                 )
                 for p in new_packs.values()
             ]
@@ -609,6 +611,8 @@ class NodeRuntime:
                             else None,
                             manifest_path=str(p.manifest_path),
                             source_dir=str(p.source_dir),
+                            origin=p.origin,
+                            bundled_identity=p.bundled_identity,
                         )
                         for p in new_packs.values()
                     ]
@@ -675,6 +679,8 @@ class NodeRuntime:
                 else None,
                 manifest_path=str(p.manifest_path),
                 source_dir=str(p.source_dir),
+                origin=p.origin,
+                bundled_identity=p.bundled_identity,
             )
             for p in self._packs.values()
         ]
@@ -1653,9 +1659,13 @@ class NodeRuntime:
             await self._send_job_fail(assign.job_id, JobFailReason.USER_ERROR, message=str(exc))
             return
 
-        # Resolve conda env.
-        env_prefix = self._config.envs.get(pack.manifest.runtime.env)
-        if not env_prefix:
+        # Bundled host packs run under this node's absolute interpreter, not
+        # a configured conda environment.  All other packages retain the
+        # historical conda boundary.
+        env_prefix = ""
+        if pack.manifest.runtime.mode == "conda":
+            env_prefix = self._config.envs.get(pack.manifest.runtime.env) or ""
+        if pack.manifest.runtime.mode == "conda" and not env_prefix:
             await self._send_job_fail(
                 assign.job_id,
                 JobFailReason.USER_ERROR,
@@ -1895,6 +1905,10 @@ class NodeRuntime:
             )
 
         async def verify_identity() -> None:
+            if pack.origin == "bundled":
+                from hololab.bundled import verified_record
+
+                await asyncio.to_thread(verified_record, pack.manifest_path)
             if getattr(assign, "code_identity", None):
                 from hololab.content_scope import verify
 
@@ -2719,7 +2733,13 @@ def _pack_watch_roots(pack_dirs: list[Path]) -> list[Path]:
 
 
 def _load_packs(pack_dirs: list[Path]) -> dict[tuple[str, str], LoadedPack]:
-    return {(p.manifest.name, p.manifest.version): p for p in scan_multi_packs(pack_dirs)}
+    from hololab.bundled import load_bundled_packs
+
+    # Bundled inventory is loaded before, and separately from, user roots.
+    # User builtin names are rejected by scan_multi_packs rather than allowed
+    # to participate in its normal first-wins rule.
+    packs = [*load_bundled_packs(), *scan_multi_packs(pack_dirs)]
+    return {(p.manifest.name, p.manifest.version): p for p in packs}
 
 
 def _probe_gpu() -> GpuInfo:
@@ -2802,6 +2822,13 @@ def _make_exec_plan(
     references its arguments.
     """
 
+    command = None
+    if pack.manifest.runtime.mode == "host":
+        entry = (pack.pack_dir / (pack.manifest.exec.python or "")).resolve()
+        root = pack.package_root.resolve()
+        if not entry.is_file() or not entry.is_relative_to(root):
+            raise ValueError("bundled host entrypoint escapes package root")
+        command = [sys.executable, str(entry), *rendered.python_args]
     return ExecPlan(
         shell=rendered.shell,
         conda_bin=config.conda_bin,
@@ -2814,6 +2841,7 @@ def _make_exec_plan(
         # the spawn path off this field.
         cached_env=cached_env,
         cpu_mask=cpu_mask,
+        command=command,
     )
 
 

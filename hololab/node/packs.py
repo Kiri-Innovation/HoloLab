@@ -55,6 +55,13 @@ class LoadedPack:
     manifest_path: Path
     manifest_hash: str
     source_dir: Path
+    bundled_identity: dict | None = None
+
+    @property
+    def origin(self) -> str:
+        if self.bundled_identity is not None:
+            return "bundled"
+        return "registry" if self.publication else "local"
 
     @property
     def package_root(self) -> Path:
@@ -73,10 +80,25 @@ def _load_manifest_safely(manifest_path: Path) -> tuple[Manifest, str] | None:
     """Load ``manifest_path``; log + return None on failure."""
 
     try:
-        return load_manifest(manifest_path)
+        loaded = load_manifest(manifest_path)
     except Exception as exc:
         log.warning("pack manifest load failed", manifest=str(manifest_path), error=str(exc))
         return None
+    from hololab.bundled import BundledPackageError, reject_builtin
+
+    # A user supplied source must never claim the reserved scope.  Do not
+    # quietly make this a first-wins conflict: the operator needs to know a
+    # local copy/symlink cannot replace a shipped package.
+    try:
+        reject_builtin(loaded[0].name)
+    except BundledPackageError as exc:
+        log.error(
+            "reserved bundled namespace in user pack source",
+            manifest=str(manifest_path),
+            error=str(exc),
+        )
+        raise
+    return loaded
 
 
 def scan_packs(pack_source: Path) -> list[LoadedPack]:

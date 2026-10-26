@@ -1,4 +1,5 @@
 """Verified installation with local-first resolution and atomic directory promotion."""
+# ruff: noqa: RUF001 -- Chinese operator-facing errors.
 
 from __future__ import annotations
 
@@ -44,9 +45,41 @@ def receipt_for(manifest: Path):
 
 
 def inspect_local(spec: str, pack_dirs: list[Path], expected: str | None = None):
+    from hololab.bundled import is_builtin, verified_record
     from hololab.node.packs import scan_multi_packs
 
     name, version = parse_spec(spec)
+    if is_builtin(name):
+        # This path deliberately has no registry call.  Bundled inventory is
+        # authoritative for the exact version carried by this distribution.
+        from hololab.bundled import load_bundled_packs
+
+        matches = [
+            p
+            for p in load_bundled_packs()
+            if same_package(p.manifest.name, p.manifest.version, name, version)
+        ]
+        if not matches:
+            raise RegistryError(
+                f"内置包版本未随当前 HoloLab 发行物提供: {name}@{version}; 请升级 HoloLab"
+            )
+        record = verified_record(matches[0].manifest_path)
+        if expected is not None and expected != record["sha256"]:
+            raise HashMismatch(
+                f"找到但哈希不匹配, 必须停止: {spec}; 期望={expected}; 内置={record['sha256']}"
+            )
+        return {
+            "state": "found",
+            "message": "随 HoloLab 提供",
+            "hash_verified": True,
+            "installed": True,
+            "manifest": str(matches[0].manifest_path),
+            "code_sha256": record["sha256"],
+            "source": "bundled",
+            "origin": "bundled",
+            "publication": None,
+            "bundled_identity": {"code_sha256": record["sha256"]},
+        }
     matches = {
         p.manifest_path.resolve(): p
         for p in scan_multi_packs(pack_dirs)
@@ -100,7 +133,16 @@ def resolve(spec: str, sources: list[str], pack_dirs: list[Path], expected=None)
 
 def status(spec: str, sources: list[str], pack_dirs: list[Path]):
     """Explicit refresh; never labels an installation-time yank flag as current."""
+    from hololab.bundled import is_builtin
+
+    name, _ = parse_spec(spec)
     local = inspect_local(spec, pack_dirs)
+    if is_builtin(name):
+        return {
+            **local,
+            "registry_status": "bundled",
+            "registry_message": "随 HoloLab 提供；不查询 registry",
+        }
     try:
         source, release = find_release(spec, sources, local["code_sha256"] if local else None)
     except HashMismatch:
@@ -160,6 +202,12 @@ def extract_verified(archive: Path, content: Path, declared_size: int):
 
 
 def install(spec: str, sources: list[str], destination: Path, pack_dirs: list[Path], expected=None):
+    from hololab.bundled import is_builtin, protect_destination
+
+    name, _ = parse_spec(spec)
+    if is_builtin(name):
+        raise RegistryError("builtin 是保留命名空间，由 HoloLab 提供；请通过本体升级更新，不能安装")
+    protect_destination(destination)
     destination.mkdir(parents=True, exist_ok=True)
     with authority_lock(destination):
         local = inspect_local(spec, [*pack_dirs, destination], expected)

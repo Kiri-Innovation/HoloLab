@@ -418,7 +418,17 @@ class RuntimeSpec(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    env: str  # logical env name; node maps to real prefix
+    mode: Literal["conda", "host"] = "conda"
+    env: str | None = None  # logical conda environment; absent for bundled host jobs
+
+    @model_validator(mode="after")
+    def _check_mode(self):
+        if self.mode == "conda" and not self.env:
+            raise ValueError("conda runtime requires env")
+        if self.mode == "host" and self.env is not None:
+            raise ValueError("host runtime cannot declare a conda env")
+        return self
+
     gpu: GpuRequirement = Field(default_factory=GpuRequirement)
     exclusive: bool = False
     expected_duration_min: list[float] | None = None
@@ -435,7 +445,18 @@ class ExecSpec(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    shell: str
+    shell: str = ""
+    python: str | None = None  # package-relative entrypoint, never an interpreter path
+    args: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_command(self):
+        if bool(self.shell) == bool(self.python):
+            raise ValueError("exec requires exactly one of shell or python")
+        if self.args and not self.python:
+            raise ValueError("exec.args requires python")
+        return self
+
     working_dir: str | None = None
 
 
@@ -600,6 +621,19 @@ class Manifest(BaseModel):
     hide_default_output_previews: bool = False
     previews: list[PreviewSpec] = Field(default_factory=list)
     progress: ProgressSpec | None = None
+
+    @model_validator(mode="after")
+    def _check_host_exec(self):
+        if self.runtime.mode == "host":
+            from hololab.bundled import is_builtin
+
+            if not is_builtin(self.name) or not self.exec.python:
+                raise ValueError("host runtime is reserved for bundled Python packages")
+            if self.arrayable:
+                raise ValueError("host packages do not support batched arrayable execution")
+        elif self.exec.python:
+            raise ValueError("exec.python requires host runtime")
+        return self
 
     @model_validator(mode="after")
     def _check_tags_from_refs(self) -> Manifest:

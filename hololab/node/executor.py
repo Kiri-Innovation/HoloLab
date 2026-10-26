@@ -89,6 +89,9 @@ class ExecPlan:
     cached_env: dict[str, str] | None = None
     cpu_mask: str | None = None
     resource_job: dict[str, str] | None = None
+    # A bundled host package supplies a fully explicit argv beginning with
+    # the node interpreter.  It intentionally bypasses both conda paths.
+    command: list[str] | None = None
 
 
 @dataclass
@@ -117,7 +120,11 @@ async def run_subprocess(
     # Two spawn paths — see module docstring. Fast path (``cached_env``)
     # uses ``bash -c`` with a pre-activated env dict; fallback uses
     # ``conda run`` and re-computes the env every time.
-    if plan.cached_env is not None:
+    if plan.command is not None:
+        cmd = plan.command
+        spawn_env = _clean_env()
+        spawn_mode = "host_python"
+    elif plan.cached_env is not None:
         cmd = ["bash", "-c", plan.shell]
         spawn_env = plan.cached_env
         spawn_mode = "cached_env"
