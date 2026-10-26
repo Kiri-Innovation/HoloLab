@@ -2,7 +2,8 @@ import {useEffect, useMemo, useState} from 'react';
 import {buildTree, computeMatches, type TreePack, type TreeNode} from '../canvas/packTree';
 
 export type PackageTreeItem = TreePack & {key: string; status?: string; problem?: boolean};
-export function PackageTree({items, selected, query, onSelect, selectedCategory, onSelectCategory, disabled = false}: {
+export function PackageTree({items, selected, query, onSelect, displayName, selectedCategory, onSelectCategory, disabled = false}: {
+  displayName: (name: string) => string;
   selectedCategory: string; onSelectCategory: (path: string) => void;
   items: PackageTreeItem[]; selected: string; query: string; onSelect: (key: string) => void; disabled?: boolean;
 }) {
@@ -22,7 +23,7 @@ export function PackageTree({items, selected, query, onSelect, selectedCategory,
       if (matches.active && !matches.matched.has(node.path)) return null;
       return <button key={node.path} className="hl-pack-leaf" disabled={disabled}
         aria-current={selected === node.pack.key ? 'page' : undefined} onClick={() => onSelect(node.pack.key)}>
-        <span>{node.pack.name}</span><small>{node.pack.version}</small>
+        <span>{displayName(node.pack.name)}</span><small>{node.pack.version}</small>
         {node.pack.status && <small className="hl-pack-tree-status" data-problem={node.pack.problem}>{node.pack.status}</small>}
       </button>;
     }

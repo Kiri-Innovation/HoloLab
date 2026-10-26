@@ -11,3 +11,14 @@ it('orders workflow references by real draft edit time, omits unreferenced packs
  const old=entry('old',null,10),recent=entry('recent',null,30),unused=entry('unused',null,0);
  expect(localOverview([old,unused,recent],'node',{},()=>false).recent).toEqual([recent,old]);
 });
+it('sorts recent packages by recorded publication time, not workflow edits or version strings', async()=>{
+ const {recentlyUpdatedPacks,localPublishedTime}=await import('./localOverviewModel');
+ const old=entry('old',null,100),recent=entry('recent',null,1),unknown=entry('unknown',null,999),invalid=entry('invalid',null,999);
+ old.catalog!.publication={published_at:'2025-01-01T00:00:00Z'};
+ recent.catalog!.publication={published_at:'2026-01-01T00:00:00Z'};
+ invalid.catalog!.publication={published_at:'not-a-date'};
+ const input=[unknown,old,recent,invalid];
+ expect(recentlyUpdatedPacks(input)).toEqual([recent,old,invalid,unknown]);
+ expect(input).toEqual([unknown,old,recent,invalid]);
+ expect(localPublishedTime(unknown)).toBe(Number.NEGATIVE_INFINITY);
+});

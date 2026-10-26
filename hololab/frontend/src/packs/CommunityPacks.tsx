@@ -1,7 +1,8 @@
+import {packDisplayNames} from './packDisplayName';
 import {packManagerRoute, packManagerPath} from './packManagerRoute';
 import {CategoryIndex} from './CategoryIndex';
 import {browseProjects, latestRelease, projectCategory, publishedTime, type CommunityRelease as Release} from './communityBrowserModel';
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import type {CatalogPack, ComputeNode} from '../wire';
 import {canonicalPackageName} from '../packageIdentity';
 import {EvidenceValue} from '../canvas/EvidenceValue';
@@ -19,6 +20,7 @@ export function CommunityPacks({active, catalog, nodes, onInstalled, onNavigate}
   const [sourceDraft,setSourceDraft]=useState('https://packs.xenotech.studio');
   const [loaded,setLoaded]=useState('');
   const [names,setNames]=useState<string[]>([]);
+  const displayName=useMemo(()=>packDisplayNames(names),[names]);
   const [projects,setProjects]=useState<Record<string, {releases?:Release[]; error?:string}>>({});
   const [search,setSearch]=useState('');
   const {communitySection:index,category,publisher,scope}=packManagerRoute(window.location.search);
@@ -114,7 +116,7 @@ export function CommunityPacks({active, catalog, nodes, onInstalled, onNavigate}
 
     {loaded && !busy && !names.length && <div className="hl-pack-empty">这个源尚未发布包。</div>}
     <dialog ref={dialog} className="hl-community-dialog" aria-labelledby="community-detail-title" onClose={()=>setSelected('')}>
-      <header><h2 id="community-detail-title">{selected}</h2><button autoFocus aria-label="关闭包详情" onClick={()=>dialog.current?.close()}>关闭</button></header>
+      <header><h2 id="community-detail-title">{displayName(selected)}</h2><button autoFocus aria-label="关闭包详情" onClick={()=>dialog.current?.close()}>关闭</button></header>
       {projects[selected]?.error && <p role="alert">{projects[selected].error} <button onClick={()=>void load()}>重试</button></p>}
       {!projects[selected] && <p role="status">正在读取版本…</p>}
       {projects[selected]?.releases?.length === 0 && <p>这个包没有已发布版本。</p>}
@@ -124,7 +126,7 @@ export function CommunityPacks({active, catalog, nodes, onInstalled, onNavigate}
       {releases.map(release=>{
         const spec=`${release.name}@${release.version}`,key=`${target}:${spec}`;
         const local=isInstalled(release);
-        return <article className="hl-pack-card" key={spec} data-pack-key={spec}><header><h3>{release.name}</h3><span>{release.version}</span></header>
+        return <article className="hl-pack-card" key={spec} data-pack-key={spec}><header><h3>{displayName(release.name)}</h3><span>{release.version}</span></header>
           <p>{!target?'等待可用机器':local?'已安装（所选机器）':'未安装'} · {release.yanked?'已 yank · 禁止新安装':'可安装'}</p>
           <dl className="hl-pack-facts"><div><dt>发布时间</dt><dd>{release.published_at}</dd></div><div><dt>发布者</dt><dd>{release.publisher}</dd></div><div><dt>来源</dt><dd>{loaded}</dd></div></dl>
           <p>代码身份 · SHA-256</p><EvidenceValue value={release.code_sha256}/>
@@ -140,8 +142,8 @@ export function CommunityPacks({active, catalog, nodes, onInstalled, onNavigate}
     <div className="hl-pack-grid hl-community-grid">{matching.map(project=>{
       const latest=latestRelease(project), versions=project.releases;
       return <article key={project.name} data-project={project.name} data-published-at={latest?.published_at ?? ''} className="hl-pack-card">
-        <button className="hl-community-card" onClick={()=>choose(project.name)} aria-label={`查看 ${project.name} 详情`}>
-          <strong>{project.name}</strong>
+        <button className="hl-community-card" onClick={()=>choose(project.name)} aria-label={`查看 ${displayName(project.name)} 详情`}>
+          <strong>{displayName(project.name)}</strong>
           {!versions ? <span>{project.error ? '版本信息暂不可用' : '正在读取版本…'}</span> : <>
             <span className="hl-pack-version">{latest?.version ?? '暂无发布版本'}</span>
             {latest && <><time dateTime={latest.published_at}>{Number.isFinite(publishedTime(latest.published_at)) ? new Date(latest.published_at).toLocaleString() : '发布时间未知'}</time>

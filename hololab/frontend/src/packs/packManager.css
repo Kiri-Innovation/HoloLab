@@ -134,3 +134,27 @@
 .hl-local-folder-row .hl-pack-folder { min-width: 0; font-weight: var(--fw-regular); overflow-wrap: anywhere; }
 .hl-local-directory [aria-current=page] { background: var(--surface-alt); font-weight: var(--fw-semibold); box-shadow: inset 2px 0 var(--text-body); border-radius: var(--radius-sm); }
 .hl-local-directory button:hover { background: var(--surface-hover); }
+
+.hl-local-overview-page, .hl-local-results-page, .hl-local-package-page { width: 100%; min-width: 0; box-sizing: border-box; }
+.hl-local-overview-page h1, .hl-local-results-page h1, .hl-local-package-page h1 { margin: 0 0 var(--space-4); font-size: var(--fs-xl); overflow-wrap: anywhere; }
+.hl-local-overview-page .hl-community-search { margin-block: var(--space-5); }
+.hl-local-results { border-top: 1px solid var(--border); }
+.hl-local-result { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--border-subtle); overflow-wrap: anywhere; }
+.hl-local-result > div { min-width: 0; }
+.hl-local-result .hl-pack-version { margin-left: var(--space-3); }
+.hl-local-result p { margin: var(--space-2) 0; }
+.hl-local-result small, .hl-local-result-count, .hl-local-published { color: var(--text-muted); }
+.hl-local-published { flex-shrink: 0; }
+.hl-local-package-page { min-height: 100%; }
+.hl-local-breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-5); color: var(--text-muted); overflow-wrap: anywhere; }
+.hl-local-breadcrumb button { padding: 0; border: 0; background: transparent; height: auto; text-align: left; white-space: normal; }
+.hl-local-package-page > header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: var(--space-4); }
+.hl-local-package-page > header > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-3); }
+.hl-local-package-page h1 { margin-bottom: 0; }
+.hl-local-package-page .hl-pack-facts { padding-block: var(--space-4); }
+.hl-local-package-page > .hl-pack-section { padding-block: var(--space-4); }
+.hl-local-package-page > .hl-pack-section > summary { font-weight: var(--fw-semibold); font-size: var(--fs-md); }
+.hl-local-description { line-height: var(--lh-normal); }
+@media (max-width: 640px) {
+  .hl-local-result { flex-wrap: wrap; gap: var(--space-2); }
+}
