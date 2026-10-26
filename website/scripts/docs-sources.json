@@ -441,5 +441,27 @@
     "locale": "zh-CN",
     "contentLanguage": "zh-CN",
     "navigationOrder": 160
+  },
+  {
+    "source": "website/content/en/contributor/registry-api.md",
+    "slug": "contributor/registry-api",
+    "section": "contributor",
+    "title": "Algorithm package registry API reference",
+    "group": "Collaboration and reproducibility",
+    "order": 80,
+    "locale": "en",
+    "contentLanguage": "en",
+    "navigationOrder": 170
+  },
+  {
+    "source": "website/content/zh/contributor/registry-api.md",
+    "slug": "contributor/registry-api",
+    "section": "contributor",
+    "title": "算法包注册表 API 参考",
+    "group": "协作和可复现能力设计",
+    "order": 80,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "navigationOrder": 170
   }
 ]
