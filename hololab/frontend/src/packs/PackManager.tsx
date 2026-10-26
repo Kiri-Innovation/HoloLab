@@ -24,7 +24,6 @@ async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
   if (!response.ok) throw new Error('request_failed');
   return response.json();
 }
-interface CentralStatus { code_sha256?: string; registry_status?: string; state?: string; source?: string; publication?: Record<string, unknown> }
 interface CentralComparison { state: 'identical'|'differs'|'absent'|'unknown'; central_code_sha256?: string; yanked?: boolean; source?: string; reason?: string | null }
 
 export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
@@ -49,7 +48,6 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   useEffect(()=>{setSearch('');},[view]);
   const leftDock = useResizableSlot('hl-layout-left', 300, 180, 420);
   const registry = useMemo<RegistryRelease[]>(() => [], []);
-  const [central, setCentral] = useState<Record<string, {data?: CentralStatus; busy?: boolean; failed?: boolean}>>({});
   const [centralComparison, setCentralComparison] = useState<Record<string, CentralComparison>>({});
   const [centralLoading, setCentralLoading] = useState(false);
   const [commandStatus, setCommandStatus] = useState<Record<string, string>>({});
@@ -57,7 +55,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   useEffect(() => {
     const controller = new AbortController();
     const signal = controller.signal;
-    setLoading(true); setWarnings([]); setCentral({});
+    setLoading(true); setWarnings([]);
     void (async () => {
       const priorityKey = section==='category' ? selected : '';
       const requests = [priorityKey ? `/api/pack-catalog?key=${encodeURIComponent(priorityKey)}` : '/api/pack-catalog', '/api/packs', '/api/nodes'];
@@ -119,13 +117,10 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     }))},
   })), registry), [catalog, inventory, workflows, registry, checks.reports]);
   const displayName = useMemo(() => packDisplayNames(entries.map(entry => entry.name)), [entries]);
-  const statusKey = (entry: PackEntry) => `${nodeId}:${entry.key}`;
-  const reasons = (entry: PackEntry) => packProblemReasons(entry, checks.reports[entry.key], central[statusKey(entry)]?.data?.state === 'hash_mismatch'
-    ? 'hash_mismatch' : central[statusKey(entry)]?.data?.registry_status);
+  const reasons = (entry: PackEntry) => packProblemReasons(entry, checks.reports[entry.key]);
   const problem = (entry: PackEntry) => reasons(entry).length > 0;
   const statusLabel = (entry: PackEntry) => reasons(entry).join('；') || packEnvironmentStatus(entry, checks.reports[entry.key]);
-  const compactStatus = (entry: PackEntry) => compactPackStatus(entry, checks.reports[entry.key], central[statusKey(entry)]?.data?.state === 'hash_mismatch'
-    ? 'hash_mismatch' : central[statusKey(entry)]?.data?.registry_status);
+  const compactStatus = (entry: PackEntry) => compactPackStatus(entry, checks.reports[entry.key]);
   const categoryTrail = (entry: PackEntry) => {
     return collapseRedundantCategory({name: entry.name, category: entry.catalog?.category ?? []}).category;
   };
@@ -137,16 +132,6 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const sectionEntries=(section==='category'?categoryEntries:entries).filter(entry=>section==='attention'?problem(entry):section==='missing'?checks.reports[entry.key]?.status==='missing':section==='undeclared'?isUndeclared(entry):true);
   const selectedEntry=section==='category' ? entries.find(entry=>entry.key===selected) : undefined;
   const healthPending=loading || checks.loading || !nodeId || entries.some(entry=>!checks.reports[entry.key] || checks.reports[entry.key].status==='unknown');
-  async function queryStatus(entry: PackEntry) {
-    const key = statusKey(entry);
-    setCentral(current => ({...current, [key]: {busy: true}}));
-    try {
-      const query = new URLSearchParams({name: entry.name, version: entry.version});
-      const data = await read<CentralStatus>(`/api/nodes/${encodeURIComponent(nodeId)}/pack-status?${query}`);
-      setCentral(current => ({...current, [key]: {data}}));
-    } catch { setCentral(current => ({...current, [key]: {failed: true}})); }
-  }
-
   const feedback = <>
     {warnings.length > 0 && <div role="alert" className="hl-pack-notice">{warnings.map(message => <p key={message}>{message}</p>)}<button disabled={loading} onClick={()=>setRevision(n=>n+1)}>重试读取</button></div>}
     {usage.error && <p role="alert">工作流引用暂不可用。<button onClick={usage.refresh}>重试引用查询</button></p>}
@@ -156,15 +141,12 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const renderPackage = (entry: PackEntry) => {
     const selectedNode = nodes.find(node => node.node_id === nodeId);
     const installed = !!nodeId && installedOn(entry, nodeId);
-    const current = central[statusKey(entry)];
-    const yanked = current?.data?.registry_status === 'published' ? false : current?.data?.registry_status === 'yanked' || entry.release?.yanked === true;
-    const hasRegistry = !!entry.catalog?.publication || !!entry.release;
     const comparison = centralComparison[entry.key];
+    const yanked = entry.release?.yanked === true || comparison?.yanked === true;
     const report = checks.reports[entry.key];
     const requires = entry.catalog ? entry.catalog.requires : entry.release?.requires;
     const showEnvironment = hasEnvironmentDetails(requires);
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
-    const sourceLocation = source || entry.catalog?.source_dir || entry.catalog?.manifest_path;
     const historicalNodes = entry.inventory.filter(item => !entry.catalog?.node_ids.includes(item.node_id));
     const canInstall = !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
     const breadcrumbCategory = categoryTrail(entry);
@@ -174,25 +156,18 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       {feedback}
       {entry.catalog?.description && <p className="hl-local-description">{entry.catalog.description}</p>}
       <dl className="hl-pack-facts">
-        <div className="hl-pack-code-identity"><dt>代码身份</dt><dd><EvidenceValue value={entry.catalog?.code_sha256 ?? current?.data?.code_sha256 ?? entry.catalog?.publication?.code_sha256 ?? '尚未校验；本地内容身份不可用'} /></dd></div>
         <div className="hl-pack-source"><dt>来源</dt><dd>
-          {centralLoading && !comparison ? <span>正在查询注册表…</span> : comparison?.state === 'identical' ? <><span>与注册表一致</span><small>{comparison.source} · {comparison.central_code_sha256?.slice(0,12)}</small><EvidenceValue value={comparison.central_code_sha256} /></>
-            : comparison?.state === 'differs' ? <><strong>⚠️ 注册表上有同名同版本，但内容不同</strong><small>{comparison.source} · 注册表哈希 {comparison.central_code_sha256?.slice(0,12)}</small><EvidenceValue value={comparison.central_code_sha256} /></>
-            : comparison?.state === 'absent' ? <span>注册表上没有（本地包）</span>
-            : comparison?.state === 'unknown' ? <><span>未查询（源不可达）</span><small>{comparison.reason}</small></>
-            : <span>{hasRegistry ? '注册表发布留痕' : entry.catalog ? '本地' : '来源未确认'}</span>}
-          <button disabled={centralLoading} onClick={()=>void refreshCentralComparison(true)}>{centralLoading ? '查询中…' : '刷新注册表比对'}</button>
-          {sourceLocation && <EvidenceValue value={sourceLocation} truncate={false} />}
+          {centralLoading && !comparison ? <span>查询中…</span> : comparison?.state === 'identical' ? <span title={`社区注册表：${comparison.source}\n代码哈希：${comparison.central_code_sha256}`}>社区版</span>
+            : comparison?.state === 'differs' ? <strong title={`社区注册表：${comparison.source}\n线上哈希：${comparison.central_code_sha256}\n本地哈希：${entry.catalog?.code_sha256 ?? '不可用'}`}>⚠️ 与线上版本不同</strong>
+            : comparison?.state === 'absent' ? <span>本地包</span>
+            : <span title={comparison?.reason ?? undefined}>未查询</span>}
+          <button disabled={centralLoading} onClick={()=>void refreshCentralComparison(true)}>{centralLoading ? '查询中…' : '刷新'}</button>
         </dd></div>
         <div><dt>安装状态</dt><dd>{!nodeId ? '请先选择检查目标' : installed ? '当前节点已发现' : entry.inventory.some(item => item.node_id === nodeId) ? '仅有历史安装记录，当前未确认' : '当前节点未发现'}
           <small>{entry.catalog?.node_ids.length ? `在线提供：${entry.catalog.node_ids.map(id => nodes.find(n => n.node_id === id)?.node_name || id).join('、')}` : '当前没有在线节点提供'}
             {historicalNodes.length > 0 && `；也曾装于 ${historicalNodes.map(item => item.node_name || item.node_id).join('、')}（${historicalNodes.some(item => !item.online) ? '离线' : '历史记录'}）`}
           </small></dd></div>
-        <div><dt>Yank 状态</dt><dd>{current?.data?.registry_status === 'yanked' ? '已 yank · 禁止新安装' : current?.data?.registry_status === 'published' ? '未 yank · 已发布' : entry.release ? entry.release.yanked ? '已 yank · 禁止新安装' : '未 yank（加载注册表时）' : '未查询，不能从安装记录推断当前状态'}
-          <button disabled={!nodeId || current?.busy} onClick={() => void queryStatus(entry)}>{current?.busy ? '查询中…' : '查询当前发布状态'}</button>
-          {current?.failed && <small role="status">查询失败：检查节点连接及注册表支持后重试。</small>}
-          {current?.data?.state === 'hash_mismatch' && <small role="alert">代码哈希不匹配，请处理身份差异后再运行。</small>}
-          {current?.data?.registry_status === 'unknown' && <small>中央状态未知，不代表已 yank；本地包仍可使用。</small>}</dd></div>
+        {yanked && <div><dt>Yank 状态</dt><dd><strong>⚠️ 该版本已 yank，不推荐新安装</strong></dd></div>}
       </dl>
       {showEnvironment && <details className="hl-pack-section" open><summary>环境 · {report ? environmentLabel(report) : nodeId ? '尚未完成检查' : '未选择计算节点'}</summary>
         <EnvironmentEvidence report={report} headingLabel={report?.status === 'unknown' ? '环境未校验' : undefined} />
