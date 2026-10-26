@@ -9,19 +9,20 @@ export const localStatusPages = {
 } as const;
 
 type ListProps = {
+  usageStatus?: string;
   items: PackEntry[];
   displayName: (name: string) => string;
   statusLabel: (entry: PackEntry) => string;
   onSelect: (key: string) => void;
 };
-function PackResults({items, displayName, statusLabel, onSelect, recent = false}: ListProps & {recent?: boolean}) {
+function PackResults({items, displayName, statusLabel, onSelect, usageStatus, recent = false}: ListProps & {recent?: boolean}) {
   return <div className="hl-local-results">{items.map(entry => {
     const timestamp = localPublishedTime(entry);
     return <article className="hl-local-result" key={entry.key}>
       <div><button className="hl-pack-project-link" onClick={() => onSelect(entry.key)}>{displayName(entry.name)}</button>
         <span className="hl-pack-version">{entry.version}</span>
         <p>{statusLabel(entry)}</p>
-        <small>{entry.catalog?.category?.join(' / ') || 'misc'} · {new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流引用</small>
+        <small>{entry.catalog?.category?.join(' / ') || 'misc'} · {usageStatus || `${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流引用`}</small>
       </div>
       {recent && <span className="hl-local-published">{Number.isFinite(timestamp)
         ? <time dateTime={new Date(timestamp).toISOString()}>{new Date(timestamp).toLocaleDateString()}</time>

@@ -7,16 +7,15 @@ import { PackageTree } from './PackageTree';
 import { CommunityPacks } from './CommunityPacks';
 import { useEffect, useMemo, useState } from 'react';
 import type { CatalogPack, ComputeNode, WorkflowGraph } from '../wire';
-import type { WorkflowSummary } from '../api';
 import { CONTROL_STYLE } from '../ui/controlStyles';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { EnvironmentEvidence, useCapabilityChecks } from '../canvas/EnvironmentChecks';
 import { EvidenceValue } from '../canvas/EvidenceValue';
 import { OpenSourceButton } from '../canvas/OpenSourceButton';
 import { writeToClipboard } from '../canvas/referenceAction';
-import { checkRecipe } from './useRecipeChecks';
+import {usePackUsage} from './usePackUsage';
 import { buildPackEntries, installedOn, installCommand, packProblemReasons, packEnvironmentStatus, recipeIssueLabel,
-  type InventoryPack, type PackEntry, type RegistryRelease, type WorkflowUsage } from './packManagerModel';
+  type InventoryPack, type PackEntry, type RegistryRelease } from './packManagerModel';
 import './packManager.css';
 
 async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
@@ -32,7 +31,6 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const [catalog, setCatalog] = useState<CatalogPack[]>([]);
   const [inventory, setInventory] = useState<InventoryPack[]>([]);
   const [nodes, setNodes] = useState<ComputeNode[]>([]);
-  const [workflows, setWorkflows] = useState<WorkflowUsage[]>([]);
   const [loading, setLoading] = useState(true);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [revision, setRevision] = useState(0);
@@ -40,6 +38,8 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const [search, setSearch] = useState('');
   const route=packManagerRoute(window.location.search);
   const {view, localSection:section, pack:selected, category}=route;
+  const usage = usePackUsage(section==='category'?selected:'', revision, view==='local');
+  const workflows = usage.items;
   const navigateLocal=(next:string,pack='',category='')=>{if(next==='overview')setSearch('');onNavigate(packManagerPath('local',next,{pack,category}));};
   useEffect(()=>{setSearch('');},[view]);
   const leftDock = useResizableSlot('hl-layout-left', 300, 180, 420);
@@ -52,13 +52,14 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const signal = controller.signal;
     setLoading(true); setWarnings([]); setCentral({});
     void (async () => {
-      const requests = ['/api/pack-catalog', '/api/packs', '/api/nodes', '/api/workflows'];
+      const priorityKey = section==='category' ? selected : '';
+      const requests = [priorityKey ? `/api/pack-catalog?key=${encodeURIComponent(priorityKey)}` : '/api/pack-catalog', '/api/packs', '/api/nodes'];
       const results = await Promise.allSettled(requests.map(url => read<unknown[]>(url, signal).then(data => {
         if (!Array.isArray(data)) throw new Error('invalid_list'); return data;
       })));
       if (signal.aborted) return;
       const messages: string[] = [];
-      const names = ['当前包目录', '历史安装记录', '计算节点', '工作流列表'];
+      const names = ['当前包目录', '历史安装记录', '计算节点'];
       const list = (i: number) => {
         const result = results[i];
         if (result.status === 'fulfilled') return result.value;
@@ -67,35 +68,35 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       setCatalog(list(0) as CatalogPack[]); setInventory(list(1) as InventoryPack[]);
       const nextNodes = list(2) as ComputeNode[]; setNodes(nextNodes);
       setNodeId(current => nextNodes.some(n => n.node_id === current) ? current : nextNodes[0]?.node_id ?? '');
-      const summaries = list(3) as WorkflowSummary[];
-      const usages: WorkflowUsage[] = [];
-      // Bound fan-out: loading every saved workflow must not saturate the gateway.
-      let cursor = 0;
-      await Promise.all(Array.from({length: Math.min(4, summaries.length)}, async () => {
-        while (cursor < summaries.length && !signal.aborted) {
-          const summary = summaries[cursor++];
-          try {
-            const workflow = await read<WorkflowUsage>(`/api/workflows/${encodeURIComponent(summary.workflow_id)}`, signal);
-            if (!workflow.graph?.nodes) throw new Error('missing_graph');
-            try { workflow.check = await checkRecipe(workflow.graph, signal); }
-            catch { workflow.checkFailed = true; }
-            workflow.updated_ts = workflow.updated_ts ?? summary.updated_ts;
-            usages.push(workflow);
-          } catch { messages.push(`工作流「${summary.name}」未能读取，使用情况尚不完整。`); }
+      if (!signal.aborted) { setWarnings(messages); setLoading(false); }
+      // Paint the requested package first. Parsing unrelated manifests must not
+      // hold a direct package URL behind the complete navigation catalog.
+      if (priorityKey && !signal.aborted) {
+        try {
+          const complete = await read<CatalogPack[]>('/api/pack-catalog', signal);
+          if (!Array.isArray(complete)) throw new Error('invalid_list');
+          if (!signal.aborted) setCatalog(complete);
+        } catch {
+          if (!signal.aborted) setWarnings(current => [...current, '完整包目录未能读取，请刷新后重试。']);
         }
-      }));
-      if (!signal.aborted) { setWorkflows(usages); setWarnings(messages); setLoading(false); }
+      }
     })();
     return () => controller.abort();
   }, [revision]);
 
-  const entries = useMemo(() => buildPackEntries(catalog, inventory, workflows, registry), [catalog, inventory, workflows, registry]);
-  const displayName = useMemo(() => packDisplayNames(entries.map(entry => entry.name)), [entries]);
-  const capabilityGraph = useMemo(() => ({nodes: entries.map(entry => ({
+  const rawEntries = useMemo(() => buildPackEntries(catalog, inventory, workflows, registry), [catalog, inventory, workflows, registry]);
+  const capabilityGraph = useMemo(() => ({nodes: [...rawEntries.map(entry => ({
     id: entry.key, kind: 'algorithm', algorithm_name: entry.name, algorithm_version: entry.version,
     assigned_node_id: nodeId || null, params: {}, position: {x: 0, y: 0},
-  })), edges: []}) as WorkflowGraph, [entries, nodeId]);
-  const checks = useCapabilityChecks(capabilityGraph, String(revision), !loading && !!nodeId && entries.length > 0);
+  })), ...workflows.flatMap(workflow => workflow.graph.nodes.map(node => ({...node, id: `usage:${workflow.workflow_id}:${node.id}`})))], edges: []}) as WorkflowGraph, [rawEntries, workflows, nodeId]);
+  const checks = useCapabilityChecks(capabilityGraph, String(revision), !loading && !!nodeId && rawEntries.length > 0);
+  const entries = useMemo(() => buildPackEntries(catalog, inventory, workflows.map(workflow => ({...workflow,
+    check: {...workflow.check, issues: workflow.check?.issues ?? [], environment: Object.fromEntries(workflow.graph.nodes.flatMap(node => {
+      const report = checks.reports[`usage:${workflow.workflow_id}:${node.id}`];
+      return report ? [[node.id, report]] : [];
+    }))},
+  })), registry), [catalog, inventory, workflows, registry, checks.reports]);
+  const displayName = useMemo(() => packDisplayNames(entries.map(entry => entry.name)), [entries]);
   const statusKey = (entry: PackEntry) => `${nodeId}:${entry.key}`;
   const reasons = (entry: PackEntry) => packProblemReasons(entry, checks.reports[entry.key], central[statusKey(entry)]?.data?.state === 'hash_mismatch'
     ? 'hash_mismatch' : central[statusKey(entry)]?.data?.registry_status);
@@ -121,8 +122,9 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
 
   const feedback = <>
     {warnings.length > 0 && <div role="alert" className="hl-pack-notice">{warnings.map(message => <p key={message}>{message}</p>)}<button disabled={loading} onClick={()=>setRevision(n=>n+1)}>重试读取</button></div>}
+    {usage.error && <p role="alert">工作流引用暂不可用。<button onClick={usage.refresh}>重试引用查询</button></p>}
     {checks.error && <p role="alert">本地能力暂时无法查询。<button onClick={checks.refresh}>重试环境检查</button></p>}
-    {loading ? <p role="status">正在汇总包与工作流…</p> : checks.loading && <p role="status">环境检查中…</p>}
+    {loading ? <p role="status">正在读取本地包…</p> : checks.loading && <p role="status">环境检查中…</p>}
   </>;
   const renderPackage = (entry: PackEntry) => {
     const selectedNode = nodes.find(node => node.node_id === nodeId);
@@ -155,8 +157,8 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         <EnvironmentEvidence report={report} headingLabel={report?.status === 'unknown' ? '环境未校验' : undefined} />
         {requires != null && <details><summary>声明的 requires</summary><EvidenceValue value={requires} /></details>}
       </details>
-      <details className="hl-pack-section" open><summary>使用情况与配方检查 · {entry.usages.length} 个节点 / {new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流</summary>
-        {!entry.usages.length && <p>已读取的工作流草稿中没有引用此版本。</p>}
+      <details className="hl-pack-section" open><summary>使用情况与配方检查{usage.loading ? ' · 引用加载中…' : usage.error ? ' · 引用暂不可用' : ` · ${entry.usages.length} 个节点 / ${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流`}</summary>
+        {!usage.loading && !usage.error && !entry.usages.length && <p>已读取的工作流草稿中没有引用此版本。</p>}
         {entry.usages.map(({workflow, node, issues}) => <section className="hl-pack-usage" key={`${workflow.workflow_id}:${node.id}`}>
           <div><button onClick={() => onOpenWorkflow(workflow.workflow_id)}>打开 {workflow.name}</button><strong>节点 {node.id}</strong><span>计算节点：{node.assigned_node_id ?? '未分配'}</span></div>
           {workflow.checkFailed ? <p>配方检查未完成，请刷新后重试。</p> : issues.length ? <ul>{issues.map((issue, index) => <li key={index}>{recipeIssueLabel(issue)}</li>)}</ul> : <p>未发现包依赖、变量或参数问题。</p>}
@@ -179,7 +181,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   };
 
   const renderLocalPage = () => {
-    const list = {displayName, statusLabel, onSelect: (key: string) => navigateLocal('category', key)};
+    const list = {displayName, statusLabel, usageStatus: usage.loading ? '工作流引用加载中…' : usage.error ? '工作流引用暂不可用' : '', onSelect: (key: string) => navigateLocal('category', key)};
     if (section === 'overview') return <LocalOverviewPage {...list} items={entries} search={search} onSearch={setSearch} loading={loading} feedback={feedback} />;
     if (section === 'category' && selected) {
       if (selectedEntry) return renderPackage(selectedEntry);
@@ -189,7 +191,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     }
     if (section === 'category') return <LocalResultsPage {...list} items={categoryEntries} kind="category" title={category ? category.split('/').join(' / ') : '全部分类'} feedback={feedback} loading={loading} emptyMessage="该分类下暂无包。" />;
     return <LocalResultsPage {...list} {...localStatusPages[section]} items={sectionEntries} kind={section} feedback={feedback} loading={loading}
-      emptyMessage={healthPending && (section==='missing' || section==='attention') ? '检查尚未完成，暂未确认符合此筛选的包。' : '没有符合此筛选的包。'} />;
+      emptyMessage={(healthPending || usage.loading || usage.error) && (section==='missing' || section==='attention') ? '检查尚未完成，暂未确认符合此筛选的包。' : '没有符合此筛选的包。'} />;
   };
 
   return <div className="hl-app-shell hl-pack-manager" style={{'--pack-sidebar-width': `${leftDock.value}px`} as React.CSSProperties}>

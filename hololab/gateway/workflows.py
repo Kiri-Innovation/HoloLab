@@ -597,45 +597,21 @@ class WorkflowStore:
         return now
 
     async def list_drafts(self) -> list[dict[str, Any]]:
-        """List drafts for the Gallery landing page.
-
-        Each row carries ``node_count`` (parsed from the stored
-        ``draft_json``) so the card can show "N nodes" without pulling
-        the full graph. Run-history rollup lives on ``last_run`` and is
-        populated by the endpoint handler in one JOIN — keeping it out
-        of this method keeps the workflows/jobs split of responsibility
-        clean.
-        """
-
-        async with (
-            self._db.read() as conn,
-            conn.execute(
-                "SELECT workflow_id, name, draft_json, created_ts, updated_ts "
-                "FROM workflows ORDER BY updated_ts DESC"
-            ) as cur,
-        ):
-            rows = await cur.fetchall()
-
-        def _count_nodes(raw: str) -> int:
-            # Draft JSON is fully validated on write, so a malformed row
-            # here would be a corruption bug worth surfacing — but we do
-            # NOT want the list endpoint to 500 on one bad row. Fall
-            # back to 0 and let the card render.
-            try:
-                data = json.loads(raw)
-                nodes = data.get("nodes") or []
-                return len(nodes) if isinstance(nodes, list) else 0
-            except (ValueError, TypeError):
-                return 0
-
+        """Read metadata and node counts without transferring full draft graphs."""
+        async with self._db.read() as conn:
+            rows = await (
+                await conn.execute("""
+                SELECT workflow_id, name,
+                    CASE WHEN json_valid(draft_json) THEN
+                        CASE WHEN json_type(draft_json, '$.nodes')='array'
+                            THEN json_array_length(draft_json, '$.nodes') ELSE 0 END
+                        ELSE 0 END,
+                    created_ts, updated_ts
+                FROM workflows ORDER BY updated_ts DESC
+            """)
+            ).fetchall()
         return [
-            {
-                "workflow_id": r[0],
-                "name": r[1],
-                "node_count": _count_nodes(r[2]),
-                "created_ts": r[3],
-                "updated_ts": r[4],
-            }
+            dict(workflow_id=r[0], name=r[1], node_count=r[2], created_ts=r[3], updated_ts=r[4])
             for r in rows
         ]
 

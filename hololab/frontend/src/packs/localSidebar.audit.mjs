@@ -129,7 +129,7 @@ try {
    await sidebar.getByRole('button',{name:'总览',exact:true}).click();
    await content.getByRole('searchbox').fill('no-such-package');await expect(content).toContainText('没有符合搜索条件的包');
    let release;hold=new Promise(resolve=>{release=resolve;});
-   await page.reload({waitUntil:'domcontentloaded'});await expect(content).toContainText('正在汇总包与工作流');release();hold=null;await ready();
+   await page.reload({waitUntil:'domcontentloaded'});await expect(content).toContainText('正在读取本地包');release();hold=null;await ready();
    empty=true;await page.reload();await expect(content).toContainText('还没有发现包');
    empty=false;fail=true;await page.reload();await expect(content).toContainText('当前包目录未能读取');
    fail=false;await content.getByRole('button',{name:'重试读取'}).click();await ready();

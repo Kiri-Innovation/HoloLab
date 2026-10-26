@@ -445,7 +445,7 @@ class NodeRegistry:
             for r in rows
         ]
 
-    def catalog_json(self) -> list[dict[str, Any]]:
+    def catalog_json(self, *, keys: set[tuple[str, str]] | None = None) -> list[dict[str, Any]]:
         """Aggregated pack catalog with full port/param signatures.
 
         Deduped by (name, version) across all connected nodes so the frontend
@@ -517,6 +517,8 @@ class NodeRegistry:
 
         for session in self._sessions.values():
             for pk in session.packs:
+                if keys is not None and package_key(pk.name, pk.version) not in keys:
+                    continue
                 conflict = None
                 try:
                     offered_identity(session.packs, pk.name, pk.version)

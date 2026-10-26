@@ -250,6 +250,18 @@ def create_app(
         )
         if app.state.workflows.file_authority:
             await app.state.workflows.file_authority.recover_all()
+        from hololab.gateway.workflow_reads import (
+            PackUsageIndex,
+            prepare_read_indexes,
+            usage_catalog_revision,
+        )
+
+        await prepare_read_indexes(db)
+        app.state.pack_usage = PackUsageIndex(
+            app.state.workflows,
+            lambda keys: app.state.registry.catalog_json(keys=keys),
+            lambda keys: usage_catalog_revision(app.state.registry, keys),
+        )
         app.state.hub = FrontendHub()
         # In-memory rolling metrics per compute node — powers the
         # "server pulse" panel that fills the inspector when the
@@ -1189,57 +1201,24 @@ def _mount_routes(app: FastAPI) -> None:
         tags=["packs"],
         summary="Deduped pack catalog with port + param signatures.",
     )
-    async def pack_catalog() -> list[dict[str, Any]]:
+    async def pack_catalog(key: str | None = None) -> list[dict[str, Any]]:
         """Palette-shaped view: dedup by pack, include port/param signatures."""
 
         registry: NodeRegistry = app.state.registry
+        if key is not None:
+            from hololab.package_identity import canonical_name
+
+            name, separator, version = key.rpartition("@")
+            if not separator or not name or not version:
+                raise HTTPException(422, "包引用必须包含名称和版本。")
+            return registry.catalog_json(keys={(canonical_name(name), version)})
         return registry.catalog_json()
 
     async def workflow_last_run(workflow_id: str) -> dict[str, Any] | None:
         """Latest snapshot and job rollup shared by Gallery and references."""
-        workflows_store: WorkflowStore = app.state.workflows
-        jobs_store: JobsStore = app.state.jobs_store
-        snapshots = await workflows_store.list_snapshots_for_workflow(workflow_id)
-        if not snapshots:
-            return None
-        latest = snapshots[0]  # newest first
-        jobs = await jobs_store.list_by_snapshot(latest.snapshot_id)
-        async with (
-            app.state.db.read() as conn,
-            conn.execute(
-                "SELECT message FROM snapshot_preparation_errors WHERE snapshot_id=?",
-                (latest.snapshot_id,),
-            ) as cur,
-        ):
-            preparation_failure = await cur.fetchone()
+        from hololab.gateway.workflow_reads import last_runs
 
-        state_counts: dict[str, int] = {}
-        for j in jobs:
-            state_counts[j["state"]] = state_counts.get(j["state"], 0) + 1
-        # Same rollup rules the runs endpoint uses so the Gallery
-        # pip and the Runs panel pip agree at a glance.
-        if preparation_failure:
-            rollup = "failed"
-        elif not jobs:
-            rollup = "pending"
-        elif state_counts.get("failed", 0) > 0:
-            rollup = "failed"
-        elif state_counts.get("cancelled", 0) > 0 and state_counts.get("running", 0) == 0:
-            rollup = "cancelled"
-        elif all(j["state"] == "done" for j in jobs):
-            rollup = "done"
-        elif any(j["state"] in ("running", "assigned") for j in jobs):
-            rollup = "running"
-        else:
-            rollup = "pending"
-        return {
-            "snapshot_id": latest.snapshot_id,
-            "created_ts": latest.created_ts,
-            "state": rollup,
-            "state_counts": state_counts,
-            "job_count": len(jobs),
-            **({"preparation_error": preparation_failure[0]} if preparation_failure else {}),
-        }
+        return (await last_runs(app.state.db, [workflow_id])).get(workflow_id)
 
     @app.get(
         "/api/resolve",
@@ -1929,9 +1908,32 @@ def _mount_routes(app: FastAPI) -> None:
 
         drafts = await workflows_store.list_drafts()
 
+        from hololab.gateway.workflow_reads import last_runs
+
+        runs = await last_runs(app.state.db, [row["workflow_id"] for row in drafts])
         for row in drafts:
-            row["last_run"] = await workflow_last_run(row["workflow_id"])
+            row["last_run"] = runs.get(row["workflow_id"])
         return drafts
+
+    @app.get("/api/packs/usage", tags=["packs"])
+    async def pack_usage_overview():
+        """Compact draft references for the local package index (no run graphs)."""
+        try:
+            return await app.state.pack_usage.get()
+        except (ValueError, OSError) as exc:
+            raise HTTPException(422, "工作流引用暂不可用, 请检查配方文件后重试。") from exc
+
+    @app.get("/api/packs/{key:path}/usage", tags=["packs"])
+    async def pack_usage(key: str):
+        from hololab.package_identity import canonical_name
+
+        name, separator, version = key.rpartition("@")
+        if not separator or not name or not version:
+            raise HTTPException(422, "包引用必须包含名称和版本。")
+        try:
+            return await app.state.pack_usage.get(f"{canonical_name(name)}@{version}")
+        except (ValueError, OSError) as exc:
+            raise HTTPException(422, "工作流引用暂不可用, 请检查配方文件后重试。") from exc
 
     @app.get("/api/workflows/{workflow_id}/recipe", tags=["workflows"])
     async def export_workflow_recipe(workflow_id: str):
