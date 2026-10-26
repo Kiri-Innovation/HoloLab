@@ -1,7 +1,7 @@
 ---
 title: Algorithm package registry API reference
-group: Collaboration and reproducibility
-order: 80
+group: Package site
+order: 10
 ---
 # Algorithm package registry API reference
 

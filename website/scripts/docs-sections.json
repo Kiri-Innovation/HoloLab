@@ -15,5 +15,12 @@
     "href": "/docs/contributor",
     "order": 20,
     "aliases": []
+  },
+  {
+    "id": "packs",
+    "title": "算法包站点",
+    "href": "/docs/packs",
+    "order": 30,
+    "aliases": []
   }
 ]

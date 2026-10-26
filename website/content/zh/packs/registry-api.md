@@ -1,7 +1,7 @@
 ---
 title: 算法包注册表 API 参考
-group: 协作和可复现能力设计
-order: 80
+group: 算法包站点
+order: 10
 ---
 # 算法包注册表 API 参考
 

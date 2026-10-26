@@ -39,11 +39,15 @@ Frontmatter `title`, `group`, and `order` override mapping defaults.
 The optional `navigationOrder` in `docs-sources.json` controls website navigation
 without changing repository frontmatter; it takes precedence over `order` for
 sorting only. `section` controls navigation membership independently of `slug`.
-The two areas are `learn` (`/docs`) and `contributor` (`/docs/contributor`).
+The three areas are `learn` (`/docs`), `contributor` (`/docs/contributor`), and
+`packs` (`/docs/packs`, algorithm package publication and retrieval).
 Section `aliases` retain the old `/docs/build` and `/docs/reference` indexes as
 Learn entry points; directory routes open the first article with history replacement,
 preserving the query and fragment. Area tabs link directly to the first article
-(`/docs/use/introduction` or `/docs/contributor/about`); article URLs are unchanged. Each alias also receives localized
+(`/docs/use/introduction`, `/docs/contributor/about`, or `/docs/packs/introduction`).
+The API reference now lives at `/docs/packs/registry-api`. Its former
+`/docs/contributor/registry-api` URL is not retained: section aliases only support
+directory routes and always open the first article. Each alias also receives localized
 HTML metadata.
 
 Generated files in `src/content/docs/` are ignored. The sync validates publication

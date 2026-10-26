@@ -443,25 +443,47 @@
     "navigationOrder": 160
   },
   {
-    "source": "website/content/en/contributor/registry-api.md",
-    "slug": "contributor/registry-api",
-    "section": "contributor",
+    "source": "website/content/en/packs/registry-api.md",
+    "slug": "packs/registry-api",
+    "section": "packs",
     "title": "Algorithm package registry API reference",
-    "group": "Collaboration and reproducibility",
-    "order": 80,
+    "group": "Package site",
+    "order": 10,
     "locale": "en",
     "contentLanguage": "en",
-    "navigationOrder": 170
+    "navigationOrder": 10
   },
   {
-    "source": "website/content/zh/contributor/registry-api.md",
-    "slug": "contributor/registry-api",
-    "section": "contributor",
+    "source": "website/content/zh/packs/registry-api.md",
+    "slug": "packs/registry-api",
+    "section": "packs",
     "title": "算法包注册表 API 参考",
-    "group": "协作和可复现能力设计",
-    "order": 80,
+    "group": "算法包站点",
+    "order": 10,
     "locale": "zh-CN",
     "contentLanguage": "zh-CN",
-    "navigationOrder": 170
+    "navigationOrder": 10
+  },
+  {
+    "source": "website/content/en/packs/introduction.md",
+    "slug": "packs/introduction",
+    "section": "packs",
+    "title": "Share a Pack others can verify",
+    "group": "Package site",
+    "order": 0,
+    "locale": "en",
+    "contentLanguage": "en",
+    "navigationOrder": 0
+  },
+  {
+    "source": "website/content/zh/packs/introduction.md",
+    "slug": "packs/introduction",
+    "section": "packs",
+    "title": "发布算法包，让别人拿到可核对的同一份代码",
+    "group": "算法包站点",
+    "order": 0,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "navigationOrder": 0
   }
 ]

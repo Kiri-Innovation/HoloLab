@@ -58,5 +58,6 @@
   "contributor": "Contributor Doc",
   "learnIntro": "Install and use HoloLab, build workflows, and integrate algorithms with Packs.",
   "contributorIntro": "Understand HoloLab’s architecture and type system before contributing to the implementation.",
-  "docAreas": "Documentation areas"
+  "docAreas": "Documentation areas",
+  "packs": "Package site"
 }

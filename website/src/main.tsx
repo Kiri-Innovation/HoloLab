@@ -12,7 +12,7 @@ import './styles/browser-environment.css';
 import { locale, localeKey, localize, t, label } from './i18n';
 
 type Theme = 'light' | 'dark' | 'system';
-const sections = content.sections.map(s => ({ ...s, href: localize(s.href), entryHref: content.docs.find(d => d.locale === locale && d.section === s.id)!.href, title: t(s.id as 'learn' | 'contributor') }));
+const sections = content.sections.map(s => ({ ...s, href: localize(s.href), entryHref: content.docs.find(d => d.locale === locale && d.section === s.id)!.href, title: t(s.id as 'learn' | 'contributor' | 'packs') }));
 const docs = content.docs.filter(d => d.locale === locale).map(d => ({ ...d, title: label(d.title), group: label(d.group) }));
 const requestedPath = window.location.pathname.replace(/\/$/, '') || '/';
 const directory = sections.find(s => s.href === requestedPath || s.aliases.some(href => localize(href) === requestedPath));
