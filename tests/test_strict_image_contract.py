@@ -392,21 +392,25 @@ def test_real_generic_regroup_handles_files_without_intrinsic_dimensions(tmp_pat
     assert _measure_dim_sizes(out, 2, ["image"])[0] == [3, 2]
 
 
-@pytest.mark.parametrize("version", ["0.1.0", "0.1.1"])
-def test_real_array_tools_file_elements(tmp_path, version):
-    from hololab.manifest.render import RenderContext, render_manifest
-
+def test_real_builtin_array_tools_file_elements(tmp_path):
     src = tmp_path / "src"
     picture(src / "a.png")
     picture(src / "b.png")
 
+    builtin_root = ROOT / "hololab" / "builtin_packs"
+
     def run(name, inputs, outputs, params=None):
-        m, _ = load_manifest(PACKS / f"{name}@{version}" / "manifest.yaml")
-        defaults = {k: v.default for k, v in m.params.items()}
-        shell = render_manifest(
-            m, RenderContext(inputs=inputs, outputs=outputs, params={**defaults, **(params or {})})
-        ).shell
-        r = subprocess.run(["bash", "-c", shell], capture_output=True, text=True, timeout=10)
+        command = [
+            sys.executable,
+            str(builtin_root / f"{name}@0.1.0" / "run.py"),
+            "--input",
+            inputs["arr"],
+            "--output",
+            outputs["item" if name == "get-index" else "n"],
+        ]
+        if name == "get-index":
+            command.extend(["--idx", str((params or {}).get("idx", 0))])
+        r = subprocess.run(command, capture_output=True, text=True, timeout=10)
         assert r.returncode == 0, r.stderr
 
     count = tmp_path / "count"

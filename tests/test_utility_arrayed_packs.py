@@ -13,10 +13,12 @@ import pytest
 from hololab.manifest import load_manifest
 
 PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
+BUILTINS_ROOT = Path(__file__).resolve().parent.parent / "hololab" / "builtin_packs"
 
 
 def _load(name: str):
-    manifest, _sha = load_manifest(PACKS_ROOT / f"{name}@0.1.0" / "manifest.yaml")
+    root = BUILTINS_ROOT if name in {"array-length", "get-index"} else PACKS_ROOT
+    manifest, _sha = load_manifest(root / f"{name}@0.1.0" / "manifest.yaml")
     return manifest
 
 

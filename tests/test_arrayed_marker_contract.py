@@ -3,23 +3,19 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
-from hololab.manifest import load_manifest
-from hololab.manifest.render import RenderContext, render_manifest
-
-PACKS = Path(__file__).resolve().parents[1] / "packs"
+BUILTINS = Path(__file__).resolve().parents[1] / "hololab" / "builtin_packs"
 
 
-def _run_shell(manifest_path: Path, *, arr: Path, output: Path, params: dict[str, int]) -> None:
-    manifest, _ = load_manifest(manifest_path)
-    shell = render_manifest(
-        manifest,
-        RenderContext(
-            inputs={"arr": str(arr)}, outputs={"item": str(output), "n": str(output)}, params=params
-        ),
-    ).shell
-    subprocess.run(["bash", "-c", shell], check=True, text=True, capture_output=True)
+def _run_builtin(name: str, *args: str) -> None:
+    subprocess.run(
+        [sys.executable, str(BUILTINS / name / "run.py"), *args],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
 
 
 def _marker_array(root: Path) -> None:
@@ -30,30 +26,30 @@ def _marker_array(root: Path) -> None:
     (root / "stray.txt").write_text("a file element")
 
 
-def test_get_index_011_ignores_hololab_markers_and_counts_elements(tmp_path: Path) -> None:
+def test_builtin_array_utilities_ignore_hololab_markers(tmp_path: Path) -> None:
     arr = tmp_path / "groups"
     arr.mkdir()
     _marker_array(arr)
 
     for index, expected in ((0, "g000000"), (1, "g000001"), (2, "stray.txt")):
         item = tmp_path / f"item-{index}"
-        _run_shell(
-            PACKS / "get-index@0.1.1" / "manifest.yaml", arr=arr, output=item, params={"idx": index}
+        _run_builtin(
+            "get-index@0.1.0", "--input", str(arr), "--output", str(item), "--idx", str(index)
         )
         assert item.resolve() == arr / expected
 
     n = tmp_path / "n.txt"
-    _run_shell(PACKS / "array-length@0.1.1" / "manifest.yaml", arr=arr, output=n, params={})
+    _run_builtin("array-length@0.1.0", "--input", str(arr), "--output", str(n))
     assert n.read_text() == "3\n"
 
 
-def test_arrayed_utility_shells_explicitly_filter_dot_directories() -> None:
-    """Global convention guard for pack-side directory enumeration.
+def test_builtin_array_utilities_explicitly_filter_dot_entries() -> None:
+    """Global convention guard for builtin arrayed-element enumeration.
 
-    Utility manifests that enumerate arrayed elements must spell the same
-    file-or-directory, non-dot entry contract as the framework helper.
+    Both utilities must share the framework's immediate non-dot
+    file-or-directory entry contract.
     """
-    for name in ("get-index@0.1.1", "array-length@0.1.1"):
-        text = (PACKS / name / "manifest.yaml").read_text()
-        assert "! -name '.*'" in text
-        assert "-type f" in text and "-type d" in text
+    for name in ("get-index@0.1.0", "array-length@0.1.0"):
+        text = (BUILTINS / name / "run.py").read_text()
+        assert "os.scandir" in text
+        assert 'not entry.name.startswith(".")' in text
