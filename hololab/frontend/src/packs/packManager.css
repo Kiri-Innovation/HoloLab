@@ -61,7 +61,7 @@
 .hl-pack-tree-group .hl-pack-folder { min-width: 0; padding: var(--space-1) 0; border: 0; background: transparent; cursor: pointer; font-size: var(--fs-sm); text-align: left; }
 .hl-pack-tree-group { --hl-tree-guide-column: calc(var(--space-4) + var(--space-1)); }
 .hl-pack-tree-group .hl-pack-leaf { display: grid; grid-template-columns: var(--hl-tree-guide-column) minmax(0, 1fr); align-items: start; width: 100%; height: auto; padding: var(--space-1) 0; border: 0; border-radius: var(--radius-sm); background: transparent; text-align: left; font-size: var(--fs-sm); }
-.hl-pack-algorithm-icon { justify-self: start; width: var(--space-3); height: var(--space-3); margin: var(--space-1) 0 0; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
+.hl-pack-algorithm-icon { justify-self: center; width: var(--space-3); height: var(--space-3); margin: var(--space-1) 0 0; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
 .hl-pack-leaf-content { display: flex; flex-direction: column; min-width: 0; padding-right: var(--space-2); }
 .hl-pack-leaf-heading { display: flex; align-items: baseline; min-width: 0; gap: var(--space-2); line-height: var(--lh-ui); }
 .hl-pack-leaf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -136,7 +136,8 @@
 .hl-local-directory .hl-pack-view-nav { margin-bottom: var(--space-3); }
 .hl-local-tree { border-top: 1px solid var(--border); padding-top: var(--space-3); }
 .hl-local-folder-row { display: grid; grid-template-columns: var(--hl-tree-guide-column) minmax(0, 1fr); align-items: center; }
-.hl-local-folder-toggle { display: grid; place-items: center; justify-self: center; width: var(--space-6); height: var(--space-6); padding: 0; border: 0; background: transparent; }
+.hl-local-folder-toggle { position: relative; display: grid; place-items: center; width: var(--hl-tree-guide-column); height: var(--space-6); padding: 0; border: 0; background: transparent; }
+.hl-local-folder-toggle::after { position: absolute; inset: calc(var(--space-1) / -2); content: ''; }
 .hl-tree-chevron { width: var(--space-3); height: var(--space-3); fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.75; transition: transform 120ms ease; }
 .hl-local-folder-toggle[aria-expanded=true] .hl-tree-chevron { transform: rotate(90deg); }
 .hl-local-folder-row .hl-pack-folder { flex: 1; min-width: 0; font-weight: var(--fw-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
