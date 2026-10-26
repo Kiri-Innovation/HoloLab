@@ -27,7 +27,7 @@ test('recipe bytes, import navigation, variable rename/binding and capability co
  });
  await page.setViewportSize({width:1440,height:1000});
  await page.goto('/w/polish');
- await page.getByRole('button',{name:'定位节点 train'}).click();
+ await page.locator('[data-hololab-node=algorithm]').click();
  const variables=page.locator('.hl-workflow-variables');
  await variables.locator('summary').click();
  await page.getByLabel('iterations 本地值').fill('48');
@@ -54,7 +54,8 @@ test('recipe bytes, import navigation, variable rename/binding and capability co
  await page.getByLabel('从配方文件新建工作流').setInputFiles({name:'recipe.json',mimeType:'application/json',buffer:Buffer.from(recipe)});
  await expect(page).toHaveURL(/\/w\/imported$/);
  expect(imported).toBe(recipe);
- await expect(page.getByRole('button',{name:'定位节点 train'})).toBeVisible();
+ await expect(page.locator('.hl-workflow-checks')).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Pack Manager',exact:true})).toBeVisible();
 });
 
 test('destructive actions require confirmation and internal errors stay hidden',async({page})=>{

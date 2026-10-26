@@ -1,0 +1,103 @@
+
+Running 14 tests using 4 workers
+
+(node:4179383) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4179381) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4179382) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4179380) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   4 [chromium] › e2e/node-action-geometry.spec.ts:7:3 › node action geometry in light theme (2.3s)
+  ✓   3 [chromium] › e2e/open-artifact-location.spec.ts:219:3 › Collapsed footer — 跳转产物位置 button › with resolved previews + Flops → button visible on the done node only (2.5s)
+  ✓   2 [chromium] › e2e/package-identity.spec.ts:3:3 › package identity legacy: display and save (2.7s)
+  ✓   1 [chromium] › e2e/reference-quote.spec.ts:6:3 › reference quote matches adjacent node controls in light theme (3.3s)
+  ✓   5 [chromium] › e2e/node-action-geometry.spec.ts:7:3 › node action geometry in dark theme (1.8s)
+  ✓   6 [chromium] › e2e/open-artifact-location.spec.ts:254:3 › Collapsed footer — 跳转产物位置 button › expanded drawer → button hides (per-port drawer buttons take over) (2.0s)
+  ✓   7 [chromium] › e2e/package-identity.spec.ts:3:3 › package identity alias: display and save (2.2s)
+  ✓   8 [chromium] › e2e/reference-quote.spec.ts:6:3 › reference quote matches adjacent node controls in dark theme (2.8s)
+  ✓   9 [chromium] › e2e/open-artifact-location.spec.ts:278:3 › Collapsed footer — 跳转产物位置 button › without Flops → button never renders even with artifacts (1.9s)
+  ✓  10 [chromium] › e2e/package-identity.spec.ts:3:3 › package identity dev: display and save (1.9s)
+  ✓  11 [chromium] › e2e/open-artifact-location.spec.ts:294:3 › artifact entry icons and paths in light theme (5.4s)
+  ✓  12 [chromium] › e2e/open-artifact-location.spec.ts:294:3 › artifact entry icons and paths in dark theme (5.5s)
+  ✘  13 [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in light theme (6.6s)
+(node:4181001) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  14 [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in dark theme (7.0s)
+
+
+  1) [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in light theme ─────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  getByRole('tooltip')
+    Expected: "展开预览"
+    Received: "显示小地图"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveText" getByRole('tooltip') with timeout 5000ms
+      - waiting for getByRole('tooltip')
+        9 × locator resolved to <div id=":r1:" role="tooltip" class="hl-tooltip" data-stacked="false" data-placement="above">显示小地图</div>
+          - unexpected value "显示小地图"
+
+
+      460 |     const previewToggle = card.getByRole('button', {name:'展开预览',exact:true});
+      461 |     await previewToggle.hover();
+    > 462 |     await expect(page.getByRole('tooltip')).toHaveText('展开预览');
+          |                                             ^
+      463 |     await card.screenshot({path:testInfo.outputPath(`edges-${theme}.png`)});
+      464 |     await jump.hover();
+      465 |     await expect(page.getByRole('tooltip')).toHaveText('跳转产物');
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/open-artifact-location.spec.ts:462:45
+
+    Error Context: ../../../../../../tmp/hololab-pack-manager-migrated/open-artifact-location-footer-spacing-in-light-theme-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/hololab-pack-manager-migrated/open-artifact-location-footer-spacing-in-light-theme-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../tmp/hololab-pack-manager-migrated/open-artifact-location-footer-spacing-in-light-theme-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in dark theme ──────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  getByRole('tooltip')
+    Expected: "展开预览"
+    Received: "显示小地图"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveText" getByRole('tooltip') with timeout 5000ms
+      - waiting for getByRole('tooltip')
+        9 × locator resolved to <div id=":r1:" role="tooltip" class="hl-tooltip" data-stacked="false" data-placement="above">显示小地图</div>
+          - unexpected value "显示小地图"
+
+
+      460 |     const previewToggle = card.getByRole('button', {name:'展开预览',exact:true});
+      461 |     await previewToggle.hover();
+    > 462 |     await expect(page.getByRole('tooltip')).toHaveText('展开预览');
+          |                                             ^
+      463 |     await card.screenshot({path:testInfo.outputPath(`edges-${theme}.png`)});
+      464 |     await jump.hover();
+      465 |     await expect(page.getByRole('tooltip')).toHaveText('跳转产物');
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/open-artifact-location.spec.ts:462:45
+
+    Error Context: ../../../../../../tmp/hololab-pack-manager-migrated/open-artifact-location-footer-spacing-in-dark-theme-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/hololab-pack-manager-migrated/open-artifact-location-footer-spacing-in-dark-theme-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../tmp/hololab-pack-manager-migrated/open-artifact-location-footer-spacing-in-dark-theme-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in light theme ──────────
+    [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in dark theme ───────────
+  12 passed (34.0s)

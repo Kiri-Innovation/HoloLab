@@ -44,7 +44,8 @@ for (const theme of ["light", "dark"] as const) {
       (el as HTMLElement).style.transform = "translate(160px, 180px) scale(1)";
     });
     const node = page.locator(".react-flow__node").first();
-    const buttons = [node.locator("[data-hl-open-source]"), node.getByRole("button", { name: "引用到 Flops", exact: true }), node.getByRole("button", { name: /^(重新运行|运行)$/ })];
+    await expect(node.locator("[data-hl-open-source]")).toHaveCount(0);
+    const buttons = [node.getByRole("button", { name: "引用到 Flops", exact: true }), node.getByRole("button", { name: /^(重新运行|运行)$/ })];
     const measurements = [];
     for (const button of buttons) {
       measurements.push(await button.evaluate(el => {

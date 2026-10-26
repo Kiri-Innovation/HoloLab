@@ -18,7 +18,8 @@ try {
  await page.waitForURL('**/w/**');
  const wid=new URL(page.url()).pathname.split('/').at(-1);
  await expect(page.locator('.react-flow__node')).toHaveCount(2);
- await expect(page.getByText('包未发现，请确认已安装并连接计算节点。',{exact:false}).first()).toBeVisible();
+ await expect(page.locator('.hl-workflow-checks')).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Pack Manager',exact:true})).toBeVisible();
  await page.reload(); // Cold open must also work with an empty external catalog.
  await expect(page.locator('.react-flow__node')).toHaveCount(2);
  await expect(page.getByPlaceholder('workflow name')).toHaveValue('Recipe browser test');

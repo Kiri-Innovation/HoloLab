@@ -1,3 +1,4 @@
+import "./workflowToolbar.css";
 import { RecipeFileActions } from "./RecipeFileActions";
 // Top bar: workflow name + autosave status pill + Run button.
 //
@@ -17,6 +18,7 @@ import { CHIP_STYLE, CONTROL_STYLE, PRIMARY_CONTROL_STYLE } from "../ui/controlS
 import type { SaveStatus } from "./useDraftAutosave";
 
 export interface WorkflowToolbarProps {
+  onOpenPacks?: () => void;
   onRecipeOpen?: (id: string) => void;
   onRecipeReload?: () => Promise<void>;
   workflowId: string | null;
@@ -44,7 +46,7 @@ export interface WorkflowToolbarProps {
 }
 
 export function WorkflowToolbar({
-  workflowId, onRecipeOpen, onRecipeReload,
+  workflowId, onRecipeOpen, onRecipeReload, onOpenPacks,
   name,
   nodeCount,
   connected,
@@ -77,7 +79,7 @@ export function WorkflowToolbar({
   };
 
   return (
-    <div
+    <div className="hl-workflow-toolbar"
       style={{
         display: "flex",
         alignItems: "center",
@@ -125,6 +127,7 @@ export function WorkflowToolbar({
           fontWeight: 600,
         }}
       />
+      {onOpenPacks && <button type="button" onClick={onOpenPacks} style={CONTROL_STYLE}>Pack Manager</button>}
       {onRecipeOpen && <RecipeFileActions compact workflowId={workflowId} beforeExport={onSaveRetry} onOpen={onRecipeOpen} onReload={onRecipeReload} onSave={onSaveRetry} />}
       {workflowId && (
         <span

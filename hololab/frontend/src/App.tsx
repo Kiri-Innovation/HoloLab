@@ -1,4 +1,5 @@
-import { RecipeProblems } from "./canvas/RecipeProblems";
+import { useRecipeChecks } from "./packs/useRecipeChecks";
+import { PackManager } from "./packs/PackManager";
 import { WorkflowVariables } from "./canvas/WorkflowVariables";
 import type { VariableDeclarations } from "./wire";
 import { canonicalPackageName, packageCatalogIndex, samePackage } from "./packageIdentity";
@@ -133,7 +134,7 @@ import {
 import { seedEdgeSummaryFacts } from "./canvas/edgeSummaryCache";
 import { RunsPanel } from "./canvas/RunsPanel";
 import { useDraftAutosave } from "./canvas/useDraftAutosave";
-import { CapabilityContext, EnvironmentChecks, useCapabilityChecks } from "./canvas/EnvironmentChecks";
+import { useCapabilityChecks } from "./canvas/EnvironmentChecks";
 import { SnapshotBanner } from "./canvas/SnapshotBanner";
 import { SnapshotCanvas } from "./canvas/SnapshotCanvas";
 import { SnapshotNodeInspector } from "./canvas/SnapshotNodeInspector";
@@ -205,10 +206,12 @@ type Route =
   | { kind: "gallery" }
   | { kind: "artifacts" }
   | { kind: "library" }
+  | { kind: "packs" }
   | { kind: "canvas"; workflowId: string };
 
 function parseRoute(): Route {
   const path = window.location.pathname;
+  if (path === "/packs" || path === "/packs/") return { kind: "packs" };
   if (path === "/library" || path === "/library/") return { kind: "library" };
   if (path === "/artifacts" || path.startsWith("/artifacts/")) {
     return { kind: "artifacts" };
@@ -274,10 +277,11 @@ export default function App() {
 
   if (route.kind === "gallery") {
     return (
-      <Gallery onOpen={navigateToCanvas} onOpenArtifacts={navigateToArtifacts} onOpenLibrary={() => pushPath("/library")} />
+      <Gallery onOpen={navigateToCanvas} onOpenArtifacts={navigateToArtifacts} onOpenLibrary={() => pushPath("/library")} onOpenPacks={() => pushPath("/packs")} />
     );
   }
-  if (route.kind === "library") return <Library onBack={navigateToGallery} />;
+  if (route.kind === "packs") return <PackManager onBack={navigateToGallery} onOpenLibrary={() => pushPath("/library")} onOpenWorkflow={navigateToCanvas} />;
+  if (route.kind === "library") return <Library onBack={navigateToGallery} onOpenPacks={() => pushPath("/packs")} />;
   if (route.kind === "artifacts") {
     return <Artifacts onBackToGallery={navigateToGallery} />;
   }
@@ -2163,7 +2167,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // position / preview_open excluded). Passed to RunsPanel to drive both the
   // sentinel row visibility and the "检查" modal content.
   const analysisGraph = toGraph();
-  const capabilityChecks = useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick]), !viewingSnapshot);
+  useRecipeChecks(analysisGraph, !viewingSnapshot);
+  useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick]), !viewingSnapshot);
   const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick});
   const resolvedCanvasContext = useMemo(() => ({...canvasContextValue,
     effectiveParamsByNode: Object.fromEntries((executionAnalysis.isCurrent ? executionAnalysis.data?.graph.nodes ?? [] : []).map(n => [n.id, n.params])),
@@ -2691,6 +2696,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       onExitToGallery={onExitToGallery}
       saveStatus={autosave.status}
       onSaveRetry={autosave.save}
+      onOpenPacks={() => {
+        if (autosave.status !== "saved" && autosave.status !== "idle" && !window.confirm("当前草稿尚未保存，离开后未保存的编辑可能丢失。仍打开 Pack Manager？")) return;
+        pushPath("/packs");
+      }}
       onRecipeOpen={id => { void onLoad(id); }}
       onRecipeReload={async () => { if (!workflowId) return; const response = await fetch(`/api/workflows/${workflowId}/reload`, {method:"POST"}); if (!response.ok) throw Error(await response.text()); await onLoad(workflowId); }}
       staleCount={staleTotal}
@@ -2701,19 +2710,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const canvasContentSlot = (
     <>
       {workflowFileError && <div role="alert">配方文件无法打开，请检查文件与连接后重试。</div>}
-      {!viewingSnapshot && <div className="hl-workflow-checks"><RecipeProblems graph={analysisGraph} onLocate={id => {
-        setNodes(current => current.map(node => ({...node, selected: node.id === id})));
-        setRightTab("inspector");
-        const node = rfInstance?.getNode(id);
-        if (node) void rfInstance?.setCenter(node.position.x + (node.measured?.width ?? 220) / 2,
-          node.position.y + (node.measured?.height ?? 100) / 2, {zoom: Math.min(1, Math.max(0.75, rfInstance?.getZoom() ?? 1)), duration: 300});
-      }} /><EnvironmentChecks checks={capabilityChecks} /></div>}
       {!viewingSnapshot && executionAnalysis.message && <div role="status" data-analysis-state={executionAnalysis.status}
         style={{position:"absolute",top:8,left:"50%",transform:"translateX(-50%)",zIndex:5,
           fontSize:"var(--fs-xs)",color:"var(--text-muted)",background:"var(--surface-2)",padding:"4px 8px",borderRadius:"var(--radius-sm)",pointerEvents:"none"}}>
         {executionAnalysis.message}
       </div>}
-      <CapabilityContext.Provider value={viewingSnapshot ? {} : capabilityChecks.reports}><AnalysisProfiler><CanvasContext.Provider value={resolvedCanvasContext}>
+      <AnalysisProfiler><CanvasContext.Provider value={resolvedCanvasContext}>
         {viewingSnapshot ? (
           <>
             <SnapshotBanner
@@ -2774,7 +2776,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             <Background gap={20} color="var(--rf-grid)" />
           </ReactFlow>
         )}
-      </CanvasContext.Provider></AnalysisProfiler></CapabilityContext.Provider>
+      </CanvasContext.Provider></AnalysisProfiler>
       {creationAnchor && !viewingSnapshot && (
         <NodeCreationMenu key={`${creationAnchor.x},${creationAnchor.y}`} catalog={catalog} anchor={creationAnchor}
           onClose={closeCreationMenu} onCreate={choice => {

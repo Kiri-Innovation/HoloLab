@@ -30,7 +30,7 @@ export function RecipeFileActions({workflowId, beforeExport, onOpen, onReload, o
           const response = await fetch("/api/recipes/import", {method:"POST",headers:{"Content-Type":"application/json"},body:await file.text()});
           if (!response.ok) throw Error();
           onOpen((await response.json()).workflow_id);
-        }, "已新建工作流；请在画布的「配方检查」中查看并定位待处理节点。", "未能导入，请确认文件是有效的配方 JSON，并检查连接后重试。");
+        }, "已新建工作流；请在 Pack Manager 的使用情况中查看待处理节点。", "未能导入，请确认文件是有效的配方 JSON，并检查连接后重试。");
         e.target.value = "";
       }} />
     {onSave && <button disabled={busy} onClick={() => void act(onSave, "配方文件已保存。", "保存未完成，请检查连接后重试。")}>保存配方文件</button>}

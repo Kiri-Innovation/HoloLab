@@ -28,9 +28,10 @@ export interface GalleryProps {
   // runs' outputs is not a per-workflow concern.
   onOpenArtifacts: () => void;
   onOpenLibrary: () => void;
+  onOpenPacks: () => void;
 }
 
-export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary }: GalleryProps) {
+export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }: GalleryProps) {
   const [rows, setRows] = useState<WorkflowSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState<boolean>(false);
@@ -119,6 +120,7 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary }: GalleryProps
         onRefresh={refresh}
         onOpenArtifacts={onOpenArtifacts}
         onOpenLibrary={onOpenLibrary}
+        onOpenPacks={onOpenPacks}
         workflowCount={rows?.length ?? 0}
       />
       <main className="hl-gallery-main" style={{ overflow: "auto", padding: "var(--space-7) var(--space-7) var(--space-8)" }}>
@@ -159,6 +161,7 @@ function GalleryHeader({
   onRefresh,
   onOpenArtifacts,
   onOpenLibrary,
+  onOpenPacks,
   workflowCount,
 }: {
   creating: boolean;
@@ -166,6 +169,7 @@ function GalleryHeader({
   onRefresh: () => void;
   onOpenArtifacts: () => void;
   onOpenLibrary: () => void;
+  onOpenPacks: () => void;
   // Threaded into the ⧉ comment tail so a pasted ref reads
   // ``hololab://workflows  # 4 workflows`` — humans get the size hint
   // without having to open the page.
@@ -209,6 +213,7 @@ function GalleryHeader({
         size="xs"
       />
       <button type="button" onClick={onOpenLibrary} style={CONTROL_STYLE}>Library</button>
+      <button type="button" onClick={onOpenPacks} style={CONTROL_STYLE}>Pack Manager</button>
       <button
         type="button"
         onClick={onOpenArtifacts}

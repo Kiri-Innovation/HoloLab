@@ -42,7 +42,8 @@ for (const theme of ["light", "dark"] as const) {
     const node = page.locator(".react-flow__node").first();
     const reference = node.getByRole("button", { name: "引用到 Flops", exact: true });
     const quote = reference.locator("svg");
-    const source = node.locator("[data-hl-open-source] svg");
+    await expect(node.locator("[data-hl-open-source]")).toHaveCount(0);
+    const source = node.locator('button[data-tooltip="重新运行"] svg, button[data-tooltip="运行"] svg');
     await expect(source).toBeVisible();
     await expect(node.locator('button[data-tooltip="重新运行"], button[data-tooltip="运行"]')).toBeVisible();
     await expect(quote).toHaveAttribute("data-reference-icon", "quote");
@@ -60,7 +61,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.clock.runFor(200);
     await expect(tooltip).toHaveCount(0);
     await page.clock.runFor(200);
-    await expect(tooltip).toHaveText("查看代码");
+    await expect(tooltip).toHaveText(/运行/);
     await reference.hover();
     await page.clock.runFor(450);
     await expect(tooltip).toHaveText("引用到 Flops");
@@ -87,8 +88,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(tooltip).toHaveCount(0);
 
     // Keyboard focus shows immediately; toolbar placement flips below at the top edge.
-    await node.locator("[data-hl-open-source]").focus();
-    await page.keyboard.press("Tab");
+    await reference.focus();
     await expect(reference).toBeFocused();
     await expect(tooltip).toHaveText("引用到 Flops");
     const toolbarRef = page.getByRole("button", { name: "引用到 Flops：引用整张流程", exact: true });

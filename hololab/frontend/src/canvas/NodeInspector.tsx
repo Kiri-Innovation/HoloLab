@@ -11,7 +11,6 @@ import type { ComputeNode } from "../wire";
 import { ParameterPinButton } from "./ParameterPinButton";
 import { parameterPinKey } from "./parameterPins";
 import { parameterDifferences, parameterDifferenceText } from "./parameterDifferences";
-import { OpenSourceButton } from "./OpenSourceButton";
 
 // Capture on page load, like NodeViewerFrame: workflow navigation can rewrite the URL.
 const DEBUG_PARAMETERS = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1";
@@ -100,10 +99,7 @@ export function NodeInspector({
 
   const pin = (names: string[]) => onTogglePin ? <ParameterPinButton names={names}
     algorithmKey={parameterPinKey(pack)} pinned={pinnedParams} onToggle={onTogglePin} /> : null;
-  const packageComputeNode =
-    (selected.assigned_node_id ? computeNodesById?.[selected.assigned_node_id] : null)
-    ?? (pack.node_ids ?? []).map((nodeId) => computeNodesById?.[nodeId]).find(Boolean)
-    ?? null;
+
 
   return (
     <div
@@ -178,15 +174,6 @@ export function NodeInspector({
           {preparationStatus ? <p role="status">{preparationStatus}</p> : <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{JSON.stringify(effectiveParams ?? {}, null, 2)}</pre>}
           {environmentParams.length > 0 && <p>环境相关、尚未变量化：{environmentParams.join(", ")}</p>}
         </details>}
-        {!isConstantName(pack.name) && <div className="hl-inspector-field hl-inspector-package-field" style={FIELD}>
-          <ParameterLabel name="package" type="path" />
-          <OpenSourceButton
-            pack={pack}
-            computeNode={packageComputeNode}
-            variant="row"
-            label="manifest.yaml"
-          />
-        </div>}
         {pack.arrayable && (
           <>
             <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Fan-out</h3>

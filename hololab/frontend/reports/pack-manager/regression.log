@@ -1,0 +1,108 @@
+
+Running 19 tests using 4 workers
+
+(node:4160657) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4160656) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4160655) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4160658) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+{
+  width: 1440,
+  geometry: [
+    {
+      height: 33,
+      nameTop: 675.515625,
+      versionTop: 676.96875,
+      versionFull: true,
+      progressRight: 909.859375,
+      elapsedRight: 954,
+      nowrap: 'nowrap',
+      elapsedNowrap: 'nowrap',
+      progressFull: true
+    },
+    {
+      height: 33,
+      nameTop: 708.515625,
+      versionTop: 709.96875,
+      versionFull: true,
+      progressRight: 909.859375,
+      elapsedRight: 954,
+      nowrap: 'nowrap',
+      elapsedNowrap: 'nowrap',
+      progressFull: true
+    },
+    {
+      height: 33,
+      nameTop: 741.515625,
+      versionTop: 742.96875,
+      versionFull: true,
+      progressRight: 909.859375,
+      elapsedRight: 954,
+      nowrap: 'nowrap',
+      elapsedNowrap: 'nowrap',
+      progressFull: true
+    }
+  ]
+}
+  ✓   1 [chromium] › e2e/host-process-controls.spec.ts:2:1 › CPU and MEM confirm full command, protected rows are disabled, success refreshes (3.9s)
+{
+  width: 390,
+  geometry: [
+    {
+      height: 33,
+      nameTop: 593.109375,
+      versionTop: 594.5625,
+      versionFull: true,
+      progressRight: 265.09375,
+      elapsedRight: 298,
+      nowrap: 'nowrap',
+      elapsedNowrap: 'nowrap',
+      progressFull: true
+    },
+    {
+      height: 33,
+      nameTop: 626.109375,
+      versionTop: 627.5625,
+      versionFull: true,
+      progressRight: 265.09375,
+      elapsedRight: 298,
+      nowrap: 'nowrap',
+      elapsedNowrap: 'nowrap',
+      progressFull: true
+    },
+    {
+      height: 33,
+      nameTop: 659.109375,
+      versionTop: 660.5625,
+      versionFull: true,
+      progressRight: 265.09375,
+      elapsedRight: 298,
+      nowrap: 'nowrap',
+      elapsedNowrap: 'nowrap',
+      progressFull: true
+    }
+  ]
+}
+  ✓   4 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager missing light (3.9s)
+  ✓   2 [chromium] › e2e/compact-jobs.spec.ts:3:1 › Jobs keeps versions inline and numeric columns aligned without wrapping (4.6s)
+  ✓   5 [chromium] › e2e/package-path.spec.ts:2:35 › package source lives in Pack Manager and keeps suffixes (bridge=false) (1.2s)
+  ✓   3 [chromium] › e2e/frame-selected.spec.ts:3:1 › F returns to the Inspector node without interrupting inputs (5.2s)
+  ✓   6 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager missing dark (2.3s)
+  ✓   8 [chromium] › e2e/package-path.spec.ts:2:35 › package source lives in Pack Manager and keeps suffixes (bridge=true) (1.2s)
+  ✓   9 [chromium] › e2e/frame-selected.spec.ts:64:1 › frame selected respects both zoom limits (1.2s)
+  ✓   7 [chromium] › e2e/product-polish.spec.ts:7:1 › recipe bytes, import navigation, variable rename/binding and capability contract (2.6s)
+  ✓  12 [chromium] › e2e/product-polish.spec.ts:61:1 › destructive actions require confirmation and internal errors stay hidden (1.1s)
+  ✓  10 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager healthy light (2.4s)
+  ✓  13 [chromium] › e2e/product-polish.spec.ts:79:1 › identity raw evidence requires the debug switch (768ms)
+  ✓  11 [chromium] › e2e/resource-lens.spec.ts:12:1 › VRAM lens loads on demand, restores fleet, handles errors and themes (3.0s)
+  ✓  14 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager healthy dark (2.1s)
+  ✓  15 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager empty light (924ms)
+  ✓  16 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager empty dark (922ms)
+  ✓  17 [chromium] › e2e/pack-manager.spec.ts:70:1 › registry-only releases, yank, command copying and page navigation (1.9s)
+  ✓  18 [chromium] › e2e/pack-manager.spec.ts:89:37 › clean canvas still checks, edits, runs and frames nodes light (2.3s)
+  ✓  19 [chromium] › e2e/pack-manager.spec.ts:89:37 › clean canvas still checks, edits, runs and frames nodes dark (2.3s)
+
+  19 passed (20.7s)

@@ -329,8 +329,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(outputRow).toHaveText('frames');
     await expect(card.getByRole('button', {name: 'frames 预览', exact: true})).toHaveCount(0);
     const expand = card.getByRole("button", { name: "展开预览", exact: true });
+    await expect(card.locator("[data-hl-open-source]")).toHaveCount(0);
     const fiveButtons = [
-      ["source", card.locator("[data-hl-open-source]")],
       ["reference", card.getByRole("button", { name: "引用到 Flops", exact: true })],
       ["run", card.getByRole("button", { name: /^(运行|重新运行)$/ })],
       ["artifact", footer], ["preview", expand],

@@ -278,6 +278,7 @@ export interface ParamSpec {
 }
 
 export interface CatalogPack {
+  requires?: Record<string, unknown> | null;
   publication?: Record<string, unknown> | null;
   name: string;
   version: string;

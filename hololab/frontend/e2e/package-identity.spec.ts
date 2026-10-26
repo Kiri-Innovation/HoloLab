@@ -26,9 +26,11 @@ for (const mode of ['legacy', 'alias', 'dev'] as const) {
     await expect(inspector.getByRole('spinbutton',{name:'count',exact:true})).toHaveValue('12');
     if(mode==='dev')await expect(inspector.getByLabel('Development version')).toBeVisible();
     await expect(page.getByText('No online compute node offers this pack.')).toHaveCount(0);
-    await expect(inspector.locator('[data-hl-open-source]')).toHaveAttribute('title',`/legacy/packs/${registered}@${version}/manifest.yaml`);
+    await expect(inspector.locator('[data-hl-open-source]')).toHaveCount(0);
     const saved=page.waitForRequest(r=>new URL(r.url()).pathname==='/api/workflows' && r.method()==='POST' && r.postDataJSON().graph.nodes[0].params.count===13);
     await inspector.getByRole('spinbutton',{name:'count',exact:true}).fill('13');
+    await page.locator('.hl-recipe-menu > summary').click();
+    await page.getByRole('button',{name:'保存配方文件',exact:true}).click();
     const request=await saved;
     expect(request.postDataJSON().graph.nodes[0].algorithm_name).toBe(recorded);
     expect(request.postDataJSON().graph.nodes[0].algorithm_version).toBe(version);

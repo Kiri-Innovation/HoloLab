@@ -1,0 +1,6 @@
+/* Keep the workstation actions reachable without widening the mobile canvas. */
+@media (max-width: 640px) {
+  .hl-workflow-toolbar { max-width: 100%; min-width: 0; overflow-x: auto; flex-shrink: 0; }
+  .hl-workflow-toolbar > * { flex-shrink: 0 !important; }
+  .hl-workflow-toolbar > button { white-space: nowrap; }
+}

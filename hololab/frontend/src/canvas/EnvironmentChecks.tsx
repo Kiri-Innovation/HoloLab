@@ -23,7 +23,7 @@ export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enab
   // Moving cards/editing parameters does not change an environment contract.
   const query = JSON.stringify(capabilityGraph(graph));
   useEffect(() => {
-    if (!enabled) { setReports({}); return; }
+    if (!enabled) { setReports({}); setLoading(false); setError(""); return; }
     const controller = new AbortController();
     setReports({}); setLoading(true); setError("");
     const timer = window.setTimeout(() => {
@@ -58,7 +58,7 @@ export function EnvironmentEvidence({ report, showBoundary = true }: { report?: 
   return <div>
     <div className="hl-capability-heading"><strong>{environmentLabel(report ?? undefined)}</strong>
       {report?.checked_at ? <time>检查时间 {new Date(report.checked_at * 1000).toLocaleString()}</time> : null}</div>
-    {report?.status === "undeclared" && <p>此包没有声明环境要求，尚不能判断是否满足运行条件。</p>}
+    {report?.status === "undeclared" && <p>包作者未声明环境要求。这是信息缺失，不会因未声明而阻止运行；实际环境是否满足尚未确认。</p>}
     {report?.issues?.map((issue, i) => <section key={i} className="hl-capability-issue">
       <strong>{issue.item}</strong><dl className="hl-evidence-rows">
         <div><dt>要求</dt><dd><EvidenceValue value={issue.required} /></dd></div>
