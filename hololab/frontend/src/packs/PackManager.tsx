@@ -1,4 +1,5 @@
 import {packDisplayNames} from './packDisplayName';
+import {collapseRedundantCategory} from './packCategory';
 import {LocalOverviewPage, LocalResultsPage, localStatusPages} from './LocalPackPages';
 import {packManagerRoute, packManagerPath} from './packManagerRoute';
 import {localOverview, isUndeclared} from './localOverviewModel';
@@ -106,8 +107,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const problem = (entry: PackEntry) => reasons(entry).length > 0;
   const statusLabel = (entry: PackEntry) => reasons(entry).join('；') || packEnvironmentStatus(entry, checks.reports[entry.key]);
   const categoryTrail = (entry: PackEntry) => {
-    const category = entry.catalog?.category ?? ['misc'];
-    return category.at(-1) === entry.name.split('/').pop() ? category.slice(0, -1) : category;
+    return collapseRedundantCategory({name: entry.name, category: entry.catalog?.category ?? []}).category;
   };
   const summary=localOverview(entries,nodeId,checks.reports,problem);
   const categoryEntries=entries.filter(entry=>{
@@ -144,9 +144,10 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
     const historicalNodes = entry.inventory.filter(item => !entry.catalog?.node_ids.includes(item.node_id));
     const canInstall = !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
+    const breadcrumbCategory = categoryTrail(entry);
     return <article className="hl-local-package-page" data-local-page="package" key={entry.key} data-pack-key={entry.key}>
-      <nav className="hl-local-breadcrumb" aria-label="包路径"><button onClick={()=>navigateLocal('category','',entry.catalog?.category?.join('/') || 'misc')}>{entry.catalog?.category?.join(' / ') || 'misc'}</button><span aria-hidden="true">/</span><span>{displayName(entry.name)}</span></nav>
-      <header><div><h1>{`${entry.name}@${entry.version}`}</h1><p className="hl-pack-identity-meta">{categoryTrail(entry).join(' / ')}<span aria-hidden="true"> · </span><span className="hl-pack-state" data-problem={problem(entry)}>{loading || checks.loading ? '检查中' : statusLabel(entry)}</span></p></div></header>
+      <nav className="hl-local-breadcrumb" aria-label="包路径">{breadcrumbCategory.length > 0 && <><button onClick={()=>navigateLocal('category','',breadcrumbCategory.join('/'))}>{breadcrumbCategory.join(' / ')}</button><span aria-hidden="true">/</span></>}<span>{displayName(entry.name)}</span></nav>
+      <header><div><h1>{`${entry.name}@${entry.version}`}</h1><p className="hl-pack-identity-meta">{breadcrumbCategory.length > 0 && <>{breadcrumbCategory.join(' / ')}<span aria-hidden="true"> · </span></>}<span className="hl-pack-state" data-problem={problem(entry)}>{loading || checks.loading ? '检查中' : statusLabel(entry)}</span></p></div></header>
       {feedback}
       {entry.catalog?.description && <p className="hl-local-description">{entry.catalog.description}</p>}
       <dl className="hl-pack-facts">

@@ -1,12 +1,8 @@
 import {useEffect, useMemo, useState} from 'react';
 import {buildTree, computeMatches, type TreePack, type TreeNode} from '../canvas/packTree';
+import {collapseRedundantCategory} from './packCategory';
 
 export type PackageTreeItem = TreePack & {key: string; status?: string; problem?: boolean};
-export function collapseRedundantCategory<T extends TreePack>(item: T): T {
-  const name = item.name.split('/').pop();
-  const category = item.category ?? [];
-  return name && category.at(-1) === name ? {...item, category: category.slice(0, -1)} : item;
-}
 function collapsedCategoryPath(items: PackageTreeItem[], path: string) {
   return items.some(item => item.category.join('/') === path && collapseRedundantCategory(item).category.join('/') !== path)
     ? path.split('/').slice(0, -1).join('/') : path;
