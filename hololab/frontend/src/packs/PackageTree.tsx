@@ -34,8 +34,10 @@ export function PackageTree({items, selected, query, onSelect, displayName, sele
       if (matches.active && !matches.matched.has(node.path)) return null;
       return <button key={node.path} className="hl-pack-leaf" disabled={disabled}
         aria-current={selected === node.pack.key ? 'page' : undefined} onClick={() => onSelect(node.pack.key)}>
-        <span>{displayName(node.pack.name)}</span><small>{node.pack.version}</small>
-        {node.pack.status && <small className="hl-pack-tree-status" data-problem={node.pack.problem}>{node.pack.status}</small>}
+        <svg className="hl-pack-algorithm-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m8 1.75 5 2.75v5.75L8 13.5l-5-2.75V5.5L8 2.75l5 2.75M8 8.25v5.25m5-9-5 2.75L3 4.5" /></svg>
+        <span className="hl-pack-leaf-content"><span className="hl-pack-leaf-heading"><span className="hl-pack-leaf-name">{displayName(node.pack.name)}</span><small className="hl-pack-leaf-version">{node.pack.version}</small></span>
+          {node.pack.status && <small className="hl-pack-tree-status" data-problem={node.pack.problem}><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" /><path d="M8 7v3m0-5v.01" /></svg><span>{node.pack.status}</span></small>}
+        </span>
       </button>;
     }
     if (matches.active && !matches.forceOpen.has(node.path)) return null;
@@ -44,7 +46,7 @@ export function PackageTree({items, selected, query, onSelect, displayName, sele
     return <div className="hl-pack-tree-group" key={node.path}>
       <div className="hl-local-folder-row">
         <button className="hl-local-folder-toggle" aria-label={`${expanded ? '收起' : '展开'} ${node.label}`} aria-expanded={expanded}
-          onClick={() => setOpen(prev => ({...prev, [node.path]: !expanded}))}>{expanded ? '▾' : '▸'}</button>
+          onClick={() => setOpen(prev => ({...prev, [node.path]: !expanded}))}><svg className="hl-tree-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" /></svg></button>
         <button className="hl-pack-folder" aria-current={onSelectCategory && visibleCategory===node.path?'page':undefined}
           onClick={() => onSelectCategory
             ? (onSelectCategory(node.path), setOpen(prev => ({...prev, [node.path]: true})))
