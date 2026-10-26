@@ -1,0 +1,36 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/regroup
+version: 0.2.0
+description: "Permute explicit collection axes, retaining file or directory leaves as symlinks."
+category: "basic/array/regroup"
+inputs:
+  in:
+    tags: [any]
+    arrayed: true
+    dim_labels: ["", ""]
+outputs:
+  out:
+    tags: [any]
+    arrayed: true
+    dim_labels_from: output_dims
+    tags_from: in
+params:
+  input_dims:
+    type: "list[str]"
+    default: ["cam", "frame"]
+  output_dims:
+    type: "list[str]"
+    default: ["frame", "cam"]
+  content_dims:
+    type: int
+    default: 0
+    min: 0
+    max: 1
+runtime:
+  mode: host
+  gpu:
+    required: false
+exec:
+  python: regroup.py
+  args: ["--input", "{{ inputs.in }}", "--output", "{{ outputs.out }}", "--input-dims", "{{ params.input_dims | tojson }}", "--output-dims", "{{ params.output_dims | tojson }}", "--content-dims", "{{ params.content_dims }}"]

@@ -282,9 +282,15 @@ def test_regroup_v020_manifest_declares_dim_labels_from_and_list_str_params() ->
     """Guard the shape of the regroup pack the frontend / executor will
     read — 2-D arrayed with dim_labels_from for dynamic resolution, two
     ``list[str]`` params for the permutation."""
-    p = Path(__file__).resolve().parents[1] / "packs" / "regroup@0.2.0" / "manifest.yaml"
+    p = (
+        Path(__file__).resolve().parents[1]
+        / "hololab"
+        / "builtin_packs"
+        / "regroup@0.2.0"
+        / "manifest.yaml"
+    )
     m = yaml.safe_load(p.read_text())
-    assert m["name"] == "regroup"
+    assert m["name"] == "builtin/regroup"
     assert m["version"] == "0.2.0"
     assert m["inputs"]["in"]["arrayed"] is True
     assert m["inputs"]["in"]["dim_labels"] == ["", ""]

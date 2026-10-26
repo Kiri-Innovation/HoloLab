@@ -17,7 +17,7 @@ BUILTINS_ROOT = Path(__file__).resolve().parent.parent / "hololab" / "builtin_pa
 
 
 def _load(name: str):
-    root = BUILTINS_ROOT if name in {"array-length", "get-index"} else PACKS_ROOT
+    root = BUILTINS_ROOT if name in {"array-length", "arrayfy", "get-index"} else PACKS_ROOT
     manifest, _sha = load_manifest(root / f"{name}@0.1.0" / "manifest.yaml")
     return manifest
 

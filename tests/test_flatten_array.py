@@ -17,7 +17,7 @@ from hololab.gateway.workflows import (
 from hololab.manifest import load_manifest
 
 REPO_ROOT = Path(__file__).parents[2]
-PACK = REPO_ROOT / "hololab" / "packs" / "flatten-array@0.1.0"
+PACK = REPO_ROOT / "hololab" / "hololab" / "builtin_packs" / "flatten-array@0.1.0"
 sys.path.insert(0, str(REPO_ROOT / "packages" / "colmap4d" / "src"))
 SPEC = importlib.util.spec_from_file_location("flatten_array_010", PACK / "flatten_array.py")
 assert SPEC is not None and SPEC.loader is not None

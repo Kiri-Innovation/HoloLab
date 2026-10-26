@@ -341,7 +341,7 @@ def test_real_generic_regroup_handles_files_without_intrinsic_dimensions(tmp_pat
     result = subprocess.run(
         [
             sys.executable,
-            str(PACKS / "regroup@0.2.0/regroup.py"),
+            str(ROOT / "hololab" / "builtin_packs" / "regroup@0.2.0/regroup.py"),
             "--input",
             str(src),
             "--output",

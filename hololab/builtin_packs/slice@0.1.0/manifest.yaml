@@ -1,0 +1,37 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/slice
+version: 0.1.0
+description: "Take a contiguous slice of an arrayed handle along its outermost dimension."
+category: "basic/array/slice"
+inputs:
+  in:
+    tags: [any]
+    arrayed: true
+    description: "Any arrayed<T> handle — the slice runs on its outer dimension."
+params:
+  start:
+    type: int
+    default: 0
+    min: 0
+  end:
+    type: int
+    default: -1
+  step:
+    type: int
+    default: 1
+    min: 1
+outputs:
+  out:
+    tags: [any]
+    arrayed: true
+    tags_from: in
+    dim_labels_from_input: in
+    dim_labels_drop_outer: 0
+runtime:
+  mode: host
+  gpu:
+    required: false
+exec:
+  python: slice.py
+  args: ["--input", "{{ inputs.in }}", "--output", "{{ outputs.out }}", "--start", "{{ params.start }}", "--end", "{{ params.end }}", "--step", "{{ params.step }}"]

@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-_PACK_DIR = Path(__file__).resolve().parents[1] / "packs" / "slice@0.1.0"
+_PACK_DIR = Path(__file__).resolve().parents[1] / "hololab" / "builtin_packs" / "slice@0.1.0"
 _SCRIPT = _PACK_DIR / "slice.py"
 
 

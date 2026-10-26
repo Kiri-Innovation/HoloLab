@@ -1,0 +1,27 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/arrayfy
+version: 0.1.0
+description: "Broadcast a scalar T to arrayed<T> by replicating it N times via symlinks."
+category: "basic/array/arrayfy"
+inputs:
+  data:
+    tags: [any]
+  count:
+    tags: [int]
+params:
+  element_id_format:
+    type: string
+    default: "%04d"
+outputs:
+  out:
+    tags: [any]
+    tags_from: data
+    arrayed: true
+runtime:
+  mode: host
+  gpu:
+    required: false
+exec:
+  python: arrayfy.py
+  args: ["--data", "{{ inputs.data }}", "--count", "{{ inputs.count }}", "--output", "{{ outputs.out }}", "--element-id-format", "{{ params.element_id_format }}"]

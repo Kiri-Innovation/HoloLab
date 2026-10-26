@@ -1,0 +1,29 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/flatten-array
+version: 0.1.0
+description: "Flatten any two-dimensional arrayed<T> into a one-dimensional arrayed<T>."
+category: "basic/array/flatten-array"
+inputs:
+  arr:
+    tags: [any]
+    arrayed: true
+    storage: dir
+    dim_labels: [outer, inner]
+    require_axis_label_match: false
+outputs:
+  flat:
+    tags: [any]
+    tags_from: arr
+    arrayed: true
+    storage: dir
+    dim_labels: [""]
+runtime:
+  mode: host
+  gpu:
+    required: false
+exec:
+  python: flatten_array.py
+  args: ["--input", "{{ inputs.arr }}", "--output", "{{ outputs.flat }}"]
+idempotency:
+  marker: "{{ outputs.flat }}/.hololab-done"

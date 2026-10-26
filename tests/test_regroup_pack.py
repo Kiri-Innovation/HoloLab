@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-_PACK_DIR = Path(__file__).resolve().parents[1] / "packs" / "regroup@0.2.0"
+_PACK_DIR = Path(__file__).resolve().parents[1] / "hololab" / "builtin_packs" / "regroup@0.2.0"
 _SCRIPT = _PACK_DIR / "regroup.py"
 
 
