@@ -1,0 +1,50 @@
+import {test,expect} from '@playwright/test';
+import {mkdirSync} from 'node:fs';
+const directory='reports/pack-manager/screenshots';
+for (const theme of ['light','dark']) test(`community install states ${theme}`,async({page})=>{
+ mkdirSync(directory,{recursive:true});
+ let installed=false;let fail=false;let offline=false;let releaseInstall:()=>void=()=>{};
+ const release={name:'community/hello',version:'1.0.0',yanked:false,code_sha256:'a'.repeat(64),publisher:'Community author',published_at:'2026-10-26T00:00:00Z',requires:{python:'>=3.10'},env:'python'};
+ const pack={...release,node_ids:['local'],manifest_hash:'hash',inputs:{},outputs:{},params:{},publication:{source:'https://packs.xenotech.studio/',code_sha256:release.code_sha256}};
+ await page.addInitScript(t=>localStorage.setItem('hololab.theme',t),theme);
+ await page.routeWebSocket('**',()=>{});
+ await page.route('**/api/**',async route=>{
+  const url=new URL(route.request().url());let json:any=[];
+  if(url.pathname==='/api/packs/registry'){
+   if(offline)return route.fulfill({status:502,json:{detail:{message:'源不可达，请检查注册表地址和网络后重试。'}}});
+   json=url.searchParams.has('name')?{releases:{one:release,two:{...release,version:'0.9.0',yanked:true}}}:{projects:[{name:release.name}]};
+  }else if(url.pathname==='/api/packs/install'){
+   expect(route.request().postDataJSON()).toMatchObject({spec:'community/hello@1.0.0',node_id:'local',expected:release.code_sha256});
+   await new Promise<void>(resolve=>{releaseInstall=resolve;});
+   if(fail)return route.fulfill({status:409,json:{detail:{message:'代码或下载包哈希不匹配，已停止安装，未覆盖已有包。'}}});
+   installed=true;json={installed:true,destination:'/data/packs'};
+  }else if(url.pathname==='/api/nodes')json=[{node_id:'local',node_name:'本机',packs:[],gpu:{count:0}}];
+  else if(url.pathname==='/api/pack-catalog')json=installed?[pack]:[];
+  else if(url.pathname==='/api/packs')json=installed?[{name:release.name,version:release.version,node_id:'local',online:true}]:[];
+  else if(url.pathname==='/api/capabilities/check')json={nodes:{}};
+  await route.fulfill({json});
+ });
+ await page.setViewportSize({width:1440,height:1000});await page.goto('/packs');
+ await page.getByRole('tab',{name:'社区',exact:true}).click();
+ await page.getByRole('button',{name:'加载注册表',exact:true}).click();
+ await page.getByRole('button',{name:release.name,exact:true}).click();
+ const row=page.locator('[aria-label="社区包"] [data-pack-key="community/hello@1.0.0"]');
+ await expect(row).toContainText('未安装');
+ await expect(page.getByRole('button',{name:'不可安装（yanked）'})).toBeDisabled();
+ await page.screenshot({path:`${directory}/community-yanked-${theme}.png`,fullPage:true});
+ fail=true;await row.getByRole('button',{name:'安装',exact:true}).click();
+ await expect(row).toContainText('正在下载、校验并安装');
+ await page.screenshot({path:`${directory}/installing-${theme}.png`,fullPage:true});releaseInstall();
+ await expect(row).toContainText('安装失败');
+ await page.screenshot({path:`${directory}/install-failed-${theme}.png`,fullPage:true});
+ fail=false;await row.getByRole('button',{name:'安装',exact:true}).click();await expect(row).toContainText('正在下载、校验并安装');releaseInstall();
+ await expect(row).toContainText('安装成功');await expect(row.getByRole('button',{name:'已安装',exact:true})).toBeDisabled();
+ await page.screenshot({path:`${directory}/install-success-${theme}.png`,fullPage:true});
+ await page.getByRole('tab',{name:'本地',exact:true}).click();
+ await expect(page.locator('.hl-pack-group')).toContainText('community/hello');
+ await page.screenshot({path:`${directory}/installed-local-${theme}.png`,fullPage:true});
+ await page.getByRole('tab',{name:'社区',exact:true}).click();offline=true;
+ await page.getByRole('button',{name:'加载注册表',exact:true}).click();await expect(page.getByRole('alert')).toContainText('源不可达');
+ await page.screenshot({path:`${directory}/source-unavailable-${theme}.png`,fullPage:true});
+ await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});

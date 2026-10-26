@@ -1,0 +1,148 @@
+[WebServer] (node:133153) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 2 workers
+
+(node:133196) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:133197) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › e2e/inspector-sidebar.spec.ts:5:1 › sidebar selection, autosave, assignment, deletion and theme screenshots (1.1s)
+(node:133388) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in light theme (9.6s)
+(node:133599) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  4 [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in dark theme (6.4s)
+  ✘  3 [chromium] › e2e/resource-metrics.spec.ts:6:1 › four metric lenses, host process menus, return focus and narrow layout (1.0m)
+
+
+  1) [chromium] › e2e/inspector-sidebar.spec.ts:5:1 › sidebar selection, autosave, assignment, deletion and theme screenshots
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:5173/w/inspector-demo
+    Call log:
+      - navigating to "http://127.0.0.1:5173/w/inspector-demo", waiting until "load"
+
+
+      23 |  });
+      24 |  await page.setViewportSize({width:1440,height:1000});
+    > 25 |  await page.goto(`${before?'http://127.0.0.1:4174':process.env.INSPECTOR_URL||'http://127.0.0.1:5173'}/w/inspector-demo`);
+         |             ^
+      26 |  if(!before) {
+      27 |    await expect(page.locator('.hl-inspector-sidebar').getByRole('tab',{name:'Runs',exact:true})).toHaveAttribute('aria-selected','true');
+      28 |    await expect(page.getByRole('tab',{name:'Compute Nodes · Pulse',exact:true})).toHaveAttribute('aria-selected','true');
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/inspector-sidebar.spec.ts:25:13
+
+    Error Context: ../../../../../../tmp/pack-baseline-extra-results/inspector-sidebar-sidebar--739df-etion-and-theme-screenshots-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/pack-baseline-extra-results/inspector-sidebar-sidebar--739df-etion-and-theme-screenshots-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../tmp/pack-baseline-extra-results/inspector-sidebar-sidebar--739df-etion-and-theme-screenshots-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in light theme ─────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  getByRole('tooltip')
+    Expected: "展开预览"
+    Received: "显示小地图"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveText" getByRole('tooltip') with timeout 5000ms
+      - waiting for getByRole('tooltip')
+        9 × locator resolved to <div id=":r1:" role="tooltip" class="hl-tooltip" data-stacked="false" data-placement="above">显示小地图</div>
+          - unexpected value "显示小地图"
+
+
+      460 |     const previewToggle = card.getByRole('button', {name:'展开预览',exact:true});
+      461 |     await previewToggle.hover();
+    > 462 |     await expect(page.getByRole('tooltip')).toHaveText('展开预览');
+          |                                             ^
+      463 |     await card.screenshot({path:testInfo.outputPath(`edges-${theme}.png`)});
+      464 |     await jump.hover();
+      465 |     await expect(page.getByRole('tooltip')).toHaveText('跳转产物');
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/open-artifact-location.spec.ts:462:45
+
+    Error Context: ../../../../../../tmp/pack-baseline-extra-results/open-artifact-location-footer-spacing-in-light-theme-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/pack-baseline-extra-results/open-artifact-location-footer-spacing-in-light-theme-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../tmp/pack-baseline-extra-results/open-artifact-location-footer-spacing-in-light-theme-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in dark theme ──────────
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  getByRole('tooltip')
+    Expected: "展开预览"
+    Received: "显示小地图"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveText" getByRole('tooltip') with timeout 5000ms
+      - waiting for getByRole('tooltip')
+        9 × locator resolved to <div id=":r1:" role="tooltip" class="hl-tooltip" data-stacked="false" data-placement="above">显示小地图</div>
+          - unexpected value "显示小地图"
+
+
+      460 |     const previewToggle = card.getByRole('button', {name:'展开预览',exact:true});
+      461 |     await previewToggle.hover();
+    > 462 |     await expect(page.getByRole('tooltip')).toHaveText('展开预览');
+          |                                             ^
+      463 |     await card.screenshot({path:testInfo.outputPath(`edges-${theme}.png`)});
+      464 |     await jump.hover();
+      465 |     await expect(page.getByRole('tooltip')).toHaveText('跳转产物');
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/open-artifact-location.spec.ts:462:45
+
+    Error Context: ../../../../../../tmp/pack-baseline-extra-results/open-artifact-location-footer-spacing-in-dark-theme-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/pack-baseline-extra-results/open-artifact-location-footer-spacing-in-dark-theme-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../tmp/pack-baseline-extra-results/open-artifact-location-footer-spacing-in-dark-theme-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › e2e/resource-metrics.spec.ts:6:1 › four metric lenses, host process menus, return focus and narrow layout
+
+    Test timeout of 60000ms exceeded.
+
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for locator('.hl-node-metrics').getByRole('button', { name: 'Open MEM resource lens' })
+
+
+      59 |   await page.setViewportSize({width:390,height:844});
+      60 |   await page.getByRole('tab',{name:'Inspect',exact:true}).click();
+    > 61 |   await panel.getByRole('button',{name:'Open MEM resource lens'}).click();
+         |                                                                   ^
+      62 |   const lens=page.getByRole('region',{name:'MEM resource lens'});
+      63 |   await expect(lens).not.toHaveAttribute('aria-busy','true');
+      64 |   expect(await panel.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/resource-metrics.spec.ts:61:67
+
+    Error Context: ../../../../../../tmp/pack-baseline-extra-results/resource-metrics-four-metr-137fe-urn-focus-and-narrow-layout-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../../../../../tmp/pack-baseline-extra-results/resource-metrics-four-metr-137fe-urn-focus-and-narrow-layout-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace ../../../../../../tmp/pack-baseline-extra-results/resource-metrics-four-metr-137fe-urn-focus-and-narrow-layout-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4 failed
+    [chromium] › e2e/inspector-sidebar.spec.ts:5:1 › sidebar selection, autosave, assignment, deletion and theme screenshots
+    [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in light theme ──────────
+    [chromium] › e2e/open-artifact-location.spec.ts:416:3 › footer spacing in dark theme ───────────
+    [chromium] › e2e/resource-metrics.spec.ts:6:1 › four metric lenses, host process menus, return focus and narrow layout

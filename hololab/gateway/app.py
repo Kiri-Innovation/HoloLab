@@ -267,6 +267,7 @@ def create_app(
         app.state.pending_code_identities = {}
         app.state.pending_capabilities = {}
         app.state.pending_pack_status = {}
+        app.state.pending_pack_installs = {}
         app.state.path_browse_locks = {}
         app.state.pending_resource_lenses = {}
         app.state.pending_process_terminations = {}
@@ -1723,6 +1724,68 @@ def _mount_routes(app: FastAPI) -> None:
         raise HTTPException(status_code=500, detail=f"unhandled kind {parsed.kind!r}")
 
     # -- workflows -----------------------------------------------------------
+
+    @app.get("/api/packs/registry", tags=["packs"])
+    async def browse_packs(source: str, name: str | None = None):
+        from hololab.gateway.pack_manager import browse, public_error
+
+        try:
+            return await asyncio.to_thread(browse, source, name)
+        except Exception as exc:
+            raise HTTPException(502, public_error(exc)) from exc
+
+    @app.post("/api/packs/install", tags=["packs"])
+    async def install_pack(body: dict[str, Any]):
+        from hololab.gateway.pack_manager import http_source
+        from hololab.package_identity import parse_spec
+        from hololab.protocol.messages import PackInstallReq
+
+        try:
+            if (
+                not isinstance(body.get("spec"), str)
+                or not isinstance(body.get("source"), str)
+                or not isinstance(body.get("node_id"), str)
+            ):
+                raise ValueError("invalid fields")
+            parse_spec(body["spec"])
+            source = http_source(body["source"])
+            node_id = body["node_id"]
+            request = PackInstallReq(
+                req_id=str(uuid.uuid4()),
+                spec=body["spec"],
+                source=source,
+                expected=body.get("expected"),
+            )
+        except (ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(
+                422,
+                {
+                    "code": "invalid_request",
+                    "message": "请选择计算节点、包版本和有效的注册表根地址。",
+                },
+            ) from exc
+        session = app.state.registry.get_session(node_id)
+        if session is None or not getattr(session, "pack_install_v1", False):
+            raise HTTPException(
+                409,
+                {
+                    "code": "node_unavailable",
+                    "message": "计算节点离线或尚不支持页面安装，请更新节点后重试。",  # noqa: RUF001
+                },
+            )
+        reply = await _await_node_reply(
+            app,
+            session,
+            "pack_install_req",
+            request,
+            request.req_id,
+            pending_key="pending_pack_installs",
+            timeout_s=600,
+        )
+        result = reply["result"]
+        if result.get("error"):
+            raise HTTPException(409, result["error"])
+        return result
 
     @app.get("/api/nodes/{node_id}/pack-status", tags=["packs"])
     async def pack_registry_status(node_id: str, name: str, version: str):
@@ -3714,6 +3777,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
         session.content_identity = payload.content_identity
         session.environment_checks = payload.environment_checks
         session.registry_v1 = payload.registry_v1
+        session.pack_install_v1 = payload.pack_install_v1
         signal_work(app)
 
         log.info(
@@ -3835,6 +3899,7 @@ async def _await_node_reply(
         "pending_code_identities",
         "pending_capabilities",
         "pending_pack_status",
+        "pending_pack_installs",
     ):
         fut.node_session = session
     pending[req_id] = fut
@@ -4116,9 +4181,17 @@ async def _dispatch_node_frame(
     # deadline still fires.
     session.last_heartbeat_ts = time.time()
 
-    if kind in ("prepare_params_resp", "code_identity_resp", "capability_resp", "pack_status_resp"):
+    if kind in (
+        "prepare_params_resp",
+        "code_identity_resp",
+        "capability_resp",
+        "pack_status_resp",
+        "pack_install_resp",
+    ):
         pending = (
-            app.state.pending_pack_status
+            app.state.pending_pack_installs
+            if kind == "pack_install_resp"
+            else app.state.pending_pack_status
             if kind == "pack_status_resp"
             else app.state.pending_capabilities
             if kind == "capability_resp"

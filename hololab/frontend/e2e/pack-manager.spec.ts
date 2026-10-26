@@ -67,25 +67,6 @@ for(const scenario of ['missing','healthy','empty'] as const) for(const theme of
  await page.screenshot({path:`${directory}/manager-${scenario}-${theme}-narrow.png`,fullPage:true,animations:'disabled'});
 });
 
-test('registry-only releases, yank, command copying and page navigation',async({page})=>{
- await setup(page);await page.goto('/packs/');
- await page.getByText('注册表目录 · 尚未加载',{exact:true}).click();
- await page.getByLabel('注册表目录 URL').fill('https://registry.example.test/packs');
- await page.getByRole('button',{name:'加载注册表',exact:true}).click();
- const row=page.locator('[data-pack-key="extra/retired@2.0.0"]');await expect(row).toContainText('已 yank');
- await row.getByText('安装与源码',{exact:true}).click();
- await expect(row.getByRole('button',{name:'复制安装命令'})).toHaveCount(0);
- const missing=page.locator('[data-pack-key="external/missing@1.0.0"]');
- await missing.getByText('安装与源码',{exact:true}).click();
- await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async(text:string)=>{(window as any).__command=text;}}}));
- await missing.getByRole('button',{name:'复制安装命令'}).click();
- await expect.poll(()=>page.evaluate(()=>(window as any).__command)).toBe("hololab pack install 'external/missing@1.0.0' --source 'https://registry.example.test/packs'");
- await expect(missing).toContainText('尚未执行安装');
- await page.getByRole('button',{name:'Library',exact:true}).click();await expect(page).toHaveURL(/\/library$/);
- await page.goBack();await expect(page).toHaveURL(/\/packs\/$/);
- await page.reload();await expect(page.getByRole('heading',{name:'包管理',exact:true})).toBeVisible();
-});
-
 for(const theme of ['light','dark'])test(`clean canvas still checks, edits, runs and frames nodes ${theme}`,async({page})=>{
  const requests=await setup(page,'healthy');
  await page.addInitScript(t=>localStorage.setItem('hololab.theme',t),theme);

@@ -1,0 +1,1002 @@
+[WebServer] (node:122124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 32 tests using 8 workers
+
+(node:122184) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:122191) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:122187) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:122190) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:122193) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:122192) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:122188) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:122186) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview default (10.6s)
+(node:123878) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › e2e/connection-feedback.spec.ts:6:3 › drag validation anchored feedback light (11.4s)
+  ✘   8 [chromium] › e2e/recent-run-link.spec.ts:3:38 › recent preview links to its attributed run light (11.6s)
+  ✘   6 [chromium] › e2e/parameter-pins.spec.ts:38:1 › workflow pins share display, not values, and survive save/reload (12.0s)
+(node:124002) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [chromium] › e2e/node-creation-menu.spec.ts:6:1 › search, keyboard creation and palette drops share pan/zoom coordinates (12.2s)
+(node:124100) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › e2e/enum-inspector.spec.ts:3:37 › enum controls preserve raw values (legacy=false) (12.6s)
+(node:124143) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:124161) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:124229) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › e2e/inspector-scroll.spec.ts:3:1 › inspector sections share a scroller and preserve position across tabs (13.9s)
+(node:124699) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  15 [chromium] › e2e/resource-lens-scroll.spec.ts:3:1 › bottom compute dock keeps the device visible while the lens scrolls (1.6s)
+  ✓  14 [chromium] › e2e/enum-inspector.spec.ts:3:37 › enum controls preserve raw values (legacy=true) (3.4s)
+  ✓  13 [chromium] › e2e/node-creation-menu.spec.ts:83:1 › dismissal, builtin, edge clamping and right-button isolation (3.7s)
+(node:125149) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview custom (6.1s)
+  ✘   3 [chromium] › e2e/port-tooltip.spec.ts:3:40 › port and edge tooltips light (17.8s)
+(node:125242) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:125262) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  16 [chromium] › e2e/node-creation-menu.spec.ts:133:1 › existing edges, ports and canvas controls retain their context events (3.1s)
+  ✘  12 [chromium] › e2e/parameter-pins.spec.ts:86:1 › snapshot uses frozen pins, hides missing fields, and cannot edit (7.5s)
+(node:125675) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium] › e2e/connection-feedback.spec.ts:6:3 › drag validation anchored feedback dark (9.1s)
+  ✘  11 [chromium] › e2e/recent-run-link.spec.ts:3:38 › recent preview links to its attributed run dark (9.0s)
+  ✘  18 [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview hidden (6.5s)
+(node:125840) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  17 [chromium] › e2e/view-node.spec.ts:15:1 › view sticker survives drag, save, reload, selection and deletion without an algorithm pack (9.3s)
+  ✘  20 [chromium] › e2e/parameter-pins.spec.ts:102:1 › pinned array, path, bool and list controls share the Inspector editors (7.8s)
+(node:126003) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  19 [chromium] › e2e/port-tooltip.spec.ts:3:40 › port and edge tooltips dark (12.9s)
+  ✘  21 [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview legacy (5.9s)
+(node:126140) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:126152) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  22 [chromium] › e2e/parameter-pins.spec.ts:130:1 › transform pin toggles x/y/scale as one row and grows node bounds (6.5s)
+(node:126589) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  24 [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview empty (6.1s)
+(node:126738) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  25 [chromium] › e2e/parameter-pins.spec.ts:150:1 › legacy enum pins preserve invalid values until explicitly edited (8.0s)
+  ✘  26 [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview unsupported (6.0s)
+(node:127300) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:127307) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  28 [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview snapshot (6.4s)
+  ✘  23 [chromium] › e2e/port-tooltip.spec.ts:52:39 › three rows with runtime data light (1.0m)
+(node:128288) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  27 [chromium] › e2e/parameter-pins.spec.ts:167:1 › reloading an identical graph does not swallow the next edit (1.0m)
+(node:128831) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  30 [chromium] › e2e/parameter-pins.spec.ts:177:1 › manifest defaults appear immediately and first toggle freezes an explicit override (8.0s)
+(node:129035) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  31 [chromium] › e2e/parameter-pins.spec.ts:201:1 › preview expansion widens an output without a viewer and collapse restores width (3.2s)
+  ✘  32 [chromium] › e2e/parameter-pins.spec.ts:224:1 › snapshot preview without a viewer also expands and collapses (5.7s)
+  ✘  29 [chromium] › e2e/port-tooltip.spec.ts:52:39 › three rows with runtime data dark (1.0m)
+
+
+  1) [chromium] › e2e/connection-feedback.spec.ts:6:3 › drag validation anchored feedback light ────
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('.hl-connection-tooltip')
+    Expected: "false"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" locator('.hl-connection-tooltip') with timeout 5000ms
+      - waiting for locator('.hl-connection-tooltip')
+
+
+      33 |     await source.hover(); await page.mouse.down(); await target.hover();
+      34 |     const feedback = page.locator('.hl-connection-tooltip');
+    > 35 |     await expect(feedback).toHaveAttribute('data-valid', 'false');
+         |                            ^
+      36 |     await expect(feedback).toContainText('数组轴名称不匹配。');
+      37 |     await expect(feedback).toContainText('预期：arrayed[frame]<colmap-folder>');
+      38 |     await expect(feedback).toContainText('实际：arrayed[group]<colmap-folder>');
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/connection-feedback.spec.ts:35:28
+
+    Error Context: test-results/connection-feedback-drag-validation-anchored-feedback-light-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/connection-feedback-drag-validation-anchored-feedback-light-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/connection-feedback-drag-validation-anchored-feedback-light-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/connection-feedback.spec.ts:6:3 › drag validation anchored feedback dark ─────
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator: locator('.hl-connection-tooltip')
+    Expected: "false"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveAttribute" locator('.hl-connection-tooltip') with timeout 5000ms
+      - waiting for locator('.hl-connection-tooltip')
+
+
+      33 |     await source.hover(); await page.mouse.down(); await target.hover();
+      34 |     const feedback = page.locator('.hl-connection-tooltip');
+    > 35 |     await expect(feedback).toHaveAttribute('data-valid', 'false');
+         |                            ^
+      36 |     await expect(feedback).toContainText('数组轴名称不匹配。');
+      37 |     await expect(feedback).toContainText('预期：arrayed[frame]<colmap-folder>');
+      38 |     await expect(feedback).toContainText('实际：arrayed[group]<colmap-folder>');
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/connection-feedback.spec.ts:35:28
+
+    Error Context: test-results/connection-feedback-drag-validation-anchored-feedback-dark-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/connection-feedback-drag-validation-anchored-feedback-dark-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/connection-feedback-drag-validation-anchored-feedback-dark-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › e2e/enum-inspector.spec.ts:3:37 › enum controls preserve raw values (legacy=false)
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: undefined
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      46 |   const numeric=panel.getByLabel('numeric',{exact:true});
+      47 |   await numeric.focus(); await numeric.press('ArrowDown'); await numeric.press('ArrowDown'); await numeric.press('Enter');
+    > 48 |   await expect.poll(()=>saved.at(-1)?.graph.nodes[0].params.numeric).toBe(2);
+         |                                                                      ^
+      49 |   expect(saved.at(-1).graph.nodes[0].params.motion_mask_mode).toBe('gmc_residual');
+      50 |   await numeric.click(); await numeric.press('End'); await numeric.press('Enter');
+      51 |   await expect.poll(()=>saved.at(-1)?.graph.nodes[0].params.numeric).toBe('2');
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/enum-inspector.spec.ts:48:70
+
+    Error Context: test-results/enum-inspector-enum-contro-2ee6b-ve-raw-values-legacy-false--chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/enum-inspector-enum-contro-2ee6b-ve-raw-values-legacy-false--chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/enum-inspector-enum-contro-2ee6b-ve-raw-values-legacy-false--chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview default ────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.hl-inspector-preview')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.hl-inspector-preview') with timeout 5000ms
+      - waiting for locator('.hl-inspector-preview')
+
+
+      10 |  const inspector=page.locator('.hl-inspector-preview');
+      11 |  const canvas=page.locator('[data-hololab-node="algorithm"]');
+    > 12 |  await expect(inspector).toBeVisible();
+         |                          ^
+      13 |  if(['default','custom','snapshot'].includes(mode)){
+      14 |   await expect(inspector.locator('img')).toBeVisible();
+      15 |   await expect(canvas.locator('img')).toBeVisible();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/inspector-preview.spec.ts:12:26
+
+    Error Context: test-results/inspector-preview-shared-inspector-preview-default-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/inspector-preview-shared-inspector-preview-default-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/inspector-preview-shared-inspector-preview-default-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview custom ─────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.hl-inspector-preview')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.hl-inspector-preview') with timeout 5000ms
+      - waiting for locator('.hl-inspector-preview')
+
+
+      10 |  const inspector=page.locator('.hl-inspector-preview');
+      11 |  const canvas=page.locator('[data-hololab-node="algorithm"]');
+    > 12 |  await expect(inspector).toBeVisible();
+         |                          ^
+      13 |  if(['default','custom','snapshot'].includes(mode)){
+      14 |   await expect(inspector.locator('img')).toBeVisible();
+      15 |   await expect(canvas.locator('img')).toBeVisible();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/inspector-preview.spec.ts:12:26
+
+    Error Context: test-results/inspector-preview-shared-inspector-preview-custom-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/inspector-preview-shared-inspector-preview-custom-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/inspector-preview-shared-inspector-preview-custom-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview hidden ─────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.hl-inspector-preview')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.hl-inspector-preview') with timeout 5000ms
+      - waiting for locator('.hl-inspector-preview')
+
+
+      10 |  const inspector=page.locator('.hl-inspector-preview');
+      11 |  const canvas=page.locator('[data-hololab-node="algorithm"]');
+    > 12 |  await expect(inspector).toBeVisible();
+         |                          ^
+      13 |  if(['default','custom','snapshot'].includes(mode)){
+      14 |   await expect(inspector.locator('img')).toBeVisible();
+      15 |   await expect(canvas.locator('img')).toBeVisible();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/inspector-preview.spec.ts:12:26
+
+    Error Context: test-results/inspector-preview-shared-inspector-preview-hidden-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/inspector-preview-shared-inspector-preview-hidden-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/inspector-preview-shared-inspector-preview-hidden-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview legacy ─────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.hl-inspector-preview')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.hl-inspector-preview') with timeout 5000ms
+      - waiting for locator('.hl-inspector-preview')
+
+
+      10 |  const inspector=page.locator('.hl-inspector-preview');
+      11 |  const canvas=page.locator('[data-hololab-node="algorithm"]');
+    > 12 |  await expect(inspector).toBeVisible();
+         |                          ^
+      13 |  if(['default','custom','snapshot'].includes(mode)){
+      14 |   await expect(inspector.locator('img')).toBeVisible();
+      15 |   await expect(canvas.locator('img')).toBeVisible();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/inspector-preview.spec.ts:12:26
+
+    Error Context: test-results/inspector-preview-shared-inspector-preview-legacy-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/inspector-preview-shared-inspector-preview-legacy-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/inspector-preview-shared-inspector-preview-legacy-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview empty ──────────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.hl-inspector-preview')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.hl-inspector-preview') with timeout 5000ms
+      - waiting for locator('.hl-inspector-preview')
+
+
+      10 |  const inspector=page.locator('.hl-inspector-preview');
+      11 |  const canvas=page.locator('[data-hololab-node="algorithm"]');
+    > 12 |  await expect(inspector).toBeVisible();
+         |                          ^
+      13 |  if(['default','custom','snapshot'].includes(mode)){
+      14 |   await expect(inspector.locator('img')).toBeVisible();
+      15 |   await expect(canvas.locator('img')).toBeVisible();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/inspector-preview.spec.ts:12:26
+
+    Error Context: test-results/inspector-preview-shared-inspector-preview-empty-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/inspector-preview-shared-inspector-preview-empty-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/inspector-preview-shared-inspector-preview-empty-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview unsupported ────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.hl-inspector-preview')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.hl-inspector-preview') with timeout 5000ms
+      - waiting for locator('.hl-inspector-preview')
+
+
+      10 |  const inspector=page.locator('.hl-inspector-preview');
+      11 |  const canvas=page.locator('[data-hololab-node="algorithm"]');
+    > 12 |  await expect(inspector).toBeVisible();
+         |                          ^
+      13 |  if(['default','custom','snapshot'].includes(mode)){
+      14 |   await expect(inspector.locator('img')).toBeVisible();
+      15 |   await expect(canvas.locator('img')).toBeVisible();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/inspector-preview.spec.ts:12:26
+
+    Error Context: test-results/inspector-preview-shared-inspector-preview-unsupported-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/inspector-preview-shared-inspector-preview-unsupported-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/inspector-preview-shared-inspector-preview-unsupported-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview snapshot ──────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.hl-inspector-preview')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.hl-inspector-preview') with timeout 5000ms
+      - waiting for locator('.hl-inspector-preview')
+
+
+      10 |  const inspector=page.locator('.hl-inspector-preview');
+      11 |  const canvas=page.locator('[data-hololab-node="algorithm"]');
+    > 12 |  await expect(inspector).toBeVisible();
+         |                          ^
+      13 |  if(['default','custom','snapshot'].includes(mode)){
+      14 |   await expect(inspector.locator('img')).toBeVisible();
+      15 |   await expect(canvas.locator('img')).toBeVisible();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/inspector-preview.spec.ts:12:26
+
+    Error Context: test-results/inspector-preview-shared-inspector-preview-snapshot-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/inspector-preview-shared-inspector-preview-snapshot-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/inspector-preview-shared-inspector-preview-snapshot-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [chromium] › e2e/inspector-scroll.spec.ts:3:1 › inspector sections share a scroller and preserve position across tabs
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 42
+    Received: undefined
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      54 |  const last=panel.getByLabel('setting_39',{exact:true});
+      55 |  await last.click(); await last.press('ControlOrMeta+A'); await last.pressSequentially('42');
+    > 56 |  await expect.poll(()=>saved.at(-1)?.graph.nodes[0].params.setting_39).toBe(42);
+         |                                                                        ^
+      57 |  await scroller.evaluate(el=>el.scrollTop=0);
+      58 |  await panel.getByRole('button',{name:'Show Less',exact:true}).click();
+      59 |  expect(await scroller.evaluate(el=>el.scrollHeight-el.clientHeight)).toBeLessThan(total);
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/inspector-scroll.spec.ts:56:72
+
+    Error Context: test-results/inspector-scroll-inspector-5743a-eserve-position-across-tabs-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/inspector-scroll-inspector-5743a-eserve-position-across-tabs-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/inspector-scroll-inspector-5743a-eserve-position-across-tabs-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [chromium] › e2e/node-creation-menu.spec.ts:6:1 › search, keyboard creation and palette drops share pan/zoom coordinates
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByRole('dialog', { name: '创建节点' }).getByRole('option')
+    Expected: 23
+    Received: 26
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" getByRole('dialog', { name: '创建节点' }).getByRole('option') with timeout 5000ms
+      - waiting for getByRole('dialog', { name: '创建节点' }).getByRole('option')
+        14 × locator resolved to 26 elements
+           - unexpected value "26"
+
+
+      25 |   const search = menu.getByRole("combobox");
+      26 |   await expect(search).toBeFocused();
+    > 27 |   await expect(menu.getByRole("option")).toHaveCount(catalog.length + 1);
+         |                                          ^
+      28 |   await expect(viewport).toHaveAttribute("style", transform!);
+      29 |   const menuBounds = (await menu.boundingBox())!;
+      30 |   expect(menuBounds.x).toBe(point.x);
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/node-creation-menu.spec.ts:27:42
+
+    Error Context: test-results/node-creation-menu-search--aa88b--share-pan-zoom-coordinates-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/node-creation-menu-search--aa88b--share-pan-zoom-coordinates-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/node-creation-menu-search--aa88b--share-pan-zoom-coordinates-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [chromium] › e2e/parameter-pins.spec.ts:38:1 › workflow pins share display, not values, and survive save/reload
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 2
+    Received: undefined
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      54 |   await node('a').getByLabel('mode',{exact:true}).click();
+      55 |   await page.getByRole('option',{name:'2',exact:true}).first().click();
+    > 56 |   await expect.poll(()=>saved.at(-1)?.graph.nodes.find((n:any)=>n.id==='a').params.mode).toBe(2);
+         |                                                                                          ^
+      57 |   expect(saved.at(-1).graph.pinned_params).toEqual({'pin-demo@1.0':['count','mode']});
+      58 |   const sidebar=page.locator('.hl-inspector-sidebar');
+      59 |   await sidebar.getByRole('tab',{name:'Runs',exact:true}).click();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/parameter-pins.spec.ts:56:90
+
+    Error Context: test-results/parameter-pins-workflow-pi-83967-ues-and-survive-save-reload-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/parameter-pins-workflow-pi-83967-ues-and-survive-save-reload-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/parameter-pins-workflow-pi-83967-ues-and-survive-save-reload-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [chromium] › e2e/parameter-pins.spec.ts:86:1 › snapshot uses frozen pins, hides missing fields, and cannot edit
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: getByRole('group', { name: 'Pinned parameters' }).getByLabel('count (read only)')
+    Expected: "42"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" getByRole('group', { name: 'Pinned parameters' }).getByLabel('count (read only)') with timeout 5000ms
+      - waiting for getByRole('group', { name: 'Pinned parameters' }).getByLabel('count (read only)')
+
+
+      88 |   await page.goto('/e2e/fixtures/parameter-pins.html');
+      89 |   const pinned=page.getByRole('group',{name:'Pinned parameters'});
+    > 90 |   await expect(pinned.getByLabel('count (read only)')).toHaveText('42');
+         |                                                        ^
+      91 |   await expect(pinned.locator('input,button')).toHaveCount(0);
+      92 |   await expect(pinned).not.toContainText('label');
+      93 |   await expect(pinned).not.toContainText('removed');
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/parameter-pins.spec.ts:90:56
+
+    Error Context: test-results/parameter-pins-snapshot-us-d3aac-sing-fields-and-cannot-edit-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/parameter-pins-snapshot-us-d3aac-sing-fields-and-cannot-edit-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/parameter-pins-snapshot-us-d3aac-sing-fields-and-cannot-edit-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [chromium] › e2e/parameter-pins.spec.ts:102:1 › pinned array, path, bool and list controls share the Inspector editors
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    Expected: [3.5, 0]
+    Received: undefined
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      118 |   const labels=await pinned.locator('input').evaluateAll(elements=>elements.map(el=>el.getAttribute('aria-label')));
+      119 |   expect(labels.some(label=>label?.startsWith('output_dims'))).toBe(true);
+    > 120 |   await expect.poll(()=>saved.at(-1)?.graph.nodes[0].params.items).toEqual([3.5,0]);
+          |                                                                    ^
+      121 |   expect(saved.at(-1).graph.nodes[0].params.enabled).toBe(true);
+      122 |   expect(saved.at(-1).graph.nodes[0].params.path).toBe('/tmp/edited.mp4');
+      123 |   // Typing F in a pinned text input must not frame/pan the canvas.
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/parameter-pins.spec.ts:120:68
+
+    Error Context: test-results/parameter-pins-pinned-arra-15b79-share-the-Inspector-editors-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/parameter-pins-pinned-arra-15b79-share-the-Inspector-editors-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/parameter-pins-pinned-arra-15b79-share-the-Inspector-editors-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [chromium] › e2e/parameter-pins.spec.ts:130:1 › transform pin toggles x/y/scale as one row and grows node bounds
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    Expected: {"vec3-array-source@0.1.0": ["x", "y", "scale"]}
+    Received: undefined
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      139 |   await pinned.getByLabel('x[0]',{exact:true}).fill('7');
+      140 |   await expect(inspector.getByLabel('x[0]',{exact:true})).toHaveValue('7');
+    > 141 |   await expect.poll(()=>saved.at(-1)?.graph.pinned_params).toEqual({'vec3-array-source@0.1.0':['x','y','scale']});
+          |                                                            ^
+      142 |   await expect.poll(async()=>(await node.boundingBox())!.height).toBeGreaterThan(before);
+      143 |   await pinned.getByRole('button',{name:'Add transform item',exact:true}).click();
+      144 |   await expect(inspector.getByLabel('scale[1]',{exact:true})).toHaveValue('1');
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/parameter-pins.spec.ts:141:60
+
+    Error Context: test-results/parameter-pins-transform-p-23b74-e-row-and-grows-node-bounds-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/parameter-pins-transform-p-23b74-e-row-and-grows-node-bounds-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/parameter-pins-transform-p-23b74-e-row-and-grows-node-bounds-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) [chromium] › e2e/parameter-pins.spec.ts:150:1 › legacy enum pins preserve invalid values until explicitly edited
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "updated-legacy"
+    Received: undefined
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      161 |   await node.locator('[data-hololab-node="algorithm"]').click({position:{x:70,y:20}});
+      162 |   await expect(page.locator('.hl-node-inspector').getByLabel('mode',{exact:true})).toHaveValue('updated-legacy');
+    > 163 |   await expect.poll(()=>saved.at(-1)?.graph.nodes[0].params.mode).toBe('updated-legacy');
+          |                                                                   ^
+      164 |   expect(saved.at(-1).graph.pinned_params['pin-demo@1.0']).toEqual(['mode','removed']);
+      165 | });
+      166 |
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/parameter-pins.spec.ts:163:67
+
+    Error Context: test-results/parameter-pins-legacy-enum-30c39-ues-until-explicitly-edited-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/parameter-pins-legacy-enum-30c39-ues-until-explicitly-edited-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/parameter-pins-legacy-enum-30c39-ues-until-explicitly-edited-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) [chromium] › e2e/parameter-pins.spec.ts:167:1 › reloading an identical graph does not swallow the next edit
+
+    Test timeout of 60000ms exceeded.
+
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'Reload unchanged workflow' })
+
+
+      167 | test('reloading an identical graph does not swallow the next edit',async({page})=>{
+      168 |   await page.goto('/e2e/fixtures/parameter-pins.html?autosave');
+    > 169 |   await page.getByRole('button',{name:'Reload unchanged workflow'}).click();
+          |                                                                     ^
+      170 |   await expect(page.getByLabel('Reloads')).toHaveText('1');
+      171 |   await expect(page.getByLabel('Saves')).toHaveText('[]');
+      172 |   await page.getByLabel('Value',{exact:true}).fill('first edit');
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/parameter-pins.spec.ts:169:69
+
+    Error Context: test-results/parameter-pins-reloading-a-23a6c-s-not-swallow-the-next-edit-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/parameter-pins-reloading-a-23a6c-s-not-swallow-the-next-edit-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/parameter-pins-reloading-a-23a6c-s-not-swallow-the-next-edit-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) [chromium] › e2e/parameter-pins.spec.ts:177:1 › manifest defaults appear immediately and first toggle freezes an explicit override
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    Expected: {"pin-demo@1.0": ["mode"]}
+    Received: undefined
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      190 |   }
+      191 |   await count.click();
+    > 192 |   await expect.poll(()=>saved.at(-1)?.graph.pinned_params).toEqual({'pin-demo@1.0':['mode']});
+          |                                                            ^
+      193 |   await inspector.getByRole('button',{name:'Unpin mode on all pin-demo@1.0 nodes in this workflow',exact:true}).click();
+      194 |   await expect.poll(()=>saved.at(-1)?.graph.pinned_params).toEqual({'pin-demo@1.0':[]});
+      195 |   await page.reload();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/parameter-pins.spec.ts:192:60
+
+    Error Context: test-results/parameter-pins-manifest-de-18bb5-reezes-an-explicit-override-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/parameter-pins-manifest-de-18bb5-reezes-an-explicit-override-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/parameter-pins-manifest-de-18bb5-reezes-an-explicit-override-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  20) [chromium] › e2e/parameter-pins.spec.ts:224:1 › snapshot preview without a viewer also expands and collapses
+
+    Error: Timeout 5000ms exceeded while waiting on the predicate
+
+      227 |   const node=page.locator('[data-hololab-node="algorithm"]');
+      228 |   const width=()=>node.evaluate(e=>getComputedStyle(e).width);
+    > 229 |   await expect.poll(width).toBe('220px');
+          |                            ^
+      230 |   await node.getByRole('button',{name:'展开预览',exact:true}).click();
+      231 |   await expect.poll(width).toBe('340px');
+      232 |   await node.getByRole('button',{name:'收起预览',exact:true}).click();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/parameter-pins.spec.ts:229:28
+
+    Error Context: test-results/parameter-pins-snapshot-pr-ce668--also-expands-and-collapses-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/parameter-pins-snapshot-pr-ce668--also-expands-and-collapses-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/parameter-pins-snapshot-pr-ce668--also-expands-and-collapses-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  21) [chromium] › e2e/port-tooltip.spec.ts:3:40 › port and edge tooltips light ────────────────────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByRole('tooltip').locator('.hl-type-tooltip-content > *')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" getByRole('tooltip').locator('.hl-type-tooltip-content > *') with timeout 5000ms
+      - waiting for getByRole('tooltip').locator('.hl-type-tooltip-content > *')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      28 |     for(const [name,anchor] of [['input',input],['output',output],['edge',edge]] as const){
+      29 |       await anchor.hover();
+    > 30 |       await expect(tip.locator('.hl-type-tooltip-content > *')).toHaveCount(3);
+         |                                                                 ^
+      31 |       await expect(tip.locator('.hl-type-tooltip-content > :nth-child(2)')).toHaveText('arrayed[frame]<image,rgb>');
+      32 |       await expect(tip.locator('.hl-type-tooltip-content > :nth-child(3)')).toHaveText('未知');
+      33 |       await expect(tip).toHaveCSS('--tooltip-scale',String(zoom));
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/port-tooltip.spec.ts:30:65
+
+    Error Context: test-results/port-tooltip-port-and-edge-tooltips-light-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/port-tooltip-port-and-edge-tooltips-light-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/port-tooltip-port-and-edge-tooltips-light-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  22) [chromium] › e2e/port-tooltip.spec.ts:3:40 › port and edge tooltips dark ─────────────────────
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByRole('tooltip').locator('.hl-type-tooltip-content > *')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" getByRole('tooltip').locator('.hl-type-tooltip-content > *') with timeout 5000ms
+      - waiting for getByRole('tooltip').locator('.hl-type-tooltip-content > *')
+        14 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      28 |     for(const [name,anchor] of [['input',input],['output',output],['edge',edge]] as const){
+      29 |       await anchor.hover();
+    > 30 |       await expect(tip.locator('.hl-type-tooltip-content > *')).toHaveCount(3);
+         |                                                                 ^
+      31 |       await expect(tip.locator('.hl-type-tooltip-content > :nth-child(2)')).toHaveText('arrayed[frame]<image,rgb>');
+      32 |       await expect(tip.locator('.hl-type-tooltip-content > :nth-child(3)')).toHaveText('未知');
+      33 |       await expect(tip).toHaveCSS('--tooltip-scale',String(zoom));
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/port-tooltip.spec.ts:30:65
+
+    Error Context: test-results/port-tooltip-port-and-edge-tooltips-dark-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/port-tooltip-port-and-edge-tooltips-dark-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/port-tooltip-port-and-edge-tooltips-dark-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  23) [chromium] › e2e/port-tooltip.spec.ts:52:39 › three rows with runtime data light ─────────────
+
+    Test timeout of 60000ms exceeded.
+
+    Error: locator.hover: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for locator('[data-id="n1"] .target')
+
+
+      61 |   ];
+      62 |   for(const [i,anchor] of anchors.entries()){
+    > 63 |     await anchor.hover();
+         |                  ^
+      64 |     await expect(tip.locator('.hl-type-tooltip-content > *')).toHaveText(['images','arrayed[frame]<any>','image[frame:100], rgb[frame:100]']);
+      65 |     const lines=await tip.locator('.hl-type-tooltip-content > *').evaluateAll(es=>es.map(e=>e.getBoundingClientRect().top));
+      66 |     expect(lines[0]).toBeLessThan(lines[1]);expect(lines[1]).toBeLessThan(lines[2]);
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/port-tooltip.spec.ts:63:18
+
+    Error Context: test-results/port-tooltip-three-rows-with-runtime-data-light-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/port-tooltip-three-rows-with-runtime-data-light-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/port-tooltip-three-rows-with-runtime-data-light-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24) [chromium] › e2e/port-tooltip.spec.ts:52:39 › three rows with runtime data dark ──────────────
+
+    Test timeout of 60000ms exceeded.
+
+    Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, copyfile '/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/test-results/.playwright-artifacts-27/traces/7c6df31676f3ce71df84-8ab11c9a26d4367b3246-recording1.network' -> '/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/test-results/.playwright-artifacts-27/traces/7c6df31676f3ce71df84-8ab11c9a26d4367b3246-recording1-pwnetcopy-1.network'
+
+    Error: browserContext._wrapApiCall: ENOENT: no such file or directory, open '/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/test-results/.playwright-artifacts-27/traces/7c6df31676f3ce71df84-8ab11c9a26d4367b3246.network'
+
+    Error: locator.hover: Test ended.
+    Call log:
+      - waiting for locator('[data-id="n1"] .target')
+
+
+      61 |   ];
+      62 |   for(const [i,anchor] of anchors.entries()){
+    > 63 |     await anchor.hover();
+         |                  ^
+      64 |     await expect(tip.locator('.hl-type-tooltip-content > *')).toHaveText(['images','arrayed[frame]<any>','image[frame:100], rgb[frame:100]']);
+      65 |     const lines=await tip.locator('.hl-type-tooltip-content > *').evaluateAll(es=>es.map(e=>e.getBoundingClientRect().top));
+      66 |     expect(lines[0]).toBeLessThan(lines[1]);expect(lines[1]).toBeLessThan(lines[2]);
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/port-tooltip.spec.ts:63:18
+
+    Error: ENOENT: no such file or directory, open '/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/test-results/.playwright-artifacts-27/d3fd628e53c958f704157c63a6e0ef02.zip'
+
+  25) [chromium] › e2e/recent-run-link.spec.ts:3:38 › recent preview links to its attributed run light
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 7
+    Received: undefined
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      27 |  const preview=page.locator('.hl-inspector-preview');const link=preview.getByRole('button',{name:`Show run ${old} in Runs`});
+      28 |  await expect(preview.locator('img')).toBeVisible();await expect(preview.locator('code')).toHaveText('12345678');await expect(preview.locator('code')).toHaveAttribute('title',old);
+    > 29 |  const field=page.locator('.hl-node-inspector').getByLabel('amount',{exact:true});await field.fill('7');await field.press('Tab');await expect.poll(()=>saved?.graph.nodes[0].params.amount).toBe(7);
+         |                                                                                                                                                                                             ^
+      30 |  mkdirSync('/tmp/recent-run-link',{recursive:true});await preview.screenshot({path:`/tmp/recent-run-link/header-${theme}.png`});
+      31 |  slowRuns=true;
+      32 |  await link.evaluate(el => el.addEventListener('click', () => {
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/recent-run-link.spec.ts:29:189
+
+    Error Context: test-results/recent-run-link-recent-pre-04fb3-to-its-attributed-run-light-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/recent-run-link-recent-pre-04fb3-to-its-attributed-run-light-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/recent-run-link-recent-pre-04fb3-to-its-attributed-run-light-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  26) [chromium] › e2e/recent-run-link.spec.ts:3:38 › recent preview links to its attributed run dark
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 7
+    Received: undefined
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      27 |  const preview=page.locator('.hl-inspector-preview');const link=preview.getByRole('button',{name:`Show run ${old} in Runs`});
+      28 |  await expect(preview.locator('img')).toBeVisible();await expect(preview.locator('code')).toHaveText('12345678');await expect(preview.locator('code')).toHaveAttribute('title',old);
+    > 29 |  const field=page.locator('.hl-node-inspector').getByLabel('amount',{exact:true});await field.fill('7');await field.press('Tab');await expect.poll(()=>saved?.graph.nodes[0].params.amount).toBe(7);
+         |                                                                                                                                                                                             ^
+      30 |  mkdirSync('/tmp/recent-run-link',{recursive:true});await preview.screenshot({path:`/tmp/recent-run-link/header-${theme}.png`});
+      31 |  slowRuns=true;
+      32 |  await link.evaluate(el => el.addEventListener('click', () => {
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/recent-run-link.spec.ts:29:189
+
+    Error Context: test-results/recent-run-link-recent-pre-1c28a--to-its-attributed-run-dark-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/recent-run-link-recent-pre-1c28a--to-its-attributed-run-dark-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/recent-run-link-recent-pre-1c28a--to-its-attributed-run-dark-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27) [chromium] › e2e/resource-lens-scroll.spec.ts:3:1 › bottom compute dock keeps the device visible while the lens scrolls
+
+    TypeError: Cannot read properties of undefined (reading 'key')
+        at useExecutionAnalysis (http://127.0.0.1:5174/src/canvas/executionAnalysis.ts:62:59)
+        at AppInner (http://127.0.0.1:5174/src/App.tsx:1514:29)
+        at renderWithHooks (http://127.0.0.1:5174/node_modules/.vite/deps/chunk-4VPSUSOY.js?v=3ccfa242:11548:26)
+        at updateFunctionComponent (http://127.0.0.1:5174/node_modules/.vite/deps/chunk-4VPSUSOY.js?v=3ccfa242:14582:28)
+        at beginWork (http://127.0.0.1:5174/node_modules/.vite/deps/chunk-4VPSUSOY.js?v=3ccfa242:15924:22)
+        at HTMLUnknownElement.callCallback2 (http://127.0.0.1:5174/node_modules/.vite/deps/chunk-4VPSUSOY.js?v=3ccfa242:3674:22)
+        at Object.invokeGuardedCallbackDev (http://127.0.0.1:5174/node_modules/.vite/deps/chunk-4VPSUSOY.js?v=3ccfa242:3699:24)
+        at invokeGuardedCallback (http://127.0.0.1:5174/node_modules/.vite/deps/chunk-4VPSUSOY.js?v=3ccfa242:3733:39)
+        at beginWork$1 (http://127.0.0.1:5174/node_modules/.vite/deps/chunk-4VPSUSOY.js?v=3ccfa242:19765:15)
+        at performUnitOfWork (http://127.0.0.1:5174/node_modules/.vite/deps/chunk-4VPSUSOY.js?v=3ccfa242:19198:20)
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: locator('.hl-compute-dock .hl-node-metrics')
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" locator('.hl-compute-dock .hl-node-metrics') with timeout 5000ms
+      - waiting for locator('.hl-compute-dock .hl-node-metrics')
+      - Test ended.
+
+
+      32 |   }
+      33 |
+    > 34 |   await expect(page.locator('.hl-compute-dock .hl-node-metrics')).toBeVisible();
+         |                                                                   ^
+      35 |   await expect(page.locator('.hl-inspector-sidebar .hl-node-metrics')).toHaveCount(0);
+      36 |   const sidebar = await page.locator('.hl-inspector-sidebar').boundingBox();
+      37 |   const dock = await page.locator('.hl-compute-dock').boundingBox();
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/resource-lens-scroll.spec.ts:34:67
+
+    Error Context: test-results/resource-lens-scroll-botto-bdcbc-ible-while-the-lens-scrolls-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/resource-lens-scroll-botto-bdcbc-ible-while-the-lens-scrolls-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/resource-lens-scroll-botto-bdcbc-ible-while-the-lens-scrolls-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  28) [chromium] › e2e/view-node.spec.ts:15:1 › view sticker survives drag, save, reload, selection and deletion without an algorithm pack
+
+    Error: expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      82 |   await page.mouse.up();
+      83 |   await expect.poll(async () => (await sticker.boundingBox())?.x ?? before!.x).not.toBe(before!.x);
+    > 84 |   await expect.poll(() => saves.length).toBeGreaterThan(0);
+         |                                         ^
+      85 |   const savedSticker = persistedGraph.nodes.find((n) => n.id === "sticker");
+      86 |   expect(savedSticker?.position).not.toEqual(graph.nodes[1].position);
+      87 |   await page.screenshot({ path: "test-results/view-node-dragged.png" });
+        at /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend/e2e/view-node.spec.ts:84:41
+
+    Error Context: test-results/view-node-view-sticker-sur-374c6-n-without-an-algorithm-pack-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/view-node-view-sticker-sur-374c6-n-without-an-algorithm-pack-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/view-node-view-sticker-sur-374c6-n-without-an-algorithm-pack-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  28 failed
+    [chromium] › e2e/connection-feedback.spec.ts:6:3 › drag validation anchored feedback light ─────
+    [chromium] › e2e/connection-feedback.spec.ts:6:3 › drag validation anchored feedback dark ──────
+    [chromium] › e2e/enum-inspector.spec.ts:3:37 › enum controls preserve raw values (legacy=false)
+    [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview default ─────────────
+    [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview custom ──────────────
+    [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview hidden ──────────────
+    [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview legacy ──────────────
+    [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview empty ───────────────
+    [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview unsupported ─────────
+    [chromium] › e2e/inspector-preview.spec.ts:3:92 › shared inspector preview snapshot ────────────
+    [chromium] › e2e/inspector-scroll.spec.ts:3:1 › inspector sections share a scroller and preserve position across tabs
+    [chromium] › e2e/node-creation-menu.spec.ts:6:1 › search, keyboard creation and palette drops share pan/zoom coordinates
+    [chromium] › e2e/parameter-pins.spec.ts:38:1 › workflow pins share display, not values, and survive save/reload
+    [chromium] › e2e/parameter-pins.spec.ts:86:1 › snapshot uses frozen pins, hides missing fields, and cannot edit
+    [chromium] › e2e/parameter-pins.spec.ts:102:1 › pinned array, path, bool and list controls share the Inspector editors
+    [chromium] › e2e/parameter-pins.spec.ts:130:1 › transform pin toggles x/y/scale as one row and grows node bounds
+    [chromium] › e2e/parameter-pins.spec.ts:150:1 › legacy enum pins preserve invalid values until explicitly edited
+    [chromium] › e2e/parameter-pins.spec.ts:167:1 › reloading an identical graph does not swallow the next edit
+    [chromium] › e2e/parameter-pins.spec.ts:177:1 › manifest defaults appear immediately and first toggle freezes an explicit override
+    [chromium] › e2e/parameter-pins.spec.ts:224:1 › snapshot preview without a viewer also expands and collapses
+    [chromium] › e2e/port-tooltip.spec.ts:3:40 › port and edge tooltips light ──────────────────────
+    [chromium] › e2e/port-tooltip.spec.ts:3:40 › port and edge tooltips dark ───────────────────────
+    [chromium] › e2e/port-tooltip.spec.ts:52:39 › three rows with runtime data light ───────────────
+    [chromium] › e2e/port-tooltip.spec.ts:52:39 › three rows with runtime data dark ────────────────
+    [chromium] › e2e/recent-run-link.spec.ts:3:38 › recent preview links to its attributed run light
+    [chromium] › e2e/recent-run-link.spec.ts:3:38 › recent preview links to its attributed run dark
+    [chromium] › e2e/resource-lens-scroll.spec.ts:3:1 › bottom compute dock keeps the device visible while the lens scrolls
+    [chromium] › e2e/view-node.spec.ts:15:1 › view sticker survives drag, save, reload, selection and deletion without an algorithm pack
+  4 passed (2.6m)

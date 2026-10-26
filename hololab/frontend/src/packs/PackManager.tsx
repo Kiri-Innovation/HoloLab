@@ -1,3 +1,4 @@
+import { CommunityPacks } from './CommunityPacks';
 import { useEffect, useMemo, useState } from 'react';
 import type { CatalogPack, ComputeNode, WorkflowGraph } from '../wire';
 import type { WorkflowSummary } from '../api';
@@ -16,7 +17,7 @@ async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
   if (!response.ok) throw new Error('request_failed');
   return response.json();
 }
-interface CentralStatus { registry_status?: string; state?: string; source?: string; publication?: Record<string, unknown> }
+interface CentralStatus { code_sha256?: string; registry_status?: string; state?: string; source?: string; publication?: Record<string, unknown> }
 
 export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
   onBack: () => void; onOpenLibrary: () => void; onOpenWorkflow: (id: string) => void;
@@ -32,11 +33,8 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
   const [search, setSearch] = useState('');
   const [problemsOnly, setProblemsOnly] = useState(false);
   const [groupScope, setGroupScope] = useState(true);
-  const [registryUrl, setRegistryUrl] = useState('');
-  const [registry, setRegistry] = useState<RegistryRelease[]>([]);
-  const [registryBusy, setRegistryBusy] = useState(false);
-  const [registryError, setRegistryError] = useState('');
-  const [loadedSource, setLoadedSource] = useState('');
+  const [view, setView] = useState<'local' | 'community'>('local');
+  const registry = useMemo<RegistryRelease[]>(() => [], []);
   const [central, setCentral] = useState<Record<string, {data?: CentralStatus; busy?: boolean; failed?: boolean}>>({});
   const [commandStatus, setCommandStatus] = useState<Record<string, string>>({});
 
@@ -94,20 +92,6 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
   const groups = new Map<string, PackEntry[]>();
   for (const entry of visible) { const group = groupScope ? entry.scope : '全部包'; groups.set(group, [...groups.get(group) ?? [], entry]); }
 
-  async function loadRegistry() {
-    setRegistryBusy(true); setRegistryError('');
-    try {
-      const url = new URL(registryUrl);
-      if (!['http:', 'https:'].includes(url.protocol) || url.search || url.hash || url.username || url.password) throw new Error('unsupported_source');
-      const source = url.href.replace(/\/$/, '');
-      const index = await read<{format: number; releases: Record<string, Omit<RegistryRelease, 'source'>>}>(`${source}/index.json`);
-      if (index.format !== 1 || !index.releases || typeof index.releases !== 'object' || Array.isArray(index.releases)) throw new Error('invalid_index');
-      const releases = Object.values(index.releases);
-      if (releases.some(item => !item || typeof item.name !== 'string' || typeof item.version !== 'string' || typeof item.yanked !== 'boolean')) throw new Error('invalid_index');
-      setRegistry(releases.map(release => ({...release, source}))); setLoadedSource(source);
-    } catch { setRegistryError('注册表未能读取。请输入允许浏览器跨域读取的 HTTP(S) 注册表目录；file:// 来源请在计算节点上使用安装命令。'); }
-    finally { setRegistryBusy(false); }
-  }
   async function queryStatus(entry: PackEntry) {
     const key = statusKey(entry);
     setCentral(current => ({...current, [key]: {busy: true}}));
@@ -124,14 +108,14 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
     <main className="hl-pack-page">
       <div className="hl-pack-heading"><div><h1>包管理</h1><p>统一查看包的安装、环境和使用情况。画布只负责编辑与运行。</p></div>
         <button disabled={loading} onClick={() => setRevision(n => n + 1)}>{loading ? '正在读取…' : '刷新全部状态'}</button></div>
-      <p className="hl-pack-boundary">清单包含本实例发现的包、已保存工作流引用的包和已加载的注册表版本。使用情况以已保存草稿为准，不包含未保存编辑与历史快照。</p>
+      <p className="hl-pack-boundary">社区浏览发布版本；本地查看本实例发现的包和已保存工作流引用。使用情况以已保存草稿为准，不包含未保存编辑与历史快照。</p>
       {warnings.length > 0 && <div role="alert" className="hl-pack-notice">{warnings.map(message => <p key={message}>{message}</p>)}</div>}
-      <details className="hl-pack-registry"><summary>注册表目录{loadedSource ? ` · ${registry.length} 个版本` : ' · 尚未加载'}</summary>
-        <p>加载静态注册表的 index.json，可查看尚未安装的版本。注册表来源与本地安装记录分别展示。</p>
-        <form onSubmit={event => {event.preventDefault(); void loadRegistry();}}><input type="url" aria-label="注册表目录 URL" placeholder="https://registry.example/packs" value={registryUrl} onChange={event => setRegistryUrl(event.target.value)} required />
-          <button className="hl-evidence-primary" disabled={registryBusy}>{registryBusy ? '正在读取…' : '加载注册表'}</button></form>
-        {loadedSource && <p>已加载：{loadedSource}（点击加载可重新查询）</p>}{registryError && <p role="alert">{registryError}</p>}
-      </details>
+      <div className="hl-pack-tabs" role="tablist" aria-label="包视角">
+        <button role="tab" aria-selected={view === 'local'} onClick={() => setView('local')}>本地</button>
+        <button role="tab" aria-selected={view === 'community'} onClick={() => setView('community')}>社区</button>
+      </div>
+      <div hidden={view !== 'community'}><CommunityPacks catalog={catalog} nodes={nodes} onInstalled={() => setRevision(n => n + 1)} /></div>
+      <div hidden={view !== 'local'}>
       <div className="hl-pack-filters"><input type="search" aria-label="搜索包" placeholder="搜索包名或版本" value={search} onChange={e => setSearch(e.target.value)} />
         <label>检查目标<select aria-label="检查目标计算节点" value={nodeId} onChange={e => setNodeId(e.target.value)}><option value="">选择计算节点</option>{nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name || node.node_id}</option>)}</select></label>
         <label><input type="checkbox" checked={problemsOnly} onChange={e => setProblemsOnly(e.target.checked)} />只看有问题的</label>
@@ -156,7 +140,8 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
             <header><div><h3>{entry.name}</h3><span className="hl-pack-version">{entry.version}</span></div>
               <span className="hl-pack-state" data-problem={problem(entry)}>{problem(entry) ? '待处理' : loading || checks.loading ? '检查中' : !report ? '环境未校验' : report.status === 'undeclared' ? '环境未声明' : '无已知问题'}</span></header>
             <dl className="hl-pack-facts">
-              <div><dt>来源</dt><dd>{hasRegistry ? '注册表' : entry.catalog ? '本地' : '来源未确认'}{source && <EvidenceValue value={source} />}</dd></div>
+              <div className="hl-pack-code-identity"><dt>代码身份</dt><dd><EvidenceValue value={current?.data?.code_sha256 ?? entry.catalog?.publication?.code_sha256 ?? '尚未校验；查询当前发布状态可读取本地代码身份'} /></dd></div>
+              <div><dt>来源</dt><dd>{hasRegistry ? '注册表' : entry.catalog ? '本地' : '来源未确认'}{(source || entry.catalog?.source_dir || entry.catalog?.manifest_path) && <EvidenceValue value={source || entry.catalog?.source_dir || entry.catalog?.manifest_path} />}</dd></div>
               <div><dt>安装状态</dt><dd>{!nodeId ? '请先选择检查目标' : installed ? '当前节点已发现' : entry.inventory.some(item => item.node_id === nodeId) ? '仅有历史安装记录，当前未确认' : '当前节点未发现'}
                 <small>{entry.catalog?.node_ids.length ? `在线提供：${entry.catalog.node_ids.map(id => nodes.find(n => n.node_id === id)?.node_name || id).join('、')}` : entry.inventory.length ? '有历史记录；离线不等于已卸载' : '尚无本地安装记录'}</small></dd></div>
               <div><dt>Yank 状态</dt><dd>{current?.data?.registry_status === 'yanked' ? '已 yank · 禁止新安装' : current?.data?.registry_status === 'published' ? '未 yank · 已发布' : entry.release ? entry.release.yanked ? '已 yank · 禁止新安装' : '未 yank（加载注册表时）' : '未查询，不能从安装记录推断当前状态'}
@@ -182,7 +167,7 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
             </details>
             <details className="hl-pack-section"><summary>安装与源码</summary>
               {entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} variant="row" label="打开 manifest.yaml" />}
-              <p>现有安装器通过 CLI 使用。复制命令后，在目标计算节点的终端执行；它会沿用注册表校验与 yank 规则，不会代装环境依赖。完成后刷新本页确认发现状态。</p>
+              <p>在社区视角选择包版本即可安装。也可复制 CLI 命令在计算节点执行；安装不会代装环境依赖。</p>
               {!canInstall ? <p>{yanked ? '该版本已 yank，不能新安装；已安装版本与历史运行不因此删除。' : '开发版或内置包不能作为注册表发行版安装。'}</p>
                 : <><code className="hl-pack-command">{installCommand(entry.name, entry.version, source)}</code><button className="hl-evidence-primary" onClick={async () => {
                   const ok = await writeToClipboard(installCommand(entry.name, entry.version, source));
@@ -192,6 +177,7 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
           </article>;
         })}
       </section>)}
+      </div>
     </main>
   </div>;
 }

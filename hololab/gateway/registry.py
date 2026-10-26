@@ -77,6 +77,7 @@ class NodeSession:
     content_identity: bool = False
     environment_checks: bool = False
     registry_v1: bool = False
+    pack_install_v1: bool = False
     # ``token_issued`` is set when this session's register frame either
     # minted a fresh node_token or the gateway is (re-)issuing one. The
     # socket handler forwards it in RegisterOk so the node can persist it

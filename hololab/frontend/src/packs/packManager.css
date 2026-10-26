@@ -40,3 +40,13 @@
   .hl-pack-filters label:first-of-type { width: 100%; }
   .hl-pack-filters select { flex: 1; }
 }
+.hl-pack-tabs { display: flex; gap: var(--space-3); border-bottom: 1px solid var(--border); margin-bottom: var(--space-4); }
+.hl-pack-tabs button { padding: var(--space-3) var(--space-5); border-radius: 0; }
+.hl-pack-tabs [aria-selected=true] { border-bottom: 2px solid var(--text-body); font-weight: var(--fw-semibold); }
+.hl-pack-community { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(0, 3fr); gap: var(--space-4); }
+.hl-pack-community nav { display: flex; flex-direction: column; gap: var(--space-2); align-items: stretch; }
+.hl-pack-community nav button { text-align: left; overflow-wrap: anywhere; padding: var(--space-3); }
+.hl-pack-community nav [aria-current=true] { background: var(--surface-alt); }
+@media (max-width: 640px) { .hl-pack-community { grid-template-columns: minmax(0, 1fr); } }
+.hl-pack-community nav button { height: auto; white-space: normal; }
+.hl-pack-code-identity { grid-column: 1 / -1; }

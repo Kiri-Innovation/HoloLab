@@ -685,6 +685,7 @@ class NodeRuntime:
             content_identity=True,
             environment_checks=True,
             registry_v1=True,
+            pack_install_v1=True,
             node_name=self._config.node_name,
             v_min=PROTOCOL_V_MIN,
             v_max=PROTOCOL_V_MAX,
@@ -828,6 +829,10 @@ class NodeRuntime:
                     task = asyncio.create_task(self._process_terminate_reply(payload))
                     lens_tasks.add(task)
                     task.add_done_callback(lens_tasks.discard)
+                elif env.kind == "pack_install_req":
+                    task = asyncio.create_task(self._pack_install_reply(payload))
+                    lens_tasks.add(task)
+                    task.add_done_callback(lens_tasks.discard)
                 elif env.kind == "pack_status_req":
                     task = asyncio.create_task(self._pack_status_reply(payload))
                     lens_tasks.add(task)
@@ -891,6 +896,26 @@ class NodeRuntime:
         await self._safe_send(
             "process_terminate_resp", ProcessTerminateResp(req_id=payload.req_id, data=data)
         )
+
+    async def _pack_install_reply(self, request):
+        from hololab.gateway.pack_manager import install_on_node
+        from hololab.protocol.messages import PackInstallResp
+
+        if not hasattr(self, "_pack_install_lock"):
+            self._pack_install_lock = asyncio.Lock()
+        async with self._pack_install_lock:
+            result = await asyncio.to_thread(
+                install_on_node,
+                request.spec,
+                request.source,
+                self._config.pack_dirs,
+                request.expected,
+            )
+            if result.get("installed"):
+                await self._restart_pack_watcher()
+            await self._safe_send(
+                "pack_install_resp", PackInstallResp(req_id=request.req_id, result=result)
+            )
 
     async def _pack_status_reply(self, request):
         from hololab.pack_install import status

@@ -93,6 +93,7 @@ class Register(BaseModel):
     content_identity: bool = False
     environment_checks: bool = False
     registry_v1: bool = False
+    pack_install_v1: bool = False
     node_name: str
     v_min: int
     v_max: int
@@ -748,5 +749,17 @@ class PackStatusReq(BaseModel):
 
 
 class PackStatusResp(BaseModel):
+    req_id: str
+    result: dict[str, Any]
+
+
+class PackInstallReq(BaseModel):
+    req_id: str
+    spec: str
+    source: str
+    expected: str | None = None
+
+
+class PackInstallResp(BaseModel):
     req_id: str
     result: dict[str, Any]

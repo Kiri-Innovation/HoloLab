@@ -35,6 +35,8 @@ _KIND_REGISTRY: dict[str, type[BaseModel]] = {
     "code_identity_resp": messages.CodeIdentityResp,
     "capability_req": messages.CapabilityReq,
     "capability_resp": messages.CapabilityResp,
+    "pack_install_req": messages.PackInstallReq,
+    "pack_install_resp": messages.PackInstallResp,
     "pack_status_req": messages.PackStatusReq,
     "pack_status_resp": messages.PackStatusResp,
     "prepare_params_req": messages.PrepareParamsReq,

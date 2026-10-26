@@ -1,0 +1,24 @@
+[WebServer] (node:131842) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:131960) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 11 tests using 2 workers
+
+(node:132014) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:132015) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › e2e/community-packs.spec.ts:4:39 › community install states light (5.5s)
+  ✓   2 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager missing light (5.7s)
+  ✓   3 [chromium] › e2e/community-packs.spec.ts:4:39 › community install states dark (2.0s)
+  ✓   4 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager missing dark (2.1s)
+  ✓   5 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager healthy light (2.0s)
+  ✓   6 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager healthy dark (2.0s)
+  ✓   7 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager empty light (887ms)
+  ✓   8 [chromium] › e2e/pack-manager.spec.ts:39:100 › Pack Manager empty dark (858ms)
+  ✓   9 [chromium] › e2e/pack-manager.spec.ts:70:37 › clean canvas still checks, edits, runs and frames nodes light (2.5s)
+  ✓  10 [chromium] › e2e/pack-manager.spec.ts:70:37 › clean canvas still checks, edits, runs and frames nodes dark (2.5s)
+  ✓  11 [chromium] › e2e/pack-manager.spec.ts:102:1 › partial data and status failures remain honest and hide internal errors (950ms)
+
+  11 passed (22.7s)

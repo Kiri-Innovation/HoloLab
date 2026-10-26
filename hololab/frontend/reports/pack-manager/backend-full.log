@@ -1,0 +1,213 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+.............................................s.......................... [ 13%]
+........................................................................ [ 18%]
+........................................................................ [ 22%]
+........................................................................ [ 27%]
+........................................................................ [ 31%]
+........................................................................ [ 36%]
+............................s........................................... [ 40%]
+........................................................................ [ 45%]
+........................................................................ [ 49%]
+........................................................................ [ 54%]
+........................................................................ [ 58%]
+........................................................................ [ 63%]
+........................................................................ [ 67%]
+........................................................................ [ 72%]
+.......s................................................................ [ 76%]
+....................................................s................... [ 81%]
+........................................................................ [ 85%]
+........................................................................ [ 90%]
+.........................s.............................................. [ 94%]
+........................................................................ [ 99%]
+..........                                                               [100%]
+=============================== warnings summary ===============================
+../../conda/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /cloud/cloud-ssd1/conda/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+../../conda/lib/python3.13/site-packages/starlette/testclient.py:53
+  /cloud/cloud-ssd1/conda/lib/python3.13/site-packages/starlette/testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+../../conda/lib/python3.13/site-packages/_pytest/python.py:124
+  /cloud/cloud-ssd1/conda/lib/python3.13/site-packages/_pytest/python.py:124: PytestRemovedIn10Warning: Passing a non-Collection iterable to parametrize is deprecated.
+  Test: tests/test_port_type_ir.py::test_structural_views_round_trip, argvalues type: product
+  Please convert to a list or tuple.
+  See https://docs.pytest.org/en/stable/deprecations.html#parametrize-iterators
+    metafunc.parametrize(*marker.args, **marker.kwargs, _param_mark=marker)
+
+../../conda/lib/python3.13/site-packages/_pytest/python.py:124
+  /cloud/cloud-ssd1/conda/lib/python3.13/site-packages/_pytest/python.py:124: PytestRemovedIn10Warning: Passing a non-Collection iterable to parametrize is deprecated.
+  Test: tests/test_port_type_ir.py::test_compatibility_matrix, argvalues type: product
+  Please convert to a list or tuple.
+  See https://docs.pytest.org/en/stable/deprecations.html#parametrize-iterators
+    metafunc.parametrize(*marker.args, **marker.kwargs, _param_mark=marker)
+
+tests/test_agent_api.py: 30 warnings
+tests/test_artifacts.py: 5 warnings
+tests/test_axis_match_policy.py: 1 warning
+tests/test_cancel_jobs.py: 12 warnings
+tests/test_code_identity_records.py: 1 warning
+tests/test_constants.py: 1 warning
+tests/test_cosmetic_patch.py: 11 warnings
+tests/test_dispatch_lineage.py: 12 warnings
+tests/test_environment_execution.py: 1 warning
+tests/test_fanout_cancel_terminates.py: 3 warnings
+tests/test_fanout_parallelism.py: 4 warnings
+tests/test_fanout_stale_reader.py: 1 warning
+tests/test_file_authority.py: 7 warnings
+tests/test_frontend_hub.py: 1 warning
+tests/test_frozen_execution.py: 20 warnings
+tests/test_handle_deleted_flag.py: 3 warnings
+tests/test_handle_lookup_api.py: 4 warnings
+tests/test_inline_values.py: 1 warning
+tests/test_int_handle.py: 1 warning
+tests/test_library.py: 21 warnings
+tests/test_library_checkpoints.py: 5 warnings
+tests/test_library_distribution.py: 13 warnings
+tests/test_library_gc.py: 14 warnings
+tests/test_library_management.py: 14 warnings
+tests/test_library_refs.py: 1 warning
+tests/test_library_transfers.py: 13 warnings
+tests/test_node_identity.py: 4 warnings
+tests/test_pack_registry.py: 1 warning
+tests/test_path_params.py: 1 warning
+tests/test_pinned_params.py: 1 warning
+tests/test_port_type_ir.py: 2 warnings
+tests/test_process_control.py: 4 warnings
+tests/test_recipe_files.py: 1 warning
+tests/test_refs.py: 12 warnings
+tests/test_rerun_from.py: 7 warnings
+tests/test_resource_lens.py: 2 warnings
+tests/test_run_body_modes.py: 9 warnings
+tests/test_run_history_api.py: 9 warnings
+tests/test_scheduler_arrayed.py: 3 warnings
+tests/test_scoped_packages.py: 8 warnings
+tests/test_snapshot_delete.py: 8 warnings
+tests/test_snapshot_fanout_fields.py: 2 warnings
+tests/test_spa_fallback.py: 1 warning
+tests/test_stg_pack_layout.py: 1 warning
+tests/test_type_observation.py: 1 warning
+tests/test_workflow_variables.py: 2 warnings
+tests/test_workspace_roots.py: 2 warnings
+  /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/gateway/app.py:192: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+tests/test_agent_api.py: 60 warnings
+tests/test_artifacts.py: 10 warnings
+tests/test_axis_match_policy.py: 2 warnings
+tests/test_cancel_jobs.py: 24 warnings
+tests/test_code_identity_records.py: 2 warnings
+tests/test_constants.py: 2 warnings
+tests/test_cosmetic_patch.py: 22 warnings
+tests/test_dispatch_lineage.py: 24 warnings
+tests/test_environment_execution.py: 2 warnings
+tests/test_fanout_cancel_terminates.py: 6 warnings
+tests/test_fanout_parallelism.py: 8 warnings
+tests/test_fanout_stale_reader.py: 2 warnings
+tests/test_file_authority.py: 14 warnings
+tests/test_frontend_hub.py: 2 warnings
+tests/test_frozen_execution.py: 40 warnings
+tests/test_handle_deleted_flag.py: 6 warnings
+tests/test_handle_lookup_api.py: 8 warnings
+tests/test_inline_values.py: 2 warnings
+tests/test_int_handle.py: 2 warnings
+tests/test_library.py: 42 warnings
+tests/test_library_checkpoints.py: 10 warnings
+tests/test_library_distribution.py: 26 warnings
+tests/test_library_gc.py: 28 warnings
+tests/test_library_management.py: 28 warnings
+tests/test_library_refs.py: 2 warnings
+tests/test_library_transfers.py: 26 warnings
+tests/test_node_identity.py: 8 warnings
+tests/test_pack_registry.py: 2 warnings
+tests/test_path_params.py: 2 warnings
+tests/test_pinned_params.py: 2 warnings
+tests/test_port_type_ir.py: 4 warnings
+tests/test_process_control.py: 8 warnings
+tests/test_recipe_files.py: 2 warnings
+tests/test_refs.py: 24 warnings
+tests/test_rerun_from.py: 14 warnings
+tests/test_resource_lens.py: 4 warnings
+tests/test_run_body_modes.py: 18 warnings
+tests/test_run_history_api.py: 18 warnings
+tests/test_scheduler_arrayed.py: 6 warnings
+tests/test_scoped_packages.py: 16 warnings
+tests/test_snapshot_delete.py: 16 warnings
+tests/test_snapshot_fanout_fields.py: 4 warnings
+tests/test_spa_fallback.py: 2 warnings
+tests/test_stg_pack_layout.py: 2 warnings
+tests/test_type_observation.py: 2 warnings
+tests/test_workflow_variables.py: 4 warnings
+tests/test_workspace_roots.py: 4 warnings
+  /cloud/cloud-ssd1/conda/lib/python3.13/site-packages/fastapi/applications.py:4681: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+tests/test_agent_api.py: 30 warnings
+tests/test_artifacts.py: 5 warnings
+tests/test_axis_match_policy.py: 1 warning
+tests/test_cancel_jobs.py: 12 warnings
+tests/test_code_identity_records.py: 1 warning
+tests/test_constants.py: 1 warning
+tests/test_cosmetic_patch.py: 11 warnings
+tests/test_dispatch_lineage.py: 12 warnings
+tests/test_environment_execution.py: 1 warning
+tests/test_fanout_cancel_terminates.py: 3 warnings
+tests/test_fanout_parallelism.py: 4 warnings
+tests/test_fanout_stale_reader.py: 1 warning
+tests/test_file_authority.py: 7 warnings
+tests/test_frontend_hub.py: 1 warning
+tests/test_frozen_execution.py: 20 warnings
+tests/test_handle_deleted_flag.py: 3 warnings
+tests/test_handle_lookup_api.py: 4 warnings
+tests/test_inline_values.py: 1 warning
+tests/test_int_handle.py: 1 warning
+tests/test_library.py: 21 warnings
+tests/test_library_checkpoints.py: 5 warnings
+tests/test_library_distribution.py: 13 warnings
+tests/test_library_gc.py: 14 warnings
+tests/test_library_management.py: 14 warnings
+tests/test_library_refs.py: 1 warning
+tests/test_library_transfers.py: 13 warnings
+tests/test_node_identity.py: 4 warnings
+tests/test_pack_registry.py: 1 warning
+tests/test_path_params.py: 1 warning
+tests/test_pinned_params.py: 1 warning
+tests/test_port_type_ir.py: 2 warnings
+tests/test_process_control.py: 4 warnings
+tests/test_recipe_files.py: 1 warning
+tests/test_refs.py: 12 warnings
+tests/test_rerun_from.py: 7 warnings
+tests/test_resource_lens.py: 2 warnings
+tests/test_run_body_modes.py: 9 warnings
+tests/test_run_history_api.py: 9 warnings
+tests/test_scheduler_arrayed.py: 3 warnings
+tests/test_scoped_packages.py: 8 warnings
+tests/test_snapshot_delete.py: 8 warnings
+tests/test_snapshot_fanout_fields.py: 2 warnings
+tests/test_spa_fallback.py: 1 warning
+tests/test_stg_pack_layout.py: 1 warning
+tests/test_type_observation.py: 1 warning
+tests/test_workflow_variables.py: 2 warnings
+tests/test_workspace_roots.py: 2 warnings
+  /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/gateway/app.py:298: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1589 passed, 5 skipped, 1128 warnings in 161.44s (0:02:41)
