@@ -6,8 +6,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import pytest
-
 from hololab.manifest import load_manifest
 
 PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
@@ -37,38 +35,19 @@ def _load(name: str, version: str = "0.2.0"):
     return m
 
 
-def test_colmap_assemble_shape_v020() -> None:
-    """v0.2.0 collapses the three-input fan-in (cams + points + frames) into
-    one ``arrayed<colmap-frame>`` input — the per-frame dirs are already
-    self-contained (PINHOLE cams + points + undistorted images)."""
-    m = _load("colmap-assemble", "0.2.0")
-    assert m.version == "0.2.0"
-    assert m.arrayable is False  # whole-array reshape, one process.
-    assert list(m.inputs.keys()) == ["frames"], (
-        "v0.2.0 assemble has exactly one input (arrayed<colmap-frame>)"
-    )
-    assert m.inputs["frames"].tags == ["colmap-frame"]
-    assert m.inputs["frames"].arrayed is True
-    assert m.outputs["colmap"].tags == ["colmap"]
-    assert m.outputs["colmap"].arrayed is False
-    assert m.source_entry == "assemble.py"
-    assert (PACKS_ROOT / "colmap-assemble@0.2.0" / m.source_entry).is_file()
-
-
-@pytest.mark.parametrize("pack_name", ["colmap-assemble"])
-def test_colmap_pack_category_v020(pack_name: str) -> None:
-    m = _load(pack_name, "0.2.0")
+def test_merge_colmap_shape_v040() -> None:
+    """The current per-frame COLMAP join emits canonical colmap-folder."""
+    m = _load("merge-colmap", "0.4.0")
+    assert m.arrayable is True
     assert m.category == ["reconstruction", "colmap"], m.category
-
-
-def test_colmap_assemble_shape_v010() -> None:
-    m = _load("colmap-assemble", "0.1.0")
-    assert m.arrayable is False
     assert m.inputs["cams"].tags == ["colmap-cams"]
-    assert m.inputs["cams"].arrayed is True
-    assert m.inputs["points"].tags == ["colmap-points"]
-    assert m.inputs["frames"].tags == ["image"]
-    assert m.outputs["colmap"].tags == ["colmap"]
+    assert m.inputs["points"].tags == ["point-cloud"]
+    assert m.inputs["images"].tags == ["image"]
+    assert m.inputs["images"].required is False
+    assert m.outputs["folder"].tags == ["colmap-folder"]
+    assert m.outputs["folder"].scalar is True
+    assert m.source_entry == "merge.py"
+    assert (PACKS_ROOT / "merge-colmap@0.4.0" / m.source_entry).is_file()
 
 
 def _fake_sfm(keys: list[str]) -> dict[str, object]:

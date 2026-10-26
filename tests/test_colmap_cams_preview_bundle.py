@@ -62,8 +62,8 @@ def test_bundle_contains_colmap_cams_tag_routing() -> None:
 def test_bundle_contains_colmap_points_tag_routing() -> None:
     """Same guard for ``colmap-points`` — the tag needs to appear in
     the Preview dispatch intercept AND the FRONTEND_VIEWER_TAGS set.
-    Losing either drops the caret from ``colmap-triangulate`` /
-    ``colmap-assemble.points_by_frame`` outputs on any rolling upgrade.
+    Losing either drops the caret from ``colmap-triangulate`` outputs
+    on any rolling upgrade.
     """
 
     js_path = _find_dist_js()
