@@ -78,3 +78,50 @@ def test_missing_cam3_uses_the_six_present_cameras(tmp_path: Path, monkeypatch) 
     resolved = tri.prefill_db(tmp_path / "input.db", tmp_path / "manual", present, cams, poses)
     assert [name for name, _ in resolved] == present
     assert [row[-1] for row in tri.parse_images_txt(tmp_path / "manual" / "images.txt")] == present
+
+
+def test_triangulate_preserves_gapped_sfm_image_ids(tmp_path: Path, monkeypatch) -> None:
+    """A missing cam5 must not cause cam7's original IMAGE_ID 7 to become 6."""
+    pytest.importorskip("numpy")
+    monkeypatch.setitem(sys.modules, "cv2", types.ModuleType("cv2"))
+    tri = _module(PACKS / "colmap-triangulate@0.7.5" / "triangulate.py", "tri_075_gapped_ids")
+
+    image_ids = [1, 2, 3, 4, 5, 7]
+    names = ["cam0.jpg", "cam1.jpg", "cam2.jpg", "cam3.jpg", "cam4.jpg", "cam7.jpg"]
+    cams = {image_id: ("SIMPLE_RADIAL", 10, 10, [8.0, 5.0, 5.0, 0.0]) for image_id in image_ids}
+    poses = {
+        Path(name).stem: (image_id, tri.np.array([1.0, 0, 0, 0]), tri.np.zeros(3), image_id)
+        for image_id, name in zip(image_ids, names, strict=True)
+    }
+
+    tri.prefill_db(tmp_path / "input.db", tmp_path / "manual", names, cams, poses)
+    actual_ids = [row[0] for row in tri.parse_images_txt(tmp_path / "manual" / "images.txt")]
+    assert actual_ids == image_ids
+
+
+def test_merge_filters_only_dangling_tracks_and_drops_empty_points(tmp_path: Path) -> None:
+    merge = _module(PACKS / "merge-colmap@0.4.0" / "merge.py", "merge_040_tracks")
+    source = tmp_path / "points3D.txt"
+    target = tmp_path / "fixed.txt"
+    source.write_text(
+        "# header preserved\n"
+        "1 0 0 0 1 2 3 0.1 1 10 6 11 7 12\n"
+        "2 0 0 0 1 2 3 0.2 6 20\n"
+        "3 0 0 0 1 2 3 0.3 2 30\n"
+    )
+
+    assert merge._sanitize_points3d_tracks(source, target, {1, 2, 3, 4, 5, 7}) == (2, 1)
+    assert target.read_text() == (
+        "# header preserved\n1 0 0 0 1 2 3 0.1 1 10 7 12\n3 0 0 0 1 2 3 0.3 2 30\n"
+    )
+
+
+def test_merge_keeps_valid_points_byte_identical(tmp_path: Path) -> None:
+    merge = _module(PACKS / "merge-colmap@0.4.0" / "merge.py", "merge_040_exact_copy")
+    source = tmp_path / "points3D.txt"
+    target = tmp_path / "copied.txt"
+    payload = b"# odd spacing stays exact\r\n1  0 0 0 1 2 3 0.1  1 10 7 12\r\n"
+    source.write_bytes(payload)
+
+    assert merge._sanitize_points3d_tracks(source, target, {1, 7}) == (0, 0)
+    assert target.read_bytes() == payload

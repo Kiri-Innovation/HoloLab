@@ -123,9 +123,15 @@ def prefill_db(
     manual_dir: Path,
     image_names: list[str],
     sfm_cams: dict[int, tuple[str, int, int, list[float]]],
-    sfm_pose_by_key: dict[str, tuple[np.ndarray, np.ndarray, int]],
+    sfm_pose_by_key: dict[str, tuple[int, np.ndarray, np.ndarray, int]],
 ) -> list[tuple[str, str]]:
-    """Pre-fill a DB with each image's SfM pose and matching camera model."""
+    """Pre-fill a DB while preserving each matched SfM ``IMAGE_ID``.
+
+    Track elements emitted by ``point_triangulator`` refer to the image IDs in
+    this database/manual model.  The points output is later paired with the
+    original SfM ``images.txt`` by ``merge-colmap``, so renumbering the subset
+    would corrupt incomplete groups (for example IDs 1..5,7 becoming 1..6).
+    """
     create_empty_db(db_path)
     manual_dir.mkdir(parents=True, exist_ok=True)
 
@@ -140,7 +146,7 @@ def prefill_db(
             resolved_key = resolve_sfm_key(name, sfm_pose_by_key, numeric_index)
             if resolved_key is None:
                 continue
-            qvec, tvec, sfm_cid = sfm_pose_by_key[resolved_key]
+            sfm_iid, qvec, tvec, sfm_cid = sfm_pose_by_key[resolved_key]
             try:
                 model_name, width, height, params = sfm_cams[sfm_cid]
                 model_id = CAMERA_MODELS[model_name]
@@ -151,7 +157,7 @@ def prefill_db(
                 ) from exc
             params_arr = np.asarray(params, dtype=np.float64)
             resolved.append((name, resolved_key))
-            im_id = len(resolved)
+            im_id = sfm_iid
             cam_id = add_camera(con, model_id, width, height, params_arr)
             add_image(con, name=name, camera_id=cam_id, prior_q=qvec, prior_t=tvec, image_id=im_id)
 
@@ -313,9 +319,9 @@ def main() -> int:
     image_names = stage_scratch_input(image_source, scratch_input)
 
     sfm_cams = parse_cameras_txt(cams_txt)
-    sfm_pose_by_key: dict[str, tuple[np.ndarray, np.ndarray, int]] = {}
-    for _iid, qvec, tvec, cid, name in parse_images_txt(imgs_txt):
-        sfm_pose_by_key[cam_key(name)] = (qvec, tvec, cid)
+    sfm_pose_by_key: dict[str, tuple[int, np.ndarray, np.ndarray, int]] = {}
+    for iid, qvec, tvec, cid, name in parse_images_txt(imgs_txt):
+        sfm_pose_by_key[cam_key(name)] = (iid, qvec, tvec, cid)
     if not sfm_pose_by_key:
         print("ERROR: no image entries parsed from SfM images.txt", file=sys.stderr)
         return 3
@@ -445,6 +451,7 @@ def main() -> int:
             {
                 "used_image_files": sorted(used_names),
                 "used_sfm_camera_keys": sorted(used_keys),
+                "used_sfm_image_ids": sorted(sfm_pose_by_key[key][0] for key in used_keys),
                 "absent_sfm_camera_keys": missing_keys,
                 "used_camera_count": len(used_names),
                 "missing_pose_image_files": missing_pose_names,

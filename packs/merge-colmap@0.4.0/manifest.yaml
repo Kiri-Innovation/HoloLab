@@ -12,6 +12,13 @@ source_entry: merge.py
 category: "reconstruction/colmap"
 
 docs: |
+  ### Track integrity
+
+  Before publishing, ``points3D.txt`` track elements are checked against the
+  IMAGE_IDs in ``images.txt``. References to absent images are removed and a
+  point is removed if no valid observation remains. Healthy point files take
+  an exact byte-for-byte copy path.
+
   ### v0.4.0 vs v0.3.0
 
   Type-system cleanup: the ``folder`` output tag list drops the

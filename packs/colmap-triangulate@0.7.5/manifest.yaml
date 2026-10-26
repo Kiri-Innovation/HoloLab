@@ -13,6 +13,13 @@ source_entry: triangulate.py
 category: "reconstruction/colmap"
 
 docs: |
+  ### IMAGE_ID integrity fix
+
+  The per-shard manual model preserves each matched image's IMAGE_ID from the
+  input SfM model. Previously the present subset was renumbered from 1, which
+  made point tracks incompatible with the original ``images.txt`` whenever an
+  intermediate rig camera was absent (for example ``1..5,7`` became ``1..6``).
+
   ### v0.7.5 — per-frame SIFT extraction controls
 
   This pack owns the database used by its triangulation: it runs a fresh

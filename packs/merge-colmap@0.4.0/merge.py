@@ -83,6 +83,54 @@ def _parse_names_from_images_txt(path: Path) -> list[str]:
     return [row[9] for _line, row in poses]
 
 
+def _sanitize_points3d_tracks(
+    source: Path, target: Path, valid_image_ids: set[int]
+) -> tuple[int, int]:
+    """Remove track elements that reference images absent from ``images.txt``.
+
+    Returns ``(removed_track_elements, removed_points)``.  The common valid
+    path is an exact ``copyfile`` so healthy groups retain byte-identical
+    ``points3D.txt`` data.  A point whose entire track is invalid is omitted.
+    """
+    lines = source.read_text().splitlines(keepends=True)
+    rewritten: list[str] = []
+    removed_track_elements = 0
+    removed_points = 0
+    changed = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            rewritten.append(line)
+            continue
+        fields = stripped.split()
+        if len(fields) < 8 or (len(fields) - 8) % 2:
+            raise ValueError(f"malformed COLMAP point row in {source}: {stripped[:160]}")
+        track = fields[8:]
+        kept: list[str] = []
+        for offset in range(0, len(track), 2):
+            image_id = int(track[offset])
+            if image_id in valid_image_ids:
+                kept.extend(track[offset : offset + 2])
+            else:
+                removed_track_elements += 1
+                changed = True
+        if not kept:
+            removed_points += 1
+            changed = True
+            continue
+        if len(kept) == len(track):
+            rewritten.append(line)
+        else:
+            newline = "\n" if line.endswith("\n") else ""
+            rewritten.append(" ".join(fields[:8] + kept) + newline)
+
+    if changed:
+        target.write_text("".join(rewritten))
+    else:
+        shutil.copyfile(source, target)
+    return removed_track_elements, removed_points
+
+
 def _list_element_files(element_root: Path) -> list[Path]:
     """Image files inside one arrayed<image> element dir (flat + legacy frames/)."""
     direct = sorted(p for p in element_root.iterdir() if p.is_file() and not p.name.startswith("."))
@@ -183,7 +231,11 @@ def main() -> int:
     sparse0 = args.out / "sparse" / "0"
     sparse0.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src_cams, sparse0 / "cameras.txt")
-    shutil.copyfile(src_pts, sparse0 / "points3D.txt")
+    _header, source_poses = _parse_pose_rows(src_imgs_txt)
+    valid_image_ids = {int(row[0]) for _line, row in source_poses}
+    removed_tracks, removed_points = _sanitize_points3d_tracks(
+        src_pts, sparse0 / "points3D.txt", valid_image_ids
+    )
 
     mode = "A"
     n_imgs = 0
@@ -286,7 +338,11 @@ def main() -> int:
         check=True,
     )
 
-    print(f"[merge-colmap/0.2] done -> mode {mode}, images: {n_imgs}", flush=True)
+    print(
+        f"[merge-colmap/0.4] done -> mode {mode}, images: {n_imgs}, "
+        f"dangling tracks removed: {removed_tracks}, empty points removed: {removed_points}",
+        flush=True,
+    )
     return 0
 
 
