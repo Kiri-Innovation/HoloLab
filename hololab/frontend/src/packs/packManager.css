@@ -1,7 +1,6 @@
-.hl-pack-manager { background: var(--bg); color: var(--text-body); overflow: auto; }
-.hl-pack-topbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); background: var(--surface); }
-.hl-pack-topbar > span { color: var(--text-muted); margin-right: auto; }
-.hl-pack-page { max-width: 1200px; margin: auto; padding: var(--space-6); font-size: var(--fs-sm); }
+.hl-pack-manager { display: flex; flex-direction: column; height: 100dvh; background: var(--bg); color: var(--text-body); overflow: hidden; }
+.hl-pack-topbar { flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); background: var(--surface); }
+.hl-pack-page { max-width: none; width: 100%; flex: 1; min-height: 0; overflow: hidden; margin: 0; padding: 0; font-size: var(--fs-sm); }
 .hl-pack-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
 .hl-pack-heading h1 { font-size: var(--fs-xl); margin: 0; }
 .hl-pack-heading p, .hl-pack-boundary { color: var(--text-muted); line-height: var(--lh-normal); }
@@ -13,8 +12,6 @@
 .hl-pack-filters label { display: flex; align-items: center; gap: var(--space-2); color: var(--text-muted); }
 .hl-pack-filters select { max-width: 240px; min-width: 0; }
 .hl-pack-summary { margin-top: var(--space-4); color: var(--text-muted); }
-.hl-pack-group h2 { display: flex; align-items: baseline; gap: var(--space-3); font-size: var(--fs-md); margin-top: var(--space-6); }
-.hl-pack-group h2 span { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
 .hl-pack-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-4); margin-bottom: var(--space-3); min-width: 0; overflow-wrap: anywhere; }
 .hl-pack-card > header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); }
 .hl-pack-card > header > div { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
@@ -33,22 +30,57 @@
 .hl-pack-command { display: block; padding: var(--space-3); background: var(--surface-alt); overflow-wrap: anywhere; margin-bottom: var(--space-2); }
 .hl-pack-empty { padding: var(--space-8); text-align: center; background: var(--surface); border: 1px solid var(--border-subtle); color: var(--text-muted); }
 @media (max-width: 640px) {
-  .hl-pack-page { padding: var(--space-3); }
   .hl-pack-facts { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
   .hl-pack-heading { align-items: flex-start; flex-wrap: wrap; }
   .hl-pack-filters > input { width: 100%; flex-basis: 100%; }
   .hl-pack-filters label:first-of-type { width: 100%; }
   .hl-pack-filters select { flex: 1; }
 }
-.hl-pack-tabs { display: flex; gap: var(--space-3); border-bottom: 1px solid var(--border); margin-bottom: var(--space-4); }
-.hl-pack-tabs button { padding: var(--space-3) var(--space-5); border-radius: 0; }
-.hl-pack-tabs [aria-selected=true] { border-bottom: 2px solid var(--text-body); font-weight: var(--fw-semibold); }
-.hl-pack-community { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(0, 3fr); gap: var(--space-4); }
-.hl-pack-community nav { display: flex; flex-direction: column; gap: var(--space-2); align-items: stretch; }
-.hl-pack-community nav button { text-align: left; overflow-wrap: anywhere; padding: var(--space-3); }
-.hl-pack-community nav [aria-current=true] { background: var(--surface-alt); }
-@media (max-width: 640px) { .hl-pack-community { grid-template-columns: minmax(0, 1fr); } }
-.hl-pack-community nav button { height: auto; white-space: normal; }
+.hl-pack-tabs { display: flex; gap: var(--space-1); }
 .hl-pack-code-identity { grid-column: 1 / -1; }
 
 @media (max-width: 360px) { .hl-pack-topbar > button:last-child { margin-left: auto; } }
+
+/* Match the editor's persisted left dock width; the detail column fills the rest. */
+.hl-pack-view-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-right: auto; min-width: 0; }
+.hl-pack-view-heading > span { color: var(--text-muted); white-space: nowrap; }
+.hl-pack-tabs button { padding: var(--space-2) var(--space-3); border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; }
+.hl-pack-tabs [aria-selected=true] { border-bottom-color: var(--text-body); font-weight: var(--fw-semibold); }
+.hl-pack-page > [role=tabpanel] { height: 100%; }
+.hl-pack-workspace { display: grid; grid-template-columns: var(--pack-sidebar-width, 300px) minmax(0, 1fr); height: 100%; min-height: 0; align-items: stretch; }
+.hl-pack-sidebar { overflow: auto; min-width: 0; border-right: 1px solid var(--border); background: var(--surface); }
+.hl-pack-sidebar .hl-dock-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-3); }
+.hl-pack-sidebar .hl-section-title { margin: 0; }
+.hl-pack-directory { padding: var(--space-3); }
+.hl-pack-sidebar .hl-pack-filters { align-items: stretch; flex-direction: column; }
+.hl-pack-sidebar .hl-pack-filters label { flex-wrap: wrap; }
+.hl-pack-sidebar input:not([type=checkbox]), .hl-pack-sidebar select { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
+.hl-pack-sidebar input:not([type=checkbox]) { height: var(--control-h-md); padding: 0 var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-body); font-size: var(--fs-sm); }
+.hl-pack-sidebar .hl-pack-summary { margin-bottom: var(--space-3); }
+.hl-pack-tree-group .hl-pack-folder { padding: var(--space-2); cursor: pointer; font-weight: var(--fw-semibold); font-size: var(--fs-sm); }
+.hl-pack-tree-group .hl-pack-folder span { float: right; color: var(--text-muted); }
+.hl-pack-tree-group .hl-pack-leaf { display: flex; align-items: center; gap: var(--space-2); width: 100%; height: auto; padding: var(--space-2); padding-left: var(--space-5); border: 0; border-radius: var(--radius-sm); background: transparent; text-align: left; font-size: var(--fs-sm); }
+.hl-pack-leaf > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.hl-pack-leaf small { color: var(--text-muted); font-family: var(--font-mono); }
+.hl-pack-tree-group .hl-pack-leaf[aria-current=true] { background: var(--surface-alt); font-weight: var(--fw-semibold); box-shadow: inset 2px 0 var(--text-body); }
+.hl-pack-tree-group .hl-pack-leaf:hover { background: var(--surface-hover); }
+.hl-pack-detail { overflow: auto; padding: var(--space-5); min-width: 0; }
+.hl-pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: var(--space-4); margin-top: var(--space-4); align-items: start; }
+.hl-pack-grid .hl-pack-card { margin: 0; }
+.hl-pack-project-link { height: auto; padding: 0; border: 0; background: transparent; font-size: inherit; font-weight: var(--fw-semibold); text-align: left; overflow-wrap: anywhere; white-space: normal; }
+.hl-pack-grid dd { margin: 0 0 var(--space-2); color: var(--text-muted); }
+.hl-pack-sidebar .hl-pack-registry { margin: 0 0 var(--space-4); padding: 0; border: 0; overflow-wrap: anywhere; }
+.hl-pack-sidebar .hl-pack-registry form { align-items: stretch; flex-direction: column; }
+.hl-pack-search { display: flex; flex-direction: column; gap: var(--space-2); }
+.hl-pack-directory-toggle { display: none; }
+@media (max-width: 760px) {
+  .hl-pack-page { overflow: auto; }
+  .hl-pack-page > [role=tabpanel] { height: auto; }
+  .hl-pack-workspace { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; }
+  .hl-pack-sidebar, .hl-pack-detail { overflow: visible; }
+  .hl-pack-sidebar { border-right: 0; border-bottom: 1px solid var(--border); }
+  .hl-pack-directory-toggle { display: block; margin: var(--space-3); }
+  .hl-pack-directory[data-open=false] { display: none; }
+  .hl-pack-detail { padding: var(--space-3); }
+  .hl-pack-view-heading { flex: 1 1 auto; }
+}

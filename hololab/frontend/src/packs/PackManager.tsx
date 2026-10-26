@@ -1,3 +1,4 @@
+import { useResizableSlot } from '../canvas/useResizableLayout';
 import { CommunityPacks } from './CommunityPacks';
 import { useEffect, useMemo, useState } from 'react';
 import type { CatalogPack, ComputeNode, WorkflowGraph } from '../wire';
@@ -20,8 +21,8 @@ async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 interface CentralStatus { code_sha256?: string; registry_status?: string; state?: string; source?: string; publication?: Record<string, unknown> }
 
-export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
-  onBack: () => void; onOpenLibrary: () => void; onOpenWorkflow: (id: string) => void;
+export function PackManager({onBack, onOpenLibrary, onOpenWorkflow, onNavigate}: {
+  onNavigate: (path: string) => void; onBack: () => void; onOpenLibrary: () => void; onOpenWorkflow: (id: string) => void;
 }) {
   const [catalog, setCatalog] = useState<CatalogPack[]>([]);
   const [inventory, setInventory] = useState<InventoryPack[]>([]);
@@ -33,8 +34,10 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
   const [nodeId, setNodeId] = useState('');
   const [search, setSearch] = useState('');
   const [problemsOnly, setProblemsOnly] = useState(false);
-  const [groupScope, setGroupScope] = useState(true);
-  const [view, setView] = useState<'local' | 'community'>('local');
+  const view = new URLSearchParams(window.location.search).get('view') === 'community' ? 'community' : 'local';
+  const [selected, setSelected] = useState('');
+  const [directoryOpen, setDirectoryOpen] = useState(false);
+  const leftDock = useResizableSlot('hl-layout-left', 300, 180, 420);
   const registry = useMemo<RegistryRelease[]>(() => [], []);
   const [central, setCentral] = useState<Record<string, {data?: CentralStatus; busy?: boolean; failed?: boolean}>>({});
   const [commandStatus, setCommandStatus] = useState<Record<string, string>>({});
@@ -91,7 +94,9 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
     ? 'hash_mismatch' : central[statusKey(entry)]?.data?.registry_status);
   const visible = entries.filter(entry => (!problemsOnly || problem(entry)) && `${entry.name}@${entry.version}`.toLowerCase().includes(search.toLowerCase()));
   const groups = new Map<string, PackEntry[]>();
-  for (const entry of visible) { const group = groupScope ? entry.scope : '全部包'; groups.set(group, [...groups.get(group) ?? [], entry]); }
+  for (const entry of visible) { const group = entry.scope; groups.set(group, [...groups.get(group) ?? [], entry]); }
+
+  const selectedEntry = visible.find(entry => entry.key === selected) ?? visible[0];
 
   async function queryStatus(entry: PackEntry) {
     const key = statusKey(entry);
@@ -103,37 +108,48 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
     } catch { setCentral(current => ({...current, [key]: {failed: true}})); }
   }
 
-  return <div className="hl-app-shell hl-pack-manager">
+  return <div className="hl-app-shell hl-pack-manager" style={{'--pack-sidebar-width': `${leftDock.value}px`} as React.CSSProperties}>
     <header className="hl-topbar hl-pack-topbar">
       <button type="button" onClick={onBack}
         data-tooltip="返回流程列表" aria-label="返回流程列表" aria-description="back to workflows"
         style={{...CONTROL_STYLE, fontWeight: 600, color: 'var(--text)', gap: 6, letterSpacing: '-0.01em'}}>
         <span aria-hidden="true" style={{color: 'var(--text-subtle)', fontSize: 'var(--fs-md)'}}>←</span>
         HoloLab
-      </button><span>· Pack Manager</span>
+      </button><div className="hl-pack-view-heading"><span>· Pack Manager</span>
+      <div className="hl-pack-tabs" role="tablist" aria-label="包视角">
+        {(['local', 'community'] as const).map(tab => <button key={tab} id={`pack-tab-${tab}`} role="tab" aria-controls={`pack-panel-${tab}`} aria-selected={view === tab}
+          onClick={() => onNavigate(`/packs?view=${tab}`)}>{tab === 'local' ? '本地安装' : '社区'}</button>)}
+      </div></div>
       <button type="button" style={CONTROL_STYLE} onClick={onOpenLibrary}>Library</button><ThemeToggle /></header>
     <main className="hl-pack-page">
-      <div className="hl-pack-heading"><div><h1>包管理</h1><p>统一查看包的安装、环境和使用情况。画布只负责编辑与运行。</p></div>
-        <button disabled={loading} onClick={() => setRevision(n => n + 1)}>{loading ? '正在读取…' : '刷新全部状态'}</button></div>
-      <p className="hl-pack-boundary">社区浏览发布版本；本地查看本实例发现的包和已保存工作流引用。使用情况以已保存草稿为准，不包含未保存编辑与历史快照。</p>
-      {warnings.length > 0 && <div role="alert" className="hl-pack-notice">{warnings.map(message => <p key={message}>{message}</p>)}</div>}
-      <div className="hl-pack-tabs" role="tablist" aria-label="包视角">
-        <button role="tab" aria-selected={view === 'local'} onClick={() => setView('local')}>本地</button>
-        <button role="tab" aria-selected={view === 'community'} onClick={() => setView('community')}>社区</button>
-      </div>
-      <div hidden={view !== 'community'}><CommunityPacks catalog={catalog} nodes={nodes} onInstalled={() => setRevision(n => n + 1)} /></div>
-      <div hidden={view !== 'local'}>
+      <div id="pack-panel-community" role="tabpanel" aria-labelledby="pack-tab-community" hidden={view !== 'community'}><CommunityPacks catalog={catalog} nodes={nodes} onInstalled={() => setRevision(n => n + 1)} /></div>
+      <div id="pack-panel-local" role="tabpanel" aria-labelledby="pack-tab-local" hidden={view !== 'local'}>
+      <div className="hl-pack-workspace">
+      <aside className="hl-dock hl-pack-palette hl-pack-sidebar">
+      <div className="hl-dock-heading"><h2 className="hl-section-title">本地安装</h2><button disabled={loading} onClick={() => setRevision(n => n + 1)}>{loading ? '读取中…' : '刷新'}</button></div>
+      <button className="hl-pack-directory-toggle" aria-expanded={directoryOpen} onClick={() => setDirectoryOpen(!directoryOpen)}>包目录 · {visible.length} 个版本 {directoryOpen ? '▴' : '▾'}</button>
+      <div className="hl-pack-directory" data-open={directoryOpen}>
       <div className="hl-pack-filters"><input type="search" aria-label="搜索包" placeholder="搜索包名或版本" value={search} onChange={e => setSearch(e.target.value)} />
         <label>检查目标<select aria-label="检查目标计算节点" value={nodeId} onChange={e => setNodeId(e.target.value)}><option value="">选择计算节点</option>{nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name || node.node_id}</option>)}</select></label>
         <label><input type="checkbox" checked={problemsOnly} onChange={e => setProblemsOnly(e.target.checked)} />只看有问题的</label>
-        <label><input type="checkbox" checked={groupScope} onChange={e => setGroupScope(e.target.checked)} />按 scope 分组</label></div>
+</div>
       <div className="hl-pack-summary" role="status">{loading ? '正在汇总包与工作流…' : `${entries.length} 个包版本 · ${entries.filter(problem).length} 项待处理 · 显示 ${visible.length} 项`}
         {checks.loading && ' · 环境检查中…'}</div>
-      <p className="hl-pack-boundary">未声明 requires 表示作者没有写要求，不是缺失，不会因此阻止运行。已声明但缺失的能力需要补齐；通过检查也不保证一定能运行。</p>
+      <nav aria-label="本地包目录">
+      {[...groups].map(([scope, packs]) => <details key={scope} open className="hl-pack-tree-group">
+        <summary className="hl-pack-folder">{scope}<span>{packs.length}</span></summary>
+        {packs.map(entry => <button className="hl-pack-leaf" key={entry.key} aria-current={selectedEntry?.key === entry.key ? 'true' : undefined}
+          onClick={() => {setSelected(entry.key); setDirectoryOpen(false);}}><span>{entry.name.slice(entry.scope.length + 1)}</span><small>{entry.version}</small>{problem(entry) && <span aria-label="待处理">!</span>}</button>)}
+      </details>)}
+      {!loading && !visible.length && <p>没有符合条件的包。</p>}
+      </nav></div></aside>
+      <section className="hl-pack-detail" aria-label="本地包详情">
+      {warnings.length > 0 && <div role="alert" className="hl-pack-notice">{warnings.map(message => <p key={message}>{message}</p>)}</div>}
+      <p className="hl-pack-boundary">使用情况以已保存工作流草稿为准。未声明 requires 不等于环境缺失；检查通过也不保证一定能运行。</p>
       {checks.error && <p role="alert">本地能力暂时无法查询，请检查计算节点连接后刷新。</p>}
-      {!loading && !visible.length && <div className="hl-pack-empty">{entries.length ? '没有符合筛选条件的包。' : '还没有发现包。连接计算节点或加载注册表目录后，包会出现在这里。'}</div>}
-      {[...groups].map(([scope, packs]) => <section className="hl-pack-group" key={scope}><h2>{scope}<span>{packs.length} 个版本</span></h2>
-        {packs.map(entry => {
+      {loading && <p role="status">正在汇总包与工作流…</p>}
+      {!loading && !visible.length && <div className="hl-pack-empty">{entries.length ? '没有符合筛选条件的包。' : '还没有发现包。连接计算节点或前往社区安装包。'}</div>}
+      {(selectedEntry ? [selectedEntry] : []).map(entry => {
           const selectedNode = nodes.find(node => node.node_id === nodeId);
           const installed = !!nodeId && installedOn(entry, nodeId);
           const current = central[statusKey(entry)];
@@ -183,8 +199,7 @@ export function PackManager({onBack, onOpenLibrary, onOpenWorkflow}: {
             </details>
           </article>;
         })}
-      </section>)}
-      </div>
+      </section></div></div>
     </main>
   </div>;
 }
