@@ -142,6 +142,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const report = checks.reports[entry.key];
     const requires = entry.catalog ? entry.catalog.requires : entry.release?.requires;
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
+    const sourceLocation = source || entry.catalog?.source_dir || entry.catalog?.manifest_path;
     const historicalNodes = entry.inventory.filter(item => !entry.catalog?.node_ids.includes(item.node_id));
     const canInstall = !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
     const breadcrumbCategory = categoryTrail(entry);
@@ -152,7 +153,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       {entry.catalog?.description && <p className="hl-local-description">{entry.catalog.description}</p>}
       <dl className="hl-pack-facts">
         <div className="hl-pack-code-identity"><dt>代码身份</dt><dd><EvidenceValue value={current?.data?.code_sha256 ?? entry.catalog?.publication?.code_sha256 ?? '尚未校验；查询当前发布状态可读取本地代码身份'} /></dd></div>
-        <div><dt>来源</dt><dd>{hasRegistry ? '注册表' : entry.catalog ? '本地' : '来源未确认'}{(source || entry.catalog?.source_dir || entry.catalog?.manifest_path) && <EvidenceValue value={source || entry.catalog?.source_dir || entry.catalog?.manifest_path} />}</dd></div>
+        <div className="hl-pack-source"><dt>来源</dt><dd><span>{hasRegistry ? '注册表' : entry.catalog ? '本地' : '来源未确认'}</span>{sourceLocation && <EvidenceValue value={sourceLocation} truncate={false} />}</dd></div>
         <div><dt>安装状态</dt><dd>{!nodeId ? '请先选择检查目标' : installed ? '当前节点已发现' : entry.inventory.some(item => item.node_id === nodeId) ? '仅有历史安装记录，当前未确认' : '当前节点未发现'}
           <small>{entry.catalog?.node_ids.length ? `在线提供：${entry.catalog.node_ids.map(id => nodes.find(n => n.node_id === id)?.node_name || id).join('、')}` : '当前没有在线节点提供'}
             {historicalNodes.length > 0 && `；也曾装于 ${historicalNodes.map(item => item.node_name || item.node_id).join('、')}（${historicalNodes.some(item => !item.online) ? '离线' : '历史记录'}）`}

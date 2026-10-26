@@ -23,6 +23,8 @@
 .hl-pack-facts dt { font-size: var(--fs-xs); color: var(--text-muted); margin-bottom: var(--space-1); }
 .hl-pack-facts dd { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); min-width: 0; }
 .hl-pack-facts small { color: var(--text-muted); }
+.hl-pack-source { grid-column: 1 / -1; }
+.hl-evidence-full { display: block; box-sizing: border-box; width: 100%; max-width: 100%; padding: var(--space-2); overflow-x: auto; overflow-y: hidden; white-space: nowrap; font-family: var(--font-mono); line-height: var(--lh-normal); color: var(--text-body); background: var(--surface-alt); user-select: text; }
 .hl-pack-section { padding-block: var(--space-2); border-top: 1px solid var(--border-subtle); }
 .hl-pack-section p { color: var(--text-muted); line-height: var(--lh-normal); }
 .hl-pack-usage { padding: var(--space-3); background: var(--surface-alt); margin-top: var(--space-2); }
