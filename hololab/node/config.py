@@ -20,7 +20,10 @@ class NodeConfig(BaseModel):
     """Machine-specific node settings, loaded from ``config.yaml``."""
 
     model_config = ConfigDict(extra="forbid")
-    pack_sources: list[str] = Field(default_factory=list)
+    pack_sources: list[str] = Field(
+        default_factory=list,
+        description="Registry root URLs, e.g. https://packs.xenotech.studio/ (not /packs/ or /simple/).",
+    )
 
     @field_validator("pack_sources")
     @classmethod

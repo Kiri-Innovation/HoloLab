@@ -7,15 +7,21 @@ order: 90
 
 **注册表服务不开源，接口行为以本文档为准。** 本文面向第三方发布、查询、下载及安装客户端；无需访问站点源码。文档核对日期：2026-10-26。示例均取自真实 HTTP 响应或已有真实验收记录，时间、包数量和 yank 状态是采样时的快照，不代表当前目录内容或规模。
 
-公开服务根地址：`https://packs.xenotech.studio/`。源列表应配置这个根地址，不能配置成 `/simple/`；配方只记录 `scope/name@version` 和期望代码哈希，不把源地址嵌入包身份。
+公开服务根地址：`https://packs.xenotech.studio/`。源列表应配置这个根地址，不能配置成 `/packs/`；配方只记录 `scope/name@version` 和期望代码哈希，不把源地址嵌入包身份。
+
+**URL 契约更新（2026-10-26）：** 元数据使用 `/packs/` 和 `/packs/<scope>/<name>/`，归档使用 `/files/<archive_sha256>.tgz`。旧 `/simple/*` **302** 到对应的 `/packs/*`；目标契约将旧 `/packages/*` 下线并返回 **404**。源配置必须是源根，不能是 `/packs/` 或 `/simple/`。精确安装只取目标包元数据，不拉包名清单或 `/index.json`。HoloLab 保留显式只读旧索引读取，以及本地 `file://` 发布目录的兜底；HTTP 解析不回退到全站索引。
+
+**部署观测：** 本次迁移复核时，`registry-smoke/hello-20261025184133@0.0.1` 的旧归档 URL 仍返回 302 到对应 `/files/` URL，与下线契约有差异；客户端必须使用 Release.archive，不能依赖这个旧地址重定向。
+
+下文历史响应示例保留采样时的元数据与 yank 状态，端点路径和 archive 值已按新契约更新，不是旧 URL 的逐字原始响应。早先的实现核对与写操作证据仍属历史记录，本次 URL 迁移不代表重新测试了写接口。
 
 ## 1. 接口总览与公共约定
 
 | 方法 | 路径 | 用途 | 鉴权 |
 |---|---|---|---|
-| GET / HEAD | `/simple/` | 全站包名清单 | 无 |
-| GET / HEAD | `/simple/<scope>/<name>/` | 指定包的所有已提交版本 | 无 |
-| GET / HEAD | `/packages/<scope>/<name>/<version>/<sha>.tgz` | 下载归档；sha 为 code_sha256 | 无 |
+| GET / HEAD | `/packs/` | 全站包名清单 | 无 |
+| GET / HEAD | `/packs/<scope>/<name>/` | 指定包的所有已提交版本 | 无 |
+| GET / HEAD | `/files/<archive_sha256>.tgz` | 下载内容寻址归档；哈希为 archive_sha256 | 无 |
 | GET / HEAD | `/index.json` | 动态生成的全量只读兼容入口 | 无 |
 | GET | `/healthz` | 受限健康诊断；**公网不可用，公网 404** | 应用本身不校验 token，但未公开 |
 | POST | `/publish` | 发布一个不可变版本 | Bearer token |
@@ -27,11 +33,11 @@ order: 90
 - 请求直接使用 HTTPS。HTTP 入口返回 **308** 到相同路径的 HTTPS 地址；不要先通过明文 HTTP 发送 token。
 - 按表中拼写请求路径：读包路径保留末尾 `/`，写端点没有末尾 `/`。不要依赖自动补斜杠或重定向行为。
 - JSON 文本使用 UTF-8。不要依赖对象键顺序。写请求的字段类型应严格按表填写，不依赖类型自动转换；禁止 NaN/Infinity 等非标准 JSON 数值。
-- `/simple/`、单包元数据、`/index.json` 没有分页、游标、过滤、版本查询参数或条件请求契约。未定义的查询参数不具有过滤作用。一个包的所有版本一次返回；版本字典不承诺排序。
+- `/packs/`、单包元数据、`/index.json` 没有分页、游标、过滤、版本查询参数或条件请求契约。未定义的查询参数不具有过滤作用。一个包的所有版本一次返回；版本字典不承诺排序。
 - `Accept: application/vnd.pypi.simple.v1+json` 可用于三个元数据读接口，返回相同 Content-Type；省略 Accept 返回 `application/json`。当前实现按 Accept 文本是否包含该媒体类型选择，**不实现完整 q 值协商**。`Accept: text/html` 仍返回 JSON，不提供 HTML 索引，也不返回 406。
 - 路径和查询粒度参考 PyPI simple index，但正文是本文定义的 **HoloLab Index/Release**，不是标准 PyPI 的 files/hashes schema，不能据此用 pip 安装。
 - 元数据真源是 SQLite；对象存储上的旧全站 JSON 已退出读写链路。发布提交前不出现在查询中。列包和随后查询版本是独立请求，不是一个跨请求快照。
-- 公开接口目前不提供浏览器跨域 CORS 契约；实测 OPTIONS `/simple/` 返回 403。浏览器跨源写入会受预检限制，建议从应用服务端或命令行对接。
+- 公开接口目前不提供浏览器跨域 CORS 契约；实测 OPTIONS `/packs/` 返回 403。浏览器跨源写入会受预检限制，建议从应用服务端或命令行对接。
 
 ## 2. 身份、版本与两类哈希
 
@@ -48,7 +54,7 @@ order: 90
 
 例如 `kiri/foo@1.2.3` 合法。大写、点号包名、空格、中文、前导 `_`/`-`、额外 `/`、`..`、URL 编码路径绕过都不属于合法规范名。版本拒绝 `v1.2.3`、`1.2`、`01.2.3`、`1.2.3-rc1`、`1.2.3+build`、范围表达式。
 
-**别名是客户端规则：`foo ≡ kiri/foo`。** 客户端在构造请求 URL 前先补默认 scope：`foo@1.2.3` 请求 `/simple/kiri/foo/`，不能请求 `/simple/foo/`（实测 404）。写 API 始终分开传 `scope="kiri"`、`name="foo"`。manifest 中 name 允许相同的无 scope 别名，但规范化后必须与上传元数据一致。没有 PyPI 风格的大小写、`.`/`_`/`-` 合并规范化。
+**别名是客户端规则：`foo ≡ kiri/foo`。** 客户端在构造请求 URL 前先补默认 scope：`foo@1.2.3` 请求 `/packs/kiri/foo/`，不能请求 `/packs/foo/`（实测 404）。写 API 始终分开传 `scope="kiri"`、`name="foo"`。manifest 中 name 允许相同的无 scope 别名，但规范化后必须与上传元数据一致。没有 PyPI 风格的大小写、`.`/`_`/`-` 合并规范化。
 
 HoloLab 开发态允许 `1.2.3+` 表示 dev 标记；**中央发布和 yank/unyank 均不接受尾随 `+`**。发布者必须先冻结为三段数字正式版本；归档 manifest.version 也必须与 metadata.version 完全一致。
 
@@ -59,7 +65,7 @@ HoloLab 开发态允许 `1.2.3+` 表示 dev 标记；**中央发布和 yank/unya
 | archive_sha256 | 上传 `.tgz` 的原始压缩字节，含 gzip/tar 元信息 | 流式重算、比对声明；对象存储写后/已有对象回读比对 | 下载时流式重算，并核对 archive_bytes |
 | code_sha256 | HoloLab 声明范围的代码内容身份 | 只检查 64 位小写十六进制格式，原样记录发布者声明；**不重算** | 与配方期望哈希比对，解包后重算代码身份再比对 |
 
-两个字段都是 64 位小写 hex，不接受 `sha256:` 前缀。即使代码相同，重新打包也可能改变 archive_sha256。归档 URL 中的 `<sha>` 是 **code_sha256**；不要用 archive_sha256 拼 URL，优先直接解析 Release.archive。
+两个字段都是 64 位小写 hex，不接受 `sha256:` 前缀。即使代码相同，重新打包也可能改变 archive_sha256。归档 URL 为 `/files/<archive_sha256>.tgz`，文件名是**归档字节哈希**，不是 code_sha256。下载后必须验证 `sha256(下载字节) == archive_sha256 == 文件名哈希`，解包后再独立重算 code_sha256。优先相对源根解析 Release.archive。
 
 `evidence` 和 `external` 是发布方声明，不是服务端签名或完整性证明；仅比较 evidence.sha256 和 code_sha256 不构成独立验证。FORMAT=2 代码身份计算约定见第 12 节。
 
@@ -67,7 +73,7 @@ HoloLab 开发态允许 `1.2.3+` 表示 dev 标记；**中央发布和 yank/unya
 
 包体存储目前允许公众写入，第三方可绕过发布接口篡改归档。本站对不可变的保证限于发布 API，不是对象存储层的绝对防篡改；下载客户端必须校验两类哈希，并建议由配方固定可信的预期 code_sha256。
 
-## 3. GET /simple/：列出包名
+## 3. GET /packs/：列出包名
 
 **用途：** 展示“有哪些包”。已知包名的安装流程直接请求单包 URL，不需要先列全站。
 
@@ -75,7 +81,7 @@ HoloLab 开发态允许 `1.2.3+` 表示 dev 标记；**中央发布和 yank/unya
 
 ```sh
 curl --fail-with-body -H 'Accept: application/vnd.pypi.simple.v1+json' \
-  'https://packs.xenotech.studio/simple/'
+  'https://packs.xenotech.studio/packs/'
 ```
 
 **响应：** 200；顶层 projects 为数组，每个元素只有 name（string，规范 scope/name）。按 scope/name 排序、去重，只要包有已提交版本就出现，**包括所有版本均 yanked 的包**。无包时 projects 为空数组，无 total/next/cursor。
@@ -99,7 +105,7 @@ curl --fail-with-body -H 'Accept: application/vnd.pypi.simple.v1+json' \
 
 **错误：** 非 GET/HEAD 方法公开入口通常 403 HTML；服务不可达可有 502/504，客户端不可把失败当作空清单。未实现分页，客户端应对响应体设置合理上限。
 
-## 4. GET /simple/<scope>/<name>/：查询单包版本
+## 4. GET /packs/<scope>/<name>/：查询单包版本
 
 **用途：** 取得该包所有已提交版本，包括 yanked 版本，以精确版本查找、显示或检查安装状态。
 
@@ -107,7 +113,7 @@ curl --fail-with-body -H 'Accept: application/vnd.pypi.simple.v1+json' \
 
 ```sh
 curl --fail-with-body -H 'Accept: application/vnd.pypi.simple.v1+json' \
-  'https://packs.xenotech.studio/simple/registry-smoke/hello-20261025184133/'
+  'https://packs.xenotech.studio/packs/registry-smoke/hello-20261025184133/'
 ```
 
 **响应：** 200，Index 对象：
@@ -128,7 +134,7 @@ curl --fail-with-body -H 'Accept: application/vnd.pypi.simple.v1+json' \
 | version | string | 已发布的三段数字版本，不含 dev + |
 | code_sha256 | string | 发布方声明的代码身份，64 位小写 hex |
 | archive_sha256 | string | 上传归档字节的 SHA-256，经服务端复核 |
-| archive | string | 相对**源根 URL**的安全路径，形如 packages/scope/name/version/code_sha256.tgz；不是相对当前单包 URL |
+| archive | string | 相对**源根 URL**的安全路径，形如 files/<archive_sha256>.tgz；不是相对当前单包 URL |
 | archive_bytes | integer > 0 | 压缩归档精确字节数 |
 | unpacked_bytes | integer ≥ 0 | tar 成员声明大小总和（合法目录大小为零），由服务端校验并统计；不含 tar 头/填充和文件系统块开销 |
 | manifest | string | 归档根内的相对 manifest 路径，默认 manifest.yaml |
@@ -154,7 +160,7 @@ curl --fail-with-body -H 'Accept: application/vnd.pypi.simple.v1+json' \
       "version": "0.0.1",
       "code_sha256": "d9507411fd839fd3b4822711ac1f5dfc4526ffbb72ebf0f2764f6249ae525688",
       "archive_sha256": "2a0337cf8bc140d6c639ef686f6209c3e3245481a4cedbbc29c7ff05d60fa891",
-      "archive": "packages/registry-smoke/hello-20261025184133/0.0.1/d9507411fd839fd3b4822711ac1f5dfc4526ffbb72ebf0f2764f6249ae525688.tgz",
+      "archive": "files/2a0337cf8bc140d6c639ef686f6209c3e3245481a4cedbbc29c7ff05d60fa891.tgz",
       "archive_bytes": 343,
       "unpacked_bytes": 261,
       "manifest": "manifest.yaml",
@@ -269,16 +275,16 @@ curl --fail-with-body -H 'Accept: application/vnd.pypi.simple.v1+json' \
 
 - 404、真实响应：`{"detail":"Package not found"}`：合法路径但没有已提交版本。
 - 422、真实响应：`{"detail":"Invalid package name"}`：例如 scope 包含 `!`。
-- 404、真实响应：`{"detail":"Not Found"}`：例如误请求 `/simple/foo/`，路由形状不对。
+- 404、真实响应：`{"detail":"Not Found"}`：例如误请求 `/packs/foo/`，路由形状不对。
 - 请求包存在但所需版本不存在时，服务仍返回该包完整 200；**由客户端在 releases 中判断精确版本缺失**，不是服务端版本查询 404。
 
-## 5. GET /packages/<scope>/<name>/<version>/<sha>.tgz：下载归档
+## 5. GET /files/<archive_sha256>.tgz：下载归档
 
 **用途：** 取得 Release.archive 指向的 tar+gzip 字节。无鉴权，无 body；也支持 HEAD。
 
 ```sh
 curl --fail-with-body --output package.tgz \
-  'https://packs.xenotech.studio/packages/registry-smoke/hello-20261025184133/0.0.1/d9507411fd839fd3b4822711ac1f5dfc4526ffbb72ebf0f2764f6249ae525688.tgz'
+  'https://packs.xenotech.studio/files/2a0337cf8bc140d6c639ef686f6209c3e3245481a4cedbbc29c7ff05d60fa891.tgz'
 ```
 
 **响应：** 200 二进制 `.tgz`，不是 JSON。本站代理腾讯云 COS 获取包体，**正常下载不返回 302**；不要求客户端持有 COS 凭据或自行签名。以下是此次真实调用的表示头：
@@ -312,7 +318,7 @@ Content-Type: application/json
 Cache-Control: no-store
 Vary: Accept
 Deprecation: true
-Link: </simple/>; rel="successor-version"
+Link: </packs/>; rel="successor-version"
 ```
 
 **真实 JSON 示例：** 以下是 2026-10-26 历史 `/index.json` 调用的完整响应，其中条目用于说明响应结构，不代表当前目录规模。使用 vnd JSON Accept 时，只改变媒体类型，不改变 schema。
@@ -327,7 +333,7 @@ Link: </simple/>; rel="successor-version"
       "version": "0.0.1",
       "code_sha256": "d9507411fd839fd3b4822711ac1f5dfc4526ffbb72ebf0f2764f6249ae525688",
       "archive_sha256": "2a0337cf8bc140d6c639ef686f6209c3e3245481a4cedbbc29c7ff05d60fa891",
-      "archive": "packages/registry-smoke/hello-20261025184133/0.0.1/d9507411fd839fd3b4822711ac1f5dfc4526ffbb72ebf0f2764f6249ae525688.tgz",
+      "archive": "files/2a0337cf8bc140d6c639ef686f6209c3e3245481a4cedbbc29c7ff05d60fa891.tgz",
       "archive_bytes": 343,
       "unpacked_bytes": 261,
       "manifest": "manifest.yaml",
@@ -442,7 +448,7 @@ Link: </simple/>; rel="successor-version"
 
 **用途：** 报告未完成操作数及已提交版本数。**不属于外部可调用的公开端点**；不存在需另外提交的“健康检查 token”。
 
-**公开请求：** `GET https://packs.xenotech.studio/healthz` 实测 **404 text/html**，不是 JSON，不说明注册表不健康。第三方连通性检查应改用 `GET /simple/`。
+**公开请求：** `GET https://packs.xenotech.studio/healthz` 实测 **404 text/html**，不是 JSON，不说明注册表不健康。第三方连通性检查应改用 `GET /packs/`。
 
 应用实际诊断响应已通过受限访问只读核验，200 正文为：
 
@@ -517,7 +523,7 @@ curl --fail-with-body -X POST 'https://packs.xenotech.studio/publish' \
 ```json
 {
   "release": {
-    "archive": "packages/registry-smoke/simple-check-20261026114725/0.0.1/0000000000000000000000000000000000000000000000000000000000000000.tgz",
+    "archive": "files/178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253.tgz",
     "archive_bytes": 232,
     "archive_sha256": "178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253",
     "code_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -604,7 +610,7 @@ curl --fail-with-body -X POST 'https://packs.xenotech.studio/yank' \
 ```json
 {
   "release": {
-    "archive": "packages/registry-smoke/simple-check-20261026114725/0.0.1/0000000000000000000000000000000000000000000000000000000000000000.tgz",
+    "archive": "files/178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253.tgz",
     "archive_bytes": 232,
     "archive_sha256": "178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253",
     "code_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -647,7 +653,7 @@ curl --fail-with-body -X POST 'https://packs.xenotech.studio/unyank' \
 ```json
 {
   "release": {
-    "archive": "packages/registry-smoke/simple-check-20261026114725/0.0.1/0000000000000000000000000000000000000000000000000000000000000000.tgz",
+    "archive": "files/178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253.tgz",
     "archive_bytes": 232,
     "archive_sha256": "178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253",
     "code_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -737,7 +743,7 @@ MiB=1024² 字节，GiB=1024³ 字节。日配额按预留的 publish 操作计�
 | 400 | 无效 Content-Length、multipart 解析/字段数量问题 | 应用 detail 可为 Invalid content length；表单解析器也可能返回自身 detail | 代码确认 |
 | 401 | 缺失/错误 Bearer token | `{"detail":"Invalid bearer token"}` | 此次三个写端点均实测 |
 | 403 | token scope 无权限 | detail 为 Token not authorized for this scope | 代码确认 |
-| 403 | 方法不允许，例如 GET /publish、OPTIONS /simple/ | text/html，403 Forbidden | 此次实测 |
+| 403 | 方法不允许，例如 GET /publish、OPTIONS /packs/ | text/html，403 Forbidden | 此次实测 |
 | 404 | 包不存在 | `{"detail":"Package not found"}` | 此次实测 |
 | 404 | 路由形状不对 | `{"detail":"Not Found"}` 或代理 HTML | 此次实测 |
 | 404 | yank/unyank 版本不存在/未提交 | detail 为 Release not found | 代码确认 |
@@ -770,9 +776,9 @@ MiB=1024² 字节，GiB=1024³ 字节。日配额按预留的 publish 操作计�
 
 | 路径 | 当前缓存行为 | header/代理要点 |
 |---|---|---|
-| `/simple/`、单包元数据、`/index.json` | Cache-Control: no-store，Vary: Accept；禁用代理缓存 | 不主动剥离请求 Authorization/Cookie，但读取不需要它们，客户端不应发送；无承诺的 ETag/304 协商 |
+| `/packs/`、单包元数据、`/index.json` | Cache-Control: no-store，Vary: Accept；禁用代理缓存 | 不主动剥离请求 Authorization/Cookie，但读取不需要它们，客户端不应发送；无承诺的 ETag/304 协商 |
 | `/publish`、`/yank`、`/unyank` | Cache-Control: no-store；不得缓存请求或结果 | Authorization 透传供鉴权；服务重建 Host/转发来源头，不能用自行填写转发 IP 头绕过按连接 IP 的限速 |
-| `/packages/...` | 站点覆盖对象原始缓存头为 no-store，禁用代理缓存 | 发往 COS 前**清空 Authorization 和 Cookie**，重写 Host；不是剥离所有 header，Accept/Range 等仍可能转发 |
+| `/files/...` | 站点覆盖对象原始缓存头为 no-store，禁用代理缓存 | 发往 COS 前**清空 Authorization 和 Cookie**，重写 Host；不是剥离所有 header，Accept/Range 等仍可能转发 |
 
 不要在 CDN 上强制缓存元数据，否则 yank 后仍可能看到旧状态；不要缓存写接口。当前公共写对象存储的风险下，包体 HTTP 响应也不应被 CDN 强制长期缓存。可以在客户端使用**经过双哈希验证的本地内容缓存**，但每次新安装前仍需获取当前元数据并检查 yank；哈希不符立即硬停，不改用另一份缓存或另一源“试到成功”。
 
@@ -788,13 +794,13 @@ MiB=1024² 字节，GiB=1024³ 字节。日配额按预留的 publish 操作计�
 base = "https://packs.xenotech.studio/"
 
 # 可选：展示包名，不用于定位单个已知包
-projects = GET_JSON(base + "simple/").projects
+projects = GET_JSON(base + "packs/").projects
 show(projects[*].name)
 
 (name, version) = parse_exact_spec(user_spec)
 name = canonical_name(name)            # foo -> kiri/foo，然后验证 scope/name
 reject_dev_plus_or_invalid_version(version)
-index = GET_JSON(base + "simple/" + name + "/",
+index = GET_JSON(base + "packs/" + name + "/",
                  Accept="application/vnd.pypi.simple.v1+json")
 require index.format == 1
 require expected_authority == index.authority
@@ -806,7 +812,7 @@ if expected_code_sha256 is set and r.code_sha256 != expected_code_sha256:
 if r.yanked: STOP("拒绝新安装", r.yank_reason)
 
 validate_safe_relative_path(r.archive)  # 拒绝绝对路径、..、反斜杠、冒号、空路径
-url = resolve_relative(base, r.archive) # 相对源根，不相对 /simple/scope/name/
+url = resolve_relative(base, r.archive) # 相对源根，不相对 /packs/scope/name/
 require same_origin(url, base)
 bytes, computed_archive_sha = DOWNLOAD_AND_STREAM_SHA256(url,
                                   maximum_bytes=r.archive_bytes, no_token=true)
@@ -858,22 +864,22 @@ code_sha256 = d9507411fd839fd3b4822711ac1f5dfc4526ffbb72ebf0f2764f6249ae525688
 
 ## 13. 文档证据与未验证范围
 
-本文依据实现版本 `5b749e8` 核对请求模型、存储、发布与恢复流程、归档校验、代理规则、验收脚本，以及 Index/Release 和包名契约。代码身份小节另核对 HoloLab FORMAT=2 算法和安装流程；读者无需访问私有源码。
+历史实现核对依据版本 `5b749e8` 核对请求模型、存储、发布与恢复流程、归档校验、代理规则、验收脚本，以及 Index/Release 和包名契约。代码身份小节另核对 HoloLab FORMAT=2 算法和安装流程；读者无需访问私有源码。
 
 | 范围 | 核验方式 |
 |---|---|
-| GET /simple/、HEAD /simple/ | 本次真实公开 HTTPS 请求，200，包名清单 115 字节 |
+| GET /packs/、HEAD /packs/ | URL 迁移复核：公开 HTTPS GET/HEAD 返回 200；清单大小会变化 |
 | 单包 JSON 与 Accept | 本次 vnd JSON 请求 200；text/html Accept 仍为 JSON 200；原包元数据完整可读 |
 | GET /index.json | 本次 200、4177 字节、3 条 Release；核验 Deprecation/Link/no-store |
 | 包体下载 | 本次公开 GET 200、343 字节；计算归档 SHA，与 Release 一致；正常无 302 |
 | 公开 /healthz 与受限诊断 | 公开 404 HTML；受限只读查询 200，ready=true/pending=0/releases=3 |
 | 包不存在、非法包名、单段别名路径 | 本次分别实测 404/422/404，正文见各端点 |
 | 缺 token 的三个写端点 | 本次分别 POST，全部 401；未触发写入 |
-| 不允许的方法 | 本次 GET /publish 与 OPTIONS /simple/ 为 403 HTML |
+| 不允许的方法 | 本次 GET /publish 与 OPTIONS /packs/ 为 403 HTML |
 | publish 201、同键重放 200、重复版本 409 | 引用 2026-10-26 已执行的真实 HTTPS 验收响应；本次不再发布 |
 | yank/unyank 200 与标记变化 | 引用同次历史真实验收响应；本次未改变任何包状态 |
 | FORMAT=2 | 本次对原冒烟归档做只读、内存重算并匹配 code_sha256；复杂范围分支仅核对代码 |
 | 限速/配额/并发满、超大请求、安全恶意 tar、错误 archive hash、COS 故障恢复、健康非就绪、scope 禁止 | 本次只按实现列明，不对线上注入故障、占配额或进行压力测试 |
 | CDN、Range/条件请求、其它语言完整安装 | 本次未做端到端验证；不额外承诺未实现的行为 |
 
-所有 JSON 成功示例直接取自真实响应，仅重新排版；错误表中未实际触发的条目明确标注“代码确认”，不把推导值包装成实测结果。未包含密钥、真实 Bearer token、受限地址或内部部署步骤。
+JSON 成功示例源于历史真实响应，已重新排版并同步 URL 契约；错误表中未实际触发的条目明确标注“代码确认”，不把推导值包装成实测结果。未包含密钥、真实 Bearer token、受限地址或内部部署步骤。

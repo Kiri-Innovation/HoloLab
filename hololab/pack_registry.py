@@ -92,6 +92,7 @@ def safe_relative(value: str) -> Path:
 
 
 def source_url(value: str) -> str:
+    """Normalize a registry root, not a metadata endpoint such as /packs/ or /simple/."""
     parsed = urlparse(value)
     if parsed.scheme not in {"file", "http", "https"}:
         raise RegistryError("pack source must use file:// or http(s)://")
@@ -109,8 +110,23 @@ def local_source(value: str) -> Path:
     return Path(unquote(parsed.path))
 
 
-def read_index(source: str) -> Index:
-    url = urljoin(source_url(source), "index.json")
+def read_index(source: str, name: str | None = None) -> Index:
+    """Read one package by default at call sites; no name explicitly reads the legacy index.
+
+    Only local legacy publication directories fall back to index.json. HTTP
+    resolution never downloads the whole catalog, even on a missing package.
+    """
+    root = source_url(source)
+    package_name = canonical_name(name) if name is not None else None
+    path = f"packs/{package_name}/" if package_name is not None else "index.json"
+    per_package = package_name is not None
+    if per_package and urlparse(root).scheme == "file":
+        # Static file URLs need a filename; the local publisher still writes index.json.
+        path += "index.json"
+        if not (local_source(root) / path).exists():
+            path = "index.json"
+            per_package = False
+    url = urljoin(root, path)
     try:
         with urlopen(url, timeout=15) as response:
             raw = response.read(16 * 1024 * 1024 + 1)
@@ -118,7 +134,10 @@ def read_index(source: str) -> Index:
         raise SourceUnavailable(f"源不可达: {source}: {exc}") from exc
     if len(raw) > 16 * 1024 * 1024:
         raise RegistryError("registry index exceeds 16 MiB")
-    return Index.model_validate_json(raw)
+    index = Index.model_validate_json(raw)
+    if per_package and any(item.name != package_name for item in index.releases.values()):
+        raise RegistryError("package metadata contains another package")
+    return index
 
 
 def find_release(spec: str, sources: list[str], expected: str | None = None):
@@ -128,7 +147,7 @@ def find_release(spec: str, sources: list[str], expected: str | None = None):
     authority = None
     for source in sources:
         try:
-            index = read_index(source)
+            index = read_index(source, name)
         except SourceUnavailable as exc:
             errors.append(str(exc))
             continue

@@ -217,7 +217,12 @@ def test_http_mirror_and_archive_traversal_rejected(tmp_path, monkeypatch):
 
     _, manifest, _ = package(tmp_path)
     registry = tmp_path / "registry"
-    publish(manifest, registry.as_uri(), "test")
+    release = publish(manifest, registry.as_uri(), "test")
+    metadata = registry / "packs/kiri/demo/index.html"
+    metadata.parent.mkdir(parents=True)
+    metadata.write_text(
+        Index(authority="hololab-central", releases={"kiri/demo@1.0.0": release}).model_dump_json()
+    )
     server = ThreadingHTTPServer(
         ("127.0.0.1", 0), partial(SimpleHTTPRequestHandler, directory=str(registry))
     )

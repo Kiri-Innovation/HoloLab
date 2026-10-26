@@ -7,15 +7,21 @@ order: 90
 
 **The registry service is not open source; this document is its API reference.** It describes the contract for third-party publishing, discovery, download, and installation clients without requiring access to the service source. Documentation verified: 2026-10-26. Examples come from actual HTTP responses or recorded acceptance checks. Timestamps, package counts, and yank states describe those samples, not the current catalog or its size.
 
-Use `https://packs.xenotech.studio/` as the source root in local configuration, not `/simple/`. A recipe records `scope/name@version` and the expected code hash; the source address is separate from package identity.
+Use `https://packs.xenotech.studio/` as the source root in local configuration, not `/packs/`. A recipe records `scope/name@version` and the expected code hash; the source address is separate from package identity.
+
+**URL contract update (2026-10-26):** metadata uses `/packs/` and `/packs/<scope>/<name>/`; archives use `/files/<archive_sha256>.tgz`. Legacy `/simple/*` responds with **302** to the corresponding `/packs/*` endpoint; the target contract retires legacy `/packages/*` with **404**. Configure the source root, never `/packs/` or `/simple/`. Exact installation fetches only the requested package metadata, not the catalog or `/index.json`. HoloLab retains an explicit read-only legacy index reader and a fallback for local `file://` publication directories; HTTP resolution does not fall back to a site-wide index.
+
+**Deployment observation:** the old archive URL for `registry-smoke/hello-20261025184133@0.0.1` still returned 302 to its `/files/` URL during this migration check. This differs from the retirement contract; clients must use Release.archive and must not depend on that legacy redirect.
+
+Historical response examples below retain their sampled metadata and yank states, with archive values and endpoint paths migrated to this contract. They are not verbatim captures of the old URLs. The earlier implementation audit and write-operation evidence remain historical; the URL migration does not claim new write-operation tests.
 
 ## 1. Endpoints and shared conventions
 
 | Method | Path | Purpose | Authentication |
 |---|---|---|---|
-| GET / HEAD | `/simple/` | List package names | None |
-| GET / HEAD | `/simple/<scope>/<name>/` | All committed versions of one package | None |
-| GET / HEAD | `/packages/<scope>/<name>/<version>/<sha>.tgz` | Download an archive; sha is code_sha256 | None |
+| GET / HEAD | `/packs/` | List package names | None |
+| GET / HEAD | `/packs/<scope>/<name>/` | All committed versions of one package | None |
+| GET / HEAD | `/files/<archive_sha256>.tgz` | Download a content-addressed archive; hash is archive_sha256 | None |
 | GET / HEAD | `/index.json` | Dynamically generated, read-only compatibility index | None |
 | GET | `/healthz` | Restricted diagnostics; **public requests return 404** | No application token check, but not exposed publicly |
 | POST | `/publish` | Publish an immutable version | Bearer token |
@@ -27,11 +33,11 @@ Public reads require no token. All three write endpoints require `Authorization:
 - Send requests directly over HTTPS. HTTP redirects to the same HTTPS path with **308**; never send a token over plaintext first.
 - Use the paths exactly as listed: package read paths end in `/`, write endpoints do not. Do not depend on slash correction or redirects.
 - JSON uses UTF-8. Object key order is not significant. Send the documented field types without relying on coercion; NaN, Infinity, and other nonstandard JSON numbers are forbidden.
-- `/simple/`, package metadata, and `/index.json` have no pagination, cursors, filters, version query parameters, or conditional-request contract. Undefined query parameters do not filter results. All versions of a package arrive together, with no promised dictionary order.
+- `/packs/`, package metadata, and `/index.json` have no pagination, cursors, filters, version query parameters, or conditional-request contract. Undefined query parameters do not filter results. All versions of a package arrive together, with no promised dictionary order.
 - The three metadata endpoints accept `Accept: application/vnd.pypi.simple.v1+json` and return that Content-Type. Omitting Accept returns `application/json`. Selection currently tests whether the Accept text contains that media type; **full q-value negotiation is not implemented**. `Accept: text/html` still returns JSON, not HTML or 406.
 - The URL structure borrows from the PyPI simple index, but the body is the **HoloLab Index/Release** schema below, not PyPI's files/hashes schema. It is not a pip installation endpoint.
 - SQLite is the metadata source of truth. The old object-storage JSON index is no longer read or written. Publications become visible only after commit. Listing names and reading versions are separate requests, not a shared snapshot.
-- There is no public browser CORS contract. A recorded OPTIONS request to `/simple/` returned 403. Cross-origin browser writes face preflight restrictions; integrate from an application server or command-line client.
+- There is no public browser CORS contract. A recorded OPTIONS request to `/packs/` returned 403. Cross-origin browser writes face preflight restrictions; integrate from an application server or command-line client.
 
 ## 2. Package identity, versions, and two hashes
 
@@ -48,7 +54,7 @@ A canonical name is `scope/name`. Both components are lowercase ASCII identifier
 
 `kiri/foo@1.2.3` is valid. Uppercase letters, dotted names, whitespace, Chinese characters, leading `_` or `-`, extra `/`, `..`, and URL-encoded path bypasses are not valid canonical names. Versions such as `v1.2.3`, `1.2`, `01.2.3`, `1.2.3-rc1`, `1.2.3+build`, and ranges are rejected.
 
-**Aliases are resolved by the client: `foo ≡ kiri/foo`.** Add the default scope before constructing a URL: `foo@1.2.3` uses `/simple/kiri/foo/`, not `/simple/foo/` (recorded response: 404). Write APIs always receive separate `scope="kiri"` and `name="foo"` fields. A manifest name may use the same unscoped alias, but its canonical identity must match the upload metadata. There is no PyPI-style case folding or normalization that merges `.`, `_`, and `-`.
+**Aliases are resolved by the client: `foo ≡ kiri/foo`.** Add the default scope before constructing a URL: `foo@1.2.3` uses `/packs/kiri/foo/`, not `/packs/foo/` (recorded response: 404). Write APIs always receive separate `scope="kiri"` and `name="foo"` fields. A manifest name may use the same unscoped alias, but its canonical identity must match the upload metadata. There is no PyPI-style case folding or normalization that merges `.`, `_`, and `-`.
 
 HoloLab supports `1.2.3+` as a runnable development version. **Publication, yank, and unyank reject the trailing `+`.** Freeze the package to a three-component numeric release first. The archive's manifest.version must exactly match metadata.version.
 
@@ -59,7 +65,7 @@ HoloLab supports `1.2.3+` as a runnable development version. **Publication, yank
 | archive_sha256 | Raw compressed `.tgz` bytes, including gzip/tar metadata | Recompute while streaming; compare the declaration and read back newly written or existing objects | Recompute on download and verify archive_bytes |
 | code_sha256 | Code identity within HoloLab's declared scope | Validate 64 lowercase hexadecimal characters and record the publisher's value; **do not recompute it** | Compare with the recipe's expected hash, then recompute from extracted files |
 
-Both values are 64-character lowercase hex strings without a `sha256:` prefix. Repacking unchanged code can change archive_sha256. The archive URL's `<sha>` is **code_sha256**, not archive_sha256; prefer resolving Release.archive over constructing a path yourself.
+Both values are 64-character lowercase hex strings without a `sha256:` prefix. Repacking unchanged code can change archive_sha256. The archive URL is `/files/<archive_sha256>.tgz`: its filename is the **archive byte hash**, not code_sha256. Verify `sha256(downloaded_bytes) == archive_sha256 == filename_hash`, then independently recompute code_sha256 from the extracted content. Resolve Release.archive relative to the source root.
 
 `evidence` and `external` are publisher declarations, not server signatures or proofs of integrity. Comparing evidence.sha256 with code_sha256 is not independent verification. Section 12 defines FORMAT=2 code identity.
 
@@ -67,7 +73,7 @@ A published name and version remain reserved permanently, including after yank. 
 
 Object storage currently permits public writes, so a third party can bypass the publication API and alter archive objects. Immutability is an API guarantee, not absolute storage-level tamper protection. Download clients must verify both hashes; recipes should pin a trusted expected code_sha256.
 
-## 3. GET /simple/: list package names
+## 3. GET /packs/: list package names
 
 Use this endpoint to display the catalog. Installation of a known package can go directly to its package URL.
 
@@ -75,7 +81,7 @@ Use this endpoint to display the catalog. Installation of a known package can go
 
 ```sh
 curl --fail-with-body -H 'Accept: application/vnd.pypi.simple.v1+json' \
-  'https://packs.xenotech.studio/simple/'
+  'https://packs.xenotech.studio/packs/'
 ```
 
 **Response:** 200 with a top-level projects array. Each entry has only name, a canonical `scope/name` string. Names are sorted and deduplicated. Any package with a committed version appears, **even if all its versions are yanked**. An empty catalog returns an empty array, without total, next, or cursor.
@@ -99,7 +105,7 @@ Headers include `Cache-Control: no-store` and `Vary: Accept`. HEAD has no body a
 
 **Errors:** methods other than GET/HEAD usually receive public-edge 403 HTML. Service failures can produce 502/504; do not interpret them as an empty catalog. There is no pagination, so apply a reasonable response-size limit.
 
-## 4. GET /simple/<scope>/<name>/: read package versions
+## 4. GET /packs/<scope>/<name>/: read package versions
 
 Retrieve every committed version of a package, including yanked versions, for exact-version lookup, display, or installation checks.
 
@@ -107,7 +113,7 @@ Retrieve every committed version of a package, including yanked versions, for ex
 
 ```sh
 curl --fail-with-body -H 'Accept: application/vnd.pypi.simple.v1+json' \
-  'https://packs.xenotech.studio/simple/registry-smoke/hello-20261025184133/'
+  'https://packs.xenotech.studio/packs/registry-smoke/hello-20261025184133/'
 ```
 
 **Response:** 200 with an Index object:
@@ -128,7 +134,7 @@ Current responses include every field below. Nullable fields use JSON null, neve
 | version | string | Published three-component numeric version, without development + |
 | code_sha256 | string | Publisher-declared code identity, 64 lowercase hex characters |
 | archive_sha256 | string | SHA-256 of uploaded archive bytes, verified by the server |
-| archive | string | Safe path relative to the **source root URL**, such as packages/scope/name/version/code_sha256.tgz; not relative to the package metadata URL |
+| archive | string | Safe path relative to the **source root URL**, such as files/<archive_sha256>.tgz; not relative to the package metadata URL |
 | archive_bytes | integer > 0 | Exact compressed archive size |
 | unpacked_bytes | integer ≥ 0 | Server-validated sum of declared tar member sizes; valid directories contribute zero; excludes tar headers, padding, and filesystem block overhead |
 | manifest | string | Relative manifest path inside the archive root; default manifest.yaml |
@@ -154,7 +160,7 @@ Recorded response from a protocol test package, checked by a read request:
       "version": "0.0.1",
       "code_sha256": "d9507411fd839fd3b4822711ac1f5dfc4526ffbb72ebf0f2764f6249ae525688",
       "archive_sha256": "2a0337cf8bc140d6c639ef686f6209c3e3245481a4cedbbc29c7ff05d60fa891",
-      "archive": "packages/registry-smoke/hello-20261025184133/0.0.1/d9507411fd839fd3b4822711ac1f5dfc4526ffbb72ebf0f2764f6249ae525688.tgz",
+      "archive": "files/2a0337cf8bc140d6c639ef686f6209c3e3245481a4cedbbc29c7ff05d60fa891.tgz",
       "archive_bytes": 343,
       "unpacked_bytes": 261,
       "manifest": "manifest.yaml",
@@ -269,16 +275,16 @@ This sample release was yanked. It illustrates the protocol and is not an instal
 
 - 404, recorded body `{"detail":"Package not found"}`: valid path, no committed versions.
 - 422, recorded body `{"detail":"Invalid package name"}`: for example, a scope containing `!`.
-- 404, recorded body `{"detail":"Not Found"}`: incorrect route shape, such as `/simple/foo/`.
+- 404, recorded body `{"detail":"Not Found"}`: incorrect route shape, such as `/packs/foo/`.
 - An existing package still returns 200 when the desired version is absent. **The client detects a missing exact-version key in releases**; there is no server-side version-query 404.
 
-## 5. GET /packages/<scope>/<name>/<version>/<sha>.tgz: download an archive
+## 5. GET /files/<archive_sha256>.tgz: download an archive
 
 Download the tar+gzip bytes identified by Release.archive. No authentication or body is needed; HEAD is also supported.
 
 ```sh
 curl --fail-with-body --output package.tgz \
-  'https://packs.xenotech.studio/packages/registry-smoke/hello-20261025184133/0.0.1/d9507411fd839fd3b4822711ac1f5dfc4526ffbb72ebf0f2764f6249ae525688.tgz'
+  'https://packs.xenotech.studio/files/2a0337cf8bc140d6c639ef686f6209c3e3245481a4cedbbc29c7ff05d60fa891.tgz'
 ```
 
 **Response:** 200 with binary `.tgz` data, not JSON. The service proxies Tencent Cloud COS; **normal downloads do not return 302**. Clients need neither COS credentials nor request signing. Recorded representation headers:
@@ -312,7 +318,7 @@ Content-Type: application/json
 Cache-Control: no-store
 Vary: Accept
 Deprecation: true
-Link: </simple/>; rel="successor-version"
+Link: </packs/>; rel="successor-version"
 ```
 
 **Recorded JSON example:** this complete response was captured on 2026-10-26. Its entries illustrate the schema, not the current catalog size. Requesting the vnd JSON media type changes only Content-Type, not the schema.
@@ -327,7 +333,7 @@ Link: </simple/>; rel="successor-version"
       "version": "0.0.1",
       "code_sha256": "d9507411fd839fd3b4822711ac1f5dfc4526ffbb72ebf0f2764f6249ae525688",
       "archive_sha256": "2a0337cf8bc140d6c639ef686f6209c3e3245481a4cedbbc29c7ff05d60fa891",
-      "archive": "packages/registry-smoke/hello-20261025184133/0.0.1/d9507411fd839fd3b4822711ac1f5dfc4526ffbb72ebf0f2764f6249ae525688.tgz",
+      "archive": "files/2a0337cf8bc140d6c639ef686f6209c3e3245481a4cedbbc29c7ff05d60fa891.tgz",
       "archive_bytes": 343,
       "unpacked_bytes": 261,
       "manifest": "manifest.yaml",
@@ -442,7 +448,7 @@ Link: </simple/>; rel="successor-version"
 
 This diagnostic reports unfinished operations and committed releases. **It is not a publicly callable endpoint**, and there is no separate health-check token for external clients.
 
-**Public request:** `GET https://packs.xenotech.studio/healthz` returned **404 text/html**, not JSON. That response does not mean the registry is unhealthy. Use `GET /simple/` for third-party connectivity checks.
+**Public request:** `GET https://packs.xenotech.studio/healthz` returned **404 text/html**, not JSON. That response does not mean the registry is unhealthy. Use `GET /packs/` for third-party connectivity checks.
 
 A restricted, read-only diagnostic check recorded this 200 body:
 
@@ -517,7 +523,7 @@ A new publication returns **201**. The JSON envelope contains release, the compl
 ```json
 {
   "release": {
-    "archive": "packages/registry-smoke/simple-check-20261026114725/0.0.1/0000000000000000000000000000000000000000000000000000000000000000.tgz",
+    "archive": "files/178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253.tgz",
     "archive_bytes": 232,
     "archive_sha256": "178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253",
     "code_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -604,7 +610,7 @@ curl --fail-with-body -X POST 'https://packs.xenotech.studio/yank' \
 ```json
 {
   "release": {
-    "archive": "packages/registry-smoke/simple-check-20261026114725/0.0.1/0000000000000000000000000000000000000000000000000000000000000000.tgz",
+    "archive": "files/178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253.tgz",
     "archive_bytes": 232,
     "archive_sha256": "178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253",
     "code_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -647,7 +653,7 @@ The recorded unyank check used the same body as the yank check, with a separate 
 ```json
 {
   "release": {
-    "archive": "packages/registry-smoke/simple-check-20261026114725/0.0.1/0000000000000000000000000000000000000000000000000000000000000000.tgz",
+    "archive": "files/178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253.tgz",
     "archive_bytes": 232,
     "archive_sha256": "178a676182714991b8afad3fc0e4f6878e251db146d402aebd8e6ee6d28fe253",
     "code_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -735,7 +741,7 @@ Application errors normally contain detail:string in a JSON object; storage-rela
 | 400 | Invalid Content-Length, multipart parsing or field counts | Application detail may be Invalid content length; parser may supply its own detail | Implementation review |
 | 401 | Missing/invalid Bearer token | `{"detail":"Invalid bearer token"}` | Observed at all three write endpoints |
 | 403 | Token lacks scope access | Token not authorized for this scope | Implementation review |
-| 403 | Disallowed method, e.g. GET /publish or OPTIONS /simple/ | text/html, 403 Forbidden | Observed |
+| 403 | Disallowed method, e.g. GET /publish or OPTIONS /packs/ | text/html, 403 Forbidden | Observed |
 | 404 | No package | `{"detail":"Package not found"}` | Observed |
 | 404 | Wrong route shape | `{"detail":"Not Found"}` or proxy HTML | Observed |
 | 404 | Missing/uncommitted yank or unyank target | Release not found | Implementation review |
@@ -768,9 +774,9 @@ Metadata cache headers below describe successful responses. Application errors s
 
 | Path | Current cache behavior | Header and proxy details |
 |---|---|---|
-| `/simple/`, package metadata, `/index.json` | Cache-Control: no-store, Vary: Accept; proxy caching disabled | Authorization/Cookie are not actively stripped, but reads need neither and clients should omit them; no promised ETag/304 negotiation |
+| `/packs/`, package metadata, `/index.json` | Cache-Control: no-store, Vary: Accept; proxy caching disabled | Authorization/Cookie are not actively stripped, but reads need neither and clients should omit them; no promised ETag/304 negotiation |
 | `/publish`, `/yank`, `/unyank` | Cache-Control: no-store; do not cache requests or results | Authorization is forwarded for validation; the service reconstructs Host and forwarding-origin headers; caller-supplied forwarding IP headers cannot bypass connection-IP rate limits |
-| `/packages/...` | Site replaces object cache headers with no-store; proxy caching disabled | **Authorization and Cookie are cleared** before COS, and Host is rewritten; other headers such as Accept/Range may still be forwarded |
+| `/files/...` | Site replaces object cache headers with no-store; proxy caching disabled | **Authorization and Cookie are cleared** before COS, and Host is rewritten; other headers such as Accept/Range may still be forwarded |
 
 Do not force metadata caching at a CDN: stale data can hide a yank. Never cache write endpoints. Given current public-write object storage, do not force long-lived CDN caching of archive responses either. A client may keep a **local content cache verified with both hashes**, but every new installation still needs current metadata and a yank check. Hash mismatch is a hard stop, not a reason to try another cached copy or source until one succeeds.
 
@@ -786,13 +792,13 @@ This flow installs a new package. Listing is optional UI work; exact-version ins
 base = "https://packs.xenotech.studio/"
 
 # Optional catalog display; unnecessary for a known package
-projects = GET_JSON(base + "simple/").projects
+projects = GET_JSON(base + "packs/").projects
 show(projects[*].name)
 
 (name, version) = parse_exact_spec(user_spec)
 name = canonical_name(name)            # foo -> kiri/foo; then validate scope/name
 reject_dev_plus_or_invalid_version(version)
-index = GET_JSON(base + "simple/" + name + "/",
+index = GET_JSON(base + "packs/" + name + "/",
                  Accept="application/vnd.pypi.simple.v1+json")
 require index.format == 1
 require expected_authority == index.authority
@@ -804,7 +810,7 @@ if expected_code_sha256 is set and r.code_sha256 != expected_code_sha256:
 if r.yanked: STOP("New installation prohibited", r.yank_reason)
 
 validate_safe_relative_path(r.archive)  # Reject absolute paths, .., backslashes, colons, and empty paths
-url = resolve_relative(base, r.archive) # Relative to source root, not /simple/scope/name/
+url = resolve_relative(base, r.archive) # Relative to source root, not /packs/scope/name/
 require same_origin(url, base)
 bytes, computed_archive_sha = DOWNLOAD_AND_STREAM_SHA256(url,
                                   maximum_bytes=r.archive_bytes, no_token=true)
@@ -856,22 +862,22 @@ The result matches the recorded Release. This vector does not replace tests for 
 
 ## 13. Evidence and verification limits
 
-The documentation review used implementation revision `5b749e8`, covering request models, storage, publication/recovery, archive validation, proxy rules, acceptance scripts, and the Index/Release and package-name contracts. Code identity was additionally checked against HoloLab's FORMAT=2 implementation and installation flow. Readers do not need access to private source files.
+The historical implementation review used revision `5b749e8`, covering request models, storage, publication/recovery, archive validation, proxy rules, acceptance scripts, and the Index/Release and package-name contracts. Code identity was additionally checked against HoloLab's FORMAT=2 implementation and installation flow. Readers do not need access to private source files.
 
 | Area | Verification recorded for this document |
 |---|---|
-| GET /simple/, HEAD /simple/ | Public HTTPS requests, 200; sampled name list was 115 bytes |
+| GET /packs/, HEAD /packs/ | URL migration recheck: public HTTPS GET/HEAD return 200; catalog size may change |
 | Package JSON and Accept | vnd JSON request returned 200; text/html Accept still returned JSON 200; complete sample package metadata readable |
 | GET /index.json | 200; sample was 4177 bytes with 3 releases; Deprecation/Link/no-store checked |
 | Archive download | Public GET 200, 343 bytes; archive SHA matched Release; no normal 302 |
 | Public /healthz and restricted diagnostics | Public 404 HTML; restricted read returned 200, ready=true/pending=0/releases=3 |
 | Missing package, invalid name, unscoped route | Observed 404/422/404; bodies documented above |
 | Three write endpoints without tokens | POST requests all returned 401 without writes |
-| Disallowed methods | GET /publish and OPTIONS /simple/ returned 403 HTML |
+| Disallowed methods | GET /publish and OPTIONS /packs/ returned 403 HTML |
 | publish 201, same-key replay 200, duplicate version 409 | Recorded HTTPS acceptance responses from 2026-10-26; no new publication during the documentation review |
 | yank/unyank 200 and state changes | Same recorded acceptance session; no package-state changes during the documentation review |
 | FORMAT=2 | Read-only in-memory recomputation of the original test archive matched code_sha256; complex scope branches reviewed in code only |
 | Rate/quota/concurrency exhaustion, oversize requests, malicious tar, wrong archive hash, COS recovery, unhealthy diagnostics, scope denial | Implementation review only; no production fault injection, quota consumption, or load testing |
 | CDN, Range/conditional requests, full installers in other languages | Not verified end to end; no additional behavior promised |
 
-Successful JSON examples preserve recorded response data, with whitespace formatting only. Untriggered errors are explicitly marked as implementation review rather than observations. No secrets, real Bearer tokens, restricted addresses, or internal deployment instructions are included.
+Successful JSON examples preserve historical response data, with formatting and URL-contract updates. Untriggered errors are explicitly marked as implementation review rather than observations. No secrets, real Bearer tokens, restricted addresses, or internal deployment instructions are included.
