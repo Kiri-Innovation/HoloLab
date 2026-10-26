@@ -6,7 +6,7 @@ description: >
   Materialize XMP-timestamped rig images on colmap4d's fixed time grid and
   emit a rig_timeline visualization bundle from the same grouping result.
 source_entry: group_temporal_images.py
-category: "tracking/rig"
+category: "reconstruction/colmap4d"
 
 docs: |
   Reads ``arrayed[cam,index]<image>`` and emits both

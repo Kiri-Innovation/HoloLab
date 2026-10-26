@@ -4,7 +4,7 @@ name: merge-colmap4d
 version: 0.1.4
 description: "Assemble grouped points/cams and flat images into one flat-layout colmap4d model."
 source_entry: merge_colmap4d.py
-category: "reconstruction/colmap"
+category: "reconstruction/colmap4d"
 
 docs: |
   The image input is strictly one-dimensional. Convert the upstream

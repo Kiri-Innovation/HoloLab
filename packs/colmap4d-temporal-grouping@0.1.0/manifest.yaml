@@ -6,7 +6,7 @@ description: >
   Materialize XMP-timestamped rig images on colmap4d's fixed time grid while
   preserving the established HoloLab grouping and edge-trimming semantics.
 source_entry: group_temporal_images.py
-category: "tracking/rig"
+category: "reconstruction/colmap4d"
 
 docs: |
   Reads ``arrayed[cam,index]<image>`` and emits

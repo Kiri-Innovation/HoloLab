@@ -4,7 +4,7 @@ name: merge-colmap4d
 version: 0.1.1
 description: "Assemble per-group points, undistorted images, and camera bundles into one scalar colmap4d model."
 source_entry: merge_colmap4d.py
-category: "reconstruction/colmap"
+category: "reconstruction/colmap4d"
 
 docs: |
   This version removes the dependency on a preassembled `colmap-folder` and

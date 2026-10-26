@@ -4,7 +4,7 @@ name: merge-colmap4d
 version: 0.1.0
 description: "Merge materialized per-group COLMAP reconstructions into one timestamped colmap4d model."
 source_entry: merge_colmap4d.py
-category: "reconstruction/colmap"
+category: "reconstruction/colmap4d"
 
 docs: |
   Consumes the existing `arrayed[group]<colmap-folder>` reconstruction plus the
