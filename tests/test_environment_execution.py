@@ -69,6 +69,46 @@ def test_old_node_cannot_accept_recorded_contract():
         require_check_support(SimpleNamespace(packs=[]), node)
 
 
+def test_api_distinguishes_explicit_empty_contract_from_undeclared(tmp_path, monkeypatch):
+    _, path, _ = package(tmp_path)
+    path.write_text(path.read_text() + "\nrequires: {}\n")
+    pack = scan_packs(path)[0]
+    selected = session([pack])
+    selected.environment_checks = True
+    selected.packs[0].requires = pack.manifest.requires.as_dict()
+
+    async def rpc(app, selected, kind, request, *args, **kwargs):
+        assert kind == "capability_req"
+        return {"report": CapabilityChecker().check(pack.manifest, {}, "missing")}
+
+    monkeypatch.setattr("hololab.gateway.app._await_node_reply", rpc)
+    with TestClient(create_app(db_path=tmp_path / "test.sqlite")) as client:
+        client.app.state.registry._sessions["n"] = selected
+        catalog = client.get("/api/pack-catalog").json()
+        assert catalog[0]["requires"] == {}
+        graph = WorkflowGraph(
+            nodes=[
+                GraphNode(
+                    id="a", algorithm_name="demo", algorithm_version="1.0.0", assigned_node_id="n"
+                )
+            ]
+        )
+        response = client.post("/api/capabilities/check", json={"graph": graph.model_dump()})
+        assert response.status_code == 200
+        assert response.json()["nodes"]["a"] == {
+            "status": "satisfied",
+            "issues": [],
+            "boundary": "本地能力检查只覆盖已声明且在可探测范围内的项; 通过不代表一定能运行。环境未冻结、未被代码身份覆盖。",
+            "environment_covered": False,
+            "runtime_verified": False,
+            "checked_at": None,
+            "requires": {},
+            "env": "test",
+            "node_id": "n",
+            "source": "demo@1.0.0",
+        }
+
+
 @pytest.mark.asyncio
 async def test_submission_records_environment_without_changing_code_digest(tmp_path):
     from hololab.content_scope import capture

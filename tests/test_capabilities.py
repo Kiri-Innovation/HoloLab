@@ -69,6 +69,20 @@ def test_undeclared_does_not_probe_missing_env(tmp_path, monkeypatch):
     enforce(result)
 
 
+def test_explicit_empty_contract_is_satisfied_without_an_environment(tmp_path, monkeypatch):
+    from hololab.node import capabilities
+
+    manifest = declared(tmp_path, " {}\n")
+    monkeypatch.setattr(
+        capabilities, "probe_environment", lambda *a: pytest.fail("unexpected probe")
+    )
+    result = CapabilityChecker().check(manifest, {}, "missing")
+    assert result["status"] == "satisfied"
+    assert result["requires"] == {}
+    assert result["checked_at"] is None
+    enforce(result)
+
+
 def test_gpu_requirements_apply_to_one_card_and_cuda_is_driver_minimum(tmp_path, monkeypatch):
     from hololab.node import capabilities
 

@@ -22,6 +22,12 @@ describe('package-oriented aggregation',()=>{
     expect(packHasProblem(entry,{status:'unknown',issues:[]})).toBe(false);
     expect(packHasProblem(entry,undefined,'yanked')).toBe(true);
   });
+
+  it('labels an explicit empty contract as no environment requirements',()=>{
+    const entry=buildPackEntries([{name:'empty',version:'1',node_ids:['n'],requires:{}}] as CatalogPack[],[],[])[0];
+    expect(packEnvironmentStatus(entry)).toBe('已明确声明无环境要求');
+    expect(packEnvironmentStatus(entry,{status:'satisfied',issues:[],requires:{}})).toBe('已明确声明无环境要求');
+  });
   it('keeps unknown local and workflow environments informational',()=>{
     const [entry]=buildPackEntries(catalog,[],workflows);
     entry.usages[0].workflow={...entry.usages[0].workflow,check:{issues:[],environment:{a:{status:'unknown',issues:[]}}}};

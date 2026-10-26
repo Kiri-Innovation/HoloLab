@@ -4,6 +4,7 @@ name: builtin/slice
 version: 0.1.0
 description: "Take a contiguous slice of an arrayed handle along its outermost dimension."
 category: "basic/array/slice"
+requires: {}
 inputs:
   in:
     tags: [any]

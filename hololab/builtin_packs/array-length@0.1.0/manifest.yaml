@@ -4,6 +4,7 @@ name: builtin/array-length
 version: 0.1.0
 description: "Count an arrayed handle's immediate non-dot elements."
 category: "basic/array/array-length"
+requires: {}
 inputs:
   arr:
     tags: [any]

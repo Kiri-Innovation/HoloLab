@@ -4,6 +4,7 @@ name: builtin/regroup
 version: 0.2.0
 description: "Permute explicit collection axes, retaining file or directory leaves as symlinks."
 category: "basic/array/regroup"
+requires: {}
 inputs:
   in:
     tags: [any]

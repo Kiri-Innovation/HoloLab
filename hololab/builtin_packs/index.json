@@ -6,42 +6,42 @@
       "name": "builtin/get-index",
       "version": "0.1.0",
       "manifest": "get-index@0.1.0/manifest.yaml",
-      "code_sha256": "9e332e7b0c3f710bc726e3a18d57bc0a974b4c2e219f6b7583d989e1f80d7648",
+      "code_sha256": "f44c9ab679e8f5e8a8e77718f08a600a94f1d151fc8b848b6af50a3591c3b97c",
       "identity_format": 2
     },
     {
       "name": "builtin/array-length",
       "version": "0.1.0",
       "manifest": "array-length@0.1.0/manifest.yaml",
-      "code_sha256": "f0c17da014d2821766b92003c6148dbfcb7b807a7243b6b4fa96f3091a202622",
+      "code_sha256": "9ae1ab76135fb232872331ceac867eee530ab56fd57b16cbd39ae983c286861e",
       "identity_format": 2
     },
     {
       "name": "builtin/slice",
       "version": "0.1.0",
       "manifest": "slice@0.1.0/manifest.yaml",
-      "code_sha256": "4a48e0854192459c6c0256540baf373635d0fcd6e993255e6642131e713f461e",
+      "code_sha256": "f9726e1313251e56c14145abe44fc0afc64cb18df3339008ac95c6863ec2cf90",
       "identity_format": 2
     },
     {
       "name": "builtin/regroup",
       "version": "0.2.0",
       "manifest": "regroup@0.2.0/manifest.yaml",
-      "code_sha256": "a2b7d3192cbd629a1d35f42029671b0fb14de25f4a710cfea8fcb241f177905e",
+      "code_sha256": "335279629514f3e97f927111e905d9d0433d6ad10866c37e0c8064234b4b6ee8",
       "identity_format": 2
     },
     {
       "name": "builtin/flatten-array",
       "version": "0.1.0",
       "manifest": "flatten-array@0.1.0/manifest.yaml",
-      "code_sha256": "f0523ceb68c4611302762d16801d16d44b1f08c94c48245458b99d6c2f1938ff",
+      "code_sha256": "1d54da8362165638846f3f1532d32a0e25d0cb24892fd662ad6b7f716fec7c25",
       "identity_format": 2
     },
     {
       "name": "builtin/arrayfy",
       "version": "0.1.0",
       "manifest": "arrayfy@0.1.0/manifest.yaml",
-      "code_sha256": "73cd6596047620a7665dfe2437479fbb8c69d05c59ab5a46c5c39a8e1acdbdcb",
+      "code_sha256": "8277724155d9590246e403a3f26a9cf01064b0c078bd543e58aeb034b96744a5",
       "identity_format": 2
     }
   ]

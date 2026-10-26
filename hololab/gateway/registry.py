@@ -587,9 +587,7 @@ class NodeRegistry:
                         entry["root"] = manifest.root
                         entry["cold"] = manifest.cold
                         entry["requires"] = (
-                            manifest.requires.model_dump()
-                            if manifest.requires is not None
-                            else None
+                            manifest.requires.as_dict() if manifest.requires is not None else None
                         )
                         entry["arrayable"] = manifest.arrayable
                         entry["node_viewers"] = [

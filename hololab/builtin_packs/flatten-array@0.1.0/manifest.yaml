@@ -4,6 +4,7 @@ name: builtin/flatten-array
 version: 0.1.0
 description: "Flatten any two-dimensional arrayed<T> into a one-dimensional arrayed<T>."
 category: "basic/array/flatten-array"
+requires: {}
 inputs:
   arr:
     tags: [any]

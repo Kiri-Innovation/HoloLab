@@ -219,7 +219,7 @@ def publish(
             ),
             manifest=selected.relative_to(content).as_posix(),
             env=scope.manifest.runtime.env,
-            requires=scope.manifest.requires.model_dump()
+            requires=scope.manifest.requires.as_dict()
             if scope.manifest.requires is not None
             else None,
             external={

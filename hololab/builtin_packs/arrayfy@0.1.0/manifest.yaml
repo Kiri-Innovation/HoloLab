@@ -4,6 +4,7 @@ name: builtin/arrayfy
 version: 0.1.0
 description: "Broadcast a scalar T to arrayed<T> by replicating it N times via symlinks."
 category: "basic/array/arrayfy"
+requires: {}
 inputs:
   data:
     tags: [any]

@@ -28,6 +28,14 @@ class Requirements(BaseModel):
     cuda: str | None = None  # Minimum driver-supported CUDA, not installed toolkit.
     gpu: GpuRequirements | None = None
 
+    def is_empty(self) -> bool:
+        """Whether the author explicitly declared no environment requirements."""
+        return self.python is None and not self.packages and self.cuda is None and self.gpu is None
+
+    def as_dict(self) -> dict:
+        """Stable wire form which preserves an explicit empty contract as ``{}``."""
+        return self.model_dump(exclude_none=True, exclude_defaults=True)
+
     @field_validator("python")
     @classmethod
     def python_specifier(cls, value):

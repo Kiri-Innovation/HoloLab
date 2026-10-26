@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CatalogPack, ComputeNode, WorkflowGraph } from '../wire';
 import { CONTROL_STYLE } from '../ui/controlStyles';
 import { ThemeToggle } from '../theme/ThemeToggle';
-import { EnvironmentEvidence, useCapabilityChecks } from '../canvas/EnvironmentChecks';
+import { EnvironmentEvidence, environmentLabel, useCapabilityChecks } from '../canvas/EnvironmentChecks';
 import { EvidenceValue } from '../canvas/EvidenceValue';
 import { OpenSourceButton } from '../canvas/OpenSourceButton';
 import { writeToClipboard } from '../canvas/referenceAction';
@@ -164,7 +164,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
           {current?.data?.state === 'hash_mismatch' && <small role="alert">代码哈希不匹配，请处理身份差异后再运行。</small>}
           {current?.data?.registry_status === 'unknown' && <small>中央状态未知，不代表已 yank；本地包仍可使用。</small>}</dd></div>
       </dl>
-      <details className="hl-pack-section" open><summary>环境 · {report ? ({undeclared:'未声明要求',missing:'声明的能力缺失',unknown:'环境未校验',satisfied:'已声明的可探测项满足'} as const)[report.status] : nodeId ? '尚未完成检查' : '未选择计算节点'}</summary>
+      <details className="hl-pack-section" open><summary>环境 · {report ? environmentLabel(report) : nodeId ? '尚未完成检查' : '未选择计算节点'}</summary>
         <EnvironmentEvidence report={report} headingLabel={report?.status === 'unknown' ? '环境未校验' : undefined} />
         {requires != null && <details><summary>声明的 requires</summary><EvidenceValue value={requires} /></details>}
       </details>

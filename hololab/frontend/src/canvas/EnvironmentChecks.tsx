@@ -9,10 +9,14 @@ export interface EnvironmentReport {
   node_id?: string;
   checked_at?: number | null;
   issues: { item: string; required: unknown; actual: unknown; remedy: string }[];
+  requires?: Record<string, unknown> | null;
 }
 export const CapabilityContext = createContext<Record<string, EnvironmentReport>>({});
 export function environmentLabel(report?: EnvironmentReport) {
-  return report ? ({ undeclared: "环境未声明", satisfied: "已声明的可探测项满足", missing: "环境/硬件缺失", unknown: "环境无法确认" })[report.status] : "环境未校验";
+  if (!report) return "环境未校验";
+  if (report.status === "satisfied" && report.requires && Object.keys(report.requires).length === 0)
+    return "已明确声明无环境要求";
+  return ({ undeclared: "环境未声明", satisfied: "已声明的可探测项满足", missing: "环境/硬件缺失", unknown: "环境无法确认" })[report.status];
 }
 
 export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enabled: boolean) {
@@ -59,6 +63,7 @@ export function EnvironmentEvidence({ report, showBoundary = true, headingLabel 
     <div className="hl-capability-heading"><strong>{headingLabel ?? environmentLabel(report ?? undefined)}</strong>
       {report?.checked_at ? <time>检查时间 {new Date(report.checked_at * 1000).toLocaleString()}</time> : null}</div>
     {report?.status === "undeclared" && <p>包作者未声明环境要求。这是信息缺失，不会因未声明而阻止运行；实际环境是否满足尚未确认。</p>}
+    {report?.status === "satisfied" && report.requires && Object.keys(report.requires).length === 0 && <p>包作者明确声明不需要环境要求。</p>}
     {report?.issues?.map((issue, i) => <section key={i} className="hl-capability-issue">
       <strong>{issue.item}</strong><dl className="hl-evidence-rows">
         <div><dt>要求</dt><dd><EvidenceValue value={issue.required} /></dd></div>

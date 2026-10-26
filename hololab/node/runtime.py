@@ -556,7 +556,7 @@ class NodeRuntime:
                     publication=p.publication,
                     root=p.manifest.root,
                     cold=p.manifest.cold,
-                    requires=p.manifest.requires.model_dump()
+                    requires=p.manifest.requires.as_dict()
                     if p.manifest.requires is not None
                     else None,
                     manifest_path=str(p.manifest_path),
@@ -606,7 +606,7 @@ class NodeRuntime:
                             publication=p.publication,
                             root=p.manifest.root,
                             cold=p.manifest.cold,
-                            requires=p.manifest.requires.model_dump()
+                            requires=p.manifest.requires.as_dict()
                             if p.manifest.requires is not None
                             else None,
                             manifest_path=str(p.manifest_path),
@@ -674,9 +674,7 @@ class NodeRuntime:
                 publication=p.publication,
                 root=p.manifest.root,
                 cold=p.manifest.cold,
-                requires=p.manifest.requires.model_dump()
-                if p.manifest.requires is not None
-                else None,
+                requires=p.manifest.requires.as_dict() if p.manifest.requires is not None else None,
                 manifest_path=str(p.manifest_path),
                 source_dir=str(p.source_dir),
                 origin=p.origin,

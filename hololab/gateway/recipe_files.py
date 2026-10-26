@@ -134,7 +134,7 @@ def diagnostics(graph: WorkflowGraph, catalog: list[dict]) -> list[dict]:
                 "node_id": node.id,
                 "code": "environment",
                 "message": "环境未声明"
-                if not pack.get("requires")
+                if pack.get("requires") is None
                 else "环境已声明; 选择本地节点后检查",
             }
         )

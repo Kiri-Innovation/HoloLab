@@ -16,6 +16,15 @@ def test_legacy_and_explicit_contract(tmp_path):
     assert load_manifest(manifest)[0].requires.gpu.vram_gb == 24
 
 
+def test_explicit_empty_contract_is_valid_and_has_a_distinct_wire_form(tmp_path):
+    _, manifest, _ = package(tmp_path)
+    manifest.write_text(manifest.read_text() + "\nrequires: {}\n")
+    contract = load_manifest(manifest)[0].requires
+    assert contract is not None
+    assert contract.is_empty()
+    assert contract.as_dict() == {}
+
+
 @pytest.mark.parametrize(
     "value",
     [

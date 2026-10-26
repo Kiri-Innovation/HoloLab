@@ -153,6 +153,7 @@ class CapabilityChecker:
         self, manifest, envs: dict, conda_bin: str, activated: dict | None = None, *, fresh=False
     ) -> dict:
         contract = manifest.requires
+        required = contract.as_dict() if contract is not None else None
         report = {
             "status": "undeclared" if contract is None else "satisfied",
             "checked_at": None,
@@ -161,10 +162,14 @@ class CapabilityChecker:
             "environment_covered": False,
             "runtime_verified": False,
             "env": manifest.runtime.env,
-            "requires": contract.model_dump(exclude_none=True) if contract else None,
+            "requires": required,
         }
         if contract is None:
             return report  # Historical packages must not acquire a new failure mode.
+        if contract.is_empty():
+            # ``requires: {}`` is an affirmative compatibility statement, not a
+            # request to validate the runtime's default environment mapping.
+            return report
         report["checked_at"] = time.time()
 
         def issue(item, required, actual, remedy, *, unknown=False):
