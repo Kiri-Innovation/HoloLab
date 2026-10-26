@@ -15,6 +15,14 @@ source_entry: undistort.py
 category: "reconstruction/colmap"
 
 docs: |
+  ### XMP preservation
+
+  JPEG outputs retain the input image's standard and Extended XMP APP1
+  segments byte-for-byte after OpenCV encoding. The transfer edits only JPEG
+  header segments and leaves the encoded scan untouched. EXIF is intentionally
+  not copied, preventing a stale Orientation tag from rotating already
+  undistorted pixels a second time.
+
   ### v0.5.2 — incomplete groups are valid shards
 
   Single-image files and flat monocular image sets are also accepted. For

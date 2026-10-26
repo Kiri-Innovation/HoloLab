@@ -35,6 +35,7 @@ _PACK_DIR = Path(__file__).resolve().parent
 if str(_PACK_DIR) not in sys.path:
     sys.path.insert(0, str(_PACK_DIR))
 
+from jpeg_metadata import transplant_xmp_app1  # noqa: E402
 from sfm_key import cam_key, numeric_suffix  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -405,7 +406,9 @@ def _read_rgb(path: Path) -> np.ndarray:
     return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
 
 
-def _write_rgb(dst: Path, rgb: np.ndarray, png_compress: int) -> None:
+def _write_rgb(
+    dst: Path, rgb: np.ndarray, png_compress: int, metadata_source: Path | None = None
+) -> None:
     bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     suffix = dst.suffix.lower()
     if suffix in (".jpg", ".jpeg"):
@@ -414,6 +417,8 @@ def _write_rgb(dst: Path, rgb: np.ndarray, png_compress: int) -> None:
         ok = cv2.imwrite(str(dst), bgr, [cv2.IMWRITE_PNG_COMPRESSION, png_compress])
     if not ok:
         raise SystemExit(f"cv2.imwrite failed: {dst}")
+    if suffix in (".jpg", ".jpeg") and metadata_source is not None:
+        transplant_xmp_app1(metadata_source, dst)
 
 
 def write_cameras_pinhole(dst: Path, cameras: dict[int, dict]) -> None:
@@ -578,8 +583,13 @@ def process_shard(
     with ThreadPoolExecutor(io_workers) as ex:
         list(
             ex.map(
-                lambda pair: _write_rgb(out_root / pair[0], pair[1], png_compress),
-                zip([f.name for f in staged], out, strict=True),
+                lambda pair: _write_rgb(
+                    out_root / pair[0].name,
+                    pair[1],
+                    png_compress,
+                    metadata_source=pair[0],
+                ),
+                zip(staged, out, strict=True),
             )
         )
     t_w1 = time.perf_counter()
