@@ -29,12 +29,13 @@ pytestmark = pytest.mark.skipif(not (STG / "packs").is_dir(), reason="STG checko
 
 def test_migrated_inventory_catalog_and_viewers(tmp_path):
     packs = scan_packs(STG)
-    assert len(packs) == 13
+    assert len(packs) == 14
     assert {(p.manifest.name, p.manifest.version) for p in packs} == {
         ("stg-init", "0.1.0"),
         ("stg-init", "0.1.1"),
         ("stg-init", "0.2.0"),
         ("stg-init", "0.3.0"),
+        ("stg-init", "0.3.1"),
         ("stg-train", "0.2.0"),
         ("stg-train", "0.3.0"),
         *(("stg-train", f"0.4.{i}") for i in range(7)),
@@ -42,7 +43,7 @@ def test_migrated_inventory_catalog_and_viewers(tmp_path):
     with TestClient(create_app(db_path=tmp_path / "gateway.sqlite")) as client:
         client.app.state.registry._sessions["local"] = session(packs)
         catalog = client.get("/api/pack-catalog").json()
-        assert len(catalog) == 13
+        assert len(catalog) == 14
         assert all(p["root"] == "../.." for p in catalog)
     served = 0
     with TestClient(create_fileserver_app(workspace_root=tmp_path, pack_dirs=[STG])) as client:

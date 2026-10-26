@@ -6,7 +6,8 @@ export type Axis = Readonly<{ label: string | null }>;
 export type TypeExpr =
   | Readonly<{ kind: 'unknown'; reason: string }>
   | Readonly<{ kind: 'object'; tags: readonly string[]; contentAxes: readonly Axis[] }>
-  | Readonly<{ kind: 'array'; axis: Axis; element: TypeExpr }>;
+  | Readonly<{ kind: 'array'; axis: Axis; element: TypeExpr }>
+  | Readonly<{ kind: 'union'; variants: readonly TypeExpr[] }>;
 
 /** Preserve manifest intent, including derivation directives, separately from
  * resolved views. dim_labels may describe aggregate OR content dimensions. */
@@ -17,6 +18,7 @@ export type PortDeclaration = Readonly<Pick<PortSpec, 'tags' | 'arrayed' | 'scal
   dim_labels_from_input?: string | null;
   dim_labels_drop_outer?: number | null;
   content_dims_from?: string | null;
+  any_of?: readonly Readonly<{ tags: readonly string[]; arrayed?: boolean; dim_labels?: readonly string[] }>[];
 }>;
 
 export type Evidence<T> =

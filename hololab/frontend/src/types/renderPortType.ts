@@ -40,6 +40,7 @@ export function renderPortType(type: TypeExpr, options: RenderOptions): string {
   }
   if (options.mode === 'declaration') {
     if (type.kind === 'unknown') return unknown;
+    if (type.kind === 'union') return type.variants.map(variant => renderPortType(variant, options)).join(' | ');
     if (type.kind === 'array') {
       const axis = type.axis.label ? `[${type.axis.label}]` : '';
       return `arrayed${axis}<${renderPortType(type.element, options)}>`;
@@ -47,9 +48,11 @@ export function renderPortType(type: TypeExpr, options: RenderOptions): string {
     return type.tags.join(',') + type.contentAxes.map(axis => `[${axis.label ?? '?'}]`).join('');
   }
   const runtime = options.runtime;
-  let leaf = type;
+  if (type.kind === 'union') return type.variants.map(variant => renderPortType(variant, options)).join(' | ');
+  let leaf: TypeExpr = type;
   const typeAxes: Array<{ label: string | null }> = [];
   while (leaf.kind === 'array') { typeAxes.push(leaf.axis); leaf = leaf.element; }
+  if (leaf.kind === 'union') return leaf.variants.map(variant => renderPortType(variant, options)).join(' | ');
   const knownTags = (runtime ? observedValue(runtime.tags) : undefined)
     ?? (options.mode === 'compact' && leaf.kind === 'object' ? leaf.tags : undefined);
   if (!knownTags?.length && options.mode !== 'compact') return unknown;

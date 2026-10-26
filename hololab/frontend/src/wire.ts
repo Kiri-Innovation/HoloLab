@@ -148,6 +148,13 @@ export interface PortSpec {
   scalar?: boolean;
 }
 
+export interface PortTypeVariant {
+  tags: string[];
+  arrayed?: boolean;
+  dim_labels?: string[];
+  storage?: "dir" | "file";
+}
+
 export interface OutputPreviewSpec {
   viewer: "splatv" | "ply-3dgs" | "lagsplat" | "video" | "image" | "text" | "video-grid";
   // For single-file viewers this is a literal relative path inside a
@@ -255,6 +262,8 @@ export interface OutputPortSpec extends PortSpec {
 }
 
 export interface InputPortSpec extends PortSpec {
+  /** Closed union of complete input shapes. Sources may match any one variant. */
+  any_of?: PortTypeVariant[];
   content_dims_from?: string | null;
   inline?: boolean | null;
   inline_default?: unknown;

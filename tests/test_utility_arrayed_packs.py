@@ -82,6 +82,6 @@ def test_regroup_by_frame_has_source_entry() -> None:
 
 
 @pytest.mark.parametrize("pack_name", ["array-length", "arrayfy", "get-index", "regroup-by-frame"])
-def test_pack_category_marks_utility(pack_name: str) -> None:
+def test_pack_category_marks_basic_array_operation(pack_name: str) -> None:
     m = _load(pack_name)
-    assert m.category == ["utility", "arrayed"], m.category
+    assert m.category == ["basic", "array", pack_name], m.category

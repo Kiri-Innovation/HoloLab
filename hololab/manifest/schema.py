@@ -62,6 +62,28 @@ class StorageForm(str, Enum):
 # ---------------------------------------------------------------------------
 
 
+class PortTypeVariant(BaseModel):
+    """One complete alternative in an input port's ``any_of`` contract."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    tags: list[str] = Field(default_factory=list)
+    arrayed: bool = False
+    dim_labels: list[str] = Field(default_factory=list)
+    storage: StorageForm = StorageForm.DIR
+
+    @model_validator(mode="after")
+    def _valid_declaration(self) -> PortTypeVariant:
+        if not self.tags:
+            raise ValueError("any_of variant must declare at least one tag (object type)")
+        if len(self.dim_labels) > 2:
+            raise ValueError("any_of variant dim_labels currently supports at most 2 layers")
+        from hololab.manifest.data_contract import check_declaration
+
+        check_declaration(self)
+        return self
+
+
 class InputSpec(BaseModel):
     """Declared input port on an algorithm node.
 
@@ -92,6 +114,10 @@ class InputSpec(BaseModel):
     # Legacy generic layout hint. It never changes fan-out enumeration depth;
     # image declarations reject it (images have no intrinsic collection axes).
     content_dims_from: str | None = None
+    # A closed union of complete wire-value shapes. When present, the ordinary
+    # top-level tags/array shape is deliberately absent; storage remains a
+    # transport default and each variant may override it.
+    any_of: list[PortTypeVariant] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _inline_declaration(self) -> InputSpec:
@@ -107,6 +133,15 @@ class InputSpec(BaseModel):
 
     @model_validator(mode="after")
     def _tags_non_empty(self) -> InputSpec:
+        if self.any_of:
+            if len(self.any_of) < 2:
+                raise ValueError("input any_of must contain at least two variants")
+            if self.tags or self.arrayed or self.dim_labels or self.scalar:
+                raise ValueError(
+                    "input any_of is mutually exclusive with top-level tags, arrayed, "
+                    "dim_labels, and scalar"
+                )
+            return self
         if not self.tags:
             raise ValueError("input port must declare at least one tag (object type)")
         from hololab.manifest.data_contract import check_declaration

@@ -38,6 +38,16 @@ it('allows the actual merge_g0 → STG connection with the declared opt-out', ()
     expected: 'arrayed[frame]<colmap-folder>', actual: 'arrayed[group]<colmap-folder>',
   });
 });
+it('accepts either shape of an any_of input and rejects fan-out ambiguity', () => {
+  const union = { tags: [], any_of: [
+    { tags: ['colmap4d'], arrayed: false },
+    { tags: ['colmap-folder'], arrayed: true, dim_labels: ['frame'] },
+  ] };
+  expect(validateConnection(conn, context({ tags: ['colmap4d'] }, union)).ok).toBe(true);
+  expect(validateConnection(conn, context({ tags: ['colmap-folder'], arrayed: true, dim_labels: ['group'] }, union)).ok).toBe(true);
+  expect(validateConnection(conn, context({ tags: ['colmap-folder'] }, union)).ok).toBe(false);
+  expect(validateConnection(conn, context({ tags: ['colmap4d'] }, union, true)).reason).toContain('fan-out');
+});
 it('explains scalar/array and tag mismatches separately', () => {
   expect(validateConnection(conn, context({ tags: ['image'], arrayed: true }, { tags: ['image'] })).reason).toContain('单个数据与数组');
   expect(validateConnection(conn, context({ tags: ['image'] }, { tags: ['mesh'] })).reason).toBe('数据类型不匹配。');

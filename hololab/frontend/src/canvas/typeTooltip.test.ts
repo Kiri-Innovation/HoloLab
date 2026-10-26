@@ -10,6 +10,16 @@ it('never presents a declaration or failed summary as real data',()=>{
  expect(typeTooltip('images',declared,{...declared,runtimeAvailable:false})['data-tooltip-actual']).toBe('未知');
 });
 
+it('renders an input union as one declared type',()=>{
+ const raw={tags:[],arrayed:false,dim_labels:[],any_of:[
+  {tags:['colmap4d'],arrayed:false,dim_labels:[]},
+  {tags:['colmap-folder'],arrayed:true,dim_labels:['frame']},
+ ]};
+ const tip=typeTooltip('colmap_4d',{tags:[],arrayed:false,dimLabels:[]},
+  {tags:[],arrayed:false,dimLabels:[],runtimeAvailable:false},undefined,raw);
+ expect(tip['data-tooltip-declared']).toBe('colmap4d | arrayed[frame]<colmap-folder>');
+});
+
 it('removes exactly one outer dimension and keeps internal counts',()=>{
  const actual={tags:['image'],arrayed:true,dimLabels:['frame','cam'],dimSizes:[100,21],runtimeAvailable:true,runtimeShape:measured(['image'],['frame','cam'],[100,21])};
  expect(typeTooltip('frames',declared,actual,{fanout:true,direction:'input'})['data-tooltip-actual']).toBe('image[cam:21]');
@@ -20,7 +30,7 @@ it('removes exactly one outer dimension and keeps internal counts',()=>{
 it('keeps broadcast scalars and unknown inner counts intact',()=>{
  const scalar={tags:['colmap-cams'],arrayed:false,dimLabels:[],internalCountItems:[{label:'pose',value:21}],runtimeAvailable:true,runtimeShape:measured(['colmap-cams'],[],[],[{key:'pose',value:21}])};
  expect(typeTooltip('cams',scalar,scalar)['data-tooltip-actual']).toBe('colmap-cams(pose:21)');
- expect(typeTooltip('frames',declared,{...scalar,tags:['image'],arrayed:true,dimLabels:['frame','cam'],runtimeShape:measured(['image'],['frame','cam'],[100,undefined])},{fanout:true,direction:'input'})['data-tooltip-actual']).toBe('image[cam:?]');
+ expect(typeTooltip('frames',declared,{...scalar,tags:['image'],arrayed:true,dimLabels:['frame','cam'],runtimeShape:measured(['image'],['frame','cam'],[100,undefined])},{fanout:true,direction:'input'})['data-tooltip-actual']).toBe('image[cam:unmeasured]');
 });
 it('fanout broadcast retains an entire array handle, while split input takes one element',()=>{
  const actual={tags:['image'],arrayed:true,dimLabels:['frame','cam'],dimSizes:[100,21],runtimeAvailable:true,runtimeShape:measured(['image'],['frame','cam'],[100,21])};

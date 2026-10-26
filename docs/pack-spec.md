@@ -285,6 +285,7 @@ back to determine execution or compatibility.
 |---|---|
 | `dim_labels: [frame, cam]` | Semantic axes, **outer first**. An empty list on an effective array retains one unnamed legacy layer. Empty label strings are wildcard names in compatibility checks. |
 | `require_axis_label_match: true` | Input-only boolean, default `true`. Compare nonempty axis names at every collection layer; `false` skips names only, never depth, array/scalar shape or tags. Unnamed axes remain wildcard names in either mode. |
+| `any_of: [...]` | Input-only closed union of complete `{tags, arrayed, dim_labels}` shapes. A source must match at least one variant. Mutually exclusive with top-level `tags`, `arrayed`, `dim_labels`, and `scalar`. |
 | `dim_labels_from: output_dims` | Output labels derive from this node's parameter list. Invalid/missing values fall back to declared labels, as before. |
 | `dim_labels_from_input: frames` | Output labels derive from the connected producer's resolved output. Missing connections/cycles give unresolved labels. |
 | `dim_labels_drop_outer: 1` | Remove this many outer labels after input derivation; zero preserves them, dropping all yields a scalar. Nonnegative; requires `dim_labels_from_input`. |
@@ -295,6 +296,11 @@ manifest schema accepts at most **two static labels**. This is a YAML validation
 limit, not a license to truncate runtime `dim_sizes`: runtime observations and
 the recursive IR accept variable-length axes. Dynamic parameter-derived labels
 retain the existing resolver behavior; this update does not add a new pack limit.
+
+`any_of` is intended for whole-value, non-fan-out inputs whose alternatives
+have different collection shapes. Enabling `arrayed_toggle` on a node with an
+`any_of` input is rejected during workflow validation because there is no
+single unambiguous shard depth across the alternatives.
 
 Labels describe the **single-invocation** collection axes, outer first.
 A node fan-out adds one outer axis, using the driving producer's outer label

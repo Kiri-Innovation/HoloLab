@@ -43,21 +43,28 @@ export function validateConnection(conn: Connection, ctx: EdgeTypeCtx,
   const pack = ctx.catalogByKey.get(`${tgt.algorithm_name}@${tgt.algorithm_version}`);
   const input = pack?.inputs[conn.targetHandle];
   if (!srcPack?.outputs[conn.sourceHandle] || !pack || !input) return reject('端口声明不可用，请检查算法版本。');
+  if (tgt.arrayed_toggle && input.any_of?.length) {
+    return reject('联合类型输入不能启用 arrayed fan-out。');
+  }
   // addEdge also suppresses duplicates; do not promise a new edge in that case.
   if (ctx.edges.some(e => e.source === conn.source && e.sourceHandle === conn.sourceHandle
     && e.target === conn.target && e.targetHandle === conn.targetHandle)) return reject('这两个端口已经连接。');
   const source = effectiveOutputType(conn.source, conn.sourceHandle, ctx);
-  const target = {
-    tags: input.tags,
-    arrayed: effectivePortArrayed(input.arrayed, pack.arrayable, tgt.arrayed_toggle, input.scalar),
-    dimLabels: effectivePortDimLabels(input.arrayed, input.dim_labels, pack.arrayable, tgt.arrayed_toggle, input.scalar),
-  };
-  const ok = portsCompatible(source.tags, source.arrayed, target.tags, target.arrayed,
-    input.scalar, source.dimLabels, target.dimLabels, input.require_axis_label_match ?? true);
-  const reason = ok ? undefined : !tagsCompatible(source.tags, target.tags) ? '数据类型不匹配。'
-    : source.arrayed !== target.arrayed ? '单个数据与数组不能直接连接。'
-    : !portsCompatible(source.tags, source.arrayed, target.tags, target.arrayed,
-      input.scalar, source.dimLabels, target.dimLabels, false) ? '数组维度层数不匹配。'
-    : '数组轴名称不匹配。';
-  return { ok, reason, expected: formatTypeLabelLong(target), actual: formatTypeLabelLong(source) };
+  const variants = input.any_of?.length ? input.any_of : [input];
+  const targets = variants.map(variant => ({
+    tags: variant.tags,
+    arrayed: effectivePortArrayed(variant.arrayed, pack.arrayable, tgt.arrayed_toggle, input.scalar),
+    dimLabels: effectivePortDimLabels(variant.arrayed, variant.dim_labels, pack.arrayable, tgt.arrayed_toggle, input.scalar),
+    strict: input.require_axis_label_match ?? true,
+  }));
+  const ok = targets.some(target => portsCompatible(source.tags, source.arrayed, target.tags, target.arrayed,
+    input.scalar, source.dimLabels, target.dimLabels, target.strict));
+  const tagMatch = targets.some(target => tagsCompatible(source.tags, target.tags));
+  const cardinalityMatch = targets.some(target => source.arrayed === target.arrayed);
+  const depthMatch = targets.some(target => portsCompatible(source.tags, source.arrayed, target.tags, target.arrayed,
+    input.scalar, source.dimLabels, target.dimLabels, false));
+  const reason = ok ? undefined : !tagMatch ? '数据类型不匹配。'
+    : !cardinalityMatch ? '单个数据与数组不能直接连接。'
+    : !depthMatch ? '数组维度层数不匹配。' : '数组轴名称不匹配。';
+  return { ok, reason, expected: targets.map(formatTypeLabelLong).join(' | '), actual: formatTypeLabelLong(source) };
 }

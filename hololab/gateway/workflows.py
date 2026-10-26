@@ -904,6 +904,7 @@ class InputPortView:
     inline: bool | None = None
     inline_default: Any = None
     storage: str = "dir"
+    any_of: tuple[tuple[tuple[str, ...], bool, tuple[str, ...]], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -1241,6 +1242,14 @@ def packs_by_key_from_catalog(
                         dim_labels=tuple(i.get("dim_labels", []) or []),
                         content_dims_from=i.get("content_dims_from"),
                         require_axis_label_match=i.get("require_axis_label_match", True),
+                        any_of=tuple(
+                            (
+                                tuple(v.get("tags", [])),
+                                bool(v.get("arrayed", False)),
+                                tuple(v.get("dim_labels", []) or []),
+                            )
+                            for v in (i.get("any_of") or [])
+                        ),
                     )
                     for n, i in entry.get("inputs", {}).items()
                 },
@@ -1358,6 +1367,18 @@ def validate_snapshot(
         if not is_algorithm_node(node):
             continue
         key = package_key(node.algorithm_name, node.algorithm_version)
+        pack_for_toggle = alias_index(packs_by_key).get(key)
+        if (
+            node.arrayed_toggle
+            and pack_for_toggle is not None
+            and any(port.any_of for port in pack_for_toggle.inputs.values())
+        ):
+            issues.append(
+                ValidationIssue(
+                    where=f"node:{node.id}",
+                    message="arrayed_toggle cannot be enabled on a node with any_of inputs",
+                )
+            )
         if node.kind != "intrinsic":
             matches = {
                 p
@@ -1824,6 +1845,15 @@ def resolved_port_types(
                     else ("broadcast-input" if port.scalar else "map-input")
                 )
             aggregate = from_legacy(fields["tags"], fields["arrayed"], fields["dim_labels"])
+            if direction == "inputs" and port.any_of:
+                from hololab.gateway.port_type_ir import UnionType
+
+                aggregate = UnionType(
+                    variants=[
+                        from_legacy(list(tags), arrayed, list(labels))
+                        for tags, arrayed, labels in port.any_of
+                    ]
+                )
             views = views_from_aggregate(aggregate, participation)
             group[name] = PortTypeIR(
                 declaration=declaration, views=views, runtime=unknown_runtime()

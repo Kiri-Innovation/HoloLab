@@ -37,8 +37,14 @@ class ArrayType(Model):
     element: TypeExpr
 
 
-TypeExpr = Annotated[UnknownType | ObjectType | ArrayType, Field(discriminator="kind")]
+class UnionType(Model):
+    kind: Literal["union"] = "union"
+    variants: list[TypeExpr]
+
+
+TypeExpr = Annotated[UnknownType | ObjectType | ArrayType | UnionType, Field(discriminator="kind")]
 ArrayType.model_rebuild()
+UnionType.model_rebuild()
 T = TypeVar("T")
 
 
@@ -175,6 +181,29 @@ def compatible(
 ) -> bool:
     from hololab.manifest.data_contract import REMOVED_IMAGE_TAGS
 
+    if isinstance(target, UnionType):
+        return any(
+            compatible(
+                source,
+                variant,
+                tag_match,
+                broadcast=broadcast,
+                require_axis_label_match=require_axis_label_match,
+            )
+            for variant in target.variants
+        )
+    if isinstance(source, UnionType):
+        return all(
+            compatible(
+                variant,
+                target,
+                tag_match,
+                broadcast=broadcast,
+                require_axis_label_match=require_axis_label_match,
+            )
+            for variant in source.variants
+        )
+
     def leaf_tags(t):
         while isinstance(t, ArrayType):
             t = t.element
@@ -208,6 +237,8 @@ def render_type(type_: TypeExpr) -> str:
     if isinstance(type_, ArrayType):
         axis = f"[{type_.axis.label}]" if type_.axis.label else ""
         return f"arrayed{axis}<{render_type(type_.element)}>"
+    if isinstance(type_, UnionType):
+        return " | ".join(render_type(variant) for variant in type_.variants)
     return ",".join(type_.tags) + "".join(f"[{a.label or '?'}]" for a in type_.contentAxes)
 
 

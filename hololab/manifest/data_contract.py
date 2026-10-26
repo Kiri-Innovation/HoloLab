@@ -38,6 +38,18 @@ def validate_path(path: Path, spec: Any, *, label: str, params: dict | None = No
     Opaque tags retain their own bundle formats. `any` is explicitly unconstrained,
     rather than guessed to be an image. The path must still exist.
     """
+    variants = getattr(spec, "any_of", None) or []
+    if variants:
+        failures = []
+        for variant in variants:
+            try:
+                validate_path(path, variant, label=label, params=params)
+                return
+            except ContractError as exc:
+                failures.append(str(exc))
+        raise ContractError(
+            f"{label}: value matches none of the any_of variants: " + "; ".join(failures)
+        )
     if not path.exists():
         raise ContractError(f"{label}: missing input/output path: {path}")
     image_leaf = "image" in spec.tags
