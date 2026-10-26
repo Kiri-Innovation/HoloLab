@@ -1,3 +1,5 @@
+import {packManagerRoute, packManagerPath} from './packManagerRoute';
+import {localOverview, isUndeclared} from './localOverviewModel';
 import { useResizableSlot } from '../canvas/useResizableLayout';
 import { PackageTree } from './PackageTree';
 import { CommunityPacks } from './CommunityPacks';
@@ -34,9 +36,10 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const [revision, setRevision] = useState(0);
   const [nodeId, setNodeId] = useState('');
   const [search, setSearch] = useState('');
-  const [problemsOnly, setProblemsOnly] = useState(false);
-  const view = new URLSearchParams(window.location.search).get('view') === 'community' ? 'community' : 'local';
-  const [selected, setSelected] = useState('');
+  const route=packManagerRoute(window.location.search);
+  const {view, localSection:section, pack:selected}=route;
+  const navigateLocal=(next:string,pack='')=>{if(next==='overview')setSearch('');setDirectoryOpen(false);onNavigate(packManagerPath('local',next,{pack}));};
+  useEffect(()=>{setSearch('');},[view]);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const leftDock = useResizableSlot('hl-layout-left', 300, 180, 420);
   const registry = useMemo<RegistryRelease[]>(() => [], []);
@@ -75,6 +78,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
             if (!workflow.graph?.nodes) throw new Error('missing_graph');
             try { workflow.check = await checkRecipe(workflow.graph, signal); }
             catch { workflow.checkFailed = true; }
+            workflow.updated_ts = workflow.updated_ts ?? summary.updated_ts;
             usages.push(workflow);
           } catch { messages.push(`工作流「${summary.name}」未能读取，使用情况尚不完整。`); }
         }
@@ -93,8 +97,16 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const statusKey = (entry: PackEntry) => `${nodeId}:${entry.key}`;
   const problem = (entry: PackEntry) => packHasProblem(entry, checks.reports[entry.key], central[statusKey(entry)]?.data?.state === 'hash_mismatch'
     ? 'hash_mismatch' : central[statusKey(entry)]?.data?.registry_status);
-  const visible = entries.filter(entry => (!problemsOnly || problem(entry)) && `${entry.name}@${entry.version} ${entry.catalog?.category?.join('/') || 'misc'}`.toLowerCase().includes(search.toLowerCase()));
-  const selectedEntry = visible.find(entry => entry.key === selected) ?? visible[0];
+  const visible = entries.filter(entry => `${entry.name}@${entry.version} ${entry.catalog?.category?.join('/') || 'misc'}`.toLowerCase().includes(search.toLowerCase()));
+  const summary=localOverview(entries,nodeId,checks.reports,problem);
+  const sectionEntries=visible.filter(entry=>section==='attention'?problem(entry):section==='missing'?checks.reports[entry.key]?.status==='missing':section==='undeclared'?isUndeclared(entry):true);
+  const selectedEntry=section==='category' ? entries.find(entry=>entry.key===selected) : undefined;
+  const healthPending=loading || checks.loading || !nodeId || entries.some(entry=>!checks.reports[entry.key]);
+  const cards=(items:PackEntry[]) => <div className="hl-pack-grid hl-local-cards">{items.map(entry=><article className="hl-pack-card" key={entry.key}>
+    <button className="hl-pack-project-link" onClick={()=>navigateLocal('category',entry.key)}>{entry.name} <span className="hl-pack-version">{entry.version}</span></button>
+    <p>{checks.reports[entry.key]?.status==='missing'?'声明的环境能力缺失':problem(entry)?'有待处理事项':isUndeclared(entry)?'未声明环境要求':!checks.reports[entry.key]?'环境尚未校验':'暂无已知问题'}</p>
+    <small>{new Set(entry.usages.map(u=>u.workflow.workflow_id)).size} 条工作流引用 · {entry.catalog?.category?.join(' / ') || 'misc'}</small>
+  </article>)}</div>;
 
   async function queryStatus(entry: PackEntry) {
     const key = statusKey(entry);
@@ -116,34 +128,45 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       </button><div className="hl-pack-view-heading"><span>· Pack Manager</span>
       <div className="hl-pack-tabs" role="tablist" aria-label="包视角">
         {(['local', 'community'] as const).map(tab => <button key={tab} id={`pack-tab-${tab}`} role="tab" aria-controls={`pack-panel-${tab}`} aria-selected={view === tab}
-          onClick={() => onNavigate(`/packs?view=${tab}`)}>{tab === 'local' ? '本地安装' : '社区'}</button>)}
+          onClick={() => {setSearch('');onNavigate(packManagerPath(tab,tab==='local'?'overview':'home'));}}>{tab === 'local' ? '本地安装' : '社区'}</button>)}
       </div></div>
       <ThemeToggle /></header>
     <main className="hl-pack-page">
-      <div id="pack-panel-community" role="tabpanel" aria-labelledby="pack-tab-community" hidden={view !== 'community'}><CommunityPacks active={view === 'community'} catalog={catalog} nodes={nodes} onInstalled={() => setRevision(n => n + 1)} /></div>
+      <div id="pack-panel-community" role="tabpanel" aria-labelledby="pack-tab-community" hidden={view !== 'community'}><CommunityPacks onNavigate={onNavigate} active={view === 'community'} catalog={catalog} nodes={nodes} onInstalled={() => setRevision(n => n + 1)} /></div>
       <div id="pack-panel-local" role="tabpanel" aria-labelledby="pack-tab-local" hidden={view !== 'local'}>
       <div className="hl-pack-workspace">
       <aside className="hl-dock hl-pack-palette hl-pack-sidebar">
       <div className="hl-dock-heading"><h2 className="hl-section-title">本地安装</h2><button disabled={loading} onClick={() => setRevision(n => n + 1)}>{loading ? '读取中…' : '刷新'}</button></div>
       <button className="hl-pack-directory-toggle" aria-expanded={directoryOpen} onClick={() => setDirectoryOpen(!directoryOpen)}>包目录 · {visible.length} 个版本 {directoryOpen ? '▴' : '▾'}</button>
       <div className="hl-pack-directory" data-open={directoryOpen}>
-      <div className="hl-pack-filters"><input type="search" aria-label="搜索包" placeholder="搜索包名或版本" value={search} onChange={e => setSearch(e.target.value)} />
-        {nodes.length > 1 ? <label>查看机器<select aria-label="查看机器" value={nodeId} onChange={e => setNodeId(e.target.value)}><option value="">选择计算节点</option>{nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name || node.node_id}</option>)}</select></label> : <p className="hl-pack-boundary">{nodes.length ? `查看 ${nodes[0].node_name || nodes[0].node_id} 上的包` : '没有已连接的机器'}</p>}
-        <label><input type="checkbox" checked={problemsOnly} onChange={e => setProblemsOnly(e.target.checked)} />只看有问题的</label>
-</div>
-      <div className="hl-pack-summary" role="status">{loading ? '正在汇总包与工作流…' : `${entries.length} 个包版本 · ${entries.filter(problem).length} 项待处理 · 显示 ${visible.length} 项`}
-        {checks.loading && ' · 环境检查中…'}</div>
-      <nav aria-label="本地包目录">
-      <PackageTree items={visible.map(entry => ({key: entry.key, name: entry.name, version: entry.version, category: entry.catalog?.category ?? []}))}
-        query={search} selected={selectedEntry?.key ?? ''} onSelect={key => {setSelected(key); setDirectoryOpen(false);}} />
-      {!loading && !visible.length && <p>没有符合条件的包。</p>}
-      </nav></div></aside>
-      <section className="hl-pack-detail" aria-label="本地包详情">
+      <nav className="hl-community-index hl-pack-view-nav" aria-label="本地视图">
+        {([['overview','总览'],['category','功能分类'],['attention',`需要注意 (${summary.attention.length})`],['missing',`环境缺失 (${summary.missing.length})`],['undeclared',`未声明 (${summary.undeclared.length})`]] as const).map(([value,label])=><button key={value} aria-current={section===value?'page':undefined} onClick={()=>navigateLocal(value)}>{label}</button>)}
+      </nav>
+      {nodes.length > 1 ? <label>查看机器<select aria-label="查看机器" value={nodeId} onChange={e => setNodeId(e.target.value)}>{nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name || node.node_id}</option>)}</select></label> : <p className="hl-pack-boundary">{nodes.length ? `查看 ${nodes[0].node_name || nodes[0].node_id} 上的包` : '没有已连接的机器'}</p>}
+      {section==='category' && <nav aria-label="本地包目录">
+        <PackageTree items={visible.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:entry.catalog?.category ?? []}))} query={search} selected={selected} onSelect={key=>navigateLocal('category',key)} />
+      </nav>}
+      </div></aside>
+      <section className="hl-pack-detail" aria-label="本地包内容">
+      <label className="hl-community-search">搜索本地包<input type="search" aria-label="搜索包" placeholder="搜索包名、版本或功能分类…" value={search} onChange={e=>{setSearch(e.target.value);if(selected)onNavigate(packManagerPath('local',section));}} /></label>
+      <h1>{({overview:'总览',category:'功能分类',attention:'需要注意',missing:'环境缺失',undeclared:'未声明环境要求'} as const)[section]}</h1>
+      <p className="hl-pack-summary" role="status">{loading ? '正在汇总包与工作流…' : `当前机器已发现 ${summary.installed} 个版本 · 清单内 ${summary.attention.length} 项待处理 · ${summary.undeclared.length} 个未声明环境要求`}{checks.loading && ' · 环境检查中…'}</p>
       {warnings.length > 0 && <div role="alert" className="hl-pack-notice">{warnings.map(message => <p key={message}>{message}</p>)}</div>}
       <p className="hl-pack-boundary">使用情况以已保存工作流草稿为准。未声明 requires 不等于环境缺失；检查通过也不保证一定能运行。</p>
-      {checks.error && <p role="alert">本地能力暂时无法查询，请检查计算节点连接后刷新。</p>}
+      {checks.error && <p role="alert">本地能力暂时无法查询。<button onClick={checks.refresh}>重试环境检查</button></p>}
       {loading && <p role="status">正在汇总包与工作流…</p>}
       {!loading && !visible.length && <div className="hl-pack-empty">{entries.length ? '没有符合筛选条件的包。' : '还没有发现包。连接计算节点或前往社区安装包。'}</div>}
+      {section==='overview' && !loading && <>
+        <section aria-label="需要注意"><h2>需要注意</h2>
+          {summary.attention.length ? <>{cards(summary.attention.filter(entry=>visible.includes(entry)).slice(0,6))}{!summary.attention.some(entry=>visible.includes(entry)) && <p>当前搜索没有匹配的待处理项。</p>}<button onClick={()=>navigateLocal('attention')}>查看全部待处理项 ({summary.attention.length})</button></>
+            : <p>{healthPending || warnings.length ? '检查尚不完整，暂未确认需要处理的问题。' : '没有发现需要处理的问题。'}</p>}
+        </section>
+        <section aria-label="近期工作流引用"><h2>近期工作流引用</h2><p className="hl-pack-boundary">按引用该包的工作流最近编辑时间排序，不代表最近执行时间。</p>
+          {summary.recent.length ? cards(summary.recent.filter(entry=>visible.includes(entry)).slice(0,8)) : <p>已读取的工作流草稿暂无包引用。</p>}
+        </section>
+      </>}
+      {section!=='overview' && !selectedEntry && <>{cards(sectionEntries)}{!loading && !sectionEntries.length && <p className="hl-pack-empty">{healthPending && section==='missing' ? '环境检查尚未完成。' : '没有符合此视图的包。'}</p>}</>}
+      {section==='category' && selected && !loading && !selectedEntry && <p role="status">该包当前未发现，请重新选择。</p>}
       {(selectedEntry ? [selectedEntry] : []).map(entry => {
           const selectedNode = nodes.find(node => node.node_id === nodeId);
           const installed = !!nodeId && installedOn(entry, nodeId);

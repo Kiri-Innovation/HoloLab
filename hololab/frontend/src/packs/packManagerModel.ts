@@ -4,7 +4,7 @@ import type { EnvironmentReport } from '../canvas/EnvironmentChecks';
 
 export interface RecipeIssue { node_id: string; code?: string; message: string }
 export interface RecipeCheck { issues: RecipeIssue[]; environment?: Record<string, EnvironmentReport> }
-export interface WorkflowUsage { workflow_id: string; name: string; graph: WorkflowGraph; check?: RecipeCheck; checkFailed?: boolean }
+export interface WorkflowUsage { updated_ts?: number; workflow_id: string; name: string; graph: WorkflowGraph; check?: RecipeCheck; checkFailed?: boolean }
 export interface InventoryPack { name: string; version: string; node_id: string; node_name?: string; online: boolean }
 export interface RegistryRelease { name: string; version: string; yanked: boolean; requires?: unknown; source: string; code_sha256?: string }
 export interface PackEntry {

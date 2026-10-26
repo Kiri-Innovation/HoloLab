@@ -117,3 +117,8 @@
 .hl-community-dialog h2 { overflow-wrap: anywhere; min-width: 0; }
 .hl-community-dialog > header > button { flex-shrink: 0; }
 @media (max-width: 760px) { .hl-community-dialog { padding: var(--space-3); } }
+.hl-pack-view-nav > button:first-child { margin-bottom: var(--space-3); }
+.hl-pack-view-nav > button:nth-child(2) { border-top: 1px solid var(--border); border-radius: 0; }
+.hl-pack-view-nav [aria-current=page] { background: var(--surface-alt); font-weight: var(--fw-semibold); box-shadow: inset 2px 0 var(--text-body); }
+.hl-local-cards { margin-bottom: var(--space-4); }
+.hl-local-cards .hl-pack-card p, .hl-local-cards .hl-pack-card small { color: var(--text-muted); }

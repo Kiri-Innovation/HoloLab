@@ -18,7 +18,8 @@ export function PackageTree({items, selected, query, onSelect, disabled = false}
       </button>;
     }
     if (matches.active && !matches.forceOpen.has(node.path)) return null;
-    const expanded = matches.active || (open[node.path] ?? node.depth === 0);
+    const containsSelected=(child:TreeNode<PackageTreeItem>):boolean=>child.kind==='leaf'?child.pack.key===selected:child.kind==='folder'&&child.children.some(containsSelected);
+    const expanded = matches.active || (open[node.path] ?? (node.depth === 0 || node.children.some(containsSelected)));
     return <div className="hl-pack-tree-group" key={node.path}>
       <button className="hl-pack-folder" aria-expanded={expanded} onClick={() => setOpen(prev => ({...prev, [node.path]: !expanded}))}>
         <span aria-hidden="true">{expanded ? '▾' : '▸'}</span> {node.label}
