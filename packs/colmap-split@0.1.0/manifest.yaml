@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: colmap-split
+name: community/colmap-split
 version: 0.1.0
 description: >
   Explode a ``colmap-cams`` handle into two independently-wire-able

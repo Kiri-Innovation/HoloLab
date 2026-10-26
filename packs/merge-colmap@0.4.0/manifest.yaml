@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: merge-colmap
+name: community/merge-colmap
 version: 0.4.0
 description: >
   Per-frame ``colmap-folder`` assembly with all three inputs as fan-out

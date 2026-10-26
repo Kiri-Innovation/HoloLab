@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: colmap-cam-decode
+name: community/colmap-cam-decode
 version: 0.1.0
 description: >
   Explode a ``colmap-cams`` bundle (poses + intrinsics) into two arrayed

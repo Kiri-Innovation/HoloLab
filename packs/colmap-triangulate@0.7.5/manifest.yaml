@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: colmap-triangulate
+name: community/colmap-triangulate
 version: 0.7.5
 description: >
   Per-frame triangulator — given fixed poses + intrinsics, solve the
