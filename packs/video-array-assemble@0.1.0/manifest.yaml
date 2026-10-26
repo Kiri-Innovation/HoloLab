@@ -3,7 +3,7 @@ kind: Algorithm
 name: video-array-assemble
 version: 0.1.0
 description: Assemble ordered video paths into a layer array.
-category: source/video
+category: basic/input/video-array-assemble
 source_entry: run.py
 docs: |-
   paths is a nonempty native array of absolute paths on the selected compute node. Each path is a video file or a directory containing exactly one supported video (.mp4/.mov/.mkv/.avi/.webm/.m4v). Order in the list is layer order, NOT sorted path order. Repeated paths are allowed.

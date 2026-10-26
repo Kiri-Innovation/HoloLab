@@ -12,7 +12,7 @@ description: >
 # ``source_entry`` resolves against the manifest's own directory
 # (self-contained + portable).
 source_entry: extract_frames.py
-category: "source/frames"
+category: "basic/input/frame-extraction"
 
 # M7 migration: pack is arrayable. When the operator checks "并行处理数组输入"
 # on this node, an arrayed<video-source> input (from video-array-source) is

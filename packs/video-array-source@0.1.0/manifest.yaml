@@ -3,7 +3,7 @@ kind: Algorithm
 name: video-array-source
 version: 0.1.0
 description: "Data-source node — points at a DIRECTORY of videos (multi-clip / multi-camera) to feed the SfM+STG chain. Does NOT extract frames."
-category: "source/video"
+category: "basic/input/video-array-source"
 docs: |
   Data-source node for a **multi-clip / multi-camera capture** — a
   directory containing one or more video files, each typically a

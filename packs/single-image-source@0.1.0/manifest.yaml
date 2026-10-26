@@ -3,7 +3,7 @@ kind: Algorithm
 name: single-image-source
 version: 0.1.0
 description: "Data-source node — points at ONE image file to feed image-conditioned algorithms. Does NOT transform pixels."
-category: "source/image"
+category: "basic/input/single-image-source"
 docs: |
   Data-source node for a **single image**. Symlinks the source file
   into a handle so downstream image-conditioned packs can read it

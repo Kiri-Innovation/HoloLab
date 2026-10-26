@@ -3,7 +3,7 @@ kind: Algorithm
 name: single-video-source
 version: 0.1.0
 description: "Data-source node — points at ONE video file to feed the SfM+STG chain. Does NOT extract frames."
-category: "source/video"
+category: "basic/input/single-video-source"
 docs: |
   Data-source node for a **single monocular video**. Symlinks the
   source file into a handle so downstream reconstruction packs can
