@@ -1,0 +1,66 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: merge-colmap4d
+version: 0.1.1
+description: "Assemble per-group points, undistorted images, and camera bundles into one scalar colmap4d model."
+source_entry: merge_colmap4d.py
+category: "reconstruction/colmap"
+
+docs: |
+  This version removes the dependency on a preassembled `colmap-folder` and
+  on `colmap4d-temporal-groups`. It consumes the three native reconstruction
+  outputs directly. Image timestamps and clock identity are read strictly
+  from the undistorted JPEG XMP written by `image-undistort@0.5.2`.
+
+  `cams` is arrayed by group: although image-undistort declares a scalar
+  result inside one fan-out shard, HoloLab aggregates those shard results as
+  `arrayed[group]<colmap-cams>`. Keeping that axis also preserves the correct
+  six-image pose set for incomplete groups.
+
+inputs:
+  points:
+    tags: [point-cloud]
+    arrayed: true
+    storage: dir
+    dim_labels: [group]
+    require_axis_label_match: false
+  images:
+    tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [group, cam]
+  cams:
+    tags: [colmap-cams]
+    arrayed: true
+    storage: dir
+    dim_labels: [group]
+    require_axis_label_match: false
+
+outputs:
+  model:
+    tags: [colmap4d]
+    arrayed: false
+    storage: dir
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 2.0
+    mem_gb: 8.0
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/merge_colmap4d.py" \
+      --points "{{ inputs.points }}" \
+      --images "{{ inputs.images }}" \
+      --cams "{{ inputs.cams }}" \
+      --output "{{ outputs.model }}"
+
+idempotency:
+  marker: "{{ outputs.model }}/.hololab-done"
+
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
