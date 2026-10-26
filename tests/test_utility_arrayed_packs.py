@@ -64,26 +64,7 @@ def test_get_index_shape_with_idx_param() -> None:
     assert m.outputs["item"].dim_labels_drop_outer == 1
 
 
-def test_regroup_by_frame_shape() -> None:
-    m = _load("regroup-by-frame")
-    # Whole-array operation — NOT arrayable (framework passes the arrayed
-    # dir path as-is; the pack does the transpose in one process).
-    assert m.arrayable is False
-    assert m.inputs["by_cam"].tags == ["image"]
-    assert m.inputs["by_cam"].arrayed is True
-    assert m.outputs["by_frame"].tags == ["image"]
-    assert m.outputs["by_frame"].arrayed is True
-
-
-def test_regroup_by_frame_has_source_entry() -> None:
-    m = _load("regroup-by-frame")
-    assert m.source_entry == "regroup.py"
-    # The referenced script actually exists.
-    script = PACKS_ROOT / "regroup-by-frame@0.1.0" / m.source_entry
-    assert script.is_file()
-
-
-@pytest.mark.parametrize("pack_name", ["array-length", "arrayfy", "get-index", "regroup-by-frame"])
+@pytest.mark.parametrize("pack_name", ["array-length", "arrayfy", "get-index"])
 def test_pack_category_marks_basic_array_operation(pack_name: str) -> None:
     m = _load(pack_name)
     assert m.category == ["basic", "array", pack_name], m.category

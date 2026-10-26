@@ -693,8 +693,8 @@ def test_handle_summary_frames_subdir_gets_second_level_drill(
     tmp_path: Path,
 ) -> None:
     """Legacy ``arrayed<image>`` wraps images in a ``frames/`` subdir
-    (``<element>/frames/<image>``, pre flatten-migration
-    ``frame-extraction`` / ``regroup-by-frame``). The dir summary drills
+    (``<element>/frames/<image>``, from older image-sequence producers).
+    The dir summary drills
     one more level into any such subdir so ``NestedFrameSequencePreview``
     can pick thumbnails without an extra fetch per element. Kept as a
     read-side backward-compat contract even though new producers write
@@ -706,7 +706,7 @@ def test_handle_summary_frames_subdir_gets_second_level_drill(
         d = tmp_path / "by_frame"
         d.mkdir()
         # Two element dirs, each with a ``frames/`` subdir holding
-        # per-camera images (regroup-by-frame's transposed layout).
+        # per-camera images in the legacy transposed layout.
         for frame in ("frame_000000", "frame_000001"):
             f = d / frame / "frames"
             f.mkdir(parents=True)

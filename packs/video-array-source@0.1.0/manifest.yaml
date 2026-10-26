@@ -41,7 +41,7 @@ docs: |
   Downstream ``frame-extraction`` is now ``arrayable: true``; check the
   "并行处理数组输入" box on that node and the scheduler dispatches one
   shard per camera, producing an ``arrayed<frame_sequence>`` output
-  ready for ``regroup-by-frame`` / ``colmap-triangulate``.
+  ready for generic regrouping / ``colmap-triangulate``.
 
   Preview: derived from the ``video-source`` tag via the gateway's
   tag→viewer registry (video-grid renders one tile per element).

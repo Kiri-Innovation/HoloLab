@@ -58,7 +58,7 @@ def _fake_sfm(keys: list[str]) -> dict[str, object]:
 
 
 def test_resolve_sfm_key_direct_stem_match_wins() -> None:
-    """Legacy ``regroup-by-frame`` chain: staged files preserve the SfM cam
+    """Legacy transposed-image chains: staged files preserve the SfM cam
     key as their stem (``cam00.png``). Direct match must be preferred over
     numeric fallback so any weird numeric collision can't override it.
     """

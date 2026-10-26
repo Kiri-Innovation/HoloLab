@@ -2,8 +2,7 @@
 
 This version makes the colmap4d image sample set structurally flat. Its image
 port is a one-dimensional `arrayed<image>` whose physical elements are
-root-level files named `gXXXXXX__camN.jpg` by
-`flatten-image-groups@0.1.0`.
+root-level files named `gXXXXXX__camN.jpg` by `flatten-array@0.1.0`.
 
 The filename carries assembly provenance, not an array axis. The decoder is
 deliberately strict: malformed names, duplicate group/camera pairs, groups not

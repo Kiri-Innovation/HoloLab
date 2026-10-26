@@ -423,7 +423,7 @@ export function Preview({
 //
 // Rationale: the caret used to be gated on ``spec.preview`` being
 // declared — pack authors who hadn't wired a viewer (stg-train,
-// regroup-by-frame, colmap-assemble, …) had NO way to see their
+// generic regrouping, colmap-assemble, …) had NO way to see their
 // artifact from the canvas. Widening the caret to also open on a
 // resolved handle means these nodes need *something* to show; this
 // is that something.
@@ -2630,7 +2630,7 @@ function FrameZoomOverlay({
 // Layout on disk: ``<parent>/<element>/<image>``. Each element is a
 // directory of image files; the two current producers are
 // ``frame-extraction[arrayed]`` (element = camera, dir = per-frame
-// PNGs) and ``regroup-by-frame`` (element = frame, dir = per-camera
+// PNGs) and transposed image arrays (element = frame, dir = per-camera
 // PNGs).  Both are the same type, so both share this viewer.
 //
 // Main view
@@ -2752,7 +2752,7 @@ function NestedFrameSequencePreview({
             // arrayed<arrayed<image>> can put images either directly
             // under the element (``<element>/<image>``) or one deeper
             // inside a ``frames/`` subdir (``<element>/frames/<image>``,
-            // the current frame-extraction + regroup-by-frame
+            // the current frame-extraction + generic regrouping
             // convention). The server enriches both cases into
             // ``children`` / ``children[].children`` so we handle them
             // with the same walker.

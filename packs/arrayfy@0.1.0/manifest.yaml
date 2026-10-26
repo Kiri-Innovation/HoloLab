@@ -41,7 +41,7 @@ params:
       printf format for element ids (0-based ordinals). Change to e.g.
       ``frame_%06d`` when downstream fan-out must pair by-name against a
       sibling arrayed<T> whose element ids use that convention (e.g. a
-      ``regroup-by-frame`` output using ``frame_000000`` element ids).
+      a transposed array output using ``frame_000000`` element ids).
 
 outputs:
   out:

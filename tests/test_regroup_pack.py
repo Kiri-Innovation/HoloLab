@@ -592,29 +592,6 @@ def test_handle_summary_dim_sizes_image_missing_files(tmp_path: Path) -> None:
     assert res["element_count"] == 3  # element_count fallback stays
 
 
-# ---------------------------------------------------------------------------
-# Structural equivalence — regroup-by-frame@0.1.0 vs regroup@0.2.0
-# ---------------------------------------------------------------------------
-#
-# regroup-by-frame@0.1.0 — file-level transpose over arrayed<image_sequence>:
-#   Iterates individual PNGs inside each cam's ``frames/`` and groups them
-#   by source frame stem under new per-frame ``frames/`` dirs. Filenames
-#   echo the source cam dir name (``cam00.png``).
-#
-# regroup@0.2.0 — tag-aware transpose:
-#   * content_dims=0 → dir-level, arrayed<arrayed<T>>, T is a dir (colmap).
-#   * content_dims=1 → image_sequence: same file-level regroup as the
-#     legacy pack, differing only in leaf naming (``<label>_<idx:04d>``
-#     vs source-stem echo).
-#
-# See ``test_regroup_v020_matches_regroup_by_frame_structure_when_content_dims_1``
-# for the equivalence proof (structure identical modulo naming).
-
-_RBF_SCRIPT = (
-    Path(__file__).resolve().parents[1] / "packs" / "regroup-by-frame@0.1.0" / "regroup.py"
-)
-
-
 def _mk_image_sequence_tree(root: Path, cams: list[str], n_frames: int) -> None:
     """Explicit camera/frame collection of test payload files."""
     for cam in cams:
@@ -622,40 +599,6 @@ def _mk_image_sequence_tree(root: Path, cams: list[str], n_frames: int) -> None:
         frames_dir.mkdir(parents=True)
         for i in range(n_frames):
             (frames_dir / f"frame_{i:06d}.png").write_bytes(f"{cam}/{i}".encode())
-
-
-def _run_rbf(input_root: Path, output_root: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [
-            sys.executable,
-            str(_RBF_SCRIPT),
-            "--input",
-            str(input_root),
-            "--output",
-            str(output_root),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-
-def test_regroup_by_frame_transposes_image_sequence(tmp_path: Path) -> None:
-    """Transpose camera/frame files to frame/camera files, without extra wrappers."""
-    in_root = tmp_path / "in"
-    _mk_image_sequence_tree(in_root, ["cam_A", "cam_B"], n_frames=3)
-    out = tmp_path / "out_rbf"
-    _run_rbf(in_root, out)
-
-    outer = sorted(p.name for p in out.iterdir() if not p.name.startswith("."))
-    assert len(outer) == 3, f"expected 3 per-frame elements, got {outer}"
-    assert outer[0] == "frame_000000"
-
-    frames_dir = out / "frame_000000"
-    assert frames_dir.is_dir()
-    assert (frames_dir / "cam_A.png").is_symlink()
-    assert (frames_dir / "cam_B.png").is_symlink()
-    assert (frames_dir / "cam_A.png").read_bytes() == b"cam_A/0"
 
 
 def test_regroup_v020_explicit_file_axes_need_no_content_dims(
@@ -669,33 +612,6 @@ def test_regroup_v020_explicit_file_axes_need_no_content_dims(
 
     outer = sorted(p.name for p in out.iterdir() if not p.name.startswith("."))
     assert outer == ["frame_0000", "frame_0001", "frame_0002"]
-
-
-def test_regroup_v020_matches_regroup_by_frame_element_count(
-    tmp_path: Path,
-) -> None:
-    """Both regroup variants preserve the number and bytes of explicit file leaves."""
-    in_root = tmp_path / "in"
-    _mk_image_sequence_tree(in_root, ["cam00", "cam01", "cam02"], n_frames=4)
-
-    out_rbf = tmp_path / "out_rbf"
-    _run_rbf(in_root, out_rbf)
-
-    out_v020 = tmp_path / "out_v020"
-    _run(in_root, out_v020, ["cam", "frame"], ["frame", "cam"], content_dims=1)
-
-    rbf_frames = sorted(p.name for p in out_rbf.iterdir() if not p.name.startswith("."))
-    v020_frames = sorted(p.name for p in out_v020.iterdir() if not p.name.startswith("."))
-    assert len(rbf_frames) == len(v020_frames) == 4
-
-    rbf_cams = sorted((out_rbf / rbf_frames[0]).iterdir())
-    v020_cams = sorted(f for f in (out_v020 / v020_frames[0]).iterdir() if f.is_symlink())
-    assert len(rbf_cams) == len(v020_cams) == 3
-    assert [c.name for c in v020_cams] == ["cam_0000.png", "cam_0001.png", "cam_0002.png"]
-    assert [c.name for c in rbf_cams] == ["cam00.png", "cam01.png", "cam02.png"]
-
-    # And the actual bytes match — position [0][0] in both is the same source file.
-    assert rbf_cams[0].read_bytes() == v020_cams[0].read_bytes() == b"cam00/0"
 
 
 def test_regroup_v020_content_dims_1_transpose_correctness(tmp_path: Path) -> None:

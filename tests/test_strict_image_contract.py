@@ -38,8 +38,6 @@ MAIN = (
         "colmap-sfm@0.4.2",
         "merge-colmap@0.4.0",
         "frame-extraction@0.1.0",
-        "regroup-by-frame@0.1.0",
-        "regroup-by-frame@0.1.1",
     ]
 )
 
@@ -268,7 +266,6 @@ def test_current_main_chain_edges_and_broadcast_contract():
         "colmap-triangulate@0.7.5",
         "colmap-sfm@0.4.2",
         "merge-colmap@0.4.0",
-        "regroup-by-frame@0.1.1",
     ]
     packs = catalog(names)
     stg_path = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.3.0/manifest.yaml"
@@ -282,7 +279,6 @@ def test_current_main_chain_edges_and_broadcast_contract():
         ("tri", names[1], True),
         ("sfm", names[2], False),
         ("merge", names[3], True),
-        ("frames", names[4], False),
         ("stg", "stg-train@0.3.0", False),
     ]:
         alg, ver = name.split("@")
@@ -299,7 +295,6 @@ def test_current_main_chain_edges_and_broadcast_contract():
             )
         )
     specs = [
-        ("frames", "by_frame", "und", "images"),
         ("sfm", "cams", "und", "cams"),
         ("und", "images", "tri", "frames"),
         ("sfm", "cams", "tri", "cams"),
@@ -334,31 +329,6 @@ def test_current_main_chain_edges_and_broadcast_contract():
             render_type(ir.inputs["frames" if id == "tri" else "images"].views.invocation)
             == "arrayed[cam]<image>"
         )
-
-
-@pytest.mark.parametrize("version", ["0.1.0", "0.1.1"])
-def test_real_regroup_by_frame_produces_image_file_leaves(tmp_path, version):
-    src = tmp_path / "src"
-    out = tmp_path / "out"
-    for cam in ["cam0", "cam1"]:
-        for frame in ["frame0", "frame1"]:
-            picture(src / cam / f"{frame}.png")
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(PACKS / f"regroup-by-frame@{version}/regroup.py"),
-            "--input",
-            str(src),
-            "--output",
-            str(out),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    assert result.returncode == 0, result.stderr
-    validate_path(out, image_spec(True, ["frame", "cam"]), label="regroup.out")
-    assert _measure_dim_sizes(out, 2, ["image"])[0] == [2, 2]
 
 
 @pytest.mark.parametrize("hint", [0, 1])

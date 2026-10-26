@@ -119,8 +119,7 @@ def _flat_group_images(root: Path) -> dict[str, dict[str, Path]]:
         match = FLAT_IMAGE_RE.fullmatch(path.name)
         if match is None:
             raise ValueError(
-                f"{path}: expected flattened name gXXXXXX__camN.jpg; "
-                "run flatten-image-groups@0.1.0 first"
+                f"{path}: expected flattened name gXXXXXX__camN.jpg; run flatten-array@0.1.0 first"
             )
         group, alias, _suffix = match.groups()
         by_alias = groups.setdefault(group, {})

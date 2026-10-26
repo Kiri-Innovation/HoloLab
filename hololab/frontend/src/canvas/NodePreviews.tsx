@@ -21,7 +21,7 @@ import { NodeViewerFrame } from "./NodeViewerFrame";
 //   * ``kind: "info"``  — no preview declared but the last run resolved
 //     a handle. The drawer shows BasicInfoPreview (path, size, contents,
 //     Open-in-Cocoder) so operators aren't blind to what nodes without
-//     a bespoke viewer (stg-train, regroup-by-frame, colmap-assemble, …)
+//     a bespoke viewer (stg-train, generic regrouping, colmap-assemble, …)
 //     just produced.
 //
 // A port with both a preview spec AND a target keeps ``kind: "viewer"``

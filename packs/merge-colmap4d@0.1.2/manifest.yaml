@@ -8,7 +8,7 @@ category: "reconstruction/colmap4d"
 
 docs: |
   The image input is strictly one-dimensional. Connect
-  `arrayed[group,cam]<image>` through `flatten-image-groups@0.1.0`; its
+  `arrayed[group,cam]<image>` through `flatten-array@0.1.0`; its
   root-level elements are named `gXXXXXX__camN.jpg`.
 
   This pack decodes and validates that filename convention, then checks every
