@@ -66,7 +66,7 @@
 .hl-pack-leaf-heading { display: flex; align-items: baseline; min-width: 0; gap: var(--space-2); line-height: var(--lh-ui); }
 .hl-pack-leaf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hl-pack-leaf-version { flex-shrink: 0; color: var(--text-muted); font-family: var(--font-mono); }
-.hl-pack-tree-group .hl-pack-leaf[aria-current=true] { background: var(--surface-alt); font-weight: var(--fw-semibold); box-shadow: inset 2px 0 var(--text-body); }
+.hl-pack-tree-group .hl-pack-leaf[aria-current=true] { background: var(--surface-alt); font-weight: var(--fw-semibold); }
 .hl-pack-tree-group .hl-pack-leaf:hover { background: var(--surface-hover); }
 .hl-pack-detail { overflow: auto; padding: var(--space-5); min-width: 0; }
 .hl-pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: var(--space-4); margin-top: var(--space-4); align-items: start; }
@@ -123,7 +123,7 @@
 .hl-community-dialog h2 { overflow-wrap: anywhere; min-width: 0; }
 .hl-community-dialog > header > button { flex-shrink: 0; }
 @media (max-width: 760px) { .hl-community-dialog { padding: var(--space-3); } }
-.hl-pack-view-nav [aria-current=page] { background: var(--surface-alt); font-weight: var(--fw-semibold); box-shadow: inset 2px 0 var(--text-body); }
+.hl-pack-view-nav [aria-current=page] { background: var(--surface-alt); font-weight: var(--fw-semibold); }
 .hl-local-cards { margin-bottom: var(--space-4); }
 .hl-local-cards .hl-pack-card p, .hl-local-cards .hl-pack-card small { color: var(--text-muted); }
 
@@ -141,7 +141,7 @@
 .hl-tree-chevron { width: var(--space-3); height: var(--space-3); fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.75; transition: transform 120ms ease; }
 .hl-local-folder-toggle[aria-expanded=true] .hl-tree-chevron { transform: rotate(90deg); }
 .hl-local-folder-row .hl-pack-folder { flex: 1; min-width: 0; font-weight: var(--fw-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hl-local-directory [aria-current=page] { background: var(--surface-alt); font-weight: var(--fw-semibold); box-shadow: inset 2px 0 var(--text-body); border-radius: var(--radius-sm); }
+.hl-local-directory [aria-current=page] { background: var(--surface-alt); font-weight: var(--fw-semibold); border-radius: var(--radius-sm); }
 .hl-local-directory button:hover { background: var(--surface-hover); }
 
 @container (max-width: 220px) {
