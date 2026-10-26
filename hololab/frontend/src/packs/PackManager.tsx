@@ -11,6 +11,8 @@ import type { CatalogPack, ComputeNode, WorkflowGraph } from '../wire';
 import { CONTROL_STYLE } from '../ui/controlStyles';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { EnvironmentEvidence, environmentLabel, useCapabilityChecks } from '../canvas/EnvironmentChecks';
+import type { NodeStatusPresentation, StatusTone } from '../canvas/nodeStatus';
+import { NodeStatusDot } from '../ui/NodeStatusTooltip';
 import { EvidenceValue } from '../canvas/EvidenceValue';
 import { OpenSourceButton } from '../canvas/OpenSourceButton';
 import { writeToClipboard } from '../canvas/referenceAction';
@@ -25,6 +27,10 @@ async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
   return response.json();
 }
 interface CentralComparison { state: 'identical'|'differs'|'absent'|'unknown'; central_code_sha256?: string; yanked?: boolean; source?: string; reason?: string | null }
+
+function status(tone: StatusTone, conclusion: string, reason: string, action: string): NodeStatusPresentation {
+  return {tone, conclusion, reason, action};
+}
 
 export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   onNavigate: (path: string) => void; onBack: () => void; onOpenWorkflow: (id: string) => void;
@@ -147,28 +153,34 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const requires = entry.catalog ? entry.catalog.requires : entry.release?.requires;
     const showEnvironment = hasEnvironmentDetails(requires);
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
-    const historicalNodes = entry.inventory.filter(item => !entry.catalog?.node_ids.includes(item.node_id));
     const canInstall = !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
     const breadcrumbCategory = categoryTrail(entry);
+    const registryStatus = centralLoading && !comparison ? status('neutral', '查询中', '正在查询社区注册表。', '稍候会自动显示比对结果。')
+      : comparison?.state === 'identical' ? status('success', '社区版', `社区注册表：${comparison.source}\n代码哈希：${comparison.central_code_sha256}`, '本地内容与线上同名版本一致。')
+      : comparison?.state === 'differs' ? status('warning', '与线上不同', `社区注册表：${comparison.source}\n线上哈希：${comparison.central_code_sha256}\n本地哈希：${entry.catalog?.code_sha256 ?? '不可用'}`, '本地修改可正常开发；安装或发布前请确认要保留哪一版。')
+      : comparison?.state === 'absent' ? status('neutral', '本地包', '社区注册表没有同名同版本。', '这是本地定义的包，可照常开发和运行。')
+      : status('neutral', '未查询', comparison?.reason ?? '尚未取得注册表结果。', '本地包仍可使用；可稍后刷新重试。');
+    const installStatus = !nodeId ? status('neutral', '未选节点', '尚未选择用于查看安装状态的计算节点。', '选择一个计算节点后可确认此包是否已安装。')
+      : installed ? status('success', '已安装', `当前节点已发现：${selectedNode?.node_name || nodeId}`, '可在当前节点运行此版本。')
+      : entry.inventory.some(item => item.node_id === nodeId) ? status('warning', '仅历史记录', '存在历史安装记录，但当前节点未确认提供此包。', '检查节点连接或重新安装此版本。')
+      : status('neutral', '未安装', `当前节点 ${selectedNode?.node_name || nodeId} 未发现此包。`, '可在社区页安装，或选择提供此包的节点。');
+    const environmentStatus = !report ? status('neutral', '环境未查', '尚未取得当前节点的环境检查结果。', '选择节点后等待检查完成。')
+      : report.status === 'satisfied' ? status('success', '环境就绪', '已声明且可探测的环境要求均满足。', '仍请按实际任务输入确认运行条件。')
+      : report.status === 'undeclared' ? status('warning', '环境未声明', '包作者没有声明环境要求，实际环境尚未确认。', '运行前请确认依赖和硬件条件。')
+      : report.status === 'missing' ? status('error', '缺依赖', report.issues.map(issue => `${issue.item}：需要 ${String(issue.required)}，当前 ${String(issue.actual)}`).join('\n'), '按提示补齐依赖或选择满足要求的节点。')
+      : status('neutral', '环境未知', '环境检查未能确认结果。', '检查节点连接后重新检查。');
+    const statuses = [registryStatus, installStatus, environmentStatus, ...(yanked ? [status('error', '已 yank', '该版本已被发布者撤回，不推荐新安装。', '已安装版本不会被删除；新任务请选择其他版本。')] : [])];
     return <article className="hl-local-package-page" data-local-page="package" key={entry.key} data-pack-key={entry.key}>
       <nav className="hl-local-breadcrumb" aria-label="包路径">{breadcrumbCategory.length > 0 && <><button onClick={()=>navigateLocal('category','',breadcrumbCategory.join('/'))}>{breadcrumbCategory.join(' / ')}</button><span aria-hidden="true">/</span></>}<span>{displayName(entry.name)}</span></nav>
       <header><div><h1>{`${entry.name}@${entry.version}`}</h1>{(breadcrumbCategory.length > 0 || loading || checks.loading || compactStatus(entry)) && <p className="hl-pack-identity-meta">{breadcrumbCategory.length > 0 && <>{breadcrumbCategory.join(' / ')}{(loading || checks.loading || compactStatus(entry)) && <span aria-hidden="true"> · </span>}</>}{(loading || checks.loading || compactStatus(entry)) && <span className="hl-pack-state" data-problem={problem(entry)}>{loading || checks.loading ? '检查中' : compactStatus(entry)}</span>}</p>}</div></header>
       {feedback}
       {entry.catalog?.description && <p className="hl-local-description">{entry.catalog.description}</p>}
-      <dl className="hl-pack-facts">
-        <div className="hl-pack-source"><dt>来源</dt><dd>
-          {centralLoading && !comparison ? <span>查询中…</span> : comparison?.state === 'identical' ? <span title={`社区注册表：${comparison.source}\n代码哈希：${comparison.central_code_sha256}`}>社区版</span>
-            : comparison?.state === 'differs' ? <strong title={`社区注册表：${comparison.source}\n线上哈希：${comparison.central_code_sha256}\n本地哈希：${entry.catalog?.code_sha256 ?? '不可用'}`}>⚠️ 与线上版本不同</strong>
-            : comparison?.state === 'absent' ? <span>本地包</span>
-            : <span title={comparison?.reason ?? undefined}>未查询</span>}
-          <button disabled={centralLoading} onClick={()=>void refreshCentralComparison(true)}>{centralLoading ? '查询中…' : '刷新'}</button>
-        </dd></div>
-        <div><dt>安装状态</dt><dd>{!nodeId ? '请先选择检查目标' : installed ? '当前节点已发现' : entry.inventory.some(item => item.node_id === nodeId) ? '仅有历史安装记录，当前未确认' : '当前节点未发现'}
-          <small>{entry.catalog?.node_ids.length ? `在线提供：${entry.catalog.node_ids.map(id => nodes.find(n => n.node_id === id)?.node_name || id).join('、')}` : '当前没有在线节点提供'}
-            {historicalNodes.length > 0 && `；也曾装于 ${historicalNodes.map(item => item.node_name || item.node_id).join('、')}（${historicalNodes.some(item => !item.online) ? '离线' : '历史记录'}）`}
-          </small></dd></div>
-        {yanked && <div><dt>Yank 状态</dt><dd><strong>⚠️ 该版本已 yank，不推荐新安装</strong></dd></div>}
-      </dl>
+      <section className="hl-pack-status-summary" aria-label="包状态">
+        {statuses.map(item => <span className="hl-pack-status-chip" data-status-tone={item.tone} key={item.conclusion}>
+          <NodeStatusDot status={item} /><span>{item.conclusion}</span>
+        </span>)}
+        <button className="hl-pack-status-refresh" disabled={centralLoading} onClick={()=>void refreshCentralComparison(true)}>{centralLoading ? '查询中…' : '刷新注册表'}</button>
+      </section>
       {showEnvironment && <details className="hl-pack-section" open><summary>环境 · {report ? environmentLabel(report) : nodeId ? '尚未完成检查' : '未选择计算节点'}</summary>
         <EnvironmentEvidence report={report} headingLabel={report?.status === 'unknown' ? '环境未校验' : undefined} />
         {requires != null && <details><summary>声明的 requires</summary><EvidenceValue value={requires} /></details>}
