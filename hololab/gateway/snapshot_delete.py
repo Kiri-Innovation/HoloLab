@@ -46,12 +46,15 @@ from fastapi import FastAPI, HTTPException
 from hololab.gateway import artifacts as art
 from hololab.gateway.handles import Handle, HandleBook
 from hololab.gateway.registry import NodeRegistry
+from hololab.logging import get_logger
 from hololab.persistence.db import Database
 
 # Job states that block deletion — the run is still moving, so ripping
 # its artifacts out from under a live subprocess would leave orphaned
 # files and confuse the executor.
 _LIVE_JOB_STATES = ("pending", "assigned", "running")
+
+log = get_logger("gateway.snapshot_delete")
 
 
 @dataclass
@@ -239,6 +242,7 @@ async def delete_snapshot(app: FastAPI, snapshot_id: str) -> dict[str, Any]:
     freed_bytes = 0
     physically_deleted = 0
     tombstoned_only = 0
+    tombstone_notes: list[dict[str, str]] = []
 
     # 1. Physically delete exclusive artifacts + tombstone their handle rows.
     #    We mirror DELETE /api/artifacts/{id}: try the node RPC first;
@@ -270,6 +274,23 @@ async def delete_snapshot(app: FastAPI, snapshot_id: str) -> dict[str, Any]:
                     note = f"node delete failed: {exc.detail}"
         if note is not None:
             tombstoned_only += 1
+            tombstone_notes.append({"handle_id": handle.handle_id, "note": note})
+            log.warning(
+                "artifact tombstoned without physical delete",
+                snapshot_id=snapshot_id,
+                handle_id=handle.handle_id,
+                node_id=handle.node_id,
+                path=handle.path,
+                reason=note,
+            )
+        else:
+            log.info(
+                "artifact physically deleted",
+                snapshot_id=snapshot_id,
+                handle_id=handle.handle_id,
+                node_id=handle.node_id,
+                path=handle.path,
+            )
         await book.mark_deleted(handle.handle_id, ts=art.now_ts())
         # Per-handle chip-facts cache is best-effort — pop on tombstone
         # so the next graph GET doesn't surface counts for a file the
@@ -316,4 +337,5 @@ async def delete_snapshot(app: FastAPI, snapshot_id: str) -> dict[str, Any]:
         "artifacts_tombstoned_only": tombstoned_only,
         "artifacts_kept_shared": impact.shared_artifact_count,
         "freed_bytes": freed_bytes,
+        "artifact_tombstone_notes": tombstone_notes,
     }

@@ -884,6 +884,7 @@ class SnapshotDeleteResult(BaseModel):
     artifacts_tombstoned_only: int = 0
     artifacts_kept_shared: int = 0
     freed_bytes: int = 0
+    artifact_tombstone_notes: list[dict[str, str]] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

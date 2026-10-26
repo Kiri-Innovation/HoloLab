@@ -68,9 +68,7 @@ def _fake_online_node(client: TestClient) -> list[dict[str, Any]]:
             req_id = payload["req_id"]
             fut = client.app.state.pending_artifact_deletes.get(req_id)
             if fut is not None and not fut.done():
-                fut.set_result(
-                    {"req_id": req_id, "ok": True, "freed_bytes": 1024}
-                )
+                fut.set_result({"req_id": req_id, "ok": True, "freed_bytes": 1024})
 
     ws.send_text = AsyncMock(side_effect=_fake_send)
     session = NodeSession(
@@ -87,9 +85,7 @@ def _fake_online_node(client: TestClient) -> list[dict[str, Any]]:
     return recorded
 
 
-def _seed_shared_artifact(
-    client: TestClient, workflow_id: str
-) -> tuple[str, str, str]:
+def _seed_shared_artifact(client: TestClient, workflow_id: str) -> tuple[str, str, str]:
     """Create two snapshots that BOTH attribute the same producing job.
 
     Returns ``(snap_a, snap_b, handle_id)``. Mimics a fork that reused
@@ -130,9 +126,7 @@ def _seed_shared_artifact(
         # because the job is created done + has snapshot_id + graph_node_id.
         # Add the second attribution manually — this is the "fork reused
         # A's output" scenario the V8 model captures via ``snapshot_jobs``.
-        await client.app.state.snapshot_jobs.attribute(
-            snap_b.snapshot_id, job.job_id, "A"
-        )
+        await client.app.state.snapshot_jobs.attribute(snap_b.snapshot_id, job.job_id, "A")
 
         await client.app.state.handles.register(
             Handle(
@@ -243,9 +237,7 @@ def test_delete_last_reference_removes_file_and_tombstones(
         assert body["freed_bytes"] == 1024
 
         # An artifact_delete_req WAS sent to the node this time.
-        delete_frames = [
-            f for f in recorded if f["kind"] == "artifact_delete_req"
-        ]
+        delete_frames = [f for f in recorded if f["kind"] == "artifact_delete_req"]
         assert len(delete_frames) == 1
         assert delete_frames[0]["payload"]["handle_id"] == handle_id
 
@@ -268,9 +260,7 @@ def test_delete_offline_node_still_tombstones(tmp_path: Path) -> None:
             await client.app.state.workflows.save_draft(
                 workflow_id=wid, name="cc-offline", graph=graph
             )
-            snap = await client.app.state.workflows.create_snapshot(
-                workflow_id=wid, graph=graph
-            )
+            snap = await client.app.state.workflows.create_snapshot(workflow_id=wid, graph=graph)
             job = Job(
                 job_id="job-off",
                 snapshot_id=snap.snapshot_id,
@@ -306,6 +296,12 @@ def test_delete_offline_node_still_tombstones(tmp_path: Path) -> None:
         assert body["artifacts_removed_from_disk"] == 0
         assert body["artifacts_tombstoned_only"] == 1
         assert body["freed_bytes"] == 0
+        assert body["artifact_tombstone_notes"] == [
+            {
+                "handle_id": "h-off",
+                "note": "producer node offline — DB row tombstoned; on-disk file untouched",
+            }
+        ]
 
         h_row = client.get("/api/handles/h-off").json()
         assert h_row["deleted_ts"] is not None
@@ -330,9 +326,7 @@ def test_running_job_blocks_delete_with_409(tmp_path: Path) -> None:
             await client.app.state.workflows.save_draft(
                 workflow_id=wid, name="cc-live", graph=graph
             )
-            snap = await client.app.state.workflows.create_snapshot(
-                workflow_id=wid, graph=graph
-            )
+            snap = await client.app.state.workflows.create_snapshot(workflow_id=wid, graph=graph)
             job = Job(
                 job_id="job-run",
                 snapshot_id=snap.snapshot_id,
@@ -384,9 +378,7 @@ def test_preview_unknown_snapshot_is_404(tmp_path: Path) -> None:
 
     app = create_app(db_path=tmp_path / "prev404.sqlite")
     with TestClient(app) as client:
-        r = client.get(
-            "/api/snapshots/00000000-0000-0000-0000-000000000000/deletion-preview"
-        )
+        r = client.get("/api/snapshots/00000000-0000-0000-0000-000000000000/deletion-preview")
         assert r.status_code == 404
 
 
@@ -405,9 +397,7 @@ def test_delete_nulls_children_parent_pointer(tmp_path: Path) -> None:
             await client.app.state.workflows.save_draft(
                 workflow_id=wid, name="cc-children", graph=graph
             )
-            parent = await client.app.state.workflows.create_snapshot(
-                workflow_id=wid, graph=graph
-            )
+            parent = await client.app.state.workflows.create_snapshot(workflow_id=wid, graph=graph)
             child = await client.app.state.workflows.create_snapshot(
                 workflow_id=wid,
                 graph=graph,
