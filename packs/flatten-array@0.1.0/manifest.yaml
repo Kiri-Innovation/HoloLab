@@ -1,0 +1,47 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: flatten-array
+version: 0.1.0
+description: "Flatten any two-dimensional arrayed<T> into a one-dimensional arrayed<T>."
+source_entry: flatten_array.py
+category: "utility/arrayed"
+
+docs: |
+  Generic fixed-rank array operation: `<outer>/<inner>` becomes the root-level
+  element `<outer>__<inner>`. Leaves are opaque and may be files or directories.
+  No type-specific decoding or validation is performed.
+
+  HoloLab cannot currently express arbitrary-rank input ports, so this version
+  is deliberately 2-D to 1-D. Axis labels are placeholders and label matching
+  is disabled; collection depth remains strict. Output tags inherit from `arr`
+  through `tags_from`.
+
+inputs:
+  arr:
+    tags: [any]
+    arrayed: true
+    storage: dir
+    dim_labels: [outer, inner]
+    require_axis_label_match: false
+
+outputs:
+  flat:
+    tags: [any]
+    tags_from: arr
+    arrayed: true
+    storage: dir
+
+runtime:
+  env: kiri
+  gpu:
+    required: false
+
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ pack_dir }}/flatten_array.py" \
+      --input "{{ inputs.arr }}" \
+      --output "{{ outputs.flat }}"
+
+idempotency:
+  marker: "{{ outputs.flat }}/.hololab-done"
