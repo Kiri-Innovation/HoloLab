@@ -4,7 +4,7 @@ name: fastgs-silhouette-train
 version: 0.1.0
 description: Static FastGS training with independent masked RGB loss and differentiable alpha silhouette supervision.
 source_entry: train_masked.py
-category: training/fastgs-pano
+category: gaussian-recon/fastgs/silhouette-train
 docs: |
   Uses the installed FastGS trainer without modifying its repository.
   RGB loss only uses masks; an additional binary cross-entropy alpha loss (or optional L1 loss)

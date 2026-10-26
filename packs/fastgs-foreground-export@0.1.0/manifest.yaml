@@ -4,7 +4,7 @@ name: fastgs-foreground-export
 version: 0.1.0
 description: Export only Gaussian centers that project into at least one foreground mask. Conservatively removes unobserved off-frame points; does not clip 2D renders.
 source_entry: export.py
-category: export/fastgs-pano
+category: gaussian-recon/fastgs/foreground-export
 inputs:
   colmap: {tags: [colmap-folder]}
   masks:
