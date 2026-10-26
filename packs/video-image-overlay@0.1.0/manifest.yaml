@@ -3,7 +3,7 @@ kind: Algorithm
 name: video-image-overlay
 version: 0.1.0
 description: Overlay one image on a video with proportional scaling and nine positions.
-category: video/editing
+category: basic/editing
 source_entry: run.py
 docs: |-
   Connect single-image-source.image (scalar image file) to image. The still repeats within the selected window.

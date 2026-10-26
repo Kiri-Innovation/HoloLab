@@ -3,7 +3,7 @@ kind: Algorithm
 name: video-video-overlay
 version: 0.1.0
 description: Overlay one video on another video with proportional scaling and nine positions.
-category: video/editing
+category: basic/editing
 source_entry: run.py
 docs: |-
   Connect a main video to video and a picture-in-picture video to overlay.

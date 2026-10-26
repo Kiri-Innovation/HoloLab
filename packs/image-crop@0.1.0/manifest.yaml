@@ -4,7 +4,7 @@ name: image-crop
 version: 0.1.0
 description: "Crop a rectangle from one image, or add a constant-color border."
 source_entry: crop.py
-category: "image/processing"
+category: basic/editing
 docs: |
   Four independent float paddings, always in pixels (never ratios).
   Positive values remove pixels from that side; negative values add a border.

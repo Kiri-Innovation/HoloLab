@@ -3,7 +3,7 @@ kind: Algorithm
 name: frames-to-video
 version: 0.1.0
 description: Encode an ordered PNG or JPEG frame collection as MP4.
-category: video/editing
+category: basic/editing
 source_entry: run.py
 docs: |-
   Flat [frame] collection, sorted by entry name (zero-pad numeric names). All frames must share dimensions. Nested camera/frame collections must first be reduced to one frame collection.

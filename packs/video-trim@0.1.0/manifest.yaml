@@ -3,7 +3,7 @@ kind: Algorithm
 name: video-trim
 version: 0.1.0
 description: Trim a video by start and end time, or duration, in seconds.
-category: video/editing
+category: basic/editing
 source_entry: run.py
 docs: |-
   Keeps [start_seconds, end_seconds). Optional end_seconds takes precedence over duration_seconds, including saved/default duration values; it must be greater than start_seconds.

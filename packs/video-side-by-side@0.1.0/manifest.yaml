@@ -3,7 +3,7 @@ kind: Algorithm
 name: video-side-by-side
 version: 0.1.0
 description: Place two videos side by side for comparison.
-category: video/editing
+category: basic/editing
 source_entry: run.py
 docs: |-
   Height 0 uses the smaller input height rounded down to even; explicit heights must be even. Preserves each aspect ratio, uses the left clip frame rate and stops at the shorter clip.

@@ -3,7 +3,7 @@ kind: Algorithm
 name: compose-video
 version: 0.1.0
 description: Composite ordered video layers with per-layer transforms and start offsets.
-category: video/editing
+category: basic/editing
 source_entry: run.py
 docs: |-
   Consumes the whole array in one invocation (no fan-out). Non-dot entry names sort lexically; later layers are on top. Zero-pad numeric IDs. Each video element is one video file or a directory containing exactly one video.

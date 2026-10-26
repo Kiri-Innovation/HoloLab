@@ -3,7 +3,7 @@ kind: Algorithm
 name: video-concat
 version: 0.1.0
 description: Concatenate an ordered collection of matching video clips.
-category: video/editing
+category: basic/editing
 source_entry: run.py
 docs: |-
   Clips are ordered by entry name (zero-pad numeric names). Consumes one collection per invocation, not fan-out. Any outer axis label is accepted. Width, height, frame rate and pixel aspect ratio must match; codecs are re-encoded. No automatic scaling.

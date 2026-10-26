@@ -3,7 +3,7 @@ kind: Algorithm
 name: image-to-video
 version: 0.1.0
 description: Convert one still image to a silent video.
-category: video/editing
+category: basic/editing
 source_entry: run.py
 docs: |-
   One image file becomes a still clip. Native image size, padded to even; no resizing. duration_seconds defaults to 3, fps to 30. Duration rounds up to a whole output frame.
