@@ -4,7 +4,7 @@ name: person-gray-mask
 version: 0.1.0
 description: Gray-wall foreground extraction with adaptive Lab color seeds and GrabCut. Validates every image stem and size; white means valid RGB loss.
 source_entry: mask.py
-category: preprocessing/masks
+category: generation/other
 inputs:
   colmap:
     tags: [colmap-folder]
