@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: video-image-overlay
+name: community/video-image-overlay
 version: 0.1.0
 description: Overlay one image on a video with proportional scaling and nine positions.
 category: basic/editing

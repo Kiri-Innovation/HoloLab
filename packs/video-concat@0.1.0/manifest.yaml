@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: video-concat
+name: community/video-concat
 version: 0.1.0
 description: Concatenate an ordered collection of matching video clips.
 category: basic/editing

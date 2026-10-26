@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: video-text-overlay
+name: community/video-text-overlay
 version: 0.1.0
 description: Add a literal text title to a video.
 category: basic/editing

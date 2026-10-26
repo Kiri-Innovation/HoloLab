@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: image-crop
+name: community/image-crop
 version: 0.1.0
 description: "Crop a rectangle from one image, or add a constant-color border."
 source_entry: crop.py

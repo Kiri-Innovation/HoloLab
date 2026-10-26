@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: image-to-video
+name: community/image-to-video
 version: 0.1.0
 description: Convert one still image to a silent video.
 category: basic/editing

@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: frames-to-video
+name: community/frames-to-video
 version: 0.1.0
 description: Encode an ordered PNG or JPEG frame collection as MP4.
 category: basic/editing

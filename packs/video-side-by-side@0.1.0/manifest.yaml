@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: video-side-by-side
+name: community/video-side-by-side
 version: 0.1.0
 description: Place two videos side by side for comparison.
 category: basic/editing

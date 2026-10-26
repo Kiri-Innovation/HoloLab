@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: video-trim
+name: community/video-trim
 version: 0.1.0
 description: Trim a video by start and end time, or duration, in seconds.
 category: basic/editing

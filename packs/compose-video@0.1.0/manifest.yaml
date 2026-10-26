@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: compose-video
+name: community/compose-video
 version: 0.1.0
 description: Composite ordered video layers with per-layer transforms and start offsets.
 category: basic/editing
