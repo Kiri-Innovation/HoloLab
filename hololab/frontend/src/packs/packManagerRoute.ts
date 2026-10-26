@@ -6,7 +6,8 @@ export function packManagerRoute(search:string) {
   const section=params.get('section') ?? '';
   return {view, localSection:localSections.find(value=>value===section) ?? 'overview',
     communitySection:communitySections.find(value=>value===section) ?? 'home',
-    pack:params.get('pack') ?? '', category:params.get('category') ?? '', publisher:params.get('publisher') ?? '', scope:params.get('scope') ?? ''} as const;
+    pack:params.get('pack') ?? '', category:params.get('category') ?? '', publisher:params.get('publisher') ?? '', scope:params.get('scope') ?? '',
+    tree:params.get('tree') === 'scope' ? 'scope' : 'category'} as const;
 }
 export function packManagerPath(view:'local'|'community',section:string,extra:Record<string,string>={}) {
   const params=new URLSearchParams({view,section});

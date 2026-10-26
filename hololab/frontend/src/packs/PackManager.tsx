@@ -37,10 +37,13 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const [nodeId, setNodeId] = useState('');
   const [search, setSearch] = useState('');
   const route=packManagerRoute(window.location.search);
-  const {view, localSection:section, pack:selected, category}=route;
+  const {view, localSection:section, pack:selected, category, tree}=route;
   const usage = usePackUsage(section==='category'?selected:'', revision, view==='local');
   const workflows = usage.items;
-  const navigateLocal=(next:string,pack='',category='')=>{if(next==='overview')setSearch('');onNavigate(packManagerPath('local',next,{pack,category}));};
+  const navigateLocal=(next:string,pack='',category='', nextTree=tree)=>{
+    if(next==='overview')setSearch('');
+    onNavigate(packManagerPath('local',next,{pack,category:nextTree==='category'?category:'',tree:nextTree==='scope'?'scope':''}));
+  };
   useEffect(()=>{setSearch('');},[view]);
   const leftDock = useResizableSlot('hl-layout-left', 300, 180, 420);
   const registry = useMemo<RegistryRelease[]>(() => [], []);
@@ -220,10 +223,14 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       <nav className="hl-community-index hl-pack-view-nav" aria-label="本地视图">
         {([['overview','总览'],['attention',`需要注意 (${summary.attention.length})`],['missing',`环境缺失 (${summary.missing.length})`],['undeclared',`未声明 (${summary.undeclared.length})`]] as const).map(([value,label])=><button key={value} aria-current={section===value?'page':undefined} onClick={()=>navigateLocal(value)}>{label}</button>)}
       </nav>
-      <nav className="hl-local-tree" aria-label="本地包目录">
-        <PackageTree items={entries.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:entry.catalog?.category ?? [], status:statusLabel(entry), problem:problem(entry)}))} query="" displayName={displayName}
-          selected={section==='category'?selected:''} selectedCategory={section==='category'&&!selected?category:''}
-          onSelect={key=>navigateLocal('category',key)} onSelectCategory={path=>navigateLocal('category','',path)} />
+      <div className="hl-local-tree-mode" role="tablist" aria-label="本地包分组方式">
+        <button role="tab" aria-selected={tree==='category'} onClick={()=>navigateLocal(section,selected,category,'category')}>按分类</button>
+        <button role="tab" aria-selected={tree==='scope'} onClick={()=>navigateLocal(section,selected,'','scope')}>按作用域</button>
+      </div>
+      <nav className="hl-local-tree" aria-label={tree==='category' ? '按分类的本地包目录' : '按作用域的本地包目录'}>
+        <PackageTree items={entries.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:tree==='scope'?[entry.scope]:entry.catalog?.category ?? [], status:statusLabel(entry), problem:problem(entry)}))} query="" displayName={displayName}
+          selected={section==='category'?selected:''} selectedCategory={tree==='category' && section==='category'&&!selected?category:''}
+          onSelect={key=>navigateLocal('category',key,'',tree)} onSelectCategory={tree==='category' ? path=>navigateLocal('category','',path,tree) : undefined} />
       </nav>
       {nodes.length > 1 ? <label>查看机器<select aria-label="查看机器" value={nodeId} onChange={e => setNodeId(e.target.value)}>{nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name || node.node_id}</option>)}</select></label> : <p className="hl-pack-boundary">{nodes.length ? `查看 ${nodes[0].node_name || nodes[0].node_id} 上的包` : '没有已连接的机器'}</p>}
       </div></aside>

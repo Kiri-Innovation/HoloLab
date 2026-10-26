@@ -3,7 +3,7 @@ kind: Algorithm
 name: builtin/get-index
 version: 0.1.0
 description: "Pick one element from an arrayed handle by its zero-based index."
-category: "utility/arrayed"
+category: "basic/array/get-index"
 inputs:
   arr:
     tags: [any]

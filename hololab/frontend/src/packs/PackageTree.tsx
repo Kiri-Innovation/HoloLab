@@ -4,7 +4,7 @@ import {buildTree, computeMatches, type TreePack, type TreeNode} from '../canvas
 export type PackageTreeItem = TreePack & {key: string; status?: string; problem?: boolean};
 export function PackageTree({items, selected, query, onSelect, displayName, selectedCategory, onSelectCategory, disabled = false}: {
   displayName: (name: string) => string;
-  selectedCategory: string; onSelectCategory: (path: string) => void;
+  selectedCategory: string; onSelectCategory?: (path: string) => void;
   items: PackageTreeItem[]; selected: string; query: string; onSelect: (key: string) => void; disabled?: boolean;
 }) {
   const tree = useMemo(() => buildTree(items, {includeView: false}), [items]);
@@ -34,8 +34,10 @@ export function PackageTree({items, selected, query, onSelect, displayName, sele
       <div className="hl-local-folder-row">
         <button className="hl-local-folder-toggle" aria-label={`${expanded ? '收起' : '展开'} ${node.label}`} aria-expanded={expanded}
           onClick={() => setOpen(prev => ({...prev, [node.path]: !expanded}))}>{expanded ? '▾' : '▸'}</button>
-        <button className="hl-pack-folder" aria-current={selectedCategory===node.path?'page':undefined}
-          onClick={() => {onSelectCategory(node.path);setOpen(prev => ({...prev, [node.path]: true}));}}>{node.label}</button>
+        <button className="hl-pack-folder" aria-current={onSelectCategory && selectedCategory===node.path?'page':undefined}
+          onClick={() => onSelectCategory
+            ? (onSelectCategory(node.path), setOpen(prev => ({...prev, [node.path]: true})))
+            : setOpen(prev => ({...prev, [node.path]: !(prev[node.path] ?? true)}))}>{node.label}</button>
       </div>
       {expanded && <div className="hl-pack-tree-children">{node.children.map(render)}</div>}
     </div>;

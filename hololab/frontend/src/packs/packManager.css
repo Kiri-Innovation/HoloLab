@@ -96,6 +96,9 @@
 .hl-pack-placeholder { min-height: 160px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .hl-pack-notice button { margin-left: var(--space-3); }
 .hl-community-index { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-1); margin-bottom: var(--space-4); }
+.hl-local-tree-mode { display: flex; gap: var(--space-2); margin: var(--space-3) 0 var(--space-2); border-bottom: 1px solid var(--border-subtle); }
+.hl-local-tree-mode button { padding: var(--space-1) var(--space-2); border: 0; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font-size: var(--fs-xs); }
+.hl-local-tree-mode button[aria-selected=true] { border-bottom-color: var(--text-body); color: var(--text-body); font-weight: var(--fw-semibold); }
 .hl-community-index button { text-align: left; border-color: transparent; background: transparent; }
 .hl-community-index [aria-current=true], .hl-community-index [aria-pressed=true], .hl-community-category-row [aria-current=true] { background: var(--surface-alt); font-weight: var(--fw-semibold); }
 .hl-community-category-row { display: flex; align-items: center; }
