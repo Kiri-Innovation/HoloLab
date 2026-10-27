@@ -37,6 +37,25 @@
 .hl-pack-usage { padding: var(--space-3); background: var(--surface-alt); margin-top: var(--space-2); }
 .hl-pack-usage > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .hl-pack-command { display: block; padding: var(--space-3); background: var(--surface-alt); overflow-wrap: anywhere; margin-bottom: var(--space-2); }
+.hl-pack-composition { display: grid; gap: var(--space-1); padding: 0; margin: 0; list-style: none; }
+.hl-pack-composition li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: baseline; }
+.hl-pack-composition small { grid-column: 1 / -1; color: var(--text-muted); }
+.hl-pack-composition-more { margin-top: var(--space-1); }
+.hl-pack-composition-more summary { color: var(--text-muted); cursor: pointer; }
+.hl-pack-excluded-note { display: block; margin-top: var(--space-1); color: var(--text-muted); }
+.hl-pack-content-tree { min-width: 0; padding: var(--space-2) 0; color: var(--text-body); font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1.65; }
+.hl-pack-content-tree-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; column-gap: var(--space-2); align-items: baseline; min-width: 0; }
+.hl-pack-content-tree-row > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hl-pack-content-tree-row > span:first-child { color: var(--text-muted); white-space: pre; user-select: none; }
+.hl-pack-content-tree-child { color: var(--text-muted); }
+.hl-pack-content-tree-child > span:nth-child(2) { color: var(--text-body); }
+.hl-pack-content-size { color: var(--text-muted); text-align: right; white-space: nowrap; }
+.hl-pack-content-cold { padding: 0 4px; border-radius: var(--radius-sm); background: var(--surface-alt); color: var(--text-muted); font-family: var(--font-sans); font-size: var(--fs-micro); white-space: nowrap; }
+.hl-pack-content-entry { color: var(--accent); font-weight: var(--fw-semibold); }
+.hl-pack-content-entry-note { color: var(--accent); font-family: var(--font-sans); font-size: var(--fs-micro); white-space: nowrap; }
+.hl-pack-content-tree-muted { color: var(--text-muted); }
+.hl-pack-content-tree-excluded { margin-top: var(--space-1); color: var(--text-muted); }
+.hl-pack-content-tree-excluded small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hl-pack-empty { padding: var(--space-8); text-align: center; background: var(--surface); border: 1px solid var(--border-subtle); color: var(--text-muted); }
 @media (max-width: 640px) {
   .hl-pack-facts { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }

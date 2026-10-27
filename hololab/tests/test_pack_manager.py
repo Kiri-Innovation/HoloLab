@@ -63,6 +63,12 @@ def test_endpoint_installs_and_refreshes_catalog(registry, tmp_path, monkeypatch
         assert demo["content"]["bytes"] > 0
         assert Path(demo["content"]["root_abs"]).is_dir()
         assert Path(demo["content"]["root_abs"]).is_relative_to(destination)
+        # Modern nodes describe what is installed; older nodes can still send
+        # only the three required fields above.
+        assert demo["content"]["hot"]["files"] > 0
+        assert isinstance(demo["content"]["cold"]["directories"], list)
+        assert isinstance(demo["content"]["excluded"]["top_level"], list)
+        assert isinstance(demo["content"]["top_level"], list)
         check = client.post(
             "/api/recipes/check",
             json={

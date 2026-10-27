@@ -7,7 +7,7 @@ import { useResizableSlot } from '../canvas/useResizableLayout';
 import { PackageTree } from './PackageTree';
 import { CommunityPacks } from './CommunityPacks';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CatalogPack, ComputeNode } from '../wire';
+import type { CatalogPack, ComputeNode, ContentTreeNode } from '../wire';
 import { CONTROL_STYLE } from '../ui/controlStyles';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import { EnvironmentEvidence, type EnvironmentReport } from '../canvas/EnvironmentChecks';
@@ -37,9 +37,41 @@ async function freshCapabilityCheck(graph: unknown): Promise<void> {
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
 }
 type CentralComparison = NonNullable<CatalogPack['central']>;
+
+function TreeName({node, sourceEntry}: {node: ContentTreeNode; sourceEntry?: string | null}) {
+  const source = !!sourceEntry && (sourceEntry === node.name || sourceEntry.endsWith(`/${node.name}`));
+  const label = `${node.name}${node.kind === 'directory' ? '/' : ''}`;
+  return <><span className={source ? 'hl-pack-content-entry' : undefined} title={label}>{label}</span>
+    <span className="hl-pack-content-size">{formatBytes(node.bytes)}</span>
+    {node.layer === 'cold' && <small className="hl-pack-content-cold">cold</small>}
+    {source && <small className="hl-pack-content-entry-note">入口</small>}</>;
+}
+
+function ContentTree({tree, excluded, sourceEntry}: {
+  tree?: ContentTreeNode[] | null;
+  excluded?: {files: number; bytes: number; top_level?: {name: string; bytes: number}[]} | null;
+  sourceEntry?: string | null;
+}) {
+  if (!tree?.length && !excluded?.bytes) return null;
+  return <div className="hl-pack-content-tree" aria-label="安装内容树">
+    {tree?.map((node, index) => {
+      const last = index === tree.length - 1 && !excluded?.bytes;
+      const children = node.children ?? [];
+      return <div className="hl-pack-content-tree-branch" key={`${node.layer}:${node.name}`}>
+        <div className="hl-pack-content-tree-row"><span aria-hidden="true">{last ? '└──' : '├──'}</span><TreeName node={node} sourceEntry={sourceEntry} /></div>
+        {children.map((child, childIndex) => <div className="hl-pack-content-tree-row hl-pack-content-tree-child" key={`${child.layer}:${child.name}`}>
+          <span aria-hidden="true">{last ? '    ' : '│   '}{childIndex === children.length - 1 ? '└──' : '├──'}</span><TreeName node={child} sourceEntry={sourceEntry} />
+        </div>)}
+        {node.children_truncated ? <div className="hl-pack-content-tree-row hl-pack-content-tree-child hl-pack-content-tree-muted"><span aria-hidden="true">{last ? '    ' : '│   '}└──</span><span>… 另有 {node.children_truncated} 项</span></div> : null}
+      </div>;
+    })}
+    {excluded?.bytes ? <div className="hl-pack-content-tree-row hl-pack-content-tree-excluded"><span aria-hidden="true">└──</span><span title="被 .packignore 或 .gitignore 排除的内容">已排除</span><span className="hl-pack-content-size">{formatBytes(excluded.bytes)}</span><small>{excluded.files.toLocaleString()} 个文件{excluded.top_level?.length ? ` · ${excluded.top_level.slice(0, 2).map(item => item.name).join('、')}` : ''}</small></div> : null}
+  </div>;
+}
 
 function status(tone: StatusTone, conclusion: string, reason: string, action: string): NodeStatusPresentation {
   return {tone, conclusion, reason, action};
@@ -202,11 +234,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const content = entry.catalog?.content;
     const sourcePath = installed ? content?.root_abs ?? entry.catalog?.source_dir : undefined;
     const codeHash = entry.catalog?.code_sha256;
-    const inputs = Object.entries(entry.catalog?.inputs ?? {});
-    const outputs = Object.entries(entry.catalog?.outputs ?? {});
-    const parameters = Object.entries(entry.catalog?.params ?? {});
-    const portLabel = ([name, spec]: [string, {tags: string[]; arrayed?: boolean}]) =>
-      `${name}: ${spec.arrayed ? 'arrayed<' : ''}${spec.tags.join(' | ') || 'any'}${spec.arrayed ? '>' : ''}`;
+    const excluded = content?.excluded;
     const canInstall = comparison?.state === 'identical'
       && !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
     const installUnavailableReason = yanked
@@ -263,9 +291,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
           }}>复制安装命令</button><span role="status">{commandStatus[entry.key]}</span></>) }
         <dl className="hl-evidence-rows">
           <div><dt>内容</dt><dd>{content ? `${content.files} 个文件 · ${formatBytes(content.bytes)} · ` : '未知 · '}<code title={codeHash ?? undefined}>sha256 {codeHash ? `${codeHash.slice(0, 12)}…` : '未知'}</code></dd></div>
-          {entry.catalog?.source_entry && <div><dt>入口</dt><dd><code>{entry.catalog.source_entry}</code></dd></div>}
-          <div><dt>端口</dt><dd>输入：{inputs.length ? inputs.map(portLabel).join('；') : '无'}<br />输出：{outputs.length ? outputs.map(portLabel).join('；') : '无'}</dd></div>
-          <div><dt>参数</dt><dd>{parameters.length ? `${parameters.slice(0, 6).map(([name]) => name).join('、')}${parameters.length > 6 ? ` 等 ${parameters.length} 项` : ''}` : '无'}</dd></div>
+          {content && <div><dt>目录</dt><dd><ContentTree tree={content.tree} excluded={excluded} sourceEntry={entry.catalog?.source_entry} /></dd></div>}
         </dl>
       </details>
       <details className="hl-pack-section hl-pack-environment" aria-label="环境" open>

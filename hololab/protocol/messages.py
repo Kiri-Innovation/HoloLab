@@ -24,6 +24,10 @@ class PackContent(BaseModel):
     files: int
     bytes: int
     root_abs: str
+    hot: dict[str, Any] | None = None
+    cold: dict[str, Any] | None = None
+    excluded: dict[str, Any] | None = None
+    top_level: list[dict[str, Any]] | None = None
 
 
 class PackInventoryEntry(BaseModel):

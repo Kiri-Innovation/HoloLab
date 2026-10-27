@@ -146,3 +146,25 @@ def test_gitignore_negation_requires_reincluding_parent(tmp_path):
     scope = Scope.load(manifest)
     assert next(e for e in scope.entries() if e.relative == "assets/code.py").layer == "hot"
     capture(manifest, baselines)
+
+
+def test_content_inventory_reports_layers_top_level_and_gitignored_size(tmp_path):
+    root, manifest, baselines = package(tmp_path)
+    (root / ".gitignore").write_text("/output/\n")
+    (root / "output").mkdir()
+    (root / "output" / "checkpoint.bin").write_bytes(b"x" * 12)
+    record = capture(manifest, baselines, refresh_cold=True)
+
+    content = record["content"]
+    assert content["hot"]["files"] > 0
+    assert content["cold"]["directories"] == ["thirdparty"]
+    assert content["cold"]["bytes"] == len(b"cold = 1\n")
+    assert content["excluded"]["bytes"] == len(b"asset") + 12
+    assert ("thirdparty", "cold") in {
+        (item["name"], item["layer"]) for item in content["top_level"]
+    }
+    assert content["excluded"]["top_level"][0]["name"] == "output"
+    thirdparty = next(item for item in content["tree"] if item["name"] == "thirdparty")
+    assert thirdparty["layer"] == "cold"
+    assert thirdparty["kind"] == "directory"
+    assert thirdparty["children"][0]["name"] == "lib.py"

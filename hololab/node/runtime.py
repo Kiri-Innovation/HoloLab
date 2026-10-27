@@ -626,9 +626,7 @@ class NodeRuntime:
                 version=p.manifest.version,
                 manifest_hash=p.manifest_hash,
                 code_sha256=content["sha256"] if content else None,
-                content={key: content[key] for key in ("files", "bytes", "root_abs")}
-                if content
-                else None,
+                content=content,
                 publication=p.publication,
                 root=p.manifest.root,
                 cold=p.manifest.cold,

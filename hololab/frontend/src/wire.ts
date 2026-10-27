@@ -29,7 +29,14 @@ export interface PackInventoryEntry {
   version: string;
   manifest_hash: string;
   code_sha256?: string | null;
-  content?: {files: number; bytes: number; root_abs: string} | null;
+  content?: {
+    files: number; bytes: number; root_abs: string;
+    hot?: {files: number; bytes: number} | null;
+    cold?: {files: number; bytes: number; directories?: string[]} | null;
+    excluded?: {files: number; bytes: number; top_level?: ContentTopLevel[]} | null;
+    top_level?: ContentTopLevel[] | null;
+    tree?: ContentTreeNode[] | null;
+  } | null;
   // Absolute path of the manifest.yaml on the producing node.
   manifest_path?: string | null;
   // Which entry from the producing node's pack_dirs this pack was
@@ -38,6 +45,19 @@ export interface PackInventoryEntry {
   source_dir?: string | null;
   runtime?: {mode?: "conda" | "host"; env?: string | null} | null;
   environment?: EnvironmentReport | null;
+}
+
+export interface ContentTopLevel {
+  name: string;
+  layer: 'hot' | 'cold' | string;
+  files: number;
+  bytes: number;
+}
+
+export interface ContentTreeNode extends ContentTopLevel {
+  kind: 'file' | 'directory' | string;
+  children?: ContentTreeNode[];
+  children_truncated?: number;
 }
 
 export interface GpuInfo {
@@ -323,7 +343,14 @@ export interface CatalogPack {
   version: string;
   manifest_hash: string;
   code_sha256?: string | null;
-  content?: {files: number; bytes: number; root_abs: string} | null;
+  content?: {
+    files: number; bytes: number; root_abs: string;
+    hot?: {files: number; bytes: number} | null;
+    cold?: {files: number; bytes: number; directories?: string[]} | null;
+    excluded?: {files: number; bytes: number; top_level?: ContentTopLevel[]} | null;
+    top_level?: ContentTopLevel[] | null;
+    tree?: ContentTreeNode[] | null;
+  } | null;
   node_ids: string[]; // compute nodes offering this pack
   description: string | null;
   category: string[];

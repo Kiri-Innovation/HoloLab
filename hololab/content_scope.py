@@ -133,6 +133,7 @@ class Scope:
     cold: tuple[str, ...]
     manifest_bytes: bytes
     ignore_bytes: bytes | None
+    gitignore_bytes: bytes | None
     manifest: Any
 
     @classmethod
@@ -143,6 +144,7 @@ class Scope:
         manifest, _ = load_manifest(path)
         root = resolve_root(path, manifest.root)
         ignore = root / ".packignore"
+        gitignore = root / ".gitignore"
         # A control file cannot point outside the scope through a symlink.
         if ignore.is_symlink():
             raise ValueError(".packignore must be a regular control file")
@@ -152,6 +154,7 @@ class Scope:
             tuple(Path(p).as_posix() for p in manifest.cold),
             path.read_bytes(),
             ignore.read_bytes() if ignore.exists() else None,
+            gitignore.read_bytes() if gitignore.is_file() else None,
             manifest,
         )
 
@@ -160,6 +163,9 @@ class Scope:
         return {
             "manifest_sha256": sha(self.manifest_bytes),
             "packignore_sha256": sha(self.ignore_bytes) if self.ignore_bytes is not None else None,
+            "gitignore_sha256": sha(self.gitignore_bytes)
+            if self.gitignore_bytes is not None
+            else None,
         }
 
     def is_cold(self, relative: str) -> bool:
@@ -171,7 +177,14 @@ class Scope:
         hot_only prunes ignored/cold directories without even stat'ing their
         descendants. Full enumeration accounts ignored bytes but never reads them.
         """
-        spec = GitIgnoreSpec.from_lines((self.ignore_bytes or b"").decode("utf-8").splitlines())
+        # A package's explicit rules take precedence over its repository's
+        # ordinary ignore rules.  This makes a root shared by several packs
+        # describe the same omission users see in the checkout (notably data
+        # and training outputs), without a second directory walk.
+        spec = GitIgnoreSpec.from_lines(
+            (self.gitignore_bytes or b"").decode("utf-8").splitlines()
+            + (self.ignore_bytes or b"").decode("utf-8").splitlines()
+        )
         manifest_inside = (
             str(self.manifest_path.relative_to(self.root))
             if self.manifest_path.is_relative_to(self.root)
@@ -194,10 +207,10 @@ class Scope:
                     if control
                     else "fixed"
                     if fixed
-                    else "ignored"
-                    if ignored
                     else "cold"
                     if self.is_cold(rel)
+                    else "ignored"
+                    if ignored
                     else "hot"
                 )
                 if isdir:
@@ -241,6 +254,70 @@ def statistics(entries: list[Entry]) -> dict:
     }
 
 
+def top_level(entries: list[Entry], *, limit: int = 12) -> list[dict]:
+    """A compact, byte-sorted inventory for the package detail view.
+
+    This response travels in every node inventory, so never expose an
+    unbounded list merely because a checkout has many top-level directories.
+    """
+    groups: dict[tuple[str, str], list[Entry]] = {}
+    for entry in entries:
+        groups.setdefault((entry.relative.split("/")[0], entry.layer), []).append(entry)
+    return [
+        {"name": name, "layer": layer, **statistics(group)}
+        for (name, layer), group in sorted(
+            groups.items(), key=lambda item: (-sum(e.size for e in item[1]), item[0])
+        )
+    ][:limit]
+
+
+def display_tree(entries: list[Entry], *, top_limit: int = 12, child_limit: int = 8) -> list[dict]:
+    """Return the useful first two levels of a byte-sorted content tree.
+
+    ``entries`` is the inventory already collected for identity capture: this
+    function deliberately does no filesystem work.  Keeping only two levels
+    and a small number of children prevents a large source tree becoming a
+    multi-thousand-line API payload or DOM subtree.
+    """
+    top: dict[str, list[Entry]] = {}
+    for entry in entries:
+        top.setdefault(entry.relative.split("/", 1)[0], []).append(entry)
+
+    result: list[dict] = []
+    for name, group in sorted(
+        top.items(), key=lambda item: (-sum(e.size for e in item[1]), item[0])
+    )[:top_limit]:
+        nested = [entry for entry in group if "/" in entry.relative]
+        children_by_name: dict[str, list[Entry]] = {}
+        for entry in nested:
+            child = entry.relative.split("/", 2)[1]
+            children_by_name.setdefault(child, []).append(entry)
+        children = [
+            {
+                "name": child_name,
+                "kind": "directory"
+                if any("/" in e.relative.split("/", 2)[-1] for e in child_group)
+                else "file",
+                "layer": child_group[0].layer,
+                **statistics(child_group),
+            }
+            for child_name, child_group in sorted(
+                children_by_name.items(), key=lambda item: (-sum(e.size for e in item[1]), item[0])
+            )[:child_limit]
+        ]
+        result.append(
+            {
+                "name": name,
+                "kind": "directory" if nested else "file",
+                "layer": group[0].layer,
+                **statistics(group),
+                "children": children,
+                "children_truncated": max(0, len(children_by_name) - len(children)),
+            }
+        )
+    return result
+
+
 def provenance(scope: Scope) -> dict:
     root = scope.root
     status = git(root, "status", "--porcelain", "--untracked-files=all")
@@ -279,7 +356,9 @@ class Baselines:
     def __init__(self, directory: Path):
         self.directory = directory
 
-    def get(self, scope: Scope, *, refresh: bool = False) -> dict:
+    def get(
+        self, scope: Scope, *, refresh: bool = False, entries: list[Entry] | None = None
+    ) -> dict:
         if not scope.cold:
             return {
                 "sha256": tree_digest([]),
@@ -304,12 +383,16 @@ class Baselines:
             if destination.exists() and not refresh:
                 return json.loads(destination.read_text())
             previous = json.loads(destination.read_text()) if destination.exists() else None
-            entries = [e for e in scope.entries() if e.layer == "cold"]
-            digest = tree_digest(entries)
+            cold_entries = (
+                [e for e in entries if e.layer == "cold"]
+                if entries is not None
+                else [e for e in scope.entries() if e.layer == "cold"]
+            )
+            digest = tree_digest(cold_entries)
             value = {
                 "sha256": digest,
                 "baseline_at": time.time(),
-                "stats": statistics(entries),
+                "stats": statistics(cold_entries),
                 "verification": "not_checked",
                 "release": scope.manifest.version,
                 "baseline_status": "updated" if refresh else "initialized",
@@ -331,8 +414,12 @@ class Baselines:
 
 def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> dict:
     scope = Scope.load(path)
-    cold = baselines.get(scope, refresh=refresh_cold)
     entries = list(scope.entries())
+    # Reuse this inventory for the cold baseline too.  Catalog reporting used
+    # to enumerate a large package once for the baseline and once for display.
+    # A single walk is enough; hashing cold files remains confined to an
+    # explicit baseline refresh (or first baseline creation).
+    cold = baselines.get(scope, refresh=refresh_cold, entries=entries)
     hot = hot_entries(scope, entries)
     # The identity tree deliberately omits the selected manifest: its semantic
     # hash is recorded separately so a release filename/version cannot affect
@@ -364,7 +451,20 @@ def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> 
             "verification": "verified_at_submission",
         },
         "cold": cold,
-        "content": {"stats": statistics(content)},
+        "content": {
+            "stats": statistics(content),
+            "hot": statistics([e for e in content if e.layer == "hot"]),
+            "cold": {
+                **statistics([e for e in content if e.layer == "cold"]),
+                "directories": list(scope.cold),
+            },
+            "excluded": {
+                **statistics([e for e in entries if e.layer == "ignored"]),
+                "top_level": top_level([e for e in entries if e.layer == "ignored"]),
+            },
+            "top_level": top_level(content),
+            "tree": display_tree(content),
+        },
         "ignored": statistics([e for e in entries if e.layer == "ignored"]),
         "fixed_excluded": statistics([e for e in entries if e.layer == "fixed"]),
         **provenance(scope),
@@ -404,6 +504,10 @@ def check_controls(path: Path, record: dict) -> None:
     actual = sha(ignore.read_bytes()) if ignore.exists() else None
     if actual != expected["packignore_sha256"]:
         mismatch(record, ".packignore", expected["packignore_sha256"], actual)
+    gitignore = root / ".gitignore"
+    actual_gitignore = sha(gitignore.read_bytes()) if gitignore.is_file() else None
+    if actual_gitignore != expected.get("gitignore_sha256"):
+        mismatch(record, ".gitignore", expected.get("gitignore_sha256"), actual_gitignore)
 
 
 def verify(path: Path, record: dict) -> None:

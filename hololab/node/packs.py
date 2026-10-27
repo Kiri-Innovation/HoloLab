@@ -90,6 +90,10 @@ class LoadedPack:
                 "files": content["files"],
                 "bytes": content["bytes"],
                 "root_abs": record["path"],
+                "hot": record["content"]["hot"],
+                "cold": record["content"]["cold"],
+                "excluded": record["content"]["excluded"],
+                "top_level": record["content"]["top_level"],
             }
         except Exception as exc:
             log.warning(
