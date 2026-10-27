@@ -14,7 +14,7 @@ ROOT = Path("/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians")
     ("relative", "name", "version"),
     [
         ("stg-init@0.1.0/manifest.yaml", "stg-init", "0.1.0"),
-        ("stg-train@0.4.0/manifest.yaml", "stg-train", "0.4.0"),
+        ("stg-train@0.4.6/manifest.yaml", "stg-train", "0.4.6"),
     ],
 )
 def test_split_stg_manifests_load(relative: str, name: str, version: str) -> None:
@@ -50,9 +50,12 @@ def test_init_renders_when_optional_flow_is_unwired() -> None:
 
 
 def test_train_has_only_progress_and_diagnostic_knobs() -> None:
-    manifest, _ = load_manifest(ROOT / "packs" / "stg-train@0.4.0/manifest.yaml")
-    assert set(manifest.params) == {"iterations", "save_cam"}
+    manifest, _ = load_manifest(ROOT / "packs" / "stg-train@0.4.6/manifest.yaml")
+    assert set(manifest.params) == {"iterations", "save_cam", "preview_every"}
     assert manifest.params["iterations"].min == 1
+    assert manifest.params["save_cam"].min == 0
+    assert manifest.params["preview_every"].min == 0
+    assert "comparison" in manifest.params["preview_every"].description
     assert manifest.inputs["state"].tags == ["stg-training-state"]
     assert manifest.outputs["state"].tags == ["stg-training-state", "stg_model"]
     shell = manifest.exec.shell
@@ -81,12 +84,13 @@ def test_state_runner_hard_disables_difix_schedules() -> None:
             },
         ),
         (
-            "stg-train@0.4.0/manifest.yaml",
+            "stg-train@0.4.6/manifest.yaml",
             {
                 "inputs.state",
                 "inputs.supervision",
                 "outputs.state",
                 "params.iterations",
+                "params.preview_every",
                 "params.save_cam",
                 "scratch_dir",
             },

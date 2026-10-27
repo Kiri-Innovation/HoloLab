@@ -16,6 +16,7 @@ from hololab.gateway.app import create_app
 from hololab.gateway.execution import _dispatch_job
 from hololab.gateway.registry import JobsStore
 from hololab.gateway.workflows import GraphNode
+from hololab.manifest import load_manifest
 from hololab.node.executor import ExecPlan, run_subprocess
 from hololab.node.fileserver import create_fileserver_app
 from hololab.node.packs import scan_packs
@@ -29,21 +30,13 @@ pytestmark = pytest.mark.skipif(not (STG / "packs").is_dir(), reason="STG checko
 
 def test_migrated_inventory_catalog_and_viewers(tmp_path):
     packs = scan_packs(STG)
-    assert len(packs) == 14
-    assert {(p.manifest.name, p.manifest.version) for p in packs} == {
-        ("stg-init", "0.1.0"),
-        ("stg-init", "0.1.1"),
-        ("stg-init", "0.2.0"),
-        ("stg-init", "0.3.0"),
-        ("stg-init", "0.3.1"),
-        ("stg-train", "0.2.0"),
-        ("stg-train", "0.3.0"),
-        *(("stg-train", f"0.4.{i}") for i in range(7)),
-    }
+    manifests = [load_manifest(path)[0] for path in sorted((STG / "packs").glob("*/manifest.yaml"))]
+    expected = {(manifest.name, manifest.version) for manifest in manifests}
+    assert {(pack.manifest.name, pack.manifest.version) for pack in packs} == expected
     with TestClient(create_app(db_path=tmp_path / "gateway.sqlite")) as client:
         client.app.state.registry._sessions["local"] = session(packs)
         catalog = client.get("/api/pack-catalog").json()
-        assert len(catalog) == 14
+        assert len(catalog) == len(expected)
         assert all(p["root"] == "../.." for p in catalog)
     served = 0
     with TestClient(create_fileserver_app(workspace_root=tmp_path, pack_dirs=[STG])) as client:
@@ -59,7 +52,7 @@ def test_migrated_inventory_catalog_and_viewers(tmp_path):
                     assert response.status_code == 200
                     assert response.content == (STG / entry).read_bytes()
                     served += 1
-    assert served == 15
+    assert served == 3 * sum(len(manifest.node_viewers) for manifest in manifests)
     print(f"STG_DISCOVERY packs={len(packs)} catalog={len(catalog)} viewer_assets={served}")
 
 

@@ -31,15 +31,7 @@ from hololab.manifest.schema import InputSpec, OutputSpec
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKS = ROOT / "packs"
-MAIN = (
-    [f"image-undistort@{v}" for v in ["0.5.0", "0.5.1", "0.5.2"]]
-    + ["colmap-triangulate@0.7.5"]
-    + [
-        "colmap-sfm@0.4.2",
-        "merge-colmap@0.4.0",
-        "frame-extraction@0.1.0",
-    ]
-)
+MAIN = sorted(path.parent.name for path in PACKS.glob("*/manifest.yaml"))
 
 
 def picture(p):
