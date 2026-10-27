@@ -28,3 +28,24 @@ pass them on a command line, and never echo them into logs or reports.
 Versions are immutable: publish a new version instead of editing or reuploading
 an existing one. Retracting a version means yanking it, not deleting it, unless
 it is a verified throwaway probe (see above).
+
+## Removing or renaming packs
+
+A pack's name, version and manifest content are all part of its identity, so
+removing a version, renaming a pack or editing its manifest reaches further than
+the pack directory. Before doing any of it, search every consumer:
+
+- tests (including parametrised lists and hard-coded version strings),
+- workflows (drafts and, where it matters, saved snapshots),
+- docs, reports and screenshots that quote the pack,
+- the central registry, if the version was published.
+
+Two follow-ups that keep coming up:
+
+- Contract-style tests should discover packs by scanning `packs/*/manifest.yaml`
+  rather than listing versions, so retaining fewer versions cannot break them.
+  Behaviour-style tests, which assert on one specific version, should stay
+  explicit and point at a version that is actually retained.
+- Editing a published pack's manifest changes its code identity, so the copy in
+  the registry becomes stale. Republish it in the same change instead of leaving
+  a mismatch behind.
