@@ -232,14 +232,6 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         </span>)}
         <button className="hl-pack-status-refresh" disabled={centralLoading} onClick={()=>void refreshCentralComparison()}>{centralLoading ? '查询中…' : '刷新注册表'}</button>
       </section>
-      <details className="hl-pack-section" open><summary>使用情况{usage.loading ? ' · 引用加载中…' : usage.error ? ' · 引用暂不可用' : ` · ${entry.usages.length} 个节点 / ${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流`}</summary>
-        {!usage.loading && !usage.error && !entry.usages.length && <p>已读取的工作流草稿中没有引用此版本。</p>}
-        {entry.usages.map(usage => <section className="hl-pack-usage" key={`${usage.workflow.workflow_id}:${usage.node.id}`}>
-          {(() => { const {workflow, node} = usage; return <>
-          <div><button onClick={() => onOpenWorkflow(workflow.workflow_id)}>打开 {workflow.name}</button><strong>节点 {node.id}</strong><span>计算节点：{node.assigned_node_id ?? '未分配'}</span></div>
-          </>; })()}
-        </section>)}
-      </details>
       <details className="hl-pack-section" open><summary>来源与内容</summary>
         {entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} variant="row" label="打开 manifest.yaml" />}
         {sourcePath && <div><code className="hl-pack-command">{sourcePath}</code><button className="hl-evidence-primary" onClick={async () => {
@@ -260,8 +252,8 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         </dl>
         {entry.catalog?.docs && <details><summary>包说明</summary><p style={{whiteSpace: 'pre-wrap'}}>{entry.catalog.docs}</p></details>}
       </details>
-      <section className="hl-pack-section hl-pack-environment" aria-label="环境">
-        <h2>环境</h2>
+      <details className="hl-pack-section hl-pack-environment" aria-label="环境">
+        <summary>环境</summary>
         <dl className="hl-evidence-rows">
           <div><dt>要求</dt><dd>{requirement}</dd></div>
           {runtime == null ? <div><dt>逻辑环境</dt><dd><span className="hl-evidence-muted">未知（节点版本过旧）</span></dd></div>
@@ -275,7 +267,15 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
           </dd></div>}
           <div><dt>检查结果</dt><dd>{report ? <EnvironmentEvidence report={report} headingLabel={report.status === 'unknown' ? '环境未校验' : undefined} /> : <span className="hl-evidence-muted">{nodeId ? '未知（节点尚未上报证据）' : '未选择计算节点'}</span>}<button className="hl-evidence-primary" disabled={!nodeId || environmentRefreshing} onClick={()=>void refreshEnvironmentEvidence()}>{environmentRefreshing ? '重新检查中…' : '重新检查'}</button></dd></div>
         </dl>
-      </section>
+      </details>
+      <details className="hl-pack-section" open><summary>使用情况{usage.loading ? ' · 引用加载中…' : usage.error ? ' · 引用暂不可用' : ` · ${entry.usages.length} 个节点 / ${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流`}</summary>
+        {!usage.loading && !usage.error && !entry.usages.length && <p>已读取的工作流草稿中没有引用此版本。</p>}
+        {entry.usages.map(usage => <section className="hl-pack-usage" key={`${usage.workflow.workflow_id}:${usage.node.id}`}>
+          {(() => { const {workflow, node} = usage; return <>
+          <div><button onClick={() => onOpenWorkflow(workflow.workflow_id)}>打开 {workflow.name}</button><strong>节点 {node.id}</strong><span>计算节点：{node.assigned_node_id ?? '未分配'}</span></div>
+          </>; })()}
+        </section>)}
+      </details>
     </article>;
   };
 
