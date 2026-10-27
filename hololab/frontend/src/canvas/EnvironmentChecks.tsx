@@ -1,5 +1,5 @@
 import { EvidenceValue } from "./EvidenceValue";
-import { createContext, useEffect, useState } from "react";
+import { createContext, useEffect, useRef, useState } from "react";
 import type { WorkflowGraph } from "../wire";
 
 export const ENVIRONMENT_BOUNDARY = "本地能力检查只覆盖已声明且在可探测范围内的项；通过不代表一定能运行。环境未冻结、未被代码身份覆盖。";
@@ -22,16 +22,20 @@ export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enab
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const [reload, setReload] = useState(0);
+  const forceFresh = useRef(false);
   // Moving cards/editing parameters does not change an environment contract.
   const query = JSON.stringify(capabilityGraph(graph));
   useEffect(() => {
     if (!enabled) { setReports({}); setLoading(false); setError(""); return; }
+    const fresh = forceFresh.current;
+    forceFresh.current = false;
     const controller = new AbortController();
     setReports({}); setLoading(true); setError("");
     const timer = window.setTimeout(() => {
       void fetch("/api/capabilities/check", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ graph: JSON.parse(query), fresh: refresh > 0 }), signal: controller.signal,
+        body: JSON.stringify({ graph: JSON.parse(query), fresh }), signal: controller.signal,
       }).then(async response => {
         if (!response.ok) throw new Error(await response.text());
         return response.json() as Promise<{ nodes: Record<string, EnvironmentReport> }>;
@@ -40,13 +44,13 @@ export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enab
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 400);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [query, revision, refresh, enabled]);
+  }, [query, revision, refresh, reload, enabled]);
   useEffect(() => {
-    const focus = () => setRefresh(n => n + 1);
+    const focus = () => setReload(n => n + 1);
     window.addEventListener("focus", focus);
     return () => window.removeEventListener("focus", focus);
   }, []);
-  return { reports, loading, error, refresh: () => setRefresh(n => n + 1) };
+  return { reports, loading, error, refresh: () => { forceFresh.current = true; setRefresh(n => n + 1); } };
 }
 
 export function capabilityGraph(graph: WorkflowGraph) {
