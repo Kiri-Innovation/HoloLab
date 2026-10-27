@@ -7,10 +7,10 @@ import { useResizableSlot } from '../canvas/useResizableLayout';
 import { PackageTree } from './PackageTree';
 import { CommunityPacks } from './CommunityPacks';
 import { useEffect, useMemo, useState } from 'react';
-import type { CatalogPack, ComputeNode, WorkflowGraph } from '../wire';
+import type { CatalogPack, ComputeNode } from '../wire';
 import { CONTROL_STYLE } from '../ui/controlStyles';
 import { ThemeToggle } from '../theme/ThemeToggle';
-import { EnvironmentEvidence, useCapabilityChecks } from '../canvas/EnvironmentChecks';
+import { EnvironmentEvidence, type EnvironmentReport } from '../canvas/EnvironmentChecks';
 import type { NodeStatusPresentation, StatusTone } from '../canvas/nodeStatus';
 import { NodeStatusDot } from '../ui/NodeStatusTooltip';
 import { EvidenceValue } from '../canvas/EvidenceValue';
@@ -26,6 +26,12 @@ async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, {signal});
   if (!response.ok) throw new Error('request_failed');
   return response.json();
+}
+async function freshCapabilityCheck(graph: unknown): Promise<void> {
+  const response = await fetch('/api/capabilities/check', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({graph, fresh: true}),
+  });
+  if (!response.ok) throw new Error('capability_check_failed');
 }
 interface CentralComparison { state: 'identical'|'differs'|'absent'|'unknown'; central_code_sha256?: string; yanked?: boolean; source?: string; reason?: string | null }
 
@@ -112,47 +118,50 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   useEffect(() => { void refreshCentralComparison(); }, [comparisonKeys]);
 
   const rawEntries = useMemo(() => buildPackEntries(catalog, inventory, workflows, registry), [catalog, inventory, workflows, registry]);
-  const capabilityGraph = useMemo(() => ({nodes: [...rawEntries.map(entry => ({
-    id: entry.key, kind: 'algorithm', algorithm_name: entry.name, algorithm_version: entry.version,
-    assigned_node_id: nodeId || null, params: {}, position: {x: 0, y: 0},
-  })), ...workflows.flatMap(workflow => workflow.graph.nodes.map(node => ({...node, id: `usage:${workflow.workflow_id}:${node.id}`})))], edges: []}) as WorkflowGraph, [rawEntries, workflows, nodeId]);
-  const checks = useCapabilityChecks(capabilityGraph, String(revision), !loading && !!nodeId && rawEntries.length > 0);
-  // One pending flag drives all package-environment presentation in this view.
-  const environmentCheckPending = !loading && checks.loading;
-  const entries = useMemo(() => buildPackEntries(catalog, inventory, workflows.map(workflow => ({...workflow,
-    check: {...workflow.check, issues: workflow.check?.issues ?? [], environment: Object.fromEntries(workflow.graph.nodes.flatMap(node => {
-      const report = checks.reports[`usage:${workflow.workflow_id}:${node.id}`];
-      return report ? [[node.id, report]] : [];
-    }))},
-  })), registry), [catalog, inventory, workflows, registry, checks.reports]);
+  // Pack-manager paint reads node-maintained inventory evidence. It never
+  // starts a capability check merely because this page mounted.
+  const reports = useMemo<Record<string, EnvironmentReport>>(() => Object.fromEntries(rawEntries.flatMap(entry => {
+    const report = nodeId ? entry.catalog?.environment_by_node?.[nodeId] : undefined;
+    return report ? [[entry.key, report]] : [];
+  })), [rawEntries, nodeId]);
+  const [environmentRefreshing, setEnvironmentRefreshing] = useState(false);
+  async function refreshEnvironmentEvidence() {
+    if (!nodeId) return;
+    setEnvironmentRefreshing(true);
+    try {
+      const graph = {nodes: rawEntries.map(entry => ({id: entry.key, kind: 'algorithm', algorithm_name: entry.name, algorithm_version: entry.version, assigned_node_id: nodeId})), edges: []};
+      await freshCapabilityCheck(graph);
+      setRevision(n => n + 1);
+    } finally { setEnvironmentRefreshing(false); }
+  }
+  const entries = rawEntries;
   const displayName = useMemo(() => packDisplayNames(entries.map(entry => entry.name)), [entries]);
-  const reasons = (entry: PackEntry) => packProblemReasons(entry, checks.reports[entry.key]);
+  const reasons = (entry: PackEntry) => packProblemReasons(entry, reports[entry.key]);
   const problem = (entry: PackEntry) => reasons(entry).length > 0;
-  const statusLabel = (entry: PackEntry) => reasons(entry).join('；') || packEnvironmentStatus(entry, checks.reports[entry.key]);
-  const compactStatus = (entry: PackEntry) => compactPackStatus(entry, checks.reports[entry.key]);
+  const statusLabel = (entry: PackEntry) => reasons(entry).join('；') || packEnvironmentStatus(entry, reports[entry.key]);
+  const compactStatus = (entry: PackEntry) => compactPackStatus(entry, reports[entry.key]);
   const categoryTrail = (entry: PackEntry) => {
     return collapseRedundantCategory({name: entry.name, category: entry.catalog?.category ?? []}).category;
   };
-  const summary=localOverview(entries,nodeId,checks.reports,problem);
+  const summary=localOverview(entries,nodeId,reports,problem);
   const categoryEntries=entries.filter(entry=>{
     const path=entry.catalog?.category?.join('/') || 'misc';
     return !category || path===category || path.startsWith(`${category}/`);
   });
-  const sectionEntries=(section==='category'?categoryEntries:entries).filter(entry=>section==='attention'?problem(entry):section==='missing'?checks.reports[entry.key]?.status==='missing':section==='undeclared'?isUndeclared(entry):true);
+  const sectionEntries=(section==='category'?categoryEntries:entries).filter(entry=>section==='attention'?problem(entry):section==='missing'?reports[entry.key]?.status==='missing':section==='undeclared'?isUndeclared(entry):true);
   const selectedEntry=section==='category' ? entries.find(entry=>entry.key===selected) : undefined;
-  const healthPending=loading || environmentCheckPending || !nodeId || entries.some(entry=>!checks.reports[entry.key] || checks.reports[entry.key].status==='unknown');
+  const healthPending=loading || !nodeId || entries.some(entry=>!reports[entry.key] || reports[entry.key].status==='unknown');
   const feedback = <>
     {warnings.length > 0 && <div role="alert" className="hl-pack-notice">{warnings.map(message => <p key={message}>{message}</p>)}<button disabled={loading} onClick={()=>setRevision(n=>n+1)}>重试读取</button></div>}
     {usage.error && <p role="alert">工作流引用暂不可用。<button onClick={usage.refresh}>重试引用查询</button></p>}
-    {checks.error && <p role="alert">本地能力暂时无法查询。<button onClick={checks.refresh}>重试环境检查</button></p>}
-    {loading ? <p role="status">正在读取本地包…</p> : environmentCheckPending && <p role="status">环境检查中…</p>}
+    {loading && <p role="status">正在读取本地包…</p>}
   </>;
   const renderPackage = (entry: PackEntry) => {
     const selectedNode = nodes.find(node => node.node_id === nodeId);
     const installed = !!nodeId && installedOn(entry, nodeId);
     const comparison = centralComparison[centralStatusKey(entry.name, entry.version)];
     const yanked = entry.release?.yanked === true || comparison?.yanked === true;
-    const report = checks.reports[entry.key];
+    const report = reports[entry.key];
     const requires = entry.catalog ? entry.catalog.requires : entry.release?.requires;
     // ``runtime`` is package metadata, while a resolved prefix only exists
     // in the filesystem namespace of a node that actually offers this pack.
@@ -175,8 +184,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       : installed ? status('success', '已安装', `当前节点已发现：${selectedNode?.node_name || nodeId}`, '可在当前节点运行此版本。')
       : entry.inventory.some(item => item.node_id === nodeId) ? status('warning', '仅历史记录', '存在历史安装记录，但当前节点未确认提供此包。', '检查节点连接或重新安装此版本。')
       : status('neutral', '未安装', `当前节点 ${selectedNode?.node_name || nodeId} 未发现此包。`, '可在社区页安装，或选择提供此包的节点。');
-    const environmentStatus = environmentCheckPending ? status('info', '检查中', '正在读取当前节点的环境检查结果。', '检查完成后会自动更新。')
-      : !report ? status('neutral', '环境未查', '尚未取得当前节点的环境检查结果。', '选择节点后等待检查完成。')
+    const environmentStatus = !report ? status('neutral', '环境未知', '当前节点尚未上报环境证据（可能是旧节点）。', '可点击重新检查取得权威复查。')
       : report.status === 'satisfied' ? status('success', '环境就绪', '已声明且可探测的环境要求均满足。', '仍请按实际任务输入确认运行条件。')
       : report.status === 'undeclared' ? status('warning', '环境未声明', '包作者没有声明环境要求，实际环境尚未确认。', '运行前请确认依赖和硬件条件。')
       : report.status === 'missing' ? status('error', '缺依赖', report.issues.map(issue => `${issue.item}：需要 ${String(issue.required)}，当前 ${String(issue.actual)}`).join('\n'), '按提示补齐依赖或选择满足要求的节点。')
@@ -184,7 +192,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const statuses = [registryStatus, installStatus, environmentStatus, ...(yanked ? [status('error', '已 yank', '该版本已被发布者撤回，不推荐新安装。', '已安装版本不会被删除；新任务请选择其他版本。')] : [])];
     return <article className="hl-local-package-page" data-local-page="package" key={entry.key} data-pack-key={entry.key}>
       <nav className="hl-local-breadcrumb" aria-label="包路径">{breadcrumbCategory.length > 0 && <><button onClick={()=>navigateLocal('category','',breadcrumbCategory.join('/'))}>{breadcrumbCategory.join(' / ')}</button><span aria-hidden="true">/</span></>}<span>{displayName(entry.name)}</span></nav>
-      <header><div><h1>{`${entry.name}@${entry.version}`}</h1>{(breadcrumbCategory.length > 0 || loading || environmentCheckPending || compactStatus(entry)) && <p className="hl-pack-identity-meta">{breadcrumbCategory.length > 0 && <>{breadcrumbCategory.join(' / ')}{(loading || environmentCheckPending || compactStatus(entry)) && <span aria-hidden="true"> · </span>}</>}{(loading || environmentCheckPending || compactStatus(entry)) && <span className="hl-pack-state" data-problem={problem(entry)}>{loading || environmentCheckPending ? '检查中' : compactStatus(entry)}</span>}</p>}</div></header>
+      <header><div><h1>{`${entry.name}@${entry.version}`}</h1>{(breadcrumbCategory.length > 0 || loading || compactStatus(entry)) && <p className="hl-pack-identity-meta">{breadcrumbCategory.length > 0 && <>{breadcrumbCategory.join(' / ')}{(loading || compactStatus(entry)) && <span aria-hidden="true"> · </span>}</>}{(loading || compactStatus(entry)) && <span className="hl-pack-state" data-problem={problem(entry)}>{loading ? '读取中' : compactStatus(entry)}</span>}</p>}</div></header>
       {feedback}
       {entry.catalog?.description && <p className="hl-local-description">{entry.catalog.description}</p>}
       <section className="hl-pack-status-summary" aria-label="包状态">
@@ -206,7 +214,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
               : nodeEnvironment.path ? <EvidenceValue value={nodeEnvironment.path} truncate={false} />
               : <span className="hl-evidence-muted">该节点未映射此逻辑环境</span>}
           </dd></div>}
-          <div><dt>检查结果</dt><dd>{report ? <EnvironmentEvidence report={report} headingLabel={report.status === 'unknown' ? '环境未校验' : undefined} /> : <span className="hl-evidence-muted">{nodeId ? '尚未完成检查' : '未选择计算节点'}</span>}</dd></div>
+          <div><dt>检查结果</dt><dd>{report ? <EnvironmentEvidence report={report} headingLabel={report.status === 'unknown' ? '环境未校验' : undefined} /> : <span className="hl-evidence-muted">{nodeId ? '未知（节点尚未上报证据）' : '未选择计算节点'}</span>}<button className="hl-evidence-primary" disabled={!nodeId || environmentRefreshing} onClick={()=>void refreshEnvironmentEvidence()}>{environmentRefreshing ? '重新检查中…' : '重新检查'}</button></dd></div>
         </dl>
       </section>
       <details className="hl-pack-section" open><summary>使用情况与配方检查{usage.loading ? ' · 引用加载中…' : usage.error ? ' · 引用暂不可用' : ` · ${entry.usages.length} 个节点 / ${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流`}</summary>

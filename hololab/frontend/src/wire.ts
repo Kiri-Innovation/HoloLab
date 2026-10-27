@@ -10,6 +10,20 @@ export interface Envelope<T = unknown> {
   ts: number;
 }
 
+// Node-maintained, time-stamped display evidence.  Execution still performs
+// its separate fresh authority check.
+export interface EnvironmentReport {
+  status: "undeclared" | "satisfied" | "missing" | "unknown";
+  checked_at?: number | null;
+  issues: {item: string; required: unknown; actual: unknown; remedy: string}[];
+  requires?: Record<string, unknown> | null;
+  runtime?: {mode?: "conda" | "host"; env?: string | null} | null;
+  environment_fingerprint?: string;
+  hardware?: Record<string, unknown>;
+  stale?: boolean;
+  next_recheck_at?: number;
+}
+
 export interface PackInventoryEntry {
   name: string;
   version: string;
@@ -22,6 +36,7 @@ export interface PackInventoryEntry {
   // Null on rolling upgrades where the node hasn't reconnected yet.
   source_dir?: string | null;
   runtime?: {mode?: "conda" | "host"; env?: string | null} | null;
+  environment?: EnvironmentReport | null;
 }
 
 export interface GpuInfo {
@@ -292,6 +307,7 @@ export interface CatalogPack {
   requires?: Record<string, unknown> | null;
   runtime?: {mode?: "conda" | "host"; env?: string | null} | null;
   node_environments?: Record<string, {runtime?: {mode?: "conda" | "host"; env?: string | null} | null; path?: string | null}>;
+  environment_by_node?: Record<string, EnvironmentReport>;
   publication?: Record<string, unknown> | null;
   name: string;
   version: string;
