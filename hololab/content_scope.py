@@ -334,6 +334,16 @@ def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> 
     cold = baselines.get(scope, refresh=refresh_cold)
     entries = list(scope.entries())
     hot = hot_entries(scope, entries)
+    # The identity tree deliberately omits the selected manifest: its semantic
+    # hash is recorded separately so a release filename/version cannot affect
+    # identity.  Content inventory is a user-facing size of the package root,
+    # though, so retain that manifest while still honoring scope exclusions.
+    # ``.packignore`` is a control file rather than package content.
+    content = [
+        entry
+        for entry in entries
+        if entry.layer in {"hot", "cold"} and entry.relative != ".packignore"
+    ]
     normalized = normalized_manifest(scope.manifest_bytes)
     record = {
         "format": FORMAT,
@@ -354,6 +364,7 @@ def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> 
             "verification": "verified_at_submission",
         },
         "cold": cold,
+        "content": {"stats": statistics(content)},
         "ignored": statistics([e for e in entries if e.layer == "ignored"]),
         "fixed_excluded": statistics([e for e in entries if e.layer == "fixed"]),
         **provenance(scope),

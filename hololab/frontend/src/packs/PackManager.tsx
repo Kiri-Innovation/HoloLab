@@ -6,7 +6,7 @@ import {localOverview, isUndeclared} from './localOverviewModel';
 import { useResizableSlot } from '../canvas/useResizableLayout';
 import { PackageTree } from './PackageTree';
 import { CommunityPacks } from './CommunityPacks';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CatalogPack, ComputeNode } from '../wire';
 import { CONTROL_STYLE } from '../ui/controlStyles';
 import { ThemeToggle } from '../theme/ThemeToggle';
@@ -16,6 +16,7 @@ import { NodeStatusDot } from '../ui/NodeStatusTooltip';
 import { EvidenceValue } from '../canvas/EvidenceValue';
 import { OpenSourceButton } from '../canvas/OpenSourceButton';
 import { writeToClipboard } from '../canvas/referenceAction';
+import { MarkdownView } from '../ui/MarkdownView';
 import { centralStatusKey } from './centralStatusKey';
 import {usePackUsage} from './usePackUsage';
 import { buildPackEntries, compactPackStatus, installedOn, installCommand, packProblemReasons, packEnvironmentStatus,
@@ -68,6 +69,17 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const registry = useMemo<RegistryRelease[]>(() => [], []);
   const [centralLoading, setCentralLoading] = useState(false);
   const [commandStatus, setCommandStatus] = useState<Record<string, string>>({});
+  const [docsOpen, setDocsOpen] = useState(false);
+  const docsDialog = useRef<HTMLDialogElement>(null);
+  const docsPointerStartedOnBackdrop = useRef(false);
+
+  useEffect(() => {
+    const dialog = docsDialog.current;
+    if (!dialog) return;
+    if (docsOpen && !dialog.open) dialog.showModal();
+    if (!docsOpen && dialog.open) dialog.close();
+  }, [docsOpen]);
+  useEffect(() => { setDocsOpen(false); }, [selected]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -225,16 +237,22 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       <nav className="hl-local-breadcrumb" aria-label="包路径">{breadcrumbCategory.length > 0 && <><button onClick={()=>navigateLocal('category','',breadcrumbCategory.join('/'))}>{breadcrumbCategory.join(' / ')}</button><span aria-hidden="true">/</span></>}<span>{displayName(entry.name)}</span></nav>
       <header><div><h1>{`${entry.name}@${entry.version}`}</h1>{(breadcrumbCategory.length > 0 || loading || compactStatus(entry)) && <p className="hl-pack-identity-meta">{breadcrumbCategory.length > 0 && <>{breadcrumbCategory.join(' / ')}{(loading || compactStatus(entry)) && <span aria-hidden="true"> · </span>}</>}{(loading || compactStatus(entry)) && <span className="hl-pack-state" data-problem={problem(entry)}>{loading ? '读取中' : compactStatus(entry)}</span>}</p>}</div></header>
       {feedback}
-      {entry.catalog?.description && <p className="hl-local-description">{entry.catalog.description}</p>}
+      {(entry.catalog?.description || entry.catalog?.docs) && <p className="hl-local-description">{entry.catalog?.description}{entry.catalog?.docs && <><span aria-hidden="true"> </span><button type="button" className="hl-pack-docs-more" onClick={()=>setDocsOpen(true)}>show more</button></>}</p>}
+      {entry.catalog?.docs && <dialog ref={docsDialog} className="hl-pack-docs-dialog" aria-labelledby="pack-docs-title"
+        onClose={()=>setDocsOpen(false)}
+        onPointerDown={event=>{ docsPointerStartedOnBackdrop.current = event.target === event.currentTarget; }}
+        onPointerUp={event=>{ if (docsPointerStartedOnBackdrop.current && event.target === event.currentTarget) docsDialog.current?.close(); docsPointerStartedOnBackdrop.current = false; }}>
+        <header><h2 id="pack-docs-title">{`${entry.name}@${entry.version} · 包说明`}</h2><button type="button" onClick={()=>docsDialog.current?.close()}>关闭</button></header>
+        <div className="hl-pack-docs-body"><MarkdownView source={entry.catalog.docs} /></div>
+      </dialog>}
       <section className="hl-pack-status-summary" aria-label="包状态">
         {statuses.map(item => <span className="hl-pack-status-chip" data-status-tone={item.tone} key={item.conclusion}>
           <NodeStatusDot status={item} /><span>{item.conclusion}</span>
         </span>)}
         <button className="hl-pack-status-refresh" disabled={centralLoading} onClick={()=>void refreshCentralComparison()}>{centralLoading ? '查询中…' : '刷新注册表'}</button>
       </section>
-      <details className="hl-pack-section" open><summary>来源与内容</summary>
-        {entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} variant="row" label="打开 manifest.yaml" />}
-        {sourcePath && <div><code className="hl-pack-command">{sourcePath}</code><button className="hl-evidence-primary" onClick={async () => {
+      <details className="hl-pack-section" open><summary>安装与内容</summary>
+        {sourcePath && <div><code className="hl-pack-command">{sourcePath}</code>{entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} />}<button className="hl-evidence-primary" onClick={async () => {
           const ok = await writeToClipboard(sourcePath);
           setCommandStatus(current => ({...current, [entry.key]: ok ? '本地路径已复制。' : '未能复制，请选中路径手动复制。'}));
         }}>复制路径</button><span role="status">{commandStatus[entry.key]}</span></div>}
@@ -246,13 +264,11 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         <dl className="hl-evidence-rows">
           <div><dt>内容</dt><dd>{content ? `${content.files} 个文件 · ${formatBytes(content.bytes)} · ` : '未知 · '}<code title={codeHash ?? undefined}>sha256 {codeHash ? `${codeHash.slice(0, 12)}…` : '未知'}</code></dd></div>
           {entry.catalog?.source_entry && <div><dt>入口</dt><dd><code>{entry.catalog.source_entry}</code></dd></div>}
-          {entry.catalog?.description && <div><dt>描述</dt><dd>{entry.catalog.description}</dd></div>}
           <div><dt>端口</dt><dd>输入：{inputs.length ? inputs.map(portLabel).join('；') : '无'}<br />输出：{outputs.length ? outputs.map(portLabel).join('；') : '无'}</dd></div>
           <div><dt>参数</dt><dd>{parameters.length ? `${parameters.slice(0, 6).map(([name]) => name).join('、')}${parameters.length > 6 ? ` 等 ${parameters.length} 项` : ''}` : '无'}</dd></div>
         </dl>
-        {entry.catalog?.docs && <details><summary>包说明</summary><p style={{whiteSpace: 'pre-wrap'}}>{entry.catalog.docs}</p></details>}
       </details>
-      <details className="hl-pack-section hl-pack-environment" aria-label="环境">
+      <details className="hl-pack-section hl-pack-environment" aria-label="环境" open>
         <summary>环境</summary>
         <dl className="hl-evidence-rows">
           <div><dt>要求</dt><dd>{requirement}</dd></div>

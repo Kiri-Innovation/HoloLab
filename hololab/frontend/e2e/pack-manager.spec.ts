@@ -25,7 +25,7 @@ async function waitForLocalPacks(page: Page) {
     const response = await fetch('/api/pack-catalog');
     return response.ok ? (await response.json()).length : -1;
   }), {timeout: 30_000}).toBe(59);
-  await expect(page.getByRole('status')).not.toContainText('正在读取本地包…');
+  await expect(page.getByText('正在读取本地包…', {exact: true})).toHaveCount(0);
 }
 
 async function openCommunityDetail(page: Page) {
@@ -56,10 +56,12 @@ for (const theme of ['light', 'dark'] as const) {
     await openCommunityDetail(page);
     const detail = page.getByRole('region', {name: '本地包内容'});
     await expect(detail.getByRole('heading', {name: new RegExp(`community/${detailPack}@0\\.4\\.2$`)})).toBeVisible();
-    await expect(detail.getByRole('region', {name: '环境'})).toContainText('要求');
-    await expect(detail.getByRole('region', {name: '环境'})).toContainText('逻辑环境');
-    await expect(detail.getByRole('region', {name: '环境'})).toContainText('实际路径');
-    await expect(detail.getByRole('region', {name: '环境'})).toContainText('检查结果');
+    const environment = detail.locator('.hl-pack-environment');
+    await expect(environment).toHaveAttribute('open', '');
+    await expect(environment).toContainText('要求');
+    await expect(environment).toContainText('逻辑环境');
+    await expect(environment).toContainText('实际路径');
+    await expect(environment).toContainText('检查结果');
     await expect(detail.locator('.hl-pack-status-chip')).toHaveCount(3, {timeout: 30_000});
     await expect(detail.locator('.hl-pack-status-summary')).not.toContainText('检查中', {timeout: 30_000});
     await expect(detail.getByRole('region', {name: '包状态'})).toContainText('社区版');

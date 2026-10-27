@@ -181,6 +181,15 @@
 .hl-local-package-page > .hl-pack-section { padding-block: var(--space-4); }
 .hl-local-package-page > .hl-pack-section > summary { font-weight: var(--fw-semibold); font-size: var(--fs-md); }
 .hl-local-description { line-height: var(--lh-normal); }
+.hl-pack-docs-more { height: auto; padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; text-decoration: underline; }
+.hl-pack-docs-dialog { box-sizing: border-box; display: none; flex-direction: column; width: min(800px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text-body); overflow: hidden; }
+.hl-pack-docs-dialog[open] { display: flex; }
+.hl-pack-docs-dialog::backdrop { background: color-mix(in srgb, var(--bg) 70%, transparent); }
+.hl-pack-docs-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-shrink: 0; }
+.hl-pack-docs-dialog h2 { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: var(--fs-lg); }
+.hl-pack-docs-dialog > header > button { flex-shrink: 0; }
+.hl-pack-docs-body { min-height: 0; overflow: auto; padding-top: var(--space-3); }
 @media (max-width: 640px) {
   .hl-local-result { flex-wrap: wrap; gap: var(--space-2); }
+  .hl-pack-docs-dialog { padding: var(--space-3); }
 }

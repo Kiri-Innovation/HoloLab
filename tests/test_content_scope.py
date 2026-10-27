@@ -61,6 +61,19 @@ def test_hot_cold_ignored_and_rule_controls(tmp_path, monkeypatch):
         verify(manifest, record)
 
 
+def test_content_inventory_includes_manifest_but_not_ignored_controls(tmp_path):
+    root, manifest, baselines = package(tmp_path)
+    record = capture(manifest, baselines, refresh_cold=True)
+    # The semantic identity omits the selected manifest, but the package-size
+    # display must count it. ``.packignore`` and its ignored asset stay out.
+    assert record["content"]["stats"]["files"] == 3
+    assert record["content"]["stats"]["bytes"] == (
+        manifest.stat().st_size
+        + (root / "stg_state.py").stat().st_size
+        + (root / "thirdparty" / "lib.py").stat().st_size
+    )
+
+
 def test_manifest_compared_before_loading_or_ignore(tmp_path):
     root, manifest, baselines = package(tmp_path)
     record = capture(manifest, baselines)

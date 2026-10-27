@@ -84,11 +84,11 @@ class LoadedPack:
         try:
             with tempfile.TemporaryDirectory(prefix="hololab-pack-identity-") as directory:
                 record = capture(self.manifest_path, Baselines(Path(directory)), refresh_cold=True)
-            hot, cold = record["hot"]["stats"], record["cold"]["stats"]
+            content = record["content"]["stats"]
             return {
                 "sha256": record["sha256"],
-                "files": hot["files"] + cold["files"],
-                "bytes": hot["bytes"] + cold["bytes"],
+                "files": content["files"],
+                "bytes": content["bytes"],
                 "root_abs": record["path"],
             }
         except Exception as exc:
