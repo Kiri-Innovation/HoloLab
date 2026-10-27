@@ -19,6 +19,11 @@ from packaging.version import InvalidVersion, Version
 from hololab.node import resource_lens
 
 BOUNDARY = "本地能力检查只覆盖已声明且在可探测范围内的项; 通过不代表一定能运行。环境未冻结、未被代码身份覆盖。"
+# Hardware discovery invokes ``nvidia-smi`` and is markedly slower than the
+# metadata fingerprint.  GPU topology cannot change during a normal process
+# lifetime, while a visibility mask can, so cache it briefly per exact mask.
+# A user-requested fresh check always bypasses this cache.
+GPU_PROBE_CACHE_TTL_S = 30.0
 PROBE = """import sys,json,os,importlib.metadata as m
 items = list(m.distributions())
 packages = {}
@@ -147,6 +152,7 @@ def enforce(report: dict) -> None:
 class CapabilityChecker:
     def __init__(self):
         self._cache: dict = {}
+        self._gpu_cache: dict[str | None, tuple[float, dict]] = {}
         self._lock = threading.Lock()
 
     def check(
@@ -253,7 +259,25 @@ class CapabilityChecker:
             )
         if contract.gpu is not None or contract.cuda:
             try:
-                hardware = probe_gpus(visible)
+                with self._lock:
+                    gpu_cached = self._gpu_cache.get(visible)
+                    now = time.monotonic()
+                    if (
+                        not fresh
+                        and gpu_cached is not None
+                        and now - gpu_cached[0] < GPU_PROBE_CACHE_TTL_S
+                    ):
+                        hardware = copy.deepcopy(gpu_cached[1])
+                        report["hardware_cache_hit"] = True
+                    else:
+                        # Keep discovery inside the lock: a workflow can issue
+                        # many capability requests at once, and they should
+                        # share one expensive nvidia-smi invocation.
+                        hardware = probe_gpus(visible)
+                        if len(self._gpu_cache) >= 16:
+                            self._gpu_cache.clear()
+                        self._gpu_cache[visible] = (time.monotonic(), copy.deepcopy(hardware))
+                        report["hardware_cache_hit"] = False
                 report["hardware"] = hardware
                 if contract.gpu is not None:
                     gpu_req = contract.gpu

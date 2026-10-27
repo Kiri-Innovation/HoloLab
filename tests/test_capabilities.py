@@ -100,4 +100,55 @@ def test_gpu_requirements_apply_to_one_card_and_cuda_is_driver_minimum(tmp_path,
     checker = CapabilityChecker()
     assert checker.check(manifest, {"test": str(tmp_path)}, "conda")["status"] == "missing"
     cards[1]["vram_gb"] = 24
-    assert checker.check(manifest, {"test": str(tmp_path)}, "conda")["status"] == "satisfied"
+    assert (
+        checker.check(manifest, {"test": str(tmp_path)}, "conda", fresh=True)["status"]
+        == "satisfied"
+    )
+
+
+def test_gpu_probe_cache_respects_visibility_and_fresh(tmp_path, monkeypatch):
+    from hololab.node import capabilities
+
+    manifest = declared(tmp_path, "  gpu: {vram_gb: 1}\n")
+    monkeypatch.setattr(capabilities, "fingerprint", lambda *a: "stable")
+    monkeypatch.setattr(
+        capabilities,
+        "probe_environment",
+        lambda _prefix, _conda_bin, activated: {
+            "paths": [],
+            "python": "3.11",
+            "packages": {},
+            "cuda_visible_devices": activated.get("CUDA_VISIBLE_DEVICES"),
+        },
+    )
+    calls = []
+
+    def probe(visible):
+        calls.append(visible)
+        return {"gpus": [{"vram_gb": 24}], "driver_cuda": "13.0"}
+
+    monkeypatch.setattr(capabilities, "probe_gpus", probe)
+    checker = CapabilityChecker()
+    args = (manifest, {"test": str(tmp_path)}, "conda", {"CUDA_VISIBLE_DEVICES": "0"})
+
+    first = checker.check(*args)
+    second = checker.check(*args)
+    fresh = checker.check(*args, fresh=True)
+    other_visible = checker.check(
+        manifest,
+        {"test": str(tmp_path)},
+        "conda",
+        {"CUDA_VISIBLE_DEVICES": "1"},
+    )
+
+    assert [
+        first["hardware_cache_hit"],
+        second["hardware_cache_hit"],
+        fresh["hardware_cache_hit"],
+    ] == [
+        False,
+        True,
+        False,
+    ]
+    assert other_visible["hardware_cache_hit"] is False
+    assert calls == ["0", "0", "1"]
