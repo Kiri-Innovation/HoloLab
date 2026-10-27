@@ -114,6 +114,7 @@ from hololab.persistence.db import open_database
 from hololab.persistence.diagnostics import phase
 from hololab.protocol import (
     ArtifactDeleteResp,
+    EnvironmentUpdated,
     HandleCheckResp,
     HandleLocateReq,
     HandleLocateResp,
@@ -4328,6 +4329,25 @@ async def _dispatch_node_frame(
             )
         )
         log.info("packs updated", node_id=session.node_id, count=len(payload.packs))
+        return
+
+    if kind == "environment_updated":
+        assert isinstance(payload, EnvironmentUpdated)
+        await registry.replace_environment_evidence(session.node_id, payload.evidence)
+        # Catalog readers poll this state; the existing node_online event is
+        # also enough to make live frontends refresh their node inventory.
+        hub.broadcast(
+            encode(
+                "node_online",
+                NodeOnline(
+                    node_id=session.node_id, node_name=session.node_name, packs=session.packs
+                ),
+                v=session.protocol_v,
+            )
+        )
+        log.info(
+            "environment evidence updated", node_id=session.node_id, count=len(payload.evidence)
+        )
         return
 
     if kind == "job_ack":

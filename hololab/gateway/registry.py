@@ -16,7 +16,7 @@ from fastapi import WebSocket
 
 from hololab.package_identity import offered_identity, package_key, same_package
 from hololab.persistence.db import Database
-from hololab.protocol.messages import GpuInfo, PackInventoryEntry
+from hololab.protocol.messages import EnvironmentEvidenceEntry, GpuInfo, PackInventoryEntry
 
 
 class NodeAuthError(Exception):
@@ -272,6 +272,22 @@ class NodeRegistry:
                 )
 
         await self._db.write(_write)
+
+    async def replace_environment_evidence(
+        self, node_id: str, evidence: list[EnvironmentEvidenceEntry]
+    ) -> None:
+        """Merge incremental node-local environment reports into inventory."""
+
+        session = self._sessions.get(node_id)
+        if session is None:
+            return
+        reports = {(item.name, item.version): item.report for item in evidence}
+        session.packs = [
+            pack.model_copy(
+                update={"environment": reports.get((pack.name, pack.version), pack.environment)}
+            )
+            for pack in session.packs
+        ]
 
     async def mark_offline(self, node_id: str) -> None:
         """Persist node offline flag. Idempotent."""
@@ -549,6 +565,9 @@ class NodeRegistry:
                         "requires": getattr(pk, "requires", None),
                         "runtime": getattr(pk, "runtime", None),
                         "node_environments": {},
+                        # Kept per node: a catalog row is a package while
+                        # environment evidence is package-by-node-by-time.
+                        "environment_by_node": {},
                         "node_ids": [],
                         "inputs": {},
                         "outputs": {},
@@ -596,6 +615,9 @@ class NodeRegistry:
                         else None
                     ),
                 }
+                environment = getattr(pk, "environment", None)
+                if environment is not None:
+                    entry["environment_by_node"][session.node_id] = environment
 
                 # Populate signature once, from the manifest on disk.
                 if not entry["outputs"]:
