@@ -12,79 +12,13 @@ export interface EnvironmentReport {
   requires?: Record<string, unknown> | null;
 }
 export const CapabilityContext = createContext<Record<string, EnvironmentReport>>({});
-
-const CAPABILITY_CACHE_PREFIX = "hololab.capability-reports.v1:";
-const CAPABILITY_CACHE_TTL_MS = 10 * 60 * 1000;
-type CachedCapabilityReports = { savedAt: number; nodes: Record<string, EnvironmentReport> };
-
-// A cache key represents the environment contract, rather than the canvas
-// layout.  Sorting makes it stable when cards have merely been rearranged.
-export function capabilityCacheKey(graph: WorkflowGraph) {
-  const identity = capabilityGraph(graph).nodes.map(node => [
-    node.id, node.algorithm_name, node.algorithm_version, node.assigned_node_id ?? null,
-  ]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
-  let hash = 0x811c9dc5;
-  for (const char of JSON.stringify(identity)) {
-    hash ^= char.charCodeAt(0);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return `${CAPABILITY_CACHE_PREFIX}${(hash >>> 0).toString(36)}`;
-}
-
-// Capability responses include implementation details such as the remote conda
-// `prefix`.  Session storage is deliberately limited to display-safe evidence.
-// In particular, never persist arbitrary issue values: error strings can embed
-// paths too.
-export function cacheableReports(nodes: Record<string, EnvironmentReport>): Record<string, EnvironmentReport> {
-  const statuses = new Set<EnvironmentReport["status"]>(["undeclared", "satisfied", "missing", "unknown"]);
-  return Object.fromEntries(Object.entries(nodes).flatMap(([id, report]) => {
-    if (!statuses.has(report.status)) return [];
-    return [[id, {
-      status: report.status,
-      source: typeof report.source === "string" ? report.source : undefined,
-      node_id: typeof report.node_id === "string" ? report.node_id : undefined,
-      checked_at: typeof report.checked_at === "number" ? report.checked_at : null,
-      issues: [],
-    }]];
-  }));
-}
-
-function readCachedReports(key: string): CachedCapabilityReports | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const value: unknown = JSON.parse(window.sessionStorage.getItem(key) ?? "null");
-    if (!value || typeof value !== "object") return null;
-    const cached = value as CachedCapabilityReports;
-    if (typeof cached.savedAt !== "number" || Date.now() - cached.savedAt > CAPABILITY_CACHE_TTL_MS
-      || !cached.nodes || typeof cached.nodes !== "object") return null;
-    return { savedAt: cached.savedAt, nodes: cacheableReports(cached.nodes) };
-  } catch {
-    return null;
-  }
-}
-
-function cacheReports(key: string, nodes: Record<string, EnvironmentReport>) {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), nodes: cacheableReports(nodes) }));
-  } catch {
-    // Storage can be unavailable (for example, in private browsing); checking still works.
-  }
-}
-
-function reportsEqual(a: Record<string, EnvironmentReport>, b: Record<string, EnvironmentReport>) {
-  return JSON.stringify(cacheableReports(a)) === JSON.stringify(cacheableReports(b));
-}
-
 export function environmentLabel(report?: EnvironmentReport) {
   if (!report) return "环境未校验";
   return ({ undeclared: "环境未声明", satisfied: "已声明的可探测项满足", missing: "环境/硬件缺失", unknown: "环境无法确认" })[report.status];
 }
 
 export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enabled: boolean) {
-  const cacheKey = capabilityCacheKey(graph);
-  const cached = readCachedReports(cacheKey);
-  const [current, setCurrent] = useState<{ key: string; reports: Record<string, EnvironmentReport> }>({ key: "", reports: {} });
+  const [reports, setReports] = useState<Record<string, EnvironmentReport>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
@@ -92,17 +26,12 @@ export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enab
   const forceFresh = useRef(false);
   // Moving cards/editing parameters does not change an environment contract.
   const query = JSON.stringify(capabilityGraph(graph));
-  const reports = current.key === cacheKey ? current.reports : cached?.nodes ?? {};
-  const hasReports = Object.keys(reports).length > 0;
   useEffect(() => {
-    if (!enabled) { setCurrent({ key: cacheKey, reports: {} }); setLoading(false); setError(""); return; }
+    if (!enabled) { setReports({}); setLoading(false); setError(""); return; }
     const fresh = forceFresh.current;
     forceFresh.current = false;
     const controller = new AbortController();
-    // Retain a still-valid result while the verification request runs.  That is
-    // what prevents a reload from briefly replacing evidence with "检查中".
-    if (!cached) setCurrent({ key: cacheKey, reports: {} });
-    setLoading(true); setError("");
+    setReports({}); setLoading(true); setError("");
     const timer = window.setTimeout(() => {
       void fetch("/api/capabilities/check", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -110,25 +39,18 @@ export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enab
       }).then(async response => {
         if (!response.ok) throw new Error(await response.text());
         return response.json() as Promise<{ nodes: Record<string, EnvironmentReport> }>;
-      }).then(data => {
-        if (controller.signal.aborted) return;
-        const next = data.nodes ?? {};
-        // A matching cached result is already on screen; avoid a needless
-        // rerender.  A changed result replaces it immediately.
-        if (!cached || !reportsEqual(cached.nodes, next)) setCurrent({ key: cacheKey, reports: next });
-        cacheReports(cacheKey, next);
-      })
+      }).then(data => { if (!controller.signal.aborted) setReports(data.nodes ?? {}); })
         .catch(reason => { if (!controller.signal.aborted) setError(String(reason)); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 400);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [query, revision, refresh, reload, enabled, cacheKey]);
+  }, [query, revision, refresh, reload, enabled]);
   useEffect(() => {
     const focus = () => setReload(n => n + 1);
     window.addEventListener("focus", focus);
     return () => window.removeEventListener("focus", focus);
   }, []);
-  return { reports, loading: loading && !hasReports, error, refresh: () => { forceFresh.current = true; setRefresh(n => n + 1); } };
+  return { reports, loading, error, refresh: () => { forceFresh.current = true; setRefresh(n => n + 1); } };
 }
 
 export function capabilityGraph(graph: WorkflowGraph) {

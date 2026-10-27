@@ -1,27 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { capabilityCacheKey, capabilityGraph, cacheableReports, EnvironmentChecks, EnvironmentEvidence, type EnvironmentReport } from "./EnvironmentChecks";
+import { capabilityGraph, EnvironmentChecks, EnvironmentEvidence, type EnvironmentReport } from "./EnvironmentChecks";
 import type { WorkflowGraph } from "../wire";
 
 describe("local capability evidence", () => {
   it("includes implicit algorithm nodes produced by the canvas serializer", () => {
     const graph = { nodes: [{ id: "train", algorithm_name: "demo", algorithm_version: "1", assigned_node_id: "gpu" }, { id: "view", kind: "view" }], edges: [] } as unknown as WorkflowGraph;
     expect(capabilityGraph(graph).nodes).toEqual([{ id: "train", kind: "algorithm", algorithm_name: "demo", algorithm_version: "1", assigned_node_id: "gpu" }]);
-  });
-  it("keys cached evidence by node, package version, and assigned compute node", () => {
-    const base = { nodes: [{ id: "train", algorithm_name: "demo", algorithm_version: "1", assigned_node_id: "gpu-a" }], edges: [] } as unknown as WorkflowGraph;
-    expect(capabilityCacheKey(base)).not.toBe(capabilityCacheKey({ ...base, nodes: [{ ...base.nodes[0], algorithm_version: "2" }] }));
-    expect(capabilityCacheKey(base)).not.toBe(capabilityCacheKey({ ...base, nodes: [{ ...base.nodes[0], assigned_node_id: "gpu-b" }] }));
-  });
-  it("only serializes display-safe capability evidence", () => {
-    const cached = cacheableReports({ train: {
-      status: "missing", source: "demo@1", node_id: "gpu", checked_at: 1,
-      issues: [{ item: "env", required: "/secret/conda", actual: "/secret/conda/bin/python", remedy: "fix /secret/conda" }],
-      prefix: "/secret/conda",
-    } as EnvironmentReport });
-    const text = JSON.stringify(cached);
-    expect(text).not.toContain("/secret/conda");
-    expect(cached.train).toMatchObject({ status: "missing", source: "demo@1", node_id: "gpu", issues: [] });
   });
   it("shows missing requirements and remedies instead of readiness", () => {
     const report: EnvironmentReport = { status: "missing", source: "demo@1", node_id: "gpu-node",
