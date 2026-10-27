@@ -654,6 +654,7 @@ class NodeRuntime:
             manifest, _ = load_manifest(pack.manifest_path)
             report = await self._environment_report(manifest)
             report["checked_at"] = report.get("checked_at") or time.time()
+            report["runtime"] = {"mode": manifest.runtime.mode, "env": manifest.runtime.env}
             report["stale"] = False
             report["next_recheck_at"] = report["checked_at"] + ENVIRONMENT_RECHECK_INTERVAL_SECONDS
             active_keys.add(key)
@@ -1003,6 +1004,7 @@ class NodeRuntime:
             manifest, _ = load_manifest(pack.manifest_path)
             report = await self._environment_report(manifest, fresh=request.fresh)
             report["checked_at"] = report.get("checked_at") or time.time()
+            report["runtime"] = {"mode": manifest.runtime.mode, "env": manifest.runtime.env}
             report["stale"] = False
             report["next_recheck_at"] = report["checked_at"] + ENVIRONMENT_RECHECK_INTERVAL_SECONDS
             key = (pack.manifest.name, pack.manifest.version)
