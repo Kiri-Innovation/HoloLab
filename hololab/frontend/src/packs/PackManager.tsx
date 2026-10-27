@@ -182,6 +182,12 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         ? <span className="hl-evidence-muted">明确声明无要求</span>
         : <EvidenceValue value={requires} truncate={false} />;
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
+    const sourceDir = installed ? entry.catalog?.source_dir : undefined;
+    const inputs = Object.entries(entry.catalog?.inputs ?? {});
+    const outputs = Object.entries(entry.catalog?.outputs ?? {});
+    const parameters = Object.entries(entry.catalog?.params ?? {});
+    const portLabel = ([name, spec]: [string, {tags: string[]; arrayed?: boolean}]) =>
+      `${name}: ${spec.arrayed ? 'arrayed<' : ''}${spec.tags.join(' | ') || 'any'}${spec.arrayed ? '>' : ''}`;
     const canInstall = comparison?.state === 'identical'
       && !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
     const installUnavailableReason = yanked
@@ -219,6 +225,33 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         </span>)}
         <button className="hl-pack-status-refresh" disabled={centralLoading} onClick={()=>void refreshCentralComparison()}>{centralLoading ? '查询中…' : '刷新注册表'}</button>
       </section>
+      <details className="hl-pack-section" open><summary>使用情况{usage.loading ? ' · 引用加载中…' : usage.error ? ' · 引用暂不可用' : ` · ${entry.usages.length} 个节点 / ${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流`}</summary>
+        {!usage.loading && !usage.error && !entry.usages.length && <p>已读取的工作流草稿中没有引用此版本。</p>}
+        {entry.usages.map(usage => <section className="hl-pack-usage" key={`${usage.workflow.workflow_id}:${usage.node.id}`}>
+          {(() => { const {workflow, node} = usage; return <>
+          <div><button onClick={() => onOpenWorkflow(workflow.workflow_id)}>打开 {workflow.name}</button><strong>节点 {node.id}</strong><span>计算节点：{node.assigned_node_id ?? '未分配'}</span></div>
+          </>; })()}
+        </section>)}
+      </details>
+      <details className="hl-pack-section" open><summary>来源与内容</summary>
+        {entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} variant="row" label="打开 manifest.yaml" />}
+        {sourceDir && <div className="hl-evidence-rows"><div><dt>本地来源</dt><dd><code className="hl-pack-command">{sourceDir}</code><button className="hl-evidence-primary" onClick={async () => {
+          const ok = await writeToClipboard(sourceDir);
+          setCommandStatus(current => ({...current, [entry.key]: ok ? '本地路径已复制。' : '未能复制，请选中路径手动复制。'}));
+        }}>复制路径</button><span role="status">{commandStatus[entry.key]}</span></dd></div></div>}
+        {!installed && (!canInstall ? <p>{installUnavailableReason}</p>
+          : <><p>可复制 CLI 命令在计算节点执行；安装不会代装环境依赖。</p><code className="hl-pack-command">{installCommand(entry.name, entry.version, source)}</code><button className="hl-evidence-primary" onClick={async () => {
+            const ok = await writeToClipboard(installCommand(entry.name, entry.version, source));
+            setCommandStatus(current => ({...current, [entry.key]: ok ? '安装命令已复制；尚未执行安装。' : '未能复制，请选中命令手动复制。'}));
+          }}>复制安装命令</button><span role="status">{commandStatus[entry.key]}</span></>) }
+        <dl className="hl-evidence-rows">
+          {entry.catalog?.description && <div><dt>描述</dt><dd>{entry.catalog.description}</dd></div>}
+          <div><dt>端口</dt><dd>输入：{inputs.length ? inputs.map(portLabel).join('；') : '无'}<br />输出：{outputs.length ? outputs.map(portLabel).join('；') : '无'}</dd></div>
+          <div><dt>参数</dt><dd>{parameters.length ? `${parameters.slice(0, 6).map(([name]) => name).join('、')}${parameters.length > 6 ? ` 等 ${parameters.length} 项` : ''}` : '无'}</dd></div>
+          {entry.catalog?.source_entry && <div><dt>入口</dt><dd><code>{entry.catalog.source_entry}</code></dd></div>}
+        </dl>
+        {entry.catalog?.docs && <details><summary>包说明</summary><p style={{whiteSpace: 'pre-wrap'}}>{entry.catalog.docs}</p></details>}
+      </details>
       <section className="hl-pack-section hl-pack-environment" aria-label="环境">
         <h2>环境</h2>
         <dl className="hl-evidence-rows">
@@ -235,22 +268,6 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
           <div><dt>检查结果</dt><dd>{report ? <EnvironmentEvidence report={report} headingLabel={report.status === 'unknown' ? '环境未校验' : undefined} /> : <span className="hl-evidence-muted">{nodeId ? '未知（节点尚未上报证据）' : '未选择计算节点'}</span>}<button className="hl-evidence-primary" disabled={!nodeId || environmentRefreshing} onClick={()=>void refreshEnvironmentEvidence()}>{environmentRefreshing ? '重新检查中…' : '重新检查'}</button></dd></div>
         </dl>
       </section>
-      <details className="hl-pack-section" open><summary>使用情况{usage.loading ? ' · 引用加载中…' : usage.error ? ' · 引用暂不可用' : ` · ${entry.usages.length} 个节点 / ${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流`}</summary>
-        {!usage.loading && !usage.error && !entry.usages.length && <p>已读取的工作流草稿中没有引用此版本。</p>}
-        {entry.usages.map(usage => <section className="hl-pack-usage" key={`${usage.workflow.workflow_id}:${usage.node.id}`}>
-          {(() => { const {workflow, node} = usage; return <>
-          <div><button onClick={() => onOpenWorkflow(workflow.workflow_id)}>打开 {workflow.name}</button><strong>节点 {node.id}</strong><span>计算节点：{node.assigned_node_id ?? '未分配'}</span></div>
-          </>; })()}
-        </section>)}
-      </details>
-      <details className="hl-pack-section"><summary>安装与源码</summary>
-        {entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} variant="row" label="打开 manifest.yaml" />}
-        {!canInstall ? <p>{installUnavailableReason}</p>
-          : <><p>可复制 CLI 命令在计算节点执行；安装不会代装环境依赖。</p><code className="hl-pack-command">{installCommand(entry.name, entry.version, source)}</code><button className="hl-evidence-primary" onClick={async () => {
-            const ok = await writeToClipboard(installCommand(entry.name, entry.version, source));
-            setCommandStatus(current => ({...current, [entry.key]: ok ? '安装命令已复制；尚未执行安装。' : '未能复制，请选中命令手动复制。'}));
-          }}>复制安装命令</button><span role="status">{commandStatus[entry.key]}</span></>}
-      </details>
     </article>;
   };
 
