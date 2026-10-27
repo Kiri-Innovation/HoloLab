@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: image-undistort
+name: community/image-undistort
 version: 0.5.2
 description: >
   Undistort one frame's images on the GPU. Same bundle-in / bundle-out

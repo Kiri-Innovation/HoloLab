@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: merge-colmap4d
+name: community/merge-colmap4d
 version: 0.1.4
 description: "Assemble grouped points/cams and flat images into one flat-layout colmap4d model."
 source_entry: merge_colmap4d.py

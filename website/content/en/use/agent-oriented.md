@@ -52,7 +52,7 @@ This excerpt comes from a completed Job in the STG workflow. Only selected field
   "resource": {
     "job_id": "<job-id>",
     "graph_node_id": "und",
-    "algorithm_name": "image-undistort",
+    "algorithm_name": "community/image-undistort",
     "algorithm_version": "0.5.0",
     "state": "done",
     "progress": null

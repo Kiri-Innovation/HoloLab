@@ -23,7 +23,7 @@ try {
     assert.equal(await page.locator('article .flops-only code').count(), 1);
     const excerpt = JSON.parse(await page.locator('code.language-json').textContent());
     assert.equal(excerpt.resource.state, 'done');
-    assert.equal(excerpt.resource.algorithm_name, 'image-undistort');
+    assert.equal(excerpt.resource.algorithm_name, 'community/image-undistort');
     assert.deepEqual(Object.keys(excerpt), ['kind', 'ref', 'resource', 'related']);
     assert.equal(await page.locator('code.language-bash').count(), 0);
     assert.equal(await page.locator('article .no-flops-only').isVisible(), !flops);

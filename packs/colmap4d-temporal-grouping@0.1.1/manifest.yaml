@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: colmap4d-temporal-grouping
+name: community/colmap4d-temporal-grouping
 version: 0.1.1
 description: >
   Materialize XMP-timestamped rig images on colmap4d's fixed time grid and

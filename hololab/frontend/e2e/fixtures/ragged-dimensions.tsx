@@ -21,11 +21,11 @@ seedEdgeSummaryFacts('flat',{handle_id:'flat',tags:['image'],dim_labels:[''],del
  runtime_shape:runtime('flat',['image'],[exact(null,1110)])});
 
 const common={version:'test',node_ids:[],manifest_hash:'test',params:{}};
-const und={...common,name:'image-undistort',arrayable:true,inputs:{},outputs:{
+const und={...common,name:'community/image-undistort',arrayable:true,inputs:{},outputs:{
  cams:{tags:['colmap-cams'],arrayed:false,dim_labels:[]},images:{tags:['image'],arrayed:true,dim_labels:['cam']}}};
 const flatten={...common,name:'flatten-array',inputs:{arr:{tags:['any'],arrayed:true,dim_labels:['outer','inner'],required:true}},outputs:{
  flat:{tags:['any'],arrayed:true,dim_labels:[''],tags_from:'arr'}}};
-const merge={...common,name:'merge-colmap4d',inputs:{
+const merge={...common,name:'community/merge-colmap4d',inputs:{
  points:{tags:['point-cloud'],arrayed:true,dim_labels:['group'],required:true},
  images:{tags:['image'],arrayed:true,dim_labels:[''],required:true},
  cams:{tags:['colmap-cams'],arrayed:true,dim_labels:['group'],required:true}},outputs:{model:{tags:['colmap4d'],arrayed:false,dim_labels:[]}}};

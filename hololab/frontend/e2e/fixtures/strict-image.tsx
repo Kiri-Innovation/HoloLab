@@ -12,7 +12,7 @@ import {measuredPayload} from '../../src/test/measurements';
 const q=new URLSearchParams(location.search);
 document.documentElement.dataset.theme=q.get('theme')||'light';
 const input={tags:['image'],arrayed:true,storage:'dir',dim_labels:['cam'],required:true};
-const pack={name:'image-undistort',version:'0.5.2',node_ids:[],manifest_hash:'fixture',arrayable:true,
+const pack={name:'community/image-undistort',version:'0.5.2',node_ids:[],manifest_hash:'fixture',arrayable:true,
  inputs:{images:input,cams:{tags:['colmap-cams'],scalar:true,required:true}},outputs:{images:input},params:{}};
 seedEdgeSummaryFacts('images',{handle_id:'images',tags:['image'],dim_labels:['frame','cam'],deleted:false,runtime_shape:measuredPayload(['image'],['frame','cam'],[100,21],[],'images')});
 seedEdgeSummaryFacts('cams',{handle_id:'cams',tags:['colmap-cams'],dim_labels:[],deleted:false,runtime_shape:measuredPayload(['colmap-cams'],[],[],[{key:'pose',value:21},{key:'intr',value:1}],'cams')});

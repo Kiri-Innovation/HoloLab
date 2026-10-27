@@ -64,7 +64,7 @@
       {
         "id": "und_g0",
         "kind": "algorithm",
-        "algorithm_name": "image-undistort",
+        "algorithm_name": "community/image-undistort",
         "algorithm_version": "0.5.2",
         "position": {
           "x": -1200,
@@ -316,7 +316,7 @@
       "arrayable": true
     },
     {
-      "name": "image-undistort",
+      "name": "community/image-undistort",
       "version": "0.5.2",
       "manifest_hash": "fixture",
       "node_ids": [],

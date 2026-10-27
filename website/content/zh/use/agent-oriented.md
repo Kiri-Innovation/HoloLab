@@ -52,7 +52,7 @@ agent 可以调用 `GET /api/resolve?ref=hololab://…` 读取对象，再沿返
   "resource": {
     "job_id": "<job-id>",
     "graph_node_id": "und",
-    "algorithm_name": "image-undistort",
+    "algorithm_name": "community/image-undistort",
     "algorithm_version": "0.5.0",
     "state": "done",
     "progress": null

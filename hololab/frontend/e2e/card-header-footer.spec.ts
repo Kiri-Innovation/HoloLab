@@ -13,7 +13,7 @@ const WORKFLOW_ID = "wf-card-refactor";
 const SNAPSHOT_ID = "snap-card-refactor";
 const GRAPH_NODE_ID = "image-undistort-1";
 const NODE_ID = "kiri4090";
-const PACK_NAME = "image-undistort";
+const PACK_NAME = "community/image-undistort";
 const PACK_VERSION = "0.4.0";
 // Fixed reference wall clock — the spec pins Date.now via page.clock so
 // "3 分钟前" is deterministic across CI runs. Anchor 12 minutes past the

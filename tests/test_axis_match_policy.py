@@ -102,7 +102,7 @@ def test_real_merge_stg_graph_validation_and_api_contract(strict):
         node["port_types"]["inputs"]["colmap_frames"]["views"]["aggregate"]["axis"]["label"]
         == "frame"
     )
-    und = packs[("image-undistort", "0.5.2")]
+    und = packs[("community/image-undistort", "0.5.2")]
     assert all(p.require_axis_label_match for p in und.inputs.values())
 
 

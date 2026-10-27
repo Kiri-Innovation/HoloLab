@@ -149,13 +149,13 @@ def test_invocation_and_fanout_are_distinct_structures():
     ]:
         n = GraphNode(
             id="und",
-            algorithm_name="image-undistort",
+            algorithm_name="community/image-undistort",
             algorithm_version="0.5.2",
             arrayed_toggle=toggle,
         )
         g = WorkflowGraph(nodes=[n], edges=[])
         ir, fields = resolved_port_types(
-            n, packs[("image-undistort", "0.5.2")], g, {"und": n}, packs
+            n, packs[("community/image-undistort", "0.5.2")], g, {"und": n}, packs
         )
         assert render_type(ir.inputs["images"].views.aggregate) == expected
         assert render_type(ir.inputs["images"].views.invocation) == "arrayed[cam]<image>"
