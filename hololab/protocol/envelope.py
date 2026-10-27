@@ -46,6 +46,7 @@ _KIND_REGISTRY: dict[str, type[BaseModel]] = {
     "resource_lens_req": messages.ResourceLensReq,
     "resource_lens_resp": messages.ResourceLensResp,
     "packs_updated": messages.PacksUpdated,
+    "environment_updated": messages.EnvironmentUpdated,
     "job_assign": messages.JobAssign,
     "job_ack": messages.JobAck,
     "job_progress": messages.JobProgress,

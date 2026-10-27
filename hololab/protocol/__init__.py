@@ -13,6 +13,8 @@ from hololab.protocol.envelope import (
 from hololab.protocol.messages import (
     ArtifactDeleteReq,
     ArtifactDeleteResp,
+    EnvironmentEvidenceEntry,
+    EnvironmentUpdated,
     HandleCheckItem,
     HandleCheckReq,
     HandleCheckResp,
@@ -50,6 +52,8 @@ __all__ = [
     "ArtifactDeleteReq",
     "ArtifactDeleteResp",
     "Envelope",
+    "EnvironmentEvidenceEntry",
+    "EnvironmentUpdated",
     "HandleCheckItem",
     "HandleCheckReq",
     "HandleCheckResp",

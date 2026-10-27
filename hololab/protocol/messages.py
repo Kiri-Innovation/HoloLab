@@ -50,6 +50,12 @@ class PackInventoryEntry(BaseModel):
     # supplies this label.
     origin: str = "local"
     bundled_identity: dict[str, Any] | None = None
+    # Latest node-local environment evidence for this exact pack.  It is
+    # deliberately optional: nodes from before environment inventory keep
+    # working and consumers can render an explicit "unknown" state.
+    # ``requires`` remains inside the report unchanged, including its
+    # meaningful distinction between null and {}.
+    environment: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def _check_package_identity(self):
@@ -236,6 +242,25 @@ class PacksUpdated(BaseModel):
     # Logical conda environment name -> absolute prefix on this node.
     # This belongs to the node-wide inventory rather than each pack.
     envs: dict[str, str] = Field(default_factory=dict)
+
+
+class EnvironmentEvidenceEntry(BaseModel):
+    """One pack-by-node environment report in an incremental update."""
+
+    name: str
+    version: str
+    report: dict[str, Any]
+
+    @model_validator(mode="after")
+    def _check_package_identity(self):
+        validate_identity(self.name, self.version)
+        return self
+
+
+class EnvironmentUpdated(BaseModel):
+    """Node → gateway: refreshed environment evidence without re-sending packs."""
+
+    evidence: list[EnvironmentEvidenceEntry] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
