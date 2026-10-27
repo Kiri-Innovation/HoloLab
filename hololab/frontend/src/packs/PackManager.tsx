@@ -182,7 +182,17 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         ? <span className="hl-evidence-muted">明确声明无要求</span>
         : <EvidenceValue value={requires} truncate={false} />;
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
-    const canInstall = !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
+    const canInstall = comparison?.state === 'identical'
+      && !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
+    const installUnavailableReason = yanked
+      ? '该版本已 yank，不能新安装；已安装版本与历史运行不因此删除。'
+      : entry.version.endsWith('+') || entry.name.startsWith('@builtin/')
+        ? '开发版或内置包不能作为注册表发行版安装。'
+        : comparison?.state === 'absent'
+          ? '本地包，未发布到注册表。'
+          : comparison?.state === 'differs'
+            ? '本地包与注册表同名版本内容不同，暂不提供安装命令。'
+            : '注册表状态尚未确认，暂不提供安装命令。';
     const breadcrumbCategory = categoryTrail(entry);
     const registryStatus = comparison?.state === 'identical' ? status('success', '社区版', `社区注册表：${comparison.source}\n代码哈希：${comparison.central_code_sha256}`, '本地内容与线上同名版本一致。')
       : comparison?.state === 'differs' ? status('warning', '与线上不同', `社区注册表：${comparison.source}\n线上哈希：${comparison.central_code_sha256}\n本地哈希：${entry.catalog?.code_sha256 ?? '不可用'}`, '本地修改可正常开发；安装或发布前请确认要保留哪一版。')
@@ -235,9 +245,8 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       </details>
       <details className="hl-pack-section"><summary>安装与源码</summary>
         {entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} variant="row" label="打开 manifest.yaml" />}
-        <p>在社区视角选择包版本即可安装。也可复制 CLI 命令在计算节点执行；安装不会代装环境依赖。</p>
-        {!canInstall ? <p>{yanked ? '该版本已 yank，不能新安装；已安装版本与历史运行不因此删除。' : '开发版或内置包不能作为注册表发行版安装。'}</p>
-          : <><code className="hl-pack-command">{installCommand(entry.name, entry.version, source)}</code><button className="hl-evidence-primary" onClick={async () => {
+        {!canInstall ? <p>{installUnavailableReason}</p>
+          : <><p>可复制 CLI 命令在计算节点执行；安装不会代装环境依赖。</p><code className="hl-pack-command">{installCommand(entry.name, entry.version, source)}</code><button className="hl-evidence-primary" onClick={async () => {
             const ok = await writeToClipboard(installCommand(entry.name, entry.version, source));
             setCommandStatus(current => ({...current, [entry.key]: ok ? '安装命令已复制；尚未执行安装。' : '未能复制，请选中命令手动复制。'}));
           }}>复制安装命令</button><span role="status">{commandStatus[entry.key]}</span></>}
