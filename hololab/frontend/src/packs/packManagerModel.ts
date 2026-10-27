@@ -12,6 +12,7 @@ export interface PackEntry {
   catalog?: CatalogPack; inventory: InventoryPack[]; release?: RegistryRelease;
   usages: { workflow: WorkflowUsage; node: WorkflowGraph['nodes'][number]; issues: RecipeIssue[] }[];
 }
+export type PackUsage = PackEntry['usages'][number];
 export function buildPackEntries(catalog: CatalogPack[], inventory: InventoryPack[], workflows: WorkflowUsage[], releases: RegistryRelease[] = []): PackEntry[] {
   const entries = new Map<string, PackEntry>();
   const entry = (name: string, version: string) => {
@@ -51,13 +52,18 @@ export function packProblemReasons(entry: PackEntry, report?: EnvironmentReport,
     return items.length ? `缺少环境：${items.join('、')}` : '缺少已声明的环境能力';
   };
   if (report?.status === 'missing') reasons.push(missingLabel(report));
-  for (const usage of entry.usages) {
-    for (const issue of usage.issues) reasons.push(recipeIssueLabel(issue));
-    if (usage.workflow.checkFailed) reasons.push('工作流配方检查未完成，请重试');
-    const environment = usage.workflow.check?.environment?.[usage.node.id];
-    if (environment?.status === 'missing') reasons.push(`工作流运行节点${missingLabel(environment)}`);
-  }
+  for (const usage of entry.usages) reasons.push(...usageProblemReasons(usage));
   return [...new Set(reasons)];
+}
+export function usageProblemReasons(usage: PackUsage): string[] {
+  const reasons = usage.issues.map(recipeIssueLabel);
+  if (usage.workflow.checkFailed) reasons.push('工作流配方检查未完成，请重试');
+  const environment = usage.workflow.check?.environment?.[usage.node.id];
+  if (environment?.status === 'missing') {
+    const items = [...new Set(environment.issues.map(issue => issue.item).filter(Boolean))];
+    reasons.push(`工作流运行节点${items.length ? `缺少环境：${items.join('、')}` : '缺少已声明的环境能力'}`);
+  }
+  return reasons;
 }
 export function packHasProblem(entry: PackEntry, report?: EnvironmentReport, registryStatus?: string) {
   return packProblemReasons(entry, report, registryStatus).length > 0;

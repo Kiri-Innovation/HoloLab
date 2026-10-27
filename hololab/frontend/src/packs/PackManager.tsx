@@ -18,7 +18,7 @@ import { OpenSourceButton } from '../canvas/OpenSourceButton';
 import { writeToClipboard } from '../canvas/referenceAction';
 import { centralStatusKey } from './centralStatusKey';
 import {usePackUsage} from './usePackUsage';
-import { buildPackEntries, compactPackStatus, installedOn, installCommand, packProblemReasons, packEnvironmentStatus, recipeIssueLabel,
+import { buildPackEntries, compactPackStatus, installedOn, installCommand, packProblemReasons, packEnvironmentStatus, usageProblemReasons,
   type InventoryPack, type PackEntry, type RegistryRelease } from './packManagerModel';
 import './packManager.css';
 
@@ -117,6 +117,8 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     assigned_node_id: nodeId || null, params: {}, position: {x: 0, y: 0},
   })), ...workflows.flatMap(workflow => workflow.graph.nodes.map(node => ({...node, id: `usage:${workflow.workflow_id}:${node.id}`})))], edges: []}) as WorkflowGraph, [rawEntries, workflows, nodeId]);
   const checks = useCapabilityChecks(capabilityGraph, String(revision), !loading && !!nodeId && rawEntries.length > 0);
+  // One pending flag drives all package-environment presentation in this view.
+  const environmentCheckPending = !loading && checks.loading;
   const entries = useMemo(() => buildPackEntries(catalog, inventory, workflows.map(workflow => ({...workflow,
     check: {...workflow.check, issues: workflow.check?.issues ?? [], environment: Object.fromEntries(workflow.graph.nodes.flatMap(node => {
       const report = checks.reports[`usage:${workflow.workflow_id}:${node.id}`];
@@ -138,12 +140,12 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   });
   const sectionEntries=(section==='category'?categoryEntries:entries).filter(entry=>section==='attention'?problem(entry):section==='missing'?checks.reports[entry.key]?.status==='missing':section==='undeclared'?isUndeclared(entry):true);
   const selectedEntry=section==='category' ? entries.find(entry=>entry.key===selected) : undefined;
-  const healthPending=loading || checks.loading || !nodeId || entries.some(entry=>!checks.reports[entry.key] || checks.reports[entry.key].status==='unknown');
+  const healthPending=loading || environmentCheckPending || !nodeId || entries.some(entry=>!checks.reports[entry.key] || checks.reports[entry.key].status==='unknown');
   const feedback = <>
     {warnings.length > 0 && <div role="alert" className="hl-pack-notice">{warnings.map(message => <p key={message}>{message}</p>)}<button disabled={loading} onClick={()=>setRevision(n=>n+1)}>重试读取</button></div>}
     {usage.error && <p role="alert">工作流引用暂不可用。<button onClick={usage.refresh}>重试引用查询</button></p>}
     {checks.error && <p role="alert">本地能力暂时无法查询。<button onClick={checks.refresh}>重试环境检查</button></p>}
-    {loading ? <p role="status">正在读取本地包…</p> : checks.loading && <p role="status">环境检查中…</p>}
+    {loading ? <p role="status">正在读取本地包…</p> : environmentCheckPending && <p role="status">环境检查中…</p>}
   </>;
   const renderPackage = (entry: PackEntry) => {
     const selectedNode = nodes.find(node => node.node_id === nodeId);
@@ -173,7 +175,8 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       : installed ? status('success', '已安装', `当前节点已发现：${selectedNode?.node_name || nodeId}`, '可在当前节点运行此版本。')
       : entry.inventory.some(item => item.node_id === nodeId) ? status('warning', '仅历史记录', '存在历史安装记录，但当前节点未确认提供此包。', '检查节点连接或重新安装此版本。')
       : status('neutral', '未安装', `当前节点 ${selectedNode?.node_name || nodeId} 未发现此包。`, '可在社区页安装，或选择提供此包的节点。');
-    const environmentStatus = !report ? status('neutral', '环境未查', '尚未取得当前节点的环境检查结果。', '选择节点后等待检查完成。')
+    const environmentStatus = environmentCheckPending ? status('info', '检查中', '正在读取当前节点的环境检查结果。', '检查完成后会自动更新。')
+      : !report ? status('neutral', '环境未查', '尚未取得当前节点的环境检查结果。', '选择节点后等待检查完成。')
       : report.status === 'satisfied' ? status('success', '环境就绪', '已声明且可探测的环境要求均满足。', '仍请按实际任务输入确认运行条件。')
       : report.status === 'undeclared' ? status('warning', '环境未声明', '包作者没有声明环境要求，实际环境尚未确认。', '运行前请确认依赖和硬件条件。')
       : report.status === 'missing' ? status('error', '缺依赖', report.issues.map(issue => `${issue.item}：需要 ${String(issue.required)}，当前 ${String(issue.actual)}`).join('\n'), '按提示补齐依赖或选择满足要求的节点。')
@@ -181,7 +184,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const statuses = [registryStatus, installStatus, environmentStatus, ...(yanked ? [status('error', '已 yank', '该版本已被发布者撤回，不推荐新安装。', '已安装版本不会被删除；新任务请选择其他版本。')] : [])];
     return <article className="hl-local-package-page" data-local-page="package" key={entry.key} data-pack-key={entry.key}>
       <nav className="hl-local-breadcrumb" aria-label="包路径">{breadcrumbCategory.length > 0 && <><button onClick={()=>navigateLocal('category','',breadcrumbCategory.join('/'))}>{breadcrumbCategory.join(' / ')}</button><span aria-hidden="true">/</span></>}<span>{displayName(entry.name)}</span></nav>
-      <header><div><h1>{`${entry.name}@${entry.version}`}</h1>{(breadcrumbCategory.length > 0 || loading || checks.loading || compactStatus(entry)) && <p className="hl-pack-identity-meta">{breadcrumbCategory.length > 0 && <>{breadcrumbCategory.join(' / ')}{(loading || checks.loading || compactStatus(entry)) && <span aria-hidden="true"> · </span>}</>}{(loading || checks.loading || compactStatus(entry)) && <span className="hl-pack-state" data-problem={problem(entry)}>{loading || checks.loading ? '检查中' : compactStatus(entry)}</span>}</p>}</div></header>
+      <header><div><h1>{`${entry.name}@${entry.version}`}</h1>{(breadcrumbCategory.length > 0 || loading || environmentCheckPending || compactStatus(entry)) && <p className="hl-pack-identity-meta">{breadcrumbCategory.length > 0 && <>{breadcrumbCategory.join(' / ')}{(loading || environmentCheckPending || compactStatus(entry)) && <span aria-hidden="true"> · </span>}</>}{(loading || environmentCheckPending || compactStatus(entry)) && <span className="hl-pack-state" data-problem={problem(entry)}>{loading || environmentCheckPending ? '检查中' : compactStatus(entry)}</span>}</p>}</div></header>
       {feedback}
       {entry.catalog?.description && <p className="hl-local-description">{entry.catalog.description}</p>}
       <section className="hl-pack-status-summary" aria-label="包状态">
@@ -208,13 +211,15 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       </section>
       <details className="hl-pack-section" open><summary>使用情况与配方检查{usage.loading ? ' · 引用加载中…' : usage.error ? ' · 引用暂不可用' : ` · ${entry.usages.length} 个节点 / ${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流`}</summary>
         {!usage.loading && !usage.error && !entry.usages.length && <p>已读取的工作流草稿中没有引用此版本。</p>}
-        {entry.usages.map(({workflow, node, issues}) => <section className="hl-pack-usage" key={`${workflow.workflow_id}:${node.id}`}>
+        {entry.usages.map(usage => <section className="hl-pack-usage" key={`${usage.workflow.workflow_id}:${usage.node.id}`}>
+          {(() => { const {workflow, node} = usage; const problems = usageProblemReasons(usage); return <>
           <div><button onClick={() => onOpenWorkflow(workflow.workflow_id)}>打开 {workflow.name}</button><strong>节点 {node.id}</strong><span>计算节点：{node.assigned_node_id ?? '未分配'}</span></div>
-          {workflow.checkFailed ? <p>配方检查未完成，请刷新后重试。</p> : issues.length ? <ul>{issues.map((issue, index) => <li key={index}>{recipeIssueLabel(issue)}</li>)}</ul> : <p>未发现包依赖、变量或参数问题。</p>}
+          {problems.length ? <ul>{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul> : <p>未发现包依赖、变量或参数问题。</p>}
           {workflow.check?.environment?.[node.id] && <details><summary>此工作流所分配节点的环境</summary><EnvironmentEvidence report={workflow.check.environment[node.id]} headingLabel={workflow.check.environment[node.id].status === 'unknown' ? '环境未校验' : undefined} /></details>}
           {Object.keys(node.param_bindings ?? {}).length > 0 && <details><summary>变量绑定与值</summary><dl className="hl-evidence-rows">{Object.entries(node.param_bindings ?? {}).map(([parameter, variable]) => <div key={parameter}><dt>{parameter} → {variable}</dt><dd>
             {!workflow.graph.variables?.[variable] ? '变量未声明' : <><span>{workflow.graph.variables[variable].type} · {Object.prototype.hasOwnProperty.call(workflow.graph.variable_values ?? {}, variable) ? '本地值' : '共享默认值'}</span><EvidenceValue value={Object.prototype.hasOwnProperty.call(workflow.graph.variable_values ?? {}, variable) ? workflow.graph.variable_values?.[variable] : workflow.graph.variables[variable].default} /></>}
           </dd></div>)}</dl></details>}
+          </>; })()}
         </section>)}
       </details>
       <details className="hl-pack-section"><summary>安装与源码</summary>

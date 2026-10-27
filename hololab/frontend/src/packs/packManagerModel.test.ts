@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {buildPackEntries, compactPackStatus, hasEnvironmentDetails, installedOn, installCommand, packHasProblem, packProblemReasons, packEnvironmentStatus} from './packManagerModel';
+import {buildPackEntries, compactPackStatus, hasEnvironmentDetails, installedOn, installCommand, packHasProblem, packProblemReasons, packEnvironmentStatus, usageProblemReasons} from './packManagerModel';
 import type {CatalogPack, WorkflowGraph} from '../wire';
 
 const catalog = [{name:'train',version:'1',node_ids:['gpu'],requires:null}] as CatalogPack[];
@@ -51,6 +51,7 @@ describe('package-oriented aggregation',()=>{
     entry.usages[0].issues=[{node_id:'a',code:'missing_parameter',message:'参数 frames 未提供值'}];
     entry.usages[0].workflow={...entry.usages[0].workflow,checkFailed:true,check:{issues:[],environment:{a:missing}}};
     expect(packProblemReasons(entry)).toEqual(['参数 frames 未提供值','工作流配方检查未完成，请重试','工作流运行节点缺少环境：mmcv']);
+    expect(usageProblemReasons(entry.usages[0])).toEqual(['参数 frames 未提供值','工作流配方检查未完成，请重试','工作流运行节点缺少环境：mmcv']);
   });
   it('keeps offline receipts as annotations only for a current catalog package',()=>{
     const entries=buildPackEntries(catalog, [{name:'train',version:'1',node_id:'old',online:false}],
