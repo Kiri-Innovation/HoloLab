@@ -8,25 +8,23 @@ import pytest
 from hololab.manifest import RenderContext, load_manifest, render_manifest
 
 ROOT = Path("/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians")
+SPLIT_MANIFESTS = tuple(sorted((ROOT / "packs").glob("stg-*/manifest.yaml")))
 
 
-@pytest.mark.parametrize(
-    ("relative", "name", "version"),
-    [
-        ("stg-init@0.1.0/manifest.yaml", "stg-init", "0.1.0"),
-        ("stg-train@0.4.6/manifest.yaml", "stg-train", "0.4.6"),
-    ],
-)
-def test_split_stg_manifests_load(relative: str, name: str, version: str) -> None:
-    manifest, _ = load_manifest(ROOT / "packs" / relative)
-    assert manifest.name == name
-    assert manifest.version == version
+@pytest.mark.parametrize("path", SPLIT_MANIFESTS, ids=lambda path: path.parent.name)
+def test_split_stg_manifests_load(path: Path) -> None:
+    """Every currently shipped split STG manifest remains loadable."""
+    manifest, _ = load_manifest(path)
+    name, version = path.parent.name.rsplit("@", 1)
+    assert (manifest.name, manifest.version) == (name, version)
 
 
 def test_init_emits_semantic_state_and_supervision() -> None:
-    manifest, _ = load_manifest(ROOT / "packs" / "stg-init@0.1.0/manifest.yaml")
-    assert manifest.inputs["colmap_frames"].arrayed is True
-    assert manifest.inputs["colmap_frames"].tags == ["colmap-folder"]
+    manifest, _ = load_manifest(ROOT / "packs" / "stg-init@0.3.1/manifest.yaml")
+    assert [variant.tags for variant in manifest.inputs["colmap_4d"].any_of] == [
+        ["colmap4d"],
+        ["colmap-folder"],
+    ]
     assert manifest.inputs["flow_dir"].tags == ["t4w_flow"]
     assert manifest.inputs["flow_dir"].required is False
     assert manifest.outputs["initial_state"].tags == ["stg-training-state", "stg_model"]
@@ -34,12 +32,16 @@ def test_init_emits_semantic_state_and_supervision() -> None:
 
 
 def test_init_renders_when_optional_flow_is_unwired() -> None:
-    manifest, _ = load_manifest(ROOT / "packs" / "stg-init@0.1.0/manifest.yaml")
+    manifest, _ = load_manifest(ROOT / "packs" / "stg-init@0.3.1/manifest.yaml")
     rendered = render_manifest(
         manifest,
         RenderContext(
-            inputs={"colmap_frames": "/tmp/frames"},
-            outputs={"initial_state": "/tmp/state", "supervision": "/tmp/supervision"},
+            inputs={"colmap_4d": "/tmp/frames"},
+            outputs={
+                "initial_state": "/tmp/state",
+                "supervision": "/tmp/supervision",
+                "preview": "/tmp/preview.png",
+            },
             params={"configpath": "configs/n3d_full/stg_state_default.json"},
             scratch_dir="/tmp/scratch",
             job_id="test-job",
@@ -47,6 +49,7 @@ def test_init_renders_when_optional_flow_is_unwired() -> None:
         ),
     )
     assert 'if [ -n "" ]' in rendered.shell
+    assert "init-union" in rendered.shell
 
 
 def test_train_has_only_progress_and_diagnostic_knobs() -> None:
@@ -69,38 +72,17 @@ def test_state_runner_hard_disables_difix_schedules() -> None:
     assert '"--start_checkpoint", str(checkpoint)' in runner
 
 
-@pytest.mark.parametrize(
-    ("relative", "allowed"),
-    [
-        (
-            "stg-init@0.1.0/manifest.yaml",
-            {
-                "inputs.colmap_frames",
-                "inputs.get('flow_dir', '')",
-                "outputs.supervision",
-                "outputs.initial_state",
-                "params.configpath",
-                "scratch_dir",
-            },
-        ),
-        (
-            "stg-train@0.4.6/manifest.yaml",
-            {
-                "inputs.state",
-                "inputs.supervision",
-                "outputs.state",
-                "params.iterations",
-                "params.preview_every",
-                "params.save_cam",
-                "scratch_dir",
-            },
-        ),
-    ],
-)
-def test_every_template_reference_is_declared_or_runtime_builtin(
-    relative: str, allowed: set[str]
-) -> None:
+@pytest.mark.parametrize("path", SPLIT_MANIFESTS, ids=lambda path: path.parent.name)
+def test_every_template_reference_is_declared_or_runtime_builtin(path: Path) -> None:
     """Prevent optional/unwired ports from becoming StrictUndefined regressions."""
-    raw = (ROOT / "packs" / relative).read_text()
+    manifest, _ = load_manifest(path)
+    allowed = {
+        *(f"inputs.{name}" for name in manifest.inputs),
+        *(f"inputs.get('{name}', '')" for name in manifest.inputs),
+        *(f"outputs.{name}" for name in manifest.outputs),
+        *(f"params.{name}" for name in manifest.params),
+        "scratch_dir",
+    }
+    raw = path.read_text()
     refs = {match.strip() for match in re.findall(r"\{\{\s*(.*?)\s*\}\}", raw)}
     assert refs <= allowed | {"package_root", "manifest_dir"}

@@ -59,7 +59,7 @@ def test_migrated_inventory_catalog_and_viewers(tmp_path):
 @pytest.mark.asyncio
 async def test_real_entrypoint_dispatch_smoke(tmp_path):
     packs = scan_packs(STG)
-    pack = next(p for p in packs if (p.manifest.name, p.manifest.version) == ("stg-init", "0.1.1"))
+    pack = next(p for p in packs if (p.manifest.name, p.manifest.version) == ("stg-init", "0.3.1"))
     record = capture(pack.manifest_path, Baselines(tmp_path / "baselines"))
     selected = session(packs)
     selected.content_identity = True
@@ -77,7 +77,7 @@ async def test_real_entrypoint_dispatch_smoke(tmp_path):
             gnode=GraphNode(
                 id="stg",
                 algorithm_name="stg-init",
-                algorithm_version="0.1.1",
+                algorithm_version="0.3.1",
                 assigned_node_id="local",
                 code_identity=record,
                 params={"configpath": "configs/n3d_full/stg_state_default.json"},
