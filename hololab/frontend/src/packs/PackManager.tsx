@@ -175,7 +175,9 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     // in the filesystem namespace of a node that actually offers this pack.
     const nodeEnvironment = nodeId ? entry.catalog?.node_environments?.[nodeId] : undefined;
     const runtime = nodeEnvironment?.runtime ?? entry.catalog?.runtime ?? report?.runtime;
-    const environmentPath = nodeEnvironment?.path ?? report?.prefix;
+    // ``environment_by_node[].prefix`` is authoritative; node_environments
+    // mirrors it for legacy consumers.
+    const environmentPath = report?.prefix ?? nodeEnvironment?.path;
     const requirement = requires == null
       ? <span className="hl-evidence-muted">未声明</span>
       : Object.keys(requires).length === 0

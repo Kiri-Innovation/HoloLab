@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -16,6 +17,23 @@ from hololab.node.runtime import NodeRuntime
 from hololab.protocol.messages import JobAssign
 from tests.test_content_scope import package
 from tests.test_scoped_packages import session
+
+
+@pytest.mark.asyncio
+async def test_environment_evidence_prefix_is_resolved_once_on_node(tmp_path):
+    """Logical env names are never mistaken for their machine-local prefix."""
+
+    node = NodeRuntime(NodeConfig(workspace_root=tmp_path / "ws", envs={"kiri": "/env/kiri"}))
+    node._capability_checker = SimpleNamespace(
+        check=lambda *_args, **_kwargs: {"status": "satisfied"}
+    )
+    conda_manifest = SimpleNamespace(runtime=SimpleNamespace(mode="conda", env="kiri"))
+    unmapped_manifest = SimpleNamespace(runtime=SimpleNamespace(mode="conda", env="missing"))
+    host_manifest = SimpleNamespace(runtime=SimpleNamespace(mode="host", env="kiri"))
+
+    assert (await node._environment_report(conda_manifest))["prefix"] == "/env/kiri"
+    assert (await node._environment_report(unmapped_manifest))["prefix"] is None
+    assert (await node._environment_report(host_manifest))["prefix"] is None
 
 
 @pytest.mark.asyncio

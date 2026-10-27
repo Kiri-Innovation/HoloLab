@@ -979,12 +979,18 @@ class NodeRuntime:
         )
 
     async def _environment_report(self, manifest, *, fresh=False):
+        """Return capability evidence with the node-resolved runtime prefix.
+
+        ``prefix`` is the sole authoritative path field for environment
+        evidence.  It is intentionally null for host runtimes and unmapped
+        logical environments; neither case has a truthful conda path.
+        """
         from hololab.node.capabilities import CapabilityChecker
 
         if not hasattr(self, "_capability_checker"):
             self._capability_checker = CapabilityChecker()
         prefix = self._config.envs.get(manifest.runtime.env)
-        return await asyncio.to_thread(
+        report = await asyncio.to_thread(
             self._capability_checker.check,
             manifest,
             self._config.envs,
@@ -992,6 +998,10 @@ class NodeRuntime:
             getattr(self, "_env_cache", {}).get(prefix),
             fresh=fresh,
         )
+        report["prefix"] = (
+            str(prefix) if manifest.runtime.mode != "host" and prefix is not None else None
+        )
+        return report
 
     async def _capability_reply(self, request) -> None:
         from hololab.manifest import load_manifest

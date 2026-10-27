@@ -605,17 +605,21 @@ class NodeRegistry:
                 if session.node_id not in entry["node_ids"]:
                     entry["node_ids"].append(session.node_id)
                 runtime = getattr(pk, "runtime", None)
+                environment = getattr(pk, "environment", None)
                 env_name = runtime.get("env") if isinstance(runtime, dict) else None
                 entry["node_environments"][session.node_id] = {
                     "runtime": runtime,
-                    # Host packs intentionally have no environment path.
-                    "path": (
+                    # Derived mirror of the node's evidence prefix.  Do not
+                    # independently resolve session.envs when modern evidence
+                    # exists.  The fallback retains legacy-node support.
+                    "path": environment.get("prefix")
+                    if isinstance(environment, dict)
+                    else (
                         session.envs.get(env_name)
                         if runtime and runtime.get("mode") != "host" and env_name
                         else None
                     ),
                 }
-                environment = getattr(pk, "environment", None)
                 if environment is not None:
                     entry["environment_by_node"][session.node_id] = environment
 
