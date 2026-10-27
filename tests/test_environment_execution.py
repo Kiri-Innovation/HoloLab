@@ -14,7 +14,7 @@ from hololab.node.capabilities import CapabilityChecker
 from hololab.node.config import NodeConfig
 from hololab.node.packs import scan_packs
 from hololab.node.runtime import NodeRuntime
-from hololab.protocol.messages import JobAssign
+from hololab.protocol.messages import CapabilityReq, JobAssign
 from tests.test_content_scope import package
 from tests.test_scoped_packages import session
 
@@ -34,6 +34,101 @@ async def test_environment_evidence_prefix_is_resolved_once_on_node(tmp_path):
     assert (await node._environment_report(conda_manifest))["prefix"] == "/env/kiri"
     assert (await node._environment_report(unmapped_manifest))["prefix"] is None
     assert (await node._environment_report(host_manifest))["prefix"] is None
+
+
+@pytest.mark.asyncio
+async def test_environment_recheck_ignores_probe_timestamps_but_reports_real_changes(tmp_path):
+    """Periodic evidence is delta-based, not a 60-second full inventory push."""
+
+    _, path, _ = package(tmp_path)
+    pack = scan_packs(path)[0]
+    node = NodeRuntime(NodeConfig(workspace_root=tmp_path / "ws"))
+    node._packs = {(pack.manifest.name, pack.manifest.version): pack}
+    node._ws = object()
+    node._safe_send = AsyncMock()
+
+    current = {"status": "satisfied", "requires": {}, "issues": [], "env": "test"}
+
+    async def report(_manifest):
+        # Deliberately omit checked_at: the runtime adds a fresh timestamp each
+        # pass, which used to make every pack appear changed forever.
+        return dict(current)
+
+    node._environment_report = report
+    await node._refresh_environment_evidence(send_update=False)
+    first_checked_at = next(iter(node._environment_evidence.values()))["checked_at"]
+
+    await node._refresh_environment_evidence(send_update=True)
+    assert node._safe_send.await_count == 0
+    assert next(iter(node._environment_evidence.values()))["checked_at"] == first_checked_at
+
+    current["status"] = "missing"
+    current["issues"] = [{"item": "package:demo", "actual": "未安装"}]
+    await node._refresh_environment_evidence(send_update=True)
+
+    assert node._safe_send.await_count == 1
+    kind, message = node._safe_send.call_args.args
+    assert kind == "environment_updated"
+    assert len(message.evidence) == 1
+    assert message.evidence[0].report["status"] == "missing"
+
+
+@pytest.mark.asyncio
+async def test_routine_capability_check_does_not_rebroadcast_unchanged_evidence(tmp_path):
+    _, path, _ = package(tmp_path)
+    pack = scan_packs(path)[0]
+    node = NodeRuntime(NodeConfig(workspace_root=tmp_path / "ws"))
+    node._packs = {(pack.manifest.name, pack.manifest.version): pack}
+    node._ws = object()
+    node._safe_send = AsyncMock()
+
+    async def report(_manifest, *, fresh=False):
+        return {"status": "satisfied", "requires": {}, "issues": [], "env": "test"}
+
+    node._environment_report = report
+    await node._refresh_environment_evidence(send_update=False)
+    await node._capability_reply(
+        CapabilityReq(
+            req_id="routine",
+            algorithm_name=pack.manifest.name,
+            algorithm_version=pack.manifest.version,
+        )
+    )
+
+    # The RPC response is returned, but no environment_updated echo is sent.
+    assert node._safe_send.await_count == 1
+    assert node._safe_send.call_args.args[0] == "capability_resp"
+
+    node._safe_send.reset_mock()
+    await node._capability_reply(
+        CapabilityReq(
+            req_id="fresh",
+            algorithm_name=pack.manifest.name,
+            algorithm_version=pack.manifest.version,
+            fresh=True,
+        )
+    )
+    assert node._safe_send.await_count == 1
+    assert node._safe_send.call_args.args[0] == "capability_resp"
+
+    current = {"status": "missing", "requires": {}, "issues": [{"item": "env"}], "env": "test"}
+
+    async def changed_report(_manifest, *, fresh=False):
+        return dict(current)
+
+    node._environment_report = changed_report
+    node._safe_send.reset_mock()
+    await node._capability_reply(
+        CapabilityReq(
+            req_id="changed",
+            algorithm_name=pack.manifest.name,
+            algorithm_version=pack.manifest.version,
+        )
+    )
+    assert [call.args[0] for call in node._safe_send.call_args_list] == [
+        "environment_updated",
+        "capability_resp",
+    ]
 
 
 @pytest.mark.asyncio

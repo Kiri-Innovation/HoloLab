@@ -657,19 +657,59 @@ class NodeRuntime:
         for key, pack in self._packs.items():
             manifest, _ = load_manifest(pack.manifest_path)
             report = await self._environment_report(manifest)
-            report["checked_at"] = report.get("checked_at") or time.time()
-            report["runtime"] = {"mode": manifest.runtime.mode, "env": manifest.runtime.env}
-            report["stale"] = False
-            report["next_recheck_at"] = report["checked_at"] + ENVIRONMENT_RECHECK_INTERVAL_SECONDS
             active_keys.add(key)
             previous = self._environment_evidence.get(key)
+            report, materially_changed = self._finalize_environment_evidence(
+                report, manifest, previous=previous
+            )
             self._environment_evidence[key] = report
-            if previous != report:
+            if materially_changed:
                 changed.append(EnvironmentEvidenceEntry(name=key[0], version=key[1], report=report))
         for key in set(self._environment_evidence) - active_keys:
             self._environment_evidence.pop(key, None)
         if send_update and changed and self._ws is not None:
             await self._safe_send("environment_updated", EnvironmentUpdated(evidence=changed))
+
+    @staticmethod
+    def _environment_evidence_material(report: dict[str, Any]) -> dict[str, Any]:
+        """Return the evidence fields that describe the environment itself.
+
+        Probe/cache bookkeeping changes on every recheck and must never turn a
+        stable environment into an inventory update.  The remaining fields are
+        the CapabilityChecker result and its node-resolved runtime facts.
+        """
+        volatile = {
+            "checked_at",
+            "next_recheck_at",
+            "stale",
+            "cache_hit",
+            "hardware_cache_hit",
+        }
+        return {name: value for name, value in report.items() if name not in volatile}
+
+    def _finalize_environment_evidence(
+        self,
+        report: dict[str, Any],
+        manifest: Any,
+        *,
+        previous: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], bool]:
+        """Stamp display metadata without making a periodic recheck a change.
+
+        Stable reports retain their prior display timestamp.  The capability
+        RPC still returns its newly checked report to its own caller.
+        """
+        report = dict(report)
+        report["runtime"] = {"mode": manifest.runtime.mode, "env": manifest.runtime.env}
+        materially_changed = previous is None or self._environment_evidence_material(
+            previous
+        ) != self._environment_evidence_material(report)
+        if not materially_changed and previous is not None:
+            report["checked_at"] = previous.get("checked_at")
+        report["checked_at"] = report.get("checked_at") or time.time()
+        report["stale"] = False
+        report["next_recheck_at"] = report["checked_at"] + ENVIRONMENT_RECHECK_INTERVAL_SECONDS
+        return report, materially_changed
 
     async def _environment_recheck_loop(self) -> None:
         """Periodically detect environment fingerprints without resending packs."""
@@ -1017,20 +1057,26 @@ class NodeRuntime:
             ]
             manifest, _ = load_manifest(pack.manifest_path)
             report = await self._environment_report(manifest, fresh=request.fresh)
-            report["checked_at"] = report.get("checked_at") or time.time()
-            report["runtime"] = {"mode": manifest.runtime.mode, "env": manifest.runtime.env}
-            report["stale"] = False
-            report["next_recheck_at"] = report["checked_at"] + ENVIRONMENT_RECHECK_INTERVAL_SECONDS
             key = (pack.manifest.name, pack.manifest.version)
-            self._environment_evidence[key] = report
-            # A user-requested fresh authority check is also the newest
-            # display evidence.  It never changes execution admission.
-            await self._safe_send(
-                "environment_updated",
-                EnvironmentUpdated(
-                    evidence=[EnvironmentEvidenceEntry(name=key[0], version=key[1], report=report)]
-                ),
+            evidence, materially_changed = self._finalize_environment_evidence(
+                report,
+                manifest,
+                previous=self._environment_evidence.get(key),
             )
+            self._environment_evidence[key] = evidence
+            # Capability replies remain authoritative for their caller, but
+            # they only publish display evidence when its substantive facts
+            # changed.  Treating every ``fresh`` timestamp as a publish event
+            # feeds canvas rechecks back into the node indefinitely.
+            if materially_changed:
+                await self._safe_send(
+                    "environment_updated",
+                    EnvironmentUpdated(
+                        evidence=[
+                            EnvironmentEvidenceEntry(name=key[0], version=key[1], report=evidence)
+                        ]
+                    ),
+                )
             response = CapabilityResp(req_id=request.req_id, report=report)
         except Exception as exc:
             response = CapabilityResp(req_id=request.req_id, error=str(exc))
