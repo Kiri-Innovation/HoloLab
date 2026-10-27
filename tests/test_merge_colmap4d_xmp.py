@@ -64,5 +64,7 @@ def test_missing_hololab_field_is_an_error(tmp_path: Path) -> None:
 def test_alias_must_match_filename(tmp_path: Path) -> None:
     path = tmp_path / "cam0.jpg"
     _jpeg(path, alias="cam1")
-    with pytest.raises(ValueError, match="does not match filename"):
+    with pytest.raises(ValueError, match="does not match expected alias") as error:
         MODULE._image_metadata(path)
+    assert "cam1" in str(error.value)
+    assert "cam0" in str(error.value)
