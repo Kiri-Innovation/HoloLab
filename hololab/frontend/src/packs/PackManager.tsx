@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CatalogPack, ComputeNode, WorkflowGraph } from '../wire';
 import { CONTROL_STYLE } from '../ui/controlStyles';
 import { ThemeToggle } from '../theme/ThemeToggle';
-import { EnvironmentEvidence, environmentLabel, useCapabilityChecks } from '../canvas/EnvironmentChecks';
+import { EnvironmentEvidence, useCapabilityChecks } from '../canvas/EnvironmentChecks';
 import type { NodeStatusPresentation, StatusTone } from '../canvas/nodeStatus';
 import { NodeStatusDot } from '../ui/NodeStatusTooltip';
 import { EvidenceValue } from '../canvas/EvidenceValue';
@@ -18,7 +18,7 @@ import { OpenSourceButton } from '../canvas/OpenSourceButton';
 import { writeToClipboard } from '../canvas/referenceAction';
 import { centralStatusKey } from './centralStatusKey';
 import {usePackUsage} from './usePackUsage';
-import { buildPackEntries, compactPackStatus, hasEnvironmentDetails, installedOn, installCommand, packProblemReasons, packEnvironmentStatus, recipeIssueLabel,
+import { buildPackEntries, compactPackStatus, installedOn, installCommand, packProblemReasons, packEnvironmentStatus, recipeIssueLabel,
   type InventoryPack, type PackEntry, type RegistryRelease } from './packManagerModel';
 import './packManager.css';
 
@@ -152,7 +152,15 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const yanked = entry.release?.yanked === true || comparison?.yanked === true;
     const report = checks.reports[entry.key];
     const requires = entry.catalog ? entry.catalog.requires : entry.release?.requires;
-    const showEnvironment = hasEnvironmentDetails(requires);
+    // ``runtime`` is package metadata, while a resolved prefix only exists
+    // in the filesystem namespace of a node that actually offers this pack.
+    const nodeEnvironment = nodeId ? entry.catalog?.node_environments?.[nodeId] : undefined;
+    const runtime = nodeEnvironment?.runtime ?? entry.catalog?.runtime;
+    const requirement = requires == null
+      ? <span className="hl-evidence-muted">未声明</span>
+      : Object.keys(requires).length === 0
+        ? <span className="hl-evidence-muted">明确声明无要求</span>
+        : <EvidenceValue value={requires} truncate={false} />;
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
     const canInstall = !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
     const breadcrumbCategory = categoryTrail(entry);
@@ -182,10 +190,22 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         </span>)}
         <button className="hl-pack-status-refresh" disabled={centralLoading} onClick={()=>void refreshCentralComparison(true)}>{centralLoading ? '查询中…' : '刷新注册表'}</button>
       </section>
-      {showEnvironment && <details className="hl-pack-section" open><summary>环境 · {report ? environmentLabel(report) : nodeId ? '尚未完成检查' : '未选择计算节点'}</summary>
-        <EnvironmentEvidence report={report} headingLabel={report?.status === 'unknown' ? '环境未校验' : undefined} />
-        {requires != null && <details><summary>声明的 requires</summary><EvidenceValue value={requires} /></details>}
-      </details>}
+      <section className="hl-pack-section hl-pack-environment" aria-label="环境">
+        <h2>环境</h2>
+        <dl className="hl-evidence-rows">
+          <div><dt>要求</dt><dd>{requirement}</dd></div>
+          {runtime == null ? <div><dt>逻辑环境</dt><dd><span className="hl-evidence-muted">未知（节点版本过旧）</span></dd></div>
+            : runtime.mode === 'host' ? <div><dt>逻辑环境</dt><dd>本体自带（不需要环境）</dd></div>
+            : <div><dt>逻辑环境</dt><dd>{runtime.env || <span className="hl-evidence-muted">未声明</span>}</dd></div>}
+          {runtime != null && runtime.mode !== 'host' && <div><dt>实际路径{selectedNode ? `（节点 ${selectedNode.node_name || nodeId}）` : ''}</dt><dd>
+            {!nodeId ? <span className="hl-evidence-muted">请选择可执行节点</span>
+              : !nodeEnvironment ? <span className="hl-evidence-muted">当前节点不提供此包；路径仅在可执行节点上显示</span>
+              : nodeEnvironment.path ? <EvidenceValue value={nodeEnvironment.path} truncate={false} />
+              : <span className="hl-evidence-muted">该节点未映射此逻辑环境</span>}
+          </dd></div>}
+          <div><dt>检查结果</dt><dd>{report ? <EnvironmentEvidence report={report} headingLabel={report.status === 'unknown' ? '环境未校验' : undefined} /> : <span className="hl-evidence-muted">{nodeId ? '尚未完成检查' : '未选择计算节点'}</span>}</dd></div>
+        </dl>
+      </section>
       <details className="hl-pack-section" open><summary>使用情况与配方检查{usage.loading ? ' · 引用加载中…' : usage.error ? ' · 引用暂不可用' : ` · ${entry.usages.length} 个节点 / ${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流`}</summary>
         {!usage.loading && !usage.error && !entry.usages.length && <p>已读取的工作流草稿中没有引用此版本。</p>}
         {entry.usages.map(({workflow, node, issues}) => <section className="hl-pack-usage" key={`${workflow.workflow_id}:${node.id}`}>

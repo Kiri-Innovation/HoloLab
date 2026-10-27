@@ -109,6 +109,26 @@ def test_api_distinguishes_explicit_empty_contract_from_undeclared(tmp_path, mon
         }
 
 
+def test_catalog_reports_runtime_and_node_local_environment_path(tmp_path):
+    """The catalog keeps a package runtime separate from a node-local prefix."""
+    _, path, _ = package(tmp_path)
+    path.write_text(path.read_text() + "\nrequires: {}\n")
+    pack = scan_packs(path)[0]
+    selected = session([pack])
+    selected.packs[0].requires = {}
+    selected.packs[0].runtime = {"mode": "conda", "env": "test"}
+    selected.envs = {"test": "/opt/conda/envs/test"}
+
+    with TestClient(create_app(db_path=tmp_path / "test.sqlite")) as client:
+        client.app.state.registry._sessions["n"] = selected
+        catalog = client.get("/api/pack-catalog").json()
+
+    assert catalog[0]["runtime"] == {"mode": "conda", "env": "test"}
+    assert catalog[0]["node_environments"] == {
+        "n": {"runtime": {"mode": "conda", "env": "test"}, "path": "/opt/conda/envs/test"}
+    }
+
+
 @pytest.mark.asyncio
 async def test_submission_records_environment_without_changing_code_digest(tmp_path):
     from hololab.content_scope import capture

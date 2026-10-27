@@ -39,6 +39,7 @@ def test_endpoint_installs_and_refreshes_catalog(registry, tmp_path, monkeypatch
         ]
         if updates:
             node.packs = updates[-1].packs
+            assert updates[-1].envs == {}
         return result.model_dump()
 
     monkeypatch.setattr("hololab.gateway.app._await_node_reply", reply)

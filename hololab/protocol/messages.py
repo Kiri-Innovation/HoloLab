@@ -27,6 +27,9 @@ class PackInventoryEntry(BaseModel):
     root: str = "."
     cold: list[str] = Field(default_factory=list)
     requires: dict[str, Any] | None = None
+    # Null on nodes that pre-date runtime inventory reporting.
+    # Kept as a dictionary like ``requires`` to avoid a protocol-only model.
+    runtime: dict[str, Any] | None = None  # {"mode": "conda"|"host", "env": str|None}
     manifest_hash: str  # sha256 of the manifest.yaml file; changes on edits
     # Declared-content identity, available even when this pack was never
     # installed from a registry (and therefore has no publication receipt).
@@ -105,6 +108,8 @@ class Register(BaseModel):
     v_min: int
     v_max: int
     packs: list[PackInventoryEntry] = Field(default_factory=list)
+    # Sent on initial connect as well as in later ``packs_updated`` frames.
+    envs: dict[str, str] = Field(default_factory=dict)
     gpu: GpuInfo = Field(default_factory=GpuInfo)
     advertised_url: str | None = None
     token: str | None = None
@@ -228,6 +233,9 @@ class PacksUpdated(BaseModel):
     """
 
     packs: list[PackInventoryEntry] = Field(default_factory=list)
+    # Logical conda environment name -> absolute prefix on this node.
+    # This belongs to the node-wide inventory rather than each pack.
+    envs: dict[str, str] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

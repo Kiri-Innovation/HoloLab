@@ -47,6 +47,9 @@ class NodeSession:
     gpu: GpuInfo
     packs: list[PackInventoryEntry]
     protocol_v: int
+    # Logical conda environment name -> absolute prefix, from this node's
+    # config. Paths are meaningful only in this node's filesystem namespace.
+    envs: dict[str, str] = field(default_factory=dict)
     workspace_root: str | None = None
     # Extra roots the node's file server ALSO serves (read-only for old
     # artifacts). The gateway tries stripping each of these when
@@ -106,6 +109,7 @@ class NodeRegistry:
         ws: WebSocket,
         node_name: str,
         packs: list[PackInventoryEntry],
+        envs: dict[str, str] | None = None,
         gpu: GpuInfo,
         advertised_url: str | None,
         protocol_v: int,
@@ -228,6 +232,7 @@ class NodeRegistry:
             advertised_url=advertised_url,
             gpu=gpu,
             packs=list(packs),
+            envs=dict(envs or {}),
             protocol_v=protocol_v,
             workspace_root=workspace_root,
             legacy_workspace_roots=list(legacy_workspace_roots or []),
@@ -244,7 +249,9 @@ class NodeRegistry:
         self._sessions[node_id] = session
         return session
 
-    async def replace_packs(self, node_id: str, packs: list[PackInventoryEntry]) -> None:
+    async def replace_packs(
+        self, node_id: str, packs: list[PackInventoryEntry], envs: dict[str, str] | None = None
+    ) -> None:
         """Replace the pack inventory for an already-connected node.
 
         Called when the node's on-disk packs change (add/remove/edit manifest)
@@ -254,6 +261,7 @@ class NodeRegistry:
         session = self._sessions.get(node_id)
         if session is not None:
             session.packs = list(packs)
+            session.envs = dict(envs or {})
 
         async def _write(conn: aiosqlite.Connection) -> None:
             await conn.execute("DELETE FROM packs WHERE node_id=?", (node_id,))
@@ -539,6 +547,8 @@ class NodeRegistry:
                         "cold": getattr(pk, "cold", []),
                         "publication": getattr(pk, "publication", None),
                         "requires": getattr(pk, "requires", None),
+                        "runtime": getattr(pk, "runtime", None),
+                        "node_environments": {},
                         "node_ids": [],
                         "inputs": {},
                         "outputs": {},
@@ -571,9 +581,21 @@ class NodeRegistry:
                         code_sha256=getattr(pk, "code_sha256", None),
                         manifest_path=pk.manifest_path,
                         source_dir=pk.source_dir,
+                        runtime=getattr(pk, "runtime", None),
                     )
                 if session.node_id not in entry["node_ids"]:
                     entry["node_ids"].append(session.node_id)
+                runtime = getattr(pk, "runtime", None)
+                env_name = runtime.get("env") if isinstance(runtime, dict) else None
+                entry["node_environments"][session.node_id] = {
+                    "runtime": runtime,
+                    # Host packs intentionally have no environment path.
+                    "path": (
+                        session.envs.get(env_name)
+                        if runtime and runtime.get("mode") != "host" and env_name
+                        else None
+                    ),
+                }
 
                 # Populate signature once, from the manifest on disk.
                 if not entry["outputs"]:

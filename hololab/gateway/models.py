@@ -179,6 +179,10 @@ class CatalogPackEntry(BaseModel):
     root: str = "."
     cold: list[str] = Field(default_factory=list)
     requires: dict[str, Any] | None = None
+    runtime: dict[str, Any] | None = None
+    # Per executable node: runtime declaration plus the node-local resolved
+    # prefix. The absolute path is never a package-global fact.
+    node_environments: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     """One deduped entry in ``GET /api/pack-catalog``."""
 

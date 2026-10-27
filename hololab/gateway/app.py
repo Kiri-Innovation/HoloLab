@@ -3769,6 +3769,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
                 ws=ws,
                 node_name=payload.node_name,
                 packs=payload.packs,
+                envs=payload.envs,
                 gpu=payload.gpu,
                 advertised_url=payload.advertised_url,
                 protocol_v=chosen_v,
@@ -4313,7 +4314,7 @@ async def _dispatch_node_frame(
 
     if kind == "packs_updated":
         assert isinstance(payload, PacksUpdated)
-        await registry.replace_packs(session.node_id, payload.packs)
+        await registry.replace_packs(session.node_id, payload.packs, payload.envs)
         # Notify frontend subscribers by re-emitting node_online with new packs.
         hub.broadcast(
             encode(

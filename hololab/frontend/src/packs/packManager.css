@@ -32,6 +32,8 @@
 .hl-evidence-full { display: block; box-sizing: border-box; width: 100%; max-width: 100%; padding: var(--space-2); overflow-x: auto; overflow-y: hidden; white-space: nowrap; font-family: var(--font-mono); line-height: var(--lh-normal); color: var(--text-body); background: var(--surface-alt); user-select: text; }
 .hl-pack-section { padding-block: var(--space-2); border-top: 1px solid var(--border-subtle); }
 .hl-pack-section p { color: var(--text-muted); line-height: var(--lh-normal); }
+.hl-pack-environment h2 { margin: 0 0 var(--space-2); font-size: var(--fs-md); }
+.hl-pack-environment .hl-environment-evidence { margin: 0; }
 .hl-pack-usage { padding: var(--space-3); background: var(--surface-alt); margin-top: var(--space-2); }
 .hl-pack-usage > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .hl-pack-command { display: block; padding: var(--space-3); background: var(--surface-alt); overflow-wrap: anywhere; margin-bottom: var(--space-2); }

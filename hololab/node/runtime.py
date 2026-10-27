@@ -560,6 +560,7 @@ class NodeRuntime:
                     requires=p.manifest.requires.as_dict()
                     if p.manifest.requires is not None
                     else None,
+                    runtime={"mode": p.manifest.runtime.mode, "env": p.manifest.runtime.env},
                     manifest_path=str(p.manifest_path),
                     source_dir=str(p.source_dir),
                     origin=p.origin,
@@ -567,7 +568,9 @@ class NodeRuntime:
                 )
                 for p in new_packs.values()
             ]
-            await self._safe_send("packs_updated", PacksUpdated(packs=inventory))
+            await self._safe_send(
+                "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs))
+            )
 
         self._watch_task = asyncio.create_task(
             self._pack_watch_loop(), name="hololab-node-pack-watch"
@@ -611,6 +614,10 @@ class NodeRuntime:
                             requires=p.manifest.requires.as_dict()
                             if p.manifest.requires is not None
                             else None,
+                            runtime={
+                                "mode": p.manifest.runtime.mode,
+                                "env": p.manifest.runtime.env,
+                            },
                             manifest_path=str(p.manifest_path),
                             source_dir=str(p.source_dir),
                             origin=p.origin,
@@ -618,7 +625,9 @@ class NodeRuntime:
                         )
                         for p in new_packs.values()
                     ]
-                    await self._safe_send("packs_updated", PacksUpdated(packs=inventory))
+                    await self._safe_send(
+                        "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs))
+                    )
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -678,6 +687,7 @@ class NodeRuntime:
                 root=p.manifest.root,
                 cold=p.manifest.cold,
                 requires=p.manifest.requires.as_dict() if p.manifest.requires is not None else None,
+                runtime={"mode": p.manifest.runtime.mode, "env": p.manifest.runtime.env},
                 manifest_path=str(p.manifest_path),
                 source_dir=str(p.source_dir),
                 origin=p.origin,
@@ -697,6 +707,7 @@ class NodeRuntime:
             v_min=PROTOCOL_V_MIN,
             v_max=PROTOCOL_V_MAX,
             packs=inventory,
+            envs=dict(self._config.envs),
             gpu=_probe_gpu(),
             advertised_url=self._config.advertised_url,
             token=self._config.token,

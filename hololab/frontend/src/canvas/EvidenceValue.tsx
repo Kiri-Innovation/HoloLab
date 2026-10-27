@@ -4,12 +4,12 @@ import './workflowEvidence.css';
 export function EvidenceValue({ value, truncate = true }: { value: unknown; truncate?: boolean }) {
   if (value == null) return <span className="hl-evidence-muted">未记录</span>;
   if (Array.isArray(value)) return value.length
-    ? <ul className="hl-evidence-list">{value.map((item, index) => <li key={index}><EvidenceValue value={item} /></li>)}</ul>
+    ? <ul className="hl-evidence-list">{value.map((item, index) => <li key={index}><EvidenceValue value={item} truncate={truncate} /></li>)}</ul>
     : <span className="hl-evidence-muted">无</span>;
   if (typeof value === 'object') {
     const entries = Object.entries(value);
     return entries.length ? <dl className="hl-evidence-rows">{entries.map(([key, item]) =>
-      <div key={key}><dt>{key}</dt><dd><EvidenceValue value={item} /></dd></div>)}</dl>
+      <div key={key}><dt>{key}</dt><dd><EvidenceValue value={item} truncate={truncate} /></dd></div>)}</dl>
       : <span className="hl-evidence-muted">无</span>;
   }
   const text = typeof value === 'boolean' ? (value ? '是' : '否') : String(value);

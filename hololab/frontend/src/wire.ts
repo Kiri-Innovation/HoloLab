@@ -21,6 +21,7 @@ export interface PackInventoryEntry {
   // loaded from — may be a file (precise-file mode) or a directory.
   // Null on rolling upgrades where the node hasn't reconnected yet.
   source_dir?: string | null;
+  runtime?: {mode?: "conda" | "host"; env?: string | null} | null;
 }
 
 export interface GpuInfo {
@@ -289,6 +290,8 @@ export interface ParamSpec {
 
 export interface CatalogPack {
   requires?: Record<string, unknown> | null;
+  runtime?: {mode?: "conda" | "host"; env?: string | null} | null;
+  node_environments?: Record<string, {runtime?: {mode?: "conda" | "host"; env?: string | null} | null; path?: string | null}>;
   publication?: Record<string, unknown> | null;
   name: string;
   version: string;
