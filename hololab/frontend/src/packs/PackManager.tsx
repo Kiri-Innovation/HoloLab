@@ -18,7 +18,7 @@ import { OpenSourceButton } from '../canvas/OpenSourceButton';
 import { writeToClipboard } from '../canvas/referenceAction';
 import { centralStatusKey } from './centralStatusKey';
 import {usePackUsage} from './usePackUsage';
-import { buildPackEntries, compactPackStatus, installedOn, installCommand, packProblemReasons, packEnvironmentStatus, usageProblemReasons,
+import { buildPackEntries, compactPackStatus, installedOn, installCommand, packProblemReasons, packEnvironmentStatus,
   type InventoryPack, type PackEntry, type RegistryRelease } from './packManagerModel';
 import './packManager.css';
 
@@ -134,10 +134,15 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   }
   const entries = rawEntries;
   const displayName = useMemo(() => packDisplayNames(entries.map(entry => entry.name)), [entries]);
-  const reasons = (entry: PackEntry) => packProblemReasons(entry, reports[entry.key]);
+  const registryProblemStatus = (entry: PackEntry) => {
+    const comparison = entry.catalog?.central;
+    if (entry.release?.yanked === true || comparison?.yanked === true) return 'yanked';
+    return comparison?.state === 'differs' ? 'hash_mismatch' : undefined;
+  };
+  const reasons = (entry: PackEntry) => packProblemReasons(entry, reports[entry.key], registryProblemStatus(entry));
   const problem = (entry: PackEntry) => reasons(entry).length > 0;
   const statusLabel = (entry: PackEntry) => reasons(entry).join('；') || packEnvironmentStatus(entry, reports[entry.key]);
-  const compactStatus = (entry: PackEntry) => compactPackStatus(entry, reports[entry.key]);
+  const compactStatus = (entry: PackEntry) => compactPackStatus(entry, reports[entry.key], registryProblemStatus(entry));
   const categoryTrail = (entry: PackEntry) => {
     return collapseRedundantCategory({name: entry.name, category: entry.catalog?.category ?? []}).category;
   };
@@ -220,16 +225,11 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
           <div><dt>检查结果</dt><dd>{report ? <EnvironmentEvidence report={report} headingLabel={report.status === 'unknown' ? '环境未校验' : undefined} /> : <span className="hl-evidence-muted">{nodeId ? '未知（节点尚未上报证据）' : '未选择计算节点'}</span>}<button className="hl-evidence-primary" disabled={!nodeId || environmentRefreshing} onClick={()=>void refreshEnvironmentEvidence()}>{environmentRefreshing ? '重新检查中…' : '重新检查'}</button></dd></div>
         </dl>
       </section>
-      <details className="hl-pack-section" open><summary>使用情况与配方检查{usage.loading ? ' · 引用加载中…' : usage.error ? ' · 引用暂不可用' : ` · ${entry.usages.length} 个节点 / ${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流`}</summary>
+      <details className="hl-pack-section" open><summary>使用情况{usage.loading ? ' · 引用加载中…' : usage.error ? ' · 引用暂不可用' : ` · ${entry.usages.length} 个节点 / ${new Set(entry.usages.map(u => u.workflow.workflow_id)).size} 条工作流`}</summary>
         {!usage.loading && !usage.error && !entry.usages.length && <p>已读取的工作流草稿中没有引用此版本。</p>}
         {entry.usages.map(usage => <section className="hl-pack-usage" key={`${usage.workflow.workflow_id}:${usage.node.id}`}>
-          {(() => { const {workflow, node} = usage; const problems = usageProblemReasons(usage); return <>
+          {(() => { const {workflow, node} = usage; return <>
           <div><button onClick={() => onOpenWorkflow(workflow.workflow_id)}>打开 {workflow.name}</button><strong>节点 {node.id}</strong><span>计算节点：{node.assigned_node_id ?? '未分配'}</span></div>
-          {problems.length ? <ul>{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul> : <p>未发现包依赖、变量或参数问题。</p>}
-          {workflow.check?.environment?.[node.id] && <details><summary>此工作流所分配节点的环境</summary><EnvironmentEvidence report={workflow.check.environment[node.id]} headingLabel={workflow.check.environment[node.id].status === 'unknown' ? '环境未校验' : undefined} /></details>}
-          {Object.keys(node.param_bindings ?? {}).length > 0 && <details><summary>变量绑定与值</summary><dl className="hl-evidence-rows">{Object.entries(node.param_bindings ?? {}).map(([parameter, variable]) => <div key={parameter}><dt>{parameter} → {variable}</dt><dd>
-            {!workflow.graph.variables?.[variable] ? '变量未声明' : <><span>{workflow.graph.variables[variable].type} · {Object.prototype.hasOwnProperty.call(workflow.graph.variable_values ?? {}, variable) ? '本地值' : '共享默认值'}</span><EvidenceValue value={Object.prototype.hasOwnProperty.call(workflow.graph.variable_values ?? {}, variable) ? workflow.graph.variable_values?.[variable] : workflow.graph.variables[variable].default} /></>}
-          </dd></div>)}</dl></details>}
           </>; })()}
         </section>)}
       </details>

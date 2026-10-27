@@ -143,7 +143,11 @@ def diagnostics(graph: WorkflowGraph, catalog: list[dict]) -> list[dict]:
         try:
             resolved = resolve_recipe(single, catalog)
             for key, spec in pack.get("params", {}).items():
-                if not spec.get("optional") and resolved.nodes[0].params.get(key) in (None, ""):
+                if (
+                    "default" not in spec
+                    and not spec.get("optional")
+                    and resolved.nodes[0].params.get(key) in (None, "")
+                ):
                     result.append(
                         {
                             "node_id": node.id,

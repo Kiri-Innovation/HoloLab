@@ -3,7 +3,7 @@ import json
 from fastapi.testclient import TestClient
 
 from hololab.gateway.app import create_app
-from hololab.gateway.recipe_files import canonical, export_recipe, graph_from_document
+from hololab.gateway.recipe_files import canonical, diagnostics, export_recipe, graph_from_document
 from hololab.gateway.workflows import GraphNode, WorkflowGraph
 
 
@@ -58,3 +58,25 @@ def test_http_import_accepts_missing_dependencies_but_rejects_schema(tmp_path):
         assert exported.status_code == 200 and json.loads(exported.text)["schema_version"] == 1
         document["schema_version"] = 99
         assert client.post("/api/recipes/import", json=document).status_code == 422
+
+
+def test_diagnostics_accepts_empty_default_but_reports_missing_required_parameter():
+    graph = WorkflowGraph(
+        nodes=[GraphNode(id="extract", algorithm_name="rig-extract", algorithm_version="0.1.0")]
+    )
+    catalog = [
+        {
+            "name": "rig-extract",
+            "version": "0.1.0",
+            "params": {
+                "cams": {"type": "string", "default": ""},
+                "source": {"type": "string"},
+            },
+        }
+    ]
+
+    issues = diagnostics(graph, catalog)
+
+    assert {issue["message"] for issue in issues if issue["code"] == "missing_parameter"} == {
+        "参数 source 未提供值"
+    }

@@ -35,14 +35,14 @@ describe('package-oriented aggregation',()=>{
     expect(compactPackStatus(entry,{status:'undeclared',issues:[]})).toBe('未声明环境要求');
     expect(hasEnvironmentDetails(null)).toBe(true);
   });
-  it('keeps unknown local and workflow environments informational',()=>{
+  it('keeps unknown local environments informational without reading workflow nodes',()=>{
     const [entry]=buildPackEntries(catalog,[],workflows);
     entry.usages[0].workflow={...entry.usages[0].workflow,check:{issues:[],environment:{a:{status:'unknown',issues:[]}}}};
     expect(packHasProblem(entry,{status:'unknown',issues:[]})).toBe(false);
     expect(packEnvironmentStatus(entry,{status:'unknown',issues:[]})).toBe('环境未校验');
-    expect(packEnvironmentStatus(entry,{status:'satisfied',issues:[]})).toBe('工作流运行节点环境未校验');
+    expect(packEnvironmentStatus(entry,{status:'satisfied',issues:[]})).toBe('已声明的可探测项满足');
   });
-  it('retains concrete reasons for missing dependencies, recipes, yank and identity',()=>{
+  it('retains only package-owned reasons, not workflow diagnostics',()=>{
     const [entry]=buildPackEntries(catalog,[],workflows);
     const missing={status:'missing' as const,issues:[{item:'mmcv',required:'*',actual:null,remedy:'install'}]};
     expect(packProblemReasons(entry,missing)).toEqual(['缺少环境：mmcv']);
@@ -50,7 +50,7 @@ describe('package-oriented aggregation',()=>{
     expect(packProblemReasons(entry,undefined,'hash_mismatch')).toEqual(['代码哈希不匹配']);
     entry.usages[0].issues=[{node_id:'a',code:'missing_parameter',message:'参数 frames 未提供值'}];
     entry.usages[0].workflow={...entry.usages[0].workflow,checkFailed:true,check:{issues:[],environment:{a:missing}}};
-    expect(packProblemReasons(entry)).toEqual(['参数 frames 未提供值','工作流配方检查未完成，请重试','工作流运行节点缺少环境：mmcv']);
+    expect(packProblemReasons(entry)).toEqual([]);
     expect(usageProblemReasons(entry.usages[0])).toEqual(['参数 frames 未提供值','工作流配方检查未完成，请重试','工作流运行节点缺少环境：mmcv']);
   });
   it('keeps offline receipts as annotations only for a current catalog package',()=>{

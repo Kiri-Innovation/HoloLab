@@ -52,7 +52,6 @@ export function packProblemReasons(entry: PackEntry, report?: EnvironmentReport,
     return items.length ? `缺少环境：${items.join('、')}` : '缺少已声明的环境能力';
   };
   if (report?.status === 'missing') reasons.push(missingLabel(report));
-  for (const usage of entry.usages) reasons.push(...usageProblemReasons(usage));
   return [...new Set(reasons)];
 }
 export function usageProblemReasons(usage: PackUsage): string[] {
@@ -73,7 +72,6 @@ export function packEnvironmentStatus(entry: PackEntry, report?: EnvironmentRepo
   if ((report?.status === 'satisfied' && report.requires && Object.keys(report.requires).length === 0)
     || (!report && entry.catalog && entry.catalog.requires != null && Object.keys(entry.catalog.requires).length === 0)) return '已明确声明无环境要求';
   if (!report || report.status === 'unknown') return '环境未校验';
-  if (entry.usages.some(u => u.workflow.check?.environment?.[u.node.id]?.status === 'unknown')) return '工作流运行节点环境未校验';
   return report.status === 'missing' ? '缺少已声明的环境能力' : '已声明的可探测项满足';
 }
 export function hasEnvironmentDetails(requires: unknown) {
