@@ -19,10 +19,54 @@ REQUEST_TIMEOUT_S = 5
 class CentralStatusCache:
     catalogs: dict[str, tuple[float, set[str]]] = field(default_factory=dict)
     details: dict[tuple[str, str], tuple[float, object]] = field(default_factory=dict)
+    # Per-pack comparison results are presentation data.  They are distinct
+    # from registry metadata cache entries because a local code hash is part
+    # of a comparison result.
+    comparisons: dict[tuple[tuple[str, ...], str], tuple[float, dict]] = field(default_factory=dict)
 
     def clear(self) -> None:
         self.catalogs.clear()
         self.details.clear()
+        self.comparisons.clear()
+
+    def comparison_snapshot(
+        self, keys: list[str], sources: list[str]
+    ) -> tuple[dict[str, dict], set[str]]:
+        """Return cached comparison display records and keys needing refresh."""
+
+        source_key = tuple(sorted(dict.fromkeys(source_url(s) for s in sources)))
+        now = time.monotonic()
+        values: dict[str, dict] = {}
+        missing: set[str] = set()
+        for key in keys:
+            cached = self.comparisons.get((source_key, key))
+            if cached is None:
+                missing.add(key)
+                continue
+            checked_mono, result = cached
+            value = dict(result)
+            value["stale"] = now - checked_mono >= CACHE_TTL_S
+            values[key] = value
+            if value["stale"]:
+                missing.add(key)
+        return values, missing
+
+    def store_comparisons(
+        self, keys: list[str], sources: list[str], results: dict
+    ) -> dict[str, dict]:
+        """Store results with a wall-clock display timestamp and return them."""
+
+        source_key = tuple(sorted(dict.fromkeys(source_url(s) for s in sources)))
+        checked_mono = time.monotonic()
+        checked_at = time.time()
+        stored: dict[str, dict] = {}
+        for key in keys:
+            value = dict(results.get(key, {"state": "unknown", "reason": "comparison missing"}))
+            value["checked_at"] = checked_at
+            value["stale"] = False
+            self.comparisons[(source_key, key)] = (checked_mono, value)
+            stored[key] = value
+        return stored
 
     def names(self, source: str, *, refresh: bool) -> set[str]:
         source = source_url(source)

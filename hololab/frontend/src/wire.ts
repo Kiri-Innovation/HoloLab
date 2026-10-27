@@ -308,6 +308,15 @@ export interface CatalogPack {
   runtime?: {mode?: "conda" | "host"; env?: string | null} | null;
   node_environments?: Record<string, {runtime?: {mode?: "conda" | "host"; env?: string | null} | null; path?: string | null}>;
   environment_by_node?: Record<string, EnvironmentReport>;
+  central?: {
+    state: 'identical' | 'differs' | 'absent' | 'unknown';
+    checked_at?: number | null;
+    stale?: boolean;
+    central_code_sha256?: string;
+    yanked?: boolean;
+    source?: string;
+    reason?: string | null;
+  };
   publication?: Record<string, unknown> | null;
   name: string;
   version: string;

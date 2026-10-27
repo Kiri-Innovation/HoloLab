@@ -157,6 +157,85 @@ HEARTBEAT_SWEEP_INTERVAL = 5.0
 # from DNS/TLS stalls and from a worker waiting on a stuck request.
 CENTRAL_STATUS_DEADLINE_S = 10.0
 
+
+def _central_unknown(keys: list[str], reason: str) -> dict[str, dict]:
+    return {key: {"state": "unknown", "reason": reason} for key in keys}
+
+
+async def _refresh_central_comparisons(app: FastAPI, catalog: list[dict], keys: list[str]) -> None:
+    """Refresh catalog comparison annotations without holding a catalog read."""
+
+    from hololab.gateway.central_status import compare
+
+    registry: NodeRegistry = app.state.registry
+    sources = [
+        source
+        for session in registry.all_sessions()
+        for source in getattr(session, "pack_sources", [])
+    ]
+    refresh_key = tuple(keys)
+    try:
+        try:
+            values = await asyncio.wait_for(
+                asyncio.to_thread(
+                    compare,
+                    keys,
+                    catalog,
+                    sources,
+                    app.state.central_status_cache,
+                    refresh=False,
+                ),
+                timeout=CENTRAL_STATUS_DEADLINE_S,
+            )
+        except TimeoutError:
+            values = _central_unknown(keys, "registry comparison timed out")
+        app.state.central_status_cache.store_comparisons(keys, sources, values)
+    finally:
+        app.state.central_status_refreshes.discard(refresh_key)
+
+
+async def _catalog_with_central(app: FastAPI, catalog: list[dict]) -> list[dict]:
+    """Attach cached registry comparison data, refreshing stale data in background.
+
+    A cold catalog has no useful display annotation, so it performs one
+    bounded refresh.  Thereafter reads return immediately with the last
+    result while a stale cache is renewed in the background.
+    """
+
+    from hololab.package_identity import canonical_name
+
+    keys = [f"{canonical_name(pack['name'])}@{pack['version']}" for pack in catalog]
+    registry: NodeRegistry = app.state.registry
+    sources = [
+        source
+        for session in registry.all_sessions()
+        for source in getattr(session, "pack_sources", [])
+    ]
+    cache = app.state.central_status_cache
+    values, refresh_needed = cache.comparison_snapshot(keys, sources)
+    if refresh_needed:
+        refresh_key = tuple(keys)
+        if not values:
+            # First paint favors a correct status over "unknown", but remains
+            # subject to the same total deadline as the explicit refresh API.
+            await _refresh_central_comparisons(app, catalog, keys)
+            values, _ = cache.comparison_snapshot(keys, sources)
+        elif refresh_key not in app.state.central_status_refreshes:
+            app.state.central_status_refreshes.add(refresh_key)
+            task = asyncio.create_task(
+                _refresh_central_comparisons(app, catalog, keys),
+                name="hololab-central-status-refresh",
+            )
+            app.state.central_status_tasks.add(task)
+            task.add_done_callback(app.state.central_status_tasks.discard)
+    for pack, key in zip(catalog, keys, strict=True):
+        pack["central"] = values.get(
+            key,
+            {"state": "unknown", "reason": "registry comparison unavailable", "checked_at": None},
+        )
+    return catalog
+
+
 # Orphan-finaliser grace window — how long an ``orphaned`` row can sit
 # in the DB before the sweeper flips it to ``interrupted``. Sized to
 # cover a slow node restart on top of a gateway restart: the operator
@@ -279,6 +358,8 @@ def create_app(
         from hololab.gateway.central_status import CentralStatusCache
 
         app.state.central_status_cache = CentralStatusCache()
+        app.state.central_status_refreshes: set[tuple[str, ...]] = set()
+        app.state.central_status_tasks: set[asyncio.Task[None]] = set()
         # Correlation futures for gateway↔node request/response frames.
         # Keys: req_id (str); values: the future the REST handler awaits.
         # Populated when the gateway sends a request frame, drained by
@@ -1221,8 +1302,10 @@ def _mount_routes(app: FastAPI) -> None:
             name, separator, version = key.rpartition("@")
             if not separator or not name or not version:
                 raise HTTPException(422, "包引用必须包含名称和版本。")
-            return registry.catalog_json(keys={(canonical_name(name), version)})
-        return registry.catalog_json()
+            return await _catalog_with_central(
+                app, registry.catalog_json(keys={(canonical_name(name), version)})
+            )
+        return await _catalog_with_central(app, registry.catalog_json())
 
     async def workflow_last_run(workflow_id: str) -> dict[str, Any] | None:
         """Latest snapshot and job rollup shared by Gallery and references."""
@@ -1738,9 +1821,13 @@ def _mount_routes(app: FastAPI) -> None:
         from hololab.gateway.central_status import compare
 
         registry: NodeRegistry = app.state.registry
-        sources = [source for session in registry.all_sessions() for source in session.pack_sources]
+        sources = [
+            source
+            for session in registry.all_sessions()
+            for source in getattr(session, "pack_sources", [])
+        ]
         try:
-            return await asyncio.wait_for(
+            values = await asyncio.wait_for(
                 asyncio.to_thread(
                     compare,
                     requested,
@@ -1752,10 +1839,8 @@ def _mount_routes(app: FastAPI) -> None:
                 timeout=CENTRAL_STATUS_DEADLINE_S,
             )
         except TimeoutError:
-            return {
-                key: {"state": "unknown", "reason": "registry comparison timed out"}
-                for key in requested
-            }
+            values = _central_unknown(requested, "registry comparison timed out")
+        return app.state.central_status_cache.store_comparisons(requested, sources, values)
 
     @app.post("/api/packs/install", tags=["packs"])
     async def install_pack(body: dict[str, Any]):

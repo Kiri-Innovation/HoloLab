@@ -33,10 +33,7 @@ async function freshCapabilityCheck(graph: unknown): Promise<void> {
   });
   if (!response.ok) throw new Error('capability_check_failed');
 }
-// Registry comparison is decorative; never leave a package status chip in
-// "查询中" because a mirror is slow or a connection handshake stalls.
-const CENTRAL_STATUS_UI_TIMEOUT_MS = 8_000;
-interface CentralComparison { state: 'identical'|'differs'|'absent'|'unknown'; central_code_sha256?: string; yanked?: boolean; source?: string; reason?: string | null }
+type CentralComparison = NonNullable<CatalogPack['central']>;
 
 function status(tone: StatusTone, conclusion: string, reason: string, action: string): NodeStatusPresentation {
   return {tone, conclusion, reason, action};
@@ -64,7 +61,6 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   useEffect(()=>{setSearch('');},[view]);
   const leftDock = useResizableSlot('hl-layout-left', 300, 180, 420);
   const registry = useMemo<RegistryRelease[]>(() => [], []);
-  const [centralComparison, setCentralComparison] = useState<Record<string, CentralComparison>>({});
   const [centralLoading, setCentralLoading] = useState(false);
   const [commandStatus, setCommandStatus] = useState<Record<string, string>>({});
 
@@ -105,22 +101,19 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     return () => controller.abort();
   }, [revision]);
 
-  const comparisonKeys = useMemo(() => catalog.map(pack => centralStatusKey(pack.name, pack.version)).join(','), [catalog]);
-  async function refreshCentralComparison(fresh=false) {
-    if (!comparisonKeys) { setCentralComparison({}); return; }
+  async function refreshCentralComparison() {
+    const keys = catalog.map(pack => centralStatusKey(pack.name, pack.version));
+    if (!keys.length) return;
     setCentralLoading(true);
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), CENTRAL_STATUS_UI_TIMEOUT_MS);
     try {
-      const suffix = fresh ? '&refresh=true' : '';
-      const data = await read<Record<string, CentralComparison>>(`/api/packs/central-status?keys=${encodeURIComponent(comparisonKeys)}${suffix}`, controller.signal);
-      setCentralComparison(data);
+      const data = await read<Record<string, CentralComparison>>(`/api/packs/central-status?keys=${encodeURIComponent(keys.join(','))}&refresh=true`);
+      // The explicit operator action updates the same catalog field used for
+      // ordinary rendering; no parallel frontend comparison cache exists.
+      setCatalog(current => current.map(pack => ({...pack, central: data[centralStatusKey(pack.name, pack.version)] ?? pack.central})));
     } catch {
-      // The central relationship must never make the local page unusable.
-      setCentralComparison(Object.fromEntries(catalog.map(pack => [centralStatusKey(pack.name, pack.version), {state:'unknown', reason:'查询请求未完成'}])));
-    } finally { window.clearTimeout(timeout); setCentralLoading(false); }
+      // Existing catalog data remains authoritative for this view.
+    } finally { setCentralLoading(false); }
   }
-  useEffect(() => { void refreshCentralComparison(); }, [comparisonKeys]);
 
   const rawEntries = useMemo(() => buildPackEntries(catalog, inventory, workflows, registry), [catalog, inventory, workflows, registry]);
   // Pack-manager paint reads node-maintained inventory evidence. It never
@@ -164,7 +157,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const renderPackage = (entry: PackEntry) => {
     const selectedNode = nodes.find(node => node.node_id === nodeId);
     const installed = !!nodeId && installedOn(entry, nodeId);
-    const comparison = centralComparison[centralStatusKey(entry.name, entry.version)];
+    const comparison = entry.catalog?.central;
     const yanked = entry.release?.yanked === true || comparison?.yanked === true;
     const report = reports[entry.key];
     // Evidence is per node and carries the manifest facts checked on that
@@ -186,8 +179,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
     const canInstall = !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
     const breadcrumbCategory = categoryTrail(entry);
-    const registryStatus = centralLoading && !comparison ? status('neutral', '查询中', '正在查询社区注册表。', '稍候会自动显示比对结果。')
-      : comparison?.state === 'identical' ? status('success', '社区版', `社区注册表：${comparison.source}\n代码哈希：${comparison.central_code_sha256}`, '本地内容与线上同名版本一致。')
+    const registryStatus = comparison?.state === 'identical' ? status('success', '社区版', `社区注册表：${comparison.source}\n代码哈希：${comparison.central_code_sha256}`, '本地内容与线上同名版本一致。')
       : comparison?.state === 'differs' ? status('warning', '与线上不同', `社区注册表：${comparison.source}\n线上哈希：${comparison.central_code_sha256}\n本地哈希：${entry.catalog?.code_sha256 ?? '不可用'}`, '本地修改可正常开发；安装或发布前请确认要保留哪一版。')
       : comparison?.state === 'absent' ? status('neutral', '本地包', '社区注册表没有同名同版本。', '这是本地定义的包，可照常开发和运行。')
       : status('neutral', '未查询', comparison?.reason ?? '尚未取得注册表结果。', '本地包仍可使用；可稍后刷新重试。');
@@ -210,7 +202,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         {statuses.map(item => <span className="hl-pack-status-chip" data-status-tone={item.tone} key={item.conclusion}>
           <NodeStatusDot status={item} /><span>{item.conclusion}</span>
         </span>)}
-        <button className="hl-pack-status-refresh" disabled={centralLoading} onClick={()=>void refreshCentralComparison(true)}>{centralLoading ? '查询中…' : '刷新注册表'}</button>
+        <button className="hl-pack-status-refresh" disabled={centralLoading} onClick={()=>void refreshCentralComparison()}>{centralLoading ? '查询中…' : '刷新注册表'}</button>
       </section>
       <section className="hl-pack-section hl-pack-environment" aria-label="环境">
         <h2>环境</h2>
@@ -296,7 +288,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       </div>
       <nav className="hl-local-tree" aria-label={tree==='category' ? '按分类的本地包目录' : '按作用域的本地包目录'}>
         <PackageTree items={entries.map(entry => {
-          const comparison = centralComparison[centralStatusKey(entry.name, entry.version)];
+          const comparison = entry.catalog?.central;
           return {
             key: entry.key,
             name: entry.name,

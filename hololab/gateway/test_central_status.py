@@ -82,9 +82,8 @@ def test_central_status_endpoint_has_wall_clock_deadline(monkeypatch, tmp_path):
         ]
         response = client.get("/api/packs/central-status?keys=community/demo@1.0.0")
     assert response.status_code == 200
-    assert response.json() == {
-        "community/demo@1.0.0": {
-            "state": "unknown",
-            "reason": "registry comparison timed out",
-        }
-    }
+    result = response.json()["community/demo@1.0.0"]
+    assert result["state"] == "unknown"
+    assert result["reason"] == "registry comparison timed out"
+    assert result["checked_at"] > 0
+    assert result["stale"] is False
