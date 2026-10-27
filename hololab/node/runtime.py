@@ -1022,7 +1022,9 @@ class NodeRuntime:
             "pack_status_resp", PackStatusResp(req_id=request.req_id, result=result)
         )
 
-    async def _environment_report(self, manifest, *, fresh=False):
+    async def _environment_report(
+        self, manifest, *, fresh=False, check_batch_id: str | None = None
+    ):
         """Return capability evidence with the node-resolved runtime prefix.
 
         ``prefix`` is the sole authoritative path field for environment
@@ -1041,6 +1043,7 @@ class NodeRuntime:
             self._config.conda_bin,
             getattr(self, "_env_cache", {}).get(prefix),
             fresh=fresh,
+            check_batch_id=check_batch_id,
         )
         report["prefix"] = (
             str(prefix) if manifest.runtime.mode != "host" and prefix is not None else None
@@ -1056,7 +1059,9 @@ class NodeRuntime:
                 installed_key(self._packs, request.algorithm_name, request.algorithm_version)
             ]
             manifest, _ = load_manifest(pack.manifest_path)
-            report = await self._environment_report(manifest, fresh=request.fresh)
+            report = await self._environment_report(
+                manifest, fresh=request.fresh, check_batch_id=request.check_batch_id
+            )
             key = (pack.manifest.name, pack.manifest.version)
             evidence, materially_changed = self._finalize_environment_evidence(
                 report,

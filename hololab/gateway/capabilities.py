@@ -15,6 +15,7 @@ async def check_workflow(app, graph, *, required=None, fresh=False, strict=False
 
     catalog = {package_key(p["name"], p["version"]): p for p in app.state.registry.catalog_json()}
     limit = asyncio.Semaphore(8)
+    check_batch_id = str(uuid.uuid4())
 
     async def check(node):
         session = app.state.registry.get_session(node.assigned_node_id)
@@ -57,6 +58,7 @@ async def check_workflow(app, graph, *, required=None, fresh=False, strict=False
                     algorithm_name=name,
                     algorithm_version=version,
                     fresh=fresh,
+                    check_batch_id=check_batch_id,
                 )
                 async with limit:
                     reply = await _await_node_reply(

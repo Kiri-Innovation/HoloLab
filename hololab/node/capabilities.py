@@ -152,11 +152,19 @@ def enforce(report: dict) -> None:
 class CapabilityChecker:
     def __init__(self):
         self._cache: dict = {}
-        self._gpu_cache: dict[str | None, tuple[float, dict]] = {}
+        self._gpu_cache: dict[str | None, tuple[float, dict, str | None]] = {}
         self._lock = threading.Lock()
+        self._environment_locks: dict[tuple[str, str, str], threading.Lock] = {}
 
     def check(
-        self, manifest, envs: dict, conda_bin: str, activated: dict | None = None, *, fresh=False
+        self,
+        manifest,
+        envs: dict,
+        conda_bin: str,
+        activated: dict | None = None,
+        *,
+        fresh=False,
+        check_batch_id: str | None = None,
     ) -> dict:
         contract = manifest.requires
         required = contract.as_dict() if contract is not None else None
@@ -194,27 +202,40 @@ class CapabilityChecker:
         report["prefix"] = str(prefix)
         visible = (activated or {}).get("CUDA_VISIBLE_DEVICES")
         try:
+            key = (str(prefix), conda_bin, json.dumps(activated, sort_keys=True))
             with self._lock:
-                key = (str(prefix), conda_bin, json.dumps(activated, sort_keys=True))
-                cached = self._cache.get(key)
-                mark = fingerprint(prefix, cached[1]["paths"] if cached else [])
-                if not fresh and cached and cached[0] == mark:
+                environment_lock = self._environment_locks.setdefault(key, threading.Lock())
+            # Different prefixes can be verified in parallel.  Equivalent
+            # requests in one graph wait here and consume the first result.
+            with environment_lock:
+                with self._lock:
+                    cached = self._cache.get(key)
+                if cached and check_batch_id and cached[2] == check_batch_id:
                     data = copy.deepcopy(cached[1])
                     report["cache_hit"] = True
                 else:
-                    data = probe_environment(prefix, conda_bin, activated)
-                    after = fingerprint(prefix, data["paths"])
-                    # Probe again if an install crossed the first read. Never cache a
-                    # mixed inventory under a newer installation fingerprint.
-                    if mark != after:
+                    mark = fingerprint(prefix, cached[1]["paths"] if cached else [])
+                    if not fresh and cached and cached[0] == mark:
+                        data = copy.deepcopy(cached[1])
+                        report["cache_hit"] = True
+                    else:
                         data = probe_environment(prefix, conda_bin, activated)
-                        if fingerprint(prefix, data["paths"]) != after:
-                            raise ValueError("环境元数据在检查期间持续变化, 请安装结束后重新检查")
-                    if len(self._cache) >= 64:
-                        self._cache.clear()
-                    self._cache[key] = (after, copy.deepcopy(data))
-                    report["cache_hit"] = False
-                report["environment_fingerprint"] = self._cache[key][0]
+                        after = fingerprint(prefix, data["paths"])
+                        # Probe again if an install crossed the first read. Never cache a
+                        # mixed inventory under a newer installation fingerprint.
+                        if mark != after:
+                            data = probe_environment(prefix, conda_bin, activated)
+                            if fingerprint(prefix, data["paths"]) != after:
+                                raise ValueError(
+                                    "环境元数据在检查期间持续变化, 请安装结束后重新检查"
+                                )
+                        with self._lock:
+                            if len(self._cache) >= 64:
+                                self._cache.clear()
+                            self._cache[key] = (after, copy.deepcopy(data), check_batch_id)
+                        report["cache_hit"] = False
+                with self._lock:
+                    report["environment_fingerprint"] = self._cache[key][0]
             report["python"] = data["python"]
             visible = data.get("cuda_visible_devices", visible)
             if contract.python:
@@ -262,10 +283,9 @@ class CapabilityChecker:
                 with self._lock:
                     gpu_cached = self._gpu_cache.get(visible)
                     now = time.monotonic()
-                    if (
-                        not fresh
-                        and gpu_cached is not None
-                        and now - gpu_cached[0] < GPU_PROBE_CACHE_TTL_S
+                    if gpu_cached is not None and (
+                        (check_batch_id and gpu_cached[2] == check_batch_id)
+                        or (not fresh and now - gpu_cached[0] < GPU_PROBE_CACHE_TTL_S)
                     ):
                         hardware = copy.deepcopy(gpu_cached[1])
                         report["hardware_cache_hit"] = True
@@ -276,7 +296,11 @@ class CapabilityChecker:
                         hardware = probe_gpus(visible)
                         if len(self._gpu_cache) >= 16:
                             self._gpu_cache.clear()
-                        self._gpu_cache[visible] = (time.monotonic(), copy.deepcopy(hardware))
+                        self._gpu_cache[visible] = (
+                            time.monotonic(),
+                            copy.deepcopy(hardware),
+                            check_batch_id,
+                        )
                         report["hardware_cache_hit"] = False
                 report["hardware"] = hardware
                 if contract.gpu is not None:

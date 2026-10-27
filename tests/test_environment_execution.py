@@ -82,7 +82,7 @@ async def test_routine_capability_check_does_not_rebroadcast_unchanged_evidence(
     node._ws = object()
     node._safe_send = AsyncMock()
 
-    async def report(_manifest, *, fresh=False):
+    async def report(_manifest, *, fresh=False, check_batch_id=None):
         return {"status": "satisfied", "requires": {}, "issues": [], "env": "test"}
 
     node._environment_report = report
@@ -113,7 +113,7 @@ async def test_routine_capability_check_does_not_rebroadcast_unchanged_evidence(
 
     current = {"status": "missing", "requires": {}, "issues": [{"item": "env"}], "env": "test"}
 
-    async def changed_report(_manifest, *, fresh=False):
+    async def changed_report(_manifest, *, fresh=False, check_batch_id=None):
         return dict(current)
 
     node._environment_report = changed_report

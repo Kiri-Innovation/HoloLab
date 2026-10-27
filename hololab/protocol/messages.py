@@ -786,6 +786,9 @@ class CapabilityReq(BaseModel):
     algorithm_name: str
     algorithm_version: str
     fresh: bool = False
+    # One gateway capability request fans out to many packs.  A node uses this
+    # opaque identifier to coalesce verification of the same environment.
+    check_batch_id: str | None = None
 
 
 class CapabilityResp(BaseModel):

@@ -32,7 +32,8 @@ def test_real_metadata_install_invalidates_cache_without_import(tmp_path):
         "Metadata-Version: 2.1\nName: hololab-test-absent\nVersion: 2.0\n"
     )
     (site / "hololab_test_absent.py").write_text("raise RuntimeError('must never import')")
-    satisfied = checker.check(*args)
+    # A new authoritative batch must stat again and observe the install.
+    satisfied = checker.check(*args, fresh=True, check_batch_id="after-install")
     assert satisfied["status"] == "satisfied"
     assert satisfied["cache_hit"] is False
     assert satisfied["environment_fingerprint"] != missing["environment_fingerprint"]
@@ -152,3 +153,25 @@ def test_gpu_probe_cache_respects_visibility_and_fresh(tmp_path, monkeypatch):
     ]
     assert other_visible["hardware_cache_hit"] is False
     assert calls == ["0", "0", "1"]
+
+
+def test_fresh_checks_coalesce_one_environment_per_gateway_batch(tmp_path, monkeypatch):
+    from hololab.node import capabilities
+
+    manifest = declared(tmp_path, '  python: ">=3"\n')
+    monkeypatch.setattr(capabilities, "fingerprint", lambda *args: "stable")
+    calls = []
+
+    def probe(*_args):
+        calls.append(1)
+        return {"paths": [], "python": "3.11", "packages": {}}
+
+    monkeypatch.setattr(capabilities, "probe_environment", probe)
+    checker = CapabilityChecker()
+    args = (manifest, {"test": str(tmp_path)}, "conda", {})
+
+    checker.check(*args, fresh=True, check_batch_id="one")
+    checker.check(*args, fresh=True, check_batch_id="one")
+    checker.check(*args, fresh=True, check_batch_id="two")
+
+    assert len(calls) == 2
