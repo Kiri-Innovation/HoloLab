@@ -28,6 +28,8 @@ class PackContent(BaseModel):
     cold: dict[str, Any] | None = None
     excluded: dict[str, Any] | None = None
     top_level: list[dict[str, Any]] | None = None
+    # Compact two-level display tree.  Optional for rolling upgrades.
+    tree: list[dict[str, Any]] | None = None
 
 
 class PackInventoryEntry(BaseModel):

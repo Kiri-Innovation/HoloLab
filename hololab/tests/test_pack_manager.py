@@ -69,6 +69,7 @@ def test_endpoint_installs_and_refreshes_catalog(registry, tmp_path, monkeypatch
         assert isinstance(demo["content"]["cold"]["directories"], list)
         assert isinstance(demo["content"]["excluded"]["top_level"], list)
         assert isinstance(demo["content"]["top_level"], list)
+        assert isinstance(demo["content"]["tree"], list)
         check = client.post(
             "/api/recipes/check",
             json={

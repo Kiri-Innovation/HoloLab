@@ -181,6 +181,7 @@ class PackContentOut(BaseModel):
     cold: dict[str, Any] | None = None
     excluded: dict[str, Any] | None = None
     top_level: list[dict[str, Any]] | None = None
+    tree: list[dict[str, Any]] | None = None
 
 
 class CatalogPackEntry(BaseModel):

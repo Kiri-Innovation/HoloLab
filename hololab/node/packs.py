@@ -94,6 +94,7 @@ class LoadedPack:
                 "cold": record["content"]["cold"],
                 "excluded": record["content"]["excluded"],
                 "top_level": record["content"]["top_level"],
+                "tree": record["content"]["tree"],
             }
         except Exception as exc:
             log.warning(
