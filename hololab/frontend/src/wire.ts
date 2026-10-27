@@ -29,6 +29,7 @@ export interface PackInventoryEntry {
   version: string;
   manifest_hash: string;
   code_sha256?: string | null;
+  content?: {files: number; bytes: number; root_abs: string} | null;
   // Absolute path of the manifest.yaml on the producing node.
   manifest_path?: string | null;
   // Which entry from the producing node's pack_dirs this pack was
@@ -322,6 +323,7 @@ export interface CatalogPack {
   version: string;
   manifest_hash: string;
   code_sha256?: string | null;
+  content?: {files: number; bytes: number; root_abs: string} | null;
   node_ids: string[]; // compute nodes offering this pack
   description: string | null;
   category: string[];

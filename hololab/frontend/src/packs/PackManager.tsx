@@ -33,6 +33,11 @@ async function freshCapabilityCheck(graph: unknown): Promise<void> {
   });
   if (!response.ok) throw new Error('capability_check_failed');
 }
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+}
 type CentralComparison = NonNullable<CatalogPack['central']>;
 
 function status(tone: StatusTone, conclusion: string, reason: string, action: string): NodeStatusPresentation {
@@ -182,7 +187,9 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         ? <span className="hl-evidence-muted">明确声明无要求</span>
         : <EvidenceValue value={requires} truncate={false} />;
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
-    const sourceDir = installed ? entry.catalog?.source_dir : undefined;
+    const content = entry.catalog?.content;
+    const sourcePath = installed ? content?.root_abs ?? entry.catalog?.source_dir : undefined;
+    const codeHash = entry.catalog?.code_sha256;
     const inputs = Object.entries(entry.catalog?.inputs ?? {});
     const outputs = Object.entries(entry.catalog?.outputs ?? {});
     const parameters = Object.entries(entry.catalog?.params ?? {});
@@ -235,20 +242,21 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       </details>
       <details className="hl-pack-section" open><summary>来源与内容</summary>
         {entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} variant="row" label="打开 manifest.yaml" />}
-        {sourceDir && <div className="hl-evidence-rows"><div><dt>本地来源</dt><dd><code className="hl-pack-command">{sourceDir}</code><button className="hl-evidence-primary" onClick={async () => {
-          const ok = await writeToClipboard(sourceDir);
+        {sourcePath && <div><code className="hl-pack-command">{sourcePath}</code><button className="hl-evidence-primary" onClick={async () => {
+          const ok = await writeToClipboard(sourcePath);
           setCommandStatus(current => ({...current, [entry.key]: ok ? '本地路径已复制。' : '未能复制，请选中路径手动复制。'}));
-        }}>复制路径</button><span role="status">{commandStatus[entry.key]}</span></dd></div></div>}
+        }}>复制路径</button><span role="status">{commandStatus[entry.key]}</span></div>}
         {!installed && (!canInstall ? <p>{installUnavailableReason}</p>
           : <><p>可复制 CLI 命令在计算节点执行；安装不会代装环境依赖。</p><code className="hl-pack-command">{installCommand(entry.name, entry.version, source)}</code><button className="hl-evidence-primary" onClick={async () => {
             const ok = await writeToClipboard(installCommand(entry.name, entry.version, source));
             setCommandStatus(current => ({...current, [entry.key]: ok ? '安装命令已复制；尚未执行安装。' : '未能复制，请选中命令手动复制。'}));
           }}>复制安装命令</button><span role="status">{commandStatus[entry.key]}</span></>) }
         <dl className="hl-evidence-rows">
+          <div><dt>内容</dt><dd>{content ? `${content.files} 个文件 · ${formatBytes(content.bytes)} · ` : '未知 · '}<code title={codeHash ?? undefined}>sha256 {codeHash ? `${codeHash.slice(0, 12)}…` : '未知'}</code></dd></div>
+          {entry.catalog?.source_entry && <div><dt>入口</dt><dd><code>{entry.catalog.source_entry}</code></dd></div>}
           {entry.catalog?.description && <div><dt>描述</dt><dd>{entry.catalog.description}</dd></div>}
           <div><dt>端口</dt><dd>输入：{inputs.length ? inputs.map(portLabel).join('；') : '无'}<br />输出：{outputs.length ? outputs.map(portLabel).join('；') : '无'}</dd></div>
           <div><dt>参数</dt><dd>{parameters.length ? `${parameters.slice(0, 6).map(([name]) => name).join('、')}${parameters.length > 6 ? ` 等 ${parameters.length} 项` : ''}` : '无'}</dd></div>
-          {entry.catalog?.source_entry && <div><dt>入口</dt><dd><code>{entry.catalog.source_entry}</code></dd></div>}
         </dl>
         {entry.catalog?.docs && <details><summary>包说明</summary><p style={{whiteSpace: 'pre-wrap'}}>{entry.catalog.docs}</p></details>}
       </details>

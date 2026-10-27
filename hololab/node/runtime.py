@@ -619,12 +619,16 @@ class NodeRuntime:
     def _pack_inventory(self) -> list[PackInventoryEntry]:
         """Build inventory with the last evidence for each pack."""
 
-        return [
-            PackInventoryEntry(
+        def entry(p: LoadedPack) -> PackInventoryEntry:
+            content = p.content
+            return PackInventoryEntry(
                 name=p.manifest.name,
                 version=p.manifest.version,
                 manifest_hash=p.manifest_hash,
-                code_sha256=p.code_sha256,
+                code_sha256=content["sha256"] if content else None,
+                content={key: content[key] for key in ("files", "bytes", "root_abs")}
+                if content
+                else None,
                 publication=p.publication,
                 root=p.manifest.root,
                 cold=p.manifest.cold,
@@ -636,8 +640,8 @@ class NodeRuntime:
                 bundled_identity=p.bundled_identity,
                 environment=self._environment_evidence.get((p.manifest.name, p.manifest.version)),
             )
-            for p in self._packs.values()
-        ]
+
+        return [entry(p) for p in self._packs.values()]
 
     async def _refresh_environment_evidence(self, *, send_update: bool) -> None:
         """Recheck packs and publish only evidence whose fingerprint changed.

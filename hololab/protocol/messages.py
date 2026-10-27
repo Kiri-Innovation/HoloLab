@@ -18,6 +18,14 @@ from hololab.package_identity import validate_identity
 # ---------------------------------------------------------------------------
 
 
+class PackContent(BaseModel):
+    """Content covered by a pack's code identity on its producing node."""
+
+    files: int
+    bytes: int
+    root_abs: str
+
+
 class PackInventoryEntry(BaseModel):
     """One installed pack the node is offering."""
 
@@ -34,6 +42,8 @@ class PackInventoryEntry(BaseModel):
     # Declared-content identity, available even when this pack was never
     # installed from a registry (and therefore has no publication receipt).
     code_sha256: str | None = None
+    # Optional so nodes from before content reporting remain compatible.
+    content: PackContent | None = None
     # Absolute path of the manifest.yaml on the producing node. With the
     # polymorphic pack_dirs contract this is what the frontend's
     # "Jump to source" button opens directly — no more

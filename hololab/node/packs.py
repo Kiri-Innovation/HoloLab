@@ -77,15 +77,20 @@ class LoadedPack:
         return publication_info(self.manifest_path)
 
     @property
-    def code_sha256(self) -> str | None:
-        """Calculate the publication-compatible identity without a receipt."""
+    def content(self) -> dict | None:
+        """Calculate identity and included-content facts in one scoped walk."""
         from hololab.content_scope import Baselines, capture
 
         try:
             with tempfile.TemporaryDirectory(prefix="hololab-pack-identity-") as directory:
-                return capture(self.manifest_path, Baselines(Path(directory)), refresh_cold=True)[
-                    "sha256"
-                ]
+                record = capture(self.manifest_path, Baselines(Path(directory)), refresh_cold=True)
+            hot, cold = record["hot"]["stats"], record["cold"]["stats"]
+            return {
+                "sha256": record["sha256"],
+                "files": hot["files"] + cold["files"],
+                "bytes": hot["bytes"] + cold["bytes"],
+                "root_abs": record["path"],
+            }
         except Exception as exc:
             log.warning(
                 "pack content identity unavailable",
@@ -93,6 +98,12 @@ class LoadedPack:
                 error=str(exc),
             )
             return None
+
+    @property
+    def code_sha256(self) -> str | None:
+        """Calculate the publication-compatible identity without a receipt."""
+        content = self.content
+        return content["sha256"] if content else None
 
 
 def _load_manifest_safely(manifest_path: Path) -> tuple[Manifest, str] | None:

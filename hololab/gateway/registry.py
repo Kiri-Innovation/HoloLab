@@ -552,6 +552,9 @@ class NodeRegistry:
                 except ValueError as exc:
                     conflict = str(exc)
                 key = package_key(pk.name, pk.version)
+                content = getattr(pk, "content", None)
+                if hasattr(content, "model_dump"):
+                    content = content.model_dump()
                 entry = by_key.setdefault(
                     key,
                     {
@@ -559,6 +562,7 @@ class NodeRegistry:
                         "version": pk.version,
                         "manifest_hash": pk.manifest_hash,
                         "code_sha256": getattr(pk, "code_sha256", None),
+                        "content": content,
                         "root": getattr(pk, "root", "."),
                         "cold": getattr(pk, "cold", []),
                         "publication": getattr(pk, "publication", None),
@@ -598,6 +602,7 @@ class NodeRegistry:
                     entry.update(
                         manifest_hash=pk.manifest_hash,
                         code_sha256=getattr(pk, "code_sha256", None),
+                        content=content,
                         manifest_path=pk.manifest_path,
                         source_dir=pk.source_dir,
                         runtime=getattr(pk, "runtime", None),

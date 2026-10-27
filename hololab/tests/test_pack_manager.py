@@ -1,6 +1,7 @@
 """HTTP registry → gateway endpoint → real node handler → scanned workflow package."""
 
 import asyncio
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -57,7 +58,11 @@ def test_endpoint_installs_and_refreshes_catalog(registry, tmp_path, monkeypatch
         assert response.json()["destination"] == str(destination)
         assert scan_multi_packs([destination])[0].manifest.name == "demo"
         catalog = client.get("/api/pack-catalog").json()
-        assert any(pack["name"] == "demo" for pack in catalog)
+        demo = next(pack for pack in catalog if pack["name"] == "demo")
+        assert demo["content"]["files"] > 0
+        assert demo["content"]["bytes"] > 0
+        assert Path(demo["content"]["root_abs"]).is_dir()
+        assert Path(demo["content"]["root_abs"]).is_relative_to(destination)
         check = client.post(
             "/api/recipes/check",
             json={

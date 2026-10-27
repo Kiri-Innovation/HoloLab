@@ -173,9 +173,16 @@ class ParamSpecOut(BaseModel):
     optional: bool = False
 
 
+class PackContentOut(BaseModel):
+    files: int
+    bytes: int
+    root_abs: str
+
+
 class CatalogPackEntry(BaseModel):
     publication: dict[str, Any] | None = None
     code_sha256: str | None = None
+    content: PackContentOut | None = None
     root: str = "."
     cold: list[str] = Field(default_factory=list)
     requires: dict[str, Any] | None = None
