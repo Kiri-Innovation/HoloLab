@@ -152,6 +152,10 @@ log = get_logger("gateway")
 # Heartbeat timeout — see docs/architecture.md#connection-topology.
 HEARTBEAT_DEAD_SECONDS = 45.0
 HEARTBEAT_SWEEP_INTERVAL = 5.0
+# ``central-status`` is presentation-only.  The registry client has its own
+# per-request timeout, but this wall-clock guard protects the HTTP endpoint
+# from DNS/TLS stalls and from a worker waiting on a stuck request.
+CENTRAL_STATUS_DEADLINE_S = 10.0
 
 # Orphan-finaliser grace window — how long an ``orphaned`` row can sit
 # in the DB before the sweeper flips it to ``interrupted``. Sized to
@@ -1735,14 +1739,23 @@ def _mount_routes(app: FastAPI) -> None:
 
         registry: NodeRegistry = app.state.registry
         sources = [source for session in registry.all_sessions() for source in session.pack_sources]
-        return await asyncio.to_thread(
-            compare,
-            requested,
-            registry.catalog_json(),
-            sources,
-            app.state.central_status_cache,
-            refresh=refresh,
-        )
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    compare,
+                    requested,
+                    registry.catalog_json(),
+                    sources,
+                    app.state.central_status_cache,
+                    refresh=refresh,
+                ),
+                timeout=CENTRAL_STATUS_DEADLINE_S,
+            )
+        except TimeoutError:
+            return {
+                key: {"state": "unknown", "reason": "registry comparison timed out"}
+                for key in requested
+            }
 
     @app.post("/api/packs/install", tags=["packs"])
     async def install_pack(body: dict[str, Any]):

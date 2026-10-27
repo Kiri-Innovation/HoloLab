@@ -33,6 +33,9 @@ async function freshCapabilityCheck(graph: unknown): Promise<void> {
   });
   if (!response.ok) throw new Error('capability_check_failed');
 }
+// Registry comparison is decorative; never leave a package status chip in
+// "查询中" because a mirror is slow or a connection handshake stalls.
+const CENTRAL_STATUS_UI_TIMEOUT_MS = 8_000;
 interface CentralComparison { state: 'identical'|'differs'|'absent'|'unknown'; central_code_sha256?: string; yanked?: boolean; source?: string; reason?: string | null }
 
 function status(tone: StatusTone, conclusion: string, reason: string, action: string): NodeStatusPresentation {
@@ -106,14 +109,16 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   async function refreshCentralComparison(fresh=false) {
     if (!comparisonKeys) { setCentralComparison({}); return; }
     setCentralLoading(true);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), CENTRAL_STATUS_UI_TIMEOUT_MS);
     try {
       const suffix = fresh ? '&refresh=true' : '';
-      const data = await read<Record<string, CentralComparison>>(`/api/packs/central-status?keys=${encodeURIComponent(comparisonKeys)}${suffix}`);
+      const data = await read<Record<string, CentralComparison>>(`/api/packs/central-status?keys=${encodeURIComponent(comparisonKeys)}${suffix}`, controller.signal);
       setCentralComparison(data);
     } catch {
       // The central relationship must never make the local page unusable.
       setCentralComparison(Object.fromEntries(catalog.map(pack => [centralStatusKey(pack.name, pack.version), {state:'unknown', reason:'查询请求未完成'}])));
-    } finally { setCentralLoading(false); }
+    } finally { window.clearTimeout(timeout); setCentralLoading(false); }
   }
   useEffect(() => { void refreshCentralComparison(); }, [comparisonKeys]);
 
@@ -162,11 +167,15 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const comparison = centralComparison[centralStatusKey(entry.name, entry.version)];
     const yanked = entry.release?.yanked === true || comparison?.yanked === true;
     const report = reports[entry.key];
-    const requires = entry.catalog ? entry.catalog.requires : entry.release?.requires;
+    // Evidence is per node and carries the manifest facts checked on that
+    // node.  Catalog fields remain preferred for old reports, while these
+    // fallbacks make the detail view self-contained for modern nodes.
+    const requires = entry.catalog?.requires ?? report?.requires ?? entry.release?.requires;
     // ``runtime`` is package metadata, while a resolved prefix only exists
     // in the filesystem namespace of a node that actually offers this pack.
     const nodeEnvironment = nodeId ? entry.catalog?.node_environments?.[nodeId] : undefined;
-    const runtime = nodeEnvironment?.runtime ?? entry.catalog?.runtime;
+    const runtime = nodeEnvironment?.runtime ?? entry.catalog?.runtime ?? report?.runtime;
+    const environmentPath = nodeEnvironment?.path ?? report?.prefix;
     const requirement = requires == null
       ? <span className="hl-evidence-muted">未声明</span>
       : Object.keys(requires).length === 0
@@ -210,8 +219,8 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
             : <div><dt>逻辑环境</dt><dd>{runtime.env || <span className="hl-evidence-muted">未声明</span>}</dd></div>}
           {runtime != null && runtime.mode !== 'host' && <div><dt>实际路径{selectedNode ? `（节点 ${selectedNode.node_name || nodeId}）` : ''}</dt><dd>
             {!nodeId ? <span className="hl-evidence-muted">请选择可执行节点</span>
-              : !nodeEnvironment ? <span className="hl-evidence-muted">当前节点不提供此包；路径仅在可执行节点上显示</span>
-              : nodeEnvironment.path ? <EvidenceValue value={nodeEnvironment.path} truncate={false} />
+              : !nodeEnvironment && !environmentPath ? <span className="hl-evidence-muted">当前节点不提供此包；路径仅在可执行节点上显示</span>
+              : environmentPath ? <EvidenceValue value={environmentPath} truncate={false} />
               : <span className="hl-evidence-muted">该节点未映射此逻辑环境</span>}
           </dd></div>}
           <div><dt>检查结果</dt><dd>{report ? <EnvironmentEvidence report={report} headingLabel={report.status === 'unknown' ? '环境未校验' : undefined} /> : <span className="hl-evidence-muted">{nodeId ? '未知（节点尚未上报证据）' : '未选择计算节点'}</span>}<button className="hl-evidence-primary" disabled={!nodeId || environmentRefreshing} onClick={()=>void refreshEnvironmentEvidence()}>{environmentRefreshing ? '重新检查中…' : '重新检查'}</button></dd></div>

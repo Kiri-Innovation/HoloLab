@@ -1,4 +1,7 @@
+import time
 from types import SimpleNamespace
+
+from fastapi.testclient import TestClient
 
 from hololab.gateway.central_status import CentralStatusCache, compare
 
@@ -57,4 +60,31 @@ def test_compare_reports_different_content(monkeypatch):
         "yanked": True,
         "source": "https://registry.test/",
         "reason": None,
+    }
+
+
+def test_central_status_endpoint_has_wall_clock_deadline(monkeypatch, tmp_path):
+    """A stuck registry worker must not leave the browser waiting indefinitely."""
+
+    from hololab.gateway import app as gateway_app
+    from hololab.gateway import central_status
+
+    def stuck_compare(*_args, **_kwargs):
+        time.sleep(0.05)
+        return {}
+
+    monkeypatch.setattr(central_status, "compare", stuck_compare)
+    monkeypatch.setattr(gateway_app, "CENTRAL_STATUS_DEADLINE_S", 0.01)
+    with TestClient(gateway_app.create_app(db_path=tmp_path / "gateway.sqlite")) as client:
+        client.app.state.registry.catalog_json = lambda: []
+        client.app.state.registry.all_sessions = lambda: [
+            SimpleNamespace(pack_sources=["https://registry.test"])
+        ]
+        response = client.get("/api/packs/central-status?keys=community/demo@1.0.0")
+    assert response.status_code == 200
+    assert response.json() == {
+        "community/demo@1.0.0": {
+            "state": "unknown",
+            "reason": "registry comparison timed out",
+        }
     }

@@ -10,6 +10,8 @@ export interface EnvironmentReport {
   checked_at?: number | null;
   issues: { item: string; required: unknown; actual: unknown; remedy: string }[];
   requires?: Record<string, unknown> | null;
+  runtime?: { mode?: "conda" | "host"; env?: string | null } | null;
+  prefix?: string;
 }
 export const CapabilityContext = createContext<Record<string, EnvironmentReport>>({});
 export function environmentLabel(report?: EnvironmentReport) {
