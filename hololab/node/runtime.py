@@ -73,6 +73,8 @@ from hololab.protocol import (
     encode,
 )
 from hololab.protocol.messages import (
+    EnvironmentEvidenceEntry,
+    EnvironmentUpdated,
     GpuInfo,
     JobFailReason,
     PackInventoryEntry,
@@ -84,6 +86,9 @@ log = get_logger("node")
 HEARTBEAT_INTERVAL = 15.0
 RECONNECT_BASE_DELAY = 1.0
 RECONNECT_MAX_DELAY = 30.0
+# Inventory evidence is display metadata, never an execution admission
+# decision.  Keep this explicit so deployments can tune freshness.
+ENVIRONMENT_RECHECK_INTERVAL_SECONDS = 60.0
 
 # Handle-locate retry policy — gateway restarts drop the WS mid-flight
 # and the pending response never arrives; and under CPU pressure the
@@ -241,6 +246,8 @@ class NodeRuntime:
         # module for the trade-off (package installs inside a running
         # env require a daemon restart to re-snapshot).
         self._env_cache: dict[str, dict[str, str]] = {}
+        # (pack name, version) -> latest report sent to the gateway.
+        self._environment_evidence: dict[tuple[str, str], dict[str, Any]] = {}
 
         # Detached background purge tasks. ``_purge_scratch_now`` returns
         # immediately after scheduling the ``rmtree`` on the default
@@ -339,6 +346,7 @@ class NodeRuntime:
                 self._config.envs,
                 timeout_s=self._config.env_cache_timeout_s,
             )
+
             log.info(
                 "env cache ready",
                 cached=len(self._env_cache),
@@ -350,6 +358,10 @@ class NodeRuntime:
                 use_env_cache=self._config.use_env_cache,
                 configured_envs=len(self._config.envs),
             )
+
+        # Seed the first inventory payload before the connection handshake so
+        # the pack manager can paint evidence from pack-catalog immediately.
+        await self._refresh_environment_evidence(send_update=False)
 
         # File server runs as an OS child process so its ffmpeg-heavy
         # request handling doesn't share the scheduler's event loop.
@@ -376,6 +388,9 @@ class NodeRuntime:
         # made while the WS is momentarily down. See
         # :mod:`hololab.node.metrics`.
         metrics_task = asyncio.create_task(self._metrics_loop(), name="hololab-node-metrics")
+        environment_task = asyncio.create_task(
+            self._environment_recheck_loop(), name="hololab-node-environment-recheck"
+        )
 
         from hololab.node.library import poll_library
 
@@ -389,7 +404,7 @@ class NodeRuntime:
             # ``hololab start`` restart hits EADDRINUSE on 8829.
             with contextlib.suppress(Exception):
                 await self._stop_file_server()
-            for t in (self._watch_task, sweep_task, metrics_task, library_task):
+            for t in (self._watch_task, sweep_task, metrics_task, environment_task, library_task):
                 if t is None:
                     continue
                 t.cancel()
@@ -547,27 +562,9 @@ class NodeRuntime:
 
         new_packs = _load_packs(list(self._config.pack_dirs))
         self._packs = new_packs
+        await self._refresh_environment_evidence(send_update=False)
         if self._ws is not None:
-            inventory = [
-                PackInventoryEntry(
-                    name=p.manifest.name,
-                    version=p.manifest.version,
-                    manifest_hash=p.manifest_hash,
-                    code_sha256=p.code_sha256,
-                    publication=p.publication,
-                    root=p.manifest.root,
-                    cold=p.manifest.cold,
-                    requires=p.manifest.requires.as_dict()
-                    if p.manifest.requires is not None
-                    else None,
-                    runtime={"mode": p.manifest.runtime.mode, "env": p.manifest.runtime.env},
-                    manifest_path=str(p.manifest_path),
-                    source_dir=str(p.source_dir),
-                    origin=p.origin,
-                    bundled_identity=p.bundled_identity,
-                )
-                for p in new_packs.values()
-            ]
+            inventory = self._pack_inventory()
             await self._safe_send(
                 "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs))
             )
@@ -601,30 +598,9 @@ class NodeRuntime:
                     continue
                 self._packs = new_packs
                 log.info("packs changed on disk", count=len(new_packs))
+                await self._refresh_environment_evidence(send_update=False)
                 if self._ws is not None:
-                    inventory = [
-                        PackInventoryEntry(
-                            name=p.manifest.name,
-                            version=p.manifest.version,
-                            manifest_hash=p.manifest_hash,
-                            code_sha256=p.code_sha256,
-                            publication=p.publication,
-                            root=p.manifest.root,
-                            cold=p.manifest.cold,
-                            requires=p.manifest.requires.as_dict()
-                            if p.manifest.requires is not None
-                            else None,
-                            runtime={
-                                "mode": p.manifest.runtime.mode,
-                                "env": p.manifest.runtime.env,
-                            },
-                            manifest_path=str(p.manifest_path),
-                            source_dir=str(p.source_dir),
-                            origin=p.origin,
-                            bundled_identity=p.bundled_identity,
-                        )
-                        for p in new_packs.values()
-                    ]
+                    inventory = self._pack_inventory()
                     await self._safe_send(
                         "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs))
                     )
@@ -639,6 +615,68 @@ class NodeRuntime:
         cur = {(k, p.manifest_hash) for k, p in self._packs.items()}
         new = {(k, p.manifest_hash) for k, p in other.items()}
         return cur == new
+
+    def _pack_inventory(self) -> list[PackInventoryEntry]:
+        """Build inventory with the last evidence for each pack."""
+
+        return [
+            PackInventoryEntry(
+                name=p.manifest.name,
+                version=p.manifest.version,
+                manifest_hash=p.manifest_hash,
+                code_sha256=p.code_sha256,
+                publication=p.publication,
+                root=p.manifest.root,
+                cold=p.manifest.cold,
+                requires=p.manifest.requires.as_dict() if p.manifest.requires is not None else None,
+                runtime={"mode": p.manifest.runtime.mode, "env": p.manifest.runtime.env},
+                manifest_path=str(p.manifest_path),
+                source_dir=str(p.source_dir),
+                origin=p.origin,
+                bundled_identity=p.bundled_identity,
+                environment=self._environment_evidence.get((p.manifest.name, p.manifest.version)),
+            )
+            for p in self._packs.values()
+        ]
+
+    async def _refresh_environment_evidence(self, *, send_update: bool) -> None:
+        """Recheck packs and publish only evidence whose fingerprint changed.
+
+        CapabilityChecker remains the sole implementation of environment
+        rules.  This loop merely retains its reports as inventory metadata.
+        """
+
+        from hololab.manifest import load_manifest
+
+        changed: list[EnvironmentEvidenceEntry] = []
+        active_keys: set[tuple[str, str]] = set()
+        for key, pack in self._packs.items():
+            manifest, _ = load_manifest(pack.manifest_path)
+            report = await self._environment_report(manifest)
+            report["checked_at"] = report.get("checked_at") or time.time()
+            report["stale"] = False
+            report["next_recheck_at"] = report["checked_at"] + ENVIRONMENT_RECHECK_INTERVAL_SECONDS
+            active_keys.add(key)
+            previous = self._environment_evidence.get(key)
+            self._environment_evidence[key] = report
+            if previous != report:
+                changed.append(EnvironmentEvidenceEntry(name=key[0], version=key[1], report=report))
+        for key in set(self._environment_evidence) - active_keys:
+            self._environment_evidence.pop(key, None)
+        if send_update and changed and self._ws is not None:
+            await self._safe_send("environment_updated", EnvironmentUpdated(evidence=changed))
+
+    async def _environment_recheck_loop(self) -> None:
+        """Periodically detect environment fingerprints without resending packs."""
+
+        while True:
+            await asyncio.sleep(ENVIRONMENT_RECHECK_INTERVAL_SECONDS)
+            try:
+                await self._refresh_environment_evidence(send_update=True)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                log.warning("environment evidence recheck failed", error=str(exc))
 
     async def _connect_loop(self) -> None:
         """Reconnect forever with exponential backoff, capped at 30 s."""
@@ -677,24 +715,7 @@ class NodeRuntime:
 
         assert self._ws is not None
 
-        inventory = [
-            PackInventoryEntry(
-                name=p.manifest.name,
-                version=p.manifest.version,
-                manifest_hash=p.manifest_hash,
-                code_sha256=p.code_sha256,
-                publication=p.publication,
-                root=p.manifest.root,
-                cold=p.manifest.cold,
-                requires=p.manifest.requires.as_dict() if p.manifest.requires is not None else None,
-                runtime={"mode": p.manifest.runtime.mode, "env": p.manifest.runtime.env},
-                manifest_path=str(p.manifest_path),
-                source_dir=str(p.source_dir),
-                origin=p.origin,
-                bundled_identity=p.bundled_identity,
-            )
-            for p in self._packs.values()
-        ]
+        inventory = self._pack_inventory()
 
         reg = Register(
             intrinsics=["array-assemble", "constant-v1", "literal-v3"],
@@ -981,6 +1002,19 @@ class NodeRuntime:
             ]
             manifest, _ = load_manifest(pack.manifest_path)
             report = await self._environment_report(manifest, fresh=request.fresh)
+            report["checked_at"] = report.get("checked_at") or time.time()
+            report["stale"] = False
+            report["next_recheck_at"] = report["checked_at"] + ENVIRONMENT_RECHECK_INTERVAL_SECONDS
+            key = (pack.manifest.name, pack.manifest.version)
+            self._environment_evidence[key] = report
+            # A user-requested fresh authority check is also the newest
+            # display evidence.  It never changes execution admission.
+            await self._safe_send(
+                "environment_updated",
+                EnvironmentUpdated(
+                    evidence=[EnvironmentEvidenceEntry(name=key[0], version=key[1], report=report)]
+                ),
+            )
             response = CapabilityResp(req_id=request.req_id, report=report)
         except Exception as exc:
             response = CapabilityResp(req_id=request.req_id, error=str(exc))
