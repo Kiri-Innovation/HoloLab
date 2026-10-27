@@ -16,6 +16,7 @@ import { NodeStatusDot } from '../ui/NodeStatusTooltip';
 import { EvidenceValue } from '../canvas/EvidenceValue';
 import { OpenSourceButton } from '../canvas/OpenSourceButton';
 import { writeToClipboard } from '../canvas/referenceAction';
+import { centralStatusKey } from './centralStatusKey';
 import {usePackUsage} from './usePackUsage';
 import { buildPackEntries, compactPackStatus, hasEnvironmentDetails, installedOn, installCommand, packProblemReasons, packEnvironmentStatus, recipeIssueLabel,
   type InventoryPack, type PackEntry, type RegistryRelease } from './packManagerModel';
@@ -95,7 +96,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     return () => controller.abort();
   }, [revision]);
 
-  const comparisonKeys = useMemo(() => catalog.map(pack => `${pack.name}@${pack.version}`).join(','), [catalog]);
+  const comparisonKeys = useMemo(() => catalog.map(pack => centralStatusKey(pack.name, pack.version)).join(','), [catalog]);
   async function refreshCentralComparison(fresh=false) {
     if (!comparisonKeys) { setCentralComparison({}); return; }
     setCentralLoading(true);
@@ -105,7 +106,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       setCentralComparison(data);
     } catch {
       // The central relationship must never make the local page unusable.
-      setCentralComparison(Object.fromEntries(catalog.map(pack => [`${pack.name}@${pack.version}`, {state:'unknown', reason:'查询请求未完成'}])));
+      setCentralComparison(Object.fromEntries(catalog.map(pack => [centralStatusKey(pack.name, pack.version), {state:'unknown', reason:'查询请求未完成'}])));
     } finally { setCentralLoading(false); }
   }
   useEffect(() => { void refreshCentralComparison(); }, [comparisonKeys]);
@@ -147,7 +148,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const renderPackage = (entry: PackEntry) => {
     const selectedNode = nodes.find(node => node.node_id === nodeId);
     const installed = !!nodeId && installedOn(entry, nodeId);
-    const comparison = centralComparison[entry.key];
+    const comparison = centralComparison[centralStatusKey(entry.name, entry.version)];
     const yanked = entry.release?.yanked === true || comparison?.yanked === true;
     const report = checks.reports[entry.key];
     const requires = entry.catalog ? entry.catalog.requires : entry.release?.requires;
@@ -250,7 +251,17 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         <button role="tab" aria-selected={tree==='scope'} onClick={()=>navigateLocal(section,selected,'','scope')}>按作用域</button>
       </div>
       <nav className="hl-local-tree" aria-label={tree==='category' ? '按分类的本地包目录' : '按作用域的本地包目录'}>
-        <PackageTree items={entries.map(entry => ({key:entry.key,name:entry.name,version:entry.version,category:tree==='scope'?[entry.scope]:entry.catalog?.category ?? [], status:centralComparison[entry.key]?.state==='differs' ? '注册表内容不同' : compactStatus(entry), problem:problem(entry) || centralComparison[entry.key]?.state==='differs'}))} query="" displayName={displayName}
+        <PackageTree items={entries.map(entry => {
+          const comparison = centralComparison[centralStatusKey(entry.name, entry.version)];
+          return {
+            key: entry.key,
+            name: entry.name,
+            version: entry.version,
+            category: tree === 'scope' ? [entry.scope] : entry.catalog?.category ?? [],
+            status: comparison?.state === 'differs' ? '注册表内容不同' : compactStatus(entry),
+            problem: problem(entry) || comparison?.state === 'differs',
+          };
+        })} query="" displayName={displayName}
           selected={section==='category'?selected:''} selectedCategory={tree==='category' && section==='category'&&!selected?category:''}
           onSelect={key=>navigateLocal('category',key,'',tree)} onSelectCategory={tree==='category' ? path=>navigateLocal('category','',path,tree) : undefined} collapseRedundantCategories={tree==='category'} />
       </nav>
