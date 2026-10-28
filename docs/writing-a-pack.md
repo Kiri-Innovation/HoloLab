@@ -403,6 +403,22 @@ checkout path in the compute node's Pack sources. Use documented template
 bindings and resolve script locations deliberately; do not copy another
 machine's checkout or conda paths into a published manifest.
 
+## Recommended node defaults
+
+A pack can recommend `parallelism: 4` and `batch_size: 2` at the top level of
+`manifest.yaml` (illustrative values; benchmark your pack before choosing them).
+Each field is optional and must be at least 1; omitted or `null` leaves the
+framework default of 1. The canvas copies the recommendations into explicit
+workflow node values when the node is created. Existing nodes and subsequent
+user edits keep their stored values: these are creation defaults, **not runtime
+fallbacks or constraints**, and they do not enable `arrayed_toggle`. API clients
+must copy the catalog values themselves; omitted API fields still become 1.
+
+These fields are part of the pack's code identity. **Bump the pack version when
+changing either recommendation**: changing the manifest changes its identity,
+so old snapshots require the original pack content to replay. See
+[the pack contract](pack-spec.md#arrayed-and-arrayable).
+
 ## Writing an arrayable pack
 
 An **arrayable** pack tells the framework "my exec is data-parallel over

@@ -245,6 +245,23 @@ loading declarations, validating edges, before execution and before publishing
 any output (including cached output). Image arrays are validated **at every
 leaf**, including full decode, not by sampling handle summaries.
 
+Top-level manifest `parallelism` and `batch_size` are optional positive integers
+(`>= 1`), recommending defaults for newly created nodes. Omitted or `null` means
+no recommendation: the framework default remains **1** for each field. Canvas
+drops and creation-menu choices copy these values into the workflow node at
+creation time. The workflow stores explicit numbers, never empty values; later
+user edits and existing workflow values take precedence. This is **not a runtime
+fallback** and does not change `arrayed_toggle` or impose runtime constraints.
+
+Both fields participate in code identity hashing (they are not release metadata).
+**Changing a recommendation requires a new pack version.** A changed manifest
+cannot replay an old snapshot with its previous code identity; retain the original
+pack content to reproduce that snapshot.
+
+API clients creating workflows must copy catalog recommendations themselves if
+desired. The backend graph model fills omitted fields with **1**; workflow upsert,
+recipe import and ad-hoc dispatch do not apply catalog recommendations.
+
 Shard mechanics:
 
 - Framework mints one parent job (coordinator, no compute-node dispatch)

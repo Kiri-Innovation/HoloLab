@@ -1598,7 +1598,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           pack,
           assembly: pack.name === ASSEMBLE ? newAssembly() : undefined,
           assigned_node_id: pack.node_ids[0] ?? null, // default to the first eligible
-          ...({ arrayed_toggle: false, parallelism: 1, batch_size: 1 } as object),
+          ...({ arrayed_toggle: false, parallelism: pack.parallelism ?? 1, batch_size: pack.batch_size ?? 1 } as object),
         },
       };
       setNodes((ns) => ns.concat(node));

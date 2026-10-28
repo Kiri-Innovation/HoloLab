@@ -382,6 +382,9 @@ export interface CatalogPack {
   // and each node instance gets an "arrayed" checkbox in the Inspector
   // (see docs/pack-spec.md#arrayed-and-arrayable).
   arrayable?: boolean;
+  // Recommendations copied only when creating a node; null/absent means 1.
+  parallelism?: number | null;
+  batch_size?: number | null;
 }
 
 export interface NodeViewerSpec {

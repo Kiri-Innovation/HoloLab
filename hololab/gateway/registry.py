@@ -591,6 +591,8 @@ class NodeRegistry:
                         "manifest_path": pk.manifest_path,
                         "source_dir": pk.source_dir,
                         "arrayable": False,
+                        "parallelism": None,
+                        "batch_size": None,
                         "node_viewers": [],
                         "hide_default_output_previews": False,
                     },
@@ -656,6 +658,8 @@ class NodeRegistry:
                             manifest.requires.as_dict() if manifest.requires is not None else None
                         )
                         entry["arrayable"] = manifest.arrayable
+                        entry["parallelism"] = manifest.parallelism
+                        entry["batch_size"] = manifest.batch_size
                         entry["node_viewers"] = [
                             viewer.model_dump() for viewer in manifest.node_viewers
                         ]

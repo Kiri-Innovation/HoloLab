@@ -642,6 +642,10 @@ class Manifest(BaseModel):
     # promising that shards do NOT share state or exchange data. See
     # ``docs/writing-a-pack.md#writing-an-arrayable-pack``.
     arrayable: bool = False
+    # Recommended defaults copied into a workflow node at creation time,
+    # not runtime constraints. None leaves the framework default of 1.
+    parallelism: int | None = Field(default=None, ge=1)
+    batch_size: int | None = Field(default=None, ge=1)
 
     inputs: dict[str, InputSpec] = Field(default_factory=dict)
     outputs: dict[str, OutputSpec]

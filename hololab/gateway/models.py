@@ -245,6 +245,16 @@ class CatalogPackEntry(BaseModel):
             "node instance. See docs/pack-spec.md#arrayed-and-arrayable."
         ),
     )
+    parallelism: int | None = Field(
+        default=None,
+        ge=1,
+        description="Recommended parallelism copied at node creation; not a runtime constraint.",
+    )
+    batch_size: int | None = Field(
+        default=None,
+        ge=1,
+        description="Recommended batch size copied at node creation; not a runtime constraint.",
+    )
 
 
 # ---------------------------------------------------------------------------
