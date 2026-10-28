@@ -17,6 +17,7 @@ from pathlib import Path
 
 import yaml
 from packaging.requirements import Requirement
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import Version
 
 from hololab.manifest import load_manifest
@@ -28,6 +29,16 @@ class SetupError(ValueError):
     """A safe-to-display setup failure."""
 
 
+# Python 3.11 is the conservative common denominator for the scientific and
+# computer-vision packages algorithm packs commonly use.  Keep this list in
+# preference order rather than asking conda to choose an unconstrained latest
+# interpreter.  Later entries allow an author constraint to be honoured when
+# it excludes the default.
+DEFAULT_PYTHON = "3.11"
+_PYTHON_CANDIDATES = ("3.11", "3.12", "3.10", "3.9", "3.8", "3.7", "3.6", "3.13", "3.14", "3.15")
+_ECOSYSTEM_PYTHONS = frozenset({"3.10", "3.11", "3.12", "3.13"})
+
+
 @dataclass(frozen=True)
 class EnvironmentPlan:
     name: str
@@ -35,6 +46,26 @@ class EnvironmentPlan:
     python: str | None
     packs: tuple[str, ...]
     prefix: Path | None
+
+
+def select_python_version(requirement: str | None) -> str:
+    """Choose an ecosystem-compatible minor version satisfying *requirement*.
+
+    Broad declarations such as ``>=3.6`` intentionally select 3.11 instead
+    of allowing conda to resolve a newly released interpreter.
+    """
+    if not requirement:
+        return DEFAULT_PYTHON
+    try:
+        specifier = SpecifierSet(requirement)
+    except InvalidSpecifier as exc:
+        raise SetupError(f"invalid Python requirement {requirement!r}: {exc}") from exc
+    for candidate in _PYTHON_CANDIDATES:
+        if Version(candidate) in specifier:
+            return candidate
+    raise SetupError(
+        f"Python requirement {requirement!r} has no supported selectable minor version"
+    )
 
 
 def find_conda() -> str | None:
@@ -158,6 +189,17 @@ def _satisfied(conda: str, prefix: Path, raw: str) -> bool:
     return version is not None and (not requirement.specifier or version in requirement.specifier)
 
 
+def _environment_python_version(conda: str, prefix: Path) -> Version | None:
+    result = _run([conda, "run", "--prefix", str(prefix), "python", "--version"])
+    if result.returncode:
+        return None
+    value = (result.stdout or result.stderr).strip().removeprefix("Python ")
+    try:
+        return Version(value)
+    except ValueError:
+        return None
+
+
 def apply_plans(
     plans: list[EnvironmentPlan], cfg: NodeConfig, config_path: Path, *, dry_run: bool
 ) -> list[str]:
@@ -176,11 +218,16 @@ def apply_plans(
         )
     new_envs: dict[str, str] = {}
     for plan in plans:
+        selected_python = select_python_version(plan.python)
         prefix = plan.prefix
+        reused_existing = prefix is not None
         if prefix is not None and not prefix.exists():
             raise SetupError(f"configured env {plan.name!r} points to missing path: {prefix}")
         if prefix is None:
-            events.append(f"{plan.name}: create or reuse conda environment named {plan.name}")
+            events.append(
+                f"{plan.name}: create or reuse conda environment named {plan.name} "
+                f"with Python {selected_python}"
+            )
             if dry_run:
                 for package in plan.packages:
                     events.append(
@@ -191,12 +238,18 @@ def apply_plans(
             # omitted; first attempt to discover it without modifying anything.
             try:
                 prefix = _prefix_for_name(conda, plan.name)
+                reused_existing = True
+                events.append(
+                    f"{plan.name}: found existing environment {prefix} (will not rebuild)"
+                )
             except SetupError:
                 command = [conda, "create", "--yes", "--name", plan.name]
                 # An empty environment has no interpreter; `conda run python`
                 # can then fall through to a parent PATH and report a wrong
-                # prefix. Always install Python, honoring an author pin when set.
-                command.append(f"python{plan.python or ''}")
+                # prefix. Always install an explicitly selected Python minor;
+                # unconstrained conda resolution otherwise selects the newest
+                # interpreter, often ahead of package wheel support.
+                command.append(f"python={selected_python}")
                 result = _run(command)
                 if result.returncode:
                     raise SetupError(
@@ -204,8 +257,22 @@ def apply_plans(
                     ) from None
                 prefix = _prefix_for_name(conda, plan.name)
             new_envs[plan.name] = str(prefix)
-        else:
-            events.append(f"{plan.name}: use existing mapping {prefix} (will not rebuild)")
+        if reused_existing:
+            if plan.prefix is not None:
+                # A configured mapping is always preserved, even if its Python
+                # is too new for the package ecosystem.
+                events.append(f"{plan.name}: use existing mapping {prefix} (will not rebuild)")
+            installed_python = _environment_python_version(conda, prefix) if not dry_run else None
+            if installed_python is None:
+                events.append(f"{plan.name}: could not determine existing Python version")
+            else:
+                minor = f"{installed_python.major}.{installed_python.minor}"
+                events.append(f"{plan.name}: existing Python {installed_python}")
+                if minor not in _ECOSYSTEM_PYTHONS:
+                    events.append(
+                        f"{plan.name}: warning: Python {installed_python} is outside the "
+                        "ecosystem-compatible range (3.10-3.13); setup will not rebuild it"
+                    )
         for package in plan.packages:
             if dry_run:
                 events.append(
