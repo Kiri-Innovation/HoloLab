@@ -20,6 +20,7 @@ from fastapi import HTTPException, WebSocket
 
 _QUEUE_LIMIT = 64
 _BODY_QUEUE_LIMIT = 8
+_ACQUIRE_TIMEOUT_S = 5.0
 
 
 @dataclass(eq=False)
@@ -128,15 +129,40 @@ class TunnelRegistry:
             queue.put_nowait(connection)
 
     async def detach(self, connection: TunnelConnection) -> None:
+        """Remove a dead connection from both bookkeeping *and* checkout pool.
+
+        Leaving it in ``asyncio.Queue`` is catastrophic: reconnects then fill
+        the pool with dead sockets and proxy requests acquire those stale
+        objects, producing 502s while one surviving connection serialises all
+        successful traffic.
+        """
         async with self._lock:
             self._all.discard(connection)
+            key = (connection.node_id, connection.session_id)
+            queue = self._idle.get(key)
+            if queue is None:
+                return
+            survivors: list[TunnelConnection] = []
+            while True:
+                try:
+                    candidate = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                if candidate is not connection and not candidate.closed:
+                    survivors.append(candidate)
+            for candidate in survivors:
+                queue.put_nowait(candidate)
 
     async def acquire(self, node_id: str, session_id: str) -> TunnelConnection:
         queue = self._idle.get((node_id, session_id))
         if queue is None:
             raise HTTPException(status_code=503, detail="Preview tunnel is not connected")
         try:
-            return await asyncio.wait_for(queue.get(), timeout=0.05)
+            # A reconnecting node needs a short warm-up window to refill its
+            # 64 independent streams.  Returning 429 after 50 ms turns that
+            # harmless race into a thundering herd; after five seconds it is
+            # a genuine saturation signal.
+            return await asyncio.wait_for(queue.get(), timeout=_ACQUIRE_TIMEOUT_S)
         except asyncio.TimeoutError as exc:
             raise HTTPException(status_code=429, detail="Preview tunnel is saturated") from exc
 
