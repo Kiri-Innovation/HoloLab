@@ -679,6 +679,45 @@ def pack_validate(pack_dir: Path) -> None:
     typer.echo(f"  previews:   {len(manifest.previews)}")
 
 
+@pack_app.command("setup")
+def pack_setup(
+    spec: str | None = typer.Argument(
+        None, help="Installed pack spec, e.g. community/colmap-sfm@0.4.2."
+    ),
+    all_packs: bool = typer.Option(
+        False, "--all", help="Prepare the merged requirements of all installed packs."
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Report actions without creating, installing, or writing."
+    ),
+    config: Path | None = typer.Option(
+        None, "--config", help="Node config.yaml (default: ~/.hololab/node/config.yaml)."
+    ),
+) -> None:
+    """Create or complete the conda environment(s) declared by installed packs.
+
+    A host-runtime pack is reported as not needing setup. Existing ``envs``
+    mappings are preserved; only a missing logical name is added to config.
+    Restart a running node afterwards so its environment cache is refreshed.
+    """
+    from hololab.pack_setup import SetupError, apply_plans, installed_plans
+    from hololab.paths import node_data_dir
+
+    config_path = config or (node_data_dir() / "config.yaml")
+    try:
+        cfg = load_node_config(config_path)
+        plans = installed_plans(cfg, spec, all_packs)
+        for event in apply_plans(plans, cfg, config_path, dry_run=dry_run):
+            typer.echo(f"{'DRY-RUN: ' if dry_run else ''}{event}")
+    except (SetupError, OSError, yaml.YAMLError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    if not dry_run:
+        typer.echo(
+            "Setup complete. Restart hololab/node so the environment mapping and cache take effect."
+        )
+
+
 @pack_app.command("init")
 def pack_init(
     spec: str = typer.Argument(..., help="Pack spec in the form NAME@VERSION, e.g. my-algo@0.1.0."),
