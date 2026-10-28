@@ -32,7 +32,7 @@ async function fixture(page: Page, grouped = false, defaults = false) {
   await page.setViewportSize({width:1600,height:1050});
   await page.goto('/w/pins');
   await expect(page.locator('[data-hololab-node="algorithm"]')).toHaveCount(3);
-  return {saved,initialGraph:graph};
+  return {saved,initialGraph:graph,getGraph:()=>graph};
 }
 
 test('workflow pins share display, not values, and survive save/reload',async({page})=>{
@@ -148,7 +148,10 @@ test('transform pin toggles x/y/scale as one row and grows node bounds',async({p
 });
 
 test('legacy enum pins preserve invalid values until explicitly edited',async({page})=>{
-  const {initialGraph,saved}=await fixture(page);
+  const {getGraph,saved}=await fixture(page);
+  // Let hydration/default normalisation settle before changing the mock server.
+  await page.waitForTimeout(1000);
+  const initialGraph=getGraph();
   initialGraph.nodes[0].params.mode='legacy-value';
   initialGraph.pinned_params={'pin-demo@1.0':['mode','removed']};
   await page.reload();

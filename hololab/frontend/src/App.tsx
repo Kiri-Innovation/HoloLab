@@ -2237,7 +2237,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   }, [rfInstance, stalenessByGraphNode, toGraph, setNodes]);
 
   const autosave = useDraftAutosave({
-    manual: true,
     serialisedSnapshot: autosaveSnapshot,
     enabled: !viewingSnapshot,
     initialBaseUpdatedTs: workflowUpdatedTs,

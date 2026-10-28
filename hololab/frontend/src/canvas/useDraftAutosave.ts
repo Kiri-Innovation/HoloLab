@@ -138,9 +138,15 @@ export function useDraftAutosave(opts: {
   const optsRef = useRef(opts);
   optsRef.current = opts;
   const [status, setStatus] = useState<SaveStatus>("idle");
+  const statusRef = useRef<SaveStatus>("idle");
+  const updateStatus = useCallback((next: SaveStatus) => {
+    statusRef.current = next;
+    setStatus(next);
+  }, []);
   const [syncRevision, setSyncRevision] = useState(0);
   const lastSavedSerialised = useRef<string>("");
   const inFlight = useRef<Promise<void> | null>(null);
+  const debounceTimer = useRef<number | undefined>(undefined);
   const savedOnce = useRef<boolean>(false);
   // Tracks the ``updated_ts`` for the row we currently know about —
   // seeded from the load and bumped on each successful save. The next
@@ -152,10 +158,19 @@ export function useDraftAutosave(opts: {
   // the retry button. Serialises against ``inFlight`` so parallel
   // triggers coalesce into one round trip.
   const doSave = useCallback(async () => {
-    if (inFlight.current) return inFlight.current;
+    window.clearTimeout(debounceTimer.current);
+    debounceTimer.current = undefined;
+    // A Run/retry/visibility flush must include edits made during the previous
+    // request, using its returned CAS version rather than racing it.
+    while (inFlight.current) {
+      await inFlight.current;
+      if (optsRef.current.serialisedSnapshot === lastSavedSerialised.current) return;
+    }
+    if (!optsRef.current.enabled) return;
+    if (statusRef.current === "conflict") throw new Error("Workflow conflict: reload before saving or running");
     const current = optsRef.current;
     const snapshotBeforeSave = current.serialisedSnapshot;
-    setStatus("saving");
+    updateStatus("saving");
     const p = (async () => {
       try {
         const result = await current.save(baseUpdatedTs.current);
@@ -169,13 +184,15 @@ export function useDraftAutosave(opts: {
         // If the state changed while we were saving, the pill flips
         // straight to ``unsaved`` (via the effect below); otherwise
         // it lands on ``saved``.
-        setStatus(
-          optsRef.current.serialisedSnapshot === snapshotBeforeSave ? "saved" : "unsaved",
-        );
+        if (statusRef.current !== "conflict") {
+          updateStatus(optsRef.current.serialisedSnapshot === snapshotBeforeSave ? "saved" : "unsaved");
+          // Schedule a trailing save if edits arrived while this request ran.
+          if (optsRef.current.serialisedSnapshot !== snapshotBeforeSave) setSyncRevision(n => n + 1);
+        }
       } catch (err) {
         if (isWorkflowConflict(err)) {
           console.warn("autosave conflict — server row has moved past ours", err);
-          setStatus("conflict");
+          updateStatus("conflict");
           optsRef.current.onConflict?.(err.detail);
         } else if (isWorkflowPreconditionRequired(err)) {
           // Legacy tab / stale bundle: we sent no base_updated_ts and
@@ -186,13 +203,14 @@ export function useDraftAutosave(opts: {
             "autosave rejected — save missed base_updated_ts on an existing row",
             err,
           );
-          setStatus("conflict");
+          updateStatus("conflict");
           optsRef.current.onConflict?.(err.detail);
         } else {
           console.warn("autosave failed", err);
-          setStatus(navigator.onLine === false ? "offline" : "error");
+          updateStatus(navigator.onLine === false ? "offline" : "error");
         }
-        if (current.manual) throw err;
+        // Imperative callers (notably Run) must not proceed with an old draft.
+        throw err;
       } finally {
         inFlight.current = null;
       }
@@ -209,7 +227,7 @@ export function useDraftAutosave(opts: {
     // In ``conflict`` we've been told our base is stale — retrying
     // just re-fires the same 409/428. Park until the caller resolves it
     // (usually by hydrating the fresh draft and remounting / markClean).
-    if (status === "conflict") return;
+    if (statusRef.current === "conflict") return;
     if (opts.serialisedSnapshot === "") return;
     if (opts.serialisedSnapshot === lastSavedSerialised.current) return;
     // First hydration: skip the very first save. Otherwise loading
@@ -219,48 +237,65 @@ export function useDraftAutosave(opts: {
       lastSavedSerialised.current = opts.serialisedSnapshot;
       return;
     }
-    setStatus("unsaved");
+    updateStatus("unsaved");
     if (opts.manual) return;
     const t = window.setTimeout(() => {
-      void doSave();
+      void doSave().catch(() => { /* status + conflict dialog report the failure */ });
     }, DEBOUNCE_MS);
+    debounceTimer.current = t;
     return () => {
       window.clearTimeout(t);
     };
-  }, [opts.enabled, opts.manual, opts.serialisedSnapshot, doSave, status, syncRevision]);
+  }, [opts.enabled, opts.manual, opts.serialisedSnapshot, doSave, syncRevision]);
 
-  // ``beforeunload`` flush. sendBeacon is fire-and-forget; the
-  // gateway's POST /api/workflows endpoint accepts the same body
-  // regardless of whether it was sent via fetch or beacon.
+  // Flush on backgrounding while responses can still be observed. On unload,
+  // beacon is best-effort and carries the same CAS precondition; never race an
+  // in-flight save with a second request using its old version.
   useEffect(() => {
-    if (!opts.enabled || opts.manual) return;
-    const handler = () => {
-      // Don't fire the beacon in ``conflict`` — the row has moved on,
-      // sending our stale base_updated_ts just gets rejected again.
-      if (status === "conflict") return;
-      if (optsRef.current.serialisedSnapshot === lastSavedSerialised.current) return;
-      const b = optsRef.current.beaconBody(baseUpdatedTs.current);
-      if (!b) return;
-      try {
-        const blob = new Blob([b.body], { type: "application/json" });
-        navigator.sendBeacon(b.url, blob);
-      } catch {
-        // The user is closing the tab anyway; nothing we can do.
+    const dirty = () => optsRef.current.enabled && !optsRef.current.manual
+      && optsRef.current.serialisedSnapshot !== ""
+      && optsRef.current.serialisedSnapshot !== lastSavedSerialised.current;
+    const onHidden = () => {
+      if (document.visibilityState === "hidden" && dirty() && statusRef.current !== "conflict") {
+        void doSave().catch(() => { /* keep failure visible when returning */ });
       }
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [opts.enabled, opts.manual, status]);
+    const onUnload = (event: BeforeUnloadEvent) => {
+      // The existing conflict dialog explicitly warns about discarding edits.
+      // Do not block its Reload action with a second native confirmation.
+      if (!dirty() || statusRef.current === "conflict") return;
+      let queued = false;
+      if (!inFlight.current) {
+        const b = optsRef.current.beaconBody(baseUpdatedTs.current);
+        if (b) {
+          try {
+            queued = navigator.sendBeacon(b.url, new Blob([b.body], {type: "application/json"}));
+          } catch { /* blocked / over quota: warn instead of claiming success */ }
+        }
+      }
+      if (!queued) {
+        // Includes in-flight requests and the browser's beacon quota.
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    document.addEventListener("visibilitychange", onHidden);
+    window.addEventListener("beforeunload", onUnload);
+    return () => {
+      document.removeEventListener("visibilitychange", onHidden);
+      window.removeEventListener("beforeunload", onUnload);
+    };
+  }, [doSave]);
 
   // Retry on ``online``: if we're in the offline state and the
   // browser reconnects, kick a save.
   useEffect(() => {
     const onOnline = () => {
-      if (status === "offline" && !optsRef.current.manual) void doSave();
+      if (statusRef.current === "offline" && !optsRef.current.manual) void doSave().catch(() => {});
     };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-  }, [status, doSave]);
+  }, [doSave]);
 
   const resync = useCallback((updatedTs: number | undefined) => {
     // Reset to fresh-mount state. Reusing the first-hydration guard in
@@ -276,12 +311,12 @@ export function useDraftAutosave(opts: {
     lastSavedSerialised.current = "";
     savedOnce.current = false;
     baseUpdatedTs.current = updatedTs;
-    setStatus("idle");
+    updateStatus("idle");
   }, []);
 
   const markConflict = useCallback(
     (detail: WorkflowConflictDetail) => {
-      setStatus("conflict");
+      updateStatus("conflict");
       optsRef.current.onConflict?.(detail);
     },
     [],
