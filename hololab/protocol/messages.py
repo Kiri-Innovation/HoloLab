@@ -134,6 +134,10 @@ class Register(BaseModel):
     envs: dict[str, str] = Field(default_factory=dict)
     gpu: GpuInfo = Field(default_factory=GpuInfo)
     advertised_url: str | None = None
+    # Bind address/port, sent separately from advertised_url so a gateway can
+    # retain a compatibility fallback for nodes whose config omitted it.
+    file_server_host: str | None = None
+    file_server_port: int | None = None
     token: str | None = None
     node_id: str | None = None  # persistent id; None on first register
     node_token: str | None = None  # persistent secret; presented on reconnect

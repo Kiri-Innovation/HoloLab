@@ -30,9 +30,13 @@ The gateway sends assignments and cancellation requests over this connection.
 The browser uses gateway HTTP and WebSocket endpoints.
 
 An outbound control connection does not establish file-server reachability.
-For cross-device data transfers, configure and test the producer's advertised
-file-server URL from the consuming device. Do not assume that registration alone
-makes a node behind NAT reachable for all data operations.
+`advertised_url` is the gateway/peer's upstream origin for a node file server,
+not a browser-direct URL: browsers use the Gateway's `/proxy` routes. A local
+node using the default loopback Gateway derives `http://127.0.0.1:<port>` when
+the setting is absent. For a separate Gateway or cross-device data transfers,
+configure and test a producer `advertised_url` that the Gateway and consuming
+nodes can reach. Do not assume that registration alone makes a node behind NAT
+reachable for all data operations.
 
 ## Drafts, snapshots and jobs
 
@@ -76,7 +80,7 @@ to locate a handle. A handle on the requesting node resolves to a local path.
 For a remote producer, the gateway can return an HTTP URL based on the producer's
 advertised URL. The consumer fetches the file, or downloads and extracts the
 directory archive, into its input staging area. A missing advertised URL is an
-error; the runtime does not invent a reachable route.
+error in a distributed deployment; the runtime does not invent a reachable route.
 
 Browser previews use gateway proxy routes. Therefore “all large files never pass
 through the gateway” is not a universal description of the system: distinguish

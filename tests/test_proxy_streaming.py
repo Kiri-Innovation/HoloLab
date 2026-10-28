@@ -33,6 +33,8 @@ from hololab.gateway import proxy as proxy_mod
 @dataclass
 class _FakeSession:
     advertised_url: str | None = "http://node.local:9999"
+    file_server_host: str | None = None
+    file_server_port: int | None = None
     workspace_root: str | None = None
     legacy_workspace_roots: list[str] = field(default_factory=list)
 
@@ -45,9 +47,7 @@ class _FakeRegistry:
         return self.session
 
 
-def _make_request(
-    headers: dict[str, str] | None = None, query: str = ""
-) -> Request:
+def _make_request(headers: dict[str, str] | None = None, query: str = "") -> Request:
     """Build a minimal Starlette Request for proxy_get to introspect."""
     scope: dict[str, Any] = {
         "type": "http",
@@ -55,9 +55,7 @@ def _make_request(
         "path": "/proxy/node/x.mp4",
         "raw_path": b"/proxy/node/x.mp4",
         "query_string": query.encode(),
-        "headers": [
-            (k.lower().encode(), v.encode()) for k, v in (headers or {}).items()
-        ],
+        "headers": [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()],
         "scheme": "http",
         "server": ("test", 80),
         "client": ("test", 0),
@@ -65,9 +63,7 @@ def _make_request(
     return Request(scope)
 
 
-def _install_mock_transport(
-    monkeypatch: pytest.MonkeyPatch, handler: Any
-) -> None:
+def _install_mock_transport(monkeypatch: pytest.MonkeyPatch, handler: Any) -> None:
     """Swap the module-level ``httpx.AsyncClient`` so it uses a
     ``MockTransport`` instead of talking to a real socket, and reset
     the shared-client singleton so it re-creates against the mock.
@@ -140,9 +136,7 @@ async def test_proxy_passes_accept_ranges_from_upstream(
     }
 
     async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200, headers=upstream_headers, content=_streaming_body(b"abcd")
-        )
+        return httpx.Response(200, headers=upstream_headers, content=_streaming_body(b"abcd"))
 
     _install_mock_transport(monkeypatch, handler)
 
@@ -420,21 +414,21 @@ async def test_proxy_404_when_node_unknown(
 
 
 @pytest.mark.asyncio
-async def test_proxy_502_when_node_has_no_advertised_url(
+async def test_proxy_falls_back_to_file_server_listener_when_advertised_url_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from fastapi import HTTPException
-
     async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, content=_streaming_body(b""))
+        assert str(request.url) == "http://127.0.0.1:8829/x.mp4"
+        return httpx.Response(200, content=_streaming_body(b"fallback works"))
 
     _install_mock_transport(monkeypatch, handler)
 
-    with pytest.raises(HTTPException) as excinfo:
-        await proxy_mod.proxy_get(
-            "node",
-            "x.mp4",
-            _make_request(),
-            _FakeRegistry(_FakeSession(advertised_url=None)),  # type: ignore[arg-type]
-        )
-    assert excinfo.value.status_code == 502
+    response = await proxy_mod.proxy_get(
+        "node",
+        "x.mp4",
+        _make_request(),
+        _FakeRegistry(
+            _FakeSession(advertised_url=None, file_server_host="127.0.0.1", file_server_port=8829)
+        ),  # type: ignore[arg-type]
+    )
+    assert await _collect_body(response) == b"fallback works"

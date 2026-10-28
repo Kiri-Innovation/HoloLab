@@ -842,10 +842,8 @@ def _mount_routes(app: FastAPI) -> None:
                 detail=resp.get("error") or "node rejected the config patch",
             )
         # Sync the in-memory session view so proxy-URL rewrites (see
-        # ``strip_workspace_prefix``) use the freshly-applied roots
-        # without needing the node to reconnect. Only mirror fields the
-        # NodeSession actually caches — advertised_url etc. flow via the
-        # next register frame.
+        # ``strip_workspace_prefix``) and an explicitly changed upstream URL
+        # take effect without needing the node to reconnect.
         cfg = resp.get("config", {}) or {}
         new_primary = cfg.get("workspace_root")
         if isinstance(new_primary, str) and new_primary:
@@ -853,6 +851,9 @@ def _mount_routes(app: FastAPI) -> None:
         new_legacy = cfg.get("legacy_workspace_roots")
         if isinstance(new_legacy, list):
             session.legacy_workspace_roots = [str(p) for p in new_legacy]
+        if "advertised_url" in cfg:
+            v = cfg.get("advertised_url")
+            session.advertised_url = v if isinstance(v, str) and v else None
         # Same pattern for the Cobrowser device id — mirror straight
         # onto the session so ``GET /api/nodes`` and the frontend's
         # "Open in Cocoder" button pick up the new value without
@@ -3873,6 +3874,8 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
                 envs=payload.envs,
                 gpu=payload.gpu,
                 advertised_url=payload.advertised_url,
+                file_server_host=payload.file_server_host,
+                file_server_port=payload.file_server_port,
                 protocol_v=chosen_v,
                 node_id=payload.node_id,
                 node_token=payload.node_token,

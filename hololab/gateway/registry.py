@@ -47,6 +47,10 @@ class NodeSession:
     gpu: GpuInfo
     packs: list[PackInventoryEntry]
     protocol_v: int
+    # The node's actual listener, used only as a compatibility fallback when
+    # it did not send an advertised gateway-reachable origin.
+    file_server_host: str | None = None
+    file_server_port: int | None = None
     # Logical conda environment name -> absolute prefix, from this node's
     # config. Paths are meaningful only in this node's filesystem namespace.
     envs: dict[str, str] = field(default_factory=dict)
@@ -114,6 +118,8 @@ class NodeRegistry:
         advertised_url: str | None,
         protocol_v: int,
         node_id: str | None,
+        file_server_host: str | None = None,
+        file_server_port: int | None = None,
         node_token: str | None = None,
         workspace_root: str | None = None,
         legacy_workspace_roots: list[str] | None = None,
@@ -234,6 +240,8 @@ class NodeRegistry:
             packs=list(packs),
             envs=dict(envs or {}),
             protocol_v=protocol_v,
+            file_server_host=file_server_host,
+            file_server_port=file_server_port,
             workspace_root=workspace_root,
             legacy_workspace_roots=list(legacy_workspace_roots or []),
             flops_executor_id=flops_executor_id,

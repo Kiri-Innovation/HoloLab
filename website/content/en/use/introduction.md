@@ -77,7 +77,7 @@ Gateway and the device service can run on the same machine or on separate machin
 <div class="concept-card"><strong>Device service</strong><span>Executor</span><span>File service</span></div>
 </div>
 </div>
-<figcaption>The browser still connects to Gateway; only the services’ location changes. With default ports, the node connects to ws://127.0.0.1:8828, the file service listens on 127.0.0.1:8829, and advertised_url can be http://127.0.0.1:8829.</figcaption>
+<figcaption>The browser still connects to Gateway; only the services’ location changes. With default ports, the node connects to ws://127.0.0.1:8828 and the file service listens on 127.0.0.1:8829. This all-in-one setup derives its gateway upstream URL automatically; a separate gateway needs an explicitly gateway-reachable advertised_url.</figcaption>
 </figure>
 
 ## Find your results and their history

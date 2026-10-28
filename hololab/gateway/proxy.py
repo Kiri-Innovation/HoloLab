@@ -93,6 +93,28 @@ _PASSTHROUGH_RESPONSE_HEADERS = frozenset(
 _shared_client: httpx.AsyncClient | None = None
 
 
+def _upstream_base_url(session: NodeSession) -> str | None:
+    """Return the node origin used by the gateway, including legacy fallback.
+
+    New nodes normally provide ``advertised_url``.  The listener fields make
+    an omitted value survivable for old/all-in-one configurations after an
+    upgrade.  A wildcard bind address cannot be dialled, so it intentionally
+    remains an actionable configuration error.
+    """
+
+    if session.advertised_url:
+        return session.advertised_url
+    host = session.file_server_host
+    port = session.file_server_port
+    if not host or not isinstance(port, int) or not 1 <= port <= 65535:
+        return None
+    if host in {"0.0.0.0", "::", "[::]"}:
+        return None
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    return f"http://{host}:{port}"
+
+
 def _get_shared_client() -> httpx.AsyncClient:
     global _shared_client
     if _shared_client is None:
@@ -147,17 +169,21 @@ async def proxy_get(node_id: str, path: str, request: Request, registry: NodeReg
     if session is None:
         raise HTTPException(status_code=404, detail=f"node {node_id!r} is not connected")
 
-    if not session.advertised_url:
+    base_url = _upstream_base_url(session)
+    if not base_url:
         raise HTTPException(
             status_code=502,
-            detail=f"node {node_id!r} did not advertise a file-server URL",
+            detail=(
+                "Preview unavailable: this compute node has no gateway-reachable "
+                "file server. Configure advertised_url on the node."
+            ),
         )
 
     # Compose target URL; the node's local server treats ``path`` as a file
     # under its published preview root. Query string is forwarded so that
     # endpoints like ``/_thumb/{WxH}/{sub}?at=N`` reach the node with their
     # parameters intact.
-    target = session.advertised_url.rstrip("/") + "/" + path.lstrip("/")
+    target = base_url.rstrip("/") + "/" + path.lstrip("/")
     if request.url.query:
         target = f"{target}?{request.url.query}"
 

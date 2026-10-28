@@ -77,7 +77,7 @@ Gateway 与设备服务可以部署在同一台机器，也可以分开部署。
 <div class="concept-card"><strong>设备服务</strong><span>Executor</span><span>文件服务</span></div>
 </div>
 </div>
-<figcaption>用户仍通过浏览器画布访问 Gateway；同机部署只改变服务所在的位置。使用默认端口时，节点连接 ws://127.0.0.1:8828，文件服务监听 127.0.0.1:8829，advertised_url 可设为 http://127.0.0.1:8829。</figcaption>
+<figcaption>用户仍通过浏览器画布访问 Gateway；同机部署只改变服务所在的位置。使用默认端口时，节点连接 ws://127.0.0.1:8828，文件服务监听 127.0.0.1:8829；这种同机部署会自动推导网关回源地址。网关与节点分离时，必须显式配置网关可达的 advertised_url。</figcaption>
 </figure>
 
 ## 产物管理不再是难事

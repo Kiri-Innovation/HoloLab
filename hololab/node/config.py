@@ -8,12 +8,33 @@ workspace root, and packs directory. See docs/architecture.md#manifest-and-packs
 from __future__ import annotations
 
 import socket
+from ipaddress import ip_address
 from pathlib import Path
+from urllib.parse import urlparse
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hololab.paths import default_workspace_root, node_data_dir
+
+
+def _is_loopback_host(host: str | None) -> bool:
+    """Whether *host* names this machine's loopback interface."""
+
+    if not host:
+        return False
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _url_host(host: str) -> str:
+    """Format a hostname for the authority portion of an HTTP URL."""
+
+    return f"[{host}]" if ":" in host and not host.startswith("[") else host
 
 
 class NodeConfig(BaseModel):
@@ -58,7 +79,38 @@ class NodeConfig(BaseModel):
     # Where to listen for the file server
     file_server_host: str = "127.0.0.1"
     file_server_port: int = 8829
+    # Gateway-reachable origin for this node's file server.  This is not a
+    # browser URL: browsers always use the gateway's /proxy endpoint.
+    # Leave it unset for the default single-machine deployment; see
+    # ``effective_advertised_url`` below.
     advertised_url: str | None = None  # e.g. "http://192.168.0.5:8829"
+
+    def effective_advertised_url(self) -> str | None:
+        """Return the file-server origin the gateway should use.
+
+        A node and gateway using loopback URLs are necessarily the usual
+        all-in-one deployment, so an omitted origin can safely resolve to the
+        local file server.  A remote gateway cannot reach a node's loopback;
+        that deployment must set ``advertised_url`` explicitly.
+
+        The value is deliberately derived at registration time instead of
+        written to config.yaml, preserving ``null`` as the operator's useful
+        signal that the all-in-one default is in effect.
+        """
+
+        if self.advertised_url:
+            return self.advertised_url
+        gateway_host = urlparse(self.gateway_url).hostname
+        if not _is_loopback_host(gateway_host):
+            return None
+        # ``0.0.0.0``/``::`` are bind addresses, not connect targets.
+        # The gateway on this same host reaches either through loopback.
+        host = self.file_server_host
+        if host in {"0.0.0.0", "::"}:
+            host = "127.0.0.1"
+        if not _is_loopback_host(host):
+            return None
+        return f"http://{_url_host(host)}:{self.file_server_port}"
 
     # Where packs live. ``pack_dirs`` is the modern list-of-paths form —
     # a node scans every entry so a developer can drop custom packs in

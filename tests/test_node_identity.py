@@ -227,6 +227,24 @@ def test_write_node_config_roundtrips_identity(tmp_path: Path) -> None:
     assert reloaded.node_name == "kiri-test"
 
 
+def test_empty_advertised_url_derives_all_in_one_file_server_origin(tmp_path: Path) -> None:
+    """A fresh/default config keeps previews working without a manual URL."""
+
+    path = tmp_path / "config.yaml"
+    path.write_text("advertised_url: null\nfile_server_port: 9123\n")
+
+    cfg = load_node_config(path)
+    assert cfg.advertised_url is None
+    assert cfg.effective_advertised_url() == "http://127.0.0.1:9123"
+
+
+def test_empty_advertised_url_is_not_invented_for_remote_gateway() -> None:
+    """A remote gateway must receive an explicitly gateway-reachable origin."""
+
+    cfg = NodeConfig(gateway_url="ws://gateway.example.test:8828")
+    assert cfg.effective_advertised_url() is None
+
+
 # ---------------------------------------------------------------------------
 # End-to-end restart simulation
 # ---------------------------------------------------------------------------

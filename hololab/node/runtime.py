@@ -782,7 +782,12 @@ class NodeRuntime:
             packs=inventory,
             envs=dict(self._config.envs),
             gpu=_probe_gpu(),
-            advertised_url=self._config.advertised_url,
+            # ``advertised_url`` is the gateway's upstream origin, not a
+            # browser-facing URL.  The config derives a safe loopback origin
+            # for the default all-in-one deployment when it is omitted.
+            advertised_url=self._config.effective_advertised_url(),
+            file_server_host=self._config.file_server_host,
+            file_server_port=self._config.file_server_port,
             token=self._config.token,
             node_id=self._node_id,
             node_token=self._node_token,
