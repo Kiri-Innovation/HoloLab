@@ -2,4 +2,5 @@
 .hl-node-context-menu button { display: block; width: 100%; padding: var(--space-2) var(--space-3); text-align: left; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: var(--fs-sm) var(--font-sans); cursor: pointer; }
 .hl-node-context-menu button:hover, .hl-node-context-menu button:focus-visible { background: var(--surface-hover); }
 .hl-node-context-menu button:disabled { opacity: .5; cursor: default; }
+.hl-node-context-menu-separator { height: 1px; margin: var(--space-1) 0; background: var(--border); }
 .hl-node-context-menu .hl-node-context-menu-danger { color: var(--error); }

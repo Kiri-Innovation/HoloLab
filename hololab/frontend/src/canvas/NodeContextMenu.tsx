@@ -5,26 +5,22 @@ export type NodeMenuPosition = { x: number; y: number };
 
 export function NodeContextMenu({
   position,
-  canPaste,
   canRun,
   running,
   hasPack,
   onClose,
   onDelete,
-  onCopy,
-  onPaste,
+  onDuplicate,
   onRun,
   onOpenPack,
 }: {
   position: NodeMenuPosition;
-  canPaste: boolean;
   canRun: boolean;
   running: boolean;
   hasPack: boolean;
   onClose: () => void;
   onDelete: () => void;
-  onCopy: () => void;
-  onPaste: () => void;
+  onDuplicate: () => void;
   onRun?: () => void;
   onOpenPack?: () => void;
 }) {
@@ -73,10 +69,10 @@ export function NodeContextMenu({
   const action = (callback: () => void) => () => { onClose(); callback(); };
   return createPortal(
     <div ref={menu} id={id} role="menu" aria-label="节点操作" className="hl-node-context-menu" style={{ left, top }} onContextMenu={event => event.preventDefault()}>
-      <button role="menuitem" type="button" onClick={action(onCopy)}>复制</button>
-      <button role="menuitem" type="button" disabled={!canPaste} onClick={action(onPaste)}>粘贴</button>
+      <button role="menuitem" type="button" onClick={action(onDuplicate)}>创建副本</button>
       {onRun && <button role="menuitem" type="button" disabled={!canRun} title={hasPack ? undefined : "算法未安装，无法运行"} onClick={action(onRun)}>{running ? "停止运行" : "运行"}</button>}
       {onOpenPack && <button role="menuitem" type="button" onClick={action(onOpenPack)}>在包管理器里查看</button>}
+      <div role="separator" className="hl-node-context-menu-separator" />
       <button role="menuitem" type="button" className="hl-node-context-menu-danger" onClick={action(onDelete)}>删除</button>
     </div>,
     document.body,

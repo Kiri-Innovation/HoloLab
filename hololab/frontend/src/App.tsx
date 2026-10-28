@@ -122,7 +122,7 @@ import { MobileShell, useIsMobilePortrait } from "./canvas/MobileShell";
 import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
 import { NodeContextMenu, type NodeMenuPosition } from "./canvas/NodeContextMenu";
 import { requestStopNode } from "./canvas/NodeRunControl";
-import { nodeClipboardCopy, pastedNodePosition } from "./canvas/nodeClipboard";
+import { duplicateNode } from "./canvas/nodeDuplicate";
 import "./canvas/nodeContextMenu.css";
 import { PackPalette } from "./canvas/PackPalette";
 import { ComputeNodesPanel } from "./canvas/ComputeNodesPanel";
@@ -1523,8 +1523,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [fitInitialGraph, setFitInitialGraph] = useState(true);
   const [creationAnchor, setCreationAnchor] = useState<{ x: number; y: number } | null>(null);
   const [nodeMenu, setNodeMenu] = useState<{ nodeId: string; position: NodeMenuPosition } | null>(null);
-  const nodeClipboard = useRef<Node<Record<string, unknown>> | null>(null);
-  const [hasNodeClipboard, setHasNodeClipboard] = useState(false);
   const closeCreationMenu = useCallback(() => setCreationAnchor(null), []);
 
   // --- dynamic minZoom: fit the full node chain horizontally ----------
@@ -1614,25 +1612,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     createNodeAtScreen({ x: e.clientX, y: e.clientY }, view ? null : JSON.parse(raw));
   }, [createNodeAtScreen]);
 
-  const copyNode = useCallback((node: Node<Record<string, unknown>>) => {
-    nodeClipboard.current = nodeClipboardCopy(node);
-    setHasNodeClipboard(true);
-  }, []);
-
-  const pasteNode = useCallback((screen: NodeMenuPosition) => {
-    const source = nodeClipboard.current;
-    if (!source || !rfInstance) return;
+  const duplicateNodeAtOffset = useCallback((source: Node<Record<string, unknown>>) => {
     setFitInitialGraph(false);
-    const position = rfInstance.screenToFlowPosition(pastedNodePosition(screen));
-    const copied: Node<Record<string, unknown>> = {
-      ...source,
-      id: mintId(source.type === "view" ? "view" : "n"),
-      position,
-      selected: true,
-      data: structuredClone(source.data),
-    };
+    const copied = duplicateNode(source, mintId(source.type === "view" ? "view" : "n"));
     setNodes(current => current.map(node => node.selected ? { ...node, selected: false } : node).concat(copied));
-  }, [rfInstance, setNodes]);
+  }, [setNodes]);
 
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
     event.preventDefault();
@@ -2841,14 +2825,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         <NodeContextMenu
           key={`${nodeMenu.nodeId}:${nodeMenu.position.x},${nodeMenu.position.y}`}
           position={nodeMenu.position}
-          canPaste={hasNodeClipboard}
           canRun={contextMenuAlgorithm ? (contextMenuRunning ? Boolean(contextMenuAlgorithm.runtime?.job_id) : contextMenuHasPack) : false}
           running={contextMenuRunning}
           hasPack={contextMenuHasPack}
           onClose={() => setNodeMenu(null)}
           onDelete={() => onNodesDelete([contextMenuNode])}
-          onCopy={() => copyNode(contextMenuNode)}
-          onPaste={() => pasteNode(nodeMenu.position)}
+          onDuplicate={() => duplicateNodeAtOffset(contextMenuNode)}
           onRun={contextMenuAlgorithm ? () => {
             if (contextMenuRunning) requestStopNode(contextMenuNode.id);
             else void dispatchRunNode(contextMenuNode.id);
