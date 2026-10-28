@@ -2240,14 +2240,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     serialisedSnapshot: autosaveSnapshot,
     enabled: !viewingSnapshot,
     initialBaseUpdatedTs: workflowUpdatedTs,
-    save: async (baseTs) => {
+    save: async (baseTs, signal) => {
       const result = await saveWorkflow({
         workflow_id: workflowId ?? undefined,
         name: workflowName || "untitled",
         graph: toGraph(),
         base_updated_ts: baseTs,
         origin: originIdRef.current,
-      });
+      }, signal);
       return { workflow_id: result.workflow_id, updated_ts: result.updated_ts };
     },
     beaconBody: (baseTs) => ({

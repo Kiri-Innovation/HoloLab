@@ -47,3 +47,25 @@ test('HTTP 409 parks autosave and blocks Run without another write',async({page}
   await expect(page.getByLabel('Run gate')).toHaveText('blocked');
   await page.waitForTimeout(1000);expect(writes).toBe(1);
 });
+test('Unsaved is clickable and a hung save times out into an enabled Retry',async({page})=>{
+  let writes=0;
+  await page.route('**/test-save',async route=>{
+    writes++;
+    if(writes===1)return; // Deliberately never complete the first request.
+    await route.fulfill({json:{workflow_id:'fixture',updated_ts:2}});
+  });
+  await page.goto('/e2e/fixtures/draft-autosave.html');
+  await page.clock.install();
+  await page.getByLabel('Value',{exact:true}).fill('pending');
+  const save=page.getByRole('button',{name:'立即保存',exact:true});
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect.poll(()=>writes).toBe(1);
+  await expect(page.locator('[data-hl-save-status="saving"]')).toBeDisabled();
+  await page.clock.fastForward(30_001);
+  const retry=page.getByRole('button',{name:'重试保存',exact:true});
+  await expect(retry).toBeEnabled();
+  await retry.click();
+  await expect(page.locator('[data-hl-save-status="saved"]')).toBeDisabled();
+  expect(writes).toBe(2);
+});

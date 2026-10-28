@@ -42,7 +42,7 @@ function styleFor(status: SaveStatus): Style | null {
         fg: "var(--text-muted)",
         border: "1px solid var(--border)",
         label: "Unsaved",
-        interactive: false,
+        interactive: true,
       };
     case "saving":
       return {
@@ -94,13 +94,14 @@ function styleFor(status: SaveStatus): Style | null {
 export function SaveStatusPill({ status, onRetry }: SaveStatusPillProps) {
   const s = styleFor(status);
   if (s === null) return null;
+  const actionLabel = status === "unsaved" ? "立即保存" : status === "error" ? "重试保存" : `配方保存：${s.label}`;
   return (
     <button
       type="button"
       onClick={s.interactive ? onRetry : undefined}
       disabled={!s.interactive}
-      data-tooltip={status === "error" ? "重试保存" : `配方保存：${s.label}`} aria-label={status === "error" ? "重试保存" : `配方保存：${s.label}`} aria-description={
-        status === "error"
+      data-tooltip={actionLabel} aria-label={actionLabel} aria-description={
+        status === "unsaved" ? "click to save the draft now" : status === "error"
           ? "click to retry saving the draft"
           : `recipe save: ${s.label.toLowerCase()}`
       }

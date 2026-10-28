@@ -91,6 +91,7 @@ export interface AutosaveHandle {
 }
 
 const DEBOUNCE_MS = 800;
+const SAVE_TIMEOUT_MS = 30_000;
 
 export function useDraftAutosave(opts: {
   manual?: boolean;
@@ -102,7 +103,7 @@ export function useDraftAutosave(opts: {
   // The saver — receives the ``base_updated_ts`` the hook last saw
   // (undefined for a brand-new draft). Returns the persisted
   // workflow_id and the fresh ``updated_ts`` for the next save.
-  save: (baseUpdatedTs: number | undefined) => Promise<{
+  save: (baseUpdatedTs: number | undefined, signal: AbortSignal) => Promise<{
     workflow_id: string;
     updated_ts: number;
   }>;
@@ -171,9 +172,21 @@ export function useDraftAutosave(opts: {
     const current = optsRef.current;
     const snapshotBeforeSave = current.serialisedSnapshot;
     updateStatus("saving");
+    const controller = new AbortController();
+    let timeout: number | undefined;
     const p = (async () => {
       try {
-        const result = await current.save(baseUpdatedTs.current);
+        // Bound the entire operation, including reading the response body.
+        // Racing also releases the UI if a saver ignores the abort signal.
+        const result = await Promise.race([
+          current.save(baseUpdatedTs.current, controller.signal),
+          new Promise<never>((_, reject) => {
+            timeout = window.setTimeout(() => {
+              reject(new Error("Saving timed out after 30 seconds. Retry to check the current version."));
+              controller.abort();
+            }, SAVE_TIMEOUT_MS);
+          }),
+        ]);
         // Only cache the pre-save snapshot as clean; the state may
         // have advanced during the round trip, in which case the
         // next debounced tick catches those changes.
@@ -212,6 +225,7 @@ export function useDraftAutosave(opts: {
         // Imperative callers (notably Run) must not proceed with an old draft.
         throw err;
       } finally {
+        window.clearTimeout(timeout);
         inFlight.current = null;
       }
     })();

@@ -265,9 +265,10 @@ export const saveWorkflow = (body: {
   // Opaque per-tab id. Echoed on the ``workflow_updated`` broadcast so
   // the initiating tab ignores the round-trip of its own edit.
   origin?: string;
-}) =>
+}, signal?: AbortSignal) =>
   resilientFetch("/api/workflows", {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }).then(json<{ workflow_id: string; name: string; updated_ts: number }>);
