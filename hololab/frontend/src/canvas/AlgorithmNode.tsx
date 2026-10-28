@@ -1,5 +1,5 @@
 import { canonicalPackageName } from "../packageIdentity";
-import { isCertifiedPack } from "./packCertification";
+import { packCertification } from "./packCertification";
 import { ImageCropEditor } from "./ImageCropEditor";
 import { ComposeVideoEditor } from "./ComposeVideoEditor";
 import { InlinePortCard, activeInlineValue } from "./CanvasInlineValues";
@@ -450,7 +450,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const artifactComputeNode = firstArtifactTarget
     ? computeNodesById?.[firstArtifactTarget.node_id] ?? assignedComputeNode
     : null;
-  const certified = isCertifiedPack(pack);
+  const certification = packCertification(pack);
 
   const card = (
     <div
@@ -472,7 +472,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     >
       {/* HEADER — status dot + pack name (ellipsis) + action icons */}
       <NodeCardHeader id={id} name={pack.name} displayName={packDisplayName?.(pack.name) ?? pack.name} version={pack.version} device={assignedLabel}
-        certified={certified}
+        certification={certification}
         subtitle={`${assignedLabel} · v${pack.version}${pack.version.endsWith("+") ? " · dev" : ""}`}
         state={runState} status={nodeStatus({ state: runState, stale: staleness, failReason: runtime?.fail_reason, missingAlgorithm: pack.manifest_hash ? null : {name: pack.name, version: pack.version}, missingInputs, readOnly })}
         actions={!readOnly && <NodeRunControl pending={runClickPending} state={runState} jobId={runtime?.job_id}

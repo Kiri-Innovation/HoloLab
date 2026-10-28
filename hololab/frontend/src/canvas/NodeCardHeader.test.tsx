@@ -52,20 +52,25 @@ it("does not invent an execution action for constants or viewers", () => {
   expect(html).not.toContain("hl-node-run-control");
 });
 
-it("shows an accessible shield for a certified release", () => {
+it.each([
+  ["builtin", "内置算法：随 HoloLab 提供，结果可复现"],
+  ["community", "社区发行版本：与注册表发布内容一致，结果可复现"],
+] as const)("shows an accessible %s shield", (certification, message) => {
   const html = renderToStaticMarkup(
     <NodeCardHeader
-      id="community-pack"
-      name="community/colmap-sfm"
+      id={`${certification}-pack`}
+      name={`${certification}/colmap-sfm`}
       version="0.4.2"
       subtitle="local"
-      certified
+      certification={certification}
       status={nodeStatus({})}
     />,
   );
   expect(html).toContain('data-hl-certified=""');
-  expect(html).toContain('title="已验证版本：随 HoloLab 提供，或与注册表发布内容一致"');
-  expect(html).toContain('aria-label="已验证版本：随 HoloLab 提供，或与注册表发布内容一致"');
+  expect(html).toContain(`title="${message}"`);
+  expect(html).toContain(`aria-label="${message}"`);
+  expect(html).toContain('width="11"');
+  expect(html).toContain('stroke-width="1.25"');
 });
 
 it("omits the shield when the release is not community-certified", () => {

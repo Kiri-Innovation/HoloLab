@@ -4,6 +4,7 @@ import { NodeTitleTooltip } from "../ui/NodeTitleTooltip";
 import { CopyRefButton } from "./CopyRefButton";
 import { useCanvasContext } from "./CanvasContext";
 import type { NodeStatusPresentation } from "./nodeStatus";
+import { certificationMessage, type PackCertification } from "./packCertification";
 
 /** Shared chrome for task, constant and observation cards. Actions retain their own semantics. */
 export function NodeCardHeader({
@@ -15,7 +16,7 @@ export function NodeCardHeader({
   device,
   state,
   status,
-  certified = false,
+  certification = null,
   leadingActions,
   actions,
   children,
@@ -29,8 +30,8 @@ export function NodeCardHeader({
   device?: string;
   state?: string;
   status: NodeStatusPresentation;
-  /** Pack from HoloLab or one whose local content matches its registry release. */
-  certified?: boolean;
+  /** Why this pack is known to be reproducible, if applicable. */
+  certification?: PackCertification;
   leadingActions?: ReactNode;
   actions?: ReactNode;
   children?: ReactNode;
@@ -65,10 +66,10 @@ export function NodeCardHeader({
           gap: 1,
         }}
       >
-        <span style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 3, minWidth: 0 }}>
           <span
             style={{
-              flex: 1,
+              flex: "0 1 auto",
               minWidth: 0,
               fontWeight: "var(--fw-semibold)",
               fontSize: "var(--fs-md)",
@@ -82,15 +83,16 @@ export function NodeCardHeader({
           >
             {displayName}
           </span>
-          {certified && <span
+          {certification && <span
             data-hl-certified=""
             role="img"
-            title="已验证版本：随 HoloLab 提供，或与注册表发布内容一致"
-            aria-label="已验证版本：随 HoloLab 提供，或与注册表发布内容一致"
+            title={certificationMessage(certification)}
+            aria-label={certificationMessage(certification)}
             style={{ color: "var(--status-success)", display: "inline-flex", flex: "0 0 auto" }}
           >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <path d="M8 1.1 13.5 3v4.05c0 3.44-2.2 6.42-5.5 7.85C4.7 13.47 2.5 10.49 2.5 7.05V3L8 1.1Zm0 2.02L4.5 4.34v2.71c0 2.37 1.42 4.53 3.5 5.74 2.08-1.21 3.5-3.37 3.5-5.74V4.34L8 3.12Zm2.26 2.55-2.9 3.36-1.63-1.4-1.04 1.2 2.84 2.44 3.94-4.57-1.21-1.04Z" />
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M8 1.5 13 3.25v3.8c0 3.15-1.98 5.9-5 7.28-3.02-1.38-5-4.13-5-7.28v-3.8L8 1.5Z" />
+              <path d="m5.35 7.85 1.7 1.55 3.6-4.15" />
             </svg>
           </span>}
         </span>
