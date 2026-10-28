@@ -11,6 +11,7 @@ import httpx
 import websockets
 
 TUNNEL_CONNECTIONS = 64
+_BODY_CHUNK_SIZE = 256 * 1024
 _FORWARD_HEADERS = frozenset({"range", "if-none-match", "if-modified-since"})
 _RESPONSE_HEADERS = frozenset(
     {
@@ -137,7 +138,12 @@ class FileTunnelClient:
                 )
 
                 async def pump() -> None:
-                    async for chunk in response.aiter_raw():
+                    # A 2.7 MiB thumbnail otherwise becomes roughly forty
+                    # 64 KiB WebSocket messages.  Fewer, bounded 256 KiB
+                    # frames materially reduce masking/ASGI scheduling cost
+                    # without turning a response into a buffered blob.  The
+                    # gateway queue remains the per-flow backpressure point.
+                    async for chunk in response.aiter_raw(chunk_size=_BODY_CHUNK_SIZE):
                         await ws.send(chunk)
 
                 writer = asyncio.create_task(pump())
