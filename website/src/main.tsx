@@ -84,8 +84,62 @@ function DocAreas() {
 function Footer() {
   return <footer className="footer"><a className="brand" href={localize('/')}>HoloLab</a><span>{t('footer')}</span><a href={localize('/docs')}>{t('docs')} ↗</a></footer>;
 }
+function attachInstallTabs() {
+  const cleanups: (() => void)[] = [];
+  document.querySelectorAll<HTMLElement>('.install-tabs[data-install-tabs]').forEach(tabs => {
+    const source = tabs.querySelector<HTMLElement>('[data-install-panel="source"]');
+    const panels = [...tabs.querySelectorAll<HTMLElement>('[data-install-panel]')];
+    const buttons = [...tabs.querySelectorAll<HTMLButtonElement>('[data-install-tab]')];
+    if (!source || panels.length !== buttons.length) return;
+
+    // Markdown owns the source-install steps. Move that contiguous range into
+    // its panel so headings and deep links retain their existing IDs.
+    let node = tabs.nextElementSibling;
+    while (node && !(node.tagName === 'H2' && node.id === '打开-web-画布')) {
+      const next = node.nextElementSibling;
+      source.append(node);
+      node = next;
+    }
+
+    const select = (name: string, focus = false) => {
+      buttons.forEach(button => {
+        const selected = button.dataset.installTab === name;
+        button.setAttribute('aria-selected', String(selected));
+        button.tabIndex = selected ? 0 : -1;
+        if (selected && focus) button.focus();
+      });
+      panels.forEach(panel => { panel.hidden = panel.dataset.installPanel !== name; });
+    };
+    const revealFragment = () => {
+      if (!location.hash) return;
+      try {
+        const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+        const panel = panels.find(candidate => candidate.contains(target));
+        if (panel) select(panel.dataset.installPanel!);
+      } catch { /* Invalid fragments are harmless. */ }
+    };
+    buttons.forEach((button, index) => {
+      const onClick = () => select(button.dataset.installTab!);
+      const onKeyDown = (event: KeyboardEvent) => {
+        const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+        if (!keys.includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+        select(buttons[next].dataset.installTab!, true);
+      };
+      button.addEventListener('click', onClick);
+      button.addEventListener('keydown', onKeyDown);
+      cleanups.push(() => { button.removeEventListener('click', onClick); button.removeEventListener('keydown', onKeyDown); });
+    });
+    window.addEventListener('hashchange', revealFragment);
+    cleanups.push(() => window.removeEventListener('hashchange', revealFragment));
+    revealFragment();
+  });
+  return () => cleanups.forEach(cleanup => cleanup());
+}
 function Documentation() {
   useEffect(() => attachCodeCopy({ copy: t('copyCode'), copied: t('copiedCode'), failed: t('copyCodeFailed') }), []);
+  useEffect(() => attachInstallTabs(), []);
   useEffect(() => {
     // Follow the site's resolved theme, including a manual override of the OS theme.
     const syncPictures = () => {

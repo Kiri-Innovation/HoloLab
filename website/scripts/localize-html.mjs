@@ -14,12 +14,23 @@ for (const locale of ['en', 'zh-CN']) {
   const routes = [
     { href: `${prefix}/`, title: dictionary.homeTitle },
     ...sections.flatMap(s => [s.href, ...(s.aliases ?? [])].map(href => ({ href: prefix + href, title: dictionary[s.id] }))),
-    ...docs.filter(d => d.locale === locale).map(d => ({ href: d.href, title: locale === 'en' ? labels[d.title] ?? d.title : d.title })),
+    ...docs.filter(d => d.locale === locale).map(d => ({
+      href: d.href,
+      title: locale === 'en' ? labels[d.title] ?? d.title : d.title,
+      // Keep the in-progress installation paths crawlable in the static
+      // artifact. React replaces this fallback when it hydrates the page.
+      staticContent: d.locale === 'zh-CN' && d.slug === 'quick-start'
+        ? `<main id="main" class="document"><article lang="zh-CN" class="prose">${d.html}</article></main>`
+        : '',
+    })),
   ];
   for (const route of routes) {
     const base = route.href.replace(/^\/zh-CN/, '') || '/';
     const title = `${route.title} — HoloLab`;
-    const html = template.replace(/<html lang="[^"]*">/, `<html lang="${locale}">`)
+    const shell = route.staticContent
+      ? template.replace('<div id="root"></div>', `<div id="root">${route.staticContent}</div>`)
+      : template;
+    const html = shell.replace(/<html lang="[^"]*">/, `<html lang="${locale}">`)
       .replace(/<title>[^<]*<\/title>/, `<title>${escape(title)}</title>`)
       .replace(/(<meta name="description" content=")[^"]*/, `$1${escape(route.href.endsWith('/') ? dictionary.intro : `${route.title} · HoloLab`)}`)
       .replace(/(<meta property="og:locale" content=")[^"]*/, `$1${locale === 'en' ? 'en_US' : 'zh_CN'}`)
