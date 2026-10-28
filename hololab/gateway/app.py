@@ -992,11 +992,13 @@ def _mount_routes(app: FastAPI) -> None:
         handle = await book.get(handle_id)
         if handle is None:
             raise HTTPException(status_code=404, detail="handle not found")
-        if handle.deleted_ts is not None:
-            # Idempotent — file is already gone by definition.
-            return {"handle_id": handle_id, "state": "deleted", "freed_bytes": 0}
-
         session = registry.get_session(handle.node_id)
+
+        if handle.deleted_ts is not None and session is None:
+            # A previous delete may have had to tombstone while the producer
+            # was offline.  Keep the endpoint idempotent in that state, but
+            # allow a later retry to reach the producer once it reconnects.
+            return {"handle_id": handle_id, "state": "deleted", "freed_bytes": 0}
 
         # Producer node offline OR the recorded path lives outside the
         # node's current workspace roots: we can't (and shouldn't) touch

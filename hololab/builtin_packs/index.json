@@ -55,14 +55,14 @@
       "name": "builtin/single-video-source",
       "version": "0.1.0",
       "manifest": "single-video-source@0.1.0/manifest.yaml",
-      "code_sha256": "b8d10cc11093f8e33b937b30b91e9c83631f0a7b73704f8e59be8b53c09a0991",
+      "code_sha256": "699ec70ff775a1072ea7f71f56fac6505d1cf6feee71951c2ce4c0dad1d0ea7e",
       "identity_format": 2
     },
     {
       "name": "builtin/video-array-source",
       "version": "0.1.0",
       "manifest": "video-array-source@0.1.0/manifest.yaml",
-      "code_sha256": "f65ea2971abbfa7aff963f0ed5d4f8b9a0523758adc25e318c9c89f57c68e62e",
+      "code_sha256": "c3072a62fc89cd80c5b6f2d8e758b97326fb96684e8ea83fb1a61dcb12c2c770",
       "identity_format": 2
     },
     {

@@ -268,7 +268,14 @@ class NodeRuntime:
         Cancellation of the calling task exits all three.
         """
 
-        self._packs = _load_packs(self._config.pack_dirs)
+        # Pack discovery walks every configured pack root and parses manifests.
+        # It can take noticeable time on a workstation with several source
+        # trees.  ``hololab start`` runs the gateway and local node on the
+        # same event loop, so doing that synchronous filesystem work here
+        # used to make an already-listening gateway unable to answer health
+        # checks until discovery completed.  Keep the required discovery
+        # before registration, but run it off the shared event loop.
+        self._packs = await asyncio.to_thread(_load_packs, self._config.pack_dirs)
         log.info(
             "packs scanned",
             count=len(self._packs),
@@ -322,7 +329,9 @@ class NodeRuntime:
         # daemon session (crash / restart / SIGKILL after a cancel storm).
         # Scoped by /proc/{pid}/cwd, so only processes whose cwd is under
         # our workspace_root(s) are signalled — no wildcard pkill.
-        orphaned = cleanup_workspace_orphans(self._all_workspace_roots())
+        # This scans /proc and may wait through the TERM→KILL grace window;
+        # it must not stall the colocated gateway while the local node boots.
+        orphaned = await asyncio.to_thread(cleanup_workspace_orphans, self._all_workspace_roots())
         if orphaned:
             log.warning(
                 "orphan cleanup: reaped previous-session subprocesses",
