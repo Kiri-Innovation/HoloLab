@@ -1,4 +1,5 @@
 import { packageCatalogIndex } from "../packageIdentity";
+import { packDisplayNames } from "../packs/packDisplayName";
 import { isConstantName, constantPresentation } from "./constants";
 import { ExecutableNode } from "./AssemblyNode";
 import { ASSEMBLE, assemblyPresentation } from "./assembly";
@@ -65,6 +66,7 @@ import { aggregateJobsToRuntime } from "./nodeRuntime";
 import { TypedEdge, type TypedEdgeData } from "./TypedEdge";
 import { effectiveOutputType, formatTypeLabel, formatTypeLabelLong } from "./edgeLabels";
 import { seedEdgeSummaryFacts } from "./edgeSummaryCache";
+import { CanvasContext, useCanvasContext } from "./CanvasContext";
 
 const NODE_TYPES = { algorithm: ExecutableNode, view: ViewNode };
 
@@ -93,6 +95,13 @@ export function SnapshotCanvas({
   selectedEdgeId,
   onEdgeSelectionChange,
 }: SnapshotCanvasProps) {
+  const canvasContext = useCanvasContext();
+  // A snapshot has its own graph, so its collision set must not inherit the
+  // currently-open draft's labels.
+  const snapshotCanvasContext = useMemo(() => ({
+    ...canvasContext,
+    packDisplayName: packDisplayNames(snapshot.graph.nodes.map(node => node.algorithm_name)),
+  }), [canvasContext, snapshot.graph.nodes]);
   // Index the catalog by (name, version) so pack lookup for each snapshot
   // node is O(1). If the pack has been uninstalled since the run we still
   // render the node — just with a stub pack (empty ports) and the real
@@ -448,7 +457,7 @@ export function SnapshotCanvas({
   };
 
   return (
-    <ReactFlow
+    <CanvasContext.Provider value={snapshotCanvasContext}><ReactFlow
       nodes={nodes}
       edges={edges}
       nodeTypes={NODE_TYPES}
@@ -489,7 +498,7 @@ export function SnapshotCanvas({
       <CanvasControls showInteractive={false} />
       <CanvasToastAnchor />
       <Background gap={20} color="var(--rf-grid)" />
-    </ReactFlow>
+    </ReactFlow></CanvasContext.Provider>
   );
 }
 

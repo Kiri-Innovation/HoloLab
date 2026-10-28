@@ -115,6 +115,7 @@ import Library from "./library/Library";
 import { Gallery } from "./Gallery";
 import { netBus, useReconnectTick } from "./net";
 import { CanvasContext } from "./canvas/CanvasContext";
+import { packDisplayNames } from "./packs/packDisplayName";
 import { aggregateJobsToRuntime } from "./canvas/nodeRuntime";
 import { MobileShell, useIsMobilePortrait } from "./canvas/MobileShell";
 import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
@@ -1276,11 +1277,22 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     return out;
   }, [computeNodes]);
 
+  // Node cards are disambiguated relative to this workflow, not the whole
+  // catalog: only packs visible together need their scopes shown.
+  const packDisplayName = useMemo(
+    () => packDisplayNames(nodes.flatMap(node => {
+      const pack = (node.data as AlgorithmNodeData).pack;
+      return pack ? [pack.name] : [];
+    })),
+    [nodes],
+  );
+
   const canvasContextValue = useMemo(
     () => ({
       workflow_id: workflowId,
       workflow_name: workflowName || "untitled",
       computeNodesById,
+      packDisplayName,
       hydrating,
       pinnedParams, variables,
       onBindingChange: updateParameterBinding,
@@ -1292,7 +1304,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       viewer_view_managed: viewerViewManaged,
       setViewerDefault: setWorkflowViewerDefault,
     }),
-    [workflowId, workflowName, computeNodesById, hydrating, pinnedParams, variables, updateParameterBinding, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
+    [workflowId, workflowName, computeNodesById, packDisplayName, hydrating, pinnedParams, variables, updateParameterBinding, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
   );
 
   // Push job runtime + resolved previews + previewOpen into each node's

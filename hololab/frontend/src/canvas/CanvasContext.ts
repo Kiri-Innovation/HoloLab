@@ -31,6 +31,8 @@ export interface CanvasContextValue {
   // drawer's "Open in Cocoder" button to resolve
   // ``flops_executor_id`` at render time.
   computeNodesById: Record<string, ComputeNode>;
+  /** Pack label resolved once from the names present on this canvas. */
+  packDisplayName?: (name: string) => string;
   // True while the initial cold-load hydration (runs list → snapshot
   // jobs → getHandle batch) is still in flight. AlgorithmNode reads
   // this to suppress the terminal "尚未运行 / 产物已被清理" verdicts
@@ -62,6 +64,7 @@ const DEFAULT: CanvasContextValue = {
   workflow_id: null,
   workflow_name: "untitled",
   computeNodesById: {},
+  packDisplayName: name => name,
   hydrating: false,
   viewer_view: null,
   viewer_view_loaded: false,

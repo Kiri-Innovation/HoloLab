@@ -366,6 +366,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   } = data as AlgorithmNodeData;
   const {
     computeNodesById,
+    packDisplayName,
   } = useCanvasContext();
   const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
   const inputEntries = Object.entries(pack.inputs);
@@ -471,7 +472,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       data-preview-open={expanded || ""}
     >
       {/* HEADER — status dot + pack name (ellipsis) + action icons */}
-      <NodeCardHeader id={id} name={pack.name} version={pack.version} device={assignedLabel}
+      <NodeCardHeader id={id} name={pack.name} displayName={packDisplayName?.(pack.name) ?? pack.name} version={pack.version} device={assignedLabel}
         communityCertified={communityCertified}
         subtitle={`${assignedLabel} · v${pack.version}${pack.version.endsWith("+") ? " · dev" : ""}`}
         state={runState} status={nodeStatus({ state: runState, stale: staleness, failReason: runtime?.fail_reason, missingAlgorithm: pack.manifest_hash ? null : {name: pack.name, version: pack.version}, missingInputs, readOnly })}

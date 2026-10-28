@@ -80,3 +80,19 @@ it("omits the shield when the release is not community-certified", () => {
   );
   expect(html).not.toContain("data-hl-community-certified");
 });
+
+it("uses the canvas-resolved label everywhere the header exposes a name", () => {
+  const html = renderToStaticMarkup(
+    <NodeCardHeader
+      id="source"
+      name="builtin/video-array-source"
+      displayName="video-array-source"
+      version="0.1.0"
+      subtitle="local"
+      status={nodeStatus({})}
+    />,
+  );
+  expect(html).toContain(">video-array-source</span>");
+  expect(html).toContain('data-tooltip-title="video-array-source"');
+  expect(html).not.toContain("builtin/video-array-source");
+});

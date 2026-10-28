@@ -9,6 +9,7 @@ import type { NodeStatusPresentation } from "./nodeStatus";
 export function NodeCardHeader({
   id,
   name,
+  displayName = name,
   version = "",
   subtitle,
   device,
@@ -21,6 +22,8 @@ export function NodeCardHeader({
 }: {
   id: string;
   name: string;
+  /** Canvas-resolved label; retains scope only when this graph has a collision. */
+  displayName?: string;
   version?: string;
   subtitle: string;
   device?: string;
@@ -50,7 +53,7 @@ export function NodeCardHeader({
     >
       <NodeStatusDot state={state} status={status} />
       <NodeTitleTooltip
-        name={name}
+        name={displayName}
         version={version}
         device={device ?? subtitle}
         style={{
@@ -77,7 +80,7 @@ export function NodeCardHeader({
               textOverflow: "ellipsis",
             }}
           >
-            {name}
+            {displayName}
           </span>
           {communityCertified && <span
             data-hl-community-certified=""
@@ -118,10 +121,10 @@ export function NodeCardHeader({
           <CopyRefButton
             kind="graph-node"
             id={`${workflowId}/${id}`}
-            comment={`${name}${state ? ` · ${state}` : ""}`}
+            comment={`${displayName}${state ? ` · ${state}` : ""}`}
             size="xs"
             referenceDisplay={{
-              title: version ? `${name}@${version}` : name,
+              title: version ? `${displayName}@${version}` : displayName,
               subtitle: `${id} · ${workflowName}`,
             }}
           />
