@@ -18,6 +18,7 @@ import { OpenSourceButton } from '../canvas/OpenSourceButton';
 import { writeToClipboard } from '../canvas/referenceAction';
 import { MarkdownView } from '../ui/MarkdownView';
 import { centralStatusKey } from './centralStatusKey';
+import { packRegistryStatus } from './packRegistryStatus';
 import {usePackUsage} from './usePackUsage';
 import { buildPackEntries, compactPackStatus, installedOn, installCommand, packProblemReasons, packEnvironmentStatus,
   type InventoryPack, type PackEntry, type RegistryRelease } from './packManagerModel';
@@ -185,6 +186,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
   const displayName = useMemo(() => packDisplayNames(entries.map(entry => entry.name)), [entries]);
   const registryProblemStatus = (entry: PackEntry) => {
     const comparison = entry.catalog?.central;
+    if (entry.name.startsWith('builtin/')) return undefined;
     if (entry.release?.yanked === true || comparison?.yanked === true) return 'yanked';
     return comparison?.state === 'differs' ? 'hash_mismatch' : undefined;
   };
@@ -236,9 +238,11 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     const codeHash = entry.catalog?.code_sha256;
     const excluded = content?.excluded;
     const canInstall = comparison?.state === 'identical'
-      && !entry.version.endsWith('+') && !entry.name.startsWith('@builtin/') && !yanked;
+      && !entry.version.endsWith('+') && !entry.name.startsWith('builtin/') && !entry.name.startsWith('@builtin/') && !yanked;
     const installUnavailableReason = yanked
       ? '该版本已 yank，不能新安装；已安装版本与历史运行不因此删除。'
+      : entry.name.startsWith('builtin/')
+        ? '内置包随 HoloLab 本体分发，请通过升级 HoloLab 更新。'
       : entry.version.endsWith('+') || entry.name.startsWith('@builtin/')
         ? '开发版或内置包不能作为注册表发行版安装。'
         : comparison?.state === 'absent'
@@ -247,10 +251,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
             ? '本地包与注册表同名版本内容不同，暂不提供安装命令。'
             : '注册表状态尚未确认，暂不提供安装命令。';
     const breadcrumbCategory = categoryTrail(entry);
-    const registryStatus = comparison?.state === 'identical' ? status('success', '社区版', `社区注册表：${comparison.source}\n代码哈希：${comparison.central_code_sha256}`, '本地内容与线上同名版本一致。')
-      : comparison?.state === 'differs' ? status('warning', '与线上不同', `社区注册表：${comparison.source}\n线上哈希：${comparison.central_code_sha256}\n本地哈希：${entry.catalog?.code_sha256 ?? '不可用'}`, '本地修改可正常开发；安装或发布前请确认要保留哪一版。')
-      : comparison?.state === 'absent' ? status('neutral', '本地包', '社区注册表没有同名同版本。', '这是本地定义的包，可照常开发和运行。')
-      : status('neutral', '未查询', comparison?.reason ?? '尚未取得注册表结果。', '本地包仍可使用；可稍后刷新重试。');
+    const registryStatus = packRegistryStatus(entry.name, comparison, entry.catalog?.code_sha256);
     const installStatus = !nodeId ? status('neutral', '未选节点', '尚未选择用于查看安装状态的计算节点。', '选择一个计算节点后可确认此包是否已安装。')
       : installed ? status('success', '已安装', `当前节点已发现：${selectedNode?.node_name || nodeId}`, '可在当前节点运行此版本。')
       : entry.inventory.some(item => item.node_id === nodeId) ? status('warning', '仅历史记录', '存在历史安装记录，但当前节点未确认提供此包。', '检查节点连接或重新安装此版本。')
