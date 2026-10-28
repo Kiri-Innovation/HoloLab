@@ -130,7 +130,7 @@ Cobrowser host ── confirmation card ── Cocoder tab opens file
    the node's `config.yaml` and mirrored onto the gateway session.
 3. Run the workflow. When the node reaches `done`, the preview
    drawer shows a `↗` button in its header (next to the `⧉` copy
-   button). If the video-array-source is zoomed, the zoom overlay
+   button). If the builtin/video-array-source is zoomed, the zoom overlay
    also shows one on the top-right, next to the filename pill.
 4. Clicking `↗` looks up
    `computeNodesById[handle.node_id].flops_executor_id` at that

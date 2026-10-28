@@ -351,7 +351,7 @@ at parse time so the mistake is caught synchronously.
 different reference kinds depending on what stays true across time.
 
 - `graph-node` is stable across every Fork — the position `d1src` in
-  `mono-50f-demo` will always mean "single-video-source at the head of
+  `mono-50f-demo` will always mean "builtin/single-video-source at the head of
   the pipeline," even after five reruns.
 - `job` is one execution — one row in the `jobs` table, one Job
   Assign frame on the wire, one process. A rerun mints a new one.

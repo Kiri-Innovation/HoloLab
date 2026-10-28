@@ -510,12 +510,12 @@ tokens, but Gateway REST has no separate user authentication. Browsing exposes
 metadata available to the node's OS account, beyond the artifact root; keep
 this control plane within trusted access. No file-content, modification or
 shell-execution endpoint is added. Pack commands must still serialize paths
-safely: `single-video-source` uses JSON stdin to preserve shell metacharacters.
+safely: `builtin/single-video-source` uses explicit Python arguments to preserve shell metacharacters.
 
 **Upgrade order:** upgrade Gateway, node and frontend before enabling a
 `type: path` manifest. Old nodes reject the new enum member and their scanner
 removes invalid packs from the catalog. Existing strings and the
-`single-video-source@0.1.0` identity stay unchanged; a runtime upgrade is
+new builtin package identities are independent; a runtime upgrade is
 required. A node without browsing support times out rather than browsing the
 Gateway's filesystem.
 
@@ -613,10 +613,10 @@ manifest is silent about preview, the gateway walks the output port's
 tags at catalog-build time and pulls the canonical viewer for the
 first tag that has a registered entry. That way "outputs tagged
 `splatv` get the splatv viewer" and "outputs tagged
-`single-video-source` get the video-grid viewer" are stated ONCE
+`video-source` get the video-grid viewer" are stated ONCE
 (in the registry), not per pack.
 
-Example: the pack authors of `single-video-source` and `stg-to-splatv`
+Example: the pack authors of `builtin/single-video-source` and `stg-to-splatv`
 don't have to write `preview: {viewer: …}` on their outputs — the
 tags do the work:
 

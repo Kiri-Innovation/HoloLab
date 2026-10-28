@@ -7,7 +7,7 @@ import { AlgorithmNode } from '../../src/canvas/AlgorithmNode';
 const query = new URLSearchParams(location.search);
 document.documentElement.dataset.theme = query.get('theme') || 'light';
 const preview = { viewer: 'video-grid', member_glob: '*.mp4' };
-const pack = { name: 'single-video-source', version: '0.1.0', node_ids: [], manifest_hash: 'fixture',
+const pack = { name: 'builtin/single-video-source', version: '0.1.0', node_ids: [], manifest_hash: 'fixture',
   inputs: {}, outputs: { videos_dir: { tags: ['video-source'], storage: 'dir', preview } }, params: {} };
 const data = { pack, assigned_node_id: null, previewOpen: 'videos_dir', previews: { videos_dir: {
   port_name: 'videos_dir', handle_id: 'video-background', node_id: 'fixture',

@@ -6,7 +6,7 @@ description: Overlay one image on a video with proportional scaling and nine pos
 category: basic/editing
 source_entry: run.py
 docs: |-
-  Connect single-image-source.image (scalar image file) to image. The still repeats within the selected window.
+  Connect builtin/single-image-source.image (scalar image file) to image. The still repeats within the selected window.
   Window is [start_seconds, end_seconds): end overrides duration_seconds; otherwise start + duration is used.
   Omit both end and duration for the remainder of the main video (legacy default). The output is never trimmed.
   Optional offset_x_ratio / offset_y_ratio override each position axis independently: top-left coordinate as a fraction of frame width/height, clamped inside margins.
@@ -22,7 +22,7 @@ inputs:
     tags:
     - image
     storage: file
-    description: One image file, for example from single-image-source.image.
+    description: One image file, for example from builtin/single-image-source.image.
 params:
   start_seconds:
     type: float

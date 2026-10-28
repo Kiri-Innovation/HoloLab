@@ -1,5 +1,4 @@
 import asyncio
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -48,7 +47,9 @@ def test_path_contract_and_legacy_string(tmp_path):
             ParamSpec(**declaration)
     string = ParamSpec(type="string")
     assert ParamSpec.model_validate(string.model_dump()) == string
-    manifest, _ = load_manifest(Path("packs/single-video-source@0.1.0/manifest.yaml"))
+    manifest, _ = load_manifest(
+        Path("hololab/builtin_packs/single-video-source@0.1.0/manifest.yaml")
+    )
     assert Manifest.model_validate(manifest.model_dump()) == manifest
 
 
@@ -126,9 +127,14 @@ def test_source_filename_is_not_shell_code(tmp_path):
     source.write_bytes(b"fixture")
     output = tmp_path / "output"
     subprocess.run(
-        [sys.executable, "packs/single-video-source@0.1.0/source.py"],
-        input=json.dumps({"source": str(source), "output": str(output)}),
-        text=True,
+        [
+            sys.executable,
+            "hololab/builtin_packs/single-video-source@0.1.0/source.py",
+            "--source",
+            str(source),
+            "--output",
+            str(output),
+        ],
         check=True,
     )
     assert (output / "input.mp4").read_bytes() == b"fixture"
@@ -139,13 +145,13 @@ def test_path_constraints_survive_catalog():
     from hololab.gateway.registry import NodeRegistry
 
     registry = NodeRegistry(None)
-    path = Path("packs/single-video-source@0.1.0/manifest.yaml").resolve()
+    path = Path("hololab/builtin_packs/single-video-source@0.1.0/manifest.yaml").resolve()
     registry._sessions["node"] = SimpleNamespace(
         node_id="node",
         pack_dirs=[],
         packs=[
             SimpleNamespace(
-                name="single-video-source",
+                name="builtin/single-video-source",
                 version="0.1.0",
                 manifest_hash="test",
                 manifest_path=str(path),

@@ -64,7 +64,7 @@ def test_path_traversal_blocked(tmp_path: Path) -> None:
 
 
 def test_symlink_pointing_outside_workspace_is_served(tmp_path: Path) -> None:
-    """Symlinks written by packs (e.g. single-video-source pointing at the
+    """Symlinks written by packs (e.g. builtin/single-video-source pointing at the
     user's source video) must remain accessible via the preview proxy.
 
     The traversal check is lexical only — symlink targets outside the

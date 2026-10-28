@@ -15,7 +15,7 @@ import pytest
 from hololab.manifest.schema import Manifest, ResourcesSpec, load_manifest
 from hololab.node.runtime import _preflight_resources
 
-PACKS_ROOT = Path(__file__).parent.parent / "packs"
+BUILTINS_ROOT = Path(__file__).parent.parent / "hololab" / "builtin_packs"
 
 # In-repo pipeline packs that must declare resources. The pipeline's
 # heavy Sharp-4DGS / STG / SplaTV manifests now live in their source
@@ -34,7 +34,7 @@ def test_pipeline_pack_declares_resources(pack_dir_name: str) -> None:
     """Every pack in the pipeline must declare at least scratch + mem so
     the preflight has something to check against."""
 
-    manifest, _hash = load_manifest(PACKS_ROOT / pack_dir_name / "manifest.yaml")
+    manifest, _hash = load_manifest(BUILTINS_ROOT / pack_dir_name / "manifest.yaml")
     assert isinstance(manifest, Manifest)
     r = manifest.runtime.resources
     assert r.scratch_gb is not None and r.scratch_gb > 0, (
@@ -67,7 +67,7 @@ def test_preflight_fails_on_insufficient_scratch(tmp_path: Path) -> None:
     assert msg is not None
     assert "scratch" in msg
     assert "20.0" in msg  # the declared minimum shows up in the message
-    assert "5.0" in msg   # the actual free is reported too
+    assert "5.0" in msg  # the actual free is reported too
 
 
 def test_preflight_fails_on_insufficient_memory(tmp_path: Path) -> None:

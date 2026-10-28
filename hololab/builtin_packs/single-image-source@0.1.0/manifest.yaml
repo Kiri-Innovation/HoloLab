@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: single-image-source
+name: builtin/single-image-source
 version: 0.1.0
 description: "Data-source node — points at ONE image file to feed image-conditioned algorithms. Does NOT transform pixels."
 category: "basic/input/single-image-source"
@@ -38,7 +38,7 @@ outputs:
 
 requires: {}
 runtime:
-  env: kiri
+  mode: host
   gpu:
     required: false
   expected_duration_min: [0.01, 0.05]
@@ -49,25 +49,8 @@ runtime:
     mem_gb: 0.5
 
 exec:
-  # Symlink so downstream image consumers read the original bytes directly.
-  shell: |
-    set -euo pipefail
-    OUT="{{ outputs.image }}"
-    SRC="{{ params.image_path }}"
-    if [ ! -f "$SRC" ]; then
-      echo "image_path not found or not a file: $SRC" >&2
-      exit 2
-    fi
-    case "${SRC,,}" in
-      *.png|*.jpg|*.jpeg|*.webp) ;;
-      *)
-        echo "image_path must end in .png, .jpg, .jpeg, or .webp: $SRC" >&2
-        exit 2
-        ;;
-    esac
-    mkdir -p "$(dirname "$OUT")"
-    ln -sf "$SRC" "$OUT"
-    echo "[ITER 1/1] source ready"
+  python: run.py
+  args: ["--image-path", "{{ params.image_path }}", "--output", "{{ outputs.image }}"]
 
 idempotency:
   marker: "{{ outputs.image }}.hololab-done"

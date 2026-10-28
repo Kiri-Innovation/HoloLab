@@ -383,7 +383,7 @@ Two homes, chosen by dependency:
   that works with anything downstream and has **zero deps on any specific
   algorithm repo** (only stdlib + widely-available libs like cv2 / numpy /
   ffmpeg). Ships with HoloLab, no algorithm checkout required. Examples
-  today: ``single-video-source``, ``video-array-source``,
+  today: ``builtin/single-video-source``, ``builtin/video-array-source``,
   ``frame-extraction``, ``demo-*``.
 - **Algorithm-repo-owned (colocated with the algorithm code)** — pack that
   invokes algorithm-specific scripts and needs its checkout. Examples

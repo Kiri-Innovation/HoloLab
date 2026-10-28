@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: video-array-source
+name: builtin/video-array-source
 version: 0.1.0
 description: "Data-source node — points at a DIRECTORY of videos (multi-clip / multi-camera) to feed the SfM+STG chain. Does NOT extract frames."
 category: "basic/input/video-array-source"
@@ -15,7 +15,7 @@ docs: |
   workspace.
 
   - **Param:** `video_dir` — absolute path to a directory containing
-    ``.mp4`` / ``.mov`` / ``.mkv`` / ``.webm`` / ``.avi`` files.
+    ``.mp4`` / ``.mov`` / ``.mkv`` / ``.webm`` / ``.avi`` / ``.m4v`` files.
   - **Output:** ``videos_dir`` is an ``arrayed<video-source>`` handle —
     one subdirectory per source video, each subdir named after the
     video's basename (extension stripped) so element ids read cleanly
@@ -31,10 +31,10 @@ docs: |
   - Dotfiles are skipped; the pack fails fast if no matching video
     file is found in the directory.
 
-  When to use vs ``single-video-source``:
+  When to use vs ``builtin/single-video-source``:
 
   - Single monocular video (one camera, one clip) →
-    ``single-video-source``.
+    ``builtin/single-video-source``.
   - Multi-camera capture or multi-clip inputs (directory of videos,
     each a different camera or take) → this pack.
 
@@ -65,7 +65,7 @@ outputs:
 
 requires: {}
 runtime:
-  env: kiri
+  mode: host
   gpu:
     required: false
   expected_duration_min: [0.01, 0.05]
@@ -76,42 +76,8 @@ runtime:
     mem_gb: 0.5
 
 exec:
-  # M7: arrayed<video-source> layout — enumerate video files at depth 1,
-  # sort by basename for deterministic ordering, and place each in its own
-  # element subdirectory named after the video's stem (extension stripped).
-  # Each element subdir carries the video symlink under its original
-  # basename, so a downstream arrayable ``frame-extraction`` shard sees a
-  # scalar ``video-source`` (dir-of-videos) shape identical to what
-  # ``single-video-source`` produces.
-  shell: |
-    set -euo pipefail
-    OUT="{{ outputs.videos_dir }}"
-    mkdir -p "$OUT"
-    VDIR="{{ params.video_dir }}"
-
-    if [ ! -d "$VDIR" ]; then
-      echo "video_dir not found or not a directory: $VDIR" >&2
-      exit 2
-    fi
-
-    COUNT=0
-    while IFS= read -r -d '' F; do
-      BASE=$(basename "$F")
-      case "$BASE" in
-        .*) continue ;;
-      esac
-      STEM="${BASE%.*}"          # camera_A.mp4 → camera_A  (element_id)
-      mkdir -p "$OUT/$STEM"
-      ln -sf "$F" "$OUT/$STEM/$BASE"
-      COUNT=$((COUNT + 1))
-    done < <(find "$VDIR" -maxdepth 1 \( -type f -o -type l \) \
-              \( -iname '*.mp4' -o -iname '*.mov' -o -iname '*.mkv' \
-                 -o -iname '*.webm' -o -iname '*.avi' \) -print0 | sort -z)
-    if [ "$COUNT" -eq 0 ]; then
-      echo "no video files (.mp4/.mov/.mkv/.webm/.avi) found in $VDIR" >&2
-      exit 2
-    fi
-    echo "[ITER 1/1] arrayed $COUNT video(s) into element subdirs of $OUT"
+  python: run.py
+  args: ["--video-dir", "{{ params.video_dir }}", "--output", "{{ outputs.videos_dir }}"]
 
 idempotency:
   marker: "{{ outputs.videos_dir }}/.hololab-done"

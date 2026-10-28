@@ -314,7 +314,7 @@ export function Preview({
   }
   // ``rig_capture`` — rig-capture-source's per-alias camera dirs
   // (``camN/<orig-timestamp>.mp4`` + sidecars). Renders a
-  // multi-camera video grid on the video-array-source pattern, with
+  // multi-camera video grid on the builtin/video-array-source pattern, with
   // one tile per rig camera labelled by its alias.
   if (
     tags &&
@@ -1037,7 +1037,7 @@ function filterEntries(
   entries: HandleSummaryEntry[],
   glob: string | null | undefined,
 ): HandleSummaryEntry[] {
-  // Flatten arrayed<video-source> layouts: ``video-array-source`` (and any
+  // Flatten arrayed<video-source> layouts: ``builtin/video-array-source`` (and any
   // future arrayed producer) lays elements out as
   // ``<parent>/<element>/<video>``, so the top level is all dirs and the
   // video is one level down. The server enriches directory entries with an
@@ -1091,7 +1091,7 @@ interface VideoGridProps {
   baseUrl: string;
   handleId: string;
   memberGlob: string | null | undefined;
-  // Cobrowser integration — the video-array-source dir's absolute
+  // Cobrowser integration — the builtin/video-array-source dir's absolute
   // path on the producing node + the compute node itself. Used to
   // build a per-tile "Open in Cocoder" call inside the zoom overlay.
   // Undefined / null when caller didn't thread them through — the
@@ -1103,7 +1103,7 @@ interface VideoGridProps {
   // rig-capture-source's preview to surface the alias (``cam0``) up
   // top instead of the raw ``<alias>/<orig-timestamp>.mp4`` string
   // that ends up in the tooltip. Default (undefined / null return) =
-  // no label overlay, preserving the video-array-source look.
+  // no label overlay, preserving the builtin/video-array-source look.
   entryLabel?: (name: string) => string | null;
 }
 

@@ -24,7 +24,7 @@ try {
   return api('/library/resources/'+s.resource_id);
  }
  const local=await upload('local-video.mp4',a),remote=await upload('remote-only.mp4',b);
- const workflow=await api('/workflows',{name:'Library path acceptance',graph:{nodes:[{id:'source',algorithm_name:'single-video-source',algorithm_version:'0.1.0',params:{},assigned_node_id:a.node_id,position:{x:100,y:100}}],edges:[]}});
+ const workflow=await api('/workflows',{name:'Library path acceptance',graph:{nodes:[{id:'source',algorithm_name:'builtin/single-video-source',algorithm_version:'0.1.0',params:{},assigned_node_id:a.node_id,position:{x:100,y:100}}],edges:[]}});
  const config=(await api(`/nodes/${a.node_id}/config`)).config,expected=config.library_root+'/'+local.placements[0].relative_path;
  for(const theme of ['light','dark']){
   await page.goto(base+'/w/'+workflow.workflow_id);await page.evaluate(t=>{localStorage.setItem('hololab.theme',t);localStorage.setItem('hololab.locale','en');},theme);await page.reload();

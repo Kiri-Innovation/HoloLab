@@ -19,17 +19,20 @@ from pathlib import Path
 from hololab.gateway.tag_viewers import TAG_VIEWER_REGISTRY
 from hololab.manifest import load_manifest
 
+BUILTINS_ROOT = Path(__file__).resolve().parent.parent / "hololab" / "builtin_packs"
 PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _load(name: str):
-    m, _ = load_manifest(PACKS_ROOT / f"{name}@0.1.0" / "manifest.yaml")
+    root = BUILTINS_ROOT if name == "video-array-source" else PACKS_ROOT
+    m, _ = load_manifest(root / f"{name}@0.1.0" / "manifest.yaml")
     return m
 
 
 def test_video_array_source_output_is_arrayed_video_source() -> None:
     m = _load("video-array-source")
+    assert m.name == "builtin/video-array-source"
     videos = m.outputs["videos_dir"]
     assert videos.tags == ["video-source"]
     assert videos.arrayed is True

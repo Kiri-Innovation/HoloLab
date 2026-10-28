@@ -15,7 +15,7 @@ source_entry: extract_frames.py
 category: "basic/input/frame-extraction"
 
 # M7 migration: pack is arrayable. When the operator checks "并行处理数组输入"
-# on this node, an arrayed<video-source> input (from video-array-source) is
+# on this node, an arrayed<video-source> input (from builtin/video-array-source) is
 # accepted and the scheduler dispatches one shard per element (per camera).
 # Each shard sees a scalar video-source (a directory containing one video)
 # — the shell logic is unchanged.
@@ -27,8 +27,8 @@ docs: |
   subdir), plus an ``image``-tagged handle downstream consumers pick up
   automatically.
 
-  - **Input:** ``video_dir`` from ``single-video-source`` (scalar
-    ``video-source``) — or ``video-array-source`` (``arrayed<video-source>``)
+  - **Input:** ``video_dir`` from ``builtin/single-video-source`` (scalar
+    ``video-source``) — or ``builtin/video-array-source`` (``arrayed<video-source>``)
     when the "并行处理数组输入" checkbox is on. Each shard sees a directory
     containing one video.
   - **Output:** ``image`` — one shard's output IS the ``arrayed<image>``
@@ -51,7 +51,7 @@ docs: |
 inputs:
   video_dir:
     tags: [video-source]
-    description: "Directory produced by single-video-source or (with arrayed toggle on) one element of video-array-source; the first video file inside is used."
+    description: "Directory produced by builtin/single-video-source or (with arrayed toggle on) one element of builtin/video-array-source; the first video file inside is used."
 
 params:
   max_frames:

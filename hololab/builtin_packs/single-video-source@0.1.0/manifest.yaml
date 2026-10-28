@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: single-video-source
+name: builtin/single-video-source
 version: 0.1.0
 description: "Data-source node — points at ONE video file to feed the SfM+STG chain. Does NOT extract frames."
 category: "basic/input/single-video-source"
@@ -17,16 +17,16 @@ docs: |
   - **Output tag:** ``video-source`` (single-clip data class).
   - Runs in ~1 s; fails fast if `video_path` doesn't exist.
 
-  When to use vs ``video-array-source``:
+  When to use vs ``builtin/video-array-source``:
 
   - Single monocular video (one camera, one clip) → this pack.
   - Multi-camera capture or multi-clip inputs (directory of videos,
-    each clip is a different camera or take) → ``video-array-source``.
+    each clip is a different camera or take) → ``builtin/video-array-source``.
 
   Downstream (``video-to-camera-track`` / ``video-to-colmap`` /
   ``frame-extraction``) accepts ``video-source`` scalars (this pack) and,
   when the "并行处理数组输入" arrayed checkbox is on, the equivalent
-  ``arrayed<video-source>`` (from ``video-array-source``). The pre-arrayed
+  ``arrayed<video-source>`` (from ``builtin/video-array-source``). The pre-arrayed
   ``video-source-array`` string tag was retired in the M7 migration.
 
   Preview: derived from the ``video-source`` tag via the gateway's
@@ -48,7 +48,7 @@ outputs:
 
 requires: {}
 runtime:
-  env: kiri
+  mode: host
   gpu:
     required: false
   expected_duration_min: [0.01, 0.05]
@@ -59,11 +59,8 @@ runtime:
     mem_gb: 0.5
 
 exec:
-  shell: |
-    set -euo pipefail
-    python "{{ pack_dir }}/source.py" <<'HOLOLAB_PATH_CONFIG'
-    {{ {'source': params.video_path, 'output': outputs.videos_dir} | tojson }}
-    HOLOLAB_PATH_CONFIG
+  python: source.py
+  args: ["--source", "{{ params.video_path }}", "--output", "{{ outputs.videos_dir }}"]
 
 idempotency:
   marker: "{{ outputs.videos_dir }}/.hololab-done"

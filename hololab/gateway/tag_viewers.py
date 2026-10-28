@@ -44,7 +44,7 @@ from hololab.manifest.schema import OutputPreview
 # ``OutputPreview.viewer`` (splatv / lagsplat / video / image / text / video-grid).
 TAG_VIEWER_REGISTRY: dict[str, OutputPreview] = {
     # Video source — one video file in a directory (scalar). Also the
-    # element type for arrayed<video-source> from video-array-source; the
+    # element type for arrayed<video-source> from builtin/video-array-source; the
     # video-grid viewer paints one tile (per its default filter) either way.
     # The M7 arrayed migration retired the standalone ``video-source-array``
     # tag; cardinality is expressed via ``PortSpec.arrayed`` now.

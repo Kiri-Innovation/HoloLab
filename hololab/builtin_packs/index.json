@@ -43,6 +43,27 @@
       "manifest": "arrayfy@0.1.0/manifest.yaml",
       "code_sha256": "8277724155d9590246e403a3f26a9cf01064b0c078bd543e58aeb034b96744a5",
       "identity_format": 2
+    },
+    {
+      "name": "builtin/single-image-source",
+      "version": "0.1.0",
+      "manifest": "single-image-source@0.1.0/manifest.yaml",
+      "code_sha256": "51a026d91ec93de3fde666de1ea510a7ddfea2cf9ae3e499476e0865f7bd9509",
+      "identity_format": 2
+    },
+    {
+      "name": "builtin/single-video-source",
+      "version": "0.1.0",
+      "manifest": "single-video-source@0.1.0/manifest.yaml",
+      "code_sha256": "b8d10cc11093f8e33b937b30b91e9c83631f0a7b73704f8e59be8b53c09a0991",
+      "identity_format": 2
+    },
+    {
+      "name": "builtin/video-array-source",
+      "version": "0.1.0",
+      "manifest": "video-array-source@0.1.0/manifest.yaml",
+      "code_sha256": "9e78c6e4858c4726827c98fa5115ea064651367e8a1312ec97c55f0c793c1360",
+      "identity_format": 2
     }
   ]
 }

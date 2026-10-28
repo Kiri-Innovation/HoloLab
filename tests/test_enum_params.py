@@ -25,7 +25,7 @@ def test_enum_declaration_and_raw_values():
 def test_enum_catalog_preserves_values(tmp_path):
     import yaml
 
-    source = Path("packs/single-video-source@0.1.0/manifest.yaml")
+    source = Path("hololab/builtin_packs/single-video-source@0.1.0/manifest.yaml")
     data = yaml.safe_load(source.read_text())
     data["params"]["mode"] = {"type": "enum", "values": [1, "auto"], "default": 1, "pinned": True}
     path = tmp_path / "manifest.yaml"

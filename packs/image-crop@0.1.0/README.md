@@ -2,7 +2,7 @@
 
 One image in, one image out; both use the existing `image` tag and file storage.
 CPU runtime: `kiri` (Pillow, NumPy, OpenCV already present). The executor owns
-`{{ outputs.image }}.hololab-done`, matching single-image-source.
+`{{ outputs.image }}.hololab-done`, matching builtin/single-image-source.
 
 ## Parameter semantics
 
@@ -36,7 +36,7 @@ A separate validation workflow was created; no pre-existing graph was edited.
 
 - Workflow: `1f9ec9d4-e851-4fbc-828e-5940d3f22cfa`
 - Final snapshot: `543450fb-de5a-4175-8b93-942da04bc95d`
-- Source: `single-image-source@0.1.0`, RGB PNG, **320×240**.
+- Source: `builtin/single-image-source@0.1.0`, RGB PNG, **320×240**.
 - Source fixture has a 20-pixel grid, labeled opposite corners and a diagonal.
 
 | Case | L / T / R / B (pixels) | Actual output | Result |

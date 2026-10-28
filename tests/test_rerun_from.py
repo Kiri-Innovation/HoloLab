@@ -160,13 +160,13 @@ async def test_mark_stuck_jobs_orphaned_noop_on_clean_db(tmp_path: Path) -> None
 
 
 def _linear_graph() -> WorkflowGraph:
-    """single-video-source → video-to-colmap → stg-train → stg-to-splatv."""
+    """builtin/single-video-source → video-to-colmap → stg-train → stg-to-splatv."""
 
     return WorkflowGraph(
         nodes=[
             GraphNode(
                 id="n1",
-                algorithm_name="single-video-source",
+                algorithm_name="builtin/single-video-source",
                 algorithm_version="0.1.0",
                 assigned_node_id="node-a",
             ),
@@ -428,7 +428,10 @@ def test_rerun_from_a_previous_rerun_resolves_origin_handles(tmp_path: Path) -> 
                         workflow_id=wf_id,
                         node_id="node-a",
                         graph_node_id=gid,
-                        algorithm_name={"n1": "single-video-source", "n2": "video-to-colmap"}[gid],
+                        algorithm_name={
+                            "n1": "builtin/single-video-source",
+                            "n2": "video-to-colmap",
+                        }[gid],
                         algorithm_version="0.1.0",
                         params={},
                         input_handles={},
@@ -533,7 +536,7 @@ def test_rerun_from_prefers_fanout_parent_over_shard(tmp_path: Path) -> None:
                 workflow_id=wf_id,
                 node_id="node-a",
                 graph_node_id="n1",
-                algorithm_name="single-video-source",
+                algorithm_name="builtin/single-video-source",
                 algorithm_version="0.1.0",
                 params={},
                 input_handles={},
@@ -545,7 +548,7 @@ def test_rerun_from_prefers_fanout_parent_over_shard(tmp_path: Path) -> None:
                     handle_id="h-n1",
                     node_id="node-a",
                     storage="file",
-                    tags=["single-video-source"],
+                    tags=["builtin/single-video-source"],
                     path="/tmp/n1.out",
                     job_id=n1_job.job_id,
                     output_port_name="out",
@@ -758,7 +761,7 @@ async def test_get_job_at_falls_back_to_shard_parent(tmp_path: Path) -> None:
             workflow_id=wf_id,
             node_id="node-a",
             graph_node_id="n1",
-            algorithm_name="single-video-source",
+            algorithm_name="builtin/single-video-source",
             algorithm_version="0.1.0",
             params={},
             input_handles={},
@@ -772,7 +775,7 @@ async def test_get_job_at_falls_back_to_shard_parent(tmp_path: Path) -> None:
             workflow_id=wf_id,
             node_id="node-a",
             graph_node_id="n1",
-            algorithm_name="single-video-source",
+            algorithm_name="builtin/single-video-source",
             algorithm_version="0.1.0",
             params={},
             input_handles={},

@@ -6,9 +6,9 @@ for (const theme of ['light', 'dark']) {
     await page.routeWebSocket('**/*', () => {});
     await page.route('**/api/**', async route => {
       const u = new URL(route.request().url()); let body: unknown = [];
-      if (u.pathname === '/api/pack-catalog') body = [{ name:'single-video-source',version:'0.1.0',manifest_hash:'test',node_ids:['device'],description:'Video source',category:[],inputs:{},outputs:{},params:{video_path:{type:'path',path_kind:'file',must_exist:true}} }];
+      if (u.pathname === '/api/pack-catalog') body = [{ name:'builtin/single-video-source',version:'0.1.0',manifest_hash:'test',node_ids:['device'],description:'Video source',category:[],inputs:{},outputs:{},params:{video_path:{type:'path',path_kind:'file',must_exist:true}} }];
       if (u.pathname === '/api/nodes') body = [{node_id:'device',node_name:'Test node',online:true,gpu:{count:0},packs:[],legacy_workspace_roots:[],pack_dirs:[],workspace_root:'/media'}];
-      if (u.pathname === '/api/workflows/path-test') body = {workflow_id:'path-test',name:'Path picker',created_ts:1,updated_ts:1,graph:{nodes:[{id:'source',algorithm_name:'single-video-source',algorithm_version:'0.1.0',params:{},assigned_node_id:'device',position:{x:100,y:100}}],edges:[]}};
+      if (u.pathname === '/api/workflows/path-test') body = {workflow_id:'path-test',name:'Path picker',created_ts:1,updated_ts:1,graph:{nodes:[{id:'source',algorithm_name:'builtin/single-video-source',algorithm_version:'0.1.0',params:{},assigned_node_id:'device',position:{x:100,y:100}}],edges:[]}};
       if (u.pathname === '/api/nodes/metrics/history') body = {sample_interval_s:5,nodes:{}};
       if (u.pathname === '/api/artifacts/summary') body = {total_bytes:0,exclusive_bytes:0,artifact_count:0};
       if (u.pathname === '/api/nodes/device/paths') body = {path:'/media',parent:'/',next_offset:null,entries:[{name:'classic-stg.mp4',path:'/media/classic-stg.mp4',kind:'file',symlink:false,size:2048,modified_ts:1},{name:'renders',path:'/media/renders',kind:'directory',symlink:false,size:null,modified_ts:1}].filter(e=>e.name.startsWith(u.searchParams.get('prefix')||''))};
@@ -80,9 +80,9 @@ for (const theme of ['light','dark']) {
     const slowGate = new Promise<void>(resolve=>{releaseSlow=resolve;});
     await page.route('**/api/**',async route=>{
       const u=new URL(route.request().url()); let body:unknown=[];
-      if(u.pathname==='/api/pack-catalog') body=[{name:'single-video-source',version:'0.1.0',manifest_hash:'test',node_ids:['device'],inputs:{},outputs:{},params:{video_path:{type:'path',path_kind:'file'}}}];
+      if(u.pathname==='/api/pack-catalog') body=[{name:'builtin/single-video-source',version:'0.1.0',manifest_hash:'test',node_ids:['device'],inputs:{},outputs:{},params:{video_path:{type:'path',path_kind:'file'}}}];
       if(u.pathname==='/api/nodes') body=[{node_id:'device',node_name:'Test node',gpu:{count:0},packs:[],legacy_workspace_roots:[],pack_dirs:[],workspace_root:null}];
-      if(u.pathname==='/api/workflows/path-test') body={workflow_id:'path-test',name:'Path picker',created_ts:1,updated_ts:1,graph:{nodes:[{id:'source',algorithm_name:'single-video-source',algorithm_version:'0.1.0',params:{},assigned_node_id:'device',position:{x:100,y:100}}],edges:[]}};
+      if(u.pathname==='/api/workflows/path-test') body={workflow_id:'path-test',name:'Path picker',created_ts:1,updated_ts:1,graph:{nodes:[{id:'source',algorithm_name:'builtin/single-video-source',algorithm_version:'0.1.0',params:{},assigned_node_id:'device',position:{x:100,y:100}}],edges:[]}};
       if(u.pathname==='/api/nodes/metrics/history') body={sample_interval_s:5,nodes:{}};
       if(u.pathname==='/api/nodes/device/paths') {
         const path=u.searchParams.get('path')!; const prefix=u.searchParams.get('prefix')!;

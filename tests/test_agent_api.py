@@ -44,7 +44,7 @@ def _linear_graph(iter_value: int = 100) -> WorkflowGraph:
         nodes=[
             GraphNode(
                 id="n1",
-                algorithm_name="single-video-source",
+                algorithm_name="builtin/single-video-source",
                 algorithm_version="0.1.0",
                 params={"iterations": iter_value},
                 assigned_node_id="node-a",
@@ -297,11 +297,11 @@ def test_workflow_detail_graph_carries_topology_text_and_labels(tmp_path: Path) 
         assert [n["id"] for n in g["nodes"]] == ["n1", "n2", "n3"]
         # edges are denormalized with algorithm names.
         first_edge = g["edges"][0]
-        assert first_edge["source_label"] == "single-video-source"
+        assert first_edge["source_label"] == "builtin/single-video-source"
         assert first_edge["target_label"] == "video-to-colmap"
         # topology_text is a compact chain — contains all three algorithm names.
         text = g["topology_text"]
-        assert "single-video-source" in text
+        assert "builtin/single-video-source" in text
         assert "video-to-colmap" in text
         assert "stg-train" in text
         assert "→" in text  # arrow character used as separator

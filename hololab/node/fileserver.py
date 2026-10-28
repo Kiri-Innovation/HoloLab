@@ -18,7 +18,7 @@ many videos (a 20-video grid moves ~600 KiB of JPEG, not 2 GiB of video).
 Video *proxy playback* uses ``GET /_preview/{W}x{H}/{sub:path}?fps=N`` — same
 shape as ``/_thumb``, but the response is a small H.264-baseline MP4 that the
 frontend can stream inside a ``<video>`` for grid tiles without decoding the
-full-res source. That matters when a video-array-source drawer paints 21x
+full-res source. That matters when a builtin/video-array-source drawer paints 21x
 2.7K/30fps clips: 21 concurrent HW decoders is not something any browser
 delivers on. Cached under ``{workspace_root}/.hololab-previews/``; see
 ``docs/video-preview-transcoding.md`` for the rationale, cost model and
@@ -264,7 +264,7 @@ def create_fileserver_app(
 
         We deliberately do NOT ``.resolve()`` before the traversal check
         because packs may legitimately drop symlinks into their outputs
-        that point outside the workspace (``single-video-source``
+        that point outside the workspace (``builtin/single-video-source``
         symlinks the user's source video into ``videos_dir/input.<ext>``,
         for example). The trust model already assumes packs run with the
         same privileges as the file server, so a pack that writes a

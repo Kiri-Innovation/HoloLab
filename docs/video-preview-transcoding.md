@@ -3,7 +3,7 @@
 ## Why this exists
 
 The video-grid viewer paints one `<video>` per tile so a
-`video-array-source` drawer can show all cameras of a multi-cam
+`builtin/video-array-source` drawer can show all cameras of a multi-cam
 dataset at once. Streaming the *source* video into each tile makes the
 frontend the wrong side of an arithmetic problem:
 

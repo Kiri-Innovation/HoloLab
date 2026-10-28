@@ -1663,7 +1663,7 @@ def _topology_text(graph: WorkflowGraph, labels: dict[str, str]) -> str:
 
     Example output for a linear 4-node chain::
 
-        single-video-source[video-source]
+        builtin/single-video-source[video-source]
           → video-to-colmap[video-source → colmap]
           → stg-train[colmap → stg_model]
           → stg-to-splatv[stg_model → splatv]
