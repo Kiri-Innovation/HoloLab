@@ -88,12 +88,13 @@ h1,h2,h3 { color: var(--text); font-weight: var(--fw-semibold); line-height: var
 .prose pre code { background: none; border: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
 .prose table { display: block; overflow-x: auto; width: 100%; border-collapse: collapse; margin: 22px 0; font-size: 13px; }.prose td,.prose th { text-align: left; border: 1px solid var(--border); padding: 10px 12px; min-width: 120px; }.prose th { background: var(--surface-alt); }
 .prose blockquote { margin: 20px 0; border-left: 2px solid var(--accent); padding-left: 18px; color: var(--text-muted); }
-.install-tabs { margin: 32px 0; }
+.install-tabs { margin: 48px 0 20px; }
 .install-tab-list { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
-.install-tab-list button { appearance: none; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer; margin-bottom: -1px; padding: 9px 12px; font-size: var(--fs-sm); line-height: var(--lh-ui); }
+.install-tab-list h2 { margin: 0; font-size: 24px; line-height: 1.4; }
+.install-tab-list button { appearance: none; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer; margin-bottom: -1px; padding: 0 12px 12px; font: inherit; font-weight: var(--fw-medium); line-height: inherit; }
 .install-tab-list button:hover { color: var(--text); background: var(--surface-hover); }
 .install-tab-list button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--text); font-weight: var(--fw-semibold); }
-.install-tabs [role="tabpanel"] > :first-child { margin-top: 32px; }
+.install-tabs [role="tabpanel"] > :first-child { margin-top: 20px; }
 .install-tabs [role="tabpanel"] > :last-child { margin-bottom: 0; }
 .toc { grid-column: toc; grid-row: 1 / span 2; position: sticky; top: 104px; align-self: start; margin-top: 40px; font-size: 13px; max-height: calc(100vh - 150px - var(--docs-footer-height)); overflow-y: auto; }
 .toc > span { color: var(--text-muted); font-size: 14px; display: block; margin-bottom: 12px; }

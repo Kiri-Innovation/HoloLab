@@ -29,20 +29,16 @@ nvm install 22
 node --version
 ```
 
-## 安装
-
 <div class="install-tabs" data-install-tabs>
 <div class="install-tab-list" role="tablist" aria-label="安装方式">
-<button id="install-from-source-tab" type="button" role="tab" aria-selected="true" aria-controls="install-from-source" data-install-tab="source">从源码安装</button>
-<button id="install-from-pip-tab" type="button" role="tab" aria-selected="false" aria-controls="install-from-pip" data-install-tab="pip" tabindex="-1">pip 安装</button>
+<h2 id="从源码安装"><button id="install-from-source-tab" type="button" role="tab" aria-selected="true" aria-controls="install-from-source" data-install-tab="source">从源码安装</button></h2>
+<h2><button id="install-from-pip-tab" type="button" role="tab" aria-selected="false" aria-controls="install-from-pip" data-install-tab="pip" tabindex="-1">pip 安装</button></h2>
 </div>
 <section id="install-from-source" role="tabpanel" aria-labelledby="install-from-source-tab" data-install-panel="source"></section>
 <section id="install-from-pip" role="tabpanel" aria-labelledby="install-from-pip-tab" data-install-panel="pip" hidden>
 <p>pip 安装方式正在准备中，将在后续版本提供。届时可直接运行 <code>pip install hololab</code>，无需在本机构建前端。现在需要开始使用 HoloLab，请选择“从源码安装”并按下面的步骤完成安装。</p>
 </section>
 </div>
-
-## 从源码安装
 
 ### 获取代码（二选一）
 

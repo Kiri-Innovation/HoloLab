@@ -114,6 +114,7 @@ function attachInstallTabs() {
       if (!location.hash) return;
       try {
         const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+        if (target?.id === '从源码安装') { select('source'); return; }
         const panel = panels.find(candidate => candidate.contains(target));
         if (panel) select(panel.dataset.installPanel!);
       } catch { /* Invalid fragments are harmless. */ }
