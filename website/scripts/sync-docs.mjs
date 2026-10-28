@@ -168,16 +168,16 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
     if (doc.screenshots) {
       schema.tagNames = [...new Set([...schema.tagNames, 'figure', 'figcaption', 'picture', 'source', 'img'])];
       schema.attributes.figure = [['className', ...(doc.diagrams ? ['concept-diagram'] : []), 'doc-screenshot'], 'ariaLabel'];
-      schema.attributes.div = [...(schema.attributes.div ?? []), ['className', 'annotated-canvas', 'canvas-annotations', 'reference-placeholder', 'copyable-code', 'install-tabs', 'install-tab-list'], 'ariaHidden'];
+      schema.attributes.div = [...(schema.attributes.div ?? []), ['className', 'annotated-canvas', 'canvas-annotations', 'reference-placeholder', 'copyable-code', 'doc-tabs', 'doc-tabs-level-2', 'doc-tabs-level-3', 'doc-tab-list'], 'ariaHidden'];
       schema.attributes.span = [...(schema.attributes.span ?? []), ['className', 'canvas-region', 'region-number', 'region-canvas', 'region-packs', 'region-run', 'region-history', 'region-jobs', 'region-preview', 'region-reference', 'reference-label']];
       schema.attributes.source = ['srcSet', ['media', '(prefers-color-scheme: dark)'], ['type', 'image/webp']];
       schema.attributes.img = ['src', 'alt', 'width', 'height', ['loading', 'lazy'], ['decoding', 'async']];
     }
     if (doc.slug === 'quick-start' && doc.locale === 'zh-CN') {
       schema.tagNames = [...new Set([...schema.tagNames, 'button'])];
-      schema.attributes.div = [...(schema.attributes.div ?? []), 'dataInstallTabs', 'role', 'ariaLabel'];
-      schema.attributes.button = ['id', 'type', 'role', 'ariaSelected', 'ariaControls', 'dataInstallTab', 'tabIndex'];
-      schema.attributes.section = ['id', 'role', 'ariaLabelledBy', 'dataInstallPanel', 'hidden'];
+      schema.attributes.div = [...(schema.attributes.div ?? []), 'dataTabs', 'dataTabsEnd', 'dataTabSource', 'role', 'ariaLabel'];
+      schema.attributes.button = ['id', 'type', 'role', 'ariaSelected', 'ariaControls', 'dataTab', 'tabIndex'];
+      schema.attributes.section = ['id', 'role', 'ariaLabelledBy', 'dataTabPanel', 'hidden'];
     }
     if (doc.environmentContent) {
       for (const tag of ['div', ...(doc.screenshots ? ['figure', 'picture', 'img'] : [])]) {

@@ -84,49 +84,57 @@ function DocAreas() {
 function Footer() {
   return <footer className="footer"><a className="brand" href={localize('/')}>HoloLab</a><span>{t('footer')}</span><a href={localize('/docs')}>{t('docs')} ↗</a></footer>;
 }
-function attachInstallTabs() {
+function attachDocTabs() {
   const cleanups: (() => void)[] = [];
-  document.querySelectorAll<HTMLElement>('.install-tabs[data-install-tabs]').forEach(tabs => {
-    const source = tabs.querySelector<HTMLElement>('[data-install-panel="source"]');
-    const panels = [...tabs.querySelectorAll<HTMLElement>('[data-install-panel]')];
-    const buttons = [...tabs.querySelectorAll<HTMLButtonElement>('[data-install-tab]')];
-    if (!source || panels.length !== buttons.length) return;
+  document.querySelectorAll<HTMLElement>('.doc-tabs[data-tabs]').forEach(tabs => {
+    const panels = [...tabs.querySelectorAll<HTMLElement>('[data-tab-panel]')];
+    const buttons = [...tabs.querySelectorAll<HTMLButtonElement>('[data-tab]')];
+    const panelByName = new Map(panels.map(panel => [panel.dataset.tabPanel, panel]));
+    if (panels.length !== buttons.length || !buttons.every(button => panelByName.has(button.dataset.tab))) return;
 
-    // Markdown owns the source-install steps. Move that contiguous range into
-    // its panel so headings and deep links retain their existing IDs.
+    // Markdown owns the tab bodies. Markers route each following block into
+    // the right panel until the next heading belonging to the document.
+    let active = buttons[0].dataset.tab!;
     let node = tabs.nextElementSibling;
-    while (node && !(node.tagName === 'H2' && node.id === '打开-web-画布')) {
+    while (node && node.id !== tabs.dataset.tabsEnd) {
       const next = node.nextElementSibling;
-      source.append(node);
+      const marker = node as HTMLElement;
+      if (marker.matches('[data-tab-source]') && panelByName.has(marker.dataset.tabSource)) {
+        active = marker.dataset.tabSource!;
+        node.remove();
+      } else {
+        panelByName.get(active)?.append(node);
+      }
       node = next;
     }
 
     const select = (name: string, focus = false) => {
       buttons.forEach(button => {
-        const selected = button.dataset.installTab === name;
+        const selected = button.dataset.tab === name;
         button.setAttribute('aria-selected', String(selected));
         button.tabIndex = selected ? 0 : -1;
         if (selected && focus) button.focus();
       });
-      panels.forEach(panel => { panel.hidden = panel.dataset.installPanel !== name; });
+      panels.forEach(panel => { panel.hidden = panel.dataset.tabPanel !== name; });
     };
     const revealFragment = () => {
       if (!location.hash) return;
       try {
         const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
-        if (target?.id === '从源码安装') { select('source'); return; }
+        const tab = target?.matches('[data-tab]') ? target : target?.querySelector<HTMLElement>('[data-tab]');
+        if (tab?.dataset.tab && tab.closest('.doc-tabs[data-tabs]') === tabs) { select(tab.dataset.tab); return; }
         const panel = panels.find(candidate => candidate.contains(target));
-        if (panel) select(panel.dataset.installPanel!);
+        if (panel) select(panel.dataset.tabPanel!);
       } catch { /* Invalid fragments are harmless. */ }
     };
     buttons.forEach((button, index) => {
-      const onClick = () => select(button.dataset.installTab!);
+      const onClick = () => select(button.dataset.tab!);
       const onKeyDown = (event: KeyboardEvent) => {
         const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
         if (!keys.includes(event.key)) return;
         event.preventDefault();
         const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
-        select(buttons[next].dataset.installTab!, true);
+        select(buttons[next].dataset.tab!, true);
       };
       button.addEventListener('click', onClick);
       button.addEventListener('keydown', onKeyDown);
@@ -140,7 +148,7 @@ function attachInstallTabs() {
 }
 function Documentation() {
   useEffect(() => attachCodeCopy({ copy: t('copyCode'), copied: t('copiedCode'), failed: t('copyCodeFailed') }), []);
-  useEffect(() => attachInstallTabs(), []);
+  useEffect(() => attachDocTabs(), []);
   useEffect(() => {
     // Follow the site's resolved theme, including a manual override of the OS theme.
     const syncPictures = () => {

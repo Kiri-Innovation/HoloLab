@@ -29,18 +29,29 @@ nvm install 22
 node --version
 ```
 
-<div class="install-tabs" data-install-tabs>
-<div class="install-tab-list" role="tablist" aria-label="安装方式">
-<h2 id="从源码安装"><button id="install-from-source-tab" type="button" role="tab" aria-selected="true" aria-controls="install-from-source" data-install-tab="source">从源码安装</button></h2>
-<h2><button id="install-from-pip-tab" type="button" role="tab" aria-selected="false" aria-controls="install-from-pip" data-install-tab="pip" tabindex="-1">pip 安装</button></h2>
+<div class="doc-tabs doc-tabs-level-2" data-tabs data-tabs-end="打开-web-画布">
+<div class="doc-tab-list" role="tablist" aria-label="安装方式">
+<h2 id="从源码安装"><button id="install-from-source-tab" type="button" role="tab" aria-selected="true" aria-controls="install-from-source" data-tab="source">从源码安装</button></h2>
+<h2><button id="install-from-pip-tab" type="button" role="tab" aria-selected="false" aria-controls="install-from-pip" data-tab="pip" tabindex="-1">pip 安装</button></h2>
 </div>
-<section id="install-from-source" role="tabpanel" aria-labelledby="install-from-source-tab" data-install-panel="source"></section>
-<section id="install-from-pip" role="tabpanel" aria-labelledby="install-from-pip-tab" data-install-panel="pip" hidden>
+<section id="install-from-source" role="tabpanel" aria-labelledby="install-from-source-tab" data-tab-panel="source"></section>
+<section id="install-from-pip" role="tabpanel" aria-labelledby="install-from-pip-tab" data-tab-panel="pip" hidden>
 <p>pip 安装方式正在准备中，将在后续版本提供。届时可直接运行 <code>pip install hololab</code>，无需在本机构建前端。现在需要开始使用 HoloLab，请选择“从源码安装”并按下面的步骤完成安装。</p>
 </section>
 </div>
 
-### 获取代码（二选一）
+### 获取代码
+
+<div class="doc-tabs doc-tabs-level-3" data-tabs data-tabs-end="安装与构建通用">
+<div class="doc-tab-list" role="tablist" aria-label="获取代码方式">
+<button id="全新克隆" type="button" role="tab" aria-selected="true" aria-controls="get-code-clone" data-tab="clone">全新克隆</button>
+<button id="已有仓库" type="button" role="tab" aria-selected="false" aria-controls="get-code-existing" data-tab="existing" tabindex="-1">已有仓库</button>
+</div>
+<section id="get-code-clone" role="tabpanel" aria-labelledby="全新克隆" data-tab-panel="clone"></section>
+<section id="get-code-existing" role="tabpanel" aria-labelledby="已有仓库" data-tab-panel="existing" hidden></section>
+</div>
+
+<div data-tab-source="clone"></div>
 
 **全新克隆。** 前端构建会自动构建随仓库固定版本的 ColmapUtil 子模块，因此克隆时需要 `--recurse-submodules`。在终端执行：
 
@@ -48,6 +59,8 @@ node --version
 git clone --recurse-submodules https://github.com/Kiri-Innovation/HoloLab.git
 cd HoloLab
 ```
+
+<div data-tab-source="existing"></div>
 
 **已有仓库（包括 Kiri4DGS）。** 无需再次克隆。如果你在 Kiri4DGS 仓库内工作，HoloLab 已作为子模块包含在 `hololab/` 中，从 Kiri4DGS 根目录执行 `cd hololab`；其他已有仓库用户进入自己的 HoloLab 根目录。然后在 HoloLab 根目录初始化并更新子模块：
 
