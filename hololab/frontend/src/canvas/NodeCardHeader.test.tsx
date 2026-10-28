@@ -51,3 +51,32 @@ it("does not invent an execution action for constants or viewers", () => {
   expect(html).toContain('data-ref="graph-node/workflow/constant"');
   expect(html).not.toContain("hl-node-run-control");
 });
+
+it("shows an accessible shield for a community-certified release", () => {
+  const html = renderToStaticMarkup(
+    <NodeCardHeader
+      id="community-pack"
+      name="community/colmap-sfm"
+      version="0.4.2"
+      subtitle="local"
+      communityCertified
+      status={nodeStatus({})}
+    />,
+  );
+  expect(html).toContain('data-hl-community-certified=""');
+  expect(html).toContain('title="社区认证版本：与注册表发布内容一致"');
+  expect(html).toContain('aria-label="社区认证版本：与注册表发布内容一致"');
+});
+
+it("omits the shield when the release is not community-certified", () => {
+  const html = renderToStaticMarkup(
+    <NodeCardHeader
+      id="builtin-pack"
+      name="kiri/colmap-sfm"
+      version="0.4.2"
+      subtitle="local"
+      status={nodeStatus({})}
+    />,
+  );
+  expect(html).not.toContain("data-hl-community-certified");
+});
