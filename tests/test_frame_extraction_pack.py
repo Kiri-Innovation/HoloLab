@@ -1,4 +1,4 @@
-"""``frame-extraction@0.1.0`` — manifest shape + select-expr + ffmpeg integration.
+"""``builtin/frame-extraction@0.1.0`` — manifest shape + ffmpeg integration.
 
 Locks the STG parity contract: ``--max-width``, ``--start-frame``, ``--end-frame``
 match ``SpacetimeGaussians/script/pre_no_prior.py`` and its
@@ -19,7 +19,9 @@ import pytest
 
 from hololab.manifest import load_manifest
 
-_PACK_DIR = Path(__file__).resolve().parent.parent / "packs" / "frame-extraction@0.1.0"
+_PACK_DIR = (
+    Path(__file__).resolve().parent.parent / "hololab" / "builtin_packs" / "frame-extraction@0.1.0"
+)
 _SCRIPT = _PACK_DIR / "extract_frames.py"
 
 
@@ -51,12 +53,28 @@ def test_manifest_declares_stg_parity_params() -> None:
     assert m.params["max_frames"].default == 50
 
 
-def test_manifest_wires_new_flags_into_shell() -> None:
+def test_bundled_host_manifest_wires_new_flags_into_python_args() -> None:
     m, _ = load_manifest(_PACK_DIR / "manifest.yaml")
-    shell = m.exec.shell
-    assert "--max-width {{ params.max_width }}" in shell
-    assert "--start-frame {{ params.start_frame }}" in shell
-    assert "--end-frame {{ params.end_frame }}" in shell
+    assert m.name == "builtin/frame-extraction"
+    assert m.runtime.mode == "host"
+    assert m.exec.python == "extract_frames.py"
+    assert m.arrayable is True
+    assert m.exec.args == [
+        "--input-dir",
+        "{{ inputs.video_dir }}",
+        "--skip",
+        "{{ params.skip }}",
+        "--max-frames",
+        "{{ params.max_frames }}",
+        "--max-width",
+        "{{ params.max_width }}",
+        "--start-frame",
+        "{{ params.start_frame }}",
+        "--end-frame",
+        "{{ params.end_frame }}",
+        "--output",
+        "{{ outputs.frame_sequence }}",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +128,16 @@ def test_extract_frames_rejects_inverted_window(tmp_path: Path) -> None:
     fake.write_bytes(b"")  # existence-only guard; validation runs before decode.
     with pytest.raises(ValueError, match=r"start_frame.*<.*end_frame"):
         mod.extract_frames(fake, tmp_path / "out", start_frame=10, end_frame=5)
+
+
+def test_host_entrypoint_selects_first_video_from_handle_dir(tmp_path: Path) -> None:
+    mod = _load_extract_frames_module()
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+    handle = tmp_path / "handle"
+    handle.mkdir()
+    (handle / "input.mp4").symlink_to(source)
+    assert mod.find_video_in_handle(handle) == source.resolve()
 
 
 # ---------------------------------------------------------------------------

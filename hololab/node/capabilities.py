@@ -5,7 +5,10 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
+import shutil
 import subprocess
+import sys
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -192,7 +195,8 @@ class CapabilityChecker:
                 dict(item=item, required=required, actual=actual, remedy=remedy)
             )
 
-        prefix_value = envs.get(manifest.runtime.env)
+        host_runtime = manifest.runtime.mode == "host"
+        prefix_value = str(Path(sys.prefix)) if host_runtime else envs.get(manifest.runtime.env)
         if not prefix_value:
             issue(
                 "env", manifest.runtime.env, "未映射", "在节点 config.yaml 的 envs 配置已有环境路径"
@@ -200,6 +204,7 @@ class CapabilityChecker:
             return report
         prefix = Path(prefix_value)
         report["prefix"] = str(prefix)
+        activated = dict(os.environ) if host_runtime else activated
         visible = (activated or {}).get("CUDA_VISIBLE_DEVICES")
         try:
             key = (str(prefix), conda_bin, json.dumps(activated, sort_keys=True))
@@ -253,13 +258,22 @@ class CapabilityChecker:
             for text in contract.packages:
                 req = Requirement(text)
                 installed = data["packages"].get(canonicalize_name(req.name))
+                source = data.get("package_sources", {}).get(canonicalize_name(req.name))
+                system_binary = False
+                if host_runtime and installed is None and shutil.which(req.name):
+                    # Bundled host packages may require an OS binary such as
+                    # ffmpeg rather than a Python distribution.  A versioned
+                    # requirement still needs package metadata; an unpinned
+                    # binary only needs to be executable on PATH.
+                    installed = "system"
+                    source = "system-binary"
+                    system_binary = True
                 report["packages"][req.name] = installed
-                report["package_sources"][req.name] = data.get("package_sources", {}).get(
-                    canonicalize_name(req.name)
-                )
+                report["package_sources"][req.name] = source
                 try:
-                    matches = installed is not None and (
-                        not req.specifier or Version(installed) in req.specifier
+                    matches = (system_binary and not req.specifier) or (
+                        installed is not None
+                        and (not req.specifier or Version(installed) in req.specifier)
                     )
                 except InvalidVersion:
                     matches = False

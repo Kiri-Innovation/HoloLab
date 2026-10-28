@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _load(name: str):
-    root = BUILTINS_ROOT if name == "video-array-source" else PACKS_ROOT
+    root = BUILTINS_ROOT if name in {"video-array-source", "frame-extraction"} else PACKS_ROOT
     m, _ = load_manifest(root / f"{name}@0.1.0" / "manifest.yaml")
     return m
 
@@ -40,6 +40,7 @@ def test_video_array_source_output_is_arrayed_video_source() -> None:
 
 def test_frame_extraction_is_arrayable() -> None:
     m = _load("frame-extraction")
+    assert m.name == "builtin/frame-extraction"
     assert m.arrayable is True
 
 

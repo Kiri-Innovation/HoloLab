@@ -119,7 +119,7 @@ def test_graph_node_arrayed_toggle_roundtrips() -> None:
         nodes=[
             GraphNode(
                 id="n1",
-                algorithm_name="frame-extraction",
+                algorithm_name="builtin/frame-extraction",
                 algorithm_version="0.1.0",
                 arrayed_toggle=True,
                 assigned_node_id="node",

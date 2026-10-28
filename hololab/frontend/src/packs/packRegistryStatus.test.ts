@@ -9,7 +9,7 @@ describe('packRegistryStatus', () => {
   });
 
   it('keeps local-only and registry-parity labels unchanged for other packages', () => {
-    expect(packRegistryStatus('kiri/frame-extraction', {state: 'absent'})).toMatchObject({
+    expect(packRegistryStatus('kiri/local-frame-extraction', {state: 'absent'})).toMatchObject({
       tone: 'neutral', conclusion: '本地包',
     });
     expect(packRegistryStatus('community/colmap-sfm', {

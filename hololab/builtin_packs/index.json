@@ -64,6 +64,13 @@
       "manifest": "video-array-source@0.1.0/manifest.yaml",
       "code_sha256": "9e78c6e4858c4726827c98fa5115ea064651367e8a1312ec97c55f0c793c1360",
       "identity_format": 2
+    },
+    {
+      "name": "builtin/frame-extraction",
+      "version": "0.1.0",
+      "manifest": "frame-extraction@0.1.0/manifest.yaml",
+      "code_sha256": "86147a8e2247d82278cce2cce9df8bbf897eff626824bb59bfaa45d0c2e6048a",
+      "identity_format": 2
     }
   ]
 }

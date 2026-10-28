@@ -5,7 +5,7 @@ import { certificationMessage, packCertification } from "./packCertification";
 it.each([
   ["builtin/video-array-source", { state: "absent" }, "builtin"],
   ["community/colmap-sfm", { state: "identical" }, "community"],
-  ["frame-extraction", { state: "identical" }, null],
+  ["builtin/frame-extraction", { state: "absent" }, "builtin"],
   ["community/colmap-sfm", { state: "differs" }, null],
 ] as const)("classifies %s by its reproducible distribution", (name, central, expected) => {
   expect(packCertification({ name, central } as Pick<CatalogPack, "name" | "central">)).toBe(expected);

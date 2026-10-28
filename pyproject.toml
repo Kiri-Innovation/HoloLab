@@ -36,6 +36,9 @@ dependencies = [
     "watchfiles>=0.24",
     "pyyaml>=6.0",
     "pillow>=10",
+    "numpy>=1.26",
+    "tqdm>=4.66",
+    "opencv-python-headless>=4.10",
     "pathspec==1.0.4",
     "packaging>=24",
 ]

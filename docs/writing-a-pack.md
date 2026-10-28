@@ -379,12 +379,12 @@ your `runtime.env` name isn't in the node's `envs:` map, or
 
 Two homes, chosen by dependency:
 
-- **HoloLab-owned (`hololab/packs/<name>@<version>/`)** — generic utility
+- **HoloLab-owned (`hololab/builtin_packs/<name>@<version>/`)** — generic utility
   that works with anything downstream and has **zero deps on any specific
   algorithm repo** (only stdlib + widely-available libs like cv2 / numpy /
   ffmpeg). Ships with HoloLab, no algorithm checkout required. Examples
   today: ``builtin/single-video-source``, ``builtin/video-array-source``,
-  ``frame-extraction``, ``demo-*``.
+  ``builtin/frame-extraction``, ``demo-*``.
 - **Algorithm-repo-owned (colocated with the algorithm code)** — pack that
   invokes algorithm-specific scripts and needs its checkout. Examples
   today: sharp-4dgs's ``frames-to-camera-track`` /
@@ -470,7 +470,7 @@ Concrete example — an arrayable frame extractor:
 ```yaml
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: frame-extraction
+name: builtin/frame-extraction
 version: 0.1.0
 arrayable: true
 
@@ -485,14 +485,10 @@ outputs:
     storage: dir
     dim_labels: [frame]              # fan-out adds an outer camera axis
 runtime:
-  env: kiri
+  mode: host
 exec:
-  shell: |
-    # Each shard sees ONE video dir at {{ inputs.video_dir }} and writes
-    # {{ outputs.frame_sequence }}/frame_XXXXXX.png. No branching
-    # on shard.element_id needed — the framework routes I/O for you.
-    VIDEO=$(find "{{ inputs.video_dir }}" -maxdepth 1 -type f | head -1)
-    python {{ pack_dir }}/extract_frames.py "$VIDEO" -o "{{ outputs.frame_sequence }}"
+  python: extract_frames.py
+  args: ["--input-dir", "{{ inputs.video_dir }}", "--output", "{{ outputs.frame_sequence }}"]
 ```
 
 When the operator turns off the checkbox, the same pack works as a

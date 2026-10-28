@@ -1,14 +1,13 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: frame-extraction
+name: builtin/frame-extraction
 version: 0.1.0
 description: >
   Extract frames from a video into a directory of ``frame_XXXXXX.png``
   files. Generic utility pack — works with any downstream that consumes
   a ``frame_sequence`` (MegaSaM, other trackers, image-space algorithms).
-# Ships WITH HoloLab (colocated with the manifest under hololab/packs/).
-# Zero deps on any algorithm repo — only stdlib + cv2 + numpy + tqdm +
-# ffmpeg/ffprobe. That's why this lives here and not next to sharp-4dgs.
+# Ships WITH HoloLab as a bundled host package.  Python dependencies are
+# declared by HoloLab itself; ffmpeg/ffprobe remain an external requirement.
 # ``source_entry`` resolves against the manifest's own directory
 # (self-contained + portable).
 source_entry: extract_frames.py
@@ -112,9 +111,9 @@ outputs:
       ``frame_sequence``).
 
 requires:
-  packages: [ffmpeg, opencv-python, numpy, tqdm]
+  packages: [ffmpeg]
 runtime:
-  env: kiri
+  mode: host
   gpu:
     required: false
   expected_duration_min: [0.05, 2.0]
@@ -127,37 +126,22 @@ runtime:
     mem_gb: 2.0
 
 exec:
-  # ``{{ pack_dir }}`` points at hololab/packs/frame-extraction@0.1.0/ —
-  # HoloLab-owned packs use pack_dir for their own scripts (algorithm-repo
-  # packs use absolute repo paths instead). No ``cd`` needed; the script
-  # only touches the input/output paths passed in.
-  shell: |
-    set -euo pipefail
-
-    VIDEO=$(find "{{ inputs.video_dir }}" -maxdepth 1 -type l -o -type f | \
-      grep -iE '\.(mp4|mov|avi|mkv)$' | head -1)
-    if [ -z "$VIDEO" ]; then
-      echo "no video file found under {{ inputs.video_dir }}" >&2
-      exit 2
-    fi
-    VIDEO=$(readlink -f "$VIDEO")
-
-    OUT="{{ outputs.frame_sequence }}"
-    mkdir -p "$OUT"
-
-    python {{ pack_dir }}/extract_frames.py "$VIDEO" \
-      --skip {{ params.skip }} \
-      --max-frames {{ params.max_frames }} \
-      --max-width {{ params.max_width }} \
-      --start-frame {{ params.start_frame }} \
-      --end-frame {{ params.end_frame }} \
-      -o "$OUT"
-
-    # Sanity gate: at least one frame_*.png must sit directly under $OUT.
-    if ! ls "$OUT"/frame_*.png >/dev/null 2>&1; then
-      echo "no frame_*.png under $OUT" >&2
-      exit 4
-    fi
+  python: extract_frames.py
+  args:
+    - --input-dir
+    - "{{ inputs.video_dir }}"
+    - --skip
+    - "{{ params.skip }}"
+    - --max-frames
+    - "{{ params.max_frames }}"
+    - --max-width
+    - "{{ params.max_width }}"
+    - --start-frame
+    - "{{ params.start_frame }}"
+    - --end-frame
+    - "{{ params.end_frame }}"
+    - --output
+    - "{{ outputs.frame_sequence }}"
 
 idempotency:
   marker: "{{ outputs.frame_sequence }}/.hololab-done"

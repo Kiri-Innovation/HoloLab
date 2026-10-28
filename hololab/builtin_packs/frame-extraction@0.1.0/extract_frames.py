@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: RUF001
-"""Standalone video → frame_XXXXXX.png extractor for the frame-extraction pack.
+"""Bundled video → frame_XXXXXX.png extractor for HoloLab.
 
 Zero deps on any algorithm repo. Only stdlib + cv2 + numpy + tqdm + ffmpeg/
 ffprobe binaries. HDR (HLG / PQ) videos are tonemapped to sRGB automatically
@@ -305,11 +305,29 @@ def extract_frames(
     return saved
 
 
+def find_video_in_handle(input_dir: Path) -> Path | None:
+    """Return the first supported video in a video-source handle."""
+    return next(
+        (
+            candidate.resolve()
+            for candidate in sorted(input_dir.iterdir())
+            if candidate.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv"} and candidate.is_file()
+        ),
+        None,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="从视频抽帧到 <output>/frame_XXXXXX.png (flatten migration: no frames/)。"
     )
-    parser.add_argument("video", type=str, help="输入视频路径。")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("video", nargs="?", type=str, help="输入视频路径。")
+    source.add_argument(
+        "--input-dir",
+        type=str,
+        help="video-source handle directory; its first supported video file is used.",
+    )
     parser.add_argument(
         "-o",
         "--output",
@@ -352,7 +370,17 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    video_path = Path(args.video)
+    if args.input_dir:
+        input_dir = Path(args.input_dir)
+        if not input_dir.is_dir():
+            print(f"✗ 输入目录不存在: {input_dir}", file=sys.stderr)
+            return 2
+        video_path = find_video_in_handle(input_dir)
+        if video_path is None:
+            print(f"✗ 输入目录没有视频文件: {input_dir}", file=sys.stderr)
+            return 2
+    else:
+        video_path = Path(args.video)
     if not video_path.is_file():
         print(f"✗ 输入视频不存在: {video_path}", file=sys.stderr)
         return 2

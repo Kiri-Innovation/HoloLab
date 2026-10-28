@@ -22,7 +22,7 @@ function jsonRoute(body: unknown) {
 
 async function stubPage(page: import("@playwright/test").Page) {
   const pack = {
-    name: "frame-extraction", version: "1.0.0", manifest_hash: "hash", node_ids: [NODE_ID],
+    name: "builtin/frame-extraction", version: "0.1.0", manifest_hash: "hash", node_ids: [NODE_ID],
     description: "generic nested frames", category: [], docs: null, source_entry: null, manifest_path: null,
     source_dir: null, inputs: {}, params: {}, arrayable: false,
     outputs: { frames: { tags: ["image"], arrayed: true, preview: null, description: null, dim_labels: ["group", "frame"] } },

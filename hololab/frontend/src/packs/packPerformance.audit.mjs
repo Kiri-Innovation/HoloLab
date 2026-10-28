@@ -4,7 +4,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 const base=process.env.PACK_PERF_URL || 'http://127.0.0.1:8897';
 const output=process.env.PACK_PERF_OUTPUT || '/tmp/pack-performance';
 await mkdir(output,{recursive:true});
-const key=process.env.PACK_PERF_KEY || 'kiri/frame-extraction@0.1.0';
+const key=process.env.PACK_PERF_KEY || 'builtin/frame-extraction@0.1.0';
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:1440,height:1050}});
 const requests=[],errors=[],samples=[];

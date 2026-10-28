@@ -21,8 +21,8 @@ const WORKFLOW_ID = "wf-batched";
 const SNAPSHOT_ID = "snap-batched";
 const GRAPH_NODE_ID = "fx-1";
 const NODE_ID = "node-a";
-const PACK_NAME = "frame-extraction";
-const PACK_VERSION = "0.3.0";
+const PACK_NAME = "builtin/frame-extraction";
+const PACK_VERSION = "0.1.0";
 const CREATED_TS = 1_700_000_000;
 
 function pack() {

@@ -1,5 +1,6 @@
 import os
 import venv
+from types import SimpleNamespace
 
 import pytest
 
@@ -82,6 +83,30 @@ def test_explicit_empty_contract_is_satisfied_without_an_environment(tmp_path, m
     assert result["requires"] == {}
     assert result["checked_at"] is None
     enforce(result)
+
+
+def test_host_runtime_checks_system_binary_without_conda_env(monkeypatch):
+    """Bundled host packs can require tools such as ffmpeg from PATH."""
+    from hololab.manifest.requirements import Requirements
+    from hololab.node import capabilities
+
+    monkeypatch.setattr(capabilities, "fingerprint", lambda *a: "stable")
+    monkeypatch.setattr(
+        capabilities,
+        "probe_environment",
+        lambda *_args: {"paths": [], "python": "3.12", "packages": {}, "package_sources": {}},
+    )
+    monkeypatch.setattr(
+        capabilities.shutil, "which", lambda name: "/usr/bin/ffmpeg" if name == "ffmpeg" else None
+    )
+    manifest = SimpleNamespace(
+        requires=Requirements(packages=["ffmpeg"]),
+        runtime=SimpleNamespace(mode="host", env=None),
+    )
+    report = CapabilityChecker().check(manifest, {}, "unused-conda")
+    assert report["status"] == "satisfied"
+    assert report["packages"] == {"ffmpeg": "system"}
+    assert report["package_sources"] == {"ffmpeg": "system-binary"}
 
 
 def test_gpu_requirements_apply_to_one_card_and_cuda_is_driver_minimum(tmp_path, monkeypatch):

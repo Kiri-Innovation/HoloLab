@@ -664,8 +664,6 @@ class Manifest(BaseModel):
 
             if not is_builtin(self.name) or not self.exec.python:
                 raise ValueError("host runtime is reserved for bundled Python packages")
-            if self.arrayable:
-                raise ValueError("host packages do not support batched arrayable execution")
         elif self.exec.python:
             raise ValueError("exec.python requires host runtime")
         return self
