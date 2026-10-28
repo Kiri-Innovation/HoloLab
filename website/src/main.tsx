@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { createRoot } from 'react-dom/client';
+import { hydrateRoot } from 'react-dom/client';
 import content from './content/docs/index.json';
 import './styles/site.css';
 import './styles/i18n.css';
@@ -14,11 +14,14 @@ import { locale, localeKey, localize, t, label } from './i18n';
 type Theme = 'light' | 'dark' | 'system';
 const sections = content.sections.map(s => ({ ...s, href: localize(s.href), entryHref: content.docs.find(d => d.locale === locale && d.section === s.id)!.href, title: t(s.id as 'learn' | 'contributor') }));
 const docs = content.docs.filter(d => d.locale === locale).map(d => ({ ...d, title: label(d.title), group: label(d.group) }));
-const requestedPath = window.location.pathname.replace(/\/$/, '') || '/';
+const runtimeLocation = typeof window === 'undefined'
+  ? { pathname: String((globalThis as { __HOLOLAB_PATHNAME__?: string }).__HOLOLAB_PATHNAME__ ?? '/') }
+  : window.location;
+const requestedPath = runtimeLocation.pathname.replace(/\/$/, '') || '/';
 const directory = sections.find(s => s.href === requestedPath || s.aliases.some(href => localize(href) === requestedPath));
 // Old directory links open the first article without adding a history entry.
-if (directory) history.replaceState(null, '', directory.entryHref + location.search + location.hash);
-const pathname = window.location.pathname.replace(/\/$/, '') || '/';
+if (directory && typeof window !== 'undefined') history.replaceState(null, '', directory.entryHref + location.search + location.hash);
+const pathname = runtimeLocation.pathname.replace(/\/$/, '') || '/';
 const current = docs.find(doc => doc.href === pathname);
 const section = sections.find(s => s.href === pathname || s.aliases.some(href => localize(href) === pathname) || s.id === current?.section);
 const isHome = pathname === '/' || pathname === '/zh-CN';
@@ -52,7 +55,7 @@ function Header() {
   return <header className="header"><div className="header-inner"><a className="brand" href={localize('/')} aria-label={t('homeLabel')}><img src="/hololab-icon.svg" width="20" height="20" alt="" aria-hidden="true" style={{ verticalAlign: "middle", marginRight: 6, flexShrink: 0 }} />HoloLab</a><nav aria-label={t('nav')}><a href={localize('/')} aria-current={isHome ? 'page' : undefined}>{t('overview')}</a><a href={localize('/docs')} aria-current={section ? 'page' : undefined}>{t('docs')}</a></nav><LanguageControl /><ThemeControl /></div></header>;
 }
 function Pipeline() {
-  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+  const [theme, setTheme] = useState(() => typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
   useEffect(() => {
     const sync = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
     const observer = new MutationObserver(sync);
@@ -166,7 +169,7 @@ function Documentation() {
   const index = siblings.findIndex(d => d.slug === current?.slug);
   return <><DocAreas /><div className="docs-layout"><aside className="sidebar"><DocNav /></aside><main id="main" className="document"><details className="mobile-nav"><summary>{t('browse')}</summary><DocNav /></details>{current ? <><div className="breadcrumb"><a href={section?.entryHref}>{section?.title}</a><span>/</span>{current.group}</div>{current.contentLanguage !== locale && <p className="reference-note">{t('englishNotice')}</p>}{current.slug === 'reference/artifacts' && <p className="reference-note">{t('futureNotice')}</p>}<article lang={current.contentLanguage} className="prose" dangerouslySetInnerHTML={{ __html: current.html }} /><nav className="page-turn" aria-label={t('pageTurn')}>{siblings[index-1] ? <a href={siblings[index-1].href}><small>{t('previous')}</small>← {siblings[index-1].title}</a> : <span/>}{siblings[index+1] && <a href={siblings[index+1].href}><small>{t('next')}</small>{siblings[index+1].title} →</a>}</nav></> : null}</main><aside className="toc" aria-label={t('tocLabel')}>{current && <><span>{t('toc')}</span>{current.headings.filter(h => h.depth === 2).map(h => <a key={h.id} href={`#${h.id}`}>{h.title}</a>)}</>}</aside><div className="docs-footer"><Footer /></div></div></>;
 }
-function App() {
+export function App() {
   useEffect(() => {
     const canonicalPath = isHome ? localize('/') : pathname;
     const title = `${current?.title ?? (isHome ? t('homeTitle') : section?.title ?? t('notFound'))} — HoloLab`;
@@ -183,4 +186,6 @@ function App() {
   return <><a className="skip" href="#main">{t('skip')}</a><Header />{isHome ? <Home /> : isFound ? <Documentation /> : <main id="main" className="not-found"><div className="eyebrow">404</div><h1>{t('notFound')}</h1><p>{t('notFoundBody')}</p><a className="button primary" href={localize('/docs')}>{t('backDocs')} →</a></main>}{(isHome || !isFound) && <Footer />}</>;
 }
 
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
+if (typeof document !== 'undefined') {
+  hydrateRoot(document.getElementById('root')!, <React.StrictMode><App /></React.StrictMode>);
+}
