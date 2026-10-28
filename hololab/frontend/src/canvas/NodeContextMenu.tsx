@@ -12,7 +12,7 @@ export function NodeContextMenu({
   onDelete,
   onDuplicate,
   onRun,
-  onOpenPack,
+  packHref,
 }: {
   position: NodeMenuPosition;
   canRun: boolean;
@@ -22,7 +22,7 @@ export function NodeContextMenu({
   onDelete: () => void;
   onDuplicate: () => void;
   onRun?: () => void;
-  onOpenPack?: () => void;
+  packHref?: string;
 }) {
   const menu = useRef<HTMLDivElement>(null);
   const priorFocus = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null);
@@ -32,7 +32,7 @@ export function NodeContextMenu({
   const top = Math.max(8, Math.min(position.y, window.innerHeight - 236));
 
   useEffect(() => {
-    menu.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+    menu.current?.querySelector<HTMLElement>("button:not(:disabled), a[role=menuitem]")?.focus();
     const outsideDown = (event: PointerEvent) => {
       pointerStartedOutside.current = !menu.current?.contains(event.target as Node);
     };
@@ -45,8 +45,8 @@ export function NodeContextMenu({
       if (event.key === "Tab") { event.preventDefault(); onClose(); return; }
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
-      const items = Array.from(menu.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
-      const current = items.indexOf(document.activeElement as HTMLButtonElement);
+      const items = Array.from(menu.current?.querySelectorAll<HTMLElement>("button:not(:disabled), a[role=menuitem]") ?? []);
+      const current = items.indexOf(document.activeElement as HTMLElement);
       const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (current + (event.key === "ArrowUp" ? -1 : 1) + items.length) % items.length;
       items[next]?.focus();
     };
@@ -71,7 +71,7 @@ export function NodeContextMenu({
     <div ref={menu} id={id} role="menu" aria-label="节点操作" className="hl-node-context-menu" style={{ left, top }} onContextMenu={event => event.preventDefault()}>
       <button role="menuitem" type="button" onClick={action(onDuplicate)}>创建副本</button>
       {onRun && <button role="menuitem" type="button" disabled={!canRun} title={hasPack ? undefined : "算法未安装，无法运行"} onClick={action(onRun)}>{running ? "停止运行" : "运行"}</button>}
-      {onOpenPack && <button role="menuitem" type="button" onClick={action(onOpenPack)}>在包管理器里查看</button>}
+      {packHref && <a role="menuitem" href={packHref} target="_blank" rel="noopener" onClick={onClose}>在包管理器里查看</a>}
       <div role="separator" className="hl-node-context-menu-separator" />
       <button role="menuitem" type="button" className="hl-node-context-menu-danger" onClick={action(onDelete)}>删除</button>
     </div>,

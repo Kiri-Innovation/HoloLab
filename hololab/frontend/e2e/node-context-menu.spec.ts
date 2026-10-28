@@ -43,8 +43,14 @@ test("node context menu duplicates, deletes and opens package detail", async ({ 
   await dispatch;
 
   await page.mouse.click(original.x + 40, original.y + 40, { button: "right" });
-  await menu.getByRole("menuitem", { name: "在包管理器里查看" }).click();
-  await expect(page).toHaveURL(/\/packs\?view=local&section=category&pack=kiri%2Fimage-resize%401\.0\.0/);
+  const openPack = menu.getByRole("menuitem", { name: "在包管理器里查看" });
+  await expect(openPack).toHaveAttribute("target", "_blank");
+  await expect(openPack).toHaveAttribute("rel", "noopener");
+  const popupPromise = page.waitForEvent("popup");
+  await openPack.click();
+  const popup = await popupPromise;
+  await expect(popup).toHaveURL(/\/packs\?view=local&section=category&pack=kiri%2Fimage-resize%401\.0\.0/);
+  await expect(page).not.toHaveURL(/\/packs\?/);
 });
 
 test("node context menu supports keyboard dismissal and strict outside dismissal", async ({ page }) => {

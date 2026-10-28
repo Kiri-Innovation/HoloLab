@@ -1,6 +1,6 @@
 .hl-node-context-menu { position: fixed; z-index: 10000; width: 200px; box-sizing: border-box; padding: var(--space-1); background: var(--bg-elevated, var(--surface-2)); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-popover); color: var(--text); }
-.hl-node-context-menu button { display: block; width: 100%; padding: var(--space-2) var(--space-3); text-align: left; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: var(--fs-sm) var(--font-sans); cursor: pointer; }
-.hl-node-context-menu button:hover, .hl-node-context-menu button:focus-visible { background: var(--surface-hover); }
+.hl-node-context-menu button, .hl-node-context-menu a { display: block; width: 100%; box-sizing: border-box; padding: var(--space-2) var(--space-3); text-align: left; border: 0; border-radius: var(--radius-sm); background: transparent; color: inherit; font: var(--fs-sm) var(--font-sans); text-decoration: none; cursor: pointer; }
+.hl-node-context-menu button:hover, .hl-node-context-menu button:focus-visible, .hl-node-context-menu a:hover, .hl-node-context-menu a:focus-visible { background: var(--surface-hover); }
 .hl-node-context-menu button:disabled { opacity: .5; cursor: default; }
 .hl-node-context-menu-separator { height: 1px; margin: var(--space-1) 0; background: var(--border); }
 .hl-node-context-menu .hl-node-context-menu-danger { color: var(--error); }

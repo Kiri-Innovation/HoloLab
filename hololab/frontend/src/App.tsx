@@ -2831,7 +2831,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             if (contextMenuRunning) requestStopNode(contextMenuNode.id);
             else void dispatchRunNode(contextMenuNode.id);
           } : undefined}
-          onOpenPack={contextMenuAlgorithm ? () => pushPath(`/packs?view=local&section=category&pack=${encodeURIComponent(`${contextMenuAlgorithm.pack.name}@${contextMenuAlgorithm.pack.version}`)}`) : undefined}
+          packHref={contextMenuAlgorithm ? `/packs?view=local&section=category&pack=${encodeURIComponent(`${contextMenuAlgorithm.pack.name}@${contextMenuAlgorithm.pack.version}`)}` : undefined}
         />
       )}
       {snapshotError && (
