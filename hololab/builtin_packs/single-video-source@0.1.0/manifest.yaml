@@ -24,7 +24,7 @@ docs: |
     each clip is a different camera or take) → ``builtin/video-array-source``.
 
   Downstream (``video-to-camera-track`` / ``video-to-colmap`` /
-  ``frame-extraction``) accepts ``video-source`` scalars (this pack) and,
+  ``builtin/frame-extraction``) accepts ``video-source`` scalars (this pack) and,
   when the "并行处理数组输入" arrayed checkbox is on, the equivalent
   ``arrayed<video-source>`` (from ``builtin/video-array-source``). The pre-arrayed
   ``video-source-array`` string tag was retired in the M7 migration.

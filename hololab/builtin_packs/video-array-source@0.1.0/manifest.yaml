@@ -38,7 +38,7 @@ docs: |
   - Multi-camera capture or multi-clip inputs (directory of videos,
     each a different camera or take) → this pack.
 
-  Downstream ``frame-extraction`` is now ``arrayable: true``; check the
+  Downstream ``builtin/frame-extraction`` is now ``arrayable: true``; check the
   "并行处理数组输入" box on that node and the scheduler dispatches one
   shard per camera, producing an ``arrayed<frame_sequence>`` output
   ready for generic regrouping / ``colmap-triangulate``.

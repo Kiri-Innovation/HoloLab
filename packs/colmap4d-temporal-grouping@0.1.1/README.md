@@ -8,7 +8,7 @@ output expected by the existing `rig_timeline` viewer. Its directory contains
 
 The images and the visualization are produced from one exposure-midpoint record
 set (`wallClockEpochNs + exposureNs // 2`) and one colmap4d grouping result.
-The original `rig-temporal-grouping@0.1.5` pack remains unchanged.
+The original `k4d/rig-temporal-grouping@0.1.5` pack remains unchanged.
 
 This node is Kiri-specific materialization policy and will not move into the
 public colmap4d repository. Generic validate/convert/inspect/view integrations

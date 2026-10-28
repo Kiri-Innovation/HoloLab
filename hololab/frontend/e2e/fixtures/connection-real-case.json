@@ -19,7 +19,7 @@
       {
         "id": "r3groups",
         "kind": "algorithm",
-        "algorithm_name": "rig-temporal-grouping",
+        "algorithm_name": "k4d/rig-temporal-grouping",
         "algorithm_version": "0.1.5",
         "position": {
           "x": -1200,
@@ -189,7 +189,7 @@
       "arrayable": false
     },
     {
-      "name": "rig-temporal-grouping",
+      "name": "k4d/rig-temporal-grouping",
       "version": "0.1.5",
       "manifest_hash": "fixture",
       "node_ids": [],

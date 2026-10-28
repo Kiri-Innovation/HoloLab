@@ -275,8 +275,8 @@ export function Preview({
     return <RigPoints4dPreview baseUrl={baseUrl} />;
   }
   // ``rig_timeline`` — the exposure-timeline diagnostic figure produced
-  // by ``rig-temporal-grouping@0.1.1`` (previously briefly emitted by
-  // ``rig-frame-extraction@0.1.1``; moved because the bucket edges only
+  // by ``k4d/rig-temporal-grouping@0.1.1`` (previously briefly emitted by
+  // ``k4d/rig-frame-extraction@0.1.1``; moved because the bucket edges only
   // become real data once grouping has run). Shows the static PNG with a
   // corner link to the interactive HTML (plotly) for hover tooltips + zoom.
   if (
@@ -287,7 +287,7 @@ export function Preview({
     return <RigTimelinePreview baseUrl={baseUrl} />;
   }
   // ``rig_frames`` — per-alias JPEG tree produced by
-  // ``rig-frame-extraction`` and passed through by ``rig-temporal-grouping``.
+  // ``k4d/rig-frame-extraction`` and passed through by ``k4d/rig-temporal-grouping``.
   // Layout: ``<parent>/<alias>/NNNNNN.jpg`` — the classic
   // ``arrayed<arrayed<image>>`` shape that ``NestedFrameSequencePreview``
   // handles natively (with element = alias, image = frame).
@@ -299,7 +299,7 @@ export function Preview({
     return <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />;
   }
   // ``rig_frames_grouped`` — per-bucket directory tree from
-  // rig-temporal-grouping@0.1.2. Layout ``<parent>/gNNNNNN/<alias>.jpg`` +
+  // k4d/rig-temporal-grouping@0.1.2. Layout ``<parent>/gNNNNNN/<alias>.jpg`` +
   // ``<parent>/gNNNNNN/group.json`` — same ``arrayed<arrayed<image>>``
   // shape (element = group dir, image children = the participating cams),
   // so the existing viewer paints one card per group with a stack of
