@@ -655,6 +655,58 @@ def pack_resolve_install(
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+    if ctx.info_name == "install":
+        _echo_pack_setup_notice(result, cfg, spec)
+
+
+def _echo_pack_setup_notice(result: dict, cfg, requested_spec: str) -> None:
+    """Tell an installer about unmet requirements without changing setup policy.
+
+    This deliberately uses the runtime's checker rather than duplicating its
+    metadata/version rules.  It runs after the atomic install has completed
+    and only inspects the installed package named by this command.
+    """
+    from hololab.node.capabilities import CapabilityChecker
+
+    manifest_path = result.get("manifest")
+    if not manifest_path:
+        return
+    try:
+        manifest, _ = load_manifest(Path(manifest_path))
+    except (OSError, ValueError):
+        # A verified install normally makes this impossible, but an advisory
+        # must never turn a successful install into a failed command.
+        typer.echo("\nNote: installed package requirements could not be checked.")
+        typer.echo(f"Run `hololab pack setup {requested_spec}` to prepare its environment.")
+        return
+
+    # Host packages and packages with no affirmative requirements do not need
+    # a setup reminder.  Avoiding the checker here also avoids its subprocess.
+    if manifest.runtime.mode == "host" or manifest.requires is None or manifest.requires.is_empty():
+        return
+
+    installed_spec = f"{manifest.name}@{manifest.version}"
+    try:
+        report = CapabilityChecker().check(manifest, cfg.envs, cfg.conda_bin)
+    except Exception:  # Advisory only; surface failure instead of going quiet.
+        typer.echo(f"\nNote: environment '{manifest.runtime.env}' could not be checked.")
+        typer.echo(f"Run `hololab pack setup {installed_spec}` to configure it.")
+        return
+
+    if report["status"] == "satisfied":
+        return
+    environment_issue = next((i for i in report["issues"] if i["item"] == "env"), None)
+    if environment_issue:
+        typer.echo(f"\nNote: environment '{manifest.runtime.env}' is not configured for this pack.")
+    else:
+        missing = [issue["item"].removeprefix("package:") for issue in report["issues"]]
+        typer.echo(
+            f"\nNote: its declared requirements are not yet installed in environment "
+            f"'{manifest.runtime.env}':"
+        )
+        for item in missing:
+            typer.echo(f"  - {item}")
+    typer.echo(f"Run `hololab pack setup {installed_spec}` to install them.")
 
 
 @pack_app.command("validate")
