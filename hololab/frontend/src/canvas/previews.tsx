@@ -1,3 +1,4 @@
+import { VideoResolution } from "./VideoResolution";
 // In-canvas preview drawers.
 //
 // Each viewer takes a fully-resolved fetch URL (the gateway's
@@ -700,6 +701,7 @@ function VideoPreview({ url }: { url: string }) {
           borderRadius: "var(--radius-sm)",
         }}
       />
+      <VideoResolution src={url} />
       <VideoBackgroundButton mode={background} />
     </div>
   );
@@ -1527,6 +1529,7 @@ function VideoGridPreview({
               sync={sync}
               onZoom={() => setZoomedIdx(idx)}
               label={entryLabel ? entryLabel(entry.name) : null}
+              showResolution={videoEntries.length === 1 && zoomedIdx === null}
             />
           ))}
         </div>
@@ -1555,9 +1558,10 @@ interface TileProps {
   onZoom: () => void;
   // Optional pill drawn bottom-left. See ``VideoGridProps.entryLabel``.
   label?: string | null;
+  showResolution?: boolean;
 }
 
-function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label }: TileProps) {
+function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label, showResolution }: TileProps) {
   // Build the same-origin URLs. ``baseUrl`` is the dir's ``/proxy/{node}/{sub}``.
   // Thumb + preview endpoints are separate node routes rooted at the
   // same ``/proxy/{node}`` prefix.
@@ -1641,6 +1645,7 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label }: TileProps)
           pointerEvents: "none",
         }}
       />
+      {showResolution && <VideoResolution src={`${baseUrl.replace(/\/$/, "")}/${encodedEntry}`} />}
       {label && (
         <div
           data-hl-tile-label={label}
@@ -1732,6 +1737,7 @@ function ZoomOverlay({
           background: "var(--video-background)",
         }}
       />
+      <VideoResolution src={videoUrl} />
       <button
         type="button"
         onClick={onClose}

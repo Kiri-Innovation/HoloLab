@@ -36,3 +36,24 @@
 .hl-video-background-icon[data-mode="black"] { background: #000; }
 .hl-video-background-icon[data-mode="transparent"] { background: transparent; border-style: dashed; }
 .hl-video-background-icon[data-mode="checkerboard"] { background: repeating-conic-gradient(#ccc 0% 25%, #666 0% 50%) 0 0 / 8px 8px; }
+
+/* Reserve the existing background button's entire hit area. */
+.hl-video-resolution {
+  position: absolute;
+  right: 40px;
+  bottom: 8px;
+  max-width: calc(100% - 46px);
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  padding: 3px 5px;
+  border: 1px solid #ffffff40;
+  border-radius: var(--radius-sm);
+  background: #202020cc;
+  color: #e0e0e0;
+  font: 10px/16px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.hl-video-native .hl-video-resolution { bottom: 60px; }
