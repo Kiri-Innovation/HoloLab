@@ -44,7 +44,7 @@ it('accepts either shape of an any_of input and rejects fan-out ambiguity', () =
     { tags: ['colmap-folder'], arrayed: true, dim_labels: ['frame'] },
   ] };
   expect(validateConnection(conn, context({ tags: ['colmap4d'] }, union)).ok).toBe(true);
-  expect(validateConnection(conn, context({ tags: ['colmap-folder'], arrayed: true, dim_labels: ['group'] }, union)).ok).toBe(true);
+  expect(validateConnection(conn, context({ tags: ['colmap-folder'], arrayed: true, dim_labels: ['frame'] }, union)).ok).toBe(true);
   expect(validateConnection(conn, context({ tags: ['colmap-folder'] }, union)).ok).toBe(false);
   expect(validateConnection(conn, context({ tags: ['colmap4d'] }, union, true)).reason).toContain('fan-out');
 });
@@ -58,7 +58,7 @@ it('handles unavailable ports and view cards using the same decision', () => {
   expect(validateConnection(conn, ctx, new Set(['t'])).ok).toBe(true);
   ctx.edges = [{ id: 'e', ...conn }];
   expect(validateConnection(conn, ctx).reason).toBe('这两个端口已经连接。');
-  expect(validateConnection(conn, ctx, new Set(['t'])).reason).toContain('已有输入');
+  expect(validateConnection(conn, ctx, new Set(['t'])).reason).toBe('这两个端口已经连接。');
   expect(validateConnection(conn, ctx, new Set(['s'])).reason).toContain('不能作为数据输出');
 });
 
@@ -78,4 +78,14 @@ it('distinguishes the rule that rejects a connection', () => {
   expect(validateConnection(conn, context(source, target)).reason).toBe('数组轴名称不匹配。');
   expect(validateConnection(conn, context(source, { ...target, dim_labels: ['frame'], require_axis_label_match: false })).reason)
     .toBe('数组维度层数不匹配。');
+});
+
+it('allows replacing an occupied input only with a compatible source', () => {
+  const ctx = context({tags:['image']}, {tags:['image']});
+  ctx.edges = [{id:'old',source:'old-source',sourceHandle:'out',target:'t',targetHandle:'in'}];
+  expect(validateConnection(conn, ctx).ok).toBe(true);
+  expect(validateConnection(conn, ctx, new Set(['t'])).ok).toBe(true);
+  ctx.catalogByKey.get('source@1')!.outputs.out.tags = ['mesh'];
+  expect(validateConnection(conn, ctx).ok).toBe(false);
+  expect(ctx.edges[0].id).toBe('old');
 });

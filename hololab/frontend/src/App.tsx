@@ -1510,7 +1510,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             type: "typed",
             data: {},
           },
-          es,
+          // One atomic edge update: keep output fan-out, replace this input only.
+          es.filter(e => e.target !== conn.target || e.targetHandle !== conn.targetHandle),
         ),
       );
     },

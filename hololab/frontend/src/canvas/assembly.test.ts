@@ -18,7 +18,10 @@ it('binds concrete T, rejects image after video, preserves ordinary rule',()=>{
  ctx.edges = [{id:'v',...video}];
  expect(validateConnection({...video,source:'image',targetHandle:'slot-1'},ctx).reason).toContain('严格同型');
  expect(validateConnection({...video,targetHandle:'slot-1'},ctx).ok).toBe(true);
- expect(validateConnection(video,ctx).reason).toContain('已有连线');
+ expect(validateConnection(video,ctx).reason).toBe('这两个端口已经连接。');
+ ctx.nodes.push({...ctx.nodes[0],id:'other-video'});
+ expect(validateConnection({...video,source:'other-video'},ctx).ok).toBe(true);
+ expect(validateConnection({...video,source:'image'},ctx).reason).toContain('严格同型');
  expect(effectiveOutputType('group','out',ctx)).toMatchObject({tags:['video-source'],arrayed:true,dimLabels:['item']});
 });
 it('slot order and empty-slot edits mark downstream stale, positions do not',()=>{

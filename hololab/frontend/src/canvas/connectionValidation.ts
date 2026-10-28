@@ -15,9 +15,11 @@ export function validateConnection(conn: Connection, ctx: EdgeTypeCtx,
   const reject = (reason: string): ConnectionVerdict => ({ ok: false, reason });
   if (!conn.sourceHandle || !conn.targetHandle) return reject('找不到连接端口。');
   if (viewIds.has(conn.source)) return reject('预览卡片不能作为数据输出。');
+  // addEdge also suppresses duplicates; do not promise a new edge in that case.
+  if (ctx.edges.some(e => e.source === conn.source && e.sourceHandle === conn.sourceHandle
+    && e.target === conn.target && e.targetHandle === conn.targetHandle)) return reject('这两个端口已经连接。');
   if (viewIds.has(conn.target)) {
     if (conn.targetHandle !== 'in') return reject('请选择预览卡片的输入端口。');
-    if (ctx.edges.some(e => e.target === conn.target && e.targetHandle === 'in')) return reject('预览卡片已有输入，请先移除原连线。');
     return { ok: true };
   }
   const src = ctx.nodes.find(n => n.id === conn.source);
@@ -26,7 +28,6 @@ export function validateConnection(conn: Connection, ctx: EdgeTypeCtx,
   if (tgt.kind === 'intrinsic' && tgt.assembly) {
     const a = tgt.assembly;
     if (!a.slots.includes(conn.targetHandle)) return reject('组装输入槽不存在。');
-    if (ctx.edges.some(e => e.target === conn.target && e.targetHandle === conn.targetHandle)) return reject('此输入槽已有连线。');
     const source = effectiveOutputType(conn.source, conn.sourceHandle, ctx);
     if (!source.tags.length || source.tags.includes('any')) return reject('组装需要已确定的具体类型。');
     if (source.arrayed && source.dimLabels.length >= 2) return reject('组装结果不能超过两层数组。');
@@ -46,9 +47,6 @@ export function validateConnection(conn: Connection, ctx: EdgeTypeCtx,
   if (tgt.arrayed_toggle && input.any_of?.length) {
     return reject('联合类型输入不能启用 arrayed fan-out。');
   }
-  // addEdge also suppresses duplicates; do not promise a new edge in that case.
-  if (ctx.edges.some(e => e.source === conn.source && e.sourceHandle === conn.sourceHandle
-    && e.target === conn.target && e.targetHandle === conn.targetHandle)) return reject('这两个端口已经连接。');
   const source = effectiveOutputType(conn.source, conn.sourceHandle, ctx);
   const variants = input.any_of?.length ? input.any_of : [input];
   const targets = variants.map(variant => ({
