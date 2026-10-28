@@ -74,7 +74,17 @@ class FileTunnelClient:
         url = f"{self._gateway_url}/ws/file-tunnel?node_id={quote(node_id)}&session_id={quote(session_id)}&token={quote(token)}"
         while True:
             try:
-                async with websockets.connect(url, ping_interval=20, max_size=None) as ws:
+                # Preview bodies (PNG/JPEG/MP4) are already compressed.  The
+                # websocket client's default permessage-deflate would spend a
+                # CPU pass compressing every 64 KiB body frame, and another
+                # pass in the gateway, for effectively no wire saving.  On an
+                # all-in-one node that starves this event loop badly enough to
+                # look like a one-stream-at-a-time tunnel.  Do not offer the
+                # extension on this data-only socket; the control websocket
+                # retains its existing compression behaviour.
+                async with websockets.connect(
+                    url, ping_interval=20, max_size=None, compression=None
+                ) as ws:
                     async for raw in ws:
                         if not isinstance(raw, str):
                             continue
