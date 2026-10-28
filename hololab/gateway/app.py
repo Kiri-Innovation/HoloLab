@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import json
 import os
+import secrets
 import sqlite3
 import time
 import uuid
@@ -23,6 +24,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from hololab import PROTOCOL_V_MAX, PROTOCOL_V_MIN
+from hololab.gateway.derived_cache import DerivedPreviewCache
 from hololab.gateway.execution import (
     DispatchError,
     WorkflowRunError,
@@ -91,6 +93,7 @@ from hololab.gateway.registry import (
     reset_all_online_flags,
 )
 from hololab.gateway.spa_staticfiles import SPAStaticFiles
+from hololab.gateway.tunnel import TunnelConnection, TunnelRegistry
 from hololab.gateway.workflows import (
     WorkflowConflict,
     WorkflowGraph,
@@ -314,6 +317,11 @@ def create_app(
             await db.close()
             raise
         app.state.registry = NodeRegistry(db)
+        app.state.tunnels = TunnelRegistry()
+        # Kept on the registry so proxy_get remains usable by the pack-asset
+        # routes and by unit tests without threading FastAPI through it.
+        app.state.registry.tunnels = app.state.tunnels
+        app.state.registry.derived_preview_cache = DerivedPreviewCache()
         app.state.jobs_store = JobsStore(db)
         app.state.snapshot_jobs = SnapshotJobsStore(db)
         app.state.logs = LogStore(db)
@@ -3785,7 +3793,7 @@ def _mount_routes(app: FastAPI) -> None:
         live = await store.list_recent(limit=500, state="live")
         return await _cancel_many_by_rows(registry, store, hub, live)
 
-    @app.get("/proxy/{node_id}/{path:path}")
+    @app.api_route("/proxy/{node_id}/{path:path}", methods=["GET", "HEAD"])
     async def proxy(node_id: str, path: str, request: Request) -> Any:
         return await proxy_get(node_id, path, request, app.state.registry)
 
@@ -3817,6 +3825,31 @@ def _mount_routes(app: FastAPI) -> None:
     async def ws_node(ws: WebSocket) -> None:
         await ws.accept()
         await _handle_node_socket(app, ws)
+
+    @app.websocket("/ws/file-tunnel")
+    async def ws_file_tunnel(ws: WebSocket) -> None:
+        """Accept a node-initiated preview stream, never a browser socket."""
+        node_id = ws.query_params.get("node_id")
+        session_id = ws.query_params.get("session_id")
+        token = ws.query_params.get("token")
+        session = app.state.registry.get_session(node_id or "")
+        if (
+            session is None
+            or session.session_id != session_id
+            or not token
+            or not secrets.compare_digest(token, session.tunnel_token)
+        ):
+            await ws.close(code=1008)
+            return
+        await ws.accept()
+        connection = TunnelConnection(
+            node_id=session.node_id,
+            session_id=session.session_id,
+            ws=ws,
+            registry=app.state.tunnels,
+        )
+        await app.state.tunnels.attach(connection)
+        await connection.run()
 
     @app.websocket("/ws/frontend")
     async def ws_frontend(ws: WebSocket) -> None:
@@ -3907,6 +3940,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
             session_id=session.session_id,
             protocol_v=chosen_v,
             node_token=session.token_issued,
+            tunnel_token=session.tunnel_token,
         )
         async with session.send_lock:
             await ws.send_text(encode("register_ok", ok, v=chosen_v))

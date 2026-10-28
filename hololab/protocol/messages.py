@@ -193,6 +193,9 @@ class RegisterOk(BaseModel):
     session_id: str
     protocol_v: int
     node_token: str | None = None
+    # Ephemeral bearer for the independent data tunnel.  Unlike node_token it
+    # is scoped to this control session and is never persisted by the node.
+    tunnel_token: str | None = None
 
 
 class RegisterErr(BaseModel):

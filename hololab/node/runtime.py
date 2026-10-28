@@ -17,6 +17,7 @@ import glob
 import json
 import os
 import re
+import shlex
 import shutil
 import sys
 import time
@@ -41,6 +42,7 @@ from hololab.manifest.render import (
 from hololab.node.config import NodeConfig, write_node_config
 from hololab.node.env_cache import warmup_env_cache
 from hololab.node.executor import ExecPlan, ExecResult, run_subprocess
+from hololab.node.file_tunnel import FileTunnelClient
 from hololab.node.orphan_cleanup import cleanup_workspace_orphans
 from hololab.node.packs import LoadedPack, scan_multi_packs
 from hololab.package_identity import installed_key
@@ -193,6 +195,9 @@ class NodeRuntime:
         self._node_token = config.node_token
         self._library_wake = asyncio.Event()
         self._send_lock = asyncio.Lock()
+        # This pool is deliberately separate from the control socket: file
+        # bytes must never queue behind job logs/progress/heartbeats.
+        self._file_tunnel: FileTunnelClient | None = None
 
         # Set once the handshake completes on a fresh WS, cleared as
         # soon as the session loop unwinds. Retry-aware call sites
@@ -753,6 +758,9 @@ class NodeRuntime:
                 log.warning("session error", error=str(exc), exc_info=True)
             finally:
                 self._ws = None
+                if self._file_tunnel is not None:
+                    await self._file_tunnel.stop()
+                    self._file_tunnel = None
                 # Belt-and-braces: ``_session_loop`` clears this on
                 # normal teardown, but if the failure happened before
                 # ``_handshake`` reached ``set()`` we still need to
@@ -822,6 +830,17 @@ class NodeRuntime:
 
         self._node_id = payload.node_id
         self._protocol_v = payload.protocol_v
+
+        if payload.tunnel_token:
+            self._file_tunnel = FileTunnelClient(
+                gateway_url=self._config.gateway_url,
+                file_server_port=self._config.file_server_port,
+            )
+            await self._file_tunnel.start(
+                node_id=payload.node_id,
+                session_id=payload.session_id,
+                token=payload.tunnel_token,
+            )
 
         # Persist identity back to config.yaml when the gateway either
         # minted a fresh id or (re-)issued a token. Steady-state reconnects
@@ -1393,6 +1412,9 @@ class NodeRuntime:
             "packs_dir": str(cfg.pack_dirs[0]) if cfg.pack_dirs else None,
             "pack_dirs": [str(p) for p in cfg.pack_dirs],
             "flops_executor_id": cfg.flops_executor_id,
+            # Read-only runtime limit.  Expose it so operators can verify
+            # the value actually loaded by this daemon after a restart.
+            "max_concurrent_jobs": cfg.max_concurrent_jobs,
         }
 
     async def _handle_config_get_req(self, req: NodeConfigGetReq) -> None:
@@ -1956,6 +1978,7 @@ class NodeRuntime:
         # Render the pack shell once per element; collect them into a
         # single bash wrapper.
         rendered_shells: list[str] = []
+        rendered_arg_batches: list[list[str]] = []
         first_rendered = None  # first element's rendered manifest — used for idempotency
         for shard_idx, (element_id, elem_inputs, elem_outputs) in enumerate(batch):
             ctx = RenderContext(
@@ -1987,6 +2010,7 @@ class NodeRuntime:
                 )
                 return
             rendered_shells.append(per_elem_rendered.shell)
+            rendered_arg_batches.append(per_elem_rendered.python_args)
             if first_rendered is None:
                 first_rendered = per_elem_rendered
 
@@ -2028,6 +2052,7 @@ class NodeRuntime:
                 preview_globs=rendered.preview_globs,
                 node_viewer_live_globs=rendered.node_viewer_live_globs,
                 progress_status_file=rendered.progress_status_file,
+                python_arg_batches=rendered_arg_batches,
             )
 
         async def verify_identity() -> None:
@@ -2955,6 +2980,18 @@ def _make_exec_plan(
         if not entry.is_file() or not entry.is_relative_to(root):
             raise ValueError("bundled host entrypoint escapes package root")
         command = [sys.executable, str(entry), *rendered.python_args]
+        if rendered.python_arg_batches:
+            # Preserve every element's argv and stop at the first failure,
+            # just like the conda shell batch. Quote paths as literal arguments.
+            command = [
+                "bash",
+                "-c",
+                "set -euo pipefail\n"
+                + "\n".join(
+                    shlex.join([sys.executable, str(entry), *args])
+                    for args in rendered.python_arg_batches
+                ),
+            ]
     return ExecPlan(
         shell=rendered.shell,
         conda_bin=config.conda_bin,

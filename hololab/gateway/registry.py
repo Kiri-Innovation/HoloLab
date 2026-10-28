@@ -91,6 +91,8 @@ class NodeSession:
     # socket handler forwards it in RegisterOk so the node can persist it
     # to config.yaml. For steady-state reconnects it stays None.
     token_issued: str | None = None
+    # Distinct, session-scoped credential for the reverse file tunnel.
+    tunnel_token: str = field(default_factory=lambda: secrets.token_urlsafe(32))
     connected_ts: float = field(default_factory=time.time)
     last_heartbeat_ts: float = field(default_factory=time.time)
     # Simple lock for send() so background tasks don't race on the socket.

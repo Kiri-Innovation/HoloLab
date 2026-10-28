@@ -7,10 +7,13 @@ docs/architecture.md#preview-channel.
 
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 from fastapi import HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 
+from hololab.gateway.derived_cache import DerivedPreviewCache
 from hololab.gateway.registry import NodeRegistry, NodeSession
 
 
@@ -93,6 +96,84 @@ _PASSTHROUGH_RESPONSE_HEADERS = frozenset(
 _shared_client: httpx.AsyncClient | None = None
 
 
+def _is_cacheable_preview(path: str, request: Request) -> bool:
+    return (
+        request.method == "GET"
+        and "range" not in request.headers
+        and path.startswith(("_thumb/", "/_thumb/", "_preview/", "/_preview/"))
+    )
+
+
+def _cache_ttl(headers: dict[str, str]) -> float:
+    for part in headers.get("cache-control", "").split(","):
+        key, sep, value = part.strip().partition("=")
+        if sep and key.lower() == "max-age":
+            try:
+                return max(1.0, min(float(value), 3600.0))
+            except ValueError:
+                break
+    return 60.0
+
+
+async def _cached_response(
+    *,
+    cache: DerivedPreviewCache | None,
+    node_id: str,
+    path: str,
+    request: Request,
+    status: int,
+    headers: dict[str, str],
+    body,
+    owner: bool,
+) -> Response:
+    if cache is None or not owner:
+        return StreamingResponse(body, status_code=status, headers=headers)
+    if status != 200:
+        await cache.fail(node_id, path, request.url.query)
+        return StreamingResponse(body, status_code=status, headers=headers)
+
+    collected = bytearray()
+
+    async def tee():
+        complete = False
+        try:
+            async for chunk in body:
+                if len(collected) <= 16 * 1024 * 1024:
+                    collected.extend(chunk)
+                yield chunk
+            complete = True
+        finally:
+            if complete:
+                await cache.finish(
+                    node_id,
+                    path,
+                    request.url.query,
+                    headers,
+                    bytes(collected) if len(collected) <= 16 * 1024 * 1024 else None,
+                    _cache_ttl(headers),
+                )
+            else:
+                await cache.fail(node_id, path, request.url.query)
+
+    return StreamingResponse(tee(), status_code=status, headers=headers)
+
+
+async def _cache_lookup(
+    cache: DerivedPreviewCache | None, node_id: str, path: str, request: Request
+) -> tuple[Response | None, bool]:
+    """Return a cache hit/waiter result and whether this caller owns fill."""
+    if cache is None or not _is_cacheable_preview(path, request):
+        return None, False
+    hit, future, owner = await cache.get_or_reserve(node_id, path, request.url.query)
+    if hit is None and not owner:
+        hit = await asyncio.wait_for(future, timeout=30) if future is not None else None
+    if hit is None:
+        return None, owner
+    if request.headers.get("if-none-match") == hit.headers.get("etag"):
+        return Response(status_code=304, headers={"etag": hit.headers["etag"]}), False
+    return Response(content=hit.body, status_code=200, headers=hit.headers), False
+
+
 def _upstream_base_url(session: NodeSession) -> str | None:
     """Return the node origin used by the gateway, including legacy fallback.
 
@@ -169,6 +250,60 @@ async def proxy_get(node_id: str, path: str, request: Request, registry: NodeReg
     if session is None:
         raise HTTPException(status_code=404, detail=f"node {node_id!r} is not connected")
 
+    cache = getattr(registry, "derived_preview_cache", None)
+    cached, cache_owner = await _cache_lookup(cache, node_id, path, request)
+    if cached is not None:
+        return cached
+
+    # A connected reverse tunnel always wins.  It is independent from the
+    # control WS and works for NAT-hidden nodes; advertised_url remains the
+    # exact compatibility/performance fallback for older nodes.
+    tunnel_registry = getattr(registry, "tunnels", None)
+    if tunnel_registry is not None:
+        try:
+            connection = await tunnel_registry.acquire(session.node_id, session.session_id)
+        except HTTPException as exc:
+            # An absent tunnel is a compatibility condition, not an error:
+            # old nodes must retain the direct advertised_url path. Saturated
+            # live tunnels, however, must return their explicit 429.
+            if exc.status_code != 503:
+                raise
+        else:
+            headers = {
+                name: value
+                for name, value in request.headers.items()
+                if name.lower() in ("range", "if-modified-since", "if-none-match")
+            }
+            try:
+                upstream, body = await connection.request(
+                    request.method,
+                    "/" + path.lstrip("/"),
+                    request.url.query,
+                    headers,
+                )
+            except Exception as exc:
+                await tunnel_registry.release(connection)
+                if cache_owner and cache is not None:
+                    await cache.fail(node_id, path, request.url.query)
+                raise HTTPException(
+                    status_code=502, detail=f"preview tunnel failed: {exc}"
+                ) from exc
+            response_headers = {
+                k: v
+                for k, v in (upstream.get("headers") or {}).items()
+                if k.lower() in _PASSTHROUGH_RESPONSE_HEADERS
+            }
+            return await _cached_response(
+                cache=cache,
+                node_id=node_id,
+                path=path,
+                request=request,
+                status=int(upstream["status"]),
+                headers=response_headers,
+                body=body,
+                owner=cache_owner,
+            )
+
     base_url = _upstream_base_url(session)
     if not base_url:
         raise HTTPException(
@@ -198,6 +333,8 @@ async def proxy_get(node_id: str, path: str, request: Request, registry: NodeReg
     try:
         upstream = await client.send(req, stream=True)
     except httpx.HTTPError as exc:
+        if cache_owner and cache is not None:
+            await cache.fail(node_id, path, request.url.query)
         raise HTTPException(status_code=502, detail=f"upstream fetch failed: {exc}") from exc
 
     async def _iter() -> object:
@@ -216,8 +353,13 @@ async def proxy_get(node_id: str, path: str, request: Request, registry: NodeReg
         k: v for k, v in upstream.headers.items() if k.lower() in _PASSTHROUGH_RESPONSE_HEADERS
     }
 
-    return StreamingResponse(
-        _iter(),
-        status_code=upstream.status_code,
+    return await _cached_response(
+        cache=cache,
+        node_id=node_id,
+        path=path,
+        request=request,
+        status=upstream.status_code,
         headers=response_headers,
+        body=_iter(),
+        owner=cache_owner,
     )
