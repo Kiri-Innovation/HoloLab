@@ -105,7 +105,7 @@ export function AssemblyNode({ id, data }: NodeProps) {
     }}>
       <NodeCardHeader id={id} name="array-assemble" version={d.pack?.version ?? "1"} subtitle="system"
         state={d.runtime?.state} status={nodeStatus({ state: d.runtime?.state, stale: d.staleness, failReason: d.runtime?.fail_reason, readOnly: d.readOnly })}
-        actions={!d.readOnly && <NodeRunControl pending={runPending} state={d.runtime?.state}
+        actions={!d.readOnly && <NodeRunControl id={id} pending={runPending} state={d.runtime?.state}
           jobId={d.runtime?.job_id} stale={!!d.staleness} onRun={run} />} />
       {runError && <div role="alert" className="nodrag nopan" style={{ padding: "6px 12px", color: "var(--status-failed)", overflowWrap: "anywhere" }}>运行失败：{runError}</div>}
       <div style={{ position: "relative", padding: "8px 16px", textAlign: "right" }}>

@@ -5,10 +5,16 @@ import { Modal } from "../ui/Modal";
 import { showToast } from "../ui/Toast";
 
 export const canStopNode = (state?: string) => ["pending", "assigned", "running", "orphaned"].includes(state ?? "");
+export const STOP_NODE_EVENT = "hololab:stop-node";
+
+/** Invokes the mounted card control so all stop confirmation semantics stay shared. */
+export function requestStopNode(graph_node_id: string): void {
+  window.dispatchEvent(new CustomEvent<string>(STOP_NODE_EVENT, { detail: graph_node_id }));
+}
 
 /** Cancels the current generation's representative parent, including its live shards. */
-export function NodeRunControl({ state, jobId, pending, stale, blockedReason, onRun }: {
-  state?: string; jobId?: string; pending: boolean; stale?: boolean; blockedReason?: string; onRun: () => void;
+export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason, onRun }: {
+  id: string; state?: string; jobId?: string; pending: boolean; stale?: boolean; blockedReason?: string; onRun: () => void;
 }) {
   const stoppable = canStopNode(state);
   const [confirmJob, setConfirmJob] = useState<string | null>(null);
@@ -21,6 +27,13 @@ export function NodeRunControl({ state, jobId, pending, stale, blockedReason, on
   const disabled = busy || (stoppable && !jobId);
   const label = stopping ? "正在停止" : stoppable && acceptedJob === jobId ? "停止已请求，等待状态同步" : stoppable ? "停止运行" : pending ? "正在提交" : stale ? "重新运行" : "运行";
   const close = () => { if (!lock.current) { setConfirmJob(null); setError(null); trigger.current?.focus(); } };
+  useEffect(() => {
+    const request = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === id && !disabled) trigger.current?.click();
+    };
+    window.addEventListener(STOP_NODE_EVENT, request);
+    return () => window.removeEventListener(STOP_NODE_EVENT, request);
+  }, [disabled, id]);
   useEffect(() => {
     // Never let an old confirmation cancel a newly dispatched generation.
     if (!stopping && (confirmJob !== jobId || !stoppable)) setConfirmJob(null);

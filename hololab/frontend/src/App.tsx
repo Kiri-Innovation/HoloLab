@@ -94,6 +94,7 @@ import {
   type NodeStaleness,
 } from "./canvas/staleness";
 import {
+  dispatchRunNode,
   PREVIEW_TOGGLE_EVENT,
   RUN_NODE_EVENT,
   type AlgorithmNodeData,
@@ -119,6 +120,10 @@ import { packDisplayNames } from "./packs/packDisplayName";
 import { aggregateJobsToRuntime } from "./canvas/nodeRuntime";
 import { MobileShell, useIsMobilePortrait } from "./canvas/MobileShell";
 import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
+import { NodeContextMenu, type NodeMenuPosition } from "./canvas/NodeContextMenu";
+import { requestStopNode } from "./canvas/NodeRunControl";
+import { nodeClipboardCopy, pastedNodePosition } from "./canvas/nodeClipboard";
+import "./canvas/nodeContextMenu.css";
 import { PackPalette } from "./canvas/PackPalette";
 import { ComputeNodesPanel } from "./canvas/ComputeNodesPanel";
 import { MinimapToggleButton } from "./canvas/MinimapToggleButton";
@@ -1517,6 +1522,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const [fitInitialGraph, setFitInitialGraph] = useState(true);
   const [creationAnchor, setCreationAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [nodeMenu, setNodeMenu] = useState<{ nodeId: string; position: NodeMenuPosition } | null>(null);
+  const nodeClipboard = useRef<Node<Record<string, unknown>> | null>(null);
+  const [hasNodeClipboard, setHasNodeClipboard] = useState(false);
   const closeCreationMenu = useCallback(() => setCreationAnchor(null), []);
 
   // --- dynamic minZoom: fit the full node chain horizontally ----------
@@ -1605,6 +1613,33 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     if (!raw && !view) return;
     createNodeAtScreen({ x: e.clientX, y: e.clientY }, view ? null : JSON.parse(raw));
   }, [createNodeAtScreen]);
+
+  const copyNode = useCallback((node: Node<Record<string, unknown>>) => {
+    nodeClipboard.current = nodeClipboardCopy(node);
+    setHasNodeClipboard(true);
+  }, []);
+
+  const pasteNode = useCallback((screen: NodeMenuPosition) => {
+    const source = nodeClipboard.current;
+    if (!source || !rfInstance) return;
+    setFitInitialGraph(false);
+    const position = rfInstance.screenToFlowPosition(pastedNodePosition(screen));
+    const copied: Node<Record<string, unknown>> = {
+      ...source,
+      id: mintId(source.type === "view" ? "view" : "n"),
+      position,
+      selected: true,
+      data: structuredClone(source.data),
+    };
+    setNodes(current => current.map(node => node.selected ? { ...node, selected: false } : node).concat(copied));
+  }, [rfInstance, setNodes]);
+
+  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setNodes(current => current.map(item => item.id === node.id ? { ...item, selected: true } : item.selected ? { ...item, selected: false } : item));
+    setNodeMenu({ nodeId: node.id, position: { x: event.clientX, y: event.clientY } });
+  }, [setNodes]);
 
   // --- selection → NodeInspector ---------------------------------------
   const selectedNode = useMemo(() => nodes.find((n) => n.selected) || null, [nodes]);
@@ -2719,6 +2754,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     />
   );
 
+  const contextMenuNode = nodeMenu ? nodes.find(node => node.id === nodeMenu.nodeId) ?? null : null;
+  const contextMenuAlgorithm = contextMenuNode ? algorithmDataForNode(contextMenuNode) : null;
+  const contextMenuRunning = ["pending", "assigned", "running", "orphaned"].includes(contextMenuAlgorithm?.runtime?.state ?? "");
+  const contextMenuHasPack = Boolean(contextMenuAlgorithm?.pack.manifest_hash);
+
   const canvasContentSlot = (
     <>
       {workflowFileError && <div role="alert">配方文件无法打开，请检查文件与连接后重试。</div>}
@@ -2758,6 +2798,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             onEdgesChange={onEdgesChange}
             onNodesDelete={onNodesDelete}
             onNodeClick={onNodeClick}
+            onNodeContextMenu={onNodeContextMenu}
             onConnect={onConnect}
             onConnectEnd={onConnectEnd}
             onInit={setRfInstance}
@@ -2795,6 +2836,25 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             createNodeAtScreen(creationAnchor, choice.kind === "leaf" ? choice.pack : null);
             closeCreationMenu();
           }} />
+      )}
+      {nodeMenu && contextMenuNode && !viewingSnapshot && (
+        <NodeContextMenu
+          key={`${nodeMenu.nodeId}:${nodeMenu.position.x},${nodeMenu.position.y}`}
+          position={nodeMenu.position}
+          canPaste={hasNodeClipboard}
+          canRun={contextMenuAlgorithm ? (contextMenuRunning ? Boolean(contextMenuAlgorithm.runtime?.job_id) : contextMenuHasPack) : false}
+          running={contextMenuRunning}
+          hasPack={contextMenuHasPack}
+          onClose={() => setNodeMenu(null)}
+          onDelete={() => onNodesDelete([contextMenuNode])}
+          onCopy={() => copyNode(contextMenuNode)}
+          onPaste={() => pasteNode(nodeMenu.position)}
+          onRun={contextMenuAlgorithm ? () => {
+            if (contextMenuRunning) requestStopNode(contextMenuNode.id);
+            else void dispatchRunNode(contextMenuNode.id);
+          } : undefined}
+          onOpenPack={contextMenuAlgorithm ? () => pushPath(`/packs?view=local&section=category&pack=${encodeURIComponent(`${contextMenuAlgorithm.pack.name}@${contextMenuAlgorithm.pack.version}`)}`) : undefined}
+        />
       )}
       {snapshotError && (
         <div
