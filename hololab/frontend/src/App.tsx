@@ -140,7 +140,7 @@ import {
 import { seedEdgeSummaryFacts } from "./canvas/edgeSummaryCache";
 import { RunsPanel } from "./canvas/RunsPanel";
 import { useDraftAutosave } from "./canvas/useDraftAutosave";
-import { useCapabilityChecks } from "./canvas/EnvironmentChecks";
+import { EnvironmentChecks, useCapabilityChecks } from "./canvas/EnvironmentChecks";
 import { SnapshotBanner } from "./canvas/SnapshotBanner";
 import { SnapshotCanvas } from "./canvas/SnapshotCanvas";
 import { SnapshotNodeInspector } from "./canvas/SnapshotNodeInspector";
@@ -320,6 +320,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const bottomDock = useResizableSlot("hl-layout-bottom", 400, 160, Number.POSITIVE_INFINITY);
   const [bottomTab, setBottomTab] = useState<"pulse" | "jobs">("pulse");
   const [rightTab, setRightTab] = useState<"inspector" | "runs">("runs");
+  const [leftTab, setLeftTab] = useState<"workflow" | "packs">("packs");
   const [minimapOpen, setMinimapOpen] = useState(false);
 
   // Bumped by the WS lifecycle on true reconnects (previously connected →
@@ -2199,7 +2200,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // sentinel row visibility and the "检查" modal content.
   const analysisGraph = toGraph();
   useRecipeChecks(analysisGraph, !viewingSnapshot);
-  useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick]), !viewingSnapshot);
+  const capabilityChecks = useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick]), !viewingSnapshot);
   const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick});
   const resolvedCanvasContext = useMemo(() => ({...canvasContextValue,
     effectiveParamsByNode: Object.fromEntries((executionAnalysis.isCurrent ? executionAnalysis.data?.graph.nodes ?? [] : []).map(n => [n.id, n.params])),
@@ -2746,11 +2747,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const canvasContentSlot = (
     <>
       {workflowFileError && <div role="alert">配方文件无法打开，请检查文件与连接后重试。</div>}
-      {!viewingSnapshot && executionAnalysis.message && <div role="status" data-analysis-state={executionAnalysis.status}
-        style={{position:"absolute",top:8,left:"50%",transform:"translateX(-50%)",zIndex:5,
-          fontSize:"var(--fs-xs)",color:"var(--text-muted)",background:"var(--surface-2)",padding:"4px 8px",borderRadius:"var(--radius-sm)",pointerEvents:"none"}}>
-        {executionAnalysis.message}
-      </div>}
       <AnalysisProfiler><CanvasContext.Provider value={resolvedCanvasContext}>
         {viewingSnapshot ? (
           <>
@@ -2861,6 +2857,27 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   );
 
   const packsSlot = <PackPalette catalog={catalog} onRefresh={refreshCatalog} />;
+  const onWorkflowVariablesChange = (declarations: VariableDeclarations, values: Record<string, unknown>, rename?: { from: string; to: string }) => {
+    setVariables(declarations);
+    setVariableValues(values);
+    if (rename) setNodes(current => current.map(node => {
+      const data = node.data as AlgorithmNodeData;
+      if (!data.param_bindings) return node;
+      return {...node, data: {...data, param_bindings: Object.fromEntries(
+        Object.entries(data.param_bindings).map(([parameter, variable]) => [parameter, variable === rename.from ? rename.to : variable]),
+      )}};
+    }));
+  };
+  const workflowSlot = (
+    <div className="hl-workflow-sidebar">
+      {!viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues} onChange={onWorkflowVariablesChange} />}
+      <div className="hl-workflow-checks"><EnvironmentChecks checks={capabilityChecks} /></div>
+      <section className="hl-workflow-analysis" role="status" data-analysis-state={executionAnalysis.status}>
+        <strong>执行分析</strong>
+        <p>{executionAnalysis.message || (viewingSnapshot ? "正在查看历史运行。" : "当前草稿分析已完成。")}</p>
+      </section>
+    </div>
+  );
 
   const [runFocusRequest, setRunFocusRequest] = useState<{ snapshotId: string; nonce: number } | null>(null);
   useEffect(() => { setRunFocusRequest(null); }, [workflowId]);
@@ -3035,17 +3052,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           nodes={nodesSlot}
           runs={runsSlot}
           jobs={jobsSlot}
-          inspect={<div className="hl-mobile-inspector">{!viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues}
-            onChange={(declarations, values, rename) => {
-              setVariables(declarations); setVariableValues(values);
-              if (rename) setNodes(current => current.map(node => {
-                const data = node.data as AlgorithmNodeData;
-                if (!data.param_bindings) return node;
-                return {...node, data: {...data, param_bindings: Object.fromEntries(
-                  Object.entries(data.param_bindings).map(([parameter, variable]) => [parameter, variable === rename.from ? rename.to : variable])
-                )}};
-              }));
-            }} />}{inspectorSlot}</div>}
+          inspect={<div className="hl-mobile-inspector">{!viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues} onChange={onWorkflowVariablesChange} />}{inspectorSlot}</div>}
           selectionId={mobileSelectionId}
           latestSnapshotId={latestSnapshotId}
         />
@@ -3077,7 +3084,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       </div>
 
       <aside
-        className="hl-panel"
+        className="hl-panel hl-left-sidebar"
         style={{
           gridArea: "left",
           borderRight: "none",
@@ -3085,7 +3092,27 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           overflow: "hidden",
         }}
       >
-        {packsSlot}
+        <div className="hl-dock-tabs" role="tablist" aria-label="Left dock"
+          onKeyDown={event => {
+            const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+            if (!keys.includes(event.key)) return;
+            event.preventDefault();
+            const tabs = ["workflow", "packs"] as const;
+            const index = tabs.indexOf(leftTab);
+            const next = event.key === "Home" ? tabs[0] : event.key === "End" ? tabs[tabs.length - 1]
+              : tabs[(index + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+            setLeftTab(next);
+            document.getElementById(`hl-left-tab-${next}`)?.focus();
+          }}>
+          {(["workflow", "packs"] as const).map(tab => <button key={tab} type="button"
+            role="tab" id={`hl-left-tab-${tab}`} aria-controls={`hl-left-panel-${tab}`}
+            aria-selected={leftTab === tab} tabIndex={leftTab === tab ? 0 : -1}
+            onClick={() => setLeftTab(tab)}>{tab === "workflow" ? "Workflow" : "Packs"}</button>)}
+        </div>
+        <div className="hl-dock-panel" role="tabpanel" id="hl-left-panel-workflow"
+          aria-labelledby="hl-left-tab-workflow" hidden={leftTab !== "workflow"}>{workflowSlot}</div>
+        <div className="hl-dock-panel" role="tabpanel" id="hl-left-panel-packs"
+          aria-labelledby="hl-left-tab-packs" hidden={leftTab !== "packs"}>{packsSlot}</div>
       </aside>
 
       <div style={{ gridArea: "left-split", minHeight: 0 }}>
@@ -3136,17 +3163,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         </div>
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-inspector"
           aria-labelledby="hl-dock-tab-inspector" hidden={rightTab !== "inspector"}>
-          <div className="hl-sidebar-content">{!viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues}
-            onChange={(declarations, values, rename) => {
-              setVariables(declarations); setVariableValues(values);
-              if (rename) setNodes(current => current.map(node => {
-                const data = node.data as AlgorithmNodeData;
-                if (!data.param_bindings) return node;
-                return {...node, data: {...data, param_bindings: Object.fromEntries(
-                  Object.entries(data.param_bindings).map(([parameter, variable]) => [parameter, variable === rename.from ? rename.to : variable])
-                )}};
-              }));
-            }} />}{inspectorSlot}</div>
+          <div className="hl-sidebar-content">{inspectorSlot}</div>
         </div>
         <div className="hl-dock-panel" role="tabpanel" id="hl-dock-panel-runs"
           aria-labelledby="hl-dock-tab-runs" hidden={rightTab !== "runs"}>

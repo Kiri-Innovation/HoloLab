@@ -45,8 +45,12 @@ button.hl-evidence-delete { background: var(--surface-alt); color: var(--text-mu
 
 :root[data-theme="dark"] button.hl-evidence-primary { background: var(--media-surface); border-color: var(--media-surface); }
 
-.hl-workflow-checks { flex-shrink: 0; max-height: 40%; overflow: auto; border-bottom: 1px solid var(--border); }
+.hl-workflow-sidebar { flex: 1; min-height: 0; overflow: auto; }
+.hl-workflow-checks { border-bottom: 1px solid var(--border); }
 .hl-workflow-checks .hl-capability-panel { position: static; width: auto; max-height: none; border: 0; border-radius: 0; box-shadow: none; }
+.hl-workflow-analysis { padding: var(--space-3); font-size: var(--fs-xs); border-bottom: 1px solid var(--border-subtle); }
+.hl-workflow-analysis strong { font-weight: var(--fw-semibold); }
+.hl-workflow-analysis p { margin: var(--space-2) 0 0; color: var(--text-muted); line-height: var(--lh-normal); }
 .hl-recipe-menu { position: relative; flex-shrink: 0; font-size: var(--fs-sm); }
 .hl-recipe-menu > summary { cursor: pointer; padding: var(--space-1) var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); }
 .hl-recipe-menu > div { position: absolute; top: calc(100% + var(--space-1)); left: 0; width: min(320px, calc(100vw - var(--space-6))); z-index: 50; background: var(--overlay); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-2); padding: var(--space-3); }
