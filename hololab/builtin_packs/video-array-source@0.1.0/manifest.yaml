@@ -49,7 +49,8 @@ docs: |
 
 params:
   video_dir:
-    type: string
+    type: path
+    pinned: true
     description: "Absolute path to a directory containing one or more video files."
 
 outputs:
