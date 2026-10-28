@@ -9,7 +9,25 @@ order: 10
 
 ## 准备环境
 
-源码安装需要 Python 3.10 或更高版本、Node.js 22 和 Git。算法的依赖由各自的运行环境提供；需要 conda 的 Pack，还要准备 conda、Miniconda 或兼容环境。安装 HoloLab 不会替你安装算法所需的 CUDA、模型权重或数据集。
+发行版的预构建 tarball 已带前端产物和解释器，不需要 Node.js，也不需要在系统里准备 Python；下面的要求只适用于从源码安装。
+
+从源码安装至少需要 Python 3.10（项目的 `requires-python` 为 `>=3.10`）、Node.js 22 和 Git。算法的依赖由各自的运行环境提供；需要 conda 的 Pack，还要准备 conda、Miniconda 或兼容环境。安装 HoloLab 不会替你安装算法所需的 CUDA、模型权重或数据集。
+
+在 Ubuntu 24.04 上，`python3 -m venv` 缺少对应的 venv 系统包会报 `ensurepip is not available`；而系统 `apt` 提供的 Node.js 18 也不满足要求。先取得 `sudo` 权限安装系统依赖（Python 版本不是 3.12 时，把包名中的 `3.12` 换成对应版本）：
+
+```bash
+sudo apt update
+sudo apt install -y git curl python3.12-venv
+```
+
+然后用 nvm 安装 Node.js 22。安装脚本结束后重新打开终端；下面以 Bash 为例立即加载它，最终 `node --version` 应显示 22.x：
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.bashrc
+nvm install 22
+node --version
+```
 
 ## 从源码安装
 
@@ -40,6 +58,16 @@ npm ci
 npm run build
 cd ../..
 ```
+
+## 准备 Pack 运行环境
+
+构建完成后，Packs 出现在列表里并不代表算法环境已经存在。在 HoloLab 根目录执行：
+
+```bash
+.venv-runtime/bin/hololab pack setup --all
+```
+
+该命令按每个 Pack 声明的 `runtime.env` 创建或补全环境，把同一环境的依赖合并安装；缺失的映射会写回 `~/.hololab/node/config.yaml`，原配置会先备份。完成时会显示 `Setup complete. Restart hololab/node so the environment mapping and cache take effect.`；若 HoloLab 已在运行，重启它后新映射和环境缓存才会生效。
 
 ## 启动服务
 
@@ -90,14 +118,6 @@ cd ../..
 <figcaption>左侧 Packs 面板与底部 Compute Nodes · Pulse 标签页的局部截图并列：算法入口与设备状态；设备名称、ID 和路径已隐藏。</figcaption>
 </figure>
 
-计算节点的配置默认在 `~/.hololab/node/config.yaml`。例如，一个 Pack 声明使用 `research` 环境时，需要在设备上配置对应的实际路径：
-
-```yaml
-conda_bin: /path/to/conda
-envs:
-  research: /path/to/conda/envs/research
-```
-
-把示例路径换成自己的路径。算法是否需要 GPU、输入数据放在哪里，也要按所选 Pack 的要求准备。
+算法是否需要 GPU、输入数据放在哪里，也要按所选 Pack 的要求准备。
 
 熟悉这些入口并确认设备就绪后，跟着[第一个工作流](workflows.md)搭起步骤、连线并运行。如果打不开界面或设备不在线，先看[排错](troubleshooting.md)。
