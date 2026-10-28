@@ -34,7 +34,7 @@
 | image-undistort 0.5.0 / 0.5.1 / 0.5.2 | images 输入/输出 `arrayed[cam]<image>`；cams 是 bundle，输入广播 |
 | colmap-triangulate 0.7.2 / 0.7.3 / 0.7.4 | frames 输入 `arrayed[cam]<image>`；points 输出一个 bundle |
 | colmap-sfm 0.3.0 / 0.4.0 | frames 输入 `arrayed[cam]<image>` |
-| merge-colmap 0.4.0 | 可选 images 为 `arrayed[cam]<image>`；cams/points/folder 为单 bundle |
+| merge-colmap 0.4.1 | 可选 images 为 `arrayed[cam]<image>`；cams/points/folder 为单 bundle |
 | frame-extraction 0.1.0 | 输出端口仍叫 frame_sequence；类型为 `arrayed[frame]<image>` |
 | regroup-by-frame 0.1.0 / 0.1.1 | `[cam,frame]` → `[frame,cam]` 显式图片数组；不额外生成 frames/ 层 |
 | regroup 0.2.0 | 文件或 bundle 叶的显式维度置换；不推断 image 内容维度 |

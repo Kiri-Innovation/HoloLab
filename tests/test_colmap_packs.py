@@ -6,6 +6,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 from hololab.manifest import load_manifest
 
 PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
@@ -35,9 +37,12 @@ def _load(name: str, version: str = "0.2.0"):
     return m
 
 
-def test_merge_colmap_shape_v040() -> None:
+@pytest.mark.parametrize(
+    "manifest", sorted(PACKS_ROOT.glob("merge-colmap@*/manifest.yaml")), ids=lambda p: p.parent.name
+)
+def test_merge_colmap_shape(manifest: Path) -> None:
     """The current per-frame COLMAP join emits canonical colmap-folder."""
-    m = _load("merge-colmap", "0.4.0")
+    m, _ = load_manifest(manifest)
     assert m.arrayable is True
     assert m.category == ["reconstruction", "colmap"], m.category
     assert m.inputs["cams"].tags == ["colmap-cams"]
@@ -47,7 +52,7 @@ def test_merge_colmap_shape_v040() -> None:
     assert m.outputs["folder"].tags == ["colmap-folder"]
     assert m.outputs["folder"].scalar is True
     assert m.source_entry == "merge.py"
-    assert (PACKS_ROOT / "merge-colmap@0.4.0" / m.source_entry).is_file()
+    assert (manifest.parent / m.source_entry).is_file()
 
 
 def _fake_sfm(keys: list[str]) -> dict[str, object]:

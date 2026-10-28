@@ -100,7 +100,7 @@ def test_triangulate_preserves_gapped_sfm_image_ids(tmp_path: Path, monkeypatch)
 
 
 def test_merge_filters_only_dangling_tracks_and_drops_empty_points(tmp_path: Path) -> None:
-    merge = _module(PACKS / "merge-colmap@0.4.0" / "merge.py", "merge_040_tracks")
+    merge = _module(PACKS / "merge-colmap@0.4.1" / "merge.py", "merge_041_tracks")
     source = tmp_path / "points3D.txt"
     target = tmp_path / "fixed.txt"
     source.write_text(
@@ -117,7 +117,7 @@ def test_merge_filters_only_dangling_tracks_and_drops_empty_points(tmp_path: Pat
 
 
 def test_merge_keeps_valid_points_byte_identical(tmp_path: Path) -> None:
-    merge = _module(PACKS / "merge-colmap@0.4.0" / "merge.py", "merge_040_exact_copy")
+    merge = _module(PACKS / "merge-colmap@0.4.1" / "merge.py", "merge_041_exact_copy")
     source = tmp_path / "points3D.txt"
     target = tmp_path / "copied.txt"
     payload = b"# odd spacing stays exact\r\n1  0 0 0 1 2 3 0.1  1 10 7 12\r\n"

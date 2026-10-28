@@ -82,7 +82,7 @@ def main():
 
     und = ROOT / "packs/image-undistort@0.5.2"
     tri = ROOT / "packs/colmap-triangulate@0.7.4"
-    merge = ROOT / "packs/merge-colmap@0.4.0"
+    merge = ROOT / "packs/merge-colmap@0.4.1"
     request = {
         k: str(work / v)
         for k, v in {

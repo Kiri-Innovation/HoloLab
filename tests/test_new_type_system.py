@@ -18,6 +18,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 from hololab.gateway.tag_probes import (
     ProbeItem,
     internal_count_for,
@@ -25,6 +27,7 @@ from hololab.gateway.tag_probes import (
 from hololab.manifest import load_manifest
 
 PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
+MERGE_MANIFESTS = sorted(PACKS_ROOT.glob("merge-colmap@*/manifest.yaml"))
 
 
 def _load(name: str, version: str):
@@ -185,7 +188,8 @@ def test_colmap_sfm_v042_camera_assignment_and_intrinsics_shape() -> None:
     assert "underconstrained / ill-conditioned" in m.docs
 
 
-def test_merge_colmap_v040_drops_colmap_compat_alias() -> None:
+@pytest.mark.parametrize("manifest", MERGE_MANIFESTS, ids=lambda p: p.parent.name)
+def test_merge_colmap_v041_drops_colmap_compat_alias(manifest: Path) -> None:
     """``@0.4.0`` — same shape as ``@0.3.0`` but ``folder`` sheds the
     ``colmap`` compat alias (2026-09-22 type-system cleanup).
 
@@ -195,9 +199,8 @@ def test_merge_colmap_v040_drops_colmap_compat_alias() -> None:
     ``stg-train@0.3.0`` now declares ``[colmap-folder]`` so the alias
     is redundant.
     """
-    m = _load("merge-colmap", "0.4.0")
+    m, _ = load_manifest(manifest)
     assert m.name == "community/merge-colmap"
-    assert m.version == "0.4.0"
     assert m.arrayable is True
     # Inputs unchanged from @0.3.0.
     assert m.inputs["cams"].tags == ["colmap-cams"]
@@ -212,8 +215,9 @@ def test_merge_colmap_v040_drops_colmap_compat_alias() -> None:
     assert m.outputs["folder"].dim_labels == []
 
 
-def test_merge_v040_to_stg_v030_edge_accepted() -> None:
-    """The load-bearing wire: ``merge-colmap@0.4.0.folder`` →
+@pytest.mark.parametrize("manifest", MERGE_MANIFESTS, ids=lambda p: p.parent.name)
+def test_merge_v041_to_stg_v030_edge_accepted(manifest: Path) -> None:
+    """The load-bearing wire: ``merge-colmap@0.4.1.folder`` →
     ``stg-train@0.3.0.colmap_frames`` is edge-accepted on the clean
     ``colmap-folder`` tag, without any alias hack.
 
@@ -223,7 +227,7 @@ def test_merge_v040_to_stg_v030_edge_accepted() -> None:
     """
     from hololab.gateway.workflows import ports_compatible
 
-    m_merge = _load("merge-colmap", "0.4.0")
+    m_merge, _ = load_manifest(manifest)
     # Merge's ``folder`` is scalar-per-shard with dim_labels=["frame"];
     # when the pack is arrayable + toggled on, the framework aggregates
     # sibling shards into ``arrayed<colmap-folder>[frame]``. The wire
@@ -256,7 +260,8 @@ def test_merge_v040_to_stg_v030_edge_accepted() -> None:
     )
 
 
-def test_merge_colmap_v040_exec_shell_branches_on_images_wire() -> None:
+@pytest.mark.parametrize("manifest", MERGE_MANIFESTS, ids=lambda p: p.parent.name)
+def test_merge_colmap_v041_exec_shell_branches_on_images_wire(manifest: Path) -> None:
     """Exec shell must fork into two invocations based on whether ``images`` is wired.
 
     Reason: pack render uses StrictUndefined, so a stray ``inputs.images``
@@ -267,7 +272,7 @@ def test_merge_colmap_v040_exec_shell_branches_on_images_wire() -> None:
     """
     from hololab.manifest.render import RenderContext, render_manifest
 
-    m = _load("merge-colmap", "0.4.0")
+    m, _ = load_manifest(manifest)
 
     ctx_a = RenderContext(
         inputs={"cams": "/x/cams", "points": "/x/pts"},
@@ -293,11 +298,11 @@ def test_merge_colmap_v040_exec_shell_branches_on_images_wire() -> None:
     assert "/x/arr" in shell_b, shell_b
 
 
-def test_merge_colmap_v040_shape() -> None:
-    """``merge-colmap@0.4.0`` — two modes via optional images input."""
-    m = _load("merge-colmap", "0.4.0")
+@pytest.mark.parametrize("manifest", MERGE_MANIFESTS, ids=lambda p: p.parent.name)
+def test_merge_colmap_v041_shape(manifest: Path) -> None:
+    """``merge-colmap@0.4.1`` — two modes via optional images input."""
+    m, _ = load_manifest(manifest)
     assert m.name == "community/merge-colmap"
-    assert m.version == "0.4.0"
     assert m.arrayable is True
     assert m.inputs["cams"].tags == ["colmap-cams"]
     assert m.inputs["points"].tags == ["point-cloud"]
@@ -321,7 +326,10 @@ def _fake_cams(root: Path, n_cams: int) -> Path:
     (root / "cameras.txt").write_text(_SFM_CAMERAS)
     lines = ["# Image list\n", f"# Number of images: {n_cams}\n"]
     for i in range(n_cams):
-        lines.append(f"{i + 1} 0.99 0.01 0.02 0.03 {i}.0 0.0 0.0 1 cam{i:02d}.png\n\n")
+        lines.append(
+            f"{i + 1} 0.99 0.01 0.02 0.03 {i}.0 0.0 0.0 1 cam{i:02d}.png\n"
+            + ("2 3 1\n" if i == 0 else "\n")
+        )
     (root / "images.txt").write_text("".join(lines))
     return root
 
@@ -330,7 +338,7 @@ def test_merge_colmap_mode_a_sparse_only(tmp_path: Path) -> None:
     """Mode A: cams + points, no images → sparse/0/ populated, no images/ dir."""
     mod = _load_module(
         "_merge_mod_a",
-        PACKS_ROOT / "merge-colmap@0.4.0" / "merge.py",
+        PACKS_ROOT / "merge-colmap@0.4.1" / "merge.py",
     )
     cams = _fake_cams(tmp_path / "cams", 3)
     points = tmp_path / "pts"
@@ -362,7 +370,7 @@ def test_merge_colmap_mode_b_with_images(tmp_path: Path) -> None:
     """Mode B: cams + points + arrayed<image> → images/ populated by symlink per NAME."""
     mod = _load_module(
         "_merge_mod_b",
-        PACKS_ROOT / "merge-colmap@0.4.0" / "merge.py",
+        PACKS_ROOT / "merge-colmap@0.4.1" / "merge.py",
     )
     cams = _fake_cams(tmp_path / "cams", 3)
     points = tmp_path / "pts"
@@ -409,11 +417,11 @@ def test_merge_colmap_mode_b_with_images(tmp_path: Path) -> None:
         assert link.read_bytes() == real_files[i].read_bytes()
 
 
-def test_merge_colmap_v040_mode_a_sparse_only(tmp_path: Path) -> None:
-    """@0.4.0 Mode A: no --images. Same behaviour as @0.1.0 Mode A — sparse only."""
+def test_merge_colmap_v041_mode_a_sparse_only(tmp_path: Path) -> None:
+    """@0.4.1 Mode A: no --images. Same behaviour as @0.1.0 Mode A — sparse only."""
     mod = _load_module(
-        "_merge_v040_a",
-        PACKS_ROOT / "merge-colmap@0.4.0" / "merge.py",
+        "_merge_v041_a",
+        PACKS_ROOT / "merge-colmap@0.4.1" / "merge.py",
     )
     cams = _fake_cams(tmp_path / "cams", 3)
     points = tmp_path / "pts"
@@ -441,8 +449,8 @@ def test_merge_colmap_v040_mode_a_sparse_only(tmp_path: Path) -> None:
     assert not (out / "images").exists()
 
 
-def test_merge_colmap_v040_mode_b_rewrites_names_to_flat_basenames(tmp_path: Path) -> None:
-    """@0.4.0 Mode B rewrites images.txt NAMEs so 21 poses referencing the same
+def test_merge_colmap_v041_mode_b_rewrites_names_to_flat_basenames(tmp_path: Path) -> None:
+    """@0.4.1 Mode B rewrites images.txt NAMEs so 21 poses referencing the same
     per-frame basename (SfM NAMEs like ``.../cam00/frame_000000.png``) don't
     collide in ``images/``.
 
@@ -452,8 +460,8 @@ def test_merge_colmap_v040_mode_b_rewrites_names_to_flat_basenames(tmp_path: Pat
     unique files.
     """
     mod = _load_module(
-        "_merge_v040_b",
-        PACKS_ROOT / "merge-colmap@0.4.0" / "merge.py",
+        "_merge_v041_b",
+        PACKS_ROOT / "merge-colmap@0.4.1" / "merge.py",
     )
 
     # SfM images.txt shape a single-frame rig produces: 21 poses whose
@@ -465,7 +473,8 @@ def test_merge_colmap_v040_mode_b_rewrites_names_to_flat_basenames(tmp_path: Pat
     for i in range(3):
         rows.append(
             f"{i + 1} 0.99 0.01 0.02 0.03 {i}.0 0.0 0.0 1 "
-            f"../../../fake/frame_sequence/cam{i:02d}/frame_000000.png\n\n"
+            f"../../../fake/frame_sequence/cam{i:02d}/frame_000000.png\n"
+            + ("2 3 1\n" if i == 0 else "\n")
         )
     (cams_dir / "images.txt").write_text("".join(rows))
     points = tmp_path / "pts"
@@ -515,22 +524,22 @@ def test_merge_colmap_v040_mode_b_rewrites_names_to_flat_basenames(tmp_path: Pat
     assert "../../../fake" not in imgs_txt, imgs_txt
 
 
-def test_merge_colmap_v040_mode_b_matches_cam_key_via_numeric_fallback(tmp_path: Path) -> None:
+def test_merge_colmap_v041_mode_b_matches_cam_key_via_numeric_fallback(tmp_path: Path) -> None:
     """Regroup@0.2.0's ``cam_0000.png`` file must resolve to SfM's ``cam00`` NAME.
 
     Same trailing-integer bridge that colmap-triangulate uses. This is
     the exact live-fire failure mode we hit on real STG data (2026-09-22).
     """
     mod = _load_module(
-        "_merge_v040_bridge",
-        PACKS_ROOT / "merge-colmap@0.4.0" / "merge.py",
+        "_merge_v041_bridge",
+        PACKS_ROOT / "merge-colmap@0.4.1" / "merge.py",
     )
     cams_dir = tmp_path / "cams"
     cams_dir.mkdir()
     (cams_dir / "cameras.txt").write_text(_SFM_CAMERAS)
     (cams_dir / "images.txt").write_text(
         "# Number of images: 1\n"
-        "1 1 0 0 0 0 0 0 1 ../../../c754/frame_sequence/cam04/frame_000000.png\n\n"
+        "1 1 0 0 0 0 0 0 1 ../../../c754/frame_sequence/cam04/frame_000000.png\n2 3 1\n"
     )
     points = tmp_path / "pts"
     points.mkdir()

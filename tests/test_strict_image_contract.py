@@ -257,7 +257,7 @@ def test_current_main_chain_edges_and_broadcast_contract():
         "image-undistort@0.5.2",
         "colmap-triangulate@0.7.5",
         "colmap-sfm@0.4.2",
-        "merge-colmap@0.4.0",
+        "merge-colmap@0.4.1",
     ]
     packs = catalog(names)
     stg_path = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.3.0/manifest.yaml"

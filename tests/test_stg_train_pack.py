@@ -70,7 +70,7 @@ def _load() -> object:
 def test_manifest_declares_v030_with_colmap_folder_input_tag() -> None:
     """v0.3.0 replaces the retired ``colmap`` alias with ``colmap-folder``.
 
-    Locks the 2026-09-22 type-system cleanup: ``merge-colmap@0.4.0``
+    Locks the 2026-09-22 type-system cleanup: ``merge-colmap@0.4.1``
     output ``[colmap-folder]`` must edge-match this pack's
     ``colmap_frames`` input without any alias hack.
     """
