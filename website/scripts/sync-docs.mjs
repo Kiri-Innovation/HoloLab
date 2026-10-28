@@ -173,7 +173,9 @@ export async function syncDocs({ root = path.resolve(website, '..'), config = he
       schema.attributes.source = ['srcSet', ['media', '(prefers-color-scheme: dark)'], ['type', 'image/webp']];
       schema.attributes.img = ['src', 'alt', 'width', 'height', ['loading', 'lazy'], ['decoding', 'async']];
     }
-    if (doc.slug === 'quick-start' && doc.locale === 'zh-CN') {
+    // The quick-start uses the shared tab component, so both localized copies
+    // must retain its markers; other documents remain on the default allowlist.
+    if (doc.slug === 'quick-start') {
       schema.tagNames = [...new Set([...schema.tagNames, 'button'])];
       schema.attributes.div = [...(schema.attributes.div ?? []), 'dataTabs', 'dataTabsEnd', 'dataTabSource', 'role', 'ariaLabel'];
       schema.attributes.button = ['id', 'type', 'role', 'ariaSelected', 'ariaControls', 'dataTab', 'tabIndex'];

@@ -9,26 +9,66 @@ Start HoloLab on your machine, then open its interface in a browser.
 
 ## Prerequisites
 
-Installing from source requires Python 3.10 or later, Node.js 22, and Git. Algorithms use their own runtime environments. For Packs that use conda, install conda, Miniconda, or a compatible distribution. Installing HoloLab does not install the CUDA libraries, model weights, or datasets your algorithms need.
+The prebuilt release tarball includes the frontend and interpreter, so it does not require Node.js or a system Python installation. The requirements below apply only when installing from source.
 
-## Install from source
+Source installs require Python 3.10 or later (`requires-python` is `>=3.10`), Node.js 22, and Git. Algorithms use their own runtime environments. For Packs that use conda, install conda, Miniconda, or a compatible distribution. Installing HoloLab does not install the CUDA libraries, model weights, or datasets your algorithms need.
 
-### Get the code (choose one)
+On Ubuntu 24.04, `python3 -m venv` reports `ensurepip is not available` unless the matching system venv package is installed. The Node.js 18 package supplied by `apt` also falls short of the requirement. With `sudo` access, install the system dependencies first (replace `3.12` with your Python version if it differs):
 
-**Clone a new checkout.** The frontend build also builds the pinned ColmapUtil submodule, so cloning requires `--recurse-submodules`. Run these commands in a terminal:
+```bash
+sudo apt update
+sudo apt install -y git curl python3.12-venv
+```
+
+Then install Node.js 22 with nvm. Reopen the terminal when the installer finishes; the Bash example below loads nvm immediately. `node --version` should ultimately report 22.x:
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.bashrc
+nvm install 22
+node --version
+```
+
+<div class="doc-tabs doc-tabs-level-2" data-tabs data-tabs-end="prepare-pack-runtime">
+<div class="doc-tab-list" role="tablist" aria-label="Installation method">
+<h2 id="install-from-source"><button id="install-from-source-tab" type="button" role="tab" aria-selected="true" aria-controls="install-from-source-panel" data-tab="source">Install from source</button></h2>
+<h2><button id="install-from-pip-tab" type="button" role="tab" aria-selected="false" aria-controls="install-from-pip" data-tab="pip" tabindex="-1">Install with pip</button></h2>
+</div>
+<section id="install-from-source-panel" role="tabpanel" aria-labelledby="install-from-source-tab" data-tab-panel="source"></section>
+<section id="install-from-pip" role="tabpanel" aria-labelledby="install-from-pip-tab" data-tab-panel="pip" hidden>
+<p>pip installation is being prepared for a future release. It will let you run <code>pip install hololab</code> without building the frontend locally. To start using HoloLab today, choose <strong>Install from source</strong> and complete the steps below.</p>
+</section>
+</div>
+
+### Get the code
+
+<div class="doc-tabs doc-tabs-level-3" data-tabs data-tabs-end="install-and-build-common">
+<div class="doc-tab-list" role="tablist" aria-label="How to get the code">
+<button id="fresh-clone" type="button" role="tab" aria-selected="true" aria-controls="get-code-clone" data-tab="clone">Fresh clone</button>
+<button id="existing-checkout" type="button" role="tab" aria-selected="false" aria-controls="get-code-existing" data-tab="existing" tabindex="-1">Existing checkout</button>
+</div>
+<section id="get-code-clone" role="tabpanel" aria-labelledby="fresh-clone" data-tab-panel="clone"></section>
+<section id="get-code-existing" role="tabpanel" aria-labelledby="existing-checkout" data-tab-panel="existing" hidden></section>
+</div>
+
+<div data-tab-source="clone"></div>
+
+**Fresh clone.** The frontend build also builds the pinned ColmapUtil submodule, so cloning requires `--recurse-submodules`. Run these commands in a terminal:
 
 ```bash
 git clone --recurse-submodules https://github.com/Kiri-Innovation/HoloLab.git
 cd HoloLab
 ```
 
-**Use an existing checkout (including Kiri4DGS).** There is no need to clone again. If you work in the Kiri4DGS repository, HoloLab is included as a submodule in `hololab/`; run `cd hololab` from the Kiri4DGS root. For any other existing checkout, enter its HoloLab root directory. Then initialize and update its submodules from the HoloLab root:
+<div data-tab-source="existing"></div>
+
+**Existing checkout (including Kiri4DGS).** You do not need to clone again. In the Kiri4DGS repository, HoloLab is already included as the `hololab/` submodule, so run `cd hololab` from the Kiri4DGS root. Otherwise, go to your existing HoloLab root. Then initialize and update submodules from that root:
 
 ```bash
 git submodule update --init --recursive
 ```
 
-### Install and build (both options)
+### Install and build (common)
 
 After completing either option above, run the following commands from the HoloLab root. These virtual environment paths work on Linux and macOS.
 
@@ -40,6 +80,16 @@ npm ci
 npm run build
 cd ../..
 ```
+
+## Prepare the Pack runtime
+
+After the build, Packs can appear in the list even when their algorithm environments do not yet exist. From the HoloLab root, run:
+
+```bash
+.venv-runtime/bin/hololab pack setup --all
+```
+
+For every Pack's declared `runtime.env`, this command creates or completes the environment and installs dependencies shared by that environment. It writes any missing mappings to `~/.hololab/node/config.yaml`, after first backing up the existing configuration. When it finishes, it prints `Setup complete. Restart hololab/node so the environment mapping and cache take effect.` If HoloLab is already running, restart it so the new mappings and cached environments take effect.
 
 ## Start the services
 
@@ -90,14 +140,6 @@ Open a workflow and check that your device is online in **Compute Nodes · Pulse
 <figcaption>Paired crops of the left Packs panel and the bottom Compute Nodes · Pulse tab: algorithm access and device status. Device names, IDs, and paths are hidden.</figcaption>
 </figure>
 
-The compute node configuration defaults to `~/.hololab/node/config.yaml`. If a Pack declares an environment named `research`, map that name to the environment's actual path on the device:
-
-```yaml
-conda_bin: /path/to/conda
-envs:
-  research: /path/to/conda/envs/research
-```
-
-Replace the example paths with your own. Prepare the GPU and input data required by the Pack you plan to run.
+Prepare the GPU and input data required by the Pack you plan to run.
 
 Once you know your way around and the device is ready, follow [Your first workflow](workflows.md) to connect and run your first steps. If the interface will not open or the device stays offline, see [Troubleshooting](troubleshooting.md).
