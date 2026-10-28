@@ -52,20 +52,20 @@ it("does not invent an execution action for constants or viewers", () => {
   expect(html).not.toContain("hl-node-run-control");
 });
 
-it("shows an accessible shield for a community-certified release", () => {
+it("shows an accessible shield for a certified release", () => {
   const html = renderToStaticMarkup(
     <NodeCardHeader
       id="community-pack"
       name="community/colmap-sfm"
       version="0.4.2"
       subtitle="local"
-      communityCertified
+      certified
       status={nodeStatus({})}
     />,
   );
-  expect(html).toContain('data-hl-community-certified=""');
-  expect(html).toContain('title="社区认证版本：与注册表发布内容一致"');
-  expect(html).toContain('aria-label="社区认证版本：与注册表发布内容一致"');
+  expect(html).toContain('data-hl-certified=""');
+  expect(html).toContain('title="已验证版本：随 HoloLab 提供，或与注册表发布内容一致"');
+  expect(html).toContain('aria-label="已验证版本：随 HoloLab 提供，或与注册表发布内容一致"');
 });
 
 it("omits the shield when the release is not community-certified", () => {
@@ -78,7 +78,7 @@ it("omits the shield when the release is not community-certified", () => {
       status={nodeStatus({})}
     />,
   );
-  expect(html).not.toContain("data-hl-community-certified");
+  expect(html).not.toContain("data-hl-certified");
 });
 
 it("uses the canvas-resolved label everywhere the header exposes a name", () => {

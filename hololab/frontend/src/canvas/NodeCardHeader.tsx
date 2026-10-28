@@ -15,7 +15,7 @@ export function NodeCardHeader({
   device,
   state,
   status,
-  communityCertified = false,
+  certified = false,
   leadingActions,
   actions,
   children,
@@ -29,8 +29,8 @@ export function NodeCardHeader({
   device?: string;
   state?: string;
   status: NodeStatusPresentation;
-  /** Community-scoped pack whose local content matches its registry release. */
-  communityCertified?: boolean;
+  /** Pack from HoloLab or one whose local content matches its registry release. */
+  certified?: boolean;
   leadingActions?: ReactNode;
   actions?: ReactNode;
   children?: ReactNode;
@@ -82,11 +82,11 @@ export function NodeCardHeader({
           >
             {displayName}
           </span>
-          {communityCertified && <span
-            data-hl-community-certified=""
+          {certified && <span
+            data-hl-certified=""
             role="img"
-            title="社区认证版本：与注册表发布内容一致"
-            aria-label="社区认证版本：与注册表发布内容一致"
+            title="已验证版本：随 HoloLab 提供，或与注册表发布内容一致"
+            aria-label="已验证版本：随 HoloLab 提供，或与注册表发布内容一致"
             style={{ color: "var(--status-success)", display: "inline-flex", flex: "0 0 auto" }}
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
