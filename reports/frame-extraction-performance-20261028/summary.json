@@ -1,0 +1,29 @@
+{
+  "bottleneck": "CPU cost of default lossless PNG compression; native FFmpeg PNG encoder supports frame threading.",
+  "codec": "All 80 inputs are HEVC, yuv420p, BT.709, 234 frames; data56.mp4 is absent.",
+  "method": "Fixed data1..data8, first 50 frames each; benchmarks sequential, no simultaneous benchmark variants. Samples are cached reads. File fsync reported separately.",
+  "scope": "No daemon restart, live workflow modification, source video writes, or public registry publication.",
+  "recommended": {
+    "parallelism": 8,
+    "batch_size": 2,
+    "max_concurrent_jobs_after_maintenance": 8,
+    "max_concurrent_jobs_live_unchanged": 0,
+    "decode_threads": 1,
+    "encode_threads": 2,
+    "filter_threads": 1,
+    "png_compression": 1,
+    "png_predictor": "sub"
+  },
+  "limitations": [
+    "8-camera equivalent sample, not an end-to-end 80-camera gateway timing.",
+    "Pure decode data measures HEVC, not H.264.",
+    "JPEG/WebP quality metrics cover five data1 frames, not a COLMAP/3DGS reconstruction A/B.",
+    "4x4 and 8x2 encoding configurations differ by <1%; no claim of a statistically unique optimum.",
+    "A separate repository pytest run briefly overlapped the tail of parameter exploration/format measurements, using around half of one logical CPU; actual pack timings started after it exited."
+  ],
+  "sources": [
+    "https://ffmpeg.org/ffmpeg.html",
+    "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n8.0/libavcodec/pngenc.c",
+    "https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html"
+  ]
+}

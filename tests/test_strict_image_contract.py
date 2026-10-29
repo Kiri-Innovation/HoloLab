@@ -260,18 +260,23 @@ def test_current_main_chain_edges_and_broadcast_contract():
         "merge-colmap@0.4.1",
     ]
     packs = catalog(names)
-    stg_path = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.3.0/manifest.yaml"
-    if not stg_path.exists():
-        pytest.skip("external stg pack checkout is not installed")
+    init_path = ROOT.parent / "SpacetimeGaussians/packs/stg-init@0.3.1/manifest.yaml"
+    stg_path = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.4.6/manifest.yaml"
+    if not init_path.exists() or not stg_path.exists():
+        pytest.skip("external split STG pack checkout is not installed")
+    init, _ = load_manifest(init_path)
     stg, _ = load_manifest(stg_path)
-    packs.update(packs_by_key_from_catalog([stg.model_dump(mode="json")]))
+    packs.update(
+        packs_by_key_from_catalog([init.model_dump(mode="json"), stg.model_dump(mode="json")])
+    )
     nodes = []
     for id, name, toggle in [
         ("und", names[0], True),
         ("tri", names[1], True),
         ("sfm", names[2], False),
         ("merge", names[3], True),
-        ("stg", "stg-train@0.3.0", False),
+        ("stg-init", "stg-init@0.3.1", False),
+        ("stg", "stg-train@0.4.6", False),
     ]:
         alg, ver = name.split("@")
         pack_name, pack_version = next(
@@ -293,7 +298,9 @@ def test_current_main_chain_edges_and_broadcast_contract():
         ("und", "cams", "merge", "cams"),
         ("tri", "points", "merge", "points"),
         ("und", "images", "merge", "images"),
-        ("merge", "folder", "stg", "colmap_frames"),
+        ("merge", "folder", "stg-init", "colmap_4d"),
+        ("stg-init", "initial_state", "stg", "state"),
+        ("stg-init", "supervision", "stg", "supervision"),
     ]
     edges = [
         GraphEdge(id=str(i), source=a, sourceHandle=b, target=c, targetHandle=d)

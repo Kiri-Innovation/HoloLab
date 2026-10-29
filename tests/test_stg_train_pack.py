@@ -1,22 +1,7 @@
-"""``stg-train@0.3.0`` — manifest params + exec.shell template.
-
-Locks the mapping between ``configs/n3d_full/sharp4dgs_export.json`` and the
-node-level knobs: every JSON key that STG's training parser accepts on the
-CLI is now exposed with a matching default and emitted as a CLI flag that
-wins over the ``--configpath`` JSON (helper3dg.py cli_flags precedence).
-
-The regression this guards against is the 56 GiB-cgroup OOM: the JSON ships
-``resolution: 1`` (the only n3d_full config that does), and passing
-``--resolution 2`` from the manifest brings the data-loader from ~68 GiB
-down to ~17 GiB.
-
-Also asserts the ``colmap_frames`` input tag is ``colmap-folder`` (the
-2026-09-22 type-system cleanup that dropped the retired-alias ``colmap``).
-"""
+"""``stg-train@0.4.6`` consumes the portable state created by ``stg-init``."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -24,42 +9,11 @@ import pytest
 from hololab.manifest import RenderContext, load_manifest, render_manifest
 
 _MANIFEST = Path(
-    "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs/stg-train@0.3.0/manifest.yaml"
-)
-_CONFIGPATH = Path(
-    "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/configs/n3d_full/sharp4dgs_export.json"
+    "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs/stg-train@0.4.6/manifest.yaml"
 )
 
 if not _MANIFEST.exists():
     pytest.skip("needs SpacetimeGaussians checkout at local path", allow_module_level=True)
-
-
-# JSON key → (manifest param name, expected node default). Only keys that
-# STG's training parser (helper3dg.getparser + arguments.py + private_args.py)
-# actually registers as an argparse dest — ``mw_max_unique_cams`` and
-# ``test_iteration`` (singular) are silently dropped from the JSON by
-# ``if hasattr(args, k)`` at helper3dg.py:301, so we don't expose them.
-_JSON_TO_PARAM: dict[str, tuple[str, object]] = {
-    "model": ("model", "ours_lite"),
-    "scaling_lr": ("scaling_lr", 0.0015),
-    "preprocesspoints": ("preprocesspoints", 0),
-    "loader": ("loader", "technicolor"),
-    "rdpip": ("rdpip", "train_ours_lite"),
-    "rgbfunction": ("rgbfunction", "sandwich"),
-    "densify": ("densify", 3),
-    "percent_dense": ("percent_dense", 0.05),
-    "desicnt": ("desicnt", 16),
-    "densify_until_iter": ("densify_until_iter", 5000),
-    "opacity_reset_interval": ("opacity_reset_interval", 1700),
-    "densification_interval": ("densification_interval", 80),
-    "densify_grad_threshold": ("densify_grad_threshold", 0.00008),
-    "lambda_dssim": ("lambda_dssim", 0.3),
-    "prune_z_min": ("prune_z_min", 1.0),
-    "opthr": ("opthr", 0.003),
-    "motion_mask_mode": ("motion_mask_mode", "depth_p10p90"),
-    "len_memory_window_train": ("len_memory_window_train", 100),
-    "save_cam": ("save_cam", 5),
-}
 
 
 def _load() -> object:
@@ -67,119 +21,43 @@ def _load() -> object:
     return manifest
 
 
-def test_manifest_declares_v030_with_colmap_folder_input_tag() -> None:
-    """v0.3.0 replaces the retired ``colmap`` alias with ``colmap-folder``.
-
-    Locks the 2026-09-22 type-system cleanup: ``merge-colmap@0.4.1``
-    output ``[colmap-folder]`` must edge-match this pack's
-    ``colmap_frames`` input without any alias hack.
-    """
+def test_manifest_declares_split_state_contract() -> None:
     m = _load()
-    assert m.name == "stg-train"
-    assert m.version == "0.3.0"
-    assert m.inputs["colmap_frames"].tags == ["colmap-folder"]
-    assert m.inputs["colmap_frames"].arrayed is True
+    assert m.name == "community/stg-train"
+    assert m.version == "0.4.6"
+    assert set(m.inputs) == {"state", "supervision"}
+    assert m.inputs["state"].tags == ["stg-training-state"]
+    assert m.inputs["supervision"].tags == ["stg-supervision"]
+    assert set(m.outputs) == {"state"}
+    assert m.outputs["state"].tags == ["stg-training-state", "stg_model"]
 
 
-def test_resolution_param_defaults_to_two_and_offers_downsample_ladder() -> None:
-    """``--resolution 2`` is the RAM-safe default that broke the OOM cycle."""
+def test_train_parameters_are_additional_iterations_and_diagnostics() -> None:
     m = _load()
-    p = m.params["resolution"]
-    assert p.default == 2, f"expected default=2 (RAM-safe), got {p.default}"
-    assert list(p.values or []) == [1, 2, 4, 8]
+    assert set(m.params) == {"iterations", "save_cam", "preview_every"}
+    assert m.params["iterations"].default == 500
+    assert m.params["iterations"].min == 1
+    assert m.params["save_cam"].default == 5
+    assert m.params["preview_every"].default == 100
 
 
-def test_lazy_image_loading_is_enabled_by_default() -> None:
-    """The STG pack must never select the eager host-RAM loading path."""
-    m = _load()
-    assert m.params["lazy_load_images"].default is True
-
-
-def test_manifest_defaults_mirror_sharp4dgs_export_json() -> None:
-    """Every JSON key we lifted to a node param must ship the JSON's value.
-
-    "配置一模一样的数字" — the manifest is authoritative for these keys
-    only when the CLI value differs from the JSON; the safe fallback is to
-    have the two agree so behavior is identical regardless of which side
-    wins the precedence race for a given key.
-    """
-    m = _load()
-    j = json.loads(_CONFIGPATH.read_text())
-    for json_key, (param_name, expected) in _JSON_TO_PARAM.items():
-        assert param_name in m.params, f"manifest missing param {param_name!r}"
-        assert m.params[param_name].default == expected, (
-            f"manifest default for {param_name!r} = "
-            f"{m.params[param_name].default!r}, want {expected!r}"
-        )
-        # And the JSON we're mirroring hasn't drifted from that value.
-        assert j.get(json_key) == expected, (
-            f"sharp4dgs_export.json {json_key!r} = {j.get(json_key)!r}, "
-            f"expected {expected!r} — manifest default now out of sync"
-        )
-
-
-def test_exec_shell_emits_every_lifted_param_as_cli_flag() -> None:
-    """Rendered exec.shell must pass each lifted param on the CLI so it
-    wins over the ``--configpath`` JSON (helper3dg cli_flags precedence)."""
+def test_exec_shell_uses_only_split_state_inputs() -> None:
     m = _load()
     params = {name: spec.default for name, spec in m.params.items()}
-    # required-not-defaulted knobs
-    params["lazy_load_images"] = True
-    params["data_device"] = "cpu"
     ctx = RenderContext(
-        inputs={"colmap_frames": "/tmp/colmap_in"},
-        outputs={"model_dir": "/tmp/model_out"},
+        inputs={"state": "/tmp/input-state", "supervision": "/tmp/supervision"},
+        outputs={"state": "/tmp/output-state"},
         params=params,
         scratch_dir="/tmp/scratch/job-1",
         job_id="job-1",
         workflow_id="wf-1",
     )
-    rendered = render_manifest(m, ctx)
-    shell = rendered.shell
-
-    # The parameter that was the whole point.
-    assert "--resolution 2" in shell, shell
-    assert 'LAZY_FLAG="--lazy-load-images"' in shell, shell
-    assert 'if [ "{{ params.lazy_load_images }}"' not in shell, shell
-
-    # All lifted params show up on the CLI. --motion-mask-mode and
-    # --len-memory-window-train use hyphens (STG registers them that way).
-    for cli_flag, value in [
-        ("--model", "ours_lite"),
-        ("--loader", "technicolor"),
-        ("--rdpip", "train_ours_lite"),
-        ("--rgbfunction", "sandwich"),
-        ("--densify", "3"),
-        ("--percent_dense", "0.05"),
-        ("--desicnt", "16"),
-        ("--densify_until_iter", "5000"),
-        ("--opacity_reset_interval", "1700"),
-        ("--densification_interval", "80"),
-        ("--densify_grad_threshold", "8e-05"),
-        ("--lambda_dssim", "0.3"),
-        ("--preprocesspoints", "0"),
-        ("--opthr", "0.003"),
-        ("--scaling_lr", "0.0015"),
-        ("--motion-mask-mode", "depth_p10p90"),
-        ("--len-memory-window-train", "100"),
-    ]:
-        assert f"{cli_flag} {value}" in shell, f"{cli_flag} {value} not in rendered shell"
-
-
-def test_configpath_still_emitted_as_fallback() -> None:
-    """``--configpath`` stays for JSON-only keys we didn't lift (e.g.
-    ``mw_max_unique_cams``). CLI-lifted keys win over it."""
-    m = _load()
-    params = {name: spec.default for name, spec in m.params.items()}
-    params["lazy_load_images"] = True
-    params["data_device"] = "cpu"
-    ctx = RenderContext(
-        inputs={"colmap_frames": "/tmp/x"},
-        outputs={"model_dir": "/tmp/y"},
-        params=params,
-        scratch_dir="/tmp/s",
-        job_id="j",
-        workflow_id="w",
-    )
     shell = render_manifest(m, ctx).shell
-    assert '--configpath "configs/n3d_full/sharp4dgs_export.json"' in shell
+    assert "train" in shell
+    assert '--state "/tmp/input-state"' in shell
+    assert '--supervision "/tmp/supervision"' in shell
+    assert '--output "/tmp/output-state"' in shell
+    assert "--iterations 500" in shell
+    assert "--save-cam 5" in shell
+    assert "--preview-every 100" in shell
+    assert "colmap_frames" not in shell

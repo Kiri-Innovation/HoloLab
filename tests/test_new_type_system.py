@@ -193,9 +193,9 @@ def test_merge_colmap_v041_drops_colmap_compat_alias(manifest: Path) -> None:
     """``@0.4.0`` — same shape as ``@0.3.0`` but ``folder`` sheds the
     ``colmap`` compat alias (2026-09-22 type-system cleanup).
 
-    The alias existed only to keep the edge into
-    ``stg-train@0.2.0.colmap_frames`` (which declared ``[colmap]``)
-    valid without a manifest bump on the consumer side.
+    The alias existed only to keep a retired trainer's ``colmap_frames``
+    input (which declared ``[colmap]``) valid without a manifest bump on
+    the consumer side.
     ``stg-train@0.3.0`` now declares ``[colmap-folder]`` so the alias
     is redundant.
     """

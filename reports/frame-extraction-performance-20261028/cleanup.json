@@ -1,0 +1,10 @@
+{
+  "removed": [
+    "/dev/shm/fe-research-scratch",
+    "/cloud/cloud-ssd1/Kiri4DGS/fe-research-scratch",
+    "reports/frame-extraction-performance-20261028/__pycache__",
+    "hololab/builtin_packs/frame-extraction@0.1.1/__pycache__"
+  ],
+  "user_requested_patterns_empty": true,
+  "verified_frames": 400
+}

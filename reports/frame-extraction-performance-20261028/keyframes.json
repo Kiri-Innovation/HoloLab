@@ -1,0 +1,49 @@
+{
+  "command": [
+    "ffprobe",
+    "-v",
+    "error",
+    "-select_streams",
+    "v:0",
+    "-show_packets",
+    "-show_entries",
+    "packet=pts_time,flags",
+    "-of",
+    "json",
+    "/cloud/cloud-ssd1/Kiri4DGS/data/camarray/taogs/4K_Actor1_Magic_2/data1.mp4"
+  ],
+  "key_packets": [
+    {
+      "pts_time": "0.008008",
+      "flags": "K__"
+    },
+    {
+      "pts_time": "1.009009",
+      "flags": "K__"
+    },
+    {
+      "pts_time": "2.010010",
+      "flags": "K__"
+    },
+    {
+      "pts_time": "3.011011",
+      "flags": "K__"
+    },
+    {
+      "pts_time": "4.012012",
+      "flags": "K__"
+    },
+    {
+      "pts_time": "5.013013",
+      "flags": "K__"
+    },
+    {
+      "pts_time": "6.014014",
+      "flags": "K__"
+    },
+    {
+      "pts_time": "7.015015",
+      "flags": "K__"
+    }
+  ]
+}

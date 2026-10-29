@@ -1,0 +1,80 @@
+--- hololab/builtin_packs/frame-extraction@0.1.0/extract_frames.py	2026-10-28 07:24:03.486089022 +0000
++++ hololab/builtin_packs/frame-extraction@0.1.1/extract_frames.py	2026-10-28 10:35:18.084842998 +0000
+@@ -153,6 +153,11 @@
+     max_width: int | None = None,
+     start_frame: int = 0,
+     end_frame: int | None = None,
++    decode_threads: int = 1,
++    encode_threads: int = 2,
++    filter_threads: int = 1,
++    png_compression: int = 1,
++    png_predictor: str = "sub",
+ ) -> int:
+     """Decode ``video_path`` into ``output_dir/frame_XXXXXX.png``.
+ 
+@@ -173,6 +178,13 @@
+     return the existing count without re-decoding — delete them to force
+     a re-extract.
+     """
++    if min(decode_threads, encode_threads, filter_threads) < 1:
++        raise ValueError("thread counts must be >= 1")
++    if not 0 <= png_compression <= 9:
++        raise ValueError("png_compression must be between 0 and 9")
++    if png_predictor not in {"none", "sub", "up", "avg", "paeth", "mixed"}:
++        raise ValueError("unsupported PNG predictor")
++
+     frames_dir = output_dir
+     frames_dir.mkdir(parents=True, exist_ok=True)
+ 
+@@ -254,9 +266,25 @@
+         "-hide_banner",
+         "-loglevel",
+         "error",
++        # Input threads control decoding; the separate output option below
++        # controls PNG frame threading. Never let each shard claim all CPUs.
++        "-filter_threads",
++        str(filter_threads),
++        "-threads:v",
++        str(decode_threads),
+         "-i",
+         str(video_path),
+     ]
++    # PNG prediction and compression are reversible: RGB pixels, selection,
++    # timestamps, HDR conversion and output numbering are unchanged.
++    cmd += [
++        "-threads:v",
++        str(encode_threads),
++        "-compression_level",
++        str(png_compression),
++        "-pred",
++        png_predictor,
++    ]
+     if filters:
+         cmd += ["-vf", ",".join(filters)]
+     if select_expr is not None:
+@@ -368,6 +396,13 @@
+         default=0,
+         help=("源帧窗口终点 (0-based, 不含)。0 = 无终点，抽到视频尾。对齐 STG --endframe。"),
+     )
++    parser.add_argument("--decode-threads", type=int, default=1)
++    parser.add_argument("--encode-threads", type=int, default=2)
++    parser.add_argument("--filter-threads", type=int, default=1)
++    parser.add_argument("--png-compression", type=int, default=1)
++    parser.add_argument(
++        "--png-predictor", choices=["none", "sub", "up", "avg", "paeth", "mixed"], default="sub"
++    )
+     args = parser.parse_args()
+ 
+     if args.input_dir:
+@@ -398,6 +433,11 @@
+             max_width=args.max_width,
+             start_frame=args.start_frame,
+             end_frame=args.end_frame,
++            decode_threads=args.decode_threads,
++            encode_threads=args.encode_threads,
++            filter_threads=args.filter_threads,
++            png_compression=args.png_compression,
++            png_predictor=args.png_predictor,
+         )
+     except ValueError as exc:
+         print(f"✗ 参数错误: {exc}", file=sys.stderr)

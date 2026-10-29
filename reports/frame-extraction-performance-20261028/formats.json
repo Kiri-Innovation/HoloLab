@@ -1,0 +1,90 @@
+{
+  "pillow": "12.3.0",
+  "jpeg": "6.2",
+  "webp": "1.6.0",
+  "rows": [
+    {
+      "format": "PNG",
+      "options": {
+        "compress_level": 6
+      },
+      "frames": 5,
+      "encode_s": 16.438378266990185,
+      "MB": 29.41526,
+      "PSNR_dB": null,
+      "max_channel_error": 0,
+      "differing_channel_percent": 0.0,
+      "identical": true
+    },
+    {
+      "format": "PNG",
+      "options": {
+        "compress_level": 1
+      },
+      "frames": 5,
+      "encode_s": 3.6577750591095537,
+      "MB": 36.479829,
+      "PSNR_dB": null,
+      "max_channel_error": 0,
+      "differing_channel_percent": 0.0,
+      "identical": true
+    },
+    {
+      "format": "JPEG",
+      "options": {
+        "quality": 95,
+        "subsampling": 0
+      },
+      "frames": 5,
+      "encode_s": 0.2936348699731752,
+      "MB": 8.588572,
+      "PSNR_dB": 48.075914480180224,
+      "max_channel_error": 15,
+      "differing_channel_percent": 55.30934043852881,
+      "identical": false
+    },
+    {
+      "format": "JPEG",
+      "options": {
+        "quality": 95,
+        "subsampling": 2
+      },
+      "frames": 5,
+      "encode_s": 0.18648830009624362,
+      "MB": 7.208604,
+      "PSNR_dB": 47.19771221983368,
+      "max_channel_error": 31,
+      "differing_channel_percent": 58.089859021347735,
+      "identical": false
+    },
+    {
+      "format": "WEBP",
+      "options": {
+        "quality": 95,
+        "method": 4
+      },
+      "frames": 5,
+      "encode_s": 5.559280804009177,
+      "MB": 4.362088,
+      "PSNR_dB": 45.89506985390261,
+      "max_channel_error": 28,
+      "differing_channel_percent": 65.49852269804526,
+      "identical": false
+    },
+    {
+      "format": "WEBP",
+      "options": {
+        "lossless": true,
+        "quality": 75,
+        "method": 0
+      },
+      "frames": 5,
+      "encode_s": 13.32967256300617,
+      "MB": 21.815752,
+      "PSNR_dB": null,
+      "max_channel_error": 0,
+      "differing_channel_percent": 0.0,
+      "identical": true
+    }
+  ]
+}

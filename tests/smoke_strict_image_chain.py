@@ -1,7 +1,8 @@
 """Opt-in real GPU smoke: set HOLOLAB_ALGORITHM_PYTHON, run with node Python.
 
-Uses synthetic 3-camera data, an external stg-train@0.3.0 checkout, and one
-training iteration. No gateway connection or changes to existing workflows.
+Uses synthetic 3-camera data, external stg-init@0.3.1 + stg-train@0.4.6
+checkouts, and one training iteration. No gateway connection or changes to
+existing workflows.
 """
 
 import json
@@ -160,25 +161,50 @@ def main():
         {"cams": work / "und-cams", "points": work / "tri-points", "images": work / "und-images"},
         {"folder": work / "merged/frame0"},
     )
-    stg = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.3.0"
-    m, _ = load_manifest(stg / "manifest.yaml")
-    params = {k: v.default for k, v in m.params.items()}
-    params.update(iterations=1, duration=1, batch=2, resolution=1, preprocesspoints=0)
-    inputs = {"colmap_frames": str(work / "merged")}
-    outputs = {"model_dir": str(work / "model")}
-    validate_ports(inputs, m.inputs, direction="input")
-    ctx = RenderContext(
-        inputs=inputs,
-        outputs=outputs,
-        params=params,
-        pack_dir=str(stg),
-        scratch_dir=str(work / "stg-scratch"),
+    init = ROOT.parent / "SpacetimeGaussians/packs/stg-init@0.3.1"
+    train = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.4.6"
+    init_manifest, _ = load_manifest(init / "manifest.yaml")
+    init_inputs = {"colmap_4d": str(work / "merged")}
+    init_outputs = {
+        "initial_state": str(work / "initial-state"),
+        "supervision": str(work / "supervision"),
+        "preview": str(work / "preview.png"),
+    }
+    validate_ports(init_inputs, init_manifest.inputs, direction="input")
+    init_context = RenderContext(
+        inputs=init_inputs,
+        outputs=init_outputs,
+        params={k: v.default for k, v in init_manifest.params.items()},
+        pack_dir=str(init),
+        scratch_dir=str(work / "init-scratch"),
         workspace_root=str(work),
-        staging_dir=str(work / "stg-scratch"),
+        staging_dir=str(work / "init-scratch"),
     )
-    rendered = render_manifest(m, ctx)
-    run("stg", ["bash", "-c", rendered.shell], timeout=120, cwd=rendered.working_dir)
-    validate_ports(outputs, m.outputs, direction="output")
+    rendered = render_manifest(init_manifest, init_context)
+    run("stg-init", ["bash", "-c", rendered.shell], timeout=180, cwd=rendered.working_dir)
+    validate_ports(init_outputs, init_manifest.outputs, direction="output")
+
+    train_manifest, _ = load_manifest(train / "manifest.yaml")
+    train_inputs = {
+        "state": init_outputs["initial_state"],
+        "supervision": init_outputs["supervision"],
+    }
+    train_outputs = {"state": str(work / "model")}
+    train_params = {k: v.default for k, v in train_manifest.params.items()}
+    train_params.update(iterations=1, preview_every=0)
+    validate_ports(train_inputs, train_manifest.inputs, direction="input")
+    train_context = RenderContext(
+        inputs=train_inputs,
+        outputs=train_outputs,
+        params=train_params,
+        pack_dir=str(train),
+        scratch_dir=str(work / "train-scratch"),
+        workspace_root=str(work),
+        staging_dir=str(work / "train-scratch"),
+    )
+    rendered = render_manifest(train_manifest, train_context)
+    run("stg-train", ["bash", "-c", rendered.shell], timeout=180, cwd=rendered.working_dir)
+    validate_ports(train_outputs, train_manifest.outputs, direction="output")
     print("ALL CONTRACTS + ALGORITHMS PASS", flush=True)
 
 

@@ -1,0 +1,29 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: local/taogs-undistorted-source
+version: 0.1.0
+description: Reuse a verified 50-frame 80-camera undistortion job without copying pixels.
+params:
+  job_dir:
+    type: path
+    must_exist: true
+outputs:
+  images:
+    tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [frame, cam]
+  cams:
+    tags: [colmap-cams]
+    arrayed: true
+    dim_labels: [frame]
+requires: {}
+runtime:
+  mode: conda
+  env: kiri
+  gpu:
+    required: false
+exec:
+  shell: >-
+    python "{{ pack_dir }}/run.py" --source "{{ params.job_dir }}"
+    --images "{{ outputs.images }}" --cams "{{ outputs.cams }}"

@@ -16,7 +16,7 @@ def test_split_stg_manifests_load(path: Path) -> None:
     """Every currently shipped split STG manifest remains loadable."""
     manifest, _ = load_manifest(path)
     name, version = path.parent.name.rsplit("@", 1)
-    assert (manifest.name, manifest.version) == (name, version)
+    assert (manifest.name, manifest.version) == (f"community/{name}", version)
 
 
 def test_init_emits_semantic_state_and_supervision() -> None:

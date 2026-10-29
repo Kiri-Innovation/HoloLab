@@ -46,9 +46,12 @@ def test_migrated_inventory_catalog_and_viewers(tmp_path):
             for viewer in pack.manifest.node_viewers:
                 for filename in ("index.html", "viewer.js", "viewer.css"):
                     entry = (Path(viewer.entry).parent / filename).as_posix()
-                    response = client.get(
-                        f"/_pack/{pack.manifest.name}/{pack.manifest.version}/{entry}"
+                    route = (
+                        f"/_scoped_pack/{pack.manifest.name}/{pack.manifest.version}/{entry}"
+                        if "/" in pack.manifest.name
+                        else f"/_pack/{pack.manifest.name}/{pack.manifest.version}/{entry}"
                     )
+                    response = client.get(route)
                     assert response.status_code == 200
                     assert response.content == (STG / entry).read_bytes()
                     served += 1
@@ -59,7 +62,9 @@ def test_migrated_inventory_catalog_and_viewers(tmp_path):
 @pytest.mark.asyncio
 async def test_real_entrypoint_dispatch_smoke(tmp_path):
     packs = scan_packs(STG)
-    pack = next(p for p in packs if (p.manifest.name, p.manifest.version) == ("stg-init", "0.3.1"))
+    pack = next(
+        p for p in packs if (p.manifest.name, p.manifest.version) == ("community/stg-init", "0.3.1")
+    )
     record = capture(pack.manifest_path, Baselines(tmp_path / "baselines"))
     selected = session(packs)
     selected.content_identity = True
@@ -76,7 +81,7 @@ async def test_real_entrypoint_dispatch_smoke(tmp_path):
             workflow_id="smoke",
             gnode=GraphNode(
                 id="stg",
-                algorithm_name="stg-init",
+                algorithm_name="community/stg-init",
                 algorithm_version="0.3.1",
                 assigned_node_id="local",
                 code_identity=record,
