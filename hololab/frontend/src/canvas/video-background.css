@@ -37,12 +37,12 @@
 .hl-video-background-icon[data-mode="transparent"] { background: transparent; border-style: dashed; }
 .hl-video-background-icon[data-mode="checkerboard"] { background: repeating-conic-gradient(#ccc 0% 25%, #666 0% 50%) 0 0 / 8px 8px; }
 
-/* Reserve the existing background button's entire hit area. */
-.hl-video-resolution {
+/* Shared image/video badge. Video reserves its background button hit area. */
+.hl-media-resolution {
   position: absolute;
-  right: 40px;
+  right: 6px;
   bottom: 8px;
-  max-width: calc(100% - 46px);
+  max-width: calc(100% - 12px);
   box-sizing: border-box;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -56,4 +56,5 @@
   font: 10px/16px var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
+.hl-video-resolution { right: 40px; max-width: calc(100% - 46px); }
 .hl-video-native .hl-video-resolution { bottom: 60px; }

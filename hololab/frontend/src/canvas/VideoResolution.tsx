@@ -1,3 +1,4 @@
+import { MediaResolution } from "./MediaResolution";
 import { useEffect, useState } from "react";
 
 /** Read original-media metadata, never the low-resolution playback proxy. */
@@ -18,5 +19,5 @@ export function VideoResolution({ src }: { src: string }) {
     };
   }, [src]);
   if (!size || size.src !== src) return null;
-  return <span className="hl-video-resolution" aria-label="视频尺寸">{size.width} × {size.height}</span>;
+  return <MediaResolution width={size.width} height={size.height} kind="video" besideBackground />;
 }

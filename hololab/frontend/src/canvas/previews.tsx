@@ -1,3 +1,4 @@
+import { MediaResolution } from "./MediaResolution";
 import { VideoResolution } from "./VideoResolution";
 // In-canvas preview drawers.
 //
@@ -708,11 +709,18 @@ function VideoPreview({ url }: { url: string }) {
 }
 
 function ImagePreview({ url }: { url: string }) {
+  const [size, setSize] = useState<{ src: string; width: number; height: number }>();
   return (
-    <div style={PREVIEW_SHELL}>
+    <div style={{ ...PREVIEW_SHELL, position: "relative" }}>
       {/* Kept centred on the dark shell so the image reads as the focus. */}
       <img
+        key={url}
         src={url}
+        onLoad={(event) => {
+          const image = event.currentTarget;
+          setSize({ src: url, width: image.naturalWidth, height: image.naturalHeight });
+        }}
+        onError={() => setSize(undefined)}
         alt="preview"
         style={{
           display: "block",
@@ -722,6 +730,7 @@ function ImagePreview({ url }: { url: string }) {
           borderRadius: "var(--radius-sm)",
         }}
       />
+      {size?.src === url && <MediaResolution width={size.width} height={size.height} kind="image" />}
     </div>
   );
 }
