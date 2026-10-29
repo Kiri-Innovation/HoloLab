@@ -1,0 +1,118 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/frame-extraction
+version: 0.2.0
+description: 'BREAKING: extract frames into locally indexed p_<i:016d>.png arrays.'
+source_entry: extract_frames.py
+category: basic/input/frame-extraction
+arrayable: true
+docs: 'Breaking positional output layout: upgrade the entire chain in a new graph.
+
+  One invocation emits one ordered image array directly at its output root.
+
+  Each selected frame is p_<i:016d>.png in extraction order, starting at zero.
+
+  Fan-out adds the outer video array without flattening the inner frame array.
+
+  Selection/window/stride, SDR pixels and HDR tonemapping remain unchanged.
+
+  '
+inputs:
+  video_dir:
+    tags:
+    - video-source
+    description: Directory produced by builtin/single-video-source or (with arrayed
+      toggle on) one element of builtin/video-array-source; the first video file inside
+      is used.
+params:
+  max_frames:
+    type: int
+    default: 50
+    min: 1
+    description: Cap on extracted frames (--max-frames).
+  skip:
+    type: int
+    default: 1
+    min: 1
+    description: Extract every Nth frame within the [start, end) window.
+  max_width:
+    type: int
+    default: 0
+    min: 0
+    description: 'Downscale to this max width in px (aspect-preserved); 0 = keep native
+      resolution. Only ever downscales — a video narrower than this passes through
+      untouched. Mirrors ``SpacetimeGaussians/script/pre_no_prior.py`` ``--max_width``
+      semantics.
+
+      '
+  start_frame:
+    type: int
+    default: 0
+    min: 0
+    description: 'Source-frame index (0-based, inclusive) window start. Mirrors STG
+      ``--startframe``. Combines with ``skip``: after seeking to ``start_frame`` we
+      pick every ``skip``-th frame from there.
+
+      '
+  end_frame:
+    type: int
+    default: 0
+    min: 0
+    description: 'Source-frame index (0-based, exclusive) window end; 0 = no end,
+      extract to video tail. Mirrors STG ``--endframe``. Must be > ``start_frame``
+      when set.
+
+      '
+outputs:
+  frame_sequence:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - frame
+    description: 'Directory containing ``p_<i:016d>.png`` files at its root (no
+      ``frames/`` wrapper). Consumed by ``frames-to-camera-track`` and any other algorithm
+      that needs an ordered image sequence. Port name stays ``frame_sequence`` for
+      wiring stability; the tag is the canonical ``image`` (alias-compatible with
+      ``image_sequence`` / ``frame_sequence``).
+
+      '
+requires:
+  packages:
+  - ffmpeg
+runtime:
+  mode: host
+  gpu:
+    required: false
+  expected_duration_min:
+  - 0.05
+  - 2.0
+  resources:
+    scratch_gb: 2.0
+    mem_gb: 2.0
+exec:
+  python: extract_frames.py
+  args:
+  - --input-dir
+  - '{{ inputs.video_dir }}'
+  - --skip
+  - '{{ params.skip }}'
+  - --max-frames
+  - '{{ params.max_frames }}'
+  - --max-width
+  - '{{ params.max_width }}'
+  - --start-frame
+  - '{{ params.start_frame }}'
+  - --end-frame
+  - '{{ params.end_frame }}'
+  - --output
+  - '{{ outputs.frame_sequence }}'
+idempotency:
+  marker: '{{ outputs.frame_sequence }}/.hololab-done'
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
+previews:
+- id: first_frame
+  type: image
+  path: '{{ outputs.frame_sequence }}/p_0000000000000000.png'
