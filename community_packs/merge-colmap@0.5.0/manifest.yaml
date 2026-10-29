@@ -1,0 +1,80 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: community/merge-colmap
+version: 0.5.0
+description: 'BREAKING: merge ordered COLMAP lists with strict image-ID coverage and
+  positional image pairing.'
+source_entry: merge.py
+category: reconstruction/colmap
+docs: 'Breaking change: upgrade the whole chain in a new graph. Keep strict equality
+
+  of camera-bundle and triangulation IMAGE_ID sets. Pair ascending IMAGE_ID lists
+
+  by position; parse each model camera reference separately and remap output
+
+  CAMERA_ID plus rig/frame sensors. Image files zip in byte-list order with equal
+
+  lengths; no NAME fragments or numeric suffix matching. Preserve all input poses,
+
+  including zero-point rows. Invalid tracks fail rather than being cleaned away.
+
+  No image input means sparse-only output preserving the external NAMEs.
+
+  '
+arrayable: true
+inputs:
+  cams:
+    tags:
+    - colmap-cams
+    description: 'Per-frame ``colmap-cams`` bundle (typically PINHOLE from ``image-undistort@0.4.0``).
+      Aggregate handle is ``arrayed<colmap-cams>[frame]``; each shard sees one bundle.
+
+      '
+  points:
+    tags:
+    - point-cloud
+    description: 'Per-frame ``point-cloud``. Aggregate handle is ``arrayed<point-cloud>[frame]``;
+      each shard sees one frame''s ``points3D.txt``.
+
+      '
+  images:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - cam
+    require_axis_label_match: false
+    required: false
+    description: 'Optional per-frame images. Aggregate handle is ``arrayed<image>[frame]``;
+      each shard''s element dir holds the cam-side image files inline. A single image
+      file or a flat monocular sequence (arrayed mode disabled) is also accepted.
+      Wire for Mode B.
+
+      '
+outputs:
+  folder:
+    tags:
+    - colmap-folder
+    scalar: true
+    description: 'Per-frame ``colmap-folder``. Framework aggregates into ``arrayed<colmap-folder>[frame]``.
+      Consumed by ``stg-train@0.3.0.colmap_frames`` (also ``colmap-folder``).
+
+      '
+requires:
+  packages:
+  - numpy
+  - opencv-python
+runtime:
+  env: kiri
+  gpu:
+    required: false
+exec:
+  shell: "set -euo pipefail\n{% if 'images' in inputs %}\npython \"{{ pack_dir }}/merge.py\"\
+    \ \\\n  --cams \"{{ inputs.cams }}\" \\\n  --points \"{{ inputs.points }}\" \\\
+    \n  --images \"{{ inputs.images }}\" \\\n  --out \"{{ outputs.folder }}\"\n{%\
+    \ else %}\npython \"{{ pack_dir }}/merge.py\" \\\n  --cams \"{{ inputs.cams }}\"\
+    \ \\\n  --points \"{{ inputs.points }}\" \\\n  --out \"{{ outputs.folder }}\"\n\
+    {% endif %}\n"
+idempotency:
+  marker: '{{ outputs.folder }}/.hololab-done'
