@@ -11,6 +11,8 @@ export function NodeContextMenu({
   onClose,
   onDelete,
   onDuplicate,
+  onReplace,
+  canReplace,
   onRun,
   packHref,
 }: {
@@ -21,6 +23,8 @@ export function NodeContextMenu({
   onClose: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  onReplace?: () => void;
+  canReplace?: boolean;
   onRun?: () => void;
   packHref?: string;
 }) {
@@ -70,6 +74,7 @@ export function NodeContextMenu({
   return createPortal(
     <div ref={menu} id={id} role="menu" aria-label="节点操作" className="hl-node-context-menu" style={{ left, top }} onContextMenu={event => event.preventDefault()}>
       <button role="menuitem" type="button" onClick={action(onDuplicate)}>创建副本</button>
+      {onReplace && <button role="menuitem" type="button" disabled={!canReplace} title={canReplace ? undefined : "无相同输入输出的算法"} onClick={action(onReplace)}>替换为算法…</button>}
       {onRun && <button role="menuitem" type="button" disabled={!canRun} title={hasPack ? undefined : "算法未安装，无法运行"} onClick={action(onRun)}>{running ? "停止运行" : "运行"}</button>}
       {packHref && <a role="menuitem" href={packHref} target="_blank" rel="noopener" onClick={onClose}>在包管理器里查看</a>}
       <div role="separator" className="hl-node-context-menu-separator" />

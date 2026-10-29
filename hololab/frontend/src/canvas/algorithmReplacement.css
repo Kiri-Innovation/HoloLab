@@ -1,0 +1,11 @@
+.hl-algorithm-replacement { width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); box-sizing: border-box; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-elevated, var(--surface-2)); color: var(--text); box-shadow: var(--shadow-popover); }
+.hl-algorithm-replacement::backdrop { background: var(--overlay-bg, #0008); }
+.hl-algorithm-replacement header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.hl-algorithm-replacement h2 { margin: 0; font-size: var(--fs-md); }
+.hl-algorithm-replacement input { width: 100%; box-sizing: border-box; margin-block: var(--space-3); }
+.hl-algorithm-replacement-list { max-height: 55dvh; overflow: auto; }
+.hl-algorithm-replacement-list button { width: 100%; display: flex; justify-content: space-between; gap: var(--space-2); padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.hl-algorithm-replacement-list button span { min-width: 0; overflow-wrap: anywhere; }
+.hl-algorithm-replacement small { color: var(--muted); }
+.hl-algorithm-replacement-list button:hover:not(:disabled), .hl-algorithm-replacement-list button:focus-visible { background: var(--surface-hover); }
+.hl-algorithm-replacement-list button:disabled { opacity: .6; cursor: default; }

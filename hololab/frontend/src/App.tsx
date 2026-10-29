@@ -122,6 +122,8 @@ import { MobileShell, useIsMobilePortrait } from "./canvas/MobileShell";
 import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
 import { NodeContextMenu, type NodeMenuPosition } from "./canvas/NodeContextMenu";
 import { requestStopNode } from "./canvas/NodeRunControl";
+import { AlgorithmReplacementDialog } from "./canvas/AlgorithmReplacementDialog";
+import { replacementCandidates, replaceAlgorithm } from "./canvas/algorithmReplacement";
 import { duplicateNode } from "./canvas/nodeDuplicate";
 import "./canvas/nodeContextMenu.css";
 import { PackPalette } from "./canvas/PackPalette";
@@ -1614,6 +1616,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     createNodeAtScreen({ x: e.clientX, y: e.clientY }, view ? null : JSON.parse(raw));
   }, [createNodeAtScreen]);
 
+  const [replacementNodeId, setReplacementNodeId] = useState<string | null>(null);
+  const replacementNode = nodes.find(node => node.id === replacementNodeId);
+  const replacementData = replacementNode ? algorithmDataForNode(replacementNode) : null;
+
   const duplicateNodeAtOffset = useCallback((source: Node<Record<string, unknown>>) => {
     setFitInitialGraph(false);
     const copied = duplicateNode(source, mintId(source.type === "view" ? "view" : "n"));
@@ -2827,6 +2833,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           onClose={() => setNodeMenu(null)}
           onDelete={() => onNodesDelete([contextMenuNode])}
           onDuplicate={() => duplicateNodeAtOffset(contextMenuNode)}
+          onReplace={contextMenuAlgorithm && !contextMenuAlgorithm.assembly && !contextMenuAlgorithm.pack.name.startsWith("@builtin/") ? () => setReplacementNodeId(contextMenuNode.id) : undefined}
+          canReplace={!!contextMenuAlgorithm && replacementCandidates(contextMenuAlgorithm.pack, catalog).some(pack => !samePackage(pack.name, pack.version, contextMenuAlgorithm.pack.name, contextMenuAlgorithm.pack.version))}
           onRun={contextMenuAlgorithm ? () => {
             if (contextMenuRunning) requestStopNode(contextMenuNode.id);
             else void dispatchRunNode(contextMenuNode.id);
@@ -2834,6 +2842,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           packHref={contextMenuAlgorithm ? `/packs?view=local&section=category&pack=${encodeURIComponent(`${contextMenuAlgorithm.pack.name}@${contextMenuAlgorithm.pack.version}`)}` : undefined}
         />
       )}
+      {replacementNode && replacementData && !viewingSnapshot && <AlgorithmReplacementDialog
+        current={replacementData.pack} candidates={replacementCandidates(replacementData.pack, catalog)}
+        onClose={() => setReplacementNodeId(null)} onSelect={pack => {
+          setNodes(current => current.map(node => node.id === replacementNodeId ? replaceAlgorithm(node, pack) : node));
+          setReplacementNodeId(null);
+        }} />}
       {snapshotError && (
         <div
           style={{
