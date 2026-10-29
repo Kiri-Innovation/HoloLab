@@ -79,3 +79,38 @@ def test_all_parameter_modes_unchanged_and_codec_vendored():
     assert "position_model.py" in new["exec"]["shell"]
     assert sys.executable
     assert encode_position(0) == "p_0000000000000000"
+
+
+@pytest.mark.parametrize(
+    ('extract_options', 'match_option', 'expected'),
+    [
+        ('SiftExtraction.max_image_size SiftExtraction.use_gpu', 'SiftMatching.use_gpu',
+         'SiftExtraction.max_image_size SiftExtraction.use_gpu SiftMatching.use_gpu'),
+        ('SiftExtraction.max_image_size FeatureExtraction.use_gpu', 'FeatureMatching.use_gpu',
+         'SiftExtraction.max_image_size FeatureExtraction.use_gpu FeatureMatching.use_gpu'),
+        ('FeatureExtraction.max_image_size FeatureExtraction.use_gpu', 'FeatureMatching.use_gpu',
+         'FeatureExtraction.max_image_size FeatureExtraction.use_gpu FeatureMatching.use_gpu'),
+    ],
+)
+def test_cli_options_follow_help_not_version(extract_options, match_option, expected):
+    import subprocess
+
+    shell = yaml.safe_load((PACK / 'manifest.yaml').read_text())['exec']['shell']
+    probe = shell[shell.index('# Probe individual options:'):shell.index('echo "[colmap-sfm/0.5.0] camera_assignment=')]
+    # Unsupported --version must not be called. The hybrid case is real COLMAP 3.13.
+    stub = '''colmap() {
+      case "$1" in
+        feature_extractor) for option in $EXTRACT_OPTIONS; do echo "  --$option arg (=1)"; done ;;
+        exhaustive_matcher) echo "  --$MATCH_OPTION arg (=1)" ;;
+        *) return 1 ;;
+      esac
+    }
+'''
+    import os
+
+    result = subprocess.run(
+        ['bash', '-euo', 'pipefail', '-c', stub + probe],
+        env={**os.environ, 'EXTRACT_OPTIONS': extract_options, 'MATCH_OPTION': match_option},
+        capture_output=True, text=True, check=True,
+    )
+    assert result.stdout.strip() == '[colmap-sfm/0.5.0] CLI options: ' + expected

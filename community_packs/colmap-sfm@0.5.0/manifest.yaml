@@ -165,27 +165,33 @@ exec:
     \ {{ params.refine_principal_point | default(0) }})\nfi\nif [ \"{{ params.refine_extra_params\
     \ | default(1) }}\" != \"1\" ]; then\n  BA_INTRINSICS+=(--Mapper.ba_refine_extra_params\
     \ {{ params.refine_extra_params | default(1) }})\nfi\n\nmkdir -p \"$OUT_CAMS\"\
-    \ \"$OUT_POINTS\" \"$SPARSE_ROOT\"\n# COLMAP 4 moved common extraction options\
-    \ from SiftExtraction to\n# FeatureExtraction.  Select the option family from\
-    \ the installed CLI so\n# the pack remains compatible with COLMAP 3.x and 4.x.\n\
-    if colmap --version 2>&1 | grep -Eq 'COLMAP 4\\.'; then\n  EXTRACT_OPT_GROUP=FeatureExtraction\n\
-    \  GPU_OPT_EXTRACT=FeatureExtraction.use_gpu\n  GPU_OPT_MATCH=FeatureMatching.use_gpu\n\
-    else\n  EXTRACT_OPT_GROUP=SiftExtraction\n  GPU_OPT_EXTRACT=SiftExtraction.use_gpu\n\
-    \  GPU_OPT_MATCH=SiftMatching.use_gpu\nfi\necho \"[colmap-sfm/0.5.0] camera_assignment={{\
-    \ params.camera_assignment | default('single') }} camera_model={{ params.camera_model\
-    \ | default('OPENCV') }}\"\ncolmap feature_extractor \\\n  --database_path \"\
-    $DB\" --image_path \"$IMG_DIR\" \\\n  \"${CAMERA_ASSIGNMENT[@]}\" \\\n  --ImageReader.camera_model\
-    \ {{ params.camera_model | default('OPENCV') }} \\\n  \"${FOCAL_INIT[@]}\" \\\n\
-    \  \"${CAMERA_PARAMS[@]}\" \\\n  --\"$EXTRACT_OPT_GROUP.max_image_size\" {{ params.max_image_size\
-    \ | default(3200) }} \\\n  --SiftExtraction.max_num_features {{ params.max_num_features\
-    \ | default(8192) }} \\\n  --\"$GPU_OPT_EXTRACT\" {{ params.use_gpu | default(1)\
-    \ }}\n\ncolmap exhaustive_matcher --database_path \"$DB\" --\"$GPU_OPT_MATCH\"\
-    \ {{ params.use_gpu | default(1) }}\ncolmap mapper --database_path \"$DB\" --image_path\
-    \ \"$IMG_DIR\" --output_path \"$SPARSE_ROOT\" \\\n  --Mapper.ba_global_function_tolerance=0.000001\
-    \ \\\n  \"${BA_INTRINSICS[@]}\"\n\n# Mapper indices reflect discovery order, not\
-    \ reconstruction size.\n# Binary model headers store the number of registered\
-    \ images / 3D points.\nMODEL=$(python - \"$SPARSE_ROOT\" <<'PYMODEL'\nimport struct\n\
-    import sys\nfrom pathlib import Path\n\ncandidates = []\nfor model in sorted(Path(sys.argv[1]).iterdir()):\n\
+    \ \"$OUT_POINTS\" \"$SPARSE_ROOT\"\n# Probe individual options: COLMAP 3.13 already\
+    \ moved GPU flags, while\n# max_image_size still belongs to SiftExtraction. --version\
+    \ is not portable.\nEXTRACT_HELP=$(colmap feature_extractor -h 2>&1)\nMATCH_HELP=$(colmap\
+    \ exhaustive_matcher -h 2>&1)\nselect_option() {\n  local help_text=\"$1\" option\n\
+    \  shift\n  for option in \"$@\"; do\n    if grep -Fq -- \"--$option \" <<< \"\
+    $help_text\"; then\n      printf '%s\\n' \"$option\"\n      return 0\n    fi\n\
+    \  done\n  echo \"ERROR: installed COLMAP supports none of: $*\" >&2\n  return\
+    \ 2\n}\nMAX_IMAGE_SIZE_OPT=$(select_option \"$EXTRACT_HELP\" FeatureExtraction.max_image_size\
+    \ SiftExtraction.max_image_size)\nGPU_OPT_EXTRACT=$(select_option \"$EXTRACT_HELP\"\
+    \ FeatureExtraction.use_gpu SiftExtraction.use_gpu)\nGPU_OPT_MATCH=$(select_option\
+    \ \"$MATCH_HELP\" FeatureMatching.use_gpu SiftMatching.use_gpu)\necho \"[colmap-sfm/0.5.0]\
+    \ CLI options: $MAX_IMAGE_SIZE_OPT $GPU_OPT_EXTRACT $GPU_OPT_MATCH\"\necho \"\
+    [colmap-sfm/0.5.0] camera_assignment={{ params.camera_assignment | default('single')\
+    \ }} camera_model={{ params.camera_model | default('OPENCV') }}\"\ncolmap feature_extractor\
+    \ \\\n  --database_path \"$DB\" --image_path \"$IMG_DIR\" \\\n  \"${CAMERA_ASSIGNMENT[@]}\"\
+    \ \\\n  --ImageReader.camera_model {{ params.camera_model | default('OPENCV')\
+    \ }} \\\n  \"${FOCAL_INIT[@]}\" \\\n  \"${CAMERA_PARAMS[@]}\" \\\n  --\"$MAX_IMAGE_SIZE_OPT\"\
+    \ {{ params.max_image_size | default(3200) }} \\\n  --SiftExtraction.max_num_features\
+    \ {{ params.max_num_features | default(8192) }} \\\n  --\"$GPU_OPT_EXTRACT\" {{\
+    \ params.use_gpu | default(1) }}\n\ncolmap exhaustive_matcher --database_path\
+    \ \"$DB\" --\"$GPU_OPT_MATCH\" {{ params.use_gpu | default(1) }}\ncolmap mapper\
+    \ --database_path \"$DB\" --image_path \"$IMG_DIR\" --output_path \"$SPARSE_ROOT\"\
+    \ \\\n  --Mapper.ba_global_function_tolerance=0.000001 \\\n  \"${BA_INTRINSICS[@]}\"\
+    \n\n# Mapper indices reflect discovery order, not reconstruction size.\n# Binary\
+    \ model headers store the number of registered images / 3D points.\nMODEL=$(python\
+    \ - \"$SPARSE_ROOT\" <<'PYMODEL'\nimport struct\nimport sys\nfrom pathlib import\
+    \ Path\n\ncandidates = []\nfor model in sorted(Path(sys.argv[1]).iterdir()):\n\
     \    if not model.is_dir() or not (model / \"images.bin\").is_file():\n      \
     \  continue\n    counts = []\n    for name in (\"images.bin\", \"points3D.bin\"\
     ):\n        with (model / name).open(\"rb\") as stream:\n            counts.append(struct.unpack(\"\
