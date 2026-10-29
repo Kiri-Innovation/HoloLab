@@ -25,7 +25,7 @@ const und={...common,name:'community/image-undistort',arrayable:true,inputs:{},o
  cams:{tags:['colmap-cams'],arrayed:false,dim_labels:[]},images:{tags:['image'],arrayed:true,dim_labels:['cam']}}};
 const flatten={...common,name:'flatten-array',inputs:{arr:{tags:['any'],arrayed:true,dim_labels:['outer','inner'],required:true}},outputs:{
  flat:{tags:['any'],arrayed:true,dim_labels:[''],tags_from:'arr'}}};
-const merge={...common,name:'community/merge-colmap4d',inputs:{
+const merge={...common,name:'col4d/merge-colmap4d',inputs:{
  points:{tags:['point-cloud'],arrayed:true,dim_labels:['group'],required:true},
  images:{tags:['image'],arrayed:true,dim_labels:[''],required:true},
  cams:{tags:['colmap-cams'],arrayed:true,dim_labels:['group'],required:true}},outputs:{model:{tags:['colmap4d'],arrayed:false,dim_labels:[]}}};

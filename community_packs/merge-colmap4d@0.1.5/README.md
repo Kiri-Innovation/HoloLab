@@ -1,4 +1,4 @@
-# community/merge-colmap4d 0.1.4
+# col4d/merge-colmap4d 0.1.5
 
 This version preserves the one-dimensional image identity established by
 `flatten-array@0.1.0`. Both the COLMAP `Image.name` and the physical path under

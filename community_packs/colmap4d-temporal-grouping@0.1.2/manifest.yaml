@@ -1,7 +1,7 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: community/colmap4d-temporal-grouping
-version: 0.1.1
+name: col4d/colmap4d-temporal-grouping
+version: 0.1.2
 description: >
   Materialize XMP-timestamped rig images on colmap4d's fixed time grid and
   emit a rig_timeline visualization bundle from the same grouping result.
@@ -54,7 +54,7 @@ outputs:
 requires:
   packages: [colmap4d, matplotlib, plotly]
 runtime:
-  env: kiri
+  env: colmap4d
   gpu:
     required: false
   expected_duration_min: [0.05, 2]

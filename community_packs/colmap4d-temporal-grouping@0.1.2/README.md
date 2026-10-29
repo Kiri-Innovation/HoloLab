@@ -1,7 +1,8 @@
-# colmap4d temporal grouping 0.1.1
+# col4d/colmap4d-temporal-grouping 0.1.2
 
 This Kiri-owned incubating HoloLab pack materializes fixed-grid temporal groups
-with `colmap4d.groups.group_by_grid`. Version 0.1.1 adds the `exposure_timeline`
+with `colmap4d.groups.group_by_grid`. Version 0.1.2 is the first community
+release under the `col4d` domain and adds the `exposure_timeline`
 output expected by the existing `rig_timeline` viewer. Its directory contains
 `exposure_timeline_full.{png,html}`, `exposure_timeline_zoom.{png,html}`, and
 `report.md`, matching the established storage contract.

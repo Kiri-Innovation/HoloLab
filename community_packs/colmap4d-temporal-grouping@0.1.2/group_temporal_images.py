@@ -175,7 +175,7 @@ def main() -> int:
         "format": "hololab.colmap4d-temporal-groups",
         "format_version": 1,
         "producer": {
-            "pack": "community/colmap4d-temporal-grouping@0.1.1",
+            "pack": "col4d/colmap4d-temporal-grouping@0.1.2",
             "colmap4d_version": colmap4d.__version__,
             "minimum_colmap4d_version": "1.0.2",
         },
