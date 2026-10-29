@@ -5,7 +5,7 @@ import re
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 
 class GpuRequirements(BaseModel):
@@ -25,12 +25,22 @@ class Requirements(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     python: str | None = None
     packages: list[str] = Field(default_factory=list)
+    # Per-distribution simple indexes. This is deliberately generic: CUDA
+    # wheels are one consumer, but private/accelerator package indexes are not
+    # specific to PyTorch.
+    package_indexes: dict[str, HttpUrl] = Field(default_factory=dict)
     cuda: str | None = None  # Minimum driver-supported CUDA, not installed toolkit.
     gpu: GpuRequirements | None = None
 
     def is_empty(self) -> bool:
         """Whether the author explicitly declared no environment requirements."""
-        return self.python is None and not self.packages and self.cuda is None and self.gpu is None
+        return (
+            self.python is None
+            and not self.packages
+            and not self.package_indexes
+            and self.cuda is None
+            and self.gpu is None
+        )
 
     def as_dict(self) -> dict:
         """Stable wire form which preserves an explicit empty contract as ``{}``."""
@@ -52,6 +62,13 @@ class Requirements(BaseModel):
             requirement = Requirement(value)
             if requirement.url or requirement.marker or requirement.extras:
                 raise ValueError("packages accepts distribution names and versions only")
+        return values
+
+    @field_validator("package_indexes")
+    @classmethod
+    def package_index_names(cls, values):
+        for name in values:
+            Requirement(name)
         return values
 
     @field_validator("cuda")

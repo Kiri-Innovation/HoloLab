@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,6 +15,7 @@ from hololab.pack_setup import (
     SetupError,
     _check_hook_needs,
     apply_plans,
+    find_nvcc,
     installed_plans,
     select_python_version,
 )
@@ -29,6 +31,7 @@ def _manifest(
     packages: list[str],
     *,
     python: str | None = None,
+    package_indexes: dict[str, str] | None = None,
     host=False,
 ) -> None:
     target = root / f"{name.replace('/', '_')}@{version}"
@@ -43,6 +46,12 @@ def _manifest(
                 "requires:",
                 *([f'  python: "{python}"'] if python else []),
                 "  packages: [" + ", ".join(packages) + "]",
+                *(
+                    ["  package_indexes:"]
+                    + [f"    {name}: {index}" for name, index in package_indexes.items()]
+                    if package_indexes
+                    else []
+                ),
                 "runtime:",
                 f"  mode: {'host' if host else 'conda'}",
                 *([] if host else [f"  env: {env}"]),
@@ -184,6 +193,88 @@ def test_setup_new_environment_honors_python_constraint(tmp_path: Path, monkeypa
 
 def test_cuda_hook_reports_missing_compiler_in_plain_language(tmp_path: Path, monkeypatch) -> None:
     """The native-hook probe must fail before an opaque pip/build failure."""
-    monkeypatch.setattr("hololab.pack_setup.shutil.which", lambda _: None)
+    monkeypatch.setattr("hololab.pack_setup.find_nvcc", lambda: None)
     with __import__("pytest").raises(SetupError, match=r"CUDA compiler \(nvcc\)"):
         _check_hook_needs("conda", tmp_path, SimpleNamespace(needs=["cuda-toolkit"]))
+
+
+def test_find_nvcc_uses_cuda_home_when_not_on_path(tmp_path: Path, monkeypatch) -> None:
+    nvcc = tmp_path / "cuda-12.8" / "bin" / "nvcc"
+    nvcc.parent.mkdir(parents=True)
+    nvcc.write_text("#!/bin/sh\n")
+    nvcc.chmod(0o755)
+    monkeypatch.setattr("hololab.pack_setup.shutil.which", lambda _: None)
+    monkeypatch.setattr("hololab.pack_setup.glob", lambda _: [])
+    monkeypatch.setenv("CUDA_HOME", str(nvcc.parent.parent))
+    assert find_nvcc() == str(nvcc.resolve())
+
+
+def test_find_nvcc_uses_newest_usr_local_toolkit(tmp_path: Path, monkeypatch) -> None:
+    old = tmp_path / "cuda-11.8" / "bin" / "nvcc"
+    new = tmp_path / "cuda-12.8" / "bin" / "nvcc"
+    for nvcc in (old, new):
+        nvcc.parent.mkdir(parents=True)
+        nvcc.write_text("#!/bin/sh\n")
+        nvcc.chmod(0o755)
+    monkeypatch.delenv("CUDA_HOME", raising=False)
+    monkeypatch.setattr("hololab.pack_setup.shutil.which", lambda _: None)
+    monkeypatch.setattr("hololab.pack_setup.glob", lambda _: [str(old), str(new)])
+    assert find_nvcc() == str(new.resolve())
+
+
+def test_cuda_hook_distinguishes_cpu_only_torch(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("hololab.pack_setup.find_nvcc", lambda: "/cuda/bin/nvcc")
+    monkeypatch.setattr("hololab.pack_setup.shutil.which", lambda _: "/usr/bin/c++")
+    monkeypatch.setattr(
+        "hololab.pack_setup._run_in_env",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            [], 0, json.dumps({"cuda_build": None, "available": False, "count": 0}), ""
+        ),
+    )
+    with __import__("pytest").raises(SetupError, match="CPU-only PyTorch"):
+        _check_hook_needs("conda", tmp_path, SimpleNamespace(needs=["cuda-toolkit"]))
+
+
+def test_cuda_hook_distinguishes_no_visible_gpu(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("hololab.pack_setup.find_nvcc", lambda: "/cuda/bin/nvcc")
+    monkeypatch.setattr("hololab.pack_setup.shutil.which", lambda _: "/usr/bin/c++")
+    monkeypatch.setattr(
+        "hololab.pack_setup._run_in_env",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            [], 0, json.dumps({"cuda_build": "12.8", "available": False, "count": 0}), ""
+        ),
+    )
+    with __import__("pytest").raises(SetupError, match="no usable GPU is visible"):
+        _check_hook_needs("conda", tmp_path, SimpleNamespace(needs=["cuda-toolkit"]))
+
+
+def test_declared_package_index_replaces_unproven_existing_wheel(
+    tmp_path: Path, monkeypatch
+) -> None:
+    packs = tmp_path / "packs"
+    index = "https://download.example.invalid/whl/cu128"
+    _manifest(
+        packs, "community/gpu", "1.0.0", "gpu-env", ["torch"], package_indexes={"torch": index}
+    )
+    prefix = tmp_path / "gpu-env"
+    prefix.mkdir()
+    config = tmp_path / "config.yaml"
+    config.write_text(f"pack_dirs: [{packs}]\nenvs:\n  gpu-env: {prefix}\n")
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        if command[1:3] == ["list", "--prefix"]:
+            return subprocess.CompletedProcess(command, 0, '[{"version": "2.0"}]', "")
+        if command[1:3] == ["run", "--prefix"]:
+            return subprocess.CompletedProcess(command, 0, "Python 3.12.0\n", "")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("hololab.pack_setup.find_conda", lambda: "/fake/conda")
+    monkeypatch.setattr("hololab.pack_setup._run", fake_run)
+    cfg = load_node_config(config)
+    apply_plans(installed_plans(cfg, "community/gpu@1.0.0", False), cfg, config, dry_run=False)
+
+    pip = next(command for command in commands if "pip" in command)
+    assert ["--index-url", index] == pip[pip.index("--index-url") : pip.index("--index-url") + 2]
+    assert "--force-reinstall" in pip

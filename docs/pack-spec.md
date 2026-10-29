@@ -119,6 +119,23 @@ fingerprint skips rebuilding. Declared `modules` are imported afterwards as an
 ABI smoke test. Hooks run **only** on explicit `pack setup`, never while an
 archive is installed.
 
+### Package indexes
+
+Use `requires.package_indexes` when a dependency must come from a package
+provider other than conda-forge/PyPI, such as a CUDA wheel index. Keys are
+distribution names and values are PEP 503 indexes. HoloLab records the selected
+index in environment-local setup state and reinstalls a package from that index
+when no matching record exists, so an earlier wheel from another source is not
+silently accepted.
+
+```yaml
+requires:
+  packages: [torch, torchvision]
+  package_indexes:
+    torch: https://download.pytorch.org/whl/cu128
+    torchvision: https://download.pytorch.org/whl/cu128
+```
+
 ### Category
 
 `category` is an optional slash-separated path that places the pack inside the

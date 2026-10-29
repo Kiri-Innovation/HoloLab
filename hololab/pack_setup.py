@@ -15,6 +15,7 @@ import subprocess
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from glob import glob
 from pathlib import Path
 
 import yaml
@@ -51,6 +52,7 @@ class EnvironmentPlan:
     packs: tuple[str, ...]
     prefix: Path | None
     hooks: tuple[tuple[object, Path], ...] = ()
+    package_indexes: tuple[tuple[str, str], ...] = ()
 
 
 def select_python_version(requirement: str | None) -> str:
@@ -132,6 +134,7 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
                 + ", ".join(sorted(python_values))
             )
         requested: dict[str, Requirement] = {}
+        indexes: dict[str, str] = {}
         for manifest in group:
             for raw in manifest.requires.packages if manifest.requires else []:
                 requirement = Requirement(raw)
@@ -144,6 +147,14 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
                         f"{previous} vs {requirement}"
                     )
                 requested[requirement.name.lower()] = requirement
+            for name, index in (
+                manifest.requires.package_indexes.items() if manifest.requires else []
+            ):
+                key = Requirement(name).name.lower()
+                value = str(index)
+                if key in indexes and indexes[key] != value:
+                    raise SetupError(f"conflicting package indexes for environment {env!r}: {key}")
+                indexes[key] = value
         plans.append(
             EnvironmentPlan(
                 env,
@@ -152,6 +163,7 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
                 tuple(sorted(f"{canonical_name(m.name)}@{m.version}" for m in group)),
                 Path(cfg.envs[env]).expanduser() if env in cfg.envs else None,
                 tuple(group_with_paths),
+                tuple(sorted(indexes.items())),
             )
         )
     return plans
@@ -207,6 +219,52 @@ def _environment_python_version(conda: str, prefix: Path) -> Version | None:
         return None
 
 
+def _package_source_receipt(prefix: Path) -> Path:
+    return prefix / ".hololab-package-sources.json"
+
+
+def _source_satisfied(conda: str, prefix: Path, raw: str, index: str) -> bool:
+    if not _satisfied(conda, prefix, raw):
+        return False
+    try:
+        recorded = json.loads(_package_source_receipt(prefix).read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    requirement = Requirement(raw)
+    return recorded.get(requirement.name.lower()) == {"requirement": raw, "index": index}
+
+
+def _record_package_source(prefix: Path, raw: str, index: str) -> None:
+    receipt = _package_source_receipt(prefix)
+    try:
+        recorded = json.loads(receipt.read_text())
+    except (OSError, json.JSONDecodeError):
+        recorded = {}
+    recorded[Requirement(raw).name.lower()] = {"requirement": raw, "index": index}
+    receipt.write_text(json.dumps(recorded, indent=2, sort_keys=True) + "\n")
+
+
+def find_nvcc() -> str | None:
+    """Find nvcc even when a CUDA toolkit was intentionally left off PATH."""
+    candidates = [shutil.which("nvcc")]
+    cuda_home = os.environ.get("CUDA_HOME")
+    if cuda_home:
+        candidates.append(str(Path(cuda_home) / "bin" / "nvcc"))
+
+    def toolkit_version(candidate: str) -> Version:
+        name = Path(candidate).parent.parent.name.removeprefix("cuda-")
+        try:
+            return Version(name)
+        except ValueError:
+            return Version("0")
+
+    candidates.extend(sorted(glob("/usr/local/cuda*/bin/nvcc"), key=toolkit_version, reverse=True))
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            return str(Path(candidate).resolve())
+    return None
+
+
 def _hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -255,7 +313,7 @@ def _fingerprint(conda: str, prefix: Path, code_hash: str, script_hash: str) -> 
             "setup prerequisite missing: Python or PyTorch is unavailable in the target environment"
         )
     lines = probe.stdout.splitlines()
-    nvcc = shutil.which("nvcc")
+    nvcc = find_nvcc()
     nvcc_value = (
         subprocess.run([nvcc, "--version"], text=True, capture_output=True).stdout.strip()
         if nvcc
@@ -274,9 +332,10 @@ def _fingerprint(conda: str, prefix: Path, code_hash: str, script_hash: str) -> 
 
 def _check_hook_needs(conda: str, prefix: Path, setup: object) -> None:
     # Python/torch/CUDA runtime are always relevant to native CUDA hooks.
-    if "cuda-toolkit" in setup.needs and not shutil.which("nvcc"):
+    nvcc = find_nvcc()
+    if "cuda-toolkit" in setup.needs and not nvcc:
         raise SetupError(
-            "setup prerequisite missing: CUDA compiler (nvcc). Install a CUDA toolkit and retry."
+            "setup prerequisite missing: CUDA compiler (nvcc). Install CUDA Toolkit, or set CUDA_HOME to its directory."
         )
     if "cxx-compiler" in setup.needs and not (
         shutil.which("c++") or shutil.which("g++") or shutil.which("clang++")
@@ -291,12 +350,30 @@ def _check_hook_needs(conda: str, prefix: Path, setup: object) -> None:
             [
                 "python",
                 "-c",
-                "import torch; assert torch.cuda.is_available(), 'CUDA runtime/GPU unavailable'; print(torch.cuda.get_device_capability())",
+                "import json, torch; print(json.dumps({'cuda_build': torch.version.cuda, 'available': torch.cuda.is_available(), 'count': torch.cuda.device_count()}))",
             ],
         )
         if check.returncode:
             raise SetupError(
-                "setup prerequisite missing: CUDA runtime or usable GPU: " + check.stderr.strip()
+                "setup prerequisite missing: PyTorch cannot be imported for CUDA validation: "
+                + check.stderr.strip()
+            )
+        try:
+            torch_cuda = json.loads(check.stdout)["cuda_build"]
+            gpu_available = json.loads(check.stdout)["available"]
+        except (json.JSONDecodeError, KeyError):
+            raise SetupError(
+                "setup prerequisite check returned invalid PyTorch CUDA information"
+            ) from None
+        if not torch_cuda:
+            raise SetupError(
+                "setup prerequisite missing: CPU-only PyTorch is installed (torch.version.cuda is None). "
+                "Install a CUDA-enabled wheel from the pack's declared package index and retry."
+            )
+        if not gpu_available:
+            raise SetupError(
+                f"setup prerequisite missing: CUDA-enabled PyTorch ({torch_cuda}) is installed, "
+                "but no usable GPU is visible. Check NVIDIA driver, container/WSL GPU passthrough, and CUDA visibility."
             )
 
 
@@ -344,7 +421,7 @@ def _apply_hooks(
                 "PYTHON": str(prefix / "bin" / "python"),
                 "PIP": str(prefix / "bin" / "pip"),
                 "CUDA_HOME": os.environ.get(
-                    "CUDA_HOME", str(Path(shutil.which("nvcc") or "/usr/local/cuda").parent.parent)
+                    "CUDA_HOME", str(Path(find_nvcc() or "/usr/local/cuda").parent.parent)
                 ),
                 "PACK_CODE_SHA256": code_hash,
             }
@@ -444,16 +521,45 @@ def apply_plans(
                         f"{plan.name}: warning: Python {installed_python} is outside the "
                         "ecosystem-compatible range (3.10-3.13); setup will not rebuild it"
                     )
+        package_indexes = dict(plan.package_indexes)
         for package in plan.packages:
             if dry_run:
                 events.append(
                     f"{plan.name}: check/install {package} (conda-forge, then pip fallback)"
                 )
                 continue
-            if _satisfied(conda, prefix, package):
+            index = package_indexes.get(Requirement(package).name.lower())
+            if index and _source_satisfied(conda, prefix, package, index):
+                events.append(f"{plan.name}: {package} already satisfied from {index}")
+                continue
+            if not index and _satisfied(conda, prefix, package):
                 events.append(f"{plan.name}: {package} already satisfied")
                 continue
             events.append(f"{plan.name}: install {package} (conda-forge, then pip fallback)")
+            if index:
+                pip = _run(
+                    [
+                        conda,
+                        "run",
+                        "--prefix",
+                        str(prefix),
+                        "python",
+                        "-m",
+                        "pip",
+                        "install",
+                        "--upgrade",
+                        "--force-reinstall",
+                        "--index-url",
+                        index,
+                        package,
+                    ]
+                )
+                if pip.returncode:
+                    raise SetupError(
+                        f"failed to install {package!r} from declared package index {index!r} in {plan.name!r}: {pip.stderr.strip()}"
+                    )
+                _record_package_source(prefix, package, index)
+                continue
             if dry_run:
                 continue
             result = _run(
