@@ -138,6 +138,7 @@ class RenderedManifest:
     node_viewer_live_globs: dict[str, list[str]]
     progress_status_file: str | None
     python_args: list[str] = field(default_factory=list)
+    python_arg_batches: list[list[str]] = field(default_factory=list)
 
 
 def render_manifest(manifest: Manifest, ctx: RenderContext) -> RenderedManifest:

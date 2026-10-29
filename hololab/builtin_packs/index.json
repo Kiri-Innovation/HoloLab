@@ -71,6 +71,13 @@
       "manifest": "frame-extraction@0.1.0/manifest.yaml",
       "code_sha256": "86147a8e2247d82278cce2cce9df8bbf897eff626824bb59bfaa45d0c2e6048a",
       "identity_format": 2
+    },
+    {
+      "name": "builtin/frame-extraction",
+      "version": "0.1.1",
+      "manifest": "frame-extraction@0.1.1/manifest.yaml",
+      "code_sha256": "79b2dcb45912c971294cb52a6856e7381e2763ff8952f0a9fe7bc69c7a730a35",
+      "identity_format": 2
     }
   ]
 }
