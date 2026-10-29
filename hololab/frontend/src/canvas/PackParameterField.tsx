@@ -90,8 +90,8 @@ export function PackParameterField(props: Parameters<typeof InlinePackParameterF
         aria-label={`${props.name}：${bound ? "绑定变量" : "内联值"}；点击切换`}
         aria-expanded={bound}
         onClick={() => onBindingChange(bound ? null : choices[0] ?? "")}>
-        {bound ? <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 5 3 8l3 3M10 5l3 3-3 3M3 8h10" /></svg>
-          : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3-3 5 3 5M10 3l3 5-3 5M4 8h8" /></svg>}
+        {bound ? <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h8M8 5l3 3-3 3" /></svg>
+          : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6h8M4 10h8" /></svg>}
       </button>
       {bound ? <div title={text}>
         <select aria-label={`${props.name} 绑定变量`} value={binding}
