@@ -136,6 +136,7 @@ class PortSpecOut(BaseModel):
     """Input port signature from the pack catalog."""
 
     tags: list[str]
+    any_of: list[dict[str, Any]] = Field(default_factory=list)
     required: bool = True
     inline: bool | None = None
     inline_default: Any = None

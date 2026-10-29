@@ -671,6 +671,7 @@ class NodeRegistry:
                         entry["inputs"] = {
                             n: {
                                 "tags": s.tags,
+                                "any_of": [v.model_dump(mode="json") for v in s.any_of],
                                 "required": s.required,
                                 "inline": s.inline,
                                 "inline_default": s.inline_default,
