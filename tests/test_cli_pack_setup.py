@@ -46,7 +46,7 @@ def _manifest(
                 f"version: {version}",
                 "requires:",
                 *([f'  python: "{python}"'] if python else []),
-                "  packages: [" + ", ".join(packages) + "]",
+                "  packages: [" + ", ".join(json.dumps(package) for package in packages) + "]",
                 *(
                     ["  package_indexes:"]
                     + [f"    {name}: {index}" for name, index in package_indexes.items()]
@@ -89,6 +89,50 @@ def test_setup_dry_run_merges_shared_environment(tmp_path: Path) -> None:
     assert result.output.count("create or reuse conda environment named test-setup-env") == 1
     assert "numpy" in result.output and "ffmpeg" in result.output
     assert "test-setup-env" not in config.read_text().split("envs:")[-1]
+
+
+def test_setup_merges_unconstrained_and_constrained_requirement(tmp_path: Path) -> None:
+    packs = tmp_path / "packs"
+    _manifest(packs, "community/plain", "1.0.0", "shared", ["colmap4d"])
+    _manifest(packs, "community/minimum", "1.0.0", "shared", ["colmap4d>=1.0.2"])
+    config = tmp_path / "config.yaml"
+    config.write_text(f"pack_dirs: [{packs}]\n")
+
+    plan = installed_plans(load_node_config(config), "community/plain@1.0.0", False)[0]
+
+    assert plan.packages == ("colmap4d",)
+    # --all is the multi-pack path whose constraints need intersection.
+    plan = installed_plans(load_node_config(config), None, True)[0]
+    assert plan.packages == ("colmap4d>=1.0.2",)
+
+
+def test_setup_intersects_compatible_requirements(tmp_path: Path) -> None:
+    packs = tmp_path / "packs"
+    _manifest(packs, "community/low", "1.0.0", "shared", ["demo>=1,<4"])
+    _manifest(packs, "community/tight", "1.0.0", "shared", ["demo>=2,<3"])
+    config = tmp_path / "config.yaml"
+    config.write_text(f"pack_dirs: [{packs}]\n")
+
+    package = installed_plans(load_node_config(config), None, True)[0].packages[0]
+
+    from packaging.requirements import Requirement
+    from packaging.version import Version
+
+    specifier = Requirement(package).specifier
+    assert Version("2.5") in specifier
+    assert Version("1.5") not in specifier
+    assert Version("3.0") not in specifier
+
+
+def test_setup_rejects_disjoint_requirements(tmp_path: Path) -> None:
+    packs = tmp_path / "packs"
+    _manifest(packs, "community/old", "1.0.0", "shared", ["demo<1"])
+    _manifest(packs, "community/new", "1.0.0", "shared", ["demo>=2"])
+    config = tmp_path / "config.yaml"
+    config.write_text(f"pack_dirs: [{packs}]\n")
+
+    with __import__("pytest").raises(SetupError, match="conflicting package requirements"):
+        installed_plans(load_node_config(config), None, True)
 
 
 def test_setup_existing_mapping_installs_only_unsatisfied_and_never_rebuilds(

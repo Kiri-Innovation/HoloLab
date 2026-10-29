@@ -87,6 +87,75 @@ def find_conda() -> str | None:
     return None
 
 
+def _compatible_upper_bound(version: Version) -> Version:
+    """PEP 440 ``~=`` upper bound for a parsed release version."""
+    release = version.release
+    prefix = release[:-1] if len(release) > 1 else release
+    return Version(".".join(str(part) for part in (*prefix[:-1], prefix[-1] + 1)))
+
+
+def _specifier_intersection_is_possible(specifier: SpecifierSet) -> bool:
+    """Reject only a provably empty PEP 440 interval.
+
+    Requirement specifiers are open-ended except exact pins.  Finite ``!=``
+    exclusions cannot empty a non-singleton interval, so bounds plus pins give
+    a deterministic emptiness test without guessing an installable release.
+    """
+    exact: list[Version] = []
+    lower: tuple[Version, bool] | None = None  # version, inclusive
+    upper: tuple[Version, bool] | None = None
+    for item in specifier:
+        try:
+            if item.operator == "==" and not item.version.endswith(".*"):
+                exact.append(Version(item.version))
+            elif item.operator in {">", ">="}:
+                candidate = (Version(item.version), item.operator == ">=")
+                if (
+                    lower is None
+                    or candidate[0] > lower[0]
+                    or (candidate[0] == lower[0] and not candidate[1])
+                ):
+                    lower = candidate
+            elif item.operator in {"<", "<="}:
+                candidate = (Version(item.version), item.operator == "<=")
+                if (
+                    upper is None
+                    or candidate[0] < upper[0]
+                    or (candidate[0] == upper[0] and not candidate[1])
+                ):
+                    upper = candidate
+            elif item.operator == "~=":
+                candidate = (_compatible_upper_bound(Version(item.version)), False)
+                if (
+                    upper is None
+                    or candidate[0] < upper[0]
+                    or (candidate[0] == upper[0] and not candidate[1])
+                ):
+                    upper = candidate
+        except ValueError:
+            # Packaging already accepted a valid specifier. For unusual legacy
+            # versions, defer to pip instead of falsely calling it conflicting.
+            continue
+    if exact:
+        return any(version in specifier for version in exact)
+    if lower and upper:
+        if lower[0] > upper[0]:
+            return False
+        if lower[0] == upper[0] and not (lower[1] and upper[1]):
+            return False
+    return True
+
+
+def _merge_requirements(previous: Requirement, incoming: Requirement) -> Requirement:
+    """Intersect same-distribution constraints, rejecting only empty ranges."""
+    combined = SpecifierSet(
+        ",".join(part for part in (str(previous.specifier), str(incoming.specifier)) if part)
+    )
+    if not _specifier_intersection_is_possible(combined):
+        raise SetupError(f"conflicting package requirements: {previous} vs {incoming}")
+    return Requirement(f"{previous.name}{combined}")
+
+
 def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[EnvironmentPlan]:
     """Read installed manifests and merge their requirements by logical env."""
     if bool(spec) == bool(all_packs):
@@ -141,13 +210,11 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
             for raw in manifest.requires.packages if manifest.requires else []:
                 requirement = Requirement(raw)
                 previous = requested.get(requirement.name.lower())
-                if previous and previous.specifier != requirement.specifier:
-                    # Two different constraints may be compatible, but guessing an
-                    # intersection would conceal author errors. Make it explicit.
-                    raise SetupError(
-                        f"conflicting package requirements for environment {env!r}: "
-                        f"{previous} vs {requirement}"
-                    )
+                if previous:
+                    try:
+                        requirement = _merge_requirements(previous, requirement)
+                    except SetupError as exc:
+                        raise SetupError(f"{exc} in environment {env!r}") from None
                 requested[requirement.name.lower()] = requirement
             for name, index in (
                 manifest.requires.package_indexes.items() if manifest.requires else []
