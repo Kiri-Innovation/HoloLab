@@ -113,6 +113,9 @@ excluded by `.packignore`. HoloLab injects read-only context variables
 `PACKAGE_ROOT`, `CONDA_PREFIX`, `PYTHON`, `PIP`, `CUDA_HOME`, and
 `PACK_CODE_SHA256`. It must use `set -euo pipefail`, must not create/activate
 conda environments, alter global conda configuration, or write the source tree.
+`PIP` is always a directly executable file path (normally
+`$CONDA_PREFIX/bin/pip`), never a shell command with arguments such as
+`python -m pip`; hooks must invoke it as `"$PIP" install …`.
 Failure stops setup with the original stderr tail. Hook success is recorded with
 the code/script and Python/Torch/CUDA/nvcc fingerprint; an exact matching
 fingerprint skips rebuilding. Declared `modules` are imported afterwards as an
