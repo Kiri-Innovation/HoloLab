@@ -42,7 +42,7 @@ the pack directory. Before doing any of it, search every consumer:
 
 Two follow-ups that keep coming up:
 
-- Contract-style tests should discover packs by scanning `packs/*/manifest.yaml`
+- Contract-style tests should discover retained community packs by scanning `community_packs/*/manifest.yaml`
   rather than listing versions, so retaining fewer versions cannot break them.
   Behaviour-style tests, which assert on one specific version, should stay
   explicit and point at a version that is actually retained.

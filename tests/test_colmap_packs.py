@@ -10,7 +10,7 @@ import pytest
 
 from hololab.manifest import load_manifest
 
-PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
+PACKS_ROOT = Path(__file__).resolve().parent.parent / "community_packs"
 
 
 def _load_sfm_key_module():

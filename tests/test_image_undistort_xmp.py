@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-PACK = Path(__file__).resolve().parent.parent / "packs/image-undistort@0.5.2"
+PACK = Path(__file__).resolve().parent.parent / "community_packs/image-undistort@0.5.2"
 
 
 def _module():

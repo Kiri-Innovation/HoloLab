@@ -12,7 +12,7 @@ import pytest
 
 from hololab.manifest import load_manifest
 
-PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
+PACKS_ROOT = Path(__file__).resolve().parent.parent / "community_packs"
 BUILTINS_ROOT = Path(__file__).resolve().parent.parent / "hololab" / "builtin_packs"
 
 

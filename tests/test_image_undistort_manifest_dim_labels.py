@@ -16,7 +16,7 @@ from hololab.gateway.workflows import (
 )
 from hololab.manifest import load_manifest
 
-PACKS = Path(__file__).resolve().parents[1] / "packs"
+PACKS = Path(__file__).resolve().parents[1] / "community_packs"
 
 
 @pytest.mark.parametrize(

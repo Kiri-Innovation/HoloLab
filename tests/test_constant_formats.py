@@ -13,7 +13,7 @@ from hololab.node.constants import materialize
 
 @pytest.fixture
 def compose(monkeypatch):
-    pack = Path(__file__).resolve().parents[1] / "packs/compose-video@0.1.0"
+    pack = Path(__file__).resolve().parents[1] / "community_packs/compose-video@0.1.0"
     monkeypatch.syspath_prepend(str(pack))
     spec = importlib.util.spec_from_file_location("compose_format_test", pack / "run.py")
     module = importlib.util.module_from_spec(spec)

@@ -92,7 +92,7 @@ def usage_catalog_revision(registry, keys=None):
     for session in registry.all_sessions():
         packs = [p for p in session.packs if keys is None or package_key(p.name, p.version) in keys]
         inventories.append((session.node_id, tuple(p.model_dump_json() for p in packs)))
-        roots = [Path(root) for root in session.pack_dirs] + [Path.cwd() / "packs"]
+        roots = [Path(root) for root in session.pack_dirs]
         for pack in packs:
             if pack.manifest_path:
                 paths.add(Path(pack.manifest_path))

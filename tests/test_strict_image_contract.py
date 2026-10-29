@@ -30,7 +30,7 @@ from hololab.manifest.data_contract import ContractError, validate_path
 from hololab.manifest.schema import InputSpec, OutputSpec
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKS = ROOT / "packs"
+PACKS = ROOT / "community_packs"
 MAIN = sorted(path.parent.name for path in PACKS.glob("*/manifest.yaml"))
 
 

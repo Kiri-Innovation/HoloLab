@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def test_mode_b_retains_observation_rows(tmp_path, monkeypatch):
-    pack = Path(__file__).resolve().parents[1] / "packs" / "merge-colmap@0.4.1"
+    pack = Path(__file__).resolve().parents[1] / "community_packs" / "merge-colmap@0.4.1"
     spec = importlib.util.spec_from_file_location("merge_observations", pack / "merge.py")
     merge = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(merge)

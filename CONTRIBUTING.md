@@ -38,7 +38,7 @@ hololab/
 │   ├── node/                 # WS client, pack scanner, executor, file server
 │   ├── frontend/             # React + xyflow (Vite)
 │   └── cli.py                # typer entrypoint
-├── packs/                    # Example algorithm packs
+├── community_packs/          # Retained sources of published community packs
 ├── docs/                     # architecture.md, pack-spec.md
 ├── tests/                    # pytest suite
 ├── build/                    # PBS + venv bundle build scripts
@@ -59,7 +59,7 @@ cd hololab/frontend && npm run dev
 # Terminal 3: whatever you're testing (curl, git, etc.)
 ```
 
-Backend Python edits reload automatically. Frontend edits hot-reload. Manifest edits (`packs/**/manifest.yaml`) trigger a node re-scan without restart.
+Backend Python edits reload automatically. Frontend edits hot-reload. Manifest edits in configured pack sources trigger a node re-scan without restart. `community_packs/` is an archive, not a default source.
 
 ## Backend tests
 
@@ -84,18 +84,18 @@ npm run build        # → hololab/frontend/dist/  (Python package bundles this)
 1. **Scaffold** the pack:
 
    ```bash
-   hololab pack init my-algo@0.1.0 --packs-dir ./packs
+   hololab pack init my-algo@0.1.0 --packs-dir ./my-packs
    ```
 
-2. **Edit** `packs/my-algo@0.1.0/manifest.yaml`. Fill in `inputs`, `outputs`, `params`, `runtime.env`, and the `exec.shell` command template. See `docs/pack-spec.md` for the full field reference.
+2. **Edit** `my-packs/my-algo@0.1.0/manifest.yaml`. Fill in `inputs`, `outputs`, `params`, `runtime.env`, and the `exec.shell` command template. See `docs/pack-spec.md` for the full field reference.
 
 3. **Validate** — this catches schema errors before you run:
 
    ```bash
-   hololab pack validate packs/my-algo@0.1.0
+   hololab pack validate my-packs/my-algo@0.1.0
    ```
 
-4. **Point your node at your packs dir** — either edit `~/.hololab/node/config.yaml` or symlink `packs/` into it.
+4. **Point your node at your pack directory** — either edit `~/.hololab/node/config.yaml` or add `./my-packs` as a source.
 
 5. **Run** — while `hololab dev` is up, POST to `/api/jobs/run`:
 

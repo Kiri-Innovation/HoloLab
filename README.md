@@ -151,9 +151,9 @@ Full details in [`docs/architecture.md`](docs/architecture.md). Pack authoring s
 ## Writing an algorithm pack
 
 ```bash
-hololab pack init my-algo@0.1.0 --packs-dir ./packs
-# edit packs/my-algo@0.1.0/manifest.yaml
-hololab pack validate packs/my-algo@0.1.0
+hololab pack init my-algo@0.1.0 --packs-dir ./my-packs
+# edit my-packs/my-algo@0.1.0/manifest.yaml
+hololab pack validate my-packs/my-algo@0.1.0
 ```
 
 Every pack is a directory with a `manifest.yaml` declaring inputs, outputs, params, runtime env, and a shell command template. The node never imports your code — it runs your command as a subprocess in the conda env you declare.

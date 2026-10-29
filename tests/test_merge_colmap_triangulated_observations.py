@@ -6,7 +6,7 @@ import pytest
 
 
 def test_triangulated_tracks_replace_stale_seed_observations(tmp_path, monkeypatch):
-    pack = Path(__file__).resolve().parents[1] / "packs" / "merge-colmap@0.4.2"
+    pack = Path(__file__).resolve().parents[1] / "community_packs" / "merge-colmap@0.4.2"
     sys.path.insert(0, str(pack))
     spec = importlib.util.spec_from_file_location("merge_v042", pack / "merge.py")
     merge = importlib.util.module_from_spec(spec)

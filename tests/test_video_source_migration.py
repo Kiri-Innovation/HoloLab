@@ -20,7 +20,7 @@ from hololab.gateway.tag_viewers import TAG_VIEWER_REGISTRY
 from hololab.manifest import load_manifest
 
 BUILTINS_ROOT = Path(__file__).resolve().parent.parent / "hololab" / "builtin_packs"
-PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
+PACKS_ROOT = Path(__file__).resolve().parent.parent / "community_packs"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -62,7 +62,7 @@ def test_no_live_references_to_retired_tag_string() -> None:
     # Walk only the source we own (skip test files and cache dirs).
     search_roots = [
         REPO_ROOT / "hololab",
-        REPO_ROOT / "packs",
+        REPO_ROOT / "community_packs",
     ]
     live_hits: list[str] = []
     for root in search_roots:

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-PACKS = Path(__file__).resolve().parent.parent / "packs"
+PACKS = Path(__file__).resolve().parent.parent / "community_packs"
 
 
 def _module(path: Path, name: str):

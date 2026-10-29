@@ -389,7 +389,6 @@ class NodeRegistry:
 
         from pathlib import Path as _Path
 
-        legacy_root = _Path.cwd() / "packs"
         for session in self._sessions.values():
             for pk in session.packs:
                 if not same_package(pk.name, pk.version, algorithm_name, algorithm_version):
@@ -407,7 +406,7 @@ class NodeRegistry:
                         candidates.append(sd)
                     else:
                         candidates.append(sd / "manifest.yaml")
-                for root in [*list(session.pack_dirs), str(legacy_root)]:
+                for root in session.pack_dirs:
                     candidates.append(_Path(root) / f"{pk.name}@{pk.version}" / "manifest.yaml")
                 for p in candidates:
                     if not p.is_file():
@@ -512,11 +511,8 @@ class NodeRegistry:
         # Preferred: use ``manifest_path`` from the pack inventory — the
         # node reported the exact resolved path (supports the polymorphic
         # pack_dirs contract). Fall back to guessing under source_dir /
-        # session pack_dirs / legacy ``./packs`` for pre-manifest_path
-        # nodes.
+        # session pack_dirs for pre-manifest_path nodes.
         from pathlib import Path as _Path
-
-        legacy_root = _Path.cwd() / "packs"
 
         def _try_load(
             name: str,
@@ -543,8 +539,6 @@ class NodeRegistry:
                 p = _Path(r)
                 if p not in candidates:
                     candidates.append(p)
-            if legacy_root not in candidates:
-                candidates.append(legacy_root)
             for root in candidates:
                 path = root / f"{name}@{version}" / "manifest.yaml"
                 if path.is_file():

@@ -163,7 +163,7 @@ Rules:
 - Omit the field or use `uncategorized` for packs without a natural home; the
   palette groups those under a `misc` fallback.
 
-Existing convention (see `packs/`):
+The retained published examples use these category conventions (see `community_packs/`):
 
 | Prefix           | Meaning                                                     |
 | ---------------- | ----------------------------------------------------------- |
@@ -835,9 +835,9 @@ New manifests should omit them.
 ## Authoring workflow
 
 ```bash
-hololab pack init my-algo@0.1.0 --packs-dir ./packs
-$EDITOR packs/my-algo@0.1.0/manifest.yaml
-hololab pack validate packs/my-algo@0.1.0
+hololab pack init my-algo@0.1.0 --packs-dir ./my-packs
+$EDITOR my-packs/my-algo@0.1.0/manifest.yaml
+hololab pack validate my-packs/my-algo@0.1.0
 ```
 
 The node's pack scanner picks up new packs and manifest edits automatically —
@@ -857,7 +857,7 @@ Each entry is polymorphic — the scanner picks the mode by what's on disk:
    colocated with the algorithm's source code.
 3. **A directory with no `manifest.yaml`** — each subdirectory is
    scanned for its own `manifest.yaml`. Preserves the historical
-   `packs/<name>@<version>/` repository layout.
+   `<pack-root>/<name>@<version>/` repository layout.
 
 Pack identity (`name`, `version`) comes from the manifest content —
 directory names are no longer required to match. Conflict resolution

@@ -8,7 +8,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).parents[2]
 sys.path.insert(0, str(REPO_ROOT / "packages" / "colmap4d" / "src"))
-PACK = REPO_ROOT / "hololab" / "packs" / "merge-colmap4d@0.1.4" / "merge_colmap4d.py"
+PACK = REPO_ROOT / "hololab" / "community_packs" / "merge-colmap4d@0.1.4" / "merge_colmap4d.py"
 SPEC = importlib.util.spec_from_file_location("merge_colmap4d_014", PACK)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)

@@ -26,7 +26,7 @@ from hololab.gateway.tag_probes import (
 )
 from hololab.manifest import load_manifest
 
-PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
+PACKS_ROOT = Path(__file__).resolve().parent.parent / "community_packs"
 MERGE_MANIFESTS = sorted(PACKS_ROOT.glob("merge-colmap@*/manifest.yaml"))
 
 

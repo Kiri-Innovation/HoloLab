@@ -216,7 +216,7 @@ Edit `~/.hololab/node/config.yaml`:
 
 ```yaml
 pack_dirs:
-  - /path/to/HoloLab/packs       # legacy repo layout
+  - /home/dev/my-packs           # directory of pack subdirectories
   - /home/dev/my-algo                              # colocated manifest+code
   - /home/dev/my-tools/convert.manifest.yaml       # precise-file
 ```
@@ -270,9 +270,9 @@ it wraps (mode 1 or 2 above). Two reasons:
 - `exec.shell` can reference sibling files with short relative paths
   (explicit paths configured for the deployment).
 
-The HoloLab repo's `packs/` directory is only for the source packs
-that ship with HoloLab itself (video-source, demo, etc.). External
-algorithms should never need to check anything in there.
+The HoloLab repo's `community_packs/` directory retains source copies of
+packs published to the community registry. It is not a built-in or default
+pack source; external algorithms should never need to check anything in it.
 
 ### 2. How to slice one algorithm into packs
 
@@ -304,7 +304,7 @@ Tags name the object type on a port. Leaf tags, collection structure and applica
 
 - **Reuse an existing tag** when your output is genuinely the same
   object as an existing pipeline stage — `colmap`, `stg_model`,
-  `splatv`, `video-source`. Look at `hololab/packs/` and the vendored
+  `splatv`, `video-source`. Look at `community_packs/` and the vendored
   official-pack manifests for the tag vocabulary in use.
 - **Add a specialising tag** to an existing tag when yours is a
   subtype — e.g. `tags: [colmap, sharp4dgs_export]` means "a COLMAP

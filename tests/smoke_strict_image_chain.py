@@ -81,9 +81,9 @@ def main():
         if outputs:
             validate_ports({k: str(v) for k, v in outputs.items()}, m.outputs, direction="output")
 
-    und = ROOT / "packs/image-undistort@0.5.2"
-    tri = ROOT / "packs/colmap-triangulate@0.7.4"
-    merge = ROOT / "packs/merge-colmap@0.4.1"
+    und = ROOT / "community_packs/image-undistort@0.5.2"
+    tri = ROOT / "community_packs/colmap-triangulate@0.7.4"
+    merge = ROOT / "community_packs/merge-colmap@0.4.1"
     request = {
         k: str(work / v)
         for k, v in {

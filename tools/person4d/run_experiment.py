@@ -45,7 +45,7 @@ def run(cmd, name):
 if __name__ == "__main__":
     common = [
         PYTHON,
-        str(ROOT / "hololab/packs/fastgs-silhouette-train@0.1.0/train_masked.py"),
+        str(ROOT / "hololab/community_packs/fastgs-silhouette-train@0.1.0/train_masked.py"),
         "-s",
         CFG["source_path"],
         "--masks",

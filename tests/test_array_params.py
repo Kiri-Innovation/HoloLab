@@ -64,7 +64,7 @@ def test_pack_migration():
     assert isinstance(raw["items"], str)
     assert migrate_array_params("other", "0.1.0", raw) == raw
     for name in ("video-array-assemble",):
-        manifest, _ = load_manifest(Path(f"packs/{name}@0.1.0/manifest.yaml"))
+        manifest, _ = load_manifest(Path(f"community_packs/{name}@0.1.0/manifest.yaml"))
         assert all(spec.type.value == "array" for spec in manifest.params.values())
 
 

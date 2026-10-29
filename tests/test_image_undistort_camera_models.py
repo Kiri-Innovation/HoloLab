@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-PACK = Path(__file__).resolve().parent.parent / "packs/image-undistort@0.5.4"
+PACK = Path(__file__).resolve().parent.parent / "community_packs/image-undistort@0.5.4"
 
 
 def _worker(monkeypatch: pytest.MonkeyPatch):
