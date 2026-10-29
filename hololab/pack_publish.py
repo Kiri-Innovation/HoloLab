@@ -98,7 +98,11 @@ def publish_remote(release: Release, archive: Path, publish_to: str, token: str)
                     "metadata": (None, json.dumps(metadata), "application/json"),
                     "archive": (archive.name, stream, "application/gzip"),
                 },
-                timeout=httpx.Timeout(60.0, connect=10.0),
+                # CUDA-backed source packs are intentionally distributed as
+                # source archives and can exceed 60 seconds on an ordinary
+                # uplink. Keep connection failure responsive while allowing
+                # the actual immutable archive upload to finish.
+                timeout=httpx.Timeout(600.0, connect=10.0),
                 trust_env=False,
             )
     except httpx.HTTPError as exc:
