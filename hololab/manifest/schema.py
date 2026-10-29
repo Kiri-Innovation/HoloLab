@@ -581,6 +581,34 @@ class ProgressSpec(BaseModel):
         return self
 
 
+class SetupSpec(BaseModel):
+    """An explicitly invoked, pack-owned environment build hook."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    script: str
+    shell: Literal["bash", "sh"] = "bash"
+    needs: list[Literal["cuda-toolkit", "cxx-compiler"]] = Field(default_factory=list)
+    modules: list[str] = Field(default_factory=list)
+
+    @field_validator("script")
+    @classmethod
+    def _script_is_relative(cls, value: str) -> str:
+        path = Path(value)
+        if not value or path.is_absolute() or ".." in path.parts:
+            raise ValueError("setup.script must be a relative path inside package root")
+        return value
+
+    @field_validator("modules")
+    @classmethod
+    def _module_names(cls, values: list[str]) -> list[str]:
+        import re
+
+        if any(not re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*", item) for item in values):
+            raise ValueError("setup.modules must contain Python module names")
+        return values
+
+
 # ---------------------------------------------------------------------------
 # The manifest itself
 # ---------------------------------------------------------------------------
@@ -617,6 +645,7 @@ class Manifest(BaseModel):
     cold: list[str] = Field(default_factory=list)
     external_code: list[dict[str, Any]] = Field(default_factory=list)
     requires: Requirements | None = None
+    setup: SetupSpec | None = None
 
     @field_validator("cold")
     @classmethod

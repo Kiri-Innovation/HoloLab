@@ -6,8 +6,10 @@ operator action, and a running node must be restarted to refresh its env cache.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 from collections import defaultdict
@@ -20,8 +22,10 @@ from packaging.requirements import Requirement
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import Version
 
+from hololab.content_scope import Baselines, capture
 from hololab.manifest import load_manifest
 from hololab.node.config import NodeConfig
+from hololab.pack_install import receipt_for
 from hololab.package_identity import canonical_name, parse_spec
 
 
@@ -46,6 +50,7 @@ class EnvironmentPlan:
     python: str | None
     packs: tuple[str, ...]
     prefix: Path | None
+    hooks: tuple[tuple[object, Path], ...] = ()
 
 
 def select_python_version(requirement: str | None) -> str:
@@ -101,7 +106,7 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
                 manifest, _ = load_manifest(path)
             except (OSError, ValueError):
                 continue
-            identity = (manifest.name, manifest.version)
+            identity = (canonical_name(manifest.name), manifest.version)
             if identity in seen:
                 continue
             seen.add(identity)
@@ -111,14 +116,15 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
     if wanted and not manifests:
         raise SetupError(f"installed pack not found: {wanted[0]}@{wanted[1]}")
 
-    grouped: dict[str, list[object]] = defaultdict(list)
+    grouped: dict[str, list[tuple[object, Path]]] = defaultdict(list)
     for manifest, _path in manifests:
         if manifest.runtime.mode == "host":
             continue
-        grouped[manifest.runtime.env].append(manifest)
+        grouped[manifest.runtime.env].append((manifest, _path))
 
     plans: list[EnvironmentPlan] = []
-    for env, group in sorted(grouped.items()):
+    for env, group_with_paths in sorted(grouped.items()):
+        group = [item[0] for item in group_with_paths]
         python_values = {m.requires.python for m in group if m.requires and m.requires.python}
         if len(python_values) > 1:
             raise SetupError(
@@ -143,8 +149,9 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
                 env,
                 tuple(str(x) for x in requested.values()),
                 next(iter(python_values), None),
-                tuple(sorted(f"{m.name}@{m.version}" for m in group)),
+                tuple(sorted(f"{canonical_name(m.name)}@{m.version}" for m in group)),
                 Path(cfg.envs[env]).expanduser() if env in cfg.envs else None,
+                tuple(group_with_paths),
             )
         )
     return plans
@@ -198,6 +205,170 @@ def _environment_python_version(conda: str, prefix: Path) -> Version | None:
         return Version(value)
     except ValueError:
         return None
+
+
+def _hash(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _run_in_env(conda: str, prefix: Path, command: list[str], *, env: dict[str, str] | None = None):
+    # Keep this separately injectable from _run: setup needs its deliberately
+    # constrained context, while the older package installer needs no env.
+    return subprocess.run(
+        [conda, "run", "--prefix", str(prefix), *command],
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+
+
+def _package_root(manifest: object, manifest_path: Path) -> Path:
+    root = (manifest_path.parent / manifest.root).resolve()
+    if not root.is_relative_to(manifest_path.parent.parent.resolve()) and manifest.root == ".":
+        raise SetupError("package root escapes installed content")
+    return root
+
+
+def _verified_code_hash(manifest_path: Path) -> str:
+    """Recompute code identity before executing untrusted pack author code."""
+    receipt = receipt_for(manifest_path)
+    with __import__("tempfile").TemporaryDirectory(prefix="hololab-setup-baseline-") as temp:
+        record = capture(manifest_path, Baselines(Path(temp)), refresh_cold=True)
+    if receipt and record["sha256"] != receipt["release"]["code_sha256"]:
+        raise SetupError("archive/code hash verification failed; refusing to execute pack setup")
+    return record["sha256"]
+
+
+def _fingerprint(conda: str, prefix: Path, code_hash: str, script_hash: str) -> dict[str, str]:
+    probe = _run_in_env(
+        conda,
+        prefix,
+        [
+            "python",
+            "-c",
+            "import sys, torch; print(sys.version.split()[0]); print(torch.__version__); print(torch.version.cuda or '')",
+        ],
+    )
+    if probe.returncode:
+        raise SetupError(
+            "setup prerequisite missing: Python or PyTorch is unavailable in the target environment"
+        )
+    lines = probe.stdout.splitlines()
+    nvcc = shutil.which("nvcc")
+    nvcc_value = (
+        subprocess.run([nvcc, "--version"], text=True, capture_output=True).stdout.strip()
+        if nvcc
+        else ""
+    )
+    return {
+        "code_sha256": code_hash,
+        "script_sha256": script_hash,
+        "python": lines[0] if lines else "",
+        "torch": lines[1] if len(lines) > 1 else "",
+        "cuda_runtime": lines[2] if len(lines) > 2 else "",
+        "nvcc": nvcc_value,
+        "platform": platform.platform(),
+    }
+
+
+def _check_hook_needs(conda: str, prefix: Path, setup: object) -> None:
+    # Python/torch/CUDA runtime are always relevant to native CUDA hooks.
+    if "cuda-toolkit" in setup.needs and not shutil.which("nvcc"):
+        raise SetupError(
+            "setup prerequisite missing: CUDA compiler (nvcc). Install a CUDA toolkit and retry."
+        )
+    if "cxx-compiler" in setup.needs and not (
+        shutil.which("c++") or shutil.which("g++") or shutil.which("clang++")
+    ):
+        raise SetupError(
+            "setup prerequisite missing: C++ compiler. Install g++ or clang++ and retry."
+        )
+    if "cuda-toolkit" in setup.needs:
+        check = _run_in_env(
+            conda,
+            prefix,
+            [
+                "python",
+                "-c",
+                "import torch; assert torch.cuda.is_available(), 'CUDA runtime/GPU unavailable'; print(torch.cuda.get_device_capability())",
+            ],
+        )
+        if check.returncode:
+            raise SetupError(
+                "setup prerequisite missing: CUDA runtime or usable GPU: " + check.stderr.strip()
+            )
+
+
+def _apply_hooks(
+    plan: EnvironmentPlan, conda: str, prefix: Path, events: list[str], dry_run: bool
+) -> None:
+    for manifest, manifest_path in plan.hooks:
+        setup = manifest.setup
+        if setup is None:
+            continue
+        root = _package_root(manifest, manifest_path)
+        script = (root / setup.script).resolve()
+        if not script.is_file() or not script.is_relative_to(root):
+            raise SetupError(f"setup script is missing or escapes package root: {setup.script}")
+        if dry_run:
+            events.append(
+                f"{manifest.name}@{manifest.version}: run verified setup hook {setup.script}"
+            )
+            continue
+        code_hash = _verified_code_hash(manifest_path)
+        script_hash = _hash(script)
+        _check_hook_needs(conda, prefix, setup)
+        fingerprint = _fingerprint(conda, prefix, code_hash, script_hash)
+        # Receipts are mutable operator state, never part of the verified pack.
+        receipt = (
+            prefix
+            / ".hololab-pack-setups"
+            / f"{canonical_name(manifest.name).replace('/', '__')}@{manifest.version}.json"
+        )
+        if receipt.is_file():
+            try:
+                old = json.loads(receipt.read_text())
+            except json.JSONDecodeError:
+                old = {}
+            if old.get("fingerprint") == fingerprint and old.get("success") is True:
+                events.append(
+                    f"{manifest.name}@{manifest.version}: setup hook already matches fingerprint"
+                )
+                continue
+        context = os.environ.copy()
+        context.update(
+            {
+                "PACKAGE_ROOT": str(root),
+                "CONDA_PREFIX": str(prefix),
+                "PYTHON": str(prefix / "bin" / "python"),
+                "PIP": str(prefix / "bin" / "pip"),
+                "CUDA_HOME": os.environ.get(
+                    "CUDA_HOME", str(Path(shutil.which("nvcc") or "/usr/local/cuda").parent.parent)
+                ),
+                "PACK_CODE_SHA256": code_hash,
+            }
+        )
+        result = _run_in_env(conda, prefix, [setup.shell, str(script)], env=context)
+        if result.returncode:
+            tail = (result.stderr or result.stdout).strip()[-4000:]
+            raise SetupError(
+                f"setup hook failed for {manifest.name}@{manifest.version} (exit {result.returncode}):\n{tail}"
+            )
+        for module in setup.modules:
+            smoke = _run_in_env(conda, prefix, ["python", "-c", f"import {module}"])
+            if smoke.returncode:
+                raise SetupError(
+                    f"setup smoke test failed importing {module}: {smoke.stderr.strip()}"
+                )
+        receipt.parent.mkdir(parents=True, exist_ok=True)
+        receipt.write_text(
+            json.dumps(
+                {"success": True, "fingerprint": fingerprint, "modules": setup.modules}, indent=2
+            )
+            + "\n"
+        )
+        events.append(f"{manifest.name}@{manifest.version}: setup hook completed")
 
 
 def apply_plans(
@@ -306,6 +477,7 @@ def apply_plans(
                     raise SetupError(
                         f"failed to install {package!r} in {plan.name!r}; conda: {result.stderr.strip()}; pip: {pip.stderr.strip()}"
                     )
+        _apply_hooks(plan, conda, prefix, events, dry_run)
     if new_envs and not dry_run:
         if config_path.exists():
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

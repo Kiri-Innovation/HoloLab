@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 from typer.testing import CliRunner
 
 from hololab.cli import app
 from hololab.node.config import load_node_config
-from hololab.pack_setup import apply_plans, installed_plans, select_python_version
+from hololab.pack_setup import (
+    SetupError,
+    _check_hook_needs,
+    apply_plans,
+    installed_plans,
+    select_python_version,
+)
 
 runner = CliRunner()
 
@@ -173,3 +180,10 @@ def test_setup_new_environment_honors_python_constraint(tmp_path: Path, monkeypa
     )
 
     assert next(command for command in commands if command[1] == "create")[-1] == "python=3.11"
+
+
+def test_cuda_hook_reports_missing_compiler_in_plain_language(tmp_path: Path, monkeypatch) -> None:
+    """The native-hook probe must fail before an opaque pip/build failure."""
+    monkeypatch.setattr("hololab.pack_setup.shutil.which", lambda _: None)
+    with __import__("pytest").raises(SetupError, match=r"CUDA compiler \(nvcc\)"):
+        _check_hook_needs("conda", tmp_path, SimpleNamespace(needs=["cuda-toolkit"]))

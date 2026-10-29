@@ -92,6 +92,32 @@ previews:
 | `idempotency` | No       | Marker convention for skipping re-runs. See [Idempotency](#idempotency). |
 | `previews`    | No       | List of preview declarations. See [Previews](#previews).               |
 | `progress`    | No       | How the node parses progress from your output. See [Progress](#progress). |
+| `setup`       | No       | Explicit pack-owned native build hook. It never runs during install. |
+
+### Setup hook
+
+`hololab pack setup` first verifies the installed archive/code identity, creates
+or reuses the declared conda environment, and installs `requires.packages`.
+Only then does it execute an optional hook:
+
+```yaml
+setup:
+  script: setup/pack-setup.sh
+  shell: bash
+  needs: [cuda-toolkit, cxx-compiler]
+  modules: [diff_gaussian_rasterization_ch3, simple_knn]
+```
+
+The script is author-maintained, relative to `package_root`, and must not be
+excluded by `.packignore`. HoloLab injects read-only context variables
+`PACKAGE_ROOT`, `CONDA_PREFIX`, `PYTHON`, `PIP`, `CUDA_HOME`, and
+`PACK_CODE_SHA256`. It must use `set -euo pipefail`, must not create/activate
+conda environments, alter global conda configuration, or write the source tree.
+Failure stops setup with the original stderr tail. Hook success is recorded with
+the code/script and Python/Torch/CUDA/nvcc fingerprint; an exact matching
+fingerprint skips rebuilding. Declared `modules` are imported afterwards as an
+ABI smoke test. Hooks run **only** on explicit `pack setup`, never while an
+archive is installed.
 
 ### Category
 
