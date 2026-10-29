@@ -4,3 +4,6 @@ src/content/docs/
 test-results/
 review/
 *.tsbuildinfo
+
+# Baseline for test-results/compare-navigation.mjs (that directory is ignored).
+flops-docs-light.png
