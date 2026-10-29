@@ -62,7 +62,7 @@ class Requirements(BaseModel):
 
     def as_dict(self) -> dict:
         """Stable wire form which preserves an explicit empty contract as ``{}``."""
-        return self.model_dump(exclude_none=True, exclude_defaults=True)
+        return self.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
 
     @field_validator("python")
     @classmethod

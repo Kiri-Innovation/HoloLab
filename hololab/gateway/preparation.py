@@ -12,6 +12,8 @@ import json
 import uuid
 from typing import Any
 
+from pydantic import TypeAdapter
+
 from hololab.gateway.recipe import split_graph
 from hololab.gateway.workflows import WorkflowGraph, freeze_parameter_pins
 from hololab.inline_values import effective_inline
@@ -27,9 +29,17 @@ from hololab.package_identity import (
 
 
 def digest(value: Any) -> str:
+    """Hash the JSON wire representation, not Python model instances.
+
+    Catalogs normally arrive as dictionaries, but those dictionaries may
+    contain Pydantic-native values such as ``HttpUrl`` from a manifest.  A
+    JSON-mode dump converts those values recursively and makes the revision
+    stable across the API, persistence, and wire boundaries.
+    """
+    json_value = TypeAdapter(Any).dump_python(value, mode="json")
     return hashlib.sha256(
         json.dumps(
-            value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+            json_value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False
         ).encode()
     ).hexdigest()
 

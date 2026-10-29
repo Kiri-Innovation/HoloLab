@@ -1,8 +1,11 @@
 from copy import deepcopy
 
+from pydantic import HttpUrl
+
 from hololab.gateway.preparation import changed_nodes, context_revision, resolve_recipe
 from hololab.gateway.workflows import GraphNode, WorkflowGraph
 from hololab.manifest.path_params import resolve_path_params
+from hololab.manifest.requirements import PackageCheck, Requirements
 from hololab.manifest.schema import ParamSpec
 
 
@@ -61,6 +64,31 @@ def test_view_state_does_not_change_revision():
     g.nodes[0].position.x = 90
     g.nodes[0].preview_open = "out"
     assert before == context_revision(g, packs)
+
+
+def test_context_revision_accepts_json_capable_manifest_values():
+    """Catalog values may originate from Pydantic manifest fields (e.g. HttpUrl)."""
+    g, packs = fixture()
+    packs[0]["requires"] = {
+        "package_indexes": {"torch": HttpUrl("https://download.pytorch.org/whl/cu128")},
+        "package_checks": {"torch": {"module": "torch", "attribute": "version.cuda"}},
+    }
+
+    assert context_revision(g, packs) == context_revision(g, deepcopy(packs))
+
+
+def test_manifest_requirements_export_url_fields_as_json_primitives():
+    requires = Requirements(
+        package_indexes={"torch": "https://download.pytorch.org/whl/cu128"},
+        package_checks={"torch": PackageCheck(module="torch", attribute="version.cuda")},
+    )
+
+    wire = requires.as_dict()
+    assert wire["package_indexes"]["torch"] == "https://download.pytorch.org/whl/cu128"
+    assert wire["package_checks"]["torch"] == {
+        "module": "torch",
+        "attribute": "version.cuda",
+    }
 
 
 def test_prepare_paths_before_outputs_exist(tmp_path, monkeypatch):
