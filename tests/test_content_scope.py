@@ -74,6 +74,20 @@ def test_content_inventory_includes_manifest_but_not_ignored_controls(tmp_path):
     )
 
 
+def test_declared_setup_script_is_hot_when_gitignore_excludes_it(tmp_path):
+    root, manifest, _ = package(tmp_path)
+    (root / "setup").mkdir()
+    (root / "setup" / "pack-setup.sh").write_text("#!/usr/bin/env bash\n")
+    (root / ".gitignore").write_text("*.sh\n")
+    manifest.write_text(
+        manifest.read_text() + "setup:\n  script: setup/pack-setup.sh\n  shell: bash\n"
+    )
+
+    entries = {entry.relative: entry.layer for entry in Scope.load(manifest).entries()}
+
+    assert entries["setup/pack-setup.sh"] == "hot"
+
+
 def test_manifest_compared_before_loading_or_ignore(tmp_path):
     root, manifest, baselines = package(tmp_path)
     record = capture(manifest, baselines)

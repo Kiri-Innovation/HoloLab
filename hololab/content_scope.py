@@ -190,6 +190,16 @@ class Scope:
             if self.manifest_path.is_relative_to(self.root)
             else None
         )
+        # A native build hook is executable package content, even if a shared
+        # repository's .gitignore excludes its directory or ``*.sh`` files.
+        # It must participate in identity and export: an installed archive
+        # cannot safely run a hook that was not shipped with it.
+        setup_script = self.manifest.setup.script if self.manifest.setup else None
+        protected = {".packignore"}
+        if manifest_inside is not None:
+            protected.add(manifest_inside)
+        if setup_script is not None:
+            protected.add(setup_script)
 
         def walk(directory: Path, fixed_parent: bool = False, ignored_parent: bool = False):
             for item in os.scandir(directory):
@@ -201,7 +211,7 @@ class Scope:
                 )
                 isdir = stat.S_ISDIR(st.st_mode)
                 ignored = ignored_parent or spec.match_file(rel + ("/" if isdir else ""))
-                control = rel in (".packignore", manifest_inside)
+                control = rel in protected
                 layer = (
                     "hot"
                     if control
@@ -217,9 +227,7 @@ class Scope:
                     # Gitignore cannot re-include a file while its parent directory
                     # remains excluded. pathspec handles matching; carry that
                     # traversal state so full accounting and hot checks agree.
-                    contains_control = manifest_inside is not None and manifest_inside.startswith(
-                        rel + "/"
-                    )
+                    contains_control = any(item.startswith(rel + "/") for item in protected)
                     if (
                         hot_only
                         and not contains_control
