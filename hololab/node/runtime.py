@@ -1980,7 +1980,7 @@ class NodeRuntime:
         rendered_shells: list[str] = []
         rendered_arg_batches: list[list[str]] = []
         first_rendered = None  # first element's rendered manifest — used for idempotency
-        for shard_idx, (element_id, elem_inputs, elem_outputs) in enumerate(batch):
+        for element_id, elem_inputs, elem_outputs in batch:
             ctx = RenderContext(
                 inputs=elem_inputs,
                 outputs=elem_outputs,
@@ -1994,7 +1994,6 @@ class NodeRuntime:
                 job_id=assign.job_id,
                 workflow_id=assign.workflow_id,
                 shard_element_id=element_id or "",
-                shard_index=shard_idx,
             )
             try:
                 per_elem_rendered = render_manifest(pack.manifest, ctx)

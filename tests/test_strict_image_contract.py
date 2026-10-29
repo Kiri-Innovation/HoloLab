@@ -483,8 +483,9 @@ async def test_file_shards_are_registered_as_files_in_both_paths(tmp_path):
         handles=book,
         input_handles={"image": "p"},
         arrayed_input_ports=["image"],
-        element_id="one.png",
+        element_id="p_0000000000000000",
         producer_node_id="device",
+        input_paths_by_port={"image": [str(tmp_path / "one.png"), str(tmp_path / "two.png")]},
     )
     assert book.register.call_args.args[0].storage == "file"
     plan = _FanoutPlan(
@@ -492,11 +493,12 @@ async def test_file_shards_are_registered_as_files_in_both_paths(tmp_path):
             job_id="j", workflow_id="w", snapshot_id="s", algorithm_name="a", algorithm_version="1"
         ),
         str(tmp_path / "out"),
-        ["one.png", "two.png"],
+        ["p_0000000000000000", "p_0000000000000001"],
         ["image"],
         {},
         {"image": "p"},
         "device",
+        {"image": [str(tmp_path / "one.png"), str(tmp_path / "two.png")]},
     )
     await _prepare_shard_rows(
         store=SimpleNamespace(create_many=AsyncMock()),

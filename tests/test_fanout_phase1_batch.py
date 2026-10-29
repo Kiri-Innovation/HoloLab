@@ -25,6 +25,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from hololab.array_positions import decode_position, encode_position
 from hololab.gateway.execution import _FanoutPlan, _prepare_shard_rows
 from hololab.gateway.handles import Handle, HandleBook
 from hololab.gateway.jobs import Job, JobState
@@ -213,11 +214,14 @@ def _plan(parent_handle: Handle, *, element_ids: list[str]) -> _FanoutPlan:
     return _FanoutPlan(
         parent_job=parent_job,
         parent_ws="/tmp/ws/parent-job-1",
-        element_ids=element_ids,
+        element_ids=[encode_position(i) for i in range(len(element_ids))],
         arrayed_input_ports=["frames"],
         pack_outputs={},
         input_handles={"frames": parent_handle.handle_id, "config": "h-scalar-abc"},
         session_node_id="node-a",
+        input_paths_by_port={
+            "frames": [str(Path(parent_handle.path) / name) for name in element_ids]
+        },
     )
 
 
@@ -238,12 +242,11 @@ async def test_prepare_shard_rows_produces_N_rows_in_element_order(tmp_path: Pat
         gnode=_graph_node(id="n1"),
     )
     # ``element_ids`` now comes back as a per-batch list. At the default
-    # batch_size=1 each list has exactly one entry — byte-identical to
-    # the pre-batching phase-1 output.
+    # batch_size=1 each list has exactly one encoded position.
     assert [eids for _idx, eids, _s, _paths in shards] == [
-        ["frame_0000"],
-        ["frame_0001"],
-        ["frame_0002"],
+        [encode_position(0)],
+        [encode_position(1)],
+        [encode_position(2)],
     ]
     assert [idx for idx, _e, _s, _paths in shards] == [0, 1, 2]
 
@@ -271,9 +274,8 @@ async def test_prepare_shard_rows_shard_fields_match_baseline(tmp_path: Path) ->
     assert fetched is not None
     assert fetched.state is JobState.PENDING
     assert fetched.parent_job_id == "parent-job-1"
-    assert fetched.shard_element_id == "frame_0000"
-    # batch_size=1 (default) keeps the pre-V14 byte-identical shape:
-    # shard_element_ids is NULL, scalar shard_element_id is authoritative.
+    assert fetched.shard_element_id == encode_position(0)
+    # batch_size=1 uses scalar shard_element_id for the encoded position.
     assert fetched.shard_element_ids is None
     assert fetched.workflow_id == "wf-1"
     assert fetched.snapshot_id == "snap-1"
@@ -292,7 +294,7 @@ async def test_prepare_shard_rows_subhandle_semantics(tmp_path: Path) -> None:
     """For each arrayed input port and each element, a synthetic sub-handle
     is registered that:
       - has a fresh UUID (not the parent's id),
-      - path = parent.path / element_id,
+      - path = that port's enumerated path at the selected position,
       - inherits parent tags + storage (not a shared reference — tag list
         must be independent so mutation doesn't ripple),
       - node_id = plan.session_node_id (the producer),
@@ -323,7 +325,7 @@ async def test_prepare_shard_rows_subhandle_semantics(tmp_path: Path) -> None:
         assert sub_id != parent.handle_id
         sub = await book.get(sub_id)
         assert sub is not None
-        assert sub.path == str(Path(parent.path) / element_id)
+        assert sub.path == plan.input_paths_by_port["frames"][decode_position(element_id)]
         assert sub.tags == parent.tags
         assert sub.tags is not parent.tags, "tag list must be a copy, not aliased"
         assert sub.storage == parent.storage
@@ -371,10 +373,7 @@ async def test_prepare_shard_rows_raises_when_arrayed_parent_missing(
 async def test_prepare_shard_rows_empty_element_list_returns_empty(
     tmp_path: Path,
 ) -> None:
-    """A zero-shard fan-out isn't a normal state (``_discover_element_ids``
-    guards against it) but the helper must be robust: no elements → no
-    shards, no DB writes. Guards against accidental infinite work if a
-    future refactor slips a bad plan through the door."""
+    """An empty outer array yields no shards and no persistence writes."""
 
     store, book, parent = await _seeded_book_with_parent(tmp_path)
     plan = _plan(parent, element_ids=[])

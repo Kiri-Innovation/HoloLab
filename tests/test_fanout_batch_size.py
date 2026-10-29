@@ -3,11 +3,8 @@ elements into fewer shard jobs without changing the pack contract.
 
 Semantics covered:
 
-  1. **``batch_size=1`` is a strict no-op** — one shard per element,
-     ``shard_element_ids`` stays NULL, ``shard_element_id`` is
-     authoritative. Byte-identical to pre-V14. This is the safety
-     line: existing arrayed nodes that never set ``batch_size`` must
-     see zero behaviour change.
+  1. **``batch_size=1``** — one shard per position; ``shard_element_ids``
+     stays NULL and ``shard_element_id`` carries the encoded position.
   2. **``batch_size=B`` groups elements into ``ceil(N / B)`` shards**,
      each carrying its full ``shard_element_ids`` list in the DB.
      Sub-handle count (one per (element, arrayed_port)) is invariant
@@ -28,6 +25,7 @@ from pathlib import Path
 
 import pytest
 
+from hololab.array_positions import encode_position
 from hololab.gateway.execution import _FanoutPlan, _prepare_shard_rows
 from hololab.gateway.handles import Handle, HandleBook
 from hololab.gateway.jobs import Job
@@ -95,11 +93,12 @@ def _plan(parent: Handle, element_ids: list[str]) -> _FanoutPlan:
             expected_shards=len(element_ids),
         ),
         parent_ws="/tmp/parent-ws",
-        element_ids=element_ids,
+        element_ids=[encode_position(i) for i in range(len(element_ids))],
         arrayed_input_ports=["frames"],
         pack_outputs={},
         input_handles={"frames": parent.handle_id, "cfg": "h-scalar"},
         session_node_id="node-a",
+        input_paths_by_port={"frames": [str(Path(parent.path) / name) for name in element_ids]},
     )
 
 
@@ -116,14 +115,14 @@ def _graph_node(batch_size: int = 1) -> GraphNode:
 
 
 # ---------------------------------------------------------------------------
-# 1) batch_size=1 must be a strict no-op
+# 1) batch_size=1 produces one shard per position
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_batch_size_1_produces_one_shard_per_element(tmp_path: Path) -> None:
-    """The safety line: batch_size=1 keeps the pre-V14 layout — one
-    shard row per element, ``shard_element_ids`` NULL, list-form
+    """batch_size=1 uses one shard row per position,
+    ``shard_element_ids`` NULL, list-form
     fields on the returned tuple are all length-1.
     """
 
@@ -143,7 +142,7 @@ async def test_batch_size_1_produces_one_shard_per_element(tmp_path: Path) -> No
         assert len(batch_paths) == 1
         fetched = await store.get(shard.job_id)
         assert fetched is not None
-        # Byte-identical pre-V14 shape.
+        # Single-position rows use the scalar encoding.
         assert fetched.shard_element_ids is None
         assert fetched.shard_element_id == batch_eids[0]
 
@@ -172,10 +171,10 @@ async def test_batch_size_3_coalesces_10_elements_into_4_shards(tmp_path: Path) 
     )
     assert len(shards) == 4
     expected_batches = [
-        ["e0", "e1", "e2"],
-        ["e3", "e4", "e5"],
-        ["e6", "e7", "e8"],
-        ["e9"],
+        [encode_position(i) for i in range(3)],
+        [encode_position(i) for i in range(3, 6)],
+        [encode_position(i) for i in range(6, 9)],
+        [encode_position(9)],
     ]
     for (_idx, batch_eids, shard, batch_paths), expected in zip(
         shards, expected_batches, strict=True
@@ -214,11 +213,11 @@ async def test_batch_size_larger_than_element_count(tmp_path: Path) -> None:
     )
     assert len(shards) == 1
     _idx, batch_eids, shard, batch_paths = shards[0]
-    assert batch_eids == ["e0", "e1", "e2"]
+    assert batch_eids == [encode_position(i) for i in range(3)]
     assert len(batch_paths) == 3
     fetched = await store.get(shard.job_id)
     assert fetched is not None
-    assert fetched.shard_element_ids == ["e0", "e1", "e2"]
+    assert fetched.shard_element_ids == [encode_position(i) for i in range(3)]
 
 
 # ---------------------------------------------------------------------------
@@ -373,8 +372,8 @@ async def test_batched_shard_carries_element_ids_and_paths_on_wire(tmp_path: Pat
     # per-element shard_input_paths. Legacy scalar input_paths is empty
     # under batching (per-element paths supersede it).
     p0 = frames[0]["payload"]
-    assert p0["shard_element_id"] == "e0"
-    assert p0["shard_element_ids"] == ["e0", "e1", "e2"]
+    assert p0["shard_element_id"] == encode_position(0)
+    assert p0["shard_element_ids"] == [encode_position(i) for i in range(3)]
     assert len(p0["shard_input_paths"]) == 3
     assert p0["input_paths"] == {}
     # Each per-element path map carries the arrayed port only.
@@ -386,7 +385,7 @@ async def test_batched_shard_carries_element_ids_and_paths_on_wire(tmp_path: Pat
     # falls back to scalar shard_element_id + scalar input_paths — the
     # pre-batching C1 shape.
     p1 = frames[1]["payload"]
-    assert p1["shard_element_id"] == "e3"
+    assert p1["shard_element_id"] == encode_position(3)
     assert p1["shard_element_ids"] == []
     assert p1["shard_input_paths"] == []
     assert "frames" in p1["input_paths"]
