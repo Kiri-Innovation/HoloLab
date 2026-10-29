@@ -162,8 +162,13 @@
 
 /* Input literals use the same section and field grid as Parameters. */
 .hl-inspector-inputs .hl-inspector-input-field { min-width: 0; margin-bottom: 6px; font-size: var(--fs-xs); line-height: 1.5; }
-.hl-inspector-input-label { display: flex; align-items: center; color: var(--text-muted); }
-.hl-inspector-input-source { min-width: 0; min-height: var(--control-h-sm); display: flex; align-items: center; color: var(--text-muted); overflow-wrap: anywhere; }
+.hl-inspector-input-label { display: flex; align-items: center; gap: 4px; color: var(--text-muted); }
+.hl-inspector-input-toggle { display: inline-grid; place-items: center; flex: 0 0 auto; width: 16px; height: 16px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); cursor: pointer; }
+.hl-inspector-input-toggle[data-source="inline"] { color: var(--text-body); }
+.hl-inspector-input-toggle:hover:not(:disabled) { background: var(--surface-hover); color: var(--text-body); }
+.hl-inspector-input-toggle:focus-visible { outline: 1px solid var(--border-focus); outline-offset: 1px; }
+.hl-inspector-input-toggle:disabled { cursor: default; opacity: 1; }
+.hl-inspector-input-toggle svg { display: block; width: 14px; height: 14px; }
 .hl-inspector-input-controls { grid-column: 2; display: grid; gap: 5px; min-width: 0; }
 .hl-inspector-input-controls--wide, .hl-inspector-input-hint { grid-column: 1 / -1; }
 .hl-inspector-input-hint { min-width: 0; color: var(--text-muted); overflow-wrap: anywhere; }

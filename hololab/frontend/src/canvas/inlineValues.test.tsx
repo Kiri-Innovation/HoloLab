@@ -1,7 +1,11 @@
 import { NodeInspector } from './NodeInspector';
 import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { InlineInputEditor } from './InlineInputEditor';
+import {
+  InlineInputEditor,
+  inlineInputSource,
+  toggledInlineInputEditor,
+} from './InlineInputEditor';
 import {
   inputValueProblems, freshInlineValue, reconcileInlineValues,
   inlineIdentity,
@@ -124,7 +128,7 @@ it('compares current default against frozen snapshot value', () => {
     ).n?.kind,
   ).toBe('self_dirty');
 });
-it('renders source and visible default with reusable scalar/array editors', () => {
+it('renders source icon and keeps reusable scalar/array editors collapsed', () => {
   const pack = {
     inputs: { value: { ...spec, inline_default: 2 } },
     arrayable: false,
@@ -137,7 +141,8 @@ it('renders source and visible default with reusable scalar/array editors', () =
     />,
   );
   expect(html).toContain('端口默认值');
-  expect(html).toContain('value="2"');
+  expect(html).toContain('aria-expanded="false"');
+  expect(html).not.toContain('value="2"');
   const wired = renderToStaticMarkup(
     <InlineInputEditor
       node={node}
@@ -168,9 +173,40 @@ it('renders source and visible default with reusable scalar/array editors', () =
       onChange={() => {}}
     />,
   );
-  expect(vector).toContain('transform array');
-  expect(vector).toContain('0.727');
-  expect(vector).toContain('Add transform item');
+  expect(vector).toContain('aria-label="value：内联值；点击展开编辑控件"');
+  expect(vector).not.toContain('transform array');
+  expect(vector).not.toContain('Add transform item');
+});
+
+it('labels each inline input source and toggles its collapsed editor state', () => {
+  const editable = { ...spec, inline: true };
+  expect(inlineInputSource({ value: 1 }, 'value', editable, true)).toBe('inline');
+  expect(inlineInputSource({}, 'value', { ...editable, inline_default: 1 }, true)).toBe('port-default');
+  expect(inlineInputSource({}, 'value', editable, true)).toBe('type-default');
+  expect(inlineInputSource({}, 'value', { ...editable, inline: false }, false)).toBe('unset');
+  expect(toggledInlineInputEditor(false)).toBe(true);
+  expect(toggledInlineInputEditor(true)).toBe(false);
+
+  const html = renderToStaticMarkup(
+    <InlineInputEditor
+      node={{ ...node, port_values: { inline: 1 } }}
+      pack={{
+        inputs: {
+          inline: editable,
+          portDefault: { ...editable, inline_default: 2 },
+          typeDefault: editable,
+          unset: { ...editable, tags: ['image'], inline: false },
+        },
+        arrayable: false,
+      } as unknown as CatalogPack}
+      onChange={() => {}}
+    />,
+  );
+  expect(html).toContain('aria-label="inline：内联值；点击展开编辑控件"');
+  expect(html).toContain('aria-label="portDefault：端口默认值；点击展开编辑控件"');
+  expect(html).toContain('aria-label="typeDefault：类型默认值；点击展开编辑控件"');
+  expect(html).toContain('aria-label="unset：未设置；请连接上游"');
+  expect(html).toContain('请连接上游（必填）');
 });
 
 it('omits the entire input section when wired or portless, retains unset optional inputs', () => {
@@ -180,7 +216,8 @@ it('omits the entire input section when wired or portless, retains unset optiona
   );
   const optional = render(pack.inputs);
   expect(optional).toContain('aria-label="Input values"');
-  expect(optional).toContain('value="0"');
+  expect(optional).toContain('aria-label="value：类型默认值；点击展开编辑控件"');
+  expect(optional).not.toContain('value="0"');
   expect(optional).not.toContain('设置内联值');
   expect(optional).not.toContain('清除内联值');
   const wired = render(pack.inputs, {value:'upstream'});
@@ -188,7 +225,7 @@ it('omits the entire input section when wired or portless, retains unset optiona
   expect(wired).toContain('hl-inspector-execution');
   expect(wired).toContain('aria-label="Parameters"');
   expect(render({})).not.toContain('hl-inspector-inputs');
-  expect(render({value:spec})).toContain('value="0"');
+  expect(render({value:spec})).toContain('aria-label="value：类型默认值；点击展开编辑控件"');
 });
 
 it('creates fresh format defaults and discards connected values across all edge replacements', () => {

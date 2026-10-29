@@ -1,11 +1,88 @@
-import { useEffect, useState } from 'react';
-import type { CatalogPack, GraphNode, ParamSpec } from '../wire';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { CatalogPack, GraphNode, InputPortSpec, ParamSpec } from '../wire';
 import {
   ArrayParameterInput,
   ParameterInput,
   Vec3ArrayParameterInput,
 } from './ParameterInput';
 import { inlineError, inputValue, supportsInline, freshInlineValue } from './inlineValues';
+
+export type InlineInputSource = 'inline' | 'port-default' | 'type-default' | 'unset';
+
+export function inlineInputSource(
+  values: Record<string, unknown>,
+  name: string,
+  spec: InputPortSpec,
+  editable: boolean,
+): InlineInputSource {
+  if (values[name] != null) return 'inline';
+  if (spec.inline_default != null) return 'port-default';
+  return editable ? 'type-default' : 'unset';
+}
+
+export function toggledInlineInputEditor(expanded: boolean): boolean {
+  return !expanded;
+}
+
+const INPUT_SOURCE_TEXT: Record<InlineInputSource, string> = {
+  inline: '内联值',
+  'port-default': '端口默认值',
+  'type-default': '类型默认值',
+  unset: '未设置',
+};
+
+function InputSourceIcon({ source }: { source: InlineInputSource }) {
+  if (source === 'inline') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M5 4v16M12 4v16M19 4v16" /><circle cx="5" cy="9" r="2.25" fill="currentColor" /><circle cx="12" cy="15" r="2.25" fill="currentColor" /><circle cx="19" cy="7" r="2.25" fill="currentColor" /></svg>;
+  if (source === 'port-default') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M8 5h10a1 1 0 0 1 1 1v11" /><path d="M5 8h10a1 1 0 0 1 1 1v10H6a1 1 0 0 1-1-1V8Z" /><path d="M8 12h5M8 15h4" /></svg>;
+  if (source === 'type-default') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="7" /><path d="M9 12h6M12 9v6" /></svg>;
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="7" /><path d="m7 17 10-10" /></svg>;
+}
+
+function InlineInputField({
+  name, source, editable, array, vector, editor, hint, error,
+}: {
+  name: string;
+  source: InlineInputSource;
+  editable: boolean;
+  array: boolean;
+  vector: boolean;
+  editor: ReactNode;
+  hint: ReactNode;
+  error: ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const sourceText = INPUT_SOURCE_TEXT[source];
+  const action = expanded ? '收起编辑控件' : '展开编辑控件';
+  const controlsId = `inline-input-${name.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  const description = `${name}：${sourceText}${editable ? `；点击${action}` : '；请连接上游'}`;
+  return (
+    <div data-inline-port={name} className="hl-inspector-field hl-inspector-input-field">
+      <div className="hl-inspector-input-label">
+        <button
+          type="button"
+          className="hl-inspector-input-toggle"
+          data-source={source}
+          title={description}
+          aria-label={description}
+          aria-expanded={expanded}
+          aria-controls={controlsId}
+          disabled={!editable}
+          onClick={() => setExpanded(toggledInlineInputEditor)}
+        >
+          <InputSourceIcon source={source} />
+        </button>
+        <code>{name}</code>
+      </div>
+      {editable && expanded && (
+        <div id={controlsId} className={`hl-inspector-input-controls${array || vector ? ' hl-inspector-input-controls--wide' : ''}`}>
+          {editor}
+        </div>
+      )}
+      {!editable && <div className="hl-inspector-input-hint">{hint}</div>}
+      {error}
+    </div>
+  );
+}
 const numberSpec: ParamSpec = {
   type: 'float',
   default: null,
@@ -159,31 +236,17 @@ export function InlineInputEditor({
               </button>
             );
         }
-        return (
-          <div key={name} data-inline-port={name} className="hl-inspector-field hl-inspector-input-field">
-            <div className="hl-inspector-input-label"><code>{name}</code></div>
-            <div className="hl-inspector-input-source">
-              {values[name] != null
-                  ? '内联值'
-                  : spec.inline_default != null
-                    ? '端口默认值'
-                    : editable ? '类型默认值' : '未设置'}
-            </div>
-            {editable && (
-              <div className={`hl-inspector-input-controls${array || vector ? ' hl-inspector-input-controls--wide' : ''}`}>
-                {editor}
-              </div>
-            )}
-            {!editable && (
-              <div className="hl-inspector-input-hint">请连接上游{spec.required ? '（必填）' : ''}</div>
-            )}
-            {error && (
-              <div className="hl-inspector-input-hint" role="alert" style={{ color: 'var(--status-failed)' }}>
-                {error}
-              </div>
-            )}
-          </div>
-        );
+        return <InlineInputField
+          key={name}
+          name={name}
+          source={inlineInputSource(values, name, spec, editable)}
+          editable={editable}
+          array={array}
+          vector={vector}
+          editor={editor}
+          hint={<>请连接上游{spec.required ? '（必填）' : ''}</>}
+          error={error && <div className="hl-inspector-input-hint" role="alert" style={{ color: 'var(--status-failed)' }}>{error}</div>}
+        />;
       })}
     </>
   );
