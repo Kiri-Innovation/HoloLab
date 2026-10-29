@@ -32,6 +32,7 @@ def _manifest(
     *,
     python: str | None = None,
     package_indexes: dict[str, str] | None = None,
+    package_checks: dict[str, str] | None = None,
     host=False,
 ) -> None:
     target = root / f"{name.replace('/', '_')}@{version}"
@@ -50,6 +51,15 @@ def _manifest(
                     ["  package_indexes:"]
                     + [f"    {name}: {index}" for name, index in package_indexes.items()]
                     if package_indexes
+                    else []
+                ),
+                *(
+                    ["  package_checks:"]
+                    + [
+                        f"    {name}: {{module: {module}, attribute: version.cuda, truthy: true}}"
+                        for name, module in package_checks.items()
+                    ]
+                    if package_checks
                     else []
                 ),
                 "runtime:",
@@ -278,3 +288,44 @@ def test_declared_package_index_replaces_unproven_existing_wheel(
     pip = next(command for command in commands if "pip" in command)
     assert ["--index-url", index] == pip[pip.index("--index-url") : pip.index("--index-url") + 2]
     assert "--force-reinstall" in pip
+
+
+def test_failed_package_check_reinstalls_despite_matching_source_receipt(
+    tmp_path: Path, monkeypatch
+) -> None:
+    packs = tmp_path / "packs"
+    index = "https://download.example.invalid/whl/cu128"
+    _manifest(
+        packs,
+        "community/gpu",
+        "1.0.0",
+        "gpu-env",
+        ["torch"],
+        package_indexes={"torch": index},
+        package_checks={"torch": "torch"},
+    )
+    prefix = tmp_path / "gpu-env"
+    prefix.mkdir()
+    (prefix / ".hololab-package-sources.json").write_text(
+        json.dumps({"torch": {"requirement": "torch", "index": index}})
+    )
+    config = tmp_path / "config.yaml"
+    config.write_text(f"pack_dirs: [{packs}]\nenvs:\n  gpu-env: {prefix}\n")
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        if command[1:3] == ["list", "--prefix"]:
+            return subprocess.CompletedProcess(command, 0, '[{"version": "2.0"}]', "")
+        if command[1:3] == ["run", "--prefix"] and "import importlib" in command[-1]:
+            return subprocess.CompletedProcess(command, 1, "", "CPU-only torch")
+        if command[1:3] == ["run", "--prefix"]:
+            return subprocess.CompletedProcess(command, 0, "Python 3.12.0\n", "")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("hololab.pack_setup.find_conda", lambda: "/fake/conda")
+    monkeypatch.setattr("hololab.pack_setup._run", fake_run)
+    cfg = load_node_config(config)
+    apply_plans(installed_plans(cfg, "community/gpu@1.0.0", False), cfg, config, dry_run=False)
+
+    assert any("--force-reinstall" in command for command in commands)

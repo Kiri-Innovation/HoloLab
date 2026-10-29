@@ -53,6 +53,7 @@ class EnvironmentPlan:
     prefix: Path | None
     hooks: tuple[tuple[object, Path], ...] = ()
     package_indexes: tuple[tuple[str, str], ...] = ()
+    package_checks: tuple[tuple[str, str, str, bool], ...] = ()
 
 
 def select_python_version(requirement: str | None) -> str:
@@ -135,6 +136,7 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
             )
         requested: dict[str, Requirement] = {}
         indexes: dict[str, str] = {}
+        checks: dict[str, tuple[str, str, bool]] = {}
         for manifest in group:
             for raw in manifest.requires.packages if manifest.requires else []:
                 requirement = Requirement(raw)
@@ -155,6 +157,14 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
                 if key in indexes and indexes[key] != value:
                     raise SetupError(f"conflicting package indexes for environment {env!r}: {key}")
                 indexes[key] = value
+            for name, check in (
+                manifest.requires.package_checks.items() if manifest.requires else []
+            ):
+                key = Requirement(name).name.lower()
+                value = (check.module, check.attribute, check.truthy)
+                if key in checks and checks[key] != value:
+                    raise SetupError(f"conflicting package checks for environment {env!r}: {key}")
+                checks[key] = value
         plans.append(
             EnvironmentPlan(
                 env,
@@ -164,6 +174,7 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
                 Path(cfg.envs[env]).expanduser() if env in cfg.envs else None,
                 tuple(group_with_paths),
                 tuple(sorted(indexes.items())),
+                tuple((name, *value) for name, value in sorted(checks.items())),
             )
         )
     return plans
@@ -223,7 +234,25 @@ def _package_source_receipt(prefix: Path) -> Path:
     return prefix / ".hololab-package-sources.json"
 
 
-def _source_satisfied(conda: str, prefix: Path, raw: str, index: str) -> bool:
+def _package_check_satisfied(conda: str, prefix: Path, check: tuple[str, str, bool] | None) -> bool:
+    if check is None:
+        return True
+    module, attribute, truthy = check
+    program = (
+        "import importlib; value = importlib.import_module("
+        + repr(module.split(".")[0])
+        + ")"
+        + "\nfor name in "
+        + repr(module.split(".")[1:] + attribute.split("."))
+        + ": value = getattr(value, name)"
+        + f"\nraise SystemExit(0 if bool(value) is {truthy} else 1)"
+    )
+    return not _run([conda, "run", "--prefix", str(prefix), "python", "-c", program]).returncode
+
+
+def _source_satisfied(
+    conda: str, prefix: Path, raw: str, index: str, check: tuple[str, str, bool] | None
+) -> bool:
     if not _satisfied(conda, prefix, raw):
         return False
     try:
@@ -231,7 +260,10 @@ def _source_satisfied(conda: str, prefix: Path, raw: str, index: str) -> bool:
     except (OSError, json.JSONDecodeError):
         return False
     requirement = Requirement(raw)
-    return recorded.get(requirement.name.lower()) == {"requirement": raw, "index": index}
+    return recorded.get(requirement.name.lower()) == {
+        "requirement": raw,
+        "index": index,
+    } and _package_check_satisfied(conda, prefix, check)
 
 
 def _record_package_source(prefix: Path, raw: str, index: str) -> None:
@@ -522,6 +554,10 @@ def apply_plans(
                         "ecosystem-compatible range (3.10-3.13); setup will not rebuild it"
                     )
         package_indexes = dict(plan.package_indexes)
+        package_checks = {
+            name: (module, attribute, truthy)
+            for name, module, attribute, truthy in plan.package_checks
+        }
         for package in plan.packages:
             if dry_run:
                 events.append(
@@ -529,7 +565,8 @@ def apply_plans(
                 )
                 continue
             index = package_indexes.get(Requirement(package).name.lower())
-            if index and _source_satisfied(conda, prefix, package, index):
+            check = package_checks.get(Requirement(package).name.lower())
+            if index and _source_satisfied(conda, prefix, package, index, check):
                 events.append(f"{plan.name}: {package} already satisfied from {index}")
                 continue
             if not index and _satisfied(conda, prefix, package):

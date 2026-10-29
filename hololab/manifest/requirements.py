@@ -21,6 +21,22 @@ class GpuRequirements(BaseModel):
         return values
 
 
+class PackageCheck(BaseModel):
+    """A generic import-time assertion for a package from a custom index."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    module: str
+    attribute: str
+    truthy: bool = True
+
+    @field_validator("module", "attribute")
+    @classmethod
+    def dotted_identifier(cls, value):
+        if not re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*", value):
+            raise ValueError("package check module/attribute must be dotted identifiers")
+        return value
+
+
 class Requirements(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     python: str | None = None
@@ -29,6 +45,7 @@ class Requirements(BaseModel):
     # wheels are one consumer, but private/accelerator package indexes are not
     # specific to PyTorch.
     package_indexes: dict[str, HttpUrl] = Field(default_factory=dict)
+    package_checks: dict[str, PackageCheck] = Field(default_factory=dict)
     cuda: str | None = None  # Minimum driver-supported CUDA, not installed toolkit.
     gpu: GpuRequirements | None = None
 
@@ -38,6 +55,7 @@ class Requirements(BaseModel):
             self.python is None
             and not self.packages
             and not self.package_indexes
+            and not self.package_checks
             and self.cuda is None
             and self.gpu is None
         )
@@ -67,6 +85,13 @@ class Requirements(BaseModel):
     @field_validator("package_indexes")
     @classmethod
     def package_index_names(cls, values):
+        for name in values:
+            Requirement(name)
+        return values
+
+    @field_validator("package_checks")
+    @classmethod
+    def package_check_names(cls, values):
         for name in values:
             Requirement(name)
         return values

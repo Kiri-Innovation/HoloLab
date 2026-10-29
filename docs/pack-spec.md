@@ -128,12 +128,18 @@ index in environment-local setup state and reinstalls a package from that index
 when no matching record exists, so an earlier wheel from another source is not
 silently accepted.
 
+Add a generic `package_checks` assertion when matching source provenance alone
+does not identify an artifact variant. A failed check makes setup reinstall the
+package from its declared index before native-hook prerequisites are checked.
+
 ```yaml
 requires:
   packages: [torch, torchvision]
   package_indexes:
     torch: https://download.pytorch.org/whl/cu128
     torchvision: https://download.pytorch.org/whl/cu128
+  package_checks:
+    torch: {module: torch, attribute: version.cuda, truthy: true}
 ```
 
 ### Category
