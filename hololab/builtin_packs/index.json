@@ -78,6 +78,27 @@
       "manifest": "frame-extraction@0.1.1/manifest.yaml",
       "code_sha256": "79b2dcb45912c971294cb52a6856e7381e2763ff8952f0a9fe7bc69c7a730a35",
       "identity_format": 2
+    },
+    {
+      "name": "builtin/video-array-source",
+      "version": "0.2.0",
+      "manifest": "video-array-source@0.2.0/manifest.yaml",
+      "code_sha256": "f673e70ec1b0c2367f36d862a3b4d389262e7433afa477fc73271993abfca571",
+      "identity_format": 2
+    },
+    {
+      "name": "builtin/frame-extraction",
+      "version": "0.2.0",
+      "manifest": "frame-extraction@0.2.0/manifest.yaml",
+      "code_sha256": "d081c4df781411b79c849fe4af615787f7db08b544c281ef787bfd9c016d5734",
+      "identity_format": 2
+    },
+    {
+      "name": "builtin/regroup",
+      "version": "0.3.0",
+      "manifest": "regroup@0.3.0/manifest.yaml",
+      "code_sha256": "2c59463ebe199594d98d3a63d5f0a905bcee6937b6edec2d19a337439190ce17",
+      "identity_format": 2
     }
   ]
 }
