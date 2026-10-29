@@ -5,6 +5,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from pydantic import TypeAdapter
+
 from hololab.package_identity import package_key
 
 
@@ -209,7 +211,10 @@ class PackUsageIndex:
             )
             if self.catalog_revision is None:
                 catalog = self.catalog()
-                catalog_key = hashlib.sha256(json.dumps(catalog, sort_keys=True).encode()).digest()
+                catalog_json = TypeAdapter(object).dump_python(catalog, mode="json")
+                catalog_key = hashlib.sha256(
+                    json.dumps(catalog_json, sort_keys=True).encode()
+                ).digest()
             else:
                 catalog_key = self.catalog_revision(keys)
                 catalog = None

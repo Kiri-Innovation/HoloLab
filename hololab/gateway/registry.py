@@ -440,8 +440,8 @@ class NodeRegistry:
                 {
                     "node_id": s.node_id,
                     "node_name": s.node_name,
-                    "gpu": s.gpu.model_dump(),
-                    "packs": [p.model_dump() for p in s.packs],
+                    "gpu": s.gpu.model_dump(mode="json"),
+                    "packs": [p.model_dump(mode="json") for p in s.packs],
                     "intrinsics": list(s.intrinsics),
                     "connected_ts": s.connected_ts,
                     "advertised_url": s.advertised_url,
@@ -564,7 +564,7 @@ class NodeRegistry:
                 key = package_key(pk.name, pk.version)
                 content = getattr(pk, "content", None)
                 if hasattr(content, "model_dump"):
-                    content = content.model_dump()
+                    content = content.model_dump(mode="json")
                 entry = by_key.setdefault(
                     key,
                     {
@@ -663,7 +663,7 @@ class NodeRegistry:
                         entry["parallelism"] = manifest.parallelism
                         entry["batch_size"] = manifest.batch_size
                         entry["node_viewers"] = [
-                            viewer.model_dump() for viewer in manifest.node_viewers
+                            viewer.model_dump(mode="json") for viewer in manifest.node_viewers
                         ]
                         entry["hide_default_output_previews"] = (
                             manifest.hide_default_output_previews
@@ -707,7 +707,7 @@ class NodeRegistry:
                                 # data class from the registry. Explicit
                                 # declaration always wins.
                                 "preview": (
-                                    inferred.model_dump()
+                                    inferred.model_dump(mode="json")
                                     if (
                                         inferred := infer_preview_for_output(
                                             s.preview, list(s.tags)
