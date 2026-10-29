@@ -15,7 +15,7 @@ async function request(url:string, init?:RequestInit) {
   if (!response.ok) throw new PublicPackError(typeof data?.detail?.message === 'string' ? data.detail.message : '请求未完成，请检查网络与节点连接后重试。');
   return data;
 }
-export function CommunityPacks({active, catalog, nodes, onInstalled, onNavigate}: {onNavigate:(path:string)=>void; active:boolean; catalog:CatalogPack[]; nodes:ComputeNode[]; onInstalled:()=>void}) {
+export function CommunityPacks({sidebarResize, active, catalog, nodes, onInstalled, onNavigate}: {sidebarResize?: import("react").ReactNode; onNavigate:(path:string)=>void; active:boolean; catalog:CatalogPack[]; nodes:ComputeNode[]; onInstalled:()=>void}) {
   const [source,setSource]=useState('https://packs.xenotech.studio');
   const [sourceDraft,setSourceDraft]=useState('https://packs.xenotech.studio');
   const [loaded,setLoaded]=useState('');
@@ -107,7 +107,7 @@ export function CommunityPacks({active, catalog, nodes, onInstalled, onNavigate}
         onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.reportValidity();e.currentTarget.blur();}}}/></label>
       <small>修改后离开输入框或按回车，自动更新目录。</small>
     </details>
-    </div></aside>
+    </div></aside>{sidebarResize}
     <div className="hl-pack-detail hl-community-browser">
     <label className="hl-community-search">搜索社区包<input type="search" aria-label="搜索社区包" value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索包名、功能分类或发布者…" /></label>
     <div className="hl-pack-heading"><h1>{index==='category' && category ? category : index==='publisher' && publisher ? publisher : index==='scope' && scope ? scope : index==='home'?'首页':index==='installed'?'已安装':index==='uninstalled'?'未安装':index==='category'?'功能分类':index==='publisher'?'发布者':index==='scope'?'Scope':'最近更新'}</h1><span>{matching.length} 个包 · 最近发布优先</span></div>

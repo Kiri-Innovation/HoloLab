@@ -3,7 +3,7 @@ import {collapseRedundantCategory} from './packCategory';
 import {LocalOverviewPage, LocalResultsPage, localStatusPages} from './LocalPackPages';
 import {packManagerRoute, packManagerPath} from './packManagerRoute';
 import {localOverview, isUndeclared} from './localOverviewModel';
-import { useResizableSlot } from '../canvas/useResizableLayout';
+import {PackSidebarSplitter, usePackSidebarWidth} from './PackSidebarSplitter';
 import { PackageTree } from './PackageTree';
 import { CommunityPacks } from './CommunityPacks';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -98,7 +98,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
     onNavigate(packManagerPath('local',next,{pack,category:nextTree==='category'?category:'',tree:nextTree==='scope'?'scope':''}));
   };
   useEffect(()=>{setSearch('');},[view]);
-  const leftDock = useResizableSlot('hl-layout-left', 300, 180, 420);
+  const sidebar = usePackSidebarWidth();
   const registry = useMemo<RegistryRelease[]>(() => [], []);
   const [centralLoading, setCentralLoading] = useState(false);
   const [commandStatus, setCommandStatus] = useState<Record<string, string>>({});
@@ -336,7 +336,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       emptyMessage={(healthPending || usage.loading || usage.error) && (section==='missing' || section==='attention') ? '检查尚未完成，暂未确认符合此筛选的包。' : '没有符合此筛选的包。'} />;
   };
 
-  return <div className="hl-app-shell hl-pack-manager" style={{'--pack-sidebar-width': `${leftDock.value}px`} as React.CSSProperties}>
+  return <div className="hl-app-shell hl-pack-manager" style={{'--pack-sidebar-width': `${sidebar.width}px`} as React.CSSProperties}>
     <header className="hl-topbar hl-pack-topbar">
       <button type="button" onClick={onBack}
         data-tooltip="返回流程列表" aria-label="返回流程列表" aria-description="back to workflows"
@@ -350,7 +350,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       </div></div>
       <ThemeToggle /></header>
     <main className="hl-pack-page">
-      <div id="pack-panel-community" role="tabpanel" aria-labelledby="pack-tab-community" hidden={view !== 'community'}><CommunityPacks onNavigate={onNavigate} active={view === 'community'} catalog={catalog} nodes={nodes} onInstalled={() => setRevision(n => n + 1)} /></div>
+      <div id="pack-panel-community" role="tabpanel" aria-labelledby="pack-tab-community" hidden={view !== 'community'}><CommunityPacks sidebarResize={<PackSidebarSplitter width={sidebar.width} onCommit={sidebar.commit} />} onNavigate={onNavigate} active={view === 'community'} catalog={catalog} nodes={nodes} onInstalled={() => setRevision(n => n + 1)} /></div>
       <div id="pack-panel-local" role="tabpanel" aria-labelledby="pack-tab-local" hidden={view !== 'local'}>
       <div className="hl-pack-workspace">
       <aside className="hl-dock hl-pack-palette hl-pack-sidebar">
@@ -380,6 +380,7 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       </nav>
       {nodes.length > 1 ? <label>查看机器<select aria-label="查看机器" value={nodeId} onChange={e => setNodeId(e.target.value)}>{nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name || node.node_id}</option>)}</select></label> : <p className="hl-pack-boundary">{nodes.length ? `查看 ${nodes[0].node_name || nodes[0].node_id} 上的包` : '没有已连接的机器'}</p>}
       </div></aside>
+      <PackSidebarSplitter width={sidebar.width} onCommit={sidebar.commit} />
       <section key={packManagerPath('local',section,{pack:selected,category})} className="hl-pack-detail" aria-label="本地包内容">
       {renderLocalPage()}
       </section></div></div>

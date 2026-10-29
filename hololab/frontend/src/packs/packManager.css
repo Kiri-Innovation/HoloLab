@@ -70,13 +70,13 @@
 
 @media (max-width: 360px) { .hl-pack-topbar > button:last-child { margin-left: auto; } }
 
-/* Match the editor's persisted left dock width; the detail column fills the rest. */
+/* Independent Pack Manager sidebar preference; reserve space for the detail column. */
 .hl-pack-view-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-right: auto; min-width: 0; }
 .hl-pack-view-heading > span { color: var(--text-muted); white-space: nowrap; }
 .hl-pack-tabs button { padding: var(--space-2) var(--space-3); border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; }
 .hl-pack-tabs [aria-selected=true] { border-bottom-color: var(--text-body); font-weight: var(--fw-semibold); }
 .hl-pack-page > [role=tabpanel] { height: 100%; }
-.hl-pack-workspace { display: grid; grid-template-columns: var(--pack-sidebar-width, 300px) minmax(0, 1fr); height: 100%; min-height: 0; align-items: stretch; }
+.hl-pack-workspace { display: grid; grid-template-columns: min(var(--pack-sidebar-width, 300px), calc(100% - 326px)) 6px minmax(0, 1fr); height: 100%; min-height: 0; align-items: stretch; }
 .hl-pack-sidebar { container-type: inline-size; overflow: auto; min-width: 0; border-right: 1px solid var(--border); background: var(--surface); }
 .hl-pack-sidebar .hl-dock-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-3); }
 .hl-pack-sidebar .hl-section-title { margin: 0; }
@@ -212,3 +212,11 @@
   .hl-local-result { flex-wrap: wrap; gap: var(--space-2); }
   .hl-pack-docs-dialog { padding: var(--space-3); }
 }
+
+/* Pack Manager only: the long tree retains its layout until pointer release. */
+.hl-pack-splitter { position: relative; cursor: col-resize; touch-action: none; user-select: none; outline: none; background: var(--surface); z-index: 3; }
+.hl-pack-splitter > span { position: absolute; inset: 0 2px; background: var(--border); pointer-events: none; }
+.hl-pack-splitter:hover > span, .hl-pack-splitter:focus-visible > span { background: var(--accent); }
+.hl-pack-splitter[data-dragging] > span { background: var(--accent); transform: translateX(var(--pack-resize-offset, 0px)); will-change: transform; }
+.hl-pack-workspace:has(> .hl-pack-splitter[data-dragging]) { cursor: col-resize; user-select: none; }
+@media (max-width: 760px) { .hl-pack-splitter { display: none; } }
