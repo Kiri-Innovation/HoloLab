@@ -3,7 +3,7 @@ import { packCertification } from "./packCertification";
 import { ImageCropEditor } from "./ImageCropEditor";
 import { ComposeVideoEditor } from "./ComposeVideoEditor";
 import { InlinePortCard, activeInlineValue } from "./CanvasInlineValues";
-import { inputValueProblems, supportsInline } from "./inlineValues";
+import { inputValueProblems } from "./inlineValues";
 import { PinnedParameters } from "./PinnedParameters";
 import { NodePreviews, useNodePreviewSelection } from "./NodePreviews";
 import { PortHandle } from "./PortHandle";
@@ -525,9 +525,10 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
               spec.scalar,
             );
             const inline = activeInlineValue(spec, (data as AlgorithmNodeData).port_values, portName, wiredInputs.includes(portName), readOnly);
-            const showInlineToggle = !wiredInputs.includes(portName) && supportsInline(spec);
             return (
-              <div key={`in-${portName}`} style={{ ...PORT_ROW, position: "relative" }}>
+              <div key={`in-${portName}`} style={{ ...PORT_ROW, position: "relative", ...(inline != null ? {minHeight: 42} : {}) }}>
+                {inline != null && <InlinePortCard id={id} name={portName} spec={spec} value={inline}
+                  array={!!(isArrayed || spec.dim_labels?.length)} frozen={readOnly} />}
                 <PortHandle
                   nodeId={id}
                   declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle, spec.scalar) }}
@@ -554,20 +555,16 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                       ? "var(--text-body)"
                       : "var(--text-subtle)",
                     fontFamily: "var(--font-mono)",
-                    whiteSpace: showInlineToggle ? "normal" : "nowrap",
-                    overflow: showInlineToggle ? "visible" : "hidden",
-                    textOverflow: showInlineToggle ? "clip" : "ellipsis",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
                     minWidth: 0,
-                    flex: 1,
                   }}
                 >
-                  {showInlineToggle ? <InlinePortCard id={id} name={portName} spec={spec} value={inline}
-                    array={!!(isArrayed || spec.dim_labels?.length)} frozen={readOnly} /> : <>
-                    {portName}
-                    {!spec.required && (
-                      <span style={{ color: "var(--text-subtle)" }}>?</span>
-                    )}
-                  </>}
+                  {portName}
+                  {!spec.required && (
+                    <span style={{ color: "var(--text-subtle)" }}>?</span>
+                  )}
                 </PortHandle>
               </div>
             );

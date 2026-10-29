@@ -4,7 +4,7 @@ import { CanvasContext } from './CanvasContext';
 import { InlinePortCard } from './CanvasInlineValues';
 const view = vi.hoisted(() => ({ zoom: 1 }));
 vi.mock('@xyflow/react', () => ({useStore: (select: (s: unknown) => unknown) => select({transform:[0,0,view.zoom]})}));
-import { activeInlineValue, inlineEditorInitiallyExpanded, inlineType, toggledInlineEditor } from './CanvasInlineValues';
+import { activeInlineValue, inlineType } from './CanvasInlineValues';
 import type { InputPortSpec } from '../wire';
 const spec = {tags:['float'],storage:'file',required:true} as InputPortSpec;
 describe('port inline cards', () => {
@@ -34,28 +34,15 @@ describe('port inline cards', () => {
 });
 
 describe('port card rendering', () => {
-  const render = (array = false, frozen = false, value: unknown = array ? [0,2] : 0) => renderToStaticMarkup(
+  const render = (array = false, frozen = false) => renderToStaticMarkup(
     <CanvasContext.Provider value={{workflow_id:null,workflow_name:'test',computeNodesById:{},hydrating:false,
       viewer_view:null,viewer_view_loaded:false,viewer_view_managed:false,
       onInlineValueChange:()=>{},onInspectInput:()=>{}}}>
-      <InlinePortCard id="node" name="offset" spec={spec} value={value} array={array} frozen={frozen}/>
+      <InlinePortCard id="node" name="offset" spec={spec} value={array ? [0,2] : 0} array={array} frozen={frozen}/>
     </CanvasContext.Provider>);
-  it('starts expanded for a value and collapses when the icon is toggled', () => {
-    expect(inlineEditorInitiallyExpanded(0)).toBe(true);
-    expect(toggledInlineEditor(true)).toBe(false);
-    expect(toggledInlineEditor(false)).toBe(true);
+  it('uses an editable numeric control for a float and a pencil action for arrays', () => {
     expect(render()).toContain('type="number"');
     expect(render()).toContain('value="0"');
-    expect(render()).toContain('aria-expanded="true"');
-    expect(render()).toContain('已设置内联值');
-  });
-  it('starts collapsed without a value and labels that state for assistive technology', () => {
-    expect(inlineEditorInitiallyExpanded(undefined)).toBe(false);
-    expect(render(false, false, null)).toContain('aria-expanded="false"');
-    expect(render(false, false, null)).toContain('没有内联值');
-    expect(render(false, false, null)).not.toContain('type="number"');
-  });
-  it('uses an editable numeric control for a float and a pencil action for arrays', () => {
     expect(render(true)).toContain('float[2]');
     expect(render(true)).toContain('Edit offset in Inspector');
     expect(render(true)).not.toContain('type="number"');

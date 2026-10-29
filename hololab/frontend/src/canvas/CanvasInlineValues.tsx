@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo } from 'react';
 import type { InputPortSpec } from '../wire';
 import { inputValue, supportsInline } from './inlineValues';
 import { ParameterInput } from './ParameterInput';
@@ -14,52 +14,22 @@ export function inlineType(spec: InputPortSpec, value: unknown, array: boolean):
   return `${spec.tags[0]}${array ? `[${Array.isArray(value) ? value.length : '?'}]` : ''}`;
 }
 
-export function inlineEditorInitiallyExpanded(value: unknown): boolean {
-  return value != null;
-}
-
-export function toggledInlineEditor(expanded: boolean): boolean {
-  return !expanded;
-}
-
 export const InlinePortCard = memo(function InlinePortCard({ id, name, spec, value, array, frozen = false }: {
   id: string; name: string; spec: InputPortSpec; value: unknown; array: boolean; frozen?: boolean;
 }) {
   const { onInlineValueChange, onInspectInput } = useCanvasContext();
   const scalar = !array && spec.tags[0] === 'float';
-  const hasValue = inlineEditorInitiallyExpanded(value);
-  // A present inline value keeps the old immediately-editable behaviour.  An
-  // absent value is deliberately quiet until the user asks to edit it.
-  const [expanded, setExpanded] = useState(hasValue);
-  const state = hasValue ? '已设置内联值' : '没有内联值';
-  const action = expanded ? '收起编辑器' : '展开编辑器';
-  return <span className="hl-inline-port-value nodrag nopan nowheel" data-has-value={hasValue ? '' : undefined}
+  return <div className="hl-inline-port-card nodrag nopan nowheel" aria-label={`${name} inline value`}
     onKeyDown={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}
     onDoubleClick={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
-    <span className="hl-inline-port-heading">
-      <button type="button" className="hl-inline-port-toggle"
-        title={`未连接：使用内联值；${state}。点击${action}`}
-        aria-label={`${name}：未连接，使用内联值；${state}。${action}`}
-        aria-expanded={expanded} onClick={() => setExpanded(toggledInlineEditor)}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-          <path d="M5 4v16M12 4v16M19 4v16" />
-          <circle cx="5" cy="9" r="2.25" fill={hasValue ? "currentColor" : "var(--surface-2)"} />
-          <circle cx="12" cy="15" r="2.25" fill={hasValue ? "currentColor" : "var(--surface-2)"} />
-          <circle cx="19" cy="7" r="2.25" fill={hasValue ? "currentColor" : "var(--surface-2)"} />
-        </svg>
-      </button>
-      <code className="hl-inline-port-name">{name}</code>
-    </span>
-    {expanded && <span className="hl-inline-port-editor">
-      {scalar ? <fieldset disabled={frozen || !onInlineValueChange}>
-        <ParameterInput name={`${name} inline`} spec={{type:'float', default:null, description:null, optional:false}}
-          value={value} nodeId={null} initialDirectory=""
-          onChange={next => onInlineValueChange?.(id, name, next)} />
-      </fieldset> : <button type="button" title="点击在 Inspector 编辑" aria-label={`Edit ${name} in Inspector`}
-        disabled={!onInspectInput} onClick={() => onInspectInput?.(id, name)}>
-        <code>{inlineType(spec, value, array)}</code>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z"/></svg>
-      </button>}
-    </span>}
-  </span>;
+    {scalar ? <><code>float</code><fieldset disabled={frozen || !onInlineValueChange}>
+      <ParameterInput name={`${name} inline`} spec={{type:'float', default:null, description:null, optional:false}}
+        value={value} nodeId={null} initialDirectory=""
+        onChange={next => onInlineValueChange?.(id, name, next)} />
+    </fieldset></> : <button type="button" title="点击在 Inspector 编辑" aria-label={`Edit ${name} in Inspector`}
+      disabled={!onInspectInput} onClick={() => onInspectInput?.(id, name)}>
+      <code>{inlineType(spec, value, array)}</code>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z"/></svg>
+    </button>}
+  </div>;
 });

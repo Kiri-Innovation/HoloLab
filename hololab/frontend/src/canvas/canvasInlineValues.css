@@ -1,12 +1,13 @@
-.hl-inline-port-value { display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-1); min-width:0; width:100%; font-size:var(--fs-xs); }
-.hl-inline-port-heading { display:flex; align-items:center; gap:var(--space-1); min-width:0; }
-.hl-inline-port-toggle { display:grid; place-items:center; flex:0 0 auto; width:18px; height:18px; padding:0; border:1px solid var(--border-subtle); border-radius:var(--radius-sm); background:var(--surface-2); color:var(--text-muted); cursor:pointer; }
-.hl-inline-port-toggle:hover, .hl-inline-port-toggle:focus-visible { border-color:var(--border-strong); color:var(--text-body); }
-.hl-inline-port-value[data-has-value] .hl-inline-port-toggle { color:var(--text-body); }
-.hl-inline-port-toggle svg { display:block; }
-.hl-inline-port-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.hl-inline-port-editor { display:block; min-width:0; }
-.hl-inline-port-editor fieldset { border:0; padding:0; margin:0; min-width:0; }
-.hl-inline-port-editor input { width:100%; height:24px; box-sizing:border-box; font-size:var(--fs-xs); }
-.hl-inline-port-editor > button { display:flex; align-items:center; justify-content:space-between; gap:var(--space-1); width:100%; padding:0; border:0; background:transparent; color:inherit; cursor:pointer; font-size:inherit; }
-.hl-inline-port-editor > button svg { flex-shrink:0; color:var(--text-muted); }
+/* Match the port row inset; overlap the node border by 1px to form one surface.
+   Leave the final 14px non-interactive so the handle remains fully hittable. */
+.hl-inline-port-card { position:absolute; right:calc(100% + var(--space-3)); top:50%; transform:translateY(-50%); width:148px; height:34px; box-sizing:border-box; display:flex; align-items:center; gap:8px; padding:5px 14px 5px 8px; border:1px solid var(--border-strong); border-right:0; border-radius:var(--radius-md) 0 0 var(--radius-md); background:var(--surface-2); color:var(--text-body); font-size:var(--fs-xs); pointer-events:none; }
+/* Fan-out frames extend 6px beyond the inner node, as do their handles. */
+.hl-arrayed-frame .hl-inline-port-card { right:calc(100% + var(--space-3) + 6px); }
+.hl-inline-port-card fieldset, .hl-inline-port-card > button { pointer-events:auto; }
+.hl-inline-port-card ~ .react-flow__handle { z-index:3; }
+.hl-inline-port-card code { font-family:var(--font-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hl-inline-port-card fieldset { border:0; padding:0; margin:0; min-width:0; flex:1; }
+.hl-inline-port-card input { height:24px; box-sizing:border-box; font-size:var(--fs-xs); }
+.hl-inline-port-card > button { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; padding:0; border:0; background:transparent; color:inherit; cursor:pointer; font-size:inherit; }
+.hl-inline-port-card > button svg { flex-shrink:0; color:var(--text-muted); }
+.hl-inline-port-card:focus-within, .hl-inline-port-card:hover { border-color:var(--text-muted); }
