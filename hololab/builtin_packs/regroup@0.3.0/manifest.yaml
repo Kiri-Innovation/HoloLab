@@ -1,0 +1,67 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/regroup
+version: 0.3.0
+description: 'BREAKING: transpose rectangular arrays by local position, never entry
+  names.'
+category: basic/array/regroup
+requires: {}
+inputs:
+  in:
+    tags:
+    - any
+    arrayed: true
+    dim_labels:
+    - ''
+    - ''
+outputs:
+  out:
+    tags:
+    - any
+    arrayed: true
+    dim_labels_from: output_dims
+    tags_from: in
+params:
+  input_dims:
+    type: list[str]
+    default:
+    - cam
+    - frame
+  output_dims:
+    type: list[str]
+    default:
+    - frame
+    - cam
+  content_dims:
+    type: int
+    default: 0
+    min: 0
+    max: 1
+runtime:
+  mode: host
+  gpu:
+    required: false
+exec:
+  python: regroup.py
+  args:
+  - --input
+  - '{{ inputs.in }}'
+  - --output
+  - '{{ outputs.out }}'
+  - --input-dims
+  - '{{ params.input_dims | tojson }}'
+  - --output-dims
+  - '{{ params.output_dims | tojson }}'
+  - --content-dims
+  - '{{ params.content_dims }}'
+docs: 'Breaking positional layout: upgrade in a new graph. Enumerate each parent
+
+  independently by basename bytes, validate rectangular shape before writing,
+
+  and permute coordinates using input_dims/output_dims axis order. Reject ragged
+
+  or empty axes; never pad, truncate, merge names or infer axes from prefixes.
+
+  content_dims remains the legacy 0/1 storage option; no new content-axis design.
+
+  '
