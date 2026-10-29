@@ -24,7 +24,7 @@ def test_manifest_accepts_complete_input_union() -> None:
         Path(__file__).parents[2]
         / "SpacetimeGaussians"
         / "packs"
-        / "stg-init@0.3.1"
+        / "stg-init@0.3.2"
         / "manifest.yaml"
     )
     assert [variant.tags for variant in manifest.inputs["colmap_4d"].any_of] == [

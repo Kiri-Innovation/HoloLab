@@ -35,9 +35,9 @@ def test_parse_all_uuid_kinds() -> None:
 
 
 def test_parse_pack_uses_name_at_version() -> None:
-    r = parse_ref("hololab://pack/stg-to-splatv@0.1.0")
+    r = parse_ref("hololab://pack/k4d/stg-to-splatv@0.1.1")
     assert r.kind == "pack"
-    assert r.id == "stg-to-splatv@0.1.0"
+    assert r.id == "k4d/stg-to-splatv@0.1.1"
 
 
 def test_parse_strips_comment_tail() -> None:

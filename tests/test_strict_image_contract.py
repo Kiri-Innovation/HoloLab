@@ -260,8 +260,8 @@ def test_current_main_chain_edges_and_broadcast_contract():
         "merge-colmap@0.4.1",
     ]
     packs = catalog(names)
-    init_path = ROOT.parent / "SpacetimeGaussians/packs/stg-init@0.3.1/manifest.yaml"
-    stg_path = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.4.6/manifest.yaml"
+    init_path = ROOT.parent / "SpacetimeGaussians/packs/stg-init@0.3.2/manifest.yaml"
+    stg_path = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.4.7/manifest.yaml"
     if not init_path.exists() or not stg_path.exists():
         pytest.skip("external split STG pack checkout is not installed")
     init, _ = load_manifest(init_path)
@@ -275,12 +275,14 @@ def test_current_main_chain_edges_and_broadcast_contract():
         ("tri", names[1], True),
         ("sfm", names[2], False),
         ("merge", names[3], True),
-        ("stg-init", "stg-init@0.3.1", False),
-        ("stg", "stg-train@0.4.6", False),
+        ("stg-init", "stg-init@0.3.2", False),
+        ("stg", "stg-train@0.4.7", False),
     ]:
         alg, ver = name.split("@")
         pack_name, pack_version = next(
-            key for key in packs if key[1] == ver and key[0].removeprefix("community/") == alg
+            key
+            for key in packs
+            if key[1] == ver and (key[0].removeprefix("community/").removeprefix("k4d/") == alg)
         )
         nodes.append(
             GraphNode(

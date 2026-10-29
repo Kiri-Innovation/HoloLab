@@ -1,4 +1,4 @@
-"""``stg-train@0.4.6`` consumes the portable state created by ``stg-init``."""
+"""``k4d/stg-train@0.4.7`` consumes the portable state created by ``k4d/stg-init``."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 from hololab.manifest import RenderContext, load_manifest, render_manifest
 
 _MANIFEST = Path(
-    "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs/stg-train@0.4.6/manifest.yaml"
+    "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs/stg-train@0.4.7/manifest.yaml"
 )
 
 if not _MANIFEST.exists():
@@ -23,8 +23,8 @@ def _load() -> object:
 
 def test_manifest_declares_split_state_contract() -> None:
     m = _load()
-    assert m.name == "community/stg-train"
-    assert m.version == "0.4.6"
+    assert m.name == "k4d/stg-train"
+    assert m.version == "0.4.7"
     assert set(m.inputs) == {"state", "supervision"}
     assert m.inputs["state"].tags == ["stg-training-state"]
     assert m.inputs["supervision"].tags == ["stg-supervision"]

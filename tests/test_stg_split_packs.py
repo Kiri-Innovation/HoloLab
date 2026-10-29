@@ -16,11 +16,11 @@ def test_split_stg_manifests_load(path: Path) -> None:
     """Every currently shipped split STG manifest remains loadable."""
     manifest, _ = load_manifest(path)
     name, version = path.parent.name.rsplit("@", 1)
-    assert (manifest.name, manifest.version) == (f"community/{name}", version)
+    assert (manifest.name, manifest.version) == (f"k4d/{name}", version)
 
 
 def test_init_emits_semantic_state_and_supervision() -> None:
-    manifest, _ = load_manifest(ROOT / "packs" / "stg-init@0.3.1/manifest.yaml")
+    manifest, _ = load_manifest(ROOT / "packs" / "stg-init@0.3.2/manifest.yaml")
     assert [variant.tags for variant in manifest.inputs["colmap_4d"].any_of] == [
         ["colmap4d"],
         ["colmap-folder"],
@@ -32,7 +32,7 @@ def test_init_emits_semantic_state_and_supervision() -> None:
 
 
 def test_init_renders_when_optional_flow_is_unwired() -> None:
-    manifest, _ = load_manifest(ROOT / "packs" / "stg-init@0.3.1/manifest.yaml")
+    manifest, _ = load_manifest(ROOT / "packs" / "stg-init@0.3.2/manifest.yaml")
     rendered = render_manifest(
         manifest,
         RenderContext(
@@ -53,7 +53,7 @@ def test_init_renders_when_optional_flow_is_unwired() -> None:
 
 
 def test_train_has_only_progress_and_diagnostic_knobs() -> None:
-    manifest, _ = load_manifest(ROOT / "packs" / "stg-train@0.4.6/manifest.yaml")
+    manifest, _ = load_manifest(ROOT / "packs" / "stg-train@0.4.7/manifest.yaml")
     assert set(manifest.params) == {"iterations", "save_cam", "preview_every"}
     assert manifest.params["iterations"].min == 1
     assert manifest.params["save_cam"].min == 0

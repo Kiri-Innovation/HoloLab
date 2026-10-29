@@ -459,7 +459,7 @@ Regression command: `python -m pytest tests/test_workflow_variables.py
  tests/test_frozen_execution.py tests/test_recipe_bindings.py -q` (one line).
 The real-process test runs two temporary package invocations to distinguish a
 frozen path from a changed current path; no training or service restart occurs.
-The deployed `stg-train@0.4.6` currently has only integer parameters; its
+The deployed `k4d/stg-train@0.4.7` currently has only integer parameters; its
 `iterations` resolves 10000 → 12000 with a variable. Older STG `configpath`
 parameters are declared string, so they cannot be bound to path variables without
 an explicit future package declaration change. Tests do not rewrite those packs.

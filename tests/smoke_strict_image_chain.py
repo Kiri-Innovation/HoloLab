@@ -1,6 +1,6 @@
 """Opt-in real GPU smoke: set HOLOLAB_ALGORITHM_PYTHON, run with node Python.
 
-Uses synthetic 3-camera data, external stg-init@0.3.1 + stg-train@0.4.6
+Uses synthetic 3-camera data, external k4d/stg-init@0.3.2 + k4d/stg-train@0.4.7
 checkouts, and one training iteration. No gateway connection or changes to
 existing workflows.
 """
@@ -161,8 +161,8 @@ def main():
         {"cams": work / "und-cams", "points": work / "tri-points", "images": work / "und-images"},
         {"folder": work / "merged/frame0"},
     )
-    init = ROOT.parent / "SpacetimeGaussians/packs/stg-init@0.3.1"
-    train = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.4.6"
+    init = ROOT.parent / "SpacetimeGaussians/packs/stg-init@0.3.2"
+    train = ROOT.parent / "SpacetimeGaussians/packs/stg-train@0.4.7"
     init_manifest, _ = load_manifest(init / "manifest.yaml")
     init_inputs = {"colmap_4d": str(work / "merged")}
     init_outputs = {
