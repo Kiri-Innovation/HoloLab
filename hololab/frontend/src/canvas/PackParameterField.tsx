@@ -84,20 +84,26 @@ export function PackParameterField(props: Parameters<typeof InlinePackParameterF
   const text = parameterDifferenceText({name: props.name, displayed: `→ ${binding ?? ""}`,
     effective: effectiveValue, reason: "workflow-variable"});
   return <div className="hl-variable-parameter">
-    <select aria-label={`${props.name} 输入模式`} value={bound ? "variable" : "inline"}
-      onChange={event => onBindingChange(event.target.value === "inline" ? null : choices[0] ?? "")}>
-      <option value="inline">内联值</option><option value="variable">绑定变量</option>
-    </select>
-    {bound ? <div title={text}>
-      <select aria-label={`${props.name} 绑定变量`} value={binding}
-        onChange={event => onBindingChange(event.target.value)}>
-        <option value="">选择变量</option>
-        {binding && !choices.includes(binding) && <option value={binding}>→ {binding}（缺失或类型不匹配）</option>}
-        {choices.map(variable => <option key={variable} value={variable}>→ {variable}</option>)}
-      </select>
-      {!choices.includes(binding ?? "") && <p role="status">{binding ? "声明缺失或类型不匹配；请重新选择。" : "尚未选择变量。"}</p>}
-      {!choices.length && <p>请在工作流变量中添加 {type === "int" ? "整数" : "路径"} 变量。</p>}
-      <details><summary>解析值{effectiveValue === undefined ? " · 尚未解析" : ""}</summary>{text}</details>
-    </div> : <InlinePackParameterField {...props} />}
+    <div className="hl-variable-parameter-control">
+      <button type="button" className="hl-variable-mode-toggle"
+        title={bound ? "当前为绑定变量；点击切换为内联值" : "当前为内联值；点击切换为绑定变量"}
+        aria-label={`${props.name}：${bound ? "绑定变量" : "内联值"}；点击切换`}
+        aria-expanded={bound}
+        onClick={() => onBindingChange(bound ? null : choices[0] ?? "")}>
+        {bound ? <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 5 3 8l3 3M10 5l3 3-3 3M3 8h10" /></svg>
+          : <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3-3 5 3 5M10 3l3 5-3 5M4 8h8" /></svg>}
+      </button>
+      {bound ? <div title={text}>
+        <select aria-label={`${props.name} 绑定变量`} value={binding}
+          onChange={event => onBindingChange(event.target.value)}>
+          <option value="">选择变量</option>
+          {binding && !choices.includes(binding) && <option value={binding}>→ {binding}（缺失或类型不匹配）</option>}
+          {choices.map(variable => <option key={variable} value={variable}>→ {variable}</option>)}
+        </select>
+        {!choices.includes(binding ?? "") && <p role="status">{binding ? "声明缺失或类型不匹配；请重新选择。" : "尚未选择变量。"}</p>}
+        {!choices.length && <p>请在工作流变量中添加 {type === "int" ? "整数" : "路径"} 变量。</p>}
+        <details><summary>解析值{effectiveValue === undefined ? " · 尚未解析" : ""}</summary>{text}</details>
+      </div> : <InlinePackParameterField {...props} />}
+    </div>
   </div>;
 }
