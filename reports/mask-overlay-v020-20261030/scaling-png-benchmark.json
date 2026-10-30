@@ -1,0 +1,71 @@
+{
+  "images": 200,
+  "parallelism": 4,
+  "io_workers": 3,
+  "format": "png",
+  "wall_seconds": 13.064323760991101,
+  "images_per_second": 15.308867390226661,
+  "projected_4000_seconds": 261.286475219822,
+  "shards": [
+    {
+      "count": 50,
+      "mode": "mask0_black",
+      "alpha": 0.5,
+      "format": "png",
+      "io_workers": 3,
+      "elapsed_seconds": 11.946163761007483,
+      "images_per_second": 4.185444047167761,
+      "worker_seconds_sum": {
+        "decode_s": 7.260970378032653,
+        "blend_s": 2.45959269204468,
+        "encode_write_s": 25.361023128949455,
+        "bytes": 322903337
+      }
+    },
+    {
+      "count": 50,
+      "mode": "mask0_black",
+      "alpha": 0.5,
+      "format": "png",
+      "io_workers": 3,
+      "elapsed_seconds": 12.20237651199568,
+      "images_per_second": 4.097562466692201,
+      "worker_seconds_sum": {
+        "decode_s": 7.507537564044469,
+        "blend_s": 2.379977386968676,
+        "encode_write_s": 25.990611208006158,
+        "bytes": 338423355
+      }
+    },
+    {
+      "count": 50,
+      "mode": "mask0_black",
+      "alpha": 0.5,
+      "format": "png",
+      "io_workers": 3,
+      "elapsed_seconds": 12.024159801003407,
+      "images_per_second": 4.15829470228993,
+      "worker_seconds_sum": {
+        "decode_s": 7.195262534980429,
+        "blend_s": 2.4436275960033527,
+        "encode_write_s": 25.68955971201649,
+        "bytes": 331468400
+      }
+    },
+    {
+      "count": 50,
+      "mode": "mask0_black",
+      "alpha": 0.5,
+      "format": "png",
+      "io_workers": 3,
+      "elapsed_seconds": 12.840660610003397,
+      "images_per_second": 3.8938806591498856,
+      "worker_seconds_sum": {
+        "decode_s": 8.175594514075783,
+        "blend_s": 2.3615498150029453,
+        "encode_write_s": 27.200109464960406,
+        "bytes": 361452598
+      }
+    }
+  ]
+}

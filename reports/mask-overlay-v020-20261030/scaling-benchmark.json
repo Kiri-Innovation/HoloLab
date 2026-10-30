@@ -1,0 +1,71 @@
+{
+  "images": 200,
+  "parallelism": 4,
+  "io_workers": 3,
+  "format": "jpg",
+  "wall_seconds": 6.849895478007966,
+  "images_per_second": 29.197525807818963,
+  "projected_4000_seconds": 136.99790956015931,
+  "shards": [
+    {
+      "count": 50,
+      "mode": "mask0_black",
+      "alpha": 0.5,
+      "format": "jpg",
+      "io_workers": 3,
+      "elapsed_seconds": 6.303487387995119,
+      "images_per_second": 7.9321170841436315,
+      "worker_seconds_sum": {
+        "decode_s": 7.2396110499685165,
+        "blend_s": 2.3624587769882055,
+        "encode_write_s": 8.880788369046059,
+        "bytes": 50854341
+      }
+    },
+    {
+      "count": 50,
+      "mode": "mask0_black",
+      "alpha": 0.5,
+      "format": "jpg",
+      "io_workers": 3,
+      "elapsed_seconds": 6.395406001000083,
+      "images_per_second": 7.818111937253279,
+      "worker_seconds_sum": {
+        "decode_s": 7.629701485027908,
+        "blend_s": 2.420008230008534,
+        "encode_write_s": 8.946211655973457,
+        "bytes": 54715999
+      }
+    },
+    {
+      "count": 50,
+      "mode": "mask0_black",
+      "alpha": 0.5,
+      "format": "jpg",
+      "io_workers": 3,
+      "elapsed_seconds": 6.371541325002909,
+      "images_per_second": 7.847394758909011,
+      "worker_seconds_sum": {
+        "decode_s": 7.166144608956529,
+        "blend_s": 2.4103925790113863,
+        "encode_write_s": 9.035707037066459,
+        "bytes": 52474533
+      }
+    },
+    {
+      "count": 50,
+      "mode": "mask0_black",
+      "alpha": 0.5,
+      "format": "jpg",
+      "io_workers": 3,
+      "elapsed_seconds": 6.60698166200018,
+      "images_per_second": 7.567752198794984,
+      "worker_seconds_sum": {
+        "decode_s": 8.150863128044875,
+        "blend_s": 2.3136223309120396,
+        "encode_write_s": 8.908429607079597,
+        "bytes": 55819239
+      }
+    }
+  ]
+}

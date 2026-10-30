@@ -1,0 +1,74 @@
+[
+  {
+    "video": "data1.mp4",
+    "cam_index": 0,
+    "frame_index": 0,
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/2ec4c464-5601-47d7-a4c4-5d14cdd7358d/masks/p_0000000000000000/p_0000000000000000.png",
+    "png_count": 50,
+    "mode": "L",
+    "size": [
+      3840,
+      2160
+    ],
+    "dtype": "uint8",
+    "values": [
+      0,
+      255
+    ],
+    "foreground_ratio": 0.06795271508487655
+  },
+  {
+    "video": "data13.mp4",
+    "cam_index": 4,
+    "frame_index": 0,
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/2ec4c464-5601-47d7-a4c4-5d14cdd7358d/masks/p_0000000000000004/p_0000000000000000.png",
+    "png_count": 50,
+    "mode": "L",
+    "size": [
+      3840,
+      2160
+    ],
+    "dtype": "uint8",
+    "values": [
+      0,
+      255
+    ],
+    "foreground_ratio": 0.049010296103395065
+  },
+  {
+    "video": "data45.mp4",
+    "cam_index": 39,
+    "frame_index": 25,
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/2ec4c464-5601-47d7-a4c4-5d14cdd7358d/masks/p_0000000000000039/p_0000000000000025.png",
+    "png_count": 50,
+    "mode": "L",
+    "size": [
+      3840,
+      2160
+    ],
+    "dtype": "uint8",
+    "values": [
+      0,
+      255
+    ],
+    "foreground_ratio": 0.09453559027777778
+  },
+  {
+    "video": "data9.mp4",
+    "cam_index": 79,
+    "frame_index": 49,
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/2ec4c464-5601-47d7-a4c4-5d14cdd7358d/masks/p_0000000000000079/p_0000000000000049.png",
+    "png_count": 50,
+    "mode": "L",
+    "size": [
+      3840,
+      2160
+    ],
+    "dtype": "uint8",
+    "values": [
+      0,
+      255
+    ],
+    "foreground_ratio": 0.08880075713734568
+  }
+]

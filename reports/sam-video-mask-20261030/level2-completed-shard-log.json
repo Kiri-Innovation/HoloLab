@@ -1,0 +1,642 @@
+{
+  "job_id": "8d24b761-4498-49a4-b3bf-fe29ee86632c",
+  "lines": [
+    {
+      "stream": "stdout",
+      "line": "   \u89c6\u9891: data1.mp4 \u00b7 fps=29.97 \u00b7 \u603b\u5e27=234",
+      "ts": 1793338126.093648
+    },
+    {
+      "stream": "stdout",
+      "line": "   \u4e0a\u9650: 50 \u5e27",
+      "ts": 1793338126.093648
+    },
+    {
+      "stream": "stderr",
+      "line": "",
+      "ts": 1793338126.0964334
+    },
+    {
+      "stream": "stderr",
+      "line": "\u62bd\u5e27:   0%|          | 0/50 [00:00<?, ?it/s]",
+      "ts": 1793338126.0964334
+    },
+    {
+      "stream": "stderr",
+      "line": "\u62bd\u5e27: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 50/50 [00:00<00:00, 42956.82it/s]",
+      "ts": 1793338126.0964334
+    },
+    {
+      "stream": "stderr",
+      "line": "\u001b[0m\u001b[32mINFO 2026-10-30 05:28:54,845 2777155 sam3_video_predictor.py: 300:\u001b[0m using the following GPU IDs: [0]",
+      "ts": 1793338135.1053216
+    },
+    {
+      "stream": "stderr",
+      "line": "\u001b[0m\u001b[32mINFO 2026-10-30 05:28:54,929 2777155 sam3_video_predictor.py: 316:\u001b[0m ",
+      "ts": 1793338135.1053216
+    },
+    {
+      "stream": "stderr",
+      "line": "",
+      "ts": 1793338135.1053216
+    },
+    {
+      "stream": "stderr",
+      "line": "",
+      "ts": 1793338135.1053216
+    },
+    {
+      "stream": "stderr",
+      "line": "\t*** START loading model on all ranks ***",
+      "ts": 1793338135.1053216
+    },
+    {
+      "stream": "stderr",
+      "line": "",
+      "ts": 1793338135.1053216
+    },
+    {
+      "stream": "stderr",
+      "line": "",
+      "ts": 1793338135.1053216
+    },
+    {
+      "stream": "stderr",
+      "line": "\u001b[0m\u001b[32mINFO 2026-10-30 05:28:54,929 2777155 sam3_video_predictor.py: 318:\u001b[0m loading model on rank=0 with world_size=1 -- this could take a while ...",
+      "ts": 1793338135.1053216
+    },
+    {
+      "stream": "stderr",
+      "line": "\u001b[0m\u001b[32mINFO 2026-10-30 05:29:02,345 2777155 sam3_video_base.py: 125:\u001b[0m setting max_num_objects=10000 and num_obj_for_compile=16",
+      "ts": 1793338142.6208513
+    },
+    {
+      "stream": "stderr",
+      "line": "\u001b[0m\u001b[32mINFO 2026-10-30 05:29:06,299 2777155 sam3_video_predictor.py: 320:\u001b[0m loading model on rank=0 with world_size=1 -- DONE locally",
+      "ts": 1793338146.6287005
+    },
+    {
+      "stream": "stderr",
+      "line": "\u001b[0m\u001b[32mINFO 2026-10-30 05:29:06,299 2777155 sam3_video_predictor.py: 331:\u001b[0m ",
+      "ts": 1793338146.6287005
+    },
+    {
+      "stream": "stderr",
+      "line": "",
+      "ts": 1793338146.6287005
+    },
+    {
+      "stream": "stderr",
+      "line": "",
+      "ts": 1793338146.6287005
+    },
+    {
+      "stream": "stderr",
+      "line": "\t*** DONE loading model on all ranks ***",
+      "ts": 1793338146.6287005
+    },
+    {
+      "stream": "stderr",
+      "line": "",
+      "ts": 1793338146.6287005
+    },
+    {
+      "stream": "stderr",
+      "line": "",
+      "ts": 1793338146.6287005
+    },
+    {
+      "stream": "stdout",
+      "line": "Running SAM3 inference with keywords=['person']",
+      "ts": 1793338154.6411328
+    },
+    {
+      "stream": "stderr",
+      "line": "",
+      "ts": 1793338154.6440227
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:   0%|          | 0/50 [00:00<?, ?it/s]",
+      "ts": 1793338155.1424434
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:   4%|\u258d         | 2/50 [00:00<00:09,  5.23it/s]",
+      "ts": 1793338155.64321
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:   6%|\u258c         | 3/50 [00:00<00:12,  3.81it/s]",
+      "ts": 1793338155.64321
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:   8%|\u258a         | 4/50 [00:01<00:13,  3.35it/s]",
+      "ts": 1793338156.1445367
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  10%|\u2588         | 5/50 [00:01<00:14,  3.21it/s]",
+      "ts": 1793338156.6450288
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  12%|\u2588\u258f        | 6/50 [00:01<00:13,  3.28it/s]",
+      "ts": 1793338156.6450288
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  14%|\u2588\u258d        | 7/50 [00:01<00:11,  3.75it/s]",
+      "ts": 1793338157.1457715
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  16%|\u2588\u258c        | 8/50 [00:02<00:11,  3.82it/s]",
+      "ts": 1793338157.1457715
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  18%|\u2588\u258a        | 9/50 [00:02<00:11,  3.56it/s]",
+      "ts": 1793338157.646712
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  20%|\u2588\u2588        | 10/50 [00:02<00:11,  3.53it/s]",
+      "ts": 1793338157.646712
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  22%|\u2588\u2588\u258f       | 11/50 [00:03<00:11,  3.50it/s]",
+      "ts": 1793338158.148604
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  24%|\u2588\u2588\u258d       | 12/50 [00:03<00:10,  3.46it/s]",
+      "ts": 1793338158.6493094
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  26%|\u2588\u2588\u258c       | 13/50 [00:03<00:10,  3.43it/s]",
+      "ts": 1793338158.6493094
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 1/50] SAM3 frame=0",
+      "ts": 1793338159.1497407
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 2/50] SAM3 frame=1",
+      "ts": 1793338159.1497407
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  28%|\u2588\u2588\u258a       | 14/50 [00:03<00:10,  3.41it/s]",
+      "ts": 1793338159.1529884
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  30%|\u2588\u2588\u2588       | 15/50 [00:04<00:10,  3.33it/s]",
+      "ts": 1793338159.1529884
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 3/50] SAM3 frame=2",
+      "ts": 1793338159.6514714
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  32%|\u2588\u2588\u2588\u258f      | 16/50 [00:04<00:10,  3.26it/s]",
+      "ts": 1793338159.6542876
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 4/50] SAM3 frame=3",
+      "ts": 1793338160.1529815
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 5/50] SAM3 frame=4",
+      "ts": 1793338160.1529815
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  34%|\u2588\u2588\u2588\u258d      | 17/50 [00:04<00:10,  3.16it/s]",
+      "ts": 1793338160.15519
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  36%|\u2588\u2588\u2588\u258c      | 18/50 [00:05<00:10,  3.15it/s]",
+      "ts": 1793338160.15519
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 6/50] SAM3 frame=5",
+      "ts": 1793338160.6541176
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  38%|\u2588\u2588\u2588\u258a      | 19/50 [00:05<00:09,  3.16it/s]",
+      "ts": 1793338160.6563783
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 7/50] SAM3 frame=6",
+      "ts": 1793338161.1551447
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 8/50] SAM3 frame=7",
+      "ts": 1793338161.1551447
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  40%|\u2588\u2588\u2588\u2588      | 20/50 [00:05<00:09,  3.13it/s]",
+      "ts": 1793338161.1574247
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  42%|\u2588\u2588\u2588\u2588\u258f     | 21/50 [00:06<00:09,  3.12it/s]",
+      "ts": 1793338161.1574247
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 9/50] SAM3 frame=8",
+      "ts": 1793338161.6566193
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  44%|\u2588\u2588\u2588\u2588\u258d     | 22/50 [00:06<00:09,  3.11it/s]",
+      "ts": 1793338161.6597505
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 10/50] SAM3 frame=9",
+      "ts": 1793338162.157732
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 11/50] SAM3 frame=10",
+      "ts": 1793338162.157732
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  46%|\u2588\u2588\u2588\u2588\u258c     | 23/50 [00:06<00:08,  3.09it/s]",
+      "ts": 1793338162.1606233
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  48%|\u2588\u2588\u2588\u2588\u258a     | 24/50 [00:07<00:08,  3.07it/s]",
+      "ts": 1793338162.1606233
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 12/50] SAM3 frame=11",
+      "ts": 1793338162.6591182
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  50%|\u2588\u2588\u2588\u2588\u2588     | 25/50 [00:07<00:08,  3.06it/s]",
+      "ts": 1793338162.6622953
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 13/50] SAM3 frame=12",
+      "ts": 1793338163.1604505
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 14/50] SAM3 frame=13",
+      "ts": 1793338163.1604505
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  52%|\u2588\u2588\u2588\u2588\u2588\u258f    | 26/50 [00:07<00:07,  3.08it/s]",
+      "ts": 1793338163.1629353
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  54%|\u2588\u2588\u2588\u2588\u2588\u258d    | 27/50 [00:08<00:07,  3.07it/s]",
+      "ts": 1793338163.1629353
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 15/50] SAM3 frame=14",
+      "ts": 1793338163.661591
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 16/50] SAM3 frame=15",
+      "ts": 1793338163.661591
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  56%|\u2588\u2588\u2588\u2588\u2588\u258c    | 28/50 [00:08<00:07,  3.09it/s]",
+      "ts": 1793338163.6640062
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  58%|\u2588\u2588\u2588\u2588\u2588\u258a    | 29/50 [00:08<00:06,  3.10it/s]",
+      "ts": 1793338163.6640062
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 17/50] SAM3 frame=16",
+      "ts": 1793338164.1626306
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  60%|\u2588\u2588\u2588\u2588\u2588\u2588    | 30/50 [00:09<00:06,  3.17it/s]",
+      "ts": 1793338164.1666334
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 18/50] SAM3 frame=17",
+      "ts": 1793338164.6637428
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 19/50] SAM3 frame=18",
+      "ts": 1793338164.6637428
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  62%|\u2588\u2588\u2588\u2588\u2588\u2588\u258f   | 31/50 [00:09<00:06,  3.14it/s]",
+      "ts": 1793338164.6662195
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  64%|\u2588\u2588\u2588\u2588\u2588\u2588\u258d   | 32/50 [00:09<00:05,  3.18it/s]",
+      "ts": 1793338164.6662195
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 20/50] SAM3 frame=19",
+      "ts": 1793338165.164526
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  66%|\u2588\u2588\u2588\u2588\u2588\u2588\u258c   | 33/50 [00:10<00:05,  3.13it/s]",
+      "ts": 1793338165.1669135
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 21/50] SAM3 frame=20",
+      "ts": 1793338165.6658092
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 22/50] SAM3 frame=21",
+      "ts": 1793338165.6658092
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  68%|\u2588\u2588\u2588\u2588\u2588\u2588\u258a   | 34/50 [00:10<00:05,  3.15it/s]",
+      "ts": 1793338165.6680992
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  70%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588   | 35/50 [00:10<00:04,  3.14it/s]",
+      "ts": 1793338165.6680992
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 23/50] SAM3 frame=22",
+      "ts": 1793338166.166773
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  72%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258f  | 36/50 [00:11<00:04,  3.13it/s]",
+      "ts": 1793338166.1694355
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 24/50] SAM3 frame=23",
+      "ts": 1793338166.6674676
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 25/50] SAM3 frame=24",
+      "ts": 1793338166.6674676
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  74%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258d  | 37/50 [00:11<00:04,  3.12it/s]",
+      "ts": 1793338166.6697412
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  76%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c  | 38/50 [00:11<00:03,  3.12it/s]",
+      "ts": 1793338166.6697412
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 26/50] SAM3 frame=25",
+      "ts": 1793338167.1691968
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 27/50] SAM3 frame=26",
+      "ts": 1793338167.1691968
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  78%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a  | 39/50 [00:12<00:03,  3.11it/s]",
+      "ts": 1793338167.171632
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  80%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  | 40/50 [00:12<00:03,  3.14it/s]",
+      "ts": 1793338167.171632
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 28/50] SAM3 frame=27",
+      "ts": 1793338167.6701405
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  82%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258f | 41/50 [00:12<00:02,  3.12it/s]",
+      "ts": 1793338167.672903
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 29/50] SAM3 frame=28",
+      "ts": 1793338168.170834
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 30/50] SAM3 frame=29",
+      "ts": 1793338168.170834
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  84%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258d | 42/50 [00:12<00:02,  3.16it/s]",
+      "ts": 1793338168.173344
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  86%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c | 43/50 [00:13<00:02,  3.13it/s]",
+      "ts": 1793338168.173344
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 31/50] SAM3 frame=30",
+      "ts": 1793338168.6731088
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  88%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a | 44/50 [00:13<00:01,  3.11it/s]",
+      "ts": 1793338168.6755412
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 32/50] SAM3 frame=31",
+      "ts": 1793338169.173411
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 33/50] SAM3 frame=32",
+      "ts": 1793338169.173411
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  90%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 | 45/50 [00:13<00:01,  3.13it/s]",
+      "ts": 1793338169.1759813
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  92%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258f| 46/50 [00:14<00:01,  3.12it/s]",
+      "ts": 1793338169.1759813
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 34/50] SAM3 frame=33",
+      "ts": 1793338169.6744542
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  94%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258d| 47/50 [00:14<00:00,  3.10it/s]",
+      "ts": 1793338169.6771066
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 35/50] SAM3 frame=34",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 36/50] SAM3 frame=35",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 37/50] SAM3 frame=36",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 38/50] SAM3 frame=37",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 39/50] SAM3 frame=38",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 40/50] SAM3 frame=39",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 41/50] SAM3 frame=40",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 42/50] SAM3 frame=41",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 43/50] SAM3 frame=42",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 44/50] SAM3 frame=43",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 45/50] SAM3 frame=44",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 46/50] SAM3 frame=45",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 47/50] SAM3 frame=46",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 48/50] SAM3 frame=47",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 49/50] SAM3 frame=48",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 50/50] SAM3 frame=49",
+      "ts": 1793338170.174893
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  96%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c| 48/50 [00:14<00:00,  3.09it/s]",
+      "ts": 1793338170.1781986
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  98%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a| 49/50 [00:15<00:00,  3.05it/s]",
+      "ts": 1793338170.1781986
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 50/50 [00:15<00:00,  3.28it/s]",
+      "ts": 1793338170.1781986
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 50/50 [00:15<00:00,  3.23it/s]",
+      "ts": 1793338170.1781986
+    },
+    {
+      "stream": "stderr",
+      "line": "\u001b[0m\u001b[32mINFO 2026-10-30 05:29:30,142 2777155 sam3_video_predictor.py: 251:\u001b[0m removed session 5d08e6f3-b7d4-46a3-80d1-c28318befc7b; live sessions: [], GPU memory: 5119 MiB used and 7026 MiB reserved (max over time: 6643 MiB used and 7026 MiB reserved)",
+      "ts": 1793338170.1781986
+    },
+    {
+      "stream": "stdout",
+      "line": "Dynamic mask coverage: 7.030%",
+      "ts": 1793338178.6904414
+    },
+    {
+      "stream": "stdout",
+      "line": "{\"video\": \"/cloud/cloud-ssd1/Kiri4DGS/data/camarray/taogs/4K_Actor1_Magic_2/data1.mp4\", \"prompt\": \"person\", \"count\": 50, \"size\": [3840, 2160], \"mode\": \"L\", \"values\": [0, 255], \"coverage_advisory_frames\": [], \"extractor_sha256\": \"7757f119ff4fff93cabeed0a9becb04f6b75a7b22cf67255c05ff245a4905ed0\", \"selection\": {\"max_frames\": 50, \"skip\": 1, \"start_frame\": 0, \"end_frame\": 0, \"max_width\": 0}, \"reference_pixels_checked\": false, \"peak_gpu_allocated_gb\": 6.4882588386535645, \"elapsed_seconds\": 61.026641759002814}",
+      "ts": 1793338178.6904414
+    }
+  ],
+  "total_returned": 127,
+  "truncated": false
+}

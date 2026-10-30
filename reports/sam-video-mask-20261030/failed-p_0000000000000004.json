@@ -1,0 +1,132 @@
+{
+  "job_id": "7ccd2232-ca4c-498d-9cd3-beed18dd8e70",
+  "lines": [
+    {
+      "stream": "stdout",
+      "line": "[ITER 40/50] SAM3 frame=39",
+      "ts": 1793338028.9380865
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 41/50] SAM3 frame=40",
+      "ts": 1793338028.9380865
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 42/50] SAM3 frame=41",
+      "ts": 1793338028.9380865
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 43/50] SAM3 frame=42",
+      "ts": 1793338028.9380865
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 44/50] SAM3 frame=43",
+      "ts": 1793338028.9380865
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 45/50] SAM3 frame=44",
+      "ts": 1793338028.9380865
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 46/50] SAM3 frame=45",
+      "ts": 1793338028.9380865
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 47/50] SAM3 frame=46",
+      "ts": 1793338028.9380865
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 48/50] SAM3 frame=47",
+      "ts": 1793338028.9380865
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 49/50] SAM3 frame=48",
+      "ts": 1793338028.9380865
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 50/50] SAM3 frame=49",
+      "ts": 1793338028.9380865
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video:  98%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a| 49/50 [00:14<00:00,  3.09it/s]",
+      "ts": 1793338028.9597573
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 50/50 [00:15<00:00,  3.27it/s]",
+      "ts": 1793338028.9597573
+    },
+    {
+      "stream": "stderr",
+      "line": "propagate_in_video: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 50/50 [00:15<00:00,  3.29it/s]",
+      "ts": 1793338028.9597573
+    },
+    {
+      "stream": "stderr",
+      "line": "\u001b[0m\u001b[32mINFO 2026-10-30 05:27:08,776 2765507 sam3_video_predictor.py: 251:\u001b[0m removed session 1acb26fb-b518-4cc3-9a64-0df6b169d937; live sessions: [], GPU memory: 5119 MiB used and 7026 MiB reserved (max over time: 6643 MiB used and 7026 MiB reserved)",
+      "ts": 1793338028.9597573
+    },
+    {
+      "stream": "stdout",
+      "line": "Dynamic mask coverage: 4.806%",
+      "ts": 1793338030.4361684
+    },
+    {
+      "stream": "stderr",
+      "line": "Traceback (most recent call last):",
+      "ts": 1793338030.4737492
+    },
+    {
+      "stream": "stderr",
+      "line": "  File \"/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/sam-video-mask@0.1.0/run.py\", line 223, in <module>",
+      "ts": 1793338030.4737492
+    },
+    {
+      "stream": "stderr",
+      "line": "    main()",
+      "ts": 1793338030.4737492
+    },
+    {
+      "stream": "stderr",
+      "line": "  File \"/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/sam-video-mask@0.1.0/run.py\", line 194, in main",
+      "ts": 1793338030.4737492
+    },
+    {
+      "stream": "stderr",
+      "line": "    record[\"foreground_ratio\"] = validate_mask(dest, (width, height))",
+      "ts": 1793338030.4737492
+    },
+    {
+      "stream": "stderr",
+      "line": "                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+      "ts": 1793338030.4737492
+    },
+    {
+      "stream": "stderr",
+      "line": "  File \"/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/sam-video-mask@0.1.0/run.py\", line 91, in validate_mask",
+      "ts": 1793338030.4737492
+    },
+    {
+      "stream": "stderr",
+      "line": "    raise ValueError(f\"Person foreground coverage outside (5%,95%): {path}: {ratio}\")",
+      "ts": 1793338030.4737492
+    },
+    {
+      "stream": "stderr",
+      "line": "ValueError: Person foreground coverage outside (5%,95%): /cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/1049ee88-e299-42b7-969f-f088ac5e4b81/masks/p_0000000000000004/p_0000000000000000.png: 0.049010296103395065",
+      "ts": 1793338030.4737492
+    }
+  ],
+  "total_returned": 25,
+  "truncated": true
+}

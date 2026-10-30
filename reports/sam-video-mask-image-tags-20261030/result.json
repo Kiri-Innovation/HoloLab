@@ -1,0 +1,45 @@
+{
+  "snapshot_id": "6b63dca4-f998-44a8-a2fd-6a4d4d8191f4",
+  "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+  "parent_state": "done",
+  "successful_dispatch_rounds": 1,
+  "shards": {
+    "done": 80,
+    "failed": 0,
+    "cancelled": 0,
+    "pending": 0,
+    "running": 0
+  },
+  "handle_id": "928b0bd9-d89e-4fc8-8a3c-54a1eeebcf3a",
+  "tags": [
+    "image"
+  ],
+  "dim_labels": [
+    "cam",
+    "frame"
+  ],
+  "dim_sizes": [
+    80,
+    50
+  ],
+  "logical_type": "arrayed<arrayed<image>>",
+  "verified_shards": 80,
+  "verified_frames": 4000,
+  "all_rgb_hashes_match": true,
+  "mode": "L",
+  "size": [
+    3840,
+    2160
+  ],
+  "dtype": "uint8",
+  "values": [
+    0,
+    255
+  ],
+  "foreground_min": 0.03804578993055555,
+  "foreground_max": 0.16685378086419753,
+  "original_snapshot_done_jobs": 242,
+  "new_non_sam_jobs": 0,
+  "other_pending_jobs_untouched": 105,
+  "absolute_path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/3de85de1-14c2-47e8-8d31-d653cad5227d/masks"
+}

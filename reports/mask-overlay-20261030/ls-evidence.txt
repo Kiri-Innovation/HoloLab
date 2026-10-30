@@ -1,0 +1,2 @@
+-rw-r--r-- 1 root root 7.0M Oct 30 06:49 reports/mask-overlay-20261030/smoke-overlay/p_0000000000000000.png
+-rw-r--r-- 1 root root 6.1M Oct 30 06:50 reports/mask-overlay-20261030/smoke-overlay/p_0000000000000049.png

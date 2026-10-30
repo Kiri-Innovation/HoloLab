@@ -1,0 +1,9 @@
+{
+  "groups": 80,
+  "images": 4000,
+  "all_mode": "RGB",
+  "all_dimensions_match_inputs": true,
+  "exact_pixel_checks": 160,
+  "png_bytes": 27002550374,
+  "output": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/4b7684d1-3282-483c-9836-a5c564d5ac9c/overlay"
+}

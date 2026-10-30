@@ -1,0 +1,1007 @@
+{
+  "version": "0.0.1",
+  "ts": 1793342885.0066803,
+  "nodes": [
+    {
+      "intrinsics": [
+        "array-assemble",
+        "constant-v1",
+        "literal-v3"
+      ],
+      "node_id": "caed0066-2e37-4804-a00e-b5917e678986",
+      "node_name": "FreeTimeGS-A800",
+      "gpu": {
+        "count": 1,
+        "total_vram_gb": 80.0,
+        "name": "NVIDIA A800-SXM4-80GB",
+        "driver_version": "595.71.05",
+        "cuda_version": null
+      },
+      "packs": [
+        {
+          "name": "builtin/get-index",
+          "version": "0.1.0",
+          "manifest_hash": "97ff61e7e5b4e7e02230b22bba115abe16dab57c89974fb2d34004e86b917817",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/get-index@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/array-length",
+          "version": "0.1.0",
+          "manifest_hash": "697e48989f46e4e77419ed7809343d390a8ca8ffb8d2230c85cc6fa5b55747d0",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/array-length@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/slice",
+          "version": "0.1.0",
+          "manifest_hash": "cb66ce27055e3bae3b0f1bec82f59eeaa6277b805aaf60a4a3834d30ba46dde5",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/slice@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/regroup",
+          "version": "0.2.0",
+          "manifest_hash": "b2d0f861b8a3e945a6227170c0ff2f86d3e11209dbfad3448bbaf13a3a1e79eb",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/regroup@0.2.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/flatten-array",
+          "version": "0.1.0",
+          "manifest_hash": "c128e5e174e2fb72c6cfad7a97a2d355f9834dd3ce1003e045fb1e14c1aef092",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/flatten-array@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/arrayfy",
+          "version": "0.1.0",
+          "manifest_hash": "d46ac64c507d23c981ad9d97c77b75462f46bc20fbef46e04c619720e2fbf4c4",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/arrayfy@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/single-image-source",
+          "version": "0.1.0",
+          "manifest_hash": "ae30bfa189bdf9e0d421cb275adaa8fa8e2d9a5ca4d6badedf7de68e667e6de4",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/single-image-source@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/single-video-source",
+          "version": "0.1.0",
+          "manifest_hash": "577a7f5ef63498743b285c55762e004fc144c28d0892f0851927437dfbf02577",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/single-video-source@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/video-array-source",
+          "version": "0.1.0",
+          "manifest_hash": "0c634a2094682f5c7176890a29f7a32daaf71e6d4ae9b1bd641831cc0af9c3b0",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/video-array-source@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/frame-extraction",
+          "version": "0.1.0",
+          "manifest_hash": "a403a7eaeaa3ccc9069789db3652610299ead2179b0b80052ca202536087c3fc",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/frame-extraction@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/frame-extraction",
+          "version": "0.1.1",
+          "manifest_hash": "2c972a61c5f3af74da27b02c4ec409208eb8721f37b276e984c62a09a2cefcd5",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/frame-extraction@0.1.1/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/video-array-source",
+          "version": "0.2.0",
+          "manifest_hash": "fea5cc882cab43c2c13a475b71059696defc3554b690b670945d13d40d10fe8a",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/video-array-source@0.2.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/frame-extraction",
+          "version": "0.2.0",
+          "manifest_hash": "4803e2e275497785af8a799423ff4031c1c512a067b5f11ca15e9a20527ae098",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/frame-extraction@0.2.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/regroup",
+          "version": "0.3.0",
+          "manifest_hash": "2352b6478bae5bda79b96ed8c11edfd49d46a637d891b766bc792bcb2a778626",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/regroup@0.3.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "k4d/freetimegs-init",
+          "version": "0.1.0",
+          "manifest_hash": "35638156184d5a9bd9937673c256d4387c58bd36d2e93324bb21ff8c4a102407",
+          "manifest_path": "/root/.hololab/node/local-packs/freetimegs-init@0.1.0/manifest.yaml",
+          "source_dir": "/root/.hololab/node/local-packs/freetimegs-init@0.1.0"
+        },
+        {
+          "name": "k4d/freetimegs-train",
+          "version": "0.1.0",
+          "manifest_hash": "4e08f40fc552f88a07782cfda65c0f529eaca87c752dd64d42e21a849362e109",
+          "manifest_path": "/root/.hololab/node/local-packs/freetimegs-train@0.1.0/manifest.yaml",
+          "source_dir": "/root/.hololab/node/local-packs/freetimegs-train@0.1.0"
+        },
+        {
+          "name": "k4d/freetimegs-to-viewer",
+          "version": "0.1.0",
+          "manifest_hash": "2b7930681fb934a3a42fe9e78cbb59367fd2338bd20de922779ce1d4d03f68ad",
+          "manifest_path": "/root/.hololab/node/local-packs/freetimegs-to-viewer@0.1.0/manifest.yaml",
+          "source_dir": "/root/.hololab/node/local-packs/freetimegs-to-viewer@0.1.0"
+        }
+      ],
+      "connected_ts": 1793341836.9428446,
+      "advertised_url": "http://127.0.0.1:18949",
+      "workspace_root": "/cloud/cloud-ssd1/freetimegs-a800/hololab-main-workspace",
+      "legacy_workspace_roots": [],
+      "flops_executor_id": null,
+      "packs_dir": "/root/.hololab/node/local-packs/freetimegs-init@0.1.0",
+      "install_destination": null,
+      "pack_dirs": [
+        "/root/.hololab/node/local-packs/freetimegs-init@0.1.0",
+        "/root/.hololab/node/local-packs/freetimegs-train@0.1.0",
+        "/root/.hololab/node/local-packs/freetimegs-to-viewer@0.1.0"
+      ]
+    },
+    {
+      "intrinsics": [
+        "array-assemble",
+        "constant-v1",
+        "literal-v3"
+      ],
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "node_name": "KiriA800",
+      "gpu": {
+        "count": 1,
+        "total_vram_gb": 80.0,
+        "name": "NVIDIA A800-SXM4-80GB",
+        "driver_version": "595.71.05",
+        "cuda_version": null
+      },
+      "packs": [
+        {
+          "name": "builtin/get-index",
+          "version": "0.1.0",
+          "manifest_hash": "97ff61e7e5b4e7e02230b22bba115abe16dab57c89974fb2d34004e86b917817",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/get-index@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/array-length",
+          "version": "0.1.0",
+          "manifest_hash": "697e48989f46e4e77419ed7809343d390a8ca8ffb8d2230c85cc6fa5b55747d0",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/array-length@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/slice",
+          "version": "0.1.0",
+          "manifest_hash": "cb66ce27055e3bae3b0f1bec82f59eeaa6277b805aaf60a4a3834d30ba46dde5",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/slice@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/regroup",
+          "version": "0.2.0",
+          "manifest_hash": "b2d0f861b8a3e945a6227170c0ff2f86d3e11209dbfad3448bbaf13a3a1e79eb",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/regroup@0.2.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/flatten-array",
+          "version": "0.1.0",
+          "manifest_hash": "c128e5e174e2fb72c6cfad7a97a2d355f9834dd3ce1003e045fb1e14c1aef092",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/flatten-array@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/arrayfy",
+          "version": "0.1.0",
+          "manifest_hash": "d46ac64c507d23c981ad9d97c77b75462f46bc20fbef46e04c619720e2fbf4c4",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/arrayfy@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/single-image-source",
+          "version": "0.1.0",
+          "manifest_hash": "ae30bfa189bdf9e0d421cb275adaa8fa8e2d9a5ca4d6badedf7de68e667e6de4",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/single-image-source@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/single-video-source",
+          "version": "0.1.0",
+          "manifest_hash": "577a7f5ef63498743b285c55762e004fc144c28d0892f0851927437dfbf02577",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/single-video-source@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/video-array-source",
+          "version": "0.1.0",
+          "manifest_hash": "0c634a2094682f5c7176890a29f7a32daaf71e6d4ae9b1bd641831cc0af9c3b0",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/video-array-source@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/frame-extraction",
+          "version": "0.1.0",
+          "manifest_hash": "a403a7eaeaa3ccc9069789db3652610299ead2179b0b80052ca202536087c3fc",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/frame-extraction@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/frame-extraction",
+          "version": "0.1.1",
+          "manifest_hash": "2c972a61c5f3af74da27b02c4ec409208eb8721f37b276e984c62a09a2cefcd5",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/frame-extraction@0.1.1/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/video-array-source",
+          "version": "0.2.0",
+          "manifest_hash": "fea5cc882cab43c2c13a475b71059696defc3554b690b670945d13d40d10fe8a",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/video-array-source@0.2.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/frame-extraction",
+          "version": "0.2.0",
+          "manifest_hash": "4803e2e275497785af8a799423ff4031c1c512a067b5f11ca15e9a20527ae098",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/frame-extraction@0.2.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/regroup",
+          "version": "0.3.0",
+          "manifest_hash": "2352b6478bae5bda79b96ed8c11edfd49d46a637d891b766bc792bcb2a778626",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/regroup@0.3.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "builtin/images-array-source",
+          "version": "0.1.0",
+          "manifest_hash": "cc374e9e7ac494157d0d5e897b832c82a20df5b0c2e2082840e1a029170a91ac",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/images-array-source@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs"
+        },
+        {
+          "name": "community/colmap-sfm",
+          "version": "0.4.2",
+          "manifest_hash": "7bb2dcee86aa551bf949dee2dc66901d89b9cd9dc567e48b8a3287f77b0cb6c7",
+          "manifest_path": "/root/.hololab/node/packs/community/colmap-sfm@0.4.2/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/colmap-sfm",
+          "version": "0.4.3",
+          "manifest_hash": "96b0e8421cb2e58108a31617426604cab013654e090d00139f5d7ccf1ec52feb",
+          "manifest_path": "/root/.hololab/node/packs/community/colmap-sfm@0.4.3/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/colmap-triangulate",
+          "version": "0.7.6",
+          "manifest_hash": "f05b49ba4895b44309d3200b67bab25436f169a1f779ee2c23f9703f19b2e9a6",
+          "manifest_path": "/root/.hololab/node/packs/community/colmap-triangulate@0.7.6/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/compose-video",
+          "version": "0.1.0",
+          "manifest_hash": "d266ca2e4383bbea5073242b19a17be62f55560e68444a9e8e9f897fa5032c47",
+          "manifest_path": "/root/.hololab/node/packs/community/compose-video@0.1.0/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/frames-to-video",
+          "version": "0.1.0",
+          "manifest_hash": "0c2b05e4c8341b21fdf7df0f0404ef6a9816a487dbd46698b54c89c024bc7ffc",
+          "manifest_path": "/root/.hololab/node/packs/community/frames-to-video@0.1.0/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/image-crop",
+          "version": "0.1.0",
+          "manifest_hash": "ac1d2dce38f053330e5c6437db683f609df2071a98974bb2ae1314e95b31b25e",
+          "manifest_path": "/root/.hololab/node/packs/community/image-crop@0.1.0/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/image-to-video",
+          "version": "0.1.0",
+          "manifest_hash": "6d05fb2d6d54cecd30cf1be42d8278ef7223ba3f9fc47cc9f0fd067e64677198",
+          "manifest_path": "/root/.hololab/node/packs/community/image-to-video@0.1.0/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/image-undistort",
+          "version": "0.5.3",
+          "manifest_hash": "6c3857bcdcf7c600c0912adae90df7a0ac3f8f6c42b78355a57aeadf61d06d9b",
+          "manifest_path": "/root/.hololab/node/packs/community/image-undistort@0.5.3/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/image-undistort",
+          "version": "0.5.4",
+          "manifest_hash": "63e20739010e5688ce28924de5554e1ba6cd4013743ac4998813c1cc7fbcd9b8",
+          "manifest_path": "/root/.hololab/node/packs/community/image-undistort@0.5.4/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/merge-colmap",
+          "version": "0.4.1",
+          "manifest_hash": "010f53a2260003da17e87afe2d8625fc8de7900362269c77eae64fef1fd0fab6",
+          "manifest_path": "/root/.hololab/node/packs/community/merge-colmap@0.4.1/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/merge-colmap",
+          "version": "0.4.2",
+          "manifest_hash": "ddacad6d1c7c8090daa44c223f60b7d1069d83682578524ef8260e86f0c73dc9",
+          "manifest_path": "/root/.hololab/node/packs/community/merge-colmap@0.4.2/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/video-concat",
+          "version": "0.1.0",
+          "manifest_hash": "d3aeb770a37e3223f8ec524c822c3ac25c6251a8f94e3918d8bf518eac7e0e8a",
+          "manifest_path": "/root/.hololab/node/packs/community/video-concat@0.1.0/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/video-image-overlay",
+          "version": "0.1.0",
+          "manifest_hash": "af8053952d6bdbc3522bb9bc3865566e1430adb760ee76ef7bd05fd1156fed9a",
+          "manifest_path": "/root/.hololab/node/packs/community/video-image-overlay@0.1.0/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/video-side-by-side",
+          "version": "0.1.0",
+          "manifest_hash": "228ea46a20d6609d2e7686e3c7ef2e8043e456205d4d3d20fdc428f2d2bee8c5",
+          "manifest_path": "/root/.hololab/node/packs/community/video-side-by-side@0.1.0/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/video-text-overlay",
+          "version": "0.1.0",
+          "manifest_hash": "7a2afd9ee9badceaf39410dbeaa6bf428c85e1b44e85c89e3f8da0468e21cf80",
+          "manifest_path": "/root/.hololab/node/packs/community/video-text-overlay@0.1.0/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/video-trim",
+          "version": "0.1.0",
+          "manifest_hash": "b6d3364dfaa0d9a48b1723f2047f6cf78e8b82e393e64e2bccdc87549baed15e",
+          "manifest_path": "/root/.hololab/node/packs/community/video-trim@0.1.0/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "community/video-video-overlay",
+          "version": "0.1.0",
+          "manifest_hash": "5cf13b19dfd40d4dbe6f6f3eadebb76b7e5c66a9eac6d958ea444e4a29921275",
+          "manifest_path": "/root/.hololab/node/packs/community/video-video-overlay@0.1.0/content/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "k4d/stg-init",
+          "version": "0.3.2",
+          "manifest_hash": "2f6e588edca79e927c7ed45183ead4a0ff1dc7a90d5ca14febef0df761a0cc07",
+          "manifest_path": "/root/.hololab/node/packs/k4d/stg-init@0.3.2/content/packs/stg-init@0.3.2/manifest.yaml",
+          "source_dir": "/root/.hololab/node/packs"
+        },
+        {
+          "name": "k4d/stg-init",
+          "version": "0.3.3",
+          "manifest_hash": "6e1633aedc63bd345afe7665d4496a362b03bdc830d191e44ce13fe47195c93b",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs/stg-init@0.3.3/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs"
+        },
+        {
+          "name": "k4d/stg-train",
+          "version": "0.4.7",
+          "manifest_hash": "b75e6dce3e6a233d8e62d7247eca5b701d67fe251afea80fb703d5eca82e7690",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs/stg-train@0.4.7/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs"
+        },
+        {
+          "name": "k4d/stg-to-splatv",
+          "version": "0.1.1",
+          "manifest_hash": "eb59bd9cce30ccb81148f465541c137fc7cb436fb548152a3e59001b7d46c343",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/Utils/STG_to_SplaTV/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/Utils/STG_to_SplaTV"
+        },
+        {
+          "name": "k4d/freetimegs-init",
+          "version": "0.2.0",
+          "manifest_hash": "583cf6ff433e8133f0efaa6c0bf49b702a827779d68f16b677c279b83927315d",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/FreeTimeGsVanilla/packs/freetimegs-init/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/FreeTimeGsVanilla/packs"
+        },
+        {
+          "name": "k4d/freetimegs-to-viewer",
+          "version": "0.1.0",
+          "manifest_hash": "8c70b5ac21ce8daa5db632d8d6a5321684b1e7ddac584ef6f1d739a4f491acf6",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/FreeTimeGsVanilla/packs/freetimegs-to-viewer/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/FreeTimeGsVanilla/packs"
+        },
+        {
+          "name": "k4d/freetimegs-train",
+          "version": "0.1.0",
+          "manifest_hash": "9faea41c019ba861247bc2dabc2854e2e899957d7f2ac9aff87e92902759a1cd",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/FreeTimeGsVanilla/packs/freetimegs-train/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/FreeTimeGsVanilla/packs"
+        },
+        {
+          "name": "fastgs-foreground-export",
+          "version": "0.1.0",
+          "manifest_hash": "601ce51b060d6da6acdbb493f1f6624a20e2c775b3a042a9ea11ccf0b5df4669",
+          "manifest_path": "/root/.hololab/node/local-packs/fastgs-foreground-export@0.1.0/manifest.yaml",
+          "source_dir": "/root/.hololab/node/local-packs"
+        },
+        {
+          "name": "fastgs-silhouette-train",
+          "version": "0.1.0",
+          "manifest_hash": "fcc0460f96772a339caac5394ba068989c3f013a7de0697311e7818ee4129761",
+          "manifest_path": "/root/.hololab/node/local-packs/fastgs-silhouette-train@0.1.0/manifest.yaml",
+          "source_dir": "/root/.hololab/node/local-packs"
+        },
+        {
+          "name": "k4d/freetimegs-init",
+          "version": "0.1.0",
+          "manifest_hash": "35638156184d5a9bd9937673c256d4387c58bd36d2e93324bb21ff8c4a102407",
+          "manifest_path": "/root/.hololab/node/local-packs/freetimegs-init@0.1.0/manifest.yaml",
+          "source_dir": "/root/.hololab/node/local-packs"
+        },
+        {
+          "name": "k4d/nhr-calibrated-source",
+          "version": "0.1.0",
+          "manifest_hash": "ac311f081bfa0e20c8f59c39646ce05b70f274d308beba6c342cdea5c7cd2173",
+          "manifest_path": "/root/.hololab/node/local-packs/nhr-calibrated-source@0.1.0/manifest.yaml",
+          "source_dir": "/root/.hololab/node/local-packs"
+        },
+        {
+          "name": "person-gray-mask",
+          "version": "0.1.0",
+          "manifest_hash": "03a8880c1367149cd461985aeac03cf2a0befb4f2ef91acecedee7ec5cbdc6ce",
+          "manifest_path": "/root/.hololab/node/local-packs/person-gray-mask@0.1.0/manifest.yaml",
+          "source_dir": "/root/.hololab/node/local-packs"
+        },
+        {
+          "name": "local/taogs-undistorted-source",
+          "version": "0.1.0",
+          "manifest_hash": "2bd928a33bc1743bb438ab7c8ee6d80c56cbbb8b0f651f1f3f18a8bd0e7b360b",
+          "manifest_path": "/root/.hololab/node/local-packs/taogs-undistorted-source@0.1.0/manifest.yaml",
+          "source_dir": "/root/.hololab/node/local-packs"
+        },
+        {
+          "name": "video-array-assemble",
+          "version": "0.1.0",
+          "manifest_hash": "f2aaeab2f4e9db4790df69b865952d7933add6bbe989fe0f523d22857ccd9562",
+          "manifest_path": "/root/.hololab/node/local-packs/video-array-assemble@0.1.0/manifest.yaml",
+          "source_dir": "/root/.hololab/node/local-packs"
+        },
+        {
+          "name": "community/colmap-sfm",
+          "version": "0.5.0",
+          "manifest_hash": "48073619d51eba7e3d5e29abc8d38426ad1f15bfe796269712de3b3420f04b3e",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap-sfm@0.5.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+        },
+        {
+          "name": "community/colmap-triangulate",
+          "version": "0.7.5",
+          "manifest_hash": "1a07ce4a52113a33f2b40fef4b1c0acdcdd4f4364ab337d6aa6981bccfa70f13",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap-triangulate@0.7.5/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+        },
+        {
+          "name": "community/colmap-triangulate",
+          "version": "0.7.7",
+          "manifest_hash": "7b478dd877ddd54f05dcf58bede3d4b5474a1c793b1ab71ad694a3ad95880dfd",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap-triangulate@0.7.7/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+        },
+        {
+          "name": "community/colmap-triangulate",
+          "version": "0.8.0",
+          "manifest_hash": "fe0f36ca5a620722a8b4a7686006d78045993c4977fc64efc579f03e7eb65d8d",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap-triangulate@0.8.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+        },
+        {
+          "name": "col4d/colmap4d-temporal-grouping",
+          "version": "0.1.2",
+          "manifest_hash": "cf29f897d5a1a3f8713731c0a6c8e105d6dbd54482ed7aa545c9e90745f63eec",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap4d-temporal-grouping@0.1.2/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+        },
+        {
+          "name": "community/image-undistort",
+          "version": "0.5.2",
+          "manifest_hash": "8bd87af277ced94213e4a9ffa670ed648a1267e16f746a21333c32cba2dfcd8d",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/image-undistort@0.5.2/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+        },
+        {
+          "name": "community/image-undistort",
+          "version": "0.6.0",
+          "manifest_hash": "1474b133a0722c2b64cf367bde65e926bfe741ef9f57c736c208e2758442730e",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/image-undistort@0.6.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+        },
+        {
+          "name": "col4d/merge-colmap4d",
+          "version": "0.1.5",
+          "manifest_hash": "5b2a1de08576d9a4225eb251e96754e6e7c67ae0b4c6c2f8985e46f213006b48",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.1.5/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+        },
+        {
+          "name": "community/merge-colmap",
+          "version": "0.5.0",
+          "manifest_hash": "992f272b47642a6ba8c8e96c78f297e791712cd2f5991196edbcd2695992907e",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap@0.5.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+        },
+        {
+          "name": "community/sam-video-mask",
+          "version": "0.1.0",
+          "manifest_hash": "b7f87b6054d02f6f20726bdaa3a2bb443e9113bab8e3c97d19147690c903061a",
+          "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/sam-video-mask@0.1.0/manifest.yaml",
+          "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+        }
+      ],
+      "connected_ts": 1793341857.5879169,
+      "advertised_url": "http://127.0.0.1:8829",
+      "workspace_root": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab",
+      "legacy_workspace_roots": [
+        "/tmp/hololab-arrayed-position-e2e-20261029"
+      ],
+      "flops_executor_id": null,
+      "packs_dir": "/root/.hololab/node/packs",
+      "install_destination": "/root/.hololab/node/packs",
+      "pack_dirs": [
+        "/root/.hololab/node/packs",
+        "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs",
+        "/cloud/cloud-ssd1/Kiri4DGS/Utils/STG_to_SplaTV",
+        "/cloud/cloud-ssd1/Kiri4DGS/FreeTimeGsVanilla/packs",
+        "/root/.hololab/node/local-packs",
+        "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+      ]
+    }
+  ],
+  "workflows": {
+    "total": 2,
+    "by_last_run_state": {
+      "running": 1,
+      "pending": 1
+    }
+  },
+  "jobs": {
+    "counts_by_state": {
+      "done": 20
+    },
+    "recent": [
+      {
+        "job_id": "8240a3d0-c31c-4082-975e-74f1ad86a330",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "stg_init_res1_033",
+        "algorithm_name": "k4d/stg-init",
+        "algorithm_version": "0.3.3",
+        "state": "done",
+        "progress": null,
+        "fail_reason": null,
+        "created_ts": 1793342192.3500395,
+        "updated_ts": 1793342293.1055882,
+        "started_ts": 1793342194.3534026,
+        "parent_job_id": null,
+        "shard_element_id": null,
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "1431e789-fffc-45aa-8d24-404f56925c3f",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "caed0066-2e37-4804-a00e-b5917e678986",
+        "graph_node_id": "nmvul1ihq1",
+        "algorithm_name": "builtin/slice",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": null,
+        "fail_reason": null,
+        "created_ts": 1793342138.5531669,
+        "updated_ts": 1793342167.3232234,
+        "started_ts": 1793342165.7686832,
+        "parent_job_id": null,
+        "shard_element_id": null,
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "5e16607b-dff0-4fc8-8374-f709d5b837c6",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "caed0066-2e37-4804-a00e-b5917e678986",
+        "graph_node_id": "nmvul1ihq1",
+        "algorithm_name": "builtin/slice",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": null,
+        "fail_reason": null,
+        "created_ts": 1793342128.585113,
+        "updated_ts": 1793342156.0821733,
+        "started_ts": 1793342155.7759843,
+        "parent_job_id": null,
+        "shard_element_id": null,
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "08b87e47-a4bc-4813-9fa3-7412b7c16844",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793341990.6896439,
+        "started_ts": 1793341923.234082,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000000",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "77943a0a-4571-41f3-8ef4-9fcd727ce5ac",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793341987.3996453,
+        "started_ts": 1793341924.2237215,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000001",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "3549d2e4-6e40-4926-969b-5845f94517dd",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793341990.3417604,
+        "started_ts": 1793341923.1553028,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000002",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "256a9203-0053-4bfb-9b8d-09de1616fced",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793341987.2951672,
+        "started_ts": 1793341923.6415303,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000003",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "156f5fe9-0823-4d5e-b3ec-55ddb87716a1",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342065.399604,
+        "started_ts": 1793342002.479111,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000004",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "2b3b7a9c-648b-47e2-8eef-a2ac50cd8a92",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342065.552687,
+        "started_ts": 1793342002.5111673,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000005",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "7f185882-db7d-4a32-8c3b-44e2779ba593",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342069.4815123,
+        "started_ts": 1793342006.9749463,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000006",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "9215b96b-59a6-443f-9ff1-457eafe1466f",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342068.8662899,
+        "started_ts": 1793342007.4754899,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000007",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "c4a45e18-7cd0-4296-8236-fa2cd5ac778c",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342154.9881353,
+        "started_ts": 1793342078.130769,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000008",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "3eb286b7-8941-43e0-ab9a-777955abf0b7",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342156.5211108,
+        "started_ts": 1793342079.108218,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000009",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "4d5ea944-a838-41e1-8004-169a8ff93c70",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342155.7284806,
+        "started_ts": 1793342085.575322,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000010",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "5df86736-c7db-4c93-86a5-2e4923e25e95",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342156.3952756,
+        "started_ts": 1793342086.0861366,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000011",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "804b5cbc-46c9-4914-b814-f2faa6ca9b73",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342244.0254147,
+        "started_ts": 1793342171.06046,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000012",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "e523c7d8-8065-4f9d-b647-89b3ad4a0d0e",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342241.6682932,
+        "started_ts": 1793342174.1358347,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000013",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "91a043de-e173-4ed7-947d-d4428d4d7666",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342243.7234275,
+        "started_ts": 1793342175.2380443,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000014",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "ac3d75ae-3e78-43c1-b5b1-00af4ccaa81a",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342242.9419558,
+        "started_ts": 1793342175.7028058,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000015",
+        "shard_element_ids": null,
+        "expected_shards": null
+      },
+      {
+        "job_id": "21a0a0ae-907c-4854-bc5b-d0495b25e8b8",
+        "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+        "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "graph_node_id": "sam-video-mask",
+        "algorithm_name": "community/sam-video-mask",
+        "algorithm_version": "0.1.0",
+        "state": "done",
+        "progress": {
+          "current": 50,
+          "total": 50
+        },
+        "fail_reason": null,
+        "created_ts": 1793341904.501362,
+        "updated_ts": 1793342342.9139955,
+        "started_ts": 1793342262.5067978,
+        "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+        "shard_element_id": "p_0000000000000016",
+        "shard_element_ids": null,
+        "expected_shards": null
+      }
+    ]
+  }
+}

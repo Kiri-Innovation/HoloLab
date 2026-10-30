@@ -1,0 +1,101 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: community/mask-overlay
+version: 0.2.0
+description: Parallel positional mask visualization with selective background/foreground
+  tinting.
+category: visualization/image
+source_entry: run.py
+arrayable: true
+inputs:
+  image:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - frame
+    require_axis_label_match: false
+    description: One ordered image group per invocation.
+  mask:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - frame
+    require_axis_label_match: false
+    description: Equal-length mask group in the same coordinate system; paired by
+      index.
+outputs:
+  overlay:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - frame
+params:
+  mode:
+    type: enum
+    values:
+    - mask0_black
+    - mask0_red
+    - mask1_red
+    - blend50
+    default: mask0_black
+    description: Binary threshold >=128; selected region is tinted, other pixels remain
+      unchanged.
+  alpha:
+    type: float
+    default: 0.5
+    min: 0.0
+    max: 1.0
+  io_workers:
+    type: int
+    default: 3
+    min: 1
+    max: 16
+    description: Per-shard threads; default 4 shards x 3 workers = 12 image workers.
+  format:
+    type: enum
+    values:
+    - png
+    - jpg
+    default: png
+    description: PNG is lossless; JPEG is faster and smaller but lossy, including
+      outside the tinted region.
+  png_compress:
+    type: int
+    default: 1
+    min: 0
+    max: 9
+  jpeg_quality:
+    type: int
+    default: 95
+    min: 1
+    max: 100
+runtime:
+  env: cam3
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 0.0
+    mem_gb: 2.0
+exec:
+  shell: 'export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+
+    python "{{ pack_dir }}/run.py" --image "{{ inputs.image }}" --mask "{{ inputs.mask
+    }}" --output "{{ outputs.overlay }}" --alpha "{{ params.alpha }}" --mode "{{ params.mode
+    }}" --io-workers "{{ params.io_workers }}" --format "{{ params.format }}" --png-compress
+    "{{ params.png_compress }}" --jpeg-quality "{{ params.jpeg_quality }}"'
+idempotency:
+  marker: '{{ outputs.overlay }}/.hololab-done'
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
+previews:
+- id: first_overlay
+  type: image
+  path: '{{ outputs.overlay }}/p_0000000000000000.{{ params.format }}'
+parallelism: 4
+batch_size: 1

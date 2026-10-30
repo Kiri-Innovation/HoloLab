@@ -1,0 +1,330 @@
+{
+  "runtime_shape": {
+    "handleId": "ef493ca6-0cf8-4788-b086-563212d16399",
+    "tags": {
+      "evidence": {
+        "status": "complete",
+        "value": [
+          "image"
+        ],
+        "source": "registered-handle-metadata"
+      }
+    },
+    "axes": {
+      "evidence": {
+        "status": "complete",
+        "value": [
+          {
+            "label": "frame",
+            "role": "collection",
+            "size": {
+              "evidence": {
+                "status": "complete",
+                "value": 50,
+                "source": "directory-tree-scan"
+              }
+            }
+          }
+        ],
+        "source": "handle-shape-probe"
+      }
+    },
+    "internalCounts": [],
+    "schemaVersion": 1
+  },
+  "handle_id": "ef493ca6-0cf8-4788-b086-563212d16399",
+  "kind": "dir",
+  "tags": [
+    "image"
+  ],
+  "storage": "dir",
+  "size_bytes": 823818,
+  "proxy_url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/3de85de1-14c2-47e8-8d31-d653cad5227d/masks/p_0000000000000003",
+  "absolute_path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/3de85de1-14c2-47e8-8d31-d653cad5227d/masks/p_0000000000000003",
+  "fields": {
+    "entry_count": 53,
+    "total_size_bytes": 823818,
+    "entries": [
+      {
+        "name": "p_0000000000000021.png",
+        "is_dir": false,
+        "size_bytes": 16834
+      },
+      {
+        "name": "p_0000000000000047.png",
+        "is_dir": false,
+        "size_bytes": 16334
+      },
+      {
+        "name": "p_0000000000000001.png",
+        "is_dir": false,
+        "size_bytes": 15637
+      },
+      {
+        "name": "p_0000000000000031.png",
+        "is_dir": false,
+        "size_bytes": 16214
+      },
+      {
+        "name": "p_0000000000000008.png",
+        "is_dir": false,
+        "size_bytes": 15609
+      },
+      {
+        "name": "p_0000000000000026.png",
+        "is_dir": false,
+        "size_bytes": 16537
+      },
+      {
+        "name": "p_0000000000000003.png",
+        "is_dir": false,
+        "size_bytes": 15582
+      },
+      {
+        "name": "p_0000000000000033.png",
+        "is_dir": false,
+        "size_bytes": 16074
+      },
+      {
+        "name": "p_0000000000000005.png",
+        "is_dir": false,
+        "size_bytes": 15460
+      },
+      {
+        "name": "p_0000000000000027.png",
+        "is_dir": false,
+        "size_bytes": 16493
+      },
+      {
+        "name": "p_0000000000000010.png",
+        "is_dir": false,
+        "size_bytes": 15510
+      },
+      {
+        "name": "p_0000000000000018.png",
+        "is_dir": false,
+        "size_bytes": 17076
+      },
+      {
+        "name": "p_0000000000000019.png",
+        "is_dir": false,
+        "size_bytes": 16992
+      },
+      {
+        "name": "p_0000000000000049.png",
+        "is_dir": false,
+        "size_bytes": 16222
+      },
+      {
+        "name": "p_0000000000000023.png",
+        "is_dir": false,
+        "size_bytes": 16822
+      },
+      {
+        "name": "p_0000000000000016.png",
+        "is_dir": false,
+        "size_bytes": 16867
+      },
+      {
+        "name": "p_0000000000000042.png",
+        "is_dir": false,
+        "size_bytes": 16336
+      },
+      {
+        "name": "p_0000000000000013.png",
+        "is_dir": false,
+        "size_bytes": 16256
+      },
+      {
+        "name": "p_0000000000000032.png",
+        "is_dir": false,
+        "size_bytes": 16135
+      },
+      {
+        "name": "p_0000000000000014.png",
+        "is_dir": false,
+        "size_bytes": 16596
+      },
+      {
+        "name": "p_0000000000000034.png",
+        "is_dir": false,
+        "size_bytes": 16112
+      },
+      {
+        "name": "p_0000000000000036.png",
+        "is_dir": false,
+        "size_bytes": 16171
+      },
+      {
+        "name": "p_0000000000000029.png",
+        "is_dir": false,
+        "size_bytes": 16470
+      },
+      {
+        "name": "p_0000000000000040.png",
+        "is_dir": false,
+        "size_bytes": 16368
+      },
+      {
+        "name": "p_0000000000000020.png",
+        "is_dir": false,
+        "size_bytes": 16923
+      },
+      {
+        "name": ".hololab-done",
+        "is_dir": false,
+        "size_bytes": 0
+      },
+      {
+        "name": "p_0000000000000035.png",
+        "is_dir": false,
+        "size_bytes": 16089
+      },
+      {
+        "name": "p_0000000000000015.png",
+        "is_dir": false,
+        "size_bytes": 16699
+      },
+      {
+        "name": "p_0000000000000017.png",
+        "is_dir": false,
+        "size_bytes": 17117
+      },
+      {
+        "name": ".validation.json",
+        "is_dir": false,
+        "size_bytes": 11526
+      },
+      {
+        "name": "p_0000000000000046.png",
+        "is_dir": false,
+        "size_bytes": 16358
+      },
+      {
+        "name": "p_0000000000000006.png",
+        "is_dir": false,
+        "size_bytes": 15434
+      },
+      {
+        "name": "p_0000000000000043.png",
+        "is_dir": false,
+        "size_bytes": 16339
+      },
+      {
+        "name": "p_0000000000000030.png",
+        "is_dir": false,
+        "size_bytes": 16230
+      },
+      {
+        "name": "p_0000000000000028.png",
+        "is_dir": false,
+        "size_bytes": 16513
+      },
+      {
+        "name": "p_0000000000000025.png",
+        "is_dir": false,
+        "size_bytes": 16696
+      },
+      {
+        "name": "p_0000000000000039.png",
+        "is_dir": false,
+        "size_bytes": 16331
+      },
+      {
+        "name": "p_0000000000000045.png",
+        "is_dir": false,
+        "size_bytes": 16327
+      },
+      {
+        "name": "p_0000000000000037.png",
+        "is_dir": false,
+        "size_bytes": 16228
+      },
+      {
+        "name": "p_0000000000000024.png",
+        "is_dir": false,
+        "size_bytes": 16788
+      },
+      {
+        "name": "p_0000000000000007.png",
+        "is_dir": false,
+        "size_bytes": 15390
+      },
+      {
+        "name": "p_0000000000000000.png",
+        "is_dir": false,
+        "size_bytes": 15557
+      },
+      {
+        "name": ".hololab-metadata.json",
+        "is_dir": false,
+        "size_bytes": 791
+      },
+      {
+        "name": "p_0000000000000002.png",
+        "is_dir": false,
+        "size_bytes": 15371
+      },
+      {
+        "name": "p_0000000000000004.png",
+        "is_dir": false,
+        "size_bytes": 15391
+      },
+      {
+        "name": "p_0000000000000038.png",
+        "is_dir": false,
+        "size_bytes": 16294
+      },
+      {
+        "name": "p_0000000000000041.png",
+        "is_dir": false,
+        "size_bytes": 16315
+      },
+      {
+        "name": "p_0000000000000044.png",
+        "is_dir": false,
+        "size_bytes": 16366
+      },
+      {
+        "name": "p_0000000000000022.png",
+        "is_dir": false,
+        "size_bytes": 16863
+      },
+      {
+        "name": "p_0000000000000009.png",
+        "is_dir": false,
+        "size_bytes": 15657
+      },
+      {
+        "name": "p_0000000000000012.png",
+        "is_dir": false,
+        "size_bytes": 15613
+      },
+      {
+        "name": "p_0000000000000011.png",
+        "is_dir": false,
+        "size_bytes": 15551
+      },
+      {
+        "name": "p_0000000000000048.png",
+        "is_dir": false,
+        "size_bytes": 16354
+      }
+    ],
+    "truncated": false
+  },
+  "element_count": 50,
+  "dim_sizes": [
+    50
+  ],
+  "internal_count": null,
+  "internal_count_kind": null,
+  "internal_count_items": null,
+  "preview": {
+    "viewer": "image",
+    "member": null
+  },
+  "dim_labels": [
+    "frame"
+  ]
+}

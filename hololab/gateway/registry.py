@@ -679,6 +679,7 @@ class NodeRegistry:
                                 "scalar": s.scalar,
                                 "dim_labels": list(s.dim_labels),
                                 "content_dims_from": s.content_dims_from,
+                                "any_of": [v.model_dump(mode="json") for v in s.any_of],
                             }
                             for n, s in manifest.inputs.items()
                         }

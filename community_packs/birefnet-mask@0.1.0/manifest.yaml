@@ -1,0 +1,84 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: community/birefnet-mask
+version: 0.1.0
+description: BiRefNet foreground segmentation preserving people, held props and soft
+  alpha edges.
+category: generation/segment-anything
+source_entry: run.py
+arrayable: true
+inputs:
+  video:
+    tags:
+    - video-source
+    description: One video file, or a video-source handle containing exactly one video.
+outputs:
+  masks:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - frame
+    description: Ordered p_<i:016d>.png grayscale alpha masks; 0 background, 255 foreground,
+      continuous soft edges.
+params:
+  max_frames:
+    type: int
+    default: 50
+    min: 1
+  skip:
+    type: int
+    default: 1
+    min: 1
+  start_frame:
+    type: int
+    default: 0
+    min: 0
+  end_frame:
+    type: int
+    default: 0
+    min: 0
+  max_width:
+    type: int
+    default: 0
+    min: 0
+  hololab_root:
+    type: path
+    default: /cloud/cloud-ssd1/Kiri4DGS/hololab
+    description: HoloLab checkout supplying the frame-extraction@0.2.0 implementation.
+  checkpoint:
+    type: path
+    default: /cloud/cloud-ssd1/Kiri4DGS/temp/4DAnyone/models/birefnet
+  batch_size:
+    type: int
+    default: 4
+    min: 1
+  reference_frames:
+    type: path
+    default: ''
+    description: Optional fx frame directory; reject any count or RGB pixel mismatch
+      before inference.
+runtime:
+  env: cam3
+  gpu:
+    required: true
+  resources:
+    scratch_gb: 2
+    mem_gb: 8
+    gpu_mem_gb: 16
+exec:
+  shell: python "{{ pack_dir }}/run.py" --video "{{ inputs.video }}" --output "{{
+    outputs.masks }}" --scratch "{{ scratch_dir }}" --max-frames "{{ params.max_frames
+    }}" --skip "{{ params.skip }}" --start-frame "{{ params.start_frame }}" --end-frame
+    "{{ params.end_frame }}" --max-width "{{ params.max_width }}" --checkpoint "{{
+    params.checkpoint }}" --hololab-root "{{ params.hololab_root }}" --batch-size
+    "{{ params.batch_size }}" --reference-frames "{{ params.reference_frames }}"
+idempotency:
+  marker: '{{ outputs.masks }}/.hololab-done'
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
+previews:
+- id: first_mask
+  type: image
+  path: '{{ outputs.masks }}/p_0000000000000000.png'

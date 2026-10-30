@@ -1,0 +1,592 @@
+{
+  "package": "community/mask-overlay@0.2.0",
+  "implementation": {
+    "parallelism": 4,
+    "io_workers": 3,
+    "max_image_workers": 12,
+    "cpu_count": 16,
+    "cv2_internal_threads": 1,
+    "default_mode": "mask0_black",
+    "default_format": "png",
+    "workflow_format": "jpg",
+    "jpeg_quality": 95,
+    "mode_parameter": "enum + strict runtime validation",
+    "threshold": "region modes: foreground >=128; blend50 preserves legacy whole-image blending",
+    "pairing": "independent basename-byte enumeration then zip by array index",
+    "scratch": "/dev/shm checked: 119 GiB free; not used because streaming pipeline has no intermediate files",
+    "optimizations": [
+      "bounded ThreadPoolExecutor",
+      "OpenCV codecs",
+      "uint16 exact half blend without RGB mask expansion",
+      "small per-channel LUT for tint modes",
+      "header-only preflight followed by one full decode",
+      "optional JPEG quality 95"
+    ]
+  },
+  "old_run_confirmation": {
+    "parent_state": "done",
+    "shards_done": 80,
+    "shards_failed": 0,
+    "elapsed_seconds": 1148.7655866146088,
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/4b7684d1-3282-483c-9836-a5c564d5ac9c/overlay",
+    "samples": [
+      {
+        "cam": 0,
+        "frame": 0,
+        "mode": "RGB",
+        "size": [
+          3840,
+          2160
+        ],
+        "pixel_exact": true
+      },
+      {
+        "cam": 40,
+        "frame": 25,
+        "mode": "RGB",
+        "size": [
+          3840,
+          2160
+        ],
+        "pixel_exact": true
+      },
+      {
+        "cam": 79,
+        "frame": 49,
+        "mode": "RGB",
+        "size": [
+          3840,
+          2160
+        ],
+        "pixel_exact": true
+      }
+    ]
+  },
+  "user_supplied_baseline": {
+    "single_shard_50_seconds": 47,
+    "single_image_ms": 946,
+    "source_read_ms": 135,
+    "mask_read_ms": 25,
+    "convert_blend_ms": 82,
+    "png_write_ms": 639
+  },
+  "new_benchmarks": {
+    "single_shard": [
+      {
+        "count": 50,
+        "mode": "mask0_black",
+        "alpha": 0.5,
+        "format": "png",
+        "io_workers": 3,
+        "elapsed_seconds": 11.922117073991103,
+        "images_per_second": 4.19388600948051,
+        "worker_seconds_sum": {
+          "decode_s": 7.328152940084692,
+          "blend_s": 2.4127742119599134,
+          "encode_write_s": 25.260448917964823,
+          "bytes": 322903337
+        },
+        "ideal_4000_s_at_4_shards": 238.44234147982206
+      },
+      {
+        "count": 50,
+        "mode": "mask0_black",
+        "alpha": 0.5,
+        "format": "jpg",
+        "io_workers": 3,
+        "elapsed_seconds": 5.493923154004733,
+        "images_per_second": 9.100964574568733,
+        "worker_seconds_sum": {
+          "decode_s": 7.104686740000034,
+          "blend_s": 2.1294766230130335,
+          "encode_write_s": 6.895784000036656,
+          "bytes": 50854341
+        },
+        "ideal_4000_s_at_4_shards": 109.87846308009466
+      }
+    ],
+    "same_semantics_blend50_png": {
+      "count": 50,
+      "mode": "blend50",
+      "alpha": 0.5,
+      "format": "png",
+      "io_workers": 3,
+      "elapsed_seconds": 12.83625295899401,
+      "images_per_second": 3.895217721224976,
+      "worker_seconds_sum": {
+        "decode_s": 7.179746783003793,
+        "blend_s": 5.290989597997395,
+        "encode_write_s": 25.210451284016017,
+        "bytes": 317571807
+      }
+    },
+    "concurrent_png": {
+      "images": 200,
+      "parallelism": 4,
+      "io_workers": 3,
+      "format": "png",
+      "wall_seconds": 13.064323760991101,
+      "images_per_second": 15.308867390226661,
+      "projected_4000_seconds": 261.286475219822,
+      "shards": [
+        {
+          "count": 50,
+          "mode": "mask0_black",
+          "alpha": 0.5,
+          "format": "png",
+          "io_workers": 3,
+          "elapsed_seconds": 11.946163761007483,
+          "images_per_second": 4.185444047167761,
+          "worker_seconds_sum": {
+            "decode_s": 7.260970378032653,
+            "blend_s": 2.45959269204468,
+            "encode_write_s": 25.361023128949455,
+            "bytes": 322903337
+          }
+        },
+        {
+          "count": 50,
+          "mode": "mask0_black",
+          "alpha": 0.5,
+          "format": "png",
+          "io_workers": 3,
+          "elapsed_seconds": 12.20237651199568,
+          "images_per_second": 4.097562466692201,
+          "worker_seconds_sum": {
+            "decode_s": 7.507537564044469,
+            "blend_s": 2.379977386968676,
+            "encode_write_s": 25.990611208006158,
+            "bytes": 338423355
+          }
+        },
+        {
+          "count": 50,
+          "mode": "mask0_black",
+          "alpha": 0.5,
+          "format": "png",
+          "io_workers": 3,
+          "elapsed_seconds": 12.024159801003407,
+          "images_per_second": 4.15829470228993,
+          "worker_seconds_sum": {
+            "decode_s": 7.195262534980429,
+            "blend_s": 2.4436275960033527,
+            "encode_write_s": 25.68955971201649,
+            "bytes": 331468400
+          }
+        },
+        {
+          "count": 50,
+          "mode": "mask0_black",
+          "alpha": 0.5,
+          "format": "png",
+          "io_workers": 3,
+          "elapsed_seconds": 12.840660610003397,
+          "images_per_second": 3.8938806591498856,
+          "worker_seconds_sum": {
+            "decode_s": 8.175594514075783,
+            "blend_s": 2.3615498150029453,
+            "encode_write_s": 27.200109464960406,
+            "bytes": 361452598
+          }
+        }
+      ]
+    },
+    "concurrent_jpg": {
+      "images": 200,
+      "parallelism": 4,
+      "io_workers": 3,
+      "format": "jpg",
+      "wall_seconds": 6.849895478007966,
+      "images_per_second": 29.197525807818963,
+      "projected_4000_seconds": 136.99790956015931,
+      "shards": [
+        {
+          "count": 50,
+          "mode": "mask0_black",
+          "alpha": 0.5,
+          "format": "jpg",
+          "io_workers": 3,
+          "elapsed_seconds": 6.303487387995119,
+          "images_per_second": 7.9321170841436315,
+          "worker_seconds_sum": {
+            "decode_s": 7.2396110499685165,
+            "blend_s": 2.3624587769882055,
+            "encode_write_s": 8.880788369046059,
+            "bytes": 50854341
+          }
+        },
+        {
+          "count": 50,
+          "mode": "mask0_black",
+          "alpha": 0.5,
+          "format": "jpg",
+          "io_workers": 3,
+          "elapsed_seconds": 6.395406001000083,
+          "images_per_second": 7.818111937253279,
+          "worker_seconds_sum": {
+            "decode_s": 7.629701485027908,
+            "blend_s": 2.420008230008534,
+            "encode_write_s": 8.946211655973457,
+            "bytes": 54715999
+          }
+        },
+        {
+          "count": 50,
+          "mode": "mask0_black",
+          "alpha": 0.5,
+          "format": "jpg",
+          "io_workers": 3,
+          "elapsed_seconds": 6.371541325002909,
+          "images_per_second": 7.847394758909011,
+          "worker_seconds_sum": {
+            "decode_s": 7.166144608956529,
+            "blend_s": 2.4103925790113863,
+            "encode_write_s": 9.035707037066459,
+            "bytes": 52474533
+          }
+        },
+        {
+          "count": 50,
+          "mode": "mask0_black",
+          "alpha": 0.5,
+          "format": "jpg",
+          "io_workers": 3,
+          "elapsed_seconds": 6.60698166200018,
+          "images_per_second": 7.567752198794984,
+          "worker_seconds_sum": {
+            "decode_s": 8.150863128044875,
+            "blend_s": 2.3136223309120396,
+            "encode_write_s": 8.908429607079597,
+            "bytes": 55819239
+          }
+        }
+      ]
+    },
+    "note": "Projections exclude HoloLab preparation, scheduling and finalization overhead."
+  },
+  "workflow_attempt": {
+    "dispatch": {
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "mode": "node",
+      "snapshot_id": "20c1ea10-5907-480a-813e-4b86c2c85ae8",
+      "job_id": "3a264742-a2a0-46e8-9b16-142f392efb1d",
+      "operation": "fork",
+      "parent_snapshot_id": "571d8fb9-b21b-4c23-90fe-7e393f721216",
+      "forked_at": "mask-overlay"
+    },
+    "dispatch_count": 1,
+    "cancel_requests_by_this_task": 0,
+    "parent_state": "failed",
+    "done_shards": 28,
+    "cancelled_shards": 52,
+    "algorithm_failed_shards": 0,
+    "failure_message": "shard 28 (element 'p_0000000000000028') finished cancelled; shard 29 (element 'p_0000000000000029') finished cancelled; shard 30 (element 'p_0000000000000030') finished cancelled; shard 31 (element 'p_0000000000000031') finished cancelled; shard 32 (element 'p_0000000000000032') finished cancelled; +47 more",
+    "cancellation_actor": "not identified by job API",
+    "elapsed_until_terminal_seconds": 218.11527466773987,
+    "script_elapsed_median_seconds": 5.8396082450053655,
+    "started_to_done_median_seconds": 9.890791893005371,
+    "acceptance": "NOT PASSED: full workflow did not reach done; no redispatch performed",
+    "completed_images_per_second_until_cancel": 6.418624289989103,
+    "rough_4000_seconds_at_completed_shard_rate": 623.1864990506853,
+    "projection_caveat": "Cancelled run, includes startup/queueing and excludes partially written cancelled shards; rough indication only, not a completed-run benchmark."
+  },
+  "local_completion": {
+    "reused_images": 1534,
+    "computed_images": 2466,
+    "elapsed_seconds": 73.37913492000371,
+    "computed_images_per_second": 33.6062833486437,
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/reports/mask-overlay-v020-20261030/full-local-verification",
+    "note": "Separate local collection. Existing job directories and states were not changed. Not an end-to-end 4000-image timing."
+  },
+  "full_artifact_validation": {
+    "images": 4000,
+    "shards": 80,
+    "all_rgb": true,
+    "sizes": [
+      [
+        3840,
+        2160
+      ]
+    ],
+    "bytes": 4304520223,
+    "samples": [
+      {
+        "cam": 0,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6342886686325073,
+        "psnr_db": 48.6715955013258
+      },
+      {
+        "cam": 0,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.5922804474830627,
+        "psnr_db": 49.056647881335174
+      },
+      {
+        "cam": 5,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6607287526130676,
+        "psnr_db": 48.345946931519286
+      },
+      {
+        "cam": 5,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6311710476875305,
+        "psnr_db": 48.64758641285343
+      },
+      {
+        "cam": 10,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.7210566401481628,
+        "psnr_db": 47.47490590302829
+      },
+      {
+        "cam": 10,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6674875617027283,
+        "psnr_db": 48.00529043511453
+      },
+      {
+        "cam": 15,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.7127962112426758,
+        "psnr_db": 47.76843286625858
+      },
+      {
+        "cam": 15,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6514285802841187,
+        "psnr_db": 48.348837959065534
+      },
+      {
+        "cam": 20,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6604628562927246,
+        "psnr_db": 48.3501495554905
+      },
+      {
+        "cam": 20,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6229566335678101,
+        "psnr_db": 48.71213475877817
+      },
+      {
+        "cam": 25,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.645989716053009,
+        "psnr_db": 48.45132826894033
+      },
+      {
+        "cam": 25,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6176765561103821,
+        "psnr_db": 48.747744112015965
+      },
+      {
+        "cam": 30,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6493419408798218,
+        "psnr_db": 48.536249779180935
+      },
+      {
+        "cam": 30,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6387348771095276,
+        "psnr_db": 48.61212448832337
+      },
+      {
+        "cam": 35,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6504883170127869,
+        "psnr_db": 48.48109826342973
+      },
+      {
+        "cam": 35,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6045880913734436,
+        "psnr_db": 48.87044123865154
+      },
+      {
+        "cam": 40,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6630505919456482,
+        "psnr_db": 48.35289953120068
+      },
+      {
+        "cam": 40,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6267670392990112,
+        "psnr_db": 48.67547990350695
+      },
+      {
+        "cam": 45,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6578611135482788,
+        "psnr_db": 48.5213134498877
+      },
+      {
+        "cam": 45,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.5881971120834351,
+        "psnr_db": 49.14264001996805
+      },
+      {
+        "cam": 50,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6762104630470276,
+        "psnr_db": 48.14327419987528
+      },
+      {
+        "cam": 50,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6203855872154236,
+        "psnr_db": 48.729543106182035
+      },
+      {
+        "cam": 55,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.7197948694229126,
+        "psnr_db": 47.60164641864194
+      },
+      {
+        "cam": 55,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6452757716178894,
+        "psnr_db": 48.30236922429896
+      },
+      {
+        "cam": 60,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.7191709876060486,
+        "psnr_db": 47.45937000706533
+      },
+      {
+        "cam": 60,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6578139662742615,
+        "psnr_db": 48.02344029982877
+      },
+      {
+        "cam": 65,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6970029473304749,
+        "psnr_db": 47.65983686788153
+      },
+      {
+        "cam": 65,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6399868726730347,
+        "psnr_db": 48.24614097979005
+      },
+      {
+        "cam": 70,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.7356830835342407,
+        "psnr_db": 47.29720645523131
+      },
+      {
+        "cam": 70,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6569972634315491,
+        "psnr_db": 48.03132970196067
+      },
+      {
+        "cam": 75,
+        "frame": 0,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.7146892547607422,
+        "psnr_db": 47.53890627874056
+      },
+      {
+        "cam": 75,
+        "frame": 49,
+        "encoded_reference_exact": true,
+        "mean_absolute_error": 0.6543892025947571,
+        "psnr_db": 48.13604686908121
+      }
+    ],
+    "shard_seconds": {
+      "min": 1.5310572190064704,
+      "median": 5.8486329524967005,
+      "max": 6.135651409989805
+    },
+    "worker_seconds_sum": {
+      "decode_s": 600.7748652400769,
+      "blend_s": 177.9292261483788,
+      "encode_write_s": 548.1489788798208
+    }
+  },
+  "four_modes_validation": [
+    {
+      "mode": "mask0_black",
+      "all_pixels_exact": true,
+      "size": [
+        3840,
+        2160
+      ]
+    },
+    {
+      "mode": "mask0_red",
+      "all_pixels_exact": true,
+      "size": [
+        3840,
+        2160
+      ]
+    },
+    {
+      "mode": "mask1_red",
+      "all_pixels_exact": true,
+      "size": [
+        3840,
+        2160
+      ]
+    },
+    {
+      "mode": "blend50",
+      "all_pixels_exact": true,
+      "size": [
+        3840,
+        2160
+      ]
+    }
+  ],
+  "tests_passed": 33,
+  "preservation": {
+    "other_node_changes": [],
+    "edges_unchanged": true,
+    "workflow_dispatch_calls": 1,
+    "cancel_calls": 0
+  },
+  "disk_free_gib_approx": 109,
+  "attachment_note": "local_file_to_attachment_url is not exposed in this session; images displayed directly and local PNG links supplied."
+}

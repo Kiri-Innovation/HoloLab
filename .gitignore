@@ -45,6 +45,8 @@ hololab/frontend/e2e/screenshots/
 
 # Root-level validation outputs; keep report prose/audit records and test fixtures.
 /reports/**/*.png
+/reports/**/*.jpg
+/reports/**/*.jpeg
 /reports/library-reference/
 /test-results/
 /playwright-report/

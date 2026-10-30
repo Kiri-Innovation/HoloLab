@@ -1,0 +1,43 @@
+{
+  "original_complete_snapshot_jobs_unchanged": true,
+  "original_complete_snapshot_job_count": 319,
+  "concurrent_draft_differences": {
+    "stg_init_res1_033": {
+      "algorithm_version": [
+        "0.3.3",
+        "0.3.4"
+      ]
+    },
+    "stg_res1": {
+      "params": [
+        {
+          "iterations": 10000,
+          "save_cam": 5,
+          "preview_every": 500
+        },
+        {
+          "iterations": 10000,
+          "save_cam": 5,
+          "preview_every": 500,
+          "densify_until_iter": 5000,
+          "densify_grad_threshold": 8e-05,
+          "opthr": 0.003,
+          "prune_z_min": 1.0,
+          "opacity_reset_interval": 1700,
+          "percent_dense": 0.05,
+          "lambda_dssim": 0.3,
+          "raystart": 0.7,
+          "param_overrides": ""
+        }
+      ],
+      "algorithm_version": [
+        "0.4.7",
+        "0.4.8"
+      ]
+    }
+  },
+  "our_overlay_parent_jobs": 1,
+  "our_retained_snapshot": "571d8fb9-b21b-4c23-90fe-7e393f721216",
+  "our_failed_dispatch_snapshot_removed": true,
+  "original_edge_structures_unchanged": false
+}

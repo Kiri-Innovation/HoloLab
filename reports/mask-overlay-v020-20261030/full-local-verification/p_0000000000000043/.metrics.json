@@ -1,0 +1,17 @@
+{
+  "count": 50,
+  "mode": "mask0_black",
+  "alpha": 0.5,
+  "format": "jpg",
+  "io_workers": 3,
+  "elapsed_seconds": 5.673384027002612,
+  "reused_images": 0,
+  "computed_images": 50,
+  "worker_seconds_sum": {
+    "decode_s": 7.4396868080075365,
+    "blend_s": 2.37035397902946,
+    "encode_write_s": 7.09736178095045,
+    "bytes": 49926756
+  },
+  "execution": "local completion, not a HoloLab job"
+}

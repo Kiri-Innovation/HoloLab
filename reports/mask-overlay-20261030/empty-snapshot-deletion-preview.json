@@ -1,0 +1,16 @@
+{
+  "snapshot_id": "8b87531d-bbe8-4bff-b721-9215e7a6b143",
+  "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+  "job_count": 238,
+  "live_jobs": [],
+  "blocked": false,
+  "artifacts": {
+    "exclusive_count": 0,
+    "shared_count": 290,
+    "exclusive_bytes": 0
+  },
+  "jobs": {
+    "exclusive_count": 0,
+    "shared_count": 238
+  }
+}

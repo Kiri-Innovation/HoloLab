@@ -1,0 +1,39 @@
+{
+  "parent_state": "done",
+  "shards_done": 80,
+  "shards_failed": 0,
+  "elapsed_seconds": 1148.7655866146088,
+  "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/4b7684d1-3282-483c-9836-a5c564d5ac9c/overlay",
+  "samples": [
+    {
+      "cam": 0,
+      "frame": 0,
+      "mode": "RGB",
+      "size": [
+        3840,
+        2160
+      ],
+      "pixel_exact": true
+    },
+    {
+      "cam": 40,
+      "frame": 25,
+      "mode": "RGB",
+      "size": [
+        3840,
+        2160
+      ],
+      "pixel_exact": true
+    },
+    {
+      "cam": 79,
+      "frame": 49,
+      "mode": "RGB",
+      "size": [
+        3840,
+        2160
+      ],
+      "pixel_exact": true
+    }
+  ]
+}

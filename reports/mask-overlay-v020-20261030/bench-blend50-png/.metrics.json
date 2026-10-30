@@ -1,0 +1,15 @@
+{
+  "count": 50,
+  "mode": "blend50",
+  "alpha": 0.5,
+  "format": "png",
+  "io_workers": 3,
+  "elapsed_seconds": 12.83625295899401,
+  "images_per_second": 3.895217721224976,
+  "worker_seconds_sum": {
+    "decode_s": 7.179746783003793,
+    "blend_s": 5.290989597997395,
+    "encode_write_s": 25.210451284016017,
+    "bytes": 317571807
+  }
+}

@@ -1,0 +1,1 @@
+Size mismatch at index 0: image (3927, 2174) != mask (3840, 2160)

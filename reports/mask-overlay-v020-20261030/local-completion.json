@@ -1,0 +1,490 @@
+{
+  "elapsed_seconds": 73.37913492000371,
+  "reused_images": 1534,
+  "computed_images": 2466,
+  "images": 4000,
+  "output": "/cloud/cloud-ssd1/Kiri4DGS/hololab/reports/mask-overlay-v020-20261030/full-local-verification",
+  "scope": "local completion only; workflow remains failed/cancelled",
+  "groups": [
+    {
+      "cam": 0,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 1,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 2,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 3,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 4,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 5,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 6,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 7,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 8,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 9,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 10,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 11,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 12,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 13,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 14,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 15,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 16,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 17,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 18,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 19,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 20,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 21,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 22,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 23,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 24,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 25,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 26,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 27,
+      "reused": 50,
+      "computed": 0,
+      "elapsed_seconds": 0
+    },
+    {
+      "cam": 28,
+      "reused": 38,
+      "computed": 12,
+      "elapsed_seconds": 1.5310572190064704
+    },
+    {
+      "cam": 29,
+      "reused": 33,
+      "computed": 17,
+      "elapsed_seconds": 2.253352393003297
+    },
+    {
+      "cam": 30,
+      "reused": 30,
+      "computed": 20,
+      "elapsed_seconds": 2.534694704998401
+    },
+    {
+      "cam": 31,
+      "reused": 33,
+      "computed": 17,
+      "elapsed_seconds": 2.1997346249991097
+    },
+    {
+      "cam": 32,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.674130362007418
+    },
+    {
+      "cam": 33,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.638379711002926
+    },
+    {
+      "cam": 34,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.677395078004338
+    },
+    {
+      "cam": 35,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.6757093769992935
+    },
+    {
+      "cam": 36,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.774130502002663
+    },
+    {
+      "cam": 37,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.65001444099471
+    },
+    {
+      "cam": 38,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.753083907999098
+    },
+    {
+      "cam": 39,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.599855348002166
+    },
+    {
+      "cam": 40,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.59056676599721
+    },
+    {
+      "cam": 41,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.680591051990632
+    },
+    {
+      "cam": 42,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.718309446994681
+    },
+    {
+      "cam": 43,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.673384027002612
+    },
+    {
+      "cam": 44,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.592960146008409
+    },
+    {
+      "cam": 45,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.581039522003266
+    },
+    {
+      "cam": 46,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 6.0228169780020835
+    },
+    {
+      "cam": 47,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 6.135651409989805
+    },
+    {
+      "cam": 48,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.918383226991864
+    },
+    {
+      "cam": 49,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 6.02829121099785
+    },
+    {
+      "cam": 50,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.925942550995387
+    },
+    {
+      "cam": 51,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.966797831992153
+    },
+    {
+      "cam": 52,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.598969037004281
+    },
+    {
+      "cam": 53,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.900132074006251
+    },
+    {
+      "cam": 54,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.6341465010045795
+    },
+    {
+      "cam": 55,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.919964560991502
+    },
+    {
+      "cam": 56,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.889375566999661
+    },
+    {
+      "cam": 57,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.8869820980035
+    },
+    {
+      "cam": 58,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 6.082561913004611
+    },
+    {
+      "cam": 59,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 6.017701078002574
+    },
+    {
+      "cam": 60,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.839117891999194
+    },
+    {
+      "cam": 61,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 6.081203637004364
+    },
+    {
+      "cam": 62,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.962804231996415
+    },
+    {
+      "cam": 63,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.987872819008771
+    },
+    {
+      "cam": 64,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.85934754300979
+    },
+    {
+      "cam": 65,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 6.094125112998881
+    },
+    {
+      "cam": 66,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 6.0180069749912946
+    },
+    {
+      "cam": 67,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 6.081866577005712
+    },
+    {
+      "cam": 68,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.926754806001554
+    },
+    {
+      "cam": 69,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.960376709990669
+    },
+    {
+      "cam": 70,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.973300569996354
+    },
+    {
+      "cam": 71,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 6.082346934999805
+    },
+    {
+      "cam": 72,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.800495957999374
+    },
+    {
+      "cam": 73,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.890475469001103
+    },
+    {
+      "cam": 74,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.850006873995881
+    },
+    {
+      "cam": 75,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.84725903099752
+    },
+    {
+      "cam": 76,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.399384085001657
+    },
+    {
+      "cam": 77,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.950820034995559
+    },
+    {
+      "cam": 78,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.485124352999264
+    },
+    {
+      "cam": 79,
+      "reused": 0,
+      "computed": 50,
+      "elapsed_seconds": 5.843081194994738
+    }
+  ]
+}

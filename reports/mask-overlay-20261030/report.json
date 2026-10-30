@@ -1,0 +1,134 @@
+{
+  "package": "community/mask-overlay@0.1.0",
+  "semantics": "A: (1-alpha)*image + alpha*mask.convert(RGB), over every pixel; uint8 truncation",
+  "default_alpha": 0.5,
+  "pairing": "Each input independently enumerated by visible basename filesystem bytes, then zipped by index; no matching across names or symlink targets",
+  "validation": [
+    "nonempty flat groups",
+    "equal element count",
+    "all pair dimensions equal before writing",
+    "image decoding/PNG verification",
+    "finite alpha in [0,1]",
+    "empty destination",
+    "RGB output and completion marker only on success"
+  ],
+  "requested_und_smoke": {
+    "status": "rejected correctly",
+    "reason": "Size mismatch at index 0: image (3927, 2174) != mask (3840, 2160)",
+    "axes": {
+      "und": [
+        "frame",
+        "cam"
+      ],
+      "mask": [
+        "cam",
+        "frame"
+      ]
+    },
+    "coordinate_system": "und is undistorted, SAM masks are original video coordinates; resizing is not a valid alignment"
+  },
+  "actual_smoke": {
+    "count": 50,
+    "mode": "RGB",
+    "size": [
+      3840,
+      2160
+    ],
+    "all_pixels_exact_50_percent": true,
+    "bytes": 316992978
+  },
+  "tests": "10 passed, .venv-runtime/bin/python -m pytest -q community_packs/mask-overlay@0.1.0/test_run.py",
+  "preserved": {
+    "original_graph_nodes": 20,
+    "original_graph_edges": 26,
+    "raw_data_modified": false,
+    "registry_publication": false,
+    "preexisting_worktree_edits_modified": false
+  },
+  "dispatch_error": {
+    "status": 400,
+    "overlay_jobs_created": 0,
+    "cause": "SAM parallelism differs: original complete snapshot 2 vs current draft 4. Framework invalidates inherited SAM output.",
+    "empty_snapshot": "8b87531d-bbe8-4bff-b721-9215e7a6b143",
+    "cleanup": {
+      "snapshot_id": "8b87531d-bbe8-4bff-b721-9215e7a6b143",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "state": "deleted",
+      "jobs_removed": 0,
+      "jobs_kept_shared": 238,
+      "artifacts_removed_from_disk": 0,
+      "artifacts_tombstoned_only": 0,
+      "artifacts_kept_shared": 290,
+      "freed_bytes": 0,
+      "artifact_tombstone_notes": []
+    }
+  },
+  "workflow": {
+    "dispatch": {
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "mode": "node",
+      "snapshot_id": "571d8fb9-b21b-4c23-90fe-7e393f721216",
+      "job_id": "4b7684d1-3282-483c-9836-a5c564d5ac9c",
+      "operation": "fork",
+      "parent_snapshot_id": "4eb58c18-9ef0-4e92-adb6-537e2fdb07fa",
+      "forked_at": "mask-overlay"
+    },
+    "verification": {
+      "groups": 80,
+      "images": 4000,
+      "all_mode": "RGB",
+      "all_dimensions_match_inputs": true,
+      "exact_pixel_checks": 160,
+      "png_bytes": 27002550374,
+      "output": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/4b7684d1-3282-483c-9836-a5c564d5ac9c/overlay"
+    },
+    "shards_done": 80,
+    "parent_done": true,
+    "our_successful_dispatch_count": 1,
+    "earlier_request_rejected_before_jobs": true
+  },
+  "preservation": {
+    "original_complete_snapshot_jobs_unchanged": true,
+    "original_complete_snapshot_job_count": 319,
+    "concurrent_draft_differences": {
+      "stg_init_res1_033": {
+        "algorithm_version": [
+          "0.3.3",
+          "0.3.4"
+        ]
+      },
+      "stg_res1": {
+        "params": [
+          {
+            "iterations": 10000,
+            "save_cam": 5,
+            "preview_every": 500
+          },
+          {
+            "iterations": 10000,
+            "save_cam": 5,
+            "preview_every": 500,
+            "densify_until_iter": 5000,
+            "densify_grad_threshold": 8e-05,
+            "opthr": 0.003,
+            "prune_z_min": 1.0,
+            "opacity_reset_interval": 1700,
+            "percent_dense": 0.05,
+            "lambda_dssim": 0.3,
+            "raystart": 0.7,
+            "param_overrides": ""
+          }
+        ],
+        "algorithm_version": [
+          "0.4.7",
+          "0.4.8"
+        ]
+      }
+    },
+    "our_overlay_parent_jobs": 1,
+    "our_retained_snapshot": "571d8fb9-b21b-4c23-90fe-7e393f721216",
+    "our_failed_dispatch_snapshot_removed": true,
+    "original_edge_structures_unchanged": false
+  },
+  "concurrency_note": "During the wait other actors modified STG/FTGS draft settings and generated further snapshots, including another cancelled overlay parent. These were not modified or removed by this task. Only parent 4b7684d1-3282-483c-9836-a5c564d5ac9c was successfully dispatched by this task."
+}

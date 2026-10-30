@@ -1,0 +1,358 @@
+{
+  "job_id": "3a264742-a2a0-46e8-9b16-142f392efb1d",
+  "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+  "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+  "graph_node_id": "mask-overlay",
+  "algorithm_name": "community/mask-overlay",
+  "algorithm_version": "0.2.0",
+  "state": "failed",
+  "progress": null,
+  "fail_reason": "user_error",
+  "created_ts": 1793345480.884347,
+  "updated_ts": 1793345698.9996216,
+  "started_ts": 1793345480.8945646,
+  "parent_job_id": null,
+  "shard_element_id": null,
+  "shard_element_ids": null,
+  "expected_shards": 80,
+  "published_as": [],
+  "code_identity": {
+    "cold": {
+      "baseline_at": null,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stats": {
+        "bytes": 0,
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "verification": "not_checked"
+    },
+    "content": {
+      "cold": {
+        "bytes": 0,
+        "directories": [],
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "excluded": {
+        "bytes": 0,
+        "files": 0,
+        "links": 0,
+        "top_level": [],
+        "top_level_names": []
+      },
+      "hot": {
+        "bytes": 12837,
+        "files": 3,
+        "links": 0,
+        "top_level_names": [
+          "manifest.yaml",
+          "run.py",
+          "test_run.py"
+        ]
+      },
+      "stats": {
+        "bytes": 12837,
+        "files": 3,
+        "links": 0,
+        "top_level_names": [
+          "manifest.yaml",
+          "run.py",
+          "test_run.py"
+        ]
+      },
+      "top_level": [
+        {
+          "bytes": 6923,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "run.py",
+          "top_level_names": [
+            "run.py"
+          ]
+        },
+        {
+          "bytes": 3573,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "test_run.py",
+          "top_level_names": [
+            "test_run.py"
+          ]
+        },
+        {
+          "bytes": 2341,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "manifest.yaml",
+          "top_level_names": [
+            "manifest.yaml"
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "bytes": 6923,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "run.py",
+          "top_level_names": [
+            "run.py"
+          ]
+        },
+        {
+          "bytes": 3573,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "test_run.py",
+          "top_level_names": [
+            "test_run.py"
+          ]
+        },
+        {
+          "bytes": 2341,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "manifest.yaml",
+          "top_level_names": [
+            "manifest.yaml"
+          ]
+        }
+      ]
+    },
+    "controls": {
+      "gitignore_sha256": null,
+      "manifest_sha256": "41bea9f0de9372d3c0bbd090878972b7e7b2badc02654c100fe553c4761c45fd",
+      "packignore_sha256": null
+    },
+    "dependency_discovery_complete": false,
+    "effective_params": {
+      "alpha": 0.5,
+      "format": "jpg",
+      "io_workers": 3,
+      "jpeg_quality": 95,
+      "mode": "mask0_black",
+      "png_compress": 1
+    },
+    "environment": {
+      "boundary": "\u672c\u5730\u80fd\u529b\u68c0\u67e5\u53ea\u8986\u76d6\u5df2\u58f0\u660e\u4e14\u5728\u53ef\u63a2\u6d4b\u8303\u56f4\u5185\u7684\u9879; \u901a\u8fc7\u4e0d\u4ee3\u8868\u4e00\u5b9a\u80fd\u8fd0\u884c\u3002\u73af\u5883\u672a\u51bb\u7ed3\u3001\u672a\u88ab\u4ee3\u7801\u8eab\u4efd\u8986\u76d6\u3002",
+      "checked_at": null,
+      "env": "cam3",
+      "environment_covered": false,
+      "issues": [],
+      "prefix": "/cloud/cloud-ssd1/envs/kiri",
+      "requires": null,
+      "runtime_verified": false,
+      "status": "undeclared"
+    },
+    "fixed_excluded": {
+      "bytes": 25121,
+      "files": 2,
+      "links": 0,
+      "top_level_names": [
+        "__pycache__"
+      ]
+    },
+    "format": 2,
+    "git": {
+      "commit": "de91c611e064f581a181161e1d47929a5fa0d577",
+      "dirty": true,
+      "tree_sha": "28db9dbfb9e27476154f82ce08664cb51aa4961c"
+    },
+    "hot": {
+      "sha256": "f96f9b83f626a2083ddae4af7b5d76b68a422630eb18ebce164e8b76db716246",
+      "stats": {
+        "bytes": 10496,
+        "files": 2,
+        "links": 0,
+        "top_level_names": [
+          "run.py",
+          "test_run.py"
+        ]
+      },
+      "verification": "verified_at_submission"
+    },
+    "ignored": {
+      "bytes": 0,
+      "files": 0,
+      "links": 0,
+      "top_level_names": []
+    },
+    "manifest": {
+      "excluded_fields": [
+        "published_as",
+        "published_at",
+        "version",
+        "yank",
+        "yank_reason",
+        "yanked",
+        "yanked_at"
+      ],
+      "normalized": {
+        "apiVersion": "hololab.dev/v1",
+        "arrayable": true,
+        "batch_size": 1,
+        "category": "visualization/image",
+        "description": "Parallel positional mask visualization with selective background/foreground tinting.",
+        "exec": {
+          "shell": "export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1\npython \"{{ pack_dir }}/run.py\" --image \"{{ inputs.image }}\" --mask \"{{ inputs.mask }}\" --output \"{{ outputs.overlay }}\" --alpha \"{{ params.alpha }}\" --mode \"{{ params.mode }}\" --io-workers \"{{ params.io_workers }}\" --format \"{{ params.format }}\" --png-compress \"{{ params.png_compress }}\" --jpeg-quality \"{{ params.jpeg_quality }}\""
+        },
+        "idempotency": {
+          "marker": "{{ outputs.overlay }}/.hololab-done"
+        },
+        "inputs": {
+          "image": {
+            "arrayed": true,
+            "description": "One ordered image group per invocation.",
+            "dim_labels": [
+              "frame"
+            ],
+            "require_axis_label_match": false,
+            "storage": "dir",
+            "tags": [
+              "image"
+            ]
+          },
+          "mask": {
+            "arrayed": true,
+            "description": "Equal-length mask group in the same coordinate system; paired by index.",
+            "dim_labels": [
+              "frame"
+            ],
+            "require_axis_label_match": false,
+            "storage": "dir",
+            "tags": [
+              "image"
+            ]
+          }
+        },
+        "kind": "Algorithm",
+        "name": "community/mask-overlay",
+        "outputs": {
+          "overlay": {
+            "arrayed": true,
+            "dim_labels": [
+              "frame"
+            ],
+            "storage": "dir",
+            "tags": [
+              "image"
+            ]
+          }
+        },
+        "parallelism": 4,
+        "params": {
+          "alpha": {
+            "default": 0.5,
+            "max": 1.0,
+            "min": 0.0,
+            "type": "float"
+          },
+          "format": {
+            "default": "png",
+            "description": "PNG is lossless; JPEG is faster and smaller but lossy, including outside the tinted region.",
+            "type": "enum",
+            "values": [
+              "png",
+              "jpg"
+            ]
+          },
+          "io_workers": {
+            "default": 3,
+            "description": "Per-shard threads; default 4 shards x 3 workers = 12 image workers.",
+            "max": 16,
+            "min": 1,
+            "type": "int"
+          },
+          "jpeg_quality": {
+            "default": 95,
+            "max": 100,
+            "min": 1,
+            "type": "int"
+          },
+          "mode": {
+            "default": "mask0_black",
+            "description": "Binary threshold >=128; selected region is tinted, other pixels remain unchanged.",
+            "type": "enum",
+            "values": [
+              "mask0_black",
+              "mask0_red",
+              "mask1_red",
+              "blend50"
+            ]
+          },
+          "png_compress": {
+            "default": 1,
+            "max": 9,
+            "min": 0,
+            "type": "int"
+          }
+        },
+        "previews": [
+          {
+            "id": "first_overlay",
+            "path": "{{ outputs.overlay }}/p_0000000000000000.{{ params.format }}",
+            "type": "image"
+          }
+        ],
+        "progress": {
+          "stdout_regex": "\\[ITER (\\d+)/(\\d+)\\]"
+        },
+        "runtime": {
+          "env": "cam3",
+          "gpu": {
+            "required": false
+          },
+          "resources": {
+            "mem_gb": 2.0,
+            "scratch_gb": 0.0
+          }
+        },
+        "source_entry": "run.py"
+      },
+      "raw_sha256": "41bea9f0de9372d3c0bbd090878972b7e7b2badc02654c100fe553c4761c45fd",
+      "sha256": "65a7535026d2fe66032b1f45e12bc21fc1f2473eb76db9f1dadaf48bc8def269"
+    },
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/mask-overlay@0.2.0",
+    "quality_hints": [],
+    "recorded_at": 1793345480.67672,
+    "root": ".",
+    "sha256": "cb3712f0b1bd7297509aa63e64bcaf2930bcf43ea2d8c1602abcc19090bceefa",
+    "source": "community/mask-overlay@0.2.0",
+    "uncovered": [],
+    "undeclared": []
+  },
+  "snapshot_id": "20c1ea10-5907-480a-813e-4b86c2c85ae8",
+  "params": {
+    "mode": "mask0_black",
+    "alpha": 0.5,
+    "io_workers": 3,
+    "format": "jpg",
+    "png_compress": 1,
+    "jpeg_quality": 95
+  },
+  "input_handles": {
+    "image": "a8c33427-c99f-41fe-9d05-db6bb46a26de",
+    "mask": "928b0bd9-d89e-4fc8-8a3c-54a1eeebcf3a"
+  },
+  "output_handles": {},
+  "fail_exit_code": null,
+  "fail_message": "shard 28 (element 'p_0000000000000028') finished cancelled; shard 29 (element 'p_0000000000000029') finished cancelled; shard 30 (element 'p_0000000000000030') finished cancelled; shard 31 (element 'p_0000000000000031') finished cancelled; shard 32 (element 'p_0000000000000032') finished cancelled; +47 more"
+}

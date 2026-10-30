@@ -1,0 +1,17 @@
+[
+  {
+    "codec": "png-default",
+    "seconds": 0.5495142580039101,
+    "bytes": 7233498
+  },
+  {
+    "codec": "png-rle",
+    "seconds": 0.5259117880050326,
+    "bytes": 5907125
+  },
+  {
+    "codec": "jpg95",
+    "seconds": 0.143539900003816,
+    "bytes": 1100951
+  }
+]

@@ -1,0 +1,3449 @@
+{
+  "snapshot_id": "6b63dca4-f998-44a8-a2fd-6a4d4d8191f4",
+  "shards": {
+    "done": 80
+  },
+  "verified_shards": 80,
+  "jobs": [
+    {
+      "job_id": "256a9203-0053-4bfb-9b8d-09de1616fced",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "61921b63-dea1-483a-89d4-f7c24c5ee201"
+      },
+      "output_handles": {
+        "masks": "ef493ca6-0cf8-4788-b086-563212d16399"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793341923.6415303,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000003",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793341987.2951672
+    },
+    {
+      "job_id": "77943a0a-4571-41f3-8ef4-9fcd727ce5ac",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "1069bc33-ea46-4b7e-814a-410f667ab1f9"
+      },
+      "output_handles": {
+        "masks": "7b1dfa00-369b-4885-a1ef-b08936f86157"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793341924.2237215,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000001",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793341987.3996453
+    },
+    {
+      "job_id": "3549d2e4-6e40-4926-969b-5845f94517dd",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "17d456b4-2252-4c09-9b79-0957c68482e8"
+      },
+      "output_handles": {
+        "masks": "24ba936d-0caf-4468-b863-48a5375dc606"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793341923.1553028,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000002",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793341990.3417604
+    },
+    {
+      "job_id": "08b87e47-a4bc-4813-9fa3-7412b7c16844",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "6eac6aa6-be35-4934-97d8-dd79cd6f721b"
+      },
+      "output_handles": {
+        "masks": "6a62193b-31a3-4164-ad97-552c26a11e08"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793341923.234082,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000000",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793341990.6896439
+    },
+    {
+      "job_id": "156f5fe9-0823-4d5e-b3ec-55ddb87716a1",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "747fd9b0-86d4-4ccf-a503-d665bbdb8e6a"
+      },
+      "output_handles": {
+        "masks": "242aff5b-2a72-4f1e-ad79-ae69b0c34950"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342002.479111,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000004",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342065.399604
+    },
+    {
+      "job_id": "2b3b7a9c-648b-47e2-8eef-a2ac50cd8a92",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "f36cab5c-6e4f-4cfe-860c-67856383aa60"
+      },
+      "output_handles": {
+        "masks": "39d5b5f0-4fe6-404e-bf4b-fc3906fe01b1"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342002.5111673,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000005",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342065.552687
+    },
+    {
+      "job_id": "9215b96b-59a6-443f-9ff1-457eafe1466f",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "9b533fa0-4a04-4e13-8346-7e9087bdf0ef"
+      },
+      "output_handles": {
+        "masks": "4b2e4a94-d52f-4d97-bf00-8bc0b2fa9451"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342007.4754899,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000007",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342068.8662899
+    },
+    {
+      "job_id": "7f185882-db7d-4a32-8c3b-44e2779ba593",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "a0e61135-6940-44f2-8808-cebd19b437de"
+      },
+      "output_handles": {
+        "masks": "ea818bae-553a-41c8-80bb-4a5ba2a9869e"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342006.9749463,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000006",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342069.4815123
+    },
+    {
+      "job_id": "c4a45e18-7cd0-4296-8236-fa2cd5ac778c",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "85f60351-04e1-4be2-b6bf-94246f62ba44"
+      },
+      "output_handles": {
+        "masks": "ea1c66fe-5dd5-43d3-bec3-bc4b4a4f2fcb"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342078.130769,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000008",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342154.9881353
+    },
+    {
+      "job_id": "4d5ea944-a838-41e1-8004-169a8ff93c70",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "f4c36a5b-4ea7-4739-9b91-f2cd17ee8d28"
+      },
+      "output_handles": {
+        "masks": "0b41c58f-a27f-4246-aac7-e8b1305835cd"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342085.575322,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000010",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342155.7284806
+    },
+    {
+      "job_id": "5df86736-c7db-4c93-86a5-2e4923e25e95",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "70f48cce-d8ff-48b9-b8c1-5836a7c2abb6"
+      },
+      "output_handles": {
+        "masks": "b60f1a45-2a3c-4d47-96f5-89d1f833bf45"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342086.0861366,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000011",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342156.3952756
+    },
+    {
+      "job_id": "3eb286b7-8941-43e0-ab9a-777955abf0b7",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "0b9d4fa5-910e-4b89-bd5e-051cb3fccafd"
+      },
+      "output_handles": {
+        "masks": "9f076047-5bf9-456f-8f81-2f04892a2533"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342079.108218,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000009",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342156.5211108
+    },
+    {
+      "job_id": "e523c7d8-8065-4f9d-b647-89b3ad4a0d0e",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "f41c5256-36e7-4f62-b41f-77de98465ff3"
+      },
+      "output_handles": {
+        "masks": "584b899e-0f08-4cb2-bfb3-648cf976e877"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342174.1358347,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000013",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342241.6682932
+    },
+    {
+      "job_id": "ac3d75ae-3e78-43c1-b5b1-00af4ccaa81a",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "b02dc038-ea17-4097-8a42-24f6e2e75490"
+      },
+      "output_handles": {
+        "masks": "5c5c0a71-7c9c-40a0-8d9a-2a7744170e06"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342175.7028058,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000015",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342242.9419558
+    },
+    {
+      "job_id": "91a043de-e173-4ed7-947d-d4428d4d7666",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "f8216e02-74bf-4d88-a726-05feffaa0c0f"
+      },
+      "output_handles": {
+        "masks": "b2a20f77-4bcc-4d77-9c23-239705352fac"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342175.2380443,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000014",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342243.7234275
+    },
+    {
+      "job_id": "804b5cbc-46c9-4914-b814-f2faa6ca9b73",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "a6279bd6-f669-4025-aa5c-003f0ceb3f5a"
+      },
+      "output_handles": {
+        "masks": "98b902d1-5e64-49a0-8dd4-3254d8257ea1"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342171.06046,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000012",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342244.0254147
+    },
+    {
+      "job_id": "21a0a0ae-907c-4854-bc5b-d0495b25e8b8",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "2a32ed16-201d-48e4-8037-f70a2c23383d"
+      },
+      "output_handles": {
+        "masks": "29277c27-be6a-4347-9a67-e80a32476ec9"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342262.5067978,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000016",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342342.9139955
+    },
+    {
+      "job_id": "2683141f-e552-4451-9dac-3593a5574d24",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "a6006d21-22ee-451c-bd5f-275efa741315"
+      },
+      "output_handles": {
+        "masks": "e18c112f-dbcf-49a9-b770-60c3d0758071"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342269.8114054,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000019",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342343.7445524
+    },
+    {
+      "job_id": "603d8dc7-273a-4ed6-9e83-296562f29a05",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "c2a5003b-62c9-42d5-b122-5355d57811d7"
+      },
+      "output_handles": {
+        "masks": "020ebc74-611d-49be-b4a3-bb07a0cc7d8c"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342265.16406,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000017",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342344.5475714
+    },
+    {
+      "job_id": "73f2d445-7ca6-428a-8f72-447e734f6b5b",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "bc4f38df-a008-422a-bb51-27f56c5d2ba8"
+      },
+      "output_handles": {
+        "masks": "999b1f71-6e19-456c-a06a-335b2c729e76"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342269.5393503,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000018",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342348.1650283
+    },
+    {
+      "job_id": "4a0f5fda-c7a8-4450-b6bb-5bbeeb53c34f",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "56af5c30-5a99-44aa-8809-65096001dffb"
+      },
+      "output_handles": {
+        "masks": "3d8b8d73-8421-4707-8cf8-3504ccc62483"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342411.6585307,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000020",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342476.064665
+    },
+    {
+      "job_id": "23200af8-2742-41eb-8e59-44e6a2a46af9",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "1ff975cc-a026-4cb2-a67a-0f1cd8448541"
+      },
+      "output_handles": {
+        "masks": "43d69b1a-be52-4377-9ff5-e080959e0ead"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342415.318495,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000022",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342476.5209692
+    },
+    {
+      "job_id": "5f73f97c-773c-4061-9fe9-b2f420c5d251",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "1f9eaa81-b3d4-4107-aa19-8d2ccfa8d7f0"
+      },
+      "output_handles": {
+        "masks": "0e7d973d-8b14-4621-a130-160e5fbac69c"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342415.816478,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000021",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342477.2735982
+    },
+    {
+      "job_id": "63aa5da1-32c4-40c5-975d-6a47bdee86e0",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "608e55f8-02c4-48c2-88e6-7ccd28a34305"
+      },
+      "output_handles": {
+        "masks": "3a7b533d-560f-42b1-a578-1f91cb6a8365"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342415.3278592,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000023",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342477.4473164
+    },
+    {
+      "job_id": "bf870fb0-60a7-4751-bb43-45912066444a",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "4792e356-474e-49b2-afbb-349dfe475e9c"
+      },
+      "output_handles": {
+        "masks": "2ca03a53-41ee-4f4c-8602-60b11e217a71"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342493.7311773,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000024",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342555.3686783
+    },
+    {
+      "job_id": "28e57812-902a-441d-987d-8ca4c12051cc",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "bc0cdd06-3805-411d-9e5e-352a82c39392"
+      },
+      "output_handles": {
+        "masks": "0de3aed6-bfb1-4df3-8426-3fb37249628c"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342495.218321,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000025",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342557.3220806
+    },
+    {
+      "job_id": "e52420d6-4e98-4e16-9e85-f3e21715ad4c",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "54036570-2ba3-4e79-ba0b-37d573455132"
+      },
+      "output_handles": {
+        "masks": "444350a3-326a-4c0f-b852-20eec864caf2"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342496.0706098,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000027",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342559.5111985
+    },
+    {
+      "job_id": "0a814bef-cc05-45d6-a144-064444ad8850",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "62662231-43ef-4e9a-a527-e80abb214119"
+      },
+      "output_handles": {
+        "masks": "82b0e7d8-a72b-44ae-9651-7099a77efc55"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342495.4043696,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000026",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342559.8553147
+    },
+    {
+      "job_id": "856992f2-63c3-4f92-ad07-edf68b7dd019",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "f212b91b-9c8a-4ef0-b784-59aaa770dbd5"
+      },
+      "output_handles": {
+        "masks": "c10caa50-b291-411a-89a0-4f4366e5b888"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342566.0713894,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000028",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342628.5249248
+    },
+    {
+      "job_id": "9a23b956-7d9a-4b06-b3cc-22ae58e8de00",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "33ebb595-7838-4c25-a1df-eeb1d4dadc42"
+      },
+      "output_handles": {
+        "masks": "2b5ba19c-4470-431b-a497-22e56696b9c8"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342573.2245944,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000029",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342635.3673725
+    },
+    {
+      "job_id": "5271cf67-6634-48f2-bf1b-2f4f9b11cc26",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "cd0817b1-c822-4aaf-a615-bc65e6a328fa"
+      },
+      "output_handles": {
+        "masks": "39830477-3475-4d22-bc97-0af14a91c94e"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342576.148602,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000030",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342637.0580575
+    },
+    {
+      "job_id": "a235cde1-af52-4fae-9ad3-0bd7f293ee50",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "3feb546f-c322-438a-b0fd-ae9923767766"
+      },
+      "output_handles": {
+        "masks": "fd3fee0b-726b-4429-8b69-f97eb3ac6ed1"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342577.0491102,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000031",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342637.596701
+    },
+    {
+      "job_id": "30cef9f1-cbae-4c83-875b-df623194e512",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "8f83d3f6-4742-47d5-9e95-931becddaaaa"
+      },
+      "output_handles": {
+        "masks": "e7b936ad-a2d9-4d12-9926-95cb89a6c32e"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342638.7056036,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000032",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342695.2621758
+    },
+    {
+      "job_id": "8773d974-6c45-46ee-a634-b91771b1a447",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "2f8b4fea-77c6-45aa-9bbd-a9f89f699909"
+      },
+      "output_handles": {
+        "masks": "d0fb8719-957a-4a8e-9ee1-f342a8c07f75"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342649.121141,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000033",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342707.4309464
+    },
+    {
+      "job_id": "454943e0-964b-4014-902c-ea1494edfcf7",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "c77b2968-8bed-4da5-9092-960d35f8c9d4"
+      },
+      "output_handles": {
+        "masks": "d6f6c9d9-bf43-478f-924c-7e05ba424ee6"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342653.0468373,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000034",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342711.585807
+    },
+    {
+      "job_id": "efa5c421-070c-4d15-8325-def22c39da63",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "b6e83690-fd20-47f0-80f6-a6f543f1e9fd"
+      },
+      "output_handles": {
+        "masks": "95f7c175-3b8d-4d47-b3bd-7bdda8b48cf5"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342653.0415158,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000035",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342711.619405
+    },
+    {
+      "job_id": "cbd28ec8-df27-4936-84e8-43e89bcdc7ef",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "f3b73e7b-3970-4080-9d68-83357db4d7d8"
+      },
+      "output_handles": {
+        "masks": "a7d02d18-24a7-4cea-80f8-cf3bf3b82732"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342704.817527,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000036",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342756.6536443
+    },
+    {
+      "job_id": "27b146e3-7211-4158-b71a-dcb3f18cbacd",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "7529d5d8-44c6-42c9-983e-5b77d0f59380"
+      },
+      "output_handles": {
+        "masks": "63fa2c4a-fef6-4327-a68c-986b1f3d0d0b"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342717.5131683,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000037",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342777.8172028
+    },
+    {
+      "job_id": "590a9a50-d8a9-4873-8687-778cfca84a79",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "b9046c91-5939-4c43-adbe-ac7f9fdffc3f"
+      },
+      "output_handles": {
+        "masks": "49f211e7-217a-4ab1-bfe8-f1432698e890"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342724.746943,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000039",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342780.004079
+    },
+    {
+      "job_id": "87f6224f-1de2-4fb6-a032-68371a59ecdb",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "6c743c90-539b-4172-ac0a-1f340a40c6ab"
+      },
+      "output_handles": {
+        "masks": "d8216de2-a1a6-4b3e-91d2-f6bfa70a8979"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342725.679104,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000038",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342780.7081916
+    },
+    {
+      "job_id": "30d6d49b-82bd-4bfd-af2c-9171ed3b3c6c",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "493db2ad-cc2d-460a-9b45-314795409698"
+      },
+      "output_handles": {
+        "masks": "775cbd45-e046-4021-9e9c-2fcf9009b3cd"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342766.211647,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000040",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342821.8841493
+    },
+    {
+      "job_id": "caff0991-08c0-425f-bd5d-c6181c981be0",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "22af138c-b016-484c-aeea-71fa306f4ad2"
+      },
+      "output_handles": {
+        "masks": "5a3e9780-ca9e-4e46-97af-467d448b75dd"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342788.3833618,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000041",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342839.3726397
+    },
+    {
+      "job_id": "2616591d-d34c-4c73-98a7-c792f5a4d78a",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "38250601-2b73-4faa-a07b-b7115c63725d"
+      },
+      "output_handles": {
+        "masks": "a103adfd-35d1-4d19-bf39-6d1baac4ac2b"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342795.5998683,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000042",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342848.820365
+    },
+    {
+      "job_id": "85666a3a-579f-4d3a-8bf3-6cbbd2c28f77",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "5ee6c103-59e0-432f-bd3a-6bb5a278c55a"
+      },
+      "output_handles": {
+        "masks": "d23f359b-0835-4874-a9dd-a576ee8507c2"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342795.8160412,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000043",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342850.5892286
+    },
+    {
+      "job_id": "b040e6dc-01fb-4955-ae5d-724ebf29373a",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "7ff99af5-d4c1-4367-ae96-a50d3687dd07"
+      },
+      "output_handles": {
+        "masks": "7757750a-b36d-43c5-9306-bc8e3f49fc69"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342831.4405513,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000044",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342886.187801
+    },
+    {
+      "job_id": "42346f4b-6b8e-4c05-b9b1-c6f21fcd275d",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "89142880-0c5d-4c01-aa0c-4b5d78bf03d4"
+      },
+      "output_handles": {
+        "masks": "579cd5aa-5b91-422a-832f-fb2e7e8839d8"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342849.4442527,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000045",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342895.8160844
+    },
+    {
+      "job_id": "774c4e7d-aa2b-41ee-8e2d-62f18944739c",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "4f42d2ee-1117-4c47-8d25-56b2b76790e7"
+      },
+      "output_handles": {
+        "masks": "ed818ca9-d8af-4d68-b09d-b1bb8e491404"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342859.4678886,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000046",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342912.2705598
+    },
+    {
+      "job_id": "3ff941da-4956-4d2d-a493-0726413ca43b",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "bede1c1c-3a60-4413-9465-e3aa3f1e5006"
+      },
+      "output_handles": {
+        "masks": "17eb8f7b-c50a-4f47-92ed-2ec16ccae3fe"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342861.6609223,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000047",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342913.7514317
+    },
+    {
+      "job_id": "f76956d6-1f0c-47c1-b512-1fac5071defb",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "0cb28745-e846-42a8-925e-0518b89856c4"
+      },
+      "output_handles": {
+        "masks": "761484ab-0446-4464-ab67-1e025cee1f80"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342895.261802,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000048",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342947.1319451
+    },
+    {
+      "job_id": "34269aa8-c3a5-49c0-9949-68e9be146ae7",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "5f057ddb-b6c2-4964-b0f7-85cce0455265"
+      },
+      "output_handles": {
+        "masks": "9f428fb4-5570-49e4-880d-1f05ded64ff9"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342905.3681116,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000049",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342957.9823713
+    },
+    {
+      "job_id": "cd14cb08-f7fe-4011-b4f3-e5489444f809",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "6f6ef2a8-7135-4d90-ad9b-e834408df2c6"
+      },
+      "output_handles": {
+        "masks": "1d8f6cb2-362c-4016-b5b4-845a8b63878a"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342922.8551102,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000050",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342981.3108654
+    },
+    {
+      "job_id": "94ba5d65-9e29-491d-8d7e-8f674a6926a1",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "3b381d0c-913c-46ae-8377-dd2e4a297a5f"
+      },
+      "output_handles": {
+        "masks": "fe1812ec-5610-4c70-a3b5-056ebdcc7207"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342925.8288286,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000051",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793342981.4243886
+    },
+    {
+      "job_id": "953af858-149e-4915-b0d9-8ac8eb9b0431",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "451cee37-0f6b-49c3-97e5-b7580a21ad95"
+      },
+      "output_handles": {
+        "masks": "f3d52cfa-4c8f-47fe-80c5-2e4e4f3c2597"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342956.68744,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000052",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343008.919853
+    },
+    {
+      "job_id": "d56b83b0-f2ff-4024-a0cc-92f5ef59f6e5",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "2f635482-4101-4d81-bb76-1c9c77296d28"
+      },
+      "output_handles": {
+        "masks": "1c221049-670b-44d2-b6ab-049d72955b51"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342967.658603,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000053",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343019.5300772
+    },
+    {
+      "job_id": "a7bb39de-3481-4762-884b-0dbc1341c305",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "d487a926-7b11-4cbe-aaf0-e2b103137586"
+      },
+      "output_handles": {
+        "masks": "cd951a7a-23a3-4826-970e-b88bbf1b0cf7"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342997.3769748,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000054",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343051.394771
+    },
+    {
+      "job_id": "d10c318a-c0c0-4fce-862e-46577b7cdc5a",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "d2dbef07-bf8b-4917-892c-36ee5da01f83"
+      },
+      "output_handles": {
+        "masks": "96e61724-0c3b-498d-b317-e9324a4da2f6"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793342999.5214894,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000055",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343052.9655714
+    },
+    {
+      "job_id": "8aff6a50-1a4e-430e-889a-3405c2dce37b",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "42c74215-1e71-4fd1-bcbc-48195ca9caff"
+      },
+      "output_handles": {
+        "masks": "ea45cacd-27eb-443b-a09f-402406212984"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343018.4808407,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000056",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343069.8452997
+    },
+    {
+      "job_id": "704f7593-85b7-4a79-b116-5fc728fb3741",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "cb8c8eca-f7f8-43df-9641-d8d73a95e10b"
+      },
+      "output_handles": {
+        "masks": "151048fa-4a2a-4a0c-b33a-855cfad69c3e"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343030.100954,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000057",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343079.8926673
+    },
+    {
+      "job_id": "5c0ea0dd-fb38-4acf-9741-699af43185b5",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "bfb57478-d3fe-490e-939b-0e0dd9354f48"
+      },
+      "output_handles": {
+        "masks": "94578ba0-ed1d-4831-9036-47b5a6bc9928"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343065.0466862,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000059",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343119.4249241
+    },
+    {
+      "job_id": "524d3703-adb5-4609-bc2e-f328daf1f9c6",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "27f13f82-7213-418f-81b1-a125890e241d"
+      },
+      "output_handles": {
+        "masks": "498e4039-2106-45fa-83da-e1cd130e6fe6"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343061.9815757,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000058",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343121.9991565
+    },
+    {
+      "job_id": "4f649a03-1e44-41b9-abbc-8315edb96c7e",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "6aa146e1-2856-423e-bd0a-069bd8bcf9a0"
+      },
+      "output_handles": {
+        "masks": "0f13aa89-0faf-47ae-b877-637064773114"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343080.298739,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000060",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343131.298068
+    },
+    {
+      "job_id": "d0136cff-ca26-4304-af66-bffd83199125",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "a13496fe-aef6-4123-bae0-dcaaa54eea5a"
+      },
+      "output_handles": {
+        "masks": "f2bab6ee-70e7-46aa-a87c-120af7210628"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343090.3709006,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000061",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343139.2087955
+    },
+    {
+      "job_id": "b9563cf4-5efa-4584-b045-c729d5615ea0",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "16f871d2-ff6e-4c95-a356-4140007de773"
+      },
+      "output_handles": {
+        "masks": "24fa1401-6884-4baa-a698-88e5f6e375a5"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343132.0753582,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000063",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343197.2687507
+    },
+    {
+      "job_id": "e11f4b4c-5e45-4140-a308-30f7e0dc0e67",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "65cf0ba9-bc33-4775-8dfc-12db6fcfe20d"
+      },
+      "output_handles": {
+        "masks": "4d4e4ccf-4296-4ec7-9f95-a853ad7f7dfb"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343128.5391998,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000062",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343197.599429
+    },
+    {
+      "job_id": "2e35d154-5d49-4367-aff9-79775f6fc5b3",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "64ff6803-185b-4424-909d-fa294748218a"
+      },
+      "output_handles": {
+        "masks": "dd2c6deb-3bbf-439d-b2e0-550fa2815988"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343140.8721433,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000064",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343198.9610674
+    },
+    {
+      "job_id": "c4438547-da6e-4e6c-b557-4c82ff9795bd",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "78a5c78e-bc56-4073-9309-53b4918d65b5"
+      },
+      "output_handles": {
+        "masks": "ef29ff35-5803-46a4-8887-77fc818ff766"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343148.8050225,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000065",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343200.8832345
+    },
+    {
+      "job_id": "4fd7023a-981b-4c5c-897d-ef210a26ef76",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "61cfdae2-0a8a-47a4-8e6b-1cb8c4497be1"
+      },
+      "output_handles": {
+        "masks": "7cdb059f-ccb3-476b-b956-4028d6cd1ff1"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343216.3393292,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000068",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343275.300915
+    },
+    {
+      "job_id": "1f14f84b-a03f-4e72-9ad2-697b94b31ba4",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "451d7a98-cfc2-45df-bffa-4b31a389d1a7"
+      },
+      "output_handles": {
+        "masks": "baffe7aa-623c-472c-9aaf-00b3ebed8296"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343217.981192,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000069",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343278.7092364
+    },
+    {
+      "job_id": "d18bcfd3-9a15-4618-b655-1c754260f252",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "3e8a31cf-5a2a-49ef-ba03-cbcb9caa3e4c"
+      },
+      "output_handles": {
+        "masks": "5b1bbc91-acf6-4966-9fd7-89f2cdc1131a"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343216.107525,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000066",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343279.5632575
+    },
+    {
+      "job_id": "3e2f98ef-16e4-411f-a16a-3b8a3577584a",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "5e4a3c3c-cc4d-445e-b88e-feb5af9163c2"
+      },
+      "output_handles": {
+        "masks": "02f8ad5c-29f5-4e9b-8f6a-14a51c8a9a20"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343216.2843926,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000067",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343279.9918027
+    },
+    {
+      "job_id": "db347d8b-5c96-4154-a6e6-0a061b8d3116",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "6f6ecf2e-8145-41d3-a4ab-50205da9514a"
+      },
+      "output_handles": {
+        "masks": "8d5c0b29-4430-44e5-aa0e-908ed4dfae03"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343284.4155045,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000070",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343341.842886
+    },
+    {
+      "job_id": "4c3fccdd-2c1b-4ba9-bd7a-70c2f75e8891",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "16106ca3-169c-4b61-b5dd-c5547e6d4d78"
+      },
+      "output_handles": {
+        "masks": "5febdfb2-61b1-48e9-b59c-50dcc79d22bf"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343303.9876232,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000072",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343354.069569
+    },
+    {
+      "job_id": "9cd0c67f-1990-488a-b2f1-72ecc0d246c5",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "b08cd07e-f0e6-4736-8af5-96e6364ff660"
+      },
+      "output_handles": {
+        "masks": "344d5a37-2905-416e-9be1-246f67dd2604"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343293.3624632,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000071",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343354.1382325
+    },
+    {
+      "job_id": "377a1aa8-d4f8-4c59-9c04-cc88c4ac4bf4",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "f6906ccd-5841-4cfc-bb8b-19c082b0259c"
+      },
+      "output_handles": {
+        "masks": "ab56a83e-0a65-47f0-94f9-2d62abca208b"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343303.9809709,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000073",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343354.8233829
+    },
+    {
+      "job_id": "ce27744a-888f-4891-a1ae-9f2c6a6891c0",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "d493d524-74a6-4623-81e9-74820442d010"
+      },
+      "output_handles": {
+        "masks": "7b1059da-32a4-4807-a222-3851c0345f91"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343350.92262,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000074",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343407.0879378
+    },
+    {
+      "job_id": "01188de8-7d2a-4937-a2f7-c2af61e04f4b",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "3e78d1fa-211e-443e-93e4-cfa108299d87"
+      },
+      "output_handles": {
+        "masks": "9ea6f3c1-8d29-4166-bb67-9bc58d4f7485"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343370.3849347,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000077",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343429.226658
+    },
+    {
+      "job_id": "33909051-20ba-4da4-bda1-1a5cfaf7fe72",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "560726d3-74d1-4bfd-ab2a-1fa8ba507887"
+      },
+      "output_handles": {
+        "masks": "5d2fc1a2-b901-49ec-aeb1-989c542b7feb"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343370.2653935,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000076",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343429.797117
+    },
+    {
+      "job_id": "7b31133d-80b1-4d26-b6cc-785ce0b9e52c",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "f9c8573f-8592-454c-860b-5f4e87bce095"
+      },
+      "output_handles": {
+        "masks": "bb382be9-f1d9-448f-963e-fdcca680dd2c"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343369.672571,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000075",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343430.3189497
+    },
+    {
+      "job_id": "8709353e-dbf1-4652-a48d-91ad7f72d788",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "61804d4f-c01a-4f74-9519-043c9506d6c4"
+      },
+      "output_handles": {
+        "masks": "0549545e-38b8-4428-a7d1-2fefe8faa49b"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343416.655603,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000078",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343463.1748478
+    },
+    {
+      "job_id": "68454527-73df-4463-b469-ce411b967219",
+      "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+      "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+      "graph_node_id": "sam-video-mask",
+      "algorithm_name": "community/sam-video-mask",
+      "algorithm_version": "0.1.0",
+      "state": "done",
+      "progress": {
+        "current": 50,
+        "total": 50
+      },
+      "fail_reason": null,
+      "fail_exit_code": null,
+      "fail_message": null,
+      "params": {
+        "max_frames": 50,
+        "skip": 1,
+        "start_frame": 0,
+        "end_frame": 0,
+        "max_width": 0,
+        "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+        "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+        "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+      },
+      "input_handles": {
+        "video": "49ea4e3c-ae1c-4fc9-bb63-4e14a34c35ce"
+      },
+      "output_handles": {
+        "masks": "69aa1afc-507e-4629-9337-6c2ec1914d1f"
+      },
+      "output_handle_states": {
+        "masks": "pending"
+      },
+      "reused_from_job_id": null,
+      "started_ts": 1793343437.7831652,
+      "parent_job_id": "3de85de1-14c2-47e8-8d31-d653cad5227d",
+      "shard_element_id": "p_0000000000000079",
+      "shard_element_ids": null,
+      "expected_shards": null,
+      "created_ts": 1793341904.501362,
+      "updated_ts": 1793343484.794978
+    }
+  ]
+}

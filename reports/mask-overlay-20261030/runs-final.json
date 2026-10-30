@@ -1,0 +1,626 @@
+[
+  {
+    "snapshot_id": "efbd2e53-2178-46e1-8604-e31960bd2e89",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793344708.8706472,
+    "node_count": 22,
+    "job_count": 241,
+    "state_counts": {
+      "done": 240,
+      "running": 1
+    },
+    "state": "running",
+    "artifact_counts": {
+      "total": 0,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "f7927cf9-73b8-4b92-8e42-aac5e56599fd",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793344368.7029376,
+    "node_count": 28,
+    "job_count": 244,
+    "state_counts": {
+      "done": 244
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "f2a91a29-fd3d-42ab-abbb-8c4a79ca3814",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793344297.6186256,
+    "node_count": 28,
+    "job_count": 243,
+    "state_counts": {
+      "done": 243
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "688b153c-5be1-46c8-8c94-ad23ee568404",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793344230.265199,
+    "node_count": 28,
+    "job_count": 242,
+    "state_counts": {
+      "done": 242
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "c1c5bd4c-ef11-4369-9485-a39fa834ac25",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793344164.9658682,
+    "node_count": 28,
+    "job_count": 241,
+    "state_counts": {
+      "done": 241
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "951aaf1b-e3c7-491a-b85e-30a6133ef960",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793344159.6321144,
+    "node_count": 28,
+    "job_count": 240,
+    "state_counts": {
+      "done": 240
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 2,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "884b1229-0f54-40df-a9c0-3d2b8801da79",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793344095.039931,
+    "node_count": 28,
+    "job_count": 239,
+    "state_counts": {
+      "done": 239
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "599b3c3f-ee7c-4bb1-b100-5bf3f99f6a98",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793344037.944265,
+    "node_count": 28,
+    "job_count": 240,
+    "state_counts": {
+      "done": 240
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 3,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "208c51e7-4c85-40ef-9548-d7d1ecfb05a9",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793343934.9398348,
+    "node_count": 27,
+    "job_count": 239,
+    "state_counts": {
+      "done": 239
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "c608a446-c1c9-4c55-ac92-74d44c441f3a",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793343859.4716735,
+    "node_count": 26,
+    "job_count": 238,
+    "state_counts": {
+      "done": 238
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 0,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "a61b06e6-3af5-419a-80b5-fb8fa8bf7900",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793343748.831411,
+    "node_count": 26,
+    "job_count": 238,
+    "state_counts": {
+      "done": 238
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 0,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "251d90c1-f400-4bf4-8149-3ce0375488b3",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793343647.0456195,
+    "node_count": 21,
+    "job_count": 248,
+    "state_counts": {
+      "done": 248
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 0,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "571d8fb9-b21b-4c23-90fe-7e393f721216",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793343561.8247836,
+    "node_count": 21,
+    "job_count": 328,
+    "state_counts": {
+      "done": 328
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 81,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "f08f3107-5850-42e4-a690-23e75a112e53",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793343504.6841037,
+    "node_count": 21,
+    "job_count": 328,
+    "state_counts": {
+      "done": 247,
+      "cancelled": 81
+    },
+    "state": "cancelled",
+    "artifact_counts": {
+      "total": 0,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "4eb58c18-9ef0-4e92-adb6-537e2fdb07fa",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793342192.0242357,
+    "node_count": 20,
+    "job_count": 249,
+    "state_counts": {
+      "done": 249
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 3,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "1b78e2ef-76b8-4af7-8704-950d2dc1667c",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793342138.3375435,
+    "node_count": 20,
+    "job_count": 248,
+    "state_counts": {
+      "done": 248
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "828afc80-3c65-48b2-9522-92f56302eaea",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793342128.456041,
+    "node_count": 20,
+    "job_count": 248,
+    "state_counts": {
+      "done": 248
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "6b63dca4-f998-44a8-a2fd-6a4d4d8191f4",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793341904.44258,
+    "node_count": 20,
+    "job_count": 319,
+    "state_counts": {
+      "done": 319
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 81,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "d2f926fe-e330-4244-bcce-2cb6b77d8a07",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793341464.1981125,
+    "node_count": 20,
+    "job_count": 249,
+    "state_counts": {
+      "done": 248,
+      "cancelled": 1
+    },
+    "state": "cancelled",
+    "artifact_counts": {
+      "total": 3,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "1c3ccc44-44e1-4009-975e-9dc21e2756d9",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793341304.195294,
+    "node_count": 20,
+    "job_count": 248,
+    "state_counts": {
+      "done": 247,
+      "cancelled": 1
+    },
+    "state": "cancelled",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "1a567c13-ba34-421e-b7e9-00492ce5026d",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793339769.5492103,
+    "node_count": 20,
+    "job_count": 255,
+    "state_counts": {
+      "done": 254,
+      "cancelled": 1
+    },
+    "state": "cancelled",
+    "artifact_counts": {
+      "total": 6,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "bcfb599e-0f07-4d7f-a582-4e8d39487bce",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793339633.9904482,
+    "node_count": 19,
+    "job_count": 253,
+    "state_counts": {
+      "done": 252,
+      "cancelled": 1
+    },
+    "state": "cancelled",
+    "artifact_counts": {
+      "total": 3,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "4b62ba94-e950-4bc7-8094-04f782ce395c",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793338729.7955446,
+    "node_count": 17,
+    "job_count": 324,
+    "state_counts": {
+      "done": 296,
+      "cancelled": 28
+    },
+    "state": "cancelled",
+    "artifact_counts": {
+      "total": 57,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": "FreeTimeGS \u4ece slice \u5206\u53c9\uff1a10\u5e27\u00d780\u76f8\u673a\uff0cshared_world=true\uff0c100000\u70b9/200\u6b65\uff0c\u5c0f\u89c4\u6a21\u771f\u5b9e\u5168\u652f\u7ebf done\u3002init@0.1.1 \u4ec5\u907f\u514d RGB PNG \u91cd\u7f16\u7801\uff1b\u539f STG \u53c2\u6570/\u8fde\u7ebf\u4fdd\u7559\u3002\u8f93\u51fa\u4e3a FTGS PLY\uff0c\u672a\u5ba3\u79f0\u7f51\u9875 viewer \u64ad\u653e\u9a8c\u8bc1\u3002"
+  },
+  {
+    "snapshot_id": "bf4f5721-3ad7-4a3d-b587-d79fcd256028",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793338113.3275032,
+    "node_count": 17,
+    "job_count": 319,
+    "state_counts": {
+      "done": 319
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 81,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "30ee3ca5-e5f4-4d90-a230-4a2d376dadb9",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793337808.4521596,
+    "node_count": 17,
+    "job_count": 319,
+    "state_counts": {
+      "done": 243,
+      "cancelled": 75,
+      "failed": 1
+    },
+    "state": "failed",
+    "artifact_counts": {
+      "total": 5,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "ea665907-a4e0-4619-8835-b4fc555d63f0",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793337651.1537707,
+    "node_count": 17,
+    "job_count": 241,
+    "state_counts": {
+      "done": 240,
+      "cancelled": 1
+    },
+    "state": "cancelled",
+    "artifact_counts": {
+      "total": 2,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "1fafd19e-25e9-421f-97db-c1ee142cd41d",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793337474.9516904,
+    "node_count": 13,
+    "job_count": 319,
+    "state_counts": {
+      "done": 238,
+      "failed": 81
+    },
+    "state": "failed",
+    "artifact_counts": {
+      "total": 0,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "30fce00d-f82d-4e7b-9fd2-00beccc47bc7",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793307807.1365547,
+    "node_count": 12,
+    "job_count": 242,
+    "state_counts": {
+      "done": 242
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": true,
+    "note": null
+  },
+  {
+    "snapshot_id": "fcfe3253-1f6c-40fc-8afd-e1784ba3aec3",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793300981.2510948,
+    "node_count": 12,
+    "job_count": 241,
+    "state_counts": {
+      "done": 241
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "e878b14a-e911-4152-881f-693cd23af5fa",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793300489.8150184,
+    "node_count": 12,
+    "job_count": 240,
+    "state_counts": {
+      "done": 240
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 3,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "c7f728f5-2f2e-4c3f-84e1-9a3d4692353f",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793300473.7429729,
+    "node_count": 12,
+    "job_count": 239,
+    "state_counts": {
+      "done": 239
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "389a531a-1894-4bae-8ea4-4bac31dc6f35",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793300021.1887987,
+    "node_count": 8,
+    "job_count": 238,
+    "state_counts": {
+      "done": 238
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 51,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "ffc7ea80-ca50-492a-bdd9-861b3a7e445f",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793299008.948177,
+    "node_count": 8,
+    "job_count": 187,
+    "state_counts": {
+      "done": 187
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 102,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "212f29fa-c387-4f54-a352-d5fa0b0a01c3",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793297999.876287,
+    "node_count": 8,
+    "job_count": 136,
+    "state_counts": {
+      "done": 136
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 51,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "a0ee00cf-2787-4ecd-9282-9d3648e74972",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793297763.5502071,
+    "node_count": 8,
+    "job_count": 85,
+    "state_counts": {
+      "done": 85
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 2,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "9db2b123-2c4e-4221-8c1c-490a0fda4874",
+    "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+    "created_ts": 1793296744.4033992,
+    "node_count": 8,
+    "job_count": 86,
+    "state_counts": {
+      "done": 84,
+      "failed": 2
+    },
+    "state": "failed",
+    "artifact_counts": {
+      "total": 84,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  }
+]

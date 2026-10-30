@@ -1,0 +1,310 @@
+{
+  "job_id": "4b7684d1-3282-483c-9836-a5c564d5ac9c",
+  "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+  "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+  "graph_node_id": "mask-overlay",
+  "algorithm_name": "community/mask-overlay",
+  "algorithm_version": "0.1.0",
+  "state": "done",
+  "progress": null,
+  "fail_reason": null,
+  "created_ts": 1793343562.098037,
+  "updated_ts": 1793344710.8636236,
+  "started_ts": 1793343562.1298695,
+  "parent_job_id": null,
+  "shard_element_id": null,
+  "shard_element_ids": null,
+  "expected_shards": 80,
+  "published_as": [],
+  "code_identity": {
+    "cold": {
+      "baseline_at": null,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stats": {
+        "bytes": 0,
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "verification": "not_checked"
+    },
+    "content": {
+      "cold": {
+        "bytes": 0,
+        "directories": [],
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "excluded": {
+        "bytes": 0,
+        "files": 0,
+        "links": 0,
+        "top_level": [],
+        "top_level_names": []
+      },
+      "hot": {
+        "bytes": 5875,
+        "files": 3,
+        "links": 0,
+        "top_level_names": [
+          "manifest.yaml",
+          "run.py",
+          "test_run.py"
+        ]
+      },
+      "stats": {
+        "bytes": 5875,
+        "files": 3,
+        "links": 0,
+        "top_level_names": [
+          "manifest.yaml",
+          "run.py",
+          "test_run.py"
+        ]
+      },
+      "top_level": [
+        {
+          "bytes": 2412,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "run.py",
+          "top_level_names": [
+            "run.py"
+          ]
+        },
+        {
+          "bytes": 2096,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "test_run.py",
+          "top_level_names": [
+            "test_run.py"
+          ]
+        },
+        {
+          "bytes": 1367,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "manifest.yaml",
+          "top_level_names": [
+            "manifest.yaml"
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "bytes": 2412,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "run.py",
+          "top_level_names": [
+            "run.py"
+          ]
+        },
+        {
+          "bytes": 2096,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "test_run.py",
+          "top_level_names": [
+            "test_run.py"
+          ]
+        },
+        {
+          "bytes": 1367,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "manifest.yaml",
+          "top_level_names": [
+            "manifest.yaml"
+          ]
+        }
+      ]
+    },
+    "controls": {
+      "gitignore_sha256": null,
+      "manifest_sha256": "2877b35df1ed5173aefa937392e04ad2bf787fc990191cb3e9d5309050bfbdb4",
+      "packignore_sha256": null
+    },
+    "dependency_discovery_complete": false,
+    "effective_params": {
+      "alpha": 0.5
+    },
+    "environment": {
+      "boundary": "\u672c\u5730\u80fd\u529b\u68c0\u67e5\u53ea\u8986\u76d6\u5df2\u58f0\u660e\u4e14\u5728\u53ef\u63a2\u6d4b\u8303\u56f4\u5185\u7684\u9879; \u901a\u8fc7\u4e0d\u4ee3\u8868\u4e00\u5b9a\u80fd\u8fd0\u884c\u3002\u73af\u5883\u672a\u51bb\u7ed3\u3001\u672a\u88ab\u4ee3\u7801\u8eab\u4efd\u8986\u76d6\u3002",
+      "checked_at": null,
+      "env": "cam3",
+      "environment_covered": false,
+      "issues": [],
+      "prefix": "/cloud/cloud-ssd1/envs/kiri",
+      "requires": null,
+      "runtime_verified": false,
+      "status": "undeclared"
+    },
+    "fixed_excluded": {
+      "bytes": 19312,
+      "files": 3,
+      "links": 0,
+      "top_level_names": [
+        "__pycache__"
+      ]
+    },
+    "format": 2,
+    "git": {
+      "commit": "de91c611e064f581a181161e1d47929a5fa0d577",
+      "dirty": true,
+      "tree_sha": "28db9dbfb9e27476154f82ce08664cb51aa4961c"
+    },
+    "hot": {
+      "sha256": "071830915a9498a362a0e1139696fbdf77c8a01b1c8d1c900ad4b528e08a9c77",
+      "stats": {
+        "bytes": 4508,
+        "files": 2,
+        "links": 0,
+        "top_level_names": [
+          "run.py",
+          "test_run.py"
+        ]
+      },
+      "verification": "verified_at_submission"
+    },
+    "ignored": {
+      "bytes": 0,
+      "files": 0,
+      "links": 0,
+      "top_level_names": []
+    },
+    "manifest": {
+      "excluded_fields": [
+        "published_as",
+        "published_at",
+        "version",
+        "yank",
+        "yank_reason",
+        "yanked",
+        "yanked_at"
+      ],
+      "normalized": {
+        "apiVersion": "hololab.dev/v1",
+        "arrayable": true,
+        "category": "visualization/image",
+        "description": "Blend image and mask arrays by position over the whole image.",
+        "exec": {
+          "shell": "python \"{{ pack_dir }}/run.py\" --image \"{{ inputs.image }}\" --mask \"{{ inputs.mask }}\" --output \"{{ outputs.overlay }}\" --alpha \"{{ params.alpha }}\""
+        },
+        "idempotency": {
+          "marker": "{{ outputs.overlay }}/.hololab-done"
+        },
+        "inputs": {
+          "image": {
+            "arrayed": true,
+            "description": "One ordered image group per invocation.",
+            "dim_labels": [
+              "frame"
+            ],
+            "require_axis_label_match": false,
+            "storage": "dir",
+            "tags": [
+              "image"
+            ]
+          },
+          "mask": {
+            "arrayed": true,
+            "description": "Equal-length mask group in the same coordinate system; paired by index.",
+            "dim_labels": [
+              "frame"
+            ],
+            "require_axis_label_match": false,
+            "storage": "dir",
+            "tags": [
+              "image"
+            ]
+          }
+        },
+        "kind": "Algorithm",
+        "name": "community/mask-overlay",
+        "outputs": {
+          "overlay": {
+            "arrayed": true,
+            "dim_labels": [
+              "frame"
+            ],
+            "storage": "dir",
+            "tags": [
+              "image"
+            ]
+          }
+        },
+        "params": {
+          "alpha": {
+            "default": 0.5,
+            "description": "Mask weight; output = (1-alpha)*image + alpha*mask_rgb everywhere.",
+            "max": 1.0,
+            "min": 0.0,
+            "type": "float"
+          }
+        },
+        "previews": [
+          {
+            "id": "first_overlay",
+            "path": "{{ outputs.overlay }}/p_0000000000000000.png",
+            "type": "image"
+          }
+        ],
+        "progress": {
+          "stdout_regex": "\\[ITER (\\d+)/(\\d+)\\]"
+        },
+        "runtime": {
+          "env": "cam3",
+          "gpu": {
+            "required": false
+          },
+          "resources": {
+            "mem_gb": 0.5,
+            "scratch_gb": 0.1
+          }
+        },
+        "source_entry": "run.py"
+      },
+      "raw_sha256": "2877b35df1ed5173aefa937392e04ad2bf787fc990191cb3e9d5309050bfbdb4",
+      "sha256": "45715c1293a4f24588f97b5c41ecf9ef6e29b33f81aa2efdc5cebcdd9afa2479"
+    },
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/mask-overlay@0.1.0",
+    "quality_hints": [],
+    "recorded_at": 1793343561.5618877,
+    "root": ".",
+    "sha256": "e1c062b4b1607c3312f55d33ea8f97e85b578445dd106c348c2fd98bf58d563f",
+    "source": "community/mask-overlay@0.1.0",
+    "uncovered": [],
+    "undeclared": []
+  },
+  "snapshot_id": "571d8fb9-b21b-4c23-90fe-7e393f721216",
+  "params": {
+    "alpha": 0.5
+  },
+  "input_handles": {
+    "image": "a8c33427-c99f-41fe-9d05-db6bb46a26de",
+    "mask": "928b0bd9-d89e-4fc8-8a3c-54a1eeebcf3a"
+  },
+  "output_handles": {
+    "overlay": "b7d45ef7-1625-4f4b-9eae-afff5c7564bd"
+  },
+  "fail_exit_code": null,
+  "fail_message": null
+}

@@ -1,0 +1,12 @@
+{
+  "snapshot_id": "8b87531d-bbe8-4bff-b721-9215e7a6b143",
+  "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+  "state": "deleted",
+  "jobs_removed": 0,
+  "jobs_kept_shared": 238,
+  "artifacts_removed_from_disk": 0,
+  "artifacts_tombstoned_only": 0,
+  "artifacts_kept_shared": 290,
+  "freed_bytes": 0,
+  "artifact_tombstone_notes": []
+}

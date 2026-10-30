@@ -1,0 +1,12 @@
+{
+  "http_status": 200,
+  "issues": [],
+  "execution_issues": [],
+  "tests": {
+    "two_dimensional_image_consumer": true,
+    "regroup_generic_consumer": true
+  },
+  "probe": "src -> sam-video-mask -> builtin/regroup@0.3.0",
+  "saved_or_executed_probe": false,
+  "workflow_actual_sam_downstream_edges": 0
+}

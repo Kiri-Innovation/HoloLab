@@ -1,0 +1,1017 @@
+{
+  "runtime_shape": {
+    "handleId": "b7d45ef7-1625-4f4b-9eae-afff5c7564bd",
+    "tags": {
+      "evidence": {
+        "status": "complete",
+        "value": [
+          "image"
+        ],
+        "source": "registered-handle-metadata"
+      }
+    },
+    "axes": {
+      "evidence": {
+        "status": "complete",
+        "value": [
+          {
+            "label": "cam",
+            "role": "collection",
+            "size": {
+              "evidence": {
+                "status": "complete",
+                "value": 80,
+                "source": "directory-tree-scan"
+              }
+            }
+          },
+          {
+            "label": "frame",
+            "role": "collection",
+            "size": {
+              "evidence": {
+                "status": "complete",
+                "value": 50,
+                "source": "directory-tree-scan"
+              }
+            }
+          }
+        ],
+        "source": "handle-shape-probe"
+      }
+    },
+    "internalCounts": [],
+    "schemaVersion": 1
+  },
+  "handle_id": "b7d45ef7-1625-4f4b-9eae-afff5c7564bd",
+  "kind": "dir",
+  "tags": [
+    "image"
+  ],
+  "storage": "dir",
+  "size_bytes": 27002596117,
+  "proxy_url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/4b7684d1-3282-483c-9836-a5c564d5ac9c/overlay",
+  "absolute_path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/4b7684d1-3282-483c-9836-a5c564d5ac9c/overlay",
+  "fields": {
+    "entry_count": 80,
+    "total_size_bytes": 0,
+    "entries": [
+      {
+        "name": "p_0000000000000032",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6332040
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6324402
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 6785949
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 6806113
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 6337454
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 6388328
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 6340053
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 6356384
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000063",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6985358
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6928289
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 7772244
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 7758252
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 7032972
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 7043555
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 7066552
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 7131024
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000028",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6388781
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6321267
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 6873438
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 6850267
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 6434004
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 6474773
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 6437924
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 6415783
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000059",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 7090540
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6946910
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 7834887
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 7839377
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 7105097
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 7180261
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 7130142
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 7160766
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000030",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6666490
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6643967
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 7004140
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 7048713
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 6682262
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 6670343
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 6634191
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 6671875
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000036",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6533641
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6474495
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 7089890
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 7014283
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 6546745
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 6577696
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 6577947
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 6579553
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000031",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6363678
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6303908
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 6897921
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 6916478
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 6359303
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 6383179
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 6342567
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 6406975
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000006",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6920799
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6740644
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 7666397
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 7642460
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 6969776
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 6915428
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 6992064
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 6987729
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000070",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6836916
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6784367
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 7666753
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 7604574
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 6999480
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 6922192
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 6976708
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 6953602
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000000",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6201446
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6171190
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 6847556
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 6873919
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 6279544
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 6251918
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 6288557
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 6334800
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000072",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6910949
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6790963
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 7692762
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 7640735
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 7078725
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 6991320
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 7064282
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 7087031
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000011",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6811386
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6776736
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 7610200
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 7547776
+          },
+          {
+            "name": "p_0000000000000008.png",
+            "is_dir": false,
+            "size_bytes": 6930458
+          },
+          {
+            "name": "p_0000000000000026.png",
+            "is_dir": false,
+            "size_bytes": 6966542
+          },
+          {
+            "name": "p_0000000000000003.png",
+            "is_dir": false,
+            "size_bytes": 6980909
+          },
+          {
+            "name": "p_0000000000000033.png",
+            "is_dir": false,
+            "size_bytes": 6922567
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000048",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "p_0000000000000021.png",
+            "is_dir": false,
+            "size_bytes": 6726174
+          },
+          {
+            "name": "p_0000000000000047.png",
+            "is_dir": false,
+            "size_bytes": 6586636
+          },
+          {
+            "name": "p_0000000000000001.png",
+            "is_dir": false,
+            "size_bytes": 7392010
+          },
+          {
+            "name": "p_0000000000000031.png",
+            "is_dir": false,
+            "size_bytes": 7338250
+          }
+        ],
+        "entry_count": 52
+      },
+      {
+        "name": "p_0000000000000051",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000037",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000009",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000055",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000050",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000064",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000074",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000071",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000016",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000067",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000054",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000073",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000033",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000007",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000049",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000035",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000018",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000041",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000008",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000027",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000068",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000023",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000053",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000062",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000078",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000038",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000026",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000001",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000043",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000040",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000014",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000017",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000012",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000065",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000010",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000057",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000024",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000019",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000025",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000066",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000029",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000077",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000052",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000061",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000003",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000076",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000056",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000021",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000020",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000044",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000034",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000042",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000039",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000079",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000013",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000060",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000015",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000022",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000046",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000058",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000002",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000004",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000005",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000069",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000045",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000047",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000075",
+        "is_dir": true,
+        "size_bytes": null
+      }
+    ],
+    "truncated": false
+  },
+  "element_count": 80,
+  "dim_sizes": [
+    80,
+    50
+  ],
+  "internal_count": null,
+  "internal_count_kind": null,
+  "internal_count_items": null,
+  "preview": {
+    "viewer": "image",
+    "member": null
+  },
+  "dim_labels": [
+    "cam",
+    "frame"
+  ]
+}

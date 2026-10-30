@@ -1,0 +1,56 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: community/sam-video-mask
+version: 0.1.0
+description: SAM3 person segmentation of one video into aligned binary frame masks.
+category: generation/segment-anything
+source_entry: run.py
+arrayable: true
+inputs:
+  video:
+    tags: [video-source]
+    description: One video file, or a video-source handle containing exactly one video.
+outputs:
+  masks:
+    tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [frame]
+    description: Ordered p_<i:016d>.png masks; single-channel uint8, 0 background and 255 person.
+params:
+  max_frames: {type: int, default: 50, min: 1}
+  skip: {type: int, default: 1, min: 1}
+  start_frame: {type: int, default: 0, min: 0}
+  end_frame: {type: int, default: 0, min: 0}
+  max_width: {type: int, default: 0, min: 0}
+  hololab_root:
+    type: path
+    default: /cloud/cloud-ssd1/Kiri4DGS/hololab
+    description: HoloLab checkout supplying the frame-extraction@0.2.0 implementation.
+  vista_root:
+    type: path
+    default: /cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D
+    description: Vista4D checkout containing sam3 and utils/recon_and_seg/seg_sam3_official.py.
+  checkpoint:
+    type: path
+    default: /cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt
+runtime:
+  env: cam3
+  gpu: {required: true}
+  resources: {scratch_gb: 2, mem_gb: 12, gpu_mem_gb: 8}
+exec:
+  shell: >-
+    python "{{ pack_dir }}/run.py" --video "{{ inputs.video }}"
+    --output "{{ outputs.masks }}" --scratch "{{ scratch_dir }}"
+    --max-frames "{{ params.max_frames }}" --skip "{{ params.skip }}"
+    --start-frame "{{ params.start_frame }}" --end-frame "{{ params.end_frame }}"
+    --max-width "{{ params.max_width }}" --vista-root "{{ params.vista_root }}"
+    --checkpoint "{{ params.checkpoint }}" --hololab-root "{{ params.hololab_root }}"
+idempotency:
+  marker: '{{ outputs.masks }}/.hololab-done'
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
+previews:
+  - id: first_mask
+    type: image
+    path: '{{ outputs.masks }}/p_0000000000000000.png'

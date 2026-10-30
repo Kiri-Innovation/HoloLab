@@ -1,0 +1,9 @@
+{
+  "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+  "mode": "node",
+  "snapshot_id": "30ee3ca5-e5f4-4d90-a230-4a2d376dadb9",
+  "job_id": "1049ee88-e299-42b7-969f-f088ac5e4b81",
+  "operation": "fork",
+  "parent_snapshot_id": "30fce00d-f82d-4e7b-9fd2-00beccc47bc7",
+  "forked_at": "sam-video-mask"
+}

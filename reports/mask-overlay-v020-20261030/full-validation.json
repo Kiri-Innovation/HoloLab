@@ -1,0 +1,248 @@
+{
+  "images": 4000,
+  "shards": 80,
+  "all_rgb": true,
+  "sizes": [
+    [
+      3840,
+      2160
+    ]
+  ],
+  "bytes": 4304520223,
+  "samples": [
+    {
+      "cam": 0,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6342886686325073,
+      "psnr_db": 48.6715955013258
+    },
+    {
+      "cam": 0,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.5922804474830627,
+      "psnr_db": 49.056647881335174
+    },
+    {
+      "cam": 5,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6607287526130676,
+      "psnr_db": 48.345946931519286
+    },
+    {
+      "cam": 5,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6311710476875305,
+      "psnr_db": 48.64758641285343
+    },
+    {
+      "cam": 10,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.7210566401481628,
+      "psnr_db": 47.47490590302829
+    },
+    {
+      "cam": 10,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6674875617027283,
+      "psnr_db": 48.00529043511453
+    },
+    {
+      "cam": 15,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.7127962112426758,
+      "psnr_db": 47.76843286625858
+    },
+    {
+      "cam": 15,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6514285802841187,
+      "psnr_db": 48.348837959065534
+    },
+    {
+      "cam": 20,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6604628562927246,
+      "psnr_db": 48.3501495554905
+    },
+    {
+      "cam": 20,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6229566335678101,
+      "psnr_db": 48.71213475877817
+    },
+    {
+      "cam": 25,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.645989716053009,
+      "psnr_db": 48.45132826894033
+    },
+    {
+      "cam": 25,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6176765561103821,
+      "psnr_db": 48.747744112015965
+    },
+    {
+      "cam": 30,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6493419408798218,
+      "psnr_db": 48.536249779180935
+    },
+    {
+      "cam": 30,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6387348771095276,
+      "psnr_db": 48.61212448832337
+    },
+    {
+      "cam": 35,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6504883170127869,
+      "psnr_db": 48.48109826342973
+    },
+    {
+      "cam": 35,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6045880913734436,
+      "psnr_db": 48.87044123865154
+    },
+    {
+      "cam": 40,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6630505919456482,
+      "psnr_db": 48.35289953120068
+    },
+    {
+      "cam": 40,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6267670392990112,
+      "psnr_db": 48.67547990350695
+    },
+    {
+      "cam": 45,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6578611135482788,
+      "psnr_db": 48.5213134498877
+    },
+    {
+      "cam": 45,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.5881971120834351,
+      "psnr_db": 49.14264001996805
+    },
+    {
+      "cam": 50,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6762104630470276,
+      "psnr_db": 48.14327419987528
+    },
+    {
+      "cam": 50,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6203855872154236,
+      "psnr_db": 48.729543106182035
+    },
+    {
+      "cam": 55,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.7197948694229126,
+      "psnr_db": 47.60164641864194
+    },
+    {
+      "cam": 55,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6452757716178894,
+      "psnr_db": 48.30236922429896
+    },
+    {
+      "cam": 60,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.7191709876060486,
+      "psnr_db": 47.45937000706533
+    },
+    {
+      "cam": 60,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6578139662742615,
+      "psnr_db": 48.02344029982877
+    },
+    {
+      "cam": 65,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6970029473304749,
+      "psnr_db": 47.65983686788153
+    },
+    {
+      "cam": 65,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6399868726730347,
+      "psnr_db": 48.24614097979005
+    },
+    {
+      "cam": 70,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.7356830835342407,
+      "psnr_db": 47.29720645523131
+    },
+    {
+      "cam": 70,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6569972634315491,
+      "psnr_db": 48.03132970196067
+    },
+    {
+      "cam": 75,
+      "frame": 0,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.7146892547607422,
+      "psnr_db": 47.53890627874056
+    },
+    {
+      "cam": 75,
+      "frame": 49,
+      "encoded_reference_exact": true,
+      "mean_absolute_error": 0.6543892025947571,
+      "psnr_db": 48.13604686908121
+    }
+  ],
+  "shard_seconds": {
+    "min": 1.5310572190064704,
+    "median": 5.8486329524967005,
+    "max": 6.135651409989805
+  },
+  "worker_seconds_sum": {
+    "decode_s": 600.7748652400769,
+    "blend_s": 177.9292261483788,
+    "encode_write_s": 548.1489788798208
+  }
+}

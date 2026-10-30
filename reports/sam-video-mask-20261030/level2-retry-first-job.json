@@ -1,0 +1,338 @@
+{
+  "job_id": "8d24b761-4498-49a4-b3bf-fe29ee86632c",
+  "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+  "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+  "graph_node_id": "sam-video-mask",
+  "algorithm_name": "community/sam-video-mask",
+  "algorithm_version": "0.1.0",
+  "state": "running",
+  "progress": null,
+  "fail_reason": null,
+  "created_ts": 1793338113.4524877,
+  "updated_ts": 1793338126.0959265,
+  "started_ts": 1793338126.0959265,
+  "parent_job_id": "2ec4c464-5601-47d7-a4c4-5d14cdd7358d",
+  "shard_element_id": "p_0000000000000000",
+  "shard_element_ids": null,
+  "expected_shards": null,
+  "published_as": [],
+  "code_identity": {
+    "cold": {
+      "baseline_at": null,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stats": {
+        "bytes": 0,
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "verification": "not_checked"
+    },
+    "content": {
+      "cold": {
+        "bytes": 0,
+        "directories": [],
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "excluded": {
+        "bytes": 0,
+        "files": 0,
+        "links": 0,
+        "top_level": [],
+        "top_level_names": []
+      },
+      "hot": {
+        "bytes": 13242,
+        "files": 3,
+        "links": 0,
+        "top_level_names": [
+          "manifest.yaml",
+          "run.py",
+          "test_run.py"
+        ]
+      },
+      "stats": {
+        "bytes": 13242,
+        "files": 3,
+        "links": 0,
+        "top_level_names": [
+          "manifest.yaml",
+          "run.py",
+          "test_run.py"
+        ]
+      },
+      "top_level": [
+        {
+          "bytes": 9006,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "run.py",
+          "top_level_names": [
+            "run.py"
+          ]
+        },
+        {
+          "bytes": 2215,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "test_run.py",
+          "top_level_names": [
+            "test_run.py"
+          ]
+        },
+        {
+          "bytes": 2021,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "manifest.yaml",
+          "top_level_names": [
+            "manifest.yaml"
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "bytes": 9006,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "run.py",
+          "top_level_names": [
+            "run.py"
+          ]
+        },
+        {
+          "bytes": 2215,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "test_run.py",
+          "top_level_names": [
+            "test_run.py"
+          ]
+        },
+        {
+          "bytes": 2021,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "manifest.yaml",
+          "top_level_names": [
+            "manifest.yaml"
+          ]
+        }
+      ]
+    },
+    "controls": {
+      "gitignore_sha256": null,
+      "manifest_sha256": "936c34f410679d1a1c2b8b9086118a1ec0dee3fa0c18f9e242e91dd6370bc348",
+      "packignore_sha256": null
+    },
+    "dependency_discovery_complete": false,
+    "effective_params": {
+      "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt",
+      "end_frame": 0,
+      "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+      "max_frames": 50,
+      "max_width": 0,
+      "skip": 1,
+      "start_frame": 0,
+      "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D"
+    },
+    "environment": {
+      "boundary": "\u672c\u5730\u80fd\u529b\u68c0\u67e5\u53ea\u8986\u76d6\u5df2\u58f0\u660e\u4e14\u5728\u53ef\u63a2\u6d4b\u8303\u56f4\u5185\u7684\u9879; \u901a\u8fc7\u4e0d\u4ee3\u8868\u4e00\u5b9a\u80fd\u8fd0\u884c\u3002\u73af\u5883\u672a\u51bb\u7ed3\u3001\u672a\u88ab\u4ee3\u7801\u8eab\u4efd\u8986\u76d6\u3002",
+      "checked_at": null,
+      "env": "cam3",
+      "environment_covered": false,
+      "issues": [],
+      "prefix": "/cloud/cloud-ssd1/envs/kiri",
+      "requires": null,
+      "runtime_verified": false,
+      "status": "undeclared"
+    },
+    "fixed_excluded": {
+      "bytes": 24177,
+      "files": 2,
+      "links": 0,
+      "top_level_names": [
+        "__pycache__"
+      ]
+    },
+    "format": 2,
+    "git": {
+      "commit": "995f4f23cca036d2d04b21bb234eeea81435f6ae",
+      "dirty": true,
+      "tree_sha": "9aa73339689c19413b1be49bda3404729461831a"
+    },
+    "hot": {
+      "sha256": "89aacecdd027ad59b16ad655bbad22b5bcb917af6383fb7aae2cd19d53b0c300",
+      "stats": {
+        "bytes": 11221,
+        "files": 2,
+        "links": 0,
+        "top_level_names": [
+          "run.py",
+          "test_run.py"
+        ]
+      },
+      "verification": "verified_at_submission"
+    },
+    "ignored": {
+      "bytes": 0,
+      "files": 0,
+      "links": 0,
+      "top_level_names": []
+    },
+    "manifest": {
+      "excluded_fields": [
+        "published_as",
+        "published_at",
+        "version",
+        "yank",
+        "yank_reason",
+        "yanked",
+        "yanked_at"
+      ],
+      "normalized": {
+        "apiVersion": "hololab.dev/v1",
+        "arrayable": true,
+        "category": "generation/segment-anything",
+        "description": "SAM3 person segmentation of one video into aligned binary frame masks.",
+        "exec": {
+          "shell": "python \"{{ pack_dir }}/run.py\" --video \"{{ inputs.video }}\" --output \"{{ outputs.masks }}\" --scratch \"{{ scratch_dir }}\" --max-frames \"{{ params.max_frames }}\" --skip \"{{ params.skip }}\" --start-frame \"{{ params.start_frame }}\" --end-frame \"{{ params.end_frame }}\" --max-width \"{{ params.max_width }}\" --vista-root \"{{ params.vista_root }}\" --checkpoint \"{{ params.checkpoint }}\" --hololab-root \"{{ params.hololab_root }}\""
+        },
+        "idempotency": {
+          "marker": "{{ outputs.masks }}/.hololab-done"
+        },
+        "inputs": {
+          "video": {
+            "description": "One video file, or a video-source handle containing exactly one video.",
+            "tags": [
+              "video-source"
+            ]
+          }
+        },
+        "kind": "Algorithm",
+        "name": "community/sam-video-mask",
+        "outputs": {
+          "masks": {
+            "arrayed": true,
+            "description": "Ordered p_<i:016d>.png masks; single-channel uint8, 0 background and 255 person.",
+            "dim_labels": [
+              "frame"
+            ],
+            "storage": "dir",
+            "tags": [
+              "mask",
+              "image"
+            ]
+          }
+        },
+        "params": {
+          "checkpoint": {
+            "default": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt",
+            "type": "path"
+          },
+          "end_frame": {
+            "default": 0,
+            "min": 0,
+            "type": "int"
+          },
+          "hololab_root": {
+            "default": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+            "description": "HoloLab checkout supplying the frame-extraction@0.2.0 implementation.",
+            "type": "path"
+          },
+          "max_frames": {
+            "default": 50,
+            "min": 1,
+            "type": "int"
+          },
+          "max_width": {
+            "default": 0,
+            "min": 0,
+            "type": "int"
+          },
+          "skip": {
+            "default": 1,
+            "min": 1,
+            "type": "int"
+          },
+          "start_frame": {
+            "default": 0,
+            "min": 0,
+            "type": "int"
+          },
+          "vista_root": {
+            "default": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+            "description": "Vista4D checkout containing sam3 and utils/recon_and_seg/seg_sam3_official.py.",
+            "type": "path"
+          }
+        },
+        "previews": [
+          {
+            "id": "first_mask",
+            "path": "{{ outputs.masks }}/p_0000000000000000.png",
+            "type": "image"
+          }
+        ],
+        "progress": {
+          "stdout_regex": "\\[ITER (\\d+)/(\\d+)\\]"
+        },
+        "runtime": {
+          "env": "cam3",
+          "gpu": {
+            "required": true
+          },
+          "resources": {
+            "gpu_mem_gb": 8,
+            "mem_gb": 12,
+            "scratch_gb": 2
+          }
+        },
+        "source_entry": "run.py"
+      },
+      "raw_sha256": "936c34f410679d1a1c2b8b9086118a1ec0dee3fa0c18f9e242e91dd6370bc348",
+      "sha256": "72e13a0ae51c3e670975d4ae7cf8213a73a397e82790843706f911a13f589c27"
+    },
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/sam-video-mask@0.1.0",
+    "quality_hints": [],
+    "recorded_at": 1793338113.1895304,
+    "root": ".",
+    "sha256": "bc54f97c174467d4645802b460bca278c30f57fb4898a439f8e433643077b97c",
+    "source": "community/sam-video-mask@0.1.0",
+    "uncovered": [],
+    "undeclared": []
+  },
+  "snapshot_id": "bf4f5721-3ad7-4a3d-b587-d79fcd256028",
+  "params": {
+    "max_frames": 50,
+    "skip": 1,
+    "start_frame": 0,
+    "end_frame": 0,
+    "max_width": 0,
+    "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+    "vista_root": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+    "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt"
+  },
+  "input_handles": {
+    "video": "9711084c-ed62-49bf-8402-b6a9c1102848"
+  },
+  "output_handles": {},
+  "fail_exit_code": null,
+  "fail_message": null
+}

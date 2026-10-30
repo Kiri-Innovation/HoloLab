@@ -1,0 +1,313 @@
+{
+  "name": "community/sam-video-mask",
+  "version": "0.1.0",
+  "manifest_hash": "936c34f410679d1a1c2b8b9086118a1ec0dee3fa0c18f9e242e91dd6370bc348",
+  "code_sha256": "986ccf010452d2be6e60ac6bc2edbf09c58c1c020a2ae11b49585c1799548254",
+  "content": {
+    "files": 3,
+    "bytes": 12857,
+    "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/sam-video-mask@0.1.0",
+    "hot": {
+      "files": 3,
+      "links": 0,
+      "bytes": 12857,
+      "top_level_names": [
+        "manifest.yaml",
+        "run.py",
+        "test_run.py"
+      ]
+    },
+    "cold": {
+      "files": 0,
+      "links": 0,
+      "bytes": 0,
+      "top_level_names": [],
+      "directories": []
+    },
+    "excluded": {
+      "files": 0,
+      "links": 0,
+      "bytes": 0,
+      "top_level_names": [],
+      "top_level": []
+    },
+    "top_level": [
+      {
+        "name": "run.py",
+        "layer": "hot",
+        "files": 1,
+        "links": 0,
+        "bytes": 8875,
+        "top_level_names": [
+          "run.py"
+        ]
+      },
+      {
+        "name": "manifest.yaml",
+        "layer": "hot",
+        "files": 1,
+        "links": 0,
+        "bytes": 2021,
+        "top_level_names": [
+          "manifest.yaml"
+        ]
+      },
+      {
+        "name": "test_run.py",
+        "layer": "hot",
+        "files": 1,
+        "links": 0,
+        "bytes": 1961,
+        "top_level_names": [
+          "test_run.py"
+        ]
+      }
+    ],
+    "tree": [
+      {
+        "name": "run.py",
+        "kind": "file",
+        "layer": "hot",
+        "files": 1,
+        "links": 0,
+        "bytes": 8875,
+        "top_level_names": [
+          "run.py"
+        ],
+        "children": [],
+        "children_truncated": 0
+      },
+      {
+        "name": "manifest.yaml",
+        "kind": "file",
+        "layer": "hot",
+        "files": 1,
+        "links": 0,
+        "bytes": 2021,
+        "top_level_names": [
+          "manifest.yaml"
+        ],
+        "children": [],
+        "children_truncated": 0
+      },
+      {
+        "name": "test_run.py",
+        "kind": "file",
+        "layer": "hot",
+        "files": 1,
+        "links": 0,
+        "bytes": 1961,
+        "top_level_names": [
+          "test_run.py"
+        ],
+        "children": [],
+        "children_truncated": 0
+      }
+    ]
+  },
+  "root": ".",
+  "cold": [],
+  "publication": null,
+  "requires": null,
+  "runtime": {
+    "mode": "conda",
+    "env": "cam3"
+  },
+  "node_environments": {
+    "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+      "runtime": {
+        "mode": "conda",
+        "env": "cam3"
+      },
+      "path": null
+    }
+  },
+  "environment_by_node": {
+    "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+      "status": "undeclared",
+      "checked_at": 1793336793.177908,
+      "issues": [],
+      "boundary": "\u672c\u5730\u80fd\u529b\u68c0\u67e5\u53ea\u8986\u76d6\u5df2\u58f0\u660e\u4e14\u5728\u53ef\u63a2\u6d4b\u8303\u56f4\u5185\u7684\u9879; \u901a\u8fc7\u4e0d\u4ee3\u8868\u4e00\u5b9a\u80fd\u8fd0\u884c\u3002\u73af\u5883\u672a\u51bb\u7ed3\u3001\u672a\u88ab\u4ee3\u7801\u8eab\u4efd\u8986\u76d6\u3002",
+      "environment_covered": false,
+      "runtime_verified": false,
+      "env": "cam3",
+      "requires": null,
+      "prefix": null,
+      "runtime": {
+        "mode": "conda",
+        "env": "cam3"
+      },
+      "stale": false,
+      "next_recheck_at": 1793336853.177908
+    }
+  },
+  "node_ids": [
+    "3038e635-4840-46dd-aa0c-6bd9c477b852"
+  ],
+  "inputs": {
+    "video": {
+      "tags": [
+        "video-source"
+      ],
+      "required": true,
+      "inline": null,
+      "inline_default": null,
+      "require_axis_label_match": true,
+      "storage": "dir",
+      "description": "One video file, or a video-source handle containing exactly one video.",
+      "arrayed": false,
+      "scalar": false,
+      "dim_labels": [],
+      "content_dims_from": null
+    }
+  },
+  "outputs": {
+    "masks": {
+      "tags": [
+        "mask",
+        "image"
+      ],
+      "storage": "dir",
+      "description": "Ordered p_<i:016d>.png masks; single-channel uint8, 0 background and 255 person.",
+      "arrayed": true,
+      "scalar": false,
+      "tags_from": null,
+      "dim_labels": [
+        "frame"
+      ],
+      "dim_labels_from": null,
+      "dim_labels_from_input": null,
+      "dim_labels_drop_outer": 0,
+      "preview": {
+        "viewer": "image",
+        "member": null
+      }
+    }
+  },
+  "params": {
+    "max_frames": {
+      "type": "int",
+      "items": null,
+      "min": 1,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": 50,
+      "description": null,
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "skip": {
+      "type": "int",
+      "items": null,
+      "min": 1,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": 1,
+      "description": null,
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "start_frame": {
+      "type": "int",
+      "items": null,
+      "min": 0,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": 0,
+      "description": null,
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "end_frame": {
+      "type": "int",
+      "items": null,
+      "min": 0,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": 0,
+      "description": null,
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "max_width": {
+      "type": "int",
+      "items": null,
+      "min": 0,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": 0,
+      "description": null,
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "hololab_root": {
+      "type": "path",
+      "items": null,
+      "min": null,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+      "description": "HoloLab checkout supplying the frame-extraction@0.2.0 implementation.",
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "vista_root": {
+      "type": "path",
+      "items": null,
+      "min": null,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": "/cloud/cloud-ssd1/Kiri4DGS/packages/Vista4D",
+      "description": "Vista4D checkout containing sam3 and utils/recon_and_seg/seg_sam3_official.py.",
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "checkpoint": {
+      "type": "path",
+      "items": null,
+      "min": null,
+      "max": null,
+      "values": null,
+      "pinned": false,
+      "default": "/cloud/cloud-ssd1/Kiri4DGS/weights/sam3/sam3.pt",
+      "description": null,
+      "optional": false,
+      "must_exist": null,
+      "path_kind": null
+    }
+  },
+  "description": "SAM3 person segmentation of one video into aligned binary frame masks.",
+  "category": [
+    "generation",
+    "segment-anything"
+  ],
+  "docs": null,
+  "source_entry": "run.py",
+  "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/sam-video-mask@0.1.0/manifest.yaml",
+  "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs",
+  "arrayable": true,
+  "parallelism": null,
+  "batch_size": null,
+  "node_viewers": [],
+  "hide_default_output_previews": false,
+  "central": {
+    "state": "absent",
+    "reason": "not present in configured registry",
+    "checked_at": 1793336801.7509298,
+    "stale": false
+  }
+}

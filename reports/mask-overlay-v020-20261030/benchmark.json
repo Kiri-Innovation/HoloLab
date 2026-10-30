@@ -1,0 +1,34 @@
+[
+  {
+    "count": 50,
+    "mode": "mask0_black",
+    "alpha": 0.5,
+    "format": "png",
+    "io_workers": 3,
+    "elapsed_seconds": 11.922117073991103,
+    "images_per_second": 4.19388600948051,
+    "worker_seconds_sum": {
+      "decode_s": 7.328152940084692,
+      "blend_s": 2.4127742119599134,
+      "encode_write_s": 25.260448917964823,
+      "bytes": 322903337
+    },
+    "ideal_4000_s_at_4_shards": 238.44234147982206
+  },
+  {
+    "count": 50,
+    "mode": "mask0_black",
+    "alpha": 0.5,
+    "format": "jpg",
+    "io_workers": 3,
+    "elapsed_seconds": 5.493923154004733,
+    "images_per_second": 9.100964574568733,
+    "worker_seconds_sum": {
+      "decode_s": 7.104686740000034,
+      "blend_s": 2.1294766230130335,
+      "encode_write_s": 6.895784000036656,
+      "bytes": 50854341
+    },
+    "ideal_4000_s_at_4_shards": 109.87846308009466
+  }
+]

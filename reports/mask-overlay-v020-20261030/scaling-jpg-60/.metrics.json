@@ -1,0 +1,15 @@
+{
+  "count": 50,
+  "mode": "mask0_black",
+  "alpha": 0.5,
+  "format": "jpg",
+  "io_workers": 3,
+  "elapsed_seconds": 6.60698166200018,
+  "images_per_second": 7.567752198794984,
+  "worker_seconds_sum": {
+    "decode_s": 8.150863128044875,
+    "blend_s": 2.3136223309120396,
+    "encode_write_s": 8.908429607079597,
+    "bytes": 55819239
+  }
+}

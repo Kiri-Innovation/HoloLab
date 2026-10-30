@@ -1,0 +1,855 @@
+{
+  "runtime_shape": {
+    "handleId": "bbd1c8d8-2bb1-4c0e-9f52-d910ece03d6d",
+    "tags": {
+      "evidence": {
+        "status": "complete",
+        "value": [
+          "colmap-cams"
+        ],
+        "source": "registered-handle-metadata"
+      }
+    },
+    "axes": {
+      "evidence": {
+        "status": "complete",
+        "value": [
+          {
+            "label": "frame",
+            "role": "collection",
+            "size": {
+              "evidence": {
+                "status": "complete",
+                "value": 50,
+                "source": "directory-tree-scan"
+              }
+            }
+          }
+        ],
+        "source": "handle-shape-probe"
+      }
+    },
+    "internalCounts": [
+      {
+        "key": "intr",
+        "count": {
+          "evidence": {
+            "status": "sampled",
+            "value": 80,
+            "source": "tag-internal-count-probe",
+            "sample": "p_0000000000000000"
+          }
+        }
+      }
+    ],
+    "schemaVersion": 1
+  },
+  "handle_id": "bbd1c8d8-2bb1-4c0e-9f52-d910ece03d6d",
+  "kind": "dir",
+  "tags": [
+    "colmap-cams"
+  ],
+  "storage": "dir",
+  "size_bytes": 1884737,
+  "proxy_url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/3464bb33-dc9d-480b-99c1-d2c107a2c849/cams",
+  "absolute_path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/3464bb33-dc9d-480b-99c1-d2c107a2c849/cams",
+  "fields": {
+    "entry_count": 50,
+    "total_size_bytes": 0,
+    "entries": [
+      {
+        "name": "p_0000000000000032",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 824
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000028",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 822
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000030",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 824
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000036",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 824
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000031",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 824
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000006",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 824
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000000",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 823
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000011",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 824
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000048",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 824
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000037",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 824
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000009",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 823
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000016",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          },
+          {
+            "name": "frames.txt",
+            "is_dir": false,
+            "size_bytes": 13300
+          },
+          {
+            "name": "rigs.txt",
+            "is_dir": false,
+            "size_bytes": 1388
+          },
+          {
+            "name": ".hololab-metadata.json",
+            "is_dir": false,
+            "size_bytes": 824
+          },
+          {
+            "name": "points3D.txt",
+            "is_dir": false,
+            "size_bytes": 0
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000033",
+        "is_dir": true,
+        "size_bytes": null,
+        "children": [
+          {
+            "name": "cameras.txt",
+            "is_dir": false,
+            "size_bytes": 5831
+          },
+          {
+            "name": "undistortion_meta.json",
+            "is_dir": false,
+            "size_bytes": 2458
+          },
+          {
+            "name": ".hololab-done",
+            "is_dir": false,
+            "size_bytes": 0
+          },
+          {
+            "name": "images.txt",
+            "is_dir": false,
+            "size_bytes": 13894
+          }
+        ]
+      },
+      {
+        "name": "p_0000000000000007",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000049",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000035",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000018",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000041",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000008",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000027",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000023",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000038",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000026",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000001",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000043",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000040",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000014",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000017",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000012",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000010",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000024",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000019",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000025",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000029",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000003",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000021",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000020",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000044",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000034",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000042",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000039",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000013",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000015",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000022",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000046",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000002",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000004",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000005",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000045",
+        "is_dir": true,
+        "size_bytes": null
+      },
+      {
+        "name": "p_0000000000000047",
+        "is_dir": true,
+        "size_bytes": null
+      }
+    ],
+    "truncated": false
+  },
+  "element_count": 50,
+  "dim_sizes": [
+    50
+  ],
+  "internal_count": null,
+  "internal_count_kind": null,
+  "internal_count_items": [
+    {
+      "label": "intr",
+      "value": 80
+    }
+  ],
+  "preview": null,
+  "dim_labels": [
+    "frame"
+  ]
+}

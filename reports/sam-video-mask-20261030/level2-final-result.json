@@ -1,0 +1,20 @@
+{
+  "snapshot_id": "bf4f5721-3ad7-4a3d-b587-d79fcd256028",
+  "parent_job_id": "2ec4c464-5601-47d7-a4c4-5d14cdd7358d",
+  "parent_state": "done",
+  "output_handle_id": "c68a4c94-ab80-4148-8c16-9823ccb27f13",
+  "shard_counts": {
+    "done": 80
+  },
+  "verified_shards": 80,
+  "verified_frames": 4000,
+  "all_rgb_hashes_match": true,
+  "foreground_min": 0.03804578993055555,
+  "foreground_max": 0.16685378086419753,
+  "original_snapshot_done_jobs": 242,
+  "new_non_sam_jobs": 0,
+  "inherited_jobs_in_new_snapshot": 238,
+  "other_workflow_live_counts": {
+    "pending": 105
+  }
+}

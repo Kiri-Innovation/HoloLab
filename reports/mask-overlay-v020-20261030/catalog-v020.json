@@ -1,0 +1,293 @@
+[
+  {
+    "name": "community/mask-overlay",
+    "version": "0.2.0",
+    "manifest_hash": "41bea9f0de9372d3c0bbd090878972b7e7b2badc02654c100fe553c4761c45fd",
+    "code_sha256": "d3c84a0e99f052004e21741cc4a456efd19a02a1a6cd460e2f844722d9a33b02",
+    "content": {
+      "files": 2,
+      "bytes": 9264,
+      "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/mask-overlay@0.2.0",
+      "hot": {
+        "files": 2,
+        "links": 0,
+        "bytes": 9264,
+        "top_level_names": [
+          "manifest.yaml",
+          "run.py"
+        ]
+      },
+      "cold": {
+        "files": 0,
+        "links": 0,
+        "bytes": 0,
+        "top_level_names": [],
+        "directories": []
+      },
+      "excluded": {
+        "files": 0,
+        "links": 0,
+        "bytes": 0,
+        "top_level_names": [],
+        "top_level": []
+      },
+      "top_level": [
+        {
+          "name": "run.py",
+          "layer": "hot",
+          "files": 1,
+          "links": 0,
+          "bytes": 6923,
+          "top_level_names": [
+            "run.py"
+          ]
+        },
+        {
+          "name": "manifest.yaml",
+          "layer": "hot",
+          "files": 1,
+          "links": 0,
+          "bytes": 2341,
+          "top_level_names": [
+            "manifest.yaml"
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "name": "run.py",
+          "kind": "file",
+          "layer": "hot",
+          "files": 1,
+          "links": 0,
+          "bytes": 6923,
+          "top_level_names": [
+            "run.py"
+          ],
+          "children": [],
+          "children_truncated": 0
+        },
+        {
+          "name": "manifest.yaml",
+          "kind": "file",
+          "layer": "hot",
+          "files": 1,
+          "links": 0,
+          "bytes": 2341,
+          "top_level_names": [
+            "manifest.yaml"
+          ],
+          "children": [],
+          "children_truncated": 0
+        }
+      ]
+    },
+    "root": ".",
+    "cold": [],
+    "publication": null,
+    "requires": null,
+    "runtime": {
+      "mode": "conda",
+      "env": "cam3"
+    },
+    "node_environments": {
+      "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+        "runtime": {
+          "mode": "conda",
+          "env": "cam3"
+        },
+        "path": "/cloud/cloud-ssd1/envs/kiri"
+      }
+    },
+    "environment_by_node": {
+      "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+        "status": "undeclared",
+        "checked_at": 1793345170.3195655,
+        "issues": [],
+        "boundary": "\u672c\u5730\u80fd\u529b\u68c0\u67e5\u53ea\u8986\u76d6\u5df2\u58f0\u660e\u4e14\u5728\u53ef\u63a2\u6d4b\u8303\u56f4\u5185\u7684\u9879; \u901a\u8fc7\u4e0d\u4ee3\u8868\u4e00\u5b9a\u80fd\u8fd0\u884c\u3002\u73af\u5883\u672a\u51bb\u7ed3\u3001\u672a\u88ab\u4ee3\u7801\u8eab\u4efd\u8986\u76d6\u3002",
+        "environment_covered": false,
+        "runtime_verified": false,
+        "env": "cam3",
+        "requires": null,
+        "prefix": "/cloud/cloud-ssd1/envs/kiri",
+        "runtime": {
+          "mode": "conda",
+          "env": "cam3"
+        },
+        "stale": false,
+        "next_recheck_at": 1793345230.3195655
+      }
+    },
+    "node_ids": [
+      "3038e635-4840-46dd-aa0c-6bd9c477b852"
+    ],
+    "inputs": {
+      "image": {
+        "tags": [
+          "image"
+        ],
+        "required": true,
+        "inline": null,
+        "inline_default": null,
+        "require_axis_label_match": false,
+        "storage": "dir",
+        "description": "One ordered image group per invocation.",
+        "arrayed": true,
+        "scalar": false,
+        "dim_labels": [
+          "frame"
+        ],
+        "content_dims_from": null,
+        "any_of": []
+      },
+      "mask": {
+        "tags": [
+          "image"
+        ],
+        "required": true,
+        "inline": null,
+        "inline_default": null,
+        "require_axis_label_match": false,
+        "storage": "dir",
+        "description": "Equal-length mask group in the same coordinate system; paired by index.",
+        "arrayed": true,
+        "scalar": false,
+        "dim_labels": [
+          "frame"
+        ],
+        "content_dims_from": null,
+        "any_of": []
+      }
+    },
+    "outputs": {
+      "overlay": {
+        "tags": [
+          "image"
+        ],
+        "storage": "dir",
+        "description": null,
+        "arrayed": true,
+        "scalar": false,
+        "tags_from": null,
+        "dim_labels": [
+          "frame"
+        ],
+        "dim_labels_from": null,
+        "dim_labels_from_input": null,
+        "dim_labels_drop_outer": 0,
+        "preview": {
+          "viewer": "image",
+          "member": null
+        }
+      }
+    },
+    "params": {
+      "mode": {
+        "type": "enum",
+        "items": null,
+        "min": null,
+        "max": null,
+        "values": [
+          "mask0_black",
+          "mask0_red",
+          "mask1_red",
+          "blend50"
+        ],
+        "pinned": false,
+        "default": "mask0_black",
+        "description": "Binary threshold >=128; selected region is tinted, other pixels remain unchanged.",
+        "optional": false,
+        "must_exist": null,
+        "path_kind": null
+      },
+      "alpha": {
+        "type": "float",
+        "items": null,
+        "min": 0.0,
+        "max": 1.0,
+        "values": null,
+        "pinned": false,
+        "default": 0.5,
+        "description": null,
+        "optional": false,
+        "must_exist": null,
+        "path_kind": null
+      },
+      "io_workers": {
+        "type": "int",
+        "items": null,
+        "min": 1,
+        "max": 16,
+        "values": null,
+        "pinned": false,
+        "default": 3,
+        "description": "Per-shard threads; default 4 shards x 3 workers = 12 image workers.",
+        "optional": false,
+        "must_exist": null,
+        "path_kind": null
+      },
+      "format": {
+        "type": "enum",
+        "items": null,
+        "min": null,
+        "max": null,
+        "values": [
+          "png",
+          "jpg"
+        ],
+        "pinned": false,
+        "default": "png",
+        "description": "PNG is lossless; JPEG is faster and smaller but lossy, including outside the tinted region.",
+        "optional": false,
+        "must_exist": null,
+        "path_kind": null
+      },
+      "png_compress": {
+        "type": "int",
+        "items": null,
+        "min": 0,
+        "max": 9,
+        "values": null,
+        "pinned": false,
+        "default": 1,
+        "description": null,
+        "optional": false,
+        "must_exist": null,
+        "path_kind": null
+      },
+      "jpeg_quality": {
+        "type": "int",
+        "items": null,
+        "min": 1,
+        "max": 100,
+        "values": null,
+        "pinned": false,
+        "default": 95,
+        "description": null,
+        "optional": false,
+        "must_exist": null,
+        "path_kind": null
+      }
+    },
+    "description": "Parallel positional mask visualization with selective background/foreground tinting.",
+    "category": [
+      "visualization",
+      "image"
+    ],
+    "docs": null,
+    "source_entry": "run.py",
+    "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/mask-overlay@0.2.0/manifest.yaml",
+    "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs",
+    "arrayable": true,
+    "parallelism": 4,
+    "batch_size": 1,
+    "node_viewers": [],
+    "hide_default_output_previews": false,
+    "central": {
+      "state": "absent",
+      "reason": "not present in configured registry",
+      "checked_at": 1793345184.047809,
+      "stale": false
+    }
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+  "mode": "node",
+  "snapshot_id": "571d8fb9-b21b-4c23-90fe-7e393f721216",
+  "job_id": "4b7684d1-3282-483c-9836-a5c564d5ac9c",
+  "operation": "fork",
+  "parent_snapshot_id": "4eb58c18-9ef0-4e92-adb6-537e2fdb07fa",
+  "forked_at": "mask-overlay"
+}
