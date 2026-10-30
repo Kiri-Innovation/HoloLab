@@ -136,7 +136,7 @@ def _seed_snapshot_with_jobs(
 
 def test_dispatch_continues_when_slot_empty(tmp_path: Path) -> None:
     """A snapshot with A + B done, dispatching C consumes B's artifact
-    and *extends* the same snapshot — no fork, snapshot_id unchanged."""
+    in a new child snapshot, which attributes A + B by their original IDs."""
 
     app = create_app(db_path=tmp_path / "cont.sqlite")
     with TestClient(app) as client:
@@ -149,9 +149,9 @@ def test_dispatch_continues_when_slot_empty(tmp_path: Path) -> None:
         r = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["operation"] == "continue"
-        assert body["snapshot_id"] == base
-        assert "parent_snapshot_id" not in body
+        assert body["operation"] == "fork"
+        assert body["snapshot_id"] != base
+        assert body["parent_snapshot_id"] == base
         assert body["job_id"]  # a fresh job id was minted
 
 
@@ -414,10 +414,10 @@ def test_dispatch_continue_when_upstream_slot_holds_failed_only(tmp_path: Path) 
         r = client.post(f"/api/workflows/{wid}/dispatch/B", params={"base_snapshot_id": base})
         assert r.status_code == 200, r.text
         body = r.json()
-        # Same snapshot, Continue not Fork.
-        assert body["operation"] == "continue", body
-        assert body["snapshot_id"] == base, body
-        assert "parent_snapshot_id" not in body, body
+        # Every dispatch creates a child membership snapshot.
+        assert body["operation"] == "fork", body
+        assert body["snapshot_id"] != base, body
+        assert body["parent_snapshot_id"] == base, body
 
 
 def test_dispatch_attribution_written_at_creation(tmp_path: Path) -> None:

@@ -351,8 +351,7 @@ def test_rerun_from_node_404_unknown_graph_node(tmp_path: Path) -> None:
 
 
 def test_rerun_from_node_400_reused_upstream_not_done(tmp_path: Path) -> None:
-    """If a to_reuse node isn't done, the endpoint rejects — the user
-    can either fix the upstream first or re-run from an earlier node."""
+    """A failed non-cleared node is not inherited; rerun still starts."""
 
     app = create_app(db_path=tmp_path / "rbad.sqlite")
     with TestClient(app) as client:
@@ -363,11 +362,10 @@ def test_rerun_from_node_400_reused_upstream_not_done(tmp_path: Path) -> None:
             graph=_linear_graph(),
             job_states={"n1": "failed", "n2": "done", "n3": "done", "n4": "done"},
         )
-        # rerun from n3 wants to reuse n1 (which is failed) → 400.
+        # rerun from n3 leaves failed n1 out of the new membership.
         r = client.post(f"/api/snapshots/{snap}/rerun-from/n3")
-        assert r.status_code == 400
-        assert "cannot reuse" in r.json()["detail"]
-        assert "n1" in r.json()["detail"]
+        assert r.status_code == 200
+        assert "n1" not in r.json()["reused_graph_node_ids"]
 
 
 def test_rerun_from_node_400_producer_offline(tmp_path: Path) -> None:
@@ -386,7 +384,7 @@ def test_rerun_from_node_400_producer_offline(tmp_path: Path) -> None:
         )
         r = client.post(f"/api/snapshots/{snap}/rerun-from/n3")
         assert r.status_code == 400
-        assert "not currently online" in r.json()["detail"]
+        assert "not online" in r.json()["detail"]
 
 
 def test_rerun_from_a_previous_rerun_resolves_origin_handles(tmp_path: Path) -> None:

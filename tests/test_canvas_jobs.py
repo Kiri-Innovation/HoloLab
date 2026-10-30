@@ -1,4 +1,6 @@
 from copy import deepcopy
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -161,3 +163,19 @@ def test_three_parallel_snapshots_use_one_generation_per_branch():
     )
     assert set(result) == {"a", "b", "c"}
     assert all(j["state"] == "running" for j in result.values())
+
+
+@pytest.mark.asyncio
+async def test_new_membership_uses_canvas_result_from_sibling_branch(monkeypatch):
+    """Clear C, retain A/B selected from a different branch by the canvas."""
+    from hololab.gateway.canvas_jobs import materialize_current_results
+
+    g = graph()
+    bridge = SimpleNamespace(attribute_many=AsyncMock())
+    handles = SimpleNamespace(list_by_job=AsyncMock(return_value=[]))
+    app = SimpleNamespace(state=SimpleNamespace(snapshot_jobs=bridge, handles=handles, jobs_store=SimpleNamespace(get=AsyncMock(return_value=None))))
+    chosen = [job("a", "done", "-branch"), job("b", "done", "-branch"), job("c", "done", "-old")]
+    monkeypatch.setattr("hololab.gateway.canvas_jobs.canvas_jobs", AsyncMock(return_value=chosen))
+
+    await materialize_current_results(app, "w", g, "new", cleared={"c"})
+    bridge.attribute_many.assert_awaited_once_with("new", [("a-branch", "a"), ("b-branch", "b")])

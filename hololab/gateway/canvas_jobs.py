@@ -92,3 +92,45 @@ async def canvas_jobs(app, workflow_id, graph):
         if job:
             candidates.append((sid, job))
     return select_canvas_jobs(graph, candidates, sources)
+
+
+async def materialize_current_results(app, workflow_id, graph, snapshot_id, *, cleared):
+    """Make one new snapshot's membership match the canvas result set.
+
+    ``canvas_jobs`` is the pre-existing authority for a node's *current
+    effective result*.  A run clears its requested topology region; every
+    other completed effective result, including one selected from a sibling
+    branch, is attributed to the new snapshot by original job id.
+    """
+    cleared = set(cleared)
+    selected = await canvas_jobs(app, workflow_id, graph)
+    parents = [
+        job for job in selected
+        if not job.get("parent_job_id")
+        and job.get("graph_node_id") not in cleared
+    ]
+    # Historical rerun rows are pointers, not artifact producers.  Preserve
+    # the many-to-many membership on the origin job just as rerun-from did.
+    materialized = []
+    for job in parents:
+        origin_id = job["job_id"]
+        origin = await app.state.jobs_store.get(origin_id)
+        while origin is not None and origin.reused_from_job_id:
+            origin_id = origin.reused_from_job_id
+            origin = await app.state.jobs_store.get(origin_id)
+        materialized.append({**job, "job_id": origin_id})
+    await app.state.snapshot_jobs.attribute_many(
+        snapshot_id,
+        [(job["job_id"], job["graph_node_id"]) for job in materialized],
+    )
+    outputs = {}
+    for job in materialized:
+        if job.get("state") != "done":
+            continue
+        produced = await app.state.handles.list_by_job(job["job_id"])
+        outputs[job["graph_node_id"]] = {
+            handle.output_port_name: handle.handle_id
+            for handle in produced
+            if handle.output_port_name
+        }
+    return outputs

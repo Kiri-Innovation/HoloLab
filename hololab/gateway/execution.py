@@ -1543,27 +1543,10 @@ async def dispatch_graph_node(
     if gnode.assigned_node_id is None:
         raise DispatchError(f"graph node {graph_node_id!r} has no assigned compute node")
 
-    # -- Choose Continue vs Fork --------------------------------------------
-    # Attribute-at-creation (2026-09-22 refactor) means ``get_job_at``
-    # can return a FAILED / CANCELLED job for a slot the operator will
-    # want to Continue-retry, not Fork. Skip terminal-fail states here
-    # so the retry stays a Continue: a new attempt appends a new
-    # attribution row with newer ``created_ts``, and ``get_job_at`` (which
-    # orders by created_ts DESC) surfaces the newest one at the next
-    # dispatch. Slot semantics: "productively filled" = DONE or in
-    # flight; "empty for Continue" = never attempted OR last attempt
-    # failed/cancelled.
-    existing_job_id: str | None = None
+    # -- Create a new membership snapshot -----------------------------------
+    # Every dispatch gets a distinct snapshot.  Membership is then rebuilt
+    # from the canvas's current-effective results outside ``cleared`` below.
     parent_snapshot_id: str | None = None
-    if base_snapshot_id is not None:
-        candidate = await snapshot_jobs.get_job_at(base_snapshot_id, graph_node_id)
-        if candidate is not None:
-            candidate_job = await jobs_store.get(candidate)
-            if candidate_job is not None and candidate_job.state not in (
-                JobState.FAILED,
-                JobState.CANCELLED,
-            ):
-                existing_job_id = candidate
 
     from hololab.gateway.preparation import changed_nodes, historical_execution, submitted_execution
 
@@ -1579,38 +1562,25 @@ async def dispatch_graph_node(
         changed_constants.add(graph_node_id)
     graph = prepared
 
-    if base_snapshot_id is None:
-        # No base → new snapshot, first attribution.
-        snap = await workflows_store.create_snapshot(workflow_id=workflow_id, graph=graph)
-        target_snapshot_id = snap.snapshot_id
-        operation = "continue"
-    elif existing_job_id is None and not changed_constants:
-        # Continue on the existing snapshot.
-        target_snapshot_id = base_snapshot_id
-        operation = "continue"
-    else:
-        # Fork: create a child snapshot; inherit every parent-snapshot
-        # attribution except the target node and its downstream closure.
-        forbidden = downstream_closure(graph, graph_node_id) | {graph_node_id}
-        for constant_id in changed_constants:
-            forbidden |= downstream_closure(graph, constant_id) | {constant_id}
-            if frozen_base:
-                forbidden |= downstream_closure(frozen_base, constant_id)
-        parent_attributions = await snapshot_jobs.list_attributions(base_snapshot_id)
-        inherited = [
-            (row["job_id"], row["graph_node_id"])
-            for row in parent_attributions
-            if row["graph_node_id"] not in forbidden
-        ]
-        parent_snapshot_id = base_snapshot_id
-        snap = await workflows_store.create_snapshot(
-            workflow_id=workflow_id,
-            graph=graph,
-            parent_snapshot_id=parent_snapshot_id,
-        )
-        target_snapshot_id = snap.snapshot_id
-        await snapshot_jobs.attribute_many(target_snapshot_id, inherited)
-        operation = "fork"
+    cleared = downstream_closure(graph, graph_node_id) | {graph_node_id}
+    for constant_id in changed_constants:
+        cleared |= downstream_closure(graph, constant_id) | {constant_id}
+        if frozen_base:
+            cleared |= downstream_closure(frozen_base, constant_id)
+    parent_snapshot_id = base_snapshot_id
+    snap = await workflows_store.create_snapshot(
+        workflow_id=workflow_id,
+        graph=graph,
+        parent_snapshot_id=parent_snapshot_id,
+    )
+    target_snapshot_id = snap.snapshot_id
+    operation = "fork" if base_snapshot_id is not None else "continue"
+
+    from hololab.gateway.canvas_jobs import materialize_current_results
+
+    await materialize_current_results(
+        app, workflow_id, graph, target_snapshot_id, cleared=cleared
+    )
 
     frozen_snapshot = await workflows_store.get_snapshot(target_snapshot_id)
     graph = await historical_execution(app, frozen_snapshot)

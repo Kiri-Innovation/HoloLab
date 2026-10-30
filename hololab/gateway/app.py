@@ -2484,6 +2484,15 @@ def _mount_routes(app: FastAPI) -> None:
         snapshot = await app.state.workflows.create_snapshot(
             workflow_id=workflow_id, graph=prepared
         )
+        from hololab.gateway.canvas_jobs import materialize_current_results
+
+        # A whole-graph run clears every task slot, so this is intentionally
+        # an empty membership materialization.  Keeping the same call makes
+        # all run creation paths share one definition of membership.
+        await materialize_current_results(
+            app, workflow_id, prepared, snapshot.snapshot_id,
+            cleared={node.id for node in prepared.nodes},
+        )
 
         async def _run() -> None:
             try:
@@ -2937,76 +2946,7 @@ def _mount_routes(app: FastAPI) -> None:
         if graph_node_id not in task_ids:
             raise HTTPException(status_code=422, detail="常量无需运行, 请运行消费节点")
         to_rerun &= task_ids
-        to_reuse = task_ids - to_rerun
-
-        # Old-snapshot jobs indexed by graph_node_id for the reuse plan.
-        # A fan-out gnode has one parent job (parent_job_id NULL, holds the
-        # aggregate arrayed<T> output handle) plus N shard rows (each
-        # produces only its per-element slice). Shard rows are created
-        # AFTER the parent so a naive newest-by-created_ts pick lands on
-        # a shard — downstream then reuses a single frame's slice as the
-        # arrayed input, which either fanouts on the wrong tree (finding
-        # its per-cam subdirs) or degrades to a scalar 0-shard no-op. So
-        # rank parent above shards; break ties by newest created_ts, same
-        # rule as ``SnapshotJobsStore.get_job_at``.
-        old_jobs = await jobs_store.list_by_snapshot(snapshot_id)
-        old_jobs_by_gnode: dict[str, dict[str, Any]] = {}
-        for j in old_jobs:
-            gid = j.get("graph_node_id")
-            if not gid:
-                continue
-            existing = old_jobs_by_gnode.get(gid)
-            if existing is None:
-                old_jobs_by_gnode[gid] = j
-                continue
-            j_is_parent = j.get("parent_job_id") is None
-            existing_is_parent = existing.get("parent_job_id") is None
-            if j_is_parent != existing_is_parent:
-                if j_is_parent:
-                    old_jobs_by_gnode[gid] = j
-            elif j["created_ts"] > existing["created_ts"]:
-                old_jobs_by_gnode[gid] = j
-
-        # Validate every to_reuse node has a done job with resolvable
-        # output handles from an online producer.
-        reused_pre_completed: dict[str, dict[str, str]] = {}
-        reused_from_by_graph_node: dict[str, str] = {}
         online_node_ids = {s.node_id for s in registry.all_sessions()}
-        for gid in to_reuse:
-            old = old_jobs_by_gnode.get(gid)
-            if old is None or old["state"] != "done":
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"cannot reuse graph node {gid!r}: it has no done job in "
-                        f"the source run (state was "
-                        f"{old['state'] if old else 'never dispatched'})"
-                    ),
-                )
-            # The producer node must be online so /proxy can serve the handle.
-            producer_node = old.get("node_id")
-            if producer_node and producer_node not in online_node_ids:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"cannot reuse graph node {gid!r}: its producer compute "
-                        f"node {producer_node!r} is not currently online"
-                    ),
-                )
-            # ``old`` may itself be a reused row from an earlier rerun-from,
-            # in which case its output handles live under the origin job's
-            # ID — walking ``reused_from_job_id`` finds the real producer.
-            # Without this, "rerun a snapshot that was itself the product
-            # of a rerun" aborts with
-            # ``upstream job produced no output for port 'X'``.
-            origin_job_id = await _resolve_origin_job_id(jobs_store, old)
-            registered = await handles.list_by_job(origin_job_id)
-            by_port = {h.output_port_name: h.handle_id for h in registered if h.output_port_name}
-            reused_pre_completed[gid] = by_port
-            # Store the flattened origin so the new reused row's
-            # ``reused_from_job_id`` also points at the origin — chains
-            # stay one-hop deep no matter how many reruns pile up.
-            reused_from_by_graph_node[gid] = origin_job_id
 
         # Confirm every to_rerun node is assigned to an online compute node
         # (validate_snapshot would catch this on a fresh /run, but we're
@@ -3034,15 +2974,11 @@ def _mount_routes(app: FastAPI) -> None:
             parent_snapshot_id=snapshot_id,
         )
 
-        # V8 attribution: bridge every reused origin job into the new
-        # snapshot at its graph_node_id. This replaces the pre-V8
-        # "synthetic reused job row" bookkeeping — no fake Job records
-        # are created; snapshot_jobs alone captures the sharing. The
-        # frontend's ``list_by_snapshot`` join then sees the *original*
-        # jobs verbatim (real params, real timestamps).
-        snapshot_jobs_store: SnapshotJobsStore = app.state.snapshot_jobs
-        inherited = [(reused_from_by_graph_node[gid], gid) for gid in to_reuse]
-        await snapshot_jobs_store.attribute_many(new_snapshot.snapshot_id, inherited)
+        from hololab.gateway.canvas_jobs import materialize_current_results
+
+        inherited_outputs = await materialize_current_results(
+            app, old_snap.workflow_id, frozen, new_snapshot.snapshot_id, cleared=to_rerun
+        )
 
         async def _run() -> None:
             try:
@@ -3051,8 +2987,8 @@ def _mount_routes(app: FastAPI) -> None:
                     snapshot_id=new_snapshot.snapshot_id,
                     graph=frozen,
                     workflow_id=old_snap.workflow_id,
-                    skip_graph_nodes=to_reuse,
-                    seed_outputs=reused_pre_completed,
+                    skip_graph_nodes=set(inherited_outputs),
+                    seed_outputs=inherited_outputs,
                 )
             except WorkflowRunError as exc:
                 log.warning(
@@ -3071,8 +3007,14 @@ def _mount_routes(app: FastAPI) -> None:
             "new_snapshot_id": new_snapshot.snapshot_id,
             "rerun_from_graph_node_id": graph_node_id,
             "rerun_graph_node_ids": sorted(to_rerun),
-            "reused_graph_node_ids": sorted(to_reuse),
-            "reused_job_ids": [reused_from_by_graph_node[gid] for gid in sorted(to_reuse)],
+            "reused_graph_node_ids": sorted(inherited_outputs),
+            "reused_job_ids": [
+                next(
+                    job["job_id"] for job in await app.state.jobs_store.list_by_snapshot(new_snapshot.snapshot_id)
+                    if job.get("graph_node_id") == gid and job.get("parent_job_id") is None
+                )
+                for gid in sorted(inherited_outputs)
+            ],
         }
 
     @app.post(
