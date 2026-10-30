@@ -815,7 +815,7 @@ def _mount_routes(app: FastAPI) -> None:
         """Body: ``{patch: {field: value, …}}`` — only editable fields are honoured.
 
         Editable: ``workspace_root``, ``legacy_workspace_roots``,
-        ``pack_dirs``, ``node_name``, ``advertised_url``,
+        ``pack_dirs``, ``install_dir``, ``node_name``, ``advertised_url``,
         ``flops_executor_id``. Identity (node_id/node_token), conda
         plumbing, and gateway URL are read-only from the UI — they
         need config.yaml + a node restart.

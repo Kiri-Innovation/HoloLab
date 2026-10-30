@@ -65,6 +65,7 @@ function NodeSettingsDrawer({
   const [nodeName, setNodeName] = useState("");
   const [workspaceRoot, setWorkspaceRoot] = useState("");
   const [legacyRoots, setLegacyRoots] = useState<string[]>([]);
+  const [installDir, setInstallDir] = useState("");
   const [packDirs, setPackDirs] = useState<string[]>([]);
   const [advertisedUrl, setAdvertisedUrl] = useState("");
   const [flopsExecutorId, setFlopsExecutorId] = useState("");
@@ -86,6 +87,7 @@ function NodeSettingsDrawer({
       setWorkspaceRoot(r.config.workspace_root);
       setLegacyRoots([...r.config.legacy_workspace_roots]);
       setPackDirs([...r.config.pack_dirs]);
+      setInstallDir(r.config.install_dir ?? "");
       setAdvertisedUrl(r.config.advertised_url ?? "");
       setFlopsExecutorId(r.config.flops_executor_id ?? "");
       setLoadErr(null);
@@ -121,6 +123,8 @@ function NodeSettingsDrawer({
           trimmedPackDirs.length === config.pack_dirs.length &&
           trimmedPackDirs.every((s, i) => s === config.pack_dirs[i]);
         if (!samePackDirs) patch.pack_dirs = trimmedPackDirs;
+        const installNorm = installDir.trim() || null;
+        if (installNorm !== (config.install_dir ?? null)) patch.install_dir = installNorm;
         const advNorm = advertisedUrl.trim() || null;
         if (advNorm !== (config.advertised_url ?? null)) patch.advertised_url = advNorm;
         const flopsNorm = flopsExecutorId.trim() || null;
@@ -142,6 +146,7 @@ function NodeSettingsDrawer({
       setWorkspaceRoot(r.config.workspace_root);
       setLegacyRoots([...r.config.legacy_workspace_roots]);
       setPackDirs([...r.config.pack_dirs]);
+      setInstallDir(r.config.install_dir ?? "");
       setAdvertisedUrl(r.config.advertised_url ?? "");
       setFlopsExecutorId(r.config.flops_executor_id ?? "");
       onSaved?.();
@@ -276,6 +281,14 @@ function NodeSettingsDrawer({
               is first-wins. See <code>docs/writing-a-pack.md</code>.
             </Hint>
 
+            <FieldLabel>Install dir</FieldLabel>
+            <TextInput ariaLabel="Install dir" value={installDir} onChange={setInstallDir} monospace
+              placeholder={config.default_install_dir ?? config.install_destination ?? ""} />
+            <Hint>
+              Where packs installed from the community registry land. Must be an absolute path.
+              Empty = default pack storage under the node data dir. Changing this triggers a pack rescan.
+            </Hint>
+
             <FieldLabel>Advertised URL</FieldLabel>
             <TextInput
               value={advertisedUrl}
@@ -392,15 +405,18 @@ function TextInput({
   onChange,
   monospace,
   placeholder,
+  ariaLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
   monospace?: boolean;
   placeholder?: string;
+  ariaLabel?: string;
 }) {
   return (
     <input
       type="text"
+      aria-label={ariaLabel}
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}

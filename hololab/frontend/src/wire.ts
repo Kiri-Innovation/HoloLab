@@ -520,6 +520,9 @@ export interface NodeEffectiveConfig {
   // frontend loaded against a newer node still works.
   packs_dir: string | null;
   pack_dirs: string[];
+  install_dir?: string | null;
+  default_install_dir?: string;
+  install_destination?: string | null;
   // Editable — Cobrowser integration. See docs/cobrowser-integration.md.
   flops_executor_id: string | null;
 }

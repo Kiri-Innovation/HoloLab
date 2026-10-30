@@ -552,6 +552,7 @@ export const patchNodeConfig = (
       | "workspace_root"
       | "legacy_workspace_roots"
       | "pack_dirs"
+      | "install_dir"
       | "node_name"
       | "advertised_url"
       | "flops_executor_id"

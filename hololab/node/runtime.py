@@ -1405,6 +1405,8 @@ class NodeRuntime:
         gateway URL). The frontend edit form uses this shape 1:1.
         """
 
+        from hololab.paths import node_data_dir
+
         cfg = self._config
         return {
             "node_name": cfg.node_name,
@@ -1421,6 +1423,8 @@ class NodeRuntime:
             "pack_dirs": [str(p) for p in cfg.pack_dirs],
             "pack_scan_dirs": [str(p) for p in cfg.pack_scan_dirs],
             "install_destination": self._install_destination(),
+            "install_dir": str(cfg.install_dir) if cfg.install_dir is not None else None,
+            "default_install_dir": str(node_data_dir() / "packs"),
             "flops_executor_id": cfg.flops_executor_id,
             # Read-only runtime limit.  Expose it so operators can verify
             # the value actually loaded by this daemon after a restart.
@@ -1471,6 +1475,15 @@ class NodeRuntime:
                     if raw is not None and not isinstance(raw, str):
                         raise ValueError("advertised_url must be a string or null")
                     updates["advertised_url"] = raw or None
+                elif key == "install_dir":
+                    if raw is not None and not isinstance(raw, str):
+                        raise ValueError("install_dir must be an absolute path string or null")
+                    value = raw.strip() if isinstance(raw, str) else None
+                    validated = NodeConfig.model_validate(
+                        {**self._config.model_dump(), "install_dir": value or None}
+                    )
+                    validated.effective_install_dir.mkdir(parents=True, exist_ok=True)
+                    updates["install_dir"] = validated.install_dir
                 elif key == "pack_dirs":
                     updates["pack_dirs"] = _coerce_pack_dirs_patch(raw)
                 elif key == "flops_executor_id":
@@ -1486,7 +1499,7 @@ class NodeRuntime:
                     updates["flops_executor_id"] = trimmed or None
                 else:
                     raise ValueError(f"field {key!r} is not editable from the UI")
-        except ValueError as exc:
+        except (ValueError, OSError) as exc:
             await self._send(
                 "node_config_set_resp",
                 NodeConfigSetResp(
@@ -1503,11 +1516,11 @@ class NodeRuntime:
         # quirks (trailing slash, symlink resolution).
         old_primary = str(self._config.workspace_root)
         old_legacy = [str(p) for p in self._config.legacy_workspace_roots]
-        old_pack_dirs = [str(p) for p in self._config.pack_dirs]
+        old_pack_dirs = [str(p) for p in self._config.pack_scan_dirs]
         new_cfg = self._config.model_copy(update=updates)
         new_primary = str(new_cfg.workspace_root)
         new_legacy = [str(p) for p in new_cfg.legacy_workspace_roots]
-        new_pack_dirs = [str(p) for p in new_cfg.pack_dirs]
+        new_pack_dirs = [str(p) for p in new_cfg.pack_scan_dirs]
         roots_changed = (old_primary != new_primary) or (old_legacy != new_legacy)
         pack_dirs_changed = old_pack_dirs != new_pack_dirs
 
@@ -1528,9 +1541,9 @@ class NodeRuntime:
             return
 
         self._config = new_cfg
-        if roots_changed:
+        if roots_changed or pack_dirs_changed:
             log.info(
-                "workspace roots changed via UI — restarting file server",
+                "workspace or pack roots changed via UI — restarting file server",
                 primary=new_primary,
                 legacy=new_legacy,
             )
