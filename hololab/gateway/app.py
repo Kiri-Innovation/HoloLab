@@ -1271,12 +1271,26 @@ def _mount_routes(app: FastAPI) -> None:
         # summary walk depth; preview + resolved_tags ride along so the
         # summary response carries the same drawer hints as the info one.
         preview, dim_labels, dim_sizes, resolved_tags = await _resolve_handle_display_meta(
-            handle, registry=registry, jobs_store=jobs_store, workflows=app.state.workflows
+            handle,
+            registry=registry,
+            jobs_store=jobs_store,
+            workflows=app.state.workflows,
+            measure_dimensions=False,
         )
         depth = len(dim_labels) if dim_labels else None
 
-        summary = summarize_handle(
-            replace(handle, tags=resolved_tags), depth=depth, dim_labels=dim_labels
+        # Directory probing can enumerate thousands of entries.  It is pure
+        # blocking filesystem work, so do it off the ASGI event loop; this
+        # lets the frontend's bounded parallel metadata hydration actually
+        # run in parallel instead of serialising eight requests here.
+        # ``summarize_handle`` already measures dim_sizes, therefore the
+        # display-meta call above intentionally does not perform the same
+        # walk first.
+        summary = await asyncio.to_thread(
+            summarize_handle,
+            replace(handle, tags=resolved_tags),
+            depth=depth,
+            dim_labels=dim_labels,
         )
         # summarize_handle also computes ``dim_sizes`` internally via the
         # same helper — prefer the summary's value (it saw the exact same
@@ -4103,6 +4117,7 @@ async def _resolve_handle_display_meta(
     registry: NodeRegistry,
     jobs_store: JobsStore,
     workflows: WorkflowStore,
+    measure_dimensions: bool = True,
 ) -> tuple[Any, list[str] | None, list[int] | None, list[str]]:
     """Compute (preview, dim_labels, dim_sizes, resolved_tags) in one pass.
 
@@ -4115,8 +4130,10 @@ async def _resolve_handle_display_meta(
 
     dims come from the producing port's ``dim_labels`` (via
     :meth:`NodeRegistry.get_output_port_spec` — one manifest load, both
-    fields) + a filesystem walk (:func:`dim_info_for_handle`, same
-    helper the summary endpoint uses).
+    fields) +, for the handle-info endpoint, a filesystem walk
+    (:func:`dim_info_for_handle`).  The summary endpoint passes
+    ``measure_dimensions=False`` because its own single summary walk
+    produces the same values.
 
     All fields are best-effort: legacy handles with no ``job_id`` (or a
     handle whose producing job was pruned) get ``preview=None`` +
@@ -4174,8 +4191,20 @@ async def _resolve_handle_display_meta(
                     raw_dim_labels = ["", *raw_dim_labels]
     # A generic producer may register `any`; measurement uses its resolved leaf
     # tag so arrays of image FILES are not mistaken for directories of bundles.
-    dim_labels, dim_sizes = dim_info_for_handle(
-        replace(handle, tags=resolved_tags), dim_labels=raw_dim_labels
+    if not measure_dimensions:
+        # ``/summary`` immediately calls ``summarize_handle``, which
+        # measures the exact same tree and returns the authoritative sizes.
+        # Keep labels so it knows the requested depth, but skip the duplicate
+        # scan here.
+        return preview, raw_dim_labels or None, None, resolved_tags
+
+    # Filesystem probing is synchronous (directory enumeration / stat / small
+    # header reads beneath tag probes).  Never run it on FastAPI's event-loop
+    # thread: a canvas refresh starts many lookups at once.
+    dim_labels, dim_sizes = await asyncio.to_thread(
+        dim_info_for_handle,
+        replace(handle, tags=resolved_tags),
+        dim_labels=raw_dim_labels,
     )
     return preview, dim_labels, dim_sizes, resolved_tags
 

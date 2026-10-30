@@ -20,6 +20,7 @@ parse in pure Python. If those deps are added later, extend
 from __future__ import annotations
 
 import json
+import os
 import re
 import struct
 import threading
@@ -292,14 +293,26 @@ def _measure_dim_shape(
         counts: list[int] = []
         for parent in current:
             try:
-                kids = sorted(c for c in parent.iterdir() if not c.name.startswith("."))
+                # ``Path.iterdir()`` followed by ``is_dir()`` / ``is_file()``
+                # turns a large image tree into one ``stat(2)`` per entry.
+                # DirEntry keeps the d_type returned by readdir on normal
+                # filesystems, so this is both equivalent and substantially
+                # cheaper for a folder handle with thousands of images.
+                with os.scandir(parent) as scan:
+                    kids = sorted(
+                        (entry for entry in scan if not entry.name.startswith(".")),
+                        key=lambda entry: entry.name,
+                    )
                 file_leaf = "image" in tags and layer == dir_depth - 1
-                if any(not (c.is_file() if file_leaf else c.is_dir()) for c in kids):
+                if any(
+                    not (entry.is_file() if file_leaf else entry.is_dir())
+                    for entry in kids
+                ):
                     return None, None, ranges + [None] * (depth - len(ranges))
             except OSError:
                 return None, None, ranges + [None] * (depth - len(ranges))
             counts.append(len(kids))
-            next_layer.extend(kids)
+            next_layer.extend(Path(entry.path) for entry in kids)
         if not counts or max(counts) == 0:
             return None, None, ranges + [None] * (depth - len(ranges))
         low, high = min(counts), max(counts)
