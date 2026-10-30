@@ -20,12 +20,25 @@ export function PinnedParameters({ id, data }: { id: string; data: AlgorithmNode
     const measure = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => update(id)); };
     measure();
     const observer = new ResizeObserver(measure);
-    if (root.current) observer.observe(root.current);
-    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+    const element = root.current;
+    if (element) observer.observe(element);
+    // Cancel number-input stepping, not propagation: React Flow must still
+    // receive the wheel. A native non-passive listener keeps editing focused
+    // (React's delegated wheel listener is passive). Inspector is unaffected.
+    const wheel = (event: WheelEvent) => {
+      if (event.target instanceof HTMLInputElement && event.target.type === "number") {
+        event.preventDefault();
+      }
+    };
+    element?.addEventListener("wheel", wheel, { passive: false });
+    return () => {
+      observer.disconnect(); cancelAnimationFrame(frame);
+      element?.removeEventListener("wheel", wheel);
+    };
   }, [id, signature, update]);
   if (!rows.length) return null;
   const editable = arrayParamsForEditor(data.pack.name, data.pack.version, params);
-  return <div ref={root} className="hl-pinned-parameters hl-inspector-parameters nodrag nopan nowheel"
+  return <div ref={root} className="hl-pinned-parameters hl-inspector-parameters nodrag nopan"
     role="group" aria-label="Pinned parameters" onKeyDown={event => event.stopPropagation()}
     onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
     {rows.map(({ name, names, label, type }) => {
