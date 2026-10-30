@@ -36,7 +36,25 @@ yanked/yank_reason/yank_updated_at。哈希提供完整性；发布者字段不�
 拒绝路径穿越、硬链接、特殊文件与通过符号链接写文件。成功后原子提升目录。
 落点为 `<destination>/<scope>/<name>@<version>/content/`，保留原相对布局；
 外层 `.hololab-install.json` 保存来源、发布记录和安装时身份，位于哈希范围外。
-扫描器识别收据。`destination` 应列入本地 `pack_dirs`；不会自动修改节点配置。
+扫描器识别收据。节点 `config.yaml` 可独立指定社区包安装目录：
+
+```yaml
+install_dir: /home/user/hololab-installed-packs
+pack_dirs:
+  - /home/user/my-algorithm-repo
+```
+
+`install_dir` 必须是绝对目录路径，首次安装时自动创建。它隐式加入扫描和文件服务，
+并排在 `pack_dirs` 前：同名同版本优先使用安装目录中的包；内置包的保留命名空间规则不变。
+无需把它重复写入 `pack_dirs`。`pack_dirs` 继续用于本地开发包来源。
+修改配置文件后重启节点；之后页面安装完成会立即重扫注册，无需再重启。
+安装弹窗只读显示节点报告的目标目录，不提供目录编辑框。
+
+未配置 `install_dir` 时保持兼容：页面安装选择 `pack_dirs` 中第一个集合目录
+（跳过单 manifest／单包，仓库有 `packs/` 时进入该目录）；CLI 默认用 `pack_dirs[0]`。
+CLI `pack install --destination` 优先于 `install_dir`；指定其它目录时仍需将该目录加入
+`pack_dirs` 才能长期扫描，安装命令不会自动修改配置。已有同版本且哈希匹配的本地包
+仍直接复用，不因设置 `install_dir` 自动迁移或重新下载。环境依赖仍需单独准备。
 运行沿用已有的 manifest/ignore 优先、热范围启动前校验；冷代码仍只记基线。
 注册表不可变不等于安装目录只读，也不保证运行途中源码不变。
 

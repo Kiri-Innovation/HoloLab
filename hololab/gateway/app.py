@@ -873,10 +873,14 @@ def _mount_routes(app: FastAPI) -> None:
         # new pack sources on the next ``GET /api/nodes`` without the
         # node reconnecting. The next ``packs_updated`` frame will
         # bring the pack inventory into sync separately.
-        new_pack_dirs = cfg.get("pack_dirs")
+        new_pack_dirs = cfg.get("pack_scan_dirs", cfg.get("pack_dirs"))
         if isinstance(new_pack_dirs, list):
             session.pack_dirs = [str(p) for p in new_pack_dirs]
-            session.packs_dir = session.pack_dirs[0] if session.pack_dirs else None
+            session.packs_dir = cfg.get("packs_dir") or (
+                session.pack_dirs[0] if session.pack_dirs else None
+            )
+        if "install_destination" in cfg:
+            session.install_destination = cfg["install_destination"]
         return {"node_id": node_id, "config": cfg}
 
     @app.get(
@@ -3917,6 +3921,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
                 flops_executor_id=payload.flops_executor_id,
                 packs_dir=payload.packs_dir,
                 pack_dirs=payload.pack_dirs,
+                install_destination=payload.install_destination,
                 pack_sources=payload.pack_sources,
             )
         except NodeAuthError as exc:

@@ -623,7 +623,8 @@ def pack_resolve_install(
     config: Path | None = typer.Option(None),
     source: list[str] = typer.Option([], help="Override configured mirrors"),
     destination: Path | None = typer.Option(
-        None, help="Installation pack directory, default first configured pack_dirs"
+        None,
+        help="Installation pack directory, default install_dir, then first configured pack_dirs",
     ),
     expected_hash: str | None = typer.Option(None),
 ) -> None:
@@ -632,11 +633,15 @@ def pack_resolve_install(
     from hololab.pack_install import install, resolve, status
 
     cfg = load_node_config(config)
-    dirs = cfg.pack_dirs
+    dirs = cfg.pack_scan_dirs
     try:
         if ctx.info_name == "install":
             result = install(
-                spec, source or cfg.registry_sources, destination or dirs[0], dirs, expected_hash
+                spec,
+                source or cfg.registry_sources,
+                destination or cfg.install_dir or dirs[0],
+                dirs,
+                expected_hash,
             )
         elif ctx.info_name == "status":
             result = status(

@@ -109,6 +109,7 @@ class NodeInfo(BaseModel):
             "docs/cobrowser-integration.md#jump-to-source."
         ),
     )
+    install_destination: str | None = None
     pack_dirs: list[str] = Field(
         default_factory=list,
         description=(

@@ -280,11 +280,11 @@ class NodeRuntime:
         # used to make an already-listening gateway unable to answer health
         # checks until discovery completed.  Keep the required discovery
         # before registration, but run it off the shared event loop.
-        self._packs = await asyncio.to_thread(_load_packs, self._config.pack_dirs)
+        self._packs = await asyncio.to_thread(_load_packs, self._config.pack_scan_dirs)
         log.info(
             "packs scanned",
             count=len(self._packs),
-            roots=[str(p) for p in self._config.pack_dirs],
+            roots=[str(p) for p in self._config.pack_scan_dirs],
         )
 
         # Fast-path staging root — usually a tmpfs mount. Precreate so
@@ -459,7 +459,7 @@ class NodeRuntime:
             argv += ["--library-config", str(self._config_path)]
         for p in cfg.legacy_workspace_roots:
             argv += ["--legacy-root", str(p)]
-        for p in cfg.pack_dirs:
+        for p in cfg.pack_scan_dirs:
             argv += ["--pack-dir", str(p)]
 
         child_env = dict(os.environ)
@@ -574,7 +574,7 @@ class NodeRuntime:
                 await self._watch_task
             self._watch_task = None
 
-        new_packs = _load_packs(list(self._config.pack_dirs))
+        new_packs = _load_packs(list(self._config.pack_scan_dirs))
         self._packs = new_packs
         await self._refresh_environment_evidence(send_update=False)
         if self._ws is not None:
@@ -599,7 +599,7 @@ class NodeRuntime:
         # of them triggers a rescan of the full list, so a developer
         # editing a manifest in their custom source directory triggers
         # a ``packs_updated`` without needing to restart the node.
-        pack_dirs = list(self._config.pack_dirs)
+        pack_dirs = list(self._config.pack_scan_dirs)
         watch_roots = _pack_watch_roots(pack_dirs)
 
         # Deferred import so plain --help stays fast.
@@ -807,7 +807,8 @@ class NodeRuntime:
             # target computation. ``pack_dirs`` is the full list under
             # the new multi-pack-source protocol.
             packs_dir=str(self._config.pack_dirs[0]) if self._config.pack_dirs else None,
-            pack_dirs=[str(p) for p in self._config.pack_dirs],
+            pack_dirs=[str(p) for p in self._config.pack_scan_dirs],
+            install_destination=self._install_destination(),
             pack_sources=self._config.registry_sources,
             # Jobs currently in our live map. Sent so the gateway can
             # reconcile against DB rows it marked ``orphaned`` when it
@@ -1013,6 +1014,12 @@ class NodeRuntime:
             "process_terminate_resp", ProcessTerminateResp(req_id=payload.req_id, data=data)
         )
 
+    def _install_destination(self) -> str | None:
+        from hololab.gateway.pack_manager import installation_destination
+
+        path = installation_destination(self._config.pack_dirs, self._config.install_dir)
+        return str(path) if path is not None else None
+
     async def _pack_install_reply(self, request):
         from hololab.gateway.pack_manager import install_on_node
         from hololab.protocol.messages import PackInstallResp
@@ -1024,8 +1031,9 @@ class NodeRuntime:
                 install_on_node,
                 request.spec,
                 request.source,
-                self._config.pack_dirs,
+                self._config.pack_scan_dirs,
                 request.expected,
+                self._config.install_dir,
             )
             if result.get("installed"):
                 await self._restart_pack_watcher()
@@ -1043,7 +1051,7 @@ class NodeRuntime:
                 status,
                 f"{request.name}@{request.version}",
                 self._config.registry_sources,
-                self._config.pack_dirs,
+                self._config.pack_scan_dirs,
             )
         except HashMismatch as exc:
             result = {"state": "hash_mismatch", "message": str(exc)}
@@ -1411,6 +1419,8 @@ class NodeRuntime:
             # ``pack_dirs`` (below) which lists every configured root.
             "packs_dir": str(cfg.pack_dirs[0]) if cfg.pack_dirs else None,
             "pack_dirs": [str(p) for p in cfg.pack_dirs],
+            "pack_scan_dirs": [str(p) for p in cfg.pack_scan_dirs],
+            "install_destination": self._install_destination(),
             "flops_executor_id": cfg.flops_executor_id,
             # Read-only runtime limit.  Expose it so operators can verify
             # the value actually loaded by this daemon after a restart.

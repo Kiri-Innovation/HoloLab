@@ -170,7 +170,7 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
         except ValueError as exc:
             raise SetupError(f"invalid pack spec: {exc}") from exc
     seen: set[tuple[str, str]] = set()
-    for root in cfg.pack_dirs:
+    for root in cfg.pack_scan_dirs:
         if not root.exists():
             continue
         for path in root.rglob("manifest.yaml"):

@@ -136,6 +136,28 @@ class NodeConfig(BaseModel):
             "when neither field is set on load."
         ),
     )
+    install_dir: Path | None = Field(
+        default=None,
+        description="Community installation root; implicitly scanned before pack_dirs.",
+    )
+
+    @field_validator("install_dir")
+    @classmethod
+    def _absolute_install_dir(cls, value: Path | None) -> Path | None:
+        if value is not None:
+            value = value.expanduser()
+            if not value.is_absolute():
+                raise ValueError("install_dir must be an absolute directory path")
+            if value.exists() and not value.is_dir():
+                raise ValueError("install_dir must be a directory")
+        return value
+
+    @property
+    def pack_scan_dirs(self) -> list[Path]:
+        """Installed packages win; keep operator source configuration unchanged."""
+        roots = ([self.install_dir] if self.install_dir is not None else []) + self.pack_dirs
+        return list(dict.fromkeys(roots))
+
     packs_dir: Path | None = Field(
         default=None,
         description=(

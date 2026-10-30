@@ -122,6 +122,7 @@ export function CommunityPacks({sidebarResize, active, catalog, nodes, onInstall
       {projects[selected]?.releases?.length === 0 && <p>这个包没有已发布版本。</p>}
       {nodes.length > 1 ? <label>安装到哪台机器 <select aria-label="安装到哪台机器" value={target} disabled={!!installing} onChange={e=>setNode(e.target.value)}>{nodes.map(n=><option key={n.node_id} value={n.node_id}>{n.node_name || n.node_id}</option>)}</select></label>
         : <p>{target ? `安装到 ${machine}` : '没有可用机器，请先连接一台机器。'}</p>}
+      <p>将安装到：<code style={{overflowWrap:'anywhere'}}>{nodes.find(n=>n.node_id===target)?.install_destination ?? '节点尚未报告安装目录'}</code></p>
       <p className="hl-pack-boundary">安装包不会自动配置运行环境。</p>
       {releases.map(release=>{
         const spec=`${release.name}@${release.version}`,key=`${target}:${spec}`;

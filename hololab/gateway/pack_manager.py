@@ -61,11 +61,11 @@ def public_error(exc: Exception) -> dict:
     return {"code": code, "message": message}
 
 
-def install_on_node(spec: str, source: str, pack_dirs: list[Path], expected: str | None):
-    from hololab.pack_install import RECEIPT, install
+def installation_destination(pack_dirs: list[Path], install_dir: Path | None = None) -> Path | None:
+    from hololab.pack_install import RECEIPT
 
-    source = http_source(source)
-    parse_spec(spec)
+    if install_dir is not None:
+        return install_dir
     # Match the scanner's precise-file, direct-pack and repository-container modes.
     destination = None
     for root in pack_dirs:
@@ -86,6 +86,21 @@ def install_on_node(spec: str, source: str, pack_dirs: list[Path], expected: str
             break
         if destination is not None:
             break
+    return destination
+
+
+def install_on_node(
+    spec: str,
+    source: str,
+    pack_dirs: list[Path],
+    expected: str | None,
+    install_dir: Path | None = None,
+):
+    from hololab.pack_install import install
+
+    source = http_source(source)
+    parse_spec(spec)
+    destination = installation_destination(pack_dirs, install_dir)
     if destination is None:
         return {
             "error": {

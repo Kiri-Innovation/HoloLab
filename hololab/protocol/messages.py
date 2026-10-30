@@ -167,6 +167,7 @@ class Register(BaseModel):
     # declared). Extending this list is how a developer registers a
     # custom pack source without vendoring — see
     # docs/writing-a-pack.md.
+    install_destination: str | None = None
     pack_dirs: list[str] = Field(default_factory=list)
     # Read-only registry mirrors configured on this node.
     pack_sources: list[str] = Field(default_factory=list)

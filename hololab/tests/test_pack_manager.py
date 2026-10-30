@@ -19,10 +19,18 @@ from tests.test_scoped_packages import session
 registry = http_registry
 
 
-def test_endpoint_installs_and_refreshes_catalog(registry, tmp_path, monkeypatch):
+@pytest.mark.parametrize("explicit", [False, True])
+def test_endpoint_installs_and_refreshes_catalog(registry, tmp_path, monkeypatch, explicit):
     destination = tmp_path / "installed"
-    destination.mkdir()
-    runtime = NodeRuntime(NodeConfig(pack_dirs=[destination], workspace_root=tmp_path / "work"))
+    if not explicit:
+        destination.mkdir()
+    runtime = NodeRuntime(
+        NodeConfig(
+            pack_dirs=[tmp_path / "development"] if explicit else [destination],
+            install_dir=destination if explicit else None,
+            workspace_root=tmp_path / "work",
+        )
+    )
     runtime._ws = object()
     runtime._safe_send = AsyncMock()
     node = session([])

@@ -77,6 +77,7 @@ class NodeSession:
     # by the modern Register frame; when a legacy node sends only
     # scalar ``packs_dir``, the registry wraps it in a single-entry
     # list at register time.
+    install_destination: str | None = None
     pack_dirs: list[str] = field(default_factory=list)
     pack_sources: list[str] = field(default_factory=list)
     # Opt-in keeps older nodes from receiving an unknown envelope kind.
@@ -128,6 +129,7 @@ class NodeRegistry:
         flops_executor_id: str | None = None,
         packs_dir: str | None = None,
         pack_dirs: list[str] | None = None,
+        install_destination: str | None = None,
         pack_sources: list[str] | None = None,
     ) -> NodeSession:
         """Register a node, applying the three-path identity rule:
@@ -248,6 +250,7 @@ class NodeRegistry:
             legacy_workspace_roots=list(legacy_workspace_roots or []),
             flops_executor_id=flops_executor_id,
             packs_dir=packs_dir,
+            install_destination=install_destination,
             # Multi-pack-source: prefer the modern list; fall back to
             # wrapping a legacy scalar so the wire remains consistent.
             pack_dirs=list(pack_dirs) if pack_dirs else ([packs_dir] if packs_dir else []),
@@ -449,6 +452,7 @@ class NodeRegistry:
                     "flops_executor_id": s.flops_executor_id,
                     "packs_dir": s.packs_dir,
                     "pack_dirs": list(s.pack_dirs),
+                    "install_destination": s.install_destination,
                 }
             )
         return out

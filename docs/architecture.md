@@ -201,6 +201,8 @@ remains unimplemented.
 
 Machine configuration maps logical `runtime.env` names to real conda prefixes.
 It also supplies `conda_bin`, `pack_dirs`, workspace roots and advertised URLs.
+The optional `install_dir` separates community downloads from development sources;
+it is implicitly scanned before `pack_dirs`. See [pack registry](pack-registry.md) for installation precedence.
 Pack identity and execution declarations remain in the manifest. See
 [Writing a Pack](writing-a-pack.md) for source discovery and validation.
 

@@ -503,6 +503,7 @@ export interface ComputeNode {
   // registers a custom pack source without vendoring the pack into
   // the HoloLab repo. See docs/writing-a-pack.md.
   pack_dirs?: string[];
+  install_destination?: string | null;
 }
 
 // Effective config the node reports via GET /api/nodes/{id}/config. The
