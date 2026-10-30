@@ -413,7 +413,9 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
     sid = await app.state.snapshot_jobs.get_latest_snapshot_for_workflow(workflow_id)
     snapshot = await app.state.workflows.get_snapshot(sid) if sid else None
     baseline = await historical_execution(app, snapshot) if snapshot else None
-    jobs = await app.state.jobs_store.list_by_snapshot(sid) if sid else []
+    from hololab.gateway.canvas_jobs import canvas_jobs
+
+    jobs = await canvas_jobs(app, workflow_id, prepared)
     latest = {}
     for job in sorted(jobs, key=lambda j: j.get("created_ts", 0)):
         if not job.get("parent_job_id") and job.get("graph_node_id"):
@@ -431,6 +433,10 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
         if node.kind == "view" or is_constant(node):
             continue
         job = latest.get(node.id)
+        # Selected evidence already passed configuration and lineage checks.
+        if job:
+            changed.discard(node.id)
+            dirty.discard(node.id)
         reasons = []
         if node.id in changed:
             reasons.append("有效配置与上次运行不同")
@@ -473,6 +479,7 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
         "revision": prepared.execution["revision"],
         "graph": prepared.model_dump(),
         "staleness": states,
+        "canvas_jobs": jobs,
         "diff": diffs,
         "environment_params": prepared.execution["environment_params"],
         "issues": prepared.execution["issues"],

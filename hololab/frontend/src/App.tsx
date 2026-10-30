@@ -6,7 +6,7 @@ import { canonicalPackageName, packageCatalogIndex, samePackage } from "./packag
 import { AnalysisProfiler } from "./canvas/AnalysisProfiler";
 import { analysisMetrics } from "./canvas/analysisMetrics";
 import { applyStaleness } from "./canvas/applyStaleness";
-import { useExecutionAnalysis } from "./canvas/executionAnalysis";
+import { useExecutionAnalysis, type CanvasJob } from "./canvas/executionAnalysis";
 import { reconcileInlineValues } from './canvas/inlineValues';
 import { constantFields, constantPresentation } from "./canvas/constants";
 import { mergeParameterPatch } from "./canvas/PackParameterField";
@@ -347,26 +347,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     {},
   );
 
-  // Job runtime state — split by scope so a node's status dot only ever
-  // reflects the snapshot the canvas is currently showing (draft view =
-  // latest snapshot; snapshot view = viewingSnapshot). A flat
-  // graph_node_id → NodeRuntime map couldn't represent that: it collapsed
-  // multiple runs of the same slot into one identity, and the
-  // last-write-wins order was the API's row order — so an older failed
-  // job would silently overwrite the current snapshot's done job (see
-  // canvas/nodeRuntime.ts for the failure mode + aggregation rules).
-  //
-  //   - latestSnapshotJobs: the SnapshotJob rows for the workflow's most
-  //     recent snapshot. Seeded on workflow open, kept live via WS
-  //     job_update patches into this array.
-  //   - runtimeByGraphNode: derived (useMemo) — group by graph_node_id
-  //     and aggregate for arrayed<T> fan-out (any-failed → failed;
-  //     any-in-flight → running; all-done → done). Used only for driving
-  //     the badge/progress display on canvas nodes.
-  //   - jobsById: job_id → RecentJobRow — a flat feed for the
-  //     RecentJobsPanel + workflow-run summary chip. Spans all
-  //     snapshots on purpose; it's the "recent activity" surface.
+  // Run membership stays snapshot-scoped. Draft evidence is selected by the
+  // gateway across history after configuration and upstream provenance checks.
+  // jobsById is the independent recent activity feed.
   const [latestSnapshotJobs, setLatestSnapshotJobs] = useState<SnapshotJob[]>([]);
+  const [canvasJobs, setCanvasJobs] = useState<CanvasJob[]>([]);
   const [jobsById, setJobsById] = useState<Record<string, RecentJobRow>>({});
 
   // Preview state, keyed by graph node id:
@@ -761,93 +746,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           });
         }
 
-        // On the terminal transition to done, the gateway includes
-        // output_handles in the frame. Resolve each to a preview target
-        // (proxy URL + storage form) via /api/handles/{id}. The result
-        // powers the in-canvas expand drawer for viewer-declared ports.
-        //
-        // Shard vs parent routing: fan-out shard jobs also fire ``done``
-        // frames carrying their own graph_node_id + output_handles, but
-        // each shard's ``frame`` handle points at ONE element dir
-        // (``<parent_ws>/frame/<element_id>/``), not the aggregate. If
-        // we let those overwrite ``previewsByGraphNode[gnid][port]``,
-        // the ArrayedPaginator opens that element dir and treats its
-        // internal subdirs (``images``, ``sparse``) as "elements" —
-        // hence the "images 1/2 + HTTP 404 images.txt" bug during
-        // triangulate fanouts. Route shards into
-        // ``previewShardsByGraphNode`` instead; the drawer picks
-        // partial mode from there while ``previewsByGraphNode`` waits
-        // for the parent's aggregate.
-        if (p.state === "done" && p.graph_node_id && p.output_handles) {
-          const gnid = p.graph_node_id;
-          const handles = p.output_handles;
-          const shardEl = p.shard_element_id ?? null;
-          const isShard = p.parent_job_id != null && shardEl != null;
-          void Promise.all(
-            Object.entries(handles).map(async ([port_name, handle_id]) => {
-              try {
-                const info = await getHandle(handle_id);
-                return [port_name, info] as const;
-              } catch (err) {
-                console.warn("handle lookup failed", err);
-                return null;
-              }
-            }),
-          ).then((resolved) => {
-            if (isShard && shardEl) {
-              setPreviewShardsByGraphNode((prev) => {
-                const gn = { ...(prev[gnid] ?? {}) };
-                let changed = false;
-                for (const r of resolved) {
-                  if (!r) continue;
-                  const [port_name, info] = r;
-                  const port = gn[port_name] ? [...gn[port_name]] : [];
-                  if (port.some((e) => e.element_id === shardEl)) continue;
-                  port.push({
-                    element_id: shardEl,
-                    handle_id: info.handle_id,
-                    proxy_url: info.proxy_url,
-                    storage: info.storage as "dir" | "file",
-                  });
-                  port.sort((a, b) =>
-                    a.element_id.localeCompare(b.element_id, undefined, {
-                      numeric: true,
-                      sensitivity: "base",
-                    }),
-                  );
-                  gn[port_name] = port;
-                  changed = true;
-                }
-                if (!changed) return prev;
-                return { ...prev, [gnid]: gn };
-              });
-              return;
-            }
-            const targets: Record<string, PreviewTarget> = {};
-            for (const r of resolved) {
-              if (!r) continue;
-              const [port_name, info] = r;
-              targets[port_name] = {
-                snapshot_id: p.snapshot_id ?? null,
-                port_name,
-                handle_id: info.handle_id,
-                node_id: info.node_id,
-                proxy_url: info.proxy_url,
-                storage: info.storage as "dir" | "file",
-                absolute_path: info.absolute_path,
-                deleted: info.deleted_ts !== null,
-                tags: info.tags,
-                preview: info.preview ?? null,
-                dim_labels: info.dim_labels ?? null,
-                dim_sizes: info.dim_sizes ?? null,
-              };
-            }
-            if (Object.keys(targets).length === 0) return;
-            setPreviewsByGraphNode((prev) => ({
-              ...prev,
-              [gnid]: { ...(prev[gnid] ?? {}), ...targets },
-            }));
-          });
+        // Update only already validated identities. New generations/shards are
+        // selected by the next analysis refresh, never by graph-node id alone.
+        if (p.workflow_id === workflowIdRef.current) {
+          setCanvasJobs(prev => prev.map(j => j.job_id === p.job_id ? {
+            ...j, state: p.state, progress: p.progress ?? j.progress,
+            updated_ts: Date.now() / 1000,
+            started_ts: j.started_ts ?? p.started_ts,
+            fail_reason: p.fail?.reason ?? j.fail_reason,
+            output_handles: p.output_handles ?? j.output_handles,
+          } : j));
         }
       } else if (env.kind === "preview_ready") {
         const p = env.payload as PreviewReadyPayload;
@@ -1087,12 +995,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [runsPanelRefreshToken, setRunsPanelRefreshToken] = useState(0);
 
   // Node runtime = aggregate of the visible snapshot's jobs (draft view →
-  // latest snapshot; snapshot view → viewingSnapshot). Fan-out aggregation
+  // validated history; snapshot view → viewingSnapshot). Fan-out aggregation
   // lives in canvas/nodeRuntime.ts. Memoised so the setNodes runtime-sync
   // effect only fires when the underlying jobs actually change.
   const runtimeByGraphNode = useMemo(
-    () => aggregateJobsToRuntime(viewingSnapshot?.jobs ?? latestSnapshotJobs),
-    [viewingSnapshot, latestSnapshotJobs],
+    () => aggregateJobsToRuntime(viewingSnapshot?.jobs ?? canvasJobs),
+    [viewingSnapshot, canvasJobs],
   );
 
   // Keep latestSnapshotJobs synced with latestSnapshotId. Covers both
@@ -1679,11 +1587,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     // so generic-utility outputs like ``get-index.item`` (preview:null)
     // have no entry there and the chip would render ``[?]`` even when
     // the backend has real ``dim_sizes`` seeded on the summary cache.
-    // Falling back to ``latestSnapshotJobs[].output_handles`` covers
+    // Falling back to ``canvasJobs[].output_handles`` covers
     // every port the last run emitted, matching the ``latest_run``
     // payload shape the backend inlines on the graph GET.
     const outputHandleByGraphNode = new Map<string, Record<string, string>>();
-    for (const j of latestSnapshotJobs) {
+    for (const j of canvasJobs) {
       if (!j.graph_node_id) continue;
       if (outputHandleByGraphNode.has(j.graph_node_id)) continue;
       if (j.output_handles) outputHandleByGraphNode.set(j.graph_node_id, j.output_handles);
@@ -1721,7 +1629,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         },
       };
     });
-  }, [edges, nodes, catalogByKey, previewsByGraphNode, latestSnapshotJobs]);
+  }, [edges, nodes, catalogByKey, previewsByGraphNode, canvasJobs]);
 
   // Snapshot-mode counterparts. Derived from viewingSnapshot +
   // snapshotSelectedGraphNodeId so the read-only inspector reflects
@@ -2213,6 +2121,141 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     effectiveParamsByNode: Object.fromEntries((executionAnalysis.isCurrent ? executionAnalysis.data?.graph.nodes ?? [] : []).map(n => [n.id, n.params])),
   }), [canvasContextValue, executionAnalysis.data, executionAnalysis.isCurrent]);
   const draftDiff: DiffItem[] = executionAnalysis?.data?.diff ?? [];
+  useEffect(() => {
+    setCanvasJobs(executionAnalysis.isCurrent ? executionAnalysis.data?.canvas_jobs ?? [] : []);
+  }, [executionAnalysis.data, executionAnalysis.isCurrent]);
+
+  // State and previews use the same validated parent generation, with no run window.
+  useEffect(() => {
+    let cancelled = false;
+    setPreviewsByGraphNode({});
+    setPreviewShardsByGraphNode({});
+    void (async () => {
+      try {
+        const perGraphPreviewWork: Array<{
+          snapshotId: string;
+          graphNodeId: string;
+          portName: string;
+          handleId: string;
+        }> = [];
+        const perShardPreviewWork: Array<{
+          graphNodeId: string;
+          portName: string;
+          handleId: string;
+          elementId: string;
+        }> = [];
+        const filledGnids = new Set<string>();
+        for (const job of canvasJobs) {
+          const gnid = job.graph_node_id;
+          if (!gnid) continue;
+          const shardEl = job.shard_element_id ?? null;
+          const isShard = job.parent_job_id != null && shardEl != null;
+          if (isShard) {
+            for (const [portName, handleId] of Object.entries(
+              job.output_handles ?? {},
+            )) {
+              perShardPreviewWork.push({
+                graphNodeId: gnid,
+                portName,
+                handleId,
+                elementId: shardEl,
+              });
+            }
+            continue;
+          }
+          if (filledGnids.has(gnid)) continue;
+          filledGnids.add(gnid);
+          for (const [portName, handleId] of Object.entries(
+            job.output_handles ?? {},
+          )) {
+            perGraphPreviewWork.push({
+              snapshotId: job.snapshot_id,
+              graphNodeId: gnid,
+              portName,
+              handleId,
+            });
+          }
+        }
+        if (perGraphPreviewWork.length > 0) {
+          const resolved = await Promise.all(
+            perGraphPreviewWork.map(async (item) => {
+              try {
+                const info = await getHandle(item.handleId);
+                return { ...item, info };
+              } catch {
+                return null;
+              }
+            }),
+          );
+          const targets: Record<string, Record<string, PreviewTarget>> = {};
+          for (const r of resolved) {
+            if (!r) continue;
+            const bucket = (targets[r.graphNodeId] ??= {});
+            bucket[r.portName] = {
+              snapshot_id: r.snapshotId,
+              port_name: r.portName,
+              handle_id: r.info.handle_id,
+              node_id: r.info.node_id,
+              proxy_url: r.info.proxy_url,
+              storage: r.info.storage as "dir" | "file",
+              absolute_path: r.info.absolute_path,
+              deleted: r.info.deleted_ts !== null,
+              tags: r.info.tags,
+              preview: r.info.preview ?? null,
+              dim_labels: r.info.dim_labels ?? null,
+              dim_sizes: r.info.dim_sizes ?? null,
+            };
+          }
+          if (cancelled) return;
+          setPreviewsByGraphNode(targets);
+        }
+        if (perShardPreviewWork.length > 0) {
+          const resolvedShards = await Promise.all(
+            perShardPreviewWork.map(async (item) => {
+              try {
+                const info = await getHandle(item.handleId);
+                return { ...item, info };
+              } catch {
+                return null;
+              }
+            }),
+          );
+          const shardTargets: Record<
+            string,
+            Record<string, PreviewShard[]>
+          > = {};
+          for (const r of resolvedShards) {
+            if (!r) continue;
+            const gn = (shardTargets[r.graphNodeId] ??= {});
+            const port = (gn[r.portName] ??= []);
+            if (port.some((e) => e.element_id === r.elementId)) continue;
+            port.push({
+              element_id: r.elementId,
+              handle_id: r.info.handle_id,
+              proxy_url: r.info.proxy_url,
+              storage: r.info.storage as "dir" | "file",
+            });
+          }
+          for (const gn of Object.values(shardTargets)) {
+            for (const port of Object.values(gn)) {
+              port.sort((a, b) =>
+                a.element_id.localeCompare(b.element_id, undefined, {
+                  numeric: true,
+                  sensitivity: "base",
+                }),
+              );
+            }
+          }
+          if (cancelled) return;
+          setPreviewShardsByGraphNode(shardTargets);
+        }
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [JSON.stringify(canvasJobs.map(j => [j.job_id, j.output_handles]))]);
+
   const stalenessByGraphNode = executionAnalysis.data?.staleness ?? EMPTY_STALENESS;
   useEffect(() => {
     setNodes(current => applyStaleness(current, stalenessByGraphNode));
@@ -2422,216 +2465,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       setLatestSnapshotId(null); // both reset until hydration fills them in
       window.history.replaceState(null, "", `/w/${encodeURIComponent(w.workflow_id)}`);
 
-      // Draft-view "carry the last run" hydration (ComfyUI-style):
-      // seed ``latestSnapshotId`` (→ jobs via the sync useEffect) and
-      // ``previewsByGraphNode`` from the workflow's snapshots so
-      // opening a workflow with prior runs shows the state badge +
-      // preview caret without having to look at the snapshot view.
-      // Live WS ``job_update`` frames still take precedence — this is
-      // strictly a cold-start hydration.
-      //
-      // Fork/Continue awareness (previews only): the newest snapshot may
-      // be a Fork that only holds the freshly-produced graph node — its
-      // parent still has the not-forked slots filled. We walk newest →
-      // older via ``listWorkflowRuns`` (sorted newest-first) and greedily
-      // fill each (graph_node_id, port) preview from the freshest ``done``
-      // attribution. Node RUNTIME (dot colour) is NOT unioned across
-      // snapshots — see ``latestSnapshotJobs`` for the snapshot-scoped
-      // source of truth. That split fixes the "canvas red but latest
-      // run green" bug where a prior failed run overwrote current-done
-      // state via last-write-wins on graph_node_id.
-      void (async () => {
-        try {
-          const runs = await listWorkflowRuns(w.workflow_id);
-          if (!runs || runs.length === 0) {
-            // No prior runs → nothing to hydrate; clear the flag so
-            // AlgorithmNode falls through to the terminal "尚未运行"
-            // for genuine never-ran nodes.
-            setHydrating(false);
-            return;
-          }
-
-          const perGraphPreviewWork: Array<{
-            snapshotId: string;
-            graphNodeId: string;
-            portName: string;
-            handleId: string;
-          }> = [];
-          const perShardPreviewWork: Array<{
-            graphNodeId: string;
-            portName: string;
-            handleId: string;
-            elementId: string;
-          }> = [];
-          const doneFilledGnids = new Set<string>();
-          const MAX_RUNS_TO_WALK = 8;
-          let seenFirstSnap = false;
-          for (const run of runs.slice(0, MAX_RUNS_TO_WALK)) {
-            const snap = await getSnapshot(run.snapshot_id);
-            // runs is newest-first; the very first snapshot we fetch is
-            // the latest one — its graph drives the draft-modified badge
-            // and its jobs drive node runtime.
-            if (!seenFirstSnap) {
-              setLatestSnapshotGraph(snap.graph);
-              // Stamp the seed ref BEFORE flipping the id so the sync
-              // effect (which fires as soon as ``latestSnapshotId`` changes)
-              // reads the seeded id on its first tick and short-circuits.
-              // Without this the effect at ~L807 clears seeded jobs and
-              // refires ``getSnapshot(latestSnapshotId)`` — the 9th
-              // snapshot request in a 8-run walk.
-              seededSnapshotIdRef.current = run.snapshot_id;
-              setLatestSnapshotId(run.snapshot_id);
-              setLatestSnapshotJobs(snap.jobs);
-              seenFirstSnap = true;
-            }
-            // Iterate in ASC (created_ts) order and first-write-wins per
-            // graph_node_id. For a fan-out slot the parent job is created
-            // *before* its shards and its ``output_handles`` carry the
-            // aggregated arrayed<T> handle (each shard carries a per-
-            // element slice with the same port_name). ASC + first-wins
-            // therefore picks the parent so the drawer sees the
-            // aggregate — NestedFrameSequencePreview shows "共 N 组"
-            // instead of collapsing to one shard's view. See
-            // SnapshotCanvas.jobsByGraphNodeId for the mirror comment.
-            //
-            // Shards (``parent_job_id`` set) are excluded from the
-            // aggregate slot for the same reason as the WS handler
-            // above — their handle points at ONE element dir, not the
-            // aggregate — and are seeded into the partial-shard slot
-            // instead so mid-fanout hydration can drive partial preview.
-            for (const job of snap.jobs) {
-              const gnid = job.graph_node_id;
-              if (!gnid) continue;
-              if (job.state !== "done") continue;
-              const shardEl = job.shard_element_id ?? null;
-              const isShard = job.parent_job_id != null && shardEl != null;
-              if (isShard) {
-                for (const [portName, handleId] of Object.entries(
-                  job.output_handles ?? {},
-                )) {
-                  perShardPreviewWork.push({
-                    graphNodeId: gnid,
-                    portName,
-                    handleId,
-                    elementId: shardEl,
-                  });
-                }
-                continue;
-              }
-              if (doneFilledGnids.has(gnid)) continue;
-              doneFilledGnids.add(gnid);
-              for (const [portName, handleId] of Object.entries(
-                job.output_handles ?? {},
-              )) {
-                perGraphPreviewWork.push({
-                  snapshotId: snap.snapshot_id,
-                  graphNodeId: gnid,
-                  portName,
-                  handleId,
-                });
-              }
-            }
-          }
-          if (perGraphPreviewWork.length > 0) {
-            const resolved = await Promise.all(
-              perGraphPreviewWork.map(async (item) => {
-                try {
-                  const info = await getHandle(item.handleId);
-                  return { ...item, info };
-                } catch {
-                  return null;
-                }
-              }),
-            );
-            const targets: Record<string, Record<string, PreviewTarget>> = {};
-            for (const r of resolved) {
-              if (!r) continue;
-              const bucket = (targets[r.graphNodeId] ??= {});
-              bucket[r.portName] = {
-                snapshot_id: r.snapshotId,
-                port_name: r.portName,
-                handle_id: r.info.handle_id,
-                node_id: r.info.node_id,
-                proxy_url: r.info.proxy_url,
-                storage: r.info.storage as "dir" | "file",
-                absolute_path: r.info.absolute_path,
-                deleted: r.info.deleted_ts !== null,
-                tags: r.info.tags,
-                preview: r.info.preview ?? null,
-                dim_labels: r.info.dim_labels ?? null,
-                dim_sizes: r.info.dim_sizes ?? null,
-              };
-            }
-            setPreviewsByGraphNode((prev) => {
-              const next: Record<
-                string,
-                Record<string, PreviewTarget>
-              > = { ...targets };
-              for (const [k, v] of Object.entries(prev)) {
-                next[k] = { ...(next[k] ?? {}), ...v };
-              }
-              return next;
-            });
-          }
-          if (perShardPreviewWork.length > 0) {
-            const resolvedShards = await Promise.all(
-              perShardPreviewWork.map(async (item) => {
-                try {
-                  const info = await getHandle(item.handleId);
-                  return { ...item, info };
-                } catch {
-                  return null;
-                }
-              }),
-            );
-            const shardTargets: Record<
-              string,
-              Record<string, PreviewShard[]>
-            > = {};
-            for (const r of resolvedShards) {
-              if (!r) continue;
-              const gn = (shardTargets[r.graphNodeId] ??= {});
-              const port = (gn[r.portName] ??= []);
-              if (port.some((e) => e.element_id === r.elementId)) continue;
-              port.push({
-                element_id: r.elementId,
-                handle_id: r.info.handle_id,
-                proxy_url: r.info.proxy_url,
-                storage: r.info.storage as "dir" | "file",
-              });
-            }
-            for (const gn of Object.values(shardTargets)) {
-              for (const port of Object.values(gn)) {
-                port.sort((a, b) =>
-                  a.element_id.localeCompare(b.element_id, undefined, {
-                    numeric: true,
-                    sensitivity: "base",
-                  }),
-                );
-              }
-            }
-            setPreviewShardsByGraphNode((prev) => {
-              const next: Record<
-                string,
-                Record<string, PreviewShard[]>
-              > = { ...shardTargets };
-              for (const [k, v] of Object.entries(prev)) {
-                next[k] = { ...(next[k] ?? {}), ...v };
-              }
-              return next;
-            });
-          }
-        } catch (err) {
-          console.warn("draft-view hydration failed", err);
-        } finally {
-          // Terminal verdicts (尚未运行 / 产物已被清理) are now safe to
-          // show: either all handles resolved into ``previews`` or the
-          // batch failed and we've logged it. The AlgorithmNode-level
-          // ``runState === "done" && !target`` check still covers the
-          // per-node WS window post-hydration.
-          setHydrating(false);
-        }
-      })();
+      setCanvasJobs([]);
+      // The latest snapshot remains the Run/diff baseline, not canvas evidence.
+      void listWorkflowRuns(w.workflow_id).then(async runs => {
+        if (!runs.length) { setHydrating(false); return; }
+        const snap = await getSnapshot(runs[0].snapshot_id);
+        seededSnapshotIdRef.current = snap.snapshot_id;
+        setLatestSnapshotGraph(snap.graph);
+        setLatestSnapshotJobs(snap.jobs);
+        setLatestSnapshotId(snap.snapshot_id);
+      }).catch(() => setHydrating(false));
     },
     [fromGraph, autosave],
   );

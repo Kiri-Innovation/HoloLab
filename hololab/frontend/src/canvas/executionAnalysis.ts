@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import type { WorkflowGraph } from '../wire';
+import type { SnapshotJob, WorkflowGraph } from '../wire';
 import type { NodeStaleness } from './staleness';
 import { analysisSignatures, type AnalysisContext } from './analysisInputs';
 import { analysisMetrics } from './analysisMetrics';
 
+export type CanvasJob = SnapshotJob & { snapshot_id: string };
+
 export interface ExecutionAnalysis {
+  canvas_jobs?: CanvasJob[];
   revision: string;
   graph: WorkflowGraph;
   staleness: Record<string, NodeStaleness | null>;
@@ -20,12 +23,19 @@ export class AnalysisGeneration {
 }
 
 export function useExecutionAnalysis(workflow: string | null, graph: WorkflowGraph, context?: AnalysisContext | null) {
+  const [refresh, setRefresh] = useState(0);
   const signatures = analysisSignatures(graph, context);
   const key = JSON.stringify([workflow, signatures.edit, signatures.baseline]);
   const generation = useRef(new AnalysisGeneration());
   type Result = { workflow: string; key: string; edit: string; baseline: string; data?: ExecutionAnalysis; error?: string };
   const [result, setResult] = useState<Result>();
   const [lastSuccess, setLastSuccess] = useState<Result>();
+  // Schedule after completion: slow analysis must not be aborted by a timer.
+  useEffect(() => {
+    if (!workflow || !result || result.key !== key) return;
+    const timer = setTimeout(() => setRefresh(n => n + 1), 5000);
+    return () => clearTimeout(timer);
+  }, [workflow, result, key]);
   useEffect(() => { setResult(undefined); setLastSuccess(undefined); }, [workflow]);
   useEffect(() => {
     const id = generation.current.next();
@@ -55,8 +65,8 @@ export function useExecutionAnalysis(workflow: string | null, graph: WorkflowGra
       }).finally(() => {pending=false;});
     }, 200);
     return () => { clearTimeout(timer); if(pending) analysisMetrics.cancelled++; abort.abort(); generation.current.next(); };
-  // Only semantic edits or baseline changes invalidate this generation.
-  }, [key]);
+  // Semantic edits, baseline changes, and completed-request polling refresh evidence.
+  }, [key, refresh]);
   const current = result?.workflow === workflow && result.key === key ? result : undefined;
   const previous = lastSuccess?.workflow === workflow ? lastSuccess : undefined;
   const data = current?.data ?? previous?.data;
