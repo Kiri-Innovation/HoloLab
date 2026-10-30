@@ -138,7 +138,7 @@ class NodeConfig(BaseModel):
     )
     install_dir: Path | None = Field(
         default=None,
-        description="Community installation root; implicitly scanned before pack_dirs.",
+        description="Community installation root; defaults to node_data_dir()/packs, scanned before pack_dirs.",
     )
 
     @field_validator("install_dir")
@@ -153,9 +153,15 @@ class NodeConfig(BaseModel):
         return value
 
     @property
+    def effective_install_dir(self) -> Path:
+        from hololab.gateway.pack_manager import installation_destination
+
+        return installation_destination(self.install_dir)
+
+    @property
     def pack_scan_dirs(self) -> list[Path]:
         """Installed packages win; keep operator source configuration unchanged."""
-        roots = ([self.install_dir] if self.install_dir is not None else []) + self.pack_dirs
+        roots = [self.effective_install_dir, *self.pack_dirs]
         return list(dict.fromkeys(roots))
 
     packs_dir: Path | None = Field(

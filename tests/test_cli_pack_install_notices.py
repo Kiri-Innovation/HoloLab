@@ -29,6 +29,7 @@ def _install(
     name: str,
     *,
     map_environment: bool = True,
+    explicit_install_dir: bool = True,
 ) -> str:
     _root, manifest, _ = package(tmp_path)
     data = yaml.safe_load(manifest.read_text())
@@ -43,7 +44,8 @@ def _install(
     config.write_text(
         yaml.safe_dump(
             {
-                "pack_dirs": [str(tmp_path / "installed")],
+                "pack_dirs": [str(tmp_path / "development")],
+                "install_dir": str(tmp_path / "installed") if explicit_install_dir else None,
                 "pack_sources": [registry.as_uri()],
                 "envs": {"test": str(env)} if map_environment else {},
                 "conda_bin": str(_conda_passthrough(tmp_path / "conda")),
@@ -90,3 +92,10 @@ def test_install_mentions_unconfigured_environment(tmp_path: Path) -> None:
 
     assert "environment 'test' is not configured" in output
     assert "hololab pack setup community/notice-no-environment@0.5.2" in output
+
+
+def test_cli_default_install_ignores_development_directory(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "home"))
+    _install(tmp_path, {}, "default-destination", explicit_install_dir=False)
+    assert (tmp_path / "home/node/packs/community/default-destination@0.5.2").is_dir()
+    assert not (tmp_path / "development").exists()

@@ -21,12 +21,13 @@ registry = http_registry
 
 @pytest.mark.parametrize("explicit", [False, True])
 def test_endpoint_installs_and_refreshes_catalog(registry, tmp_path, monkeypatch, explicit):
-    destination = tmp_path / "installed"
+    monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "home"))
+    destination = tmp_path / "installed" if explicit else tmp_path / "home/node/packs"
     if not explicit:
-        destination.mkdir()
+        destination.mkdir(parents=True)
     runtime = NodeRuntime(
         NodeConfig(
-            pack_dirs=[tmp_path / "development"] if explicit else [destination],
+            pack_dirs=[tmp_path / "development"],
             install_dir=destination if explicit else None,
             workspace_root=tmp_path / "work",
         )
@@ -115,7 +116,8 @@ def test_endpoint_installs_and_refreshes_catalog(registry, tmp_path, monkeypatch
         )
 
 
-def test_install_failure_gates(registry, tmp_path):
+def test_install_failure_gates(registry, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "home"))
     destination = tmp_path / "installed"
     destination.mkdir()
     result = install_on_node("kiri/demo@1.0.0", registry["source"], [destination], "0" * 64)
@@ -129,7 +131,7 @@ def test_install_failure_gates(registry, tmp_path):
         install_on_node("kiri/demo@1.0.0", registry["source"], [tmp_path / "missing.yaml"], None)[
             "error"
         ]["code"]
-        == "no_destination"
+        == "hash_mismatch"
     )
     assert public_error(PermissionError("secret path"))["code"] == "disk_error"
     assert "secret" not in str(public_error(HashMismatch("secret hash")))
@@ -154,7 +156,8 @@ def test_invalid_request_and_legacy_node(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_real_websocket_install(registry, tmp_path):
+async def test_real_websocket_install(registry, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "home"))
     import socket
 
     import httpx
@@ -172,6 +175,7 @@ async def test_real_websocket_install(registry, tmp_path):
     runtime = NodeRuntime(
         NodeConfig(
             pack_dirs=[root],
+            install_dir=root,
             gateway_url=f"ws://127.0.0.1:{port}",
             workspace_root=tmp_path / "work",
             envs={},
@@ -217,17 +221,15 @@ async def test_real_websocket_install(registry, tmp_path):
         sock.close()
 
 
-def test_destination_matches_scanner_modes(registry, tmp_path):
+def test_destination_independent_of_development_sources(registry, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "home"))
     repository = tmp_path / "repo"
-    container = repository / "packs"
-    container.mkdir(parents=True)
-    single = tmp_path / "single"
-    single.mkdir()
-    (single / "manifest.yaml").write_text("placeholder")
-    result = install_on_node("kiri/demo@1.0.0", registry["source"], [single, repository], None)
-    assert result["destination"] == str(container)
-    assert len(scan_multi_packs([repository])) == 1
-    new = tmp_path / "new-pack-directory"
-    result = install_on_node("kiri/demo@1.0.0", registry["source"], [new], None)
-    assert result["installed"]
-    assert len(scan_multi_packs([new])) == 1
+    (repository / "packs").mkdir(parents=True)
+    result = install_on_node("kiri/demo@1.0.0", registry["source"], [repository], None)
+    destination = tmp_path / "home/node/packs"
+    assert result["destination"] == str(destination)
+    assert len(scan_multi_packs([destination])) == 1
+    assert not list((repository / "packs").iterdir())
+    # No development source is required, and repeated installation reuses the default root.
+    repeated = install_on_node("kiri/demo@1.0.0", registry["source"], [], None)
+    assert repeated["manifest"] == result["manifest"]

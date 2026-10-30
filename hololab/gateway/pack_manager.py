@@ -61,32 +61,10 @@ def public_error(exc: Exception) -> dict:
     return {"code": code, "message": message}
 
 
-def installation_destination(pack_dirs: list[Path], install_dir: Path | None = None) -> Path | None:
-    from hololab.pack_install import RECEIPT
+def installation_destination(install_dir: Path | None = None) -> Path:
+    from hololab.paths import node_data_dir
 
-    if install_dir is not None:
-        return install_dir
-    # Match the scanner's precise-file, direct-pack and repository-container modes.
-    destination = None
-    for root in pack_dirs:
-        candidate = root
-        seen = set()
-        while True:
-            if candidate.resolve() in seen or candidate.is_file():
-                break
-            seen.add(candidate.resolve())
-            if (candidate / "manifest.yaml").exists() or (candidate / RECEIPT).exists():
-                break
-            if not candidate.exists() and candidate.suffix in {".yaml", ".yml"}:
-                break
-            if (candidate / "packs").is_dir():
-                candidate = candidate / "packs"
-                continue
-            destination = candidate
-            break
-        if destination is not None:
-            break
-    return destination
+    return install_dir if install_dir is not None else node_data_dir() / "packs"
 
 
 def install_on_node(
@@ -100,14 +78,7 @@ def install_on_node(
 
     source = http_source(source)
     parse_spec(spec)
-    destination = installation_destination(pack_dirs, install_dir)
-    if destination is None:
-        return {
-            "error": {
-                "code": "no_destination",
-                "message": "没有可安装的包集合目录，请先在计算节点 pack_dirs 配置一个目录。",
-            }
-        }
+    destination = installation_destination(install_dir)
     try:
         # UI installation always checks current publication, even if already local.
         from hololab.pack_registry import find_release
@@ -115,7 +86,13 @@ def install_on_node(
         _, release = find_release(spec, [source], expected)
         if release.yanked:
             raise RegistryError("yanked")
-        result = install(spec, [source], destination, pack_dirs, expected or release.code_sha256)
+        result = install(
+            spec,
+            [source],
+            destination,
+            list(dict.fromkeys([destination, *pack_dirs])),
+            expected or release.code_sha256,
+        )
         return {**result, "destination": str(destination)}
     except Exception as exc:
         return {"error": public_error(exc)}

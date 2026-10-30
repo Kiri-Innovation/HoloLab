@@ -166,7 +166,8 @@ async def test_yank_and_dev_notes_never_modify_snapshot(tmp_path):
     assert set_yank("demo@0.1.1", source, False) == unyanked
 
 
-def test_cli_end_to_end_real_process_and_offline_yank(tmp_path):
+def test_cli_end_to_end_real_process_and_offline_yank(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "home"))
     import asyncio
     import os
     import sys
@@ -193,7 +194,15 @@ def test_cli_end_to_end_real_process_and_offline_yank(tmp_path):
     source = (tmp_path / "registry").as_uri()
     destination = tmp_path / "installed"
     config = tmp_path / "node.yaml"
-    config.write_text(yaml.safe_dump({"pack_dirs": [str(destination)], "pack_sources": [source]}))
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "pack_dirs": [str(destination)],
+                "install_dir": str(destination),
+                "pack_sources": [source],
+            }
+        )
+    )
     runner = CliRunner()
     result = runner.invoke(
         app,

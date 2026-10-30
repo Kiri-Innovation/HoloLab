@@ -1017,7 +1017,7 @@ class NodeRuntime:
     def _install_destination(self) -> str | None:
         from hololab.gateway.pack_manager import installation_destination
 
-        path = installation_destination(self._config.pack_dirs, self._config.install_dir)
+        path = installation_destination(self._config.install_dir)
         return str(path) if path is not None else None
 
     async def _pack_install_reply(self, request):

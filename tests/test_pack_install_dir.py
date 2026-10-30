@@ -12,17 +12,19 @@ from tests.test_content_scope import package
 from tests.test_pack_dirs import _write_manifest
 
 
-def test_config_and_destination(tmp_path):
+def test_config_and_destination(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "home"))
+    default = tmp_path / "home/node/packs"
     local = tmp_path / "repo"
     (local / "packs").mkdir(parents=True)
     target = tmp_path / "downloads"
     legacy = NodeConfig(pack_dirs=[local])
     assert legacy.install_dir is None
-    assert legacy.pack_scan_dirs == [local]
-    assert installation_destination(legacy.pack_dirs) == local / "packs"
+    assert legacy.pack_scan_dirs == [default, local]
+    assert installation_destination() == default
     cfg = NodeConfig(pack_dirs=[local, target], install_dir=target)
     assert cfg.pack_scan_dirs == [target, local]
-    assert installation_destination(cfg.pack_dirs, cfg.install_dir) == target
+    assert installation_destination(cfg.install_dir) == target
     assert not target.exists()
     assert NodeConfig.model_validate_json(cfg.model_dump_json()).install_dir == target
     with pytest.raises(ValueError, match="absolute"):
@@ -48,7 +50,7 @@ def test_install_scan_repeat_and_mismatch(tmp_path):
     source = (tmp_path / "registry").as_uri()
     release = publish(manifest, source, "test")
     cfg = NodeConfig(pack_dirs=[tmp_path / "development"], install_dir=tmp_path / "downloads")
-    dest = installation_destination(cfg.pack_dirs, cfg.install_dir)
+    dest = installation_destination(cfg.install_dir)
     result = install("kiri/demo@1.0.0", [source], dest, cfg.pack_scan_dirs, release.code_sha256)
     assert Path(result["manifest"]).is_relative_to(cfg.install_dir)
     assert len(scan_multi_packs(cfg.pack_scan_dirs)) == 1
