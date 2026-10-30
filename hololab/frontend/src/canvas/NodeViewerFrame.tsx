@@ -63,7 +63,7 @@ export function NodeViewerFrame({
   const [viewerHeight, setViewerHeight] = useState(DEFAULT_VIEWER_HEIGHT);
   // SplaTV is a square viewport; diagnostic viewers retain content sizing.
   const squareViewport = !!sceneUrl || (packName === "stg-to-splatv" && viewer.id === "splatv_scene");
-  const { wrapperRef, activated, activate } = useViewerInteraction(squareViewport);
+  const { wrapperRef, activated, activate, onFrameLoad } = useViewerInteraction(true, squareViewport ? undefined : iframeRef);
   const [dualFocusReady, setDualFocusReady] = useState(false);
   const [focusDomain, setFocusDomain] = useState<string | null>(null);
   const activateRef = useRef(activate);
@@ -280,16 +280,16 @@ export function NodeViewerFrame({
     return <div style={{ padding: 12, color: "var(--status-failed)", fontSize: 11 }}>{assetError}</div>;
   }
   return (
-    <div ref={wrapperRef} tabIndex={squareViewport ? -1 : undefined} data-viewer-interaction={squareViewport ? (activated ? "active" : "inactive") : undefined} style={{ position: "relative", outline: "none" }}>
+    <div ref={wrapperRef} tabIndex={-1} data-viewer-interaction={activated ? "active" : "inactive"} style={{ position: "relative", outline: "none" }}>
     <iframe
       ref={iframeRef}
       src={src}
       title={viewer.title ?? viewer.id}
       sandbox="allow-scripts allow-same-origin"
-      onLoad={() => setLoaded(true)}
-      style={{ width: "100%", height: squareViewport ? "auto" : viewerHeight, aspectRatio: squareViewport ? "1 / 1" : undefined, boxSizing: "border-box", border: squareViewport ? viewerInteractionBorder(activated && (!dualFocusReady || focusDomain === 'canvas')) : 0, borderRadius: squareViewport ? "var(--radius-sm)" : undefined, display: "block", background: "#101216" }}
+      onLoad={() => { setLoaded(true); onFrameLoad(); }}
+      style={{ width: "100%", height: squareViewport ? "auto" : viewerHeight, aspectRatio: squareViewport ? "1 / 1" : undefined, boxSizing: "border-box", border: viewerInteractionBorder(activated && (!squareViewport || !dualFocusReady || focusDomain === 'canvas')), borderRadius: "var(--radius-sm)", display: "block", background: "#101216" }}
     />
-    {squareViewport && (!activated || (dualFocusReady && !focusDomain)) && <ViewerInteractionShield activate={(event) => {
+    {(!activated || (squareViewport && dualFocusReady && !focusDomain)) && <ViewerInteractionShield forwardCanvasDrag={!squareViewport} activate={(event) => {
       activate();
       if (!dualFocusReady) return;
       const rect = event.currentTarget.getBoundingClientRect();
