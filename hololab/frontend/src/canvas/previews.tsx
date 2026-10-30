@@ -30,7 +30,7 @@ import { NodeViewerFrame } from "./NodeViewerFrame";
 import { useCanvasContext } from "./CanvasContext";
 import { WORKFLOW_FACTORY_VIEW } from "./workflowFactoryView";
 import { versionedViewerUrl } from "./viewerBuild";
-import { useViewerInteraction, ViewerInteractionShield, viewerInteractionBorder } from "./ViewerInteraction";
+import { useViewerInteraction, ViewerInteractionShield, viewerInteractionBorder, ViewerScrollRegion } from "./ViewerInteraction";
 
 // ---------------------------------------------------------------------------
 // Common shell
@@ -786,7 +786,7 @@ function TextPreview({ url }: { url: string }) {
     );
   return (
     <div style={PREVIEW_SHELL}>
-      <pre
+      <ViewerScrollRegion maxHeight={260}><pre
         style={{
           margin: 0,
           fontSize: 11,
@@ -795,14 +795,13 @@ function TextPreview({ url }: { url: string }) {
             'ui-monospace, SFMono-Regular, Menlo, Monaco, "Cascadia Code", monospace',
           color: "var(--text-on-dark)",
           background: "transparent",
-          maxHeight: 260,
-          overflow: "auto",
+
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
         }}
       >
         {state.body}
-      </pre>
+      </pre></ViewerScrollRegion>
       {state.truncated && (
         <div style={{ fontSize: "var(--fs-micro)", color: "var(--inverse-muted)", marginTop: "var(--space-1)" }}>
           truncated at {TEXT_MAX_BYTES / 1024} KiB · download the full file for the rest
