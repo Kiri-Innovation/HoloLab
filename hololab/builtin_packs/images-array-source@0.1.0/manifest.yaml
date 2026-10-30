@@ -1,0 +1,71 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/images-array-source
+version: 0.1.0
+description: >
+  Data-source node — points at an existing DIRECTORY of frame images and
+  exposes it as an ordered image sequence, without copying or re-encoding
+  a single pixel. Use it to feed pre-extracted / de-distorted frames (for
+  example a COLMAP ``images/`` folder) straight into SfM.
+source_entry: run.py
+category: "basic/input/images-array-source"
+
+docs: |
+  Read-only source node for **already extracted frames**.
+
+  - **Param:** ``frames_path`` — absolute path to a directory containing
+    the frame images. The directory itself is never modified.
+  - **Output:** ``frames`` — an ``image``-tagged, ``arrayed[frame]``
+    directory handle whose root holds one symlink per source frame (no
+    ``frames/`` wrapper). ``colmap-sfm`` and any other consumer that
+    takes a directory of images can be wired to it directly.
+  - Nothing is decoded, resized or re-encoded: the handle only contains
+    symlinks to the original files, so pixels, filenames and EXIF all
+    survive byte-for-byte.
+  - Accepted extensions: ``.png .jpg .jpeg .webp .tif .tiff .bmp``;
+    files are ordered by filename (byte order), so zero-padded names
+    such as ``frame_000123.png`` keep their natural sequence.
+  - Sub-directories are ignored on purpose — point ``frames_path`` at the
+    directory that holds the images.
+
+params:
+  frames_path:
+    type: path
+    pinned: true
+    must_exist: true
+    path_kind: directory
+    description: "Absolute path to a directory containing the frame images to expose."
+
+outputs:
+  frames:
+    tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [frame]
+    description: >
+      Directory whose root contains one symlink per source frame, named
+      exactly as in ``frames_path``. Consumed directly by
+      ``community/colmap-sfm`` (its ``frames`` input accepts a directory
+      of images at the handle root) and by any other image-sequence
+      consumer.
+
+requires: {}
+runtime:
+  mode: host
+  gpu:
+    required: false
+  expected_duration_min: [0.01, 0.05]
+  resources:
+    # Symlink-only pack; no decoding, no disk or memory pressure.
+    scratch_gb: 0.1
+    mem_gb: 0.5
+
+exec:
+  python: run.py
+  args: ["--frames-path", "{{ params.frames_path }}", "--output", "{{ outputs.frames }}"]
+
+idempotency:
+  marker: "{{ outputs.frames }}/.hololab-done"
+
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'

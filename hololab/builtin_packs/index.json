@@ -99,6 +99,13 @@
       "manifest": "regroup@0.3.0/manifest.yaml",
       "code_sha256": "2c59463ebe199594d98d3a63d5f0a905bcee6937b6edec2d19a337439190ce17",
       "identity_format": 2
+    },
+    {
+      "name": "builtin/images-array-source",
+      "version": "0.1.0",
+      "manifest": "images-array-source@0.1.0/manifest.yaml",
+      "code_sha256": "eb991e049fb22704f33f31f9ff83aa6874c695500949502ae1309e72909932c4",
+      "identity_format": 2
     }
   ]
 }
