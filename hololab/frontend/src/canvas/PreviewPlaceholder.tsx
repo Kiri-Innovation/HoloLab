@@ -24,7 +24,7 @@
 
 import { useState } from "react";
 
-export type PlaceholderKind = "never-ran" | "cleaned" | "loading";
+export type PlaceholderKind = "never-ran" | "cleaned" | "loading" | "unavailable";
 
 export interface PreviewPlaceholderProps {
   kind: PlaceholderKind;
@@ -112,6 +112,9 @@ function content(kind: PlaceholderKind, portName: string): {
       detail: `此节点的 ${portName} 产物已通过 Artifacts 面板清理，磁盘上文件已删除。重新运行本节点可再次生成产物。`,
     };
   }
+  if (kind === "unavailable") {
+    return { title: "产物信息暂不可用", detail: `无法读取 ${portName} 的产物信息。可稍后刷新页面；这不表示产物已被清理。` };
+  }
   return {
     title: "尚未运行",
     detail: `此节点尚未运行过，还没有 ${portName} 产物可以预览。点击下方按钮触发单节点运行；上游产物必须已经在最新快照里就绪。`,
@@ -140,7 +143,7 @@ export function PreviewPlaceholder({
   // The "loading" kind is a non-committal placeholder — we don't yet
   // know if the node needs running, so suppress the Run button. The
   // real placeholder + button reappears once the fetch resolves.
-  const showButton = kind !== "loading";
+  const showButton = kind !== "loading" && kind !== "unavailable";
 
   const onClick = async () => {
     if (!onRun || buttonBusy) return;

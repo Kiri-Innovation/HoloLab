@@ -352,6 +352,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // jobsById is the independent recent activity feed.
   const [latestSnapshotJobs, setLatestSnapshotJobs] = useState<SnapshotJob[]>([]);
   const [canvasJobs, setCanvasJobs] = useState<CanvasJob[]>([]);
+  const [previewLoadingByGraphNode, setPreviewLoadingByGraphNode] = useState<Record<string, Record<string, boolean>>>({});
+  const [previewLoadErrorsByGraphNode, setPreviewLoadErrorsByGraphNode] = useState<Record<string, Record<string, string>>>({});
   const [jobsById, setJobsById] = useState<Record<string, RecentJobRow>>({});
 
   // Preview state, keyed by graph node id:
@@ -1241,6 +1243,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const rt = runtimeByGraphNode[n.id];
         const pv = previewsByGraphNode[n.id];
         const ps = previewShardsByGraphNode[n.id];
+        const pl = previewLoadingByGraphNode[n.id];
+        const pe = previewLoadErrorsByGraphNode[n.id];
         const nv = nodeViewerFramesByGraphNode[n.id];
         const po = previewOpenByGraphNode[n.id] ?? null;
         // Value-level runtime compare so a WS update that keeps a node's
@@ -1253,6 +1257,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           runtimeEqual(rt, d.runtime) &&
           pv === d.previews &&
           ps === d.previewShards &&
+          pl === d.previewLoadingPorts &&
+          pe === d.previewLoadErrors &&
           nv === d.nodeViewerFrames &&
           po === (d.previewOpen ?? null)
         ) {
@@ -1265,6 +1271,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             runtime: rt,
             previews: pv,
             previewShards: ps,
+            previewLoadingPorts: pl,
+            previewLoadErrors: pe,
             nodeViewerFrames: nv,
             previewOpen: po,
           },
@@ -1275,6 +1283,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     runtimeByGraphNode,
     previewsByGraphNode,
     previewShardsByGraphNode,
+    previewLoadingByGraphNode,
+    previewLoadErrorsByGraphNode,
     nodeViewerFramesByGraphNode,
     previewOpenByGraphNode,
     edges,
@@ -2122,14 +2132,26 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   }), [canvasContextValue, executionAnalysis.data, executionAnalysis.isCurrent]);
   const draftDiff: DiffItem[] = executionAnalysis?.data?.diff ?? [];
   useEffect(() => {
-    setCanvasJobs(executionAnalysis.isCurrent ? executionAnalysis.data?.canvas_jobs ?? [] : []);
+    // Keep the last validated selection while the periodic refresh is in
+    // flight; a transient clear made completed nodes look never-run.
+    if (executionAnalysis.isCurrent) {
+      setCanvasJobs(executionAnalysis.data?.canvas_jobs ?? []);
+    }
   }, [executionAnalysis.data, executionAnalysis.isCurrent]);
+
+  useEffect(() => {
+    if (executionAnalysis.status === "error") {
+      setHydrating(false);
+    }
+  }, [executionAnalysis.status]);
 
   // State and previews use the same validated parent generation, with no run window.
   useEffect(() => {
     let cancelled = false;
     setPreviewsByGraphNode({});
     setPreviewShardsByGraphNode({});
+    setPreviewLoadingByGraphNode({});
+    setPreviewLoadErrorsByGraphNode({});
     void (async () => {
       try {
         const perGraphPreviewWork: Array<{
@@ -2139,6 +2161,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           handleId: string;
         }> = [];
         const perShardPreviewWork: Array<{
+          snapshotId: string;
           graphNodeId: string;
           portName: string;
           handleId: string;
@@ -2155,6 +2178,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               job.output_handles ?? {},
             )) {
               perShardPreviewWork.push({
+                snapshotId: job.snapshot_id,
                 graphNodeId: gnid,
                 portName,
                 handleId,
@@ -2176,82 +2200,34 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             });
           }
         }
-        if (perGraphPreviewWork.length > 0) {
-          const resolved = await Promise.all(
-            perGraphPreviewWork.map(async (item) => {
-              try {
-                const info = await getHandle(item.handleId);
-                return { ...item, info };
-              } catch {
-                return null;
-              }
-            }),
-          );
-          const targets: Record<string, Record<string, PreviewTarget>> = {};
-          for (const r of resolved) {
-            if (!r) continue;
-            const bucket = (targets[r.graphNodeId] ??= {});
-            bucket[r.portName] = {
-              snapshot_id: r.snapshotId,
-              port_name: r.portName,
-              handle_id: r.info.handle_id,
-              node_id: r.info.node_id,
-              proxy_url: r.info.proxy_url,
-              storage: r.info.storage as "dir" | "file",
-              absolute_path: r.info.absolute_path,
-              deleted: r.info.deleted_ts !== null,
-              tags: r.info.tags,
-              preview: r.info.preview ?? null,
-              dim_labels: r.info.dim_labels ?? null,
-              dim_sizes: r.info.dim_sizes ?? null,
-            };
-          }
-          if (cancelled) return;
-          setPreviewsByGraphNode(targets);
-        }
-        if (perShardPreviewWork.length > 0) {
-          const resolvedShards = await Promise.all(
-            perShardPreviewWork.map(async (item) => {
-              try {
-                const info = await getHandle(item.handleId);
-                return { ...item, info };
-              } catch {
-                return null;
-              }
-            }),
-          );
-          const shardTargets: Record<
-            string,
-            Record<string, PreviewShard[]>
-          > = {};
-          for (const r of resolvedShards) {
-            if (!r) continue;
-            const gn = (shardTargets[r.graphNodeId] ??= {});
-            const port = (gn[r.portName] ??= []);
-            if (port.some((e) => e.element_id === r.elementId)) continue;
-            port.push({
-              element_id: r.elementId,
-              handle_id: r.info.handle_id,
-              proxy_url: r.info.proxy_url,
-              storage: r.info.storage as "dir" | "file",
-            });
-          }
-          for (const gn of Object.values(shardTargets)) {
-            for (const port of Object.values(gn)) {
-              port.sort((a, b) =>
-                a.element_id.localeCompare(b.element_id, undefined, {
-                  numeric: true,
-                  sensitivity: "base",
-                }),
-              );
+        const allPreviewWork = [...perGraphPreviewWork, ...perShardPreviewWork];
+        const pending: Record<string, Record<string, boolean>> = {};
+        for (const item of allPreviewWork) (pending[item.graphNodeId] ??= {})[item.portName] = true;
+        setPreviewLoadingByGraphNode(pending);
+        // Apply the selected runtime and its port-level loading map together.
+        // This prevents the one-render "never ran" flash between them.
+        setHydrating(false);
+        await Promise.allSettled(allPreviewWork.map(async (item) => {
+          try {
+            const info = await getHandle(item.handleId);
+            if (cancelled) return;
+            if ("elementId" in item) {
+              setPreviewShardsByGraphNode(prev => {
+                const port = [...(prev[item.graphNodeId]?.[item.portName] ?? [])];
+                if (!port.some(e => e.element_id === item.elementId)) port.push({ element_id: item.elementId as string, handle_id: info.handle_id, proxy_url: info.proxy_url, storage: info.storage as "dir" | "file" });
+                return { ...prev, [item.graphNodeId]: { ...(prev[item.graphNodeId] ?? {}), [item.portName]: port } };
+              });
+            } else {
+              const target: PreviewTarget = { snapshot_id: item.snapshotId, port_name: item.portName, handle_id: info.handle_id, node_id: info.node_id, proxy_url: info.proxy_url, storage: info.storage as "dir" | "file", absolute_path: info.absolute_path, deleted: info.deleted_ts !== null, tags: info.tags, preview: info.preview ?? null, dim_labels: info.dim_labels ?? null, dim_sizes: info.dim_sizes ?? null };
+              setPreviewsByGraphNode(prev => ({ ...prev, [item.graphNodeId]: { ...(prev[item.graphNodeId] ?? {}), [item.portName]: target } }));
             }
+          } catch (error) {
+            if (!cancelled) setPreviewLoadErrorsByGraphNode(prev => ({ ...prev, [item.graphNodeId]: { ...(prev[item.graphNodeId] ?? {}), [item.portName]: error instanceof Error ? error.message : "handle lookup failed" } }));
+          } finally {
+            if (!cancelled) setPreviewLoadingByGraphNode(prev => ({ ...prev, [item.graphNodeId]: { ...(prev[item.graphNodeId] ?? {}), [item.portName]: false } }));
           }
-          if (cancelled) return;
-          setPreviewShardsByGraphNode(shardTargets);
-        }
-      } finally {
-        if (!cancelled) setHydrating(false);
-      }
+        }));
+      } finally { /* each metadata request settles its own pending flag */ }
     })();
     return () => { cancelled = true; };
   }, [JSON.stringify(canvasJobs.map(j => [j.job_id, j.output_handles]))]);

@@ -179,11 +179,14 @@ export const cancelAllJobs = () =>
 // tags, dim_labels are frozen at emit time), so a resolved response
 // is reusable for the lifetime of the tab.
 const HANDLE_FETCH_CONCURRENCY = 8;
+// A metadata lookup must not leave an expanded drawer undecidable forever.
+// Payload streaming uses /proxy and deliberately has no such short timeout.
+const HANDLE_FETCH_TIMEOUT_MS = 15_000;
 const _handleInfoCache = new Map<string, Promise<HandleInfo>>();
 const _handleSummaryCache = new Map<string, Promise<HandleSummary>>();
 
 const _fetchHandleLimited = pLimit(HANDLE_FETCH_CONCURRENCY, (handle_id: string) =>
-  resilientFetch(`/api/handles/${handle_id}`).then(json<HandleInfo>),
+  resilientFetch(`/api/handles/${handle_id}`, { signal: AbortSignal.timeout(HANDLE_FETCH_TIMEOUT_MS) }).then(json<HandleInfo>),
 );
 const _fetchHandleSummaryLimited = pLimit(
   HANDLE_FETCH_CONCURRENCY,

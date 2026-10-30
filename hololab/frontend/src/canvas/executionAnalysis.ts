@@ -67,7 +67,7 @@ export function useExecutionAnalysis(workflow: string | null, graph: WorkflowGra
     return () => { clearTimeout(timer); if(pending) analysisMetrics.cancelled++; abort.abort(); generation.current.next(); };
   // Semantic edits, baseline changes, and completed-request polling refresh evidence.
   }, [key, refresh]);
-  const current = result?.workflow === workflow && result.key === key ? result : undefined;
+  const current = result?.workflow === workflow && result?.key === key ? result : undefined;
   const previous = lastSuccess?.workflow === workflow ? lastSuccess : undefined;
   const data = current?.data ?? previous?.data;
   const status = current?.error ? 'error' : current?.data ? 'ready' : data ? 'checking' : 'unchecked';

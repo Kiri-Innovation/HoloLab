@@ -126,6 +126,8 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   // Populated as each shard completes; consumed by the drawer when the
   // aggregate target isn't in ``previews`` yet.
   previewShards?: Record<string, PreviewShard[]>;
+  previewLoadingPorts?: Record<string, boolean>;
+  previewLoadErrors?: Record<string, string>;
   // Non-terminal files announced by the node runtime for pack-owned viewers.
   nodeViewerFrames?: Record<string, LiveViewerFrame[]>;
   // Frontend-only: which preview drawer is expanded, if any. The node
@@ -368,6 +370,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const {
     computeNodesById,
     packDisplayName,
+    hydrating,
   } = useCanvasContext();
   const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
   const inputEntries = Object.entries(pack.inputs);
@@ -377,6 +380,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const missingInputs = inputValueProblems(pack.inputs, (data as AlgorithmNodeData).port_values ?? {}, wiredInputs, arrayedOn);
   const inputProblem = missingInputs.length ? `输入未就绪：${missingInputs.join("、")}。运行会被拒绝，请检查输入来源和值。` : undefined;
   const runState = runtime?.state;
+  const displayedState = hydrating && !runtime ? "loading" : runState;
   const runColour = stateColour(runState);
   const previewSelection = useNodePreviewSelection(data as AlgorithmNodeData);
   const { defaultNodeViewer, expandables, currentPreview } = previewSelection;
@@ -467,14 +471,14 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         transition: "width 120ms ease-out, box-shadow var(--dur-fast) var(--ease)",
       }}
       data-hololab-node="algorithm"
-      data-state={runState || ""}
+      data-state={displayedState || ""}
       data-preview-open={expanded || ""}
     >
       {/* HEADER — status dot + pack name (ellipsis) + action icons */}
       <NodeCardHeader id={id} name={pack.name} displayName={packDisplayName?.(pack.name) ?? pack.name} version={pack.version} device={assignedLabel}
         certification={certification}
         subtitle={`${assignedLabel} · v${pack.version}${pack.version.endsWith("+") ? " · dev" : ""}`}
-        state={runState} status={nodeStatus({ state: runState, stale: staleness, failReason: runtime?.fail_reason, missingAlgorithm: pack.manifest_hash ? null : {name: pack.name, version: pack.version}, missingInputs, readOnly })}
+        state={displayedState} status={nodeStatus({ state: displayedState, stale: staleness, failReason: runtime?.fail_reason, missingAlgorithm: pack.manifest_hash ? null : {name: pack.name, version: pack.version}, missingInputs, readOnly })}
         actions={!readOnly && <NodeRunControl id={id} pending={runClickPending} state={runState} jobId={runtime?.job_id}
           stale={staleness?.kind === "self_dirty"} blockedReason={inputProblem} onRun={handleRunClick} />}>
         {runErrorMsg && !inputProblem && (
@@ -645,6 +649,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             runtime={runtime}
             runColour={runColour}
             statusTitle={statusTitle}
+            loading={hydrating && !runtime}
           />
           {progressLabel && (
             <span
@@ -785,10 +790,12 @@ function FooterRunSummary({
   runtime,
   runColour,
   statusTitle,
+  loading = false,
 }: {
   runtime: NodeRuntime | undefined;
   runColour: string;
   statusTitle: string;
+  loading?: boolean;
 }) {
   const state = runtime?.state;
   const inFlight = state ? IN_FLIGHT_STATES_FOR_TICK.has(state) : false;
@@ -806,10 +813,10 @@ function FooterRunSummary({
   if (!runtime) {
     return (
       <span
-        data-tooltip="尚未运行"
+        data-tooltip={loading ? "正在读取运行记录" : "尚未运行"}
         style={{ ...commonStyle, color: "var(--text-subtle)" }}
       >
-        未运行
+        {loading ? "读取中…" : "未运行"}
       </span>
     );
   }

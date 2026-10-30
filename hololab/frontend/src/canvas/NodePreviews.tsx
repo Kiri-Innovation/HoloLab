@@ -191,7 +191,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
   onRun?: () => Promise<void>;
   inspector?: boolean;
 }) {
-  const { pack, previews, previewShards, runtime, arrayed_toggle, assigned_node_id, readOnly } = data;
+  const { pack, previews, previewShards, previewLoadingPorts, previewLoadErrors, runtime, arrayed_toggle, assigned_node_id, readOnly } = data;
   const {
     computeNodesById,
     hydrating,
@@ -420,27 +420,17 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
             // Placeholder for viewer-kind with no/deleted handle, and
             // info-kind with no handle yet (never ran).
             //
-            // "Not ready" gating: don't flash a terminal verdict until we
-            // have data that supports one. Two windows to cover:
-            //
-            //   * ``hydrating`` (from CanvasContext) — the App's initial
-            //     cold-load chain (listWorkflowRuns → getSnapshot →
-            //     getHandle batch) is still in flight. Persisted
-            //     ``preview_open`` slots would otherwise flash "尚未运行"
-            //     before jobs arrive, then "产物已被清理" between jobs
-            //     landing (runState="done") and the handle batch
-            //     resolving (target=null → treated as tombstoned).
-            //   * ``runState === "done" && !target`` — post-hydration
-            //     WS "done" frame arrived but the async getHandle
-            //     hasn't resolved yet. Same "cleaned" flash on live
-            //     runs; same fix.
-            //
-            // Once neither window applies, the terminal branch below
-            // fires: ``target?.deleted`` → cleaned (real tombstone),
-            // else → never-ran (no done job, no handle).
-            const notReady = hydrating || (runState === "done" && !target);
+            // Don't make a terminal verdict while its evidence is unknown.
+            // ``hydrating`` covers the period before history selection has
+            // returned; each output then owns its lookup state so one slow
+            // folder does not hold unrelated drawers in loading. A settled
+            // lookup failure is deliberately neither "cleaned" nor
+            // "never-ran".
+            const notReady = (hydrating && !runtime) || Boolean(previewLoadingPorts?.[name]);
             const placeholderKind = notReady
               ? "loading"
+              : previewLoadErrors?.[name]
+                ? "unavailable"
               : target?.deleted
                 ? "cleaned"
                 : "never-ran";

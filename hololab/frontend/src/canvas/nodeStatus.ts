@@ -21,7 +21,7 @@ export interface NodeStatusInput {
 
 /** Presentation only: never mutate runtime, scheduling, or shared job colours. */
 export function nodeStatus({ state, stale, drift = false, failReason, readOnly = false, missingAlgorithm, missingInputs = [] }: NodeStatusInput): NodeStatusPresentation {
-  const known = !state || ["pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted"].includes(state);
+  const known = !state || ["loading", "pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted"].includes(state);
   const missingCurrentAlgorithm = !readOnly && !!missingAlgorithm;
   const oldParams = !readOnly && (drift || stale?.kind === "inflight_old_params");
   const staleReason = stale?.changeReasons?.join("\n") ?? stale?.title;
@@ -35,6 +35,8 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
     result = { tone: "error", conclusion: "算法未安装", reason: `本机没有 ${reference}；这个节点无法运行。`, action: "请到 Pack Manager 的社区页安装此版本，或改选本机已有的版本。" };
   } else if (!known) {
     result = { tone: "neutral", conclusion: "状态暂不可识别", reason: `收到状态：${state}`, action: "请查看任务详情，暂不判断结果是否有效。" };
+  } else if (state === "loading") {
+    result = { tone: "info", conclusion: "正在读取运行记录", reason: "正在确认此节点可用的运行和产物记录。", action: "读取完成后会显示实际状态。" };
   } else if (state === "failed") {
     result = { tone: "error", conclusion: "运行失败", reason: failureReason(failReason), action: "查看日志，处理原因后重试。" };
   } else if (state === "orphaned") {
