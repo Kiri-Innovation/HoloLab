@@ -248,19 +248,19 @@ function NodeSettingsDrawer({
             <TextInput value={nodeName} onChange={setNodeName} />
             <Hint>Display alias only — never used for identity matching.</Hint>
 
-            <FieldLabel>Workspace root</FieldLabel>
+            <FieldLabel>Artifact dir</FieldLabel>
             <TextInput value={workspaceRoot} onChange={setWorkspaceRoot} monospace />
             <Hint>
-              Where new job artifacts land. Must be an absolute path. Changing this
+              Directory for new job artifacts. Must be an absolute path. Changing this
               hot-restarts the file server; existing runs' outputs stay where they
-              are — add their path below to keep serving them.
+              are — add their directories below to keep serving them.
             </Hint>
 
-            <FieldLabel>Legacy workspace roots</FieldLabel>
+            <FieldLabel>Legacy artifact dirs</FieldLabel>
             <LegacyRootsEditor value={legacyRoots} onChange={setLegacyRoots} />
             <Hint>
-              Read-only fallbacks the file server also searches so old artifacts
-              stay resolvable after moving the primary root.
+              Read-only artifact directories the file server also searches so old
+              artifacts stay resolvable after changing the artifact dir.
             </Hint>
 
             <FieldLabel>Pack sources</FieldLabel>

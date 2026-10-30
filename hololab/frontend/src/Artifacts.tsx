@@ -202,7 +202,7 @@ export function Artifacts({ onBackToGallery }: ArtifactsProps) {
         `Delete ${deletable.length} artifact${deletable.length === 1 ? "" : "s"}` +
           ` (${formatBytes(bytes)})?\n\n` +
           "The DB rows stay for history; only on-disk data is removed.\n" +
-          "Rows outside the current workspace roots are tombstoned only —\n" +
+          "Rows outside the current artifact dirs are tombstoned only —\n" +
           "the file server can't reach them anyway.",
       )
     ) {
