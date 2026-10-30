@@ -1,0 +1,213 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: community/colmap-sfm
+version: 0.5.0
+description: 'BREAKING: positional image staging and reference-consistent COLMAP export.'
+category: reconstruction/colmap
+docs: "Wrapper around the vanilla COLMAP CLI: ``feature_extractor`` +\n``exhaustive_matcher``\
+  \ + ``mapper``. With its defaults this is deliberately\ncommand-equivalent to ``colmap-sfm@0.3.0``:\
+  \ all input images share one\nOPENCV camera, COLMAP's 1.2 focal-length initialization\
+  \ is used, and focal\nlength / distortion are refined while the principal point\
+  \ remains fixed.\n\n## Camera assignment\n\n``camera_assignment`` controls COLMAP\
+  \ camera IDs, not image poses:\n\n* ``single`` (default): one intrinsic shared by\
+  \ every image. This preserves\n  the historical STG behaviour and is the safe default\
+  \ for monocular input.\n* ``per_folder``: images in each immediate source folder\
+  \ share a camera.\n  Use a source layout such as ``cam0/frame.jpg``, ``cam1/frame.jpg``.\n\
+  * ``per_image``: every image gets an independent COLMAP camera ID. This is\n  appropriate\
+  \ for a synchronized multi-device capture only when the devices\n  really have different\
+  \ intrinsics.\n\n``camera_model`` is passed directly to COLMAP. ``OPENCV`` remains\
+  \ the\ncompatibility default. For unconstrained per-image estimation prefer the\n\
+  lower-dimensional ``SIMPLE_RADIAL`` model: it estimates focal length and one\nradial\
+  \ coefficient while retaining COLMAP's image-centre principal point.\n``default_focal_length_factor``\
+  \ initializes focal length as this factor times\n``max(width, height)`` when EXIF\
+  \ does not provide one. For a 4000 px image\nwith an expected 2760 px focal length,\
+  \ use ``0.69`` rather than COLMAP's\ndefault ``1.2``.\n\n## Identifiability boundary\n\
+  \n``per_image`` makes COLMAP optimize separate camera parameter blocks; a low\n\
+  reprojection error is **not** proof that fully free calibration is unique.\nOne\
+  \ exposure per device with a fully free 5-DOF intrinsic matrix and\nindependent\
+  \ distortion is commonly underconstrained / ill-conditioned and\nadmits multiple\
+  \ solutions. A restricted model (for example one focal length\nper device, fixed\
+  \ principal point, simple distortion) with non-planar,\noverlapping views and non-critical\
+  \ baselines can be jointly estimated, but\nshould still be checked across captures.\
+  \ Pure rotation, planar structure,\nnarrow baselines, and weak overlap are classic\
+  \ failure cases.\n\nRecommended production pipeline: calibrate every physical device\
+  \ offline,\nassign each device one COLMAP camera ID, inject its known camera parameters\n\
+  into the database via COLMAP ``rig_configurator``, and pass those camera IDs\nto\
+  \ ``--Mapper.constant_camera_list_path``. Then a single synchronized group\nsolves\
+  \ only poses and points. This pack does not yet accept a per-device\ncalibration\
+  \ JSON directly; use the COLMAP database/rig-configurator step\nbefore mapper when\
+  \ calibrated intrinsics must be frozen.\n\nOutput layout::\n\n    cams/ cameras.txt\
+  \ + images.txt\n    points/ points3D.txt\n\nBreaking positional boundary: upgrade\
+  \ the whole chain in a new graph. All parameter modes remain supported. Images are\
+  \ staged in byte-list order; largest sparse model is chosen. Without mask support,\
+  \ incomplete registration fails explicitly.\n"
+inputs:
+  frames:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - cam
+    require_axis_label_match: false
+    description: One image set on which to run SfM.
+params:
+  use_gpu:
+    pinned: true
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: 1 = CUDA SIFT + matching; 0 = CPU fallback.
+  max_image_size:
+    type: int
+    default: 3200
+    min: 512
+    description: 'Feature-extraction downscale cap (COLMAP 3.x: --SiftExtraction.max_image_size;
+      4.x: --FeatureExtraction.max_image_size).'
+  max_num_features:
+    pinned: true
+    type: int
+    default: 8192
+    min: 512
+    description: SIFT feature cap per image.
+  camera_assignment:
+    pinned: true
+    type: enum
+    values:
+    - single
+    - per_folder
+    - per_image
+    default: single
+    description: 'COLMAP intrinsic sharing: one shared camera, one per folder, or
+      one per image.'
+  camera_model:
+    pinned: true
+    type: enum
+    values:
+    - SIMPLE_PINHOLE
+    - PINHOLE
+    - SIMPLE_RADIAL
+    - RADIAL
+    - OPENCV
+    - FULL_OPENCV
+    default: OPENCV
+    description: COLMAP ImageReader camera model. OPENCV is the backwards-compatible
+      default.
+  camera_params:
+    type: string
+    optional: true
+    default: ''
+    description: Optional comma-separated COLMAP camera parameters used as initialization.
+      Empty = EXIF/default focal initialization.
+  default_focal_length_factor:
+    pinned: true
+    type: float
+    default: 1.2
+    min: 0.01
+    description: Initial focal / max(image width, image height) when EXIF has no focal
+      length.
+  refine_focal_length:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: Pass-through to --Mapper.ba_refine_focal_length.
+  refine_principal_point:
+    type: int
+    default: 0
+    min: 0
+    max: 1
+    description: Pass-through to --Mapper.ba_refine_principal_point.
+  refine_extra_params:
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: Pass-through to --Mapper.ba_refine_extra_params.
+outputs:
+  cams:
+    tags:
+    - colmap-cams
+    description: COLMAP text-format cameras.txt and images.txt.
+  points:
+    tags:
+    - point-cloud
+    description: COLMAP text-format points3D.txt.
+requires:
+  python: '>=3.6'
+  packages:
+  - colmap
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+exec:
+  shell: "set -euo pipefail\nFRAMES_HANDLE=\"{{ inputs.frames }}\"\nOUT_CAMS=\"{{\
+    \ outputs.cams }}\"\nOUT_POINTS=\"{{ outputs.points }}\"\nDB=\"{{ scratch_dir\
+    \ }}/database.db\"\nSPARSE_ROOT=\"{{ scratch_dir }}/sparse\"\n\nIMG_DIR=\"{{ scratch_dir\
+    \ }}/positional_input\"\npython \"{{ pack_dir }}/position_model.py\" stage \"\
+    $FRAMES_HANDLE\" \"$IMG_DIR\"\n\ncase \"{{ params.camera_assignment | default('single')\
+    \ }}\" in\n  single) CAMERA_ASSIGNMENT=(--ImageReader.single_camera 1) ;;\n  per_folder)\
+    \ CAMERA_ASSIGNMENT=(--ImageReader.single_camera 0 --ImageReader.single_camera_per_folder\
+    \ 1) ;;\n  per_image) CAMERA_ASSIGNMENT=(--ImageReader.single_camera 0 --ImageReader.single_camera_per_image\
+    \ 1) ;;\n  *) echo \"ERROR: unknown camera_assignment={{ params.camera_assignment\
+    \ | default('single') }}\" >&2; exit 2 ;;\nesac\nCAMERA_PARAMS=()\nif [ -n \"\
+    {{ params.camera_params | default('') }}\" ]; then\n  CAMERA_PARAMS=(--ImageReader.camera_params\
+    \ \"{{ params.camera_params | default('') }}\")\nfi\nFOCAL_INIT=()\nif [ \"{{\
+    \ params.default_focal_length_factor | default(1.2) }}\" != \"1.2\" ]; then\n\
+    \  FOCAL_INIT=(--ImageReader.default_focal_length_factor {{ params.default_focal_length_factor\
+    \ | default(1.2) }})\nfi\nBA_INTRINSICS=()\nif [ \"{{ params.refine_focal_length\
+    \ | default(1) }}\" != \"1\" ]; then\n  BA_INTRINSICS+=(--Mapper.ba_refine_focal_length\
+    \ {{ params.refine_focal_length | default(1) }})\nfi\nif [ \"{{ params.refine_principal_point\
+    \ | default(0) }}\" != \"0\" ]; then\n  BA_INTRINSICS+=(--Mapper.ba_refine_principal_point\
+    \ {{ params.refine_principal_point | default(0) }})\nfi\nif [ \"{{ params.refine_extra_params\
+    \ | default(1) }}\" != \"1\" ]; then\n  BA_INTRINSICS+=(--Mapper.ba_refine_extra_params\
+    \ {{ params.refine_extra_params | default(1) }})\nfi\n\nmkdir -p \"$OUT_CAMS\"\
+    \ \"$OUT_POINTS\" \"$SPARSE_ROOT\"\n# Probe individual options: COLMAP 3.13 already\
+    \ moved GPU flags, while\n# max_image_size still belongs to SiftExtraction. --version\
+    \ is not portable.\nEXTRACT_HELP=$(colmap feature_extractor -h 2>&1)\nMATCH_HELP=$(colmap\
+    \ exhaustive_matcher -h 2>&1)\nselect_option() {\n  local help_text=\"$1\" option\n\
+    \  shift\n  for option in \"$@\"; do\n    if grep -Fq -- \"--$option \" <<< \"\
+    $help_text\"; then\n      printf '%s\\n' \"$option\"\n      return 0\n    fi\n\
+    \  done\n  echo \"ERROR: installed COLMAP supports none of: $*\" >&2\n  return\
+    \ 2\n}\nMAX_IMAGE_SIZE_OPT=$(select_option \"$EXTRACT_HELP\" FeatureExtraction.max_image_size\
+    \ SiftExtraction.max_image_size)\nGPU_OPT_EXTRACT=$(select_option \"$EXTRACT_HELP\"\
+    \ FeatureExtraction.use_gpu SiftExtraction.use_gpu)\nGPU_OPT_MATCH=$(select_option\
+    \ \"$MATCH_HELP\" FeatureMatching.use_gpu SiftMatching.use_gpu)\necho \"[colmap-sfm/0.5.0]\
+    \ CLI options: $MAX_IMAGE_SIZE_OPT $GPU_OPT_EXTRACT $GPU_OPT_MATCH\"\necho \"\
+    [colmap-sfm/0.5.0] camera_assignment={{ params.camera_assignment | default('single')\
+    \ }} camera_model={{ params.camera_model | default('OPENCV') }}\"\ncolmap feature_extractor\
+    \ \\\n  --database_path \"$DB\" --image_path \"$IMG_DIR\" \\\n  \"${CAMERA_ASSIGNMENT[@]}\"\
+    \ \\\n  --ImageReader.camera_model {{ params.camera_model | default('OPENCV')\
+    \ }} \\\n  \"${FOCAL_INIT[@]}\" \\\n  \"${CAMERA_PARAMS[@]}\" \\\n  --\"$MAX_IMAGE_SIZE_OPT\"\
+    \ {{ params.max_image_size | default(3200) }} \\\n  --SiftExtraction.max_num_features\
+    \ {{ params.max_num_features | default(8192) }} \\\n  --\"$GPU_OPT_EXTRACT\" {{\
+    \ params.use_gpu | default(1) }}\n\ncolmap exhaustive_matcher --database_path\
+    \ \"$DB\" --\"$GPU_OPT_MATCH\" {{ params.use_gpu | default(1) }}\ncolmap mapper\
+    \ --database_path \"$DB\" --image_path \"$IMG_DIR\" --output_path \"$SPARSE_ROOT\"\
+    \ \\\n  --Mapper.ba_global_function_tolerance=0.000001 \\\n  \"${BA_INTRINSICS[@]}\"\
+    \n\n# Mapper indices reflect discovery order, not reconstruction size.\n# Binary\
+    \ model headers store the number of registered images / 3D points.\nMODEL=$(python\
+    \ - \"$SPARSE_ROOT\" <<'PYMODEL'\nimport struct\nimport sys\nfrom pathlib import\
+    \ Path\n\ncandidates = []\nfor model in sorted(Path(sys.argv[1]).iterdir()):\n\
+    \    if not model.is_dir() or not (model / \"images.bin\").is_file():\n      \
+    \  continue\n    counts = []\n    for name in (\"images.bin\", \"points3D.bin\"\
+    ):\n        with (model / name).open(\"rb\") as stream:\n            counts.append(struct.unpack(\"\
+    <Q\", stream.read(8))[0])\n    images, points = counts\n    print(f\"[colmap-sfm/0.5.0]\
+    \ model={model.name} registered_images={images} points={points}\", file=sys.stderr)\n\
+    \    if images:\n        candidates.append((images, points, model))\nif not candidates:\n\
+    \    sys.exit(\"ERROR: COLMAP mapper produced no nonempty reconstruction\")\n\
+    best = max(candidates, key=lambda item: (item[0], item[1]))\nprint(f\"[colmap-sfm/0.5.0]\
+    \ selected model={best[2].name}\", file=sys.stderr)\nprint(best[2])\nPYMODEL\n\
+    )\nTXT_SCRATCH=\"{{ scratch_dir }}/txt\"\nmkdir -p \"$TXT_SCRATCH\"\ncolmap model_converter\
+    \ --input_path \"$MODEL\" --output_path \"$TXT_SCRATCH\" --output_type TXT\npython\
+    \ \"{{ pack_dir }}/position_model.py\" export \"$TXT_SCRATCH\" \"$IMG_DIR\" \"\
+    $OUT_CAMS\" \"$OUT_POINTS\"\ntest -s \"$OUT_CAMS/cameras.txt\" || { echo \"no\
+    \ cameras.txt produced\" >&2; exit 4; }\ntest -s \"$OUT_CAMS/images.txt\" || {\
+    \ echo \"no images.txt produced\" >&2; exit 4; }\ntest -s \"$OUT_POINTS/points3D.txt\"\
+    \ || { echo \"no points3D.txt produced\" >&2; exit 4; }\necho \"[colmap-sfm/0.5.0]\
+    \ done → cams:$OUT_CAMS points:$OUT_POINTS\"\n"
+idempotency:
+  marker: '{{ outputs.cams }}/.hololab-done'

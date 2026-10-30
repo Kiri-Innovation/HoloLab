@@ -8,9 +8,8 @@ Locks the four contracts introduced by the arrayed type-system step:
 2. **Layered ``ports_compatible``** — same depth + per-layer label
    compatibility (empty label = wildcard) between src/tgt when both
    arrayed; scalar-target broadcast escape unchanged.
-3. **N-layer ``_discover_element_ids``** — depth 1 → flat names, depth 2
-   → outer/inner joined by ``/``. Cross-port depth mismatch rejected
-   upfront.
+3. **Outer-layer execution** — nested arrays remain intact within a shard;
+   recursive fan-out enumeration is rejected.
 4. **``image`` ↔ ``image_sequence`` ↔ ``frame_sequence`` alias** — a producer on
    any of these tags wires cleanly into a consumer on any other.
 """
@@ -24,8 +23,8 @@ import yaml
 
 from hololab.gateway.execution import (
     WorkflowRunError,
-    _discover_element_ids,
-    _enumerate_depth,
+    _discover_arrayed_paths,
+    enumerate_arrayed_elements,
 )
 from hololab.gateway.handles import Handle, HandleBook
 from hololab.gateway.workflows import (
@@ -173,21 +172,16 @@ def _mk_two_layer_tree(root: Path, outer: list[str], inner: list[str]) -> None:
 def test_enumerate_depth_one_layer_returns_flat_names(tmp_path: Path) -> None:
     for name in ("cam_A", "cam_B", "cam_C"):
         (tmp_path / name).mkdir()
-    assert _enumerate_depth(str(tmp_path), 1, port="p") == ["cam_A", "cam_B", "cam_C"]
+    assert enumerate_arrayed_elements(str(tmp_path), port="p") == ["cam_A", "cam_B", "cam_C"]
 
 
-def test_enumerate_depth_two_layers_returns_joined_paths(tmp_path: Path) -> None:
+def test_enumerate_nested_array_keeps_outer_layer(tmp_path: Path) -> None:
     _mk_two_layer_tree(tmp_path, ["frame_0000", "frame_0001"], ["camera_0000", "camera_0001"])
-    assert _enumerate_depth(str(tmp_path), 2, port="p") == [
-        "frame_0000/camera_0000",
-        "frame_0000/camera_0001",
-        "frame_0001/camera_0000",
-        "frame_0001/camera_0001",
-    ]
+    assert enumerate_arrayed_elements(str(tmp_path), port="p") == ["frame_0000", "frame_0001"]
 
 
 @pytest.mark.asyncio
-async def test_discover_element_ids_2d_returns_joined(tmp_path: Path) -> None:
+async def test_discover_arrayed_paths_nested_returns_outer_only(tmp_path: Path) -> None:
     root = tmp_path / "arr"
     _mk_two_layer_tree(root, ["frame_0000", "frame_0001"], ["camera_0000", "camera_0001"])
     db = await open_database(tmp_path / "db.sqlite")
@@ -196,27 +190,20 @@ async def test_discover_element_ids_2d_returns_joined(tmp_path: Path) -> None:
         await book.register(
             Handle(handle_id="h", node_id="n", storage="dir", tags=["x"], path=str(root))
         )
-        elements = await _discover_element_ids(
+        elements = await _discover_arrayed_paths(
             handles=book,
             input_handles={"p": "h"},
             arrayed_input_ports=["p"],
-            port_depths={"p": 2},
+            port_depths={"p": 1},
         )
-        assert elements == [
-            "frame_0000/camera_0000",
-            "frame_0000/camera_0001",
-            "frame_0001/camera_0000",
-            "frame_0001/camera_0001",
-        ]
+        assert elements == {"p": [str(root / "frame_0000"), str(root / "frame_0001")]}
     finally:
         await db.close()
 
 
 @pytest.mark.asyncio
-async def test_discover_element_ids_depth_mismatch_rejected(tmp_path: Path) -> None:
-    """Two arrayed ports with different depths cannot zip — the executor
-    must reject upfront (before shard dispatch) so the operator gets a
-    diagnostic naming both ports."""
+async def test_discover_arrayed_paths_depth_mismatch_rejected(tmp_path: Path) -> None:
+    """Recursive enumeration is rejected even if both roots could be listed."""
     r1 = tmp_path / "a"
     r2 = tmp_path / "b"
     (r1 / "cam_A").mkdir(parents=True)
@@ -231,7 +218,7 @@ async def test_discover_element_ids_depth_mismatch_rejected(tmp_path: Path) -> N
             Handle(handle_id="h2", node_id="n", storage="dir", tags=["x"], path=str(r2))
         )
         with pytest.raises(WorkflowRunError, match="depth"):
-            await _discover_element_ids(
+            await _discover_arrayed_paths(
                 handles=book,
                 input_handles={"a": "h1", "b": "h2"},
                 arrayed_input_ports=["a", "b"],

@@ -42,6 +42,7 @@ from typing import Any
 
 from jinja2 import Environment, StrictUndefined, TemplateError
 
+from hololab.array_positions import decode_position
 from hololab.manifest.schema import Manifest
 
 
@@ -76,7 +77,6 @@ class RenderContext:
     # that reference them on a non-shard job intentionally fail loud
     # (StrictUndefined semantics) so a pack doesn't silently mislabel.
     shard_element_id: str = ""
-    shard_index: int = 0
 
     def to_bindings(self) -> dict[str, Any]:
         """Flatten to Jinja2 context (nested dicts for dot access)."""
@@ -103,7 +103,7 @@ class RenderContext:
         if self.shard_element_id:
             bindings["shard"] = {
                 "element_id": self.shard_element_id,
-                "index": self.shard_index,
+                "index": decode_position(self.shard_element_id),
             }
         return bindings
 
@@ -225,7 +225,7 @@ def rendered_output_paths(
 
     Shard jobs (arrayed<T> fan-out, both shard args set) redirect their
     outputs to ``{shard_output_prefix}/{output_name}/{shard_element_id}/``
-    — the parent job's workspace, keyed by element. All shards writing
+    — the parent job's workspace, keyed by encoded list position. All shards writing
     into the same parent workspace makes the parent's aggregate output
     directory ``{shard_output_prefix}/{output_name}/`` naturally
     accumulate every element's subdir as shards complete; the gateway
@@ -237,6 +237,7 @@ def rendered_output_paths(
     """
 
     if shard_output_prefix is not None and shard_element_id is not None:
+        decode_position(shard_element_id)  # Reject names and non-canonical/path components.
         base = Path(shard_output_prefix)
         return {name: str(base / name / shard_element_id) for name in manifest.outputs}
 

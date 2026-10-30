@@ -1,0 +1,151 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: community/image-undistort
+version: 0.6.0
+description: 'BREAKING: undistort images and camera poses paired strictly by position.'
+source_entry: undistort.py
+category: reconstruction/colmap
+docs: 'Breaking change: upgrade the whole chain in a new graph. Image arrays use
+
+  byte order; external pose lists use ascending IMAGE_ID, never source names or
+
+  link parents. Length mismatch fails. NAME is generated from staging position;
+
+  IMAGE_ID/CAMERA_ID remain consistent references, including frame/rig data.
+
+  Output is a pose/intrinsic bundle, with no feature observations or point tracks.
+
+  GPU camera model support and all existing parameters remain unchanged.
+
+  '
+arrayable: true
+parallelism: 4
+batch_size: 1
+inputs:
+  cams:
+    tags:
+    - colmap-cams
+    scalar: true
+    description: 'SfM ``colmap-cams`` bundle (cameras.txt + images.txt poses). Broadcast
+      to every shard. Supports OPENCV, SIMPLE_RADIAL, RADIAL, SIMPLE_PINHOLE, and
+      PINHOLE, with one or multiple intrinsics.
+
+      '
+  images:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - cam
+    require_axis_label_match: false
+    description: 'Per-frame image directory. Fan-out driver — one shard per element.
+      Element dir must contain the per-cam image files inline (regroup @0.2.0''s ``content_dims=1``
+      layout). Also accepts a single image file or a flat monocular sequence with
+      arrayed mode disabled.
+
+      '
+params:
+  blank_pixels:
+    type: int
+    default: 0
+    min: 0
+    max: 1
+    description: 'Pass-through to the new_K derivation. 0 (default) crops out invalid
+      regions via the largest inscribed rectangle (COLMAP''s ``--blank_pixels 0``
+      behavior — no black borders, some content cropped). 1 keeps ALL undistorted
+      content via the smallest bounding rectangle, filling uncovered regions with
+      black (COLMAP''s ``--blank_pixels 1``). Both branches keep fx/fy unchanged and
+      symmetrize about (0, 0) so cx=W/2, cy=H/2. Main-chain workflows use 0.
+
+      '
+  io_workers:
+    type: int
+    default: 8
+    min: 1
+    max: 32
+    description: 'Thread pool size for cv2 PNG decode/encode. Serial I/O per shard
+      dominates wall time (grid_sample is ~6 ms); 8 saturates the workspace-SSD queue
+      on a 21-image shard.
+
+      '
+  png_compress:
+    type: int
+    default: 1
+    min: 0
+    max: 9
+    description: 'libpng compression level for cv2 imwrite (0 = uncompressed, 9 =
+      max). 1 matches COLMAP output size within a few percent while keeping encode
+      time <1 s per 21-image shard.
+
+      '
+  chunk_size:
+    type: int
+    default: 8
+    min: 1
+    max: 21
+    description: 'Images per grid_sample call. Bounds GPU VRAM peak: fp16 chunk=8
+      peaks ~1 GB / proc, fp32 chunk=8 peaks ~1.6 GB / proc; both fit 8-way concurrent
+      on 24 GB. chunk=21 (whole shard in one kernel) peaks 2.5-4 GB and only works
+      at parallelism<=4.
+
+      '
+  dtype:
+    type: string
+    default: fp16
+    description: 'GPU compute dtype: ''fp16'' (default) or ''fp32''. fp16 halves VRAM
+      and PCIe pressure; RMSE vs fp32 ~0.7 on 8-bit inputs (well within the STG downstream
+      tolerance — the reader only checks model==''PINHOLE''). bf16 rejected empirically
+      (RMSE ~5 due to 8-bit mantissa insufficient for image resampling coordinates).
+
+      '
+outputs:
+  cams:
+    tags:
+    - colmap-cams
+    scalar: true
+    description: 'Per-shard PINHOLE ``colmap-cams`` bundle (cameras.txt PINHOLE +
+      images.txt with 21 poses preserved from the SfM prior). Framework aggregates
+      into ``arrayed<colmap-cams>[frame]``. All shards'' bundles are bit-identical
+      (undistortion is intrinsic-only + poses come from the scalar SfM broadcast).
+
+      '
+  images:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - cam
+    description: 'Per-shard undistorted images, at the PINHOLE resolution. Files sit
+      directly under the shard''s element dir (post flatten migration, no ``frames/``
+      wrapper).
+
+      '
+requires:
+  packages:
+  - torch
+  - opencv-python
+  - kornia
+  - numpy
+  gpu: {}
+runtime:
+  env: kiri
+  gpu:
+    required: true
+exec:
+  shell: "set -euo pipefail\n# cv2's parallel_for_ (TBB) would otherwise fan a thread\
+    \ per core\n# inside each pack invocation; capped to match @0.4.1's spirit\n#\
+    \ (2 = cores/parallelism on the reference box).\nexport OMP_NUM_THREADS=2\nexport\
+    \ OMP_THREAD_LIMIT=2\nexport OPENBLAS_NUM_THREADS=2\nexport MKL_NUM_THREADS=2\n\
+    # Let PyTorch's caching allocator hand fragmented free space back to\n# the GPU\
+    \ driver; important when N pack invocations share the card.\nexport PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True\n\
+    python \"{{ pack_dir }}/undistort.py\" \\\n  --cams \"{{ inputs.cams }}\" \\\n\
+    \  --images \"{{ inputs.images }}\" \\\n  --cams-out \"{{ outputs.cams }}\" \\\
+    \n  --images-out \"{{ outputs.images }}\" \\\n  --scratch \"{{ scratch_dir }}\"\
+    \ \\\n  --staging \"{{ staging_dir }}\" \\\n  --blank-pixels {{ params.blank_pixels\
+    \ }} \\\n  --io-workers {{ params.io_workers }} \\\n  --png-compress {{ params.png_compress\
+    \ }} \\\n  --chunk-size {{ params.chunk_size }} \\\n  --dtype {{ params.dtype\
+    \ }}\n"
+idempotency:
+  marker: '{{ outputs.cams }}/.hololab-done'

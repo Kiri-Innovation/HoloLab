@@ -2,8 +2,8 @@
 
 Covers the sequential v1 slice:
 
-* ``_discover_element_ids`` — the element list is the sorted subdir names of
-  every arrayed input handle; disagreement between arrayed inputs raises.
+* ``_discover_arrayed_paths`` — each mapped port has its own byte-sorted outer
+  paths; only disagreement in outer length raises.
 * ``_shard_input_handles`` — arrayed inputs get a synthetic sub-handle
   pointing at their per-element subdirectory; scalar inputs pass through.
 * ``rendered_output_paths`` shard override — a shard job's ``{{ outputs.X }}``
@@ -31,10 +31,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hololab.array_positions import encode_position
 from hololab.gateway.app import create_app
 from hololab.gateway.execution import (
     WorkflowRunError,
-    _discover_element_ids,
+    _discover_arrayed_paths,
     _shard_input_handles,
     enumerate_arrayed_elements,
     run_snapshot,
@@ -106,13 +107,13 @@ def test_rendered_output_paths_shard_redirects_into_parent_workspace() -> None:
         "wf1",
         "shard-abc",
         shard_output_prefix="/ws/w/wf1/j/parent-xyz",
-        shard_element_id="cam_A",
+        shard_element_id=encode_position(0),
     )
-    assert paths == {"frames": "/ws/w/wf1/j/parent-xyz/frames/cam_A"}
+    assert paths == {"frames": f"/ws/w/wf1/j/parent-xyz/frames/{encode_position(0)}"}
 
 
 # ---------------------------------------------------------------------------
-# Unit — _discover_element_ids + _shard_input_handles
+# Unit — _discover_arrayed_paths + _shard_input_handles
 # ---------------------------------------------------------------------------
 
 
@@ -138,18 +139,20 @@ async def _seeded_book(tmp_path: Path, *, subdirs: list[str]) -> tuple[HandleBoo
 
 
 @pytest.mark.asyncio
-async def test_discover_element_ids_returns_sorted_subdirs(tmp_path: Path) -> None:
+async def test_discover_arrayed_paths_returns_sorted_subdirs(tmp_path: Path) -> None:
     book, h = await _seeded_book(tmp_path, subdirs=["cam_C", "cam_A", "cam_B"])
-    elements = await _discover_element_ids(
+    elements = await _discover_arrayed_paths(
         handles=book,
         input_handles={"frames": h.handle_id},
         arrayed_input_ports=["frames"],
     )
-    assert elements == ["cam_A", "cam_B", "cam_C"]
+    assert elements == {
+        "frames": [str(Path(h.path) / name) for name in ("cam_A", "cam_B", "cam_C")]
+    }
 
 
 @pytest.mark.asyncio
-async def test_discover_element_ids_skips_dotfiles_but_includes_files(tmp_path: Path) -> None:
+async def test_discover_arrayed_paths_skips_dotfiles_but_includes_files(tmp_path: Path) -> None:
     """Framework sidecars (``.hololab-done``, ``.hololab-metadata.json``) and
     ordinary files are valid elements; only dot-prefixed metadata is excluded."""
     book, h = await _seeded_book(tmp_path, subdirs=["cam00", "cam01"])
@@ -157,12 +160,14 @@ async def test_discover_element_ids_skips_dotfiles_but_includes_files(tmp_path: 
     (Path(h.path) / ".hololab-done").touch()
     (Path(h.path) / ".hololab-metadata.json").write_text("{}")
     (Path(h.path) / "stray.txt").write_text("noise")
-    elements = await _discover_element_ids(
+    elements = await _discover_arrayed_paths(
         handles=book,
         input_handles={"frames": h.handle_id},
         arrayed_input_ports=["frames"],
     )
-    assert elements == ["cam00", "cam01", "stray.txt"]
+    assert elements == {
+        "frames": [str(Path(h.path) / name) for name in ("cam00", "cam01", "stray.txt")]
+    }
 
 
 def test_enumerate_arrayed_elements_is_the_marker_safe_global_contract(tmp_path: Path) -> None:
@@ -183,8 +188,8 @@ def test_enumerate_arrayed_elements_is_the_marker_safe_global_contract(tmp_path:
 
 
 @pytest.mark.asyncio
-async def test_discover_element_ids_rejects_mismatched_sets(tmp_path: Path) -> None:
-    # Two arrayed inputs on the same node with disagreeing element sets.
+async def test_discover_arrayed_paths_accepts_different_names(tmp_path: Path) -> None:
+    # Equal-length arrays zip by position even when their storage names differ.
     db = await open_database(tmp_path / "db.sqlite")
     book = HandleBook(db)
     r1 = tmp_path / "a"
@@ -199,26 +204,21 @@ async def test_discover_element_ids_rejects_mismatched_sets(tmp_path: Path) -> N
     h2 = Handle(handle_id="h2", node_id="n", storage="dir", tags=["t"], path=str(r2))
     await book.register(h1)
     await book.register(h2)
-    with pytest.raises(WorkflowRunError, match="disagree on element set") as ei:
-        await _discover_element_ids(
-            handles=book,
-            input_handles={"a": "h1", "b": "h2"},
-            arrayed_input_ports=["a", "b"],
-        )
-    msg = str(ei.value)
-    # New error message shape (post image-undistort spec): must list both
-    # cardinalities AND surface the specific missing element on each side,
-    # not just dump the full lists.
-    assert "'a' has 2 element(s)" in msg, msg
-    assert "'b' has 2 element(s)" in msg, msg
-    assert "only in 'a': ['cam_B']" in msg, msg
-    assert "only in 'b': ['cam_Z']" in msg, msg
+    paths = await _discover_arrayed_paths(
+        handles=book,
+        input_handles={"a": "h1", "b": "h2"},
+        arrayed_input_ports=["a", "b"],
+    )
+    assert paths == {
+        "a": [str(r1 / "cam_A"), str(r1 / "cam_B")],
+        "b": [str(r2 / "cam_A"), str(r2 / "cam_Z")],
+    }
 
 
 @pytest.mark.asyncio
-async def test_discover_element_ids_length_mismatch_readable(tmp_path: Path) -> None:
+async def test_discover_arrayed_paths_length_mismatch_readable(tmp_path: Path) -> None:
     """N=21 vs N=20 (the exact spec case for image-undistort's paired inputs) —
-    the error must lead with counts + only-in-A/only-in-B, not dump 41 names."""
+    the error reports counts without treating names as cross-port keys."""
     db = await open_database(tmp_path / "db.sqlite")
     book = HandleBook(db)
     r1 = tmp_path / "cams"
@@ -234,7 +234,7 @@ async def test_discover_element_ids_length_mismatch_readable(tmp_path: Path) -> 
     await book.register(h1)
     await book.register(h2)
     with pytest.raises(WorkflowRunError) as ei:
-        await _discover_element_ids(
+        await _discover_arrayed_paths(
             handles=book,
             input_handles={"cams": "hc", "images": "hi"},
             arrayed_input_ports=["cams", "images"],
@@ -242,14 +242,14 @@ async def test_discover_element_ids_length_mismatch_readable(tmp_path: Path) -> 
     msg = str(ei.value)
     assert "'cams' has 21 element(s)" in msg
     assert "'images' has 20 element(s)" in msg
-    assert "only in 'cams': ['cam_20']" in msg
-    # 20 elements agree — none only-in-images.
+    assert "disagree on outer length" in msg
+    # No name-difference diagnostics: only lengths determine zip validity.
     assert "only in 'images'" not in msg
 
 
 @pytest.mark.asyncio
-async def test_discover_element_ids_diff_caps_large_lists(tmp_path: Path) -> None:
-    """20-element diff on one side gets capped at 5 with a `(+N more)` tail."""
+async def test_discover_arrayed_paths_large_length_mismatch_is_concise(tmp_path: Path) -> None:
+    """Large length mismatches report counts, without dumping entry names."""
     db = await open_database(tmp_path / "db.sqlite")
     book = HandleBook(db)
     r1 = tmp_path / "a"
@@ -265,7 +265,7 @@ async def test_discover_element_ids_diff_caps_large_lists(tmp_path: Path) -> Non
     await book.register(h1)
     await book.register(h2)
     with pytest.raises(WorkflowRunError) as ei:
-        await _discover_element_ids(
+        await _discover_arrayed_paths(
             handles=book,
             input_handles={"a": "hh1", "b": "hh2"},
             arrayed_input_ports=["a", "b"],
@@ -273,8 +273,9 @@ async def test_discover_element_ids_diff_caps_large_lists(tmp_path: Path) -> Non
     msg = str(ei.value)
     assert "'a' has 30 element(s)" in msg
     assert "'b' has 10 element(s)" in msg
-    # 20 elements only-in-a; cap=5 → "(+15 more)"
-    assert "(+15 more)" in msg
+    # Error size depends on port counts, not entry name differences.
+    assert "only in" not in msg
+    assert len(msg) < 200
 
 
 @pytest.mark.asyncio
@@ -284,8 +285,9 @@ async def test_shard_input_handles_creates_synthetic_subhandles(tmp_path: Path) 
         handles=book,
         input_handles={"frames": h.handle_id, "config": "h-scalar"},
         arrayed_input_ports=["frames"],
-        element_id="cam_A",
+        element_id=encode_position(0),
         producer_node_id="node",
+        input_paths_by_port={"frames": [str(Path(h.path) / "cam_A"), str(Path(h.path) / "cam_B")]},
     )
     assert shard_inputs["config"] == "h-scalar"  # scalar passes through
     sub_id = shard_inputs["frames"]
@@ -530,7 +532,10 @@ async def test_fanout_creates_shards_and_registers_aggregate(tmp_path: Path) -> 
         parent_id = job_ids[0]
         shards = client.portal.call(lambda: app.state.jobs_store.list_shards_of(parent_id))
         assert len(shards) == 2
-        assert sorted(s.shard_element_id for s in shards) == ["cam_A", "cam_B"]
+        assert sorted(s.shard_element_id for s in shards) == [
+            encode_position(0),
+            encode_position(1),
+        ]
         for s in shards:
             assert s.state is JobState.DONE
             assert s.parent_job_id == parent_id
@@ -553,8 +558,8 @@ async def test_fanout_creates_shards_and_registers_aggregate(tmp_path: Path) -> 
             (env["payload"] for env in assign_frames),
             key=lambda p: p["shard_element_id"],
         )
-        assert payloads[0]["shard_element_id"] == "cam_A"
-        assert payloads[1]["shard_element_id"] == "cam_B"
+        assert payloads[0]["shard_element_id"] == encode_position(0)
+        assert payloads[1]["shard_element_id"] == encode_position(1)
         for p in payloads:
             assert p["shard_output_prefix"] == str(ws_root / "w" / "wf1" / "j" / parent_id)
 
@@ -790,7 +795,10 @@ async def test_single_node_dispatch_fans_out_arrayable(tmp_path: Path) -> None:
 
             # Shards should exist under this parent.
             shards = client.portal.call(lambda: app.state.jobs_store.list_shards_of(parent_id))
-            assert sorted(s.shard_element_id for s in shards) == ["cam_A", "cam_B"]
+            assert sorted(s.shard_element_id for s in shards) == [
+                encode_position(0),
+                encode_position(1),
+            ]
             for s in shards:
                 assert s.state is JobState.DONE
 

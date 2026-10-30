@@ -33,6 +33,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hololab.array_positions import encode_position
 from hololab.gateway.app import create_app
 from hololab.gateway.execution import WorkflowRunError, run_snapshot
 from hololab.gateway.handles import Handle
@@ -508,7 +509,7 @@ async def test_no_fail_fast_all_shards_reach_terminal(tmp_path: Path) -> None:
             json.loads(f)["payload"] for f in frames_sent if '"kind":"job_assign"' in f
         ]
         sent_elements = sorted(p["shard_element_id"] for p in assign_payloads)
-        assert sent_elements == sorted(elements)
+        assert sent_elements == [encode_position(i) for i in range(len(elements))]
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,52 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/video-array-source
+version: 0.2.0
+description: 'BREAKING: import videos as a byte-ordered positional array.'
+category: basic/input/video-array-source
+docs: 'Breaking change: upgrade the whole positional pipeline in a new graph.
+
+  Snapshot supported top-level video candidates, validate readable regular files
+
+  (including valid links), and order by complete basename filesystem bytes.
+
+  Each video occupies p_<i:016d>/input.<original-extension>, independently of
+
+  its stem. Filenames and link targets carry no element identity. No extraction.
+
+  '
+params:
+  video_dir:
+    type: path
+    pinned: true
+    description: Absolute path to a directory containing one or more video files.
+outputs:
+  videos_dir:
+    tags:
+    - video-source
+    arrayed: true
+    dim_labels:
+    - cam
+    description: Positional video array; one p_<i:016d>/input.<ext> per video.
+requires: {}
+runtime:
+  mode: host
+  gpu:
+    required: false
+  expected_duration_min:
+  - 0.01
+  - 0.05
+  resources:
+    scratch_gb: 0.1
+    mem_gb: 0.5
+exec:
+  python: run.py
+  args:
+  - --video-dir
+  - '{{ params.video_dir }}'
+  - --output
+  - '{{ outputs.videos_dir }}'
+idempotency:
+  marker: '{{ outputs.videos_dir }}/.hololab-done'
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]

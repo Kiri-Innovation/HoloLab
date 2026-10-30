@@ -1,0 +1,135 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: community/colmap-triangulate
+version: 0.8.0
+description: 'BREAKING: triangulate position-zipped images and poses with strict complete
+  coverage.'
+source_entry: triangulate.py
+category: reconstruction/colmap
+docs: 'Breaking change: upgrade the entire chain in a new graph. Input images
+
+  are byte-ordered lists, paired with poses in ascending IMAGE_ID order.
+
+  No NAME/stem/number/link-target matching. Length or validity mismatch fails.
+
+  Preserve shared camera rows and internal model references. A registered pose
+
+  remains present even when no 3-D point was triangulated for that image.
+
+  No mask or partial-array semantics are implemented.
+
+  '
+arrayable: true
+inputs:
+  cams:
+    tags:
+    - colmap-cams
+    scalar: true
+    description: 'SfM output as one COLMAP-native bundle. Scalar — broadcast to every
+      shard. Each image uses its ``images.txt`` camera_id, supporting classic single-OPENCV
+      and per-image models.
+
+      '
+  frames:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - cam
+    require_axis_label_match: false
+    description: This frame's per-camera raw distorted images. Fan-out driver.
+params:
+  use_gpu:
+    pinned: true
+    type: int
+    default: 1
+    min: 0
+    max: 1
+    description: 1 = CUDA SIFT + matching; 0 = CPU fallback.
+  refine_intrinsics:
+    pinned: true
+    type: bool
+    default: false
+    description: 'Optimise per-image camera intrinsics (focal length + distortion;
+      principal point stays fixed — that constraint is baked into ``point_triangulator``
+      and cannot be overridden). Off by default. Does **not** touch camera poses —
+      ``point_triangulator`` freezes those unconditionally. Passes ``--refine_intrinsics
+      1`` to COLMAP when true.
+
+      '
+  sift_max_num_features:
+    pinned: true
+    type: int
+    default: 8192
+    min: 512
+    description: Per-image SIFT feature cap passed to --SiftExtraction.max_num_features.
+  sift_max_image_size:
+    type: int
+    default: 3200
+    min: 512
+    description: SIFT input long-edge cap passed to --SiftExtraction.max_image_size.
+  sift_domain_size_pooling:
+    type: bool
+    default: false
+    description: Enable SIFT domain-size pooling; costs extra compute and is off by
+      default.
+  sift_estimate_affine_shape:
+    type: bool
+    default: false
+    description: Enable affine-shape SIFT; costs extra compute and is off by default.
+  ba_max_refinements:
+    type: int
+    default: 2
+    min: 1
+    max: 10
+    description: 'Ceres bundle-adjustment ``--Mapper.ba_global_max_refinements``.
+      Upstream default is 5; empirically the last three rounds add <0.25% point-cloud
+      drift on the classic STG recipe while costing ~0.7 s/shard. **2** is the perf/quality
+      sweet spot. Set to **5** to reproduce ``@0.7.1`` BA convergence exactly.
+
+      '
+outputs:
+  points:
+    tags:
+    - point-cloud
+    scalar: true
+    description: 'Freshly triangulated 3-D points for this frame, as a COLMAP-text
+      ``points3D.txt``. Scalar per invocation; framework wraps N shards into arrayed<point-cloud>.
+      Distortion is baked into the input intrinsics — points live in the raw OPENCV
+      frame; use ``image-undistort`` if you need PINHOLE-aligned imagery.
+
+      '
+requires:
+  packages:
+  - colmap
+  - numpy
+  gpu:
+    vram_gb: 2
+runtime:
+  env: kiri
+  gpu:
+    required: false
+    vram_gb_min: 2
+exec:
+  shell: "set -euo pipefail\n# Cap COLMAP's OpenMP pool. See image-undistort@0.4.1\
+    \ docs for the\n# full rationale and why ``OMP_THREAD_LIMIT`` is set alongside\n\
+    # ``OMP_NUM_THREADS`` (hard ceiling for libraries that call\n# ``omp_set_num_threads``\
+    \ at init — Ceres in particular).\n# 4 = perf-tuned for par=5 on a 16-core / 24\
+    \ GB GPU box; the\n# descriptor extract and BA both scale cleanly up to 4 threads\n\
+    # per shard (measured -7% wall vs 2 threads). ``triangulate.py``\n# also passes\
+    \ ``FeatureExtraction.num_threads`` /\n# ``FeatureMatching.num_threads`` / ``Mapper.num_threads``\
+    \ at\n# ``4`` on the CLI to cap COLMAP's own per-subcommand worker\n# pools.\n\
+    export OMP_NUM_THREADS=4\nexport OMP_THREAD_LIMIT=4\nexport OPENBLAS_NUM_THREADS=4\n\
+    export MKL_NUM_THREADS=4\npython \"{{ pack_dir }}/triangulate.py\" \\\n  --cams\
+    \ \"{{ inputs.cams }}\" \\\n  --image-path \"{{ inputs.frames }}\" \\\n  --output\
+    \ \"{{ outputs.points }}\" \\\n  --scratch \"{{ scratch_dir }}\" \\\n  --use-gpu\
+    \ {{ params.use_gpu }} \\\n  --refine-intrinsics {{ params.refine_intrinsics |\
+    \ int }} \\\n  --sift-max-num-features {{ params.sift_max_num_features | default(8192)\
+    \ }} \\\n  --sift-max-image-size {{ params.sift_max_image_size | default(3200)\
+    \ }} \\\n  --sift-domain-size-pooling {{ params.sift_domain_size_pooling | default(false)\
+    \ | int }} \\\n  --sift-estimate-affine-shape {{ params.sift_estimate_affine_shape\
+    \ | default(false) | int }} \\\n  --ba-max-refinements {{ params.ba_max_refinements\
+    \ }}\n"
+idempotency:
+  marker: '{{ outputs.points }}/.hololab-done'

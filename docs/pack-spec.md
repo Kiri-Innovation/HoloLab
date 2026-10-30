@@ -278,9 +278,41 @@ inputs:
     dim_labels: [cam]
 ```
 
-An `arrayed<T>` is a directory of non-dot entries of type T. Entries can be
-files (image leaves), directories (bundles or nested collections), or symlinks
-to valid entries. Element IDs are sorted entry names, including file extensions.
+An `arrayed<T>` is an ordered list with no element identities. Positions are
+zero-based `0..N-1`; filenames (including `data<N>`) are storage names only.
+Its directory representation contains non-dot entries of type T: files (image
+leaves), directories (bundles or nested collections), or links to valid entries.
+Enumerate each layer independently by **complete basename filesystem bytes**
+(`os.fsencode`), including extensions; never by numeric suffix or link target.
+Broken links and special entries are errors, not silently removed positions.
+A completed array must not be mutated while consumers enumerate/read it.
+
+The shared standard-library implementation is `hololab.array_positions`:
+`encode_position(i)`, `decode_position(name)`, and `enumerate_array_entries(root)`.
+Positions serialize as `p_<i:016d>` with `0 <= i < 10**16`; out-of-range values
+fail rather than widening. Decode accepts exactly that component without an
+extension. File writers may append the actual format extension. Fixed-width
+ASCII digits guarantee lexical order equals position order. Each layer uses
+local positions; do not recursively flatten a nested list.
+
+Framework aggregation uses this implementation. Pack authors writing an array
+inside one invocation must use the same implementation: import the module when
+HoloLab is installed, or vendor the **unchanged standard-library module** in an
+isolated environment. The current conda execution environment does not guarantee
+that HoloLab is importable. The module also provides `python -m
+hololab.array_positions encode 3` and `decode p_0000000000000003` entry points;
+a vendored file can be invoked directly with the pack's Python. Existing packs
+have not all migrated to this representation yet; this framework change alone
+does not upgrade them.
+
+The hard boundary is conversion between an ordered list and a format requiring
+names or internal references (filesystem paths, COLMAP NAME/IDs). Conversion
+nodes own positional correspondence on both write and read. `colmap-folder`
+remains the standard COLMAP format governed by its official protocol; external
+models are not rejected merely for lacking HoloLab position names. This rule
+does not restrict SfM parameter modes. Mask handling is deferred: future SfM
+validity may mark cameras absent from the largest selected sparse model false,
+but no downstream mask handling is introduced in this batch.
 
 - Per-port `arrayed: true` declares a collection consumed/produced in one call.
 - Per-pack `arrayable: true` enables node `arrayed_toggle`. Turning it on adds
@@ -318,19 +350,34 @@ Shard mechanics:
 
 - Framework mints one parent job (coordinator, no compute-node dispatch)
   plus N shard jobs, one per element of the arrayed inputs.
-- Each shard writes its outputs to `{parent_workspace}/{port}/{element_id}/`
-  instead of its own workspace (via a `shard_output_prefix` on `JobAssign`).
+- Each mapped input port is enumerated independently into its own ordered path
+  list. Outer lengths must match; position `i` selects that port's `i`-th path.
+  Input names need not match. Broadcast ports do not participate in this length
+  check. Unequal lengths fail; never truncate, pad, or join by name.
+- Each shard writes outputs to `{parent_workspace}/{port}/p_<i:016d>/` instead
+  of its own workspace (via `shard_output_prefix` on `JobAssign`). The retained
+  `element_id`/`shard_element_id` fields contain only this encoded position.
   Aggregation is automatic: after all shards finish, the framework registers
   one parent output handle per port pointing at `{parent_workspace}/{port}/`.
+  Completion order never changes list order. Retrying the same position writes
+  the same output slot. `batch_size` groups consecutive positions for dispatch
+  without changing input correspondence or output ordering.
 - `parallelism` bounds concurrent shard dispatch. Shard jobs are created up
   front; one failure does not short-circuit the pool. The parent is marked
   failed after all shards reach terminal states; downstream nodes are not
   started from a partially successful parent.
 
 The pack shell may reference `{{ shard.element_id }}` and `{{ shard.index }}`
-when executing as a shard. The `shard` binding is absent for non-shard runs;
+when executing as a shard: `element_id` is the encoded storage position and
+`index` is the global zero-based position, never an input name or batch-local
+index. The `shard` binding is absent for non-shard runs;
 Jinja2 StrictUndefined raises an explicit template error if those runs reference
 `shard.*`, rather than substituting an empty string.
+
+This positional execution behavior intentionally breaks the previous name-based
+behavior. Copy old graphs into new graphs and explicitly upgrade HoloLab and the
+whole affected pack chain; there is no silent legacy snapshot replay or old
+executor compatibility mode. Axis/type compatibility rules are unchanged.
 
 The `arrayable: true` contract obligates the pack author to promise **no
 cross-shard state or data exchange** — the framework has no way to enforce

@@ -14,7 +14,7 @@ arrayed<T> fan-out: when a graph node's pack is ``arrayable`` and the
 per-node ``arrayed_toggle`` is on, the executor forks the single dispatch
 into N shard jobs — one per element of the arrayed inputs — under a
 coordinator "parent" job. All shards write into the parent's workspace
-keyed by element_id, so the aggregate output directory grows naturally
+keyed by encoded list position, so the aggregate output directory grows naturally
 as shards complete; the gateway registers one output handle per port
 pointing at the aggregate dir.
 
@@ -44,6 +44,7 @@ from typing import Any
 
 from fastapi import FastAPI
 
+from hololab.array_positions import decode_position, encode_position, enumerate_array_entries
 from hololab.gateway.handles import Handle, HandleBook
 from hololab.gateway.hub import FrontendHub
 from hololab.gateway.jobs import Job, JobState, JobStateMachine, event_from_transition
@@ -210,6 +211,7 @@ class _FanoutPlan:
     pack_outputs: dict[str, dict[str, Any]]
     input_handles: dict[str, str]
     session_node_id: str
+    input_paths_by_port: dict[str, list[str]]
 
 
 async def _prepare_fanout(
@@ -265,12 +267,13 @@ async def _prepare_fanout(
         port: _arrayed_port_depth(port, pack_inputs[port], effective_params)
         for port in arrayed_input_ports
     }
-    element_ids = await _discover_element_ids(
+    input_paths_by_port = await _discover_arrayed_paths(
         handles=handles,
         input_handles=input_handles,
         arrayed_input_ports=arrayed_input_ports,
         port_depths=port_depths,
     )
+    element_ids = [encode_position(i) for i in range(len(next(iter(input_paths_by_port.values()))))]
 
     parent_job = Job(
         job_id=str(uuid.uuid4()),
@@ -324,6 +327,7 @@ async def _prepare_fanout(
         pack_outputs=pack_outputs,
         input_handles=input_handles,
         session_node_id=session.node_id,
+        input_paths_by_port=input_paths_by_port,
     )
 
 
@@ -631,9 +635,9 @@ async def _prepare_shard_rows(
     """Materialise every shard's ``jobs`` row + synthetic sub-handles in-memory,
     then flush them to SQLite in two batched transactions.
 
-    Semantics are byte-for-byte equivalent to the previous per-shard loop
-    (:func:`_shard_input_handles` + :func:`_create_shard_row` called N times).
-    The batching only touches persistence: sub-handles inherit the parent's
+    Each port selects its own path at the same list position. Encoded
+    positions determine output slots independently of source names and batching.
+    Sub-handles inherit the parent's
     tags / node_id and carry ``job_id=None`` exactly as before,
     and shard rows carry the same PENDING state + input_handles map + params.
 
@@ -657,6 +661,12 @@ async def _prepare_shard_rows(
     per shard, in the order shards were created) stays intact.
     """
 
+    if plan.element_ids != [encode_position(i) for i in range(len(plan.element_ids))]:
+        raise WorkflowRunError("fan-out plan must contain consecutive encoded positions")
+    if set(plan.input_paths_by_port) != set(plan.arrayed_input_ports) or any(
+        len(paths) != len(plan.element_ids) for paths in plan.input_paths_by_port.values()
+    ):
+        raise WorkflowRunError("fan-out plan paths must align with every mapped position")
     if not plan.element_ids:
         return []
 
@@ -676,7 +686,7 @@ async def _prepare_shard_rows(
     #
     # Also stash the concrete local path for every arrayed sub-handle in
     # ``shard_input_paths`` — the gateway already knows the answer
-    # (``parent.path / element_id``), and passing it inline on the
+    # (``plan.input_paths_by_port[port][position]``), and passing it inline on the
     # ``JobAssign`` frame lets the node skip a per-shard
     # ``handle_locate`` round-trip against the gateway. See
     # ``JobAssign.input_paths`` in ``protocol/messages.py``.
@@ -689,8 +699,7 @@ async def _prepare_shard_rows(
     # ``shard_element_ids`` list + a per-element ``shard_input_paths``
     # list so the node can render the pack shell once per element and
     # chain them under ``set -euo pipefail`` in a single subprocess.
-    # ``batch_size=1`` is a strict no-op — ``shard_element_ids`` stays
-    # NULL and the row is byte-identical to the pre-batching layout.
+    # For a single-element batch, ``shard_element_ids`` stays NULL.
     sub_handles: list[Handle] = []
     shard_rows: list[Job] = []
     shards: list[tuple[int, list[str], Job, list[dict[str, str]]]] = []
@@ -717,7 +726,7 @@ async def _prepare_shard_rows(
             elem_paths: dict[str, str] = {}
             for port in plan.arrayed_input_ports:
                 parent = parent_by_port[port]
-                sub_path = str(Path(parent.path) / element_id)
+                sub_path = plan.input_paths_by_port[port][decode_position(element_id)]
                 sub = Handle(
                     handle_id=str(uuid.uuid4()),
                     node_id=plan.session_node_id,
@@ -741,9 +750,8 @@ async def _prepare_shard_rows(
                 elem_paths[port] = sub_path
             batch_input_paths.append(elem_paths)
 
-        # Preserve byte-identical DB shape when batch_size=1: leave
-        # ``shard_element_ids`` NULL and let the scalar
-        # ``shard_element_id`` be authoritative, exactly like pre-V14.
+        # Single-element batches use the scalar encoded position; larger
+        # batches carry their consecutive encoded positions as a list.
         shard = Job(
             job_id=str(uuid.uuid4()),
             workflow_id=workflow_id,
@@ -808,47 +816,18 @@ async def _run_fanout_node(
 
 
 def enumerate_arrayed_elements(path: str, *, port: str) -> list[str]:
-    """Return canonical immediate element ids for an ``arrayed<T>`` directory.
+    """Return one layer's storage basenames in complete-basename byte order.
 
-    An element is a non-hidden directory. Producer sidecars such as
-    ``.hololab-done`` and ``.hololab-metadata.json`` are never elements.
-    This is the framework's fan-out order: lexical order of these names.
+    These names locate values within this container; they are not element IDs.
     """
     try:
-        with os.scandir(path) as it:
-            return sorted(
-                e.name
-                for e in it
-                if not e.name.startswith(".")
-                and (e.is_dir(follow_symlinks=True) or e.is_file(follow_symlinks=True))
-            )
-    except OSError as exc:
+        return [entry.name for entry in enumerate_array_entries(path)]
+    except (OSError, ValueError) as exc:
         raise WorkflowRunError(f"cannot list arrayed input {port!r} ({path}): {exc}") from exc
-
-
-def _enumerate_depth(root: str, depth: int, *, port: str) -> list[str]:
-    """Recurse ``depth`` levels below ``root``; return joined element paths.
-
-    Depth 1 → ``["cam_A", ...]`` (legacy 1-D). Depth 2 →
-    ``["frame_0000/camera_0000", ...]`` — outer first, matching
-    ``dim_labels``. Empty inner set drops silently; cross-port set
-    comparison catches the asymmetry.
-    """
-    if depth <= 0:
-        return [""]
-    if depth == 1:
-        return enumerate_arrayed_elements(root, port=port)
-    outer = enumerate_arrayed_elements(root, port=port)
-    joined: list[str] = []
-    for name in outer:
-        for sub in _enumerate_depth(os.path.join(root, name), depth - 1, port=port):
-            joined.append(f"{name}/{sub}" if sub else name)
-    return joined
 
 
 def _arrayed_port_depth(port: str, spec: dict[str, Any], effective_params: dict[str, Any]) -> int:
     """Fan-out enumerates its one added outer collection, not invocation axes."""
-
     from hololab.gateway.port_type_ir import enumeration_depth
 
     try:
@@ -857,89 +836,42 @@ def _arrayed_port_depth(port: str, spec: dict[str, Any], effective_params: dict[
         raise WorkflowRunError(str(exc)) from exc
 
 
-async def _discover_element_ids(
+async def _discover_arrayed_paths(
     *,
     handles: HandleBook,
     input_handles: dict[str, str],
     arrayed_input_ports: list[str],
     port_depths: dict[str, int] | None = None,
-) -> list[str]:
-    """Return the sorted flat element-path list. Rejects mismatched sets.
+) -> dict[str, list[str]]:
+    """Snapshot each mapped port independently and zip equal outer lengths.
 
-    Element candidates = **subdirectory entries only, excluding dotfiles**.
-    Hidden files the framework itself writes (``.hololab-done`` idempotency
-    marker, ``.hololab-metadata.json``, etc.) live alongside real elements
-    in a producer's output dir but must not be dispatched as shards.
-    Files that aren't directories are also excluded — an arrayed<T> element
-    is by definition a subdir (the T's on-disk form is a directory).
-
-    ``port_depths`` maps each arrayed port to its effective arrayed depth
-    (``len(dim_labels)`` or 1 when arrayed with no labels). Omitted →
-    every port at depth 1 (pre-N-D behavior). For depth > 1, each
-    element is the ``/``-joined path from the port's handle root down to
-    a leaf subdir, outer first. Cross-port depth mismatch is rejected
-    upfront because zipping element sets of different shapes is undefined.
+    Broadcast ports are absent from ``arrayed_input_ports``. Only one outer
+    layer is consumed, even when an invocation receives a nested collection.
     """
-    depths = dict(port_depths or {})
-    for port in arrayed_input_ports:
-        depths.setdefault(port, 1)
-    distinct_depths = {depths[p] for p in arrayed_input_ports}
-    if len(distinct_depths) > 1:
-        raise WorkflowRunError(
-            "arrayed inputs disagree on depth: "
-            + ", ".join(f"{p!r}=depth {depths[p]}" for p in arrayed_input_ports)
-            + " — cannot zip element sets of different shapes"
-        )
-
-    sets_by_port: dict[str, list[str]] = {}
+    if not arrayed_input_ports:
+        raise WorkflowRunError("fan-out requires at least one mapped input")
+    if port_depths is not None and any(port_depths.get(p, 1) != 1 for p in arrayed_input_ports):
+        raise WorkflowRunError("fan-out enumeration depth must be exactly one outer layer")
+    paths_by_port: dict[str, list[str]] = {}
     for port in arrayed_input_ports:
         handle_id = input_handles.get(port)
         if handle_id is None:
             raise WorkflowRunError(
-                f"arrayed input {port!r} is not wired — cannot enumerate elements"
+                f"arrayed input {port!r} is not wired — cannot enumerate positions"
             )
-        h = await handles.get(handle_id)
-        if h is None:
+        handle = await handles.get(handle_id)
+        if handle is None:
             raise WorkflowRunError(
                 f"arrayed input handle {handle_id!r} for port {port!r} is not registered"
             )
-        sets_by_port[port] = _enumerate_depth(h.path, depths[port], port=port)
-
-    reference_port, reference = next(iter(sets_by_port.items()))
-    for port, entries in sets_by_port.items():
-        if entries != reference:
-            raise WorkflowRunError(
-                "arrayed inputs disagree on element set: "
-                + _format_element_set_mismatch(reference_port, reference, port, entries)
-            )
-    return reference
-
-
-def _format_element_set_mismatch(
-    ref_port: str, ref: list[str], other_port: str, other: list[str], *, cap: int = 5
-) -> str:
-    """Human-scannable diff — leads with cardinality, then first-N symmetric diff.
-
-    A cams=100 vs images=99 mismatch dumping 199 names each side is unreadable,
-    so we surface (a) both counts, (b) the first `cap` names present on one
-    side but not the other, plus a "(+N more)" tail when the diff overflows.
-    """
-    ref_set, other_set = set(ref), set(other)
-    only_ref = sorted(ref_set - other_set)
-    only_other = sorted(other_set - ref_set)
-    parts = [
-        f"{ref_port!r} has {len(ref)} element(s)",
-        f"{other_port!r} has {len(other)} element(s)",
-    ]
-    if only_ref:
-        head = ", ".join(repr(x) for x in only_ref[:cap])
-        tail = f" (+{len(only_ref) - cap} more)" if len(only_ref) > cap else ""
-        parts.append(f"only in {ref_port!r}: [{head}{tail}]")
-    if only_other:
-        head = ", ".join(repr(x) for x in only_other[:cap])
-        tail = f" (+{len(only_other) - cap} more)" if len(only_other) > cap else ""
-        parts.append(f"only in {other_port!r}: [{head}{tail}]")
-    return "; ".join(parts)
+        names = enumerate_arrayed_elements(handle.path, port=port)
+        paths_by_port[port] = [str(Path(handle.path) / name) for name in names]
+    if len({len(paths) for paths in paths_by_port.values()}) != 1:
+        counts = "; ".join(
+            f"{port!r} has {len(paths)} element(s)" for port, paths in paths_by_port.items()
+        )
+        raise WorkflowRunError(f"arrayed inputs disagree on outer length: {counts}")
+    return paths_by_port
 
 
 async def _shard_input_handles(
@@ -949,11 +881,12 @@ async def _shard_input_handles(
     arrayed_input_ports: list[str],
     element_id: str,
     producer_node_id: str,
+    input_paths_by_port: dict[str, list[str]],
 ) -> dict[str, str]:
     """Build one shard's ``input_handles`` map.
 
     For each arrayed input port we register a *synthetic sub-handle* whose
-    path is the parent handle's path joined with the element_id. Same-node
+    path is that port's independently enumerated value at the decoded position. Same-node
     handle_locate short-circuits to the local path, so no cross-node
     transport is needed. Non-arrayed inputs are passed through unchanged.
 
@@ -961,6 +894,7 @@ async def _shard_input_handles(
     job (``job_id`` NULL) so they don't pollute per-job artifact accounting.
     """
 
+    position = decode_position(element_id)
     shard_inputs: dict[str, str] = {}
     for port, handle_id in input_handles.items():
         if port not in arrayed_input_ports:
@@ -971,7 +905,7 @@ async def _shard_input_handles(
             raise WorkflowRunError(
                 f"arrayed input handle {handle_id!r} for port {port!r} not registered"
             )
-        sub_path = str(Path(parent_handle.path) / element_id)
+        sub_path = input_paths_by_port[port][position]
         sub_handle = Handle(
             handle_id=str(uuid.uuid4()),
             node_id=producer_node_id,
@@ -1089,7 +1023,7 @@ async def _dispatch_prepared_shard(
 
     ``shard_input_paths`` is an optional ``{port -> absolute_local_path}``
     map for inputs whose location the gateway already knows (arrayed
-    sub-handles register at ``parent.path / element_id`` — deterministic).
+    sub-handles use each port's independently enumerated path at position i).
     Passed inline on the ``JobAssign`` frame so the node can skip the
     per-shard ``handle_locate`` round-trip for those ports. Ports omitted
     from this map fall through to the usual locate path on the node.
