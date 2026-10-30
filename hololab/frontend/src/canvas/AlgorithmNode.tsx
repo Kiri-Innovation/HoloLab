@@ -42,6 +42,8 @@ export interface NodeRuntime {
   // brand-new-and-unrun graph_node stays a plain state string.
   started_ts?: number | null;
   updated_ts?: number | null;
+  /** Snapshot that directly attributes the representative job. */
+  snapshot_id?: string | null;
 }
 
 // One resolved shard preview — populated while an arrayed node's fanout is
@@ -371,6 +373,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     computeNodesById,
     packDisplayName,
     hydrating,
+    dispatch_snapshot_id,
   } = useCanvasContext();
   const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
   const inputEntries = Object.entries(pack.inputs);
@@ -391,6 +394,14 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       : NODE_WIDTH;
   const runInFlight =
     runState === "pending" || runState === "assigned" || runState === "running";
+  // ``canvas_jobs`` may deliberately retain a configuration-compatible
+  // result from another branch.  It is previewable evidence, but dispatch
+  // resolves inputs from the base snapshot only (execution.py), so flag the
+  // distinction before the user tries to consume it downstream.
+  const historicalOnly = Boolean(
+    !readOnly && runtime?.snapshot_id && dispatch_snapshot_id &&
+    runtime.snapshot_id !== dispatch_snapshot_id,
+  );
 
   const [showCompositionOutput, setShowCompositionOutput] = useState(false);
   const [runClickPending, setRunClickPending] = useState(false);
@@ -651,6 +662,15 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
             statusTitle={statusTitle}
             loading={hydrating && !runtime}
           />
+          {historicalOnly && (
+            <span
+              data-hl-historical-branch-result=""
+              data-tooltip="这是另一条运行分支的历史结果：可以查看，但当前运行不能把它作为上游输入。"
+              style={{ color: "var(--warning)", whiteSpace: "nowrap", flexShrink: 0 }}
+            >
+              历史结果
+            </span>
+          )}
           {progressLabel && (
             <span
               style={{

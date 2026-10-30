@@ -117,7 +117,7 @@ function content(kind: PlaceholderKind, portName: string): {
   }
   return {
     title: "尚未运行",
-    detail: `此节点尚未运行过，还没有 ${portName} 产物可以预览。点击下方按钮触发单节点运行；上游产物必须已经在最新快照里就绪。`,
+    detail: `此节点尚未运行过，还没有 ${portName} 产物可以预览。点击下方按钮触发单节点运行；请先在当前流程中运行所有上游输入。`,
   };
 }
 

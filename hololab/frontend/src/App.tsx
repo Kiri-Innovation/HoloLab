@@ -168,6 +168,7 @@ function runtimeEqual(a: NodeRuntime | undefined, b: NodeRuntime | undefined): b
   if (!a || !b) return false;
   if (a.state !== b.state) return false;
   if (a.job_id !== b.job_id) return false;
+  if ((a.snapshot_id ?? null) !== (b.snapshot_id ?? null)) return false;
   if ((a.fail_reason ?? null) !== (b.fail_reason ?? null)) return false;
   if ((a.started_ts ?? null) !== (b.started_ts ?? null)) return false;
   if ((a.updated_ts ?? null) !== (b.updated_ts ?? null)) return false;
@@ -1212,6 +1213,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       computeNodesById,
       packDisplayName,
       hydrating,
+      dispatch_snapshot_id: viewingSnapshot?.snapshot_id ?? latestSnapshotId,
       pinnedParams, variables,
       onBindingChange: updateParameterBinding,
       onParamsChange: updateNodeParams,
@@ -1222,7 +1224,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       viewer_view_managed: viewerViewManaged,
       setViewerDefault: setWorkflowViewerDefault,
     }),
-    [workflowId, workflowName, computeNodesById, packDisplayName, hydrating, pinnedParams, variables, updateParameterBinding, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
+    [workflowId, workflowName, computeNodesById, packDisplayName, hydrating, viewingSnapshot?.snapshot_id, latestSnapshotId, pinnedParams, variables, updateParameterBinding, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
   );
 
   // Push job runtime + resolved previews + previewOpen into each node's

@@ -1814,8 +1814,9 @@ async def _resolve_inputs_from_snapshot(
             # mid-fan-out window; that window no longer exists because
             # ``_prepare_fanout`` attributes at creation.
             raise DispatchError(
-                f"upstream graph node {source_gnode!r} has no produced artifact "
-                f"in this snapshot; run it first"
+                f"上游节点 {source_gnode!r} 没有可用于本次运行的产物。"
+                "画布上的历史结果可能来自另一条运行分支，不能直接作为这里的输入；"
+                "请先在当前流程中重新运行该上游链路，再运行本节点。"
             )
         upstream_job = await jobs_store.get(upstream_job_id)
         if upstream_job is None:

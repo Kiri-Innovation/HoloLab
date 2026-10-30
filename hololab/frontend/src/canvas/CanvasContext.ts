@@ -43,6 +43,11 @@ export interface CanvasContextValue {
   // pending → "cleaned"; then handles land → real preview). See the
   // block comment on the placeholder computation in AlgorithmNode.tsx.
   hydrating: boolean;
+  // Snapshot a draft-view dispatch will extend.  A canvas result may be a
+  // compatible historical result from another branch; it remains useful to
+  // inspect, but cannot be wired into a new job unless it is attributed to
+  // this exact base snapshot.
+  dispatch_snapshot_id?: string | null;
   variables?: VariableDeclarations;
   effectiveParamsByNode?: Record<string, Record<string, unknown>>;
   onBindingChange?: (nodeId: string, name: string, variable: string | null) => void;

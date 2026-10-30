@@ -182,6 +182,14 @@ describe("aggregateJobsToRuntime — state priority", () => {
     expect(out.n.fail_reason).toBeNull();
   });
 
+  it("keeps canvas provenance on the representative runtime", () => {
+    const job = {
+      ...mkJob({ job_id: "p", state: "done" }),
+      snapshot_id: "other-branch",
+    };
+    expect(aggregateJobsToRuntime([job]).n.snapshot_id).toBe("other-branch");
+  });
+
   it("single running job with no shards → running", () => {
     const only = mkJob({
       job_id: "solo",
