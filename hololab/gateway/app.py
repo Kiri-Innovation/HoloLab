@@ -4198,13 +4198,14 @@ async def _resolve_handle_display_meta(
         # scan here.
         return preview, raw_dim_labels or None, None, resolved_tags
 
-    # Filesystem probing is synchronous (directory enumeration / stat / small
-    # header reads beneath tag probes).  Never run it on FastAPI's event-loop
-    # thread: a canvas refresh starts many lookups at once.
-    dim_labels, dim_sizes = await asyncio.to_thread(
-        dim_info_for_handle,
-        replace(handle, tags=resolved_tags),
-        dim_labels=raw_dim_labels,
+    # Keep this compact shape probe on the event loop.  The implementation
+    # uses ``scandir`` and normally completes in a few milliseconds; sending
+    # every cold-canvas lookup to the shared default executor makes its Python
+    # sorting/object work contend under the GIL and introduces multi-second
+    # queueing behind the other seven metadata requests.  The genuinely
+    # heavier full directory summary remains off-loop above.
+    dim_labels, dim_sizes = dim_info_for_handle(
+        replace(handle, tags=resolved_tags), dim_labels=raw_dim_labels
     )
     return preview, dim_labels, dim_sizes, resolved_tags
 
