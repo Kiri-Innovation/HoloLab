@@ -1,0 +1,517 @@
+"""Heavy-lifting worker: staging + PNG I/O + kornia grid_sample + publish.
+
+All the imports that dominate cold-start (torch ~1.5s, kornia ~0.25s, cv2 ~0.1s,
+plus CUDA context init ~0.9s) live in this module so the ``undistort.py`` client
+entry can skip them entirely when the daemon is available.
+
+Public entry: ``process_shard(request: dict, gpu_lock=None) -> (exit_code, log_lines)``.
+The dict has the same fields as the CLI in ``undistort.py`` — the client
+serialises argparse Namespace into it and either calls this in-process
+(fallback path) or ships it to the daemon over a Unix socket.
+
+Passing ``gpu_lock`` (a ``threading.Lock`` from the daemon) makes the GPU
+section serial across concurrent shards; leaving it ``None`` (in-process
+fallback) skips the lock since only one shard runs per subprocess anyway.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import cv2
+import numpy as np
+import torch
+import torch.nn.functional as F
+from kornia.geometry.calibration import distort_points
+
+_PACK_DIR = Path(__file__).resolve().parent
+if str(_PACK_DIR) not in sys.path:
+    sys.path.insert(0, str(_PACK_DIR))
+
+from jpeg_metadata import transplant_xmp_app1  # noqa: E402
+from position_prior import publish_poses, stage_images, stage_sparse_prior  # noqa: E402
+
+# ---------------------------------------------------------------------------
+# Staging (parity with @0.4.1)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Camera math
+# ---------------------------------------------------------------------------
+
+
+def parse_cameras(cameras_txt: Path) -> dict[int, dict]:
+    """Parse models supported by the GPU radial undistorter.
+
+    The supported COLMAP models are normalized to OPENCV coefficients.
+    SIMPLE_PINHOLE and PINHOLE have no distortion terms; SIMPLE_RADIAL and
+    RADIAL are radial-only OPENCV subsets.  In each case, fill coefficients
+    that are absent from the COLMAP model with zero.
+    """
+    supported_models = "OPENCV, SIMPLE_RADIAL, RADIAL, SIMPLE_PINHOLE, PINHOLE"
+    unsupported_model_reason = {
+        "FULL_OPENCV": "FULL_OPENCV has additional distortion coefficients",
+        "OPENCV_FISHEYE": "OPENCV_FISHEYE uses a fisheye distortion model",
+        "SIMPLE_RADIAL_FISHEYE": "SIMPLE_RADIAL_FISHEYE uses a fisheye distortion model",
+        "RADIAL_FISHEYE": "RADIAL_FISHEYE uses a fisheye distortion model",
+        "THIN_PRISM_FISHEYE": "THIN_PRISM_FISHEYE uses fisheye/thin-prism coefficients",
+        "FOV": "FOV uses a field-of-view distortion model",
+    }
+    cams: dict[int, dict] = {}
+    for ln in cameras_txt.read_text().splitlines():
+        s = ln.strip()
+        if not s or s.startswith("#"):
+            continue
+        parts = s.split()
+        model = parts[1]
+        cid = int(parts[0])
+        W, H = int(parts[2]), int(parts[3])
+        p = [float(x) for x in parts[4:]]
+        if model == "OPENCV" and len(p) == 8:
+            fx, fy, cx, cy, k1, k2, p1, p2 = p
+        elif model == "SIMPLE_RADIAL" and len(p) == 4:
+            fx = fy = p[0]
+            cx, cy, k1 = p[1:]
+            k2 = p1 = p2 = 0.0
+        elif model == "RADIAL" and len(p) == 5:
+            fx = fy = p[0]
+            cx, cy, k1, k2 = p[1:]
+            p1 = p2 = 0.0
+        elif model == "SIMPLE_PINHOLE" and len(p) == 3:
+            # No distortion terms: f, cx, cy -> OPENCV(f, f, cx, cy, 0, 0, 0, 0).
+            fx = fy = p[0]
+            cx, cy = p[1:]
+            k1 = k2 = p1 = p2 = 0.0
+        elif model == "PINHOLE" and len(p) == 4:
+            # No distortion terms: fx, fy, cx, cy -> zero OPENCV distortion.
+            fx, fy, cx, cy = p
+            k1 = k2 = p1 = p2 = 0.0
+        else:
+            detail = unsupported_model_reason.get(model)
+            detail = f"; {detail}, which image-undistort does not support" if detail else ""
+            raise SystemExit(
+                f"unsupported COLMAP camera for camera {cid} in {cameras_txt}: "
+                f"model {model!r} has {len(p)} parameter(s){detail}. "
+                f"Supported models: {supported_models}."
+            )
+        cams[cid] = dict(
+            cam_id=cid,
+            W=W,
+            H=H,
+            fx=fx,
+            fy=fy,
+            cx=cx,
+            cy=cy,
+            k1=k1,
+            k2=k2,
+            p1=p1,
+            p2=p2,
+            source_model=model,
+        )
+    if not cams:
+        raise SystemExit(f"no camera row in {cameras_txt}")
+    return cams
+
+
+def _iter_undistort(u: torch.Tensor, v: torch.Tensor, cam: dict, iters: int = 20):
+    fx, fy, cx, cy = cam["fx"], cam["fy"], cam["cx"], cam["cy"]
+    k1, k2, p1, p2 = cam["k1"], cam["k2"], cam["p1"], cam["p2"]
+    xd = (u - cx) / fx
+    yd = (v - cy) / fy
+    x, y = xd.clone(), yd.clone()
+    for _ in range(iters):
+        r2 = x * x + y * y
+        rad = 1 + k1 * r2 + k2 * r2 * r2
+        dx = 2 * p1 * x * y + p2 * (r2 + 2 * x * x)
+        dy = p1 * (r2 + 2 * y * y) + 2 * p2 * x * y
+        x = (xd - dx) / rad
+        y = (yd - dy) / rad
+    return x, y
+
+
+def compute_new_pinhole(cam: dict, blank_pixels: int = 0) -> dict:
+    W, H = cam["W"], cam["H"]
+    fx, fy = cam["fx"], cam["fy"]
+
+    us = torch.arange(W, dtype=torch.float64) + 0.5
+    vs = torch.arange(H, dtype=torch.float64) + 0.5
+    x_left, _ = _iter_undistort(torch.full_like(vs, 0.5), vs, cam)
+    x_right, _ = _iter_undistort(torch.full_like(vs, W - 0.5), vs, cam)
+    _, y_top = _iter_undistort(us, torch.full_like(us, 0.5), cam)
+    _, y_bot = _iter_undistort(us, torch.full_like(us, H - 0.5), cam)
+
+    if blank_pixels == 0:
+        left = float(x_left.max())
+        right = float(x_right.min())
+        top = float(y_top.max())
+        bot = float(y_bot.min())
+        half_x = min(abs(left), abs(right))
+        half_y = min(abs(top), abs(bot))
+    else:
+        left = float(x_left.min())
+        right = float(x_right.max())
+        top = float(y_top.min())
+        bot = float(y_bot.max())
+        half_x = max(abs(left), abs(right))
+        half_y = max(abs(top), abs(bot))
+
+    new_W = round(2 * half_x * fx)
+    new_H = round(2 * half_y * fy)
+    if blank_pixels == 0:
+        # Border inversion uses COLMAP's half-pixel convention, whereas
+        # _build_grid samples integer pixel coordinates. Rounding and strong
+        # tangential distortion can leave a thin invalid edge. Check the
+        # actual forward map and shrink only the offending output axes.
+        while new_W > 1 and new_H > 1:
+            us = np.arange(new_W, dtype=np.float64)
+            vs = np.arange(new_H, dtype=np.float64)
+            u = np.concatenate((us, us, np.zeros(new_H), np.full(new_H, new_W - 1)))
+            v = np.concatenate((np.zeros(new_W), np.full(new_W, new_H - 1), vs, vs))
+            x, y = (u - new_W / 2) / fx, (v - new_H / 2) / fy
+            r2 = x * x + y * y
+            radial = 1 + cam["k1"] * r2 + cam["k2"] * r2 * r2
+            sx = (
+                fx * (x * radial + 2 * cam["p1"] * x * y + cam["p2"] * (r2 + 2 * x * x)) + cam["cx"]
+            )
+            sy = (
+                fy * (y * radial + cam["p1"] * (r2 + 2 * y * y) + 2 * cam["p2"] * x * y) + cam["cy"]
+            )
+            if not (np.isfinite(sx).all() and np.isfinite(sy).all()):
+                raise SystemExit("non-finite undistortion border")
+            crop_x = sx.min() < 0.001 or sx.max() > W - 1.001
+            crop_y = sy.min() < 0.001 or sy.max() > H - 1.001
+            if not (crop_x or crop_y):
+                break
+            new_W -= 2 * int(crop_x)
+            new_H -= 2 * int(crop_y)
+        else:
+            raise SystemExit("camera has no valid centered undistortion crop")
+    return dict(W=new_W, H=new_H, fx=fx, fy=fy, cx=new_W / 2.0, cy=new_H / 2.0)
+
+
+# ---------------------------------------------------------------------------
+# GPU resample
+# ---------------------------------------------------------------------------
+
+
+def _build_grid(cam: dict, new_cam: dict, device: str) -> torch.Tensor:
+    K = torch.tensor(
+        [[cam["fx"], 0.0, cam["cx"]], [0.0, cam["fy"], cam["cy"]], [0.0, 0.0, 1.0]],
+        device=device,
+        dtype=torch.float32,
+    )
+    new_K = torch.tensor(
+        [[new_cam["fx"], 0.0, new_cam["cx"]], [0.0, new_cam["fy"], new_cam["cy"]], [0.0, 0.0, 1.0]],
+        device=device,
+        dtype=torch.float32,
+    )
+    dist = torch.tensor(
+        [cam["k1"], cam["k2"], cam["p1"], cam["p2"]],
+        device=device,
+        dtype=torch.float32,
+    )
+    us = torch.arange(new_cam["W"], device=device, dtype=torch.float32)
+    vs = torch.arange(new_cam["H"], device=device, dtype=torch.float32)
+    vv, uu = torch.meshgrid(vs, us, indexing="ij")
+    pts = torch.stack([uu, vv], dim=-1).reshape(1, -1, 2)
+    src_uv = distort_points(
+        pts, K.unsqueeze(0), dist.unsqueeze(0), new_K=new_K.unsqueeze(0)
+    ).reshape(1, new_cam["H"], new_cam["W"], 2)
+    grid = torch.empty_like(src_uv)
+    grid[..., 0] = src_uv[..., 0] / (cam["W"] - 1) * 2.0 - 1.0
+    grid[..., 1] = src_uv[..., 1] / (cam["H"] - 1) * 2.0 - 1.0
+    return grid
+
+
+# Reusable pinned host buffers. Each request grows them if the shape got
+# bigger; steady-state RSS is one input-chunk + one output shard, not one
+# per shard. Without this, the daemon leaks ~90 MB per request (~9 GB after
+# 100 shards → OOM-kills downstream STG under a 56 GB cgroup).
+_PINNED_IN_BUF: torch.Tensor | None = None
+_PINNED_OUT_BUF: torch.Tensor | None = None
+
+
+def _pinned_in(chunk_shape: tuple[int, int, int, int]) -> torch.Tensor:
+    global _PINNED_IN_BUF
+    if _PINNED_IN_BUF is None or tuple(_PINNED_IN_BUF.shape) != chunk_shape:
+        _PINNED_IN_BUF = torch.empty(chunk_shape, dtype=torch.uint8, pin_memory=True)
+    return _PINNED_IN_BUF
+
+
+def _pinned_out(out_shape: tuple[int, int, int, int]) -> torch.Tensor:
+    global _PINNED_OUT_BUF
+    if _PINNED_OUT_BUF is None or tuple(_PINNED_OUT_BUF.shape) != out_shape:
+        _PINNED_OUT_BUF = torch.empty(out_shape, dtype=torch.uint8, pin_memory=True)
+    return _PINNED_OUT_BUF
+
+
+def undistort_batch(
+    imgs_u8: np.ndarray,
+    grid: torch.Tensor,
+    chunk_size: int = 8,
+    compute_dtype: torch.dtype = torch.float16,
+) -> np.ndarray:
+    B = imgs_u8.shape[0]
+    new_H, new_W = int(grid.shape[1]), int(grid.shape[2])
+    out_pinned = _pinned_out((B, new_H, new_W, 3))
+    grid_c = grid.to(compute_dtype) if grid.dtype != compute_dtype else grid
+    for s in range(0, B, chunk_size):
+        e = min(s + chunk_size, B)
+        chunk = imgs_u8[s:e]
+        # Copy into a reusable pinned staging buffer instead of
+        # ``.pin_memory()`` on a per-call tensor (which leaked in the daemon).
+        in_pin = _pinned_in(chunk.shape)
+        in_pin.copy_(torch.from_numpy(np.ascontiguousarray(chunk)))
+        t_gpu = in_pin.to("cuda", non_blocking=True)
+        imgs = t_gpu.permute(0, 3, 1, 2).to(compute_dtype).mul_(1.0 / 255.0)
+        out = F.grid_sample(
+            imgs,
+            grid_c.expand(e - s, -1, -1, -1),
+            mode="bilinear",
+            padding_mode="zeros",
+            align_corners=True,
+        )
+        out = (
+            out.clamp_(0.0, 1.0)
+            .mul_(255.0)
+            .round_()
+            .to(torch.uint8)
+            .permute(0, 2, 3, 1)
+            .contiguous()
+        )
+        out_pinned[s:e].copy_(out, non_blocking=True)
+        del t_gpu, imgs, out
+        torch.cuda.empty_cache()
+    torch.cuda.synchronize()
+    # Return a numpy VIEW of the pinned buffer — but numpy view goes stale
+    # the next time the buffer is reused. Copy out so callers own it.
+    return out_pinned.numpy().copy()
+
+
+# ---------------------------------------------------------------------------
+# I/O + output writers
+# ---------------------------------------------------------------------------
+
+
+def _read_rgb(path: Path) -> np.ndarray:
+    bgr = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    if bgr is None:
+        raise SystemExit(f"cv2.imread failed: {path}")
+    return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+
+
+def _write_rgb(
+    dst: Path, rgb: np.ndarray, png_compress: int, metadata_source: Path | None = None
+) -> None:
+    bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    suffix = dst.suffix.lower()
+    if suffix in (".jpg", ".jpeg"):
+        ok = cv2.imwrite(str(dst), bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
+    else:
+        ok = cv2.imwrite(str(dst), bgr, [cv2.IMWRITE_PNG_COMPRESSION, png_compress])
+    if not ok:
+        raise SystemExit(f"cv2.imwrite failed: {dst}")
+    if suffix in (".jpg", ".jpeg") and metadata_source is not None:
+        transplant_xmp_app1(metadata_source, dst)
+
+
+def write_cameras_pinhole(dst: Path, cameras: dict[int, dict]) -> None:
+    lines = [
+        "# Camera list with one line of data per camera:\n"
+        "#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n"
+        f"# Number of cameras: {len(cameras)}\n"
+    ]
+    for cid, cam in sorted(cameras.items()):
+        lines.append(
+            f"{cid} PINHOLE {cam['W']} {cam['H']} {cam['fx']} {cam['fy']} {cam['cx']} {cam['cy']}\n"
+        )
+    dst.write_text("".join(lines))
+
+
+def write_images_txt(
+    dst: Path,
+    poses: list[tuple[list[str], str]],
+    mean_obs: float,
+) -> None:
+    lines: list[str] = [
+        "# Image list with two lines of data per image:",
+        "#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME",
+        "#   POINTS2D[] as (X, Y, POINT3D_ID)",
+        f"# Number of images: {len(poses)}, mean observations per image: {mean_obs}",
+    ]
+    for row, obs in poses:
+        lines.append(" ".join(row))
+        lines.append(obs)
+    dst.write_text("\n".join(lines) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# Top-level shard driver
+# ---------------------------------------------------------------------------
+
+
+def _ensure_cuda_warm() -> None:
+    """Idempotent CUDA context init. Zero-cost after the first call."""
+    if not torch.cuda.is_available():
+        raise SystemExit("CUDA not available; this pack requires a GPU node")
+    _ = torch.zeros(1, device="cuda") + 1
+    torch.cuda.synchronize()
+
+
+def process_shard(
+    request: dict,
+    gpu_lock=None,
+    log_fn=print,
+) -> int:
+    """Run one shard end-to-end.
+
+    ``request`` fields (all strings unless noted): cams, images, cams_out,
+    images_out, scratch, staging (optional / None), blank_pixels (int),
+    io_workers (int), png_compress (int), chunk_size (int), dtype ('fp16'|'fp32').
+
+    ``gpu_lock``: if provided, the GPU section (build_grid + undistort_batch)
+    runs under this lock. Read/write PNG stages run outside the lock so
+    concurrent daemon requests can overlap their I/O.
+
+    ``log_fn``: sink for ``[image-undistort/0.6.0] ...`` lines. Defaults to
+    stdout; the daemon passes a per-request buffer so lines flow back to
+    the client for parity with in-process invocation.
+    """
+    cams = Path(request["cams"])
+    images = Path(request["images"])
+    cams_out = Path(request["cams_out"])
+    images_out = Path(request["images_out"])
+    scratch = Path(request["scratch"])
+    staging = Path(request["staging"]) if request.get("staging") else None
+    blank_pixels = int(request["blank_pixels"])
+    io_workers = int(request["io_workers"])
+    png_compress = int(request["png_compress"])
+    dtype = str(request["dtype"])
+
+    if not (images.is_dir() or images.is_file()):
+        log_fn(f"ERROR: images handle is not a file or directory: {images}", file=sys.stderr)
+        return 2
+    if blank_pixels not in (0, 1):
+        log_fn(
+            f"ERROR: blank_pixels={blank_pixels}; only 0 and 1 supported.",
+            file=sys.stderr,
+        )
+        return 2
+
+    cams_out.mkdir(parents=True, exist_ok=True)
+    images_out.mkdir(parents=True, exist_ok=True)
+    scratch.mkdir(parents=True, exist_ok=True)
+    staging_root = staging if staging is not None else scratch
+    staging_root.mkdir(parents=True, exist_ok=True)
+    scratch_input = staging_root / "input"
+    scratch_prior = staging_root / "prior"
+
+    t_all0 = time.perf_counter()
+
+    staged = stage_images(images, scratch_input)
+    rewritten, rewrites = stage_sparse_prior(cams, scratch_prior, staged)
+    if not rewritten:
+        raise SystemExit(
+            f"need at least 1 staged image with an SfM pose to undistort; got {len(rewritten)}"
+        )
+
+    source_cams = parse_cameras(scratch_prior / "cameras.txt")
+    file_cam_id = {f.name: int(row[8]) for f, (row, _obs) in zip(staged, rewritten, strict=True)}
+    if set(f.name for f in staged) != set(file_cam_id):
+        raise SystemExit("staged image names do not match rewritten images.txt")
+    used_ids = {file_cam_id[f.name] for f in staged}
+    new_cams = {
+        cid: compute_new_pinhole(source_cams[cid], blank_pixels=blank_pixels) for cid in source_cams
+    }
+    log_fn(
+        f"[image-undistort/0.6.0] {len(used_ids)} source camera(s), {len(staged)} images",
+        flush=True,
+    )
+    log_fn(
+        "[image-undistort/0.6.0] using "
+        + ", ".join(sorted(f.name for f in staged))
+        + "; all positions paired",
+        flush=True,
+    )
+
+    t_r0 = time.perf_counter()
+    with ThreadPoolExecutor(io_workers) as ex:
+        arrs = list(ex.map(_read_rgb, staged))
+    for f, a in zip(staged, arrs, strict=True):
+        cam = source_cams[file_cam_id[f.name]]
+        if a.shape[0] != cam["H"] or a.shape[1] != cam["W"]:
+            raise SystemExit(
+                f"image {f.name} shape {a.shape[:2]} != source (H,W)=({cam['H']},{cam['W']})"
+            )
+    t_r1 = time.perf_counter()
+
+    _ensure_cuda_warm()
+    compute_dtype = torch.float16 if dtype == "fp16" else torch.float32
+
+    if gpu_lock is not None:
+        gpu_lock.acquire()
+    try:
+        t_g0 = time.perf_counter()
+        out_parts = []
+        for f, img in zip(staged, arrs, strict=True):
+            cid = file_cam_id[f.name]
+            grid = _build_grid(source_cams[cid], new_cams[cid], "cuda")
+            out_parts.append(
+                undistort_batch(img[None, ...], grid, chunk_size=1, compute_dtype=compute_dtype)[0]
+            )
+        # Different source intrinsics legitimately produce different valid
+        # PINHOLE crops, so this is a list rather than an N-by-H-by-W tensor.
+        out = out_parts
+        torch.cuda.synchronize()
+        t_g1 = time.perf_counter()
+    finally:
+        if gpu_lock is not None:
+            gpu_lock.release()
+
+    out_root = images_out
+    for stale in out_root.glob("*"):
+        if stale.is_file() and not stale.name.startswith("."):
+            stale.unlink()
+    t_w0 = time.perf_counter()
+    with ThreadPoolExecutor(io_workers) as ex:
+        list(
+            ex.map(
+                lambda pair: _write_rgb(
+                    out_root / pair[0].name,
+                    pair[1],
+                    png_compress,
+                    metadata_source=pair[0],
+                ),
+                zip(staged, out, strict=True),
+            )
+        )
+    t_w1 = time.perf_counter()
+
+    write_cameras_pinhole(cams_out / "cameras.txt", new_cams)
+    publish_poses(cams_out, rewritten, cams)
+    (cams_out / "undistortion_meta.json").write_text(
+        json.dumps(
+            {
+                "used_image_files": sorted(f.name for f in staged),
+                "used_camera_count": len(staged),
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+
+    t_all1 = time.perf_counter()
+
+    log_fn(
+        f"[image-undistort/0.6.0] done -> PINHOLE cams + {len(staged)} undistorted images  "
+        f"read={1e3 * (t_r1 - t_r0):.0f} gpu={1e3 * (t_g1 - t_g0):.0f} "
+        f"write={1e3 * (t_w1 - t_w0):.0f} total={1e3 * (t_all1 - t_all0):.0f} ms  "
+        f"(positional NAME rewrites: {len(rewrites)})",
+        flush=True,
+    )
+    return 0
