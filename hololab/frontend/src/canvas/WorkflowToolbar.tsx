@@ -1,3 +1,4 @@
+import { Modal } from "../ui/Modal";
 import "./workflowToolbar.css";
 import { RecipeFileActions } from "./RecipeFileActions";
 // Top bar: workflow name + autosave status pill + Run button.
@@ -60,6 +61,7 @@ export function WorkflowToolbar({
   staleCount = 0,
   onLocateEarliestStale,
 }: WorkflowToolbarProps) {
+  const [runError, setRunError] = useState("");
   const [message, setMessage] = useState<string>("");
   const [messageColour, setMessageColour] = useState<string>("var(--text-muted)");
 
@@ -74,7 +76,7 @@ export function WorkflowToolbar({
       await onRun();
       flash("run started", "var(--success)");
     } catch (e) {
-      flash(`run failed: ${(e as Error).message}`, "var(--error)");
+      setRunError((e as Error).message);
     }
   };
 
@@ -218,6 +220,9 @@ export function WorkflowToolbar({
       >
         {message}
       </span>
+      <Modal open={!!runError} onClose={() => setRunError("")} title="无法运行工作流">
+        <div role="alert" style={{whiteSpace: "pre-wrap", overflowWrap: "anywhere"}}>{runError}</div>
+      </Modal>
       {workflowId && (
         <CopyRefButton
           kind="workflow"

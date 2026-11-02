@@ -1,0 +1,77 @@
+
+> hololab-frontend@0.0.1 test
+> vitest run
+
+
+ RUN  v2.1.9 /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/frontend
+
+ ✓ src/canvas/nodeStatus.test.ts (99 tests) 23ms
+ ✓ src/canvas/nodeRuntime.test.ts (18 tests) 9ms
+ ✓ src/canvas/referenceSnapshot.test.ts (6 tests) 11ms
+ ✓ src/canvas/CopyRefButton.test.tsx (11 tests) 18ms
+ ✓ src/types/portTypeIR.test.ts (92 tests) 31ms
+ ✓ src/packs/packManagerModel.test.ts (9 tests) 11ms
+ ✓ src/canvas/referenceAction.test.ts (13 tests) 18ms
+ ✓ src/net.test.ts (17 tests) 44ms
+ ✓ src/canvas/typeTooltip.test.ts (9 tests) 9ms
+ ✓ src/canvas/staleness.test.ts (17 tests) 10ms
+ ✓ src/types/legacyPortType.test.ts (60 tests) 21ms
+ ✓ src/canvas/analysisInputs.test.ts (6 tests) 10ms
+ ✓ src/canvas/connectionValidation.test.ts (134 tests) 49ms
+ ✓ src/canvas/workflowVariables.test.tsx (6 tests) 13ms
+ ✓ src/canvas/inlineValues.test.tsx (14 tests) 26ms
+ ✓ src/canvas/constants.test.ts (10 tests) 9ms
+ ✓ src/library/libraryReference.test.ts (6 tests) 9ms
+ ✓ src/canvas/parameterPins.test.ts (6 tests) 68ms
+ ✓ src/canvas/algorithmReplacement.test.ts (4 tests) 13ms
+ ✓ src/ui/tooltipGeometry.test.ts (12 tests) 6ms
+ ✓ src/strictImageContract.test.ts (3 tests) 5ms
+ ✓ src/canvas/assembly.test.ts (2 tests) 8ms
+ ✓ src/canvas/NodeCardHeader.test.tsx (9 tests) 17ms
+ ✓ src/ui/Toast.test.ts (6 tests) 9ms
+ ✓ src/canvas/useTypeSummary.test.tsx (4 tests) 9ms
+ ✓ src/canvas/CanvasInlineValues.test.tsx (9 tests) 16ms
+ ✓ src/types/runtimeObservation.test.ts (8 tests) 6ms
+ ✓ src/canvas/imageCropGeometry.test.ts (13 tests) 9ms
+ ✓ src/canvas/EnvironmentChecks.test.tsx (4 tests) 12ms
+ ✓ src/packs/localOverviewModel.test.ts (3 tests) 11ms
+ ✓ src/canvas/parameterDifferences.test.ts (5 tests) 14ms
+ ✓ src/packs/communityBrowserModel.test.ts (4 tests) 15ms
+ ✓ src/canvas/composeRepairs.test.ts (9 tests) 10ms
+ ✓ src/api.requestIds.test.ts (3 tests) 14ms
+ ✓ src/packageIdentity.test.ts (4 tests) 10ms
+ ✓ src/canvas/CodeIdentityPanel.test.tsx (3 tests) 28ms
+ ✓ src/canvas/processReference.test.ts (5 tests) 11ms
+ ✓ src/packs/packManagerRoute.test.ts (4 tests) 6ms
+ ✓ src/canvas/composeGeometry.test.ts (6 tests) 7ms
+ ✓ src/packs/packDisplayName.test.ts (5 tests) 5ms
+ ✓ src/canvas/imageCropPixels.test.ts (4 tests) 6ms
+ ✓ src/canvas/packTree.test.ts (2 tests) 18ms
+ ✓ src/canvas/viewerBuild.test.ts (3 tests) 5ms
+ ✓ src/canvas/AssemblyNode.test.tsx (9 tests) 24ms
+ ✓ src/canvas/NodeRunControl.test.tsx (12 tests) 31ms
+ ✓ src/canvas/PackParameterField.test.tsx (3 tests) 9ms
+ ✓ src/packs/PackageTree.test.ts (1 test) 7ms
+ ✓ src/canvas/nodeDuplicate.test.ts (1 test) 5ms
+ ✓ src/canvas/MediaResolution.test.tsx (5 tests) 10ms
+ ✓ src/canvas/PublicationStatus.test.tsx (2 tests) 9ms
+ ✓ src/canvas/packCertification.test.ts (5 tests) 4ms
+ ✓ src/workflowErrors.test.ts (3 tests) 7ms
+ ✓ src/library/api.test.ts (1 test) 10ms
+ ✓ src/packs/packRegistryStatus.test.ts (2 tests) 4ms
+ ✓ src/canvas/EvidenceValue.test.tsx (2 tests) 13ms
+ ✓ src/newId.test.ts (2 tests) 7ms
+ ✓ src/canvas/historicalResult.test.tsx (3 tests) 35ms
+ ✓ src/canvas/workflowFactoryView.test.ts (1 test) 3ms
+ ✓ src/canvas/executionAnalysis.test.ts (1 test) 3ms
+ ✓ src/canvas/parameterEvidence.test.ts (1 test) 3ms
+ ✓ src/canvas/requiredInputs.test.ts (1 test) 3ms
+ ✓ src/packs/releaseCategory.test.ts (1 test) 4ms
+ ✓ src/packs/centralStatusKey.test.ts (1 test) 3ms
+ ✓ src/secureContextApis.test.ts (2 tests) 589ms
+   ✓ HTTP-compatible browser API policy > restricts secure-context APIs to tested fallback adapters throughout app source 577ms
+
+ Test Files  64 passed (64)
+      Tests  726 passed (726)
+   Start at  06:46:26
+   Duration  4.93s (transform 6.68s, setup 0ms, collect 15.31s, tests 1.44s, environment 17ms, prepare 5.14s)

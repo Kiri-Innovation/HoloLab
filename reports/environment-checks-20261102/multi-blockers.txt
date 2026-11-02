@@ -1,0 +1,61 @@
+{
+  "workflow_id": "b123f307-bc96-4217-8a20-a7d321c9a269",
+  "analyze": {
+    "http": 200,
+    "detail": null,
+    "blockers": null
+  },
+  "prepare": {
+    "http": 200,
+    "detail": null,
+    "blockers": [
+      "bad-a (community/hololab-env-probe-missing-bad-a@0.0.1): 本地能力检查失败, 任务未启动。capability_check: 要求=None; 当前=包声明不可用, 无法确认是否声明环境要求; 检查节点连接与版本后重新检查",
+      "bad-b (community/hololab-env-probe-missing-bad-b@0.0.1): 本地能力检查失败, 任务未启动。capability_check: 要求=None; 当前=包声明不可用, 无法确认是否声明环境要求; 检查节点连接与版本后重新检查"
+    ]
+  },
+  "run": {
+    "http": 422,
+    "detail": {
+      "issues": [
+        {
+          "where": "node:bad-a",
+          "message": "no online node offers pack community/hololab-env-probe-missing-bad-a@0.0.1"
+        },
+        {
+          "where": "node:bad-b",
+          "message": "no online node offers pack community/hololab-env-probe-missing-bad-b@0.0.1"
+        }
+      ]
+    },
+    "blockers": null
+  },
+  "run-token": {
+    "http": 422,
+    "detail": {
+      "issues": [
+        {
+          "where": "node:bad-a",
+          "message": "no online node offers pack community/hololab-env-probe-missing-bad-a@0.0.1"
+        },
+        {
+          "where": "node:bad-b",
+          "message": "no online node offers pack community/hololab-env-probe-missing-bad-b@0.0.1"
+        }
+      ]
+    },
+    "blockers": null
+  },
+  "single": {
+    "http": 422,
+    "detail": "bad-a (community/hololab-env-probe-missing-bad-a@0.0.1): 本地能力检查失败, 任务未启动。capability_check: 要求=None; 当前=包声明不可用, 无法确认是否声明环境要求; 检查节点连接与版本后重新检查",
+    "blockers": null
+  },
+  "jobs": [],
+  "cleanup": [
+    200,
+    {
+      "workflow_id": "b123f307-bc96-4217-8a20-a7d321c9a269",
+      "state": "deleted"
+    }
+  ]
+}

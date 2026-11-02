@@ -260,13 +260,13 @@ class CapabilityChecker:
                 installed = data["packages"].get(canonicalize_name(req.name))
                 source = data.get("package_sources", {}).get(canonicalize_name(req.name))
                 system_binary = False
-                if host_runtime and installed is None and shutil.which(req.name):
-                    # Bundled host packages may require an OS binary such as
+                if installed is None and shutil.which(req.name):
+                    # Packages in any runtime may require an OS binary such as
                     # ffmpeg rather than a Python distribution.  A versioned
                     # requirement still needs package metadata; an unpinned
                     # binary only needs to be executable on PATH.
                     installed = "system"
-                    source = "system-binary"
+                    source = "system-path"
                     system_binary = True
                 report["packages"][req.name] = installed
                 report["package_sources"][req.name] = source

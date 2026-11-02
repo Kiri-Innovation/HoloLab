@@ -240,6 +240,7 @@ class NodeRuntime:
         # Pack watcher — respawned when ``pack_dirs`` changes so the
         # awatch call binds to the new list.
         self._watch_task: asyncio.Task[None] | None = None
+        self._pack_reload_lock = asyncio.Lock()
 
         # Env cache — populated once at startup by
         # :func:`hololab.node.env_cache.warmup_env_cache`. Maps
@@ -587,6 +588,29 @@ class NodeRuntime:
             self._pack_watch_loop(), name="hololab-node-pack-watch"
         )
 
+    async def _reload_packs(self) -> dict[str, Any]:
+        """Serialize watcher/manual rescans and publish even source-only edits."""
+        async with self._pack_reload_lock:
+            packs = await asyncio.to_thread(_load_packs, list(self._config.pack_scan_dirs))
+            changed = not self._packs_equivalent(packs)
+            self._packs = packs
+            inventory = await asyncio.to_thread(self._pack_inventory)
+            await self._send(
+                "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs))
+            )
+            return {"count": len(packs), "manifest_changed": changed}
+
+    async def _pack_reload_reply(self, request) -> None:
+        from hololab.protocol.messages import PackReloadResp
+
+        try:
+            result = await self._reload_packs()
+        except Exception as exc:
+            result = {"error": str(exc)}
+        await self._safe_send(
+            "pack_reload_resp", PackReloadResp(req_id=request.req_id, result=result)
+        )
+
     async def _pack_watch_loop(self) -> None:
         """Watch the packs directory and push ``packs_updated`` on change.
 
@@ -599,25 +623,26 @@ class NodeRuntime:
         # of them triggers a rescan of the full list, so a developer
         # editing a manifest in their custom source directory triggers
         # a ``packs_updated`` without needing to restart the node.
-        pack_dirs = list(self._config.pack_scan_dirs)
-        watch_roots = _pack_watch_roots(pack_dirs)
-
-        # Deferred import so plain --help stays fast.
-        from watchfiles import awatch
-
         try:
+            pack_dirs = list(self._config.pack_scan_dirs)
+            watch_roots = _pack_watch_roots(pack_dirs)
+
+            # Deferred import so plain --help stays fast.  Keep it inside
+            # the guarded block: a missing optional dependency used to make
+            # this background task die before its exception handler, with no
+            # useful indication that hot reload was disabled.
+            from watchfiles import awatch
+
+            log.info("pack watcher started", roots=[str(root) for root in watch_roots])
             async for _changes in awatch(*watch_roots, recursive=True, step=250):
-                new_packs = _load_packs(pack_dirs)
-                if self._packs_equivalent(new_packs):
-                    continue
-                self._packs = new_packs
-                log.info("packs changed on disk", count=len(new_packs))
-                await self._refresh_environment_evidence(send_update=False)
-                if self._ws is not None:
-                    inventory = self._pack_inventory()
-                    await self._safe_send(
-                        "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs))
-                    )
+                try:
+                    result = await self._reload_packs()
+                    log.info("packs changed on disk", **result)
+                    await self._refresh_environment_evidence(send_update=True)
+                except Exception as exc:
+                    # A disconnected gateway or a transient scan error must
+                    # not disable future automatic or manual refreshes.
+                    log.warning("pack refresh failed; watcher continues", error=str(exc))
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -944,6 +969,10 @@ class NodeRuntime:
                         fut.set_result(payload)
                 elif env.kind == "process_terminate_req":
                     task = asyncio.create_task(self._process_terminate_reply(payload))
+                    lens_tasks.add(task)
+                    task.add_done_callback(lens_tasks.discard)
+                elif env.kind == "pack_reload_req":
+                    task = asyncio.create_task(self._pack_reload_reply(payload))
                     lens_tasks.add(task)
                     task.add_done_callback(lens_tasks.discard)
                 elif env.kind == "pack_install_req":

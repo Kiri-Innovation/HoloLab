@@ -1,3 +1,4 @@
+import { CapabilityContext } from "./EnvironmentChecks";
 import { canonicalPackageName } from "../packageIdentity";
 import { packCertification } from "./packCertification";
 import { ImageCropEditor } from "./ImageCropEditor";
@@ -14,7 +15,7 @@ import { PortHandle } from "./PortHandle";
 // dataset attributes. The App-level onConnect validator reads those tags to
 // enforce tag compatibility at edge-drawing time.
 
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { NodeRunControl } from "./NodeRunControl";
 import { nodeStatus } from "./nodeStatus";
 import { NodeCardHeader } from "./NodeCardHeader";
@@ -361,6 +362,7 @@ export function dispatchRunNode(graph_node_id: string): Promise<void> {
 }
 
 export function AlgorithmNode({ id, data, selected }: NodeProps) {
+  const environment = useContext(CapabilityContext)[id];
   const {
     pack,
     assigned_node_id,
@@ -485,7 +487,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       <NodeCardHeader id={id} name={pack.name} displayName={packDisplayName?.(pack.name) ?? pack.name} version={pack.version} device={assignedLabel}
         certification={certification}
         subtitle={`${assignedLabel} · v${pack.version}${pack.version.endsWith("+") ? " · dev" : ""}`}
-        state={displayedState} status={nodeStatus({ state: displayedState, stale: staleness, failReason: runtime?.fail_reason, missingAlgorithm: pack.manifest_hash ? null : {name: pack.name, version: pack.version}, missingInputs, readOnly })}
+        state={displayedState} status={nodeStatus({ environment, state: displayedState, stale: staleness, failReason: runtime?.fail_reason, missingAlgorithm: pack.manifest_hash ? null : {name: pack.name, version: pack.version}, missingInputs, readOnly })}
         actions={!readOnly && <NodeRunControl id={id} pending={runClickPending} state={runState} jobId={runtime?.job_id}
           stale={staleness?.kind === "self_dirty"} blockedReason={inputProblem} onRun={handleRunClick} />}>
         {runErrorMsg && !inputProblem && (

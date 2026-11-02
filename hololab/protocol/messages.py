@@ -822,6 +822,15 @@ class PackStatusResp(BaseModel):
     result: dict[str, Any]
 
 
+class PackReloadReq(BaseModel):
+    req_id: str
+
+
+class PackReloadResp(BaseModel):
+    req_id: str
+    result: dict[str, Any]
+
+
 class PackInstallReq(BaseModel):
     req_id: str
     spec: str

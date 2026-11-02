@@ -1,0 +1,15 @@
+{
+  "analysisHTTP": 200,
+  "errors": [
+    {
+      "id": "nmvys8rqp3",
+      "state": "idle",
+      "tone": "error",
+      "text": "本地能力检查失败。community/birefnet-mask@0.1.0\nprepare_params: 要求={\"hololab_root\":\"/cloud/cloud-ssd1/Kiri4DGS/hololab\",\"checkpoint\":\"/cloud/cloud-ssd1/Kiri4DGS/temp/4DAnyone/models/birefnet\",\"reference_frames\":\"\"}; 当前=Parameter reference_frames: enter a nonempty path string; 检查该节点的执行设备与本地路径参数后重新准备 处理环境问题后重新检查；当前配置不能启动新任务。"
+    }
+  ],
+  "greenDone": 2,
+  "prepareHTTP": 200,
+  "runRequests": 0,
+  "dialog": "无法运行工作流\n×\nnmvys8rqp3 (community/birefnet-mask@0.1.0): 本地能力检查失败, 任务未启动。prepare_params: 要求={'hololab_root': '/cloud/cloud-ssd1/Kiri4DGS/hololab', 'checkpoint': '/cloud/cloud-ssd1/Kiri4DGS/temp/4DAnyone/models/birefnet', 'reference_frames': ''}; 当前=Parameter reference_frames: enter a nonempty path string; 检查该节点的执行设备与本地路径参数后重新准备"
+}
