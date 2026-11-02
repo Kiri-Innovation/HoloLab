@@ -235,10 +235,11 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         : <EvidenceValue value={requires} truncate={false} />;
     const source = entry.release?.source ?? String(entry.catalog?.publication?.source ?? '');
     const content = entry.catalog?.content;
-    const sourcePath = installed ? content?.root_abs ?? entry.catalog?.source_dir : undefined;
     const locations = installed && nodeId ? entry.catalog?.locations_by_node?.[nodeId] ?? [] : [];
     const multipleLocations = locations.length > 1;
     const effectiveLocation = locations.find(location => location.effective);
+    // Prefer the manifest directory; preserve the legacy fallback for older nodes.
+    const sourcePath = installed ? (effectiveLocation ?? locations[0])?.pack_dir ?? content?.root_abs ?? entry.catalog?.source_dir : undefined;
     const sourceLabel = (type: string) => type === 'community_install' ? '社区安装' : type === 'bundled' ? '内置包' : '源码扫描';
     const manifestDiffers = new Set(locations.map(location => location.manifest_hash)).size > 1;
     const knownCodeHashes = locations.map(location => location.code_sha256).filter(Boolean);
@@ -289,21 +290,22 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         <button className="hl-pack-status-refresh" disabled={centralLoading} onClick={()=>void refreshCentralComparison()}>{centralLoading ? '查询中…' : '刷新注册表'}</button>
       </section>
       <details className="hl-pack-section" open><summary>安装与内容</summary>
-        {multipleLocations && effectiveLocation && <p>当前生效 · {sourceLabel(effectiveLocation.source_type)}</p>}
-        {sourcePath && <div><code className="hl-pack-command">{sourcePath}</code>{entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} />}<button className="hl-evidence-primary" onClick={async () => {
+        {!multipleLocations && sourcePath && <div><code className="hl-pack-command">{sourcePath}</code>{entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} />}<button className="hl-evidence-primary" onClick={async () => {
           const ok = await writeToClipboard(sourcePath);
           setCommandStatus(current => ({...current, [entry.key]: ok ? '本地路径已复制。' : '未能复制，请选中路径手动复制。'}));
         }}>复制路径</button><span role="status">{commandStatus[entry.key]}</span></div>}
         {multipleLocations && <div data-testid="pack-locations">
           {locations.map(location => <div key={location.manifest_path}>
             <p>{location.effective ? '当前生效' : `未生效（被${effectiveLocation?.source_type === 'community_install' ? '社区版' : '优先路径'}覆盖）`} · {sourceLabel(location.source_type)}</p>
-            <code className="hl-pack-command">{location.pack_dir}</code>
-            {!location.effective && <button type="button" className="hl-evidence-primary" onClick={async () => {
+            <div className="hl-pack-copy-actions"><code className="hl-pack-command">{location.pack_dir}</code>
+            {location.effective && entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={selectedNode ?? null} />}
+            <button type="button" className="hl-evidence-primary" onClick={async () => {
               const ok = await writeToClipboard(location.pack_dir);
-              setCommandStatus(current => ({...current, [entry.key]: ok ? '副本路径已复制。' : '未能复制，请选中路径手动复制。'}));
-            }}>复制副本路径</button>}
+              setCommandStatus(current => ({...current, [entry.key]: ok ? (location.effective ? '本地路径已复制。' : '副本路径已复制。') : '未能复制，请选中路径手动复制。'}));
+            }}>{location.effective ? '复制路径' : '复制副本路径'}</button></div>
             <p>manifest sha256 <code>{location.manifest_hash}</code> · 内容 sha256 <code>{location.code_sha256 ?? '未知'}</code></p>
           </div>)}
+          <span className="hl-pack-copy-status" role="status">{commandStatus[entry.key]}</span>
           {codeDiffers && <p role="status">内容哈希不一致，两处内容不同。</p>}
           {manifestDiffers && <p role="status">清单哈希不一致，两处清单不同。</p>}
           {knownCodeHashes.length < locations.length && <p>未计算全部副本的内容哈希；清单相同不代表内容一致。</p>}
