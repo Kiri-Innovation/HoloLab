@@ -13,15 +13,24 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
+import sys
 import textwrap
+import types
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 import yaml
 
 from hololab.node.config import NodeConfig, load_node_config
 from hololab.node.packs import scan_multi_packs, scan_packs
-from hololab.node.runtime import _coerce_pack_dirs_patch, _pack_watch_roots
+from hololab.node.runtime import (
+    NodeRuntime,
+    _coerce_pack_dirs_patch,
+    _load_packs,
+    _pack_watch_roots,
+)
 
 
 def _write_manifest(pack_dir: Path, name: str, version: str) -> None:
@@ -335,6 +344,60 @@ def test_pack_watch_roots_mixed_dir_and_file(tmp_path: Path) -> None:
     roots = _pack_watch_roots([dir_root, manifest])
     assert dir_root.is_dir()  # auto-created
     assert roots == [dir_root, file_holder]
+
+
+def test_pack_watcher_rescans_and_pushes_manifest_viewer_edits(tmp_path: Path, monkeypatch) -> None:
+    """One filesystem event refreshes the catalog payload, including viewers."""
+
+    root = tmp_path / "packs"
+    install_root = tmp_path / "installed"
+    runtime = NodeRuntime(
+        NodeConfig(
+            pack_dirs=[root],
+            install_dir=install_root,
+            workspace_root=tmp_path / "work",
+        )
+    )
+    runtime._packs = _load_packs(runtime._config.pack_scan_dirs)
+    runtime._ws = object()
+    runtime._safe_send = AsyncMock()
+    runtime._refresh_environment_evidence = AsyncMock()
+
+    _write_manifest(root / "probe@0.0.1", "probe", "0.0.1")
+    manifest = root / "probe@0.0.1/manifest.yaml"
+    manifest.write_text(
+        manifest.read_text()
+        + textwrap.dedent(
+            """\
+            node_viewers:
+            - id: live
+              renderer: iframe
+              entry: viewer.html
+            """
+        )
+    )
+
+    async def fake_awatch(*roots, **kwargs):
+        assert roots == (install_root, root)
+        assert kwargs == {"recursive": True, "step": 250}
+        yield {("added", str(manifest))}
+        await asyncio.Event().wait()
+
+    monkeypatch.setitem(sys.modules, "watchfiles", types.SimpleNamespace(awatch=fake_awatch))
+
+    async def exercise() -> None:
+        task = asyncio.create_task(runtime._pack_watch_loop())
+        for _ in range(20):
+            if runtime._safe_send.await_count:
+                break
+            await asyncio.sleep(0)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(exercise())
+    update = runtime._safe_send.await_args.args[1]
+    probe = next(pack for pack in update.packs if pack.name == "probe")
+    assert probe.manifest_hash
 
 
 # ---------------------------------------------------------------------------

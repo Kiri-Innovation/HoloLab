@@ -599,25 +599,39 @@ class NodeRuntime:
         # of them triggers a rescan of the full list, so a developer
         # editing a manifest in their custom source directory triggers
         # a ``packs_updated`` without needing to restart the node.
-        pack_dirs = list(self._config.pack_scan_dirs)
-        watch_roots = _pack_watch_roots(pack_dirs)
-
-        # Deferred import so plain --help stays fast.
-        from watchfiles import awatch
-
         try:
+            pack_dirs = list(self._config.pack_scan_dirs)
+            watch_roots = _pack_watch_roots(pack_dirs)
+
+            # Deferred import so plain --help stays fast.  Keep it inside
+            # the guarded block: a missing optional dependency used to make
+            # this background task die before its exception handler, with no
+            # useful indication that hot reload was disabled.
+            from watchfiles import awatch
+
+            log.info("pack watcher started", roots=[str(root) for root in watch_roots])
             async for _changes in awatch(*watch_roots, recursive=True, step=250):
                 new_packs = _load_packs(pack_dirs)
                 if self._packs_equivalent(new_packs):
-                    continue
+                    # A manifest hash cannot see an implementation or a
+                    # viewer asset edit.  Still publish: ``_pack_inventory``
+                    # recalculates the declared-content identity, and new
+                    # jobs must observe the developer's changed source.
+                    log.info("pack files changed on disk; manifest inventory is unchanged")
                 self._packs = new_packs
                 log.info("packs changed on disk", count=len(new_packs))
-                await self._refresh_environment_evidence(send_update=False)
+                # Publish the new manifest inventory first.  Probing every
+                # pack's environment can take seconds on a development node;
+                # making that probe a prerequisite for ``packs_updated``
+                # defeated hot reload's purpose.  Existing evidence is safe
+                # to include here and the following incremental frame fills
+                # in changed/new evidence when it is ready.
                 if self._ws is not None:
                     inventory = self._pack_inventory()
                     await self._safe_send(
                         "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs))
                     )
+                await self._refresh_environment_evidence(send_update=True)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
