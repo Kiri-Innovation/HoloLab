@@ -1,6 +1,6 @@
 """Opt-in real GPU smoke: set HOLOLAB_ALGORITHM_PYTHON, run with node Python.
 
-Uses synthetic 3-camera data, external k4d/stg-init@0.3.5 + k4d/stg-train@0.4.9
+Uses synthetic 3-camera data, external k4d/stg-init@0.3.6 + k4d/stg-train@0.4.10
 checkouts, and one training iteration. No gateway connection or changes to
 existing workflows.
 """

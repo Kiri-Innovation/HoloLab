@@ -1,4 +1,4 @@
-"""``k4d/stg-train@0.4.9`` consumes the portable state created by ``k4d/stg-init``."""
+"""``k4d/stg-train@0.4.10`` consumes the portable state created by ``k4d/stg-init``."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def _load() -> object:
 def test_manifest_declares_split_state_contract() -> None:
     m = _load()
     assert m.name == "k4d/stg-train"
-    assert m.version == "0.4.9"
+    assert m.version == "0.4.10"
     assert set(m.inputs) == {"state", "supervision"}
     assert m.inputs["state"].tags == ["stg-training-state"]
     assert m.inputs["supervision"].tags == ["stg-supervision"]

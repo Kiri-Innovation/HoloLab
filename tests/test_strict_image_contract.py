@@ -275,8 +275,8 @@ def test_current_main_chain_edges_and_broadcast_contract():
         ("tri", names[1], True),
         ("sfm", names[2], False),
         ("merge", names[3], True),
-        ("stg-init", "stg-init@0.3.5", False),
-        ("stg", "stg-train@0.4.9", False),
+        ("stg-init", "stg-init@0.3.6", False),
+        ("stg", "stg-train@0.4.10", False),
     ]:
         alg, ver = name.split("@")
         pack_name, pack_version = next(

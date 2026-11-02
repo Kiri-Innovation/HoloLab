@@ -64,7 +64,7 @@ def test_real_stg_relocation_and_five_changes(tmp_path):
     original_manifest = target_manifest.read_bytes()
     # Real STG release metadata must not alter semantic identity, including a
     # release-time baseline refresh. Mutations only affect the temporary copy.
-    dev_manifest = original_manifest.replace(b"version: 0.3.5", b"version: 0.3.5+")
+    dev_manifest = original_manifest.replace(b"version: 0.3.6", b"version: 0.3.6+")
     assert dev_manifest != original_manifest
     target_manifest.write_bytes(dev_manifest)
     dev = capture(target_manifest, baselines)
