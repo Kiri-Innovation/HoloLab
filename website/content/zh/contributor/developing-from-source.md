@@ -28,15 +28,15 @@ npm run dev
 
 ## 改动后怎样生效
 
-| 改动位置 | 正在使用什么启动方式 | 生效方式 | 对正在运行的 Job |
-| --- | --- | --- | --- |
-| `hololab/frontend/src/` 中的 React/UI | `npm run dev` | Vite HMR；若该模块不能热替换，刷新 `:5173`。不重启 Gateway。 | 不影响 |
-| 前端构建产物 `frontend/dist` | `hololab start` 在 `:8828` 提供界面 | 执行 `npm run build` 后刷新浏览器；建议强制刷新。StaticFiles 每次请求从磁盘查找文件，不必重启 Gateway。 | 不影响 |
-| 新增或修改 `/api` 路由、Gateway Python 代码 | `hololab dev` | Gateway 的 reloader 会重启；等待它重新监听后重试请求。 | Gateway 重启期间请求会断开；节点会自动重连，已启动的 Job 不会被 Gateway 重启终止。 |
-| 新增或修改 `/api` 路由、Gateway Python 代码 | `hololab start` 或独立 `hololab start gateway` | 重启 Gateway。路由在应用创建时用 `include_router` 注册，不能靠浏览器刷新加入。 | 同上 |
-| Pack 的 `manifest.yaml`、包内实现文件或 Pack viewer 资源 | 任意正常节点 | 节点 watcher 重新扫描并发送 `packs_updated`；Gateway 转发后界面更新，无需重启节点。也可点击 **Packs** 面板或包管理页的 **重新扫描包**，它会调用 `POST /api/packs/reload`；接口可用 `node_id` 指定一个节点，省略则重扫全部在线节点。 | 不影响已启动的 Job；只影响之后启动的 Job。 |
-| fileserver Python 代码 | 任意启动方式 | 重启承载该节点的进程；一体模式就是重启 HoloLab。当前没有 fileserver 代码的自动热重启入口。 | 不会由 fileserver 重启终止已启动的 Job；缩略图、预览和工作空间文件服务会短暂不可用。 |
-| 节点侧 Python 代码（调度、扫描、执行等） | 任意启动方式 | 重启该节点；一体模式下重启 HoloLab。`hololab dev` 只自动重载 Gateway，不自动重载节点。 | 不要预期已启动的 Job 采用新代码；改动用于后续 Job。 |
+| 改的是 HoloLab 的哪一块 | 生效方式 | 对正在运行的 Job |
+| --- | --- | --- |
+| 前端界面（画布、面板、表单；`hololab/frontend/`） | 用 `npm run dev` 时，Vite HMR 自动更新；不能热替换时刷新 `:5173`。用 `hololab start` 提供构建后的界面时，在 `hololab/frontend` 执行 `npm run build`，再刷新 `:8828`，建议强制刷新。两种方式都不必重启 Gateway。 | 不影响 |
+| 网关（Gateway，API 与静态资源服务；`hololab/gateway/`） | 修改网关代码（包括新增或修改 `/api` 路由）后，用 `hololab dev` 时会自动重启 Gateway，等待它重新监听后重试请求；用 `hololab start` 或独立 `hololab start gateway` 时需手动重启。路由在应用创建时注册，刷新浏览器不能载入新路由。 | Gateway 重启期间请求会断开；节点会自动重连。单独重启 Gateway 不会终止已启动的 Job；一体模式重启同时涉及节点。 |
+| 算法包（Pack，manifest、包内实现与 viewer 资源） | 节点 watcher 重新扫描并发送 `packs_updated`，Gateway 转发后界面更新，无需重启节点。也可点击 **Packs** 面板或包管理页的 **重新扫描包**。 | 不影响已启动的 Job；只影响之后启动的 Job。 |
+| 文件服务（fileserver，缩略图、预览与工作空间文件；`hololab/node/fileserver*.py`） | 重启承载该节点的进程；一体模式就是重启 HoloLab。当前没有 fileserver 代码的自动热重启入口。 | 单独重启 fileserver 不会终止已启动的 Job；缩略图、预览和工作空间文件服务会短暂不可用。 |
+| 节点（Node，调度、扫描与执行；`hololab/node/`） | 重启该节点；一体模式下重启 HoloLab。`hololab dev` 只自动重载 Gateway，不自动重载节点。 | 不要预期已启动的 Job 采用新代码；改动用于后续 Job。 |
+
+前端构建产物由 StaticFiles 在每次请求时从磁盘查找，因此更新 `frontend/dist` 不需要重启 Gateway。手动重扫包调用的是 `POST /api/packs/reload`；带 `node_id` 时重扫指定节点，省略则重扫全部在线节点。
 
 前端构建的 JS/CSS 文件名带内容哈希。已经打开的页面仍引用旧文件名，因此即使新构建已经落盘，也要刷新页面；缓存异常时用浏览器强制刷新更稳。
 
