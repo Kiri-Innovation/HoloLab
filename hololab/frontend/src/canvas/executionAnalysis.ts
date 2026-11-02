@@ -1,9 +1,10 @@
 import type { EnvironmentReport } from "./EnvironmentChecks";
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SnapshotJob, WorkflowGraph } from '../wire';
 import type { NodeStaleness } from './staleness';
 import { analysisSignatures, type AnalysisContext } from './analysisInputs';
 import { analysisMetrics } from './analysisMetrics';
+import { pendingAlgorithmChanges } from './pendingAlgorithmChanges';
 
 export type CanvasJob = SnapshotJob & { snapshot_id: string; historical_only?: boolean };
 
@@ -71,7 +72,11 @@ export function useExecutionAnalysis(workflow: string | null, graph: WorkflowGra
   }, [key, refresh]);
   const current = result?.workflow === workflow && result?.key === key ? result : undefined;
   const previous = lastSuccess?.workflow === workflow ? lastSuccess : undefined;
-  const data = current?.data ?? previous?.data;
+  // SWR keeps useful runtime evidence, but a package replacement is already
+  // known locally. Do not keep displaying its old 'clean' verdict until RPCs finish.
+  const data = useMemo(() => current?.data ?? (previous?.data
+    ? pendingAlgorithmChanges(graph, previous.data) : undefined),
+    [key, current?.data, previous?.data]);
   const status = current?.error ? 'error' : current?.data ? 'ready' : data ? 'checking' : 'unchecked';
   return {data, error:current?.error, status,
     // Evidence identity is separate from the Gateway's configuration revision.
