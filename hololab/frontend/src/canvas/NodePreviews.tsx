@@ -490,9 +490,10 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
             frames={defaultNodeViewerFrames}
             historyTarget={
               defaultNodeViewer.history_output
-                ? previews?.[defaultNodeViewer.history_output] ?? runningHistoryTarget
+                ? runningHistoryTarget ?? previews?.[defaultNodeViewer.history_output]
                 : null
             }
+            jobId={runtime?.job_id}
             running={runInFlight}
             progress={runtime?.progress ?? null}
             workflowView={viewer_view}
