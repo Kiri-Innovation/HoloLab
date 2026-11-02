@@ -175,7 +175,7 @@ export function NodeInspector({
       {!isConstantName(pack.name) && assignment && <section className="hl-inspector-execution" aria-label="Run on">
         <h3 style={SECTION_TITLE}>Run on</h3>
         {assignment}
-        <div className="hl-inspector-environment" data-tooltip={environment.title} data-tooltip-delay="150" tabIndex={0}>
+        <div className="hl-inspector-environment" data-tooltip={environment.title} data-tooltip-delay="150" data-tooltip-placement="below" data-tooltip-align="left" tabIndex={0}>
           环境：{environment.label}
         </div>
       </section>}

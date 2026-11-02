@@ -3,6 +3,14 @@ import { tooltipGeometry } from "./tooltipGeometry";
 
 const viewport = { width: 1000, height: 700 };
 const bubble = { width: 120, height: 30 };
+it("forces below despite available space above and aligns the text and tail", () => {
+  const result = tooltipGeometry({ left: 100, top: 300, width: 200, bottom: 320 }, bubble, viewport, 1,
+    { placement: "below", align: "left", textInset: 13 });
+  expect(result.placement).toBe("below");
+  expect(result.top).toBe(328);
+  expect(result.left + 13).toBe(100);
+  expect(result.left + result.arrowX).toBe(100);
+});
 it.each([0.5, 1, 1.5])("positions the scaled tooltip and tail at zoom %s", zoom => {
   const size = { width: bubble.width * zoom, height: bubble.height * zoom };
   const result = tooltipGeometry({ left: 400, top: 200, width: 24 * zoom, bottom: 200 + 24 * zoom }, size, viewport, zoom);

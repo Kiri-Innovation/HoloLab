@@ -117,9 +117,15 @@ export function TooltipLayer() {
       const titleGap = parseFloat(style.getPropertyValue("--space-2")) + 5;
       // Computed padding/border already include zoom; do not scale this inset again.
       const textInset = parseFloat(style.paddingLeft) + parseFloat(style.borderLeftWidth);
-      const position = tooltipGeometry(tip.target.getBoundingClientRect(), rect,
+      const anchor = tip.target.getBoundingClientRect();
+      const leftAligned = tip.target.dataset.tooltipAlign === "left";
+      const anchorStyle = getComputedStyle(tip.target);
+      const contentInset = leftAligned ? parseFloat(anchorStyle.paddingLeft) + parseFloat(anchorStyle.borderLeftWidth) : 0;
+      const requestedPlacement = tip.target.dataset.tooltipPlacement;
+      const position = tooltipGeometry({ left: anchor.left + contentInset, top: anchor.top, bottom: anchor.bottom, width: anchor.width - contentInset }, rect,
         { width: window.innerWidth, height: window.innerHeight }, zoom,
-        tip.title ? { align: "left", gap: titleGap, textInset } : undefined);
+        { ...(tip.title ? { align: "left" as const, gap: titleGap, textInset } : leftAligned ? { align: "left" as const, textInset } : {}),
+          placement: requestedPlacement === "below" || requestedPlacement === "above" ? requestedPlacement : undefined });
       element.style.left = `${position.left}px`;
       element.style.top = `${position.top}px`;
       element.style.setProperty("--tooltip-arrow-x", `${position.arrowX - element.clientLeft}px`);
