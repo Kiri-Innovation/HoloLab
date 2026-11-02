@@ -1,4 +1,5 @@
 import { ASSEMBLE } from "./assembly";
+import { PackReload } from '../packs/PackReload';
 // Left sidebar: hierarchical, searchable palette of available packs.
 //
 // The tree is grouped by each pack's ``manifest.category`` (a slash-hierarchy
@@ -10,7 +11,6 @@ import { ASSEMBLE } from "./assembly";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { CatalogPack } from "../wire";
 import { firstTagColour } from "../tags";
-import { CONTROL_STYLE } from "../ui/controlStyles";
 
 export interface PackPaletteProps {
   catalog: CatalogPack[];
@@ -395,14 +395,9 @@ export function PackPalette({ catalog, onRefresh }: PackPaletteProps) {
         <h2 className="hl-section-title" style={{ margin: 0 }}>
           Packs
         </h2>
-        <button data-tooltip="刷新" aria-label="刷新"
-          onClick={onRefresh}
-          style={{ ...CONTROL_STYLE, color: "var(--text-muted)" }}
-        >
-          Refresh
-        </button>
       </div>
 
+      <PackReload onReload={onRefresh} />
       <div
         style={{
           padding: "8px 12px 6px",

@@ -361,6 +361,7 @@ def test_pack_watcher_rescans_and_pushes_manifest_viewer_edits(tmp_path: Path, m
     runtime._packs = _load_packs(runtime._config.pack_scan_dirs)
     runtime._ws = object()
     runtime._safe_send = AsyncMock()
+    runtime._send = runtime._safe_send
     runtime._refresh_environment_evidence = AsyncMock()
 
     _write_manifest(root / "probe@0.0.1", "probe", "0.0.1")
@@ -386,13 +387,18 @@ def test_pack_watcher_rescans_and_pushes_manifest_viewer_edits(tmp_path: Path, m
     monkeypatch.setitem(sys.modules, "watchfiles", types.SimpleNamespace(awatch=fake_awatch))
 
     async def exercise() -> None:
+        sent = asyncio.Event()
+
+        async def send(*args):
+            sent.set()
+
+        runtime._safe_send.side_effect = send
         task = asyncio.create_task(runtime._pack_watch_loop())
-        for _ in range(20):
-            if runtime._safe_send.await_count:
-                break
-            await asyncio.sleep(0)
-        task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+        try:
+            await asyncio.wait_for(sent.wait(), timeout=30)
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     asyncio.run(exercise())
     update = runtime._safe_send.await_args.args[1]

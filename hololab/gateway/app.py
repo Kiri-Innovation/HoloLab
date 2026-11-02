@@ -378,6 +378,7 @@ def create_app(
         app.state.pending_capabilities = {}
         app.state.pending_pack_status = {}
         app.state.pending_pack_installs = {}
+        app.state.pending_pack_reloads = {}
         app.state.path_browse_locks = {}
         app.state.pending_resource_lenses = {}
         app.state.pending_process_terminations = {}
@@ -1928,6 +1929,36 @@ def _mount_routes(app: FastAPI) -> None:
         if result.get("error"):
             raise HTTPException(409, result["error"])
         return result
+
+    @app.post("/api/packs/reload", tags=["packs"])
+    async def reload_packs(node_id: str | None = None):
+        from hololab.protocol.messages import PackReloadReq
+
+        registry = app.state.registry
+        sessions = registry.all_sessions()
+        if node_id is not None:
+            session = registry.get_session(node_id)
+            if session is None:
+                raise HTTPException(404, "计算节点离线或不存在")
+            sessions = [session]
+
+        async def reload_one(session):
+            request = PackReloadReq(req_id=str(uuid.uuid4()))
+            try:
+                reply = await _await_node_reply(
+                    app,
+                    session,
+                    "pack_reload_req",
+                    request,
+                    request.req_id,
+                    pending_key="pending_pack_reloads",
+                    timeout_s=120,
+                )
+                return {"node_id": session.node_id, **reply["result"]}
+            except HTTPException as exc:
+                return {"node_id": session.node_id, "error": str(exc.detail)}
+
+        return {"nodes": await asyncio.gather(*(reload_one(s) for s in sessions))}
 
     @app.get("/api/nodes/{node_id}/pack-status", tags=["packs"])
     async def pack_registry_status(node_id: str, name: str, version: str):
@@ -3920,6 +3951,7 @@ async def _await_node_reply(
         "pending_capabilities",
         "pending_pack_status",
         "pending_pack_installs",
+        "pending_pack_reloads",
     ):
         fut.node_session = session
     pending[req_id] = fut
@@ -4223,9 +4255,12 @@ async def _dispatch_node_frame(
         "capability_resp",
         "pack_status_resp",
         "pack_install_resp",
+        "pack_reload_resp",
     ):
         pending = (
-            app.state.pending_pack_installs
+            app.state.pending_pack_reloads
+            if kind == "pack_reload_resp"
+            else app.state.pending_pack_installs
             if kind == "pack_install_resp"
             else app.state.pending_pack_status
             if kind == "pack_status_resp"

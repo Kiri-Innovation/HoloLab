@@ -1,4 +1,5 @@
 import {packDisplayNames} from './packDisplayName';
+import {PackReload} from './PackReload';
 import {collapseRedundantCategory} from './packCategory';
 import {LocalOverviewPage, LocalResultsPage, localStatusPages} from './LocalPackPages';
 import {packManagerRoute, packManagerPath} from './packManagerRoute';
@@ -354,7 +355,8 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
       <div id="pack-panel-local" role="tabpanel" aria-labelledby="pack-tab-local" hidden={view !== 'local'}>
       <div className="hl-pack-workspace">
       <aside className="hl-dock hl-pack-palette hl-pack-sidebar">
-      <div className="hl-dock-heading"><h2 className="hl-section-title">本地安装</h2><button disabled={loading} onClick={() => setRevision(n => n + 1)}>{loading ? '读取中…' : '刷新'}</button></div>
+      <div className="hl-dock-heading"><h2 className="hl-section-title">本地安装</h2></div>
+      <PackReload onReload={() => setRevision(n => n + 1)} />
       <div className="hl-pack-directory hl-local-directory">
       <nav className="hl-community-index hl-pack-view-nav" aria-label="本地视图">
         {([['overview','总览'],['attention',`需要注意 (${summary.attention.length})`],['missing',`环境缺失 (${summary.missing.length})`],['undeclared',`未声明 (${summary.undeclared.length})`]] as const).map(([value,label])=><button key={value} aria-current={section===value?'page':undefined} onClick={()=>navigateLocal(value)}>{label}</button>)}
