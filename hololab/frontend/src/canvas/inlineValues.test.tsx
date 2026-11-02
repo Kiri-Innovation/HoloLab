@@ -238,7 +238,7 @@ it('shows the logical environment and resolved conda prefix for the assigned nod
     <NodeInspector selected={node} pack={pack} onChange={() => {}} onParamsChange={() => {}} assignment={<span>Device</span>} />,
   );
   expect(html).toContain('环境：kiri');
-  expect(html).toContain('title="实际 conda 环境：/cloud/cloud-ssd1/envs/kiri"');
+  expect(html).toContain('data-tooltip="实际 conda 环境：/cloud/cloud-ssd1/envs/kiri"');
 });
 
 it('labels host-runtime packs without implying a conda environment', () => {
@@ -250,7 +250,7 @@ it('labels host-runtime packs without implying a conda environment', () => {
     <NodeInspector selected={node} pack={pack} onChange={() => {}} onParamsChange={() => {}} assignment={<span>Device</span>} />,
   );
   expect(html).toContain('环境：本体环境');
-  expect(html).toContain('title="使用节点本体 Python，不使用 conda 环境"');
+  expect(html).toContain('data-tooltip="使用节点本体 Python，不使用 conda 环境"');
 });
 
 it('creates fresh format defaults and discards connected values across all edge replacements', () => {

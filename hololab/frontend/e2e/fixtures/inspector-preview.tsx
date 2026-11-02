@@ -8,6 +8,7 @@ import {AlgorithmNode, type AlgorithmNodeData} from '../../src/canvas/AlgorithmN
 import {InspectorPreview} from '../../src/canvas/InspectorPreview';
 import {SnapshotNodeInspector} from '../../src/canvas/SnapshotNodeInspector';
 import {NodeInspector} from '../../src/canvas/NodeInspector';
+import {TooltipLayer} from '../../src/ui/TooltipLayer';
 import {CanvasContext} from '../../src/canvas/CanvasContext';
 import {SnapshotCanvas} from '../../src/canvas/SnapshotCanvas';
 import type {SnapshotDetail} from '../../src/wire';
@@ -31,6 +32,6 @@ function Fixture(){
  <aside className="hl-inspector-sidebar"><div className="hl-sidebar-content">{mode==='snapshot'
  ? <SnapshotNodeInspector graphNodeId={selected} pack={pack} job={snapshot.jobs[0]} preview={preview&&<InspectorPreview data={preview.data}/>}/>
  : <NodeInspector selected={graphNode} pack={pack} onChange={()=>{}} onParamsChange={()=>{}} assignment={environmentFixture ? <span>GPU worker</span> : undefined} preview={<InspectorPreview data={data}/>}/>}</div></aside>
- </div></CanvasContext.Provider>;
+ <TooltipLayer/></div></CanvasContext.Provider>;
 }
 createRoot(document.getElementById('root')!).render(<Fixture/>);

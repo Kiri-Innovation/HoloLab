@@ -44,7 +44,7 @@ export function TooltipLayer() {
     const over = (event: PointerEvent) => {
       if (event.buttons) return;
       const target = targetFor(event.target);
-      if (target && !target.contains(event.relatedTarget as Node | null)) show(target, 350);
+      if (target && !target.contains(event.relatedTarget as Node | null)) show(target, target.dataset.tooltipDelay === "150" ? 150 : 350);
     };
     const out = (event: PointerEvent) => {
       const target = targetFor(event.target);
