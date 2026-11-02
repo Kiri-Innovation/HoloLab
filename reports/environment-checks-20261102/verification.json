@@ -1,0 +1,149 @@
+{
+  "date_utc": "2026-11-02",
+  "baseline_commit": "2dfbab4",
+  "endpoint": "http://127.0.0.1:8828/api/workflows/ca5d26f1-b30a-4c03-9511-31e4cb151d99/analyze",
+  "port_note": "No local listener on 4090; verified the running hololab screen instance on port 8828.",
+  "before": {
+    "http": 422,
+    "canvas_jobs": "absent (error response)",
+    "response_file": "before.json"
+  },
+  "after": {
+    "http": 200,
+    "canvas_jobs_count": 2,
+    "canvas_jobs": [
+      {
+        "job_id": "b827975b-edea-4eb5-9682-42bd8ebbecab",
+        "graph_node_id": "nmvys3ipd1",
+        "state": "done"
+      },
+      {
+        "job_id": "06b8d604-4ff0-4a88-a6fc-a347a005db7b",
+        "graph_node_id": "nmvys9zwg4",
+        "state": "done"
+      }
+    ],
+    "freeze_reference_check": {
+      "status": "satisfied",
+      "checked_at": 1793601872.6280582,
+      "issues": [],
+      "boundary": "本地能力检查只覆盖已声明且在可探测范围内的项; 通过不代表一定能运行。环境未冻结、未被代码身份覆盖。",
+      "environment_covered": false,
+      "runtime_verified": false,
+      "env": "fastgs",
+      "requires": {
+        "packages": [
+          "nvidia-smi",
+          "torch",
+          "numpy",
+          "pillow",
+          "matplotlib",
+          "plyfile",
+          "simple_knn",
+          "diff_gaussian_rasterization_fastgs"
+        ],
+        "gpu": {
+          "vram_gb": 4.0
+        }
+      },
+      "prefix": "/cloud/cloud-ssd1/conda/envs/fastgs",
+      "cache_hit": true,
+      "environment_fingerprint": "36ee2bf94b6ea2868c7516641ab009318a1e5f70992f9c5f451cb4e34cadfc2b",
+      "python": "3.10.21",
+      "packages": {
+        "nvidia-smi": "system",
+        "torch": "2.8.0+cu128",
+        "numpy": "2.2.6",
+        "pillow": "12.3.0",
+        "matplotlib": "3.10.9",
+        "plyfile": "1.1.5",
+        "simple_knn": "0.0.0",
+        "diff_gaussian_rasterization_fastgs": "0.0.0"
+      },
+      "package_sources": {
+        "nvidia-smi": "system-path",
+        "torch": "python-distribution",
+        "numpy": "python-distribution",
+        "pillow": "python-distribution",
+        "matplotlib": "python-distribution",
+        "plyfile": "python-distribution",
+        "simple_knn": "python-distribution",
+        "diff_gaussian_rasterization_fastgs": "python-distribution"
+      },
+      "hardware_cache_hit": true,
+      "hardware": {
+        "gpus": [
+          {
+            "index": "0",
+            "uuid": "GPU-0ecce359-7788-6642-3033-4aee907c1c15",
+            "name": "NVIDIA GeForce RTX 4090",
+            "vram_gb": 23.98828125,
+            "driver": "595.80",
+            "arch": "sm89"
+          }
+        ],
+        "driver_cuda": "13.2"
+      },
+      "node_id": "463be0fa-5dcf-4245-88db-658d3e8129d1",
+      "source": "fastgs-freeze-reference@0.1.0"
+    },
+    "failed_nodes": {
+      "nmvys8rqp3": {
+        "status": "unknown",
+        "issues": [
+          {
+            "item": "prepare_params",
+            "required": {
+              "hololab_root": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+              "checkpoint": "/cloud/cloud-ssd1/Kiri4DGS/temp/4DAnyone/models/birefnet",
+              "reference_frames": ""
+            },
+            "actual": "Parameter reference_frames: enter a nonempty path string",
+            "remedy": "检查该节点的执行设备与本地路径参数后重新准备"
+          }
+        ],
+        "boundary": "本地能力检查只覆盖已声明且在可探测范围内的项; 通过不代表一定能运行。环境未冻结、未被代码身份覆盖。",
+        "environment_covered": false,
+        "runtime_verified": false,
+        "checked_at": null,
+        "node_id": "463be0fa-5dcf-4245-88db-658d3e8129d1",
+        "source": "community/birefnet-mask@0.1.0"
+      }
+    }
+  },
+  "browser": {
+    "real_gateway": true,
+    "existing_bad_node": "nmvys8rqp3",
+    "successful_green_nodes": 2,
+    "run_requests_sent": 0,
+    "note": "Only autosave was intercepted to keep the shared draft unchanged. Analysis and preparation responses came from the live gateway. An unexpected /run would have failed the verification.",
+    "screenshot": "one-bad-two-done.png",
+    "tooltip": "one-bad-node-tooltip.png",
+    "blocked_run": "run-blocked.png"
+  },
+  "multiple_blockers": {
+    "evidence": "multi-blockers.txt",
+    "temporary_draft_deleted": true,
+    "registry_published": false,
+    "jobs_created": 0
+  },
+  "tests": {
+    "backend": "86 passed; 4 pre-existing failures excluded after reproducing on unchanged HEAD",
+    "backend_command": ".venv-runtime/bin/python -m pytest tests/test_capabilities.py tests/test_environment_execution.py tests/test_execution_preparation.py tests/test_canvas_jobs.py tests/test_scoped_packages.py tests/test_frozen_execution.py tests/test_workflow_variables.py -k 'not test_failed_slot_with_changed_configuration_forks and not test_variable_edit_drives_analysis_dispatch_and_frozen_snapshot' -q",
+    "baseline_failures": [
+      "test_failed_slot_with_changed_configuration_forks[legacy]",
+      "test_failed_slot_with_changed_configuration_forks[alias]",
+      "test_failed_slot_with_changed_configuration_forks[dev]",
+      "test_variable_edit_drives_analysis_dispatch_and_frozen_snapshot"
+    ],
+    "frontend": "64 files, 726 tests passed",
+    "browser_regression": "1 passed (environment-failure.spec.ts; mocked network regression separate from live browser evidence)",
+    "build": "npm run build passed; existing bundle-size warning",
+    "ruff": "All checks passed"
+  },
+  "safety": {
+    "live_jobs_before_restart": 0,
+    "pack_declarations_changed": false,
+    "shared_draft_modified_by_verification": false
+  }
+}

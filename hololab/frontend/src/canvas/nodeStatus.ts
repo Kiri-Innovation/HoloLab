@@ -1,3 +1,4 @@
+import type { EnvironmentReport } from "./EnvironmentChecks";
 import type { NodeStaleness } from "./staleness";
 
 export type StatusTone = "neutral" | "info" | "success" | "warning" | "error";
@@ -11,6 +12,7 @@ export interface NodeStatusInput {
   /** A workflow algorithm reference absent from the current local catalog. */
   missingAlgorithm?: { name: string; version: string } | null;
   missingInputs?: string[];
+  environment?: EnvironmentReport;
   state?: string;
   stale?: NodeStaleness | null;
   /** Separate input also defines precedence for defensive/future combinations. */
@@ -20,7 +22,7 @@ export interface NodeStatusInput {
 }
 
 /** Presentation only: never mutate runtime, scheduling, or shared job colours. */
-export function nodeStatus({ state, stale, drift = false, failReason, readOnly = false, missingAlgorithm, missingInputs = [] }: NodeStatusInput): NodeStatusPresentation {
+export function nodeStatus({ state, stale, drift = false, failReason, readOnly = false, missingAlgorithm, missingInputs = [], environment }: NodeStatusInput): NodeStatusPresentation {
   const known = !state || ["loading", "pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted"].includes(state);
   const missingCurrentAlgorithm = !readOnly && !!missingAlgorithm;
   const oldParams = !readOnly && (drift || stale?.kind === "inflight_old_params");
@@ -72,6 +74,10 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
   // Append configuration evidence, not a second (possibly conflicting) runtime verdict.
   if (!missingCurrentAlgorithm && !readOnly && known && staleReason && !result.reason.includes(staleReason)) result.reason += `\n${staleReason}`;
   if (!missingCurrentAlgorithm && !readOnly && known && oldParams && (result.tone === "error" || state === "cancelled") && !staleReason) result.reason += "\n已提交任务与当前草稿不同。";
+  if (!readOnly && environment && ["missing", "unknown"].includes(environment.status)) {
+    const details = environment.issues.map(i => `${i.item}: 要求=${typeof i.required === "object" ? JSON.stringify(i.required) : i.required}; 当前=${typeof i.actual === "object" ? JSON.stringify(i.actual) : i.actual}; ${i.remedy}`).join("\n");
+    result = {tone: "error", conclusion: "本地能力检查失败", reason: `${environment.source ?? ""}\n${details}`, action: "处理环境问题后重新检查；当前配置不能启动新任务。"};
+  }
   if (readOnly) {
     result.conclusion = state === "done" ? "此快照中的运行已完成" : `此快照：${result.conclusion}`;
     if (state === "done") result.reason = "这是快照记录的完成状态，不代表当前草稿结果有效。";

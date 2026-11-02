@@ -90,11 +90,6 @@ async def check_workflow(app, graph, *, required=None, fresh=False, strict=False
             "node_id": node.assigned_node_id,
             "source": f"{node.algorithm_name}@{node.algorithm_version}",
         }
-        if strict:
-            try:
-                enforce(report)
-            except ValueError as exc:
-                raise ValueError(f"{node.id} ({report['source']}): {exc}") from exc
         return node.id, report
 
     rows = await asyncio.gather(
@@ -104,7 +99,26 @@ async def check_workflow(app, graph, *, required=None, fresh=False, strict=False
             if n.kind == "algorithm" and (required is None or n.id in required)
         )
     )
-    return dict(rows)
+    reports = dict(rows)
+    if strict:
+        enforce_workflow(reports)
+    return reports
+
+
+def environment_errors(reports):
+    errors = []
+    for node_id, report in reports.items():
+        try:
+            enforce(report)
+        except ValueError as exc:
+            errors.append(f"{node_id} ({report['source']}): {exc}")
+    return errors
+
+
+def enforce_workflow(reports):
+    errors = environment_errors(reports)
+    if errors:
+        raise ValueError("\n".join(errors))
 
 
 def require_check_support(session, node):

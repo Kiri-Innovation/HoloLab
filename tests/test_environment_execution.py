@@ -320,6 +320,41 @@ def test_workflow_open_lists_missing_and_preparation_fails(tmp_path, monkeypatch
         client.portal.call(prepare)
         selected.ws.send_text.assert_not_called()  # No JobAssign.
 
+        graph.nodes.append(graph.nodes[0].model_copy(update={"id": "b"}))
+
+        async def save():
+            return await client.app.state.workflows.save_draft(
+                workflow_id=None, name="environment regression", graph=graph
+            )
+
+        row = client.portal.call(save)
+        base = f"/api/workflows/{row.workflow_id}"
+        evidence = [
+            {"job_id": "historical", "graph_node_id": "a", "state": "done", "created_ts": 1}
+        ]
+        monkeypatch.setattr(
+            "hololab.gateway.canvas_jobs.canvas_jobs", AsyncMock(return_value=evidence)
+        )
+        analysis = client.post(base + "/analyze", json={"graph": graph.model_dump()})
+        assert analysis.status_code == 200, analysis.text
+        assert analysis.json()["canvas_jobs"][0]["state"] == "done"
+        assert set(analysis.json()["environment_checks"]) == {"a", "b"}
+        prepared = client.post(base + "/prepare", json={})
+        assert prepared.status_code == 200, prepared.text
+        assert len(prepared.json()["run_blockers"]) == 2
+        assert prepared.json()["graph"]["execution"]["prepared_nodes"] == []
+        for headers in ({}, {"X-Preparation-Token": prepared.json()["token"]}):
+            run = client.post(base + "/run", headers=headers)
+            assert run.status_code == 422, run.text
+            assert "a (demo@1.0.0)" in run.json()["detail"]
+            assert "b (demo@1.0.0)" in run.json()["detail"]
+        single = client.post(base + "/prepare", json={"node_id": "a"})
+        assert single.status_code == 422
+        assert "a (demo@1.0.0)" in single.text
+        assert "b (demo@1.0.0)" not in single.text
+        assert client.get("/api/jobs").json() == []
+        selected.ws.send_text.assert_not_called()
+
         selected.environment_checks = False
         old_node = client.post("/api/capabilities/check", json={"graph": graph.model_dump()}).json()
         assert old_node["nodes"]["a"]["status"] == "unknown"
@@ -351,3 +386,48 @@ async def test_node_blocks_missing_contract_before_process_spawn(tmp_path, monke
     )
     executor.assert_not_called()
     assert "未安装" in node._send_job_fail.call_args.kwargs["message"]
+
+
+def test_display_retains_node_path_preparation_error(tmp_path, monkeypatch):
+    pack = make_pack(tmp_path)
+    selected = session([pack])
+    selected.environment_checks = True
+    selected.packs[0].requires = pack.manifest.requires.model_dump()
+
+    async def rpc(app, node, kind, request, *args, **kwargs):
+        if kind == "capability_req":
+            return {"report": {"status": "satisfied", "issues": []}}
+        assert kind == "prepare_params_req"
+        if request.params["path"] == "":
+            return {"error": "Parameter path: enter a nonempty path string"}
+        return {"params": {"path": "/normalized/good"}}
+
+    monkeypatch.setattr("hololab.gateway.app._await_node_reply", rpc)
+    with TestClient(create_app(db_path=tmp_path / "paths.sqlite")) as client:
+        client.app.state.registry._sessions["n"] = selected
+        catalog = client.app.state.registry.catalog_json()
+        catalog[0]["params"] = {"path": {"type": "path"}}
+        monkeypatch.setattr(client.app.state.registry, "catalog_json", lambda: catalog)
+        graph = WorkflowGraph(
+            nodes=[
+                GraphNode(
+                    id=nid,
+                    algorithm_name="demo",
+                    algorithm_version="1.0.0",
+                    assigned_node_id="n",
+                    params={"path": path},
+                )
+                for nid, path in [("bad", ""), ("good", "good")]
+            ]
+        )
+
+        async def exercise():
+            result = await prepare_execution(client.app, graph, strict=False)
+            assert result.execution["environment_checks"]["bad"]["status"] == "unknown"
+            assert result.execution["environment_checks"]["good"]["status"] == "satisfied"
+            assert result.execution["prepared_nodes"] == ["good"]
+            assert result.nodes[1].params["path"] == "/normalized/good"
+            with pytest.raises(ValueError, match="Parameter path"):
+                await prepare_execution(client.app, graph, required={"bad"})
+
+        client.portal.call(exercise)

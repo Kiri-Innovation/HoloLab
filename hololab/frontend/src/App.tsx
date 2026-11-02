@@ -142,7 +142,7 @@ import {
 import { seedEdgeSummaryFacts } from "./canvas/edgeSummaryCache";
 import { RunsPanel } from "./canvas/RunsPanel";
 import { useDraftAutosave } from "./canvas/useDraftAutosave";
-import { EnvironmentChecks, useCapabilityChecks } from "./canvas/EnvironmentChecks";
+import { CapabilityContext, EnvironmentChecks, useCapabilityChecks } from "./canvas/EnvironmentChecks";
 import { SnapshotBanner } from "./canvas/SnapshotBanner";
 import { SnapshotCanvas } from "./canvas/SnapshotCanvas";
 import { SnapshotNodeInspector } from "./canvas/SnapshotNodeInspector";
@@ -2596,6 +2596,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             />
           </>
         ) : (
+          <CapabilityContext.Provider value={executionAnalysis.data?.environment_checks ?? capabilityChecks.reports}>
           <ReactFlow
             nodes={nodes}
             edges={displayEdges}
@@ -2635,6 +2636,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             {minimapOpen && <MiniMap pannable />}
             <Background gap={20} color="var(--rf-grid)" />
           </ReactFlow>
+          </CapabilityContext.Provider>
         )}
       </CanvasContext.Provider></AnalysisProfiler>
       {creationAnchor && !viewingSnapshot && (

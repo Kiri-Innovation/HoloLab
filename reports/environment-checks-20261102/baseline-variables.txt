@@ -1,0 +1,194 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_variable_edit_drives_analysis_dispatch_and_frozen_snapshot ________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-22/test_variable_edit_drives_anal0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f959d880bc0>
+
+    def test_variable_edit_drives_analysis_dispatch_and_frozen_snapshot(tmp_path, monkeypatch):
+        from copy import deepcopy
+
+        from fastapi.testclient import TestClient
+
+        from hololab.gateway.app import create_app
+        from hololab.gateway.execution import _dispatch_job, dispatch_graph_node
+        from hololab.gateway.preparation import analyze_execution, prepare_execution
+        from hololab.gateway.workflows import GraphEdge
+        from hololab.manifest.path_params import resolve_path_params
+        from hololab.manifest.schema import ParamSpec
+        from tests.test_frozen_execution import setup
+
+        async def prepare_paths(app, session, kind, request, *args, **kwargs):
+            assert kind == "prepare_params_req"
+            return {
+                "params": resolve_path_params(
+                    {"path": ParamSpec(type="path", must_exist=False)},
+                    request.params,
+                    check_exists=False,
+                )
+            }
+
+        monkeypatch.setattr("hololab.gateway.app._await_node_reply", prepare_paths)
+        with TestClient(create_app(db_path=tmp_path / "chain.sqlite")) as client:
+            app, catalog, graph, received = setup(client, tmp_path)
+            catalog[0]["params"]["path"] = {"type": "path", "default": "/default"}
+            catalog[0]["inputs"] = {"in": {"tags": ["text"], "required": False}}
+            catalog[0]["outputs"] = {"out": {"tags": ["text"]}}
+            graph.nodes.append(graph.nodes[0].model_copy(update={"id": "b"}, deep=True))
+            graph.edges = [
+                GraphEdge(id="ab", source="a", sourceHandle="out", target="b", targetHandle="in")
+            ]
+            graph.variables = WorkflowGraph(
+                variables={"dataset_dir": {"type": "path", "default": ""}}
+            ).variables
+            graph.variable_values = {"dataset_dir": str(tmp_path / "first")}
+            graph.nodes[0].param_bindings = {"path": "dataset_dir"}
+            graph.nodes[0].params = {"path": "/original-inline"}
+
+            async def exercise():
+                row = await app.state.workflows.save_draft(
+                    workflow_id=None, name="variables", graph=graph
+                )
+                frozen = await prepare_execution(app, graph)
+                snapshot = await app.state.workflows.create_snapshot(
+                    workflow_id=row.workflow_id, graph=frozen
+                )
+                for node in frozen.nodes:
+                    await _dispatch_job(
+                        registry=app.state.registry,
+                        store=app.state.jobs_store,
+                        hub=app.state.hub,
+                        snapshot_id=snapshot.snapshot_id,
+                        workflow_id=row.workflow_id,
+                        gnode=node,
+                        input_handles={},
+                        snapshot_jobs=app.state.snapshot_jobs,
+                    )
+                before = (
+                    await app.state.workflows.get_snapshot(snapshot.snapshot_id)
+                ).graph.model_dump_json()
+                graph.variable_values["dataset_dir"] = str(tmp_path / "second")
+                saved = await app.state.workflows.save_draft(
+                    workflow_id=row.workflow_id, name="variables", graph=graph
+                )
+                analysis = await analyze_execution(app, row.workflow_id, saved.graph)
+                assert analysis["staleness"]["a"]["kind"] == "self_dirty"
+                assert analysis["staleness"]["b"]["kind"] == "upstream_dirty"
+                effective = analysis["graph"]["nodes"][0]["params"]
+                assert effective["path"] == str(tmp_path / "second")
+                outcome = await dispatch_graph_node(
+                    app,
+                    workflow_id=row.workflow_id,
+                    graph=saved.graph,
+                    graph_node_id="a",
+                    base_snapshot_id=snapshot.snapshot_id,
+                )
+                assert outcome["operation"] == "fork"
+                assert received[-1][0] == received[-1][1] == effective
+                assert (
+                    await app.state.workflows.get_snapshot(snapshot.snapshot_id)
+                ).graph.model_dump_json() == before
+                # Restoring the frozen graph also retains its original inline-mode backup.
+                restored = await app.state.workflows.save_draft(
+                    workflow_id=None, name="restore", graph=deepcopy(frozen)
+                )
+                assert restored.graph.nodes[0].params["path"] == "/original-inline"
+                return snapshot.snapshot_id, outcome["snapshot_id"]
+
+>           old, new = client.portal.call(exercise)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_workflow_variables.py:198:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/cloud/cloud-ssd1/Kiri4DGS/hololab/.venv-runtime/lib/python3.12/site-packages/anyio/from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/cloud/cloud-ssd1/envs/kiri/lib/python3.12/concurrent/futures/_base.py:456: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+/cloud/cloud-ssd1/envs/kiri/lib/python3.12/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+/cloud/cloud-ssd1/Kiri4DGS/hololab/.venv-runtime/lib/python3.12/site-packages/anyio/from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def exercise():
+        row = await app.state.workflows.save_draft(
+            workflow_id=None, name="variables", graph=graph
+        )
+        frozen = await prepare_execution(app, graph)
+        snapshot = await app.state.workflows.create_snapshot(
+            workflow_id=row.workflow_id, graph=frozen
+        )
+        for node in frozen.nodes:
+            await _dispatch_job(
+                registry=app.state.registry,
+                store=app.state.jobs_store,
+                hub=app.state.hub,
+                snapshot_id=snapshot.snapshot_id,
+                workflow_id=row.workflow_id,
+                gnode=node,
+                input_handles={},
+                snapshot_jobs=app.state.snapshot_jobs,
+            )
+        before = (
+            await app.state.workflows.get_snapshot(snapshot.snapshot_id)
+        ).graph.model_dump_json()
+        graph.variable_values["dataset_dir"] = str(tmp_path / "second")
+        saved = await app.state.workflows.save_draft(
+            workflow_id=row.workflow_id, name="variables", graph=graph
+        )
+        analysis = await analyze_execution(app, row.workflow_id, saved.graph)
+        assert analysis["staleness"]["a"]["kind"] == "self_dirty"
+>       assert analysis["staleness"]["b"]["kind"] == "upstream_dirty"
+E       AssertionError: assert 'self_dirty' == 'upstream_dirty'
+E
+E         - upstream_dirty
+E         + self_dirty
+
+tests/test_workflow_variables.py:176: AssertionError
+----------------------------- Captured stdout call -----------------------------
+2026-11-02 06:44:04 [info     ] gateway started                component=gateway db=/tmp/pytest-of-root/pytest-22/test_variable_edit_drives_anal0/chain.sqlite frontend='no dist (placeholder page)'
+2026-11-02 06:44:04 [info     ] workflow save without base_updated_ts component=gateway.workflows note='concurrent-edit guard bypassed; migrate the client to send base_updated_ts' workflow_id=d8f0e87d-5dd6-417a-b192-6f3bfd3d52e3
+2026-11-02 06:44:04 [info     ] dispatched                     component=gateway.exec compute_node=node graph_node=a job_id=14b02ec0-386d-4614-9913-90f8315d65e7 pack=frozen-test@1.0.0
+2026-11-02 06:44:04 [info     ] dispatched                     component=gateway.exec compute_node=node graph_node=b job_id=c71d2ef1-95ea-46e6-841b-869ce4ba8d92 pack=frozen-test@1.0.0
+2026-11-02 06:44:04 [info     ] workflow save without base_updated_ts component=gateway.workflows note='concurrent-edit guard bypassed; migrate the client to send base_updated_ts' workflow_id=d8f0e87d-5dd6-417a-b192-6f3bfd3d52e3
+2026-11-02 06:44:04 [info     ] gateway stopped                component=gateway
+=============================== warnings summary ===============================
+tests/test_workflow_variables.py::test_variable_edit_drives_analysis_dispatch_and_frozen_snapshot
+  /cloud/cloud-ssd1/Kiri4DGS/hololab/.venv-runtime/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_workflow_variables.py::test_variable_edit_drives_analysis_dispatch_and_frozen_snapshot
+  /tmp/hololab-env-baseline/hololab/gateway/app.py:278: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+tests/test_workflow_variables.py::test_variable_edit_drives_analysis_dispatch_and_frozen_snapshot
+tests/test_workflow_variables.py::test_variable_edit_drives_analysis_dispatch_and_frozen_snapshot
+  /cloud/cloud-ssd1/Kiri4DGS/hololab/.venv-runtime/lib/python3.12/site-packages/fastapi/applications.py:4681: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+tests/test_workflow_variables.py::test_variable_edit_drives_analysis_dispatch_and_frozen_snapshot
+  /tmp/hololab-env-baseline/hololab/gateway/app.py:409: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_workflow_variables.py::test_variable_edit_drives_analysis_dispatch_and_frozen_snapshot
+1 failed, 10 deselected, 5 warnings in 0.95s

@@ -205,61 +205,78 @@ def changed_nodes(current: WorkflowGraph, frozen: WorkflowGraph) -> set[str]:
 
 
 async def prepare_execution(
-    app, graph: WorkflowGraph, *, required: set[str] | None = None
+    app, graph: WorkflowGraph, *, required: set[str] | None = None, strict: bool = True
 ) -> WorkflowGraph:
-    """Resolve once, obtain path normalization from the selected node, then seal."""
+    """Resolve and normalize; display callers collect failures with strict=False.
+
+    Only successfully prepared nodes may be submitted. Submission callers keep
+    strict checking, including when consuming a token from a display response.
+    """
+    from fastapi import HTTPException
+
     from hololab.gateway.app import _await_node_reply
     from hololab.protocol.messages import PrepareParamsReq
 
     validate_graph_identities(graph)
-    for node in graph.nodes:
-        if node.kind == "algorithm" and (required is None or node.id in required):
-            session = app.state.registry.get_session(node.assigned_node_id)
-            if session is not None:
-                offered_identity(session.packs, node.algorithm_name, node.algorithm_version)
     catalog = copy.deepcopy(app.state.registry.catalog_json())
     result = resolve_recipe(graph, catalog)
     required = required if required is not None else {n.id for n in graph.nodes if n.kind != "view"}
-    relevant = [i for i in result.execution["issues"] if i["node_id"] in required]
-    if relevant:
-        raise ValueError(relevant[0]["message"])
-    from hololab.gateway.capabilities import check_workflow
+    from hololab.gateway.capabilities import check_workflow, enforce_workflow
 
     result.execution["environment_checks"] = await check_workflow(
-        app, result, required=required, fresh=True, strict=True
+        app, result, required=required, fresh=True
     )
+    blocked = {
+        nid
+        for nid, report in result.execution["environment_checks"].items()
+        if report["status"] in ("missing", "unknown")
+    }
+    required = required - blocked
     for node in result.nodes:
-        if node.kind == "algorithm" and node.id in required:
-            selected = app.state.registry.get_session(node.assigned_node_id)
-            if selected is None:
+        if node.kind != "algorithm" or node.id not in required:
+            continue
+        paths = result.execution["environment_params"].get(node.id, [])
+        try:
+            session = app.state.registry.get_session(node.assigned_node_id)
+            if session is None:
                 raise ValueError(f"{node.id}: select an online execution node")
             wire_name, wire_version = offered_identity(
-                selected.packs, node.algorithm_name, node.algorithm_version
+                session.packs, node.algorithm_name, node.algorithm_version
             )
-        paths = result.execution["environment_params"].get(node.id, [])
-        if not paths or node.id not in required:
-            continue
-        session = app.state.registry.get_session(node.assigned_node_id)
-        if session is None:
-            raise ValueError(f"{node.id}: select an online execution node to prepare paths")
-        req_id = str(uuid.uuid4())
-        reply = await _await_node_reply(
-            app,
-            session,
-            "prepare_params_req",
-            PrepareParamsReq(
-                req_id=req_id,
-                algorithm_name=wire_name,
-                algorithm_version=wire_version,
-                params=node.params,
-            ),
-            req_id,
-            pending_key="pending_parameter_preparations",
-        )
-        if reply.get("error"):
-            raise ValueError(reply["error"])
-        node.params = reply["params"]
-    result.execution["prepared_nodes"] = sorted(required)
+            if not paths:
+                continue
+            req_id = str(uuid.uuid4())
+            reply = await _await_node_reply(
+                app,
+                session,
+                "prepare_params_req",
+                PrepareParamsReq(
+                    req_id=req_id,
+                    algorithm_name=wire_name,
+                    algorithm_version=wire_version,
+                    params=node.params,
+                ),
+                req_id,
+                pending_key="pending_parameter_preparations",
+            )
+            if reply.get("error"):
+                raise ValueError(reply["error"])
+            node.params = reply["params"]
+        except (ValueError, TimeoutError, ConnectionError, HTTPException) as exc:
+            report = result.execution["environment_checks"][node.id]
+            report["status"] = "unknown"
+            report["issues"].append(
+                {
+                    "item": "prepare_params",
+                    "required": {key: node.params.get(key) for key in paths},
+                    "actual": str(exc),
+                    "remedy": "检查该节点的执行设备与本地路径参数后重新准备",
+                }
+            )
+            blocked.add(node.id)
+    if strict:
+        enforce_workflow(result.execution["environment_checks"])
+    result.execution["prepared_nodes"] = sorted(required - blocked)
     return result
 
 
@@ -292,6 +309,18 @@ async def submitted_execution(
                 detail="Preparation is stale; prepare the current configuration again",
             )
         prepared = WorkflowGraph.model_validate_json(row[1])
+        from hololab.gateway.capabilities import enforce_workflow
+
+        try:
+            enforce_workflow(
+                {
+                    nid: report
+                    for nid, report in prepared.execution.get("environment_checks", {}).items()
+                    if required is None or nid in required
+                }
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         needed = (
             required if required is not None else {n.id for n in graph.nodes if n.kind != "view"}
         )
@@ -407,9 +436,7 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
     from hololab.constants import is_constant
     from hololab.gateway.workflows import downstream_closure, topological_order
 
-    prepared = await prepare_execution(
-        app, graph, required={n.id for n in graph.nodes if n.assigned_node_id}
-    )
+    prepared = await prepare_execution(app, graph, strict=False)
     sid = await app.state.snapshot_jobs.get_latest_snapshot_for_workflow(workflow_id)
     snapshot = await app.state.workflows.get_snapshot(sid) if sid else None
     baseline = await historical_execution(app, snapshot) if snapshot else None
@@ -420,7 +447,9 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
     # can lag behind (another tab ran) or lead (analysis is still in flight).
     # A reused job may belong to both snapshots: compare membership, not origin.
     evidence_sid = await app.state.snapshot_jobs.get_latest_snapshot_for_workflow(workflow_id)
-    baseline_jobs = await app.state.jobs_store.list_by_snapshot(evidence_sid) if evidence_sid else []
+    baseline_jobs = (
+        await app.state.jobs_store.list_by_snapshot(evidence_sid) if evidence_sid else []
+    )
     baseline_ids = {job["job_id"] for job in baseline_jobs}
     jobs = [
         {**job, "historical_only": bool(evidence_sid and job["job_id"] not in baseline_ids)}
@@ -490,6 +519,7 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
         "graph": prepared.model_dump(),
         "staleness": states,
         "canvas_jobs": jobs,
+        "environment_checks": prepared.execution.get("environment_checks", {}),
         "diff": diffs,
         "environment_params": prepared.execution["environment_params"],
         "issues": prepared.execution["issues"],

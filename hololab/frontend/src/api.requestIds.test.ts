@@ -23,3 +23,11 @@ it.each([false, true])('dispatch and rerun use valid request IDs (native randomU
   if (native) expect(randomUUID).toHaveBeenCalledTimes(3);
   else expect(getRandomValues).toHaveBeenCalledTimes(3);
 });
+
+it('whole workflow reports every preparation blocker without submitting a run', async () => {
+  const fetch = vi.fn(async () => new Response(JSON.stringify({token:'blocked',run_blockers:['a: missing alpha','b: missing beta']}), {status:200}));
+  vi.stubGlobal('fetch', fetch);
+  await expect(runWorkflow('workflow')).rejects.toThrow('a: missing alpha\nb: missing beta');
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch.mock.calls[0]).toContain('/api/workflows/workflow/prepare');
+});

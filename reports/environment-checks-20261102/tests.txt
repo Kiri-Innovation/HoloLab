@@ -1,0 +1,45 @@
+........................................................................ [ 83%]
+..............                                                           [100%]
+=============================== warnings summary ===============================
+.venv-runtime/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /cloud/cloud-ssd1/Kiri4DGS/hololab/.venv-runtime/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_environment_execution.py: 4 warnings
+tests/test_scoped_packages.py: 8 warnings
+tests/test_frozen_execution.py: 17 warnings
+tests/test_workflow_variables.py: 1 warning
+  /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/gateway/app.py:278: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("startup")
+
+tests/test_environment_execution.py: 8 warnings
+tests/test_scoped_packages.py: 16 warnings
+tests/test_frozen_execution.py: 34 warnings
+tests/test_workflow_variables.py: 2 warnings
+  /cloud/cloud-ssd1/Kiri4DGS/hololab/.venv-runtime/lib/python3.12/site-packages/fastapi/applications.py:4681: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+tests/test_environment_execution.py: 4 warnings
+tests/test_scoped_packages.py: 8 warnings
+tests/test_frozen_execution.py: 17 warnings
+tests/test_workflow_variables.py: 1 warning
+  /cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/gateway/app.py:409: DeprecationWarning:
+          on_event is deprecated, use lifespan event handlers instead.
+
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+86 passed, 4 deselected, 121 warnings in 12.37s

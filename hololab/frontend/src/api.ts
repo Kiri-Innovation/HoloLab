@@ -342,7 +342,8 @@ async function preparationHeaders(workflowId: string, nodeId?: string) {
   const prepared = await resilientFetch(`/api/workflows/${workflowId}/prepare`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(nodeId ? { node_id: nodeId } : {}),
-  }).then(json<{ token: string }>);
+  }).then(json<{ token: string; run_blockers?: string[] }>);
+  if (prepared.run_blockers?.length) throw new Error(prepared.run_blockers.join("\n"));
   return { "X-Preparation-Token": prepared.token, "X-Request-ID": newId() };
 }
 

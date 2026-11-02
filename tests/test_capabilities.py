@@ -85,7 +85,8 @@ def test_explicit_empty_contract_is_satisfied_without_an_environment(tmp_path, m
     enforce(result)
 
 
-def test_host_runtime_checks_system_binary_without_conda_env(monkeypatch):
+@pytest.mark.parametrize("mode", ["host", "conda"])
+def test_runtime_checks_exact_system_binary(monkeypatch, tmp_path, mode):
     """Bundled host packs can require tools such as ffmpeg from PATH."""
     from hololab.manifest.requirements import Requirements
     from hololab.node import capabilities
@@ -101,12 +102,30 @@ def test_host_runtime_checks_system_binary_without_conda_env(monkeypatch):
     )
     manifest = SimpleNamespace(
         requires=Requirements(packages=["ffmpeg"]),
-        runtime=SimpleNamespace(mode="host", env=None),
+        runtime=SimpleNamespace(mode=mode, env="test"),
     )
-    report = CapabilityChecker().check(manifest, {}, "unused-conda")
+    report = CapabilityChecker().check(manifest, {"test": str(tmp_path)}, "unused-conda")
     assert report["status"] == "satisfied"
     assert report["packages"] == {"ffmpeg": "system"}
-    assert report["package_sources"] == {"ffmpeg": "system-binary"}
+    assert report["package_sources"] == {"ffmpeg": "system-path"}
+    for requirement in ["ffmpeg>=1", "ffmpeg-lookalike"]:
+        manifest.requires = Requirements(packages=[requirement])
+        failed = CapabilityChecker().check(manifest, {"test": str(tmp_path)}, "unused-conda")
+        assert failed["status"] == "missing"
+    manifest.requires = Requirements(packages=["ffmpeg>=2"])
+    monkeypatch.setattr(
+        capabilities,
+        "probe_environment",
+        lambda *_: {
+            "paths": [],
+            "python": "3.12",
+            "packages": {"ffmpeg": "1.0"},
+            "package_sources": {"ffmpeg": "conda-meta"},
+        },
+    )
+    report = CapabilityChecker().check(manifest, {"test": str(tmp_path)}, "unused-conda")
+    assert report["status"] == "missing"
+    assert report["package_sources"]["ffmpeg"] == "conda-meta"
 
 
 def test_gpu_requirements_apply_to_one_card_and_cuda_is_driver_minimum(tmp_path, monkeypatch):

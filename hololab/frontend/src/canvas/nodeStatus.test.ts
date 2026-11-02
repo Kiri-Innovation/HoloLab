@@ -90,3 +90,12 @@ it.each(['failed','orphaned','running','pending','assigned'])('preserves %s whil
   expect(blocked.tone).toBe(original.tone);
   expect(blocked.reason).toContain('transforms');
 });
+
+it('environment failure is red only for the affected draft node and retains detailed evidence', () => {
+  const environment = {status: 'missing' as const, source: 'test@1.0', issues: [{item:'package:absent',required:'absent>=2',actual:'未安装',remedy:'安装后重试'}]};
+  const status = nodeStatus({state:'done', environment});
+  expect(status.tone).toBe('error');
+  expect(status.reason).toContain('package:absent: 要求=absent>=2; 当前=未安装');
+  expect(nodeStatus({state:'done'}).tone).toBe('success');
+  expect(nodeStatus({state:'done',environment,readOnly:true}).tone).toBe('success');
+});

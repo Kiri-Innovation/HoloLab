@@ -2025,9 +2025,14 @@ def _mount_routes(app: FastAPI) -> None:
             else {n.id for n in graph.nodes if n.kind != "view"}
         )
         try:
-            prepared = await prepare_execution(app, graph, required=required)
+            prepared = await prepare_execution(
+                app, graph, required=required, strict=bool(body.get("node_id"))
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        from hololab.gateway.capabilities import environment_errors
+
+        errors = environment_errors(prepared.execution["environment_checks"])
         token = str(uuid.uuid4())
 
         async def write(conn):
@@ -2045,6 +2050,8 @@ def _mount_routes(app: FastAPI) -> None:
         await app.state.db.write(write)
         return {
             "token": token,
+            "run_blockers": errors,
+            "environment_checks": prepared.execution["environment_checks"],
             "revision": prepared.execution["revision"],
             "graph": prepared.model_dump(),
             "environment_params": prepared.execution["environment_params"],
