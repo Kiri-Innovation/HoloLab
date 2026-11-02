@@ -41,7 +41,7 @@ from hololab.manifest.schema import OutputPreview
 #
 # Naming: keys are the exact tag strings on manifest output ports; the
 # ``viewer`` field must be one of the literals declared on
-# ``OutputPreview.viewer`` (splatv / lagsplat / video / image / text / video-grid).
+# ``OutputPreview.viewer`` (splatv / ftgsply / ply-3dgs / lagsplat / video / image / text / video-grid).
 TAG_VIEWER_REGISTRY: dict[str, OutputPreview] = {
     # Video source — one video file in a directory (scalar). Also the
     # element type for arrayed<video-source> from builtin/video-array-source; the
@@ -54,6 +54,7 @@ TAG_VIEWER_REGISTRY: dict[str, OutputPreview] = {
     # don't need to repeat themselves.
     "splatv": OutputPreview(viewer="splatv"),
     "ply-3dgs": OutputPreview(viewer="ply-3dgs"),
+    "ftgsply": OutputPreview(viewer="ftgsply"),
     # LaGSplat checkpoint directory exported by lagsplat-train.  The model
     # tag, rather than the generic implementation-state tag, makes this a
     # portable data-class contract for any future producer.

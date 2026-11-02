@@ -148,6 +148,9 @@ export function Preview({
 }: PreviewProps) {
   // Existing handles/older running gateways may not yet carry inferred specs.
   // Keep explicit pack overrides authoritative.
+  if (!spec && tags?.includes('ftgsply') && storage === 'file') {
+    return <GaussianScenePreview url={baseUrl} ftgsPly />;
+  }
   if (!spec && tags?.includes('ply-3dgs') && storage === 'file') {
     return <GaussianScenePreview url={baseUrl} />;
   }
@@ -370,6 +373,8 @@ export function Preview({
       : baseUrl;
 
   switch (spec.viewer) {
+    case "ftgsply":
+      return <GaussianScenePreview url={url} ftgsPly />;
     case "ply-3dgs":
       return <GaussianScenePreview url={url} />;
     case "splatv":
@@ -911,12 +916,12 @@ function humanBytes(n: number | null | undefined): string {
   return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
 }
 
-function GaussianScenePreview({ url, staticPly = true }: { url: string; staticPly?: boolean }) {
+function GaussianScenePreview({ url, staticPly = true, ftgsPly = false }: { url: string; staticPly?: boolean; ftgsPly?: boolean }) {
   const { viewer_view, viewer_view_loaded, viewer_view_managed, setViewerDefault } = useCanvasContext();
   return <NodeViewerFrame key={url}
-    viewer={{ id: 'splatv_scene', title: staticPly ? '3D Gaussian PLY' : 'SplaTV 4D viewer', renderer: 'iframe', entry: '', default: true }}
+    viewer={{ id: ftgsPly ? 'ftgsply_scene' : 'splatv_scene', title: ftgsPly ? 'FreeTimeGS PLY 4D viewer' : staticPly ? '3D Gaussian PLY' : 'SplaTV 4D viewer', renderer: 'iframe', entry: '', default: true }}
     packName="" packVersion="" assignedNodeId={null} frames={[]} running={false}
-    sceneUrl={`/colmaputil/index.html?embed=splatv${staticPly ? '&format=ply-3dgs' : ''}&src=${encodeURIComponent(url)}`}
+    sceneUrl={`/colmaputil/index.html?embed=${ftgsPly ? 'ftgsply' : 'splatv'}${!ftgsPly && staticPly ? '&format=ply-3dgs' : ''}&src=${encodeURIComponent(url)}`}
     workflowView={viewer_view} workflowViewLoaded={viewer_view_loaded}
     workflowViewManaged={viewer_view_managed} onWorkflowDefaultChange={setViewerDefault}
   />;

@@ -169,7 +169,7 @@ class OutputPreview(BaseModel):
     gateway's ``/proxy/{node}/...`` route.
 
     Fields:
-        viewer  — one of ``splatv | lagsplat | video | image | text | video-grid``.
+        viewer  — one of ``splatv | ftgsply | ply-3dgs | lagsplat | video | image | text | video-grid``.
                   Frontend chooses the concrete component based on this
                   string.
         member  — for ``storage: dir`` outputs, the relative entry inside
@@ -183,7 +183,7 @@ class OutputPreview(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    viewer: Literal["splatv", "ply-3dgs", "lagsplat", "video", "image", "text", "video-grid"]
+    viewer: Literal["splatv", "ftgsply", "ply-3dgs", "lagsplat", "video", "image", "text", "video-grid"]
     member: str | None = None
 
 

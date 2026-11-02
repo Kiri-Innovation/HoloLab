@@ -16,3 +16,12 @@ it("changes the URL across builds, but not across renders within a build", () =>
   expect(versionedViewerUrl(src, "a")).not.toBe(versionedViewerUrl(src, "b"));
   expect(versionedViewerUrl(src)).toBe(versionedViewerUrl(src));
 });
+
+
+it("preserves the native FTGS filename and signed query through the viewer URL", () => {
+  const source = "/proxy/node/model.ftgs.ply?token=a%2Bb";
+  const url = versionedViewerUrl(`/colmaputil/index.html?embed=ftgsply&src=${encodeURIComponent(source)}`, "ftgs");
+  const params = new URL(url, "http://test").searchParams;
+  expect(params.get("embed")).toBe("ftgsply");
+  expect(params.get("src")).toBe(source);
+});
