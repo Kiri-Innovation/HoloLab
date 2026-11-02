@@ -1,0 +1,114 @@
+{
+  "workflow_id": "586915eb-0a2d-4566-b0f1-f6febd1957b3",
+  "base_updated_ts": 1793355494.9152787,
+  "saved_updated_ts": 1793356250.5936542,
+  "node_count": 28,
+  "edge_count": 36,
+  "removed_edges": [
+    {
+      "id": "e2",
+      "source": "fx",
+      "sourceHandle": "frame_sequence",
+      "target": "rg",
+      "targetHandle": "in"
+    }
+  ],
+  "added_edges": [
+    {
+      "id": "alpha-fx",
+      "source": "fx",
+      "sourceHandle": "frame_sequence",
+      "target": "mask-to-alpha",
+      "targetHandle": "images"
+    },
+    {
+      "id": "alpha-mask",
+      "source": "birefnet-mask-full",
+      "sourceHandle": "masks",
+      "target": "mask-to-alpha",
+      "targetHandle": "masks"
+    },
+    {
+      "id": "alpha-rg",
+      "source": "mask-to-alpha",
+      "sourceHandle": "images",
+      "target": "rg",
+      "targetHandle": "in"
+    }
+  ],
+  "changed_existing_node": {
+    "id": "und",
+    "algorithm_version": {
+      "before": "0.6.0",
+      "after": "0.6.1"
+    }
+  },
+  "unchanged": "All other existing node fields and edges; rg params unchanged. Verified by structured comparison.",
+  "rollback": "GET latest draft; remove mask-to-alpha node and alpha-fx/alpha-mask/alpha-rg edges; restore e2 fx.frame_sequence -> rg.in; set und to 0.6.0; POST with fresh base_updated_ts. Do not restore the whole old graph over concurrent edits.",
+  "execution": "No workflow dispatch. Real 2-camera x 2-frame subset run directly through pack entrypoints and actual regroup/undistort CLI; no UI history added.",
+  "source_handles": {
+    "fx": "a8c33427-c99f-41fe-9d05-db6bb46a26de",
+    "masks": "7bc19a1f-429a-4ee9-a461-a4910522548b"
+  },
+  "tests": {
+    "new_cpu_and_cuda": {
+      "passed": 12
+    },
+    "existing_positional_contract_and_axes": {
+      "passed": 204,
+      "skipped": 2
+    },
+    "real_alpha": {
+      "frames": 4,
+      "size": [
+        3840,
+        2160
+      ],
+      "alpha_exact": true,
+      "rgb_exact": true,
+      "source_sha256_match": true
+    },
+    "real_gpu_rgb_regression": {
+      "fp16_pixel_exact": true,
+      "fp32_pixel_exact": true,
+      "encoded_png_byte_exact": true
+    },
+    "real_gpu_alpha_reference": {
+      "output_pixels": 8537298,
+      "fp16_max_error": 1,
+      "fp16_differing_pixels": 1,
+      "fp32_max_error": 0,
+      "same_grid": true
+    },
+    "real_e2e": {
+      "input_shape": [
+        2,
+        2
+      ],
+      "output_count": 4,
+      "output_mode": "RGBA",
+      "sizes": [
+        [
+          3927,
+          2174
+        ],
+        [
+          3874,
+          2165
+        ]
+      ],
+      "soft_alpha_retained": true
+    },
+    "all_source_pairs": {
+      "cameras": 80,
+      "frames": 4000,
+      "rgb_sha256": "all matched",
+      "size": [
+        3840,
+        2160
+      ],
+      "elapsed_seconds": 320.84748626900546
+    }
+  },
+  "registry": "No remote publish or probe performed; both new versions registered from local community_packs source."
+}

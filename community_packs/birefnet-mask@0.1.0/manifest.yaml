@@ -56,7 +56,7 @@ params:
     min: 1
   reference_frames:
     type: path
-    default: ''
+    default: null
     description: Optional fx frame directory; reject any count or RGB pixel mismatch
       before inference.
 runtime:

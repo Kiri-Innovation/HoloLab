@@ -1,0 +1,50 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: community/mask-to-alpha
+version: 0.1.0
+description: Write positional grayscale masks into image alpha channels, with source RGB hash verification.
+category: generation/segment-anything
+source_entry: run.py
+arrayable: true
+parallelism: 4
+batch_size: 1
+inputs:
+  images:
+    tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [frame]
+    require_axis_label_match: false
+  masks:
+    tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [frame]
+    require_axis_label_match: false
+outputs:
+  images:
+    tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [frame]
+params:
+  verify_source_hash:
+    type: bool
+    default: true
+    description: Require BiRefNet .validation.json and compare every positional source RGB SHA256. Disable explicitly only for masks without this provenance.
+runtime:
+  env: cam3
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 0
+    mem_gb: 1
+exec:
+  shell: >-
+    python "{{ pack_dir }}/run.py" --images "{{ inputs.images }}"
+    --masks "{{ inputs.masks }}" --output "{{ outputs.images }}"
+    --verify-source-hash "{{ params.verify_source_hash }}"
+idempotency:
+  marker: '{{ outputs.images }}/.hololab-done'
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
