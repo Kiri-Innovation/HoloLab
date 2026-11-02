@@ -219,6 +219,45 @@ export function NodeViewerFrame({
     return () => { cancelled = true; };
   }, [historyTarget?.handle_id, historyTarget?.proxy_url, viewer.history_index, viewer.history_output]);
 
+  useEffect(() => {
+    if (!historyTarget || !running || !viewer.live_globs?.length) return;
+    let cancelled = false;
+    const url = new URL(historyTarget.proxy_url, window.location.origin);
+    const parts = url.pathname.split("/").filter(Boolean);
+    // /proxy/{node}/{workspace-relative output path}; the file server accepts
+    // a base plus relative glob, not an absolute filesystem path.
+    if (parts[0] !== "proxy" || parts.length < 3) return;
+    const node = parts[1];
+    const base = parts.slice(2).map(decodeURIComponent).join("/");
+    const patterns = viewer.live_globs
+      .map((glob) => viewer.history_output
+        ? glob.replace(`{{ outputs.${viewer.history_output} }}/`, "")
+        : "")
+      .filter((glob) => glob && !glob.startsWith("/") && !glob.split("/").includes(".."));
+    if (!patterns.length) return;
+    const restore = async () => {
+      const settled = await Promise.all(patterns.map(async (pattern) => {
+        const query = new URLSearchParams({ base, pattern });
+        const response = await fetch(`/proxy/${encodeURIComponent(node)}/_glob?${query}`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const body = await response.json() as { files?: unknown[] };
+        return (body.files ?? []).filter((file): file is string => typeof file === "string")
+          .map((file) => ({
+            proxy_url: `${historyTarget.proxy_url.replace(/\/$/, "")}/${file.split("/").map(encodeURIComponent).join("/")}`,
+            iteration: (() => { const match = /iter[_]?(\d+)/.exec(file); return match ? Number(match[1]) : null; })(),
+            node_id: historyTarget.node_id,
+          }));
+      }));
+      if (!cancelled) setHistoryFrames((prior) => {
+        const indexed = prior.filter((frame) => !frame.proxy_url.includes("/save_cam/"));
+        return [...indexed, ...settled.flat()];
+      });
+    };
+    void restore();
+    const timer = window.setInterval(() => { void restore(); }, 1000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [historyTarget?.handle_id, historyTarget?.proxy_url, historyTarget?.node_id, running, viewer.history_output, viewer.live_globs]);
+
   const allFrames = [...historyFrames, ...frames]
     .reduce<LiveViewerFrame[]>((out, frame) => {
       const index = out.findIndex((old) => frame.iteration != null
