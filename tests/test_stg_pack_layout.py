@@ -63,7 +63,7 @@ def test_migrated_inventory_catalog_and_viewers(tmp_path):
 async def test_real_entrypoint_dispatch_smoke(tmp_path):
     packs = scan_packs(STG)
     pack = next(
-        p for p in packs if (p.manifest.name, p.manifest.version) == ("k4d/stg-init", "0.3.2")
+        p for p in packs if (p.manifest.name, p.manifest.version) == ("k4d/stg-init", "0.3.6")
     )
     record = capture(pack.manifest_path, Baselines(tmp_path / "baselines"))
     selected = session(packs)
@@ -82,10 +82,10 @@ async def test_real_entrypoint_dispatch_smoke(tmp_path):
             gnode=GraphNode(
                 id="stg",
                 algorithm_name="k4d/stg-init",
-                algorithm_version="0.3.2",
+                algorithm_version="0.3.6",
                 assigned_node_id="local",
                 code_identity=record,
-                params={"configpath": "configs/n3d_full/stg_state_default.json"},
+                params={"configpath": "configs/n3d_full/stg_state_default.json", "resolution": 2},
             ),
             input_handles={},
         )

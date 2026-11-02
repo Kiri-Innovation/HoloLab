@@ -52,9 +52,8 @@ def test_real_stg_relocation_and_five_changes(tmp_path):
     verify(target_manifest, original)
     relocated = capture(target_manifest, baselines)
     assert relocated["sha256"] == original["sha256"]
-    # /packs/* re-includes the shipped STG pack trees, so viewer assets survive
-    # archive construction alongside the selected manifest.
-    viewer = moved / "packs/stg-train/viewers/training-diagnostics/index.html"
+    # Viewer assets live at the package root and survive archive construction.
+    viewer = moved / "viewers/training-diagnostics/index.html"
     assert viewer.is_file()
     original_viewer = viewer.read_bytes()
     viewer.write_bytes(original_viewer + b"\n<!-- changed packaged viewer -->\n")
