@@ -1500,6 +1500,29 @@ async def dispatch_graph_node(
     graph_node_id: str,
     base_snapshot_id: str | None,
 ) -> dict[str, Any]:
+    # Also protect internal callers that bypass the HTTP submission guard.
+    # Gateway sessions and dispatch are owned by a single process/event loop.
+    locks = getattr(app.state, "node_dispatch_locks", None)
+    if locks is None:
+        locks = app.state.node_dispatch_locks = {}
+    async with locks.setdefault(workflow_id, asyncio.Lock()):
+        return await _dispatch_graph_node(
+            app,
+            workflow_id=workflow_id,
+            graph=graph,
+            graph_node_id=graph_node_id,
+            base_snapshot_id=base_snapshot_id,
+        )
+
+
+async def _dispatch_graph_node(
+    app: FastAPI,
+    *,
+    workflow_id: str,
+    graph: WorkflowGraph,
+    graph_node_id: str,
+    base_snapshot_id: str | None,
+) -> dict[str, Any]:
     """Execute one graph node against a base snapshot (Continue or Fork).
 
     Args:
@@ -1543,44 +1566,180 @@ async def dispatch_graph_node(
     if gnode.assigned_node_id is None:
         raise DispatchError(f"graph node {graph_node_id!r} has no assigned compute node")
 
-    # -- Create a new membership snapshot -----------------------------------
-    # Every dispatch gets a distinct snapshot.  Membership is then rebuilt
-    # from the canvas's current-effective results outside ``cleared`` below.
-    parent_snapshot_id: str | None = None
-
-    from hololab.gateway.preparation import changed_nodes, historical_execution, submitted_execution
+    from hololab.gateway.preparation import (
+        changed_nodes,
+        historical_execution,
+        merge_continuation,
+        submitted_execution,
+    )
 
     prepared = await submitted_execution(app, workflow_id, graph, required={graph_node_id})
     baseline = await workflows_store.get_snapshot(base_snapshot_id) if base_snapshot_id else None
+    if base_snapshot_id and (baseline is None or baseline.workflow_id != workflow_id):
+        raise DispatchError("base snapshot does not belong to this workflow")
     frozen_base = await historical_execution(app, baseline) if baseline else None
-    changed_constants = changed_nodes(prepared, frozen_base) if frozen_base else set()
-    if (
-        frozen_base
-        and graph_node_id not in (frozen_base.execution or {}).get("prepared_nodes", [])
-        and not (frozen_base.execution or {}).get("legacy")
-    ):
-        changed_constants.add(graph_node_id)
+    comparison = prepared.model_copy(deep=True)
+    if frozen_base:
+        old_nodes = {n.id: n for n in frozen_base.nodes}
+        before_requests = (frozen_base.execution or {}).get("requested_nodes", {})
+        after_requests = (prepared.execution or {}).get("requested_nodes", {})
+        for node in comparison.nodes:
+            if (
+                node.id != graph_node_id
+                and node.id in before_requests
+                and before_requests[node.id] == after_requests.get(node.id)
+            ):
+                # Only the target was path-normalized this submission. Equal
+                # effective requests retain the upstream's recorded paths.
+                node.params = old_nodes[node.id].params
+    changed = changed_nodes(comparison, frozen_base) if frozen_base else set()
     graph = prepared
-
-    cleared = downstream_closure(graph, graph_node_id) | {graph_node_id}
-    for constant_id in changed_constants:
-        cleared |= downstream_closure(graph, constant_id) | {constant_id}
-        if frozen_base:
-            cleared |= downstream_closure(frozen_base, constant_id)
-    parent_snapshot_id = base_snapshot_id
-    snap = await workflows_store.create_snapshot(
-        workflow_id=workflow_id,
-        graph=graph,
-        parent_snapshot_id=parent_snapshot_id,
+    existing_id = (
+        await snapshot_jobs.get_job_at(base_snapshot_id, graph_node_id)
+        if base_snapshot_id
+        else None
     )
-    target_snapshot_id = snap.snapshot_id
-    operation = "fork" if base_snapshot_id is not None else "continue"
-
-    from hololab.gateway.canvas_jobs import materialize_current_results
-
-    await materialize_current_results(
-        app, workflow_id, graph, target_snapshot_id, cleared=cleared
+    existing = await jobs_store.get(existing_id) if existing_id else None
+    if existing and existing.state in (
+        JobState.PENDING,
+        JobState.ASSIGNED,
+        JobState.RUNNING,
+        JobState.ORPHANED,
+    ):
+        raise DispatchError(f"node {graph_node_id!r} already has an active job {existing.job_id}")
+    retryable = existing is None or (
+        existing.state in (JobState.FAILED, JobState.CANCELLED)
+        and not await app.state.handles.list_by_job(existing.job_id)
     )
+    members = await jobs_store.list_by_snapshot(base_snapshot_id) if baseline else []
+    # Protect every recorded attempt and its dependency facts, including failed
+    # attempts. Only untouched regions may acquire new preparation evidence.
+    protected = {j["graph_node_id"] for j in members if j.get("graph_node_id")}
+    if frozen_base:
+        for nid in list(changed):
+            changed |= downstream_closure(frozen_base, nid) | downstream_closure(prepared, nid)
+    head = await snapshot_jobs.get_latest_snapshot_for_workflow(workflow_id)
+    can_continue = bool(
+        baseline
+        and head == base_snapshot_id
+        and retryable
+        and not (changed & protected)
+        and prepared.variables == frozen_base.variables
+        and prepared.variable_values == frozen_base.variable_values
+    )
+    # Whole-graph/rerun orchestrators own their not-yet-dispatched slots too.
+    # They run beyond the HTTP lock; never append into their frozen run plan.
+    if any(
+        not task.done()
+        and task.get_name()
+        in (f"hololab-run-{base_snapshot_id}", f"hololab-rerun-{base_snapshot_id}")
+        for task in getattr(app.state, "workflow_run_tasks", ())
+    ):
+        can_continue = False
+    if can_continue:
+        old_packs = (frozen_base.execution or {}).get("packs", [])
+        new_packs = (prepared.execution or {}).get("packs", [])
+        for node in frozen_base.nodes:
+            if node.id not in protected or node.kind != "algorithm":
+                continue
+            old_pack = next(
+                (
+                    p
+                    for p in old_packs
+                    if same_package(
+                        p["name"], p["version"], node.algorithm_name, node.algorithm_version
+                    )
+                ),
+                None,
+            )
+            new_pack = next(
+                (
+                    p
+                    for p in new_packs
+                    if same_package(
+                        p["name"], p["version"], node.algorithm_name, node.algorithm_version
+                    )
+                ),
+                None,
+            )
+            if old_pack is not None and old_pack != new_pack:
+                can_continue = False
+                break
+    # A failed attempt can be retried in place only with identical code evidence.
+    if existing and frozen_base:
+        old_node = next(n for n in frozen_base.nodes if n.id == graph_node_id)
+        new_node = next(n for n in prepared.nodes if n.id == graph_node_id)
+        if old_node.code_identity != new_node.code_identity:
+            can_continue = False
+
+    if can_continue:
+        from hololab.gateway.canvas_jobs import canvas_jobs
+
+        # A canvas input from a sibling branch cannot be appended over an
+        # existing run's producer choice. Materialize it into a child instead.
+        upstream = {graph_node_id}
+        while True:
+            parents = {e.source for e in graph.edges if e.target in upstream}
+            if parents.issubset(upstream):
+                break
+            upstream |= parents
+        upstream.discard(graph_node_id)
+        selected = await canvas_jobs(app, workflow_id, prepared)
+        for job in selected:
+            nid = job["graph_node_id"]
+            if (
+                nid in upstream
+                and not job.get("parent_job_id")
+                and await snapshot_jobs.get_job_at(base_snapshot_id, nid) != job["job_id"]
+            ):
+                can_continue = False
+                break
+
+    parent_snapshot_id = None
+    if can_continue:
+        # Constants and other dependency nodes are also frozen evidence.
+        while True:
+            ancestors = {e.source for e in frozen_base.edges if e.target in protected}
+            if ancestors.issubset(protected):
+                break
+            protected |= ancestors
+        graph = merge_continuation(frozen_base, prepared, protected)
+        # Check inputs before changing any evidence on the existing run.
+        await _resolve_inputs_from_snapshot(
+            app,
+            workflow_id=workflow_id,
+            target_snapshot_id=base_snapshot_id,
+            graph=graph.model_copy(
+                update={
+                    "edges": [
+                        e
+                        for e in graph.edges
+                        if not is_constant(next(n for n in graph.nodes if n.id == e.source))
+                    ]
+                }
+            ),
+            graph_node_id=graph_node_id,
+        )
+        await workflows_store.extend_snapshot(baseline, graph, protected=protected)
+        target_snapshot_id = base_snapshot_id
+        operation = "continue"
+    else:
+        cleared = downstream_closure(graph, graph_node_id) | {graph_node_id} | changed
+        parent_snapshot_id = base_snapshot_id
+        snap = await workflows_store.create_snapshot(
+            workflow_id=workflow_id,
+            graph=graph,
+            parent_snapshot_id=parent_snapshot_id,
+        )
+        target_snapshot_id = snap.snapshot_id
+        operation = "fork" if base_snapshot_id is not None else "continue"
+        from hololab.gateway.canvas_jobs import materialize_current_results
+
+        # This helper is intentionally only used for NEW snapshots. Existing
+        # membership must never gain a different generation from another branch.
+        await materialize_current_results(
+            app, workflow_id, graph, target_snapshot_id, cleared=cleared
+        )
 
     frozen_snapshot = await workflows_store.get_snapshot(target_snapshot_id)
     graph = await historical_execution(app, frozen_snapshot)

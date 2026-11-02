@@ -741,6 +741,87 @@ class WorkflowStore:
             parent_snapshot_id=parent_snapshot_id,
         )
 
+    async def extend_snapshot(
+        self, baseline: SnapshotRow, graph: WorkflowGraph, *, protected: set[str]
+    ) -> None:
+        """Commit a Continue's evidence and literal bindings together.
+
+        Submission serialization covers selection through job attribution. The
+        compare-and-swap also refuses stale graph/head/draft evidence here.
+        """
+        from fastapi import HTTPException
+
+        from hololab.constants import OPERATIONS, constant_value, is_constant
+        from hololab.gateway.artifact_lifecycle import validate_value_references
+
+        sid = baseline.snapshot_id
+
+        async def write(conn):
+            async with conn.execute(
+                "SELECT snapshot_id FROM snapshots WHERE workflow_id=? ORDER BY created_ts DESC LIMIT 1",
+                (baseline.workflow_id,),
+            ) as cur:
+                head = await cur.fetchone()
+            current = await self._read_row(conn, baseline.workflow_id)
+            expected = (graph.execution or {}).get("draft_updated_ts")
+            if (
+                not head
+                or head[0] != sid
+                or (expected is not None and (current is None or current.updated_ts != expected))
+            ):
+                raise HTTPException(409, "Run head or draft changed before Continue commit")
+            async with conn.execute(
+                "SELECT graph_json FROM snapshots WHERE snapshot_id=?", (sid,)
+            ) as cur:
+                row = await cur.fetchone()
+            if not row or WorkflowGraph.model_validate_json(row[0]) != baseline.graph:
+                raise HTTPException(409, "Run evidence changed before Continue commit")
+            await conn.execute(
+                "UPDATE snapshots SET graph_json=? WHERE snapshot_id=?",
+                (graph.model_dump_json(exclude_none=True), sid),
+            )
+            # Rebuild only unprotected literal slots, including removed nodes.
+            for table in ("snapshot_input_values", "snapshot_constants"):
+                async with conn.execute(
+                    f"SELECT DISTINCT graph_node_id FROM {table} WHERE snapshot_id=?", (sid,)
+                ) as cur:
+                    ids = [r[0] for r in await cur.fetchall()]
+                for nid in ids:
+                    if nid not in protected:
+                        await conn.execute(
+                            f"DELETE FROM {table} WHERE snapshot_id=? AND graph_node_id=?",
+                            (sid, nid),
+                        )
+            for nid, bindings in (graph.execution or {}).get("inline_values", {}).items():
+                if nid in protected:
+                    continue
+                for port, (digest, value) in bindings.items():
+                    await conn.execute(
+                        "INSERT OR IGNORE INTO constant_values VALUES (?, ?)",
+                        (digest, json.dumps(value)),
+                    )
+                    await conn.execute(
+                        "INSERT INTO snapshot_input_values VALUES (?, ?, ?, ?)",
+                        (sid, nid, port, digest),
+                    )
+            for node in graph.nodes:
+                if is_constant(node) and node.id not in protected:
+                    digest, value = constant_value(node.operation, node.params)
+                    await conn.execute(
+                        "INSERT OR IGNORE INTO constant_values VALUES (?, ?)",
+                        (digest, json.dumps(value)),
+                    )
+                    await conn.execute(
+                        "INSERT INTO snapshot_constants VALUES (?, ?, ?, ?)",
+                        (sid, node.id, OPERATIONS[node.operation][2], digest),
+                    )
+            async with conn.execute(
+                "SELECT digest FROM snapshot_value_bindings WHERE snapshot_id=?", (sid,)
+            ) as cur:
+                await validate_value_references(conn, [r[0] for r in await cur.fetchall()])
+
+        await self._db.write(write)
+
     async def get_snapshot(self, snapshot_id: str) -> SnapshotRow | None:
         async with (
             self._db.read() as conn,

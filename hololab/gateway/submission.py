@@ -17,8 +17,25 @@ preparation_token: ContextVar[str | None] = ContextVar("preparation_token", defa
 
 def install_submission_guard(app):
     locks = {}
+    workflow_locks = {}
 
     @app.middleware("http")
+    async def serialize_workflow(request, call_next):
+        # The gateway owns node sessions in one event loop. Serialize all run
+        # entry points through attribution, including requests with different
+        # idempotency keys (and requests without a key). Base selection happens
+        # inside this lock, so competing first submissions cannot both see None.
+        parts = request.url.path.split("/")
+        applies = request.method == "POST" and (
+            request.url.path.endswith("/run")
+            or "/dispatch/" in request.url.path
+            or "/rerun-from/" in request.url.path
+        )
+        if applies and len(parts) > 3 and parts[2] == "workflows":
+            async with workflow_locks.setdefault(parts[3], asyncio.Lock()):
+                return await guard(request, call_next)
+        return await guard(request, call_next)
+
     async def guard(request, call_next):
         path = request.url.path
         applies = request.method == "POST" and (

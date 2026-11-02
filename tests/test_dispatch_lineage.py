@@ -17,6 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from hololab.gateway.app import create_app
@@ -136,7 +137,7 @@ def _seed_snapshot_with_jobs(
 
 def test_dispatch_continues_when_slot_empty(tmp_path: Path) -> None:
     """A snapshot with A + B done, dispatching C consumes B's artifact
-    in a new child snapshot, which attributes A + B by their original IDs."""
+    in the same snapshot, retaining A + B by their original IDs."""
 
     app = create_app(db_path=tmp_path / "cont.sqlite")
     with TestClient(app) as client:
@@ -149,9 +150,12 @@ def test_dispatch_continues_when_slot_empty(tmp_path: Path) -> None:
         r = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["operation"] == "fork"
-        assert body["snapshot_id"] != base
-        assert body["parent_snapshot_id"] == base
+        assert body["operation"] == "continue"
+        assert body["snapshot_id"] == base
+        assert "parent_snapshot_id" not in body
+        detail = client.get(f"/api/snapshots/{base}").json()
+        members = {j["graph_node_id"]: j["job_id"] for j in detail["jobs"]}
+        assert members == {"A": f"{base[:8]}-A", "B": f"{base[:8]}-B", "C": body["job_id"]}
         assert body["job_id"]  # a fresh job id was minted
 
 
@@ -357,7 +361,10 @@ def test_dispatch_upstream_failed_reports_reruns_message(tmp_path: Path) -> None
         assert "no produced artifact" not in detail, detail
 
 
-def test_dispatch_continue_when_upstream_slot_holds_failed_only(tmp_path: Path) -> None:
+@pytest.mark.parametrize("retry_state", [JobState.FAILED, JobState.CANCELLED])
+def test_dispatch_continue_when_upstream_slot_holds_failed_only(
+    tmp_path: Path, retry_state
+) -> None:
     """Continue-vs-Fork must treat a FAILED slot as empty so a re-run of
     the failed slot stays a Continue (not a Fork).
 
@@ -382,7 +389,7 @@ def test_dispatch_continue_when_upstream_slot_holds_failed_only(tmp_path: Path) 
             snapshot_id=base,
             graph_node_id="B",
             job_id="b-failed",
-            state=JobState.FAILED,
+            state=retry_state,
         )
         # A is not a real prerequisite here (B has no upstream in
         # ``_linear_graph`` beyond A). Seed A DONE so B's re-dispatch
@@ -414,10 +421,10 @@ def test_dispatch_continue_when_upstream_slot_holds_failed_only(tmp_path: Path) 
         r = client.post(f"/api/workflows/{wid}/dispatch/B", params={"base_snapshot_id": base})
         assert r.status_code == 200, r.text
         body = r.json()
-        # Every dispatch creates a child membership snapshot.
-        assert body["operation"] == "fork", body
-        assert body["snapshot_id"] != base, body
-        assert body["parent_snapshot_id"] == base, body
+        assert body["operation"] == "continue", body
+        assert body["snapshot_id"] == base, body
+        detail = client.get(f"/api/snapshots/{base}").json()
+        assert {j["job_id"] for j in detail["jobs"]} == {"a-done", "b-failed", body["job_id"]}
 
 
 def test_dispatch_attribution_written_at_creation(tmp_path: Path) -> None:
@@ -607,3 +614,245 @@ def test_lineage_missing_artifact_404(tmp_path: Path) -> None:
     with TestClient(app) as client:
         r = client.get("/api/artifacts/does-not-exist/lineage")
         assert r.status_code == 404
+
+
+def test_concurrent_requests_claim_one_slot(tmp_path, monkeypatch):
+    """Different request IDs race an empty slot; only one assignment may escape."""
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from hololab.gateway import preparation
+
+    original = preparation.submitted_execution
+
+    async def delayed(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        await asyncio.sleep(0.05)  # widen the read/attribute race deterministically
+        return result
+
+    monkeypatch.setattr(preparation, "submitted_execution", delayed)
+    with TestClient(create_app(db_path=tmp_path / "race.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "race"
+        base = _seed_snapshot_with_jobs(
+            client, workflow_id=wid, graph=_linear_graph(), done_at=["A", "B"]
+        )
+        barrier = Barrier(2)
+
+        def dispatch(key):
+            barrier.wait()
+            return client.post(
+                f"/api/workflows/{wid}/dispatch/C",
+                params={"base_snapshot_id": base},
+                headers={"X-Request-ID": key},
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(pool.map(dispatch, ["race-1", "race-2"]))
+        assert sorted(r.status_code for r in responses) == [200, 400]
+        winner = next(r.json() for r in responses if r.status_code == 200)
+        assert winner["snapshot_id"] == base
+        assert "active job" in next(r.text for r in responses if r.status_code == 400)
+        detail = client.get(f"/api/snapshots/{base}").json()
+        assert len([j for j in detail["jobs"] if j["graph_node_id"] == "C"]) == 1
+        session = client.app.state.registry.get_session("node-a")
+        assert session.ws.send_text.await_count == 1
+        key = "race-1" if responses[0].status_code == 200 else "race-2"
+        retry = client.post(
+            f"/api/workflows/{wid}/dispatch/C",
+            params={"base_snapshot_id": base},
+            headers={"X-Request-ID": key},
+        )
+        assert retry.json() == winner
+        assert session.ws.send_text.await_count == 1
+
+
+def test_historical_empty_slot_forks(tmp_path):
+    with TestClient(create_app(db_path=tmp_path / "old.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "historical"
+        base = _seed_snapshot_with_jobs(
+            client, workflow_id=wid, graph=_linear_graph(), done_at=["A", "B"]
+        )
+
+        async def new_head():
+            return await client.app.state.workflows.create_snapshot(
+                workflow_id=wid, graph=_linear_graph(), parent_snapshot_id=base
+            )
+
+        client.portal.call(new_head)
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["operation"] == "fork"
+        assert response.json()["parent_snapshot_id"] == base
+        assert len(client.get(f"/api/snapshots/{base}").json()["jobs"]) == 2
+
+
+def test_continue_appends_preparation_without_replacing_old_evidence(tmp_path, monkeypatch):
+    with TestClient(create_app(db_path=tmp_path / "evidence.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "evidence"
+        graph = _linear_graph()
+        graph.nodes[0].code_identity = {"sha256": "old-code", "effective_params": {}}
+        graph.execution = {
+            "prepared_nodes": ["A", "B"],
+            "sources": {"A": {"x": "old"}},
+            "environment_checks": {"A": "old-check"},
+            "packs": [],
+        }
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
+        materialize = AsyncMock(
+            side_effect=AssertionError("must not rematerialize an existing run")
+        )
+        monkeypatch.setattr("hololab.gateway.canvas_jobs.materialize_current_results", materialize)
+
+        # Changing a never-run node is safe; the prepared target gets its own evidence.
+        async def change_draft():
+            graph.nodes[2].params = {"new": 42}
+            await client.app.state.workflows.save_draft(workflow_id=wid, name="test", graph=graph)
+
+        client.portal.call(change_draft)
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["snapshot_id"] == base
+
+        async def read():
+            return await client.app.state.workflows.get_snapshot(base)
+
+        result = client.portal.call(read).graph
+        assert result.nodes[0] == graph.nodes[0]
+        assert result.nodes[2].params == {"new": 42}
+        assert result.execution["prepared_nodes"] == ["A", "B", "C"]
+        assert result.execution["sources"]["A"] == {"x": "old"}
+        assert result.execution["continuation_evidence"][0]["environment_checks"] == {
+            "A": "old-check"
+        }
+        materialize.assert_not_awaited()
+
+
+def test_failed_attempt_with_output_forks(tmp_path):
+    with TestClient(create_app(db_path=tmp_path / "failed-output.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "failed-output"
+        base = _seed_snapshot_with_jobs(
+            client, workflow_id=wid, graph=_linear_graph(), done_at=["A"]
+        )
+
+        async def fail():
+            async def write(conn):
+                await conn.execute(
+                    "UPDATE jobs SET state='failed' WHERE job_id=?", (f"{base[:8]}-A",)
+                )
+
+            await client.app.state.db.write(write)
+
+        client.portal.call(fail)
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/A", params={"base_snapshot_id": base}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["operation"] == "fork"
+        assert response.json()["snapshot_id"] != base
+
+
+def test_continue_preserves_normalized_upstream_paths(tmp_path):
+    from hololab.gateway.preparation import semantic_node
+
+    with TestClient(create_app(db_path=tmp_path / "normalized.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "normalized"
+        draft = _linear_graph()
+        draft.nodes[0].params = {"path": "~/input"}
+        frozen = draft.model_copy(deep=True)
+        frozen.execution = {
+            "prepared_nodes": ["A", "B"],
+            "packs": [],
+            "requested_nodes": {n.id: semantic_node(n) for n in draft.nodes},
+        }
+        frozen.nodes[0].params = {"path": "/workspace/input"}
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=frozen, done_at=["A", "B"])
+
+        async def save():
+            await client.app.state.workflows.save_draft(workflow_id=wid, name="paths", graph=draft)
+
+        client.portal.call(save)
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["snapshot_id"] == base
+
+        async def read():
+            return await client.app.state.workflows.get_snapshot(base)
+
+        assert client.portal.call(read).graph.nodes[0].params == {"path": "/workspace/input"}
+
+
+def test_sibling_input_requires_new_membership_snapshot(tmp_path):
+    """Keep 4778241's ability to bring a valid sibling result into a new run."""
+    with TestClient(create_app(db_path=tmp_path / "sibling.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "sibling"
+        base = _seed_snapshot_with_jobs(
+            client, workflow_id=wid, graph=_linear_graph(), done_at=["A", "B"]
+        )
+
+        async def head():
+            snap = await client.app.state.workflows.create_snapshot(
+                workflow_id=wid, graph=_linear_graph()
+            )
+            await client.app.state.snapshot_jobs.attribute(snap.snapshot_id, f"{base[:8]}-A", "A")
+            return snap.snapshot_id
+
+        active = client.portal.call(head)
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": active}
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["operation"] == "fork"
+        assert body["parent_snapshot_id"] == active
+        detail = client.get(f"/api/snapshots/{body['snapshot_id']}").json()
+        assert {j["job_id"] for j in detail["jobs"]} == {
+            f"{base[:8]}-A",
+            f"{base[:8]}-B",
+            body["job_id"],
+        }
+        assert len(client.get(f"/api/snapshots/{active}").json()["jobs"]) == 1
+
+
+def test_continue_does_not_compete_with_whole_graph_runner(tmp_path):
+    import asyncio
+
+    with TestClient(create_app(db_path=tmp_path / "runner.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "runner"
+        base = _seed_snapshot_with_jobs(
+            client, workflow_id=wid, graph=_linear_graph(), done_at=["A", "B"]
+        )
+
+        async def start():
+            task = asyncio.create_task(asyncio.Event().wait(), name=f"hololab-run-{base}")
+            client.app.state.workflow_run_tasks = {task}
+            return task
+
+        runner = client.portal.call(start)
+        try:
+            response = client.post(
+                f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+            )
+            assert response.status_code == 200, response.text
+            assert response.json()["operation"] == "fork"
+            assert len(client.get(f"/api/snapshots/{base}").json()["jobs"]) == 2
+        finally:
+
+            async def stop():
+                runner.cancel()
+                await asyncio.gather(runner, return_exceptions=True)
+
+            client.portal.call(stop)
