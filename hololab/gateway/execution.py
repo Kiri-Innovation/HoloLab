@@ -1862,6 +1862,15 @@ async def _dispatch_graph_node(
     result: dict[str, Any] = {
         "snapshot_id": target_snapshot_id,
         "job_id": job_id,
+        # Both states have been persisted and broadcast before returning:
+        # regular dispatch has sent the ASSIGNED job to its node; fan-out has
+        # created an attributed PENDING parent and schedules its shards next.
+        # Echo it so the initiating tab can paint an honest in-flight badge
+        # even if its WS frame arrives after this HTTP response.
+        "state": (JobState.PENDING if needs_fanout else JobState.ASSIGNED).value,
+        "graph_node_id": gnode.id,
+        "algorithm_name": gnode.algorithm_name,
+        "algorithm_version": gnode.algorithm_version,
         "operation": operation,
     }
     if parent_snapshot_id is not None:

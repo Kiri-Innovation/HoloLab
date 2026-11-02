@@ -493,6 +493,10 @@ export const dispatchNode = async (
     json<{
       snapshot_id: string;
       job_id: string;
+      state: string;
+      graph_node_id: string;
+      algorithm_name: string;
+      algorithm_version: string;
       operation: "continue" | "fork";
       parent_snapshot_id?: string;
       forked_at?: string;
