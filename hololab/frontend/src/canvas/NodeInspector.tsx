@@ -96,6 +96,22 @@ export function NodeInspector({
 
   const differences = preparationStatus ? [] : parameterDifferences(pack, selected.params, effectiveParams, environmentParams, {}, selected.param_bindings);
   const differenceText = differences.map(parameterDifferenceText).join("；");
+  const assignedNodeId = selected.assigned_node_id;
+  // Package runtime is declared in the manifest. Prefer the selected node's
+  // catalog copy during rolling upgrades, since it is the copy that supplies
+  // the environment evidence below.
+  const runtime = (assignedNodeId ? pack.node_environments?.[assignedNodeId]?.runtime : undefined) ?? pack.runtime;
+  const envPrefix = assignedNodeId ? pack.environment_by_node?.[assignedNodeId]?.prefix : undefined;
+  const environment = runtime?.mode === "host"
+    ? { label: "本体环境", title: "使用节点本体 Python，不使用 conda 环境" }
+    : runtime?.env
+      ? {
+          label: runtime.env,
+          title: envPrefix
+            ? `实际 conda 环境：${envPrefix}`
+            : "实际 conda 环境路径暂不可用",
+        }
+      : { label: "未声明环境", title: "包未声明 runtime.env" };
 
   const pin = (names: string[]) => onTogglePin ? <ParameterPinButton names={names}
     algorithmKey={parameterPinKey(pack)} pinned={pinnedParams} onToggle={onTogglePin} /> : null;
@@ -159,6 +175,9 @@ export function NodeInspector({
       {!isConstantName(pack.name) && assignment && <section className="hl-inspector-execution" aria-label="Run on">
         <h3 style={SECTION_TITLE}>Run on</h3>
         {assignment}
+        <div className="hl-inspector-environment" title={environment.title}>
+          环境：{environment.label}
+        </div>
       </section>}
       {unconnectedInputs(pack, inputSources).length > 0 && <section className="hl-inspector-inputs hl-inspector-parameters" aria-label="Input values">
         <h3 style={{ ...SECTION_TITLE, marginTop: 18 }}>Input values</h3>

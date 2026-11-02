@@ -13,9 +13,10 @@ import {SnapshotCanvas} from '../../src/canvas/SnapshotCanvas';
 import type {SnapshotDetail} from '../../src/wire';
 const query=new URLSearchParams(location.search);
 const mode=query.get('mode') || 'default';
+const environmentFixture=query.get('environment') === '1';
 document.documentElement.dataset.theme=query.get('theme') || 'light';
 const custom=['custom','hidden','legacy'].includes(mode);
-const pack:any={name:'preview-test',version:'1.0.0',node_ids:['compute'],manifest_hash:'fixture',description:'Preview policy regression fixture',params:{amount:{type:'int',default:1}},inputs:{},outputs:{result:{tags:mode==='unsupported'?['opaque']:['image'],arrayed:false,dim_labels:[],preview:null}},...(custom?{node_viewers:[{id:'custom',entry:'viewer.html',default:true}]}:{}),...(mode==='legacy'?{}:{hide_default_output_previews:mode==='hidden'})};
+const pack:any={name:'preview-test',version:'1.0.0',node_ids:['compute'],manifest_hash:'fixture',description:'Preview policy regression fixture',params:{amount:{type:'int',default:1}},inputs:{},outputs:{result:{tags:mode==='unsupported'?['opaque']:['image'],arrayed:false,dim_labels:[],preview:null}},...(environmentFixture?{runtime:{mode:'conda',env:'kiri'},environment_by_node:{compute:{status:'satisfied',issues:[],prefix:'/cloud/cloud-ssd1/envs/kiri'}}}:{}),...(custom?{node_viewers:[{id:'custom',entry:'viewer.html',default:true}]}:{}),...(mode==='legacy'?{}:{hide_default_output_previews:mode==='hidden'})};
 const target:any={handle_id:'image',port_name:'result',proxy_url:'/fixture-image.svg',node_id:'compute',storage:'file',absolute_path:'/example/output.svg',deleted:false,tags:mode==='unsupported'?['opaque']:['image'],arrayed:false,dim_labels:[],dim_sizes:[],preview:null};
 const data:AlgorithmNodeData={pack,assigned_node_id:'compute',previews:mode==='empty'?{}:{result:target},previewOpen:'result'};
 const graphNode:any={id:'n',algorithm_name:pack.name,algorithm_version:pack.version,position:{x:50,y:50},params:{amount:1},assigned_node_id:'compute',preview_open:'result'};
@@ -29,7 +30,7 @@ function Fixture(){
  <ReactFlowProvider>{mode==='snapshot'?<SnapshotCanvas snapshot={snapshot as SnapshotDetail} catalog={[pack]} selectedGraphNodeId={selected} onSelectionChange={setSelected} selectedEdgeId={null} onEdgeSelectionChange={()=>{}} onPreviewData={setPreview}/>:<ReactFlow nodes={[{id:'n',type:'algorithm',position:{x:50,y:50},data}]} nodeTypes={nodeTypes}/>}</ReactFlowProvider>
  <aside className="hl-inspector-sidebar"><div className="hl-sidebar-content">{mode==='snapshot'
  ? <SnapshotNodeInspector graphNodeId={selected} pack={pack} job={snapshot.jobs[0]} preview={preview&&<InspectorPreview data={preview.data}/>}/>
- : <NodeInspector selected={graphNode} pack={pack} onChange={()=>{}} onParamsChange={()=>{}} preview={<InspectorPreview data={data}/>}/>}</div></aside>
+ : <NodeInspector selected={graphNode} pack={pack} onChange={()=>{}} onParamsChange={()=>{}} assignment={environmentFixture ? <span>GPU worker</span> : undefined} preview={<InspectorPreview data={data}/>}/>}</div></aside>
  </div></CanvasContext.Provider>;
 }
 createRoot(document.getElementById('root')!).render(<Fixture/>);

@@ -14,6 +14,9 @@ export interface Envelope<T = unknown> {
 // its separate fresh authority check.
 export interface EnvironmentReport {
   status: "undeclared" | "satisfied" | "missing" | "unknown";
+  // Absolute conda prefix resolved by the reporting node for runtime.env.
+  // Absent for host runtimes, unavailable mappings, and older nodes.
+  prefix?: string;
   checked_at?: number | null;
   issues: {item: string; required: unknown; actual: unknown; remedy: string}[];
   requires?: Record<string, unknown> | null;

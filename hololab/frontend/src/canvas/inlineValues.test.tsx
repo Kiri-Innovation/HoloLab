@@ -228,6 +228,31 @@ it('omits the entire input section when wired or portless, retains unset optiona
   expect(render({value:spec})).toContain('aria-label="value：类型默认值；点击展开编辑控件"');
 });
 
+it('shows the logical environment and resolved conda prefix for the assigned node', () => {
+  const pack = {
+    name: 'consume', version: '1', inputs: {}, outputs: {}, params: {}, description: '',
+    runtime: {mode: 'conda', env: 'kiri'},
+    environment_by_node: {device: {status: 'satisfied', issues: [], prefix: '/cloud/cloud-ssd1/envs/kiri'}},
+  } as unknown as CatalogPack;
+  const html = renderToStaticMarkup(
+    <NodeInspector selected={node} pack={pack} onChange={() => {}} onParamsChange={() => {}} assignment={<span>Device</span>} />,
+  );
+  expect(html).toContain('环境：kiri');
+  expect(html).toContain('title="实际 conda 环境：/cloud/cloud-ssd1/envs/kiri"');
+});
+
+it('labels host-runtime packs without implying a conda environment', () => {
+  const pack = {
+    name: 'builtin/consume', version: '1', inputs: {}, outputs: {}, params: {}, description: '',
+    runtime: {mode: 'host', env: 'kiri'},
+  } as unknown as CatalogPack;
+  const html = renderToStaticMarkup(
+    <NodeInspector selected={node} pack={pack} onChange={() => {}} onParamsChange={() => {}} assignment={<span>Device</span>} />,
+  );
+  expect(html).toContain('环境：本体环境');
+  expect(html).toContain('title="使用节点本体 Python，不使用 conda 环境"');
+});
+
 it('creates fresh format defaults and discards connected values across all edge replacements', () => {
   expect(freshInlineValue(spec)).toBe(0);
   expect(freshInlineValue({...spec,tags:['vec3']})).toEqual([0,0,0]);

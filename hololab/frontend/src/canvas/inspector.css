@@ -88,6 +88,7 @@
 .hl-inspector-description { flex-basis: 100%; margin: 0; font-size: var(--fs-xs); line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; }
 .hl-inspector-execution { padding-top: 14px; }
 .hl-inspector-execution .hl-compute-assignment { padding: 0; }
+.hl-inspector-environment { min-width: 0; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--text-muted); }
 .hl-inspector-parameters { flex: none; overflow: visible; padding-right: 4px; }
 
 .hl-inspector-description .hl-inspector-docs-toggle { display: inline; height: auto; min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--accent); font: inherit; font-size: inherit !important; line-height: inherit; white-space: nowrap; cursor: pointer; vertical-align: baseline; transition: none; }
