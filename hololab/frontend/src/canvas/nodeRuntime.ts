@@ -218,6 +218,8 @@ export function aggregateJobsToRuntime(
       // backend's ``get_job_at`` also prefers the parent for artifact
       // resolution, so the two agree on what "this node's job" means.
       job_id: parent.job_id,
+      node_id: parent.node_id,
+      workflow_id: parent.workflow_id,
       // CanvasJob carries this extra field; SnapshotJob deliberately does
       // not because frozen snapshot responses do not need it.
       snapshot_id: (parent as SnapshotJob & { snapshot_id?: string }).snapshot_id ?? null,

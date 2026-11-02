@@ -37,6 +37,9 @@ export interface NodeRuntime {
   progress?: { current: number; total: number } | null;
   fail_reason?: string | null;
   job_id?: string;
+  /** Assigned node/workflow let a running viewer address its conventional output dir. */
+  node_id?: string | null;
+  workflow_id?: string;
   // Aggregated timing across the newest generation's parent + shards.
   // ``started_ts`` = earliest start (falls back to created_ts per row).
   // ``updated_ts`` = latest update. Nullable so aggregator output for a

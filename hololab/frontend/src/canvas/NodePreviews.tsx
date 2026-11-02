@@ -205,6 +205,18 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
   const expanded = currentPreview?.name ?? null;
   const runState = runtime?.state;
   const runInFlight = runState === "pending" || runState === "assigned" || runState === "running";
+  // Outputs are materialised before the subprocess starts, but are only
+  // registered as artifact handles at completion.  Keep the running output
+  // addressable through the node file proxy so a page reload can restore a
+  // pack-owned viewer before that terminal handle exists.
+  const runningHistoryTarget = defaultNodeViewer?.history_output && runInFlight
+    && runtime?.node_id && runtime?.workflow_id && runtime?.job_id
+    ? {
+      handle_id: `running:${runtime.job_id}:${defaultNodeViewer.history_output}`,
+      node_id: runtime.node_id,
+      proxy_url: `/proxy/${encodeURIComponent(runtime.node_id)}/w/${encodeURIComponent(runtime.workflow_id)}/j/${encodeURIComponent(runtime.job_id)}/${encodeURIComponent(defaultNodeViewer.history_output)}`,
+    }
+    : null;
   return <>
       {inspector && !currentPreview && !defaultNodeViewer && <p className="hl-preview-empty">No preview output is available for this node.</p>}
       {expanded && currentPreview && (
@@ -478,7 +490,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
             frames={defaultNodeViewerFrames}
             historyTarget={
               defaultNodeViewer.history_output
-                ? previews?.[defaultNodeViewer.history_output] ?? null
+                ? previews?.[defaultNodeViewer.history_output] ?? runningHistoryTarget
                 : null
             }
             running={runInFlight}

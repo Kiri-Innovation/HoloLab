@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import email.utils
+import glob
 import hashlib
 import io
 import os
@@ -390,6 +391,32 @@ def create_fileserver_app(
             if_none_match=if_none_match,
             if_modified_since=if_modified_since,
         )
+
+    @app.get("/_glob", response_model=None)
+    async def _glob(base: str = Query(...), pattern: str = Query(...)):
+        """List completed viewer files below one workspace directory.
+
+        This is deliberately relative-only: a pack viewer can rediscover
+        files after a browser reload, but cannot use this convenience route
+        to escape the same workspace boundary enforced by ``/_get``.
+        """
+        if not base or not pattern or Path(base).is_absolute() or Path(pattern).is_absolute():
+            raise HTTPException(status_code=403, detail="glob path outside workspace")
+        if ".." in Path(base).parts or ".." in Path(pattern).parts:
+            raise HTTPException(status_code=403, detail="glob path outside workspace")
+        root = _resolve_under_any(base)
+        if root is None or not root.is_dir():
+            raise HTTPException(status_code=404, detail="base directory not found")
+        matches: list[str] = []
+        for raw in glob.glob(str(root / pattern)):
+            candidate = Path(raw)
+            try:
+                relative = candidate.resolve().relative_to(root.resolve())
+            except ValueError:
+                continue
+            if candidate.is_file():
+                matches.append(relative.as_posix())
+        return {"files": sorted(matches)}
 
     # Response type is intentionally omitted from the annotation: FastAPI
     # can't build a schema from a union of Response subclasses (each has its
