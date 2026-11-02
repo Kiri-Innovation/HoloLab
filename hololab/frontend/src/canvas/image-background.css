@@ -1,0 +1,16 @@
+/* Shared alpha backing for image previews, including lazy thumbnails.
+ * Apply to the image box, not the preview shell: opaque pixels and the
+ * surrounding UI keep their appearance. Each neutral-grey square is 8px.
+ */
+.hl-image-background {
+  --image-check-light: #d8d8d8;
+  --image-check-dark: #b0b0b0;
+  background: repeating-conic-gradient(
+    var(--image-check-light) 0% 25%, var(--image-check-dark) 0% 50%
+  ) 0 0 / 16px 16px;
+}
+
+[data-theme="dark"] .hl-image-background {
+  --image-check-light: #454545;
+  --image-check-dark: #303030;
+}

@@ -34,7 +34,8 @@ export interface OpenSourceButtonProps {
   onDark?: boolean;
   /** ``row`` keeps the exact same open-target behaviour as the header icon,
    * but renders a low-emphasis filename for inspector metadata. */
-  variant?: "icon" | "row";
+  variant?: "icon" | "row" | "action";
+  calloutAlign?: "start" | "end";
   label?: string;
 }
 
@@ -233,6 +234,7 @@ export function OpenSourceButton({
   onDark = false,
   variant = "icon",
   label = "manifest.yaml",
+  calloutAlign = "end",
 }: OpenSourceButtonProps) {
   const [available, setAvailable] = useState<boolean>(() => flopsAvailable());
   useEffect(() => {
@@ -303,7 +305,7 @@ export function OpenSourceButton({
     const target = isModified ? codeTarget : manifestTarget;
     if (!configured) {
       setShowGuide(true);
-      setStatus({ kind: "err", msg: "flops_executor_id not set" });
+      setStatus({ kind: "idle" });
       return;
     }
     if (!target) {
@@ -382,9 +384,9 @@ export function OpenSourceButton({
           display: "inline-flex",
           alignItems: "center",
           justifyContent: variant === "row" ? "flex-start" : "center",
-          width: variant === "row" ? "100%" : "var(--control-h-sm)",
+          width: variant === "row" ? "100%" : variant === "action" ? "auto" : "var(--control-h-sm)",
           height: "var(--control-h-sm)",
-          padding: variant === "row" ? "0 6px" : 0,
+          padding: variant === "icon" ? 0 : "0 6px",
           borderRadius: "var(--radius-sm)",
           border,
           background: bg,
@@ -409,17 +411,18 @@ export function OpenSourceButton({
         ) : variant === "row" ? (
           <PackagePath path={rowPath} />
         ) : (
-          <CodeGlyph colour={colour} />
+          <><CodeGlyph colour={colour} />{variant === "action" && <span>查看代码</span>}</>
         )}
       </button>
       {showGuide && (
-        <FlopsExecutorGuide nodeLabel={nodeLabel} variant="header" />
+        <FlopsExecutorGuide nodeLabel={nodeLabel} variant="header" align={calloutAlign} />
       )}
       {status.kind === "err" && status.callout && !showGuide && (
         <SourceErrorCallout
           title={status.callout.title}
           detail={status.callout.detail}
           variant="header"
+          align={calloutAlign}
         />
       )}
     </span>

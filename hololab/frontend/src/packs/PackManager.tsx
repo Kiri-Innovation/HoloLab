@@ -290,10 +290,10 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
         <button className="hl-pack-status-refresh" disabled={centralLoading} onClick={()=>void refreshCentralComparison()}>{centralLoading ? '查询中…' : '刷新注册表'}</button>
       </section>
       <details className="hl-pack-section" open><summary>安装与内容</summary>
-        {!multipleLocations && sourcePath && <div><code className="hl-pack-command">{sourcePath}</code>{entry.catalog && <OpenSourceButton pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} />}<button className="hl-evidence-primary" onClick={async () => {
+        {!multipleLocations && sourcePath && <div className="hl-pack-copy-actions"><code className="hl-pack-command">{sourcePath}</code>{entry.catalog && <OpenSourceButton variant="action" calloutAlign="start" pack={entry.catalog} computeNode={(installed ? selectedNode : nodes.find(node => entry.catalog?.node_ids.includes(node.node_id))) ?? null} />}<button type="button" className="hl-evidence-primary" onClick={async () => {
           const ok = await writeToClipboard(sourcePath);
           setCommandStatus(current => ({...current, [entry.key]: ok ? '本地路径已复制。' : '未能复制，请选中路径手动复制。'}));
-        }}>复制路径</button><span role="status">{commandStatus[entry.key]}</span></div>}
+        }}>复制路径</button><span className="hl-pack-copy-status" role="status">{commandStatus[entry.key]}</span></div>}
         {multipleLocations && <div data-testid="pack-locations">
           {locations.map(location => <div key={location.manifest_path}>
             <p>{location.effective ? '当前生效' : `未生效（被${effectiveLocation?.source_type === 'community_install' ? '社区版' : '优先路径'}覆盖）`} · {sourceLabel(location.source_type)}</p>
@@ -311,10 +311,10 @@ export function PackManager({onBack, onOpenWorkflow, onNavigate}: {
           {knownCodeHashes.length < locations.length && <p>未计算全部副本的内容哈希；清单相同不代表内容一致。</p>}
         </div>}
         {!installed && (!canInstall ? <p>{installUnavailableReason}</p>
-          : <><p>可复制 CLI 命令在计算节点执行；安装不会代装环境依赖。</p><code className="hl-pack-command">{installCommand(entry.name, entry.version, source)}</code><button className="hl-evidence-primary" onClick={async () => {
+          : <><p>可复制 CLI 命令在计算节点执行；安装不会代装环境依赖。</p><code className="hl-pack-command">{installCommand(entry.name, entry.version, source)}</code><button type="button" className="hl-evidence-primary" onClick={async () => {
             const ok = await writeToClipboard(installCommand(entry.name, entry.version, source));
             setCommandStatus(current => ({...current, [entry.key]: ok ? '安装命令已复制；尚未执行安装。' : '未能复制，请选中命令手动复制。'}));
-          }}>复制安装命令</button><span role="status">{commandStatus[entry.key]}</span></>) }
+          }}>复制安装命令</button><span className="hl-pack-copy-status" role="status">{commandStatus[entry.key]}</span></>) }
         <dl className="hl-evidence-rows">
           <div><dt>内容</dt><dd>{content ? `${content.files} 个文件 · ${formatBytes(content.bytes)} · ` : '未知 · '}<code title={codeHash ?? undefined}>sha256 {codeHash ? `${codeHash.slice(0, 12)}…` : '未知'}</code></dd></div>
           {content && <div><dt>目录</dt><dd><ContentTree tree={content.tree} excluded={excluded} sourceEntry={entry.catalog?.source_entry} /></dd></div>}

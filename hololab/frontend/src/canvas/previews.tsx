@@ -24,6 +24,7 @@ import type {
 } from "../wire";
 import { useVideoBackground, VideoBackgroundButton } from "./VideoBackground";
 import { LazyThumb } from "./LazyThumb";
+import "./image-background.css";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { LagsplatPreview } from "./LagsplatPreview";
 import { NodeViewerFrame } from "./NodeViewerFrame";
@@ -309,7 +310,7 @@ export function Preview({
   // shape (element = group dir, image children = the participating cams),
   // so the existing viewer paints one card per group with a stack of
   // its cameras' thumbnails.  ``group.json`` sits next to the JPEGs and
-  // is ignored by ``NESTED_IMG_RE``.
+  // is ignored by ``SEQUENCE_IMG_RE``.
   if (
     tags &&
     tags.includes("rig_frames_grouped") &&
@@ -717,8 +718,9 @@ function ImagePreview({ url }: { url: string }) {
   const [size, setSize] = useState<{ src: string; width: number; height: number }>();
   return (
     <div style={{ ...PREVIEW_SHELL, position: "relative" }}>
-      {/* Kept centred on the dark shell so the image reads as the focus. */}
+      {/* Back only the image pixels; keep the surrounding shell unchanged. */}
       <img
+        className="hl-image-background"
         key={url}
         src={url}
         onLoad={(event) => {
@@ -2288,7 +2290,7 @@ interface FrameStripProps {
 }
 
 /**
- * Return PNG leaves from an arrayed-image handle summary.  Most frame packs
+ * Return image leaves from an arrayed-image handle summary.  Most frame packs
  * use the fast contiguous ``frame_XXXXXX.png`` convention; diagnostic packs
  * legitimately use semantic names such as ``iter_000100.png``.  This fallback
  * keeps the viewer type-driven rather than making every diagnostic pack adopt
@@ -2297,12 +2299,11 @@ interface FrameStripProps {
 function summaryImagePaths(summary: HandleSummary): string[] {
   const natural = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
   const entries = summary.fields.entries ?? [];
-  const isPng = (name: string) => /\.png$/i.test(name);
-  const direct = entries.filter((entry) => !entry.is_dir && isPng(entry.name)).map((entry) => entry.name);
+  const direct = entries.filter((entry) => !entry.is_dir && SEQUENCE_IMG_RE.test(entry.name)).map((entry) => entry.name);
   if (direct.length > 0) return direct.sort(natural);
   const frames = entries.find((entry) => entry.is_dir && entry.name === "frames");
   return (frames?.children ?? [])
-    .filter((entry) => !entry.is_dir && isPng(entry.name))
+    .filter((entry) => !entry.is_dir && SEQUENCE_IMG_RE.test(entry.name))
     .map((entry) => `frames/${entry.name}`)
     .sort(natural);
 }
@@ -2346,7 +2347,9 @@ function FrameStripPreview({ baseUrl, handleId }: FrameStripProps) {
         const pathPrefix = flatExists ? "" : legacyExists ? "frames/" : "";
         if (!flatExists && !legacyExists && handleId) {
           const paths = summaryImagePaths(await getHandleSummary(handleId));
-          const dims = paths.length > 0
+          // The cheap IHDR probe is PNG-only; other formats still render
+          // through the thumbnail endpoint and the browser in the zoom view.
+          const dims = paths.length > 0 && /\.png$/i.test(paths[0])
             ? await fetchPngDims(`${dirBase}/${paths[0]}`, abort.signal)
             : null;
           setState({
@@ -2424,7 +2427,7 @@ function FrameStripPreview({ baseUrl, handleId }: FrameStripProps) {
   if (state.count === 0) {
     return (
       <div style={PREVIEW_SHELL}>
-        <Status text="no PNG images found" kind="info" />
+        <Status text="no images found" kind="info" />
       </div>
     );
   }
@@ -2496,6 +2499,7 @@ function FrameStripPreview({ baseUrl, handleId }: FrameStripProps) {
                 }}
               >
                 <LazyThumb
+                  className="hl-image-background"
                   src={thumbUrl(frameIdx)}
                   alt={imageName}
                   style={{
@@ -2590,6 +2594,7 @@ function FrameZoomOverlay({
       }}
     >
       <img
+        className="hl-image-background"
         src={url}
         alt={`frame ${index}`}
         style={{
@@ -2717,7 +2722,7 @@ const NESTED_CARD_W =
   NESTED_MINI_W +
   (NESTED_INNER_THUMBS - 1) * (NESTED_MINI_W - NESTED_MINI_OVERLAP);
 
-const NESTED_IMG_RE = /\.(png|jpe?g|webp|bmp)$/i;
+const SEQUENCE_IMG_RE = /\.(png|jpe?g|webp|bmp)$/i;
 
 /** Zero-pad-aware compare so ``frame_2`` sorts before ``frame_10``. */
 function compareNameNumeric(a: string, b: string): number {
@@ -2776,7 +2781,7 @@ function NestedFrameSequencePreview({
             // ``children`` / ``children[].children`` so we handle them
             // with the same walker.
             const direct = (e.children ?? []).filter(
-              (c) => !c.is_dir && NESTED_IMG_RE.test(c.name),
+              (c) => !c.is_dir && SEQUENCE_IMG_RE.test(c.name),
             );
             let files: string[];
             let pathPrefix: string;
@@ -2792,7 +2797,7 @@ function NestedFrameSequencePreview({
                 (c) => c.is_dir && c.name === "frames",
               );
               const nested = (framesDir?.children ?? []).filter(
-                (c) => !c.is_dir && NESTED_IMG_RE.test(c.name),
+                (c) => !c.is_dir && SEQUENCE_IMG_RE.test(c.name),
               );
               files = nested.map((c) => c.name).sort(compareNameNumeric);
               pathPrefix = framesDir ? "frames/" : "";
@@ -2985,6 +2990,7 @@ function NestedGroupCard({
             }}
           >
             <LazyThumb
+              className="hl-image-background"
               // Depends on the fileserver's still-image branch in
               // ``_thumb_response`` (dropping ``-ss`` for jpg/png/…):
               // before that landed a JPEG tile 500'd here. If a future
@@ -3160,6 +3166,7 @@ function NestedGroupDetail({
                 }}
               >
                 <LazyThumb
+                  className="hl-image-background"
                   // Same fileserver still-image-branch dependency as the
                   // outer card thumb above — keep the two call sites in
                   // sync if the URL scheme moves.
@@ -4053,6 +4060,7 @@ function RigTimelinePreview({ baseUrl }: { baseUrl: string }) {
   return (
     <div style={{ ...PREVIEW_SHELL, position: "relative" }}>
       <img
+        className="hl-image-background"
         src={pngUrl}
         alt="exposure timeline (full public overlap window)"
         style={{

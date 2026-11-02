@@ -220,3 +220,7 @@
 .hl-pack-splitter[data-dragging] > span { background: var(--accent); transform: translateX(var(--pack-resize-offset, 0px)); will-change: transform; }
 .hl-pack-workspace:has(> .hl-pack-splitter[data-dragging]) { cursor: col-resize; user-select: none; }
 @media (max-width: 760px) { .hl-pack-splitter { display: none; } }
+
+.hl-pack-copy-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.hl-pack-copy-actions > .hl-pack-command { flex-basis: 100%; margin-bottom: 0; }
+.hl-pack-copy-status { display: block; margin-block: var(--space-2); overflow-wrap: anywhere; }

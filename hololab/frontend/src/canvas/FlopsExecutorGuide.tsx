@@ -1,3 +1,4 @@
+import { AnchoredCallout } from "../ui/AnchoredCallout";
 // Shared "set the Flops executor id first" guide callout.
 //
 // Both the preview drawer's ↗ button and the canvas node header's
@@ -14,22 +15,21 @@ export interface FlopsExecutorGuideProps {
    *  ``header`` widens it and hangs below the trigger to fit inside
    *  the tighter canvas node header row. */
   variant?: "inline" | "header";
+  align?: "start" | "end";
 }
 
 export function FlopsExecutorGuide({
   nodeLabel,
   variant = "inline",
+  align = "end",
 }: FlopsExecutorGuideProps) {
   const width = variant === "header" ? 280 : 260;
-  const top = "calc(var(--control-h-sm) + 6px)";
   return (
-    <div
+    <AnchoredCallout
+      align={align}
       data-hl-open-cocoder-guide=""
       role="status"
       style={{
-        position: "absolute",
-        top,
-        right: 0,
         width,
         padding: "8px 10px",
         background: "var(--surface)",
@@ -39,7 +39,6 @@ export function FlopsExecutorGuide({
         boxShadow: "var(--shadow-2)",
         fontSize: "var(--fs-xs)",
         lineHeight: 1.45,
-        zIndex: 30,
       }}
     >
       <div style={{ fontWeight: 600, marginBottom: 4 }}>
@@ -51,6 +50,6 @@ export function FlopsExecutorGuide({
         <b>{nodeLabel}</b> → fill the <b>Flops executor id</b> field →{" "}
         <b>Apply</b>.
       </div>
-    </div>
+    </AnchoredCallout>
   );
 }

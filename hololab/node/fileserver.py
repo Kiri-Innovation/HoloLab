@@ -39,6 +39,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Query
+from PIL import Image
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from hololab.package_identity import offered_identity, validate_identity
@@ -52,6 +53,7 @@ _INMEM_TAR_LIMIT_BYTES = 32 * 1024 * 1024  # 32 MiB
 # values so a mistyped URL can't burn ffmpeg on a 4K decode.
 _THUMB_MAX_DIM = 1024
 _THUMB_CACHE_DIRNAME = ".hololab-thumbs"
+_THUMB_VERSION = "alpha-checker-v1"
 
 # Extensions ``_thumb_response`` treats as still images: ffmpeg is called
 # **without** ``-ss`` because a still image's demuxer reports duration 0,
@@ -465,6 +467,43 @@ def _parse_thumb_dims(dims: str) -> tuple[int, int]:
     return w, h
 
 
+def _image_has_transparency(path: Path) -> bool:
+    """Decode only potential alpha images, including palette/tRNS transparency.
+
+    Called off the event loop, under the thumbnail semaphore on cache misses.
+    Fully opaque RGBA must retain the original ffmpeg path too.
+    """
+    try:
+        with Image.open(path) as image:
+            if "A" not in image.getbands() and "transparency" not in image.info:
+                return False
+            return image.convert("RGBA").getchannel("A").getextrema()[0] < 255
+    except (OSError, ValueError):
+        # Let ffmpeg retain its existing decoder/error handling for images
+        # Pillow cannot inspect, rather than breaking formerly valid inputs.
+        return False
+
+
+def _alpha_thumbnail_filter(vf: str) -> str:
+    """Flatten alpha onto 8px neutral-grey squares after scale, before pad.
+
+    geq blends straight RGB with the checker using the decoded alpha, then
+    makes the result opaque for JPEG. Keep any letterbox padding black.
+    """
+    scale, _, padding = vf.partition(",")
+    # ffmpeg 4.2 (used by older nodes) lacks force_divisible_by. For the
+    # alpha-only path, round the scaled dimensions in a second scale step.
+    # Opaque images/videos keep their original command byte-for-byte.
+    scale = scale.replace(":force_divisible_by=2", ",scale=trunc(iw/2)*2:trunc(ih/2)*2")
+    checker = "(216-40*mod(floor(X/8)+floor(Y/8),2))"
+    channels = ":".join(
+        f"{c}='{c}(X,Y)*alpha(X,Y)/255+{checker}*(1-alpha(X,Y)/255)'"
+        for c in "rgb"
+    )
+    result = f"format=rgba,{scale},format=rgba,geq={channels}:a=255,format=rgb24"
+    return f"{result},{padding}" if padding else result
+
+
 async def _thumb_response(
     video: Path,
     width: int,
@@ -479,7 +518,8 @@ async def _thumb_response(
     """Return a JPEG frame of ``video`` at ``at`` seconds, resized to fit
     ``width``x``height`` (aspect preserved, padded unless ``unpadded``).
 
-    Caches results keyed by (path, mtime_ns, w, h, at). Cache misses shell
+    Transparent still images are flattened onto a checkerboard before JPEG.
+    Caches results keyed by (render version, path, mtime_ns, w, h, at). Cache misses shell
     out to ffmpeg with ``-frames:v 1 -update 1`` to write exactly one JPEG,
     gated by :func:`_get_thumb_semaphore` so a page refresh that fans out
     N tiles doesn't spawn N processes at once. Missing ffmpeg → 501 so the
@@ -500,7 +540,8 @@ async def _thumb_response(
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"stat failed: {exc}") from exc
 
-    key_material = f"{video.resolve()}|{stat.st_mtime_ns}|{width}x{height}|{at:.3f}".encode()
+    is_still_image = video.suffix.lower() in _STILL_IMAGE_EXTS
+    key_material = f"{video.resolve()}|{stat.st_mtime_ns}|{width}x{height}|{at:.3f}|{_THUMB_VERSION}".encode()
     if unpadded:
         key_material += b"|unpadded-v1"
     digest = hashlib.sha256(key_material).hexdigest()[:32]
@@ -512,7 +553,9 @@ async def _thumb_response(
         etag=digest,
         mtime_ns=stat.st_mtime_ns,
         if_none_match=if_none_match,
-        if_modified_since=None if unpadded else if_modified_since,
+        # Source mtime cannot validate a changed still-image rendering.
+        # ETag must also take precedence over If-Modified-Since.
+        if_modified_since=None if (is_still_image or unpadded or if_none_match) else if_modified_since,
     )
     if not_modified is not None:
         return not_modified
@@ -550,7 +593,6 @@ async def _thumb_response(
     # 500s). Detect by extension since the fileserver already trusts
     # extensions elsewhere (thumb/preview endpoint fan-out). Videos keep
     # the seek-based path so /_thumb still costs only one decoded frame.
-    is_still_image = video.suffix.lower() in _STILL_IMAGE_EXTS
     cmd = [ffmpeg, "-nostdin", "-loglevel", "error"]
     if not is_still_image:
         cmd += ["-ss", f"{at:.3f}"]
@@ -577,6 +619,9 @@ async def _thumb_response(
         if cache_path.is_file() and cache_path.stat().st_size > 0:
             tmp_path.unlink(missing_ok=True)
             return FileResponse(cache_path, media_type="image/jpeg", headers=cache_headers)
+
+        if is_still_image and await asyncio.to_thread(_image_has_transparency, video):
+            cmd[cmd.index("-vf") + 1] = _alpha_thumbnail_filter(vf)
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,

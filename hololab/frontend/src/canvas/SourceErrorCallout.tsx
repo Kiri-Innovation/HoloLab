@@ -1,3 +1,4 @@
+import { AnchoredCallout } from "../ui/AnchoredCallout";
 // Inline error callout for Cobrowser open failures.
 //
 // Mirrors FlopsExecutorGuide's positioning + chrome — same "badge hangs
@@ -9,22 +10,22 @@ export interface SourceErrorCalloutProps {
   title: string;
   detail?: string;
   variant?: "inline" | "header";
+  align?: "start" | "end";
 }
 
 export function SourceErrorCallout({
   title,
   detail,
   variant = "inline",
+  align = "end",
 }: SourceErrorCalloutProps) {
   const width = variant === "header" ? 280 : 260;
   return (
-    <div
+    <AnchoredCallout
+      align={align}
       data-hl-source-error=""
       role="alert"
       style={{
-        position: "absolute",
-        top: "calc(var(--control-h-sm) + 6px)",
-        right: 0,
         width,
         padding: "8px 10px",
         background: "var(--surface)",
@@ -34,7 +35,6 @@ export function SourceErrorCallout({
         boxShadow: "var(--shadow-2)",
         fontSize: "var(--fs-xs)",
         lineHeight: 1.45,
-        zIndex: 30,
       }}
     >
       <div style={{ fontWeight: 600, marginBottom: detail ? 4 : 0 }}>
@@ -45,6 +45,6 @@ export function SourceErrorCallout({
           {detail}
         </div>
       )}
-    </div>
+    </AnchoredCallout>
   );
 }
