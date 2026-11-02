@@ -1,0 +1,20 @@
+{
+  "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+  "node_name": "KiriA800",
+  "pack": {
+    "name": "community/image-undistort",
+    "version": "0.6.2",
+    "manifest_hash": "e01e868eb9e913918887943d1ebd75f6d2385c2b7359ab3f7f536e55d822b69b",
+    "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/image-undistort@0.6.2/manifest.yaml",
+    "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs"
+  },
+  "daemon_hashes": {
+    "0.6.1": "1ff0f8185762",
+    "0.6.2": "900a1b6df200"
+  },
+  "automatic_scan_log": "2026-11-02 07:20:16 packs changed on disk count=68 manifest_changed=True",
+  "subsequent_targeted_reload": {
+    "count": 68,
+    "manifest_changed": false
+  }
+}

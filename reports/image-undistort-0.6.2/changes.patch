@@ -1,0 +1,46 @@
+--- community_packs/image-undistort@0.6.1/manifest.yaml
++++ community_packs/image-undistort@0.6.2/manifest.yaml
+@@ -4 +4 @@
+-version: 0.6.1
++version: 0.6.2
+--- community_packs/image-undistort@0.6.1/und_worker.py
++++ community_packs/image-undistort@0.6.2/und_worker.py
+@@ -261 +261 @@
+-    out_pinned = _pinned_out((B, new_H, new_W, 3))
++    out_pinned = _pinned_out((B, new_H, new_W, imgs_u8.shape[-1]))
+@@ -301,0 +302,9 @@
++    bgr = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
++    if bgr is not None and bgr.ndim == 3 and bgr.shape[2] == 4:
++        # Keep all four channels together through the same grid_sample call.
++        # Match the legacy decoder's uint8 conversion for 16-bit inputs.
++        if bgr.dtype == np.uint16:
++            bgr = (bgr >> 8).astype(np.uint8)
++        return cv2.cvtColor(bgr, cv2.COLOR_BGRA2RGBA)
++    # Preserve legacy RGB/grayscale decoding, including EXIF orientation
++    # and conversion to uint8. Grayscale is normalized to three channels.
+@@ -311 +319,0 @@
+-    bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+@@ -312,0 +321,6 @@
++    conversion = (
++        cv2.COLOR_RGBA2BGRA
++        if rgb.shape[-1] == 4 and suffix not in (".jpg", ".jpeg")
++        else cv2.COLOR_RGB2BGR
++    )
++    bgr = cv2.cvtColor(rgb, conversion)
+@@ -381 +395 @@
+-    ``log_fn``: sink for ``[image-undistort/0.6.0] ...`` lines. Defaults to
++    ``log_fn``: sink for ``[image-undistort/0.6.2] ...`` lines. Defaults to
+@@ -432 +446 @@
+-        f"[image-undistort/0.6.0] {len(used_ids)} source camera(s), {len(staged)} images",
++        f"[image-undistort/0.6.2] {len(used_ids)} source camera(s), {len(staged)} images",
+@@ -436 +450 @@
+-        "[image-undistort/0.6.0] using "
++        "[image-undistort/0.6.2] using "
+@@ -511 +525 @@
+-        f"[image-undistort/0.6.0] done -> PINHOLE cams + {len(staged)} undistorted images  "
++        f"[image-undistort/0.6.2] done -> PINHOLE cams + {len(staged)} undistorted images  "
+--- community_packs/image-undistort@0.6.1/undistort.py
++++ community_packs/image-undistort@0.6.2/undistort.py
+@@ -2 +2 @@
+-"""image-undistort@0.6.0 — thin client + optional persistent daemon.
++"""image-undistort@0.6.2 — thin client + optional persistent daemon.
