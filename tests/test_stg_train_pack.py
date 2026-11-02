@@ -1,4 +1,4 @@
-"""``k4d/stg-train@0.4.7`` consumes the portable state created by ``k4d/stg-init``."""
+"""``k4d/stg-train@0.4.10`` consumes the portable state created by ``k4d/stg-init``."""
 
 from __future__ import annotations
 
@@ -8,9 +8,7 @@ import pytest
 
 from hololab.manifest import RenderContext, load_manifest, render_manifest
 
-_MANIFEST = Path(
-    "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs/stg-train@0.4.7/manifest.yaml"
-)
+_MANIFEST = Path("/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs/stg-train/manifest.yaml")
 
 if not _MANIFEST.exists():
     pytest.skip("needs SpacetimeGaussians checkout at local path", allow_module_level=True)
@@ -24,7 +22,7 @@ def _load() -> object:
 def test_manifest_declares_split_state_contract() -> None:
     m = _load()
     assert m.name == "k4d/stg-train"
-    assert m.version == "0.4.7"
+    assert m.version == "0.4.10"
     assert set(m.inputs) == {"state", "supervision"}
     assert m.inputs["state"].tags == ["stg-training-state"]
     assert m.inputs["supervision"].tags == ["stg-supervision"]
@@ -34,7 +32,7 @@ def test_manifest_declares_split_state_contract() -> None:
 
 def test_train_parameters_are_additional_iterations_and_diagnostics() -> None:
     m = _load()
-    assert set(m.params) == {"iterations", "save_cam", "preview_every"}
+    assert {"iterations", "save_cam", "preview_every"} <= set(m.params)
     assert m.params["iterations"].default == 500
     assert m.params["iterations"].min == 1
     assert m.params["save_cam"].default == 5

@@ -16,7 +16,7 @@ STG = Path(__file__).resolve().parents[2] / "SpacetimeGaussians"
 
 @pytest.mark.skipif(not (STG / ".packignore").exists(), reason="migrated STG tree not installed")
 def test_real_stg_relocation_and_five_changes(tmp_path):
-    manifest = STG / "packs/stg-init@0.3.2/manifest.yaml"
+    manifest = STG / "packs/stg-init/manifest.yaml"
     baselines = Baselines(tmp_path / "baselines")
     before = time.monotonic()
     original = capture(manifest, baselines)
@@ -52,17 +52,18 @@ def test_real_stg_relocation_and_five_changes(tmp_path):
     verify(target_manifest, original)
     relocated = capture(target_manifest, baselines)
     assert relocated["sha256"] == original["sha256"]
-    # /packs/* excludes siblings; the selected manifest is forced into hot scope.
-    sibling = moved / "packs/stg-train@0.4.7/manifest.yaml"
-    sibling.parent.mkdir(parents=True, exist_ok=True)
-    sibling.write_bytes((STG / "packs/stg-train@0.4.7/manifest.yaml").read_bytes())
-    assert capture(target_manifest, baselines)["sha256"] == relocated["sha256"]
-    sibling.write_text("a changed sibling manifest, deliberately invalid YAML: [")
+    # Viewer assets live at the package root and survive archive construction.
+    viewer = moved / "viewers/training-diagnostics/index.html"
+    assert viewer.is_file()
+    original_viewer = viewer.read_bytes()
+    viewer.write_bytes(original_viewer + b"\n<!-- changed packaged viewer -->\n")
+    assert capture(target_manifest, baselines)["sha256"] != relocated["sha256"]
+    viewer.write_bytes(original_viewer)
     assert capture(target_manifest, baselines)["sha256"] == relocated["sha256"]
     original_manifest = target_manifest.read_bytes()
     # Real STG release metadata must not alter semantic identity, including a
     # release-time baseline refresh. Mutations only affect the temporary copy.
-    dev_manifest = original_manifest.replace(b"version: 0.3.2", b"version: 0.3.2+")
+    dev_manifest = original_manifest.replace(b"version: 0.3.6", b"version: 0.3.6+")
     assert dev_manifest != original_manifest
     target_manifest.write_bytes(dev_manifest)
     dev = capture(target_manifest, baselines)
@@ -89,7 +90,10 @@ def test_real_stg_relocation_and_five_changes(tmp_path):
                 "supervision": "/supervision",
                 "preview": "/preview",
             },
-            params={"configpath": "configs/n3d_full/stg_state_default.json"},
+            params={
+                "configpath": "configs/n3d_full/stg_state_default.json",
+                "resolution": 2,
+            },
             scratch_dir="/scratch",
         ),
     )
