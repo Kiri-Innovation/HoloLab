@@ -221,6 +221,7 @@ export function aggregateJobsToRuntime(
       // CanvasJob carries this extra field; SnapshotJob deliberately does
       // not because frozen snapshot responses do not need it.
       snapshot_id: (parent as SnapshotJob & { snapshot_id?: string }).snapshot_id ?? null,
+      historical_only: (parent as SnapshotJob & { historical_only?: boolean }).historical_only,
       started_ts: isFinite(earliestStart) ? earliestStart : null,
       updated_ts: latestUpdate > 0 ? latestUpdate : null,
     };

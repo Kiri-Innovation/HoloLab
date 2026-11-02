@@ -4,7 +4,7 @@ import type { NodeStaleness } from './staleness';
 import { analysisSignatures, type AnalysisContext } from './analysisInputs';
 import { analysisMetrics } from './analysisMetrics';
 
-export type CanvasJob = SnapshotJob & { snapshot_id: string };
+export type CanvasJob = SnapshotJob & { snapshot_id: string; historical_only?: boolean };
 
 export interface ExecutionAnalysis {
   canvas_jobs?: CanvasJob[];

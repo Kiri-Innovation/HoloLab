@@ -44,6 +44,8 @@ export interface NodeRuntime {
   updated_ts?: number | null;
   /** Snapshot that directly attributes the representative job. */
   snapshot_id?: string | null;
+  /** Branch membership verdict delivered with this runtime, never inferred from UI timing. */
+  historical_only?: boolean;
 }
 
 // One resolved shard preview — populated while an arrayed node's fanout is
@@ -373,7 +375,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     computeNodesById,
     packDisplayName,
     hydrating,
-    dispatch_snapshot_id,
   } = useCanvasContext();
   const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
   const inputEntries = Object.entries(pack.inputs);
@@ -394,14 +395,9 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       : NODE_WIDTH;
   const runInFlight =
     runState === "pending" || runState === "assigned" || runState === "running";
-  // ``canvas_jobs`` may deliberately retain a configuration-compatible
-  // result from another branch.  It is previewable evidence, but dispatch
-  // resolves inputs from the base snapshot only (execution.py), so flag the
-  // distinction before the user tries to consume it downstream.
-  const historicalOnly = Boolean(
-    !readOnly && runtime?.snapshot_id && dispatch_snapshot_id &&
-    runtime.snapshot_id !== dispatch_snapshot_id,
-  );
+  // Keep the verdict paired with its evidence while analysis refreshes. A
+  // separately updated dispatch id cannot establish that this job is historical.
+  const historicalOnly = Boolean(!readOnly && runtime?.historical_only);
 
   const [showCompositionOutput, setShowCompositionOutput] = useState(false);
   const [runClickPending, setRunClickPending] = useState(false);

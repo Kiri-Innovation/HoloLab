@@ -1736,7 +1736,8 @@ async def _resolve_inputs_from_snapshot(
          * ``PENDING / ASSIGNED / RUNNING`` → the upstream is still
            producing the artifact. Raise DispatchError with the shard
            progress so the operator waits instead of re-dispatching.
-         * ``FAILED / CANCELLED`` → the last attempt didn't produce
+         * Other non-DONE states (including INTERRUPTED / ORPHANED)
+           → the last attempt did not finish producing
            anything. Raise DispatchError telling the operator to
            re-run (a fresh dispatch will Continue on the same
            snapshot per ``dispatch_graph_node``'s "skip terminal-fail
@@ -1814,7 +1815,7 @@ async def _resolve_inputs_from_snapshot(
                 f"upstream graph node {source_gnode!r} is still {state.value}"
                 f"{progress}; wait for it to finish, then retry"
             )
-        if state in (JobState.FAILED, JobState.CANCELLED):
+        if state != JobState.DONE:
             raise DispatchError(
                 f"upstream graph node {source_gnode!r} last attempt {state.value}; re-run it"
             )

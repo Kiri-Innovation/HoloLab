@@ -179,3 +179,36 @@ async def test_new_membership_uses_canvas_result_from_sibling_branch(monkeypatch
 
     await materialize_current_results(app, "w", g, "new", cleared={"c"})
     bridge.attribute_many.assert_awaited_once_with("new", [("a-branch", "a"), ("b-branch", "b")])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("membership", [[], ["retained"], ["other-generation"]])
+async def test_analysis_pairs_history_verdict_with_job_membership(monkeypatch, membership):
+    from hololab.gateway.preparation import analyze_execution
+
+    g = graph()
+    g.execution = {"revision": "test", "environment_params": {}, "issues": []}
+    selected = {**job("a", state="done"), "job_id": "retained", "snapshot_id": "old"}
+    monkeypatch.setattr("hololab.gateway.preparation.prepare_execution", AsyncMock(return_value=g))
+    monkeypatch.setattr(
+        "hololab.gateway.preparation.historical_execution", AsyncMock(return_value=g)
+    )
+    monkeypatch.setattr(
+        "hololab.gateway.canvas_jobs.canvas_jobs", AsyncMock(return_value=[selected])
+    )
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            snapshot_jobs=SimpleNamespace(
+                get_latest_snapshot_for_workflow=AsyncMock(side_effect=["old", "new"])
+            ),
+            workflows=SimpleNamespace(get_snapshot=AsyncMock(return_value=object())),
+            jobs_store=SimpleNamespace(
+                list_by_snapshot=AsyncMock(return_value=[{"job_id": jid} for jid in membership])
+            ),
+        )
+    )
+    result = await analyze_execution(app, "w", g)
+    assert result["canvas_jobs"][0]["historical_only"] is ("retained" not in membership)
+    assert result["canvas_jobs"][0]["snapshot_id"] == "old"
+    assert "historical_only" not in selected
+    app.state.jobs_store.list_by_snapshot.assert_awaited_once_with("new")

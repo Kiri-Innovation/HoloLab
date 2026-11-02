@@ -416,6 +416,16 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
     from hololab.gateway.canvas_jobs import canvas_jobs
 
     jobs = await canvas_jobs(app, workflow_id, prepared)
+    # Carry branch evidence with the selected jobs. The browser's dispatch id
+    # can lag behind (another tab ran) or lead (analysis is still in flight).
+    # A reused job may belong to both snapshots: compare membership, not origin.
+    evidence_sid = await app.state.snapshot_jobs.get_latest_snapshot_for_workflow(workflow_id)
+    baseline_jobs = await app.state.jobs_store.list_by_snapshot(evidence_sid) if evidence_sid else []
+    baseline_ids = {job["job_id"] for job in baseline_jobs}
+    jobs = [
+        {**job, "historical_only": bool(evidence_sid and job["job_id"] not in baseline_ids)}
+        for job in jobs
+    ]
     latest = {}
     for job in sorted(jobs, key=lambda j: j.get("created_ts", 0)):
         if not job.get("parent_job_id") and job.get("graph_node_id"):
