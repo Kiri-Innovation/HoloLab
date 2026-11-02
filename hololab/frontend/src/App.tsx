@@ -993,6 +993,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // ID of the most-recent snapshot for this workflow. Null until hydration.
   // Used to highlight the "当前" chip in RunsPanel while in draft view.
   const [latestSnapshotId, setLatestSnapshotId] = useState<string | null>(null);
+  const [snapshotRefreshTick, setSnapshotRefreshTick] = useState(0);
   // Incremented after every single-node dispatch so RunsPanel re-fetches its
   // list and shows the new snapshot row without requiring a manual Refresh.
   const [runsPanelRefreshToken, setRunsPanelRefreshToken] = useState(0);
@@ -1064,7 +1065,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     return () => {
       cancelled = true;
     };
-  }, [latestSnapshotId, reconnectTick]);
+  }, [latestSnapshotId, reconnectTick, snapshotRefreshTick]);
 
   const catalogByKey = useMemo(() => {
     return packageCatalogIndex(catalog);
@@ -1356,6 +1357,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             // event.  Clear before the new snapshot begins hydrating.
             resetNodeViewerForRun(graph_node_id, result.job_id);
             setLatestSnapshotId(result.snapshot_id);
+            // Explicit dispatch refresh must bypass the cold-load hydration skip.
+            seededSnapshotIdRef.current = null;
+            setSnapshotRefreshTick(t => t + 1);
             setRunsPanelRefreshToken((t) => t + 1);
             resolve();
           },
@@ -2128,7 +2132,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const analysisGraph = toGraph();
   useRecipeChecks(analysisGraph, !viewingSnapshot);
   const capabilityChecks = useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick]), !viewingSnapshot);
-  const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick});
+  const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick + snapshotRefreshTick});
   const resolvedCanvasContext = useMemo(() => ({...canvasContextValue,
     effectiveParamsByNode: Object.fromEntries((executionAnalysis.isCurrent ? executionAnalysis.data?.graph.nodes ?? [] : []).map(n => [n.id, n.params])),
   }), [canvasContextValue, executionAnalysis.data, executionAnalysis.isCurrent]);

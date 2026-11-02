@@ -225,6 +225,9 @@ async def prepare_execution(
         raise ValueError(relevant[0]["message"])
     from hololab.gateway.capabilities import check_workflow
 
+    # Keep pre-normalization effective configuration for later single-node
+    # Continue checks; untouched upstream paths must not be re-prepared.
+    result.execution["requested_nodes"] = {n.id: semantic_node(n) for n in result.nodes}
     result.execution["environment_checks"] = await check_workflow(
         app, result, required=required, fresh=True, strict=True
     )
@@ -589,3 +592,36 @@ def snapshot_variable_evidence(graph: WorkflowGraph) -> dict | None:
             n.id: copy.deepcopy(n.param_bindings) for n in graph.nodes if n.param_bindings
         },
     }
+
+
+def merge_continuation(
+    frozen: WorkflowGraph, prepared: WorkflowGraph, protected: set[str]
+) -> WorkflowGraph:
+    """Refresh only unexecuted regions; retain recorded node preparation verbatim."""
+    result = prepared.model_copy(deep=True)
+    old_nodes = {n.id: n for n in frozen.nodes}
+    result.nodes = [
+        old_nodes[n.id].model_copy(deep=True) if n.id in protected else n for n in result.nodes
+    ]
+    before, after = frozen.execution or {}, result.execution
+    for key in (
+        "sources",
+        "environment_params",
+        "inline_values",
+        "parameter_inline_values",
+        "requested_nodes",
+        "environment_checks",
+    ):
+        for nid in protected:
+            if nid in before.get(key, {}):
+                after.setdefault(key, {})[nid] = copy.deepcopy(before[key][nid])
+    after["prepared_nodes"] = sorted(
+        (set(before.get("prepared_nodes", [])) & protected)
+        | set(after.get("prepared_nodes", []))
+    )
+    # Keep full per-submission evidence (catalog/checks/variables/revision), so
+    # later preparation never overwrites an earlier execution's environment.
+    prior = {k: v for k, v in before.items() if k != "continuation_evidence"}
+    after["continuation_evidence"] = copy.deepcopy(before.get("continuation_evidence", [prior]))
+    after["continuation_evidence"].append(copy.deepcopy(prepared.execution))
+    return result
