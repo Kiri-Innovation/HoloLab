@@ -952,6 +952,16 @@ class JobsStore:
         )
 
         async def _write(conn: aiosqlite.Connection) -> None:
+            from hololab.gateway.artifact_lifecycle import (
+                validate_input_references,
+                validate_job_references,
+                validate_snapshot_writable,
+            )
+
+            await validate_snapshot_writable(conn, job.snapshot_id)
+            await validate_input_references(conn, job.input_handles.values())
+            if job.reused_from_job_id or job.parent_job_id:
+                await validate_job_references(conn, [job.reused_from_job_id or job.parent_job_id])
             await conn.execute(
                 """
                 INSERT INTO jobs
@@ -1030,6 +1040,25 @@ class JobsStore:
             assert isinstance(job, Job)
 
         async def _write(conn: aiosqlite.Connection) -> None:
+            from hololab.gateway.artifact_lifecycle import (
+                validate_input_references,
+                validate_job_references,
+                validate_snapshot_writable,
+            )
+
+            for sid in {job.snapshot_id for job in jobs}:
+                await validate_snapshot_writable(conn, sid)
+            await validate_input_references(
+                conn, [hid for job in jobs for hid in job.input_handles.values()]
+            )
+            await validate_job_references(
+                conn,
+                [
+                    job.reused_from_job_id or job.parent_job_id
+                    for job in jobs
+                    if job.reused_from_job_id or job.parent_job_id
+                ],
+            )
             # Compose (val_tuple, event_tuple, snapshot_attr_tuple_or_None)
             # for every job so the loop body below stays flat.
             job_rows: list[tuple] = []
@@ -1123,6 +1152,14 @@ class JobsStore:
         )
 
         async def _write(conn: aiosqlite.Connection) -> None:
+            if also_attribute:
+                from hololab.gateway.artifact_lifecycle import (
+                    validate_job_references,
+                    validate_snapshot_writable,
+                )
+
+                await validate_snapshot_writable(conn, job.snapshot_id)
+                await validate_job_references(conn, [job.job_id])
             await conn.execute(
                 """
                 UPDATE jobs SET
@@ -1675,6 +1712,13 @@ class SnapshotJobsStore:
         """Insert one attribution row. Idempotent (INSERT OR IGNORE)."""
 
         async def _write(conn: aiosqlite.Connection) -> None:
+            from hololab.gateway.artifact_lifecycle import (
+                validate_job_references,
+                validate_snapshot_writable,
+            )
+
+            await validate_snapshot_writable(conn, snapshot_id)
+            await validate_job_references(conn, [job_id])
             await conn.execute(
                 """
                 INSERT OR IGNORE INTO snapshot_jobs
@@ -1698,6 +1742,13 @@ class SnapshotJobsStore:
             return
 
         async def _write(conn: aiosqlite.Connection) -> None:
+            from hololab.gateway.artifact_lifecycle import (
+                validate_job_references,
+                validate_snapshot_writable,
+            )
+
+            await validate_snapshot_writable(conn, snapshot_id)
+            await validate_job_references(conn, [jid for jid, _ in rows])
             await conn.executemany(
                 """
                 INSERT OR IGNORE INTO snapshot_jobs
@@ -1765,7 +1816,12 @@ class SnapshotJobsStore:
             ) as cur,
         ):
             row = await cur.fetchone()
-        return row[0] if row and row[0] is not None else None
+        if not row or row[0] is None:
+            return None
+        from hololab.gateway.artifact_lifecycle import resolve_job_origin
+
+        async with self._db.read() as conn:
+            return await resolve_job_origin(conn, row[0])
 
     async def list_attributions(self, snapshot_id: str) -> list[dict[str, str]]:
         """Return ``[{job_id, graph_node_id}]`` for one snapshot."""

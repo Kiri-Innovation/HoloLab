@@ -28,7 +28,6 @@ from hololab.gateway.derived_cache import DerivedPreviewCache
 from hololab.gateway.execution import (
     DispatchError,
     WorkflowRunError,
-    _resolve_origin_job_id,
     dispatch_graph_node,
     run_snapshot,
 )
@@ -896,6 +895,7 @@ def _mount_routes(app: FastAPI) -> None:
         state: str | None = None,
         check: int = 0,
         limit: int = 500,
+        include_elements: bool = False,
     ) -> dict[str, Any]:
         """Rows for the Artifacts page.
 
@@ -922,7 +922,13 @@ def _mount_routes(app: FastAPI) -> None:
         elif workflow_id is not None:
             handles = await book.list_by_workflow(workflow_id)
         else:
-            handles = await book.list_all(limit=limit)
+            handles = await book.list_all()
+
+        from hololab.gateway.artifact_lifecycle import ArtifactIndex
+
+        index = await ArtifactIndex.load(app.state.db)
+        if not include_elements:
+            handles = index.logical(handles)
 
         if node_id is not None:
             handles = [h for h in handles if h.node_id == node_id]
@@ -978,14 +984,55 @@ def _mount_routes(app: FastAPI) -> None:
             rows = [r for r in rows if r.state == state]
 
         counts = art.rollup_states(rows)
+        snapshot_ids_by_family: dict[str, set[str]] = {}
+        for sid, jid in index.refs:
+            family = index.family.get(jid)
+            if family is not None:
+                snapshot_ids_by_family.setdefault(family, set()).add(sid)
+        public_rows = []
+        protection_by_family = {}
+        for row in rows[: max(0, int(limit))]:
+            h = index.handles[row.handle_id]
+            family = index.family.get(h.job_id)
+            elements = [
+                piece
+                for piece in index.outputs.get(family, [])
+                if piece.handle_id != h.handle_id
+                and piece.output_port_name == h.output_port_name
+                and index.canonical(piece).handle_id == h.handle_id
+            ]
+            sids = set(snapshot_ids_by_family.get(family, ()))
+            if row.snapshot_id in index.snapshots:
+                sids.add(row.snapshot_id)
+            sids.update(sid for sid, hid in index.constant_refs if hid == h.handle_id)
+            reason = None
+            if family not in protection_by_family:
+                protection_by_family[family] = index.deletion_protection(h)
+            retained_families, retained_handles = protection_by_family[family]
+            if h.job_id is not None and (family is None or family in index.uncertain):
+                reason = "生产来源不完整 · 保守保留"
+            elif family in retained_families or index.overlaps(h) & retained_handles:
+                reason = "仍被运行记录或下游结果引用。请先删除引用它的运行记录"
+            public_rows.append(
+                {
+                    **_artifact_row_to_json(row),
+                    "snapshot_ids": sorted(sids),
+                    "element_count": len(elements) if elements else None,
+                    "partial": bool(h.job_id in index.jobs and index.jobs[h.job_id].parent_job_id),
+                    "deletion_blocked_reason": reason,
+                }
+            )
         # ``size_bytes`` on the handle row was recorded at register time;
         # for user-cleaned rows we intentionally still count it toward
         # the historical total so run history doesn't look like it
         # produced nothing. Change to filter deleted if that turns out
         # to be more useful in practice.
-        total_bytes = sum((r.size_bytes or 0) for r in rows)
+        total_bytes = sum(
+            h.size_bytes or 0
+            for h in index.deletion_roots([index.handles[row.handle_id] for row in rows])
+        )
         return {
-            "rows": [_artifact_row_to_json(r) for r in rows[: max(0, int(limit))]],
+            "rows": public_rows,
             "counts": counts,
             "total_bytes": total_bytes,
             "total_rows": len(rows),
@@ -1001,67 +1048,13 @@ def _mount_routes(app: FastAPI) -> None:
         from hololab.gateway import artifacts as art
 
         book: HandleBook = app.state.handles
-        registry: NodeRegistry = app.state.registry
         handle = await book.get(handle_id)
         if handle is None:
             raise HTTPException(status_code=404, detail="handle not found")
-        session = registry.get_session(handle.node_id)
-
-        if handle.deleted_ts is not None and session is None:
-            # A previous delete may have had to tombstone while the producer
-            # was offline.  Keep the endpoint idempotent in that state, but
-            # allow a later retry to reach the producer once it reconnects.
-            return {"handle_id": handle_id, "state": "deleted", "freed_bytes": 0}
-
-        # Producer node offline OR the recorded path lives outside the
-        # node's current workspace roots: we can't (and shouldn't) touch
-        # the filesystem, but the row is what the Artifacts page wants
-        # to hide. Tombstone-only in both cases so history stays
-        # coherent and the row falls into the ``deleted`` bucket. This
-        # covers the common "old workspace_root was cleaned out
-        # externally, we just want to stop showing the dead rows" flow.
-        if session is None:
-            await book.mark_deleted(handle_id, ts=art.now_ts())
-            app.state.summary_cache.invalidate(handle_id)
-            return {
-                "handle_id": handle_id,
-                "state": "deleted",
-                "freed_bytes": 0,
-                "note": "producer node offline — DB row tombstoned; on-disk file untouched",
-            }
-
-        try:
-            resp = await art.delete_artifact(app, session, handle)
-        except HTTPException as exc:
-            # ``refused: … is not under any configured workspace root``
-            # means the file predates a workspace_root move. The file
-            # server can't serve it anyway (see strip_workspace_prefix +
-            # legacy roots handling). Tombstone the row and return a
-            # note so the caller understands nothing was deleted from
-            # disk. Any other node error (permission, IO) still bubbles
-            # up as a 5xx.
-            detail = str(exc.detail).lower() if exc.detail else ""
-            if "not under any configured workspace root" in detail:
-                await book.mark_deleted(handle_id, ts=art.now_ts())
-                app.state.summary_cache.invalidate(handle_id)
-                return {
-                    "handle_id": handle_id,
-                    "state": "deleted",
-                    "freed_bytes": 0,
-                    "note": (
-                        "path outside current workspace roots — DB row tombstoned; "
-                        "on-disk file untouched (add a legacy root or delete manually)"
-                    ),
-                }
-            raise
-
-        await book.mark_deleted(handle_id, ts=art.now_ts())
-        app.state.summary_cache.invalidate(handle_id)
-        return {
-            "handle_id": handle_id,
-            "state": "deleted",
-            "freed_bytes": resp.get("freed_bytes"),
-        }
+        resp = await art.delete_artifact(
+            app, app.state.registry.get_session(handle.node_id), handle
+        )
+        return {**resp, "handle_id": handle_id, "state": "deleted"}
 
     @app.get(
         "/api/artifacts/summary",
@@ -1070,7 +1063,10 @@ def _mount_routes(app: FastAPI) -> None:
     )
     async def artifacts_summary() -> dict[str, Any]:
         book: HandleBook = app.state.handles
-        rows = await book.list_all(limit=None)
+        from hololab.gateway.artifact_lifecycle import ArtifactIndex
+
+        index = await ArtifactIndex.load(app.state.db)
+        rows = index.logical(await book.list_all(limit=None))
         by_workflow: dict[str, dict[str, Any]] = {}
         drafts = await app.state.workflows.list_drafts()
         wf_names = {d["workflow_id"]: d["name"] for d in drafts}
@@ -1099,6 +1095,13 @@ def _mount_routes(app: FastAPI) -> None:
             entry["total_bytes"] += h.size_bytes or 0
             if h.deleted_ts is not None:
                 entry["deleted_count"] += 1
+        for wf, entry in by_workflow.items():
+            entry["total_bytes"] = sum(
+                h.size_bytes or 0
+                for h in index.deletion_roots(
+                    [h for h in rows if wf_by_job.get(h.job_id or "") == wf]
+                )
+            )
         return {
             "workflows": list(by_workflow.values()),
             "total_bytes": sum(w["total_bytes"] for w in by_workflow.values()),
@@ -1124,6 +1127,10 @@ def _mount_routes(app: FastAPI) -> None:
             handles = await book.list_by_workflow(workflow_id)
         else:
             raise HTTPException(status_code=400, detail="require one of workflow_id / snapshot_id")
+        from hololab.gateway.artifact_lifecycle import ArtifactIndex
+
+        index = await ArtifactIndex.load(app.state.db)
+        handles = index.logical(handles)
         handles = [h for h in handles if h.deleted_ts is None]
         if only_dead:
             by_node: dict[str, list[Any]] = {}
@@ -1144,8 +1151,6 @@ def _mount_routes(app: FastAPI) -> None:
             session = registry.get_session(h.node_id)
             try:
                 resp = await art.delete_artifact(app, session, h)
-                await book.mark_deleted(h.handle_id, ts=art.now_ts())
-                app.state.summary_cache.invalidate(h.handle_id)
                 total_freed += resp.get("freed_bytes") or 0
                 results.append(
                     {
@@ -2504,7 +2509,10 @@ def _mount_routes(app: FastAPI) -> None:
         # an empty membership materialization.  Keeping the same call makes
         # all run creation paths share one definition of membership.
         await materialize_current_results(
-            app, workflow_id, prepared, snapshot.snapshot_id,
+            app,
+            workflow_id,
+            prepared,
+            snapshot.snapshot_id,
             cleared={node.id for node in prepared.nodes},
         )
 
@@ -2938,8 +2946,6 @@ def _mount_routes(app: FastAPI) -> None:
         from hololab.gateway.workflows import downstream_closure
 
         registry: NodeRegistry = app.state.registry
-        jobs_store: JobsStore = app.state.jobs_store
-        handles: HandleBook = app.state.handles
         workflows_store: WorkflowStore = app.state.workflows
 
         old_snap = await workflows_store.get_snapshot(snapshot_id)
@@ -3024,7 +3030,8 @@ def _mount_routes(app: FastAPI) -> None:
             "reused_graph_node_ids": sorted(inherited_outputs),
             "reused_job_ids": [
                 next(
-                    job["job_id"] for job in await app.state.jobs_store.list_by_snapshot(new_snapshot.snapshot_id)
+                    job["job_id"]
+                    for job in await app.state.jobs_store.list_by_snapshot(new_snapshot.snapshot_id)
                     if job.get("graph_node_id") == gid and job.get("parent_job_id") is None
                 )
                 for gid in sorted(inherited_outputs)
@@ -3356,129 +3363,9 @@ def _mount_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=400, detail="direction must be up|down|both")
         max_depth = max(1, min(max_depth, 200))
 
-        book: HandleBook = app.state.handles
-        jobs_store: JobsStore = app.state.jobs_store
+        from hololab.gateway.artifact_lifecycle import artifact_lineage
 
-        root = await book.get(handle_id)
-        if root is None:
-            raise HTTPException(status_code=404, detail="artifact not found")
-
-        seen_handles: set[str] = {handle_id}
-        seen_edges: set[tuple[str, str, str]] = set()
-        nodes: list[dict[str, Any]] = []
-        edges: list[dict[str, Any]] = []
-
-        async def _add_node(h: Handle) -> None:
-            producer = await jobs_store.get(h.job_id) if h.job_id else None
-            nodes.append(
-                {
-                    "artifact_id": h.handle_id,
-                    "producing_job_id": h.job_id,
-                    "algorithm": producer.algorithm_name if producer else None,
-                    "version": producer.algorithm_version if producer else None,
-                    "params": producer.params if producer else {},
-                    "node_id": h.node_id,
-                    "storage": h.storage,
-                    "output_port_name": h.output_port_name,
-                    "size_bytes": h.size_bytes,
-                    "created_ts": h.created_ts,
-                    "deleted_ts": h.deleted_ts,
-                }
-            )
-
-        await _add_node(root)
-
-        # ----- Ancestor walk (up) -----
-        # For each handle H, find its producing job J. J.input_handles
-        # is the set of ancestor handles at one hop up. Recurse to
-        # ``max_depth`` levels.
-        if direction in ("up", "both"):
-            frontier: list[Handle] = [root]
-            for _ in range(max_depth):
-                next_frontier: list[Handle] = []
-                for h in frontier:
-                    if h.job_id is None:
-                        continue
-                    producer = await jobs_store.get(h.job_id)
-                    if producer is None:
-                        continue
-                    for port_name, parent_hid in (producer.input_handles or {}).items():
-                        edge_key = (parent_hid, h.handle_id, port_name)
-                        if edge_key in seen_edges:
-                            continue
-                        seen_edges.add(edge_key)
-                        edges.append(
-                            {
-                                "parent": parent_hid,
-                                "child": h.handle_id,
-                                "consuming_port_name": port_name,
-                                "consuming_job_id": producer.job_id,
-                            }
-                        )
-                        if parent_hid in seen_handles:
-                            continue
-                        seen_handles.add(parent_hid)
-                        parent_handle = await book.get(parent_hid)
-                        if parent_handle is None:
-                            continue
-                        await _add_node(parent_handle)
-                        next_frontier.append(parent_handle)
-                if not next_frontier:
-                    break
-                frontier = next_frontier
-
-        # ----- Descendant walk (down) -----
-        # Find every job whose input_handles map contains the given
-        # handle; each such job's produced handles are descendants at
-        # one hop down. We use the input_handles JSON via LIKE — a full
-        # scan on the ``jobs`` table because we have no side index over
-        # input_handles_json content. For our fleet size (thousands of
-        # jobs at most) that's fine; for larger fleets a dedicated
-        # input-edges table would justify itself.
-        if direction in ("down", "both"):
-            frontier_ids: list[str] = [handle_id]
-            for _ in range(max_depth):
-                next_frontier_ids: list[str] = []
-                for parent_hid in frontier_ids:
-                    consumers = await _list_consumer_jobs(jobs_store, parent_hid)
-                    for consumer in consumers:
-                        # Which port did the consumer use for this parent?
-                        consumed_port = next(
-                            (
-                                p
-                                for p, hid in (consumer.input_handles or {}).items()
-                                if hid == parent_hid
-                            ),
-                            None,
-                        )
-                        produced_handles = await book.list_by_job(consumer.job_id)
-                        for produced in produced_handles:
-                            edge_key = (parent_hid, produced.handle_id, consumed_port or "")
-                            if edge_key in seen_edges:
-                                continue
-                            seen_edges.add(edge_key)
-                            edges.append(
-                                {
-                                    "parent": parent_hid,
-                                    "child": produced.handle_id,
-                                    "consuming_port_name": consumed_port,
-                                    "consuming_job_id": consumer.job_id,
-                                }
-                            )
-                            if produced.handle_id in seen_handles:
-                                continue
-                            seen_handles.add(produced.handle_id)
-                            await _add_node(produced)
-                            next_frontier_ids.append(produced.handle_id)
-                if not next_frontier_ids:
-                    break
-                frontier_ids = next_frontier_ids
-
-        return {
-            "root": handle_id,
-            "nodes": nodes,
-            "edges": edges,
-        }
+        return await artifact_lineage(app.state.db, handle_id, direction, max_depth)
 
     @app.get(
         "/api/jobs",
@@ -4875,38 +4762,6 @@ def _job_to_json(job: Job, *, output_handles: dict[str, str] | None = None) -> d
         "started_ts": job.started_ts,
         "expected_shards": job.expected_shards,
     }
-
-
-async def _list_consumer_jobs(store: JobsStore, handle_id: str) -> list[Job]:
-    """Return every job whose ``input_handles`` map contains ``handle_id``.
-
-    We use a plain SQL LIKE over ``input_handles_json`` — there's no
-    dedicated input-edges index. For the sizes we care about (thousands
-    of jobs at most) that scan is trivial; a fleet with millions of
-    jobs would want a normalised ``job_inputs`` bridge table instead.
-    Empty result is fine (root artifact has no descendants yet).
-    """
-
-    async with (
-        store._db.read() as conn,
-        conn.execute(
-            """
-            SELECT job_id
-            FROM jobs
-            WHERE input_handles_json LIKE ?
-            """,
-            (f"%{handle_id}%",),
-        ) as cur,
-    ):
-        rows = await cur.fetchall()
-    result: list[Job] = []
-    for r in rows:
-        job = await store.get(r[0])
-        if job is None:
-            continue
-        if handle_id in (job.input_handles or {}).values():
-            result.append(job)
-    return result
 
 
 # States a cancel is legally allowed to target. Superset of

@@ -105,19 +105,27 @@ async def materialize_current_results(app, workflow_id, graph, snapshot_id, *, c
     cleared = set(cleared)
     selected = await canvas_jobs(app, workflow_id, graph)
     parents = [
-        job for job in selected
-        if not job.get("parent_job_id")
-        and job.get("graph_node_id") not in cleared
+        job
+        for job in selected
+        if not job.get("parent_job_id") and job.get("graph_node_id") not in cleared
     ]
     # Historical rerun rows are pointers, not artifact producers.  Preserve
     # the many-to-many membership on the origin job just as rerun-from did.
+    from fastapi import HTTPException
+
     materialized = []
     for job in parents:
         origin_id = job["job_id"]
-        origin = await app.state.jobs_store.get(origin_id)
-        while origin is not None and origin.reused_from_job_id:
-            origin_id = origin.reused_from_job_id
+        seen = set()
+        while True:
+            if origin_id in seen:
+                raise HTTPException(409, "artifact producer lineage contains a cycle")
+            seen.add(origin_id)
             origin = await app.state.jobs_store.get(origin_id)
+            related = (origin.reused_from_job_id or origin.parent_job_id) if origin else None
+            if not related:
+                break
+            origin_id = related
         materialized.append({**job, "job_id": origin_id})
     await app.state.snapshot_jobs.attribute_many(
         snapshot_id,

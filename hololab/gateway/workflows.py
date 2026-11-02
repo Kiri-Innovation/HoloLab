@@ -722,6 +722,15 @@ class WorkflowStore:
                         "INSERT INTO snapshot_constants VALUES (?, ?, ?, ?)",
                         (snapshot_id, node.id, OPERATIONS[node.operation][2], digest),
                     )
+            from hololab.gateway.artifact_lifecycle import validate_value_references
+
+            async with conn.execute(
+                "SELECT digest FROM snapshot_value_bindings WHERE snapshot_id=?", (snapshot_id,)
+            ) as cur:
+                digests = [r[0] for r in await cur.fetchall()]
+            # Runs in the same writer transaction as binding creation. A
+            # pending cleanup cannot acquire a new literal reference via Fork.
+            await validate_value_references(conn, digests)
 
         await self._db.write(_write)
         return SnapshotRow(

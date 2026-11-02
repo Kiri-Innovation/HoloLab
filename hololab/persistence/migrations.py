@@ -792,6 +792,29 @@ CREATE TABLE workflow_recipe_intents (workflow_id TEXT PRIMARY KEY, digest TEXT 
 )
 
 
+# A node may remove bytes before its acknowledgement is lost. Keep a durable
+# fence so a restart/timeout cannot make those bytes eligible for inheritance.
+# Existing jobs, handles and snapshot membership need no data backfill.
+MIGRATIONS.append(
+    (
+        29,
+        """
+CREATE TABLE artifact_cleanup_claims (
+ handle_id TEXT PRIMARY KEY,
+ node_id TEXT NOT NULL,
+ path TEXT NOT NULL,
+ storage TEXT NOT NULL,
+ started_ts REAL NOT NULL
+);
+CREATE TABLE snapshot_cleanup_claims (
+ snapshot_id TEXT PRIMARY KEY REFERENCES snapshots(snapshot_id) ON DELETE CASCADE,
+ started_ts REAL NOT NULL
+);
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

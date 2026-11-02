@@ -171,6 +171,62 @@ async def delete_artifact(
     handle: Handle,
     *,
     timeout_s: float = DEFAULT_DELETE_TIMEOUT_S,
+    excluding_snapshot: str | None = None,
+) -> dict[str, Any]:
+    """One guarded cleanup path for single, bulk and snapshot deletion.
+
+    Failed/offline RPCs leave both the address records and membership intact
+    for retry. Acknowledged removal tombstones every covered address, including
+    shard outputs and synthetic input views, and invalidates their caches.
+    """
+    from hololab.gateway.artifact_lifecycle import ArtifactIndex
+
+    async with app.state.db.artifact_cleanup():
+        async with app.state.db.artifact_mutation():
+            index = await ArtifactIndex.load(app.state.db)
+            handle = index.handles.get(handle.handle_id, handle)
+            handle = index.canonical(handle)
+            if handle.deleted_ts is not None:
+                return {"freed_bytes": 0, "handle_id": handle.handle_id}
+            index.assert_deletable(handle, excluding_snapshot=excluding_snapshot)
+            if node_session is None:
+                raise HTTPException(409, f"producing node {handle.node_id!r} is not connected")
+            from hololab.gateway.artifact_lifecycle import claim_cleanup
+
+            await claim_cleanup(app.state.db, [handle])
+
+        # Node progress/log writes must remain free to drain while waiting for
+        # its ACK on the same websocket. Durable claims reject new references.
+        resp = await _delete_artifact_rpc(app, node_session, handle, timeout_s=timeout_s)
+        async with app.state.db.artifact_mutation():
+            index = await ArtifactIndex.load(app.state.db)
+            covered = index.covered(handle)
+            ts = now_ts()
+
+            async def mark(conn):
+                await conn.executemany(
+                    "UPDATE handles SET deleted_ts=? WHERE handle_id=?",
+                    [(ts, h.handle_id) for h in covered],
+                )
+                await conn.executemany(
+                    "DELETE FROM artifact_cleanup_claims WHERE handle_id=?",
+                    [(h.handle_id,) for h in covered],
+                )
+
+            await app.state.db.write(mark)
+            cache = getattr(app.state, "summary_cache", None)
+            if cache is not None:
+                for h in covered:
+                    cache.invalidate(h.handle_id)
+        return {**resp, "handle_id": handle.handle_id}
+
+
+async def _delete_artifact_rpc(
+    app: Any,
+    node_session: Any,
+    handle: Handle,
+    *,
+    timeout_s: float = DEFAULT_DELETE_TIMEOUT_S,
 ) -> dict[str, Any]:
     """Issue one ``artifact_delete_req`` and await the ack.
 
@@ -214,25 +270,25 @@ async def delete_artifact(
 
     frame = encode("artifact_delete_req", payload, v=node_session.protocol_v)
     try:
-        async with node_session.send_lock:
-            await node_session.ws.send_text(frame)
-    except Exception as exc:
+        try:
+            async with node_session.send_lock:
+                await node_session.ws.send_text(frame)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"send failed: {exc}") from exc
+        try:
+            resp = await asyncio.wait_for(fut, timeout=timeout_s)
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail="node did not reply in time") from exc
+        if not resp.get("ok"):
+            raise HTTPException(
+                status_code=502,
+                detail=resp.get("error") or "node refused the delete",
+            )
+        return resp
+    finally:
         app.state.pending_artifact_deletes.pop(req_id, None)
-        raise HTTPException(status_code=502, detail=f"send failed: {exc}") from exc
-
-    try:
-        resp = await asyncio.wait_for(fut, timeout=timeout_s)
-    except TimeoutError as exc:
-        app.state.pending_artifact_deletes.pop(req_id, None)
-        raise HTTPException(status_code=504, detail="node did not reply in time") from exc
-
-    if not resp.get("ok"):
-        raise HTTPException(
-            status_code=502,
-            detail=resp.get("error") or "node refused the delete",
-        )
-
-    return resp
+        if not fut.done():
+            fut.cancel()
 
 
 def state_from_check(resp_row: dict[str, Any] | None, handle: Handle) -> State:

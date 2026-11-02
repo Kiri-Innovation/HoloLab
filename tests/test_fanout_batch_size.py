@@ -76,6 +76,7 @@ async def _seeded_book_with_parent(
         output_port_name=None,
     )
     await book.register(parent)
+    await store.create(_plan(parent, elements).parent_job)
     return store, book, parent
 
 

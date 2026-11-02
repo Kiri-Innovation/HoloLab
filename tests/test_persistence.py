@@ -59,3 +59,38 @@ async def test_writer_queue_serializes(tmp_path: Path) -> None:
         assert count == 12
     finally:
         await db.close()
+
+
+async def test_artifact_cleanup_migration_preserves_existing_handles(tmp_path, monkeypatch):
+    """Upgrade the previous schema without rewriting any artifact identities."""
+    from hololab.persistence import migrations
+
+    path = tmp_path / "upgrade.sqlite"
+    with monkeypatch.context() as old_schema:
+        old_schema.setattr(migrations, "MIGRATIONS", migrations.MIGRATIONS[:-1])
+        db = await open_database(path)
+        try:
+
+            async def seed(conn):
+                await conn.execute(
+                    "INSERT INTO handles (handle_id,node_id,kind,tags_json,path,created_ts) "
+                    "VALUES (?,?,?,?,?,?)",
+                    ("retained-uuid", "node", "dir", '["image"]', "/unchanged/output", 123.0),
+                )
+
+            await db.write(seed)
+            async with db.read() as conn, conn.execute("SELECT * FROM handles") as cur:
+                before = await cur.fetchall()
+        finally:
+            await db.close()
+    db = await open_database(path)
+    try:
+        async with db.read() as conn:
+            async with conn.execute("SELECT * FROM handles") as cur:
+                assert await cur.fetchall() == before
+            for table in ("artifact_cleanup_claims", "snapshot_cleanup_claims"):
+                async with conn.execute(f"SELECT COUNT(*) FROM {table}") as cur:
+                    assert (await cur.fetchone())[0] == 0
+            assert await current_schema_version(conn) == migrations.MIGRATIONS[-1][0]
+    finally:
+        await db.close()

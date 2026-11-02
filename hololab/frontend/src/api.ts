@@ -603,6 +603,10 @@ export interface ArtifactRow {
   state: ArtifactState;
   live_size_bytes: number | null;
   live_mtime: number | null;
+  snapshot_ids?: string[];
+  element_count?: number | null;
+  partial?: boolean;
+  deletion_blocked_reason?: string | null;
 }
 
 export interface ArtifactListResponse {
@@ -633,6 +637,7 @@ export const listArtifacts = (opts?: {
   state?: ArtifactState;
   check?: boolean;
   limit?: number;
+  include_elements?: boolean;
 }) => {
   const p = new URLSearchParams();
   if (opts?.workflow_id) p.set("workflow_id", opts.workflow_id);
@@ -642,6 +647,7 @@ export const listArtifacts = (opts?: {
   if (opts?.state) p.set("state", opts.state);
   if (opts?.check) p.set("check", "1");
   if (opts?.limit !== undefined) p.set("limit", String(opts.limit));
+  if (opts?.include_elements) p.set("include_elements", "true");
   const qs = p.toString();
   return resilientFetch(`/api/artifacts${qs ? "?" + qs : ""}`).then(
     json<ArtifactListResponse>,

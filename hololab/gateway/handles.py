@@ -212,32 +212,11 @@ class HandleBook:
         return [self._row_to_handle(row) for row in rows]
 
     async def list_by_snapshot(self, snapshot_id: str) -> list[Handle]:
-        """All handles produced by any job that ran in this snapshot.
+        """Recorded output family membership, including inherited results."""
+        from hololab.gateway.artifact_lifecycle import ArtifactIndex
 
-        Powers the per-run drilldown on the Artifacts page — one snapshot
-        = one row on the RunsPanel, expanded into every artifact it left
-        behind. Joins on ``jobs`` so we stay in one query.
-        """
-
-        async with (
-            self._db.read() as conn,
-            conn.execute(
-                f"""
-                SELECT {", ".join("h." + c.strip() for c in self._COLS.split(","))}
-                FROM handles h
-                LEFT JOIN jobs j ON h.job_id = j.job_id
-                WHERE j.snapshot_id = ? OR h.handle_id IN (
-                  SELECT cm.handle_id FROM constant_materializations cm
-                  JOIN snapshot_value_bindings sc ON sc.digest=cm.digest WHERE sc.snapshot_id=?
-                )
-                ORDER BY h.created_ts DESC
-                """,
-                (snapshot_id, snapshot_id),
-            ) as cur,
-        ):
-            rows = await cur.fetchall()
-
-        return [self._row_to_handle(row) for row in rows]
+        index = await ArtifactIndex.load(self._db)
+        return index.snapshot_handles(snapshot_id)
 
     async def list_by_workflow(self, workflow_id: str) -> list[Handle]:
         """All handles for jobs belonging to a workflow, newest first.
@@ -307,64 +286,19 @@ class HandleBook:
         return True
 
     async def count_by_workflow(self, workflow_id: str) -> dict[str, int]:
-        """Cheap DB-only rollup for the Runs list: {total, deleted}.
+        """Logical output counts; aggregate bytes are not counted twice."""
+        from hololab.gateway.artifact_lifecycle import ArtifactIndex
 
-        We deliberately don't touch the filesystem here — that's the
-        Artifacts page's job (opt-in FS check). The runs list just needs
-        to badge each row with "N artifacts, K user-cleaned" so the user
-        can spot dead-looking runs at a glance without paying for a
-        stat() round-trip on every gallery hit.
-        """
-
-        async with (
-            self._db.read() as conn,
-            conn.execute(
-                """
-                SELECT
-                    COUNT(*) AS total,
-                    SUM(CASE WHEN deleted_ts IS NOT NULL THEN 1 ELSE 0 END) AS deleted
-                FROM handles h
-                LEFT JOIN jobs j ON h.job_id = j.job_id
-                WHERE j.workflow_id = ? OR h.handle_id IN (
-                  SELECT cm.handle_id FROM constant_materializations cm
-                  JOIN snapshot_value_bindings sc ON sc.digest=cm.digest
-                  JOIN snapshots s ON s.snapshot_id=sc.snapshot_id WHERE s.workflow_id=?
-                )
-                """,
-                (workflow_id, workflow_id),
-            ) as cur,
-        ):
-            row = await cur.fetchone()
-
-        if row is None:
-            return {"total": 0, "deleted": 0}
-        return {"total": int(row[0] or 0), "deleted": int(row[1] or 0)}
+        index = await ArtifactIndex.load(self._db)
+        rows = index.logical(await self.list_by_workflow(workflow_id))
+        return {"total": len(rows), "deleted": sum(h.deleted_ts is not None for h in rows)}
 
     async def count_by_snapshot(self, snapshot_id: str) -> dict[str, int]:
-        """Same rollup, scoped to one snapshot (one row in the Runs list)."""
+        from hololab.gateway.artifact_lifecycle import ArtifactIndex
 
-        async with (
-            self._db.read() as conn,
-            conn.execute(
-                """
-                SELECT
-                    COUNT(*) AS total,
-                    SUM(CASE WHEN deleted_ts IS NOT NULL THEN 1 ELSE 0 END) AS deleted
-                FROM handles h
-                LEFT JOIN jobs j ON h.job_id = j.job_id
-                WHERE j.snapshot_id = ? OR h.handle_id IN (
-                  SELECT cm.handle_id FROM constant_materializations cm
-                  JOIN snapshot_value_bindings sc ON sc.digest=cm.digest WHERE sc.snapshot_id=?
-                )
-                """,
-                (snapshot_id, snapshot_id),
-            ) as cur,
-        ):
-            row = await cur.fetchone()
-
-        if row is None:
-            return {"total": 0, "deleted": 0}
-        return {"total": int(row[0] or 0), "deleted": int(row[1] or 0)}
+        index = await ArtifactIndex.load(self._db)
+        rows = index.logical(index.snapshot_handles(snapshot_id))
+        return {"total": len(rows), "deleted": sum(h.deleted_ts is not None for h in rows)}
 
 
 def _normalize_storage(raw: str | None) -> str:

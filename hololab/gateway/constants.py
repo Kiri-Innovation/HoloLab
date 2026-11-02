@@ -39,6 +39,13 @@ async def _ensure_input(app, snapshot_id, source, consumer):
     port = OPERATIONS[source.operation][2]
 
     async def bind(conn):
+        from hololab.gateway.artifact_lifecycle import (
+            validate_snapshot_writable,
+            validate_value_references,
+        )
+
+        await validate_snapshot_writable(conn, snapshot_id)
+        await validate_value_references(conn, [digest])
         await conn.execute(
             "INSERT OR IGNORE INTO constant_values VALUES (?, ?)", (digest, json.dumps(value))
         )

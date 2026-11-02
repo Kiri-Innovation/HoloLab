@@ -53,6 +53,59 @@ class Database:
         self._closed = False
         self._readers: dict[aiosqlite.Connection, asyncio.Future[Any]] = {}
         self._reader_closers: dict[aiosqlite.Connection, asyncio.Task[None]] = {}
+        self._mutation_condition = asyncio.Condition()
+        self._active_writes = 0
+        self._exclusive_waiters = 0
+        self._mutation_owner: asyncio.Task | None = None
+        self._cleanup_lock = asyncio.Lock()
+        self._cleanup_owner: asyncio.Task | None = None
+
+    @asynccontextmanager
+    async def artifact_cleanup(self):
+        """Serialize cleanup operations without blocking node logs or ACKs."""
+        task = asyncio.current_task()
+        if self._cleanup_owner is task:
+            yield
+            return
+        async with self._cleanup_lock:
+            self._cleanup_owner = task
+            try:
+                yield
+            finally:
+                self._cleanup_owner = None
+
+    @asynccontextmanager
+    async def artifact_mutation(self):
+        """Exclude new references during deletion planning/claiming and commit.
+
+        All gateway writes enter the shared side of this barrier. Ordinary
+        writes still queue concurrently (and retain commit batching). A delete
+        drains admitted writes, then records durable cleanup claims or commits
+        tombstones and membership removal. Never hold this across node RPCs:
+        node progress/log writes must drain so their later ACK can be read.
+        Claims fence new references while RPC is in flight. Own writes reenter.
+        This is a single-gateway coordination mechanism, like the writer queue.
+        """
+        task = asyncio.current_task()
+        if self._mutation_owner is task:
+            yield
+            return
+        async with self._mutation_condition:
+            self._exclusive_waiters += 1
+            try:
+                await self._mutation_condition.wait_for(
+                    lambda: self._mutation_owner is None and self._active_writes == 0
+                )
+                self._mutation_owner = task
+            finally:
+                self._exclusive_waiters -= 1
+                self._mutation_condition.notify_all()
+        try:
+            yield
+        finally:
+            async with self._mutation_condition:
+                self._mutation_owner = None
+                self._mutation_condition.notify_all()
 
     async def open(self) -> None:
         """Open connections, enable WAL, and apply migrations."""
@@ -216,9 +269,28 @@ class Database:
 
         if self._closed:
             raise RuntimeError("database is closed")
+        owned = self._mutation_owner is asyncio.current_task()
+        if not owned:
+            async with self._mutation_condition:
+                await self._mutation_condition.wait_for(
+                    lambda: self._mutation_owner is None and self._exclusive_waiters == 0
+                )
+                self._active_writes += 1
         fut: asyncio.Future[T] = asyncio.get_event_loop().create_future()
-        await self._writer_queue.put((fn, fut))
-        return await fut
+        try:
+            await self._writer_queue.put((fn, fut))
+            # Cancellation must not release admission before the queued write
+            # commits: otherwise a delete could plan against its old state.
+            try:
+                return await asyncio.shield(fut)
+            except asyncio.CancelledError:
+                await asyncio.shield(fut)
+                raise
+        finally:
+            if not owned:
+                async with self._mutation_condition:
+                    self._active_writes -= 1
+                    self._mutation_condition.notify_all()
 
     async def _close_reader(self, conn: aiosqlite.Connection) -> None:
         opening = self._readers.get(conn)

@@ -1,14 +1,8 @@
 """Ref-counted snapshot deletion — the "delete run + artifacts" flow.
 
-The keystone invariant these tests defend:
-
-  An artifact H produced by job J is physically deleted iff dropping the
-  target snapshot S leaves J with **zero** remaining ``snapshot_jobs``
-  attributions. If any other snapshot still references J, H stays on
-  disk and its handle row keeps ``deleted_ts=NULL``.
-
-This is the "artifact stays if shared" rule the operator asked for on
-the Run History right-click menu.
+The invariant is storage reachability: storage referenced by surviving results
+must not be deleted, including aggregate/slice aliases and indirect inputs.
+Direct producing-job reference counts alone do not establish ownership.
 """
 
 from __future__ import annotations
@@ -246,9 +240,8 @@ def test_delete_last_reference_removes_file_and_tombstones(
         assert h_row["deleted_ts"] is not None
 
 
-def test_delete_offline_node_still_tombstones(tmp_path: Path) -> None:
-    """When the producer node is offline we can't rm the bytes, but the
-    delete still succeeds: handle is tombstoned, snapshot is gone."""
+def test_delete_offline_node_preserves_snapshot_for_retry(tmp_path: Path) -> None:
+    """An offline producer must leave retryable ownership, not orphan bytes."""
 
     app = create_app(db_path=tmp_path / "offline.sqlite")
     with TestClient(app) as client:
@@ -291,20 +284,15 @@ def test_delete_offline_node_still_tombstones(tmp_path: Path) -> None:
         snap_id = client.portal.call(_seed)
 
         r = client.delete(f"/api/snapshots/{snap_id}")
-        assert r.status_code == 200
-        body = r.json()
-        assert body["artifacts_removed_from_disk"] == 0
-        assert body["artifacts_tombstoned_only"] == 1
-        assert body["freed_bytes"] == 0
-        assert body["artifact_tombstone_notes"] == [
-            {
-                "handle_id": "h-off",
-                "note": "producer node offline — DB row tombstoned; on-disk file untouched",
-            }
-        ]
-
+        assert r.status_code == 409
         h_row = client.get("/api/handles/h-off").json()
-        assert h_row["deleted_ts"] is not None
+        assert h_row["deleted_ts"] is None
+        assert client.portal.call(app.state.workflows.get_snapshot, snap_id) is not None
+        assert client.portal.call(app.state.jobs_store.get, "job-off") is not None
+        _fake_online_node(client)
+        retry = client.delete(f"/api/snapshots/{snap_id}")
+        assert retry.status_code == 200, retry.text
+        assert client.get("/api/handles/h-off").json()["deleted_ts"] is not None
 
 
 # ---------------------------------------------------------------------------

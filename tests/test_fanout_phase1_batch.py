@@ -190,6 +190,8 @@ async def _seeded_book_with_parent(tmp_path: Path) -> tuple[JobsStore, HandleBoo
         output_port_name=None,
     )
     await book.register(parent)
+    # Production creates the owning parent before preparing shard rows.
+    await store.create(_plan(parent, element_ids=[]).parent_job)
     return store, book, parent
 
 

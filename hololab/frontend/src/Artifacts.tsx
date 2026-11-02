@@ -134,7 +134,8 @@ export function Artifacts({ onBackToGallery }: ArtifactsProps) {
     return data.rows.filter((r) => {
       if (stateFilter !== "all" && r.state !== stateFilter) return false;
       if (workflowFilter !== "all" && r.workflow_id !== workflowFilter) return false;
-      if (snapshotFilter !== "all" && r.snapshot_id !== snapshotFilter) return false;
+      if (snapshotFilter !== "all" && r.snapshot_id !== snapshotFilter &&
+          !r.snapshot_ids?.includes(snapshotFilter)) return false;
       return true;
     });
   }, [data, stateFilter, workflowFilter, snapshotFilter]);
@@ -188,9 +189,9 @@ export function Artifacts({ onBackToGallery }: ArtifactsProps) {
     // Filter to genuinely-deletable rows so the confirm count matches
     // reality — ``deleted`` rows short-circuit the endpoint anyway,
     // but we shouldn't quote them as "will be deleted".
-    const deletable = selectedRows.filter((r) => r.state !== "deleted");
+    const deletable = selectedRows.filter((r) => r.state !== "deleted" && !r.deletion_blocked_reason);
     if (deletable.length === 0) {
-      alert("Every selected row is already deleted.");
+      alert("所选产物已清理，或仍被运行记录 / 下游结果引用。");
       return;
     }
     const bytes = deletable.reduce(
@@ -202,8 +203,7 @@ export function Artifacts({ onBackToGallery }: ArtifactsProps) {
         `Delete ${deletable.length} artifact${deletable.length === 1 ? "" : "s"}` +
           ` (${formatBytes(bytes)})?\n\n` +
           "The DB rows stay for history; only on-disk data is removed.\n" +
-          "Rows outside the current artifact dirs are tombstoned only —\n" +
-          "the file server can't reach them anyway.",
+          "Protected artifacts are kept. Failed cleanup can be retried.",
       )
     ) {
       return;
@@ -764,7 +764,7 @@ function ArtifactRowView({
   selected: boolean;
   onToggle: () => void;
 }) {
-  const canDelete = row.state !== "deleted";
+  const canDelete = row.state !== "deleted" && !row.deletion_blocked_reason;
   const alreadyDead = row.state === "dead";
   // Selected rows get a persistent tint so the bulk action bar's
   // "N selected" always maps back to visible rows at a glance.
@@ -819,6 +819,8 @@ function ArtifactRowView({
         {row.output_port_name && (
           <div style={{ color: "var(--text-subtle)", fontFamily: "var(--font-mono)" }}>
             {row.output_port_name}
+            {row.element_count != null && ` · ${row.element_count} 个元素`}
+            {row.partial && " · 部分输出"}
           </div>
         )}
       </div>
@@ -888,9 +890,9 @@ function ArtifactRowView({
             textAlign: "center",
             fontSize: 12,
           }}
-          title="already deleted"
+          title={row.deletion_blocked_reason ?? "already deleted"}
         >
-          ·
+          {row.deletion_blocked_reason && row.state !== "deleted" ? "保留" : "·"}
         </span>
       )}
     </div>

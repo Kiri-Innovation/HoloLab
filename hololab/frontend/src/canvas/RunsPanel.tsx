@@ -1446,7 +1446,7 @@ function DeleteConfirmModal({
                     accent="var(--error, #e05a5a)"
                   />
                   <ImpactRow
-                    label="保留（其它 run 仍在引用）"
+                    label="保留（仍被引用或来源待核实）"
                     value={String(preview.artifacts.shared_count)}
                     hint={preview.artifacts.shared_count > 0 ? "只解除引用，物理文件保留" : "无"}
                     accent="var(--text-muted)"
@@ -1454,7 +1454,7 @@ function DeleteConfirmModal({
                   <ImpactRow
                     label="Job 记录清除 / 保留"
                     value={`${preview.jobs.exclusive_count} / ${preview.jobs.shared_count}`}
-                    hint="共享 job 属于其它 run，仅解除本 run 的关联"
+                    hint="保留仍被引用、被下游依赖或来源待核实的 job"
                     accent="var(--text-muted)"
                   />
                 </>

@@ -372,15 +372,8 @@ def test_delete_artifact_404_when_unknown_handle(tmp_path: Path) -> None:
         assert r.status_code == 404
 
 
-def test_delete_artifact_tombstones_when_node_offline(tmp_path: Path) -> None:
-    """When the producing node is offline we can't touch the on-disk
-    file, but the row is what the Artifacts page needs to hide. The
-    delete flow tombstones the DB row and returns a ``note`` so the
-    caller understands nothing was removed from disk.
-
-    This is the common cleanup path for handles produced by a node the
-    user has since decommissioned or moved (workspace_root migration
-    without adding a legacy root)."""
+def test_delete_artifact_preserves_handle_when_node_offline(tmp_path: Path) -> None:
+    """A failed physical cleanup leaves a live record for retry."""
 
     app = create_app(db_path=tmp_path / "test.sqlite")
     with TestClient(app) as client:
@@ -397,15 +390,9 @@ def test_delete_artifact_tombstones_when_node_offline(tmp_path: Path) -> None:
         )
         # Registry is empty — no session for n1.
         r = client.delete("/api/artifacts/h1")
-        assert r.status_code == 200, r.text
-        body = r.json()
-        assert body["state"] == "deleted"
-        assert body["freed_bytes"] == 0
-        assert "note" in body
-
-        # DB row now carries deleted_ts.
+        assert r.status_code == 409, r.text
         row = client.portal.call(client.app.state.handles.get, "h1")
-        assert row is not None and row.deleted_ts is not None
+        assert row is not None and row.deleted_ts is None
 
 
 def test_delete_artifact_hits_node_and_marks_row(tmp_path: Path) -> None:

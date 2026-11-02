@@ -88,31 +88,81 @@ The Run History panel exposes a right-click **"删除这个 run 及其产物"** 
 
 The confirm modal fires the preview first so the copy is quantitative: **"K 个产物将被删除 · 保留 N 个 (仍被别的 run 引用) · 释放约 B 字节."** The delete only proceeds after the operator clicks "确认删除".
 
-### The rule
+### Logical outputs and storage ownership
 
-An artifact `H` is produced by exactly one job `J`. Under the V8 lineage-first model (`docs/workflow-schema.md`) a single job can be attributed to **many** snapshots — Continue extends a snapshot with a new attribution; Fork inherits the parent snapshot's un-forked attributions into a child snapshot. `snapshot_jobs` is the many-to-many bridge.
+A completed fan-out exposes **one aggregate artifact per output port**. Shard
+jobs remain execution/progress records; their element handles remain addressable
+for inspection and compatibility. The default artifact list, run counts and
+summary collapse known shard handles into their existing aggregate. Overlapping
+recorded paths on the same node are counted once for byte totals. Pass
+`GET /api/artifacts?include_elements=true` to inspect internal element records.
+The aggregate row includes `element_count` and all attributed `snapshot_ids`.
+Input views are internal address records. Partial output without an aggregate
+remains visible as individual records marked `partial`, including after failure
+or cancellation; cleanup does not require a successful aggregate registration.
 
-When we delete snapshot `S`, for each job `J` attributed to `S`:
+The storage invariant is: **storage referenced by surviving results must not be
+deleted**. A zero direct reference count for one producing job is insufficient.
+`artifact_lifecycle.py` builds families from recorded `parent_job_id` and legacy
+`reused_from_job_id` links, including reuse chains pointing at shards. A reference
+to any member protects every job and output handle in that family. Surviving
+snapshots, live jobs and other still-present output families also protect their
+transitive input producers, including
+synthetic input views and node-qualified overlapping paths. Input dependencies
+are retained conservatively because the execution protocol does not distinguish
+persistent symlinks from copies. Provenance normalizes shard outputs to the
+aggregate and follows these address aliases too.
 
-| Case | Definition | On-disk effect |
-|---|---|---|
-| **Exclusive** | `S` is the ONLY row in `snapshot_jobs` for `J` | `J`'s handles get physically deleted via the producing node (`artifact_delete_req`) and tombstoned (`deleted_ts` stamped). `J` itself + its `job_events` / `job_logs` are purged (FK CASCADE). |
-| **Shared** | `J` still has at least one other `snapshot_jobs` row | Nothing on disk changes. Only `S`'s own attribution row is dropped (FK CASCADE from `snapshots`). Handle row keeps `deleted_ts = NULL`. `J` stays. |
+Deleting snapshot S releases its membership. A retained family is left intact.
+An unreferenced family is cleaned through its non-overlapping recorded output
+roots, preferring aggregate directories over their slices, before jobs are
+purged. Successful physical removal tombstones **all covered handles**, including
+input views, and invalidates every affected summary cache entry. Unknown
+historical producers or missing lineage are retained; path similarity never
+assigns an orphan to a family. They may require manual investigation.
 
-The rule is enforced in `hololab/gateway/snapshot_delete.py`; the invariant is verified by `tests/test_snapshot_delete.py::test_delete_shared_artifact_keeps_file_on_disk` (two snapshots share an artifact → deleting one keeps the file) and `::test_delete_last_reference_removes_file_and_tombstones` (deleting the last remaining reference DOES rm + tombstone).
+Single-artifact and bulk cleanup use the same protection rule. Selecting an
+element of a completed fan-out resolves to its aggregate. Referenced artifacts
+return 409 and the inventory explains why the row is retained. To remove a
+referenced result, delete its referencing runs first. Protected results may
+remain available after their original snapshot has been removed, until their
+last downstream reference is released; then the artifact inventory can clean them.
 
-### Refusal case
+### Concurrency and retry
 
-If any job attributed to `S` is in a non-terminal state (`pending` / `assigned` / `running`), the DELETE endpoint returns **409** with a `{message, live_jobs}` detail payload. The confirm modal renders the live-jobs list and disables its "确认删除" button — the operator must cancel the run first. Auto-cancel is not attempted because job cancellation across offline nodes isn't robust yet; we surface the choice explicitly.
+Cleanup operations serialize within the gateway. A short write barrier drains
+admitted writes, surveys references and commits cleanup claims **before** sending
+node deletion RPCs. Normal database writes are allowed during network I/O so
+node progress/log frames cannot block the deletion ACK behind them on the same
+websocket. New inheritance, reuse and job dispatch validate their snapshot,
+producer family and input storage against the claims and tombstones; stale
+requests receive 409.
 
-### Idempotency + edge cases
+Schema migration 29 adds `artifact_cleanup_claims` and `snapshot_cleanup_claims`;
+it does not rewrite existing jobs, handles or memberships. Claims survive RPC
+timeout, cancellation and gateway restart. Retrying cleanup finishes the pending
+operation; do not clear a claim to make uncertain bytes reusable. The gateway
+continues to assume a single owning process for its database, like its serialized
+writer queue. External SQL writers are outside this coordination contract.
 
-* **Two tabs racing on the same delete**: the second `DELETE` receives `200 {state: "gone"}` instead of an error. The frontend just refreshes its list.
-* **Preview on unknown snapshot**: `404` (distinguishes "exists but empty" from "gone").
-* **Producer node offline**: the delete still succeeds; each affected handle is tombstoned (`deleted_ts` set) so the Artifacts page hides the row. When the node comes back online the on-disk bytes are stranded — `hololab workspace prune` is the future cleanup path (see below).
-* **Path outside current workspace roots** (post workspace-root move): same as offline — tombstone-only, delete succeeds.
-* **Deleting the run you're viewing**: `App.tsx` clears `viewingSnapshot` when the panel signals a successful delete, dropping the canvas back to the draft.
-* **`snapshots.parent_snapshot_id` on forked children**: nulled out when the parent is deleted (the column has no FK constraint, so we do it in the same transaction) — the UI won't render "forked from &lt;deleted-uuid&gt;" dead links.
+### Refusal and failure cases
+
+* A candidate family's `pending`, `assigned`, `running` or `orphaned` jobs block
+  snapshot deletion with 409 and a `{message, live_jobs}` detail payload.
+* An offline producer, an out-of-root path, or a failed RPC leaves the snapshot,
+  jobs and unacknowledged handles available for retry. No tombstone-only success
+  is reported. A cleanup claim may prevent further inheritance until retry.
+* If some roots succeed before another fails, only successful roots are
+  tombstoned; retry skips them and cleans the remainder.
+* Unknown snapshot deletion returns `200 {state: "gone"}`; preview returns 404.
+* Successful snapshot removal nulls child `parent_snapshot_id` provenance links.
+
+`tests/test_artifact_lifecycle.py` checks real temporary files and symlinks:
+80 element outputs, a new snapshot referencing only their parent, survival after
+source snapshot deletion, and one physical aggregate removal after the final
+reference. It also covers historical reuse chains, multiple ports and batched
+elements, partial failures, orphan retention, input aliases, node-qualified
+paths, cleanup entry points, lost ACKs, cancellation and both concurrency orders.
 
 ## Configuring the workspace root
 
