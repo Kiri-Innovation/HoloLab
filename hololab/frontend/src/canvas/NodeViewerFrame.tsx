@@ -3,7 +3,7 @@ import { packAssetUrl } from "../packageIdentity";
 import { useEffect, useRef, useState } from "react";
 import type { NodeViewerSpec } from "../wire";
 import type { WorkflowViewerView } from "../api";
-import { getHandleSummary } from "../api";
+import { getHandleSummary, tailJobLog } from "../api";
 import { WORKFLOW_FACTORY_VIEW } from "./workflowFactoryView";
 import { versionedViewerUrl } from "./viewerBuild";
 import { useViewerInteraction, ViewerInteractionShield, viewerInteractionBorder } from "./ViewerInteraction";
@@ -34,6 +34,7 @@ export function NodeViewerFrame({
   historyTarget,
   running,
   progress,
+  jobId,
   workflowView,
   workflowViewLoaded,
   workflowViewManaged,
@@ -46,6 +47,7 @@ export function NodeViewerFrame({
   assignedNodeId: string | null;
   frames: LiveViewerFrame[];
   historyTarget?: { handle_id: string; proxy_url: string; node_id: string } | null;
+  jobId?: string | null;
   running: boolean;
   progress?: { current: number; total: number } | null;
   workflowView?: WorkflowViewerView | null;
@@ -59,6 +61,37 @@ export function NodeViewerFrame({
   const [loaded, setLoaded] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
   const [assetError, setAssetError] = useState<string | null>(null);
+  const [logProgress, setLogProgress] = useState<{ jobId: string; current: number; total: number } | null>(null);
+  // Existing published packs may emit ITER records without a usable progress
+  // regex. Recover from persisted logs, including after a browser reload.
+  // Native job progress always takes precedence; never guess from frame count.
+  useEffect(() => {
+    if (!running || !jobId || progress) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const tail = await tailJobLog(jobId, { tail: 200, stream: "stdout" });
+        for (const { line } of tail.lines.slice().reverse()) {
+          const match = /\[ITER\s+(\d+)\/(\d+)\]/.exec(line);
+          if (!match) continue;
+          const current = Number(match[1]), total = Number(match[2]);
+          if (total > 0 && current <= total && !cancelled) {
+            setLogProgress({ jobId, current, total });
+            break;
+          }
+        }
+      } catch {
+        // Startup/disconnect is transient. Keep the last known progress.
+      } finally {
+        if (!cancelled) timer = setTimeout(() => { void poll(); }, 1000);
+      }
+    };
+    void poll();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [jobId, running, progress]);
+  const viewerProgress = progress ?? (logProgress?.jobId === jobId ? logProgress : null);
+  const [liveFrames, setLiveFrames] = useState<LiveViewerFrame[]>([]);
   const [historyFrames, setHistoryFrames] = useState<LiveViewerFrame[]>([]);
   const [viewerHeight, setViewerHeight] = useState(DEFAULT_VIEWER_HEIGHT);
   // SplaTV is a square viewport; diagnostic viewers retain content sizing.
@@ -170,6 +203,7 @@ export function NodeViewerFrame({
       setHistoryFrames([]);
       return;
     }
+    setHistoryFrames([]);
     let cancelled = false;
     const base = historyTarget.proxy_url.replace(/\/$/, "");
     // Nodes predating the ``history_index`` schema field ignore it until
@@ -217,11 +251,13 @@ export function NodeViewerFrame({
         if (!cancelled) setHistoryFrames([]);
       });
     return () => { cancelled = true; };
-  }, [historyTarget?.handle_id, historyTarget?.proxy_url, viewer.history_index, viewer.history_output]);
+  }, [historyTarget?.handle_id, historyTarget?.proxy_url, viewer.history_index, viewer.history_output, running]);
 
   useEffect(() => {
+    setLiveFrames([]);
     if (!historyTarget || !running || !viewer.live_globs?.length) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
     const url = new URL(historyTarget.proxy_url, window.location.origin);
     const parts = url.pathname.split("/").filter(Boolean);
     // /proxy/{node}/{workspace-relative output path}; the file server accepts
@@ -236,7 +272,7 @@ export function NodeViewerFrame({
       .filter((glob) => glob && !glob.startsWith("/") && !glob.split("/").includes(".."));
     if (!patterns.length) return;
     const restore = async () => {
-      const settled = await Promise.all(patterns.map(async (pattern) => {
+      const settled = await Promise.allSettled(patterns.map(async (pattern) => {
         const query = new URLSearchParams({ base, pattern });
         const response = await fetch(`/proxy/${encodeURIComponent(node)}/_glob?${query}`, { cache: "no-store" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -248,17 +284,24 @@ export function NodeViewerFrame({
             node_id: historyTarget.node_id,
           }));
       }));
-      if (!cancelled) setHistoryFrames((prior) => {
-        const indexed = prior.filter((frame) => !frame.proxy_url.includes("/save_cam/"));
-        return [...indexed, ...settled.flat()];
-      });
+      if (!cancelled) {
+        setLiveFrames((prior) => {
+          const byUrl = new Map(prior.map((frame) => [frame.proxy_url, frame]));
+          for (const result of settled) {
+            if (result.status === "fulfilled") {
+              for (const frame of result.value) byUrl.set(frame.proxy_url, frame);
+            }
+          }
+          return [...byUrl.values()];
+        });
+        timer = setTimeout(() => { void restore(); }, 1000);
+      }
     };
     void restore();
-    const timer = window.setInterval(() => { void restore(); }, 1000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [historyTarget?.handle_id, historyTarget?.proxy_url, historyTarget?.node_id, running, viewer.history_output, viewer.live_globs]);
 
-  const allFrames = [...historyFrames, ...frames]
+  const allFrames = [...historyFrames, ...liveFrames, ...frames]
     .reduce<LiveViewerFrame[]>((out, frame) => {
       const index = out.findIndex((old) => frame.iteration != null
         ? old.iteration === frame.iteration
@@ -281,11 +324,11 @@ export function NodeViewerFrame({
         // when it is a scalar file rather than a frame sequence.
         history_url: historyTarget?.proxy_url ?? null,
         running,
-        progress: progress ?? null,
+        progress: viewerProgress,
       },
       window.location.origin,
     );
-  }, [allFrames, loaded, running, progress?.current, progress?.total, viewer.id]);
+  }, [allFrames, loaded, running, viewerProgress?.current, viewerProgress?.total, viewer.id]);
 
   // A workflow default is an opening preference, not a live camera bus:
   // viewers already open must retain their own interactive orbit/zoom.
@@ -302,6 +345,10 @@ export function NodeViewerFrame({
     target.postMessage({
       type: "hololab-viewer-state",
       viewer_id: viewer.id,
+      frames: allFrames,
+      history_url: historyTarget?.proxy_url ?? null,
+      running,
+      progress: viewerProgress,
       workflow_view: workflowView ?? null,
       workflow_factory_view: WORKFLOW_FACTORY_VIEW,
       workflow_view_managed: workflowViewManaged,
