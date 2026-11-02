@@ -317,6 +317,7 @@ export interface RunNodeDetail {
   // useEffect that registers ``onRun`` runs would leave the button
   // pinned in "…" forever because resolve/reject would never fire.
   handled?: boolean;
+  onPhase?: (phase: string) => void;
 }
 
 // Hard ceiling on how long we'll wait for the App-level listener to
@@ -327,7 +328,7 @@ export interface RunNodeDetail {
 // this fires.
 const DISPATCH_TIMEOUT_MS = 20_000;
 
-export function dispatchRunNode(graph_node_id: string): Promise<void> {
+export function dispatchRunNode(graph_node_id: string, onPhase?: (phase: string) => void): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     let settled = false;
     let timer: number | null = null;
@@ -342,6 +343,7 @@ export function dispatchRunNode(graph_node_id: string): Promise<void> {
       resolve: () => settle(resolve),
       reject: (msg) => settle(() => reject(new Error(msg))),
       handled: false,
+      onPhase,
     };
     timer = window.setTimeout(
       () =>
@@ -406,6 +408,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
 
   const [showCompositionOutput, setShowCompositionOutput] = useState(false);
   const [runClickPending, setRunClickPending] = useState(false);
+  const [runPhase, setRunPhase] = useState("保存中…");
   const [runErrorMsg, setRunErrorMsg] = useState<string | null>(null);
 
   useEffect(() => { if (!inputProblem) setRunErrorMsg(null); }, [inputProblem]);
@@ -414,9 +417,10 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     if (runInFlight || runClickPending) return;
     if (inputProblem) { setRunErrorMsg(inputProblem); return; }
     setRunClickPending(true);
+    setRunPhase("保存中…");
     setRunErrorMsg(null);
     try {
-      await dispatchRunNode(id);
+      await dispatchRunNode(id, setRunPhase);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setRunErrorMsg(msg);
@@ -491,7 +495,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         certification={certification}
         subtitle={`${assignedLabel} · v${pack.version}${pack.version.endsWith("+") ? " · dev" : ""}`}
         state={displayedState} status={nodeStatus({ environment, state: displayedState, stale: staleness, failReason: runtime?.fail_reason, missingAlgorithm: pack.manifest_hash ? null : {name: pack.name, version: pack.version}, missingInputs, readOnly })}
-        actions={!readOnly && <NodeRunControl id={id} pending={runClickPending} state={runState} jobId={runtime?.job_id}
+        actions={!readOnly && <NodeRunControl id={id} pending={runClickPending} pendingPhase={runPhase} state={runState} jobId={runtime?.job_id}
           stale={staleness?.kind === "self_dirty"} blockedReason={inputProblem} onRun={handleRunClick} />}>
         {runErrorMsg && !inputProblem && (
           <div

@@ -93,6 +93,7 @@ class Entry:
     mode: str
     size: int
     layer: str
+    mtime_ns: int = 0
 
     def digest(self) -> str:
         if self.mode == "120000":
@@ -113,7 +114,7 @@ class Entry:
         return h.hexdigest()
 
 
-def tree_digest(entries: list[Entry]) -> str:
+def tree_digest(entries: list[Entry], digests: dict[str, str] | None = None) -> str:
     h = hashlib.sha256()
     for entry in sorted(entries, key=lambda e: os.fsencode(e.relative)):
         h.update(
@@ -121,7 +122,7 @@ def tree_digest(entries: list[Entry]) -> str:
             + b" "
             + os.fsencode(entry.relative)
             + b"\0"
-            + entry.digest().encode("ascii")
+            + (digests[entry.relative] if digests is not None else entry.digest()).encode("ascii")
         )
     return h.hexdigest()
 
@@ -201,10 +202,17 @@ class Scope:
         if setup_script is not None:
             protected.add(setup_script)
 
-        def walk(directory: Path, fixed_parent: bool = False, ignored_parent: bool = False):
+        # Keep the walk on strings until an entry is emitted.  ``Path.relative_to``
+        # was surprisingly the dominant cost for large shared pack roots.
+        def walk(
+            directory: str,
+            parent_rel: str = "",
+            fixed_parent: bool = False,
+            ignored_parent: bool = False,
+        ):
             for item in os.scandir(directory):
-                path = Path(item.path)
-                rel = path.relative_to(self.root).as_posix()
+                path = item.path
+                rel = item.name if not parent_rel else parent_rel + "/" + item.name
                 st = item.stat(follow_symlinks=False)
                 fixed = (
                     fixed_parent or item.name in FIXED_NAMES or item.name.endswith((".pyc", ".swp"))
@@ -234,7 +242,7 @@ class Scope:
                         and (fixed or self.is_cold(rel) or ignored)
                     ):
                         continue
-                    yield from walk(path, fixed, ignored)
+                    yield from walk(path, rel, fixed, ignored)
                 elif stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
                     if hot_only and layer != "hot":
                         continue
@@ -246,11 +254,11 @@ class Scope:
                         else "100644"
                     )
                     size = len(os.fsencode(os.readlink(path))) if mode == "120000" else st.st_size
-                    yield Entry(path, rel, mode, size, layer)
+                    yield Entry(Path(path), rel, mode, size, layer, st.st_mtime_ns)
                 elif layer == "hot" or (layer == "cold" and not hot_only):
                     raise ValueError(f"unsupported content entry: {path}")
 
-        yield from walk(self.root)
+        yield from walk(os.fspath(self.root))
 
 
 def statistics(entries: list[Entry]) -> dict:
@@ -365,7 +373,12 @@ class Baselines:
         self.directory = directory
 
     def get(
-        self, scope: Scope, *, refresh: bool = False, entries: list[Entry] | None = None
+        self,
+        scope: Scope,
+        *,
+        refresh: bool = False,
+        entries: list[Entry] | None = None,
+        digests: dict[str, str] | None = None,
     ) -> dict:
         if not scope.cold:
             return {
@@ -396,7 +409,7 @@ class Baselines:
                 if entries is not None
                 else [e for e in scope.entries() if e.layer == "cold"]
             )
-            digest = tree_digest(cold_entries)
+            digest = tree_digest(cold_entries, digests)
             value = {
                 "sha256": digest,
                 "baseline_at": time.time(),
@@ -420,14 +433,74 @@ class Baselines:
             return value
 
 
+class DigestCache:
+    """Process-safe per-file digest cache stored beside node baselines.
+
+    The cache is strictly an acceleration: its keys contain the filesystem
+    observations used to validate a digest, while tree construction keeps the
+    original ordering and SHA-256 input bytes unchanged.
+    """
+
+    def __init__(self, directory: Path):
+        self.directory = directory
+
+    def _destination(self, scope: Scope) -> Path:
+        # One inventory per root.  The controls signature below invalidates it
+        # when a manifest or either ignore file changes the selected set.
+        return self.directory / (canonical([str(scope.root), FORMAT]) + ".json")
+
+    def digests(self, scope: Scope, entries: list[Entry]) -> dict[str, str]:
+        self.directory.mkdir(parents=True, exist_ok=True)
+        destination = self._destination(scope)
+        lock_path = destination.with_suffix(".lock")
+        controls = scope.controls
+        with lock_path.open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                cached = json.loads(destination.read_text()) if destination.exists() else {}
+            except (OSError, ValueError, TypeError):
+                cached = {}
+            previous = cached.get("entries", {}) if cached.get("controls") == controls else {}
+            result: dict[str, str] = {}
+            saved: dict[str, dict[str, Any]] = {}
+            for entry in entries:
+                # Ignored/fixed files never participate in a tree digest.
+                if entry.layer not in {"hot", "cold"}:
+                    continue
+                old = previous.get(entry.relative)
+                signature = [entry.mode, entry.mtime_ns, entry.size]
+                if old and old.get("signature") == signature:
+                    digest = old["sha256"]
+                else:
+                    digest = entry.digest()
+                result[entry.relative] = digest
+                saved[entry.relative] = {"signature": signature, "sha256": digest}
+            value = {"format": 1, "controls": controls, "entries": saved}
+            fd, tmp = tempfile.mkstemp(dir=self.directory, prefix=".digest-")
+            try:
+                with os.fdopen(fd, "w") as out:
+                    json.dump(value, out, sort_keys=True, separators=(",", ":"))
+                    out.flush()
+                    os.fsync(out.fileno())
+                os.replace(tmp, destination)
+            finally:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+            return result
+
+
 def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> dict:
     scope = Scope.load(path)
     entries = list(scope.entries())
+    # Baselines live under node data by default, so this sibling also stays
+    # outside pack source trees.  Callers with a temporary Baselines instance
+    # retain that useful isolation automatically.
+    digests = DigestCache(baselines.directory.parent / "code-digests").digests(scope, entries)
     # Reuse this inventory for the cold baseline too.  Catalog reporting used
     # to enumerate a large package once for the baseline and once for display.
     # A single walk is enough; hashing cold files remains confined to an
     # explicit baseline refresh (or first baseline creation).
-    cold = baselines.get(scope, refresh=refresh_cold, entries=entries)
+    cold = baselines.get(scope, refresh=refresh_cold, entries=entries, digests=digests)
     hot = hot_entries(scope, entries)
     # The identity tree deliberately omits the selected manifest: its semantic
     # hash is recorded separately so a release filename/version cannot affect
@@ -454,7 +527,7 @@ def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> 
             "excluded_fields": sorted(RELEASE_METADATA_FIELDS),
         },
         "hot": {
-            "sha256": tree_digest(hot),
+            "sha256": tree_digest(hot, digests),
             "stats": statistics(hot),
             "verification": "verified_at_submission",
         },

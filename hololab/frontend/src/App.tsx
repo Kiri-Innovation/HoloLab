@@ -1339,7 +1339,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // listener registered" (would silently hang) from "listener took
       // over but the fetch is still pending". See RunNodeDetail.handled.
       detail.handled = true;
-      const { graph_node_id, resolve, reject } = detail;
+      const { graph_node_id, resolve, reject, onPhase } = detail;
       const wid = workflowIdRef.current;
       if (!wid) {
         reject("save the workflow first (no workflow_id yet)");
@@ -1350,7 +1350,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // promise would never resolve and the caller's button would hang
       // until the dispatchRunNode timeout kicks in.
       try {
-        saveRecipeRef.current().then(() => dispatchNode(wid, graph_node_id)).then(
+        saveRecipeRef.current().then(() => {
+          // The server validates the environment and seals code identity while
+          // this request is pending; name that wait instead of showing "…".
+          onPhase?.("校验中…");
+          return dispatchNode(wid, graph_node_id);
+        }).then(
           (result) => {
             // A successful dispatch is synchronous proof of a new run even
             // if this tab's websocket is reconnecting or misses its queued

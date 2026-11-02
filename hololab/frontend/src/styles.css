@@ -632,6 +632,7 @@ a:hover { text-decoration: underline; }
 .hl-status-tooltip-reasons li::marker { color: #aaa; }
 
 .hl-node-run-control { width: var(--control-h-sm); height: var(--control-h-sm); padding: 0; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; line-height: 1; cursor: pointer; }
+.hl-node-run-control:has(span) { width: auto; padding-inline: var(--space-2); font-size: var(--fs-xs); white-space: nowrap; }
 .hl-node-run-control:disabled { cursor: default; opacity: .5; }
 .hl-node-stop-control:hover:not(:disabled), .hl-node-stop-control:focus-visible { color: var(--error) !important; background: var(--error-soft) !important; border-color: var(--error) !important; }
 .hl-node-stop-confirm { padding: var(--space-4); font-size: var(--fs-sm); }

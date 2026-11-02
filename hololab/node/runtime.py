@@ -252,6 +252,11 @@ class NodeRuntime:
         # module for the trade-off (package installs inside a running
         # env require a daemon restart to re-snapshot).
         self._env_cache: dict[str, dict[str, str]] = {}
+        # Submission capability evidence is safe to reuse only briefly.  This
+        # is distinct from ``_env_cache`` above (an activated process env): it
+        # includes every manifest/config input that changes an accept/reject
+        # verdict and is force-probed again when its TTL expires.
+        self._environment_report_cache: dict[str, tuple[float, dict[str, Any]]] = {}
         # (pack name, version) -> latest report sent to the gateway.
         self._environment_evidence: dict[tuple[str, str], dict[str, Any]] = {}
 
@@ -1104,18 +1109,59 @@ class NodeRuntime:
 
         if not hasattr(self, "_capability_checker"):
             self._capability_checker = CapabilityChecker()
+        if not hasattr(self, "_environment_report_cache"):
+            self._environment_report_cache = {}
         prefix = self._config.envs.get(manifest.runtime.env)
+
+        def cache_value(value):
+            if value is None:
+                return None
+            if hasattr(value, "model_dump"):
+                return value.model_dump(mode="json")
+            # Lightweight test manifests deliberately avoid Pydantic; their
+            # public fields are still the complete capability contract here.
+            return vars(value)
+
+        cache_key = json.dumps(
+            {
+                "runtime": cache_value(manifest.runtime),
+                "requires": cache_value(getattr(manifest, "requires", None)),
+                # Retain the full mapping in the key: a config change cannot
+                # accidentally borrow evidence from a previous mapping.
+                "envs": self._config.envs,
+                "conda_bin": self._config.conda_bin,
+                # PATH/CUDA visibility in the activated environment can alter
+                # binary and GPU requirements even when its prefix is stable.
+                "activated": (
+                    getattr(self, "_env_cache", {}).get(prefix)
+                    if manifest.runtime.mode != "host"
+                    else dict(os.environ)
+                ),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        now = time.monotonic()
+        cached = self._environment_report_cache.get(cache_key)
+        if not fresh and cached and now - cached[0] < self._config.env_cache_timeout_s:
+            return json.loads(json.dumps(cached[1]))
         report = await asyncio.to_thread(
             self._capability_checker.check,
             manifest,
             self._config.envs,
             self._config.conda_bin,
             getattr(self, "_env_cache", {}).get(prefix),
-            fresh=fresh,
+            # A TTL expiry is a real revalidation, not merely a lookup of the
+            # CapabilityChecker's lower-level installation fingerprint.
+            fresh=True,
             check_batch_id=check_batch_id,
         )
         report["prefix"] = (
             str(prefix) if manifest.runtime.mode != "host" and prefix is not None else None
+        )
+        self._environment_report_cache[cache_key] = (
+            time.monotonic(),
+            json.loads(json.dumps(report)),
         )
         return report
 
@@ -1168,7 +1214,7 @@ class NodeRuntime:
             from hololab.node.capabilities import enforce
 
             manifest, checked_manifest_hash = load_manifest(pack.manifest_path)
-            environment = await self._environment_report(manifest, fresh=True)
+            environment = await self._environment_report(manifest)
             if not request.refresh_cold:
                 enforce(environment)
             record = await asyncio.to_thread(

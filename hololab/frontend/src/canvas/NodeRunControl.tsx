@@ -13,8 +13,8 @@ export function requestStopNode(graph_node_id: string): void {
 }
 
 /** Cancels the current generation's representative parent, including its live shards. */
-export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason, onRun }: {
-  id: string; state?: string; jobId?: string; pending: boolean; stale?: boolean; blockedReason?: string; onRun: () => void;
+export function NodeRunControl({ id, state, jobId, pending, pendingPhase, stale, blockedReason, onRun }: {
+  id: string; state?: string; jobId?: string; pending: boolean; pendingPhase?: string; stale?: boolean; blockedReason?: string; onRun: () => void;
 }) {
   const stoppable = canStopNode(state);
   const [confirmJob, setConfirmJob] = useState<string | null>(null);
@@ -25,7 +25,7 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
   const trigger = useRef<HTMLButtonElement>(null);
   const busy = pending || stopping || (stoppable && acceptedJob === jobId);
   const disabled = busy || (stoppable && !jobId);
-  const label = stopping ? "正在停止" : stoppable && acceptedJob === jobId ? "停止已请求，等待状态同步" : stoppable ? "停止运行" : pending ? "正在提交" : stale ? "重新运行" : "运行";
+  const label = stopping ? "正在停止" : stoppable && acceptedJob === jobId ? "停止已请求，等待状态同步" : stoppable ? "停止运行" : pending ? (pendingPhase ?? "正在提交") : stale ? "重新运行" : "运行";
   const close = () => { if (!lock.current) { setConfirmJob(null); setError(null); trigger.current?.focus(); } };
   useEffect(() => {
     const request = (event: Event) => {
@@ -61,7 +61,7 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
       style={{ border: `1px solid ${staleTint ? "var(--warning)" : "var(--border-strong)"}`,
         background: busy ? "var(--surface-3)" : staleTint ? "var(--warning-soft)" : "var(--surface-raised)",
         color: busy ? "var(--text-muted)" : staleTint ? "var(--warning)" : "var(--text)" }}>
-      {busy ? <span aria-hidden="true">…</span> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      {busy ? <span aria-hidden="true">{pending ? label : "…"}</span> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
         {stoppable ? <rect x="5" y="5" width="14" height="14" rx="1" /> : <path d="m7 4 14 8-14 8Z" />}
       </svg>}
     </button>
