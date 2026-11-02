@@ -331,6 +331,17 @@
     "navigationOrder": 0
   },
   {
+    "source": "website/content/zh/contributor/developing-from-source.md",
+    "slug": "contributor/developing-from-source",
+    "section": "contributor",
+    "title": "从源码运行并迭代开发",
+    "group": "开发调试与 PR",
+    "order": 35,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "navigationOrder": 125
+  },
+  {
     "source": "website/content/en/use/nodes-and-links.md",
     "slug": "use/nodes-and-links",
     "section": "learn",
