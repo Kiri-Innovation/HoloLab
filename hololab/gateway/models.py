@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from hololab.gateway.port_type_ir import PortTypes
 from hololab.gateway.type_observation import InternalCountItem, RuntimeObservation
 from hololab.manifest.schema import OutputPreview
+from hololab.protocol.messages import PackLocation
 
 # ---------------------------------------------------------------------------
 # Meta / health
@@ -186,6 +187,7 @@ class PackContentOut(BaseModel):
 
 
 class CatalogPackEntry(BaseModel):
+    locations_by_node: dict[str, list[PackLocation]] = Field(default_factory=dict)
     publication: dict[str, Any] | None = None
     code_sha256: str | None = None
     content: PackContentOut | None = None

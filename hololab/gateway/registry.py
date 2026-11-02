@@ -577,6 +577,7 @@ class NodeRegistry:
                         "requires": getattr(pk, "requires", None),
                         "runtime": getattr(pk, "runtime", None),
                         "node_environments": {},
+                        "locations_by_node": {},
                         # Kept per node: a catalog row is a package while
                         # environment evidence is package-by-node-by-time.
                         "environment_by_node": {},
@@ -619,6 +620,9 @@ class NodeRegistry:
                     )
                 if session.node_id not in entry["node_ids"]:
                     entry["node_ids"].append(session.node_id)
+                entry["locations_by_node"][session.node_id] = [
+                    location.model_dump(mode="json") for location in pk.locations
+                ]
                 runtime = getattr(pk, "runtime", None)
                 environment = getattr(pk, "environment", None)
                 env_name = runtime.get("env") if isinstance(runtime, dict) else None

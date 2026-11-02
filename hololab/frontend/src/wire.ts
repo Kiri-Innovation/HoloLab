@@ -327,7 +327,19 @@ export interface ParamSpec {
   optional: boolean;
 }
 
+export interface PackLocation {
+  pack_dir: string;
+  manifest_path: string;
+  root_abs: string;
+  source_dir: string;
+  source_type: string;
+  effective: boolean;
+  manifest_hash: string;
+  code_sha256?: string | null;
+}
+
 export interface CatalogPack {
+  locations_by_node?: Record<string, PackLocation[]>;
   requires?: Record<string, unknown> | null;
   runtime?: {mode?: "conda" | "host"; env?: string | null} | null;
   node_environments?: Record<string, {runtime?: {mode?: "conda" | "host"; env?: string | null} | null; path?: string | null}>;

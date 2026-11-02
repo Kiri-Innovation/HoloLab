@@ -32,9 +32,21 @@ class PackContent(BaseModel):
     tree: list[dict[str, Any]] | None = None
 
 
+class PackLocation(BaseModel):
+    pack_dir: str
+    manifest_path: str
+    root_abs: str
+    source_dir: str
+    source_type: str
+    effective: bool
+    manifest_hash: str
+    code_sha256: str | None = None
+
+
 class PackInventoryEntry(BaseModel):
     """One installed pack the node is offering."""
 
+    locations: list[PackLocation] = Field(default_factory=list)
     name: str
     publication: dict[str, Any] | None = None
     version: str

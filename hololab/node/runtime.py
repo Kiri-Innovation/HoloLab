@@ -666,6 +666,7 @@ class NodeRuntime:
                 manifest_hash=p.manifest_hash,
                 code_sha256=content["sha256"] if content else None,
                 content=content,
+                locations=p.locations(content),
                 publication=p.publication,
                 root=p.manifest.root,
                 cold=p.manifest.cold,

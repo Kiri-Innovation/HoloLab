@@ -57,6 +57,28 @@ class LoadedPack:
     manifest_hash: str
     source_dir: Path
     bundled_identity: dict | None = None
+    shadowed: tuple[LoadedPack, ...] = ()
+
+    def locations(self, content: dict | None = None) -> list[dict]:
+        """Reuse manifest hashes; never walk shadowed content on startup.
+
+        code_sha256 is current measured content, not a publication receipt.
+        Equal manifest hashes alone do not prove equal code.
+        """
+        return [
+            {
+                "pack_dir": str(pack.manifest_path.resolve().parent),
+                "manifest_path": str(pack.manifest_path.resolve()),
+                "root_abs": str(pack.package_root.resolve()),
+                "source_dir": str(pack.source_dir.resolve()),
+                "source_type": "community_install" if pack.publication else
+                    "bundled" if pack.bundled_identity else "source_scan",
+                "effective": index == 0,
+                "manifest_hash": pack.manifest_hash,
+                "code_sha256": content.get("sha256") if index == 0 and content else None,
+            }
+            for index, pack in enumerate((self, *self.shadowed))
+        ]
 
     @property
     def origin(self) -> str:
@@ -254,6 +276,12 @@ def scan_multi_packs(pack_dirs: list[Path]) -> list[LoadedPack]:
                     kept=str(seen[key].manifest_path),
                     ignored=str(pack.manifest_path),
                 )
+                winner = seen[key]
+                # Overlapping scan roots / symlinks are one physical copy.
+                if pack.manifest_path.resolve() not in {
+                    item.manifest_path.resolve() for item in (winner, *winner.shadowed)
+                }:
+                    seen[key] = replace(winner, shadowed=(*winner.shadowed, pack))
                 continue
             seen[key] = pack
     canonical = {}
