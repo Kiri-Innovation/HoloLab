@@ -191,7 +191,47 @@ def start_node(
     if updates:
         cfg = cfg.model_copy(update=updates)
     _print_node_summary(cfg)
-    asyncio.run(NodeRuntime(cfg, config_path=node_config).run())
+    asyncio.run(_run_node_until_stopped(NodeRuntime(cfg, config_path=node_config)))
+
+
+async def _run_node_until_stopped(runtime: NodeRuntime) -> None:
+    """Run a standalone node and turn process signals into cancellation.
+
+    The file server deliberately lives in a separate session, so it does
+    not receive a terminal or screen SIGHUP with its parent.  Cancelling the
+    runtime task enters ``NodeRuntime.run``'s ``finally`` block, which owns
+    the orderly SIGTERM/SIGKILL-and-reap sequence for that child.
+    """
+
+    loop = asyncio.get_running_loop()
+    runtime_task = asyncio.create_task(runtime.run(), name="hololab-node")
+    shutdown_started = False
+
+    def _request_shutdown(signum: int) -> None:
+        nonlocal shutdown_started
+        if shutdown_started:
+            return
+        shutdown_started = True
+        name = signal.Signals(signum).name
+        typer.echo(f"\n· {name} received — stopping…", err=True)
+        runtime_task.cancel()
+
+    signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+    installed: list[signal.Signals] = []
+    for sig in signals:
+        try:
+            loop.add_signal_handler(sig, _request_shutdown, sig)
+        except NotImplementedError:
+            # Windows' proactor loop cannot register Unix-style handlers.
+            continue
+        installed.append(sig)
+
+    try:
+        with contextlib.suppress(asyncio.CancelledError):
+            await runtime_task
+    finally:
+        for sig in installed:
+            loop.remove_signal_handler(sig)
 
 
 def _run_all_in_one_sync(
@@ -293,7 +333,7 @@ async def _run_all_in_one_async(
         typer.echo(f"\n· {name} received — stopping…", err=True)
         server.should_exit = True
 
-    for sig in (signal.SIGINT, signal.SIGTERM):
+    for sig in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
         with contextlib.suppress(NotImplementedError):
             loop.add_signal_handler(sig, _request_shutdown, sig)
 
@@ -393,6 +433,7 @@ def dev(
                 with contextlib.suppress(ProcessLookupError):
                     p.terminate()
 
+    signal.signal(signal.SIGHUP, _terminate_all)
     signal.signal(signal.SIGINT, _terminate_all)
     signal.signal(signal.SIGTERM, _terminate_all)
 

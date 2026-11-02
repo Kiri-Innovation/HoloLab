@@ -22,6 +22,8 @@ Covered contracts:
 from __future__ import annotations
 
 import asyncio
+import os
+import signal
 import socket
 import subprocess
 import sys
@@ -257,6 +259,53 @@ def test_runtime_start_stop_file_server_subprocess(tmp_path: Path) -> None:
 
     asyncio.run(scenario())
     _wait_for_close(port, timeout=3.0)
+
+
+@pytest.mark.parametrize("shutdown_signal", [signal.SIGHUP, signal.SIGTERM, signal.SIGINT])
+def test_standalone_node_shutdown_reaps_file_server(
+    tmp_path: Path, shutdown_signal: signal.Signals
+) -> None:
+    """Every parent shutdown signal must drive the child cleanup path."""
+
+    port = _free_port()
+    config = tmp_path / "node.yaml"
+    config.write_text(
+        "\n".join(
+            [
+                "gateway_url: ws://127.0.0.1:1",
+                "file_server_host: 127.0.0.1",
+                f"file_server_port: {port}",
+                f"workspace_root: {tmp_path}",
+                "pack_dirs: []",
+                "use_env_cache: false",
+            ]
+        )
+        + "\n"
+    )
+    env = os.environ.copy()
+    env.pop("http_proxy", None)
+    env.pop("https_proxy", None)
+    env.pop("all_proxy", None)
+    env.pop("HTTP_PROXY", None)
+    env.pop("HTTPS_PROXY", None)
+    env.pop("ALL_PROXY", None)
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "hololab.cli", "start", "node", "--config", str(config)],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        _wait_for_listen(port, timeout=10.0)
+        proc.send_signal(shutdown_signal)
+        proc.wait(timeout=10.0)
+        assert proc.returncode == 0
+        _wait_for_close(port, timeout=3.0)
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            proc.wait(timeout=10.0)
 
 
 def test_runtime_restart_file_server_swaps_workspace_root(tmp_path: Path) -> None:
