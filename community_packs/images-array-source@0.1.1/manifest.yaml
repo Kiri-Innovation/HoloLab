@@ -1,0 +1,54 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: community/images-array-source
+version: 0.1.1
+description: Expose image frames as symlinks, decoding HEIC inputs to real lossless PNG files.
+source_entry: run.py
+category: basic/input/images-array-source
+docs: |
+  HEIC-capable alternative to builtin/images-array-source. Replace the source
+  node with this pack; frames_path and the frames output contract are unchanged.
+  Uses the kiri environment with Pillow and pillow-heif (see requirements.txt).
+  Hidden files and subdirectories are ignored. Filename byte order is preserved.
+  Non-HEIC images retain their exact filenames and remain symlinks.
+  .heic/.HEIC primary images become real PNGs with the same stem and
+  RGB/RGBA pixels and alpha, with EXIF orientation baked into pixels.
+  All eight orientations are supported; output EXIF orientation is removed.
+  No resizing is applied. Missing or invalid orientation leaves pixels unchanged.
+  ICC/EXIF metadata supported by Pillow is retained. HEIC auxiliary images and
+  sequences are not exported. HDR above 8 bits fails explicitly rather than
+  silently reducing precision. PNG is lossless relative to decoded HEIC pixels.
+  If suffix replacement collides or reorders frames, all HEIC outputs use
+  original-name.heic.png (or .HEIC.png). Ambiguous fallback names fail explicitly.
+  Use a fresh output directory; failed runs may leave partial outputs.
+params:
+  frames_path:
+    type: path
+    pinned: true
+    must_exist: true
+    path_kind: directory
+    description: Absolute path to the source frame directory (read only).
+outputs:
+  frames:
+    tags: [image]
+    arrayed: true
+    storage: dir
+    dim_labels: [frame]
+    description: Ordered image directory with real PNGs for HEIC and symlinks for other images.
+requires:
+  packages: ["Pillow>=11.1.0", "pillow-heif==1.3.0"]
+runtime:
+  env: kiri
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 2
+    mem_gb: 1
+exec:
+  shell: >-
+    python "{{ pack_dir }}/run.py" --frames-path "{{ params.frames_path }}"
+    --output "{{ outputs.frames }}"
+idempotency:
+  marker: '{{ outputs.frames }}/.hololab-done'
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'

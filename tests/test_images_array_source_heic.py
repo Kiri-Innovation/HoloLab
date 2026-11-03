@@ -9,7 +9,7 @@ import pytest
 from hololab.manifest import load_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
-PACK = ROOT / "community_packs/images-array-source@0.1.0"
+PACK = ROOT / "community_packs/images-array-source@0.1.1"
 BUILTIN = ROOT / "hololab/builtin_packs/images-array-source@0.1.0"
 
 
@@ -145,3 +145,77 @@ def test_host_rejects_shell_entrypoint():
     data["exec"] = {"shell": "ffmpeg -version"}
     with pytest.raises(ValidationError, match="host runtime is reserved"):
         type(old).model_validate(data)
+
+
+@pytest.mark.parametrize("mode", ["RGB", "RGBA"])
+@pytest.mark.parametrize("orientation", [None, 1, 2, 3, 4, 5, 6, 7, 8, 0, 9, 65535])
+def test_original_exif_orientation_baked_before_decoder_clears_tag(
+    tmp_path, monkeypatch, mode, orientation
+):
+    import importlib.util
+
+    heif = pytest.importorskip("pillow_heif")
+    from PIL import Image
+
+    spec = importlib.util.spec_from_file_location("heic_source", PACK / "run.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "sample.heic").touch()
+    output = tmp_path / "output"
+    pixels = Image.new(mode, (3, 2))
+    pixels.putdata([
+        (i * 30, i * 20, i * 10, i * 40) if mode == "RGBA"
+        else (i * 30, i * 20, i * 10) for i in range(6)
+    ])
+    exif = Image.Exif()
+    if orientation is not None:
+        exif[0x0112] = orientation
+    exif[0x010e] = "preserved description"
+
+    class Decoder:
+        def __init__(self):
+            self.info = {"exif": exif.tobytes()}
+
+        def to_pillow(self):
+            # Reproduce the actual decoder's tag normalization, with pixels unchanged.
+            normalized = Image.Exif()
+            normalized.load(self.info["exif"])
+            normalized[0x0112] = 1
+            self.info["exif"] = normalized.tobytes()
+            decoded = pixels.copy()
+            decoded.info["exif"] = normalized.tobytes()
+            return decoded
+
+    monkeypatch.setattr(heif, "open_heif", lambda *args, **kwargs: Decoder())
+    monkeypatch.setattr(sys, "argv", ["run.py", "--frames-path", str(source),
+                                      "--output", str(output)])
+    assert module.main() == 0
+    # Independent coordinate expectations for a non-square, asymmetric image.
+    indices = {
+        2: [2, 1, 0, 5, 4, 3], 3: [5, 4, 3, 2, 1, 0],
+        4: [3, 4, 5, 0, 1, 2], 5: [0, 3, 1, 4, 2, 5],
+        6: [3, 0, 4, 1, 5, 2], 7: [5, 2, 4, 1, 3, 0],
+        8: [2, 5, 1, 4, 0, 3],
+    }.get(orientation, list(range(6)))
+    with Image.open(output / "sample.png") as png:
+        assert png.size == ((2, 3) if orientation in (5, 6, 7, 8) else (3, 2))
+        assert list(png.getdata()) == [list(pixels.getdata())[i] for i in indices]
+        assert 0x0112 not in png.getexif()
+        assert png.getexif()[0x010e] == "preserved description"
+
+
+def test_missing_and_malformed_exif(monkeypatch, capsys):
+    import importlib.util
+
+    from PIL import Image
+
+    spec = importlib.util.spec_from_file_location("heic_source", PACK / "run.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.read_orientation(None) == 1
+    assert module.read_orientation(b"invalid exif") == 1
+    monkeypatch.setattr(Image.Exif, "get", lambda *args: [6])
+    assert module.read_orientation(None) == 1
+    assert "invalid HEIC EXIF" in capsys.readouterr().err

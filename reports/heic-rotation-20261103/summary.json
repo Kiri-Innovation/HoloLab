@@ -1,0 +1,10 @@
+{
+  "total_png": 252,
+  "size_counts": {
+    "1440x1920": 252
+  },
+  "exact_manual_rotation_pixel_matches": 252,
+  "orientation_absent": 252,
+  "tests_passed": 79,
+  "published": false
+}
