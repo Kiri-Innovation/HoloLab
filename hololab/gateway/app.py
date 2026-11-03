@@ -22,6 +22,7 @@ from typing import Any
 import aiosqlite
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
+from starlette.middleware.gzip import GZipMiddleware
 
 from hololab import PROTOCOL_V_MAX, PROTOCOL_V_MIN
 from hololab.gateway.derived_cache import DerivedPreviewCache
@@ -260,6 +261,7 @@ def create_app(
     """
 
     app = FastAPI(title="HoloLab Gateway", version="0.0.1")
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     @app.exception_handler(sqlite3.IntegrityError)
     async def namespace_conflict(request, exc):
@@ -2197,7 +2199,15 @@ def _mount_routes(app: FastAPI) -> None:
         if row is None:
             raise HTTPException(status_code=404, detail="workflow not found")
         registry: NodeRegistry = app.state.registry
-        packs_by_key = packs_by_key_from_catalog(registry.catalog_json())
+        # A canvas only needs manifests used by its own graph.  Fetching the
+        # complete inventory is for the palette, which the frontend loads in
+        # parallel and must not make this read scale with unrelated packs.
+        graph_keys = {
+            (node.algorithm_name, node.algorithm_version)
+            for node in row.graph.nodes
+            if node.kind == "algorithm" and node.algorithm_name and node.algorithm_version
+        }
+        packs_by_key = packs_by_key_from_catalog(registry.catalog_json(keys=graph_keys))
         from hololab.gateway.workflows import latest_runs_for_workflow
 
         latest_runs = await latest_runs_for_workflow(
@@ -2209,10 +2219,11 @@ def _mount_routes(app: FastAPI) -> None:
             graph=row.graph,
             packs_by_key=packs_by_key,
         )
-        from hololab.gateway.recipe_files import diagnostics
-
         return {
-            "recipe_issues": diagnostics(row.graph, registry.catalog_json()),
+            # Full recipe diagnostics resolve every node separately.  The
+            # canvas has no consumer for them, so keep them on explicit
+            # validation/preparation paths rather than the first paint.
+            "recipe_issues": [],
             "workflow_id": row.workflow_id,
             "name": row.name,
             "graph": agent_graph_dict(row.graph, packs_by_key, latest_runs=latest_runs),

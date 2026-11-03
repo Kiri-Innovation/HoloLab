@@ -77,7 +77,6 @@ import {
   getSnapshot,
   getWorkflow,
   getWorkflowViewerView,
-  listWorkflowRuns,
   patchWorkflowGraphNodeCosmetic,
   rerunFromNode,
   runWorkflow,
@@ -2452,16 +2451,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       setLatestSnapshotId(null); // both reset until hydration fills them in
       window.history.replaceState(null, "", `/w/${encodeURIComponent(w.workflow_id)}`);
 
-      setCanvasJobs([]);
-      // The latest snapshot remains the Run/diff baseline, not canvas evidence.
-      void listWorkflowRuns(w.workflow_id).then(async runs => {
-        if (!runs.length) { setHydrating(false); return; }
-        const snap = await getSnapshot(runs[0].snapshot_id);
-        seededSnapshotIdRef.current = snap.snapshot_id;
-        setLatestSnapshotGraph(snap.graph);
-        setLatestSnapshotJobs(snap.jobs);
-        setLatestSnapshotId(snap.snapshot_id);
-      }).catch(() => setHydrating(false));
+      // RunsPanel fetches history independently.  It remains automatic, but
+      // cannot delay canvas evidence or compete through a duplicate request.
     },
     [fromGraph, autosave],
   );
