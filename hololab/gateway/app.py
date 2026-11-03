@@ -2020,6 +2020,14 @@ def _mount_routes(app: FastAPI) -> None:
         row = await app.state.workflows.get_draft(workflow_id)
         if row is None:
             raise HTTPException(status_code=404, detail="workflow not found")
+        # Cold selection walks snapshot evidence.  The browser may ask twice
+        # during React hydration; coalesce that burst without making live job
+        # state stale for more than one second.
+        now = time.monotonic()
+        cache = getattr(app.state, "canvas_state_cache", {})
+        cached = cache.get(workflow_id)
+        if cached and cached[0] == row.updated_ts and now - cached[1] < 1.0:
+            return cached[2]
         evidence = await analyze_execution(app, workflow_id, row.graph, display_only=True)
         # ``analyze`` also serves the inspector and therefore carries an
         # effective graph/diff.  First paint only needs runtime aggregation,
@@ -2031,13 +2039,16 @@ def _mount_routes(app: FastAPI) -> None:
             "node_id", "workflow_id", "snapshot_id", "created_ts", "started_ts",
             "updated_ts", "fail_reason", "output_handles", "historical_only",
         )
-        return {
+        result = {
             "canvas_jobs": [
                 {key: job.get(key) for key in job_fields if key in job}
                 for job in evidence["canvas_jobs"]
             ],
             "staleness": evidence["staleness"],
         }
+        cache[workflow_id] = (row.updated_ts, now, result)
+        app.state.canvas_state_cache = cache
+        return result
 
     @app.post("/api/workflows/{workflow_id}/prepare", tags=["workflows"])
     async def prepare_workflow(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
