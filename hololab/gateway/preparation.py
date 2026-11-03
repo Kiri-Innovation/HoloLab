@@ -434,12 +434,19 @@ def configuration_diff(current: WorkflowGraph, baseline: WorkflowGraph | None) -
     return items
 
 
-async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict:
+async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph, *, display_only: bool = False) -> dict:
     """Authoritative effective values and staleness for one editing revision."""
     from hololab.constants import is_constant
     from hololab.gateway.workflows import downstream_closure, topological_order
 
-    prepared = await prepare_execution(app, graph, strict=False)
+    # First paint needs deterministic draft normalization and historical
+    # evidence, not a fresh node RPC.  Dispatch still calls prepare_execution
+    # and remains the only strict/fresh environment gate.
+    prepared = (
+        resolve_recipe(graph, copy.deepcopy(app.state.registry.catalog_json()))
+        if display_only
+        else await prepare_execution(app, graph, strict=False)
+    )
     sid = await app.state.snapshot_jobs.get_latest_snapshot_for_workflow(workflow_id)
     snapshot = await app.state.workflows.get_snapshot(sid) if sid else None
     baseline = await historical_execution(app, snapshot) if snapshot else None
@@ -522,7 +529,6 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph) -> dict
         "graph": prepared.model_dump(),
         "staleness": states,
         "canvas_jobs": jobs,
-        "environment_checks": prepared.execution.get("environment_checks", {}),
         "diff": diffs,
         "environment_params": prepared.execution["environment_params"],
         "issues": prepared.execution["issues"],

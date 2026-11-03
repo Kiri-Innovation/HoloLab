@@ -70,6 +70,7 @@ import {
   ApiError,
   dispatchNode,
   getComputeNodes,
+  getCanvasState,
   getHandle,
   invalidateHandleCache,
   getMetricsHistory,
@@ -2191,6 +2192,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   useRecipeChecks(analysisGraph, !viewingSnapshot);
   const capabilityChecks = useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick]), !viewingSnapshot);
   const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick + snapshotRefreshTick});
+  const [firstPaintStaleness, setFirstPaintStaleness] = useState<Record<string, NodeStaleness | null>>({});
   const resolvedCanvasContext = useMemo(() => ({...canvasContextValue,
     effectiveParamsByNode: Object.fromEntries((executionAnalysis.isCurrent ? executionAnalysis.data?.graph.nodes ?? [] : []).map(n => [n.id, n.params])),
   }), [canvasContextValue, executionAnalysis.data, executionAnalysis.isCurrent]);
@@ -2296,7 +2298,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     return () => { cancelled = true; };
   }, [JSON.stringify(canvasJobs.map(j => [j.job_id, j.output_handles]))]);
 
-  const stalenessByGraphNode = executionAnalysis.data?.staleness ?? EMPTY_STALENESS;
+  const stalenessByGraphNode = executionAnalysis.data?.staleness ?? firstPaintStaleness ?? EMPTY_STALENESS;
   useEffect(() => {
     setNodes(current => applyStaleness(current, stalenessByGraphNode));
   }, [stalenessByGraphNode, setNodes]);
@@ -2484,7 +2486,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // still flash the terminal placeholders for one frame.
       setHydrating(true);
       setWorkflowFileError("");
-      const w = await getWorkflow(id).catch(error => {
+      const [w, state] = await Promise.all([getWorkflow(id), getCanvasState(id)]).catch(error => {
         setWorkflowFileError(String(error));
         setHydrating(false);
         throw error;
@@ -2503,6 +2505,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       fromGraph(w.graph);
       setLatestSnapshotGraph(null);
       setLatestSnapshotId(null); // both reset until hydration fills them in
+      setFirstPaintStaleness(state.staleness ?? {});
+      setCanvasJobs(state.canvas_jobs ?? []);
       window.history.replaceState(null, "", `/w/${encodeURIComponent(w.workflow_id)}`);
 
       // RunsPanel fetches history independently.  It remains automatic, but

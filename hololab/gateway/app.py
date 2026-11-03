@@ -2013,6 +2013,15 @@ def _mount_routes(app: FastAPI) -> None:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.get("/api/workflows/{workflow_id}/canvas-state", tags=["workflows"])
+    async def workflow_canvas_state(workflow_id: str) -> dict[str, Any]:
+        """Current effective jobs + drift, without environment RPCs."""
+        from hololab.gateway.preparation import analyze_execution
+        row = await app.state.workflows.get_draft(workflow_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="workflow not found")
+        return await analyze_execution(app, workflow_id, row.graph, display_only=True)
+
     @app.post("/api/workflows/{workflow_id}/prepare", tags=["workflows"])
     async def prepare_workflow(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
         from hololab.gateway.preparation import prepare_execution

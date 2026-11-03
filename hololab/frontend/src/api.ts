@@ -259,6 +259,11 @@ export const getWorkflow = (workflow_id: string) =>
     }>,
   );
 
+export const getCanvasState = (workflow_id: string) =>
+  resilientFetch(`/api/workflows/${workflow_id}/canvas-state`).then(
+    json<import("./canvas/executionAnalysis").ExecutionAnalysis>,
+  );
+
 export const saveWorkflow = (body: {
   workflow_id?: string;
   name: string;
