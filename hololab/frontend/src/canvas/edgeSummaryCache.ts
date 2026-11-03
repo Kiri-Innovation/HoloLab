@@ -107,7 +107,11 @@ export function seedEdgeSummaryFacts(
 
 /** Seed the same cache from POST /handles/facts. */
 export function seedEdgeFacts(handleId: string, facts: Record<string, unknown>): void {
-  if (resolved.has(handleId)) return;
+  // The workflow's inline latest-run hint can legitimately be empty on older
+  // rows. Batched durable facts are stronger evidence and must upgrade that
+  // placeholder; never replace an already measured summary observation.
+  const existing = resolved.get(handleId)?.runtimeShape;
+  if (existing?.axes.evidence.status !== "unknown") return;
   resolved.set(handleId, factsFromSummary({ handle_id: handleId, runtime_shape: facts.runtime_shape }));
   notify();
 }

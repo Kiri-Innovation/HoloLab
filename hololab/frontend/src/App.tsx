@@ -526,15 +526,31 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // "尚未运行 → 产物已被清理 → 蓝色 loading" the persisted
   // ``preview_open`` slot produced on every cold load.
   const [hydrating, setHydrating] = useState<boolean>(false);
+  // Initial REST and the first WS ``node_online`` often arrive together.
+  // Coalesce their catalog refreshes so the second result cannot restart the
+  // workflow hydrator while its first request is still in flight.
+  const catalogRefreshRef = useRef<Promise<void> | null>(null);
+  const catalogRefreshedAtRef = useRef<number | null>(null);
 
   const refreshCatalog = useCallback(async () => {
-    try {
-      const [cat, nodes] = await Promise.all([getPackCatalog(), getComputeNodes()]);
-      setCatalog([...cat, constantPresentation(false), constantPresentation(true), assemblyPresentation(nodes.filter(n => n.intrinsics?.includes("array-assemble")).map(n => n.node_id))]);
-      setComputeNodes(nodes);
-    } catch (e) {
-      console.warn("catalog refresh failed", e);
-    }
+    if (catalogRefreshRef.current) return catalogRefreshRef.current;
+    // Initial WS inventory announcements are informational duplicates of the
+    // startup REST fetch. Keep genuine later online/offline refreshes intact.
+    if (catalogRefreshedAtRef.current !== null && performance.now() - catalogRefreshedAtRef.current < 1_000) return;
+    const request = (async () => {
+      try {
+        const [cat, nodes] = await Promise.all([getPackCatalog(), getComputeNodes()]);
+        setCatalog([...cat, constantPresentation(false), constantPresentation(true), assemblyPresentation(nodes.filter(n => n.intrinsics?.includes("array-assemble")).map(n => n.node_id))]);
+        setComputeNodes(nodes);
+        catalogRefreshedAtRef.current = performance.now();
+      } catch (e) {
+        console.warn("catalog refresh failed", e);
+      } finally {
+        catalogRefreshRef.current = null;
+      }
+    })();
+    catalogRefreshRef.current = request;
+    return request;
   }, []);
 
   useEffect(() => {
@@ -775,6 +791,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   // --- workflow model ---------------------------------------------------
   const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const workflowLoadRef = useRef<{ id: string; promise: Promise<void> } | null>(null);
   const [viewerView, setViewerView] = useState<WorkflowViewerView | null>(null);
   const [viewerViewLoaded, setViewerViewLoaded] = useState(false);
   const [viewerViewManaged, setViewerViewManaged] = useState(false);
@@ -2552,6 +2569,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const onLoad = useCallback(
     async (id: string) => {
+      const existing = workflowLoadRef.current;
+      if (existing?.id === id) return existing.promise;
+      let promise: Promise<void>;
+      promise = (async () => {
       // Flip hydrating BEFORE fromGraph so the very first render that
       // opens persisted ``preview_open`` drawers sees the flag set —
       // otherwise the initial paint (with empty runtime/previews) would
@@ -2583,26 +2604,26 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
       // RunsPanel fetches history independently.  It remains automatic, but
       // cannot delay canvas evidence or compete through a duplicate request.
+      })();
+      workflowLoadRef.current = { id, promise };
+      try {
+        await promise;
+      } finally {
+        if (workflowLoadRef.current?.promise === promise) workflowLoadRef.current = null;
+      }
     },
     [fromGraph, autosave],
   );
 
-  // Load the workflow the router handed us. Runs once per initialWorkflowId
-  // change and waits for the catalog so ``fromGraph`` has the packs it
-  // needs to hydrate each node. A stale/unknown id surfaces via the
-  // getWorkflow throw; we just log and leave the canvas blank so the
-  // user can hit "← workflows" to get out.
+  // Start state + graph reads immediately; ``fromGraph`` can render safe
+  // unresolved pack placeholders, and the catalog effect upgrades them in
+  // place. This removes catalog parsing from the first-paint critical path.
   useEffect(() => {
     if (initialWorkflowId === workflowId) return;
     void onLoad(initialWorkflowId).catch((err) => {
       console.warn("could not open workflow", initialWorkflowId, err);
     });
-    // onLoad is stable enough for our purposes; catalog-length gate above
-    // gives us the "wait for packs" behaviour. reconnectTick makes the
-    // cold-load throw retry when the network comes back after a longer
-    // outage than ``resilientFetch``'s inline retry window covered.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog, initialWorkflowId, reconnectTick]);
+  }, [initialWorkflowId, workflowId, reconnectTick, onLoad]);
 
   // Wire the WS ``workflow_updated`` handler. The socket effect uses a ref
   // rather than closing over ``onLoad`` / ``autosave`` directly so a save
