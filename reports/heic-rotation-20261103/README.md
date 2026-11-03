@@ -1,8 +1,9 @@
 # HEIC 旋转修复验证
 
-`community/images-array-source@0.1.1` 在 `to_pillow()` 前读取原始 EXIF
+`builtin/images-array-source@0.1.1` 在 `to_pillow()` 前读取原始 EXIF
 orientation，把方向烘进 RGB/RGBA 像素，并移除输出 EXIF orientation。
-保留 0.1.0 不可变版本；0.1.1 待发布，本次没有访问或修改中央注册表。
+本文记录此前的旋转验证；实现现已迁移至 builtin，community 源码已移除。
+本目录的原始日志与图片保留为历史证据；最新迁移验证见 ../heic-builtin-20261103/。
 既有节点需显式切换到 0.1.1 才能获得修复。
 
 ## 全量结果
@@ -25,7 +26,7 @@ orientation，把方向烘进 RGB/RGBA 像素，并移除输出 EXIF orientation
 复现转换命令：
 
 ```bash
-/cloud/cloud-ssd1/envs/kiri/bin/python community_packs/images-array-source@0.1.1/run.py \
+/cloud/cloud-ssd1/envs/kiri/bin/python hololab/builtin_packs/images-array-source@0.1.1/run.py \
   --frames-path /cloud/cloud-ssd1/Kiri4DGS/data/persona_bench/beach_sunglasses_hat_sitting/input/image \
   --output /tmp/hololab-heic-rotation/frames > /tmp/hololab-heic-rotation/conversion.log
 /cloud/cloud-ssd1/envs/kiri/bin/python reports/heic-rotation-20261103/verify.py

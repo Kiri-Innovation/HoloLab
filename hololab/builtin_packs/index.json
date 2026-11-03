@@ -102,9 +102,9 @@
     },
     {
       "name": "builtin/images-array-source",
-      "version": "0.1.0",
-      "manifest": "images-array-source@0.1.0/manifest.yaml",
-      "code_sha256": "eb991e049fb22704f33f31f9ff83aa6874c695500949502ae1309e72909932c4",
+      "version": "0.1.1",
+      "manifest": "images-array-source@0.1.1/manifest.yaml",
+      "code_sha256": "9c82c0b4bbe4f6c12d50b5f329517668c9c26ff67d7b0178f1f9591eee2e17d2",
       "identity_format": 2
     }
   ]

@@ -130,7 +130,7 @@ def main() -> int:
         except (ImportError, OSError, ValueError) as exc:
             print(
                 f"failed to process {frame}: {exc}; HEIC requires Pillow and pillow-heif "
-                "in runtime.env",
+                "in the host Python environment",
                 file=sys.stderr,
             )
             return 2

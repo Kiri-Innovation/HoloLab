@@ -1,0 +1,62 @@
+{
+  "result": "HEIC support moved to builtin/images-array-source@0.1.1; both community source versions removed",
+  "dependencies": {
+    "manifest": [
+      "Pillow>=11.1.0",
+      "pillow-heif==1.3.0"
+    ],
+    "project_install_dependencies": "same requirements declared in pyproject.toml",
+    "reason": "Host capability preflight supports requires; declaring real requirements avoids falsely asserting an empty contract and installs the decoder with HoloLab. Imports remain lazy."
+  },
+  "verification": {
+    "converted": 252,
+    "real_png": 252,
+    "dimensions": {
+      "1440x1920": 252
+    },
+    "no_exif_orientation": 252,
+    "exact_manual_ROTATE_270_pixel_matches": 252,
+    "sequence_preserved": true,
+    "visual_review": {
+      "file": "/tmp/hololab-heic-builtin/frames/305186217781234.png",
+      "observation": "Upright seated person, upright palm tree, horizontal sea horizon."
+    },
+    "focused_tests": "83 passed",
+    "expanded_tests": "182 passed, 1 failed: existing external STG version mismatch, test expects 0.4.10 but checkout has 0.4.13",
+    "ruff": "passed for implementation and tests",
+    "bundled_inventory": "15 packs loaded; new builtin hash verified",
+    "non_heic": "PNG/JPG/WebP remain byte-preserving symlinks; guarded import test proves PNG/JPG never import pillow_heif",
+    "boundaries": "8 orientations in RGB/RGBA; alpha; malformed/invalid EXIF; missing decoder; HDR refusal; output collision/order"
+  },
+  "removal": {
+    "tracked_before": 8,
+    "tracked_after": 0,
+    "registry": "Both versions absent, central-status fresh; public package endpoint HTTP 404. No publish, delete, or yank performed.",
+    "repository_active_community_references": 0,
+    "historical_reference_policy": "Evidence records retain old identifiers; three old builtin manifest paths in historical reports remain historical facts."
+  },
+  "affected_live_nodes": [
+    {
+      "workflow": "PersonaRecon",
+      "workflow_id": "8eae442c-c97a-4641-ac25-3d37e539fca7",
+      "node_id": "nmw03tohz3",
+      "old_pack": "community/images-array-source@0.1.1",
+      "compute_node": "KiriA800",
+      "action": "Right-click → replace algorithm → builtin/images-array-source@0.1.1"
+    }
+  ],
+  "live_refresh": "Only KiriA800 pack reload requested; client timed out at 45 seconds, subsequent live pack-catalog proves builtin 0.1.1 present and both community versions absent. /api/packs retains historical entries.",
+  "risks_and_unperformed": [
+    "No workflow writes; affected live node needs explicit replacement before rerunning.",
+    "Three historical snapshots reference builtin 0.1.0 / community 0.1.0 / community 0.1.1; exact replay needs corresponding historical checkout.",
+    "No service restart, no 4090 operations, no GPU jobs, no source image writes.",
+    "Other HEIC samples with combined container irot/imir and EXIF orientation not exercised. HDR above 8 bit remains unsupported.",
+    "Unrelated STG integration failure not modified."
+  ],
+  "artifacts": {
+    "frames": "/tmp/hololab-heic-builtin/frames",
+    "conversion_python": "/cloud/cloud-ssd1/envs/kiri/bin/python",
+    "test_environment": "/tmp/hololab-heic-builtin/venv",
+    "notes": "Test-only dependencies installed into isolated venv; running host environment unchanged."
+  }
+}

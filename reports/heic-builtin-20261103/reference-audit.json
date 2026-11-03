@@ -1,0 +1,14 @@
+{
+  "community": {
+    "exit_code": 1,
+    "matches": []
+  },
+  "old_builtin": {
+    "exit_code": 0,
+    "matches": [
+      "./reports/mask-overlay-20261030/nodes-before.json:269:        \"manifest_path\": \"/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/images-array-source@0.1.0/manifest.yaml\",",
+      "./reports/mask-overlay-20261030/overview-before.json:272:          \"manifest_path\": \"/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/images-array-source@0.1.0/manifest.yaml\",",
+      "./reports/mask-overlay-v020-20261030/overview-before.json:123:          \"manifest_path\": \"/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/images-array-source@0.1.0/manifest.yaml\","
+    ]
+  }
+}

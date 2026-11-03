@@ -9,8 +9,7 @@ import pytest
 from hololab.manifest import load_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
-PACK = ROOT / "community_packs/images-array-source@0.1.1"
-BUILTIN = ROOT / "hololab/builtin_packs/images-array-source@0.1.0"
+PACK = ROOT / "hololab/builtin_packs/images-array-source@0.1.1"
 
 
 def run(source, output, pack=PACK):
@@ -29,31 +28,33 @@ def run(source, output, pack=PACK):
 
 
 def test_manifest_contract():
-    new, _ = load_manifest(PACK / "manifest.yaml")
-    old, _ = load_manifest(BUILTIN / "manifest.yaml")
-    assert new.runtime.env == "kiri"
-    assert not new.runtime.gpu.required
-    assert new.outputs["frames"].tags == old.outputs["frames"].tags
-    assert new.outputs["frames"].dim_labels == old.outputs["frames"].dim_labels
-    assert new.outputs["frames"].storage == old.outputs["frames"].storage
-    assert new.outputs["frames"].arrayed == old.outputs["frames"].arrayed
-    assert "pillow-heif==1.3.0" in new.requires.packages
+    manifest, _ = load_manifest(PACK / "manifest.yaml")
+    assert manifest.name == "builtin/images-array-source"
+    assert manifest.version == "0.1.1"
+    assert manifest.runtime.mode == "host"
+    assert manifest.runtime.env is None
+    assert not manifest.runtime.gpu.required
+    frames = manifest.outputs["frames"]
+    assert frames.tags == ["image"]
+    assert frames.dim_labels == ["frame"]
+    assert frames.storage == "dir"
+    assert frames.arrayed
+    assert "pillow-heif==1.3.0" in manifest.requires.packages
 
 
-def test_non_heic_identical_to_builtin(tmp_path):
+def test_non_heic_symlink_contract(tmp_path):
     source = tmp_path / "source"
     source.mkdir()
     for name in ["02.png", "01.JPG", "03.webp", ".hidden.png", "ignored.txt"]:
         (source / name).write_bytes(b"unchanged even without decoding")
     (source / "subdir.png").mkdir()
-    outputs = [tmp_path / "old", tmp_path / "new"]
-    for pack, output in zip([BUILTIN, PACK], outputs, strict=True):
-        assert run(source, output, pack).returncode == 0
-    assert sorted(p.name for p in outputs[0].iterdir()) == ["01.JPG", "02.png", "03.webp"]
-    for old in outputs[0].iterdir():
-        new = outputs[1] / old.name
-        assert old.is_symlink() and new.is_symlink()
-        assert old.readlink() == new.readlink()
+    output = tmp_path / "out"
+    assert run(source, output).returncode == 0
+    assert sorted(p.name for p in output.iterdir()) == ["01.JPG", "02.png", "03.webp"]
+    for target in output.iterdir():
+        assert target.is_symlink()
+        assert target.readlink() == source / target.name
+        assert target.read_bytes() == b"unchanged even without decoding"
 
 
 @pytest.mark.parametrize("mode", ["RGB", "RGBA"])
@@ -140,7 +141,7 @@ def test_all_png_remain_real_image_symlinks(tmp_path):
 def test_host_rejects_shell_entrypoint():
     from pydantic import ValidationError
 
-    old, _ = load_manifest(BUILTIN / "manifest.yaml")
+    old, _ = load_manifest(PACK / "manifest.yaml")
     data = old.model_dump()
     data["exec"] = {"shell": "ffmpeg -version"}
     with pytest.raises(ValidationError, match="host runtime is reserved"):
@@ -219,3 +220,62 @@ def test_missing_and_malformed_exif(monkeypatch, capsys):
     monkeypatch.setattr(Image.Exif, "get", lambda *args: [6])
     assert module.read_orientation(None) == 1
     assert "invalid HEIC EXIF" in capsys.readouterr().err
+
+
+def load_source_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("builtin_image_source", PACK / "run.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_png_jpg_never_import_heif(tmp_path, monkeypatch):
+    import builtins
+
+    original_import = builtins.__import__
+    attempted = []
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "pillow_heif":
+            attempted.append(name)
+            raise ImportError("HEIF intentionally unavailable")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    module = load_source_module()
+    source = tmp_path / "source"
+    source.mkdir()
+    for name in ["01.png", "02.JPG"]:
+        (source / name).write_bytes(b"preserve bytes")
+    output = tmp_path / "out"
+    monkeypatch.setattr(sys, "argv", ["run.py", "--frames-path", str(source),
+                                      "--output", str(output)])
+    assert module.main() == 0
+    assert attempted == []
+    assert all(p.is_symlink() for p in output.iterdir())
+    (source / "03.heic").touch()
+    assert module.main() == 2
+    assert attempted == ["pillow_heif"]
+
+
+def test_high_bit_depth_rejected_before_decoding(tmp_path, monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    module = load_source_module()
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "hdr.heic").touch()
+    output = tmp_path / "out"
+
+    def open_heif(path, *, convert_hdr_to_8bit):
+        assert convert_hdr_to_8bit is False
+        return SimpleNamespace(info={"bit_depth": 10})
+
+    monkeypatch.setitem(sys.modules, "pillow_heif", SimpleNamespace(open_heif=open_heif))
+    monkeypatch.setattr(sys, "argv", ["run.py", "--frames-path", str(source),
+                                      "--output", str(output)])
+    assert module.main() == 2
+    assert "HDR/high-bit-depth" in capsys.readouterr().err
+    assert not (output / "hdr.png").exists()

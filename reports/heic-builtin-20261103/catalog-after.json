@@ -1,0 +1,198 @@
+[
+  {
+    "key": "builtin/images-array-source@0.1.1",
+    "catalog": [
+      {
+        "name": "builtin/images-array-source",
+        "version": "0.1.1",
+        "manifest_hash": "7d35a89e1f8647c9b1d7f3ef115b7a22a8e1cd4455b62e384393da820bc4658d",
+        "code_sha256": "9c82c0b4bbe4f6c12d50b5f329517668c9c26ff67d7b0178f1f9591eee2e17d2",
+        "content": {
+          "files": 2,
+          "bytes": 7616,
+          "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/images-array-source@0.1.1",
+          "hot": {
+            "files": 2,
+            "links": 0,
+            "bytes": 7616,
+            "top_level_names": [
+              "manifest.yaml",
+              "run.py"
+            ]
+          },
+          "cold": {
+            "files": 0,
+            "links": 0,
+            "bytes": 0,
+            "top_level_names": [],
+            "directories": []
+          },
+          "excluded": {
+            "files": 0,
+            "links": 0,
+            "bytes": 0,
+            "top_level_names": [],
+            "top_level": []
+          },
+          "top_level": [
+            {
+              "name": "run.py",
+              "layer": "hot",
+              "files": 1,
+              "links": 0,
+              "bytes": 5402,
+              "top_level_names": [
+                "run.py"
+              ]
+            },
+            {
+              "name": "manifest.yaml",
+              "layer": "hot",
+              "files": 1,
+              "links": 0,
+              "bytes": 2214,
+              "top_level_names": [
+                "manifest.yaml"
+              ]
+            }
+          ],
+          "tree": [
+            {
+              "name": "run.py",
+              "kind": "file",
+              "layer": "hot",
+              "files": 1,
+              "links": 0,
+              "bytes": 5402,
+              "top_level_names": [
+                "run.py"
+              ],
+              "children": [],
+              "children_truncated": 0
+            },
+            {
+              "name": "manifest.yaml",
+              "kind": "file",
+              "layer": "hot",
+              "files": 1,
+              "links": 0,
+              "bytes": 2214,
+              "top_level_names": [
+                "manifest.yaml"
+              ],
+              "children": [],
+              "children_truncated": 0
+            }
+          ]
+        },
+        "root": ".",
+        "cold": [],
+        "publication": null,
+        "requires": {
+          "packages": [
+            "Pillow>=11.1.0",
+            "pillow-heif==1.3.0"
+          ]
+        },
+        "runtime": {
+          "mode": "host",
+          "env": null
+        },
+        "node_environments": {
+          "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+            "runtime": {
+              "mode": "host",
+              "env": null
+            },
+            "path": null
+          }
+        },
+        "locations_by_node": {
+          "3038e635-4840-46dd-aa0c-6bd9c477b852": [
+            {
+              "pack_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/images-array-source@0.1.1",
+              "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/images-array-source@0.1.1/manifest.yaml",
+              "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/images-array-source@0.1.1",
+              "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs",
+              "source_type": "bundled",
+              "effective": true,
+              "manifest_hash": "7d35a89e1f8647c9b1d7f3ef115b7a22a8e1cd4455b62e384393da820bc4658d",
+              "code_sha256": "9c82c0b4bbe4f6c12d50b5f329517668c9c26ff67d7b0178f1f9591eee2e17d2"
+            }
+          ]
+        },
+        "environment_by_node": {},
+        "node_ids": [
+          "3038e635-4840-46dd-aa0c-6bd9c477b852"
+        ],
+        "inputs": {},
+        "outputs": {
+          "frames": {
+            "tags": [
+              "image"
+            ],
+            "storage": "dir",
+            "description": "Ordered image directory with real PNGs for HEIC and symlinks for other images.",
+            "arrayed": true,
+            "scalar": false,
+            "tags_from": null,
+            "dim_labels": [
+              "frame"
+            ],
+            "dim_labels_from": null,
+            "dim_labels_from_input": null,
+            "dim_labels_drop_outer": 0,
+            "preview": {
+              "viewer": "image",
+              "member": null
+            }
+          }
+        },
+        "params": {
+          "frames_path": {
+            "type": "path",
+            "items": null,
+            "min": null,
+            "max": null,
+            "values": null,
+            "pinned": true,
+            "default": null,
+            "description": "Absolute path to the source frame directory (read only).",
+            "optional": false,
+            "must_exist": true,
+            "path_kind": "directory"
+          }
+        },
+        "description": "Expose image frames as symlinks, decoding HEIC inputs to real lossless PNG files.",
+        "category": [
+          "basic",
+          "input",
+          "images-array-source"
+        ],
+        "docs": "Read-only image source bundled with HoloLab; frames_path and the frames\noutput contract are unchanged. HEIC requires Pillow and pillow-heif in the\nhost Python environment (installed with HoloLab); missing imports fail clearly.\nAccepted extensions: .png .jpg .jpeg .webp .tif .tiff .bmp .heic.\nHidden files and subdirectories are ignored. Filename byte order is preserved.\nNon-HEIC images retain their exact filenames and remain symlinks.\n.heic/.HEIC primary images become real PNGs with the same stem and\nRGB/RGBA pixels and alpha, with EXIF orientation baked into pixels.\nAll eight orientations are supported; output EXIF orientation is removed.\nNo resizing is applied. Missing or invalid orientation leaves pixels unchanged.\nICC/EXIF metadata supported by Pillow is retained. HEIC auxiliary images and\nsequences are not exported. HDR above 8 bits fails explicitly rather than\nsilently reducing precision. PNG is lossless relative to decoded HEIC pixels.\nIf suffix replacement collides or reorders frames, all HEIC outputs use\noriginal-name.heic.png (or .HEIC.png). Ambiguous fallback names fail explicitly.\nUse a fresh output directory; failed runs may leave partial outputs.\n",
+        "source_entry": "run.py",
+        "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/images-array-source@0.1.1/manifest.yaml",
+        "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs",
+        "arrayable": false,
+        "parallelism": null,
+        "batch_size": null,
+        "node_viewers": [],
+        "hide_default_output_previews": false,
+        "central": {
+          "state": "absent",
+          "reason": "not present in configured registry",
+          "checked_at": 1793690374.8782234,
+          "stale": false
+        }
+      }
+    ]
+  },
+  {
+    "key": "community/images-array-source@0.1.1",
+    "catalog": []
+  },
+  {
+    "key": "community/images-array-source@0.1.0",
+    "catalog": []
+  }
+]

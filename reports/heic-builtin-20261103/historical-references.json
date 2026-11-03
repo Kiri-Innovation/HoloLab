@@ -1,0 +1,23 @@
+[
+  {
+    "snapshot_id": "55348b94-86ff-4ae3-a58b-3d49bcebf75d",
+    "workflow_id": "8eae442c-c97a-4641-ac25-3d37e539fca7",
+    "node_id": "nmw03tohz3",
+    "name": "builtin/images-array-source",
+    "version": "0.1.0"
+  },
+  {
+    "snapshot_id": "64ad62a2-7127-4310-b339-5f9f409514bd",
+    "workflow_id": "8eae442c-c97a-4641-ac25-3d37e539fca7",
+    "node_id": "nmw03tohz3",
+    "name": "community/images-array-source",
+    "version": "0.1.0"
+  },
+  {
+    "snapshot_id": "7d5241ab-f293-44fa-a967-42470a5b9cd0",
+    "workflow_id": "8eae442c-c97a-4641-ac25-3d37e539fca7",
+    "node_id": "nmw03tohz3",
+    "name": "community/images-array-source",
+    "version": "0.1.1"
+  }
+]
