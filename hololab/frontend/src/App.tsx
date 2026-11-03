@@ -406,6 +406,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [canvasJobs, setCanvasJobs] = useState<CanvasJob[]>([]);
   const [previewLoadingByGraphNode, setPreviewLoadingByGraphNode] = useState<Record<string, Record<string, boolean>>>({});
   const [previewFactsPendingByGraphNode, setPreviewFactsPendingByGraphNode] = useState<Record<string, Record<string, boolean>>>({});
+  const [previewFactsFailedByGraphNode, setPreviewFactsFailedByGraphNode] = useState<Record<string, Record<string, string>>>({});
   const [previewLoadErrorsByGraphNode, setPreviewLoadErrorsByGraphNode] = useState<Record<string, Record<string, string>>>({});
   const [jobsById, setJobsById] = useState<Record<string, RecentJobRow>>({});
 
@@ -1244,6 +1245,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const ps = previewShardsByGraphNode[n.id];
         const pl = previewLoadingByGraphNode[n.id];
         const pf = previewFactsPendingByGraphNode[n.id];
+        const pff = previewFactsFailedByGraphNode[n.id];
         const pe = previewLoadErrorsByGraphNode[n.id];
         const nv = nodeViewerFramesByGraphNode[n.id];
         const pr = previewRefreshByGraphNode[n.id] ?? 0;
@@ -1261,6 +1263,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           ps === d.previewShards &&
           pl === d.previewLoadingPorts &&
           pf === d.previewFactsPendingPorts &&
+          pff === d.previewFactsFailedPorts &&
           pe === d.previewLoadErrors &&
           nv === d.nodeViewerFrames &&
           pr === (d.previewRefreshToken ?? 0) &&
@@ -1278,6 +1281,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             previewShards: ps,
             previewLoadingPorts: pl,
             previewFactsPendingPorts: pf,
+            previewFactsFailedPorts: pff,
             previewLoadErrors: pe,
             nodeViewerFrames: nv,
             previewRefreshToken: pr,
@@ -1292,6 +1296,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     previewShardsByGraphNode,
     previewLoadingByGraphNode,
     previewFactsPendingByGraphNode,
+    previewFactsFailedByGraphNode,
     previewLoadErrorsByGraphNode,
     nodeViewerFramesByGraphNode,
     previewRefreshByGraphNode,
@@ -2239,6 +2244,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     setPreviewShardsByGraphNode({});
     setPreviewLoadingByGraphNode({});
     setPreviewFactsPendingByGraphNode({});
+    setPreviewFactsFailedByGraphNode({});
     setPreviewLoadErrorsByGraphNode({});
     void (async () => {
       try {
@@ -2303,15 +2309,21 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const applyFacts = (response: Awaited<ReturnType<typeof getHandleFacts>>) => {
           if (cancelled) return [] as string[];
           const pendingIds = new Set<string>();
+          const failedIds = new Map<string, string>();
           for (const fact of response.facts) {
             if (fact.status === "ready" && fact.facts) seedEdgeFacts(fact.handle_id, fact.facts);
             if (fact.status === "pending") pendingIds.add(fact.handle_id);
+            if (fact.status === "failed") failedIds.set(fact.handle_id, fact.error || "产物信息不可用");
           }
           const next: Record<string, Record<string, boolean>> = {};
+          const failed: Record<string, Record<string, string>> = {};
           for (const item of allPreviewWork) {
             if (pendingIds.has(item.handleId)) (next[item.graphNodeId] ??= {})[item.portName] = true;
+            const error = failedIds.get(item.handleId);
+            if (error) (failed[item.graphNodeId] ??= {})[item.portName] = error;
           }
           setPreviewFactsPendingByGraphNode(next);
+          setPreviewFactsFailedByGraphNode(failed);
           return [...pendingIds];
         };
 

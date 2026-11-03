@@ -192,7 +192,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
   onRun?: () => Promise<void>;
   inspector?: boolean;
 }) {
-  const { pack, previews, previewShards, previewLoadingPorts, previewFactsPendingPorts, previewLoadErrors, previewRefreshToken = 0, runtime, arrayed_toggle, assigned_node_id, readOnly } = data;
+  const { pack, previews, previewShards, previewLoadingPorts, previewFactsPendingPorts, previewFactsFailedPorts, previewLoadErrors, previewRefreshToken = 0, runtime, arrayed_toggle, assigned_node_id, readOnly } = data;
   const {
     computeNodesById,
     hydrating,
@@ -273,6 +273,11 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
                   {previewFactsPendingPorts?.[name] && (
                     <span title="正在读取已完成产物的类型和维度；预览文件仍会自动加载" style={{ fontSize: 9, color: "var(--info)", whiteSpace: "nowrap" }}>
                       尺寸计算中…
+                    </span>
+                  )}
+                  {previewFactsFailedPorts?.[name] && (
+                    <span title={previewFactsFailedPorts[name]} style={{ fontSize: 9, color: "var(--warning)", whiteSpace: "nowrap" }}>
+                      信息不可用
                     </span>
                   )}
                   <OpenInCocoderButton

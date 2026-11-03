@@ -239,6 +239,7 @@ export interface HandleFacts {
   tags?: string[];
   facts?: Record<string, unknown>;
   schema_version?: number;
+  error?: string | null;
 }
 
 export const getHandleFacts = (handle_ids: string[]) =>

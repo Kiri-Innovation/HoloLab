@@ -140,6 +140,9 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   previewLoadingPorts?: Record<string, boolean>;
   /** Facts probe is asynchronous; this is informational, never an error. */
   previewFactsPendingPorts?: Record<string, boolean>;
+  /** A facts probe can fail for a cleaned/unreadable artifact.  Keep this
+   * separate from preview metadata errors: it must not masquerade as shape. */
+  previewFactsFailedPorts?: Record<string, string>;
   previewLoadErrors?: Record<string, string>;
   /** Changes only when this node's result visualization is explicitly refreshed. */
   previewRefreshToken?: number;
