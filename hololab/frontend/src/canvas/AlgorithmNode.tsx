@@ -143,6 +143,9 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   /** A facts probe can fail for a cleaned/unreadable artifact.  Keep this
    * separate from preview metadata errors: it must not masquerade as shape. */
   previewFactsFailedPorts?: Record<string, string>;
+  /** Measured display facts from the first-paint batch.  Unlike full handle
+   * metadata these are safe to paint while the preview body is still loading. */
+  previewFacts?: Record<string, Record<string, unknown>>;
   previewLoadErrors?: Record<string, string>;
   /** Changes only when this node's result visualization is explicitly refreshed. */
   previewRefreshToken?: number;

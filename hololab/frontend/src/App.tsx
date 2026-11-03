@@ -407,6 +407,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [previewLoadingByGraphNode, setPreviewLoadingByGraphNode] = useState<Record<string, Record<string, boolean>>>({});
   const [previewFactsPendingByGraphNode, setPreviewFactsPendingByGraphNode] = useState<Record<string, Record<string, boolean>>>({});
   const [previewFactsFailedByGraphNode, setPreviewFactsFailedByGraphNode] = useState<Record<string, Record<string, string>>>({});
+  const [previewFactsByGraphNode, setPreviewFactsByGraphNode] = useState<Record<string, Record<string, Record<string, unknown>>>>({});
   const [previewLoadErrorsByGraphNode, setPreviewLoadErrorsByGraphNode] = useState<Record<string, Record<string, string>>>({});
   const [jobsById, setJobsById] = useState<Record<string, RecentJobRow>>({});
 
@@ -1263,6 +1264,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const pl = previewLoadingByGraphNode[n.id];
         const pf = previewFactsPendingByGraphNode[n.id];
         const pff = previewFactsFailedByGraphNode[n.id];
+        const pfa = previewFactsByGraphNode[n.id];
         const pe = previewLoadErrorsByGraphNode[n.id];
         const nv = nodeViewerFramesByGraphNode[n.id];
         const pr = previewRefreshByGraphNode[n.id] ?? 0;
@@ -1281,6 +1283,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           pl === d.previewLoadingPorts &&
           pf === d.previewFactsPendingPorts &&
           pff === d.previewFactsFailedPorts &&
+          pfa === d.previewFacts &&
           pe === d.previewLoadErrors &&
           nv === d.nodeViewerFrames &&
           pr === (d.previewRefreshToken ?? 0) &&
@@ -1299,6 +1302,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             previewLoadingPorts: pl,
             previewFactsPendingPorts: pf,
             previewFactsFailedPorts: pff,
+            previewFacts: pfa,
             previewLoadErrors: pe,
             nodeViewerFrames: nv,
             previewRefreshToken: pr,
@@ -1314,6 +1318,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     previewLoadingByGraphNode,
     previewFactsPendingByGraphNode,
     previewFactsFailedByGraphNode,
+    previewFactsByGraphNode,
     previewLoadErrorsByGraphNode,
     nodeViewerFramesByGraphNode,
     previewRefreshByGraphNode,
@@ -2262,6 +2267,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     setPreviewLoadingByGraphNode({});
     setPreviewFactsPendingByGraphNode({});
     setPreviewFactsFailedByGraphNode({});
+    setPreviewFactsByGraphNode({});
     setPreviewLoadErrorsByGraphNode({});
     void (async () => {
       try {
@@ -2334,13 +2340,28 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           }
           const next: Record<string, Record<string, boolean>> = {};
           const failed: Record<string, Record<string, string>> = {};
+          const ready: Record<string, Record<string, Record<string, unknown>>> = {};
           for (const item of allPreviewWork) {
             if (pendingIds.has(item.handleId)) (next[item.graphNodeId] ??= {})[item.portName] = true;
             const error = failedIds.get(item.handleId);
             if (error) (failed[item.graphNodeId] ??= {})[item.portName] = error;
+            const fact = response.facts.find(candidate => candidate.handle_id === item.handleId);
+            if (fact?.status === "ready" && fact.facts) {
+              (ready[item.graphNodeId] ??= {})[item.portName] = fact.facts;
+            }
           }
           setPreviewFactsPendingByGraphNode(next);
           setPreviewFactsFailedByGraphNode(failed);
+          // A follow-up poll only contains the handles that were pending on
+          // the prior pass.  Merge it so ready facts already painted on other
+          // ports do not disappear while one slow artifact is still probing.
+          setPreviewFactsByGraphNode(previous => {
+            const merged = { ...previous };
+            for (const [graphNodeId, ports] of Object.entries(ready)) {
+              merged[graphNodeId] = { ...(merged[graphNodeId] ?? {}), ...ports };
+            }
+            return merged;
+          });
           return [...pendingIds];
         };
 

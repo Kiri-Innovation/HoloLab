@@ -45,6 +45,54 @@ export interface PreviewPlaceholderProps {
   readOnly?: boolean;
 }
 
+/**
+ * A handle id has already been selected by canvas-state, but its low-priority
+ * metadata lookup has not completed yet.  Keep the drawer useful in that
+ * window: its declared type and durable facts are known independently of the
+ * media bytes.  Arrayed images deliberately look like an empty strip rather
+ * than a single full-card loading message; real thumbnails replace these
+ * cells once the normal Preview mounts.
+ */
+export function PreviewLoadingSkeleton({
+  tags,
+  arrayed,
+  dimensions,
+}: {
+  tags: string[];
+  arrayed: boolean;
+  dimensions?: string | null;
+}) {
+  const type = tags.filter(tag => tag !== "any")[0] ?? "产物";
+  const isImageList = arrayed && tags.includes("image");
+  const cells = isImageList ? 6 : 1;
+  return (
+    <div data-hl-preview-skeleton="" style={{ ...SHELL, alignItems: "stretch", minHeight: 96, padding: "var(--space-2)", gap: 7 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6, fontSize: 10 }}>
+        <span style={{ color: "var(--text-on-dark)", fontFamily: "var(--font-mono)" }}>{type}</span>
+        {dimensions && <span data-hl-preview-dimensions="" style={{ color: "var(--inverse-muted)", fontFamily: "var(--font-mono)" }}>{dimensions}</span>}
+      </div>
+      <div
+        data-hl-preview-skeleton-grid={isImageList ? "frames" : "content"}
+        aria-label={isImageList ? "图片列表加载中" : "预览内容加载中"}
+        style={{ display: "flex", gap: 4, minHeight: isImageList ? 54 : 72, alignItems: "stretch", overflow: "hidden" }}
+      >
+        {Array.from({ length: cells }, (_, index) => (
+          <div key={index} data-hl-preview-skeleton-cell="" style={{
+            flex: isImageList ? "0 0 96px" : 1,
+            minWidth: 0,
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(255,255,255,0.07)",
+          }} />
+        ))}
+      </div>
+      <div style={{ color: "var(--inverse-muted)", fontSize: 10, textAlign: "left" }}>
+        {isImageList ? "图片将逐个载入" : "预览内容将载入"}
+      </div>
+    </div>
+  );
+}
+
 const SHELL: React.CSSProperties = {
   background: "var(--inverse-surface)",
   color: "var(--text-on-dark)",

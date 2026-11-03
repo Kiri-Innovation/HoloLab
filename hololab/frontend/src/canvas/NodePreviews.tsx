@@ -8,7 +8,9 @@ import { useCanvasContext } from "./CanvasContext";
 import { CopyRefButton } from "./CopyRefButton";
 import { OpenInCocoderButton } from "./OpenInCocoderButton";
 import { BasicInfoPreview, Preview } from "./previews";
-import { PreviewPlaceholder } from "./PreviewPlaceholder";
+import { PreviewLoadingSkeleton, PreviewPlaceholder } from "./PreviewPlaceholder";
+import { parseRuntimeObservation } from "../types/runtimeObservation";
+import { observedValue } from "../types/renderPortType";
 import { NodeViewerFrame } from "./NodeViewerFrame";
 
 // An expandable output = a port the operator can open the drawer on.
@@ -192,7 +194,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
   onRun?: () => Promise<void>;
   inspector?: boolean;
 }) {
-  const { pack, previews, previewShards, previewLoadingPorts, previewFactsPendingPorts, previewFactsFailedPorts, previewLoadErrors, previewRefreshToken = 0, runtime, arrayed_toggle, assigned_node_id, readOnly } = data;
+  const { pack, previews, outputHandleIds, previewShards, previewLoadingPorts, previewFactsPendingPorts, previewFactsFailedPorts, previewFacts, previewLoadErrors, previewRefreshToken = 0, runtime, arrayed_toggle, assigned_node_id, readOnly } = data;
   const {
     computeNodesById,
     hydrating,
@@ -452,8 +454,10 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
             // lookup failure is deliberately neither "cleaned" nor
             // "never-ran".
             const notReady = (hydrating && !runtime) || Boolean(previewLoadingPorts?.[name]);
-            const placeholderKind = notReady
-              ? "loading"
+            const placeholderKind = previewFactsFailedPorts?.[name]
+              ? "unavailable"
+              : notReady
+                ? "loading"
               : previewLoadErrors?.[name]
                 ? "unavailable"
               : target?.deleted
@@ -465,6 +469,24 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
                 : target?.deleted
                   ? "This artifact has been cleaned up."
                   : "Run this node to preview its output."}</p>;
+            }
+            // canvas-state already selected this exact handle.  Do not hide
+            // the known port contract behind the lower-priority metadata
+            // lookup; durable facts fill its dimension labels independently.
+            if (placeholderKind === "loading" && outputHandleIds?.[name]) {
+              const shape = parseRuntimeObservation(previewFacts?.[name]?.runtime_shape);
+              const axes = shape ? observedValue(shape.axes) : undefined;
+              const dimensions = axes?.map(axis => {
+                const size = observedValue(axis.size);
+                return size === undefined ? null : `${axis.label ?? "item"}:${size}`;
+              }).filter((value): value is string => value !== null).map(value => `[${value}]`).join("") || null;
+              return (
+                <PreviewLoadingSkeleton
+                  tags={port.tags}
+                  arrayed={effectivePortArrayed(port.arrayed, pack.arrayable, arrayed_toggle)}
+                  dimensions={dimensions}
+                />
+              );
             }
             return (
               <PreviewPlaceholder
