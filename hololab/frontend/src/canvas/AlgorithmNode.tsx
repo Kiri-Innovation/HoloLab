@@ -136,6 +136,8 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   previewShards?: Record<string, PreviewShard[]>;
   previewLoadingPorts?: Record<string, boolean>;
   previewLoadErrors?: Record<string, string>;
+  /** Changes only when this node's result visualization is explicitly refreshed. */
+  previewRefreshToken?: number;
   // Non-terminal files announced by the node runtime for pack-owned viewers.
   nodeViewerFrames?: Record<string, LiveViewerFrame[]>;
   // Frontend-only: which preview drawer is expanded, if any. The node

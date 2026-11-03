@@ -71,6 +71,7 @@ import {
   dispatchNode,
   getComputeNodes,
   getHandle,
+  invalidateHandleCache,
   getMetricsHistory,
   getPackCatalog,
   getRecentJobs,
@@ -426,6 +427,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [previewShardsByGraphNode, setPreviewShardsByGraphNode] = useState<
     Record<string, Record<string, PreviewShard[]>>
   >({});
+  // Incrementing one entry remounts only that node's output preview(s).
+  const [previewRefreshByGraphNode, setPreviewRefreshByGraphNode] = useState<Record<string, number>>({});
   const [nodeViewerFramesByGraphNode, setNodeViewerFramesByGraphNode] = useState<
     Record<string, Record<string, LiveViewerFrame[]>>
   >({});
@@ -1228,6 +1231,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const pl = previewLoadingByGraphNode[n.id];
         const pe = previewLoadErrorsByGraphNode[n.id];
         const nv = nodeViewerFramesByGraphNode[n.id];
+        const pr = previewRefreshByGraphNode[n.id] ?? 0;
         const po = previewOpenByGraphNode[n.id] ?? null;
         // Value-level runtime compare so a WS update that keeps a node's
         // aggregate state unchanged doesn't mint a new node identity —
@@ -1242,6 +1246,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           pl === d.previewLoadingPorts &&
           pe === d.previewLoadErrors &&
           nv === d.nodeViewerFrames &&
+          pr === (d.previewRefreshToken ?? 0) &&
           po === (d.previewOpen ?? null)
         ) {
           return n;
@@ -1256,6 +1261,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             previewLoadingPorts: pl,
             previewLoadErrors: pe,
             nodeViewerFrames: nv,
+            previewRefreshToken: pr,
             previewOpen: po,
           },
         };
@@ -1268,6 +1274,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     previewLoadingByGraphNode,
     previewLoadErrorsByGraphNode,
     nodeViewerFramesByGraphNode,
+    previewRefreshByGraphNode,
     previewOpenByGraphNode,
     edges,
     setNodes,
@@ -1564,6 +1571,50 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     setNodes(current => current.map(item => item.id === node.id ? { ...item, selected: true } : item.selected ? { ...item, selected: false } : item));
     setNodeMenu({ nodeId: node.id, position: { x: event.clientX, y: event.clientY } });
   }, [setNodes]);
+
+  const refreshNodeVisualizations = useCallback(async (graphNodeId: string) => {
+    // Include handles from the current resolved preview map and the selected
+    // generation. The latter matters while a running job has announced an
+    // output before normal hydration has populated the map.
+    const handles = new Map<string, { portName: string; snapshotId: string | null }>();
+    for (const [portName, target] of Object.entries(previewsByGraphNode[graphNodeId] ?? {})) {
+      handles.set(target.handle_id, { portName, snapshotId: target.snapshot_id ?? null });
+    }
+    for (const job of canvasJobs) {
+      if (job.graph_node_id !== graphNodeId) continue;
+      for (const [portName, handleId] of Object.entries(job.output_handles ?? {})) {
+        handles.set(handleId, { portName, snapshotId: job.snapshot_id ?? null });
+      }
+    }
+    await Promise.all([...handles].map(async ([handleId, source]) => {
+      invalidateHandleCache(handleId);
+      const info = await getHandle(handleId, true);
+      setPreviewsByGraphNode((previous) => {
+        const ports = { ...(previous[graphNodeId] ?? {}) };
+        ports[source.portName] = {
+          snapshot_id: source.snapshotId,
+          port_name: source.portName,
+          handle_id: info.handle_id,
+          node_id: info.node_id,
+          proxy_url: info.proxy_url,
+          storage: info.storage as "dir" | "file",
+          absolute_path: info.absolute_path,
+          deleted: info.deleted_ts !== null,
+          tags: info.tags,
+          preview: info.preview ?? null,
+          dim_labels: info.dim_labels ?? null,
+          dim_sizes: info.dim_sizes ?? null,
+        };
+        return { ...previous, [graphNodeId]: ports };
+      });
+    }));
+    // NodeViewerFrame reacts to this by immediately fetching index.json and
+    // doing one extra live_globs scan; its regular one-second poll remains.
+    setPreviewRefreshByGraphNode((previous) => ({
+      ...previous,
+      [graphNodeId]: (previous[graphNodeId] ?? 0) + 1,
+    }));
+  }, [canvasJobs, previewsByGraphNode]);
 
   // --- selection → NodeInspector ---------------------------------------
   const selectedNode = useMemo(() => nodes.find((n) => n.selected) || null, [nodes]);
@@ -2582,6 +2633,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const contextMenuAlgorithm = contextMenuNode ? algorithmDataForNode(contextMenuNode) : null;
   const contextMenuRunning = ["pending", "assigned", "running", "orphaned"].includes(contextMenuAlgorithm?.runtime?.state ?? "");
   const contextMenuHasPack = Boolean(contextMenuAlgorithm?.pack.manifest_hash);
+  const contextMenuHasResultVisualization = Boolean(contextMenuAlgorithm && (
+    Object.values(contextMenuAlgorithm.previews ?? {}).some((target) => !target.deleted)
+    || Object.values(contextMenuAlgorithm.previewShards ?? {}).some((shards) => shards.length > 0)
+    || canvasJobs.some((job) => job.graph_node_id === contextMenuNode?.id && Object.keys(job.output_handles ?? {}).length > 0)
+    || (contextMenuRunning && contextMenuAlgorithm.pack.node_viewers?.some((viewer) => viewer.history_output))
+  ));
 
   const canvasContentSlot = (
     <>
@@ -2674,6 +2731,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             if (contextMenuRunning) requestStopNode(contextMenuNode.id);
             else void dispatchRunNode(contextMenuNode.id);
           } : undefined}
+          onRefreshVisualizations={contextMenuAlgorithm ? () => refreshNodeVisualizations(contextMenuNode.id) : undefined}
+          canRefreshVisualizations={contextMenuHasResultVisualization}
           packHref={contextMenuAlgorithm ? `/packs?view=local&section=category&pack=${encodeURIComponent(`${contextMenuAlgorithm.pack.name}@${contextMenuAlgorithm.pack.version}`)}` : undefined}
         />
       )}

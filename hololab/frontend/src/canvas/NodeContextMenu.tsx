@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 export type NodeMenuPosition = { x: number; y: number };
@@ -14,6 +14,8 @@ export function NodeContextMenu({
   onReplace,
   canReplace,
   onRun,
+  onRefreshVisualizations,
+  canRefreshVisualizations,
   packHref,
 }: {
   position: NodeMenuPosition;
@@ -26,6 +28,8 @@ export function NodeContextMenu({
   onReplace?: () => void;
   canReplace?: boolean;
   onRun?: () => void;
+  onRefreshVisualizations?: () => Promise<void>;
+  canRefreshVisualizations?: boolean;
   packHref?: string;
 }) {
   const menu = useRef<HTMLDivElement>(null);
@@ -33,7 +37,8 @@ export function NodeContextMenu({
   const pointerStartedOutside = useRef(false);
   const id = useId();
   const left = Math.max(8, Math.min(position.x, window.innerWidth - 208));
-  const top = Math.max(8, Math.min(position.y, window.innerHeight - 236));
+  const top = Math.max(8, Math.min(position.y, window.innerHeight - 272));
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     menu.current?.querySelector<HTMLElement>("button:not(:disabled), a[role=menuitem]")?.focus();
@@ -71,11 +76,21 @@ export function NodeContextMenu({
   }, [onClose]);
 
   const action = (callback: () => void) => () => { onClose(); callback(); };
+  const refresh = async () => {
+    if (!onRefreshVisualizations || refreshing) return;
+    setRefreshing(true);
+    try {
+      await onRefreshVisualizations();
+    } finally {
+      onClose();
+    }
+  };
   return createPortal(
     <div ref={menu} id={id} role="menu" aria-label="节点操作" className="hl-node-context-menu" style={{ left, top }} onContextMenu={event => event.preventDefault()}>
       <button role="menuitem" type="button" onClick={action(onDuplicate)}>创建副本</button>
       {onReplace && <button role="menuitem" type="button" disabled={!canReplace} title={canReplace ? undefined : "无相同输入输出的算法"} onClick={action(onReplace)}>替换为算法…</button>}
       {onRun && <button role="menuitem" type="button" disabled={!canRun} title={hasPack ? undefined : "算法未安装，无法运行"} onClick={action(onRun)}>{running ? "停止运行" : "运行"}</button>}
+      {onRefreshVisualizations && <button role="menuitem" type="button" disabled={!canRefreshVisualizations || refreshing} title={canRefreshVisualizations ? undefined : "该节点尚无可刷新的结果"} onClick={() => { void refresh().catch(() => {}); }}>{refreshing ? "刷新中…" : "刷新结果可视化"}</button>}
       {packHref && <a role="menuitem" href={packHref} target="_blank" rel="noopener" onClick={onClose}>在包管理器里查看</a>}
       <div role="separator" className="hl-node-context-menu-separator" />
       <button role="menuitem" type="button" className="hl-node-context-menu-danger" onClick={action(onDelete)}>删除</button>

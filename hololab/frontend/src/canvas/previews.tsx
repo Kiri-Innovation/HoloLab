@@ -133,6 +133,8 @@ export interface PreviewProps {
   // has finished. ArrayedPaginator uses this instead of fetching the
   // aggregate summary. Ignored by scalar / non-arrayed viewers.
   partial?: PartialArrayedInfo;
+  /** Remounting alone does not bypass browser image cache for file handles. */
+  refreshToken?: number;
 }
 
 export function Preview({
@@ -146,6 +148,7 @@ export function Preview({
   arrayed,
   dimLabels,
   partial,
+  refreshToken = 0,
 }: PreviewProps) {
   // Existing handles/older running gateways may not yet carry inferred specs.
   // Keep explicit pack overrides authoritative.
@@ -156,7 +159,10 @@ export function Preview({
     return <GaussianScenePreview url={baseUrl} />;
   }
   // Image is one file. Only explicit collections use sequence viewers.
-  if (tags?.includes("image") && storage === "file") return <ImagePreview url={baseUrl} />;
+  if (tags?.includes("image") && storage === "file") {
+    const separator = baseUrl.includes("?") ? "&" : "?";
+    return <ImagePreview url={refreshToken ? `${baseUrl}${separator}refresh=${refreshToken}` : baseUrl} />;
+  }
   if (tags?.includes("image") && storage === "dir" && arrayed) {
     return (dimLabels?.length ?? 1) > 1
       ? <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />
