@@ -178,18 +178,23 @@ export const cancelAllJobs = () =>
 // HandleInfo/HandleSummary are stable per id (a handle's proxy_url,
 // tags, dim_labels are frozen at emit time), so a resolved response
 // is reusable for the lifetime of the tab.
-const HANDLE_FETCH_CONCURRENCY = 8;
+// Facts are the only handle request on the first-paint path.  Full handle
+// records unlock file previews and are intentionally kept in their own small
+// queue, so opening several persisted drawers cannot occupy connections needed
+// by canvas-state/facts.
+const PREVIEW_METADATA_CONCURRENCY = 2;
+const PREVIEW_SUMMARY_CONCURRENCY = 2;
 // A metadata lookup must not leave an expanded drawer undecidable forever.
 // Payload streaming uses /proxy and deliberately has no such short timeout.
 const HANDLE_FETCH_TIMEOUT_MS = 15_000;
 const _handleInfoCache = new Map<string, Promise<HandleInfo>>();
 const _handleSummaryCache = new Map<string, Promise<HandleSummary>>();
 
-const _fetchHandleLimited = pLimit(HANDLE_FETCH_CONCURRENCY, (handle_id: string) =>
+const _fetchHandleLimited = pLimit(PREVIEW_METADATA_CONCURRENCY, (handle_id: string) =>
   resilientFetch(`/api/handles/${handle_id}`, { cache: "no-store", signal: AbortSignal.timeout(HANDLE_FETCH_TIMEOUT_MS) }).then(json<HandleInfo>),
 );
 const _fetchHandleSummaryLimited = pLimit(
-  HANDLE_FETCH_CONCURRENCY,
+  PREVIEW_SUMMARY_CONCURRENCY,
   (handle_id: string) =>
     resilientFetch(`/api/handles/${handle_id}/summary`, { cache: "no-store" }).then(json<HandleSummary>),
 );
@@ -223,6 +228,25 @@ export const getHandleSummary = (handle_id: string, force = false): Promise<Hand
   _handleSummaryCache.set(handle_id, p);
   return p;
 };
+
+/** Compact, batched display evidence for the first canvas paint.  ``pending``
+ * is an expected state while the gateway's post-completion probe is running;
+ * callers must not substitute guessed dimensions for it. */
+export interface HandleFacts {
+  handle_id: string;
+  status: "pending" | "ready" | "failed";
+  dim_labels?: string[];
+  tags?: string[];
+  facts?: Record<string, unknown>;
+  schema_version?: number;
+}
+
+export const getHandleFacts = (handle_ids: string[]) =>
+  resilientFetch("/api/handles/facts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ handle_ids }),
+  }).then(json<{ facts: HandleFacts[] }>);
 
 // -- workflows ---------------------------------------------------------------
 

@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import type { EdgeType } from "./edgeLabels";
-import { loadEdgeSummaryFacts, peekEdgeSummaryFacts, type EdgeSummaryFacts } from "./edgeSummaryCache";
+import { loadEdgeSummaryFacts, peekEdgeSummaryFacts, subscribeEdgeSummaryFacts, type EdgeSummaryFacts } from "./edgeSummaryCache";
 
 /** Shared by port handles and edge chips; stale handle facts never cross a rewire. */
 export function useTypeSummary(type: EdgeType, handleId?: string | null): EdgeType & { runtimeAvailable: boolean } {
   const [loaded, setLoaded] = useState<{ id: string; facts: EdgeSummaryFacts }>();
+  // POST /handles/facts can resolve after this port mounted. Subscribe so a
+  // ready fact repaints the chip immediately instead of waiting for a hover.
+  const [, setFactsRevision] = useState(0);
+  useEffect(() => subscribeEdgeSummaryFacts(() => setFactsRevision(value => value + 1)), []);
   const facts = handleId ? peekEdgeSummaryFacts(handleId) ?? (loaded?.id === handleId ? loaded.facts : undefined) : undefined;
   useEffect(() => {
     if (!handleId) return;

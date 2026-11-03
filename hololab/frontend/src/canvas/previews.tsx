@@ -14,7 +14,7 @@ import { VideoResolution } from "./VideoResolution";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@xyflow/react";
 import { getHandleSummary } from "../api";
-import { resilientFetch, useReconnectTick, useRetryTick } from "../net";
+import { pLimit, resilientFetch, useReconnectTick, useRetryTick } from "../net";
 import { RetryLink } from "../RetryLink";
 import type {
   ComputeNode,
@@ -45,6 +45,27 @@ const PREVIEW_SHELL: React.CSSProperties = {
   overflow: "hidden",
   fontFamily: "var(--font-sans)",
 };
+
+// Persisted drawers can auto-open, so their /proxy bytes must not contend with
+// first-paint state/facts or thumbnail traffic.  The pool is intentionally
+// local to full-size preview payloads.
+const loadProxyPreview = pLimit(2, (src: string) => new Promise<void>((resolve) => {
+  const image = new Image();
+  image.onload = image.onerror = () => resolve();
+  image.src = src;
+}));
+
+function DeferredProxyImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { src: string }) {
+  const { src, ...rest } = props;
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setReady(false);
+    void loadProxyPreview(src).then(() => { if (active) setReady(true); });
+    return () => { active = false; };
+  }, [src]);
+  return <img {...rest} src={ready ? src : undefined} />;
+}
 
 /** Loading / error / empty pill with the same visual weight for all viewers. */
 function Status({ text, kind }: { text: string; kind: "loading" | "error" | "info" }) {
@@ -725,7 +746,7 @@ function ImagePreview({ url }: { url: string }) {
   return (
     <div style={{ ...PREVIEW_SHELL, position: "relative" }}>
       {/* Back only the image pixels; keep the surrounding shell unchanged. */}
-      <img
+      <DeferredProxyImage
         className="hl-image-background"
         key={url}
         src={url}

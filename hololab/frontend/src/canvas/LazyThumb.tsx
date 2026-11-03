@@ -32,6 +32,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ImgHTMLAttributes } from "react";
+import { pLimit } from "../net";
 
 /**
  * Global default: how strict the "actually visible" heuristic is.
@@ -53,6 +54,14 @@ const DEFAULT_ROOT_MARGIN = "50px";
  * via ``debounceMs``.
  */
 const DEFAULT_DEBOUNCE_MS = 200;
+// Thumbnail bytes are deliberately isolated from canvas-state/facts and from
+// metadata summaries.  Waiting for load keeps the slot occupied for the real
+// network transfer (rather than merely for setting an img src attribute).
+const loadThumbnail = pLimit(2, (src: string) => new Promise<void>((resolve) => {
+  const image = new Image();
+  image.onload = image.onerror = () => resolve();
+  image.src = src;
+}));
 
 export interface LazyThumbProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, "src"> {
   /** The thumbnail URL. Only fetched once the tile becomes visible. */
@@ -130,7 +139,7 @@ export function LazyThumb({
             // survives ``debounceMs`` do we set ``src``.
             if (visibleTimer !== null) clearTimeout(visibleTimer);
             visibleTimer = setTimeout(() => {
-              setLoaded(true);
+              void loadThumbnail(src).then(() => setLoaded(true));
             }, debounceMs);
           } else if (visibleTimer !== null) {
             // Left before the debounce window closed — fast-scroll
@@ -148,7 +157,7 @@ export function LazyThumb({
       if (visibleTimer !== null) clearTimeout(visibleTimer);
       observer.disconnect();
     };
-  }, [loaded, rootMargin, debounceMs]);
+  }, [loaded, rootMargin, debounceMs, src]);
 
   // The underlying <img> is always rendered so IntersectionObserver has
   // something to observe. Before ``loaded`` we omit ``src`` entirely

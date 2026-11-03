@@ -2052,11 +2052,40 @@ def _mount_routes(app: FastAPI) -> None:
 
     @app.post("/api/handles/facts", tags=["handles"])
     async def handle_facts(body: dict[str, Any]) -> dict[str, Any]:
-        from hololab.gateway.handle_facts import batch
+        from hololab.gateway.handle_facts import batch, persist
         ids = body.get("handle_ids", [])
         if not isinstance(ids, list) or not all(isinstance(x, str) for x in ids):
             raise HTTPException(422, detail="handle_ids must be a string list")
-        return {"facts": await batch(app, list(dict.fromkeys(ids)))}
+        ids = list(dict.fromkeys(ids))
+        facts = await batch(app, ids)
+        # Older completed jobs predate the completion-time facts hook.  A
+        # first canvas visit must therefore enqueue their same background
+        # probe, rather than leaving ``pending`` permanent or synchronously
+        # walking their artifact trees on the first-paint request.
+        pending = getattr(app.state, "handle_facts_pending", set())
+        app.state.handle_facts_pending = pending
+        book: HandleBook = app.state.handles
+        registry: NodeRegistry = app.state.registry
+        jobs_store: JobsStore = app.state.jobs_store
+        for fact in facts:
+            handle_id = fact["handle_id"]
+            if fact["status"] != "pending" or handle_id in pending:
+                continue
+            handle = await book.get(handle_id)
+            if handle is None:
+                continue
+            pending.add(handle_id)
+            async def backfill(h: Handle, hid: str) -> None:
+                try:
+                    _preview, labels, _sizes, _tags = await _resolve_handle_display_meta(
+                        h, registry=registry, jobs_store=jobs_store,
+                        workflows=app.state.workflows, measure_dimensions=False,
+                    )
+                    await persist(app, h, labels)
+                finally:
+                    pending.discard(hid)
+            asyncio.create_task(backfill(handle, handle_id))
+        return {"facts": facts}
 
     @app.post("/api/workflows/{workflow_id}/prepare", tags=["workflows"])
     async def prepare_workflow(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:

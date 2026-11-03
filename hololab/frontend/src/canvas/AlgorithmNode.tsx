@@ -130,11 +130,16 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   // Resolved preview URLs for each output port that has a preview
   // declaration AND has produced a handle. Key is the output port name.
   previews?: Record<string, PreviewTarget>;
+  /** Handle ids arrive with canvas-state; facts can enrich their type before
+   * the lower-priority full preview metadata request completes. */
+  outputHandleIds?: Record<string, string>;
   // Per-port list of shard previews, for arrayed nodes mid-fanout.
   // Populated as each shard completes; consumed by the drawer when the
   // aggregate target isn't in ``previews`` yet.
   previewShards?: Record<string, PreviewShard[]>;
   previewLoadingPorts?: Record<string, boolean>;
+  /** Facts probe is asynchronous; this is informational, never an error. */
+  previewFactsPendingPorts?: Record<string, boolean>;
   previewLoadErrors?: Record<string, string>;
   /** Changes only when this node's result visualization is explicitly refreshed. */
   previewRefreshToken?: number;
@@ -605,7 +610,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                 style={{ ...PORT_ROW, position: "relative", justifyContent: "flex-end" }}
               >
                 <PortHandle asText nodeId={id} id={portName} type="source" position={Position.Right}
-                  handleId={previews?.[portName]?.handle_id}
+                  handleId={previews?.[portName]?.handle_id ?? (data as AlgorithmNodeData).outputHandleIds?.[portName]}
                   declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle) }}
                   style={{
                     color: "var(--text-body)",
@@ -623,7 +628,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
                   nodeId={id}
                   declared={{ tags: spec.tags, arrayed: isArrayed, dimLabels: effectivePortDimLabels(spec.arrayed, spec.dim_labels, pack.arrayable, arrayed_toggle) }}
                   type="source"
-                  handleId={previews?.[portName]?.handle_id}
+                  handleId={previews?.[portName]?.handle_id ?? (data as AlgorithmNodeData).outputHandleIds?.[portName]}
                   position={Position.Right}
                   id={portName}
                   style={{

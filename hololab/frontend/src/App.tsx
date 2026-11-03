@@ -72,6 +72,7 @@ import {
   getComputeNodes,
   getCanvasState,
   getHandle,
+  getHandleFacts,
   invalidateHandleCache,
   getMetricsHistory,
   getPackCatalog,
@@ -140,7 +141,7 @@ import {
   formatTypeLabel,
   formatTypeLabelLong,
 } from "./canvas/edgeLabels";
-import { seedEdgeSummaryFacts } from "./canvas/edgeSummaryCache";
+import { seedEdgeFacts, seedEdgeSummaryFacts } from "./canvas/edgeSummaryCache";
 import { RunsPanel } from "./canvas/RunsPanel";
 import { useDraftAutosave } from "./canvas/useDraftAutosave";
 import { CapabilityContext, EnvironmentChecks, useCapabilityChecks } from "./canvas/EnvironmentChecks";
@@ -404,6 +405,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [latestSnapshotJobs, setLatestSnapshotJobs] = useState<SnapshotJob[]>([]);
   const [canvasJobs, setCanvasJobs] = useState<CanvasJob[]>([]);
   const [previewLoadingByGraphNode, setPreviewLoadingByGraphNode] = useState<Record<string, Record<string, boolean>>>({});
+  const [previewFactsPendingByGraphNode, setPreviewFactsPendingByGraphNode] = useState<Record<string, Record<string, boolean>>>({});
   const [previewLoadErrorsByGraphNode, setPreviewLoadErrorsByGraphNode] = useState<Record<string, Record<string, string>>>({});
   const [jobsById, setJobsById] = useState<Record<string, RecentJobRow>>({});
 
@@ -1215,6 +1217,17 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // surface. Nodes whose relevant fields haven't changed keep their
   // identity so xyflow doesn't have to re-adopt them (see the
   // ``handleBounds``-reset failure mode above).
+  const outputHandleIdsByGraphNode = useMemo(() => {
+    // canvas-state already tells us the selected historical handle ids. Pass
+    // them to ports before preview metadata arrives so batched facts can paint
+    // type/dimension evidence on the first canvas frame.
+    const byGraphNode: Record<string, Record<string, string>> = {};
+    for (const job of canvasJobs) {
+      if (!job.graph_node_id || byGraphNode[job.graph_node_id] || !job.output_handles) continue;
+      byGraphNode[job.graph_node_id] = job.output_handles;
+    }
+    return byGraphNode;
+  }, [canvasJobs]);
   useEffect(() => {
     setNodes((current) =>
       current.map((n) => {
@@ -1225,10 +1238,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           return { ...n, data: { ...n.data, target } };
         }
         const d = n.data as AlgorithmNodeData;
+        const outputHandleIds = outputHandleIdsByGraphNode[n.id];
         const rt = runtimeByGraphNode[n.id];
         const pv = previewsByGraphNode[n.id];
         const ps = previewShardsByGraphNode[n.id];
         const pl = previewLoadingByGraphNode[n.id];
+        const pf = previewFactsPendingByGraphNode[n.id];
         const pe = previewLoadErrorsByGraphNode[n.id];
         const nv = nodeViewerFramesByGraphNode[n.id];
         const pr = previewRefreshByGraphNode[n.id] ?? 0;
@@ -1242,8 +1257,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         if (
           runtimeEqual(rt, d.runtime) &&
           pv === d.previews &&
+          outputHandleIds === d.outputHandleIds &&
           ps === d.previewShards &&
           pl === d.previewLoadingPorts &&
+          pf === d.previewFactsPendingPorts &&
           pe === d.previewLoadErrors &&
           nv === d.nodeViewerFrames &&
           pr === (d.previewRefreshToken ?? 0) &&
@@ -1257,8 +1274,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             ...n.data,
             runtime: rt,
             previews: pv,
+            outputHandleIds,
             previewShards: ps,
             previewLoadingPorts: pl,
+            previewFactsPendingPorts: pf,
             previewLoadErrors: pe,
             nodeViewerFrames: nv,
             previewRefreshToken: pr,
@@ -1272,10 +1291,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     previewsByGraphNode,
     previewShardsByGraphNode,
     previewLoadingByGraphNode,
+    previewFactsPendingByGraphNode,
     previewLoadErrorsByGraphNode,
     nodeViewerFramesByGraphNode,
     previewRefreshByGraphNode,
     previewOpenByGraphNode,
+    outputHandleIdsByGraphNode,
     edges,
     setNodes,
   ]);
@@ -2217,6 +2238,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     setPreviewsByGraphNode({});
     setPreviewShardsByGraphNode({});
     setPreviewLoadingByGraphNode({});
+    setPreviewFactsPendingByGraphNode({});
     setPreviewLoadErrorsByGraphNode({});
     void (async () => {
       try {
@@ -2267,12 +2289,50 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           }
         }
         const allPreviewWork = [...perGraphPreviewWork, ...perShardPreviewWork];
+        if (allPreviewWork.length === 0) {
+          setHydrating(false);
+          return;
+        }
         const pending: Record<string, Record<string, boolean>> = {};
         for (const item of allPreviewWork) (pending[item.graphNodeId] ??= {})[item.portName] = true;
         setPreviewLoadingByGraphNode(pending);
         // Apply the selected runtime and its port-level loading map together.
         // This prevents the one-render "never ran" flash between them.
         setHydrating(false);
+        const handleIds = [...new Set(allPreviewWork.map(item => item.handleId))];
+        const applyFacts = (response: Awaited<ReturnType<typeof getHandleFacts>>) => {
+          if (cancelled) return [] as string[];
+          const pendingIds = new Set<string>();
+          for (const fact of response.facts) {
+            if (fact.status === "ready" && fact.facts) seedEdgeFacts(fact.handle_id, fact.facts);
+            if (fact.status === "pending") pendingIds.add(fact.handle_id);
+          }
+          const next: Record<string, Record<string, boolean>> = {};
+          for (const item of allPreviewWork) {
+            if (pendingIds.has(item.handleId)) (next[item.graphNodeId] ??= {})[item.portName] = true;
+          }
+          setPreviewFactsPendingByGraphNode(next);
+          return [...pendingIds];
+        };
+
+        // Facts are the first and only high-priority handle request. A newly
+        // completed job may still be probing its artifact tree; poll the tiny
+        // durable record briefly, never inventing a size while it is pending.
+        let pendingIds: string[] = [];
+        try {
+          pendingIds = applyFacts(await getHandleFacts(handleIds));
+          void (async () => {
+            for (let attempt = 0; pendingIds.length > 0 && attempt < 8 && !cancelled; attempt += 1) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+              pendingIds = applyFacts(await getHandleFacts(pendingIds));
+            }
+          })().catch(error => console.warn("batched handle facts refresh failed", error));
+        } catch (error) {
+          // Facts are enrichment. Full metadata below remains the fallback for
+          // previews, and this must not turn an expected probe delay into UI
+          // error state.
+          console.warn("batched handle facts lookup failed", error);
+        }
         await Promise.allSettled(allPreviewWork.map(async (item) => {
           try {
             const info = await getHandle(item.handleId);

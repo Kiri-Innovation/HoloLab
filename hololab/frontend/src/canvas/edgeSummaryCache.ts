@@ -40,6 +40,13 @@ export function factsFromSummary(s: { handle_id: string; runtime_shape?: unknown
 // invalidated — a handle's element count doesn't change after emit).
 const pending = new Map<string, Promise<EdgeSummaryFacts>>();
 const resolved = new Map<string, EdgeSummaryFacts>();
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach(listener => listener());
+
+export function subscribeEdgeSummaryFacts(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
 /** Fetch summary facts for a handle, deduped by id. Never rejects — a
  *  failure resolves to an empty facts object so the chip's ``[?]``
@@ -54,6 +61,7 @@ export function loadEdgeSummaryFacts(
     .catch((): EdgeSummaryFacts => ({}))
     .then((facts) => {
       resolved.set(handleId, facts);
+      notify();
       return facts;
     });
   pending.set(handleId, p);
@@ -73,6 +81,7 @@ export function peekEdgeSummaryFacts(
 export function _resetEdgeSummaryCache(): void {
   pending.clear();
   resolved.clear();
+  notify();
 }
 
 /** Seed the cache from the backend's ``latest_run.output_handles``
@@ -93,4 +102,12 @@ export function seedEdgeSummaryFacts(
   if (resolved.has(handleId)) return;
   const facts = latest.handle_id === handleId ? factsFromSummary(latest) : {};
   resolved.set(handleId, facts);
+  notify();
+}
+
+/** Seed the same cache from POST /handles/facts. */
+export function seedEdgeFacts(handleId: string, facts: Record<string, unknown>): void {
+  if (resolved.has(handleId)) return;
+  resolved.set(handleId, factsFromSummary({ handle_id: handleId, runtime_shape: facts.runtime_shape }));
+  notify();
 }
