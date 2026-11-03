@@ -2742,6 +2742,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const contextMenuAlgorithm = contextMenuNode ? algorithmDataForNode(contextMenuNode) : null;
   const contextMenuRunning = ["pending", "assigned", "running", "orphaned"].includes(contextMenuAlgorithm?.runtime?.state ?? "");
   const contextMenuHasPack = Boolean(contextMenuAlgorithm?.pack.manifest_hash);
+  const contextMenuReplacementCandidates = contextMenuAlgorithm && contextMenuHasPack
+    ? replacementCandidates(contextMenuAlgorithm.pack, catalog)
+    : [];
+  // A graph can retain a historical pack version after that version leaves
+  // this node's catalog.  Its placeholder port declarations are deliberately
+  // unknown, so treating a same-named installed version as an exact match
+  // would violate replacement's "wires remain identical" contract.
+  const contextMenuReplaceDisabledReason = !contextMenuHasPack
+    ? "当前算法版本不在本机包目录中，无法验证输入输出完全一致（部分版本可能不在线）。安装该版本后可再替换。"
+    : "无输入输出完全相同的可替换算法";
   const contextMenuHasResultVisualization = Boolean(contextMenuAlgorithm && (
     Object.values(contextMenuAlgorithm.previews ?? {}).some((target) => !target.deleted)
     || Object.values(contextMenuAlgorithm.previewShards ?? {}).some((shards) => shards.length > 0)
@@ -2835,7 +2845,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           onDelete={() => onNodesDelete([contextMenuNode])}
           onDuplicate={() => duplicateNodeAtOffset(contextMenuNode)}
           onReplace={contextMenuAlgorithm && !contextMenuAlgorithm.assembly && !contextMenuAlgorithm.pack.name.startsWith("@builtin/") ? () => setReplacementNodeId(contextMenuNode.id) : undefined}
-          canReplace={!!contextMenuAlgorithm && replacementCandidates(contextMenuAlgorithm.pack, catalog).some(pack => !samePackage(pack.name, pack.version, contextMenuAlgorithm.pack.name, contextMenuAlgorithm.pack.version))}
+          canReplace={contextMenuReplacementCandidates.some(pack => !samePackage(pack.name, pack.version, contextMenuAlgorithm?.pack.name ?? "", contextMenuAlgorithm?.pack.version ?? ""))}
+          replaceDisabledReason={contextMenuReplaceDisabledReason}
           onRun={contextMenuAlgorithm ? () => {
             if (contextMenuRunning) requestStopNode(contextMenuNode.id);
             else void dispatchRunNode(contextMenuNode.id);

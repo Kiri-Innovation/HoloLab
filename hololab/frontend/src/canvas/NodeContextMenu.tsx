@@ -13,6 +13,7 @@ export function NodeContextMenu({
   onDuplicate,
   onReplace,
   canReplace,
+  replaceDisabledReason,
   onRun,
   onRefreshVisualizations,
   canRefreshVisualizations,
@@ -27,6 +28,8 @@ export function NodeContextMenu({
   onDuplicate: () => void;
   onReplace?: () => void;
   canReplace?: boolean;
+  /** Explain why a structurally safe replacement cannot be offered. */
+  replaceDisabledReason?: string;
   onRun?: () => void;
   onRefreshVisualizations?: () => Promise<void>;
   canRefreshVisualizations?: boolean;
@@ -88,7 +91,7 @@ export function NodeContextMenu({
   return createPortal(
     <div ref={menu} id={id} role="menu" aria-label="节点操作" className="hl-node-context-menu" style={{ left, top }} onContextMenu={event => event.preventDefault()}>
       <button role="menuitem" type="button" onClick={action(onDuplicate)}>创建副本</button>
-      {onReplace && <button role="menuitem" type="button" disabled={!canReplace} title={canReplace ? undefined : "无相同输入输出的算法"} onClick={action(onReplace)}>替换为算法…</button>}
+      {onReplace && <button role="menuitem" type="button" disabled={!canReplace} title={canReplace ? undefined : replaceDisabledReason ?? "无相同输入输出的算法"} onClick={action(onReplace)}>替换为算法…</button>}
       {onRun && <button role="menuitem" type="button" disabled={!canRun} title={hasPack ? undefined : "算法未安装，无法运行"} onClick={action(onRun)}>{running ? "停止运行" : "运行"}</button>}
       {onRefreshVisualizations && <button role="menuitem" type="button" disabled={!canRefreshVisualizations || refreshing} title={canRefreshVisualizations ? undefined : "该节点尚无可刷新的结果"} onClick={() => { void refresh().catch(() => {}); }}>{refreshing ? "刷新中…" : "刷新结果可视化"}</button>}
       {packHref && <a role="menuitem" href={packHref} target="_blank" rel="noopener" onClick={onClose}>在包管理器里查看</a>}
