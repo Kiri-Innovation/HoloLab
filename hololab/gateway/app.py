@@ -2050,6 +2050,14 @@ def _mount_routes(app: FastAPI) -> None:
         app.state.canvas_state_cache = cache
         return result
 
+    @app.post("/api/handles/facts", tags=["handles"])
+    async def handle_facts(body: dict[str, Any]) -> dict[str, Any]:
+        from hololab.gateway.handle_facts import batch
+        ids = body.get("handle_ids", [])
+        if not isinstance(ids, list) or not all(isinstance(x, str) for x in ids):
+            raise HTTPException(422, detail="handle_ids must be a string list")
+        return {"facts": await batch(app, list(dict.fromkeys(ids)))}
+
     @app.post("/api/workflows/{workflow_id}/prepare", tags=["workflows"])
     async def prepare_workflow(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
         from hololab.gateway.preparation import prepare_execution
@@ -4569,6 +4577,14 @@ async def _dispatch_node_frame(
         # done broadcast so the frontend's preview drawer can open without
         # a follow-up REST round trip.
         done_handles = await handles.list_by_job(new.job_id)
+        # Facts are display enrichment, never part of the completion ACK.
+        # Persist in the background so the next cold canvas has dimensions
+        # without re-walking the artifact tree.
+        from hololab.gateway.handle_facts import persist as persist_handle_facts
+        for handle in done_handles:
+            spec = registry.get_output_port_spec(new.algorithm_name, new.algorithm_version, handle.output_port_name or "")
+            labels = list(spec.dim_labels) if spec is not None else None
+            asyncio.create_task(persist_handle_facts(app, handle, labels))
         output_handles = {
             h.output_port_name: h.handle_id for h in done_handles if h.output_port_name
         }

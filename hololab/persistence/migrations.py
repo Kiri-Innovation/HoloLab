@@ -814,6 +814,24 @@ CREATE TABLE snapshot_cleanup_claims (
     )
 )
 
+MIGRATIONS.append(
+    (
+        30,
+        """
+CREATE TABLE handle_facts (
+ handle_id TEXT PRIMARY KEY REFERENCES handles(handle_id) ON DELETE CASCADE,
+ dim_labels_json TEXT NOT NULL,
+ tags_json TEXT NOT NULL,
+ facts_json TEXT,
+ schema_version INTEGER NOT NULL,
+ status TEXT NOT NULL,
+ error TEXT,
+ updated_ts REAL NOT NULL
+);
+""",
+    )
+)
+
 
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
