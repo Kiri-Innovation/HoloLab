@@ -41,7 +41,28 @@ async def check_workflow(app, graph, *, required=None, fresh=False, strict=False
         }
         try:
             if not entry:
-                raise ValueError("包声明不可用, 无法确认是否声明环境要求")
+                # This is not a cache miss: the selected live node no longer
+                # offers this exact immutable package identity.  Report an
+                # actionable absence instead of disguising it as an
+                # unavailable environment probe.
+                if session is not None and not any(
+                    package_key(p.name, p.version)
+                    == package_key(node.algorithm_name, node.algorithm_version)
+                    for p in session.packs
+                ):
+                    report.update(
+                        status="missing",
+                        issues=[
+                            {
+                                "item": "algorithm_package",
+                                "required": f"{node.algorithm_name}@{node.algorithm_version}",
+                                "actual": "执行节点未提供此版本",
+                                "remedy": "在该节点安装此确切版本，或将工作流改为已提供的版本",
+                            }
+                        ],
+                    )
+                else:
+                    raise ValueError("包声明不可用, 无法确认是否声明环境要求")
             if session is None:
                 if declared:
                     raise ValueError("选择在线执行节点后重新检查")

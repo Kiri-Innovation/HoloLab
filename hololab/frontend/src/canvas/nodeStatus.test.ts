@@ -99,3 +99,11 @@ it('environment failure is red only for the affected draft node and retains deta
   expect(nodeStatus({state:'done'}).tone).toBe('success');
   expect(nodeStatus({state:'done',environment,readOnly:true}).tone).toBe('success');
 });
+
+it('does not turn unavailable capability evidence into an environment failure', () => {
+  const environment = {status: 'unknown' as const, source: 'test@1.0', issues: [{item:'capability_check',required:null,actual:'节点未返回环境检查结果',remedy:'检查连接后重试'}]};
+  const completed = nodeStatus({state:'done', environment});
+  expect(completed).toMatchObject({tone: 'success', conclusion: '已完成'});
+  expect(completed.conclusion).not.toContain('能力检查失败');
+  expect(nodeStatus({state:'running', environment}).tone).toBe('info');
+});

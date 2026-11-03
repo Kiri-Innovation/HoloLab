@@ -222,6 +222,34 @@ def test_api_distinguishes_explicit_empty_contract_from_undeclared(tmp_path, mon
         }
 
 
+def test_api_reports_an_unoffered_exact_package_as_missing(tmp_path):
+    """A removed version is actionable absence, not unknown probe evidence."""
+    _, path, _ = package(tmp_path)
+    selected = session([scan_packs(path)[0]])
+
+    with TestClient(create_app(db_path=tmp_path / "test.sqlite")) as client:
+        client.app.state.registry._sessions["n"] = selected
+        graph = WorkflowGraph(
+            nodes=[
+                GraphNode(
+                    id="a", algorithm_name="demo", algorithm_version="9.9.9", assigned_node_id="n"
+                )
+            ]
+        )
+        response = client.post("/api/capabilities/check", json={"graph": graph.model_dump()})
+
+    assert response.status_code == 200
+    assert response.json()["nodes"]["a"]["status"] == "missing"
+    assert response.json()["nodes"]["a"]["issues"] == [
+        {
+            "item": "algorithm_package",
+            "required": "demo@9.9.9",
+            "actual": "执行节点未提供此版本",
+            "remedy": "在该节点安装此确切版本，或将工作流改为已提供的版本",
+        }
+    ]
+
+
 def test_catalog_reports_runtime_and_node_local_environment_path(tmp_path):
     """The catalog keeps a package runtime separate from a node-local prefix."""
     _, path, _ = package(tmp_path)

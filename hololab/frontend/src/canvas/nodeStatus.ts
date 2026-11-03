@@ -74,7 +74,10 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
   // Append configuration evidence, not a second (possibly conflicting) runtime verdict.
   if (!missingCurrentAlgorithm && !readOnly && known && staleReason && !result.reason.includes(staleReason)) result.reason += `\n${staleReason}`;
   if (!missingCurrentAlgorithm && !readOnly && known && oldParams && (result.tone === "error" || state === "cancelled") && !staleReason) result.reason += "\n已提交任务与当前草稿不同。";
-  if (!readOnly && environment && ["missing", "unknown"].includes(environment.status)) {
+  // An unavailable report is evidence we could not obtain, not evidence that
+  // the declared environment is missing.  Keep the runtime verdict intact;
+  // EnvironmentChecks still exposes the report and offers an explicit retry.
+  if (!readOnly && environment?.status === "missing") {
     const details = environment.issues.map(i => `${i.item}: 要求=${typeof i.required === "object" ? JSON.stringify(i.required) : i.required}; 当前=${typeof i.actual === "object" ? JSON.stringify(i.actual) : i.actual}; ${i.remedy}`).join("\n");
     result = {tone: "error", conclusion: "本地能力检查失败", reason: `${environment.source ?? ""}\n${details}`, action: "处理环境问题后重新检查；当前配置不能启动新任务。"};
   }
