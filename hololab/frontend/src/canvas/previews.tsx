@@ -49,22 +49,66 @@ const PREVIEW_SHELL: React.CSSProperties = {
 // Persisted drawers can auto-open, so their /proxy bytes must not contend with
 // first-paint state/facts or thumbnail traffic.  The pool is intentionally
 // local to full-size preview payloads.
-const loadProxyPreview = pLimit(2, (src: string) => new Promise<void>((resolve) => {
+const PROXY_IMAGE_RETRY_DELAYS_MS = [1_000, 2_000, 4_000];
+const PROXY_RETRY_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23b8c2d0' d='M25 8V3l-2 2a11 11 0 1 0 3 12h-3a8 8 0 1 1-2-6l-3 3h7V8Z'/%3E%3C/svg%3E";
+const loadProxyPreview = pLimit(2, (src: string) => new Promise<boolean>((resolve) => {
   const image = new Image();
-  image.onload = image.onerror = () => resolve();
+  image.onload = () => resolve(true);
+  image.onerror = () => resolve(false);
   image.src = src;
 }));
 
 function DeferredProxyImage(props: React.ImgHTMLAttributes<HTMLImageElement> & { src: string }) {
-  const { src, ...rest } = props;
-  const [ready, setReady] = useState(false);
+  const { src, onError, onClick, onKeyDown, title, ...rest } = props;
+  const [readySrc, setReadySrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
   useEffect(() => {
     let active = true;
-    setReady(false);
-    void loadProxyPreview(src).then(() => { if (active) setReady(true); });
+    setReadySrc(null);
+    setFailed(false);
+    const run = async () => {
+      for (let attempt = 0; attempt <= PROXY_IMAGE_RETRY_DELAYS_MS.length; attempt += 1) {
+        const candidate = attempt === 0 && retryToken === 0
+          ? src
+          : `${src}${src.includes("?") ? "&" : "?"}retry=${retryToken}-${attempt}`;
+        if (await loadProxyPreview(candidate)) {
+          if (active) setReadySrc(candidate);
+          return;
+        }
+        if (attempt < PROXY_IMAGE_RETRY_DELAYS_MS.length) {
+          await new Promise(resolve => window.setTimeout(resolve, PROXY_IMAGE_RETRY_DELAYS_MS[attempt]));
+        }
+      }
+      if (active) setFailed(true);
+    };
+    void run();
     return () => { active = false; };
-  }, [src]);
-  return <img {...rest} src={ready ? src : undefined} />;
+  }, [src, retryToken]);
+  const retry = () => setRetryToken(current => current + 1);
+  return <img
+    {...rest}
+    src={readySrc ?? (failed ? PROXY_RETRY_ICON : undefined)}
+    data-hl-proxy-image-state={failed ? "failed" : readySrc ? "loaded" : "loading"}
+    data-hl-proxy-image-retry={failed ? "" : undefined}
+    title={failed ? "预览加载失败，点击重试" : title}
+    role={failed ? "button" : undefined}
+    tabIndex={failed ? 0 : undefined}
+    onClick={failed ? (event) => { event.stopPropagation(); retry(); } : onClick}
+    onKeyDown={failed ? (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        event.stopPropagation();
+        retry();
+      }
+    } : onKeyDown}
+    onError={(event) => {
+      // A cache eviction between the preflight and paint gets the same
+      // bounded retry treatment; it no longer waits for a canvas remount.
+      if (readySrc) retry();
+      onError?.(event);
+    }}
+  />;
 }
 
 /** Loading / error / empty pill with the same visual weight for all viewers. */
