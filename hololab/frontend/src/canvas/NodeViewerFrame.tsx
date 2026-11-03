@@ -40,6 +40,7 @@ export function NodeViewerFrame({
   workflowViewManaged,
   onWorkflowDefaultChange,
   sceneUrl,
+  refreshToken = 0,
 }: {
   viewer: NodeViewerSpec;
   packName: string;
@@ -56,6 +57,8 @@ export function NodeViewerFrame({
   onWorkflowDefaultChange?: (view: WorkflowViewerView | null) => void;
   /** Built-in Gaussian viewer uses the same focus/camera host without a pack relay. */
   sceneUrl?: string;
+  /** Explicit node-local refresh; does not restart the live-glob poller. */
+  refreshToken?: number;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
@@ -92,6 +95,7 @@ export function NodeViewerFrame({
   }, [jobId, running, progress]);
   const viewerProgress = progress ?? (logProgress?.jobId === jobId ? logProgress : null);
   const [liveFrames, setLiveFrames] = useState<LiveViewerFrame[]>([]);
+  const refreshLiveFramesRef = useRef<(() => void) | null>(null);
   const [historyFrames, setHistoryFrames] = useState<LiveViewerFrame[]>([]);
   const [viewerHeight, setViewerHeight] = useState(DEFAULT_VIEWER_HEIGHT);
   // SplaTV is a square viewport; diagnostic viewers retain content sizing.
@@ -251,7 +255,7 @@ export function NodeViewerFrame({
         if (!cancelled) setHistoryFrames([]);
       });
     return () => { cancelled = true; };
-  }, [historyTarget?.handle_id, historyTarget?.proxy_url, viewer.history_index, viewer.history_output, running]);
+  }, [historyTarget?.handle_id, historyTarget?.proxy_url, viewer.history_index, viewer.history_output, running, refreshToken]);
 
   useEffect(() => {
     setLiveFrames([]);
@@ -271,7 +275,7 @@ export function NodeViewerFrame({
         : "")
       .filter((glob) => glob && !glob.startsWith("/") && !glob.split("/").includes(".."));
     if (!patterns.length) return;
-    const restore = async () => {
+    const restore = async (scheduleNext = true) => {
       const settled = await Promise.allSettled(patterns.map(async (pattern) => {
         const query = new URLSearchParams({ base, pattern });
         const response = await fetch(`/proxy/${encodeURIComponent(node)}/_glob?${query}`, { cache: "no-store" });
@@ -294,12 +298,21 @@ export function NodeViewerFrame({
           }
           return [...byUrl.values()];
         });
-        timer = setTimeout(() => { void restore(); }, 1000);
+        if (scheduleNext) timer = setTimeout(() => { void restore(); }, 1000);
       }
     };
+    refreshLiveFramesRef.current = () => { void restore(false); };
     void restore();
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      refreshLiveFramesRef.current = null;
+    };
   }, [historyTarget?.handle_id, historyTarget?.proxy_url, historyTarget?.node_id, running, viewer.history_output, viewer.live_globs]);
+
+  useEffect(() => {
+    if (refreshToken > 0) refreshLiveFramesRef.current?.();
+  }, [refreshToken]);
 
   const allFrames = [...historyFrames, ...liveFrames, ...frames]
     .reduce<LiveViewerFrame[]>((out, frame) => {

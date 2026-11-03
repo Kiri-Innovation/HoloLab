@@ -22,7 +22,8 @@ test("node context menu duplicates, deletes and opens package detail", async ({ 
   const menu = page.getByRole("menu", { name: "节点操作" });
   await expect(menu).toBeVisible();
   await expect(creationMenu).toHaveCount(0);
-  await expect(menu.getByRole("menuitem")).toHaveText(["创建副本", "运行", "在包管理器里查看", "删除"]);
+  await expect(menu.getByRole("menuitem")).toHaveText(["创建副本", "替换为算法…", "运行", "刷新结果可视化", "在包管理器里查看", "删除"]);
+  await expect(menu.getByRole("menuitem", { name: "刷新结果可视化" })).toBeDisabled();
   for (const theme of ["light", "dark"]) {
     await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
     await page.screenshot({ path: `test-results/node-context-menu-${theme}.png`, animations: "disabled" });
@@ -62,6 +63,8 @@ test("node context menu supports keyboard dismissal and strict outside dismissal
   await page.mouse.click(box.x + 40, box.y + 40, { button: "right" });
   const menu = page.getByRole("menu", { name: "节点操作" });
   await expect(menu.getByRole("menuitem", { name: "创建副本" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("menuitem", { name: "替换为算法…" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(menu.getByRole("menuitem", { name: "运行" })).toBeFocused();
   await page.keyboard.press("Escape");

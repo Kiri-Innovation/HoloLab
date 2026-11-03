@@ -7,7 +7,7 @@ export function duplicateNode(source: Node<Record<string, unknown>>, id: string)
   const data = algorithmNodeData(source.data);
   const position = { x: source.position.x + 24, y: source.position.y + 24 };
   if (data) {
-    const { runtime, previews, previewShards, nodeViewerFrames, previewOpen, onPreviewToggle, readOnly, pinnedParams, staleness, ...copyable } = data;
+    const { runtime, previews, previewShards, nodeViewerFrames, previewRefreshToken, previewOpen, onPreviewToggle, readOnly, pinnedParams, staleness, ...copyable } = data;
     return { id, type: "algorithm", position, selected: true, data: structuredClone(copyable) };
   }
   const view = source.data as ViewNodeData;

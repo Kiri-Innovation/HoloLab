@@ -186,15 +186,22 @@ const _handleInfoCache = new Map<string, Promise<HandleInfo>>();
 const _handleSummaryCache = new Map<string, Promise<HandleSummary>>();
 
 const _fetchHandleLimited = pLimit(HANDLE_FETCH_CONCURRENCY, (handle_id: string) =>
-  resilientFetch(`/api/handles/${handle_id}`, { signal: AbortSignal.timeout(HANDLE_FETCH_TIMEOUT_MS) }).then(json<HandleInfo>),
+  resilientFetch(`/api/handles/${handle_id}`, { cache: "no-store", signal: AbortSignal.timeout(HANDLE_FETCH_TIMEOUT_MS) }).then(json<HandleInfo>),
 );
 const _fetchHandleSummaryLimited = pLimit(
   HANDLE_FETCH_CONCURRENCY,
   (handle_id: string) =>
-    resilientFetch(`/api/handles/${handle_id}/summary`).then(json<HandleSummary>),
+    resilientFetch(`/api/handles/${handle_id}/summary`, { cache: "no-store" }).then(json<HandleSummary>),
 );
 
-export const getHandle = (handle_id: string): Promise<HandleInfo> => {
+/** Drop cached metadata before an operator explicitly refreshes a preview. */
+export const invalidateHandleCache = (handle_id: string) => {
+  _handleInfoCache.delete(handle_id);
+  _handleSummaryCache.delete(handle_id);
+};
+
+export const getHandle = (handle_id: string, force = false): Promise<HandleInfo> => {
+  if (force) invalidateHandleCache(handle_id);
   const hit = _handleInfoCache.get(handle_id);
   if (hit) return hit;
   const p = _fetchHandleLimited(handle_id).catch((err) => {
@@ -205,7 +212,8 @@ export const getHandle = (handle_id: string): Promise<HandleInfo> => {
   return p;
 };
 
-export const getHandleSummary = (handle_id: string): Promise<HandleSummary> => {
+export const getHandleSummary = (handle_id: string, force = false): Promise<HandleSummary> => {
+  if (force) _handleSummaryCache.delete(handle_id);
   const hit = _handleSummaryCache.get(handle_id);
   if (hit) return hit;
   const p = _fetchHandleSummaryLimited(handle_id).catch((err) => {
@@ -493,6 +501,10 @@ export const dispatchNode = async (
     json<{
       snapshot_id: string;
       job_id: string;
+      state: string;
+      graph_node_id: string;
+      algorithm_name: string;
+      algorithm_version: string;
       operation: "continue" | "fork";
       parent_snapshot_id?: string;
       forked_at?: string;

@@ -192,7 +192,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
   onRun?: () => Promise<void>;
   inspector?: boolean;
 }) {
-  const { pack, previews, previewShards, previewLoadingPorts, previewLoadErrors, runtime, arrayed_toggle, assigned_node_id, readOnly } = data;
+  const { pack, previews, previewShards, previewLoadingPorts, previewLoadErrors, previewRefreshToken = 0, runtime, arrayed_toggle, assigned_node_id, readOnly } = data;
   const {
     computeNodesById,
     hydrating,
@@ -291,6 +291,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
                   <>
                     {header}
                     <Preview
+                      key={`${target.handle_id}:${previewRefreshToken}`}
                       // Prefer the runtime-resolved preview from the
                       // handle response over the catalog's static
                       // declaration. A ``regroup.out`` port declares
@@ -347,6 +348,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
                               arrayed_toggle,
                             ))
                       }
+                      refreshToken={previewRefreshToken}
                     />
                   </>
                 );
@@ -488,6 +490,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
             packVersion={pack.version}
             assignedNodeId={assigned_node_id}
             frames={defaultNodeViewerFrames}
+            refreshToken={previewRefreshToken}
             historyTarget={
               defaultNodeViewer.history_output
                 ? runningHistoryTarget ?? previews?.[defaultNodeViewer.history_output]

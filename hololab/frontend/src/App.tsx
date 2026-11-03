@@ -71,6 +71,7 @@ import {
   dispatchNode,
   getComputeNodes,
   getHandle,
+  invalidateHandleCache,
   getMetricsHistory,
   getPackCatalog,
   getRecentJobs,
@@ -176,6 +177,55 @@ function runtimeEqual(a: NodeRuntime | undefined, b: NodeRuntime | undefined): b
   if (ap === bp) return true;
   if (!ap || !bp) return false;
   return ap.current === bp.current && ap.total === bp.total;
+}
+
+// Merge a compact WS job update into the snapshot-shaped collection that
+// drives the canvas.  The update is deliberately sufficient on its own: a
+// dispatch can broadcast before its HTTP response tells this tab which new
+// (forked) snapshot to display.
+function mergeSnapshotJobUpdate(
+  prev: readonly SnapshotJob[],
+  p: JobUpdatePayload,
+): SnapshotJob[] {
+  const idx = prev.findIndex((j) => j.job_id === p.job_id);
+  const now = Date.now() / 1000;
+  if (idx >= 0) {
+    const next = prev.slice();
+    next[idx] = {
+      ...next[idx],
+      state: p.state,
+      progress: p.progress ?? next[idx].progress ?? null,
+      fail_reason: p.fail?.reason ?? next[idx].fail_reason ?? null,
+      output_handles: p.output_handles ?? next[idx].output_handles ?? null,
+      expected_shards: next[idx].expected_shards ?? p.expected_shards ?? null,
+      started_ts: next[idx].started_ts ?? p.started_ts ?? null,
+      updated_ts: now,
+    };
+    return next;
+  }
+  return prev.concat({
+    job_id: p.job_id,
+    workflow_id: p.workflow_id,
+    node_id: null,
+    graph_node_id: p.graph_node_id,
+    algorithm_name: p.algorithm_name,
+    algorithm_version: p.algorithm_version,
+    state: p.state,
+    progress: p.progress ?? null,
+    fail_reason: p.fail?.reason ?? null,
+    fail_exit_code: p.fail?.exit_code ?? null,
+    fail_message: p.fail?.message ?? null,
+    params: {},
+    analysis_params_pending: true,
+    input_handles: {},
+    output_handles: p.output_handles ?? null,
+    parent_job_id: p.parent_job_id ?? null,
+    shard_element_id: p.shard_element_id ?? null,
+    expected_shards: p.expected_shards ?? null,
+    shard_element_ids: p.shard_element_ids ?? null,
+    created_ts: now,
+    updated_ts: now,
+  });
 }
 
 // A workflow-scoped id counter, distinct from xyflow's internal instance ids.
@@ -376,6 +426,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [previewShardsByGraphNode, setPreviewShardsByGraphNode] = useState<
     Record<string, Record<string, PreviewShard[]>>
   >({});
+  // Incrementing one entry remounts only that node's output preview(s).
+  const [previewRefreshByGraphNode, setPreviewRefreshByGraphNode] = useState<Record<string, number>>({});
   const [nodeViewerFramesByGraphNode, setNodeViewerFramesByGraphNode] = useState<
     Record<string, Record<string, LiveViewerFrame[]>>
   >({});
@@ -444,6 +496,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // dispatch. See the handler in the WS effect below for the fan-out
   // shard timing this closes off.
   const latestSnapshotIdRef = useRef<string | null>(null);
+  // WS frames can legitimately precede the dispatch HTTP response. Keep the
+  // newest frame for each yet-to-be-selected snapshot so a Fork does not lose
+  // its real PENDING/ASSIGNED/RUNNING state during that hand-off.
+  const stagedJobUpdatesBySnapshotRef = useRef<
+    Map<string, Map<string, JobUpdatePayload>>
+  >(new Map());
   // Set by ``onLoad`` right before it seeds jobs directly from its own
   // ``getSnapshot`` result. Read by the ``latestSnapshotId`` sync
   // effect so it can skip re-fetching the same snapshot on cold-start.
@@ -651,101 +709,20 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           return { ...prev, [p.job_id]: next };
         });
 
-        // Upsert into the visible snapshot's jobs array so the derived
-        // runtimeByGraphNode picks up the state change.
-        //
-        // Why upsert (not just "patch if found"): the fan-out dispatch
-        // path creates shard job rows serially in a background task
-        // AFTER ``dispatch_single_node`` returns (see
-        // ``execution.py:_execute_fanout_body`` — ``_dispatch_shard`` is
-        // called per element inside the loop, each triggering a fresh
-        // WS ``job_update``). The frontend's ``[latestSnapshotId]``
-        // effect kicks off ``getSnapshot`` at endpoint-return time; any
-        // shard whose row didn't exist yet when that snapshot detail
-        // was read has no anchor for a ``findIndex`` — under the old
-        // find-then-patch rule those updates dropped silently, and the
-        // node's status dot stayed on the previous aggregate until the
-        // user reloaded the page (the "节点运行完了不会立刻在画布上
-        // 更新" bug). Upsert with a ``workflow_id`` + ``snapshot_id``
-        // gate keeps cross-snapshot leaks out — a stale WS frame from
-        // another snapshot of the same workflow (or a different
-        // workflow entirely) is dropped instead of appended, so the
-        // "canvas red but latest run green" collision the
-        // snapshot-scoped design fixed doesn't regress.
-        if (
-          p.workflow_id === workflowIdRef.current &&
-          p.snapshot_id &&
-          p.snapshot_id === latestSnapshotIdRef.current
-        ) {
-          setLatestSnapshotJobs((prev) => {
-            const idx = prev.findIndex((j) => j.job_id === p.job_id);
-            if (idx >= 0) {
-              const now = Date.now() / 1000;
-              const next = prev.slice();
-              next[idx] = {
-                ...next[idx],
-                state: p.state,
-                progress: p.progress ?? next[idx].progress ?? null,
-                fail_reason: p.fail?.reason ?? next[idx].fail_reason ?? null,
-                output_handles:
-                  p.output_handles ?? next[idx].output_handles ?? null,
-                // Sticky like ``parent_job_id``. Preserve so a later
-                // shard-authored frame (which omits it) doesn't overwrite
-                // the parent's planned count.
-                expected_shards:
-                  next[idx].expected_shards ?? p.expected_shards ?? null,
-                // Timestamps flow through so the node-card footer's
-                // duration/relative-time labels reflect the live WS
-                // transition (RUNNING carries started_ts once; DONE/FAILED
-                // bumps updated_ts). Without this the aggregator saw the
-                // frozen REST timestamps and the card's "3 分钟前" clock
-                // stalled at first-load until the next full refetch.
-                started_ts:
-                  next[idx].started_ts ?? p.started_ts ?? null,
-                updated_ts: now,
-              };
-              return next;
-            }
-            // Append — a shard (or otherwise new) job whose row wasn't
-            // in the initial snapshot fetch. Fields the ``JobUpdate``
-            // payload doesn't carry (params, input_handles, timestamps,
-            // etc.) default to empty; the aggregator in
-            // canvas/nodeRuntime.ts only reads state / progress /
-            // fail_reason / graph_node_id / job_id / parent_job_id /
-            // expected_shards from each row, so the partial shape is
-            // safe for driving the canvas badge.
-            //
-            // ``parent_job_id`` MUST be propagated here — without it the
-            // aggregator's shard filter (``.parent_job_id != null``)
-            // misses this appended shard, falls back to counting all
-            // rows, and the denominator inflates by +1 (parent). This
-            // was the second half of the "n/n+2 growing" bug.
-            const now = Date.now() / 1000;
-            const appended: SnapshotJob = {
-              job_id: p.job_id,
-              workflow_id: p.workflow_id,
-              node_id: null,
-              graph_node_id: p.graph_node_id,
-              algorithm_name: p.algorithm_name,
-              algorithm_version: p.algorithm_version,
-              state: p.state,
-              progress: p.progress ?? null,
-              fail_reason: p.fail?.reason ?? null,
-              fail_exit_code: p.fail?.exit_code ?? null,
-              fail_message: p.fail?.message ?? null,
-              params: {},
-              analysis_params_pending: true,
-              input_handles: {},
-              output_handles: p.output_handles ?? null,
-              parent_job_id: p.parent_job_id ?? null,
-              shard_element_id: p.shard_element_id ?? null,
-              expected_shards: p.expected_shards ?? null,
-              shard_element_ids: p.shard_element_ids ?? null,
-              created_ts: now,
-              updated_ts: now,
-            };
-            return prev.concat(appended);
-          });
+        // The Jobs panel is a workflow-wide activity feed, whereas the
+        // canvas is snapshot-scoped. A Fork's first WS frame is emitted
+        // before the dispatch response carries its new snapshot id, so stage
+        // it first; the response handler installs it into the canvas below.
+        if (p.workflow_id === workflowIdRef.current && p.snapshot_id) {
+          let staged = stagedJobUpdatesBySnapshotRef.current.get(p.snapshot_id);
+          if (!staged) {
+            staged = new Map();
+            stagedJobUpdatesBySnapshotRef.current.set(p.snapshot_id, staged);
+          }
+          staged.set(p.job_id, p);
+          if (p.snapshot_id === latestSnapshotIdRef.current) {
+            setLatestSnapshotJobs((prev) => mergeSnapshotJobUpdate(prev, p));
+          }
         }
 
         // Update only already validated identities. New generations/shards are
@@ -1041,7 +1018,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       seededSnapshotIdRef.current = null;
       return;
     }
-    setLatestSnapshotJobs([]);
+    // A dispatch response may have already seeded this snapshot from a real
+    // PENDING/ASSIGNED WS/API record. Keep that immediate in-flight evidence
+    // while the authoritative snapshot fetch is in flight.
+    if (!stagedJobUpdatesBySnapshotRef.current.get(latestSnapshotId)?.size) {
+      setLatestSnapshotJobs([]);
+    }
     let cancelled = false;
     void getSnapshot(latestSnapshotId)
       .then((snap) => {
@@ -1248,6 +1230,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const pl = previewLoadingByGraphNode[n.id];
         const pe = previewLoadErrorsByGraphNode[n.id];
         const nv = nodeViewerFramesByGraphNode[n.id];
+        const pr = previewRefreshByGraphNode[n.id] ?? 0;
         const po = previewOpenByGraphNode[n.id] ?? null;
         // Value-level runtime compare so a WS update that keeps a node's
         // aggregate state unchanged doesn't mint a new node identity —
@@ -1262,6 +1245,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           pl === d.previewLoadingPorts &&
           pe === d.previewLoadErrors &&
           nv === d.nodeViewerFrames &&
+          pr === (d.previewRefreshToken ?? 0) &&
           po === (d.previewOpen ?? null)
         ) {
           return n;
@@ -1276,6 +1260,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             previewLoadingPorts: pl,
             previewLoadErrors: pe,
             nodeViewerFrames: nv,
+            previewRefreshToken: pr,
             previewOpen: po,
           },
         };
@@ -1288,6 +1273,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     previewLoadingByGraphNode,
     previewLoadErrorsByGraphNode,
     nodeViewerFramesByGraphNode,
+    previewRefreshByGraphNode,
     previewOpenByGraphNode,
     edges,
     setNodes,
@@ -1356,9 +1342,33 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           return dispatchNode(wid, graph_node_id);
         }).then(
           (result) => {
-            // A successful dispatch is synchronous proof of a new run even
-            // if this tab's websocket is reconnecting or misses its queued
-            // event.  Clear before the new snapshot begins hydrating.
+            // The gateway persisted this in-flight state before returning.
+            // Seed it only when the earlier WS frame has not already staged
+            // a newer state; this avoids a REST/WS ordering regression from
+            // RUNNING back to ASSIGNED.
+            let staged = stagedJobUpdatesBySnapshotRef.current.get(result.snapshot_id);
+            if (!staged) {
+              staged = new Map();
+              stagedJobUpdatesBySnapshotRef.current.set(result.snapshot_id, staged);
+            }
+            if (!staged.has(result.job_id)) {
+              staged.set(result.job_id, {
+                job_id: result.job_id,
+                state: result.state,
+                workflow_id: wid,
+                algorithm_name: result.algorithm_name,
+                algorithm_version: result.algorithm_version,
+                graph_node_id: result.graph_node_id,
+                snapshot_id: result.snapshot_id,
+              });
+            }
+            // Set the ref in the same synchronous turn as the seed: WS
+            // frames from the new snapshot can now merge directly before
+            // React commits the snapshot switch.
+            latestSnapshotIdRef.current = result.snapshot_id;
+            setLatestSnapshotJobs(() =>
+              Array.from(staged.values()).reduce(mergeSnapshotJobUpdate, [] as SnapshotJob[]),
+            );
             resetNodeViewerForRun(graph_node_id, result.job_id);
             setLatestSnapshotId(result.snapshot_id);
             // Explicit dispatch refresh must bypass the cold-load hydration skip.
@@ -1560,6 +1570,50 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     setNodes(current => current.map(item => item.id === node.id ? { ...item, selected: true } : item.selected ? { ...item, selected: false } : item));
     setNodeMenu({ nodeId: node.id, position: { x: event.clientX, y: event.clientY } });
   }, [setNodes]);
+
+  const refreshNodeVisualizations = useCallback(async (graphNodeId: string) => {
+    // Include handles from the current resolved preview map and the selected
+    // generation. The latter matters while a running job has announced an
+    // output before normal hydration has populated the map.
+    const handles = new Map<string, { portName: string; snapshotId: string | null }>();
+    for (const [portName, target] of Object.entries(previewsByGraphNode[graphNodeId] ?? {})) {
+      handles.set(target.handle_id, { portName, snapshotId: target.snapshot_id ?? null });
+    }
+    for (const job of canvasJobs) {
+      if (job.graph_node_id !== graphNodeId) continue;
+      for (const [portName, handleId] of Object.entries(job.output_handles ?? {})) {
+        handles.set(handleId, { portName, snapshotId: job.snapshot_id ?? null });
+      }
+    }
+    await Promise.all([...handles].map(async ([handleId, source]) => {
+      invalidateHandleCache(handleId);
+      const info = await getHandle(handleId, true);
+      setPreviewsByGraphNode((previous) => {
+        const ports = { ...(previous[graphNodeId] ?? {}) };
+        ports[source.portName] = {
+          snapshot_id: source.snapshotId,
+          port_name: source.portName,
+          handle_id: info.handle_id,
+          node_id: info.node_id,
+          proxy_url: info.proxy_url,
+          storage: info.storage as "dir" | "file",
+          absolute_path: info.absolute_path,
+          deleted: info.deleted_ts !== null,
+          tags: info.tags,
+          preview: info.preview ?? null,
+          dim_labels: info.dim_labels ?? null,
+          dim_sizes: info.dim_sizes ?? null,
+        };
+        return { ...previous, [graphNodeId]: ports };
+      });
+    }));
+    // NodeViewerFrame reacts to this by immediately fetching index.json and
+    // doing one extra live_globs scan; its regular one-second poll remains.
+    setPreviewRefreshByGraphNode((previous) => ({
+      ...previous,
+      [graphNodeId]: (previous[graphNodeId] ?? 0) + 1,
+    }));
+  }, [canvasJobs, previewsByGraphNode]);
 
   // --- selection → NodeInspector ---------------------------------------
   const selectedNode = useMemo(() => nodes.find((n) => n.selected) || null, [nodes]);
@@ -2570,6 +2624,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const contextMenuAlgorithm = contextMenuNode ? algorithmDataForNode(contextMenuNode) : null;
   const contextMenuRunning = ["pending", "assigned", "running", "orphaned"].includes(contextMenuAlgorithm?.runtime?.state ?? "");
   const contextMenuHasPack = Boolean(contextMenuAlgorithm?.pack.manifest_hash);
+  const contextMenuHasResultVisualization = Boolean(contextMenuAlgorithm && (
+    Object.values(contextMenuAlgorithm.previews ?? {}).some((target) => !target.deleted)
+    || Object.values(contextMenuAlgorithm.previewShards ?? {}).some((shards) => shards.length > 0)
+    || canvasJobs.some((job) => job.graph_node_id === contextMenuNode?.id && Object.keys(job.output_handles ?? {}).length > 0)
+    || (contextMenuRunning && contextMenuAlgorithm.pack.node_viewers?.some((viewer) => viewer.history_output))
+  ));
 
   const canvasContentSlot = (
     <>
@@ -2662,6 +2722,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             if (contextMenuRunning) requestStopNode(contextMenuNode.id);
             else void dispatchRunNode(contextMenuNode.id);
           } : undefined}
+          onRefreshVisualizations={contextMenuAlgorithm ? () => refreshNodeVisualizations(contextMenuNode.id) : undefined}
+          canRefreshVisualizations={contextMenuHasResultVisualization}
           packHref={contextMenuAlgorithm ? `/packs?view=local&section=category&pack=${encodeURIComponent(`${contextMenuAlgorithm.pack.name}@${contextMenuAlgorithm.pack.version}`)}` : undefined}
         />
       )}
