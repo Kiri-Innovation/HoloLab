@@ -2020,7 +2020,24 @@ def _mount_routes(app: FastAPI) -> None:
         row = await app.state.workflows.get_draft(workflow_id)
         if row is None:
             raise HTTPException(status_code=404, detail="workflow not found")
-        return await analyze_execution(app, workflow_id, row.graph, display_only=True)
+        evidence = await analyze_execution(app, workflow_id, row.graph, display_only=True)
+        # ``analyze`` also serves the inspector and therefore carries an
+        # effective graph/diff.  First paint only needs runtime aggregation,
+        # preview handle ids and stale badges; returning whole job records made
+        # this endpoint larger than the workflow itself.
+        job_fields = (
+            "job_id", "graph_node_id", "parent_job_id", "shard_element_id",
+            "shard_element_ids", "state", "progress", "expected_shards",
+            "node_id", "workflow_id", "snapshot_id", "created_ts", "started_ts",
+            "updated_ts", "fail_reason", "output_handles", "historical_only",
+        )
+        return {
+            "canvas_jobs": [
+                {key: job.get(key) for key in job_fields if key in job}
+                for job in evidence["canvas_jobs"]
+            ],
+            "staleness": evidence["staleness"],
+        }
 
     @app.post("/api/workflows/{workflow_id}/prepare", tags=["workflows"])
     async def prepare_workflow(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
