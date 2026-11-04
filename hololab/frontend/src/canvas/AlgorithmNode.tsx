@@ -516,6 +516,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         transition: "width 120ms ease-out, box-shadow var(--dur-fast) var(--ease)",
       }}
       data-hololab-node="algorithm"
+      data-graph-node-id={id}
       data-state={displayedState || ""}
       data-preview-open={expanded || ""}
     >

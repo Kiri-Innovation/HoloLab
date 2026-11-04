@@ -1647,6 +1647,25 @@ interface TileProps {
   showResolution?: boolean;
 }
 
+/**
+ * A dense video array must not turn every tile into a network request at
+ * mount.  Native ``<video preload=metadata>`` and its ``poster`` both consume
+ * the browser's same-origin connection slots; an 80-camera grid could thus
+ * queue a subsequent user dispatch for seconds. Start the master right away;
+ * the rest become video streams only after explicit hover. Inactive tiles use
+ * ``LazyThumb``, whose view-gating and separate two-request pool protect both
+ * browser sockets and the fileserver.
+ */
+function useDeferredVideoActivation(eager: boolean) {
+  const [active, setActive] = useState(eager);
+
+  useEffect(() => {
+    if (eager) setActive(true);
+  }, [eager]);
+
+  return { active, activate: () => setActive(true) };
+}
+
 function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label, showResolution }: TileProps) {
   // Build the same-origin URLs. ``baseUrl`` is the dir's ``/proxy/{node}/{sub}``.
   // Thumb + preview endpoints are separate node routes rooted at the
@@ -1661,7 +1680,8 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label, showResoluti
   // the node's ``/_preview`` endpoint). The full-res source is only
   // used by the ZoomOverlay, which decodes exactly one video at a
   // time.
-  const previewUrl = `${nodeRoot}/_preview/${PREVIEW_W}x${PREVIEW_H}/${memberSub}?fps=${PREVIEW_FPS}&v=2-contain`;
+  const previewUrl = `${nodeRoot}/_preview/${PREVIEW_W}x${PREVIEW_H}/${memberSub}?fps=${PREVIEW_FPS}&v=3-contain-even`;
+  const deferred = useDeferredVideoActivation(isMaster);
 
   const size = entry.size_bytes ?? 0;
   const tooltip = `${entry.name} · ${humanBytes(size)}`;
@@ -1693,6 +1713,7 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label, showResoluti
       data-hl-tile={entry.name}
       title={tooltip}
       onClick={onZoom}
+      onPointerEnter={deferred.activate}
       style={{
         position: "relative",
         aspectRatio: "16 / 9",
@@ -1703,34 +1724,47 @@ function VideoTile({ baseUrl, entry, isMaster, sync, onZoom, label, showResoluti
         cursor: "zoom-in",
       }}
     >
-      <video
-        ref={setRef}
-        src={previewUrl}
-        poster={thumbUrl}
-        muted
-        playsInline
-        preload="metadata"
-        onLoadedMetadata={(e) => {
-          const el = e.currentTarget;
-          syncRef.current.reportDuration(entry.name, el.duration);
-        }}
-        onTimeUpdate={
-          isMaster
-            ? (e) => syncRef.current.reportMasterTime(e.currentTarget.currentTime)
-            : undefined
-        }
-        onEnded={isMaster ? () => syncRef.current.reportEnded() : undefined}
-        style={{
-          display: "block",
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
-          background: "var(--video-background)",
-          // Absent a decoded frame the browser paints the ``poster``;
-          // once metadata + first frame arrive, the frame replaces it.
-          pointerEvents: "none",
-        }}
-      />
+      {deferred.active ? (
+        <video
+          ref={setRef}
+          src={previewUrl}
+          poster={thumbUrl}
+          muted
+          playsInline
+          preload="metadata"
+          onLoadedMetadata={(e) => {
+            const el = e.currentTarget;
+            syncRef.current.reportDuration(entry.name, el.duration);
+          }}
+          onTimeUpdate={
+            isMaster
+              ? (e) => syncRef.current.reportMasterTime(e.currentTarget.currentTime)
+              : undefined
+          }
+          onEnded={isMaster ? () => syncRef.current.reportEnded() : undefined}
+          style={{
+            display: "block",
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            background: "var(--video-background)",
+            pointerEvents: "none",
+          }}
+        />
+      ) : (
+        <LazyThumb
+          src={thumbUrl}
+          alt={entry.name}
+          style={{
+            display: "block",
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            background: "var(--video-background)",
+            pointerEvents: "none",
+          }}
+        />
+      )}
       {showResolution && <VideoResolution src={`${baseUrl.replace(/\/$/, "")}/${encodedEntry}`} />}
       {label && (
         <div

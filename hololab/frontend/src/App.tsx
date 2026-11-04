@@ -465,6 +465,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // One optimistic Recent-jobs row per node. A WS frame can beat the REST
   // response, so both paths consume this mapping before inserting the real row.
   const optimisticJobByGraphNodeRef = useRef<Record<string, string>>({});
+  // Used only for user-visible timing diagnostics. The REST acknowledgement
+  // creates the row, while the later RUNNING WS frame is the truthful blue
+  // state; retaining both timestamps exposes any gap between them.
+  const dispatchResponseAtByJobIdRef = useRef<Record<string, number>>({});
   // A node viewer describes one execution, rather than an ever-growing
   // scrapbook of every execution of the graph node.  When a new run starts,
   // discard the previous run's restored output history before its first live
@@ -810,6 +814,31 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               snapshot_id: currentSnapshotId,
             });
           });
+        }
+        if (p.state === "running" && p.graph_node_id) {
+          const wsReceivedAt = performance.now();
+          const responseAt = dispatchResponseAtByJobIdRef.current[p.job_id];
+          const observePaint = (framesLeft: number) => {
+            requestAnimationFrame(() => {
+              const card = Array.from(
+                document.querySelectorAll<HTMLElement>('[data-hololab-node="algorithm"]'),
+              ).find((element) => element.dataset.graphNodeId === p.graph_node_id);
+              if (card?.dataset.state === "running") {
+                const paintedAt = performance.now();
+                console.info("[hololab job visual timing]", {
+                  graph_node_id: p.graph_node_id,
+                  job_id: p.job_id,
+                  rest_response_to_ws_running_ms: responseAt == null ? null : wsReceivedAt - responseAt,
+                  ws_running_to_dom_ms: paintedAt - wsReceivedAt,
+                  rest_response_to_dom_running_ms: responseAt == null ? null : paintedAt - responseAt,
+                });
+                delete dispatchResponseAtByJobIdRef.current[p.job_id];
+              } else if (framesLeft > 0) {
+                observePaint(framesLeft - 1);
+              }
+            });
+          };
+          observePaint(5);
         }
       } else if (env.kind === "preview_ready") {
         const p = env.payload as PreviewReadyPayload;
@@ -1563,6 +1592,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           return result;
         }).then(
           (result) => {
+            dispatchResponseAtByJobIdRef.current[result.job_id] = performance.now();
             // The gateway persisted this in-flight state before returning.
             // Seed it only when the earlier WS frame has not already staged
             // a newer state; this avoids a REST/WS ordering regression from
