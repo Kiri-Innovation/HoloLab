@@ -1235,20 +1235,25 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const ownBaseline = graphNode && !data.replacementBaseline
           ? replacementBaselineFromGraph(data.pack, graphNode.port_types, graphNode.arrayed_toggle, fresh?.arrayable)
           : null;
+        // A locally installed exact package identity is an authoritative full
+        // contract, even when old graph JSON predates ``port_types``. Unlike
+        // connection inference it remains safe for fan-out: ``samePorts``
+        // compares the whole declaration including ``arrayable``.
+        const catalogBaseline = graphNode && fresh?.manifest_hash ? fresh : null;
         const witness = graphNode ? replacementWitnessByAlgorithm.get(graphNode.algorithm_name) : null;
         const witnessPack = witness ? catalogByKey.get(`${graphNode!.algorithm_name}@${witness.algorithm_version}`) : null;
-        const witnessBaseline = graphNode && !ownBaseline && !data.replacementBaseline && witness && witness.id !== n.id
+        const witnessBaseline = graphNode && !ownBaseline && !catalogBaseline && !data.replacementBaseline && witness && witness.id !== n.id
           ? replacementBaselineFromGraph(data.pack, witness.port_types, graphNode.arrayed_toggle, witnessPack?.arrayable)
           : null;
-        const connectionInferred = graph && graphNode && !ownBaseline && !witnessBaseline && !data.replacementBaseline
+        const connectionInferred = graph && graphNode && !ownBaseline && !catalogBaseline && !witnessBaseline && !data.replacementBaseline
           && replacementCandidatesFromConnections(graphNode.id, graph, catalog).length > 0;
-        const replacementBaseline = ownBaseline ?? witnessBaseline ?? data.replacementBaseline
+        const replacementBaseline = ownBaseline ?? catalogBaseline ?? witnessBaseline ?? data.replacementBaseline
           // The current pack is only an identity/parameter carrier here. The
           // candidate filter below verifies the graph's observed interfaces.
           ?? (connectionInferred ? data.pack : undefined);
-        const replacementMode = ownBaseline || witnessBaseline || data.replacementMode === 'strict' ? 'strict'
+        const replacementMode = ownBaseline || catalogBaseline || witnessBaseline || data.replacementMode === 'strict' ? 'strict'
           : connectionInferred ? 'connections' : data.replacementMode;
-        const replacementBasis = ownBaseline ? undefined : witnessBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : data.replacementBasis;
+        const replacementBasis = ownBaseline ? undefined : catalogBaseline ? `依据本机 ${fresh!.name}@${fresh!.version} 的完整 I/O 声明` : witnessBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : data.replacementBasis;
         const refreshesPack = Boolean(fresh && fresh.manifest_hash !== data.pack.manifest_hash);
         if (!refreshesPack && replacementBaseline === data.replacementBaseline && replacementBasis === data.replacementBasis) {
           return n;
@@ -2413,12 +2418,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           };
           if (!found) missingPacks.push(`${gn.algorithm_name}@${gn.algorithm_version}`);
           const ownReplacementBaseline = replacementBaselineFromGraph(pack, gn.port_types, gn.arrayed_toggle, found?.arrayable);
+          // Exact installed versions carry a complete immutable I/O contract.
+          // This also covers legacy graph nodes that did not persist
+          // ``port_types`` and are currently in fan-out mode.
+          const catalogReplacementBaseline = found?.manifest_hash ? found : null;
           const witness = replacementWitnessByAlgorithm.get(gn.algorithm_name);
           const witnessPack = witness ? latestCatalogByKey.current.get(`${gn.algorithm_name}@${witness.algorithm_version}`) : null;
-          const witnessReplacementBaseline = !ownReplacementBaseline && witness && witness.id !== gn.id
+          const witnessReplacementBaseline = !ownReplacementBaseline && !catalogReplacementBaseline && witness && witness.id !== gn.id
             ? replacementBaselineFromGraph(pack, witness.port_types, gn.arrayed_toggle, witnessPack?.arrayable)
             : null;
-          const connectionInferred = !ownReplacementBaseline && !witnessReplacementBaseline
+          const connectionInferred = !ownReplacementBaseline && !catalogReplacementBaseline && !witnessReplacementBaseline
             && replacementCandidatesFromConnections(gn.id, graph, catalog).length > 0;
           const node: Node<AlgorithmNodeData> = {
             id: gn.id,
@@ -2426,9 +2435,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             position: gn.position,
             data: {
               pack,
-              replacementBaseline: ownReplacementBaseline ?? witnessReplacementBaseline ?? (connectionInferred ? pack : undefined),
-              replacementBasis: ownReplacementBaseline ? undefined : witnessReplacementBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : undefined,
-              replacementMode: ownReplacementBaseline || witnessReplacementBaseline ? 'strict' : connectionInferred ? 'connections' : undefined,
+              replacementBaseline: ownReplacementBaseline ?? catalogReplacementBaseline ?? witnessReplacementBaseline ?? (connectionInferred ? pack : undefined),
+              replacementBasis: ownReplacementBaseline ? undefined : catalogReplacementBaseline ? `依据本机 ${found!.name}@${found!.version} 的完整 I/O 声明` : witnessReplacementBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : undefined,
+              replacementMode: ownReplacementBaseline || catalogReplacementBaseline || witnessReplacementBaseline ? 'strict' : connectionInferred ? 'connections' : undefined,
               assembly: gn.assembly,
               assigned_node_id: gn.assigned_node_id,
               ...({ local_params: gn.local_params, param_bindings: gn.param_bindings, params: gn.params, port_values: found ? reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) : gn.port_values } as object),
