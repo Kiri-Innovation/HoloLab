@@ -325,6 +325,9 @@ export const RUN_NODE_EVENT = "hololab-run-node";
 
 export interface RunNodeDetail {
   graph_node_id: string;
+  optimistic_job_id: string;
+  algorithm_name: string;
+  algorithm_version: string;
   resolve: () => void;
   reject: (msg: string) => void;
   // Flipped to true by the App-level listener the moment it accepts the
@@ -345,7 +348,7 @@ export interface RunNodeDetail {
 // this fires.
 const DISPATCH_TIMEOUT_MS = 20_000;
 
-export function dispatchRunNode(graph_node_id: string, onPhase?: (phase: string) => void): Promise<void> {
+export function dispatchRunNode(graph_node_id: string, onPhase?: (phase: string) => void, pack?: {name: string; version: string}): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     let settled = false;
     let timer: number | null = null;
@@ -357,6 +360,9 @@ export function dispatchRunNode(graph_node_id: string, onPhase?: (phase: string)
     };
     const detail: RunNodeDetail = {
       graph_node_id,
+      optimistic_job_id: `pending:${graph_node_id}:${crypto.randomUUID()}`,
+      algorithm_name: pack?.name ?? "启动中的任务",
+      algorithm_version: pack?.version ?? "",
       resolve: () => settle(resolve),
       reject: (msg) => settle(() => reject(new Error(msg))),
       handled: false,
@@ -423,7 +429,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
 
   const [showCompositionOutput, setShowCompositionOutput] = useState(false);
   const [runClickPending, setRunClickPending] = useState(false);
-  const [runPhase, setRunPhase] = useState("已提交…");
   const [runErrorMsg, setRunErrorMsg] = useState<string | null>(null);
 
   useEffect(() => { if (!inputProblem) setRunErrorMsg(null); }, [inputProblem]);
@@ -434,10 +439,9 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     setRunClickPending(true);
     // This is deliberately optimistic: the request is now owned by the
     // dispatcher, while a later failure clears it and shows the reason.
-    setRunPhase("已提交…");
     setRunErrorMsg(null);
     try {
-      await dispatchRunNode(id, setRunPhase);
+      await dispatchRunNode(id, undefined, pack);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setRunErrorMsg(msg);
@@ -514,7 +518,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         certification={certification}
         subtitle={`${assignedLabel} · v${pack.version}${pack.version.endsWith("+") ? " · dev" : ""}`}
         state={displayedState} status={nodeStatus({ environment, state: displayedState, stale: staleness, failReason: runtime?.fail_reason, missingAlgorithm: pack.manifest_hash ? null : {name: pack.name, version: pack.version}, missingInputs, readOnly })}
-        actions={!readOnly && <NodeRunControl id={id} pending={runClickPending} pendingPhase={runPhase} state={runState} jobId={runtime?.job_id}
+        actions={!readOnly && <NodeRunControl id={id} pending={runClickPending} state={runState} jobId={runtime?.job_id}
           stale={staleness?.kind === "self_dirty"} blockedReason={inputProblem} onRun={handleRunClick} />}>
         {runErrorMsg && !inputProblem && (
           <div

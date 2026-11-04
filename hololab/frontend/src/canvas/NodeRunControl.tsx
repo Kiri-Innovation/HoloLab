@@ -14,8 +14,8 @@ export function requestStopNode(graph_node_id: string): void {
 }
 
 /** Cancels the current generation's representative parent, including its live shards. */
-export function NodeRunControl({ id, state, jobId, pending, pendingPhase, stale, blockedReason, onRun }: {
-  id: string; state?: string; jobId?: string; pending: boolean; pendingPhase?: string; stale?: boolean; blockedReason?: string; onRun: () => void;
+export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason, onRun }: {
+  id: string; state?: string; jobId?: string; pending: boolean; stale?: boolean; blockedReason?: string; onRun: () => void;
 }) {
   const stoppable = canStopNode(state);
   const [confirmJob, setConfirmJob] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export function NodeRunControl({ id, state, jobId, pending, pendingPhase, stale,
   const trigger = useRef<HTMLButtonElement>(null);
   const busy = pending || stopping || (stoppable && acceptedJob === jobId);
   const disabled = busy || (stoppable && !jobId);
-  const label = stopping ? "正在停止" : stoppable && acceptedJob === jobId ? "停止已请求，等待状态同步" : stoppable ? "停止运行" : pending ? (pendingPhase ?? "正在提交") : stale ? "重新运行" : "运行";
+  const label = stopping ? "正在停止" : stoppable && acceptedJob === jobId ? "停止已请求，等待状态同步" : stoppable ? "停止运行" : pending ? "停止" : stale ? "重新运行" : "运行";
   const close = () => { if (!lock.current) { setConfirmJob(null); setError(null); trigger.current?.focus(); } };
   useEffect(() => {
     const request = (event: Event) => {
@@ -57,7 +57,7 @@ export function NodeRunControl({ id, state, jobId, pending, pendingPhase, stale,
   return <>
     <button ref={trigger} type="button" className={`hl-node-run-control nodrag${stoppable ? " hl-node-stop-control" : ""}`}
       disabled={disabled} aria-label={label}
-      data-tooltip={blockedReason && !stoppable ? blockedReason : !jobId && stoppable ? "正在获取任务信息，暂不能停止" : stoppable && !busy ? "停止运行（需确认；不是暂停）" : label}
+      data-tooltip={blockedReason && !stoppable ? blockedReason : pending ? "任务创建中；创建后即可停止" : !jobId && stoppable ? "正在获取任务信息，暂不能停止" : stoppable && !busy ? "停止运行（需确认；不是暂停）" : label}
       onClick={e => { e.stopPropagation(); if (stoppable && jobId) { setError(null); setConfirmJob(jobId); } else if (!disabled) onRun(); }}
       onPointerEnter={() => {
         // This does not dispatch. It only asks App to preflight the current

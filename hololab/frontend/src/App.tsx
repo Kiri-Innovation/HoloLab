@@ -440,6 +440,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // Live images may arrive immediately after job_ack, before React commits
   // the matching job row. Keep this wire identity outside render state.
   const graphNodeByJobIdRef = useRef<Record<string, string>>({});
+  // One optimistic Recent-jobs row per node. A WS frame can beat the REST
+  // response, so both paths consume this mapping before inserting the real row.
+  const optimisticJobByGraphNodeRef = useRef<Record<string, string>>({});
   // A node viewer describes one execution, rather than an ever-growing
   // scrapbook of every execution of the graph node.  When a new run starts,
   // discard the previous run's restored output history before its first live
@@ -686,8 +689,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         // payload wins for the fields it names; anything else is preserved
         // from the previous snapshot so we don't lose eg the initial
         // created_ts once REST updates roll in.
+        const optimisticId = p.graph_node_id
+          ? optimisticJobByGraphNodeRef.current[p.graph_node_id]
+          : undefined;
+        if (p.graph_node_id) delete optimisticJobByGraphNodeRef.current[p.graph_node_id];
         setJobsById((prev) => {
-          const existing = prev[p.job_id];
+          const withoutOptimistic = optimisticId
+            ? Object.fromEntries(Object.entries(prev).filter(([id]) => id !== optimisticId))
+            : prev;
+          const existing = withoutOptimistic[p.job_id];
           const now = Date.now() / 1000;
           const next: RecentJobRow = {
             ...(existing ?? {
@@ -728,7 +738,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           (next as unknown as { workflow_id?: string }).workflow_id =
             (existing as unknown as { workflow_id?: string })?.workflow_id ??
             p.workflow_id;
-          return { ...prev, [p.job_id]: next };
+          return { ...withoutOptimistic, [p.job_id]: next };
         });
 
         // The Jobs panel is a workflow-wide activity feed, whereas the
@@ -1394,12 +1404,30 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // listener registered" (would silently hang) from "listener took
       // over but the fetch is still pending". See RunNodeDetail.handled.
       detail.handled = true;
-      const { graph_node_id, resolve, reject, onPhase } = detail;
+      const { graph_node_id, optimistic_job_id, algorithm_name, algorithm_version, resolve, reject } = detail;
       const wid = workflowIdRef.current;
       if (!wid) {
         reject("save the workflow first (no workflow_id yet)");
         return;
       }
+      // The browser owns this acknowledgement, so render it before starting
+      // any save/prepare work. It is intentionally not a canvas runtime job.
+      optimisticJobByGraphNodeRef.current[graph_node_id] = optimistic_job_id;
+      setJobsById((prev) => ({
+        ...prev,
+        [optimistic_job_id]: {
+          job_id: optimistic_job_id,
+          algorithm_name,
+          algorithm_version,
+          graph_node_id,
+          state: "pending",
+          progress: null,
+          created_ts: Date.now() / 1000,
+          updated_ts: Date.now() / 1000,
+          fail_reason: null,
+          ...( { workflow_id: wid } as object),
+        } as RecentJobRow,
+      }));
       // Guard against ``dispatchNode`` throwing synchronously (URL
       // construction, non-fetch network stacks): without this, the
       // promise would never resolve and the caller's button would hang
@@ -1410,9 +1438,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         // once if an edit made this speculative warm-up stale.
         const warm = warmNodePreparation(wid, graph_node_id).catch(() => {});
         saveRecipeRef.current().then(async () => {
-          onPhase?.("保存草稿并检查环境…");
           await warm;
-          onPhase?.("校验代码身份并创建任务…");
           return dispatchNode(wid, graph_node_id);
         }).then(
           (result) => {
@@ -1441,7 +1467,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             // switch snapshots while that frame is in flight, and an early
             // RUNNING/DONE frame used to be the first chance this row appeared.
             setJobsById((prev) => {
-              const existing = prev[result.job_id];
+              const optimistic = optimisticJobByGraphNodeRef.current[graph_node_id];
+              delete optimisticJobByGraphNodeRef.current[graph_node_id];
+              const withoutOptimistic = optimistic
+                ? Object.fromEntries(Object.entries(prev).filter(([id]) => id !== optimistic))
+                : prev;
+              const existing = withoutOptimistic[result.job_id];
               const now = Date.now() / 1000;
               const row: RecentJobRow = {
                 ...(existing ?? {
@@ -1458,7 +1489,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 updated_ts: now,
               };
               (row as unknown as { workflow_id?: string }).workflow_id = wid;
-              return { ...prev, [result.job_id]: row };
+              return { ...withoutOptimistic, [result.job_id]: row };
             });
             // Set the ref in the same synchronous turn as the seed: WS
             // frames from the new snapshot can now merge directly before
@@ -1475,7 +1506,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             setRunsPanelRefreshToken((t) => t + 1);
             resolve();
           },
-          (err: Error) => reject(err?.message || "dispatch failed"),
+          (err: Error) => {
+            const optimistic = optimisticJobByGraphNodeRef.current[graph_node_id];
+            delete optimisticJobByGraphNodeRef.current[graph_node_id];
+            if (optimistic) setJobsById((prev) => {
+              const next = { ...prev };
+              delete next[optimistic];
+              return next;
+            });
+            reject(err?.message || "dispatch failed");
+          },
         );
       } catch (err) {
         reject(err instanceof Error ? err.message : String(err));
