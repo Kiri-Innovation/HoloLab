@@ -362,6 +362,21 @@ class ParamSpec(BaseModel):
             self.validate_array_value("default", self.default)
         return self
 
+    def validate_scalar_value(self, name: str, value: Any) -> None:
+        """Enforce declared ``min``/``max`` on scalar int/float values at dispatch.
+
+        Only the declared range is checked here; type coercion rules are unchanged
+        and non-numeric values are left to the existing validators.
+        """
+        if self.type not in (ParamType.INT, ParamType.FLOAT):
+            return
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return
+        if self.min is not None and value < self.min:
+            raise ValueError(f"parameter {name!r}: must be >= {self.min}, got {value!r}")
+        if self.max is not None and value > self.max:
+            raise ValueError(f"parameter {name!r}: must be <= {self.max}, got {value!r}")
+
     def validate_enum_value(self, name: str, value: Any) -> None:
         """Validate a new dispatch, without changing persisted workflow values."""
         if self.type is not ParamType.ENUM:

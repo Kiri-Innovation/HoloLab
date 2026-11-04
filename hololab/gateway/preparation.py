@@ -139,6 +139,7 @@ def resolve_recipe(
             spec = ParamSpec.model_validate(raw)
             value = node.params.get(key)
             spec.validate_enum_value(key, value)
+            spec.validate_scalar_value(key, value)
             spec.validate_array_value(key, value)
         if normalized is not None and node.id in normalized:
             node.params = copy.deepcopy(normalized[node.id])

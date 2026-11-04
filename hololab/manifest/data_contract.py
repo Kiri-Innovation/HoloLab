@@ -5,10 +5,15 @@ layers; dot-prefixed framework metadata is not an element. Symbolic links are
 allowed (array utilities use them), but every referenced leaf is validated.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 REMOVED_IMAGE_TAGS = frozenset({"image_sequence", "frame_sequence"})
+
+# Full decodes of large leaves run concurrently; Pillow releases the GIL while
+# inflating. Four workers measured fastest for 4K PNG (more contend for memory).
+IMAGE_DECODE_WORKERS = 4
 
 
 class ContractError(ValueError):
@@ -58,6 +63,8 @@ def validate_path(path: Path, spec: Any, *, label: str, params: dict | None = No
     if key and params and isinstance(params.get(key), list):
         depth = len(params[key])
 
+    leaves: list[Path] = []
+
     def visit(current: Path, remaining: int) -> None:
         if not current.exists():
             raise ContractError(f"{label}: missing array element or broken link: {current}")
@@ -78,6 +85,9 @@ def validate_path(path: Path, spec: Any, *, label: str, params: dict | None = No
             raise ContractError(
                 f"{label}: expected one image file, got directory/non-file: {current}"
             )
+        leaves.append(current)
+
+    def decode(current: Path) -> None:
         from PIL import Image
 
         try:
@@ -89,7 +99,17 @@ def validate_path(path: Path, spec: Any, *, label: str, params: dict | None = No
             raise ContractError(f"{label}: invalid image file {current}: {exc}") from exc
 
     try:
+        # Structure first (cheap, ordered), then every leaf is fully decoded.
         visit(path, depth)
+        if len(leaves) <= 1:
+            for leaf in leaves:
+                decode(leaf)
+        else:
+            with ThreadPoolExecutor(min(IMAGE_DECODE_WORKERS, len(leaves))) as pool:
+                # map() yields in submission order, so the reported failure is the
+                # first invalid leaf in traversal order, as with sequential decoding.
+                for _ in pool.map(decode, leaves):
+                    pass
     except OSError as exc:
         raise ContractError(f"{label}: cannot validate {path}: {exc}") from exc
 

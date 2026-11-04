@@ -1939,6 +1939,7 @@ class NodeRuntime:
         try:
             for name, spec in pack.manifest.params.items():
                 spec.validate_enum_value(name, assign.params.get(name))
+                spec.validate_scalar_value(name, assign.params.get(name))
                 spec.validate_array_value(name, assign.params.get(name))
             await asyncio.to_thread(
                 validate_frozen_path_params, pack.manifest.params, assign.params
@@ -2242,7 +2243,8 @@ class NodeRuntime:
                     message=f"cached output contract violation: {exc}",
                 )
                 return
-            await self._register_output_handles(pack, assign.job_id, outputs)
+            # The cached outputs were fully validated just above.
+            await self._register_output_handles(pack, assign.job_id, outputs, validated=True)
             await self._send("job_done", JobDone(job_id=assign.job_id, output_handles={}))
             return
 
@@ -2520,8 +2522,9 @@ class NodeRuntime:
         # Artifacts page groups by ``output_port_name``.
         output_handles: dict[str, str] = {}
         for _elem_id, _elem_inputs, elem_outputs in batch:
+            # Every element's outputs passed the batch contract check before the marker.
             per_elem_handles = await self._register_output_handles(
-                pack, assign.job_id, elem_outputs
+                pack, assign.job_id, elem_outputs, validated=True
             )
             output_handles.update(per_elem_handles)
         await self._send("job_done", JobDone(job_id=assign.job_id, output_handles=output_handles))
@@ -2615,11 +2618,25 @@ class NodeRuntime:
             )
 
     async def _register_output_handles(
-        self, pack: LoadedPack, job_id: str, outputs: dict[str, str]
+        self,
+        pack: LoadedPack,
+        job_id: str,
+        outputs: dict[str, str],
+        *,
+        validated: bool = False,
     ) -> dict[str, str]:
-        """For each declared output, register a handle with the gateway. Returns port → handle_id."""
+        """For each declared output, register a handle with the gateway. Returns port → handle_id.
 
-        await asyncio.to_thread(validate_ports, outputs, pack.manifest.outputs, direction="output")
+        Nothing is registered unvalidated. Callers that have just run the full
+        output contract on these exact paths pass ``validated=True`` so every
+        image leaf is decoded once rather than twice; any other caller gets the
+        check here.
+        """
+
+        if not validated:
+            await asyncio.to_thread(
+                validate_ports, outputs, pack.manifest.outputs, direction="output"
+            )
         assert self._node_id is not None
         out_map: dict[str, str] = {}
         for port_name, path in outputs.items():
