@@ -153,6 +153,9 @@ class MemoryJobs:
         assert job.state is JobState.DONE
         return job
 
+    async def terminalize_pending_children_of_terminal_parents(self, _parent_ids=None):
+        return []
+
 
 async def prepared(tmp_path, *, batch_size=1, right_count=3):
     book = MemoryHandles()

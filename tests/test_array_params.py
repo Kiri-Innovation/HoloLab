@@ -112,6 +112,7 @@ def test_runtime_rejects_array_before_process():
                 manifest=SimpleNamespace(params={"items": ParamSpec(type="array", items="float")})
             )
         },
+        _send=AsyncMock(),
         _send_job_fail=fail,
     )
     assign = SimpleNamespace(
