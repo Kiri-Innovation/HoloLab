@@ -50,12 +50,12 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
   } else if (oldParams) {
     const label = state === "pending" ? "等待中的任务使用旧参数" : state === "assigned" ? "已分配的任务使用旧参数" : state === "running" ? "正在使用旧参数运行" : "已提交任务与当前草稿不同";
     result = { tone: "warning", conclusion: label, reason: staleReason || "当前草稿与已提交任务的配置不同。", action: "草稿修改不会更新此任务；确认任务结束后，按新配置重新运行。" };
-  } else if (!state) {
-    result = { tone: "neutral", conclusion: "尚未运行", reason: "尚无此节点的运行记录。", action: "准备好输入后，点击运行。" };
   } else if (changed) {
     const upstream = stale?.kind === "upstream_dirty";
     result = { tone: "warning", conclusion: upstream ? "结果基于旧输入" : "结果需要更新", reason: staleReason!,
       action: upstream ? "先更新上游，再运行此节点。" : "从此节点重新运行。" };
+  } else if (!state) {
+    result = { tone: "neutral", conclusion: "尚未运行", reason: "尚无此节点的运行记录。", action: "准备好输入后，点击运行。" };
   } else if (state === "done") {
     result = { tone: "success", conclusion: "已完成", reason: "当前未检测到配置或上游变化。", action: "可展开预览查看结果。" };
   } else {

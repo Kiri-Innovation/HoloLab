@@ -2799,7 +2799,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       setLatestSnapshotGraph(null);
       setLatestSnapshotId(null); // both reset until hydration fills them in
       setFirstPaintStaleness(state.staleness ?? {});
-      setCanvasJobs(state.canvas_jobs ?? []);
+      const firstPaintJobs = state.canvas_jobs ?? [];
+      setCanvasJobs(firstPaintJobs);
+      // An empty result is a completed selection, not an absent response.
+      // React bails out on [] -> [] so the canvasJobs-driven preview effect
+      // cannot otherwise clear hydrating; that left every no-runtime node
+      // permanently painted as the blue "读取中" placeholder.
+      if (firstPaintJobs.length === 0) setHydrating(false);
       window.history.replaceState(null, "", `/w/${encodeURIComponent(w.workflow_id)}`);
 
       // RunsPanel fetches history independently.  It remains automatic, but

@@ -5,7 +5,7 @@ import type { NodeStaleness } from "./staleness";
 const states = [undefined, "pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted", "future"];
 const kinds = [undefined, "self_dirty", "upstream_dirty", "inflight_old_params"] as const;
 const rows: Record<string, string[]> = {
-  idle: ["neutral", "neutral", "neutral", "warning"],
+  idle: ["neutral", "warning", "warning", "warning"],
   pending: ["info", "warning", "warning", "warning"],
   assigned: ["info", "warning", "warning", "warning"],
   running: ["info", "warning", "warning", "warning"],

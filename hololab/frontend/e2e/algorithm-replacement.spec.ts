@@ -101,3 +101,25 @@ test('offers a graph-inferred replacement when a migrated historical pack has no
   expect(graph.nodes[0].id).toBe('source');
   expect(graph.edges).toEqual([{id:'frames-wire',source:'source',sourceHandle:'frames',target:'sink',targetHandle:'frames'}]);
 });
+
+test('treats an empty completed canvas-state selection as stale, not loading', async ({page}) => {
+  const pack = {name:'demo',version:'1.0.0',manifest_hash:'demo',node_ids:[],description:'Demo',inputs:{},outputs:{out:{tags:['image']}},params:{}};
+  const graph:any = {nodes:[{id:'source',algorithm_name:'demo',algorithm_version:'1.0.0',params:{},position:{x:0,y:0}}],edges:[]};
+  const staleness = {source:{kind:'self_dirty',title:'有效配置与上次运行不同'}};
+  await page.routeWebSocket('**',()=>{});
+  await page.route('**/api/**', async route => {
+    const req = route.request(), path = new URL(req.url()).pathname;
+    let body:any = [];
+    if (path === '/api/pack-catalog') body = [pack];
+    else if (path === '/api/nodes/metrics/history') body = {nodes:{},sample_interval_s:3};
+    else if (path === '/api/workflows/empty-canvas-state') body = {workflow_id:'empty-canvas-state',name:'Empty selection',graph,created_ts:1,updated_ts:1};
+    else if (path === '/api/workflows/empty-canvas-state/canvas-state') body = {canvas_jobs:[],staleness};
+    else if (path === '/api/workflows/empty-canvas-state/runs') body = [];
+    else if (path.endsWith('/analyze')) body = {revision:'1',graph:req.postDataJSON().graph,staleness,diff:[],environment_params:{},canvas_jobs:[]};
+    await route.fulfill({json:body});
+  });
+  await page.goto('/w/empty-canvas-state');
+  const node = page.locator('.react-flow__node[data-id="source"]');
+  await expect(node.locator('[data-status-tone="warning"]')).toBeVisible();
+  await expect(node.getByText('读取中…',{exact:true})).toHaveCount(0);
+});
