@@ -52,7 +52,7 @@ const IN_FLIGHT = new Set(["pending", "assigned", "running"]);
 export type PackDefaults = (name: string, version: string) => Record<string, unknown>;
 
 export interface NodeStaleness {
-  kind: "self_dirty" | "upstream_dirty" | "inflight_old_params";
+  kind: "self_dirty" | "upstream_dirty" | "inflight_old_params" | "invalid_params";
   // Human-readable one-line explanation for the ``title`` tooltip on
   // the badge. For self_dirty this enumerates the actual changes
   // (params, algorithm version, edges, …) so the operator can tell

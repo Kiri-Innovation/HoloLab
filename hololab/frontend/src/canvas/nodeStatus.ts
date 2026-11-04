@@ -25,6 +25,7 @@ export interface NodeStatusInput {
 export function nodeStatus({ state, stale, drift = false, failReason, readOnly = false, missingAlgorithm, missingInputs = [], environment }: NodeStatusInput): NodeStatusPresentation {
   const known = !state || ["loading", "pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted"].includes(state);
   const missingCurrentAlgorithm = !readOnly && !!missingAlgorithm;
+  const invalidParameters = !readOnly && stale?.kind === "invalid_params";
   const oldParams = !readOnly && (drift || stale?.kind === "inflight_old_params");
   const staleReason = stale?.changeReasons?.join("\n") ?? stale?.title;
   const changed = !readOnly && !!staleReason;
@@ -35,6 +36,8 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
   if (missingCurrentAlgorithm) {
     const reference = `${missingAlgorithm.name}@${missingAlgorithm.version}`;
     result = { tone: "error", conclusion: "算法未安装", reason: `本机没有 ${reference}；这个节点无法运行。`, action: "请到 Pack Manager 的社区页安装此版本，或改选本机已有的版本。" };
+  } else if (invalidParameters) {
+    result = { tone: "error", conclusion: "参数不合法", reason: staleReason || "当前参数不满足算法要求。", action: "修改参数后再运行；历史结果仍可查看。" };
   } else if (!known) {
     result = { tone: "neutral", conclusion: "状态暂不可识别", reason: `收到状态：${state}`, action: "请查看任务详情，暂不判断结果是否有效。" };
   } else if (state === "loading") {

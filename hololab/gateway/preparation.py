@@ -75,14 +75,33 @@ def effective_parameters(explicit: dict | None, pack: dict | None) -> dict:
 
 
 def resolve_recipe(
-    graph: WorkflowGraph, catalog: list[dict], normalized: dict[str, dict] | None = None
+    graph: WorkflowGraph,
+    catalog: list[dict],
+    normalized: dict[str, dict] | None = None,
+    *,
+    tolerate_parameter_errors: bool = False,
 ) -> WorkflowGraph:
-    """Pure resolver. Missing keys differ from explicit null/empty values."""
+    """Pure resolver. Missing keys differ from explicit null/empty values.
+
+    Display callers can retain a usable graph when one legacy node no longer
+    satisfies its current manifest.  Submission callers deliberately keep the
+    default strict behaviour: an invalid value must never reach an executor.
+    """
     validate_graph_identities(graph)
     result = freeze_parameter_pins(graph, catalog)
     packs = {package_key(p["name"], p["version"]): copy.deepcopy(p) for p in catalog}
     sources, environment, issues = {}, {}, []
     inline_values = {}
+
+    def record_invalid_parameters(node_id: str, exc: ValueError) -> None:
+        issues.append(
+            {
+                "node_id": node_id,
+                "kind": "invalid_parameters",
+                "message": f"参数不合法：{exc}",
+            }
+        )
+
     for node in result.nodes:
         node.code_identity = None  # Never trust identities supplied by a draft client.
         if node.kind != "algorithm":
@@ -102,48 +121,76 @@ def resolve_recipe(
         )
         actual = (pack.get("publication") or {}).get("code_sha256")
         if expected and actual and expected != actual:
-            raise ValueError(f"节点 {node.id}: 包身份不匹配; 配方={expected}; 本地={actual}")
+            error = ValueError(f"节点 {node.id}: 包身份不匹配; 配方={expected}; 本地={actual}")
+            if not tolerate_parameter_errors:
+                raise error
+            record_invalid_parameters(node.id, error)
+            continue
         specs = pack.get("params", {})
         explicit = migrate_array_params(node.algorithm_name, node.algorithm_version, node.params)
-        for key in node.local_params:
-            if key not in node.param_bindings and explicit.get(key) in (None, ""):
-                raise ValueError(f"节点 {node.id} 参数 {key} 需要本地值 (配方未携带绝对路径)")
+        try:
+            for key in node.local_params:
+                if key not in node.param_bindings and explicit.get(key) in (None, ""):
+                    raise ValueError(f"节点 {node.id} 参数 {key} 需要本地值 (配方未携带绝对路径)")
+        except ValueError as exc:
+            if not tolerate_parameter_errors:
+                raise
+            record_invalid_parameters(node.id, exc)
+            continue
         node.params = effective_parameters(explicit, pack)
         sources[node.id] = {k: "inline" if k in explicit else "default" for k in node.params}
-        for parameter, variable in node.param_bindings.items():
-            declaration = graph.variables.get(variable)
-            prefix = f"节点 {node.id} 参数 {parameter}: 变量 {variable}"
-            if declaration is None:
-                raise ValueError(f"{prefix} 未声明 (可能已删除)")
-            spec = specs.get(parameter)
-            if spec is None or spec.get("type") != declaration.type:
-                raise ValueError(
-                    f"{prefix} 类型不匹配: 声明 {declaration.type}, 参数 {(spec or {}).get('type', '不存在')}"
-                )
-            value = graph.variable_values.get(variable, declaration.default)
-            if value is None or value == "":
-                raise ValueError(f"{prefix} 未提供值")
-            valid = isinstance(value, str) if declaration.type == "path" else type(value) is int
-            if not valid:
-                raise ValueError(
-                    f"{prefix} 值类型错误: 需要 {declaration.type}, 当前 {type(value).__name__}"
-                )
-            node.params[parameter] = copy.deepcopy(value)
-            sources[node.id][parameter] = "workflow-variable"
+        try:
+            for parameter, variable in node.param_bindings.items():
+                declaration = graph.variables.get(variable)
+                prefix = f"节点 {node.id} 参数 {parameter}: 变量 {variable}"
+                if declaration is None:
+                    raise ValueError(f"{prefix} 未声明 (可能已删除)")
+                spec = specs.get(parameter)
+                if spec is None or spec.get("type") != declaration.type:
+                    raise ValueError(
+                        f"{prefix} 类型不匹配: 声明 {declaration.type}, 参数 {(spec or {}).get('type', '不存在')}"
+                    )
+                value = graph.variable_values.get(variable, declaration.default)
+                if value is None or value == "":
+                    raise ValueError(f"{prefix} 未提供值")
+                valid = isinstance(value, str) if declaration.type == "path" else type(value) is int
+                if not valid:
+                    raise ValueError(
+                        f"{prefix} 值类型错误: 需要 {declaration.type}, 当前 {type(value).__name__}"
+                    )
+                node.params[parameter] = copy.deepcopy(value)
+                sources[node.id][parameter] = "workflow-variable"
+        except ValueError as exc:
+            if not tolerate_parameter_errors:
+                raise
+            record_invalid_parameters(node.id, exc)
+            continue
         environment[node.id] = [
             k
             for k, s in specs.items()
             if s.get("type") == "path" or (s.get("type") == "array" and s.get("items") == "path")
         ]
-        for key, raw in specs.items():
-            spec = ParamSpec.model_validate(raw)
-            value = node.params.get(key)
-            spec.validate_enum_value(key, value)
-            spec.validate_scalar_value(key, value)
-            spec.validate_array_value(key, value)
+        try:
+            for key, raw in specs.items():
+                spec = ParamSpec.model_validate(raw)
+                value = node.params.get(key)
+                spec.validate_enum_value(key, value)
+                spec.validate_scalar_value(key, value)
+                spec.validate_array_value(key, value)
+        except ValueError as exc:
+            if not tolerate_parameter_errors:
+                raise
+            record_invalid_parameters(node.id, exc)
+            continue
         if normalized is not None and node.id in normalized:
             node.params = copy.deepcopy(normalized[node.id])
-        inputs = effective_inline(node, result, pack)
+        try:
+            inputs = effective_inline(node, result, pack)
+        except ValueError as exc:
+            if not tolerate_parameter_errors:
+                raise
+            record_invalid_parameters(node.id, exc)
+            continue
         node.port_values = {port: value[1]["value"] for port, value in inputs.items()}
         inline_values[node.id] = inputs
     result.execution = {
@@ -226,9 +273,18 @@ async def prepare_execution(
     spans: dict[str, float] = {}
     validate_graph_identities(graph)
     catalog = copy.deepcopy(app.state.registry.catalog_json())
-    result = resolve_recipe(graph, catalog)
+    result = resolve_recipe(graph, catalog, tolerate_parameter_errors=not strict)
     spans["resolve_recipe"] = time.monotonic() - started
     required = required if required is not None else {n.id for n in graph.nodes if n.kind != "view"}
+    invalid_nodes = {
+        issue["node_id"]
+        for issue in result.execution["issues"]
+        if issue.get("kind") == "invalid_parameters"
+    }
+    # Analysis may report an invalid legacy node, but must not spend RPCs on
+    # it or imply that it is executable. Strict submission never reaches here
+    # because resolve_recipe raises before returning such a result.
+    required -= invalid_nodes
     from hololab.gateway.capabilities import check_workflow, enforce_workflow
 
     # Keep pre-normalization effective configuration for later single-node
@@ -473,7 +529,11 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph, *, disp
     # evidence, not a fresh node RPC.  Dispatch still calls prepare_execution
     # and remains the only strict/fresh environment gate.
     prepared = (
-        resolve_recipe(graph, copy.deepcopy(app.state.registry.catalog_json()))
+        resolve_recipe(
+            graph,
+            copy.deepcopy(app.state.registry.catalog_json()),
+            tolerate_parameter_errors=True,
+        )
         if display_only
         else await prepare_execution(app, graph, strict=False)
     )
@@ -507,9 +567,25 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph, *, disp
     dirty = set(changed)
     for nid in changed:
         dirty |= downstream_closure(prepared, nid)
+    invalid_parameters = {
+        issue["node_id"]: issue["message"]
+        for issue in prepared.execution["issues"]
+        if issue.get("kind") == "invalid_parameters"
+    }
     states, diffs = {}, configuration_diff(prepared, baseline)
     for node in prepared.nodes:
         if node.kind == "view" or is_constant(node):
+            continue
+        if error := invalid_parameters.get(node.id):
+            # This is a current-draft validation failure, not a failure to
+            # inspect historical evidence. Keep the rest of the canvas
+            # available and make the actionable error visible on this node.
+            states[node.id] = {
+                "kind": "invalid_params",
+                "title": error,
+                "changeReasons": [error],
+            }
+            dirty |= downstream_closure(prepared, node.id)
             continue
         job = latest.get(node.id)
         # Selected evidence already passed configuration and lineage checks.

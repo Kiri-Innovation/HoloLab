@@ -1,5 +1,6 @@
 from copy import deepcopy
 
+import pytest
 from pydantic import HttpUrl
 
 from hololab.gateway.preparation import changed_nodes, context_revision, resolve_recipe
@@ -56,6 +57,26 @@ def test_resolution_is_pure_and_preserves_explicit_values():
     packs[0]["params"]["count"]["default"] = 100
     assert a.model_dump_json() == frozen
     assert changed_nodes(resolve_recipe(g, packs), a) == {"a"}
+
+
+def test_display_resolution_reports_legacy_invalid_parameter_without_relaxing_submission():
+    """A persisted old value must not take the whole canvas down."""
+    g, packs = fixture()
+    g.nodes[0].params["count"] = 0
+    packs[0]["params"]["count"]["min"] = 1
+
+    with pytest.raises(ValueError, match="must be >= 1"):
+        resolve_recipe(g, packs)
+
+    resolved = resolve_recipe(g, packs, tolerate_parameter_errors=True)
+    assert resolved.nodes[0].params["count"] == 0
+    assert resolved.execution["issues"] == [
+        {
+            "node_id": "a",
+            "kind": "invalid_parameters",
+            "message": "参数不合法：parameter 'count': must be >= 1, got 0",
+        }
+    ]
 
 
 def test_view_state_does_not_change_revision():

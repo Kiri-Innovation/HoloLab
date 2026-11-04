@@ -212,3 +212,31 @@ async def test_analysis_pairs_history_verdict_with_job_membership(monkeypatch, m
     assert result["canvas_jobs"][0]["snapshot_id"] == "old"
     assert "historical_only" not in selected
     app.state.jobs_store.list_by_snapshot.assert_awaited_once_with("new")
+
+
+@pytest.mark.asyncio
+async def test_display_analysis_isolates_invalid_legacy_node_parameters(monkeypatch):
+    """One old parameter cannot turn the whole canvas-state response into a 500."""
+    from hololab.gateway.preparation import analyze_execution
+
+    g = WorkflowGraph(
+        nodes=[GraphNode(id="bad", algorithm_name="test", algorithm_version="1.0.0", params={"skip": 0})]
+    )
+    catalog = [{
+        "name": "test", "version": "1.0.0",
+        "params": {"skip": {"type": "int", "default": 1, "min": 1}},
+    }]
+    monkeypatch.setattr("hololab.gateway.canvas_jobs.canvas_jobs", AsyncMock(return_value=[]))
+    app = SimpleNamespace(state=SimpleNamespace(
+        registry=SimpleNamespace(catalog_json=lambda: catalog),
+        snapshot_jobs=SimpleNamespace(get_latest_snapshot_for_workflow=AsyncMock(return_value=None)),
+    ))
+
+    result = await analyze_execution(app, "w", g, display_only=True)
+
+    assert result["staleness"]["bad"] == {
+        "kind": "invalid_params",
+        "title": "参数不合法：parameter 'skip': must be >= 1, got 0",
+        "changeReasons": ["参数不合法：parameter 'skip': must be >= 1, got 0"],
+    }
+    assert result["issues"][0]["node_id"] == "bad"
