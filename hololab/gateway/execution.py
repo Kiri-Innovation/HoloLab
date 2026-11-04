@@ -1544,6 +1544,8 @@ async def _dispatch_graph_node(
             node is offline.
     """
 
+    started = time.monotonic()
+    spans: dict[str, float] = {}
     from hololab.gateway.workflows import WorkflowStore, downstream_closure
 
     snapshot_jobs: SnapshotJobsStore = app.state.snapshot_jobs
@@ -1574,6 +1576,7 @@ async def _dispatch_graph_node(
     )
 
     prepared = await submitted_execution(app, workflow_id, graph, required={graph_node_id})
+    spans["submitted_execution"] = time.monotonic() - started
     baseline = await workflows_store.get_snapshot(base_snapshot_id) if base_snapshot_id else None
     if base_snapshot_id and (baseline is None or baseline.workflow_id != workflow_id):
         raise DispatchError("base snapshot does not belong to this workflow")
@@ -1740,6 +1743,7 @@ async def _dispatch_graph_node(
         await materialize_current_results(
             app, workflow_id, graph, target_snapshot_id, cleared=cleared
         )
+    spans["snapshot_and_lineage"] = time.monotonic() - started - spans["submitted_execution"]
 
     frozen_snapshot = await workflows_store.get_snapshot(target_snapshot_id)
     graph = await historical_execution(app, frozen_snapshot)
@@ -1755,6 +1759,7 @@ async def _dispatch_graph_node(
         graph=graph,
         graph_node_id=graph_node_id,
     )
+    spans["input_resolution"] = time.monotonic() - started - sum(spans.values())
 
     # -- Assigned node must be online ----------------------------------------
     session = registry.get_session(gnode.assigned_node_id)
@@ -1858,6 +1863,7 @@ async def _dispatch_graph_node(
             pack_entry=pack_entry,
             snapshot_jobs=snapshot_jobs,
         )
+    spans["job_create_db_ws"] = time.monotonic() - started - sum(spans.values())
 
     result: dict[str, Any] = {
         "snapshot_id": target_snapshot_id,
@@ -1876,6 +1882,14 @@ async def _dispatch_graph_node(
     if parent_snapshot_id is not None:
         result["parent_snapshot_id"] = parent_snapshot_id
         result["forked_at"] = graph_node_id
+    log.info(
+        "single-node dispatch profile",
+        workflow_id=workflow_id,
+        graph_node_id=graph_node_id,
+        job_id=job_id,
+        total_s=round(time.monotonic() - started, 4),
+        **{f"{name}_s": round(value, 4) for name, value in spans.items()},
+    )
     return result
 
 

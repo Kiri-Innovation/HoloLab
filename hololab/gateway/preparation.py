@@ -9,12 +9,14 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import time
 import uuid
 from typing import Any
 
 from pydantic import TypeAdapter
 
 from hololab.gateway.recipe import split_graph
+from hololab.logging import get_logger
 from hololab.gateway.workflows import WorkflowGraph, freeze_parameter_pins
 from hololab.inline_values import effective_inline
 from hololab.manifest.array_migration import migrate_array_params
@@ -26,6 +28,8 @@ from hololab.package_identity import (
     same_package,
     validate_graph_identities,
 )
+
+log = get_logger("gateway.prepare")
 
 
 def digest(value: Any) -> str:
@@ -279,6 +283,13 @@ async def prepare_execution(
             blocked.add(node.id)
     if strict:
         enforce_workflow(result.execution["environment_checks"])
+        # A preparation token is an execution preflight, not merely an
+        # environment report.  Capture the immutable code evidence here so a
+        # hover/background prepare can pay the node RPC before the user clicks
+        # Run.  ``submitted_execution`` still verifies the token revision
+        # against the latest persisted draft before it can be consumed.
+        await capture_code_identities(app, result, required=required)
+        result.execution["code_identity_prepared"] = True
     result.execution["prepared_nodes"] = sorted(required - blocked)
     return result
 
@@ -341,10 +352,14 @@ async def submitted_execution(
         latest.graph, app.state.registry.catalog_json()
     ):
         raise HTTPException(status_code=409, detail="Configuration changed during preparation")
-    try:
-        await capture_code_identities(app, prepared, required=required)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    # Tokens issued by current servers already contain immutable code evidence.
+    # Retain the capture for legacy/no-token callers so this is a rolling
+    # upgrade rather than a trust boundary change.
+    if not prepared.execution.get("code_identity_prepared"):
+        try:
+            await capture_code_identities(app, prepared, required=required)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     prepared.execution["draft_updated_ts"] = latest.updated_ts
     return prepared
 
@@ -580,6 +595,7 @@ async def capture_code_identities(app, graph: WorkflowGraph, *, required=None) -
             continue
         name, version = offered_identity(session.packs, node.algorithm_name, node.algorithm_version)
         req_id = str(uuid.uuid4())
+        started = time.monotonic()
         response = await _await_node_reply(
             app,
             session,
@@ -588,6 +604,12 @@ async def capture_code_identities(app, graph: WorkflowGraph, *, required=None) -
             req_id,
             pending_key="pending_code_identities",
             timeout_s=300,
+        )
+        log.info(
+            "code identity profile",
+            graph_node_id=node.id,
+            compute_node_id=node.assigned_node_id,
+            rpc_s=round(time.monotonic() - started, 4),
         )
         if response.get("error") or not response.get("record"):
             raise ValueError(response.get("error") or "Missing content identity response")

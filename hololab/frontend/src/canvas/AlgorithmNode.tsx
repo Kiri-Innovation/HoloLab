@@ -404,8 +404,6 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const missingInputs = inputValueProblems(pack.inputs, (data as AlgorithmNodeData).port_values ?? {}, wiredInputs, arrayedOn);
   const inputProblem = missingInputs.length ? `输入未就绪：${missingInputs.join("、")}。运行会被拒绝，请检查输入来源和值。` : undefined;
   const runState = runtime?.state;
-  const displayedState = hydrating && !runtime ? "loading" : runState;
-  const runColour = stateColour(runState);
   const previewSelection = useNodePreviewSelection(data as AlgorithmNodeData);
   const { defaultNodeViewer, expandables, currentPreview } = previewSelection;
   const expanded = currentPreview?.name ?? null;
@@ -421,7 +419,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
 
   const [showCompositionOutput, setShowCompositionOutput] = useState(false);
   const [runClickPending, setRunClickPending] = useState(false);
-  const [runPhase, setRunPhase] = useState("保存中…");
+  const [runPhase, setRunPhase] = useState("已提交…");
   const [runErrorMsg, setRunErrorMsg] = useState<string | null>(null);
 
   useEffect(() => { if (!inputProblem) setRunErrorMsg(null); }, [inputProblem]);
@@ -430,7 +428,9 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     if (runInFlight || runClickPending) return;
     if (inputProblem) { setRunErrorMsg(inputProblem); return; }
     setRunClickPending(true);
-    setRunPhase("保存中…");
+    // This is deliberately optimistic: the request is now owned by the
+    // dispatcher, while a later failure clears it and shows the reason.
+    setRunPhase("已提交…");
     setRunErrorMsg(null);
     try {
       await dispatchRunNode(id, setRunPhase);
@@ -446,6 +446,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       setRunClickPending(false);
     }
   };
+  const displayedState = hydrating && !runtime ? "loading" : runClickPending ? "assigned" : runState;
+  const runColour = stateColour(runClickPending ? "assigned" : runState);
 
   const assignedComputeNode =
     assigned_node_id ? computeNodesById?.[assigned_node_id] ?? null : null;

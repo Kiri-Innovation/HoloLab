@@ -86,6 +86,7 @@ import {
   saveWorkflow,
   putWorkflowViewerView,
   type WorkflowViewerView,
+  warmNodePreparation,
 } from "./api";
 import { validateConnection } from "./canvas/connectionValidation";
 import { useConnectionFeedback } from "./canvas/ConnectionFeedback";
@@ -123,7 +124,7 @@ import { aggregateJobsToRuntime } from "./canvas/nodeRuntime";
 import { MobileShell, useIsMobilePortrait } from "./canvas/MobileShell";
 import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
 import { NodeContextMenu, type NodeMenuPosition } from "./canvas/NodeContextMenu";
-import { requestStopNode } from "./canvas/NodeRunControl";
+import { requestStopNode, WARM_NODE_PREPARATION_EVENT } from "./canvas/NodeRunControl";
 import { AlgorithmReplacementDialog } from "./canvas/AlgorithmReplacementDialog";
 import { replacementCandidates, replaceAlgorithm } from "./canvas/algorithmReplacement";
 import { duplicateNode } from "./canvas/nodeDuplicate";
@@ -1384,7 +1385,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // promise would never resolve and the caller's button would hang
       // until the dispatchRunNode timeout kicks in.
       try {
-        saveRecipeRef.current().then(() => {
+        // Save and strict preflight overlap.  The token is accepted only when
+        // its revision equals the just-saved draft; dispatchNode refreshes it
+        // once if an edit made this speculative warm-up stale.
+        const warm = warmNodePreparation(wid, graph_node_id).catch(() => {});
+        saveRecipeRef.current().then(async () => {
+          await warm;
           // The server validates the environment and seals code identity while
           // this request is pending; name that wait instead of showing "…".
           onPhase?.("校验中…");
@@ -1435,6 +1441,17 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     window.addEventListener(RUN_NODE_EVENT, onRun);
     return () => window.removeEventListener(RUN_NODE_EVENT, onRun);
   }, [resetNodeViewerForRun]);
+
+  // Hover preflight is intentionally best-effort: its token is accepted only
+  // if the gateway's revision check still matches at click time.
+  useEffect(() => {
+    const warm = (event: Event) => {
+      const wid = workflowIdRef.current;
+      if (wid) void warmNodePreparation(wid, (event as CustomEvent<string>).detail).catch(() => {});
+    };
+    window.addEventListener(WARM_NODE_PREPARATION_EVENT, warm);
+    return () => window.removeEventListener(WARM_NODE_PREPARATION_EVENT, warm);
+  }, []);
 
   // Mirror workflowId into a ref so the toggle listener (registered
   // once at mount) can read the current value without re-registering.
@@ -2503,11 +2520,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   saveRecipeRef.current = autosave.save;
   const onRun = useCallback(async () => {
-    await autosave.save();
-    const wid = workflowIdRef.current;
-    if (!wid) throw Error("保存后缺少工作流 ID");
     setRunning(true);
     try {
+      // Paint the toolbar synchronously.  The save remains a correctness
+      // gate for the snapshot, but no longer delays the user's feedback.
+      await autosave.save();
+      const wid = workflowIdRef.current;
+      if (!wid) throw Error("保存后缺少工作流 ID");
       const runResult = await runWorkflow(wid);
       if (!runResult.snapshot_id) return;
       // The toolbar starts a whole graph; every node may replace its output.

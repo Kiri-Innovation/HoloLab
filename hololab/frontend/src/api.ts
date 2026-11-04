@@ -376,7 +376,26 @@ export const deleteWorkflow = (workflow_id: string) =>
     json<{ workflow_id: string; state: string }>,
   );
 
+type Preparation = { token: string; run_blockers?: string[] };
+const preparationCache = new Map<string, Preparation>();
+const preparationKey = (workflowId: string, nodeId?: string) => `${workflowId}:${nodeId ?? "*"}`;
+
+/** Warm the strict, revision-bound preflight while the operator approaches Run. */
+export async function warmNodePreparation(workflowId: string, nodeId: string): Promise<void> {
+  const prepared = await resilientFetch(`/api/workflows/${workflowId}/prepare`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ node_id: nodeId }),
+  }).then(json<Preparation>);
+  if (!prepared.run_blockers?.length) preparationCache.set(preparationKey(workflowId, nodeId), prepared);
+}
+
 async function preparationHeaders(workflowId: string, nodeId?: string) {
+  const key = preparationKey(workflowId, nodeId);
+  const cached = preparationCache.get(key);
+  if (cached) {
+    preparationCache.delete(key); // never reuse a warm token after a submission attempt
+    return { "X-Preparation-Token": cached.token, "X-Request-ID": newId() };
+  }
   const prepared = await resilientFetch(`/api/workflows/${workflowId}/prepare`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(nodeId ? { node_id: nodeId } : {}),
@@ -523,9 +542,9 @@ export const dispatchNode = async (
   const qs = opts?.base_snapshot_id
     ? `?base_snapshot_id=${encodeURIComponent(opts.base_snapshot_id)}`
     : "";
-  return resilientFetch(
+  const submit = (headers: Record<string, string>) => resilientFetch(
     `/api/workflows/${workflow_id}/dispatch/${encodeURIComponent(graph_node_id)}${qs}`,
-    { method: "POST", headers: await preparationHeaders(workflow_id, graph_node_id) },
+    { method: "POST", headers },
     { retryNonIdempotent: true },
   ).then(
     json<{
@@ -540,6 +559,14 @@ export const dispatchNode = async (
       forked_at?: string;
     }>,
   );
+  try {
+    return await submit(await preparationHeaders(workflow_id, graph_node_id));
+  } catch (err) {
+    // A hover token can become stale after an edit/autosave.  Refresh exactly
+    // once; the server remains the authority on the revision comparison.
+    if (!(err instanceof ApiError) || err.status !== 409) throw err;
+    return submit(await preparationHeaders(workflow_id, graph_node_id));
+  }
 };
 
 // Artifact provenance DAG.
