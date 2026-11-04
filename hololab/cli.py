@@ -26,6 +26,7 @@ import signal
 import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import typer
@@ -38,8 +39,20 @@ from hololab.logging import configure as configure_logging
 from hololab.logging import get_logger
 from hololab.manifest import load_manifest
 from hololab.node.config import load_node_config
-from hololab.node.fileserver_control import pidfile_path, stop_owned_file_server
+from hololab.node.fileserver_control import (
+    owned_file_server_pid,
+    pidfile_path,
+    stop_owned_file_server,
+)
 from hololab.node.runtime import NodeRuntime
+from hololab.service_control import (
+    ServiceAlreadyRunning,
+    begin_service,
+    end_service,
+    register_child,
+    stop_service,
+    unregister_child,
+)
 from hololab.package_identity import canonical_name, parse_spec, validate_name
 from hololab.paths import default_workspace_root, frontend_dist_dir
 
@@ -62,6 +75,26 @@ log = get_logger("cli")
 _PACKAGE_DIR = str(Path(__file__).resolve().parent)
 
 
+def _legacy_service_parent(file_server_pid: int) -> int | None:
+    """Find an old, unrecorded ``hololab start`` only through its owned child."""
+    pid = file_server_pid
+    for _ in range(8):
+        try:
+            status = Path(f"/proc/{pid}/status").read_text()
+            parent = int(next(line.split()[1] for line in status.splitlines() if line.startswith("PPid:")))
+            argv = Path(f"/proc/{parent}/cmdline").read_bytes().decode(errors="replace").split("\0")[:-1]
+        except (FileNotFoundError, StopIteration, ValueError, IndexError):
+            return None
+        # The child relationship plus this exact command shape is the legacy
+        # ownership proof.  Never scan or signal arbitrary `hololab start`s.
+        if "start" in argv and any(part.endswith("hololab") for part in argv):
+            return parent
+        if parent <= 1:
+            return None
+        pid = parent
+    return None
+
+
 @app.callback()
 def _root(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable DEBUG-level logs."),
@@ -82,22 +115,39 @@ def stop(
         None, "--node-config", help="Path to node config.yaml."
     ),
 ) -> None:
-    """Stop this HoloLab home's owned file server safely.
-
-    This only ever signals a recorded file server, or a legacy one whose
-    module command and workspace root match the selected node config.
-    """
+    """Stop this HoloLab home's complete recorded service safely."""
 
     cfg = load_node_config(node_config)
-    stopped = stop_owned_file_server(
-        port=cfg.file_server_port,
-        workspace_root=cfg.workspace_root,
+    stopped, skipped = stop_service()
+    # Compatibility for a service started before service.json existed.  This
+    # never guesses at a gateway; it only stops the existing, ownership-
+    # checked file-server record.
+    legacy_pid = None
+    if not stopped:
+        legacy_child = owned_file_server_pid(
+            port=cfg.file_server_port, workspace_root=cfg.workspace_root,
+            pidfile=pidfile_path(cfg.file_server_port),
+        )
+        if legacy_child is not None:
+            legacy_pid = _legacy_service_parent(legacy_child)
+            if legacy_pid is not None:
+                with contextlib.suppress(ProcessLookupError):
+                    os.kill(legacy_pid, signal.SIGTERM)
+                # Give the already-existing graceful handler a chance before
+                # the verified child fallback below.
+                time.sleep(0.15)
+    legacy_stopped = stop_owned_file_server(
+        port=cfg.file_server_port, workspace_root=cfg.workspace_root,
         pidfile=pidfile_path(cfg.file_server_port),
     )
-    if stopped:
-        typer.echo(f"✓ stopped HoloLab file server on {cfg.file_server_host}:{cfg.file_server_port}")
+    if stopped or legacy_stopped or legacy_pid is not None:
+        typer.echo(f"✓ stopped HoloLab service ({len(stopped)} recorded process(es))")
     else:
-        typer.echo(f"· no owned HoloLab file server on {cfg.file_server_host}:{cfg.file_server_port}")
+        typer.echo("· no owned HoloLab service")
+    if skipped:
+        typer.echo(
+            "! skipped unverified recorded PID(s): " + ", ".join(map(str, skipped)), err=True
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -318,6 +368,11 @@ async def _run_all_in_one_async(
     if workspace_root is not None:
         updates["workspace_root"] = workspace_root
     cfg = cfg.model_copy(update=updates)
+    try:
+        begin_service(gateway_port=port, file_server_port=cfg.file_server_port)
+    except ServiceAlreadyRunning as exc:
+        typer.echo(f"✗ {exc}; use `hololab stop` first", err=True)
+        raise typer.Exit(2) from exc
 
     gateway_app = create_app()
     config = uvicorn.Config(
@@ -366,22 +421,39 @@ async def _run_all_in_one_async(
     # Small delay so the gateway is listening before the node dials in — cosmetic.
     await asyncio.sleep(0.3)
     node_task = asyncio.create_task(
-        NodeRuntime(cfg, config_path=node_config_path).run(), name="hololab-node"
+        NodeRuntime(
+            cfg,
+            config_path=node_config_path,
+            child_started=register_child,
+            child_stopped=unregister_child,
+        ).run(),
+        name="hololab-node",
     )
 
     # Wait until either task exits (usually because the gateway shut
     # down after receiving the signal). Then drain the other one.
-    _, pending = await asyncio.wait({server_task, node_task}, return_when=asyncio.FIRST_COMPLETED)
-    for t in pending:
-        t.cancel()
-    for t in pending:
-        with contextlib.suppress(asyncio.CancelledError):
-            await t
-    # Re-raise any real error the gateway hit (not the normal exit).
-    if server_task.done():
-        exc = server_task.exception()
-        if exc is not None and not isinstance(exc, KeyboardInterrupt):
-            raise exc
+    try:
+        _, pending = await asyncio.wait({server_task, node_task}, return_when=asyncio.FIRST_COMPLETED)
+        for t in pending:
+            t.cancel()
+        for t in pending:
+            with contextlib.suppress(asyncio.CancelledError):
+                await t
+        # Re-raise any real error the gateway hit (not the normal exit).
+        if server_task.done():
+            exc = server_task.exception()
+            if exc is not None and not isinstance(exc, KeyboardInterrupt):
+                raise exc
+    finally:
+        # NodeRuntime's cancellation finally is responsible for the graceful
+        # child drain.  The persisted record remains if SIGKILL prevents this.
+        for task in (server_task, node_task):
+            if not task.done():
+                task.cancel()
+        for task in (server_task, node_task):
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
+        end_service()
 
 
 # ---------------------------------------------------------------------------

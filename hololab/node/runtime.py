@@ -151,12 +151,24 @@ def _scratch_retention_hours() -> float:
 class NodeRuntime:
     """Owns one connection to a gateway and all local job state."""
 
-    def __init__(self, config: NodeConfig, *, config_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        config: NodeConfig,
+        *,
+        config_path: Path | None = None,
+        child_started: Callable[[int], None] | None = None,
+        child_stopped: Callable[[int], None] | None = None,
+    ) -> None:
         self._config = config
         # Path to persist identity updates back to. When None the runtime
         # falls back to the default (~/.hololab/node/config.yaml); tests
         # supply an explicit path so writes don't touch the user's home.
         self._config_path = config_path
+        # The product CLI persists these identities in its service record.
+        # Keep the runtime reusable by making that persistence an optional
+        # observer rather than coupling node internals to CLI policy.
+        self._child_started = child_started
+        self._child_stopped = child_stopped
         self._packs: dict[tuple[str, str], LoadedPack] = {}
 
         # Active job execution tasks.
@@ -504,6 +516,8 @@ class NodeRuntime:
             env=child_env,
             start_new_session=True,
         )
+        if self._child_started is not None:
+            self._child_started(self._fs_proc.pid)
         self._fs_task = asyncio.create_task(
             self._fs_watchdog(self._fs_proc),
             name="hololab-node-fileserver",
@@ -563,6 +577,8 @@ class NodeRuntime:
         if self._fs_task is not None:
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._fs_task
+        if proc is not None and self._child_stopped is not None:
+            self._child_stopped(proc.pid)
         self._fs_proc = None
         self._fs_task = None
 

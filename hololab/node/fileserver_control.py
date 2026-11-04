@@ -152,6 +152,19 @@ def _legacy_owner_pid(port: int, workspace_root: Path) -> int | None:
     return None
 
 
+def owned_file_server_pid(*, port: int, workspace_root: Path, pidfile: Path) -> int | None:
+    """Return a verified owner PID without signalling it.
+
+    This is intentionally exposed for the top-level CLI's one-release
+    compatibility path: an old service has only this child pidfile, from
+    which its direct ``hololab start`` ancestor can be safely identified.
+    """
+    record = _read_record(pidfile)
+    if record is not None and _record_is_owner(record, port=port):
+        return int(record["pid"])
+    return _legacy_owner_pid(port, workspace_root)
+
+
 def reclaim_file_server(*, port: int, workspace_root: Path, pidfile: Path) -> int | None:
     """Stop a prior owned server, or fail safely if the port is foreign.
 
@@ -160,16 +173,11 @@ def reclaim_file_server(*, port: int, workspace_root: Path, pidfile: Path) -> in
     is never killed merely for using the same port.
     """
 
-    record = _read_record(pidfile)
-    if record is not None and _record_is_owner(record, port=port):
-        pid = int(record["pid"])
+    pid = owned_file_server_pid(port=port, workspace_root=workspace_root, pidfile=pidfile)
+    if pid is not None:
         _terminate(pid)
         remove_pidfile(pidfile, pid=pid)
         return pid
-    legacy_pid = _legacy_owner_pid(port, workspace_root)
-    if legacy_pid is not None:
-        _terminate(legacy_pid)
-        return legacy_pid
     return None
 
 
