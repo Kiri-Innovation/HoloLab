@@ -644,6 +644,10 @@ export interface GraphNode {
   // clients that POST a graph back can leave this field on the payload;
   // the gateway silently drops it (``exclude=True`` on GraphNode).
   resolved_outputs?: Record<string, ResolvedOutputPort>;
+  // Read-only, backend-resolved port declarations.  They are recomputed on
+  // every graph read, but let a historical node be compared to an upgrade
+  // target even after its original pack leaves the local catalog.
+  port_types?: unknown;
   // Most recent run for this graph node (across all snapshots for a
   // workflow-scoped GET, or within the snapshot for a snapshot-scoped
   // GET). ``null`` when the node has never dispatched. Read-only —

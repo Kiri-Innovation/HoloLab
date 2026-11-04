@@ -85,8 +85,8 @@ import {
   runWorkflow,
   saveWorkflow,
   putWorkflowViewerView,
-  type WorkflowViewerView,
   warmNodePreparation,
+  type WorkflowViewerView,
 } from "./api";
 import { validateConnection } from "./canvas/connectionValidation";
 import { useConnectionFeedback } from "./canvas/ConnectionFeedback";
@@ -126,7 +126,7 @@ import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
 import { NodeContextMenu, type NodeMenuPosition } from "./canvas/NodeContextMenu";
 import { requestStopNode, WARM_NODE_PREPARATION_EVENT } from "./canvas/NodeRunControl";
 import { AlgorithmReplacementDialog } from "./canvas/AlgorithmReplacementDialog";
-import { replacementCandidates, replaceAlgorithm } from "./canvas/algorithmReplacement";
+import { replacementBaselineFromGraph, replacementCandidates, replaceAlgorithm } from "./canvas/algorithmReplacement";
 import { duplicateNode } from "./canvas/nodeDuplicate";
 import "./canvas/nodeContextMenu.css";
 import { PackPalette } from "./canvas/PackPalette";
@@ -1116,6 +1116,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // pack edit), we churn AND seed ``pendingRemeasureRef`` so the effect
   // below re-parses handle positions for the affected nodes.
   useEffect(() => {
+    const graph = lastHydratedWireRef.current;
+    const graphNodes = new Map(graph?.nodes.map(node => [node.id, node]) ?? []);
+    const replacementWitnessByAlgorithm = new Map<string, { id: string; algorithm_version: string; port_types?: unknown; arrayed_toggle?: boolean }>();
+    for (const candidate of graph?.nodes ?? []) {
+      if (!isViewGraphNode(candidate) && candidate.port_types && !replacementWitnessByAlgorithm.has(candidate.algorithm_name)) {
+        replacementWitnessByAlgorithm.set(candidate.algorithm_name, candidate);
+      }
+    }
     setNodes((current) => {
       const remeasure: string[] = [];
       const next = current.map((n) => {
@@ -1123,11 +1131,23 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         if (!data) return n;
         const key = `${data.pack.name}@${data.pack.version}`;
         const fresh = catalogByKey.get(key);
-        if (!fresh || fresh.manifest_hash === data.pack.manifest_hash) {
+        const graphNode = graphNodes.get(n.id);
+        const ownBaseline = graphNode && !data.replacementBaseline
+          ? replacementBaselineFromGraph(data.pack, graphNode.port_types, graphNode.arrayed_toggle, fresh?.arrayable)
+          : null;
+        const witness = graphNode ? replacementWitnessByAlgorithm.get(graphNode.algorithm_name) : null;
+        const witnessPack = witness ? catalogByKey.get(`${graphNode!.algorithm_name}@${witness.algorithm_version}`) : null;
+        const witnessBaseline = graphNode && !ownBaseline && !data.replacementBaseline && witness && witness.id !== n.id
+          ? replacementBaselineFromGraph(data.pack, witness.port_types, graphNode.arrayed_toggle, witnessPack?.arrayable)
+          : null;
+        const replacementBaseline = ownBaseline ?? witnessBaseline ?? data.replacementBaseline;
+        const replacementBasis = ownBaseline ? undefined : witnessBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : data.replacementBasis;
+        const refreshesPack = Boolean(fresh && fresh.manifest_hash !== data.pack.manifest_hash);
+        if (!refreshesPack && replacementBaseline === data.replacementBaseline && replacementBasis === data.replacementBasis) {
           return n;
         }
-        remeasure.push(n.id);
-        return { ...n, data: { ...n.data, pack: fresh } };
+        if (refreshesPack) remeasure.push(n.id);
+        return { ...n, data: { ...n.data, ...(fresh ? {pack: fresh} : {}), replacementBaseline, replacementBasis } };
       });
       if (remeasure.length > 0) {
         pendingRemeasureRef.current = [
@@ -2101,6 +2121,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         }
       }
       const missingPacks: string[] = [];
+      const replacementWitnessByAlgorithm = new Map<string, { id: string; algorithm_version: string; port_types?: unknown; arrayed_toggle?: boolean }>();
+      for (const candidate of graph.nodes) {
+        if (!isViewGraphNode(candidate) && candidate.port_types && !replacementWitnessByAlgorithm.has(candidate.algorithm_name)) {
+          replacementWitnessByAlgorithm.set(candidate.algorithm_name, candidate);
+        }
+      }
       const hydratedNodes = graph.nodes
         .map((gn) => {
           if (isViewGraphNode(gn)) {
@@ -2121,12 +2147,20 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             outputs: Object.fromEntries(graph.edges.filter(e => e.source === gn.id).map(e => [e.sourceHandle, {tags: [], storage: "file", preview: null, description: null}])),
           };
           if (!found) missingPacks.push(`${gn.algorithm_name}@${gn.algorithm_version}`);
+          const ownReplacementBaseline = replacementBaselineFromGraph(pack, gn.port_types, gn.arrayed_toggle, found?.arrayable);
+          const witness = replacementWitnessByAlgorithm.get(gn.algorithm_name);
+          const witnessPack = witness ? latestCatalogByKey.current.get(`${gn.algorithm_name}@${witness.algorithm_version}`) : null;
+          const witnessReplacementBaseline = !ownReplacementBaseline && witness && witness.id !== gn.id
+            ? replacementBaselineFromGraph(pack, witness.port_types, gn.arrayed_toggle, witnessPack?.arrayable)
+            : null;
           const node: Node<AlgorithmNodeData> = {
             id: gn.id,
             type: "algorithm",
             position: gn.position,
             data: {
               pack,
+              replacementBaseline: ownReplacementBaseline ?? witnessReplacementBaseline ?? undefined,
+              replacementBasis: ownReplacementBaseline ? undefined : witnessReplacementBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : undefined,
               assembly: gn.assembly,
               assigned_node_id: gn.assigned_node_id,
               ...({ local_params: gn.local_params, param_bindings: gn.param_bindings, params: gn.params, port_values: found ? reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) : gn.port_values } as object),
@@ -2761,16 +2795,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const contextMenuAlgorithm = contextMenuNode ? algorithmDataForNode(contextMenuNode) : null;
   const contextMenuRunning = ["pending", "assigned", "running", "orphaned"].includes(contextMenuAlgorithm?.runtime?.state ?? "");
   const contextMenuHasPack = Boolean(contextMenuAlgorithm?.pack.manifest_hash);
-  const contextMenuReplacementCandidates = contextMenuAlgorithm && contextMenuHasPack
-    ? replacementCandidates(contextMenuAlgorithm.pack, catalog)
-    : [];
-  // A graph can retain a historical pack version after that version leaves
-  // this node's catalog.  Its placeholder port declarations are deliberately
-  // unknown, so treating a same-named installed version as an exact match
-  // would violate replacement's "wires remain identical" contract.
-  const contextMenuReplaceDisabledReason = !contextMenuHasPack
-    ? "当前算法版本不在本机包目录中，无法验证输入输出完全一致（部分版本可能不在线）。安装该版本后可再替换。"
-    : "无输入输出完全相同的可替换算法";
   const contextMenuHasResultVisualization = Boolean(contextMenuAlgorithm && (
     Object.values(contextMenuAlgorithm.previews ?? {}).some((target) => !target.deleted)
     || Object.values(contextMenuAlgorithm.previewShards ?? {}).some((shards) => shards.length > 0)
@@ -2863,9 +2887,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           onClose={() => setNodeMenu(null)}
           onDelete={() => onNodesDelete([contextMenuNode])}
           onDuplicate={() => duplicateNodeAtOffset(contextMenuNode)}
-          onReplace={contextMenuAlgorithm && !contextMenuAlgorithm.assembly && !contextMenuAlgorithm.pack.name.startsWith("@builtin/") ? () => setReplacementNodeId(contextMenuNode.id) : undefined}
-          canReplace={contextMenuReplacementCandidates.some(pack => !samePackage(pack.name, pack.version, contextMenuAlgorithm?.pack.name ?? "", contextMenuAlgorithm?.pack.version ?? ""))}
-          replaceDisabledReason={contextMenuReplaceDisabledReason}
+          onReplace={contextMenuAlgorithm ? () => setReplacementNodeId(contextMenuNode.id) : undefined}
           onRun={contextMenuAlgorithm ? () => {
             if (contextMenuRunning) requestStopNode(contextMenuNode.id);
             else void dispatchRunNode(contextMenuNode.id);
@@ -2876,7 +2898,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         />
       )}
       {replacementNode && replacementData && !viewingSnapshot && <AlgorithmReplacementDialog
-        current={replacementData.pack} candidates={replacementCandidates(replacementData.pack, catalog)}
+        current={replacementData.pack}
+        candidates={replacementData.replacementBaseline && !replacementData.assembly && !replacementData.pack.name.startsWith("@builtin/") ? replacementCandidates(replacementData.replacementBaseline, catalog) : []}
+        basis={replacementData.replacementBasis}
+        unavailableReason={!replacementData.replacementBaseline
+          ? "图中未保存足以验证完整输入输出声明，不能安全替换。"
+          : replacementData.assembly
+            ? "组合节点不能替换为算法。"
+            : replacementData.pack.name.startsWith("@builtin/")
+              ? "内置节点不能替换为算法。"
+              : undefined}
         onClose={() => setReplacementNodeId(null)} onSelect={pack => {
           setNodes(current => current.map(node => node.id === replacementNodeId ? replaceAlgorithm(node, pack) : node));
           setReplacementNodeId(null);

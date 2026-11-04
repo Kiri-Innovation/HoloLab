@@ -2,6 +2,7 @@ import type { Node } from '@xyflow/react';
 import type { CatalogPack, ParamSpec } from '../wire';
 import { canonicalPackageName, samePackage } from '../packageIdentity';
 import { declarationType } from '../types/legacyPortType';
+import type { PortDeclaration } from '../types/portTypeIR';
 import { algorithmNodeData } from './nodeMeta';
 
 const stable = (value: unknown): string => JSON.stringify(value, (_key, item) =>
@@ -10,16 +11,47 @@ const stable = (value: unknown): string => JSON.stringify(value, (_key, item) =>
 
 /** Exact declaration equality, not the asymmetric "can connect" relation. */
 export function samePorts(a: CatalogPack, b: CatalogPack): boolean {
-  const ports = (pack: CatalogPack) => [pack.inputs, pack.outputs].map(group =>
+  const ports = (pack: CatalogPack) => [pack.inputs, pack.outputs].map((group, groupIndex) =>
     Object.fromEntries(Object.entries(group).map(([name, spec]) => {
-      const { description: _description, preview: _preview, ...declaration } = spec as typeof spec & {preview?: unknown};
       return [name, {
-        ...declaration, tags: [...new Set(spec.tags)].sort(),
+        tags: [...new Set(spec.tags)].sort(),
         arrayed: !!spec.arrayed, scalar: !!spec.scalar, dim_labels: spec.dim_labels ?? [],
+        // Axis-name matching is an input constraint. The resolved IR carries
+        // its default on outputs too, where it is not a manifest contract.
+        require_axis_label_match: groupIndex === 0 ? spec.require_axis_label_match ?? null : null,
+        tags_from: spec.tags_from ?? null, dim_labels_from: spec.dim_labels_from ?? null,
+        dim_labels_from_input: spec.dim_labels_from_input ?? null,
+        dim_labels_drop_outer: spec.dim_labels_drop_outer ?? null,
+        content_dims_from: spec.content_dims_from ?? null, any_of: spec.any_of ?? [],
         ir: declarationType(spec),
       }];
     })));
   return !!a.arrayable === !!b.arrayable && stable(ports(a)) === stable(ports(b));
+}
+
+type GraphPortTypes = { schemaVersion: 1; inputs: Record<string, { declaration: PortDeclaration }>; outputs: Record<string, { declaration: PortDeclaration }> };
+
+function graphPortTypes(value: unknown): GraphPortTypes | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Partial<GraphPortTypes>;
+  if (candidate.schemaVersion !== 1 || !candidate.inputs || !candidate.outputs) return null;
+  const complete = (ports: Record<string, { declaration: PortDeclaration }>) => Object.values(ports).every(port =>
+    Array.isArray(port?.declaration?.tags) && typeof port.declaration.arrayed === 'boolean' && typeof port.declaration.scalar === 'boolean');
+  return complete(candidate.inputs) && complete(candidate.outputs) ? candidate as GraphPortTypes : null;
+}
+
+/** Converts complete graph declarations into the existing strict type-IR baseline. */
+export function replacementBaselineFromGraph(current: CatalogPack, portTypes: unknown, arrayedToggle?: boolean, arrayable?: boolean): CatalogPack | null {
+  const types = graphPortTypes(portTypes);
+  // A selected fan-out mode alone cannot prove the old pack's capability.
+  if (!types || arrayedToggle || typeof arrayable !== 'boolean') return null;
+  const inputs = Object.fromEntries(Object.entries(types.inputs).map(([name, port]) => [name, {
+    ...port.declaration, storage: 'dir', required: true, description: null,
+  }])) as CatalogPack['inputs'];
+  const outputs = Object.fromEntries(Object.entries(types.outputs).map(([name, port]) => [name, {
+    ...port.declaration, storage: 'dir', preview: null, description: null,
+  }])) as CatalogPack['outputs'];
+  return {...current, arrayable, inputs, outputs};
 }
 function versionDescending(a: string, b: string): number {
   const parse = (value: string) => /^(\d+)\.(\d+)\.(\d+)(?:-([^+]+))?(?:\+.*)?$/.exec(value);
@@ -60,7 +92,8 @@ function accepts(spec: ParamSpec, value: unknown): boolean {
 }
 export function replaceAlgorithm(node: Node<Record<string, unknown>>, target: CatalogPack): Node<Record<string, unknown>> {
   const data = algorithmNodeData(node.data);
-  if (!data || !samePorts(data.pack, target) || samePackage(data.pack.name, data.pack.version, target.name, target.version)) return node;
+  const baseline = data?.replacementBaseline ?? data?.pack;
+  if (!data || !baseline || !samePorts(baseline, target) || samePackage(data.pack.name, data.pack.version, target.name, target.version)) return node;
   const params: Record<string, unknown> = {}, bindings: Record<string, string> = {};
   const retained = new Set<string>();
   for (const [name, spec] of Object.entries(target.params)) {
@@ -74,7 +107,7 @@ export function replaceAlgorithm(node: Node<Record<string, unknown>>, target: Ca
       bindings[name] = data.param_bindings[name]; retained.add(name);
     }
   }
-  return {...node, data: {...data, pack: target, params, param_bindings: bindings,
+  return {...node, data: {...data, pack: target, replacementBaseline: target, replacementBasis: undefined, params, param_bindings: bindings,
     local_params: data.local_params?.filter(name => retained.has(name)),
   }};
 }

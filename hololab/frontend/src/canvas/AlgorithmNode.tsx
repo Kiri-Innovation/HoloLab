@@ -119,6 +119,10 @@ export interface PreviewTarget {
 export interface AlgorithmNodeData extends Record<string, unknown> {
   assembly?: import("./assembly").AssemblyConfig;
   pack: CatalogPack;
+  /** Read-only replacement contract reconstructed from graph port_types. */
+  replacementBaseline?: CatalogPack;
+  /** Human-readable provenance when a historical contract is inferred. */
+  replacementBasis?: string;
   arrayed_toggle?: boolean;
   assigned_node_id: string | null;
   /** Draft node parameters, included in the CoBrowser reference snapshot. */

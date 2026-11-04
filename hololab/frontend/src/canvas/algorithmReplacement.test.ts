@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest';
 import type {CatalogPack} from '../wire';
-import {samePorts, replacementCandidates, replaceAlgorithm} from './algorithmReplacement';
+import {samePorts, replacementBaselineFromGraph, replacementCandidates, replaceAlgorithm} from './algorithmReplacement';
 const pack = (name='demo', version='1.0.0') => ({name, version, inputs:{in:{tags:['image'],arrayed:true,dim_labels:['frame']}}, outputs:{out:{tags:['image']}}, params:{count:{type:'int',default:2},mode:{type:'enum',values:['a','b'],default:'a'},old:{type:'string',default:''}},node_ids:[]} as unknown as CatalogPack);
 describe('algorithm replacement',()=>{
   it('compares complete named declarations, not connection compatibility',()=>{
@@ -14,6 +14,16 @@ describe('algorithm replacement',()=>{
   });
   it('sorts same algorithm versions first and excludes incompatible packs',()=>{
     expect(replacementCandidates(pack(),[pack('other'),pack('demo','2.0.0'),pack('demo','10.0.0'),{...pack('bad'),inputs:{}}]).map(p=>p.name+'@'+p.version)).toEqual(['demo@10.0.0','demo@2.0.0','other@1.0.0']);
+  });
+  it('uses complete graph port declarations when the historical pack is gone',()=>{
+    const current = {...pack('demo','1.0.0'), manifest_hash:''};
+    const portTypes = {schemaVersion:1, inputs:{in:{declaration:{tags:['image'],arrayed:true,scalar:false,dim_labels:['frame'],require_axis_label_match:true}}}, outputs:{out:{declaration:{tags:['image'],arrayed:false,scalar:false,dim_labels:[],dim_labels_drop_outer:0}}}};
+    const baseline = replacementBaselineFromGraph(current, portTypes, false, false);
+    expect(baseline).not.toBeNull();
+    const matching = {...pack('demo','2.0.0'), inputs:{in:{...pack().inputs.in, require_axis_label_match:true}}, outputs:{out:{...pack().outputs.out, dim_labels_drop_outer:0}}};
+    expect(replacementCandidates(baseline!, [matching, {...pack('wrong'), outputs:{out:{...pack().outputs.out, arrayed:true, dim_labels:['frame']}}}]).map(p=>p.version)).toEqual(['2.0.0']);
+    expect(replacementBaselineFromGraph(current, portTypes, true, false)).toBeNull();
+    expect(replacementBaselineFromGraph(current, portTypes, false)).toBeNull();
   });
   it('orders releases before prereleases and migrates effective defaults',()=>{
     expect(replacementCandidates(pack(),[pack('demo','2.0.0-rc.1'),pack('demo','2.0.0'),pack('demo','2.0.0-beta')]).map(p=>p.version)).toEqual(['2.0.0','2.0.0-rc.1','2.0.0-beta']);
