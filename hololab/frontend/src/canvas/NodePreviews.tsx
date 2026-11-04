@@ -46,7 +46,9 @@ export interface ExpandablePort {
 // yet — like ``colmap-cams`` at the time of writing — still get the
 // caret because this promotion looks at the port's ``tags`` directly.
 const FRONTEND_VIEWER_TAGS = new Set<string>([
+  "splatv",
   "ftgsply",
+  "ply-3dgs",
   "image",
   "colmap-cams",
   // ``point-cloud`` is the 2026-09-22 type-system refactor's canonical

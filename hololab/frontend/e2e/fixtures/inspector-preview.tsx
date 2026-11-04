@@ -21,9 +21,13 @@ if(mode==='sequence'){
  Object.assign(target,{proxy_url:'/proxy/compute/overlay',storage:'dir',absolute_path:'/example/overlay',arrayed:true,dim_labels:['frame'],dim_sizes:[50],preview:{viewer:'image',member:null}});
  Object.assign(pack.outputs.result,{arrayed:true,dim_labels:['frame']});
 }
-if(['text','splatv','video'].includes(mode)){
- Object.assign(target,{proxy_url:'/proxy/compute/result',storage:'dir',tags:[mode],preview:{viewer:mode,member:'output.'+mode}});
- pack.outputs.result.tags=[mode];
+if(['text','splatv','video','splatv-text'].includes(mode)){
+ const viewer=mode==='splatv-text'?'text':mode;
+ const tag=mode==='splatv-text'?'splatv':mode;
+ Object.assign(target,mode==='splatv-text'
+  ? {proxy_url:'/proxy/compute/result/output.splatv',storage:'file',tags:[tag],preview:{viewer,member:null}}
+  : {proxy_url:'/proxy/compute/result',storage:'dir',tags:[tag],preview:{viewer,member:'output.'+tag}});
+ pack.outputs.result.tags=[tag];
 }
 const data:AlgorithmNodeData={pack,assigned_node_id:'compute',previews:mode==='empty'?{}:{result:target},previewOpen:'result'};
 const graphNode:any={id:'n',algorithm_name:pack.name,algorithm_version:pack.version,position:{x:50,y:50},params:{amount:1},assigned_node_id:'compute',preview_open:'result'};

@@ -216,11 +216,18 @@ export function Preview({
   refreshToken = 0,
 }: PreviewProps) {
   // Existing handles/older running gateways may not yet carry inferred specs.
-  // Keep explicit pack overrides authoritative.
-  if (!spec && tags?.includes('ftgsply') && storage === 'file') {
+  // A historical explicit ``text`` spec must not override the data class of
+  // a known binary artifact.  Some already-published STG manifests predate
+  // tag-viewer inference; decoding their model bytes with TextPreview turns
+  // a stale declaration into mojibake. These intercepts only supersede
+  // ``text``; every other explicit pack override retains its precedence.
+  if ((!spec || spec.viewer === "text") && tags?.includes('splatv') && storage === 'file') {
+    return <SplatvPreview url={baseUrl} />;
+  }
+  if ((!spec || spec.viewer === "text") && tags?.includes('ftgsply') && storage === 'file') {
     return <GaussianScenePreview url={baseUrl} ftgsPly />;
   }
-  if (!spec && tags?.includes('ply-3dgs') && storage === 'file') {
+  if ((!spec || spec.viewer === "text") && tags?.includes('ply-3dgs') && storage === 'file') {
     return <GaussianScenePreview url={baseUrl} />;
   }
   // Image is one file. Only explicit collections use sequence viewers.
@@ -816,9 +823,27 @@ function ImagePreview({ url }: { url: string }) {
 // Cap the fetched text so a huge log doesn't hang the browser.
 const TEXT_MAX_BYTES = 64 * 1024;
 
+function decodePreviewText(bytes: Uint8Array): string | null {
+  // TextDecoder without ``fatal`` silently replaces arbitrary bytes with �,
+  // which is exactly how a binary model becomes a convincing-looking blob of
+  // junk in the drawer. NUL and other C0 controls are also invalid in our
+  // plain-text preview contract (apart from normal whitespace).
+  if (bytes.some((byte) => byte === 0 || (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d))) {
+    return null;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
 function TextPreview({ url }: { url: string }) {
   const [state, setState] = useState<
-    { kind: "loading" } | { kind: "ok"; body: string; truncated: boolean } | { kind: "err"; message: string }
+    | { kind: "loading" }
+    | { kind: "ok"; body: string; truncated: boolean }
+    | { kind: "binary" }
+    | { kind: "err"; message: string }
   >({ kind: "loading" });
   const reconnectTick = useReconnectTick();
   const retry = useRetryTick();
@@ -835,12 +860,17 @@ function TextPreview({ url }: { url: string }) {
         if (!r.ok && r.status !== 206) {
           throw new Error(`HTTP ${r.status}`);
         }
-        const body = await r.text();
+        const bytes = new Uint8Array(await r.arrayBuffer());
         if (cancelled) return;
+        const body = decodePreviewText(bytes);
+        if (body === null) {
+          setState({ kind: "binary" });
+          return;
+        }
         setState({
           kind: "ok",
           body,
-          truncated: body.length >= TEXT_MAX_BYTES,
+          truncated: bytes.byteLength >= TEXT_MAX_BYTES,
         });
       } catch (e) {
         if (cancelled) return;
@@ -862,6 +892,9 @@ function TextPreview({ url }: { url: string }) {
         </div>
       </div>
     );
+  if (state.kind === "binary") {
+    return <div style={PREVIEW_SHELL}><Status text="no preview available for binary content" kind="info" /></div>;
+  }
   return (
     <div style={PREVIEW_SHELL}>
       <ViewerScrollRegion maxHeight={260}><pre
