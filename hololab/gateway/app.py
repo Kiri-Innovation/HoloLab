@@ -3246,7 +3246,7 @@ def _mount_routes(app: FastAPI) -> None:
         workflow_id: str,
         graph_node_id: str,
         base_snapshot_id: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> JSONResponse:
         """Dispatch one graph node (Continue or Fork on a base snapshot).
 
         Semantics (see ``docs/workflow-schema.md#lineage-snapshots``):
@@ -3281,6 +3281,7 @@ def _mount_routes(app: FastAPI) -> None:
             (dispatch upstream first); assigned compute node offline.
         """
 
+        received_at = time.monotonic()
         workflows_store: WorkflowStore = app.state.workflows
         row = await workflows_store.get_draft(workflow_id)
         if row is None:
@@ -3306,7 +3307,14 @@ def _mount_routes(app: FastAPI) -> None:
         except DispatchError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-        return result
+        # Expose the gateway portion directly in Chromium's Network timing
+        # view.  It makes a long client request distinguishable from time
+        # spent before the request reached this ASGI handler (browser socket
+        # queueing / event-loop admission).
+        return JSONResponse(
+            result,
+            headers={"Server-Timing": f"gateway;dur={(time.monotonic() - received_at) * 1000:.1f}"},
+        )
 
     # -- cosmetic patch endpoints ---------------------------------------------
     #

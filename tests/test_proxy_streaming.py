@@ -162,6 +162,38 @@ async def test_proxy_passes_accept_ranges_from_upstream(
 
 
 @pytest.mark.asyncio
+async def test_proxy_repairs_stale_url_with_embedded_workspace_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A preview URL issued during an old node registration must self-heal.
+
+    The browser can retain the old URL after the session reconnects with a
+    workspace root.  Forwarding its embedded absolute root would make the
+    fileserver look under ``<root>/cloud/...`` and falsely return 404.
+    """
+
+    seen: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.path)
+        return httpx.Response(200, content=_streaming_body(b"preview"))
+
+    _install_mock_transport(monkeypatch, handler)
+    resp = await proxy_mod.proxy_get(
+        "node",
+        "cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/wf/j/job/masks/p.png",
+        _make_request(),
+        _FakeRegistry(
+            _FakeSession(workspace_root="/cloud/cloud-ssd1/Kiri4DGS/output/hololab")
+        ),  # type: ignore[arg-type]
+    )
+
+    assert resp.status_code == 200
+    assert seen == ["/w/wf/j/job/masks/p.png"]
+    assert await _collect_body(resp) == b"preview"
+
+
+@pytest.mark.asyncio
 async def test_proxy_passes_content_range_on_206(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

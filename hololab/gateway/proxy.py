@@ -44,6 +44,32 @@ def strip_workspace_prefix(session: NodeSession | None, absolute_path: str) -> s
     return absolute_path
 
 
+def normalize_proxy_subpath(session: NodeSession, path: str) -> str:
+    """Repair an old proxy URL which accidentally embeds a workspace root.
+
+    Handles normally reach this module as a relative ``w/<workflow>/...``
+    path.  During a node reconnect, however, an older handle response could
+    be built before the node advertised ``workspace_root``.  The browser then
+    retains a URL such as ``/proxy/<node>/cloud/.../output/hololab/w/...``.
+    The file server quite correctly treats that as a relative path and 404s.
+
+    Only strip a *known* current or legacy workspace root.  This is a
+    compatibility repair for already-issued URLs, not a broad path rewrite;
+    paths outside those roots remain untouched and are still rejected by the
+    node file server.
+    """
+
+    relative = path.lstrip("/")
+    roots = [session.workspace_root, *(session.legacy_workspace_roots or [])]
+    for root in roots:
+        if not root:
+            continue
+        root_relative = root.strip("/")
+        if relative.startswith(root_relative + "/"):
+            return relative[len(root_relative) + 1 :]
+    return path
+
+
 # Response headers we forward from the node back to the browser. The
 # missing pieces in the pre-streaming build caused user-visible
 # stalls in the video-grid drawer:
@@ -249,6 +275,10 @@ async def proxy_get(node_id: str, path: str, request: Request, registry: NodeReg
     session = registry.get_session(node_id)
     if session is None:
         raise HTTPException(status_code=404, detail=f"node {node_id!r} is not connected")
+
+    # Normalise before cache lookup as well as forwarding: a stale malformed
+    # URL and the canonical URL should share one derived-preview cache entry.
+    path = normalize_proxy_subpath(session, path)
 
     cache = getattr(registry, "derived_preview_cache", None)
     cached, cache_owner = await _cache_lookup(cache, node_id, path, request)

@@ -20,8 +20,11 @@ it.each([false, true])('dispatch and rerun use valid request IDs (native randomU
   }
   expect(new Headers(requests[0][1]?.headers).get('X-Preparation-Token')).toBe('prepared');
   expect(new Headers(requests[1][1]?.headers).get('X-Preparation-Token')).toBe('prepared');
-  if (native) expect(randomUUID).toHaveBeenCalledTimes(3);
-  else expect(getRandomValues).toHaveBeenCalledTimes(3);
+  // dispatch mints one additional ID for the unique Resource Timing URL;
+  // it keeps simultaneous dispatches distinguishable in Chromium.
+  expect(String(requests[0][0])).toContain('hl_timing=');
+  if (native) expect(randomUUID).toHaveBeenCalledTimes(4);
+  else expect(getRandomValues).toHaveBeenCalledTimes(4);
 });
 
 it('whole workflow reports every preparation blocker without submitting a run', async () => {

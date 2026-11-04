@@ -609,16 +609,18 @@ export const dispatchNode = async (
   graph_node_id: string,
   opts?: { base_snapshot_id?: string; graph?: WorkflowGraph },
 ) => {
-  const qs = opts?.base_snapshot_id
-    ? `?base_snapshot_id=${encodeURIComponent(opts.base_snapshot_id)}`
-    : "";
+  const timingId = newId();
+  const query = new URLSearchParams({ hl_timing: timingId });
+  if (opts?.base_snapshot_id) query.set("base_snapshot_id", opts.base_snapshot_id);
+  const dispatchUrl = `/api/workflows/${workflow_id}/dispatch/${encodeURIComponent(graph_node_id)}?${query}`;
   let dispatchRequestMs = 0;
+  let dispatchNetwork: Record<string, number> | undefined;
   const submit = async (headers: Record<string, string>) => {
     const started = performance.now();
     try {
       return await resilientFetch(
-        `/api/workflows/${workflow_id}/dispatch/${encodeURIComponent(graph_node_id)}${qs}`,
-        { method: "POST", headers },
+        dispatchUrl,
+        { method: "POST", headers: { ...headers, "X-HoloLab-Timing-ID": timingId } },
         { retryNonIdempotent: true },
       ).then(json<{
         snapshot_id: string;
@@ -633,6 +635,19 @@ export const dispatchNode = async (
       }>);
     } finally {
       dispatchRequestMs += performance.now() - started;
+      // Resource Timing is Chromium's network-panel timing in machine-readable
+      // form. The unique query key keeps concurrent dispatches distinct.
+      if (typeof window !== "undefined") {
+        const name = new URL(dispatchUrl, window.location.origin).href;
+        const entry = performance.getEntriesByName(name, "resource").at(-1) as PerformanceResourceTiming | undefined;
+        if (entry) {
+          dispatchNetwork = {
+            queueing_ms: Math.max(0, entry.requestStart - entry.fetchStart),
+            waiting_ttfb_ms: Math.max(0, entry.responseStart - entry.requestStart),
+            download_ms: Math.max(0, entry.responseEnd - entry.responseStart),
+          };
+        }
+      }
     }
   };
   let preparationMs = 0;
@@ -651,6 +666,7 @@ export const dispatchNode = async (
         preparation_ms: preparationMs,
         preparation_attempts: preparationAttempts,
         dispatch_request_ms: dispatchRequestMs,
+        dispatch_network: dispatchNetwork,
         stale_retry: false,
       },
     };
@@ -667,6 +683,7 @@ export const dispatchNode = async (
         preparation_ms: preparationMs,
         preparation_attempts: preparationAttempts,
         dispatch_request_ms: dispatchRequestMs,
+        dispatch_network: dispatchNetwork,
         stale_retry: true,
       },
     };

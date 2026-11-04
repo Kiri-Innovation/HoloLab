@@ -221,9 +221,12 @@ async def prepare_execution(
     from hololab.gateway.app import _await_node_reply
     from hololab.protocol.messages import PrepareParamsReq
 
+    started = time.monotonic()
+    spans: dict[str, float] = {}
     validate_graph_identities(graph)
     catalog = copy.deepcopy(app.state.registry.catalog_json())
     result = resolve_recipe(graph, catalog)
+    spans["resolve_recipe"] = time.monotonic() - started
     required = required if required is not None else {n.id for n in graph.nodes if n.kind != "view"}
     from hololab.gateway.capabilities import check_workflow, enforce_workflow
 
@@ -233,6 +236,7 @@ async def prepare_execution(
     result.execution["environment_checks"] = await check_workflow(
         app, result, required=required, fresh=True
     )
+    spans["environment_checks"] = time.monotonic() - started - sum(spans.values())
     blocked = {
         nid
         for nid, report in result.execution["environment_checks"].items()
@@ -281,6 +285,7 @@ async def prepare_execution(
                 }
             )
             blocked.add(node.id)
+    spans["prepare_params"] = time.monotonic() - started - sum(spans.values())
     if strict:
         enforce_workflow(result.execution["environment_checks"])
         # A preparation token is an execution preflight, not merely an
@@ -288,9 +293,18 @@ async def prepare_execution(
         # hover/background prepare can pay the node RPC before the user clicks
         # Run.  ``submitted_execution`` still verifies the token revision
         # against the latest persisted draft before it can be consumed.
+        code_identity_started = time.monotonic()
         await capture_code_identities(app, result, required=required)
+        spans["code_identity"] = time.monotonic() - code_identity_started
         result.execution["code_identity_prepared"] = True
     result.execution["prepared_nodes"] = sorted(required - blocked)
+    log.info(
+        "prepare profile",
+        graph_node_ids=sorted(required),
+        strict=strict,
+        total_s=round(time.monotonic() - started, 4),
+        **{f"{name}_s": round(value, 4) for name, value in spans.items()},
+    )
     return result
 
 
