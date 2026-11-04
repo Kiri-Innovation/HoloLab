@@ -327,7 +327,11 @@ algorithm developer owns the declaration's agreement with algorithm code; the
 system does not infer intent or statically analyze that code. Checks run when
 loading declarations, validating edges, before execution and before publishing
 any output (including cached output). Image arrays are validated **at every
-leaf**, including full decode, not by sampling handle summaries.
+leaf**, including full decode, not by sampling handle summaries. Decodes run
+in a shared pool of worker processes. An input leaf that the same node process
+already fully decoded, and whose file identity (device, inode, size, mtime,
+ctime) is unchanged since, gets a structural `verify()` instead of a second
+full decode; any other input leaf is fully decoded.
 
 Top-level manifest `parallelism` and `batch_size` are optional positive integers
 (`>= 1`), recommending defaults for newly created nodes. Omitted or `null` means
