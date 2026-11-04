@@ -22,10 +22,14 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
   const [stopping, setStopping] = useState(false);
   const [acceptedJob, setAcceptedJob] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pendingLongerThanFiveSeconds, setPendingLongerThanFiveSeconds] = useState(false);
   const lock = useRef(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const busy = pending || stopping || (stoppable && acceptedJob === jobId);
-  const disabled = busy || (stoppable && !jobId);
+  // Keep a dispatching control pointer-accessible so its delayed-status
+  // tooltip remains available. Clicks are still ignored below, and
+  // aria-disabled accurately tells assistive technology it cannot stop yet.
+  const disabled = (busy && !pending) || (stoppable && !jobId);
   const label = stopping ? "正在停止" : stoppable && acceptedJob === jobId ? "停止已请求，等待状态同步" : stoppable ? "停止运行" : pending ? "停止" : stale ? "重新运行" : "运行";
   const close = () => { if (!lock.current) { setConfirmJob(null); setError(null); trigger.current?.focus(); } };
   useEffect(() => {
@@ -40,6 +44,11 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
     if (!stopping && (confirmJob !== jobId || !stoppable)) setConfirmJob(null);
   }, [confirmJob, jobId, stoppable, stopping]);
   useEffect(() => { if (!stoppable || acceptedJob !== jobId) setAcceptedJob(null); }, [jobId, stoppable, acceptedJob]);
+  useEffect(() => {
+    if (!pending) { setPendingLongerThanFiveSeconds(false); return; }
+    const timer = window.setTimeout(() => setPendingLongerThanFiveSeconds(true), 5_000);
+    return () => window.clearTimeout(timer);
+  }, [pending]);
   const stop = async () => {
     if (lock.current || !confirmJob || confirmJob !== jobId || !stoppable) return;
     lock.current = true; setStopping(true); setError(null);
@@ -56,9 +65,9 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
   const staleTint = !!stale && !stoppable && !busy;
   return <>
     <button ref={trigger} type="button" className={`hl-node-run-control nodrag${stoppable ? " hl-node-stop-control" : ""}`}
-      disabled={disabled} aria-label={label}
-      data-tooltip={blockedReason && !stoppable ? blockedReason : pending ? "任务创建中；创建后即可停止" : !jobId && stoppable ? "正在获取任务信息，暂不能停止" : stoppable && !busy ? "停止运行（需确认；不是暂停）" : label}
-      onClick={e => { e.stopPropagation(); if (stoppable && jobId) { setError(null); setConfirmJob(jobId); } else if (!disabled) onRun(); }}
+      disabled={disabled} aria-disabled={pending || undefined} aria-label={label}
+      data-tooltip={blockedReason && !stoppable ? blockedReason : pending ? pendingLongerThanFiveSeconds ? "仍在创建任务；请稍候，失败时会显示原因" : "任务创建中；创建后即可停止" : !jobId && stoppable ? "正在获取任务信息，暂不能停止" : stoppable && !busy ? "停止运行（需确认；不是暂停）" : label}
+      onClick={e => { e.stopPropagation(); if (pending) return; if (stoppable && jobId) { setError(null); setConfirmJob(jobId); } else if (!disabled) onRun(); }}
       onPointerEnter={() => {
         // This does not dispatch. It only asks App to preflight the current
         // persisted revision, so a later click can consume its token.
@@ -67,8 +76,8 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
       style={{ border: `1px solid ${staleTint ? "var(--warning)" : "var(--border-strong)"}`,
         background: busy ? "var(--surface-3)" : staleTint ? "var(--warning-soft)" : "var(--surface-raised)",
         color: busy ? "var(--text-muted)" : staleTint ? "var(--warning)" : "var(--text)" }}>
-      {busy ? <span aria-hidden="true">{pending ? label : "…"}</span> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-        {stoppable ? <rect x="5" y="5" width="14" height="14" rx="1" /> : <path d="m7 4 14 8-14 8Z" />}
+      {busy && !pending ? <span aria-hidden="true">…</span> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        {stoppable || pending ? <rect x="5" y="5" width="14" height="14" rx="1" /> : <path d="m7 4 14 8-14 8Z" />}
       </svg>}
     </button>
     {confirmJob && createPortal(<div onClick={e=>e.stopPropagation()} onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{

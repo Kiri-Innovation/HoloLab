@@ -10,10 +10,10 @@ const pack={name:'merge-colmap',version:'0.4.0',node_ids:[],manifest_hash:'x',in
 document.documentElement.dataset.theme=new URLSearchParams(location.search).get('theme') || 'light';
 const types={algorithm:AlgorithmNode};
 function Fixture(){
-  const [nodes,setNodes]=useState(['running','done','pending','orphaned','assigned','interrupted','snapshot'].map((state,i)=>({id:state,type:'algorithm',position:{x:120+(i%3)*360,y:170+Math.floor(i/3)*240},data:{pack,assigned_node_id:null,readOnly:state==='snapshot',runtime:{state:state==='snapshot'?'running':state,job_id:state+'-parent',progress:{current:21,total:159},started_ts:Date.now()/1000-21}}})));
+  const [nodes,setNodes]=useState(['running','done','pending','orphaned','assigned','interrupted','snapshot','dispatching','failed-dispatch'].map((state,i)=>({id:state,type:'algorithm',position:{x:120+(i%3)*360,y:170+Math.floor(i/3)*240},data:{pack,assigned_node_id:null,readOnly:state==='snapshot',runtime:{state:['dispatching','failed-dispatch'].includes(state)?'done':state==='snapshot'?'running':state,job_id:state+'-parent',progress:{current:21,total:159},started_ts:Date.now()/1000-21}}})));
   useEffect(()=>{
     const update=(e:any)=>setNodes(prev=>prev.map(n=>n.id===e.detail.id?{...n,data:{...n.data,runtime:{...n.data.runtime,...e.detail.runtime}}}:n));
-    const run=(e:any)=>{e.detail.handled=true;update({detail:{id:e.detail.graph_node_id,runtime:{state:'running',job_id:'new-parent'}}});e.detail.resolve();};
+    const run=(e:any)=>{e.detail.handled=true;if(e.detail.graph_node_id==='dispatching')return;if(e.detail.graph_node_id==='failed-dispatch'){e.detail.reject('模拟派发失败');return;}update({detail:{id:e.detail.graph_node_id,runtime:{state:'running',job_id:'new-parent'}}});e.detail.resolve();};
     window.addEventListener('fixture:runtime',update);window.addEventListener(RUN_NODE_EVENT,run);
     return()=>{window.removeEventListener('fixture:runtime',update);window.removeEventListener(RUN_NODE_EVENT,run);};
   },[]);

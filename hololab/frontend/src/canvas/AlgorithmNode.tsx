@@ -892,11 +892,11 @@ function FooterRunSummary({
   }
 
   if (state === "pending" || state === "assigned") {
-    return (
-      <span data-tooltip={statusTitle} style={{ ...commonStyle, color: runColour }}>
-        {state === "pending" ? "排队中" : "已派发…"}
-      </span>
-    );
+    // The stop control and status dot already communicate an in-flight job.
+    // Repeating the scheduler phase here made the footer noisy, especially
+    // immediately after a click. Progress takes this slot once execution
+    // begins; until then leave the body quiet.
+    return null;
   }
 
   // Terminal states — done / failed / cancelled / orphaned. Render

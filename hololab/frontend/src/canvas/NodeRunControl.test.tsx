@@ -11,6 +11,11 @@ it.each([undefined,"done","failed","cancelled","interrupted","future"])("offers 
   const html=renderToStaticMarkup(<NodeRunControl id="node" state={state} pending={false} onRun={()=>{}}/>);
   expect(html).toContain('aria-label="运行"');expect(html).toContain('<path');
 });
+it("keeps the optimistic dispatch control as a square stop icon", () => {
+  const html=renderToStaticMarkup(<NodeRunControl id="node" pending state="done" onRun={()=>{}}/>);
+  expect(html).toContain('aria-label="停止"');expect(html).toContain('<rect');expect(html).not.toContain('>停止<');
+  expect(html).toContain('任务创建中；创建后即可停止');
+});
 it("blocks cancellation while the job identity is missing",()=>{
   const html=renderToStaticMarkup(<NodeRunControl id="node" state="running" pending={false} onRun={()=>{}}/>);
   expect(html).toContain('disabled=""');expect(html).toContain('正在获取任务信息');

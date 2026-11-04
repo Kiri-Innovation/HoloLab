@@ -6,6 +6,7 @@ for(const theme of ['light','dark']) test(`node run and stop in ${theme}`,async(
   const stop=(id:string)=>card(id).getByRole('button',{name:'停止运行',exact:true});
   const update=async(id:string,runtime:Record<string,string>)=>page.evaluate(({id,runtime})=>window.dispatchEvent(new CustomEvent('fixture:runtime',{detail:{id,runtime}})),{id,runtime});
   for(const id of ['running','pending','assigned','orphaned']) await expect(stop(id)).toBeEnabled();
+  for(const id of ['pending','assigned']) { await expect(card(id)).not.toContainText('排队中');await expect(card(id)).not.toContainText('已派发'); }
   await expect(card('snapshot').locator('.hl-node-run-control')).toHaveCount(0);
   await expect(card('interrupted').getByRole('button',{name:'运行',exact:true})).toBeEnabled();
   await stop('running').hover();await expect(page.getByRole('tooltip')).toContainText('停止运行');
@@ -33,6 +34,20 @@ for(const theme of ['light','dark']) test(`node run and stop in ${theme}`,async(
   expect(requests).toBe(1);
   // Existing dispatch event still reaches its handler and transitions into stop mode.
   await card('done').getByRole('button',{name:'运行',exact:true}).click();await expect(stop('done')).toBeEnabled();
+  // A click immediately keeps the square stop affordance without adding a
+  // scheduler-phase sentence to the card body. The delayed fixture also
+  // exposes the honest >5 s tooltip while a job has not arrived yet.
+  const dispatching=card('dispatching');
+  await dispatching.getByRole('button',{name:'运行',exact:true}).click();
+  const optimisticStop=dispatching.getByRole('button',{name:'停止',exact:true});
+  await expect(optimisticStop).toHaveAttribute('aria-disabled','true');await expect(optimisticStop.locator('rect')).toHaveCount(1);
+  await expect(dispatching).not.toContainText('排队中');await expect(dispatching).not.toContainText('已派发');
+  await dispatching.screenshot({path:info.outputPath(`click-only-stop-${theme}.png`)});
+  await page.waitForTimeout(5_100);await optimisticStop.hover();await expect(page.getByRole('tooltip')).toContainText('仍在创建任务');await page.mouse.move(0,0);
+  const failedDispatch=card('failed-dispatch');
+  await failedDispatch.getByRole('button',{name:'运行',exact:true}).click();
+  await expect(failedDispatch).toContainText('模拟派发失败');
+  await failedDispatch.screenshot({path:info.outputPath(`dispatch-error-${theme}.png`)});
   // A confirmation belongs to one generation only.
   await stop('pending').click();await update('pending',{job_id:'next-parent'});await expect(page.getByRole('dialog')).toHaveCount(0);
   await stop('orphaned').click();await expect(page.getByRole('dialog')).toContainText('停止指令可能暂时无法送达');await page.keyboard.press('Escape');
