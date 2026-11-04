@@ -231,6 +231,27 @@ function mergeSnapshotJobUpdate(
   });
 }
 
+/**
+ * Keep a real, live job accepted by dispatch while an older analysis response
+ * is still in flight. Analysis is eventually-consistent and can describe the
+ * previous snapshot; replacing the canvas collection with it used to erase
+ * the REST-confirmed job until the next poll.
+ */
+function retainLiveCanvasJobs(
+  analysed: CanvasJob[],
+  current: CanvasJob[],
+  latestSnapshotId: string | null,
+): CanvasJob[] {
+  if (!latestSnapshotId) return analysed;
+  const seen = new Set(analysed.map((job) => job.job_id));
+  const live = current.filter((job) =>
+    job.snapshot_id === latestSnapshotId &&
+    !seen.has(job.job_id) &&
+    ["pending", "assigned", "running"].includes(job.state),
+  );
+  return live.length ? analysed.concat(live) : analysed;
+}
+
 // A workflow-scoped id counter, distinct from xyflow's internal instance ids.
 let ID_COUNTER = 1;
 function mintId(prefix: string): string {
@@ -695,10 +716,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         // payload wins for the fields it names; anything else is preserved
         // from the previous snapshot so we don't lose eg the initial
         // created_ts once REST updates roll in.
-        const optimisticId = p.graph_node_id
+        // A fan-out broadcasts one update for its parent and many more for
+        // its shards. Only the parent is the run the click created; letting a
+        // first shard consume the optimistic row causes a visible flicker.
+        const isParentJob = !p.parent_job_id;
+        const optimisticId = p.graph_node_id && isParentJob
           ? optimisticJobByGraphNodeRef.current[p.graph_node_id]
           : undefined;
-        if (p.graph_node_id) delete optimisticJobByGraphNodeRef.current[p.graph_node_id];
+        if (p.graph_node_id && isParentJob) delete optimisticJobByGraphNodeRef.current[p.graph_node_id];
         setJobsById((prev) => {
           const withoutOptimistic = optimisticId
             ? Object.fromEntries(Object.entries(prev).filter(([id]) => id !== optimisticId))
@@ -1507,6 +1532,21 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 snapshot_id: result.snapshot_id,
               });
             }
+            // ``jobsById`` powers Recent jobs, while ``canvasJobs`` powers
+            // the node dot. Seed both from this same persisted response.
+            // Waiting for /analyze made the node lose its optimistic blue
+            // state although Recent jobs already knew the accepted job.
+            const accepted = staged.get(result.job_id)!;
+            const acceptedCanvasJob: CanvasJob = {
+              ...mergeSnapshotJobUpdate([], accepted)[0],
+              snapshot_id: result.snapshot_id,
+            };
+            setCanvasJobs((prev) => [
+              // This is the current generation for this graph node. Exclude
+              // old parents/shards until authoritative analysis catches up.
+              ...prev.filter((job) => job.graph_node_id !== graph_node_id),
+              acceptedCanvasJob,
+            ]);
             // REST is the initiating tab's authoritative acknowledgement.
             // Do not make Recent jobs depend on a later WS frame: a fork can
             // switch snapshots while that frame is in flight, and an early
@@ -2414,7 +2454,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     // Keep the last validated selection while the periodic refresh is in
     // flight; a transient clear made completed nodes look never-run.
     if (executionAnalysis.isCurrent) {
-      setCanvasJobs(executionAnalysis.data?.canvas_jobs ?? []);
+      const analysed = executionAnalysis.data?.canvas_jobs ?? [];
+      setCanvasJobs((current) =>
+        retainLiveCanvasJobs(analysed, current, latestSnapshotIdRef.current),
+      );
     }
   }, [executionAnalysis.data, executionAnalysis.isCurrent]);
 
