@@ -43,7 +43,7 @@ for(const theme of ['light','dark']) test(`node run and stop in ${theme}`,async(
   await expect(optimisticStop).toHaveAttribute('aria-disabled','true');await expect(optimisticStop.locator('rect')).toHaveCount(1);
   await expect(dispatching).not.toContainText('排队中');await expect(dispatching).not.toContainText('已派发');
   await dispatching.screenshot({path:info.outputPath(`click-only-stop-${theme}.png`)});
-  await page.waitForTimeout(5_100);await optimisticStop.hover();await expect(page.getByRole('tooltip')).toContainText('仍在创建任务');await page.mouse.move(0,0);
+  await page.waitForTimeout(5_100);await expect(optimisticStop).toHaveAttribute('data-tooltip',/仍在创建任务/);await expect(optimisticStop).toHaveAttribute('title',/仍在创建任务/);
   const failedDispatch=card('failed-dispatch');
   await failedDispatch.getByRole('button',{name:'运行',exact:true}).click();
   await expect(failedDispatch).toContainText('模拟派发失败');

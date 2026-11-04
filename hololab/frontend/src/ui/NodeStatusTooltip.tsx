@@ -1,4 +1,5 @@
 import { statusReasonLines, type NodeStatusPresentation } from "../canvas/nodeStatus";
+import { JobStateMarker } from "./JobStateMarker";
 
 export function NodeStatusDot({ status, state }: { status: NodeStatusPresentation; state?: string }) {
   const text = `${status.conclusion}。${status.reason} ${status.action}`;
@@ -7,7 +8,11 @@ export function NodeStatusDot({ status, state }: { status: NodeStatusPresentatio
       aria-label={text} data-hl-node-status={state || "idle"} data-status-tone={status.tone}
       data-tooltip={text} data-tooltip-status={status.conclusion}
       data-tooltip-reason={status.reason} data-tooltip-action={status.action}>
-      <span className="hl-node-status-dot" aria-hidden="true" style={{ background: `var(--${status.tone})` }} />
+      <JobStateMarker
+        state={state}
+        fallbackColour={`var(--${status.tone})`}
+        className="hl-node-status-dot"
+      />
     </span>
   </span>;
 }

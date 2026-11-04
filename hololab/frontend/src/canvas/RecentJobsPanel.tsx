@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cancelAllJobs, cancelJob } from "../api";
 import type { NodeRuntime } from "./AlgorithmNode";
-import { stateColour } from "./AlgorithmNode";
+import { JobStateMarker } from "../ui/JobStateMarker";
 import { CopyRefButton } from "./CopyRefButton";
 import { JobLogModal } from "./JobLogModal";
 import "./recent-jobs.css";
@@ -87,9 +87,9 @@ const TERMINAL = new Set(["done", "failed", "cancelled", "interrupted"]);
 const STOPPABLE = new Set(["running", "assigned", "pending", "orphaned"]);
 
 // Same aggregation rule as ``aggregateJobsToRuntime`` (canvas node
-// status): in-flight beats failed so a fresh fan-out with a couple of
-// early shard failures still reads as "running" while the rest of the
-// shards complete. Once nothing is in flight, failed wins (terminal).
+// status): only a genuinely running shard reads as "running"; assigned
+// and pending shards remain waiting. A running shard still beats failed so
+// a fresh fan-out with a couple of early failures does not look terminal.
 // Kept local because the shape here is RecentJobRow[] rather than
 // SnapshotJob[]; extracting a shared helper would force both files to
 // depend on a union type they otherwise don't need. If a third caller
@@ -97,16 +97,30 @@ const STOPPABLE = new Set(["running", "assigned", "pending", "orphaned"]);
 function aggregateGroupState(parent: RecentJobRow, shards: RecentJobRow[]): string {
   const all = [parent, ...shards];
   let hasFailed = false;
-  let hasInFlight = false;
+  let hasRunning = false;
+  let hasAssigned = false;
+  let hasPending = false;
   let firstNonDone: string | null = null;
   let allDone = true;
   for (const j of all) {
     if (j.state !== "done") allDone = false;
     if (j.state === "failed") hasFailed = true;
-    else if (IN_FLIGHT.has(j.state)) hasInFlight = true;
     if (j.state !== "done" && firstNonDone === null) firstNonDone = j.state;
   }
-  if (hasInFlight) {
+  for (const shard of shards) {
+    if (shard.state === "running") hasRunning = true;
+    else if (shard.state === "assigned") hasAssigned = true;
+    else if (shard.state === "pending") hasPending = true;
+  }
+  // A regular job is its own execution row; a fan-out parent is only a
+  // coordinator, so its RUNNING transition is not proof that a shard has
+  // started the algorithm process.
+  if (!parent.expected_shards) {
+    hasRunning ||= parent.state === "running";
+    hasAssigned ||= parent.state === "assigned";
+    hasPending ||= parent.state === "pending";
+  }
+  if (hasRunning || hasAssigned || hasPending) {
     // Parent-terminal guard — mirror of
     // ``canvas/nodeRuntime.ts:aggregateStates``. If the fan-out
     // coordinator has finalised the "in-flight" shards are stranded;
@@ -115,8 +129,10 @@ function aggregateGroupState(parent: RecentJobRow, shards: RecentJobRow[]): stri
     // at t+8m47s with 5 shards stranded PENDING, the panel row read
     // "1h 24m" and rising until refresh.
     if (TERMINAL.has(parent.state)) return parent.state;
-    return "running";
+    if (hasRunning) return "running";
+    return hasAssigned ? "assigned" : "pending";
   }
+  if (parent.expected_shards && !TERMINAL.has(parent.state)) return "pending";
   if (hasFailed) return "failed";
   if (allDone) return "done";
   return firstNonDone ?? "done";
@@ -915,14 +931,7 @@ function SingleJobRow({
           : "transparent";
       }}
     >
-      <div
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: "var(--radius-pill)",
-          background: stateColour(job.state),
-        }}
-      />
+      <JobStateMarker state={job.state} />
       <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         <strong style={{ color: "var(--text)", fontWeight: 600 }}>
           {label ?? job.algorithm_name}
@@ -1097,14 +1106,7 @@ function GroupJobRow({
           e.currentTarget.style.background = "transparent";
         }}
       >
-        <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "var(--radius-pill)",
-            background: stateColour(state),
-          }}
-        />
+        <JobStateMarker state={state} />
         <div
           style={{
             overflow: "hidden",

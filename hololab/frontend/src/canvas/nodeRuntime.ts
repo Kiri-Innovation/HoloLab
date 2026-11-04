@@ -33,28 +33,20 @@
 // aligns the two surfaces: the node card mirrors the panel's newest
 // group, and older attempts don't overwrite fresh success.
 //
-// Within a single generation, the state priority is unchanged:
+// Within a single generation, the state priority is deliberately precise:
 //
-//   1. Any job still ``running`` / ``assigned`` / ``pending`` →
-//      node state ``running``. Something is in flight, so the aggregate
-//      is NOT a terminal verdict yet; showing red would panic the user
-//      into thinking a run they just kicked off is already dead when
-//      really it's 2/100 and climbing. Failed shards from earlier in
-//      the same fan-out are still reported via ``fail_reason`` on the
-//      first failed job, but they don't override live progress.
-//   2. Else any job ``failed`` → node state ``failed`` (terminal, at
+//   1. A process actually ``running`` → node state ``running``. For a
+//      fan-out this must be a shard, not its bookkeeping parent.
+//   2. Else an ``assigned`` / ``pending`` execution → the same waiting
+//      state, rendered as a neutral spinner rather than a running colour.
+//   3. Else any job ``failed`` → node state ``failed`` (terminal, at
 //      least one shard died and nothing is running to redeem it).
-//   3. Else all jobs ``done`` → node state ``done``.
-//   4. Else fall back to the first non-done state — covers ``cancelled``
+//   4. Else all jobs ``done`` → node state ``done``.
+//   5. Else fall back to the first non-done state — covers ``cancelled``
 //      / ``orphaned`` mixes that don't fit the happy path.
 //
-// This inverts the earlier "any-failed → failed" short-circuit. Motivation
-// (2026-09-21): a fan-out with 8 shards failed + 3 running + 96 pending
-// was rendering the node card red before the run had even settled, so
-// operators watching a fresh dispatch saw "红色 = 完蛋" while the progress
-// footer was ticking ``2/100``. Prioritising in-flight preserves the
-// terminal-failed signal for terminated runs (nothing running → failed
-// wins as before) while keeping the live view honest about progress.
+// This preserves the earlier "a running shard beats a failed shard" rule
+// without calling a queueing parent or pending shard "running".
 //
 // Progress for a fan-out node is ``done_shards / total_shards``. For a
 // single-job node it's the job's own progress. fail_reason is inherited
@@ -64,21 +56,34 @@
 import type { SnapshotJob } from "../wire";
 import type { NodeRuntime } from "./AlgorithmNode";
 
-const IN_FLIGHT_STATES = new Set(["running", "assigned", "pending"]);
 const TERMINAL_STATES = new Set(["done", "failed", "cancelled", "interrupted"]);
 
 function aggregateStates(jobs: readonly SnapshotJob[], parent: SnapshotJob): string {
   let hasFailed = false;
-  let hasInFlight = false;
+  let hasRunning = false;
+  let hasAssigned = false;
+  let hasPending = false;
   let firstNonDone: string | null = null;
   let allDone = true;
+  // A fan-out parent is a coordinator, not its algorithm process. It moves
+  // through RUNNING while it creates and schedules shards, so only a child
+  // shard may make the node's blue "running" mark. A lone job remains its
+  // own execution row.
+  const fanout = parent.expected_shards != null;
+  const executionRows = fanout
+    ? jobs.filter((job) => job.parent_job_id === parent.job_id)
+    : jobs;
   for (const j of jobs) {
     if (j.state !== "done") allDone = false;
     if (j.state === "failed") hasFailed = true;
-    else if (IN_FLIGHT_STATES.has(j.state)) hasInFlight = true;
     if (j.state !== "done" && firstNonDone === null) firstNonDone = j.state;
   }
-  if (hasInFlight) {
+  for (const j of executionRows) {
+    if (j.state === "running") hasRunning = true;
+    else if (j.state === "assigned") hasAssigned = true;
+    else if (j.state === "pending") hasPending = true;
+  }
+  if (hasRunning || hasAssigned || hasPending) {
     // Normal path: in-flight beats failed so a fresh dispatch with a
     // few early shard failures still reads ``running`` (see file
     // header). Exception: if the parent coordinator has already
@@ -90,8 +95,13 @@ function aggregateStates(jobs: readonly SnapshotJob[], parent: SnapshotJob): str
     // the parent only reaches a terminal state after every shard is
     // terminal, so this branch is a no-op.
     if (TERMINAL_STATES.has(parent.state)) return parent.state;
-    return "running";
+    if (hasRunning) return "running";
+    return hasAssigned ? "assigned" : "pending";
   }
+  // The coordinator can announce RUNNING before the bulk shard rows arrive.
+  // It is still scheduling, not executing user code, so retain the waiting
+  // marker until a shard provides actual running evidence.
+  if (fanout && !TERMINAL_STATES.has(parent.state)) return "pending";
   if (hasFailed) return "failed";
   if (allDone) return "done";
   return firstNonDone ?? "done";

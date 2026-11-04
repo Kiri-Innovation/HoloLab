@@ -1,5 +1,7 @@
 """Draft evidence selection; never changes frozen run membership."""
 
+import asyncio
+
 from hololab.constants import is_constant
 from hololab.gateway.preparation import changed_nodes, digest, historical_execution
 from hololab.gateway.workflows import downstream_closure, topological_order
@@ -78,14 +80,19 @@ async def canvas_jobs(app, workflow_id, graph):
         ) as cur,
     ):
         rows = await cur.fetchall()
-    sources = {}
-    for sid, _, _ in rows:
-        if sid not in sources:
-            snapshot = await app.state.workflows.get_snapshot(sid)
-            sources[sid] = (
-                await historical_execution(app, snapshot),
-                await app.state.jobs_store.list_by_snapshot(sid),
-            )
+    async def load_source(sid):
+        # Every candidate snapshot is independent here.  This used to load
+        # them serially (snapshot -> historical graph -> jobs for each sid),
+        # making a fork's materialization scale with the number of historical
+        # branches.  Parallel reads preserve the exact selection algorithm
+        # below while removing that artificial round-trip chain.
+        snapshot, jobs = await asyncio.gather(
+            app.state.workflows.get_snapshot(sid),
+            app.state.jobs_store.list_by_snapshot(sid),
+        )
+        return sid, (await historical_execution(app, snapshot), jobs)
+
+    sources = dict(await asyncio.gather(*(load_source(sid) for sid in {row[0] for row in rows})))
     candidates = []
     for sid, _nid, jid in rows:
         job = next((j for j in sources[sid][1] if j["job_id"] == jid), None)

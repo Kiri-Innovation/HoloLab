@@ -108,10 +108,10 @@ describe("aggregateJobsToRuntime — state priority", () => {
     expect(out.n.state).toBe("running");
   });
 
-  it("pending-only + failed → running (pending still counts as in-flight)", () => {
+  it("pending-only + failed → pending (no shard process has started)", () => {
     // Right after dispatch — no shard has picked up yet but the
-    // fan-out is committed. This must not paint the node red on the
-    // strength of a prior-attempt failure that leaked into the list.
+    // fan-out is committed. This must remain waiting, not paint blue or
+    // red: the blue mark is reserved for a shard process that is running.
     const parent = mkJob({ job_id: "p", state: "pending", created_ts: 0 });
     const s0 = mkJob({
       job_id: "s0",
@@ -126,7 +126,7 @@ describe("aggregateJobsToRuntime — state priority", () => {
       created_ts: 2,
     });
     const out = aggregateJobsToRuntime([parent, s0, s1]);
-    expect(out.n.state).toBe("running");
+    expect(out.n.state).toBe("pending");
   });
 
   it("all terminal, some failed → failed (terminal verdict once nothing runs)", () => {
@@ -442,7 +442,7 @@ describe("aggregateJobsToRuntime — state priority", () => {
     );
 
     const out = aggregateJobsToRuntime([parent, ...shards]);
-    expect(out.n.state).toBe("running");
+    expect(out.n.state).toBe("pending");
     expect(out.n.progress).toEqual({ current: 48, total: 100 });
   });
 

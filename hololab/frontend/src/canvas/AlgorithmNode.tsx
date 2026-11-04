@@ -191,11 +191,7 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
 // badge, the Jobs panel row, and the workflow-run summary counter so a
 // glance across the UI is coherent.
 export const STATE_COLOURS: Record<string, string> = {
-  // A pending job has already been persisted by the gateway. Present it as
-  // the same informational blue as ASSIGNED so a click does not appear to
-  // drop from the optimistic acknowledgement while an arrayed parent builds
-  // its shard plan.
-  pending: "var(--status-assigned)",
+  pending: "var(--status-pending)",
   assigned: "var(--status-assigned)",
   running: "var(--status-running)",
   done: "var(--status-done)",

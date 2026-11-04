@@ -66,6 +66,7 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
   return <>
     <button ref={trigger} type="button" className={`hl-node-run-control nodrag${stoppable ? " hl-node-stop-control" : ""}`}
       disabled={disabled} aria-disabled={pending || undefined} aria-label={label}
+      title={pendingLongerThanFiveSeconds ? "仍在创建任务；请稍候，失败时会显示原因" : undefined}
       data-tooltip={blockedReason && !stoppable ? blockedReason : pending ? pendingLongerThanFiveSeconds ? "仍在创建任务；请稍候，失败时会显示原因" : "任务创建中；创建后即可停止" : !jobId && stoppable ? "正在获取任务信息，暂不能停止" : stoppable && !busy ? "停止运行（需确认；不是暂停）" : label}
       onClick={e => { e.stopPropagation(); if (pending) return; if (stoppable && jobId) { setError(null); setConfirmJob(jobId); } else if (!disabled) onRun(); }}
       onPointerEnter={() => {
