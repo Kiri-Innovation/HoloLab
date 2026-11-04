@@ -1410,10 +1410,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         // once if an edit made this speculative warm-up stale.
         const warm = warmNodePreparation(wid, graph_node_id).catch(() => {});
         saveRecipeRef.current().then(async () => {
+          onPhase?.("保存草稿并检查环境…");
           await warm;
-          // The server validates the environment and seals code identity while
-          // this request is pending; name that wait instead of showing "…".
-          onPhase?.("校验中…");
+          onPhase?.("校验代码身份并创建任务…");
           return dispatchNode(wid, graph_node_id);
         }).then(
           (result) => {
@@ -1437,6 +1436,30 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 snapshot_id: result.snapshot_id,
               });
             }
+            // REST is the initiating tab's authoritative acknowledgement.
+            // Do not make Recent jobs depend on a later WS frame: a fork can
+            // switch snapshots while that frame is in flight, and an early
+            // RUNNING/DONE frame used to be the first chance this row appeared.
+            setJobsById((prev) => {
+              const existing = prev[result.job_id];
+              const now = Date.now() / 1000;
+              const row: RecentJobRow = {
+                ...(existing ?? {
+                  job_id: result.job_id,
+                  algorithm_name: result.algorithm_name,
+                  algorithm_version: result.algorithm_version,
+                  graph_node_id: result.graph_node_id,
+                  created_ts: now,
+                  progress: null,
+                  updated_ts: now,
+                  fail_reason: null,
+                }),
+                state: result.state,
+                updated_ts: now,
+              };
+              (row as unknown as { workflow_id?: string }).workflow_id = wid;
+              return { ...prev, [result.job_id]: row };
+            });
             // Set the ref in the same synchronous turn as the seed: WS
             // frames from the new snapshot can now merge directly before
             // React commits the snapshot switch.

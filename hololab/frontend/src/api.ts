@@ -378,15 +378,27 @@ export const deleteWorkflow = (workflow_id: string) =>
 
 type Preparation = { token: string; run_blockers?: string[] };
 const preparationCache = new Map<string, Preparation>();
+// Hover and click frequently overlap.  One strict prepare can include a
+// seconds-long node-side identity check, so never start a second equivalent
+// RPC while the first is still resolving.
+const preparationInFlight = new Map<string, Promise<Preparation>>();
 const preparationKey = (workflowId: string, nodeId?: string) => `${workflowId}:${nodeId ?? "*"}`;
 
 /** Warm the strict, revision-bound preflight while the operator approaches Run. */
 export async function warmNodePreparation(workflowId: string, nodeId: string): Promise<void> {
-  const prepared = await resilientFetch(`/api/workflows/${workflowId}/prepare`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ node_id: nodeId }),
-  }).then(json<Preparation>);
-  if (!prepared.run_blockers?.length) preparationCache.set(preparationKey(workflowId, nodeId), prepared);
+  const key = preparationKey(workflowId, nodeId);
+  if (preparationCache.has(key)) return;
+  let pending = preparationInFlight.get(key);
+  if (!pending) {
+    pending = resilientFetch(`/api/workflows/${workflowId}/prepare`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ node_id: nodeId }),
+    }).then(json<Preparation>);
+    preparationInFlight.set(key, pending);
+    void pending.finally(() => preparationInFlight.delete(key)).catch(() => {});
+  }
+  const prepared = await pending;
+  if (!prepared.run_blockers?.length) preparationCache.set(key, prepared);
 }
 
 async function preparationHeaders(workflowId: string, nodeId?: string) {
@@ -395,6 +407,14 @@ async function preparationHeaders(workflowId: string, nodeId?: string) {
   if (cached) {
     preparationCache.delete(key); // never reuse a warm token after a submission attempt
     return { "X-Preparation-Token": cached.token, "X-Request-ID": newId() };
+  }
+  // A click may arrive while a hover preflight is still running. Consume its
+  // result rather than dispatching the same strict environment/identity RPC.
+  const inflight = preparationInFlight.get(key);
+  if (inflight) {
+    const prepared = await inflight;
+    if (prepared.run_blockers?.length) throw new Error(prepared.run_blockers.join("\n"));
+    return { "X-Preparation-Token": prepared.token, "X-Request-ID": newId() };
   }
   const prepared = await resilientFetch(`/api/workflows/${workflowId}/prepare`, {
     method: "POST", headers: { "Content-Type": "application/json" },
