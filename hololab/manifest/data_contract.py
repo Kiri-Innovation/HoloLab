@@ -5,10 +5,12 @@ layers; dot-prefixed framework metadata is not an element. Symbolic links are
 allowed (array utilities use them), but every referenced leaf is validated.
 """
 
+import contextlib
+import json
 import multiprocessing
 import os
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
@@ -35,6 +37,15 @@ _pool_lock = threading.Lock()
 _VERIFIED_LIMIT = 2_000_000
 _verified: dict[str, tuple[int, ...]] = {}
 _verified_lock = threading.Lock()
+
+# The same records persisted beside the files, so they survive a node restart:
+# one sidecar per directory, written after output validation passes. Memory is
+# consulted first; a sidecar entry counts only if the identity still matches.
+VERIFIED_SIDECAR = ".hololab-verified.json"
+_SIDECAR_VERSION = 1
+_SIDECAR_CACHE_LIMIT = 100_000
+# directory -> (sidecar identity, {file name: identity})
+_sidecars: dict[str, tuple[tuple[int, ...], dict[str, tuple[int, ...]]]] = {}
 
 
 class ContractError(ValueError):
@@ -65,6 +76,7 @@ def validate_path(
     label: str,
     params: dict | None = None,
     trust_verified: bool = False,
+    recorded: list[tuple[str, tuple[int, ...]]] | None = None,
 ) -> None:
     """Validate every image leaf, not just the first element or a summary count.
 
@@ -74,6 +86,8 @@ def validate_path(
     With ``trust_verified`` a leaf this process already fully decoded, and whose
     file identity (device, inode, size, mtime, ctime) is unchanged since, is
     checked with ``verify()`` (structure and checksums) instead of a full decode.
+    ``recorded`` collects (realpath, identity) of every leaf fully decoded here,
+    for ``write_verified_sidecars``.
     """
     variants = getattr(spec, "any_of", None) or []
     if variants:
@@ -81,7 +95,12 @@ def validate_path(
         for variant in variants:
             try:
                 validate_path(
-                    path, variant, label=label, params=params, trust_verified=trust_verified
+                    path,
+                    variant,
+                    label=label,
+                    params=params,
+                    trust_verified=trust_verified,
+                    recorded=recorded,
                 )
                 return
             except ContractError as exc:
@@ -133,7 +152,9 @@ def validate_path(
                 if error is not None:
                     raise ContractError(f"{label}: invalid image file {leaf}: {error}")
                 if identity is not None:
-                    _remember_verified(leaf, identity)
+                    real = _remember_verified(leaf, identity)
+                    if recorded is not None:
+                        recorded.append((real, identity))
         finally:
             checks.close()
     except OSError as exc:
@@ -235,26 +256,96 @@ def _check_leaves(
 
 def _still_verified(leaf: Path) -> bool:
     real = os.path.realpath(leaf)
-    with _verified_lock:
-        known = _verified.get(real)
-    if known is None:
-        return False
     try:
-        return known == _identity(os.stat(real))
+        current = _identity(os.stat(real))
     except OSError:
         return False
+    with _verified_lock:
+        known = _verified.get(real)
+    if known is not None:
+        return known == current
+    if _sidecar_identity(real) != current:
+        return False
+    _remember_verified(leaf, current)
+    return True
 
 
-def _remember_verified(leaf: Path, identity: tuple[int, ...]) -> None:
+def _remember_verified(leaf: Path, identity: tuple[int, ...]) -> str:
     real = os.path.realpath(leaf)
     with _verified_lock:
         if len(_verified) >= _VERIFIED_LIMIT:
             _verified.clear()
         _verified[real] = identity
+    return real
+
+
+def _sidecar_identity(real: str) -> tuple[int, ...] | None:
+    """Identity recorded for ``real`` in its directory's sidecar, if any."""
+    directory, name = os.path.split(real)
+    sidecar = os.path.join(directory, VERIFIED_SIDECAR)
+    try:
+        stamp = _identity(os.stat(sidecar))
+    except OSError:
+        return None
+    with _verified_lock:
+        cached = _sidecars.get(directory)
+    if cached is None or cached[0] != stamp:
+        try:
+            with open(sidecar, encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("version") != _SIDECAR_VERSION:
+                return None
+            entries = {k: tuple(v) for k, v in data["entries"].items()}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return None  # unreadable sidecar: fall back to a full decode
+        cached = (stamp, entries)
+        with _verified_lock:
+            if len(_sidecars) >= _SIDECAR_CACHE_LIMIT:
+                _sidecars.clear()
+            _sidecars[directory] = cached
+    return cached[1].get(name)
+
+
+def write_verified_sidecars(
+    recorded: Iterable[tuple[str, tuple[int, ...]]], roots: Iterable[str]
+) -> list[str]:
+    """Persist ``recorded`` leaves into one sidecar per directory.
+
+    Only directories inside ``roots`` (the job's own outputs) are written; a
+    leaf that links elsewhere belongs to its producer. Each sidecar is replaced
+    atomically with exactly the leaves validated now. Returns the sidecars
+    written; a directory that cannot be written is skipped (memory still holds
+    the records, and a missing sidecar only means a later full decode).
+    """
+    real_roots = [os.path.realpath(r) for r in roots]
+    by_dir: dict[str, dict[str, list[int]]] = {}
+    for real, identity in recorded:
+        directory, name = os.path.split(real)
+        if any(real == r or real.startswith(r + os.sep) for r in real_roots):
+            by_dir.setdefault(directory, {})[name] = list(identity)
+    written = []
+    for directory, entries in by_dir.items():
+        target = os.path.join(directory, VERIFIED_SIDECAR)
+        tmp = f"{target}.{os.getpid()}.{threading.get_ident()}.tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"version": _SIDECAR_VERSION, "entries": entries}, f)
+            os.replace(tmp, target)
+        except OSError:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp)
+            continue
+        written.append(target)
+    return written
 
 
 def validate_ports(
-    paths: dict[str, str], specs: dict, *, direction: str, params: dict | None = None
+    paths: dict[str, str],
+    specs: dict,
+    *,
+    direction: str,
+    params: dict | None = None,
+    recorded: list[tuple[str, tuple[int, ...]]] | None = None,
 ) -> None:
     for name, spec in specs.items():
         if name not in paths:
@@ -268,4 +359,5 @@ def validate_ports(
             params=params,
             # Inputs were usually produced, and fully decoded, by an upstream job.
             trust_verified=direction == "input",
+            recorded=recorded,
         )

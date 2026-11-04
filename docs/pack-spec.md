@@ -331,7 +331,11 @@ leaf**, including full decode, not by sampling handle summaries. Decodes run
 in a shared pool of worker processes. An input leaf that the same node process
 already fully decoded, and whose file identity (device, inode, size, mtime,
 ctime) is unchanged since, gets a structural `verify()` instead of a second
-full decode; any other input leaf is fully decoded.
+full decode; any other input leaf is fully decoded. So that this survives a
+node restart, the node writes `.hololab-verified.json` (file name → identity)
+into each of a job's output directories after its output validation passes.
+The sidecar is a cache, not part of the contract: an entry counts only while
+the file's identity still matches, and an unreadable sidecar means a full decode.
 
 Top-level manifest `parallelism` and `batch_size` are optional positive integers
 (`>= 1`), recommending defaults for newly created nodes. Omitted or `null` means

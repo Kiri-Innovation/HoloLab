@@ -43,6 +43,7 @@ def in_process_pool(monkeypatch):
     pool = ThreadPoolExecutor(4)
     monkeypatch.setattr(data_contract, "_decode_pool", lambda: pool)
     monkeypatch.setattr(data_contract, "_verified", {})
+    monkeypatch.setattr(data_contract, "_sidecars", {})
     yield pool
     pool.shutdown()
 
@@ -284,9 +285,9 @@ async def test_job_output_validated_once_and_invalid_never_registered(tmp_path, 
     calls = []
     real = runtime.validate_ports
 
-    def counting(paths, specs, *, direction, params=None):
+    def counting(paths, specs, *, direction, params=None, **kwargs):
         calls.append(direction)
-        return real(paths, specs, direction=direction, params=params)
+        return real(paths, specs, direction=direction, params=params, **kwargs)
 
     with patch.object(runtime, "validate_ports", counting):
         await _run(node, manifest)
