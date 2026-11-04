@@ -1489,25 +1489,20 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // until the dispatchRunNode timeout kicks in.
       try {
         const clickedAt = performance.now();
-        const graph = graphForRunRef.current?.();
-        // Save and strict preflight overlap.  Crucially, prepare receives the
-        // same in-memory graph that this click saves, so its token survives
-        // that save instead of deterministically causing a stale-token 409
-        // and a second environment/code-identity RPC.
+        // Saving is the revision boundary for a preparation token. Starting
+        // strict prepare before it completes races two graph serialisations:
+        // the token can describe the in-memory graph while dispatch validates
+        // the persisted graph, deterministically wasting one stale retry.
+        // Hover warmups remain useful: after save we consume their token only
+        // when their graph key exactly equals ``persistedGraph`` below.
         let warmFailed = false;
-        const warm = warmNodePreparation(wid, graph_node_id, graph ?? undefined)
-          .catch(() => { warmFailed = true; });
         const saveStartedAt = performance.now();
         saveRecipeRef.current().then(async () => {
           const saveCompletedAt = performance.now();
-          await warm;
-          const prepareCompletedAt = performance.now();
-          // ``save`` can wait behind an earlier autosave. In that case the
-          // graph captured at click is no longer necessarily the graph that
-          // reached the gateway. Consume the matching warmed token only when
-          // it is bound to the persisted snapshot; otherwise prepare the
-          // persisted graph once, rather than retrying a known-stale token.
           const persistedGraph = savedGraphForRunRef.current();
+          await warmNodePreparation(wid, graph_node_id, persistedGraph)
+            .catch(() => { warmFailed = true; });
+          const prepareCompletedAt = performance.now();
           const result = await dispatchNode(wid, graph_node_id, { graph: persistedGraph });
           const dispatchedAt = performance.now();
           // Chromium DevTools exposes this as a DOM event and console record.
