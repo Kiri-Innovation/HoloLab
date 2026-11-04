@@ -47,6 +47,7 @@ class _StubProc:
     """
 
     def __init__(self, exit_code: int = 0) -> None:
+        self.pid = 4242
         loop = asyncio.get_event_loop()
         # Empty streams — feed EOF immediately so drain_stream exits.
         self.stdout = asyncio.StreamReader(loop=loop)

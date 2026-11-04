@@ -1106,6 +1106,8 @@ async def _dispatch_prepared_shard(
         )
         raise
 
+    await store.record_event(assigned.job_id, "dispatch_sent", {"node_id": session.node_id})
+
     log.info(
         "shard dispatched",
         parent_job_id=shard.parent_job_id,
@@ -1398,6 +1400,8 @@ async def _dispatch_job(
             transition_tag="transition:failed",
         )
         raise
+
+    await store.record_event(assigned.job_id, "dispatch_sent", {"node_id": session.node_id})
 
     log.info(
         "dispatched",

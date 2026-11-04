@@ -129,6 +129,7 @@ from hololab.protocol import (
     JobFail,
     JobLog,
     JobProgress,
+    JobStarted,
     JobUpdate,
     LogChunk,
     NodeConfigGetReq,
@@ -3768,6 +3769,7 @@ def _mount_routes(app: FastAPI) -> None:
         frame = encode("job_assign", assign_msg, v=session.protocol_v)
         async with session.send_lock:
             await session.ws.send_text(frame)
+        await store.record_event(assigned.job_id, "dispatch_sent", {"node_id": session.node_id})
 
         return {
             "job_id": assigned.job_id,
@@ -4540,9 +4542,22 @@ async def _dispatch_node_frame(
 
     if kind == "job_ack":
         assert isinstance(payload, JobAck)
-        # State was set to ASSIGNED at dispatch; we don't require a formal ack
-        # transition. The next real signal (log or progress) transitions to
-        # RUNNING.
+        job = await store.get(payload.job_id)
+        if job is not None and (job.node_id is None or job.node_id == session.node_id):
+            await store.record_event(payload.job_id, "node_received", {"node_id": session.node_id})
+        return
+
+    if kind == "job_started":
+        assert isinstance(payload, JobStarted)
+        job = await store.get(payload.job_id)
+        if job is None or (job.node_id is not None and job.node_id != session.node_id):
+            return
+        if job.state is JobState.ASSIGNED:
+            running = JobStateMachine.transition(job, JobState.RUNNING)
+            kind_ev, ev_payload = event_from_transition(job, running)
+            await store.update(running, kind_ev, ev_payload)
+            await store.record_event(payload.job_id, "subprocess_started", {"pid": payload.pid})
+            _push_job_update(hub, running)
         return
 
     if kind == "job_progress":

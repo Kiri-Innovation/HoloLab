@@ -1217,6 +1217,26 @@ class JobsStore:
         if job.state.value in self._TERMINAL_STATES:
             self._notify_terminal(job)
 
+    async def record_event(
+        self, job_id: str, kind: str, payload: dict[str, Any] | None = None
+    ) -> None:
+        """Persist a lifecycle observation without changing the job state.
+
+        Gateway send and node receipt are not state transitions. Keeping them
+        durable lets operators separate transport/setup/fork latency without
+        abusing ``updated_ts`` or inventing a cosmetic state.
+        """
+
+        now = time.time()
+
+        async def _write(conn: aiosqlite.Connection) -> None:
+            await conn.execute(
+                "INSERT INTO job_events (job_id, kind, payload_json, ts) VALUES (?, ?, ?, ?)",
+                (job_id, kind, json.dumps(payload or {}), now),
+            )
+
+        await self._db.write(_write)
+
     def _notify_terminal(self, job: Job) -> None:  # noqa: F821
         """Fulfill every pending future waiting on ``job.job_id``. Idempotent
         — a re-transition to the same terminal state (shouldn't happen per

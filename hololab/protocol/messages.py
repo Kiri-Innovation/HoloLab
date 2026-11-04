@@ -375,6 +375,17 @@ class JobAck(BaseModel):
     job_id: str
 
 
+class JobStarted(BaseModel):
+    """Node → Gateway: the algorithm subprocess was successfully forked.
+
+    This means process-start, not first stdout/progress. Model imports and
+    CUDA initialisation can be quiet for many seconds while work is real.
+    """
+
+    job_id: str
+    pid: int
+
+
 class JobProgress(BaseModel):
     """Node → Gateway: progress update."""
 

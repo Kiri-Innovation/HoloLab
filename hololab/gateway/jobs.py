@@ -44,8 +44,8 @@ class JobState(str, Enum):
     """
 
     PENDING = "pending"  # queued, waiting for a node
-    ASSIGNED = "assigned"  # accepted by a node (job_ack received)
-    RUNNING = "running"  # started (first job_progress or first log line)
+    ASSIGNED = "assigned"  # sent to the node, awaiting a subprocess
+    RUNNING = "running"  # algorithm subprocess has successfully forked
     DONE = "done"  # completed successfully
     FAILED = "failed"  # non-zero exit or system error
     CANCELLED = "cancelled"  # user-requested stop

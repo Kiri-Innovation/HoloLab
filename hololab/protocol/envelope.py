@@ -51,6 +51,7 @@ _KIND_REGISTRY: dict[str, type[BaseModel]] = {
     "environment_updated": messages.EnvironmentUpdated,
     "job_assign": messages.JobAssign,
     "job_ack": messages.JobAck,
+    "job_started": messages.JobStarted,
     "job_progress": messages.JobProgress,
     "job_log": messages.JobLog,
     "job_done": messages.JobDone,

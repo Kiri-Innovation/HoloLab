@@ -64,6 +64,7 @@ from hololab.protocol import (
     JobFail,
     JobLog,
     JobProgress,
+    JobStarted,
     NodeConfigGetReq,
     NodeConfigGetResp,
     NodeConfigSetReq,
@@ -997,6 +998,7 @@ class NodeRuntime:
                     self._library_wake.set()
                 elif env.kind == "job_assign":
                     assert isinstance(payload, JobAssign)
+                    log.info("job received", job_id=payload.job_id, graph_node=payload.graph_node_id)
                     self._spawn_job(payload)
                 elif env.kind == "job_cancel":
                     assert isinstance(payload, JobCancel)
@@ -1889,6 +1891,10 @@ class NodeRuntime:
         path — byte-identical to pre-V14 behaviour.
         """
 
+        # Transport receipt is distinct from process start.  Send it before
+        # local validation so delivery/setup/fork latency is observable.
+        await self._send("job_ack", JobAck(job_id=assign.job_id))
+
         if assign.intrinsic is not None:
             await self._run_array_assemble(assign, cancel_event)
             return
@@ -2240,9 +2246,6 @@ class NodeRuntime:
             await self._send("job_done", JobDone(job_id=assign.job_id, output_handles={}))
             return
 
-        # Ack.
-        await self._send("job_ack", JobAck(job_id=assign.job_id))
-
         # Log batching.
         log_buffer: list[tuple[str, str]] = []
         buffer_lock = asyncio.Lock()
@@ -2345,6 +2348,11 @@ class NodeRuntime:
         exec_error: Exception | None = None
         result: ExecResult | None = None
         cpu_mask: str | None = None
+
+        async def mark_subprocess_started(pid: int) -> None:
+            log.info("job subprocess started", job_id=assign.job_id, pid=pid)
+            await self._send("job_started", JobStarted(job_id=assign.job_id, pid=pid))
+
         try:
             if self._exec_semaphore is not None:
                 async with self._exec_semaphore:
@@ -2375,6 +2383,7 @@ class NodeRuntime:
                             on_log=on_log,
                             on_progress=on_progress,
                             cancel_event=cancel_event,
+                            on_started=mark_subprocess_started,
                         )
                     finally:
                         self._release_cpu_slot(cpu_mask)
@@ -2399,6 +2408,7 @@ class NodeRuntime:
                     on_log=on_log,
                     on_progress=on_progress,
                     cancel_event=cancel_event,
+                    on_started=mark_subprocess_started,
                 )
         except Exception as exc:
             log.exception("run_subprocess raised", job_id=assign.job_id)

@@ -10,6 +10,7 @@ from hololab import PROTOCOL_V_MAX, PROTOCOL_V_MIN
 from hololab.protocol import (
     HandleRegister,
     JobFail,
+    JobStarted,
     Register,
     decode,
     encode,
@@ -40,6 +41,12 @@ def test_encode_rejects_mismatched_payload() -> None:
     msg = Register(node_name="dev", v_min=1, v_max=1)
     with pytest.raises(ValueError):
         encode("job_ack", msg)
+
+
+def test_job_started_round_trip() -> None:
+    _env, payload = decode(encode("job_started", JobStarted(job_id="j", pid=123)))
+    assert isinstance(payload, JobStarted)
+    assert payload.pid == 123
 
 
 def test_decode_rejects_unknown_kind() -> None:

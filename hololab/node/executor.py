@@ -38,7 +38,7 @@ import re
 import signal
 import sys
 from collections import deque
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -110,6 +110,7 @@ async def run_subprocess(
     on_log: Callable[[str, str], None],  # (stream, line)
     on_progress: Callable[[int, int], None],  # (current, total)
     cancel_event: asyncio.Event,
+    on_started: Callable[[int], Awaitable[None]] | None = None,
 ) -> ExecResult:
     """Run one job to completion. Returns exit code, tails, and cancel flag.
 
@@ -160,6 +161,7 @@ async def run_subprocess(
         cpu_mask=plan.cpu_mask,
     )
 
+    spawn_started = asyncio.get_running_loop().time()
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=str(plan.working_dir),
@@ -174,6 +176,18 @@ async def run_subprocess(
         # Windows CTRL_BREAK_EVENT is deferred; see docs/architecture.md.
         start_new_session=(sys.platform != "win32"),
     )
+    pid = getattr(proc, "pid", None)
+    log.info(
+        "spawned",
+        pid=pid,
+        spawn_s=round(asyncio.get_running_loop().time() - spawn_started, 4),
+        mode=spawn_mode,
+    )
+    # Real asyncio subprocesses always expose a PID. Some narrow unit-test
+    # process doubles intentionally do not; they still exercise draining and
+    # cancellation without pretending a process was forked.
+    if on_started is not None and isinstance(pid, int):
+        await on_started(pid)
 
     from hololab.node.resource_lens import ACTIVE, register
 
