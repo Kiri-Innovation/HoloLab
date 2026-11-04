@@ -302,8 +302,8 @@ function RunListView({
   onSaveNote: (snapshotId: string, note: string) => Promise<void>;
 }) {
   const [diffModalOpen, setDiffModalOpen] = useState(false);
-  // Selection is deliberately local to this list.  There is no batch action yet,
-  // so it must not leak into the snapshot that is open on the canvas.
+  // Selection is deliberately local to this list; it never changes the
+  // snapshot that is open on the canvas.
   const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(() => new Set());
   const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ snapshotId: string; x: number; y: number } | null>(null);
@@ -313,6 +313,11 @@ function RunListView({
     loading: boolean;
     deleting: boolean;
     error: string | null;
+  } | null>(null);
+  const [batchConfirm, setBatchConfirm] = useState<{
+    snapshotIds: string[];
+    deleting: boolean;
+    result: { deleted: string[]; failures: { snapshotId: string; message: string }[] } | null;
   } | null>(null);
   // Note editor state.
   const [noteEditor, setNoteEditor] = useState<{
@@ -390,15 +395,36 @@ function RunListView({
       setConfirm(null);
       onDeleted(sid);
     } catch (e) {
-      let msg = e instanceof ApiError ? `HTTP ${e.status}` : (e as Error).message;
-      if (e instanceof ApiError && typeof e.detail === "object" && e.detail !== null) {
-        const d = e.detail as { detail?: { message?: string } | string };
-        if (typeof d.detail === "object" && d.detail?.message) msg = d.detail.message;
-        else if (typeof d.detail === "string") msg = d.detail;
-      }
-      setConfirm((prev) => (prev ? { ...prev, deleting: false, error: msg } : prev));
+      setConfirm((prev) => (
+        prev ? { ...prev, deleting: false, error: deleteErrorMessage(e) } : prev
+      ));
     }
   }, [confirm, onDeleted]);
+
+  const runBatchDelete = useCallback(async () => {
+    if (!batchConfirm) return;
+    const snapshotIds = batchConfirm.snapshotIds;
+    setBatchConfirm({ ...batchConfirm, deleting: true, result: null });
+    const deleted: string[] = [];
+    const failures: { snapshotId: string; message: string }[] = [];
+    // Keep the exact single-run delete semantics: each request independently
+    // performs the existing server-side live-job and ref-count safety checks.
+    for (const snapshotId of snapshotIds) {
+      try {
+        await deleteSnapshot(snapshotId);
+        deleted.push(snapshotId);
+      } catch (e) {
+        failures.push({ snapshotId, message: deleteErrorMessage(e) });
+      }
+    }
+    setSelectedRunIds((previous) => {
+      const next = new Set(previous);
+      deleted.forEach((id) => next.delete(id));
+      return next;
+    });
+    deleted.forEach(onDeleted);
+    setBatchConfirm({ snapshotIds, deleting: false, result: { deleted, failures } });
+  }, [batchConfirm, onDeleted]);
 
   const openNoteEditor = useCallback(
     (snapshotId: string, currentNote: string | null | undefined) => {
@@ -534,6 +560,20 @@ function RunListView({
           />,
           document.body,
         )}
+      {batchConfirm &&
+        createPortal(
+          <DeleteConfirmModal
+            snapshotIds={batchConfirm.snapshotIds}
+            preview={null}
+            loading={false}
+            deleting={batchConfirm.deleting}
+            error={null}
+            result={batchConfirm.result}
+            onCancel={() => setBatchConfirm(null)}
+            onConfirm={() => void runBatchDelete()}
+          />,
+          document.body,
+        )}
       {noteEditor &&
         createPortal(
           <NoteEditorModal
@@ -546,6 +586,38 @@ function RunListView({
           />,
           document.body,
         )}
+
+      {selectedRunIds.size > 1 && (
+        <div
+          data-hl-batch-run-actions=""
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "8px 12px",
+            borderBottom: "1px solid var(--border)",
+            background: "var(--surface-2)",
+            color: "var(--text-muted)",
+            fontSize: "var(--fs-xs)",
+          }}
+        >
+          <span style={{ flex: 1 }}>已选 {selectedRunIds.size} 项</span>
+          <button
+            type="button"
+            data-hl-batch-delete=""
+            onClick={() => setBatchConfirm({
+              snapshotIds: Array.from(selectedRunIds), deleting: false, result: null,
+            })}
+            style={{
+              ...CONTROL_STYLE,
+              color: "var(--error, #e05a5a)",
+              borderColor: "var(--error, #e05a5a)",
+            }}
+          >
+            删除
+          </button>
+        </div>
+      )}
 
       {runs.map((r) => {
         const active = r.snapshot_id === currentSnapshotId;
@@ -1378,20 +1450,34 @@ function formatBytes(n: number): string {
   return `${(mb / 1024).toFixed(2)} GB`;
 }
 
+function deleteErrorMessage(e: unknown): string {
+  let message = e instanceof ApiError ? `HTTP ${e.status}` : (e as Error).message;
+  if (e instanceof ApiError && typeof e.detail === "object" && e.detail !== null) {
+    const detail = e.detail as { detail?: { message?: string } | string };
+    if (typeof detail.detail === "object" && detail.detail?.message) message = detail.detail.message;
+    else if (typeof detail.detail === "string") message = detail.detail;
+  }
+  return message;
+}
+
 function DeleteConfirmModal({
   snapshotId,
+  snapshotIds,
   preview,
   loading,
   deleting,
   error,
+  result,
   onCancel,
   onConfirm,
 }: {
-  snapshotId: string;
+  snapshotId?: string;
+  snapshotIds?: string[];
   preview: SnapshotDeletionPreview | null;
   loading: boolean;
   deleting: boolean;
   error: string | null;
+  result?: { deleted: string[]; failures: { snapshotId: string; message: string }[] } | null;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -1401,8 +1487,11 @@ function DeleteConfirmModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onCancel, deleting]);
 
+  const batch = (snapshotIds?.length ?? 0) > 1;
   const blocked = preview?.blocked ?? false;
-  const canConfirm = !loading && !deleting && preview !== null && !blocked;
+  const canConfirm = batch
+    ? !deleting && !result
+    : !loading && !deleting && preview !== null && !blocked;
 
   return (
     <div
@@ -1449,7 +1538,7 @@ function DeleteConfirmModal({
           />
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: "var(--fs-sm)", color: "var(--text)" }}>
-              删除这个 run 及其产物
+              {batch ? `删除这 ${snapshotIds!.length} 个 run 及其产物` : "删除这个 run 及其产物"}
             </div>
             <div
               style={{
@@ -1459,7 +1548,7 @@ function DeleteConfirmModal({
                 fontFamily: "var(--font-mono)",
               }}
             >
-              {snapshotId.slice(0, 8)}
+              {batch ? "将按单条删除规则逐个执行" : snapshotId!.slice(0, 8)}
             </div>
           </div>
         </div>
@@ -1473,8 +1562,30 @@ function DeleteConfirmModal({
             minHeight: 100,
           }}
         >
-          {loading && <div style={{ color: "var(--text-muted)" }}>计算影响范围…</div>}
-          {!loading && preview && (
+          {batch && !result && (
+            <div>
+              删除 run 及其独占产物，不可恢复。每条 run 都会使用已有的删除检查；失败项将保留并在完成后列出原因。
+            </div>
+          )}
+          {batch && result && (
+            <div data-hl-batch-delete-result="">
+              <div style={{ fontWeight: 600, color: "var(--text)" }}>
+                已删除 {result.deleted.length} 个 run
+              </div>
+              {result.failures.length > 0 && (
+                <div style={{ marginTop: 8, color: "var(--error)" }}>
+                  {result.failures.length} 个未删除：
+                  {result.failures.map(({ snapshotId: failedId, message }) => (
+                    <div key={failedId} style={{ fontSize: "var(--fs-xs)", marginTop: 3 }}>
+                      {failedId.slice(0, 8)} · {message}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {!batch && loading && <div style={{ color: "var(--text-muted)" }}>计算影响范围…</div>}
+          {!batch && !loading && preview && (
             <>
               {blocked ? (
                 <div
@@ -1518,7 +1629,7 @@ function DeleteConfirmModal({
               )}
             </>
           )}
-          {error && (
+          {!batch && error && (
             <div
               style={{
                 marginTop: 10,
@@ -1550,9 +1661,9 @@ function DeleteConfirmModal({
             disabled={deleting}
             style={{ ...CONTROL_STYLE, opacity: deleting ? 0.55 : 1 }}
           >
-            取消
+            {result ? "关闭" : "取消"}
           </button>
-          <button
+          {!result && <button
             type="button"
             data-hl-confirm-delete=""
             onClick={onConfirm}
@@ -1565,8 +1676,9 @@ function DeleteConfirmModal({
               cursor: canConfirm ? "pointer" : "not-allowed",
             }}
           >
-            {deleting ? "删除中…" : "确认删除"}
+            {deleting ? "删除中…" : batch ? `确认删除 ${snapshotIds!.length} 个 run` : "确认删除"}
           </button>
+          }
         </div>
       </div>
     </div>
