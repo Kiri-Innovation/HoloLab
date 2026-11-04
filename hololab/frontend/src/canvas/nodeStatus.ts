@@ -47,6 +47,11 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
     result = { tone: "error", conclusion: "运行中断（未恢复）", reason: "设备重连后未认领任务，或失联超时未恢复；未记录具体原因。", action: "确认设备及残留进程状态后重新运行。" };
   } else if (state === "cancelled") {
     result = { tone: "neutral", conclusion: "已主动停止", reason: "任务收到停止指令，未成功完成；未记录操作者。", action: "如需继续，可以重新运行。" };
+  } else if (!state) {
+    // Backend staleness deliberately marks an empty slot self_dirty so the
+    // rerun planner can find work. That is not a previous result becoming
+    // stale: without a job record this node has never run.
+    result = { tone: "neutral", conclusion: "尚未运行", reason: "尚无此节点的运行记录。", action: "准备好输入后，点击运行。" };
   } else if (oldParams) {
     const label = state === "pending" ? "等待中的任务使用旧参数" : state === "assigned" ? "已分配的任务使用旧参数" : state === "running" ? "正在使用旧参数运行" : "已提交任务与当前草稿不同";
     result = { tone: "warning", conclusion: label, reason: staleReason || "当前草稿与已提交任务的配置不同。", action: "草稿修改不会更新此任务；确认任务结束后，按新配置重新运行。" };
@@ -54,8 +59,6 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
     const upstream = stale?.kind === "upstream_dirty";
     result = { tone: "warning", conclusion: upstream ? "结果基于旧输入" : "结果需要更新", reason: staleReason!,
       action: upstream ? "先更新上游，再运行此节点。" : "从此节点重新运行。" };
-  } else if (!state) {
-    result = { tone: "neutral", conclusion: "尚未运行", reason: "尚无此节点的运行记录。", action: "准备好输入后，点击运行。" };
   } else if (state === "done") {
     result = { tone: "success", conclusion: "已完成", reason: "当前未检测到配置或上游变化。", action: "可展开预览查看结果。" };
   } else {

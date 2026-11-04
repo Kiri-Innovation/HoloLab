@@ -5,7 +5,7 @@ import type { NodeStaleness } from "./staleness";
 const states = [undefined, "pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted", "future"];
 const kinds = [undefined, "self_dirty", "upstream_dirty", "inflight_old_params"] as const;
 const rows: Record<string, string[]> = {
-  idle: ["neutral", "warning", "warning", "warning"],
+  idle: ["neutral", "neutral", "neutral", "neutral"],
   pending: ["info", "warning", "warning", "warning"],
   assigned: ["info", "warning", "warning", "warning"],
   running: ["info", "warning", "warning", "warning"],
@@ -21,13 +21,31 @@ for (const state of states) for (const [index, kind] of kinds.entries()) for (co
     const stale: NodeStaleness | undefined = kind ? { kind, title: "具体变化原因" } : undefined;
     const frozen = Object.freeze(stale ?? {});
     const result = nodeStatus({ state, stale, drift });
-    const expected = drift && !["failed", "orphaned", "interrupted", "cancelled", "future"].includes(state ?? "") ? "warning" : rows[state ?? "idle"][index];
+    const expected = drift && state != null && !["failed", "orphaned", "interrupted", "cancelled", "future"].includes(state) ? "warning" : rows[state ?? "idle"][index];
     expect(result.tone).toBe(expected);
     expect(result.conclusion).toBeTruthy();expect(result.reason).toBeTruthy();expect(result.action).toBeTruthy();
     if (stale && state !== "future") expect(result.reason).toContain(stale.title);
     expect(stale ?? {}).toEqual(frozen);
   });
 }
+it("keeps a never-run node neutral even when backend staleness marks its empty slot dirty", () => {
+  expect(nodeStatus({ stale: {kind: "self_dirty", title: "尚无成功运行结果"} })).toMatchObject({
+    tone: "neutral", conclusion: "尚未运行",
+  });
+});
+it("warns after a completed run whose own configuration changed", () => {
+  expect(nodeStatus({ state: "done", stale: {kind: "self_dirty", title: "参数已改"} })).toMatchObject({
+    tone: "warning", conclusion: "结果需要更新",
+  });
+});
+it("warns after a completed run whose upstream result changed", () => {
+  expect(nodeStatus({ state: "done", stale: {kind: "upstream_dirty", title: "上游输入已变化"} })).toMatchObject({
+    tone: "warning", conclusion: "结果基于旧输入",
+  });
+});
+it("shows a completed fresh run as successful", () => {
+  expect(nodeStatus({ state: "done" })).toMatchObject({tone: "success", conclusion: "已完成"});
+});
 it("preserves failure evidence and distinguishes the three red states", () => {
   expect(nodeStatus({ state: "failed", failReason: "磁盘已满" }).reason).toContain("磁盘已满");
   expect(new Set(["failed", "orphaned", "interrupted"].map(state => nodeStatus({ state }).conclusion)).size).toBe(3);
