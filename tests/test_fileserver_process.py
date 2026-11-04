@@ -22,6 +22,7 @@ Covered contracts:
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import signal
 import socket
@@ -34,11 +35,12 @@ import httpx
 import pytest
 
 from hololab.node.config import NodeConfig
+from hololab.node.fileserver_control import pidfile_path, stop_owned_file_server
 from hololab.node.runtime import NodeRuntime
 
 
 @pytest.fixture(autouse=True)
-def _scrub_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
+def _scrub_proxy_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Loopback traffic must not route through the operator's http proxy.
 
     Same trap that used to blow up node registration. The runtime scrubs
@@ -54,6 +56,10 @@ def _scrub_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "ALL_PROXY",
     ):
         monkeypatch.delenv(name, raising=False)
+    # The file server's ownership record is deliberately stored under the
+    # selected HoloLab home.  Isolate it too, so lifecycle tests never leave
+    # stale probe records in a developer's real node directory.
+    monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "hololab-home"))
 
 
 def _free_port() -> int:
@@ -202,6 +208,41 @@ def test_fileserver_main_sigterm_releases_socket(tmp_path: Path) -> None:
             proc.wait(timeout=2)
 
 
+def test_standalone_fileserver_writes_pidfile_and_official_stop_removes_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A manually launched server is also owned by its HOLOLAB_HOME record."""
+
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOLOLAB_HOME", str(home))
+    port = _free_port()
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "hololab.node.fileserver_main",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--workspace-root",
+            str(tmp_path),
+        ]
+    )
+    record = pidfile_path(port)
+    try:
+        _wait_for_listen(port)
+        assert record.exists()
+        assert stop_owned_file_server(port=port, workspace_root=tmp_path, pidfile=record)
+        proc.wait(timeout=7)
+        _wait_for_close(port)
+        assert not record.exists()
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=2)
+
+
 # ---------------------------------------------------------------------------
 # ``NodeRuntime`` lifecycle — start / stop / restart on the same port.
 # ---------------------------------------------------------------------------
@@ -259,6 +300,63 @@ def test_runtime_start_stop_file_server_subprocess(tmp_path: Path) -> None:
 
     asyncio.run(scenario())
     _wait_for_close(port, timeout=3.0)
+
+
+def test_runtime_reclaims_orphaned_file_server_before_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """SIGKILL's detached child is reaped by the next node start."""
+
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOLOLAB_HOME", str(home))
+    port = _free_port()
+    config = tmp_path / "node.yaml"
+    config.write_text(
+        "\n".join(
+            [
+                "gateway_url: ws://127.0.0.1:1",
+                "file_server_host: 127.0.0.1",
+                f"file_server_port: {port}",
+                f"workspace_root: {tmp_path}",
+                "pack_dirs: []",
+                "use_env_cache: false",
+            ]
+        )
+        + "\n"
+    )
+    env = {**os.environ, "HOLOLAB_HOME": str(home)}
+    parent = subprocess.Popen(
+        [sys.executable, "-m", "hololab.cli", "start", "node", "--config", str(config)], env=env
+    )
+    replacement: subprocess.Popen[bytes] | None = None
+    try:
+        _wait_for_listen(port, timeout=10.0)
+        orphan_pid = json.loads(pidfile_path(port).read_text())["pid"]
+        parent.kill()
+        parent.wait(timeout=5)
+        # The file server has a separate session, so this is the historical
+        # orphan condition that previously caused EADDRINUSE.
+        _wait_for_listen(port, timeout=3.0)
+        replacement = subprocess.Popen(
+            [sys.executable, "-m", "hololab.cli", "start", "node", "--config", str(config)], env=env
+        )
+        deadline = time.monotonic() + 15.0
+        while time.monotonic() < deadline:
+            record = pidfile_path(port)
+            if record.exists() and json.loads(record.read_text())["pid"] != orphan_pid:
+                break
+            time.sleep(0.1)
+        else:
+            raise AssertionError("replacement did not replace the orphaned file server")
+        _wait_for_listen(port, timeout=3.0)
+        assert replacement.poll() is None
+    finally:
+        for proc in (replacement, parent):
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
+                proc.wait(timeout=10.0)
+        stop_owned_file_server(port=port, workspace_root=tmp_path, pidfile=pidfile_path(port))
+        _wait_for_close(port, timeout=5.0)
 
 
 @pytest.mark.parametrize("shutdown_signal", [signal.SIGHUP, signal.SIGTERM, signal.SIGINT])

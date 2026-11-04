@@ -43,6 +43,7 @@ from hololab.node.config import NodeConfig, write_node_config
 from hololab.node.env_cache import warmup_env_cache
 from hololab.node.executor import ExecPlan, ExecResult, run_subprocess
 from hololab.node.file_tunnel import FileTunnelClient
+from hololab.node.fileserver_control import assert_port_available, pidfile_path, reclaim_file_server
 from hololab.node.orphan_cleanup import cleanup_workspace_orphans
 from hololab.node.packs import LoadedPack, scan_multi_packs
 from hololab.package_identity import installed_key
@@ -449,6 +450,22 @@ class NodeRuntime:
         """
 
         cfg = self._config
+        ownership_file = pidfile_path(cfg.file_server_port)
+        reclaimed_pid = await asyncio.to_thread(
+            reclaim_file_server,
+            port=cfg.file_server_port,
+            workspace_root=cfg.workspace_root,
+            pidfile=ownership_file,
+        )
+        if reclaimed_pid is not None:
+            log.warning(
+                "reaped stale file server before start",
+                pid=reclaimed_pid,
+                port=cfg.file_server_port,
+            )
+        await asyncio.to_thread(
+            assert_port_available, host=cfg.file_server_host, port=cfg.file_server_port
+        )
         argv = [
             sys.executable,
             "-m",
@@ -459,6 +476,8 @@ class NodeRuntime:
             str(cfg.file_server_port),
             "--workspace-root",
             str(cfg.workspace_root),
+            "--pidfile",
+            str(ownership_file),
         ]
         argv += ["--library-root", str(cfg.library_root)]
         if self._config_path is not None:
@@ -509,7 +528,7 @@ class NodeRuntime:
         if self._fs_stopping:
             log.info("file server child exited (stop requested)", rc=rc)
             return
-        log.warning(
+        log.error(
             "file server child died unexpectedly — /_thumb, /_preview, "
             "/w/… will 502 through the gateway proxy until the daemon "
             "is restarted",
