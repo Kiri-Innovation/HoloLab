@@ -306,7 +306,7 @@ function RunListView({
   // snapshot that is open on the canvas.
   const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(() => new Set());
   const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{ snapshotId: string; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ snapshotIds: string[]; x: number; y: number } | null>(null);
   const [confirm, setConfirm] = useState<{
     snapshotId: string;
     preview: SnapshotDeletionPreview | null;
@@ -543,7 +543,16 @@ function RunListView({
           <RunRowContextMenu
             x={menu.x}
             y={menu.y}
-            onDelete={() => void openConfirm(menu.snapshotId)}
+            snapshotCount={menu.snapshotIds.length}
+            onDelete={() => {
+              const snapshotIds = menu.snapshotIds;
+              setMenu(null);
+              if (snapshotIds.length > 1) {
+                setBatchConfirm({ snapshotIds, deleting: false, result: null });
+              } else {
+                void openConfirm(snapshotIds[0]);
+              }
+            }}
           />,
           document.body,
         )}
@@ -587,38 +596,6 @@ function RunListView({
           document.body,
         )}
 
-      {selectedRunIds.size > 1 && (
-        <div
-          data-hl-batch-run-actions=""
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "8px 12px",
-            borderBottom: "1px solid var(--border)",
-            background: "var(--surface-2)",
-            color: "var(--text-muted)",
-            fontSize: "var(--fs-xs)",
-          }}
-        >
-          <span style={{ flex: 1 }}>已选 {selectedRunIds.size} 项</span>
-          <button
-            type="button"
-            data-hl-batch-delete=""
-            onClick={() => setBatchConfirm({
-              snapshotIds: Array.from(selectedRunIds), deleting: false, result: null,
-            })}
-            style={{
-              ...CONTROL_STYLE,
-              color: "var(--error, #e05a5a)",
-              borderColor: "var(--error, #e05a5a)",
-            }}
-          >
-            删除
-          </button>
-        </div>
-      )}
-
       {runs.map((r) => {
         const active = r.snapshot_id === currentSnapshotId;
         const selected = selectedRunIds.has(r.snapshot_id);
@@ -643,7 +620,11 @@ function RunListView({
             onContextMenu={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setMenu({ snapshotId: r.snapshot_id, x: e.clientX, y: e.clientY });
+              setMenu({
+                snapshotIds: selected ? Array.from(selectedRunIds) : [r.snapshot_id],
+                x: e.clientX,
+                y: e.clientY,
+              });
             }}
             onMouseEnter={(e) => {
               if (!active && !selected)
@@ -1282,10 +1263,12 @@ function formatTs(secs: number): string {
 function RunRowContextMenu({
   x,
   y,
+  snapshotCount,
   onDelete,
 }: {
   x: number;
   y: number;
+  snapshotCount: number;
   onDelete: () => void;
 }) {
   return (
@@ -1326,7 +1309,7 @@ function RunRowContextMenu({
         onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
       >
-        删除这个 run 及其产物
+        {snapshotCount > 1 ? `删除这 ${snapshotCount} 个 run 及其产物` : "删除这个 run 及其产物"}
       </button>
     </div>
   );

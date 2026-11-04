@@ -23,9 +23,11 @@ for (const theme of ["light", "dark"]) {
     const rows = page.locator("[data-hl-run-row]");
     await expect(rows).toHaveCount(3);
     for (const index of [0, 1, 2]) await rows.nth(index).locator('[role="button"]').click({ modifiers: ["Control"] });
-    const actions = page.locator("[data-hl-batch-run-actions]");
-    await expect(actions).toContainText("已选 3 项");
-    await actions.getByRole("button", { name: "删除", exact: true }).click();
+    await rows.nth(1).click({ button: "right" });
+    const menu = page.locator("[data-hl-run-menu]");
+    await expect(menu).toContainText("删除这 3 个 run 及其产物");
+    await menu.screenshot({ path: info.outputPath(`menu-${theme}.png`) });
+    await menu.getByRole("button").click();
     const modal = page.locator("[data-hl-run-delete-modal]");
     await expect(modal).toContainText("删除这 3 个 run 及其产物");
     await expect(modal).toContainText("不可恢复");
@@ -37,5 +39,11 @@ for (const theme of ["light", "dark"]) {
     await expect(rows).toHaveCount(1);
     await expect(rows.nth(0)).toHaveAttribute("data-hl-run-id", "bulkdelete2");
     await page.screenshot({ path: info.outputPath(`result-${theme}.png`) });
+    await modal.getByRole("button", { name: "关闭" }).click();
+    // An unselected row retains the original single-run menu wording.
+    await page.reload();
+    await expect(rows).toHaveCount(1);
+    await rows.nth(0).click({ button: "right" });
+    await expect(page.locator("[data-hl-run-menu]")).toContainText("删除这个 run 及其产物");
   });
 }
