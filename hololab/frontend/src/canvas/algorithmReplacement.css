@@ -4,12 +4,10 @@
 .hl-algorithm-replacement h2 { margin: 0; font-size: var(--fs-md); }
 .hl-algorithm-replacement input { width: 100%; box-sizing: border-box; margin-block: var(--space-3); }
 .hl-algorithm-replacement-list { max-height: 55dvh; overflow: auto; }
-.hl-algorithm-replacement-list button { width: 100%; height: auto; min-height: var(--control-h-md); display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.hl-algorithm-replacement-list button { width: 100%; height: auto; min-height: var(--control-h-md); display: block; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
 .hl-algorithm-replacement-list button + button { margin-top: var(--space-1); }
 .hl-algorithm-replacement-candidate { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
 .hl-algorithm-replacement-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hl-algorithm-replacement-changes { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-top: 2px; padding-left: var(--space-2); }
-.hl-algorithm-replacement-changes small { display: block; overflow-wrap: anywhere; line-height: 1.35; }
 .hl-algorithm-replacement small { color: var(--muted); }
 .hl-algorithm-replacement-list button:hover:not(:disabled), .hl-algorithm-replacement-list button:focus-visible { background: var(--surface-hover); }
 .hl-algorithm-replacement-list button:disabled { opacity: .6; cursor: default; }

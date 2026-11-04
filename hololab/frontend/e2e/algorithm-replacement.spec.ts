@@ -128,22 +128,11 @@ test('offers a zero-based frame-extraction upgrade for an arrayed legacy node', 
   await node.dispatchEvent('contextmenu', {bubbles:true, clientX:180, clientY:180, button:2});
   await page.getByRole('menuitem',{name:'替换为算法…'}).dispatchEvent('click');
   const dialog = page.getByRole('dialog');
-  await expect(dialog.getByText('依据本机 builtin/frame-extraction@0.2.0 的完整 I/O 声明')).toBeVisible();
   await expect(dialog.getByRole('button',{name:'builtin/frame-extraction @0.2.2'})).toBeVisible();
-  await expect(dialog.getByText('skip: 0 → 0（全量，语义已升级）')).toBeVisible();
-  await expect(dialog.getByText('还有 3 项参数将使用目标版本设置')).toBeVisible();
-  const changeRows = dialog.locator('.hl-algorithm-replacement-changes small');
-  await expect(changeRows).toHaveCount(4);
-  const rowBoxes = await changeRows.evaluateAll(rows => rows.map(row => row.getBoundingClientRect()).map(({top, bottom}) => ({top, bottom})));
-  expect(rowBoxes.every((row, index) => index === 0 || row.top >= rowBoxes[index - 1].bottom)).toBe(true);
+  await expect(dialog.getByText('skip: 0 → 0（全量，语义已升级）')).toHaveCount(0);
+  await expect(dialog.getByText('依据本机 builtin/frame-extraction@0.2.0 的完整 I/O 声明')).toHaveCount(0);
   const candidateBoxes = await dialog.locator('.hl-algorithm-replacement-list > button').evaluateAll(rows => rows.map(row => row.getBoundingClientRect()).map(({top, bottom}) => ({top, bottom})));
   expect(candidateBoxes.every((row, index) => index === 0 || row.top >= candidateBoxes[index - 1].bottom)).toBe(true);
-  const contentsFit = await dialog.locator('.hl-algorithm-replacement-list > button').evaluateAll(buttons => buttons.every(button => {
-    const box = button.getBoundingClientRect();
-    return [...button.querySelectorAll('.hl-algorithm-replacement-candidate, .hl-algorithm-replacement-changes')]
-      .every(child => child.getBoundingClientRect().bottom <= box.bottom);
-  }));
-  expect(contentsFit).toBe(true);
   for (const theme of ['light','dark']) {await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.screenshot({path:`/tmp/algorithm-replacement/frame-extraction-022-${theme}.png`});}
   await dialog.getByRole('button',{name:'builtin/frame-extraction @0.2.2'}).click();
   await expect.poll(() => graph.nodes[0].algorithm_version).toBe('0.2.2');

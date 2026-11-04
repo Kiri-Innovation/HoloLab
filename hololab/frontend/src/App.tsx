@@ -127,7 +127,7 @@ import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
 import { NodeContextMenu, type NodeMenuPosition } from "./canvas/NodeContextMenu";
 import { requestStopNode, WARM_NODE_PREPARATION_EVENT } from "./canvas/NodeRunControl";
 import { AlgorithmReplacementDialog } from "./canvas/AlgorithmReplacementDialog";
-import { replacementBaselineFromGraph, replacementCandidates, replacementCandidatesFromConnections, replacementParameterChanges, replaceAlgorithm } from "./canvas/algorithmReplacement";
+import { replacementBaselineFromGraph, replacementCandidates, replacementCandidatesFromConnections, replaceAlgorithm } from "./canvas/algorithmReplacement";
 import { duplicateNode } from "./canvas/nodeDuplicate";
 import "./canvas/nodeContextMenu.css";
 import { PackPalette } from "./canvas/PackPalette";
@@ -3187,8 +3187,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       {replacementNode && replacementData && !viewingSnapshot && <AlgorithmReplacementDialog
         current={replacementData.pack}
         candidates={replacementData.replacementBaseline && !replacementData.assembly && !replacementData.pack.name.startsWith("@builtin/") ? replacementData.replacementMode === 'connections' && lastHydratedWireRef.current ? replacementCandidatesFromConnections(replacementNode.id, lastHydratedWireRef.current, catalog) : replacementCandidates(replacementData.replacementBaseline, catalog) : []}
-        basis={replacementData.replacementBasis}
-        parameterChanges={pack => replacementParameterChanges(replacementNode, pack)}
         unavailableReason={!replacementData.replacementBaseline
           ? "图中未保存足以验证完整输入输出声明，不能安全替换。"
           : replacementData.assembly
