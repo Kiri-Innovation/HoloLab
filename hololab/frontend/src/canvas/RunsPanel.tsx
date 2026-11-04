@@ -302,6 +302,10 @@ function RunListView({
   onSaveNote: (snapshotId: string, note: string) => Promise<void>;
 }) {
   const [diffModalOpen, setDiffModalOpen] = useState(false);
+  // Selection is deliberately local to this list.  There is no batch action yet,
+  // so it must not leak into the snapshot that is open on the canvas.
+  const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(() => new Set());
+  const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ snapshotId: string; x: number; y: number } | null>(null);
   const [confirm, setConfirm] = useState<{
     snapshotId: string;
@@ -319,6 +323,45 @@ function RunListView({
   } | null>(null);
   // Per-row expanded note preview.
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
+
+  // A refresh can remove runs (for example after deletion). Keep the selection
+  // valid without changing it for an ordinary refresh.
+  useEffect(() => {
+    const runIds = new Set(runs?.map((run) => run.snapshot_id) ?? []);
+    setSelectedRunIds((previous) => {
+      const next = new Set([...previous].filter((id) => runIds.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+    setSelectionAnchorId((previous) => (previous && !runIds.has(previous) ? null : previous));
+  }, [runs]);
+
+  const selectRun = useCallback((event: React.MouseEvent | React.KeyboardEvent, snapshotId: string) => {
+    const modifier = event.metaKey || event.ctrlKey;
+    const rowIndex = runs?.findIndex((run) => run.snapshot_id === snapshotId) ?? -1;
+    const anchorIndex = selectionAnchorId
+      ? (runs?.findIndex((run) => run.snapshot_id === selectionAnchorId) ?? -1)
+      : -1;
+
+    if (event.shiftKey && rowIndex >= 0 && anchorIndex >= 0) {
+      const [start, end] = [rowIndex, anchorIndex].sort((a, b) => a - b);
+      setSelectedRunIds(new Set(runs!.slice(start, end + 1).map((run) => run.snapshot_id)));
+      return;
+    }
+
+    if (modifier) {
+      setSelectedRunIds((previous) => {
+        const next = new Set(previous);
+        if (next.has(snapshotId)) next.delete(snapshotId);
+        else next.add(snapshotId);
+        return next;
+      });
+      setSelectionAnchorId(snapshotId);
+      return;
+    }
+
+    setSelectedRunIds(new Set([snapshotId]));
+    setSelectionAnchorId(snapshotId);
+  }, [runs, selectionAnchorId]);
 
   const openConfirm = useCallback(async (snapshotId: string) => {
     setMenu(null);
@@ -506,6 +549,8 @@ function RunListView({
 
       {runs.map((r) => {
         const active = r.snapshot_id === currentSnapshotId;
+        const selected = selectedRunIds.has(r.snapshot_id);
+        const rowBackground = selected || active ? "var(--accent-soft)" : "transparent";
         const favorited = r.favorite ?? false;
         const hasNote = !!(r.note && r.note.trim());
         const noteExpanded = expandedNotes.has(r.snapshot_id);
@@ -514,10 +559,14 @@ function RunListView({
             key={r.snapshot_id}
             data-hl-run-row=""
             data-hl-run-id={r.snapshot_id}
+            data-hl-run-selected={selected ? "true" : undefined}
             style={{
               borderBottom: "1px solid var(--border-subtle)",
-              background: active ? "var(--accent-soft)" : "transparent",
-              transition: "background var(--dur-fast) var(--ease)",
+              background: rowBackground,
+              // This persistent inset marker distinguishes selection from the
+              // transient RunFocusBubble jump affordance (and from "当前").
+              boxShadow: selected ? "inset 3px 0 0 var(--accent, #4a9eff)" : "none",
+              transition: "background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease)",
             }}
             onContextMenu={(e) => {
               e.preventDefault();
@@ -525,22 +574,30 @@ function RunListView({
               setMenu({ snapshotId: r.snapshot_id, x: e.clientX, y: e.clientY });
             }}
             onMouseEnter={(e) => {
-              if (!active)
+              if (!active && !selected)
                 (e.currentTarget as HTMLDivElement).style.background = "var(--surface-hover)";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLDivElement).style.background = active
-                ? "var(--accent-soft)"
-                : "transparent";
+              (e.currentTarget as HTMLDivElement).style.background = rowBackground;
             }}
           >
-            {/* Main row — clicking opens the snapshot */}
+            {/* Ordinary click preserves opening the snapshot and also selects it.
+                Modified clicks only change the local multi-selection. */}
             <div
               role="button"
               tabIndex={0}
-              onClick={() => onOpen(r.snapshot_id)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(r.snapshot_id); }}
+              aria-pressed={selected}
               aria-description={active ? "currently open on canvas" : "open this run on the canvas"}
+              onClick={(event) => {
+                selectRun(event, r.snapshot_id);
+                if (!event.metaKey && !event.ctrlKey && !event.shiftKey) onOpen(r.snapshot_id);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                selectRun(event, r.snapshot_id);
+                if (!event.metaKey && !event.ctrlKey && !event.shiftKey) onOpen(r.snapshot_id);
+              }}
               style={{
                 display: "grid",
                 gridTemplateColumns: "8px 1fr auto",
