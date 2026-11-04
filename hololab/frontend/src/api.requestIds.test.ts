@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { dispatchNode, rerunFromNode, runWorkflow } from './api';
+import { dispatchNode, rerunFromNode, runWorkflow, warmNodePreparation } from './api';
 
 afterEach(() => { vi.unstubAllGlobals(); });
 it.each([false, true])('dispatch and rerun use valid request IDs (native randomUUID: %s)', async native => {
@@ -30,4 +30,28 @@ it('whole workflow reports every preparation blocker without submitting a run', 
   await expect(runWorkflow('workflow')).rejects.toThrow('a: missing alpha\nb: missing beta');
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(fetch.mock.calls[0]).toContain('/api/workflows/workflow/prepare');
+});
+
+it('binds a click preflight to the graph being saved and consumes that token', async () => {
+  const graph = {nodes: [{id: 'node', kind: 'algorithm'}], edges: []} as any;
+  const fetch = vi.fn<typeof globalThis.fetch>(async (url, options) => {
+    void options;
+    return new Response(
+      JSON.stringify(String(url).endsWith('/prepare') ? {token: 'current-graph'} : {
+        snapshot_id: 'snapshot', job_id: 'job', state: 'assigned',
+        graph_node_id: 'node', algorithm_name: 'pack', algorithm_version: '1', operation: 'continue',
+      }),
+      {status: 200},
+    );
+  });
+  vi.stubGlobal('fetch', fetch);
+
+  await warmNodePreparation('workflow-graph', 'node', graph);
+  await dispatchNode('workflow-graph', 'node', {graph});
+
+  const prepareCalls = fetch.mock.calls.filter(([url]) => String(url).endsWith('/prepare'));
+  expect(prepareCalls).toHaveLength(1);
+  expect(JSON.parse(String(prepareCalls[0][1]?.body))).toEqual({node_id: 'node', graph});
+  const dispatchCall = fetch.mock.calls.find(([url]) => String(url).includes('/dispatch/node'));
+  expect(new Headers(dispatchCall?.[1]?.headers).get('X-Preparation-Token')).toBe('current-graph');
 });

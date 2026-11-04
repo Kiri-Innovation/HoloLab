@@ -382,17 +382,33 @@ const preparationCache = new Map<string, Preparation>();
 // seconds-long node-side identity check, so never start a second equivalent
 // RPC while the first is still resolving.
 const preparationInFlight = new Map<string, Promise<Preparation>>();
-const preparationKey = (workflowId: string, nodeId?: string) => `${workflowId}:${nodeId ?? "*"}`;
+// A preparation token is bound to the complete graph revision, not merely a
+// workflow/node pair.  A Run click races its save on purpose; keying a warm
+// prepare by the graph it prepared prevents us from consuming the old draft's
+// token after that save and paying an avoidable 409 + second preparation.
+const preparationKey = (workflowId: string, nodeId?: string, graph?: WorkflowGraph) =>
+  `${workflowId}:${nodeId ?? "*"}:${graph ? JSON.stringify(graph) : "draft"}`;
+
+function preparationBody(nodeId?: string, graph?: WorkflowGraph): string {
+  return JSON.stringify({
+    ...(nodeId ? { node_id: nodeId } : {}),
+    ...(graph ? { graph } : {}),
+  });
+}
 
 /** Warm the strict, revision-bound preflight while the operator approaches Run. */
-export async function warmNodePreparation(workflowId: string, nodeId: string): Promise<void> {
-  const key = preparationKey(workflowId, nodeId);
+export async function warmNodePreparation(
+  workflowId: string,
+  nodeId: string,
+  graph?: WorkflowGraph,
+): Promise<void> {
+  const key = preparationKey(workflowId, nodeId, graph);
   if (preparationCache.has(key)) return;
   let pending = preparationInFlight.get(key);
   if (!pending) {
     pending = resilientFetch(`/api/workflows/${workflowId}/prepare`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ node_id: nodeId }),
+      body: preparationBody(nodeId, graph),
     }).then(json<Preparation>);
     preparationInFlight.set(key, pending);
     void pending.finally(() => preparationInFlight.delete(key)).catch(() => {});
@@ -401,12 +417,25 @@ export async function warmNodePreparation(workflowId: string, nodeId: string): P
   if (!prepared.run_blockers?.length) preparationCache.set(key, prepared);
 }
 
-async function preparationHeaders(workflowId: string, nodeId?: string) {
-  const key = preparationKey(workflowId, nodeId);
+type PreparationHeaders = {
+  headers: Record<string, string>;
+  elapsedMs: number;
+};
+
+async function preparationHeaders(
+  workflowId: string,
+  nodeId?: string,
+  graph?: WorkflowGraph,
+): Promise<PreparationHeaders> {
+  const started = performance.now();
+  const key = preparationKey(workflowId, nodeId, graph);
   const cached = preparationCache.get(key);
   if (cached) {
     preparationCache.delete(key); // never reuse a warm token after a submission attempt
-    return { "X-Preparation-Token": cached.token, "X-Request-ID": newId() };
+    return {
+      headers: { "X-Preparation-Token": cached.token, "X-Request-ID": newId() },
+      elapsedMs: performance.now() - started,
+    };
   }
   // A click may arrive while a hover preflight is still running. Consume its
   // result rather than dispatching the same strict environment/identity RPC.
@@ -414,18 +443,24 @@ async function preparationHeaders(workflowId: string, nodeId?: string) {
   if (inflight) {
     const prepared = await inflight;
     if (prepared.run_blockers?.length) throw new Error(prepared.run_blockers.join("\n"));
-    return { "X-Preparation-Token": prepared.token, "X-Request-ID": newId() };
+    return {
+      headers: { "X-Preparation-Token": prepared.token, "X-Request-ID": newId() },
+      elapsedMs: performance.now() - started,
+    };
   }
   const prepared = await resilientFetch(`/api/workflows/${workflowId}/prepare`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(nodeId ? { node_id: nodeId } : {}),
+    body: preparationBody(nodeId, graph),
   }).then(json<{ token: string; run_blockers?: string[] }>);
   if (prepared.run_blockers?.length) throw new Error(prepared.run_blockers.join("\n"));
-  return { "X-Preparation-Token": prepared.token, "X-Request-ID": newId() };
+  return {
+    headers: { "X-Preparation-Token": prepared.token, "X-Request-ID": newId() },
+    elapsedMs: performance.now() - started,
+  };
 }
 
 export const runWorkflow = async (workflow_id: string) => {
-  const headers = await preparationHeaders(workflow_id);
+  const {headers} = await preparationHeaders(workflow_id);
   return resilientFetch(`/api/workflows/${workflow_id}/run`, { method: "POST", headers }, { retryNonIdempotent: true }).then(
     json<{ workflow_id: string; snapshot_id: string | null; node_count: number }>,
   );
@@ -557,35 +592,67 @@ export const patchSnapshotGraphNodeCosmetic = (
 export const dispatchNode = async (
   workflow_id: string,
   graph_node_id: string,
-  opts?: { base_snapshot_id?: string },
+  opts?: { base_snapshot_id?: string; graph?: WorkflowGraph },
 ) => {
   const qs = opts?.base_snapshot_id
     ? `?base_snapshot_id=${encodeURIComponent(opts.base_snapshot_id)}`
     : "";
-  const submit = (headers: Record<string, string>) => resilientFetch(
-    `/api/workflows/${workflow_id}/dispatch/${encodeURIComponent(graph_node_id)}${qs}`,
-    { method: "POST", headers },
-    { retryNonIdempotent: true },
-  ).then(
-    json<{
-      snapshot_id: string;
-      job_id: string;
-      state: string;
-      graph_node_id: string;
-      algorithm_name: string;
-      algorithm_version: string;
-      operation: "continue" | "fork";
-      parent_snapshot_id?: string;
-      forked_at?: string;
-    }>,
-  );
+  let dispatchRequestMs = 0;
+  const submit = async (headers: Record<string, string>) => {
+    const started = performance.now();
+    try {
+      return await resilientFetch(
+        `/api/workflows/${workflow_id}/dispatch/${encodeURIComponent(graph_node_id)}${qs}`,
+        { method: "POST", headers },
+        { retryNonIdempotent: true },
+      ).then(json<{
+        snapshot_id: string;
+        job_id: string;
+        state: string;
+        graph_node_id: string;
+        algorithm_name: string;
+        algorithm_version: string;
+        operation: "continue" | "fork";
+        parent_snapshot_id?: string;
+        forked_at?: string;
+      }>);
+    } finally {
+      dispatchRequestMs += performance.now() - started;
+    }
+  };
+  let preparationMs = 0;
+  let preparationAttempts = 0;
+  const headers = async () => {
+    const prepared = await preparationHeaders(workflow_id, graph_node_id, opts?.graph);
+    preparationMs += prepared.elapsedMs;
+    preparationAttempts += 1;
+    return prepared.headers;
+  };
   try {
-    return await submit(await preparationHeaders(workflow_id, graph_node_id));
+    const result = await submit(await headers());
+    return {
+      ...result,
+      client_timing: {
+        preparation_ms: preparationMs,
+        preparation_attempts: preparationAttempts,
+        dispatch_request_ms: dispatchRequestMs,
+        stale_retry: false,
+      },
+    };
   } catch (err) {
     // A hover token can become stale after an edit/autosave.  Refresh exactly
     // once; the server remains the authority on the revision comparison.
     if (!(err instanceof ApiError) || err.status !== 409) throw err;
-    return submit(await preparationHeaders(workflow_id, graph_node_id));
+    const result = await submit(await headers());
+    return {
+      ...result,
+      client_timing: {
+        preparation_ms: preparationMs,
+        preparation_attempts: preparationAttempts,
+        dispatch_request_ms: dispatchRequestMs,
+        stale_retry: true,
+      },
+    };
   }
 };
 

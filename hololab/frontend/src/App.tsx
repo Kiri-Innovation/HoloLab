@@ -481,6 +481,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // Set below in the workflowId useEffect.
   const workflowIdRef = useRef<string | null>(null);
   const saveRecipeRef = useRef<() => Promise<void>>(async () => {});
+  // The DOM event listeners below are intentionally registered once. Keep a
+  // current graph reader beside the save ref so hover/click preparation binds
+  // its token to the graph that the imminent save will persist, rather than
+  // to the old server draft.
+  const graphForRunRef = useRef<(() => WorkflowGraph) | null>(null);
   // Mirrors ``workflowUpdatedTs`` so the WS ``workflow_updated`` handler
   // (registered once at mount) can compare the pushed ``updated_ts``
   // against our own base without re-subscribing on every save. Bumped
@@ -1433,13 +1438,39 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // promise would never resolve and the caller's button would hang
       // until the dispatchRunNode timeout kicks in.
       try {
-        // Save and strict preflight overlap.  The token is accepted only when
-        // its revision equals the just-saved draft; dispatchNode refreshes it
-        // once if an edit made this speculative warm-up stale.
-        const warm = warmNodePreparation(wid, graph_node_id).catch(() => {});
+        const clickedAt = performance.now();
+        const graph = graphForRunRef.current?.();
+        // Save and strict preflight overlap.  Crucially, prepare receives the
+        // same in-memory graph that this click saves, so its token survives
+        // that save instead of deterministically causing a stale-token 409
+        // and a second environment/code-identity RPC.
+        let warmFailed = false;
+        const warm = warmNodePreparation(wid, graph_node_id, graph ?? undefined)
+          .catch(() => { warmFailed = true; });
+        const saveStartedAt = performance.now();
         saveRecipeRef.current().then(async () => {
+          const saveCompletedAt = performance.now();
           await warm;
-          return dispatchNode(wid, graph_node_id);
+          const prepareCompletedAt = performance.now();
+          const result = await dispatchNode(wid, graph_node_id, { graph: graph ?? undefined });
+          const dispatchedAt = performance.now();
+          // Chromium DevTools exposes this as a DOM event and console record.
+          // It intentionally has no workflow content or input paths, only
+          // timings, so an operator can correlate the perceived click delay
+          // with Network without leaking a recipe into logs.
+          const timing = {
+            graph_node_id,
+            click_to_save_ms: saveCompletedAt - clickedAt,
+            save_duration_ms: saveCompletedAt - saveStartedAt,
+            click_to_prepare_ms: prepareCompletedAt - clickedAt,
+            save_to_prepare_wait_ms: Math.max(0, prepareCompletedAt - saveCompletedAt),
+            prepare_failed: warmFailed,
+            ...result.client_timing,
+            click_to_dispatch_response_ms: dispatchedAt - clickedAt,
+          };
+          console.info("[hololab dispatch timing]", timing);
+          window.dispatchEvent(new CustomEvent("hololab-dispatch-timing", { detail: timing }));
+          return result;
         }).then(
           (result) => {
             // The gateway persisted this in-flight state before returning.
@@ -1530,7 +1561,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   useEffect(() => {
     const warm = (event: Event) => {
       const wid = workflowIdRef.current;
-      if (wid) void warmNodePreparation(wid, (event as CustomEvent<string>).detail).catch(() => {});
+      const graph = graphForRunRef.current?.();
+      if (wid) void warmNodePreparation(wid, (event as CustomEvent<string>).detail, graph ?? undefined).catch(() => {});
     };
     window.addEventListener(WARM_NODE_PREPARATION_EVENT, warm);
     return () => window.removeEventListener(WARM_NODE_PREPARATION_EVENT, warm);
@@ -2140,6 +2172,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       })),
     } as unknown as WorkflowGraph;
   }, [nodes, edges, previewOpenByGraphNode, pinnedParams, variables, variableValues]);
+
+  graphForRunRef.current = toGraph;
 
   const fromGraph = useCallback(
     (graph: WorkflowGraph): void => {
