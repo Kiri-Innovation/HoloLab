@@ -53,7 +53,7 @@ _INMEM_TAR_LIMIT_BYTES = 32 * 1024 * 1024  # 32 MiB
 # values so a mistyped URL can't burn ffmpeg on a 4K decode.
 _THUMB_MAX_DIM = 1024
 _THUMB_CACHE_DIRNAME = ".hololab-thumbs"
-_THUMB_VERSION = "alpha-checker-v1"
+_THUMB_VERSION = "alpha-checker-even-v2"
 
 # Extensions ``_thumb_response`` treats as still images: ffmpeg is called
 # **without** ``-ss`` because a still image's demuxer reports duration 0,
@@ -68,7 +68,7 @@ _STILL_IMAGE_EXTS = frozenset({".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 _PREVIEW_MAX_DIM = 1024
 _PREVIEW_MAX_FPS = 60
 _PREVIEW_CACHE_DIRNAME = ".hololab-previews"
-_PREVIEW_VERSION = "v2-contain"
+_PREVIEW_VERSION = "v3-contain-even"
 
 # Cap concurrent ffmpeg transcodes across the whole process. Each
 # transcode is a short-lived CPU burn (single-digit seconds for a 10s
@@ -491,10 +491,9 @@ def _alpha_thumbnail_filter(vf: str) -> str:
     makes the result opaque for JPEG. Keep any letterbox padding black.
     """
     scale, _, padding = vf.partition(",")
-    # ffmpeg 4.2 (used by older nodes) lacks force_divisible_by. For the
-    # alpha-only path, round the scaled dimensions in a second scale step.
-    # Opaque images/videos keep their original command byte-for-byte.
-    scale = scale.replace(":force_divisible_by=2", ",scale=trunc(iw/2)*2:trunc(ih/2)*2")
+    # The unpadded caller already supplies the compatible second even-dimension
+    # scale pass. Keep it in ``padding`` so alpha composition happens after
+    # the aspect-preserving resize and before that final dimension adjustment.
     checker = "(216-40*mod(floor(X/8)+floor(Y/8),2))"
     channels = ":".join(
         f"{c}='{c}(X,Y)*alpha(X,Y)/255+{checker}*(1-alpha(X,Y)/255)'"
@@ -502,6 +501,22 @@ def _alpha_thumbnail_filter(vf: str) -> str:
     )
     result = f"format=rgba,{scale},format=rgba,geq={channels}:a=255,format=rgb24"
     return f"{result},{padding}" if padding else result
+
+
+def _even_contain_scale(width: int, height: int) -> str:
+    """Fit inside a box, then round both dimensions down to an even value.
+
+    ``force_divisible_by`` would express this in one modern ffmpeg ``scale``
+    filter, but the A800's ffmpeg 4.2 does not implement that option.  A
+    second scale filter uses expressions supported by the older release and
+    preserves the yuv420p/H.264 requirement without relying on PATH's ffmpeg
+    version.
+    """
+
+    return (
+        f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+        "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+    )
 
 
 async def _thumb_response(
@@ -585,8 +600,9 @@ async def _thumb_response(
     )
     if unpadded:
         # Opt-in video posters match the natural-aspect proxy, without
-        # changing the fixed-size thumbnails used by image viewers.
-        vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2"
+        # changing the fixed-size thumbnails used by image viewers.  Keep
+        # output dimensions even for JPEG/video decoder compatibility.
+        vf = _even_contain_scale(width, height)
     # Still-image inputs (JPEG/PNG/…) MUST skip ``-ss``: their demuxer
     # reports duration 0, so any seek lands past the sole available frame
     # and ffmpeg silently writes zero bytes (rc=0, empty output → caller
@@ -752,10 +768,7 @@ async def _preview_response(
     # ``<video preload="metadata">`` fetch on drawer-open returns
     # something playable in the first few KiB, not after the whole
     # download.
-    vf = (
-        f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
-        f"fps={fps}"
-    )
+    vf = f"{_even_contain_scale(width, height)},fps={fps}"
     cmd = [
         ffmpeg,
         "-nostdin",

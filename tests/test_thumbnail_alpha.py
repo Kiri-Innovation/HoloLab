@@ -16,7 +16,9 @@ pytestmark = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg requi
 
 def legacy_thumbnail(source: Path, output: Path, unpadded: bool, video: bool = False):
     vf = "scale=64:48:force_original_aspect_ratio=decrease"
-    vf += ":force_divisible_by=2" if unpadded else ",pad=64:48:(ow-iw)/2:(oh-ih)/2:color=black"
+    # ffmpeg 4.2 lacks force_divisible_by; the fileserver uses a second
+    # scale pass to keep the natural-aspect poster dimensions even.
+    vf += ",scale=trunc(iw/2)*2:trunc(ih/2)*2" if unpadded else ",pad=64:48:(ow-iw)/2:(oh-ih)/2:color=black"
     subprocess.run([
         "ffmpeg", "-nostdin", "-loglevel", "error",
         *(["-ss", "0.000"] if video else []), "-i", str(source),

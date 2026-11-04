@@ -628,7 +628,7 @@ def test_preview_natural_aspect_and_legacy_cache(tmp_path: Path, shape, expected
         )
         assert response.status_code == 200
         assert not legacy.exists()
-        output = cache / f"v2-contain-{digest}.mp4"
+        output = cache / f"v3-contain-even-{digest}.mp4"
         data = json.loads(
             subprocess.check_output(
                 [
