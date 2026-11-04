@@ -72,12 +72,16 @@ def test_upgrade_from_020_preserves_the_old_full_frame_output(tmp_path: Path, so
 
 
 def test_manifest_and_validation_are_zero_based(tmp_path: Path):
+    from hololab.bundled import load_bundled_packs, verified_record
     from hololab.manifest import load_manifest
 
-    manifest, _ = load_manifest(ROOT / "frame-extraction@0.2.2" / "manifest.yaml")
+    path = ROOT / "frame-extraction@0.2.2" / "manifest.yaml"
+    manifest, _ = load_manifest(path)
     assert manifest.version == "0.2.2"
     assert manifest.params["skip"].default == 0
     assert manifest.params["skip"].min == 0
     assert manifest.params["skip"].description == "0 = 不丢弃任何帧（全量抽帧）；N = 每隔 N 帧取一帧。"
+    assert verified_record(path)["sha256"]
+    assert any(pack.manifest.name == "builtin/frame-extraction" and pack.manifest.version == "0.2.2" for pack in load_bundled_packs())
     with pytest.raises(ValueError, match="skip must be >= 0"):
         load("0.2.2").extract_frames(tmp_path / "missing.mp4", tmp_path / "out", skip=-1)

@@ -108,8 +108,8 @@ test('offers a zero-based frame-extraction upgrade for an arrayed legacy node', 
     outputs: {frame_sequence: {tags:['image'], arrayed:true, dim_labels:['frame'], storage:'dir'}},
   };
   const current = {name:'builtin/frame-extraction', version:'0.2.0', manifest_hash:'fx-020', node_ids:[], description:'Frame extraction', arrayable:true, ...io, params:{skip:{type:'int',default:1,min:1}}};
-  const target = {...current, version:'0.2.2', manifest_hash:'fx-022', params:{...current.params, skip:{type:'int',default:0,min:0,description:'0 = 不丢弃任何帧（全量抽帧）；N = 每隔 N 帧取一帧。'}, decode_threads:{type:'int',default:0,min:0}}};
-  let graph:any = {nodes:[{id:'fx',algorithm_name:current.name,algorithm_version:current.version,params:{skip:0},arrayed_toggle:true,position:{x:0,y:0}}],edges:[]};
+  const target = {...current, version:'0.2.2', manifest_hash:'fx-022', params:{...current.params, skip:{type:'int',default:0,min:0,description:'0 = 不丢弃任何帧（全量抽帧）；N = 每隔 N 帧取一帧。'}, decode_threads:{type:'int',default:0,min:0}, encode_threads:{type:'int',default:0,min:0}, filter_threads:{type:'int',default:0,min:0}, png_compression:{type:'int',default:1,min:-1}, png_predictor:{type:'enum',default:'sub',values:['none','sub']}}};
+  let graph:any = {nodes:[{id:'fx',algorithm_name:current.name,algorithm_version:current.version,params:{skip:0,decode_threads:1,encode_threads:2,filter_threads:1,png_compression:3,png_predictor:'none'},arrayed_toggle:true,position:{x:0,y:0}}],edges:[]};
   await page.routeWebSocket('**',()=>{});
   await page.route('**/api/**', async route => {
     const req = route.request(), path = new URL(req.url()).pathname;
@@ -131,7 +131,14 @@ test('offers a zero-based frame-extraction upgrade for an arrayed legacy node', 
   await expect(dialog.getByText('依据本机 builtin/frame-extraction@0.2.0 的完整 I/O 声明')).toBeVisible();
   await expect(dialog.getByRole('button',{name:'builtin/frame-extraction @0.2.2'})).toBeVisible();
   await expect(dialog.getByText('skip: 0 → 0（全量，语义已升级）')).toBeVisible();
-  await page.screenshot({path:'/tmp/algorithm-replacement/frame-extraction-022-candidate.png'});
+  await expect(dialog.getByText('还有 3 项参数将使用目标版本设置')).toBeVisible();
+  const changeRows = dialog.locator('.hl-algorithm-replacement-changes small');
+  await expect(changeRows).toHaveCount(4);
+  const rowBoxes = await changeRows.evaluateAll(rows => rows.map(row => row.getBoundingClientRect()).map(({top, bottom}) => ({top, bottom})));
+  expect(rowBoxes.every((row, index) => index === 0 || row.top >= rowBoxes[index - 1].bottom)).toBe(true);
+  const candidateBoxes = await dialog.locator('.hl-algorithm-replacement-list > button').evaluateAll(rows => rows.map(row => row.getBoundingClientRect()).map(({top, bottom}) => ({top, bottom})));
+  expect(candidateBoxes.every((row, index) => index === 0 || row.top >= candidateBoxes[index - 1].bottom)).toBe(true);
+  for (const theme of ['light','dark']) {await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.screenshot({path:`/tmp/algorithm-replacement/frame-extraction-022-${theme}.png`});}
   await dialog.getByRole('button',{name:'builtin/frame-extraction @0.2.2'}).click();
   await expect.poll(() => graph.nodes[0].algorithm_version).toBe('0.2.2');
   expect(graph.nodes[0].params.skip).toBe(0);
