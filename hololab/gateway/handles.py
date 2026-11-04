@@ -300,6 +300,49 @@ class HandleBook:
         rows = index.logical(index.snapshot_handles(snapshot_id))
         return {"total": len(rows), "deleted": sum(h.deleted_ts is not None for h in rows)}
 
+    async def count_by_snapshots(self, snapshot_ids: list[str]) -> dict[str, dict[str, int]]:
+        """Logical artifact counts for many snapshots from one DB survey.
+
+        ``ArtifactIndex.load`` deliberately reads the complete provenance
+        graph.  Calling ``count_by_snapshot`` in a run-history loop repeated
+        that same survey once per row, turning a compact list into an N-times
+        full-database scan.
+        """
+        from hololab.gateway.artifact_lifecycle import ArtifactIndex
+
+        if not snapshot_ids:
+            return {}
+        placeholders = ",".join("?" for _ in snapshot_ids)
+        async with self._db.read() as conn:
+            async with conn.execute(
+                f"SELECT DISTINCT workflow_id FROM snapshots WHERE snapshot_id IN ({placeholders})",
+                snapshot_ids,
+            ) as cur:
+                workflows = [row[0] for row in await cur.fetchall()]
+        if len(workflows) != 1:
+            raise ValueError("snapshot artifact counts must belong to one workflow")
+        index = await ArtifactIndex.load_for_workflow(self._db, workflows[0])
+        return {
+            snapshot_id: {
+                "total": len(rows := index.logical(index.snapshot_handles(snapshot_id))),
+                "deleted": sum(handle.deleted_ts is not None for handle in rows),
+            }
+            for snapshot_id in snapshot_ids
+        }
+
+    async def count_by_workflow_snapshots(self, workflow_id: str) -> dict[str, dict[str, int]]:
+        """All run artifact counts for one workflow from one scoped survey."""
+        from hololab.gateway.artifact_lifecycle import ArtifactIndex
+
+        index = await ArtifactIndex.load_for_workflow(self._db, workflow_id)
+        return {
+            snapshot_id: {
+                "total": len(rows := index.logical(index.snapshot_handles(snapshot_id))),
+                "deleted": sum(handle.deleted_ts is not None for handle in rows),
+            }
+            for snapshot_id in index.snapshots
+        }
+
 
 def _normalize_storage(raw: str | None) -> str:
     """Map legacy PathDir/PathFile values to the current dir/file vocabulary.

@@ -65,6 +65,62 @@ class ArtifactIndex:
         self._build()
         return self
 
+    @classmethod
+    async def load_for_workflow(cls, db: Database, workflow_id: str) -> ArtifactIndex:
+        """Load only one workflow's provenance universe.
+
+        Run history never needs handles or job families from unrelated
+        workflows.  The full index remains necessary for cleanup decisions;
+        this scoped read preserves the same family rules for the requested
+        workflow without making a small history panel scan every artifact.
+        """
+        self = cls()
+        async with db.read() as conn:
+            async with conn.execute(
+                "SELECT job_id,parent_job_id,reused_from_job_id,snapshot_id,"
+                "graph_node_id,state,algorithm_name,input_handles_json FROM jobs "
+                "WHERE workflow_id=?",
+                (workflow_id,),
+            ) as cur:
+                self.jobs = {
+                    r[0]: RecordedJob(*r[:7], json.loads(r[7])) for r in await cur.fetchall()
+                }
+            async with conn.execute(
+                f"SELECT {HandleBook._COLS} FROM handles WHERE job_id IN "
+                "(SELECT job_id FROM jobs WHERE workflow_id=?) OR handle_id IN ("
+                "SELECT cm.handle_id FROM constant_materializations cm "
+                "JOIN snapshot_value_bindings sv ON sv.digest=cm.digest "
+                "JOIN snapshots s ON s.snapshot_id=sv.snapshot_id WHERE s.workflow_id=?)",
+                (workflow_id, workflow_id),
+            ) as cur:
+                self.handles = {r[0]: HandleBook._row_to_handle(r) for r in await cur.fetchall()}
+            async with conn.execute(
+                "SELECT sj.snapshot_id,sj.job_id FROM snapshot_jobs sj "
+                "JOIN snapshots s ON s.snapshot_id=sj.snapshot_id WHERE s.workflow_id=?",
+                (workflow_id,),
+            ) as cur:
+                self.refs = list(await cur.fetchall())
+            async with conn.execute(
+                "SELECT snapshot_id FROM snapshots WHERE workflow_id=?", (workflow_id,)
+            ) as cur:
+                self.snapshots = {r[0] for r in await cur.fetchall()}
+            async with conn.execute(
+                "SELECT sv.snapshot_id,cm.handle_id FROM snapshot_value_bindings sv "
+                "JOIN constant_materializations cm ON cm.digest=sv.digest "
+                "JOIN snapshots s ON s.snapshot_id=sv.snapshot_id WHERE s.workflow_id=?",
+                (workflow_id,),
+            ) as cur:
+                self.constant_refs = list(await cur.fetchall())
+            async with conn.execute(
+                "SELECT cm.handle_id FROM constant_materializations cm "
+                "JOIN snapshot_value_bindings sv ON sv.digest=cm.digest "
+                "JOIN snapshots s ON s.snapshot_id=sv.snapshot_id WHERE s.workflow_id=?",
+                (workflow_id,),
+            ) as cur:
+                self.constants = {r[0] for r in await cur.fetchall()}
+        self._build()
+        return self
+
     def _build(self):
         # Undirected components include legacy reused-row pointers, even when
         # another snapshot points at a shard rather than the aggregate parent.

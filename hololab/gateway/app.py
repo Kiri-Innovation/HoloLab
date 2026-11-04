@@ -2692,9 +2692,9 @@ def _mount_routes(app: FastAPI) -> None:
         ``/api/snapshots/{snapshot_id}``.
         """
 
-        store: JobsStore = app.state.jobs_store
         workflows_store: WorkflowStore = app.state.workflows
         handles: HandleBook = app.state.handles
+        started = time.monotonic()
 
         # 404 rather than empty list on unknown workflow so the UI can
         # distinguish "no runs yet" from "no such workflow".
@@ -2702,57 +2702,117 @@ def _mount_routes(app: FastAPI) -> None:
         if draft is None:
             raise HTTPException(status_code=404, detail="workflow not found")
 
-        snapshots = await workflows_store.list_snapshots_for_workflow(workflow_id)
+        # A Runs row needs only summary columns.  Do not deserialize every
+        # historical graph, hydrate every job JSON, or issue per-snapshot
+        # queries: all three belonged to the snapshot-detail endpoint, not
+        # this list.  ``members`` exactly mirrors JobsStore.list_by_snapshot:
+        # lineage bridge rows plus non-done attempts created against the run.
+        async def load_summaries() -> list[tuple[Any, ...]]:
+            async with (
+                app.state.db.read() as conn,
+                conn.execute(
+                """
+                WITH run_snapshots AS (
+                  SELECT snapshot_id, workflow_id, created_ts,
+                         COALESCE(json_array_length(graph_json, '$.nodes'), 0) AS node_count,
+                         favorite, note
+                  FROM snapshots WHERE workflow_id=?
+                ), members AS (
+                  SELECT s.snapshot_id, j.job_id, j.state
+                  FROM run_snapshots s
+                  JOIN snapshot_jobs sj ON sj.snapshot_id=s.snapshot_id
+                  JOIN jobs j ON j.job_id=sj.job_id
+                  UNION
+                  SELECT s.snapshot_id, j.job_id, j.state
+                  FROM run_snapshots s JOIN jobs j ON j.snapshot_id=s.snapshot_id
+                  WHERE j.state != 'done'
+                ), counts AS (
+                  SELECT snapshot_id, state, count(*) AS count
+                  FROM members GROUP BY snapshot_id, state
+                )
+                SELECT s.snapshot_id, s.workflow_id, s.created_ts, s.node_count,
+                       s.favorite, s.note, e.message, c.state, c.count
+                FROM run_snapshots s
+                LEFT JOIN snapshot_preparation_errors e ON e.snapshot_id=s.snapshot_id
+                LEFT JOIN counts c ON c.snapshot_id=s.snapshot_id
+                ORDER BY s.created_ts DESC
+                """,
+                    (workflow_id,),
+                ) as cur,
+            ):
+                return await cur.fetchall()
+
+        query_started = time.monotonic()
+        artifacts_started = time.monotonic()
+        rows, artifact_counts = await asyncio.gather(
+            load_summaries(), handles.count_by_workflow_snapshots(workflow_id)
+        )
+        query_s = time.monotonic() - query_started
+
+        summaries: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            snapshot_id, row_workflow_id, created_ts, node_count, favorite, note, error, state, count = row
+            summary = summaries.setdefault(
+                snapshot_id,
+                {
+                    "snapshot_id": snapshot_id,
+                    "workflow_id": row_workflow_id,
+                    "created_ts": created_ts,
+                    "node_count": node_count,
+                    "favorite": bool(favorite),
+                    "note": note,
+                    "preparation_failure": error,
+                    "state_counts": {},
+                },
+            )
+            if state is not None:
+                summary["state_counts"][state] = count
+
+        artifacts_s = time.monotonic() - artifacts_started
         out: list[dict[str, Any]] = []
-        for snap in snapshots:
-            jobs = await store.list_by_snapshot(snap.snapshot_id)
-            state_counts: dict[str, int] = {}
-            for j in jobs:
-                state_counts[j["state"]] = state_counts.get(j["state"], 0) + 1
+        for summary in summaries.values():
+            state_counts: dict[str, int] = summary["state_counts"]
+            job_count = sum(state_counts.values())
             # A run is "done" iff every job in it is done; "failed" if any
             # is failed; else "running" (something's still moving) or
             # "pending" if nothing has moved yet. This mirrors the badge
             # colour heuristic the frontend already uses per-node.
-            if not jobs:
+            if not job_count:
                 rollup = "pending"
             elif state_counts.get("failed", 0) > 0:
                 rollup = "failed"
             elif state_counts.get("cancelled", 0) > 0 and state_counts.get("running", 0) == 0:
                 rollup = "cancelled"
-            elif all(j["state"] == "done" for j in jobs):
+            elif state_counts.get("done", 0) == job_count:
                 rollup = "done"
-            elif any(j["state"] in ("running", "assigned") for j in jobs):
+            elif state_counts.get("running", 0) or state_counts.get("assigned", 0):
                 rollup = "running"
             else:
                 rollup = "pending"
-            async with (
-                app.state.db.read() as conn,
-                conn.execute(
-                    "SELECT message FROM snapshot_preparation_errors WHERE snapshot_id=?",
-                    (snap.snapshot_id,),
-                ) as cur,
-            ):
-                preparation_failure = await cur.fetchone()
-            if preparation_failure:
+            if summary["preparation_failure"]:
                 rollup = "failed"
-            # Cheap artifact rollup — a DB-only count so this endpoint
-            # stays snappy. The Artifacts page opts into the real
-            # filesystem check via ``?check=1`` on /api/artifacts.
-            artifact_counts = await handles.count_by_snapshot(snap.snapshot_id)
             out.append(
                 {
-                    "snapshot_id": snap.snapshot_id,
-                    "workflow_id": snap.workflow_id,
-                    "created_ts": snap.created_ts,
-                    "node_count": len(snap.graph.nodes),
-                    "job_count": len(jobs),
+                    "snapshot_id": summary["snapshot_id"],
+                    "workflow_id": summary["workflow_id"],
+                    "created_ts": summary["created_ts"],
+                    "node_count": summary["node_count"],
+                    "job_count": job_count,
                     "state_counts": state_counts,
                     "state": rollup,
-                    "artifact_counts": artifact_counts,
-                    "favorite": snap.favorite,
-                    "note": snap.note,
+                    "artifact_counts": artifact_counts.get(summary["snapshot_id"], {"total": 0, "deleted": 0}),
+                    "favorite": summary["favorite"],
+                    "note": summary["note"],
                 }
             )
+        log.info(
+            "runs list profile",
+            workflow_id=workflow_id,
+            run_count=len(out),
+            summary_sql_s=round(query_s, 4),
+            artifact_rollup_s=round(artifacts_s, 4),
+            total_s=round(time.monotonic() - started, 4),
+        )
         return out
 
     @app.patch(
