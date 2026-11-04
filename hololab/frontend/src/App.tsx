@@ -126,7 +126,7 @@ import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
 import { NodeContextMenu, type NodeMenuPosition } from "./canvas/NodeContextMenu";
 import { requestStopNode, WARM_NODE_PREPARATION_EVENT } from "./canvas/NodeRunControl";
 import { AlgorithmReplacementDialog } from "./canvas/AlgorithmReplacementDialog";
-import { replacementBaselineFromGraph, replacementCandidates, replaceAlgorithm } from "./canvas/algorithmReplacement";
+import { replacementBaselineFromGraph, replacementCandidates, replacementCandidatesFromConnections, replaceAlgorithm } from "./canvas/algorithmReplacement";
 import { duplicateNode } from "./canvas/nodeDuplicate";
 import "./canvas/nodeContextMenu.css";
 import { PackPalette } from "./canvas/PackPalette";
@@ -1156,14 +1156,21 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const witnessBaseline = graphNode && !ownBaseline && !data.replacementBaseline && witness && witness.id !== n.id
           ? replacementBaselineFromGraph(data.pack, witness.port_types, graphNode.arrayed_toggle, witnessPack?.arrayable)
           : null;
-        const replacementBaseline = ownBaseline ?? witnessBaseline ?? data.replacementBaseline;
-        const replacementBasis = ownBaseline ? undefined : witnessBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : data.replacementBasis;
+        const connectionInferred = graph && graphNode && !ownBaseline && !witnessBaseline && !data.replacementBaseline
+          && replacementCandidatesFromConnections(graphNode.id, graph, catalog).length > 0;
+        const replacementBaseline = ownBaseline ?? witnessBaseline ?? data.replacementBaseline
+          // The current pack is only an identity/parameter carrier here. The
+          // candidate filter below verifies the graph's observed interfaces.
+          ?? (connectionInferred ? data.pack : undefined);
+        const replacementMode = ownBaseline || witnessBaseline || data.replacementMode === 'strict' ? 'strict'
+          : connectionInferred ? 'connections' : data.replacementMode;
+        const replacementBasis = ownBaseline ? undefined : witnessBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : data.replacementBasis;
         const refreshesPack = Boolean(fresh && fresh.manifest_hash !== data.pack.manifest_hash);
         if (!refreshesPack && replacementBaseline === data.replacementBaseline && replacementBasis === data.replacementBasis) {
           return n;
         }
         if (refreshesPack) remeasure.push(n.id);
-        return { ...n, data: { ...n.data, ...(fresh ? {pack: fresh} : {}), replacementBaseline, replacementBasis } };
+        return { ...n, data: { ...n.data, ...(fresh ? {pack: fresh} : {}), replacementBaseline, replacementBasis, replacementMode } };
       });
       if (remeasure.length > 0) {
         pendingRemeasureRef.current = [
@@ -2257,14 +2264,17 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           const witnessReplacementBaseline = !ownReplacementBaseline && witness && witness.id !== gn.id
             ? replacementBaselineFromGraph(pack, witness.port_types, gn.arrayed_toggle, witnessPack?.arrayable)
             : null;
+          const connectionInferred = !ownReplacementBaseline && !witnessReplacementBaseline
+            && replacementCandidatesFromConnections(gn.id, graph, catalog).length > 0;
           const node: Node<AlgorithmNodeData> = {
             id: gn.id,
             type: "algorithm",
             position: gn.position,
             data: {
               pack,
-              replacementBaseline: ownReplacementBaseline ?? witnessReplacementBaseline ?? undefined,
-              replacementBasis: ownReplacementBaseline ? undefined : witnessReplacementBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : undefined,
+              replacementBaseline: ownReplacementBaseline ?? witnessReplacementBaseline ?? (connectionInferred ? pack : undefined),
+              replacementBasis: ownReplacementBaseline ? undefined : witnessReplacementBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : undefined,
+              replacementMode: ownReplacementBaseline || witnessReplacementBaseline ? 'strict' : connectionInferred ? 'connections' : undefined,
               assembly: gn.assembly,
               assigned_node_id: gn.assigned_node_id,
               ...({ local_params: gn.local_params, param_bindings: gn.param_bindings, params: gn.params, port_values: found ? reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) : gn.port_values } as object),
@@ -3015,7 +3025,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       )}
       {replacementNode && replacementData && !viewingSnapshot && <AlgorithmReplacementDialog
         current={replacementData.pack}
-        candidates={replacementData.replacementBaseline && !replacementData.assembly && !replacementData.pack.name.startsWith("@builtin/") ? replacementCandidates(replacementData.replacementBaseline, catalog) : []}
+        candidates={replacementData.replacementBaseline && !replacementData.assembly && !replacementData.pack.name.startsWith("@builtin/") ? replacementData.replacementMode === 'connections' && lastHydratedWireRef.current ? replacementCandidatesFromConnections(replacementNode.id, lastHydratedWireRef.current, catalog) : replacementCandidates(replacementData.replacementBaseline, catalog) : []}
         basis={replacementData.replacementBasis}
         unavailableReason={!replacementData.replacementBaseline
           ? "图中未保存足以验证完整输入输出声明，不能安全替换。"
@@ -3025,7 +3035,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               ? "内置节点不能替换为算法。"
               : undefined}
         onClose={() => setReplacementNodeId(null)} onSelect={pack => {
-          setNodes(current => current.map(node => node.id === replacementNodeId ? replaceAlgorithm(node, pack) : node));
+          setNodes(current => current.map(node => node.id === replacementNodeId ? replaceAlgorithm(node, pack, replacementData.replacementMode === 'connections') : node));
           setReplacementNodeId(null);
         }} />}
       {snapshotError && (

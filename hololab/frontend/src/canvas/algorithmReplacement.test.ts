@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest';
-import type {CatalogPack} from '../wire';
-import {samePorts, replacementBaselineFromGraph, replacementCandidates, replaceAlgorithm} from './algorithmReplacement';
+import type {CatalogPack, WorkflowGraph} from '../wire';
+import {samePorts, replacementBaselineFromGraph, replacementCandidates, replacementCandidatesFromConnections, replaceAlgorithm} from './algorithmReplacement';
 const pack = (name='demo', version='1.0.0') => ({name, version, inputs:{in:{tags:['image'],arrayed:true,dim_labels:['frame']}}, outputs:{out:{tags:['image']}}, params:{count:{type:'int',default:2},mode:{type:'enum',values:['a','b'],default:'a'},old:{type:'string',default:''}},node_ids:[]} as unknown as CatalogPack);
 describe('algorithm replacement',()=>{
   it('compares complete named declarations, not connection compatibility',()=>{
@@ -40,5 +40,26 @@ describe('algorithm replacement',()=>{
     expect(result.data.previews).toEqual(source.data.previews);
     expect(source.data.params.old).toBe('remove');
     expect(replaceAlgorithm(source,{...target,outputs:{}})).toBe(source);
+  });
+  it('offers a clearly weaker replacement only when every connected port is compatible',()=>{
+    const historical={...pack('community/images-array-source'),inputs:{},outputs:{images:{tags:['image'],arrayed:false,scalar:false}},params:{}} as unknown as CatalogPack;
+    const builtin={...historical,name:'builtin/images-array-source',version:'0.1.1',inputs:{optional:{tags:['float'],required:false}}} as unknown as CatalogPack;
+    const wrongName={...builtin,name:'builtin/wrong',outputs:{other:builtin.outputs.images}} as unknown as CatalogPack;
+    const wrongType={...builtin,name:'builtin/wrong-type',outputs:{images:{...builtin.outputs.images,tags:['video']}}} as unknown as CatalogPack;
+    const consumer={...pack('sink'),inputs:{images:{tags:['image'],arrayed:false,scalar:false,required:true}},outputs:{},params:{}} as unknown as CatalogPack;
+    const graph: WorkflowGraph={nodes:[
+      {id:'source',algorithm_name:'source',algorithm_version:'1.0.0',position:{x:0,y:0},params:{},assigned_node_id:null},
+      {id:'historical',algorithm_name:'community/images-array-source',algorithm_version:'0.1.1',position:{x:0,y:0},params:{},assigned_node_id:null},
+      {id:'sink',algorithm_name:'sink',algorithm_version:'1.0.0',position:{x:0,y:0},params:{},assigned_node_id:null},
+    ],edges:[{id:'edge',source:'historical',sourceHandle:'images',target:'sink',targetHandle:'images'}]};
+    expect(replacementCandidatesFromConnections('historical',graph,[builtin,wrongName,wrongType,consumer]).map(p=>p.name)).toEqual(['builtin/images-array-source']);
+    const node={id:'historical',position:{x:4,y:9},data:{pack:historical,replacementBaseline:historical,replacementMode:'connections' as const,params:{},assigned_node_id:null}};
+    expect((replaceAlgorithm(node,builtin,true).data as any).pack.name).toBe('builtin/images-array-source');
+    expect((replaceAlgorithm(node,builtin).data as any).pack.name).toBe('community/images-array-source');
+  });
+  it('does not infer a replacement from a node with no observed ports',()=>{
+    const historical={...pack('community/gone'),inputs:{},outputs:{images:{tags:['image']}},params:{}} as unknown as CatalogPack;
+    const graph: WorkflowGraph={nodes:[{id:'gone',algorithm_name:'community/gone',algorithm_version:'1.0.0',position:{x:0,y:0},params:{},assigned_node_id:null}],edges:[]};
+    expect(replacementCandidatesFromConnections('gone',graph,[historical,{...historical,name:'builtin/gone'}])).toEqual([]);
   });
 });

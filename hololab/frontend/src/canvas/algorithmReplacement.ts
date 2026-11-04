@@ -1,9 +1,11 @@
 import type { Node } from '@xyflow/react';
-import type { CatalogPack, ParamSpec } from '../wire';
+import type { CatalogPack, GraphNode, ParamSpec, WorkflowGraph } from '../wire';
 import { canonicalPackageName, samePackage } from '../packageIdentity';
 import { declarationType } from '../types/legacyPortType';
 import type { PortDeclaration } from '../types/portTypeIR';
 import { algorithmNodeData } from './nodeMeta';
+import { effectivePortArrayed, effectivePortDimLabels, portsCompatible } from '../tags';
+import { inlineError } from './inlineValues';
 
 const stable = (value: unknown): string => JSON.stringify(value, (_key, item) =>
   item && typeof item === 'object' && !Array.isArray(item)
@@ -77,6 +79,82 @@ export function replacementCandidates(current: CatalogPack, catalog: CatalogPack
       versionDescending(a.version, b.version);
   });
 }
+
+/**
+ * A deliberately weaker replacement proof for historical nodes whose complete
+ * declaration has disappeared. It proves every port the graph actually uses;
+ * unconnected, unknown ports remain unknown and are surfaced as such in the UI.
+ */
+export function replacementCandidatesFromConnections(
+  nodeId: string, graph: WorkflowGraph, catalog: CatalogPack[],
+): CatalogPack[] {
+  const node = graph.nodes.find(candidate => candidate.id === nodeId);
+  // A fan-out toggle changes interfaces globally. Without the historical pack
+  // declaration we cannot prove that its semantics match a replacement.
+  if (!node || node.arrayed_toggle) return [];
+  const byId = new Map(graph.nodes.map(candidate => [candidate.id, candidate]));
+  const byKey = new Map(catalog.map(pack => [`${pack.name}@${pack.version}`, pack]));
+  const incoming = graph.edges.filter(edge => edge.target === nodeId);
+  const outgoing = graph.edges.filter(edge => edge.source === nodeId);
+  const wired = new Set(incoming.map(edge => edge.targetHandle));
+  const inline = Object.entries(node.port_values ?? {}).filter(([name, value]) => !wired.has(name) && value != null);
+  // With no observed interface, allowing every catalog package would be a
+  // guess, not a graph-derived replacement.
+  if (!incoming.length && !outgoing.length && !inline.length) return [];
+
+  const sourceCompatible = (sourceNode: GraphNode, sourcePort: string, candidate: CatalogPack, targetPort: string): boolean => {
+    const sourcePack = byKey.get(`${sourceNode.algorithm_name}@${sourceNode.algorithm_version}`);
+    const output = sourcePack?.outputs[sourcePort];
+    const input = candidate.inputs[targetPort];
+    if (!output || !input) return false;
+    const actualArrayed = effectivePortArrayed(output.arrayed, sourcePack!.arrayable, sourceNode.arrayed_toggle, output.scalar);
+    const actualLabels = effectivePortDimLabels(output.arrayed, output.dim_labels, sourcePack!.arrayable, sourceNode.arrayed_toggle, output.scalar);
+    return (input.any_of?.length ? input.any_of : [input]).some(variant => portsCompatible(
+      output.tags, actualArrayed, variant.tags,
+      effectivePortArrayed(variant.arrayed, candidate.arrayable, false, input.scalar), input.scalar,
+      actualLabels, effectivePortDimLabels(variant.arrayed, variant.dim_labels, candidate.arrayable, false, input.scalar),
+      input.require_axis_label_match ?? true,
+    ));
+  };
+  const outputCompatible = (candidate: CatalogPack, sourcePort: string, targetNode: GraphNode, targetPort: string): boolean => {
+    // View cards are observers: their existing connection validation does not
+    // impose a data type, only the conventional `in` handle.
+    if (targetNode.kind === 'view') return targetPort === 'in' && !!candidate.outputs[sourcePort];
+    const targetPack = byKey.get(`${targetNode.algorithm_name}@${targetNode.algorithm_version}`);
+    const output = candidate.outputs[sourcePort];
+    const input = targetPack?.inputs[targetPort];
+    if (!output || !input || targetNode.arrayed_toggle) return false;
+    const actualArrayed = effectivePortArrayed(output.arrayed, candidate.arrayable, false, output.scalar);
+    const actualLabels = effectivePortDimLabels(output.arrayed, output.dim_labels, candidate.arrayable, false, output.scalar);
+    return (input.any_of?.length ? input.any_of : [input]).some(variant => portsCompatible(
+      output.tags, actualArrayed, variant.tags,
+      effectivePortArrayed(variant.arrayed, targetPack!.arrayable, false, input.scalar), input.scalar,
+      actualLabels, effectivePortDimLabels(variant.arrayed, variant.dim_labels, targetPack!.arrayable, false, input.scalar),
+      input.require_axis_label_match ?? true,
+    ));
+  };
+
+  return catalog.filter(candidate => !candidate.name.startsWith('@builtin/') &&
+    incoming.every(edge => {
+      const source = byId.get(edge.source);
+      return !!source && source.kind !== 'view' && sourceCompatible(source, edge.sourceHandle, candidate, edge.targetHandle);
+    }) &&
+    outgoing.every(edge => {
+      const target = byId.get(edge.target);
+      return !!target && outputCompatible(candidate, edge.sourceHandle, target, edge.targetHandle);
+    }) &&
+    inline.every(([name, value]) => {
+      const input = candidate.inputs[name];
+      return !!input && inlineError(input, value, false) === null;
+    }) &&
+    // A replacement must not silently introduce a required input which this
+    // graph neither wires nor supplies inline. Optional new ports are safe.
+    Object.entries(candidate.inputs).every(([name, input]) => !input.required || wired.has(name) || inline.some(([inlineName]) => inlineName === name)),
+  ).sort((a, b) => {
+    const an = canonicalPackageName(a.name), bn = canonicalPackageName(b.name);
+    return an.localeCompare(bn) || versionDescending(a.version, b.version);
+  });
+}
 function compatibleSpec(a: ParamSpec, b: ParamSpec): boolean {
   return (a.type === b.type && (a.items ?? null) === (b.items ?? null)) || (a.type === 'int' && b.type === 'float');
 }
@@ -90,10 +168,10 @@ function accepts(spec: ParamSpec, value: unknown): boolean {
   if (spec.type === 'array') return Array.isArray(value) && (!spec.items || value.every(item => accepts({...spec, type: spec.items!, items: null, optional: false}, item)));
   return false;
 }
-export function replaceAlgorithm(node: Node<Record<string, unknown>>, target: CatalogPack): Node<Record<string, unknown>> {
+export function replaceAlgorithm(node: Node<Record<string, unknown>>, target: CatalogPack, connectionInferred = false): Node<Record<string, unknown>> {
   const data = algorithmNodeData(node.data);
   const baseline = data?.replacementBaseline ?? data?.pack;
-  if (!data || !baseline || !samePorts(baseline, target) || samePackage(data.pack.name, data.pack.version, target.name, target.version)) return node;
+  if (!data || !baseline || (!connectionInferred && !samePorts(baseline, target)) || samePackage(data.pack.name, data.pack.version, target.name, target.version)) return node;
   const params: Record<string, unknown> = {}, bindings: Record<string, string> = {};
   const retained = new Set<string>();
   for (const [name, spec] of Object.entries(target.params)) {
@@ -107,7 +185,7 @@ export function replaceAlgorithm(node: Node<Record<string, unknown>>, target: Ca
       bindings[name] = data.param_bindings[name]; retained.add(name);
     }
   }
-  return {...node, data: {...data, pack: target, replacementBaseline: target, replacementBasis: undefined, params, param_bindings: bindings,
+  return {...node, data: {...data, pack: target, replacementBaseline: target, replacementBasis: undefined, replacementMode: 'strict', params, param_bindings: bindings,
     local_params: data.local_params?.filter(name => retained.has(name)),
   }};
 }

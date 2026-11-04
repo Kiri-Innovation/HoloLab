@@ -124,6 +124,8 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   replacementBaseline?: CatalogPack;
   /** Human-readable provenance when a historical contract is inferred. */
   replacementBasis?: string;
+  /** Strict contracts compare every port; connection contracts prove only ports used by this graph. */
+  replacementMode?: "strict" | "connections";
   arrayed_toggle?: boolean;
   assigned_node_id: string | null;
   /** Draft node parameters, included in the CoBrowser reference snapshot. */

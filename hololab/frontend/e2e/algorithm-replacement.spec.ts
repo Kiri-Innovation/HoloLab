@@ -65,3 +65,39 @@ for (const delayed of [false, true]) test(`replace algorithm updates analysis, a
   await page.keyboard.press('Escape');
   await source.click({button:'right'});await page.getByRole('menuitem',{name:'创建副本'}).click();await expect(page.locator('.react-flow__node')).toHaveCount(3);
 });
+
+test('offers a graph-inferred replacement when a migrated historical pack has no declaration', async ({page}) => {
+  const historical = 'community/images-array-source';
+  const builtin = {name:'builtin/images-array-source',version:'0.1.1',manifest_hash:'builtin',node_ids:[],description:'Builtin replacement',inputs:{},outputs:{frames:{tags:['image'],arrayed:true,dim_labels:['frame']}},params:{}};
+  const consumer = {name:'consumer',version:'1.0.0',manifest_hash:'consumer',node_ids:[],description:'Consumes frames',inputs:{frames:{tags:['image'],arrayed:true,dim_labels:['frame'],required:true}},outputs:{},params:{}};
+  let graph:any = {nodes:[
+    {id:'source',algorithm_name:historical,algorithm_version:'0.1.1',params:{frames_path:'/readonly'},position:{x:0,y:0}},
+    {id:'sink',algorithm_name:'consumer',algorithm_version:'1.0.0',params:{},position:{x:420,y:0}},
+  ],edges:[{id:'frames-wire',source:'source',sourceHandle:'frames',target:'sink',targetHandle:'frames'}]};
+  let revision = 1;
+  await page.routeWebSocket('**',()=>{});
+  await page.route('**/api/**', async route => {
+    const req = route.request(), path = new URL(req.url()).pathname;
+    let body:any = [];
+    if (path === '/api/pack-catalog') body = [builtin, consumer];
+    else if (path === '/api/nodes/metrics/history') body = {nodes:{},sample_interval_s:3};
+    else if (path === '/api/workflows/connection-inferred') body = {workflow_id:'connection-inferred',name:'Connection inferred',graph,created_ts:1,updated_ts:revision};
+    else if (path === '/api/workflows/connection-inferred/runs') body = [];
+    else if (path.endsWith('/analyze')) body = {revision:String(revision),graph:req.postDataJSON().graph,staleness:{},diff:[],environment_params:{},canvas_jobs:[]};
+    else if (path === '/api/workflows' && req.method() === 'POST') { graph = req.postDataJSON().graph; body = {workflow_id:'connection-inferred',updated_ts:++revision}; }
+    await route.fulfill({json:body});
+  });
+  await page.goto('/w/connection-inferred');
+  const source = page.locator('.react-flow__node[data-id="source"]');
+  await expect(source).toBeVisible();
+  await source.click({button:'right'});
+  await page.getByRole('menuitem',{name:'替换为算法…'}).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）')).toBeVisible();
+  await expect(dialog.getByRole('button',{name:'builtin/images-array-source @0.1.1'})).toBeVisible();
+  await page.screenshot({path:'/tmp/algorithm-replacement/connection-inferred.png'});
+  await dialog.getByRole('button',{name:'builtin/images-array-source @0.1.1'}).click();
+  await expect.poll(() => graph.nodes[0].algorithm_name).toBe('builtin/images-array-source');
+  expect(graph.nodes[0].id).toBe('source');
+  expect(graph.edges).toEqual([{id:'frames-wire',source:'source',sourceHandle:'frames',target:'sink',targetHandle:'frames'}]);
+});
