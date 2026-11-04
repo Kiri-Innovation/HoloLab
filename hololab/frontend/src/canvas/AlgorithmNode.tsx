@@ -1,5 +1,6 @@
 import { CapabilityContext } from "./EnvironmentChecks";
 import { canonicalPackageName } from "../packageIdentity";
+import { newId } from "../newId";
 import { packCertification } from "./packCertification";
 import { ImageCropEditor } from "./ImageCropEditor";
 import { ComposeVideoEditor } from "./ComposeVideoEditor";
@@ -360,7 +361,7 @@ export function dispatchRunNode(graph_node_id: string, onPhase?: (phase: string)
     };
     const detail: RunNodeDetail = {
       graph_node_id,
-      optimistic_job_id: `pending:${graph_node_id}:${crypto.randomUUID()}`,
+      optimistic_job_id: `pending:${graph_node_id}:${newId()}`,
       algorithm_name: pack?.name ?? "启动中的任务",
       algorithm_version: pack?.version ?? "",
       resolve: () => settle(resolve),
