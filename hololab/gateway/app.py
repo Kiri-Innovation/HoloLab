@@ -357,6 +357,18 @@ def create_app(
             lambda keys: usage_catalog_revision(app.state.registry, keys),
         )
         app.state.hub = FrontendHub()
+        # A gateway restart loses the in-memory fan-out pool.  Any parent
+        # that was terminalised before a prior process died can therefore
+        # have PENDING shard rows that no scheduler will ever dispatch.
+        # Repair that invariant before accepting new work.  This only changes
+        # never-dispatched children; assigned/running rows remain recoverable
+        # through the orphan/reconcile path below.
+        repaired_children = await app.state.jobs_store.terminalize_pending_children_of_terminal_parents()
+        if repaired_children:
+            log.warning(
+                "startup repaired pending fanout children of terminal parents",
+                count=len(repaired_children),
+            )
         # In-memory rolling metrics per compute node — powers the
         # "server pulse" panel that fills the inspector when the
         # canvas selection is empty. Deliberately not persisted to
@@ -4693,6 +4705,9 @@ async def _dispatch_node_frame(
             h.output_port_name: h.handle_id for h in done_handles if h.output_port_name
         }
         _push_job_update(hub, new, output_handles=output_handles or None)
+        if new.parent_job_id is None and new.expected_shards is not None:
+            for child in await store.terminalize_pending_children_of_terminal_parents([new.job_id]):
+                _push_job_update(hub, child)
         return
 
     if kind == "job_fail":
@@ -4717,6 +4732,9 @@ async def _dispatch_node_frame(
         kind_ev, ev_payload = event_from_transition(job, new)
         await store.update(new, kind_ev, ev_payload)
         _push_job_update(hub, new)
+        if new.parent_job_id is None and new.expected_shards is not None:
+            for child in await store.terminalize_pending_children_of_terminal_parents([new.job_id]):
+                _push_job_update(hub, child)
         return
 
     if kind == "handle_register":
@@ -4926,6 +4944,8 @@ async def _orphan_finalizer(app: FastAPI) -> None:
             if job is None:
                 continue
             _push_job_update(hub, job)
+        for child in await store.terminalize_pending_children_of_terminal_parents(finalized):
+            _push_job_update(hub, child)
 
 
 # ---------------------------------------------------------------------------
@@ -5122,6 +5142,7 @@ async def _reconcile_orphaned_on_register(
     claimed = set(running_jobs or ())
     hoisted = 0
     finalised = 0
+    terminal_parent_ids: list[str] = []
     for job in orphans:
         target = JobState.RUNNING if job.job_id in claimed else JobState.INTERRUPTED
         try:
@@ -5145,6 +5166,10 @@ async def _reconcile_orphaned_on_register(
             hoisted += 1
         else:
             finalised += 1
+            terminal_parent_ids.append(new.job_id)
+
+    for child in await store.terminalize_pending_children_of_terminal_parents(terminal_parent_ids):
+        _push_job_update(hub, child)
 
     if hoisted or finalised:
         log.info(

@@ -39,6 +39,7 @@ async def _seed_job(
     *,
     node_id: str | None = None,
     updated_ts: float | None = None,
+    parent_job_id: str | None = None,
 ) -> None:
     """Insert one minimal job row with a caller-chosen state + owner."""
 
@@ -47,9 +48,16 @@ async def _seed_job(
     async def _write(conn) -> None:
         await conn.execute(
             "INSERT INTO jobs (job_id, workflow_id, algorithm_name, algorithm_version, "
-            "params_json, input_handles_json, state, node_id, created_ts, updated_ts) "
-            "VALUES (?, 'w', 'demo-echo', '0.1.0', '{}', '{}', ?, ?, ?, ?)",
-            (job_id, state, node_id, now, updated_ts if updated_ts is not None else now),
+            "params_json, input_handles_json, state, node_id, created_ts, updated_ts, parent_job_id) "
+            "VALUES (?, 'w', 'demo-echo', '0.1.0', '{}', '{}', ?, ?, ?, ?, ?)",
+            (
+                job_id,
+                state,
+                node_id,
+                now,
+                updated_ts if updated_ts is not None else now,
+                parent_job_id,
+            ),
         )
 
     await db.write(_write)
@@ -94,6 +102,73 @@ async def test_mark_stuck_orphaned_skips_pending_and_orphaned_and_terminal(
             ("interrupted", "interrupted"),
         ]:
             assert (await store.get(jid)).state.value == expected
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_parent_interrupts_only_pending_shards(tmp_path: Path) -> None:
+    """Reconcile must close queued shards but never kill real node work.
+
+    This models a fan-out coordinator that became interrupted after a WS
+    disconnect: its in-memory pool is gone, so PENDING children can never be
+    assigned.  ASSIGNED/RUNNING children remain for the normal orphan path.
+    """
+
+    db = await open_database(tmp_path / "s.sqlite")
+    try:
+        await _seed_job(db, "parent", "interrupted")
+        await _seed_job(db, "pending-a", "pending", parent_job_id="parent")
+        await _seed_job(db, "pending-b", "pending", parent_job_id="parent")
+        await _seed_job(db, "assigned", "assigned", parent_job_id="parent", node_id="n1")
+        await _seed_job(db, "running", "running", parent_job_id="parent", node_id="n1")
+
+        store = JobsStore(db)
+        changed = await store.terminalize_pending_children_of_terminal_parents(["parent"])
+        assert {job.job_id for job in changed} == {"pending-a", "pending-b"}
+        assert {job.state.value for job in changed} == {"interrupted"}
+        assert (await store.get("assigned")).state.value == "assigned"
+        assert (await store.get("running")).state.value == "running"
+
+        # Conditional PENDING update makes repeated recovery passes safe.
+        assert await store.terminalize_pending_children_of_terminal_parents(["parent"]) == []
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_parent_cancels_pending_shards(tmp_path: Path) -> None:
+    """Operator cancellation gives unassigned shards the honest CANCELLED state."""
+
+    db = await open_database(tmp_path / "s.sqlite")
+    try:
+        await _seed_job(db, "parent", "cancelled")
+        await _seed_job(db, "queued", "pending", parent_job_id="parent")
+
+        store = JobsStore(db)
+        changed = await store.terminalize_pending_children_of_terminal_parents(["parent"])
+        assert [(job.job_id, job.state.value) for job in changed] == [("queued", "cancelled")]
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_startup_terminal_parent_sweep_repairs_historical_pending_shards(
+    tmp_path: Path,
+) -> None:
+    """The unscoped startup sweep repairs only terminal-parent ghosts."""
+
+    db = await open_database(tmp_path / "s.sqlite")
+    try:
+        await _seed_job(db, "old-terminal", "failed")
+        await _seed_job(db, "old-ghost", "pending", parent_job_id="old-terminal")
+        await _seed_job(db, "live-parent", "running")
+        await _seed_job(db, "live-queued", "pending", parent_job_id="live-parent")
+
+        store = JobsStore(db)
+        changed = await store.terminalize_pending_children_of_terminal_parents()
+        assert [(job.job_id, job.state.value) for job in changed] == [("old-ghost", "interrupted")]
+        assert (await store.get("live-queued")).state.value == "pending"
     finally:
         await db.close()
 

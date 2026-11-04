@@ -614,6 +614,8 @@ async def _execute_fanout_body(
     _, payload = event_from_transition(parent_running, parent_done)
     await store.update(parent_done, "transition:done", payload)
     _push_update(hub, parent_done)
+    for child in await store.terminalize_pending_children_of_terminal_parents([parent_done.job_id]):
+        _push_update(hub, child)
     log.info(
         "fanout done",
         parent_job_id=plan.parent_job.job_id,
@@ -1135,6 +1137,8 @@ async def _mark_parent_failed(
     _, payload = event_from_transition(parent_running, parent_failed)
     await store.update(parent_failed, "transition:failed", payload)
     _push_update(hub, parent_failed)
+    for child in await store.terminalize_pending_children_of_terminal_parents([parent_failed.job_id]):
+        _push_update(hub, child)
 
 
 def _aggregate_parent_fail_reason(shard_reasons: list[JobFailReason]) -> JobFailReason:

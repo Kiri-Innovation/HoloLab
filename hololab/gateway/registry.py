@@ -1412,6 +1412,110 @@ class JobsStore:
             for r in rows
         ]
 
+    async def terminalize_pending_children_of_terminal_parents(
+        self,
+        parent_job_ids: list[str] | None = None,
+    ) -> list[Job]:
+        """Close never-dispatched fan-out shards whose coordinator is terminal.
+
+        Fan-out creates every shard row up front, while its in-memory pool
+        advances only ``parallelism`` rows at a time.  If that pool disappears
+        (for example a gateway restart) after its parent is terminalised, the
+        remaining PENDING rows have no scheduler left that can ever assign
+        them.  Keeping those rows live is both misleading and, worse, makes a
+        later run look as though work is still queued.
+
+        This is deliberately limited to PENDING children.  ASSIGNED/RUNNING
+        shards may already have reached a node and must follow the existing
+        orphan/reconcile path; touching them here could kill real work.
+        CANCELLED parents yield CANCELLED children.  Every other terminal
+        parent yields INTERRUPTED children: no subprocess ran, so copying
+        DONE/FAILED onto the child would be a lie.  The conditional UPDATE
+        makes repeated recovery sweeps idempotent and closes the race with a
+        shard that is being assigned at the same time.
+
+        When ``parent_job_ids`` is ``None`` this is the startup repair sweep
+        for already-terminal historical parents.  Callers should broadcast
+        the returned rows after the transaction commits.
+        """
+
+        terminal_states = ("done", "failed", "cancelled", "interrupted")
+
+        async def _write(conn: aiosqlite.Connection) -> list[str]:
+            where = (
+                "c.state='pending' AND p.parent_job_id IS NULL "
+                "AND p.state IN (?, ?, ?, ?)"
+            )
+            params: list[Any] = list(terminal_states)
+            if parent_job_ids is not None:
+                if not parent_job_ids:
+                    return []
+                placeholders = ",".join("?" for _ in parent_job_ids)
+                where += f" AND p.job_id IN ({placeholders})"
+                params.extend(parent_job_ids)
+
+            async with conn.execute(
+                f"""
+                SELECT c.job_id, c.parent_job_id, p.state
+                FROM jobs c
+                JOIN jobs p ON p.job_id=c.parent_job_id
+                WHERE {where}
+                """,
+                params,
+            ) as cur:
+                candidates = await cur.fetchall()
+
+            now = time.time()
+            changed: list[str] = []
+            for child_id, parent_id, parent_state in candidates:
+                child_state = "cancelled" if parent_state == "cancelled" else "interrupted"
+                fail_reason = "cancelled" if child_state == "cancelled" else "system_error"
+                message = (
+                    "fan-out coordinator was cancelled before this shard was dispatched"
+                    if child_state == "cancelled"
+                    else "fan-out coordinator became terminal before this shard was dispatched"
+                )
+                cur = await conn.execute(
+                    """
+                    UPDATE jobs
+                    SET state=?, fail_reason=?, fail_message=?, updated_ts=?
+                    WHERE job_id=? AND state='pending'
+                    """,
+                    (child_state, fail_reason, message, now, child_id),
+                )
+                if not cur.rowcount:
+                    continue
+                await conn.execute(
+                    "INSERT INTO job_events (job_id, kind, payload_json, ts) VALUES (?, ?, ?, ?)",
+                    (
+                        child_id,
+                        f"transition:{child_state}",
+                        json.dumps(
+                            {
+                                "from": "pending",
+                                "to": child_state,
+                                "cause": "terminal_parent",
+                                "parent_job_id": parent_id,
+                                "parent_state": parent_state,
+                            },
+                            sort_keys=True,
+                        ),
+                        now,
+                    ),
+                )
+                changed.append(child_id)
+            return changed
+
+        changed_ids = await self._db.write(_write)
+        changed: list[Job] = []
+        for child_id in changed_ids:
+            child = await self.get(child_id)
+            if child is None:  # pragma: no cover - concurrent deletion guard
+                continue
+            changed.append(child)
+            self._notify_terminal(child)
+        return changed
+
     async def list_orphaned_for_node(self, node_id: str) -> list[Job]:  # noqa: F821
         """Return every ``orphaned`` job owned by the given node.
 
