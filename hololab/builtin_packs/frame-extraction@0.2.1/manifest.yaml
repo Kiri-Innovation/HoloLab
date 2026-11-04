@@ -1,0 +1,170 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/frame-extraction
+version: 0.2.1
+description: Extract frames into locally indexed p_<i:016d>.png arrays, with fast lossless PNG encoding.
+source_entry: extract_frames.py
+category: basic/input/frame-extraction
+arrayable: true
+docs: 'Breaking positional output layout: upgrade the entire chain in a new graph.
+
+  One invocation emits one ordered image array directly at its output root.
+
+  Each selected frame is p_<i:016d>.png in extraction order, starting at zero.
+
+  Fan-out adds the outer video array without flattening the inner frame array.
+
+  Selection/window/stride, SDR pixels and HDR tonemapping remain unchanged.
+
+  0.2.1: restores the 0.1.1 lossless PNG encoder and thread controls (decoded pixels
+
+  are identical to 0.2.0; png_compression=-1 with png_predictor=none reproduces 0.2.0
+
+  bytes), prints real [ITER i/N] progress, warns when max_frames truncates, rejects skip<1.
+
+  '
+inputs:
+  video_dir:
+    tags:
+    - video-source
+    description: Directory produced by builtin/single-video-source or (with arrayed
+      toggle on) one element of builtin/video-array-source; the first video file inside
+      is used.
+params:
+  decode_threads:
+    type: int
+    default: 0
+    min: 0
+    description: 'FFmpeg decoder threads per invocation (``-threads:v`` before ``-i``); 0 = FFmpeg
+      automatic, as in 0.2.0. Under fan-out, about CPU cores / node parallelism avoids oversubscription.'
+  encode_threads:
+    type: int
+    default: 0
+    min: 0
+    description: 'FFmpeg PNG encoder threads per invocation (``-threads:v`` after ``-i``); 0 = automatic.'
+  filter_threads:
+    type: int
+    default: 0
+    min: 0
+    description: 'FFmpeg filter-graph threads (``-filter_threads``); 0 = automatic.'
+  png_compression:
+    type: int
+    default: 1
+    min: -1
+    max: 9
+    description: 'Lossless zlib level for PNG (``-compression_level``); lower is faster but larger.
+      -1 keeps the FFmpeg default used by 0.2.0. Decoded pixels never change.'
+  png_predictor:
+    type: enum
+    default: sub
+    values:
+    - none
+    - sub
+    - up
+    - avg
+    - paeth
+    - mixed
+    description: 'Reversible PNG prediction filter (``-pred``); does not change pixel values.
+      ``none`` matches 0.2.0.'
+  max_frames:
+    type: int
+    default: 50
+    min: 1
+    description: 'Per-video cap on extracted frames after window and stride (--max-frames);
+      a warning reports how many frames are dropped when the window holds more.'
+  skip:
+    type: int
+    default: 1
+    min: 1
+    description: Extract every Nth frame within the [start, end) window.
+  max_width:
+    type: int
+    default: 0
+    min: 0
+    description: 'Downscale to this max width in px (aspect-preserved); 0 = keep native
+      resolution. Only ever downscales — a video narrower than this passes through
+      untouched. Mirrors ``SpacetimeGaussians/script/pre_no_prior.py`` ``--max_width``
+      semantics.
+
+      '
+  start_frame:
+    type: int
+    default: 0
+    min: 0
+    description: 'Source-frame index (0-based, inclusive) window start. Mirrors STG
+      ``--startframe``. Combines with ``skip``: after seeking to ``start_frame`` we
+      pick every ``skip``-th frame from there.
+
+      '
+  end_frame:
+    type: int
+    default: 0
+    min: 0
+    description: 'Source-frame index (0-based, exclusive) window end; 0 = no end,
+      extract to video tail. Mirrors STG ``--endframe``. Must be > ``start_frame``
+      when set.
+
+      '
+outputs:
+  frame_sequence:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - frame
+    description: 'Directory containing ``p_<i:016d>.png`` files at its root (no
+      ``frames/`` wrapper). Consumed by ``frames-to-camera-track`` and any other algorithm
+      that needs an ordered image sequence. Port name stays ``frame_sequence`` for
+      wiring stability; the tag is the canonical ``image`` (alias-compatible with
+      ``image_sequence`` / ``frame_sequence``).
+
+      '
+requires:
+  packages:
+  - ffmpeg
+runtime:
+  mode: host
+  gpu:
+    required: false
+  expected_duration_min:
+  - 0.05
+  - 2.0
+  resources:
+    scratch_gb: 2.0
+    mem_gb: 2.0
+exec:
+  python: extract_frames.py
+  args:
+  - --input-dir
+  - '{{ inputs.video_dir }}'
+  - --skip
+  - '{{ params.skip }}'
+  - --max-frames
+  - '{{ params.max_frames }}'
+  - --max-width
+  - '{{ params.max_width }}'
+  - --start-frame
+  - '{{ params.start_frame }}'
+  - --end-frame
+  - '{{ params.end_frame }}'
+  - --output
+  - '{{ outputs.frame_sequence }}'
+  - --decode-threads
+  - '{{ params.decode_threads }}'
+  - --encode-threads
+  - '{{ params.encode_threads }}'
+  - --filter-threads
+  - '{{ params.filter_threads }}'
+  - --png-compression
+  - '{{ params.png_compression }}'
+  - --png-predictor
+  - '{{ params.png_predictor }}'
+idempotency:
+  marker: '{{ outputs.frame_sequence }}/.hololab-done'
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
+previews:
+- id: first_frame
+  type: image
+  path: '{{ outputs.frame_sequence }}/p_0000000000000000.png'

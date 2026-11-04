@@ -94,6 +94,13 @@
       "identity_format": 2
     },
     {
+      "name": "builtin/frame-extraction",
+      "version": "0.2.1",
+      "manifest": "frame-extraction@0.2.1/manifest.yaml",
+      "code_sha256": "3de0d2821c8b46908b0a9db358eb240e15ab6112201993c2e447c698325587c8",
+      "identity_format": 2
+    },
+    {
       "name": "builtin/regroup",
       "version": "0.3.0",
       "manifest": "regroup@0.3.0/manifest.yaml",
