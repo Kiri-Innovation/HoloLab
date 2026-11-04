@@ -1577,10 +1577,14 @@ async def _dispatch_graph_node(
 
     prepared = await submitted_execution(app, workflow_id, graph, required={graph_node_id})
     spans["submitted_execution"] = time.monotonic() - started
+    lineage_spans: dict[str, float] = {}
+    lineage_started = time.monotonic()
     baseline = await workflows_store.get_snapshot(base_snapshot_id) if base_snapshot_id else None
     if base_snapshot_id and (baseline is None or baseline.workflow_id != workflow_id):
         raise DispatchError("base snapshot does not belong to this workflow")
     frozen_base = await historical_execution(app, baseline) if baseline else None
+    lineage_spans["baseline_load"] = time.monotonic() - lineage_started
+    decision_started = time.monotonic()
     comparison = prepared.model_copy(deep=True)
     if frozen_base:
         old_nodes = {n.id: n for n in frozen_base.nodes}
@@ -1698,6 +1702,9 @@ async def _dispatch_graph_node(
                 can_continue = False
                 break
 
+    lineage_spans["continue_fork_decision"] = time.monotonic() - decision_started
+    mutation_started = time.monotonic()
+    materialize_s = 0.0
     parent_snapshot_id = None
     if can_continue:
         # Constants and other dependency nodes are also frozen evidence.
@@ -1726,6 +1733,7 @@ async def _dispatch_graph_node(
         await workflows_store.extend_snapshot(baseline, graph, protected=protected)
         target_snapshot_id = base_snapshot_id
         operation = "continue"
+        lineage_spans["create_extend_snapshot"] = time.monotonic() - mutation_started
     else:
         cleared = downstream_closure(graph, graph_node_id) | {graph_node_id} | changed
         parent_snapshot_id = base_snapshot_id
@@ -1734,15 +1742,19 @@ async def _dispatch_graph_node(
             graph=graph,
             parent_snapshot_id=parent_snapshot_id,
         )
+        lineage_spans["create_extend_snapshot"] = time.monotonic() - mutation_started
         target_snapshot_id = snap.snapshot_id
         operation = "fork" if base_snapshot_id is not None else "continue"
         from hololab.gateway.canvas_jobs import materialize_current_results
 
         # This helper is intentionally only used for NEW snapshots. Existing
         # membership must never gain a different generation from another branch.
+        materialize_started = time.monotonic()
         await materialize_current_results(
             app, workflow_id, graph, target_snapshot_id, cleared=cleared
         )
+        materialize_s = time.monotonic() - materialize_started
+    lineage_spans["materialize"] = materialize_s
     spans["snapshot_and_lineage"] = time.monotonic() - started - spans["submitted_execution"]
 
     frozen_snapshot = await workflows_store.get_snapshot(target_snapshot_id)
@@ -1889,6 +1901,7 @@ async def _dispatch_graph_node(
         job_id=job_id,
         total_s=round(time.monotonic() - started, 4),
         **{f"{name}_s": round(value, 4) for name, value in spans.items()},
+        **{f"lineage_{name}_s": round(value, 4) for name, value in lineage_spans.items()},
     )
     return result
 
