@@ -469,6 +469,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // creates the row, while the later RUNNING WS frame is the truthful blue
   // state; retaining both timestamps exposes any gap between them.
   const dispatchResponseAtByJobIdRef = useRef<Record<string, number>>({});
+  // Physical input time travels with a run through the DOM event bridge. It
+  // lets the RUNNING/paint diagnostic include time lost before App's handler
+  // was even scheduled, rather than pretending that the handler was the click.
+  const dispatchInputAtByJobIdRef = useRef<Record<string, number>>({});
+  // RUNNING may win the race against the initiating tab's REST response. Keep
+  // the input time by graph node for that short interval, then bind it to the
+  // authoritative job id as soon as either path identifies the job.
+  const pendingDispatchInputAtByGraphNodeRef = useRef<Record<string, number>>({});
   // A node viewer describes one execution, rather than an ever-growing
   // scrapbook of every execution of the graph node.  When a new run starts,
   // discard the previous run's restored output history before its first live
@@ -818,6 +826,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         if (p.state === "running" && p.graph_node_id) {
           const wsReceivedAt = performance.now();
           const responseAt = dispatchResponseAtByJobIdRef.current[p.job_id];
+          const inputAt =
+            dispatchInputAtByJobIdRef.current[p.job_id]
+            ?? pendingDispatchInputAtByGraphNodeRef.current[p.graph_node_id];
+          if (inputAt != null) {
+            dispatchInputAtByJobIdRef.current[p.job_id] = inputAt;
+            delete pendingDispatchInputAtByGraphNodeRef.current[p.graph_node_id];
+          }
           const observePaint = (framesLeft: number) => {
             requestAnimationFrame(() => {
               const card = Array.from(
@@ -831,8 +846,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                   rest_response_to_ws_running_ms: responseAt == null ? null : wsReceivedAt - responseAt,
                   ws_running_to_dom_ms: paintedAt - wsReceivedAt,
                   rest_response_to_dom_running_ms: responseAt == null ? null : paintedAt - responseAt,
+                  input_to_ws_running_ms: inputAt == null ? null : wsReceivedAt - inputAt,
+                  input_to_dom_running_ms: inputAt == null ? null : paintedAt - inputAt,
                 });
                 delete dispatchResponseAtByJobIdRef.current[p.job_id];
+                delete dispatchInputAtByJobIdRef.current[p.job_id];
               } else if (framesLeft > 0) {
                 observePaint(framesLeft - 1);
               }
@@ -1528,7 +1546,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // listener registered" (would silently hang) from "listener took
       // over but the fetch is still pending". See RunNodeDetail.handled.
       detail.handled = true;
-      const { graph_node_id, optimistic_job_id, algorithm_name, algorithm_version, resolve, reject } = detail;
+      const {
+        graph_node_id,
+        optimistic_job_id,
+        algorithm_name,
+        algorithm_version,
+        input_at,
+        resolve,
+        reject,
+      } = detail;
       const wid = workflowIdRef.current;
       if (!wid) {
         reject("save the workflow first (no workflow_id yet)");
@@ -1557,7 +1583,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // promise would never resolve and the caller's button would hang
       // until the dispatchRunNode timeout kicks in.
       try {
-        const clickedAt = performance.now();
+        const handlerStartedAt = performance.now();
+        // ``input_at`` is captured on the node button's pointerdown (or click
+        // for keyboard activation), before a busy main thread can delay React
+        // and this App-level CustomEvent handler. Chromium event.timeStamp and
+        // performance.now() share the high-resolution time origin.
+        const clickedAt = input_at;
+        pendingDispatchInputAtByGraphNodeRef.current[graph_node_id] = clickedAt;
         // Saving is the revision boundary for a preparation token. After a
         // dirty save, prepare the server's persisted draft rather than a
         // client-side reconstruction: persistence moves local bindings out of
@@ -1578,6 +1610,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           // with Network without leaking a recipe into logs.
           const timing = {
             graph_node_id,
+            input_delay_ms: Math.max(0, handlerStartedAt - clickedAt),
             click_to_save_ms: saveCompletedAt - clickedAt,
             save_duration_ms: saveCompletedAt - saveStartedAt,
             click_to_prepare_ms: prepareStartedAt - clickedAt,
@@ -1593,6 +1626,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         }).then(
           (result) => {
             dispatchResponseAtByJobIdRef.current[result.job_id] = performance.now();
+            dispatchInputAtByJobIdRef.current[result.job_id] = clickedAt;
+            delete pendingDispatchInputAtByGraphNodeRef.current[graph_node_id];
             // The gateway persisted this in-flight state before returning.
             // Seed it only when the earlier WS frame has not already staged
             // a newer state; this avoids a REST/WS ordering regression from
@@ -1673,6 +1708,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             resolve();
           },
           (err: Error) => {
+            delete pendingDispatchInputAtByGraphNodeRef.current[graph_node_id];
             const optimistic = optimisticJobByGraphNodeRef.current[graph_node_id];
             delete optimisticJobByGraphNodeRef.current[graph_node_id];
             if (optimistic) setJobsById((prev) => {

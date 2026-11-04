@@ -329,6 +329,12 @@ export const RUN_NODE_EVENT = "hololab-run-node";
 export interface RunNodeDetail {
   graph_node_id: string;
   optimistic_job_id: string;
+  /**
+   * ``performance.now()``-relative time of the original user input.  This
+   * deliberately crosses the CustomEvent bridge: measuring only in App loses
+   * time spent waiting for a busy main thread to deliver the click.
+   */
+  input_at: number;
   algorithm_name: string;
   algorithm_version: string;
   resolve: () => void;
@@ -351,7 +357,12 @@ export interface RunNodeDetail {
 // this fires.
 const DISPATCH_TIMEOUT_MS = 20_000;
 
-export function dispatchRunNode(graph_node_id: string, onPhase?: (phase: string) => void, pack?: {name: string; version: string}): Promise<void> {
+export function dispatchRunNode(
+  graph_node_id: string,
+  onPhase?: (phase: string) => void,
+  pack?: {name: string; version: string},
+  inputAt = performance.now(),
+): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     let settled = false;
     let timer: number | null = null;
@@ -364,6 +375,7 @@ export function dispatchRunNode(graph_node_id: string, onPhase?: (phase: string)
     const detail: RunNodeDetail = {
       graph_node_id,
       optimistic_job_id: `pending:${graph_node_id}:${newId()}`,
+      input_at: inputAt,
       algorithm_name: pack?.name ?? "启动中的任务",
       algorithm_version: pack?.version ?? "",
       resolve: () => settle(resolve),
@@ -439,7 +451,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
 
   useEffect(() => { if (!runBlockReason) setRunErrorMsg(null); }, [runBlockReason]);
 
-  const handleRunClick = async () => {
+  const handleRunClick = async (inputAt?: number) => {
     if (runInFlight || runClickPending) return;
     if (runBlockReason) { setRunErrorMsg(runBlockReason); return; }
     setRunClickPending(true);
@@ -447,7 +459,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     // dispatcher, while a later failure clears it and shows the reason.
     setRunErrorMsg(null);
     try {
-      await dispatchRunNode(id, undefined, pack);
+      await dispatchRunNode(id, undefined, pack, inputAt);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setRunErrorMsg(msg);

@@ -15,7 +15,7 @@ export function requestStopNode(graph_node_id: string): void {
 
 /** Cancels the current generation's representative parent, including its live shards. */
 export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason, onRun }: {
-  id: string; state?: string; jobId?: string; pending: boolean; stale?: boolean; blockedReason?: string; onRun: () => void;
+  id: string; state?: string; jobId?: string; pending: boolean; stale?: boolean; blockedReason?: string; onRun: (inputAt?: number) => void;
 }) {
   const stoppable = canStopNode(state);
   const [confirmJob, setConfirmJob] = useState<string | null>(null);
@@ -25,6 +25,10 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
   const [pendingLongerThanFiveSeconds, setPendingLongerThanFiveSeconds] = useState(false);
   const lock = useRef(false);
   const trigger = useRef<HTMLButtonElement>(null);
+  // Capture pointer-down rather than click: a busy main thread can delay
+  // delivery of the click task by seconds. Keyboard activation falls back to
+  // the click event timestamp below.
+  const inputAtRef = useRef<number | null>(null);
   const busy = pending || stopping || (stoppable && acceptedJob === jobId);
   // Keep a dispatching control pointer-accessible so its delayed-status
   // tooltip remains available. Clicks are still ignored below, and
@@ -68,7 +72,15 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
       disabled={disabled} aria-disabled={pending || undefined} aria-label={label}
       title={pendingLongerThanFiveSeconds ? "仍在创建任务；请稍候，失败时会显示原因" : undefined}
       data-tooltip={blockedReason && !stoppable ? blockedReason : pending ? pendingLongerThanFiveSeconds ? "仍在创建任务；请稍候，失败时会显示原因" : "任务创建中；创建后即可停止" : !jobId && stoppable ? "正在获取任务信息，暂不能停止" : stoppable && !busy ? "停止运行（需确认；不是暂停）" : label}
-      onClick={e => { e.stopPropagation(); if (pending) return; if (stoppable && jobId) { setError(null); setConfirmJob(jobId); } else if (!disabled) onRun(); }}
+      onPointerDown={e => { inputAtRef.current = e.timeStamp; }}
+      onClick={e => {
+        e.stopPropagation();
+        const inputAt = inputAtRef.current ?? e.timeStamp;
+        inputAtRef.current = null;
+        if (pending) return;
+        if (stoppable && jobId) { setError(null); setConfirmJob(jobId); }
+        else if (!disabled) onRun(inputAt);
+      }}
       onPointerEnter={() => {
         // This does not dispatch. It only asks App to preflight the current
         // persisted revision, so a later click can consume its token.
