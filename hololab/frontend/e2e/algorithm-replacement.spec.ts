@@ -138,6 +138,12 @@ test('offers a zero-based frame-extraction upgrade for an arrayed legacy node', 
   expect(rowBoxes.every((row, index) => index === 0 || row.top >= rowBoxes[index - 1].bottom)).toBe(true);
   const candidateBoxes = await dialog.locator('.hl-algorithm-replacement-list > button').evaluateAll(rows => rows.map(row => row.getBoundingClientRect()).map(({top, bottom}) => ({top, bottom})));
   expect(candidateBoxes.every((row, index) => index === 0 || row.top >= candidateBoxes[index - 1].bottom)).toBe(true);
+  const contentsFit = await dialog.locator('.hl-algorithm-replacement-list > button').evaluateAll(buttons => buttons.every(button => {
+    const box = button.getBoundingClientRect();
+    return [...button.querySelectorAll('.hl-algorithm-replacement-candidate, .hl-algorithm-replacement-changes')]
+      .every(child => child.getBoundingClientRect().bottom <= box.bottom);
+  }));
+  expect(contentsFit).toBe(true);
   for (const theme of ['light','dark']) {await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.screenshot({path:`/tmp/algorithm-replacement/frame-extraction-022-${theme}.png`});}
   await dialog.getByRole('button',{name:'builtin/frame-extraction @0.2.2'}).click();
   await expect.poll(() => graph.nodes[0].algorithm_version).toBe('0.2.2');
