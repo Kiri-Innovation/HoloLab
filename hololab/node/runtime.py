@@ -998,8 +998,15 @@ class NodeRuntime:
                     self._library_wake.set()
                 elif env.kind == "job_assign":
                     assert isinstance(payload, JobAssign)
-                    log.info("job received", job_id=payload.job_id, graph_node=payload.graph_node_id)
-                    self._spawn_job(payload)
+                    received_at = time.monotonic()
+                    received_ts = time.time()
+                    log.info(
+                        "job received",
+                        job_id=payload.job_id,
+                        graph_node=payload.graph_node_id,
+                        job_received_ts=round(received_ts, 6),
+                    )
+                    self._spawn_job(payload, received_at=received_at, received_ts=received_ts)
                 elif env.kind == "job_cancel":
                     assert isinstance(payload, JobCancel)
                     ev = self._cancel_events.get(payload.job_id)
@@ -1134,7 +1141,12 @@ class NodeRuntime:
         )
 
     async def _environment_report(
-        self, manifest, *, fresh=False, check_batch_id: str | None = None
+        self,
+        manifest,
+        *,
+        fresh=False,
+        check_batch_id: str | None = None,
+        validate_cached=False,
     ):
         """Return capability evidence with the node-resolved runtime prefix.
 
@@ -1180,7 +1192,12 @@ class NodeRuntime:
         )
         now = time.monotonic()
         cached = self._environment_report_cache.get(cache_key)
-        if not fresh and cached and now - cached[0] < self._config.env_cache_timeout_s:
+        if (
+            not fresh
+            and not validate_cached
+            and cached
+            and now - cached[0] < self._config.env_cache_timeout_s
+        ):
             return json.loads(json.dumps(cached[1]))
         report = await asyncio.to_thread(
             self._capability_checker.check,
@@ -1188,9 +1205,12 @@ class NodeRuntime:
             self._config.envs,
             self._config.conda_bin,
             getattr(self, "_env_cache", {}).get(prefix),
-            # A TTL expiry is a real revalidation, not merely a lookup of the
-            # CapabilityChecker's lower-level installation fingerprint.
-            fresh=True,
+            # Normal checks retain the historical fresh probe whenever the
+            # short report cache misses. Spawn-time validation is different:
+            # strict prepare just made fresh evidence for this exact job, so
+            # re-stat the environment fingerprint and reuse it only if that
+            # evidence is still current. A changed environment re-probes.
+            fresh=fresh or not validate_cached,
             check_batch_id=check_batch_id,
         )
         report["prefix"] = (
@@ -1862,13 +1882,25 @@ class NodeRuntime:
 
     # -- job lifecycle -------------------------------------------------------
 
-    def _spawn_job(self, assign: JobAssign) -> None:
+    def _spawn_job(
+        self,
+        assign: JobAssign,
+        *,
+        received_at: float | None = None,
+        received_ts: float | None = None,
+    ) -> None:
         """Start a background task to run ``assign``. Records cancel event."""
 
         cancel_event = asyncio.Event()
         self._cancel_events[assign.job_id] = cancel_event
         task = asyncio.create_task(
-            self._run_job(assign, cancel_event), name=f"hololab-job-{assign.job_id}"
+            self._run_job(
+                assign,
+                cancel_event,
+                received_at=received_at,
+                received_ts=received_ts,
+            ),
+            name=f"hololab-job-{assign.job_id}",
         )
         self._jobs[assign.job_id] = task
 
@@ -1878,7 +1910,14 @@ class NodeRuntime:
 
         task.add_done_callback(_cleanup)
 
-    async def _run_job(self, assign: JobAssign, cancel_event: asyncio.Event) -> None:
+    async def _run_job(
+        self,
+        assign: JobAssign,
+        cancel_event: asyncio.Event,
+        *,
+        received_at: float | None = None,
+        received_ts: float | None = None,
+    ) -> None:
         """Full job path: resolve pack, render manifest, spawn subprocess, report.
 
         Batched shards (Candidate A, ``assign.shard_element_ids`` non-empty
@@ -1891,14 +1930,21 @@ class NodeRuntime:
         path — byte-identical to pre-V14 behaviour.
         """
 
+        received_at = received_at if received_at is not None else time.monotonic()
+        received_ts = received_ts if received_ts is not None else time.time()
+        startup_spans: dict[str, float] = {}
+
         # Transport receipt is distinct from process start.  Send it before
         # local validation so delivery/setup/fork latency is observable.
+        ack_started = time.monotonic()
         await self._send("job_ack", JobAck(job_id=assign.job_id))
+        startup_spans["ack"] = time.monotonic() - ack_started
 
         if assign.intrinsic is not None:
             await self._run_array_assemble(assign, cancel_event)
             return
 
+        pack_started = time.monotonic()
         key = (assign.algorithm_name, assign.algorithm_version)
         try:
             wire_key = installed_key(self._packs, *key)
@@ -1931,11 +1977,13 @@ class NodeRuntime:
         except (ValueError, OSError) as exc:
             await self._send_job_fail(assign.job_id, JobFailReason.USER_ERROR, message=str(exc))
             return
+        startup_spans["pack_and_controls"] = time.monotonic() - pack_started
 
         # Prepared values are immutable. Node validation must never fill defaults,
         # migrate arrays, expand home directories, or canonicalize paths here.
         from hololab.manifest.path_params import validate_frozen_path_params
 
+        params_started = time.monotonic()
         try:
             for name, spec in pack.manifest.params.items():
                 spec.validate_enum_value(name, assign.params.get(name))
@@ -1947,6 +1995,7 @@ class NodeRuntime:
         except ValueError as exc:
             await self._send_job_fail(assign.job_id, JobFailReason.USER_ERROR, message=str(exc))
             return
+        startup_spans["params"] = time.monotonic() - params_started
 
         # Bundled host packs run under this node's absolute interpreter, not
         # a configured conda environment.  All other packages retain the
@@ -1987,6 +2036,7 @@ class NodeRuntime:
         # verbatim — this keeps the ad-hoc REST trigger useful for smoke tests
         # that pre-date the handle book. Anything else goes through the
         # gateway's handle_locate round trip.
+        input_resolution_started = time.monotonic()
         try:
             input_paths = await self._resolve_input_handles(
                 assign.input_handles,
@@ -2004,7 +2054,9 @@ class NodeRuntime:
                 message=f"input handle resolution failed: {exc}",
             )
             return
+        startup_spans["input_resolution"] = time.monotonic() - input_resolution_started
 
+        local_setup_started = time.monotonic()
         # Resource preflight — checks the declared minimums against live
         # disk and memory. Fails fast with a specific message when the
         # node can't meet the declared footprint, so users don't watch
@@ -2195,6 +2247,8 @@ class NodeRuntime:
                 python_arg_batches=rendered_arg_batches,
             )
 
+        startup_spans["local_setup_and_render"] = time.monotonic() - local_setup_started
+
         async def verify_identity() -> None:
             if pack.origin == "bundled":
                 from hololab.bundled import verified_record
@@ -2214,7 +2268,11 @@ class NodeRuntime:
             if pack.manifest.requires is not None:
                 from hololab.node.capabilities import enforce
 
-                enforce(await self._environment_report(pack.manifest, fresh=True))
+                # Strict preparation has already performed a fresh check for
+                # this immutable assignment. At the fork boundary we still
+                # validate the package/environment fingerprint, but do not
+                # re-launch the expensive probe process when it is unchanged.
+                enforce(await self._environment_report(pack.manifest, validate_cached=True))
 
         # Idempotency check. Non-batched only; batched shards always
         # re-execute (see the ``idempotency_marker=None`` override
@@ -2350,14 +2408,51 @@ class NodeRuntime:
         exec_error: Exception | None = None
         result: ExecResult | None = None
         cpu_mask: str | None = None
+        spawn_called_at: float | None = None
+        spawn_called_ts: float | None = None
 
         async def mark_subprocess_started(pid: int) -> None:
+            spawn_returned_at = time.monotonic()
+            spawn_returned_ts = time.time()
+            log.info(
+                "job startup profile",
+                job_id=assign.job_id,
+                graph_node=assign.graph_node_id,
+                job_received_ts=round(received_ts, 6),
+                spawn_called_ts=(round(spawn_called_ts, 6) if spawn_called_ts is not None else None),
+                spawn_returned_ts=round(spawn_returned_ts, 6),
+                received_to_spawn_call_s=round(
+                    (spawn_called_at or spawn_returned_at) - received_at, 4
+                ),
+                spawn_s=round(
+                    spawn_returned_at - (spawn_called_at or spawn_returned_at), 4
+                ),
+                received_to_spawn_s=round(spawn_returned_at - received_at, 4),
+                **{f"{name}_s": round(value, 4) for name, value in startup_spans.items()},
+            )
             log.info("job subprocess started", job_id=assign.job_id, pid=pid)
             await self._send("job_started", JobStarted(job_id=assign.job_id, pid=pid))
 
+        async def execute_plan(plan: ExecPlan) -> ExecResult:
+            nonlocal spawn_called_at, spawn_called_ts
+            identity_started = time.monotonic()
+            await verify_identity()
+            startup_spans["identity_and_environment"] = time.monotonic() - identity_started
+            spawn_called_at = time.monotonic()
+            spawn_called_ts = time.time()
+            return await run_subprocess(
+                plan,
+                on_log=on_log,
+                on_progress=on_progress,
+                cancel_event=cancel_event,
+                on_started=mark_subprocess_started,
+            )
+
         try:
             if self._exec_semaphore is not None:
+                semaphore_wait_started = time.monotonic()
                 async with self._exec_semaphore:
+                    startup_spans["semaphore_wait"] = time.monotonic() - semaphore_wait_started
                     # Acquire the CPU-pinning slot *inside* the semaphore
                     # gate: the slot pool is sized to match the semaphore
                     # cap, so this .get() would block otherwise but never
@@ -2379,14 +2474,7 @@ class NodeRuntime:
                             "job_id": assign.job_id,
                             "job_name": assign.algorithm_name,
                         }
-                        await verify_identity()
-                        result = await run_subprocess(
-                            plan,
-                            on_log=on_log,
-                            on_progress=on_progress,
-                            cancel_event=cancel_event,
-                            on_started=mark_subprocess_started,
-                        )
+                        result = await execute_plan(plan)
                     finally:
                         self._release_cpu_slot(cpu_mask)
                         cpu_mask = None
@@ -2404,14 +2492,7 @@ class NodeRuntime:
                     cpu_mask=None,
                 )
                 plan.resource_job = {"job_id": assign.job_id, "job_name": assign.algorithm_name}
-                await verify_identity()
-                result = await run_subprocess(
-                    plan,
-                    on_log=on_log,
-                    on_progress=on_progress,
-                    cancel_event=cancel_event,
-                    on_started=mark_subprocess_started,
-                )
+                result = await execute_plan(plan)
         except Exception as exc:
             log.exception("run_subprocess raised", job_id=assign.job_id)
             exec_error = exc
