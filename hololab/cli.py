@@ -38,6 +38,7 @@ from hololab.logging import configure as configure_logging
 from hololab.logging import get_logger
 from hololab.manifest import load_manifest
 from hololab.node.config import load_node_config
+from hololab.node.fileserver_control import pidfile_path, stop_owned_file_server
 from hololab.node.runtime import NodeRuntime
 from hololab.package_identity import canonical_name, parse_spec, validate_name
 from hololab.paths import default_workspace_root, frontend_dist_dir
@@ -73,6 +74,30 @@ def version() -> None:
     """Print the HoloLab version."""
 
     typer.echo(f"hololab {__version__}")
+
+
+@app.command()
+def stop(
+    node_config: Path | None = typer.Option(
+        None, "--node-config", help="Path to node config.yaml."
+    ),
+) -> None:
+    """Stop this HoloLab home's owned file server safely.
+
+    This only ever signals a recorded file server, or a legacy one whose
+    module command and workspace root match the selected node config.
+    """
+
+    cfg = load_node_config(node_config)
+    stopped = stop_owned_file_server(
+        port=cfg.file_server_port,
+        workspace_root=cfg.workspace_root,
+        pidfile=pidfile_path(cfg.file_server_port),
+    )
+    if stopped:
+        typer.echo(f"✓ stopped HoloLab file server on {cfg.file_server_host}:{cfg.file_server_port}")
+    else:
+        typer.echo(f"· no owned HoloLab file server on {cfg.file_server_host}:{cfg.file_server_port}")
 
 
 # ---------------------------------------------------------------------------

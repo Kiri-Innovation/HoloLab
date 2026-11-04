@@ -27,6 +27,7 @@ releases the listen socket before the parent respawns on the same port
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -34,6 +35,12 @@ import uvicorn
 
 from hololab.logging import configure as configure_logging
 from hololab.node.fileserver import create_fileserver_app
+from hololab.node.fileserver_control import (
+    assert_port_available,
+    pidfile_path,
+    remove_pidfile,
+    write_pidfile,
+)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -45,6 +52,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--library-config", type=Path)
     p.add_argument("--host", required=True, help="Bind host, e.g. 127.0.0.1.")
     p.add_argument("--port", type=int, required=True, help="Bind port.")
+    p.add_argument(
+        "--pidfile",
+        type=Path,
+        help="Ownership record path (defaults to this HOLOLAB_HOME's per-port record).",
+    )
     p.add_argument(
         "--workspace-root",
         type=Path,
@@ -80,6 +92,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    ownership_file = args.pidfile or pidfile_path(args.port)
 
     configure_logging(level="DEBUG" if args.verbose else "INFO")
 
@@ -107,7 +120,20 @@ def main(argv: list[str] | None = None) -> int:
     # ``server.run()`` installs uvicorn's default SIGINT/SIGTERM handlers,
     # which is exactly what we want: the parent sends SIGTERM on shutdown
     # or restart, uvicorn drains, we exit cleanly.
-    server.run()
+    # Direct/manual invocation has no NodeRuntime preflight.  Do this before
+    # claiming the pidfile so a failed bind cannot overwrite a healthy
+    # server's ownership record.
+    assert_port_available(host=args.host, port=args.port)
+    write_pidfile(
+        ownership_file,
+        port=args.port,
+        host=args.host,
+        workspace_root=args.workspace_root,
+    )
+    try:
+        server.run()
+    finally:
+        remove_pidfile(ownership_file, pid=os.getpid())
     return 0
 
 
