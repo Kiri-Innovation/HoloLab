@@ -29,7 +29,7 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
   // Keep a dispatching control pointer-accessible so its delayed-status
   // tooltip remains available. Clicks are still ignored below, and
   // aria-disabled accurately tells assistive technology it cannot stop yet.
-  const disabled = (busy && !pending) || (stoppable && !jobId);
+  const disabled = (busy && !pending) || (stoppable && !jobId) || (!stoppable && !!blockedReason);
   const label = stopping ? "正在停止" : stoppable && acceptedJob === jobId ? "停止已请求，等待状态同步" : stoppable ? "停止运行" : pending ? "停止" : stale ? "重新运行" : "运行";
   const close = () => { if (!lock.current) { setConfirmJob(null); setError(null); trigger.current?.focus(); } };
   useEffect(() => {
@@ -72,7 +72,7 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
       onPointerEnter={() => {
         // This does not dispatch. It only asks App to preflight the current
         // persisted revision, so a later click can consume its token.
-        if (!stoppable && !pending) window.dispatchEvent(new CustomEvent<string>(WARM_NODE_PREPARATION_EVENT, { detail: id }));
+        if (!stoppable && !pending && !blockedReason) window.dispatchEvent(new CustomEvent<string>(WARM_NODE_PREPARATION_EVENT, { detail: id }));
       }}
       style={{ border: `1px solid ${staleTint ? "var(--warning)" : "var(--border-strong)"}`,
         background: busy ? "var(--surface-3)" : staleTint ? "var(--warning-soft)" : "var(--surface-raised)",

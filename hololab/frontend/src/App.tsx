@@ -1296,6 +1296,50 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     [nodes],
   );
 
+  // Reject only prerequisites which are already known to be unavailable in
+  // the current canvas projection.  This is deliberately a client-side
+  // fast-path: the dispatcher remains the authority because another browser
+  // may change the graph between this render and a click.
+  //
+  // Keep this derived from canvasJobs, the same projection that produces
+  // runtimeByGraphNode and Recent Jobs.  Using a second jobs cache here would
+  // recreate the old "card says one thing, jobs list another" race.
+  const upstreamBlockerByNode = useMemo<Record<string, string>>(() => {
+    if (hydrating) return {};
+    const kindByNodeId = new Map(nodes.map(node => [node.id, node.type]));
+    const jobById = new Map(canvasJobs.map(job => [job.job_id, job]));
+    const blockers: Record<string, string> = {};
+    for (const edge of edges) {
+      // Only algorithm nodes produce dispatchable handles.  View and constant
+      // nodes may be wired inputs, but are not a prerequisite job to run.
+      if (blockers[edge.target] || kindByNodeId.get(edge.source) !== "algorithm") continue;
+      const upstream = runtimeByGraphNode[edge.source];
+      if (!upstream) {
+        blockers[edge.target] = `上游节点 ${edge.source} 尚未运行；请先运行上游。`;
+        continue;
+      }
+      if (["pending", "assigned", "running"].includes(upstream.state)) {
+        const progress = upstream.progress?.total
+          ? `（${upstream.progress.current}/${upstream.progress.total} 分片已完成）`
+          : "";
+        blockers[edge.target] = `上游节点 ${edge.source} 正在运行${progress}；请等待完成后重试。`;
+        continue;
+      }
+      if (upstream.state !== "done") {
+        blockers[edge.target] = `上游节点 ${edge.source} 上次运行未成功；请重新运行上游。`;
+        continue;
+      }
+      // Absence of output_handles means this lightweight projection has not
+      // loaded that evidence yet, not that the output is absent.  Block only
+      // a positively-known missing selected port.
+      const sourceJob = upstream.job_id ? jobById.get(upstream.job_id) : undefined;
+      if (sourceJob?.output_handles && edge.sourceHandle && !sourceJob.output_handles[edge.sourceHandle]) {
+        blockers[edge.target] = `上游节点 ${edge.source} 未生成端口 ${edge.sourceHandle} 的产物；请重新运行上游。`;
+      }
+    }
+    return blockers;
+  }, [canvasJobs, edges, hydrating, nodes, runtimeByGraphNode]);
+
   const canvasContextValue = useMemo(
     () => ({
       workflow_id: workflowId,
@@ -1304,6 +1348,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       packDisplayName,
       hydrating,
       dispatch_snapshot_id: viewingSnapshot?.snapshot_id ?? latestSnapshotId,
+      upstreamBlockerByNode,
       pinnedParams, variables,
       onBindingChange: updateParameterBinding,
       onParamsChange: updateNodeParams,
@@ -1314,7 +1359,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       viewer_view_managed: viewerViewManaged,
       setViewerDefault: setWorkflowViewerDefault,
     }),
-    [workflowId, workflowName, computeNodesById, packDisplayName, hydrating, viewingSnapshot?.snapshot_id, latestSnapshotId, pinnedParams, variables, updateParameterBinding, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
+    [workflowId, workflowName, computeNodesById, packDisplayName, hydrating, viewingSnapshot?.snapshot_id, latestSnapshotId, upstreamBlockerByNode, pinnedParams, variables, updateParameterBinding, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
   );
 
   // Push job runtime + resolved previews + previewOpen into each node's

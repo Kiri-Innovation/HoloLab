@@ -48,6 +48,8 @@ export interface CanvasContextValue {
   // inspect, but cannot be wired into a new job unless it is attributed to
   // this exact base snapshot.
   dispatch_snapshot_id?: string | null;
+  /** Draft-only upstream gate derived from current-snapshot job state. */
+  upstreamBlockerByNode?: Record<string, string>;
   variables?: VariableDeclarations;
   effectiveParamsByNode?: Record<string, Record<string, unknown>>;
   onBindingChange?: (nodeId: string, name: string, variable: string | null) => void;

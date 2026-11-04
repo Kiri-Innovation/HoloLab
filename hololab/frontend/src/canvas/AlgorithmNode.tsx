@@ -408,6 +408,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     computeNodesById,
     packDisplayName,
     hydrating,
+    upstreamBlockerByNode,
   } = useCanvasContext();
   const arrayedOn = Boolean(arrayed_toggle && pack.arrayable);
   const inputEntries = Object.entries(pack.inputs);
@@ -416,6 +417,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const wiredInputs: (string | null)[] = JSON.parse(connectedInputs);
   const missingInputs = inputValueProblems(pack.inputs, (data as AlgorithmNodeData).port_values ?? {}, wiredInputs, arrayedOn);
   const inputProblem = missingInputs.length ? `输入未就绪：${missingInputs.join("、")}。运行会被拒绝，请检查输入来源和值。` : undefined;
+  const upstreamProblem = upstreamBlockerByNode?.[id];
+  const runBlockReason = inputProblem ?? upstreamProblem;
   const runState = runtime?.state;
   const previewSelection = useNodePreviewSelection(data as AlgorithmNodeData);
   const { defaultNodeViewer, expandables, currentPreview } = previewSelection;
@@ -434,11 +437,11 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const [runClickPending, setRunClickPending] = useState(false);
   const [runErrorMsg, setRunErrorMsg] = useState<string | null>(null);
 
-  useEffect(() => { if (!inputProblem) setRunErrorMsg(null); }, [inputProblem]);
+  useEffect(() => { if (!runBlockReason) setRunErrorMsg(null); }, [runBlockReason]);
 
   const handleRunClick = async () => {
     if (runInFlight || runClickPending) return;
-    if (inputProblem) { setRunErrorMsg(inputProblem); return; }
+    if (runBlockReason) { setRunErrorMsg(runBlockReason); return; }
     setRunClickPending(true);
     // This is deliberately optimistic: the request is now owned by the
     // dispatcher, while a later failure clears it and shows the reason.
@@ -522,8 +525,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         subtitle={`${assignedLabel} · v${pack.version}${pack.version.endsWith("+") ? " · dev" : ""}`}
         state={displayedState} status={nodeStatus({ environment, state: displayedState, stale: staleness, failReason: runtime?.fail_reason, missingAlgorithm: pack.manifest_hash ? null : {name: pack.name, version: pack.version}, missingInputs, readOnly })}
         actions={!readOnly && <NodeRunControl id={id} pending={runClickPending} state={runState} jobId={runtime?.job_id}
-          stale={staleness?.kind === "self_dirty"} blockedReason={inputProblem} onRun={handleRunClick} />}>
-        {runErrorMsg && !inputProblem && (
+          stale={staleness?.kind === "self_dirty"} blockedReason={runBlockReason} onRun={handleRunClick} />}>
+        {runErrorMsg && !runBlockReason && (
           <div
             style={{
               position: "absolute",
@@ -757,14 +760,14 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       {canonicalPackageName(pack.name) === "kiri/compose-video" && expanded ? <>
         <ComposeVideoEditor id={id} readOnly={readOnly} />
         <details className="nodrag" onToggle={e=>setShowCompositionOutput(e.currentTarget.open)} style={{padding:8,fontSize:"var(--fs-xs)"}}><summary>上次运行产物</summary>
-          {showCompositionOutput && <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={inputProblem ? undefined : () => dispatchRunNode(id)} />}
+          {showCompositionOutput && <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={runBlockReason ? undefined : () => dispatchRunNode(id)} />}
         </details>
       </> : canonicalPackageName(pack.name) === "kiri/image-crop" && expanded ? <>
         <ImageCropEditor id={id} readOnly={readOnly} />
         <details className="nodrag" style={{padding:8,fontSize:"var(--fs-xs)"}}><summary>上次运行产物</summary>
-          <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={inputProblem ? undefined : () => dispatchRunNode(id)} />
+          <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={runBlockReason ? undefined : () => dispatchRunNode(id)} />
         </details>
-      </> : <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={inputProblem ? undefined : () => dispatchRunNode(id)} />}
+      </> : <NodePreviews data={data as AlgorithmNodeData} selection={previewSelection} onRun={runBlockReason ? undefined : () => dispatchRunNode(id)} />}
     </div>
   );
 

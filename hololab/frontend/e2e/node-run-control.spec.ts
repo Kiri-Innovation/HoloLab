@@ -9,6 +9,18 @@ for(const theme of ['light','dark']) test(`node run and stop in ${theme}`,async(
   for(const id of ['pending','assigned']) { await expect(card(id)).not.toContainText('排队中');await expect(card(id)).not.toContainText('已派发'); }
   await expect(card('snapshot').locator('.hl-node-run-control')).toHaveCount(0);
   await expect(card('interrupted').getByRole('button',{name:'运行',exact:true})).toBeEnabled();
+  const blocked=card('blocked-running').getByRole('button',{name:'运行',exact:true});
+  await expect(blocked).toBeDisabled();
+  await blocked.hover({force:true});
+  await expect(page.getByRole('tooltip')).toContainText('上游节点 upstream 正在运行（2/252 分片已完成）');
+  await card('blocked-running').screenshot({path:info.outputPath(`upstream-blocked-${theme}.png`)});
+  await page.screenshot({path:info.outputPath(`upstream-blocked-tooltip-${theme}.png`)});
+  for (const [id, reason] of [['blocked-never', '尚未运行；请先运行上游。'], ['blocked-output', '未生成端口 mask 的产物']]) {
+    const control=card(id).getByRole('button',{name:'运行',exact:true});
+    await expect(control).toBeDisabled();
+    await control.hover({force:true});
+    await expect(page.getByRole('tooltip')).toContainText(reason);
+  }
   await stop('running').hover();await expect(page.getByRole('tooltip')).toContainText('停止运行');
   await expect(stop('running')).toHaveCSS('width','24px');await expect(stop('running').locator('svg')).toHaveAttribute('width','12');
   await page.screenshot({path:info.outputPath(`buttons-${theme}.png`)});
