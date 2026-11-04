@@ -57,6 +57,20 @@ cd hololab/frontend && npm ci && npm run build && cd ../..
 .venv-runtime/bin/hololab start
 ```
 
+### Updating an existing source checkout
+
+`pip install -e` records the dependency set that existed when it last ran.
+After pulling a HoloLab update, run this once before starting the service so
+new host-runtime dependencies are installed and the editable metadata is
+refreshed:
+
+```bash
+.venv-runtime/bin/pip install -e ".[dev]"
+```
+
+If the frontend lockfile or source changed, rebuild it using the normal
+frontend steps above as well.
+
 ColmapUtil is built automatically from its pinned recursive submodule before frontend
 builds and, when stale, before dev startup. Existing checkouts must first run
 `git submodule update --init --recursive`. See the
