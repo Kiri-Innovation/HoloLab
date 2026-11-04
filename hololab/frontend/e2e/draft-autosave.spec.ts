@@ -12,6 +12,14 @@ test('serialises edits during a slow save, and Run waits for the newest value',a
   await expect(page.getByLabel('Run gate')).toHaveText('ready');
   expect(writes).toEqual([{value:'first',base:1},{value:'second',base:2}]);
 });
+test('a clean Run flush does not POST the already persisted draft',async({page})=>{
+  let writes=0;
+  await page.route('**/test-save',async route=>{writes++;await route.fulfill({json:{workflow_id:'fixture',updated_ts:2}});});
+  await page.goto('/e2e/fixtures/draft-autosave.html');
+  await page.getByRole('button',{name:'Save before Run'}).click();
+  await expect(page.getByLabel('Run gate')).toHaveText('ready');
+  expect(writes).toBe(0);
+});
 test('background flush, persistent failure feedback, retry and snapshot read-only',async({page})=>{
   const writes:any[]=[];let fail=true;
   await page.route('**/test-save',async r=>{writes.push(r.request().postDataJSON());await r.fulfill(fail?{status:503,json:{detail:'offline'}}:{json:{workflow_id:'fixture',updated_ts:2}});});

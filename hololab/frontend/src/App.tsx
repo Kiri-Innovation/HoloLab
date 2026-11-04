@@ -86,6 +86,7 @@ import {
   saveWorkflow,
   putWorkflowViewerView,
   warmNodePreparation,
+  invalidateWorkflowPreparations,
   type WorkflowViewerView,
 } from "./api";
 import { validateConnection } from "./canvas/connectionValidation";
@@ -502,12 +503,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // Set below in the workflowId useEffect.
   const workflowIdRef = useRef<string | null>(null);
   const saveRecipeRef = useRef<() => Promise<void>>(async () => {});
-  const savedGraphForRunRef = useRef<() => WorkflowGraph | undefined>(() => undefined);
-  // The DOM event listeners below are intentionally registered once. Keep a
-  // current graph reader beside the save ref so hover/click preparation binds
-  // its token to the graph that the imminent save will persist, rather than
-  // to the old server draft.
-  const graphForRunRef = useRef<(() => WorkflowGraph) | null>(null);
   // Mirrors ``workflowUpdatedTs`` so the WS ``workflow_updated`` handler
   // (registered once at mount) can compare the pushed ``updated_ts``
   // against our own base without re-subscribing on every save. Bumped
@@ -1534,21 +1529,19 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       // until the dispatchRunNode timeout kicks in.
       try {
         const clickedAt = performance.now();
-        // Saving is the revision boundary for a preparation token. Starting
-        // strict prepare before it completes races two graph serialisations:
-        // the token can describe the in-memory graph while dispatch validates
-        // the persisted graph, deterministically wasting one stale retry.
-        // Hover warmups remain useful: after save we consume their token only
-        // when their graph key exactly equals ``persistedGraph`` below.
+        // Saving is the revision boundary for a preparation token. After a
+        // dirty save, prepare the server's persisted draft rather than a
+        // client-side reconstruction: persistence moves local bindings out of
+        // the graph, so the server draft is the exact token revision.
         let warmFailed = false;
         const saveStartedAt = performance.now();
         saveRecipeRef.current().then(async () => {
           const saveCompletedAt = performance.now();
-          const persistedGraph = savedGraphForRunRef.current();
-          await warmNodePreparation(wid, graph_node_id, persistedGraph)
+          const prepareStartedAt = performance.now();
+          await warmNodePreparation(wid, graph_node_id)
             .catch(() => { warmFailed = true; });
           const prepareCompletedAt = performance.now();
-          const result = await dispatchNode(wid, graph_node_id, { graph: persistedGraph });
+          const result = await dispatchNode(wid, graph_node_id);
           const dispatchedAt = performance.now();
           // Chromium DevTools exposes this as a DOM event and console record.
           // It intentionally has no workflow content or input paths, only
@@ -1558,8 +1551,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             graph_node_id,
             click_to_save_ms: saveCompletedAt - clickedAt,
             save_duration_ms: saveCompletedAt - saveStartedAt,
-            click_to_prepare_ms: prepareCompletedAt - clickedAt,
-            save_to_prepare_wait_ms: Math.max(0, prepareCompletedAt - saveCompletedAt),
+            click_to_prepare_ms: prepareStartedAt - clickedAt,
+            save_to_prepare_wait_ms: Math.max(0, prepareStartedAt - saveCompletedAt),
+            warm_preparation_ms: prepareCompletedAt - prepareStartedAt,
             prepare_failed: warmFailed,
             ...result.client_timing,
             click_to_dispatch_response_ms: dispatchedAt - clickedAt,
@@ -1672,8 +1666,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   useEffect(() => {
     const warm = (event: Event) => {
       const wid = workflowIdRef.current;
-      const graph = graphForRunRef.current?.();
-      if (wid) void warmNodePreparation(wid, (event as CustomEvent<string>).detail, graph ?? undefined).catch(() => {});
+      if (wid) void warmNodePreparation(wid, (event as CustomEvent<string>).detail).catch(() => {});
     };
     window.addEventListener(WARM_NODE_PREPARATION_EVENT, warm);
     return () => window.removeEventListener(WARM_NODE_PREPARATION_EVENT, warm);
@@ -2284,8 +2277,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     } as unknown as WorkflowGraph;
   }, [nodes, edges, previewOpenByGraphNode, pinnedParams, variables, variableValues]);
 
-  graphForRunRef.current = toGraph;
-
   const fromGraph = useCallback(
     (graph: WorkflowGraph): void => {
       setVariables(graph.variables ?? {});
@@ -2728,6 +2719,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       }),
     }),
     onSaved: (wid, updatedTs) => {
+      invalidateWorkflowPreparations(wid);
       workflowIdRef.current = wid;
       if (workflowId !== wid) {
         setWorkflowId(wid);
@@ -2767,18 +2759,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   });
 
   saveRecipeRef.current = autosave.save;
-  savedGraphForRunRef.current = () => {
-    const serialised = autosave.savedSerialisedSnapshot();
-    if (!serialised) return undefined;
-    try {
-      const parsed = JSON.parse(serialised) as { graph?: WorkflowGraph };
-      return parsed.graph;
-    } catch {
-      // The hook only stores JSON it produced, but never turn a corrupted
-      // cache into a dispatch failure. The API will prepare the server draft.
-      return undefined;
-    }
-  };
   const onRun = useCallback(async () => {
     setRunning(true);
     try {

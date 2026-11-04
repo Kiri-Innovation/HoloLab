@@ -382,12 +382,22 @@ const preparationCache = new Map<string, Preparation>();
 // seconds-long node-side identity check, so never start a second equivalent
 // RPC while the first is still resolving.
 const preparationInFlight = new Map<string, Promise<Preparation>>();
+const preparationEpochByWorkflow = new Map<string, number>();
 // A preparation token is bound to the complete graph revision, not merely a
-// workflow/node pair.  A Run click races its save on purpose; keying a warm
-// prepare by the graph it prepared prevents us from consuming the old draft's
-// token after that save and paying an avoidable 409 + second preparation.
+// workflow/node pair.  Callers that explicitly prepare a supplied graph keep
+// that graph in the key; the normal UI path prepares the persisted draft.
 const preparationKey = (workflowId: string, nodeId?: string, graph?: WorkflowGraph) =>
   `${workflowId}:${nodeId ?? "*"}:${graph ? JSON.stringify(graph) : "draft"}`;
+
+/** Discard revision-bound tokens after a successful draft write. */
+export function invalidateWorkflowPreparations(workflowId: string): void {
+  preparationEpochByWorkflow.set(workflowId, (preparationEpochByWorkflow.get(workflowId) ?? 0) + 1);
+  const prefix = `${workflowId}:`;
+  for (const key of preparationCache.keys()) if (key.startsWith(prefix)) preparationCache.delete(key);
+  // An old hover RPC cannot be cancelled reliably; remove its single-flight
+  // slot so the post-save request creates a token for the new revision.
+  for (const key of preparationInFlight.keys()) if (key.startsWith(prefix)) preparationInFlight.delete(key);
+}
 
 function preparationBody(nodeId?: string, graph?: WorkflowGraph): string {
   return JSON.stringify({
@@ -403,6 +413,7 @@ export async function warmNodePreparation(
   graph?: WorkflowGraph,
 ): Promise<void> {
   const key = preparationKey(workflowId, nodeId, graph);
+  const epoch = preparationEpochByWorkflow.get(workflowId) ?? 0;
   if (preparationCache.has(key)) return;
   let pending = preparationInFlight.get(key);
   if (!pending) {
@@ -411,10 +422,14 @@ export async function warmNodePreparation(
       body: preparationBody(nodeId, graph),
     }).then(json<Preparation>);
     preparationInFlight.set(key, pending);
-    void pending.finally(() => preparationInFlight.delete(key)).catch(() => {});
+    void pending.finally(() => {
+      if (preparationInFlight.get(key) === pending) preparationInFlight.delete(key);
+    }).catch(() => {});
   }
   const prepared = await pending;
-  if (!prepared.run_blockers?.length) preparationCache.set(key, prepared);
+  if (!prepared.run_blockers?.length && (preparationEpochByWorkflow.get(workflowId) ?? 0) === epoch) {
+    preparationCache.set(key, prepared);
+  }
 }
 
 type PreparationHeaders = {

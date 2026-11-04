@@ -1509,6 +1509,7 @@ async def dispatch_graph_node(
     locks = getattr(app.state, "node_dispatch_locks", None)
     if locks is None:
         locks = app.state.node_dispatch_locks = {}
+    queued_at = time.monotonic()
     async with locks.setdefault(workflow_id, asyncio.Lock()):
         return await _dispatch_graph_node(
             app,
@@ -1516,6 +1517,7 @@ async def dispatch_graph_node(
             graph=graph,
             graph_node_id=graph_node_id,
             base_snapshot_id=base_snapshot_id,
+            lock_wait_s=time.monotonic() - queued_at,
         )
 
 
@@ -1526,6 +1528,7 @@ async def _dispatch_graph_node(
     graph: WorkflowGraph,
     graph_node_id: str,
     base_snapshot_id: str | None,
+    lock_wait_s: float = 0.0,
 ) -> dict[str, Any]:
     """Execute one graph node against a base snapshot (Continue or Fork).
 
@@ -1903,6 +1906,7 @@ async def _dispatch_graph_node(
         workflow_id=workflow_id,
         graph_node_id=graph_node_id,
         job_id=job_id,
+        lock_wait_s=round(lock_wait_s, 4),
         total_s=round(time.monotonic() - started, 4),
         **{f"{name}_s": round(value, 4) for name, value in spans.items()},
         **{f"lineage_{name}_s": round(value, 4) for name, value in lineage_spans.items()},

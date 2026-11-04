@@ -174,6 +174,10 @@ export function useDraftAutosave(opts: {
     if (!optsRef.current.enabled) return;
     if (statusRef.current === "conflict") throw new Error("Workflow conflict: reload before saving or running");
     const current = optsRef.current;
+    // Run uses this imperative flush as a revision barrier. When the
+    // debounced autosave already accepted this exact draft, do not create a
+    // redundant revision or pay another POST round trip.
+    if (current.serialisedSnapshot === lastSavedSerialised.current) return;
     const snapshotBeforeSave = current.serialisedSnapshot;
     updateStatus("saving");
     const controller = new AbortController();

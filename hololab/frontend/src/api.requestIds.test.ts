@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { dispatchNode, rerunFromNode, runWorkflow, warmNodePreparation } from './api';
+import { dispatchNode, invalidateWorkflowPreparations, rerunFromNode, runWorkflow, warmNodePreparation } from './api';
 
 afterEach(() => { vi.unstubAllGlobals(); });
 it.each([false, true])('dispatch and rerun use valid request IDs (native randomUUID: %s)', async native => {
@@ -84,4 +84,27 @@ it('re-prepares the persisted draft once after a stale preparation token', async
   expect(prepareCalls).toHaveLength(2);
   expect(JSON.parse(String(prepareCalls[0][1]?.body))).toEqual({node_id: 'node', graph});
   expect(JSON.parse(String(prepareCalls[1][1]?.body))).toEqual({node_id: 'node'});
+});
+
+it('does not let an old hover preparation survive a successful draft save', async () => {
+  let resolveOld!: (value: {token: string}) => void;
+  const old = new Promise<{token: string}>(resolve => { resolveOld = resolve; });
+  let requestCount = 0;
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => {
+    requestCount += 1;
+    const value = requestCount === 1 ? await old : {token: 'fresh'};
+    return new Response(JSON.stringify(value), {status: 200});
+  });
+  vi.stubGlobal('fetch', fetch);
+
+  const hovered = warmNodePreparation('workflow-write', 'node');
+  invalidateWorkflowPreparations('workflow-write');
+  await warmNodePreparation('workflow-write', 'node');
+  resolveOld({token: 'stale'});
+  await hovered;
+  await dispatchNode('workflow-write', 'node');
+
+  const requestCalls = fetch.mock.calls;
+  expect(requestCalls).toHaveLength(3);
+  expect(new Headers(requestCalls[2][1]?.headers).get('X-Preparation-Token')).toBe('fresh');
 });
