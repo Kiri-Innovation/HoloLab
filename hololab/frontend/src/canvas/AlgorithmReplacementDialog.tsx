@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CatalogPack } from '../wire';
 import { samePackage } from '../packageIdentity';
+import type { ReplacementParameterChange } from './algorithmReplacement';
 import './algorithmReplacement.css';
 
-export function AlgorithmReplacementDialog({current, candidates, unavailableReason, basis, onSelect, onClose}: {
-  current: CatalogPack; candidates: CatalogPack[]; unavailableReason?: string; basis?: string; onSelect: (pack: CatalogPack) => void; onClose: () => void;
+export function AlgorithmReplacementDialog({current, candidates, unavailableReason, basis, parameterChanges, onSelect, onClose}: {
+  current: CatalogPack; candidates: CatalogPack[]; unavailableReason?: string; basis?: string; parameterChanges?: (pack: CatalogPack) => ReplacementParameterChange[]; onSelect: (pack: CatalogPack) => void; onClose: () => void;
 }) {
   const [query, setQuery] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
@@ -17,9 +18,10 @@ export function AlgorithmReplacementDialog({current, candidates, unavailableReas
     <input autoFocus aria-label="搜索算法" placeholder="搜索算法名或版本" value={query} onChange={event => setQuery(event.target.value)} />
     <div className="hl-algorithm-replacement-list">
       {basis && <p>{basis}</p>}
-      {shown.map(pack => {const active = samePackage(current.name, current.version, pack.name, pack.version);
+      {shown.map(pack => {const active = samePackage(current.name, current.version, pack.name, pack.version); const changes = parameterChanges?.(pack) ?? [];
         return <button key={`${pack.name}@${pack.version}`} type="button" disabled={active} onClick={() => onSelect(pack)}>
           <span>{pack.name} <small>@{pack.version}</small></span>{active && <small>当前</small>}
+          {!active && changes.map(change => <small key={change.name}>{change.name}: {String(change.from)} → {String(change.to)}（{change.reason}）</small>)}
         </button>;
       })}
       {!shown.length && <p>{unavailableReason ?? "无相同输入输出的算法"}</p>}

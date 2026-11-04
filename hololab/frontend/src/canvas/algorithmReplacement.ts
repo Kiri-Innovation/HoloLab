@@ -168,23 +168,51 @@ function accepts(spec: ParamSpec, value: unknown): boolean {
   if (spec.type === 'array') return Array.isArray(value) && (!spec.items || value.every(item => accepts({...spec, type: spec.items!, items: null, optional: false}, item)));
   return false;
 }
-export function replaceAlgorithm(node: Node<Record<string, unknown>>, target: CatalogPack, connectionInferred = false): Node<Record<string, unknown>> {
-  const data = algorithmNodeData(node.data);
-  const baseline = data?.replacementBaseline ?? data?.pack;
-  if (!data || !baseline || (!connectionInferred && !samePorts(baseline, target)) || samePackage(data.pack.name, data.pack.version, target.name, target.version)) return node;
+export type ReplacementParameterChange = { name: string; from: unknown; to: unknown; reason: string };
+
+function isZeroBasedFrameSkipUpgrade(current: CatalogPack, target: CatalogPack, name: string): boolean {
+  return name === 'skip'
+    && canonicalPackageName(current.name) === 'builtin/frame-extraction'
+    && ['0.2.0', '0.2.1'].includes(current.version)
+    && canonicalPackageName(target.name) === 'builtin/frame-extraction'
+    && target.version === '0.2.2';
+}
+
+function replacementParameters(data: NonNullable<ReturnType<typeof algorithmNodeData>>, target: CatalogPack) {
   const params: Record<string, unknown> = {}, bindings: Record<string, string> = {};
   const retained = new Set<string>();
+  const changes: ReplacementParameterChange[] = [];
   for (const [name, spec] of Object.entries(target.params)) {
     const old = data.pack.params[name];
     const value = Object.prototype.hasOwnProperty.call(data.params ?? {}, name) ? data.params![name] : old?.default;
-    if (old && compatibleSpec(old, spec) && accepts(spec, value)) {
-      params[name] = structuredClone(value); retained.add(name);
-    } else if (spec.default !== undefined) params[name] = structuredClone(spec.default);
+    const zeroBased = isZeroBasedFrameSkipUpgrade(data.pack, target, name) && typeof value === 'number';
+    const migrated = zeroBased ? Math.max(0, value - 1) : value;
+    if (old && compatibleSpec(old, spec) && accepts(spec, migrated)) {
+      params[name] = structuredClone(migrated); retained.add(name);
+      if (zeroBased) changes.push({name, from: value, to: migrated, reason: value === 0 ? '全量，语义已升级' : '保持抽帧行为'});
+    } else if (spec.default !== undefined) {
+      params[name] = structuredClone(spec.default);
+      if (value !== undefined && value !== spec.default) changes.push({name, from: value, to: spec.default, reason: '目标版本默认值'});
+    }
     // Bound values are validated against workflow variable declarations by the existing editor.
     if (old && stable({...old, default: null, description: null, pinned: false}) === stable({...spec, default: null, description: null, pinned: false}) && data.param_bindings?.[name]) {
       bindings[name] = data.param_bindings[name]; retained.add(name);
     }
   }
+  return {params, bindings, retained, changes};
+}
+
+/** Parameter values that a selected replacement will transform before saving. */
+export function replacementParameterChanges(node: Node<Record<string, unknown>>, target: CatalogPack): ReplacementParameterChange[] {
+  const data = algorithmNodeData(node.data);
+  return data ? replacementParameters(data, target).changes : [];
+}
+
+export function replaceAlgorithm(node: Node<Record<string, unknown>>, target: CatalogPack, connectionInferred = false): Node<Record<string, unknown>> {
+  const data = algorithmNodeData(node.data);
+  const baseline = data?.replacementBaseline ?? data?.pack;
+  if (!data || !baseline || (!connectionInferred && !samePorts(baseline, target)) || samePackage(data.pack.name, data.pack.version, target.name, target.version)) return node;
+  const {params, bindings, retained} = replacementParameters(data, target);
   return {...node, data: {...data, pack: target, replacementBaseline: target, replacementBasis: undefined, replacementMode: 'strict', params, param_bindings: bindings,
     local_params: data.local_params?.filter(name => retained.has(name)),
   }};

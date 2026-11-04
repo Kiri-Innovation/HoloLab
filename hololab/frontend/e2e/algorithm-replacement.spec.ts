@@ -102,13 +102,13 @@ test('offers a graph-inferred replacement when a migrated historical pack has no
   expect(graph.edges).toEqual([{id:'frames-wire',source:'source',sourceHandle:'frames',target:'sink',targetHandle:'frames'}]);
 });
 
-test('offers a strict replacement for an arrayed legacy node with an invalid parameter', async ({page}) => {
+test('offers a zero-based frame-extraction upgrade for an arrayed legacy node', async ({page}) => {
   const io = {
     inputs: {video_dir: {tags:['video-source'], required:true}},
     outputs: {frame_sequence: {tags:['image'], arrayed:true, dim_labels:['frame'], storage:'dir'}},
   };
   const current = {name:'builtin/frame-extraction', version:'0.2.0', manifest_hash:'fx-020', node_ids:[], description:'Frame extraction', arrayable:true, ...io, params:{skip:{type:'int',default:1,min:1}}};
-  const target = {...current, version:'0.2.1', manifest_hash:'fx-021', params:{...current.params, decode_threads:{type:'int',default:0,min:0}}};
+  const target = {...current, version:'0.2.2', manifest_hash:'fx-022', params:{...current.params, skip:{type:'int',default:0,min:0,description:'0 = 不丢弃任何帧（全量抽帧）；N = 每隔 N 帧取一帧。'}, decode_threads:{type:'int',default:0,min:0}}};
   let graph:any = {nodes:[{id:'fx',algorithm_name:current.name,algorithm_version:current.version,params:{skip:0},arrayed_toggle:true,position:{x:0,y:0}}],edges:[]};
   await page.routeWebSocket('**',()=>{});
   await page.route('**/api/**', async route => {
@@ -129,13 +129,15 @@ test('offers a strict replacement for an arrayed legacy node with an invalid par
   await page.getByRole('menuitem',{name:'替换为算法…'}).dispatchEvent('click');
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('依据本机 builtin/frame-extraction@0.2.0 的完整 I/O 声明')).toBeVisible();
-  await expect(dialog.getByRole('button',{name:'builtin/frame-extraction @0.2.1'})).toBeVisible();
-  await page.screenshot({path:'/tmp/algorithm-replacement/frame-extraction-021-candidate.png'});
-  await dialog.getByRole('button',{name:'builtin/frame-extraction @0.2.1'}).click();
-  await expect.poll(() => graph.nodes[0].algorithm_version).toBe('0.2.1');
-  // The existing migration deliberately drops values rejected by the target
-  // manifest and uses that manifest's default instead of persisting skip=0.
-  expect(graph.nodes[0].params.skip).toBe(1);
+  await expect(dialog.getByRole('button',{name:'builtin/frame-extraction @0.2.2'})).toBeVisible();
+  await expect(dialog.getByText('skip: 0 → 0（全量，语义已升级）')).toBeVisible();
+  await page.screenshot({path:'/tmp/algorithm-replacement/frame-extraction-022-candidate.png'});
+  await dialog.getByRole('button',{name:'builtin/frame-extraction @0.2.2'}).click();
+  await expect.poll(() => graph.nodes[0].algorithm_version).toBe('0.2.2');
+  expect(graph.nodes[0].params.skip).toBe(0);
+  await page.getByRole('button',{name:'Help for skip'}).click();
+  await expect(page.getByText('0 = 不丢弃任何帧（全量抽帧）；N = 每隔 N 帧取一帧。')).toBeVisible();
+  await page.screenshot({path:'/tmp/algorithm-replacement/frame-extraction-022-skip-help.png'});
 });
 
 test('treats an empty completed canvas-state selection as stale, not loading', async ({page}) => {

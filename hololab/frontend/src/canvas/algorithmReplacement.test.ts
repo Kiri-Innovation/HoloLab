@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest';
 import type {CatalogPack, WorkflowGraph} from '../wire';
-import {samePorts, replacementBaselineFromGraph, replacementCandidates, replacementCandidatesFromConnections, replaceAlgorithm} from './algorithmReplacement';
+import {samePorts, replacementBaselineFromGraph, replacementCandidates, replacementCandidatesFromConnections, replacementParameterChanges, replaceAlgorithm} from './algorithmReplacement';
 const pack = (name='demo', version='1.0.0') => ({name, version, inputs:{in:{tags:['image'],arrayed:true,dim_labels:['frame']}}, outputs:{out:{tags:['image']}}, params:{count:{type:'int',default:2},mode:{type:'enum',values:['a','b'],default:'a'},old:{type:'string',default:''}},node_ids:[]} as unknown as CatalogPack);
 describe('algorithm replacement',()=>{
   it('compares complete named declarations, not connection compatibility',()=>{
@@ -40,6 +40,16 @@ describe('algorithm replacement',()=>{
     expect(result.data.previews).toEqual(source.data.previews);
     expect(source.data.params.old).toBe('remove');
     expect(replaceAlgorithm(source,{...target,outputs:{}})).toBe(source);
+  });
+  it('translates frame-extraction skip while preserving the old extraction stride',()=>{
+    const old={...pack('builtin/frame-extraction','0.2.1'),arrayable:true,params:{skip:{type:'int',default:1,min:1}}} as unknown as CatalogPack;
+    const target={...old,version:'0.2.2',params:{skip:{type:'int',default:0,min:0}}} as unknown as CatalogPack;
+    const source={id:'fx',position:{x:0,y:0},data:{pack:old,replacementBaseline:old,params:{skip:1},assigned_node_id:null}};
+    expect(replacementParameterChanges(source,target)).toEqual([{name:'skip',from:1,to:0,reason:'保持抽帧行为'}]);
+    expect((replaceAlgorithm(source,target).data.params as Record<string,unknown>).skip).toBe(0);
+    const legacyZero={...source,data:{...source.data,params:{skip:0}}};
+    expect(replacementParameterChanges(legacyZero,target)).toEqual([{name:'skip',from:0,to:0,reason:'全量，语义已升级'}]);
+    expect((replaceAlgorithm(legacyZero,target).data.params as Record<string,unknown>).skip).toBe(0);
   });
   it('offers a clearly weaker replacement only when every connected port is compatible',()=>{
     const historical={...pack('community/images-array-source'),inputs:{},outputs:{images:{tags:['image'],arrayed:false,scalar:false}},params:{}} as unknown as CatalogPack;
