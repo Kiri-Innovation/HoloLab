@@ -622,14 +622,14 @@ export const dispatchNode = async (
   };
   let preparationMs = 0;
   let preparationAttempts = 0;
-  const headers = async () => {
-    const prepared = await preparationHeaders(workflow_id, graph_node_id, opts?.graph);
+  const headers = async (graph: WorkflowGraph | undefined) => {
+    const prepared = await preparationHeaders(workflow_id, graph_node_id, graph);
     preparationMs += prepared.elapsedMs;
     preparationAttempts += 1;
     return prepared.headers;
   };
   try {
-    const result = await submit(await headers());
+    const result = await submit(await headers(opts?.graph));
     return {
       ...result,
       client_timing: {
@@ -640,10 +640,12 @@ export const dispatchNode = async (
       },
     };
   } catch (err) {
-    // A hover token can become stale after an edit/autosave.  Refresh exactly
-    // once; the server remains the authority on the revision comparison.
+    // A prepared graph can become stale while an autosave is queued. Refresh
+    // exactly once from the persisted server draft, rather than repeating the
+    // caller's already-stale graph. The server remains the authority on the
+    // revision comparison.
     if (!(err instanceof ApiError) || err.status !== 409) throw err;
-    const result = await submit(await headers());
+    const result = await submit(await headers(undefined));
     return {
       ...result,
       client_timing: {

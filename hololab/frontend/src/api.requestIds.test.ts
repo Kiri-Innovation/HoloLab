@@ -55,3 +55,33 @@ it('binds a click preflight to the graph being saved and consumes that token', a
   const dispatchCall = fetch.mock.calls.find(([url]) => String(url).includes('/dispatch/node'));
   expect(new Headers(dispatchCall?.[1]?.headers).get('X-Preparation-Token')).toBe('current-graph');
 });
+
+it('re-prepares the persisted draft once after a stale preparation token', async () => {
+  const graph = {nodes: [{id: 'node', kind: 'algorithm'}], edges: []} as any;
+  let dispatches = 0;
+  const fetch = vi.fn<typeof globalThis.fetch>(async (url, options) => {
+    const request = String(url);
+    if (request.endsWith('/prepare')) {
+      const body = JSON.parse(String(options?.body));
+      return new Response(JSON.stringify({token: body.graph ? 'stale' : 'fresh'}), {status: 200});
+    }
+    dispatches += 1;
+    if (dispatches === 1) {
+      return new Response(JSON.stringify({detail: 'Preparation is stale; prepare the current configuration again'}), {status: 409});
+    }
+    return new Response(JSON.stringify({
+      snapshot_id: 'snapshot', job_id: 'job', state: 'assigned',
+      graph_node_id: 'node', algorithm_name: 'pack', algorithm_version: '1', operation: 'continue',
+    }), {status: 200});
+  });
+  vi.stubGlobal('fetch', fetch);
+
+  await warmNodePreparation('workflow-stale', 'node', graph);
+  const result = await dispatchNode('workflow-stale', 'node', {graph});
+
+  expect(result.client_timing.stale_retry).toBe(true);
+  const prepareCalls = fetch.mock.calls.filter(([url]) => String(url).endsWith('/prepare'));
+  expect(prepareCalls).toHaveLength(2);
+  expect(JSON.parse(String(prepareCalls[0][1]?.body))).toEqual({node_id: 'node', graph});
+  expect(JSON.parse(String(prepareCalls[1][1]?.body))).toEqual({node_id: 'node'});
+});

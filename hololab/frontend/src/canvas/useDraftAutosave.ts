@@ -75,6 +75,10 @@ export interface AutosaveHandle {
   // consumers who want a synchronous save (e.g. the Run button
   // pre-flighting before dispatch).
   save: () => Promise<void>;
+  // The exact serialised draft last accepted by the server.  A dispatcher
+  // must bind its preparation token to this value, rather than to whichever
+  // React graph happened to be visible when the Run button was pressed.
+  savedSerialisedSnapshot: () => string;
   // Imperative "the loaded state is now clean" — called after a
   // hydration where the graph in memory matches server truth (initial
   // load, workflow switch, WS-driven silent sync). Resets the hook to
@@ -336,5 +340,6 @@ export function useDraftAutosave(opts: {
     [],
   );
 
-  return { status, save: doSave, resync, markConflict };
+  const savedSerialisedSnapshot = useCallback(() => lastSavedSerialised.current, []);
+  return { status, save: doSave, savedSerialisedSnapshot, resync, markConflict };
 }

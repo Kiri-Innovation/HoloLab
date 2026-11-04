@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from contextlib import suppress
 from urllib.parse import quote
 
 import httpx
 import websockets
+from websockets.exceptions import InvalidStatus
 
 TUNNEL_CONNECTIONS = 64
 _BODY_CHUNK_SIZE = 256 * 1024
@@ -24,6 +26,12 @@ _RESPONSE_HEADERS = frozenset(
         "accept-ranges",
     }
 )
+log = logging.getLogger(__name__)
+
+
+def _terminal_tunnel_auth_status(status_code: int) -> bool:
+    """A session bearer cannot recover from an auth rejection by retrying."""
+    return status_code in (401, 403)
 
 
 def _allowed_path(path: str) -> bool:
@@ -48,9 +56,13 @@ class FileTunnelClient:
         self._origin = f"http://127.0.0.1:{file_server_port}"
         self._tasks: list[asyncio.Task[None]] = []
         self._client: httpx.AsyncClient | None = None
+        self._revoked = asyncio.Event()
+        self._auth_failure_logged = False
 
     async def start(self, *, node_id: str, session_id: str, token: str) -> None:
         await self.stop()
+        self._revoked.clear()
+        self._auth_failure_logged = False
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(connect=5, read=None, write=30, pool=5),
             limits=httpx.Limits(max_connections=TUNNEL_CONNECTIONS, max_keepalive_connections=32),
@@ -62,6 +74,7 @@ class FileTunnelClient:
             self._tasks.append(task)
 
     async def stop(self) -> None:
+        self._revoked.set()
         for task in self._tasks:
             task.cancel()
         if self._tasks:
@@ -73,7 +86,7 @@ class FileTunnelClient:
 
     async def _worker(self, node_id: str, session_id: str, token: str, index: int) -> None:
         url = f"{self._gateway_url}/ws/file-tunnel?node_id={quote(node_id)}&session_id={quote(session_id)}&token={quote(token)}"
-        while True:
+        while not self._revoked.is_set():
             try:
                 # Preview bodies (PNG/JPEG/MP4) are already compressed.  The
                 # websocket client's default permessage-deflate would spend a
@@ -94,6 +107,23 @@ class FileTunnelClient:
                             await self._serve(ws, frame)
             except asyncio.CancelledError:
                 raise
+            except InvalidStatus as exc:
+                # A 401/403 means this session-scoped bearer is no longer
+                # valid (usually a newer node session replaced us). Retrying
+                # 64 workers forever cannot refresh the credential and turns
+                # one stale process into a connection storm. The control
+                # session will create a fresh FileTunnelClient after its next
+                # successful register handshake.
+                if _terminal_tunnel_auth_status(exc.response.status_code):
+                    if not self._auth_failure_logged:
+                        self._auth_failure_logged = True
+                        log.warning(
+                            "file tunnel credentials rejected; waiting for control-session renewal",
+                            extra={"status": exc.response.status_code, "worker": index},
+                        )
+                    self._revoked.set()
+                    return
+                await asyncio.sleep(min(1 + index / TUNNEL_CONNECTIONS, 2))
             except Exception:
                 await asyncio.sleep(min(1 + index / TUNNEL_CONNECTIONS, 2))
 

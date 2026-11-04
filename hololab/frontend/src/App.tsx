@@ -481,6 +481,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // Set below in the workflowId useEffect.
   const workflowIdRef = useRef<string | null>(null);
   const saveRecipeRef = useRef<() => Promise<void>>(async () => {});
+  const savedGraphForRunRef = useRef<() => WorkflowGraph | undefined>(() => undefined);
   // The DOM event listeners below are intentionally registered once. Keep a
   // current graph reader beside the save ref so hover/click preparation binds
   // its token to the graph that the imminent save will persist, rather than
@@ -1452,7 +1453,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           const saveCompletedAt = performance.now();
           await warm;
           const prepareCompletedAt = performance.now();
-          const result = await dispatchNode(wid, graph_node_id, { graph: graph ?? undefined });
+          // ``save`` can wait behind an earlier autosave. In that case the
+          // graph captured at click is no longer necessarily the graph that
+          // reached the gateway. Consume the matching warmed token only when
+          // it is bound to the persisted snapshot; otherwise prepare the
+          // persisted graph once, rather than retrying a known-stale token.
+          const persistedGraph = savedGraphForRunRef.current();
+          const result = await dispatchNode(wid, graph_node_id, { graph: persistedGraph });
           const dispatchedAt = performance.now();
           // Chromium DevTools exposes this as a DOM event and console record.
           // It intentionally has no workflow content or input paths, only
@@ -2650,6 +2657,18 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   });
 
   saveRecipeRef.current = autosave.save;
+  savedGraphForRunRef.current = () => {
+    const serialised = autosave.savedSerialisedSnapshot();
+    if (!serialised) return undefined;
+    try {
+      const parsed = JSON.parse(serialised) as { graph?: WorkflowGraph };
+      return parsed.graph;
+    } catch {
+      // The hook only stores JSON it produced, but never turn a corrupted
+      // cache into a dispatch failure. The API will prepare the server draft.
+      return undefined;
+    }
+  };
   const onRun = useCallback(async () => {
     setRunning(true);
     try {
