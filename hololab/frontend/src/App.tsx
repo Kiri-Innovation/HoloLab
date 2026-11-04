@@ -788,16 +788,33 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           }
         }
 
-        // Update only already validated identities. New generations/shards are
-        // selected by the next analysis refresh, never by graph-node id alone.
-        if (p.workflow_id === workflowIdRef.current) {
-          setCanvasJobs(prev => prev.map(j => j.job_id === p.job_id ? {
-            ...j, state: p.state, progress: p.progress ?? j.progress,
-            updated_ts: Date.now() / 1000,
-            started_ts: j.started_ts ?? p.started_ts,
-            fail_reason: p.fail?.reason ?? j.fail_reason,
-            output_handles: p.output_handles ?? j.output_handles,
-          } : j));
+        // The Jobs panel is able to upsert a new job directly from WS, but
+        // canvasJobs used to only ``map`` existing identities. A RUNNING frame
+        // that won the race against the initiating tab's dispatch response was
+        // therefore visible in Recent jobs yet silently lost by the node dot.
+        //
+        // Snapshot identity, not graph_node_id, authorises this insertion.
+        // A graph node can have older attempts and fan-out shards; replacing
+        // by graph node would let an unrelated generation steal the card.
+        const currentSnapshotId = p.snapshot_id;
+        if (
+          p.workflow_id === workflowIdRef.current
+          && currentSnapshotId
+          && currentSnapshotId === latestSnapshotIdRef.current
+        ) {
+          setCanvasJobs((prev) => {
+            const index = prev.findIndex((job) => job.job_id === p.job_id);
+            if (index >= 0) {
+              const merged = mergeSnapshotJobUpdate([prev[index]], p)[0];
+              const next = prev.slice();
+              next[index] = { ...merged, snapshot_id: prev[index].snapshot_id };
+              return next;
+            }
+            return prev.concat({
+              ...mergeSnapshotJobUpdate([], p)[0],
+              snapshot_id: currentSnapshotId,
+            });
+          });
         }
       } else if (env.kind === "preview_ready") {
         const p = env.payload as PreviewReadyPayload;
