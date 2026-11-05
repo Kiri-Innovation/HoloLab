@@ -58,3 +58,19 @@ def test_install_scan_repeat_and_mismatch(tmp_path):
     assert repeated["manifest"] == result["manifest"]
     with pytest.raises(HashMismatch):
         install("kiri/demo@1.0.0", [source], dest, cfg.pack_scan_dirs, "0" * 64)
+
+
+def test_installed_packs_is_the_new_name_and_install_dir_still_loads(tmp_path):
+    target = tmp_path / "installed"
+    legacy = NodeConfig.model_validate({"install_dir": str(target)})
+    assert legacy.installed_packs == target and legacy.install_dir == target
+    assert "install_dir" not in legacy.model_dump() and legacy.model_dump()["installed_packs"] == target
+    both = NodeConfig.model_validate({"install_dir": str(target), "installed_packs": str(target)})
+    assert both.installed_packs == target
+    with pytest.raises(ValueError, match="disagree"):
+        NodeConfig.model_validate({"install_dir": str(target), "installed_packs": str(tmp_path / "x")})
+
+
+def test_unset_installed_packs_keeps_the_existing_default_directory(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "home"))
+    assert NodeConfig().effective_install_dir == tmp_path / "home" / "node" / "packs"

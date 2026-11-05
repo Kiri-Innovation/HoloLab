@@ -39,12 +39,13 @@ yanked/yank_reason/yank_updated_at。哈希提供完整性；发布者字段不�
 扫描器识别收据。节点 `config.yaml` 可独立指定社区包安装目录：
 
 ```yaml
-install_dir: /home/user/hololab-installed-packs
+installed_packs: /home/user/hololab-installed-packs   # 旧名 install_dir 仍可读取
 pack_dirs:
   - /home/user/my-algorithm-repo
 ```
 
-`install_dir` 必须是绝对目录路径，首次安装时自动创建。它隐式加入扫描和文件服务，
+`installed_packs`（原名 `install_dir`，旧配置照常加载，保存时写成新名；两者同时出现且不一致时拒绝）
+必须是绝对目录路径，首次安装时自动创建。它隐式加入扫描和文件服务，
 并排在 `pack_dirs` 前：同名同版本优先使用安装目录中的包；内置包的保留命名空间规则不变。
 无需把它重复写入 `pack_dirs`。`pack_dirs` 继续用于本地开发包来源。
 修改配置文件后重启节点；也可在 NODE SETTINGS 的 Install dir 中编辑，保存后立即重扫并更新文件服务。
@@ -52,7 +53,7 @@ pack_dirs:
 之后页面安装完成会立即重扫注册，无需再重启。
 安装弹窗只读显示节点报告的目标目录，不提供目录编辑框。
 
-未配置 `install_dir` 时，页面和 CLI 一律安装到 `node_data_dir()/packs`，通常为
+未配置 `installed_packs` 时，页面和 CLI 一律安装到 `node_data_dir()/packs`，通常为
 `~/.hololab/node/packs`（数据根遵循 `HOLOLAB_HOME` / `XDG_DATA_HOME`）。默认目录也隐式扫描。
 `pack_dirs` 仅指定本地开发包来源，不再决定下载落点。升级后未配置 `install_dir` 的部署
 将从原先开发目录的安装落点切换至默认数据目录；已有包不迁移，仍按原扫描配置加载。

@@ -44,7 +44,7 @@ def test_settings_roundtrip_rescan_and_catalog_destination(tmp_path, monkeypatch
         assert initial["default_install_dir"] == str(tmp_path / "home/node/packs")
         response = client.patch(url, json={"patch": {"install_dir": str(target)}})
         assert response.status_code == 200, response.text
-        assert yaml.safe_load(path.read_text())["install_dir"] == str(target)
+        assert yaml.safe_load(path.read_text())["installed_packs"] == str(target)
         assert ("example", "1.0.0") in runtime._packs
         assert any(call.args[0] == "packs_updated" for call in runtime._safe_send.call_args_list)
         runtime._restart_file_server.assert_awaited_once()
@@ -52,10 +52,10 @@ def test_settings_roundtrip_rescan_and_catalog_destination(tmp_path, monkeypatch
         assert node.pack_dirs[0] == str(target)
         for invalid in ["relative/path", 42]:
             assert client.patch(url, json={"patch": {"install_dir": invalid}}).status_code == 400
-        assert yaml.safe_load(path.read_text())["install_dir"] == str(target)
+        assert yaml.safe_load(path.read_text())["installed_packs"] == str(target)
         cleared = client.patch(url, json={"patch": {"install_dir": ""}})
         assert cleared.status_code == 200
-        assert yaml.safe_load(path.read_text())["install_dir"] is None
+        assert yaml.safe_load(path.read_text())["installed_packs"] is None
         assert node.install_destination == initial["default_install_dir"]
         # Other settings still share the same save path.
         changed = client.patch(

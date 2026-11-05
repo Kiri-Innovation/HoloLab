@@ -762,7 +762,7 @@ def pack_resolve_install(
     source: list[str] = typer.Option([], help="Override configured mirrors"),
     destination: Path | None = typer.Option(
         None,
-        help="Installation pack directory, default install_dir or node data directory/packs",
+        help="Installation pack directory, default installed_packs or node data directory/packs",
     ),
     expected_hash: str | None = typer.Option(None),
 ) -> None:

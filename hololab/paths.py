@@ -54,6 +54,16 @@ def gateway_sqlite_path() -> Path:
     return gateway_data_dir() / "hololab.sqlite"
 
 
+def default_cache_root() -> Path:
+    """Default root of shared model/weight download caches (torch.hub, Hugging Face).
+
+    Follows ``user_data_dir()``; not created here (the node creates the
+    library subdirectories it injects).
+    """
+
+    return user_data_dir() / "weights"
+
+
 def default_workspace_root() -> Path:
     """Default location for job workspaces on this node."""
 

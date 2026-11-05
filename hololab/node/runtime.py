@@ -1627,10 +1627,10 @@ class NodeRuntime:
                         raise ValueError("install_dir must be an absolute path string or null")
                     value = raw.strip() if isinstance(raw, str) else None
                     validated = NodeConfig.model_validate(
-                        {**self._config.model_dump(), "install_dir": value or None}
+                        {**self._config.model_dump(), "installed_packs": value or None}
                     )
                     validated.effective_install_dir.mkdir(parents=True, exist_ok=True)
-                    updates["install_dir"] = validated.install_dir
+                    updates["installed_packs"] = validated.installed_packs
                 elif key == "pack_dirs":
                     updates["pack_dirs"] = _coerce_pack_dirs_patch(raw)
                 elif key == "flops_executor_id":

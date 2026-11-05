@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from hololab.paths import default_workspace_root, node_data_dir
+from hololab.paths import default_cache_root, default_workspace_root, node_data_dir
 
 
 def _is_loopback_host(host: str | None) -> bool:
@@ -160,27 +160,49 @@ class NodeConfig(BaseModel):
             "when neither field is set on load."
         ),
     )
-    install_dir: Path | None = Field(
+    installed_packs: Path | None = Field(
         default=None,
-        description="Community installation root; defaults to node_data_dir()/packs, scanned before pack_dirs.",
+        description=(
+            "Where community packages are installed; defaults to node_data_dir()/packs "
+            "and is scanned before pack_dirs. Formerly ``install_dir`` (still accepted)."
+        ),
     )
 
-    @field_validator("install_dir")
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_install_dir(cls, data: object) -> object:
+        """Accept the former ``install_dir`` key as ``installed_packs``."""
+        if isinstance(data, dict) and "install_dir" in data:
+            data = dict(data)
+            legacy = data.pop("install_dir")
+            current = data.get("installed_packs")
+            if current is not None and legacy is not None and Path(current) != Path(legacy):
+                raise ValueError("install_dir (legacy) and installed_packs disagree; keep one")
+            if current is None:
+                data["installed_packs"] = legacy
+        return data
+
+    @field_validator("installed_packs")
     @classmethod
     def _absolute_install_dir(cls, value: Path | None) -> Path | None:
         if value is not None:
             value = value.expanduser()
             if not value.is_absolute():
-                raise ValueError("install_dir must be an absolute directory path")
+                raise ValueError("installed_packs must be an absolute directory path")
             if value.exists() and not value.is_dir():
-                raise ValueError("install_dir must be a directory")
+                raise ValueError("installed_packs must be a directory")
         return value
+
+    @property
+    def install_dir(self) -> Path | None:
+        """Former name of ``installed_packs``; kept for callers and the settings API."""
+        return self.installed_packs
 
     @property
     def effective_install_dir(self) -> Path:
         from hololab.gateway.pack_manager import installation_destination
 
-        return installation_destination(self.install_dir)
+        return installation_destination(self.installed_packs)
 
     @property
     def pack_scan_dirs(self) -> list[Path]:
@@ -285,11 +307,12 @@ class NodeConfig(BaseModel):
     code_baselines_dir: Path = Field(default_factory=lambda: node_data_dir() / "code-baselines")
 
     # Shared download caches for libraries that keep their own local index
-    # (torch.hub, Hugging Face Hub). When set, ``pack setup`` hooks and every
-    # job spawn receive the same variables (see ``cache_env``), so a model a
-    # setup hook prefetches is the one jobs find, and environments and packs
-    # share one copy. ``cache_dirs`` entries override ``cache_root/<name>``.
-    # Unset (the default) injects nothing: libraries keep their own defaults.
+    # (torch.hub, Hugging Face Hub). ``pack setup`` hooks and every job spawn
+    # receive the same variables (see ``cache_env``), so a model a setup hook
+    # prefetches is the one jobs find, and environments and packs share one
+    # copy. Precedence: ``cache_dirs.<name>`` > ``cache_root/<name>`` >
+    # ``default_cache_root()/<name>`` (``<user data dir>/weights``, resolved
+    # at use time so ``HOLOLAB_HOME`` / ``XDG_DATA_HOME`` are honoured).
     cache_root: Path | None = None
     cache_dirs: CacheDirs = Field(default_factory=CacheDirs)
 
@@ -305,17 +328,14 @@ class NodeConfig(BaseModel):
         so that a more specific variable inherited from an environment
         cannot silently split downloads from what setup prefetched.
         """
-        torch = self.cache_dirs.torch or (self.cache_root / "torch" if self.cache_root else None)
-        hf = self.cache_dirs.huggingface or (
-            self.cache_root / "huggingface" if self.cache_root else None
-        )
-        env: dict[str, str] = {}
-        if torch is not None:
-            env["TORCH_HOME"] = str(torch)
-        if hf is not None:
-            env["HF_HOME"] = str(hf)
-            env["HF_HUB_CACHE"] = str(hf / "hub")
-        return env
+        root = self.cache_root if self.cache_root is not None else default_cache_root()
+        torch = self.cache_dirs.torch or root / "torch"
+        hf = self.cache_dirs.huggingface or root / "huggingface"
+        return {
+            "TORCH_HOME": str(torch),
+            "HF_HOME": str(hf),
+            "HF_HUB_CACHE": str(hf / "hub"),
+        }
 
     def ensure_cache_dirs(self) -> dict[str, str]:
         """Create the configured cache directories; return ``cache_env()``."""

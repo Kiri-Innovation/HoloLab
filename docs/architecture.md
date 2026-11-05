@@ -202,13 +202,16 @@ remains unimplemented.
 
 Machine configuration maps logical `runtime.env` names to real conda prefixes.
 It also supplies `conda_bin`, `pack_dirs`, workspace roots and advertised URLs.
-The optional `install_dir` separates community downloads from development sources;
+The optional `installed_packs` (formerly `install_dir`, still accepted on load)
+separates community downloads from development sources;
 it is implicitly scanned before `pack_dirs`, so an installed pack takes precedence
 over a development source with the same name and version.
 
-Optional shared download caches let libraries with their own download channel and
-local index reuse one copy across environments and packs instead of filling each
-conda prefix:
+Shared download caches let libraries with their own download channel and local
+index reuse one copy across environments and packs instead of filling each conda
+prefix. By default they live under `<user data dir>/weights` (normally
+`~/.hololab/weights`; `HOLOLAB_HOME` / `XDG_DATA_HOME` are honoured, `%APPDATA%`
+on Windows). Relocate them, e.g. onto a data disk, or reuse an existing cache:
 
 ```yaml
 cache_root: /data/hololab-cache        # -> <root>/torch and <root>/huggingface
@@ -216,17 +219,20 @@ cache_dirs:                            # optional per-library overrides
   huggingface: /data/huggingface_cache
 ```
 
-When either is set, the node injects `TORCH_HOME`, `HF_HOME` and
+Precedence is `cache_dirs.<name>` > `cache_root/<name>` > the default. The node
+injects `TORCH_HOME`, `HF_HOME` and
 `HF_HUB_CACHE` (`$HF_HOME/hub`) into `pack setup` hooks and into every job spawn
 (cached, `conda run` and host paths alike), creating the directories if needed.
 Setup and jobs therefore resolve the same location; the setup receipt records these
 values, so changing them re-runs the hook. Injected values override variables
 inherited from the environment, and pack scripts that use `${TORCH_HOME:-…}`
-follow them. Packs that assign a variable unconditionally still win. Unset (the
-default) injects nothing and keeps each library's own default location. The
-Hugging Face login token lives under `HF_HOME`, so point `huggingface` at the
-directory holding the token if gated downloads are needed. Existing caches are not
-moved.
+follow them. Packs that assign a variable unconditionally still win. Caches that
+libraries filled before this default existed (`$CONDA_PREFIX/.cache/torch`,
+`~/.cache/torch`, `~/.cache/huggingface`) are not found or moved: models are
+downloaded again once into the shared location, and setup hooks re-run once
+because their receipts now record the cache location. The Hugging Face login
+token lives under `HF_HOME`, so point `huggingface` at the directory holding the
+token if gated downloads are needed.
 
 Pack identity and execution declarations remain in the manifest. See
 [Writing a Pack](writing-a-pack.md) for source discovery and validation.
