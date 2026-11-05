@@ -1,0 +1,136 @@
+{
+  "apiVersion": "hololab.dev/v1",
+  "kind": "Algorithm",
+  "name": "col4d/repeat-4d",
+  "version": "0.1.0",
+  "root": ".",
+  "cold": [],
+  "external_code": [],
+  "requires": {
+    "python": null,
+    "packages": [
+      "colmap4d>=1.0.4"
+    ],
+    "package_indexes": {},
+    "package_checks": {},
+    "cuda": null,
+    "gpu": null
+  },
+  "setup": null,
+  "description": "Repeat one static camera over a synthetic time interval.",
+  "category": [
+    "reconstruction",
+    "colmap4d"
+  ],
+  "docs": "Input is one timeless colmap-camera JSON (model, width, height, params, qvec wxyz, tvec; world-to-camera). Output is a colmap4d-cams component. Frame count is floor(duration * fps), from 1 to 1000000. Times are start_time_ns + round(i * 1e9 / fps), nearest ties-to-even. No pixels or point observations are generated. Time is explicitly synthetic.",
+  "source_entry": "repeat_4d.py",
+  "arrayable": false,
+  "parallelism": null,
+  "batch_size": null,
+  "type_capabilities": {},
+  "inputs": {
+    "camera": {
+      "tags": [
+        "colmap-camera"
+      ],
+      "required": true,
+      "inline": null,
+      "inline_default": null,
+      "require_axis_label_match": true,
+      "storage": "file",
+      "description": null,
+      "arrayed": false,
+      "scalar": false,
+      "dim_labels": [],
+      "content_dims_from": null,
+      "any_of": []
+    }
+  },
+  "outputs": {
+    "4d_cams": {
+      "tags": [
+        "colmap4d-cams"
+      ],
+      "storage": "dir",
+      "description": null,
+      "preview": null,
+      "arrayed": false,
+      "scalar": false,
+      "tags_from": null,
+      "dim_labels": [],
+      "dim_labels_from": null,
+      "dim_labels_from_input": null,
+      "dim_labels_drop_outer": 0
+    }
+  },
+  "params": {
+    "duration": {
+      "type": "float",
+      "items": null,
+      "default": 1.0,
+      "description": "Positive duration in seconds; fractional frame count is floored.",
+      "min": 5e-324,
+      "max": null,
+      "values": null,
+      "optional": false,
+      "pinned": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "fps": {
+      "type": "float",
+      "items": null,
+      "default": 30.0,
+      "description": "Positive frames per second (maximum nanosecond resolution).",
+      "min": 5e-324,
+      "max": 1000000000,
+      "values": null,
+      "optional": false,
+      "pinned": false,
+      "must_exist": null,
+      "path_kind": null
+    },
+    "start_time_ns": {
+      "type": "int",
+      "items": null,
+      "default": 0,
+      "description": "Synthetic first exposure-center timestamp in signed int64 nanoseconds.",
+      "min": -9223372036854775808,
+      "max": 9223372036854775807,
+      "values": null,
+      "optional": false,
+      "pinned": false,
+      "must_exist": null,
+      "path_kind": null
+    }
+  },
+  "runtime": {
+    "mode": "conda",
+    "env": "colmap4d",
+    "gpu": {
+      "required": false,
+      "vram_gb_min": null
+    },
+    "exclusive": false,
+    "expected_duration_min": null,
+    "resources": {
+      "scratch_gb": 0.2,
+      "mem_gb": 2.0,
+      "gpu_mem_gb": null
+    }
+  },
+  "exec": {
+    "shell": "python -u \"{{ pack_dir }}/repeat_4d.py\" --camera \"{{ inputs.camera }}\" --output \"{{ outputs['4d_cams'] }}\" --duration {{ params.duration }} --fps {{ params.fps }} --start-time-ns {{ params.start_time_ns }}",
+    "python": null,
+    "args": [],
+    "working_dir": null
+  },
+  "idempotency": null,
+  "node_viewers": [],
+  "hide_default_output_previews": false,
+  "previews": [],
+  "progress": {
+    "stdout_regex": "\\[ITER (\\d+)/(\\d+)\\]",
+    "status_file": null
+  }
+}
