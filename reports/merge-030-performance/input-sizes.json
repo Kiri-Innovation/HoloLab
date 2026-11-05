@@ -1,0 +1,32 @@
+{
+  "4d_points": [
+    {
+      "file": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_points/points_t.bin",
+      "bytes": 671846408,
+      "records": 41990400
+    },
+    {
+      "file": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_points/points3D.bin",
+      "bytes": 2477433608,
+      "records": 41990400
+    }
+  ],
+  "4d_cams": [
+    {
+      "file": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "bytes": 1007776898,
+      "records": 81
+    },
+    {
+      "file": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/times.bin",
+      "bytes": 980,
+      "records": 81
+    },
+    {
+      "file": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/cameras.bin",
+      "bytes": 64,
+      "records": 1
+    }
+  ],
+  "4d_images": []
+}

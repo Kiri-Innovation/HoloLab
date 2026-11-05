@@ -1,0 +1,169 @@
+test_byte_equivalence_and_no_object_readers (test_fast.Fast.test_byte_equivalence_and_no_object_readers) ... [ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 1
+[ITER 3/5] pixel bijection, resolution and full image decoding
+[ITER 4/5] byte-preserving binary and image copy (independent files, no hardlinks)
+[ITER 5/5] done in 0.004s; validation=exhaustive-single-track
+[ITER 0/5] strict full validation
+[strict] reading cameras
+[strict] reading images
+[strict] reading points3D
+[strict] checking image 11
+[strict] checking image 31
+[strict] checking point 0/2
+[strict] writing normalized model
+[strict] final validate_full (observations/tracks skipped by library reader)
+[ITER 5/5] done in 0.003s; validation=full-legacy
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 2
+[ITER 3/5] pixel bijection, resolution and full image decoding
+[ITER 4/5] byte-preserving binary and image copy (independent files, no hardlinks)
+[ITER 5/5] done in 0.003s; validation=sampled-multi-track
+[ITER 0/5] strict full validation
+[strict] reading cameras
+[strict] reading images
+[strict] reading points3D
+[strict] checking image 11
+[strict] checking image 31
+[strict] checking point 0/2
+[strict] writing normalized model
+[strict] final validate_full (observations/tracks skipped by library reader)
+[ITER 5/5] done in 0.002s; validation=full-legacy
+ok
+test_corruptions (test_fast.Fast.test_corruptions) ... [ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+CORRUPTION duplicate points: rejected: Duplicate point IDs
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+CORRUPTION zero point id: rejected: Invalid point ID
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+CORRUPTION nonfinite xyz: rejected: Nonfinite point geometry
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+CORRUPTION negative error: rejected: Invalid point error
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 1
+CORRUPTION wrong source time: rejected: Source-frame point time mismatch
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 1/5] full-validation fallback: points_t.bin noncanonical ID order/coverage
+[strict] reading cameras
+[strict] reading images
+[strict] reading points3D
+CORRUPTION duplicate time id: rejected: /tmp/tmpzv2lkwcw/points/points_t.bin: duplicate id 101 (strict mode)
+[ITER 0/5] fast array validation
+[ITER 1/5] full-validation fallback: variable-length tracks
+[strict] reading cameras
+[strict] reading images
+[strict] reading points3D
+CORRUPTION truncated points: rejected: Truncated points3D.bin
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+CORRUPTION truncated times: rejected: Truncated count: points_t.bin
+[ITER 0/5] fast array validation
+[strict] reading cameras
+CORRUPTION trailing images: rejected: trailing image bytes: /tmp/tmpf1aykevd/cams/images.bin
+[ITER 0/5] fast array validation
+[strict] reading cameras
+CORRUPTION duplicate images: rejected: times.bin must exactly cover IDs
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 1
+CORRUPTION wrong track image: rejected: Nonreciprocal observation/track
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 1
+CORRUPTION wrong track index: rejected: Nonreciprocal observation/track
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 1
+CORRUPTION unknown observation: rejected: Observation references unknown point
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 1
+CORRUPTION missing reciprocal: rejected: Missing reciprocal point observations
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 1
+CORRUPTION nonfinite observation: rejected: Nonfinite observation
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 1
+[ITER 3/5] pixel bijection, resolution and full image decoding
+CORRUPTION missing pixel: rejected: Missing or external/symlink pixel file
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 1
+[ITER 3/5] pixel bijection, resolution and full image decoding
+CORRUPTION extra pixel: rejected: Pixel NAME bijection mismatch
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 1
+[ITER 3/5] pixel bijection, resolution and full image decoding
+CORRUPTION wrong resolution: rejected: Image/camera resolution mismatch
+[ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 1
+[ITER 3/5] pixel bijection, resolution and full image decoding
+CORRUPTION wrong mode: rejected: Expected single RGB/RGBA image
+[ITER 0/5] fast array validation
+[strict] reading cameras
+CORRUPTION meta conflict: rejected: Metadata conflict: time_meta.clock_domain
+ok
+test_multi_track_time_sample (test_fast.Fast.test_multi_track_time_sample) ... [ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 2/5] validate coverage/tracks: 2 points, 2 images, track width 2
+ok
+test_text_fallback (test_fast.Fast.test_text_fallback) ... [ITER 0/5] fast array validation
+[ITER 1/5] full-validation fallback: text input requires canonical binary normalization
+[strict] reading cameras
+[strict] reading images
+[strict] reading points3D
+[strict] checking image 11
+[strict] checking image 31
+[strict] checking point 0/2
+[strict] writing normalized model
+[strict] final validate_full (observations/tracks skipped by library reader)
+[ITER 5/5] done in 0.003s; validation=full-legacy
+ok
+test_unsorted_sidecar_fallback (test_fast.Fast.test_unsorted_sidecar_fallback) ... [ITER 0/5] fast array validation
+[strict] reading cameras
+[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
+[ITER 1/5] full-validation fallback: points_t.bin noncanonical ID order/coverage
+[strict] reading cameras
+[strict] reading images
+[strict] reading points3D
+[strict] checking image 11
+[strict] checking image 31
+[strict] checking point 0/2
+[strict] writing normalized model
+[strict] final validate_full (observations/tracks skipped by library reader)
+[ITER 5/5] done in 0.004s; validation=full-legacy
+ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.120s
+
+OK

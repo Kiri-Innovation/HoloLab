@@ -1,0 +1,47 @@
+{
+  "job_id": "82776d4f-3d49-4ae1-bdb0-5ac5c3ce964f",
+  "lines": [
+    {
+      "stream": "stdout",
+      "line": "[ITER 0/5] fast array validation",
+      "ts": 1793900539.5963256
+    },
+    {
+      "stream": "stdout",
+      "line": "[strict] reading cameras",
+      "ts": 1793900540.1226816
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)",
+      "ts": 1793900540.1226816
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 2/5] validate coverage/tracks: 41990400 points, 81 images, track width 1",
+      "ts": 1793900545.1136615
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 3/5] pixel bijection, resolution and full image decoding",
+      "ts": 1793900545.1136615
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 4/5] byte-preserving binary and image copy (independent files, no hardlinks)",
+      "ts": 1793900548.8672378
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 5/5] done in 11.996s; validation=exhaustive-single-track",
+      "ts": 1793900551.3843172
+    },
+    {
+      "stream": "stdout",
+      "line": "{\"images\": 81, \"points\": 41990400, \"validation\": \"exhaustive-single-track\", \"strict_validate\": false, \"fallback\": null, \"seconds\": 11.99616199000593, \"max_rss_kib\": 4454704}",
+      "ts": 1793900551.3843172
+    }
+  ],
+  "total_returned": 8,
+  "truncated": false
+}

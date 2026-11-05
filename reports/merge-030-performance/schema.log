@@ -1,0 +1,8 @@
+✓ col4d/merge-colmap4d@0.3.0
+  hash:       70efdc5df4b4fbfc108132afd3bc38e83af738fe8e8be727741b5087fbfaf859
+  env:        colmap4d
+  category:   reconstruction/colmap4d
+  docs:       yes (1 lines)
+  inputs:     ['4d_points', '4d_cams', '4d_images']
+  outputs:    ['model']
+  previews:   0
