@@ -2591,8 +2591,14 @@ def _mount_routes(app: FastAPI) -> None:
 
         registry: NodeRegistry = app.state.registry
 
+        from hololab.gateway.array_views import compile_array_views
         try:
-            validate_graph_identities(row.graph)
+            execution_graph, _ = compile_array_views(row.graph, registry.catalog_json())
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        try:
+            validate_graph_identities(execution_graph)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         # Build validation inputs from the catalog + connected sessions.
@@ -2603,12 +2609,12 @@ def _mount_routes(app: FastAPI) -> None:
             packs_offered_by_node[session.node_id] = {(p.name, p.version) for p in session.packs}
 
         issues = validate_snapshot(
-            row.graph,
+            execution_graph,
             packs_by_key=packs_by_key,
             online_node_ids=online_node_ids,
             packs_offered_by_node=packs_offered_by_node,
         )
-        for node in row.graph.nodes:
+        for node in execution_graph.nodes:
             if node.kind == "intrinsic":
                 session = registry.get_session(node.assigned_node_id)
                 if session is not None and node.operation not in session.intrinsics:
@@ -2625,7 +2631,7 @@ def _mount_routes(app: FastAPI) -> None:
 
         from hololab.gateway.workflows import is_task_node
 
-        if not any(is_task_node(n) for n in row.graph.nodes):
+        if not any(is_task_node(n) for n in execution_graph.nodes):
             return {
                 "workflow_id": workflow_id,
                 "snapshot_id": None,
@@ -2635,7 +2641,7 @@ def _mount_routes(app: FastAPI) -> None:
             }
         from hololab.gateway.preparation import submitted_execution
 
-        prepared = await submitted_execution(app, workflow_id, row.graph)
+        prepared = await submitted_execution(app, workflow_id, execution_graph)
         snapshot = await app.state.workflows.create_snapshot(
             workflow_id=workflow_id, graph=prepared
         )

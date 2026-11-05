@@ -119,6 +119,16 @@ def compile_array_views(graph, catalog):
         pack = packs.get(package_key(node.algorithm_name, node.algorithm_version))
         for output, spec in pack.outputs.items():
             if not spec.tags_from:
+                if pack.arrayable and node.arrayed_toggle:
+                    origins = [lineage[(e.source, e.sourceHandle)] for e in incoming
+                               if (e.source, e.sourceHandle) in lineage]
+                    if origins and all(origin == origins[0] for origin in origins):
+                        origin = origins[0]
+                        expected = from_legacy(origin[3].array.tags, True, origin[3].array.dim_labels)
+                        if fits(typ.outputs[output].views.aggregate, expected, False):
+                            # Eligibility only: the restoring provider still checks
+                            # every element's persisted provenance and contents.
+                            lineage[node_id, output] = origin
                 continue
             incoming_edges = [e for e in result.edges if e.target == node_id and e.targetHandle == spec.tags_from]
             if len(incoming_edges) != 1:
@@ -136,4 +146,6 @@ def compile_array_views(graph, catalog):
         sentinel = GraphEdge(id=f"terminal-{source_id}-{source_port}", source=source_id,
                              sourceHandle=source_port, target=source_id, targetHandle=source_port)
         insert(sentinel, owner, tag, name, view, 'from_array')
+    if plans:
+        result.execution = {**(result.execution or {}), "array_views": plans}
     return result, plans

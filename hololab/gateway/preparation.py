@@ -49,6 +49,8 @@ def digest(value: Any) -> str:
 
 
 def context_revision(graph: WorkflowGraph, catalog: list[dict]) -> str:
+    from hololab.gateway.array_views import compile_array_views
+    graph, _ = compile_array_views(graph, catalog)
     recipe, bindings, _ = split_graph(graph)
     data = recipe.graph.model_dump(exclude={"execution"})
     for node in data["nodes"]:
@@ -88,6 +90,8 @@ def resolve_recipe(
     default strict behaviour: an invalid value must never reach an executor.
     """
     validate_graph_identities(graph)
+    from hololab.gateway.array_views import compile_array_views
+    graph, _ = compile_array_views(graph, catalog)
     result = freeze_parameter_pins(graph, catalog)
     packs = {package_key(p["name"], p["version"]): copy.deepcopy(p) for p in catalog}
     sources, environment, issues = {}, {}, []
@@ -194,6 +198,7 @@ def resolve_recipe(
         node.port_values = {port: value[1]["value"] for port, value in inputs.items()}
         inline_values[node.id] = inputs
     result.execution = {
+        **({"array_views": graph.execution["array_views"]} if (graph.execution or {}).get("array_views") else {}),
         "version": 1,
         "parameter_inline_values": {
             n.id: copy.deepcopy(n.params) for n in graph.nodes if n.param_bindings
@@ -279,8 +284,17 @@ async def prepare_execution(
     validate_graph_identities(graph)
     catalog = copy.deepcopy(app.state.registry.catalog_json())
     result = resolve_recipe(graph, catalog, tolerate_parameter_errors=not strict)
+    if required is not None and (result.execution or {}).get("array_views"):
+        ancestors = set(required)
+        while True:
+            expanded = ancestors | {e.source for e in result.edges if e.target in ancestors}
+            if expanded == ancestors:
+                break
+            ancestors = expanded
+        if ancestors & {p["node_id"] for p in result.execution["array_views"]}:
+            raise HTTPException(status_code=422, detail="Array-view execution currently requires a whole-workflow run; single-node continuation is not yet supported")
     spans["resolve_recipe"] = time.monotonic() - started
-    required = required if required is not None else {n.id for n in graph.nodes if n.kind != "view"}
+    required = required if required is not None else {n.id for n in result.nodes if n.kind != "view"}
     invalid_nodes = {
         issue["node_id"]
         for issue in result.execution["issues"]

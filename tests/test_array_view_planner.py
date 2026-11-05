@@ -82,3 +82,41 @@ def test_competing_view_names_are_not_chosen_by_install_order():
     views['another']=deepcopy(views['exposure_groups'])
     with pytest.raises(ValueError,match='one candidate'):
         compile_array_views(graph,catalog)
+
+
+def test_preparation_freezes_plan_and_provider_version():
+    from hololab.gateway.preparation import resolve_recipe, context_revision
+    graph,catalog=fixture()
+    resolved=resolve_recipe(graph,catalog)
+    assert len(resolved.execution['array_views'])==2
+    assert len(resolved.nodes)==5
+    assert all(v == [] for v in resolved.pinned_params.values())  # ordinary parameter pin freezing only
+    revision=context_revision(graph,catalog)
+    assert revision==resolved.execution["revision"]
+    assert revision==context_revision(compile_array_views(graph,catalog)[0],catalog)
+    changed=deepcopy(catalog)
+    changed[-2]['type_capabilities']['colmap4d']['array_views']['exposure_groups']['version']=1
+    changed[-2]['type_capabilities']['colmap4d']['array_views']['exposure_groups']['to_array']['version']='0.2.0'
+    changed.append({**deepcopy(changed[-2]),'version':'0.2.0','type_capabilities':{}})
+    assert context_revision(graph,changed)!=revision
+    assert resolved.execution['array_views'][0]['provider']['version']=='0.1.0'
+
+
+def test_compiled_graph_is_valid_under_unchanged_type_checker():
+    from hololab.gateway.workflows import validate_snapshot
+    graph,catalog=fixture()
+    compiled,plans=compile_array_views(graph,catalog)
+    issues=validate_snapshot(compiled,packs_by_key=packs_by_key_from_catalog(catalog),
+                             online_node_ids={'cpu'},packs_offered_by_node={'cpu':{(p['name'],p['version']) for p in catalog}})
+    assert not issues
+
+
+def test_fanout_collects_real_elements_before_restore():
+    graph,catalog=fixture()
+    node=next(n for n in graph.nodes if n.id=='slice')
+    node.algorithm_name='test/map';node.arrayed_toggle=True
+    scalar=dict(tags=['colmap4d'],arrayed=False,dim_labels=[])
+    catalog.append(dict(name='test/map',version='0.1.0',arrayable=True,inputs={'in':scalar},outputs={'out':scalar}))
+    result,plans=compile_array_views(graph,catalog)
+    assert [p['direction'] for p in plans]==['to_array','from_array']
+    assert next(n for n in result.nodes if n.id=='slice').arrayed_toggle is True
