@@ -5,7 +5,6 @@ import math
 import os
 from pathlib import Path
 from fractions import Fraction
-import shutil
 import struct
 import subprocess
 import sys
@@ -100,8 +99,31 @@ def export(work, outputs, times, meta, depth_min=.001, pts_stride=2):
     """Use COLMAP world poses and metric Z depth. Stream points per frame."""
     work = Path(work)
     sparse = work / 'colmap' / 'sparse' / '0'
-    model = cio.read_model(sparse)
-    ordered = sorted(model.images.values(), key=lambda im: im.name)
+    camera_path = sparse / 'cameras.bin'
+    cameras = cio.read_cameras_bin(camera_path) if camera_path.exists() else cio.read_cameras_txt(sparse / 'cameras.txt')
+    if (sparse / 'images.bin').exists():
+        image_rows = cio.read_images_bin(sparse / 'images.bin')
+    else:
+        # Native tracker emits blank observation lines. Preserve the paired text
+        # records; colmap4d's fallback reader currently discards blank lines.
+        lines = [line.strip() for line in (sparse / 'images.txt').read_text().splitlines()
+                 if not line.lstrip().startswith('#')]
+        image_rows = {}
+        i = 0
+        while i < len(lines):
+            if not lines[i]:
+                i += 1
+                continue
+            row = lines[i].split()
+            if len(row) != 10 or i + 1 >= len(lines):
+                raise ValueError('Malformed native image record')
+            ident = int(row[0])
+            if ident in image_rows:
+                raise ValueError('Duplicate native image ID')
+            image_rows[ident] = cio.Image(ident,row[9],int(row[8]),
+                                          list(map(float,row[1:5])),list(map(float,row[5:8])))
+            i += 2
+    ordered = sorted(image_rows.values(), key=lambda im: im.name)
     frame_paths = sorted((work / 'frames').glob('frame_*.png'))
     if len(ordered) != len(times) or len(frame_paths) != len(times):
         raise ValueError('Frame/camera/time count mismatch')
@@ -109,7 +131,7 @@ def export(work, outputs, times, meta, depth_min=.001, pts_stride=2):
         raise ValueError('COLMAP image names do not match ordered decoded frames')
     cams, points, pixels = [empty_output(outputs[k]) for k in ('cams', 'points', 'images')]
     (pixels / 'images').mkdir()
-    cio.write_cameras_bin(cams / 'cameras.bin', model.cameras)
+    cio.write_cameras_bin(cams / 'cameras.bin', cameras)
     write_times_bin(cams / 'times.bin', {i+1: t for i, t in enumerate(times)})
     for folder in (cams, points):
         write_time_meta(folder / 'time_meta.json', meta)
@@ -129,7 +151,7 @@ def export(work, outputs, times, meta, depth_min=.001, pts_stride=2):
         imf.write(struct.pack('<Q', len(times)))
         for index, (old, frame, depth, t) in enumerate(zip(ordered, frame_paths, depths, times)):
             iid = index + 1
-            camera = model.cameras[old.camera_id]
+            camera = cameras[old.camera_id]
             if camera.model != 'PINHOLE' or len(camera.params) != 4:
                 raise ValueError('MegaSAM export requires undistorted PINHOLE cameras')
             fx, fy, cx, cy = camera.params
@@ -204,10 +226,14 @@ def main(config):
     for root in roots:
         if root.exists() and any(root.iterdir()):
             raise ValueError('Outputs must be empty')
-    digest = hashlib.file_digest(video.open('rb'), 'sha256').hexdigest()
+    hasher = hashlib.sha256()
+    with video.open('rb') as source:
+        for block in iter(lambda: source.read(1024 * 1024), b''):
+            hasher.update(block)
+    digest = hasher.hexdigest()
     probe = json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0',
         '-show_frames','-show_streams','-show_entries',
-        'frame=pts:stream=time_base,color_transfer,color_primaries','-of','json',str(video)], timeout=60))
+        'frame=pts:stream=time_base,color_transfer,color_primaries,color_space,color_range','-of','json',str(video)], timeout=60))
     frames, stream = probe['frames'], probe['streams'][0]
     indexes = list(range(0,len(frames),skip))
     if cap: indexes = indexes[:cap]
@@ -220,11 +246,24 @@ def main(config):
         raise ValueError(f'Unsupported transfer {transfer}; provide SDR sRGB video')
     if stream.get('color_primaries','unknown') not in ('unknown','bt709','smpte170m'):
         raise ValueError('Unsupported video primaries; provide SDR sRGB video')
+    # Convert the declared SDR transfer/primaries to sRGB, not just YUV to RGB.
+    # Untagged video follows an explicit recorded BT.709 limited-range assumption.
+    color = {key: stream.get(key, 'unknown') for key in
+             ('color_transfer','color_primaries','color_space','color_range')}
+    defaults = dict(color_transfer='bt709',color_primaries='bt709',color_space='bt709',color_range='tv')
+    assumed = [key for key in color if color[key] == 'unknown']
+    for key in assumed: color[key] = defaults[key]
+    if color['color_space'] not in ('bt709','smpte170m','bt470bg') or color['color_range'] not in ('tv','pc'):
+        raise ValueError('Unsupported video matrix/range; provide SDR YUV video')
+    meta['conversion']['pixels'] = dict(input=color, assumed_fields=assumed, output='sRGB RGB8')
+    color_filter = (f"colorspace=ispace={color['color_space']}:iprimaries={color['color_primaries']}:"
+                    f"itrc={color['color_transfer']}:irange={color['color_range']}:"
+                    "space=bt709:primaries=bt709:trc=srgb:range=pc:format=yuv444p12,format=rgb24")
     scratch.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix='megasam-040-', dir=scratch))
     (work/'frames').mkdir()
     subprocess.run(['ffmpeg','-nostdin','-v','error','-noautorotate','-i',str(video),
-        '-map','0:v:0','-vf',f'select=not(mod(n\\,{skip}))','-vsync','0','-frames:v',str(len(indexes)),
+        '-map','0:v:0','-vf',f'select=not(mod(n\\,{skip})),{color_filter}','-vsync','0','-frames:v',str(len(indexes)),
         '-start_number','0','-pix_fmt','rgb24',str(work/'frames/frame_%06d.png')],check=True,timeout=300)
     if len(list((work/'frames').glob('*.png'))) != len(indexes):
         raise ValueError('Decoder count differs from probed selection')
@@ -232,7 +271,7 @@ def main(config):
     subprocess.run(['cp','-rL','--reflink=auto',str(repo),str(private)],check=True,timeout=300)
     env = os.environ.copy()
     for key in ('LD_LIBRARY_PATH','PYTHONPATH','PYTHONHOME'): env.pop(key,None)
-    env.update(PYTHONUNBUFFERED='1', MPLBACKEND='Agg')
+    env.update(PYTHONUNBUFFERED='1', PYTHONDONTWRITEBYTECODE='1', MPLBACKEND='Agg')
     print('[ITER 1/3] native MegaSAM chain',flush=True)
     subprocess.run([str(python),str(sharp/'per-frame/video_to_colmap.py'),'--convert-only',
         '--track_megasam','--megasam-root',str(private),'-o',str(work)],cwd=sharp,env=env,check=True)

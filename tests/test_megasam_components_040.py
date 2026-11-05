@@ -31,6 +31,43 @@ class MegaComponents(unittest.TestCase):
             data['frames']*=2; path.write_text(json.dumps(data))
             with self.assertRaises(ValueError): mega.timestamps(params,[3],[],None,'hash')
 
+    def test_video_selection_exposure_and_native_boundary(self):
+        """Real ffmpeg decode, controlled CPU tracker fixture (not inference evidence)."""
+        import hashlib
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); video=root/'input.mp4'
+            subprocess.run(['ffmpeg','-nostdin','-v','error','-f','lavfi','-i',
+                'testsrc2=size=8x8:rate=4:duration=1','-c:v','libx264','-pix_fmt','yuv420p',str(video)],check=True,timeout=30)
+            repo=root/'mega'; repo.mkdir(); (repo/'sentinel').write_text('original')
+            sharp=root/'sharp'; (sharp/'per-frame').mkdir(parents=True)
+            (sharp/'per-frame/video_to_colmap.py').write_text(r"""import argparse
+from pathlib import Path
+import numpy as np
+from PIL import Image
+p=argparse.ArgumentParser();p.add_argument('--convert-only',action='store_true');p.add_argument('--track_megasam',action='store_true');p.add_argument('--megasam-root');p.add_argument('-o');a=p.parse_args()
+assert a.convert_only and a.track_megasam
+Path(a.megasam_root,'native-marker').write_text('private')
+w=Path(a.o); frames=sorted((w/'frames').glob('*.png')); width,height=Image.open(frames[0]).size
+s=w/'colmap/sparse/0';s.mkdir(parents=True);(w/'megasam_run').mkdir()
+(s/'cameras.txt').write_text(f'1 PINHOLE {width} {height} 4 4 4 4\n')
+(s/'images.txt').write_text(''.join(f'{i+1} 1 0 0 0 {i} 0 0 1 {f.name}\n\n' for i,f in enumerate(frames)))
+np.savez(w/'megasam_run/original_resolution.npz',depths=np.ones((len(frames),height,width)))
+""")
+            exposure=root/'exposure.json'
+            exposure.write_text(json.dumps(dict(video_sha256=hashlib.sha256(video.read_bytes()).hexdigest(),clock_domain='sensor',frames=[
+                dict(decoded_index=0,mid_exposure_ns=101),dict(decoded_index=2,mid_exposure_ns=908)])))
+            outputs={k:str(root/k) for k in ('cams','points','images')}
+            mega.main(dict(inputs={'video':str(video)},outputs=outputs,scratch=str(root/'scratch'),params=dict(
+                megasam_repo=str(repo),sharp_repo=str(sharp),tracker_python=sys.executable,skip=2,max_frames=2,
+                exposure_metadata_path=str(exposure))))
+            self.assertEqual(read_times_bin(Path(outputs['cams'])/'times.bin'),{1:101,2:908})
+            self.assertFalse((repo/'native-marker').exists())
+            meta=json.loads((Path(outputs['cams'])/'time_meta.json').read_text())
+            self.assertEqual(meta['conversion']['selected_decoded_indexes'],[0,2])
+            self.assertEqual(meta['conversion']['pixels']['output'],'sRGB RGB8')
+
     def test_export_geometry_and_tracks(self):
         with tempfile.TemporaryDirectory() as tmp:
             work=Path(tmp)/'native'; sparse=work/'colmap/sparse/0'; sparse.mkdir(parents=True)
@@ -52,5 +89,13 @@ class MegaComponents(unittest.TestCase):
                 self.assertEqual(images[iid].point3D_ids[idx],pid)
                 self.assertEqual(pt[pid],ts[iid])
             self.assertEqual(len(list((outputs['images']/'images').glob('*.png'))),2)
+            # Native MegaSAM stores two-line text image records with blank observations.
+            (sparse/'images.bin').unlink()
+            (sparse/'images.txt').write_text(''.join(
+                f'{im.id} 1 0 0 0 {im.tvec[0]} 0 0 7 {im.name}\n\n' for im in ims.values()))
+            text_outputs={k:Path(tmp)/('text-'+k) for k in outputs}
+            mega.export(work,text_outputs,[-1,41],meta,pts_stride=1)
+            self.assertEqual((outputs['points']/'points3D.bin').read_bytes(),
+                             (text_outputs['points']/'points3D.bin').read_bytes())
 
 if __name__=='__main__': unittest.main()
