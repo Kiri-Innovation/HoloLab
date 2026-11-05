@@ -20,3 +20,14 @@ compatibility. Implementations must materialize real arrays of independently
 valid elements, preserve source identity, and refuse restoration when provenance
 or entity contents conflict. Array positions are not entity IDs or timestamps.
 No frontend or live-service rollout is included in the contract stage.
+
+Stage 2 provides `gateway.array_views.compile_array_views`: a pure compiler
+returning a copied graph and explicit conversion records. Providers are ordinary
+algorithm nodes, so the existing frontend/backend port IR represents their real
+scalar/array types without changing `TypeViews` semantics. Runtime cardinalities
+remain unknown. Only provenance-bearing derived arrays can restore; arbitrary
+same-tag outputs do not suffice. A terminal derived array gets a restoration
+node. Scalar consumers get their own branch-local restoration; array consumers
+continue to see the array. Provider signatures and ambiguous selections fail
+before dispatch. The compiler is not yet wired into live preparation in this
+stage; no running workflow changes as a result of installing the contract.

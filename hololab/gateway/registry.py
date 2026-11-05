@@ -661,6 +661,10 @@ class NodeRegistry:
                         entry["requires"] = (
                             manifest.requires.as_dict() if manifest.requires is not None else None
                         )
+                        entry["type_capabilities"] = {
+                            tag: capability.model_dump(mode="json")
+                            for tag, capability in manifest.type_capabilities.items()
+                        }
                         entry["arrayable"] = manifest.arrayable
                         entry["parallelism"] = manifest.parallelism
                         entry["batch_size"] = manifest.batch_size
