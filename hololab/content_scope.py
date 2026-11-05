@@ -141,7 +141,12 @@ class Scope:
     def load(cls, path: Path) -> Scope:
         from hololab.manifest.schema import load_manifest
 
+        # Entries are enumerated below the resolved root.  Canonicalise the
+        # manifest's directory the same way, or a symlinked parent (for example
+        # ~/.hololab -> /data/.hololab) hides the selected manifest from
+        # hot_entries() and turns it into ordinary hot content.
         path = path.absolute()
+        path = path.parent.resolve() / path.name
         manifest, _ = load_manifest(path)
         root = resolve_root(path, manifest.root)
         ignore = root / ".packignore"

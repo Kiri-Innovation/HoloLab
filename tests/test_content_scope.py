@@ -140,6 +140,15 @@ def test_relocation_symlinks_modes_and_new_files(tmp_path):
         verify(target, record)
 
 
+def test_symlinked_parent_does_not_change_identity(tmp_path):
+    _, manifest, baselines = package(tmp_path)
+    record = capture(manifest, baselines)
+    (tmp_path / "link").symlink_to(tmp_path)
+    linked = tmp_path / "link" / manifest.relative_to(tmp_path)
+    assert capture(linked, baselines)["sha256"] == record["sha256"]
+    verify(linked, record)
+
+
 def test_cold_refresh_and_release(tmp_path):
     root, manifest, baselines = package(tmp_path)
     before = capture(manifest, baselines)

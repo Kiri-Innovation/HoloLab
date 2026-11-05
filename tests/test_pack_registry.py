@@ -88,6 +88,17 @@ def test_publish_preserves_dev_identity_and_rejects_overwrites(tmp_path):
         publish(manifest, source, "test")
 
 
+def test_publish_through_symlinked_registry_keeps_identity(tmp_path):
+    # The staged copy lives below the registry; a symlinked registry parent
+    # must not make the selected manifest count as hot content.
+    _, manifest, baselines = package(tmp_path)
+    identity = capture(manifest, baselines)
+    (tmp_path / "real-registry").mkdir()
+    (tmp_path / "registry-link").symlink_to(tmp_path / "real-registry")
+    release = publish(manifest, (tmp_path / "registry-link").as_uri(), "test")
+    assert release.code_sha256 == identity["sha256"]
+
+
 def test_install_checks_archive_and_content_and_is_local_first(tmp_path):
     from hololab.node.packs import scan_packs
     from hololab.pack_install import install, resolve
