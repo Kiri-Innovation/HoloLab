@@ -31,11 +31,7 @@ from websockets.exceptions import ConnectionClosed
 
 from hololab import PROTOCOL_V_MAX, PROTOCOL_V_MIN
 from hololab.logging import get_logger
-from hololab.manifest.data_contract import (
-    ContractError,
-    validate_ports,
-    write_verified_sidecars,
-)
+from hololab.manifest.data_contract import ContractError, validate_ports
 from hololab.manifest.render import (
     RenderContext,
     render_manifest,
@@ -2290,7 +2286,6 @@ class NodeRuntime:
                 await self._send_job_fail(assign.job_id, JobFailReason.USER_ERROR, message=str(exc))
                 return
             log.info("job skipped: idempotency marker present", job_id=assign.job_id)
-            recorded: list = []
             try:
                 await asyncio.to_thread(
                     validate_ports,
@@ -2298,7 +2293,6 @@ class NodeRuntime:
                     pack.manifest.outputs,
                     direction="output",
                     params=assign.params,
-                    recorded=recorded,
                 )
             except (ContractError, OSError) as exc:
                 await self._send_job_fail(
@@ -2308,7 +2302,6 @@ class NodeRuntime:
                 )
                 return
             # The cached outputs were fully validated just above.
-            await _persist_verified(assign.job_id, recorded, [outputs])
             await self._register_output_handles(pack, assign.job_id, outputs, validated=True)
             await self._send("job_done", JobDone(job_id=assign.job_id, output_handles={}))
             return
@@ -2575,7 +2568,6 @@ class NodeRuntime:
 
         # Validate the entire batch before registering ANY output or writing a
         # success marker. A successful shell exit alone does not prove a contract.
-        recorded = []
         try:
             for _eid, _inputs, invocation_outputs in batch:
                 await asyncio.to_thread(
@@ -2584,17 +2576,12 @@ class NodeRuntime:
                     pack.manifest.outputs,
                     direction="output",
                     params=assign.params,
-                    recorded=recorded,
                 )
         except (ContractError, OSError) as exc:
             await self._send_job_fail(
                 assign.job_id, JobFailReason.ALGO_ERROR, message=f"output contract violation: {exc}"
             )
             return
-
-        # Persist which leaves were fully decoded, so a downstream input check
-        # after a node restart can still skip the second full decode.
-        await _persist_verified(assign.job_id, recorded, [o for _e, _i, o in batch])
 
         # Success: write idempotency marker if declared (non-batched
         # only — batched shards have ``idempotency_marker=None``, see
@@ -3361,25 +3348,6 @@ def _preflight_resources(
     if not lines:
         return None
     return "preflight failed:\n  - " + "\n  - ".join(lines)
-
-
-async def _persist_verified(job_id: str, recorded: list, outputs: list[dict[str, str]]) -> None:
-    """Write verified-leaf sidecars into this job's output directories.
-
-    A cache, never part of the contract: failure to write only costs a later
-    full decode, so it is logged and the job continues.
-    """
-    if not recorded:
-        return
-    roots = [path for invocation in outputs for path in invocation.values()]
-    try:
-        written = await asyncio.to_thread(write_verified_sidecars, recorded, roots)
-    except OSError as exc:
-        log.warning("verified sidecars not written", job_id=job_id, error=str(exc))
-        return
-    log.debug(
-        "verified sidecars written", job_id=job_id, sidecars=len(written), leaves=len(recorded)
-    )
 
 
 def _write_metadata(marker: Path, assign: JobAssign, outputs: dict[str, str]) -> None:

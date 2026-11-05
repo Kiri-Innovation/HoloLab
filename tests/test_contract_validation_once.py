@@ -1,5 +1,5 @@
-"""Image contracts: every output leaf decoded exactly once in a worker process, with unchanged
-rejection; inputs already decoded by this process get a structural verify() instead.
+"""Image contracts: every leaf checked once by stat + header (no pixel decode), no sampling,
+first failure reported in traversal order.
 
 Also covers scalar ``min``/``max`` enforcement for dispatched parameters.
 """
@@ -10,15 +10,13 @@ import asyncio
 import os
 import sys
 import time
-from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
-from concurrent.futures.process import BrokenProcessPool
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from PIL import Image, ImageFile, PngImagePlugin
+from PIL import Image, ImageFile
 
 from hololab.manifest import data_contract
-from hololab.manifest.data_contract import ContractError, validate_path, validate_ports
+from hololab.manifest.data_contract import ContractError, validate_path
 from hololab.manifest.schema import OutputSpec, ParamSpec
 
 
@@ -37,67 +35,80 @@ def write_frames(root, count, corrupt=()):
     return root
 
 
-@pytest.fixture
-def in_process_pool(monkeypatch):
-    """Run worker checks on threads so in-process patches can observe them."""
-    pool = ThreadPoolExecutor(4)
-    monkeypatch.setattr(data_contract, "_decode_pool", lambda: pool)
-    monkeypatch.setattr(data_contract, "_verified", {})
-    monkeypatch.setattr(data_contract, "_sidecars", {})
-    yield pool
-    pool.shutdown()
+def leaf_check_count(monkeypatch):
+    calls = []
+    real = data_contract.check_image_header
 
+    def counting(path, *, label):
+        calls.append(str(path))
+        return real(path, label=label)
 
-def count_calls(monkeypatch):
-    calls = {"open": [], "load": 0, "verify": 0}
-    real_open, real_load = Image.open, ImageFile.ImageFile.load
-    real_verify = PngImagePlugin.PngImageFile.verify
-
-    def opened(path, *args, **kwargs):
-        calls["open"].append(str(path))
-        return real_open(path, *args, **kwargs)
-
-    def load(self):
-        calls["load"] += 1
-        return real_load(self)
-
-    def verify(self):
-        calls["verify"] += 1
-        return real_verify(self)
-
-    monkeypatch.setattr(Image, "open", opened)
-    monkeypatch.setattr(ImageFile.ImageFile, "load", load)
-    monkeypatch.setattr(PngImagePlugin.PngImageFile, "verify", verify)
+    monkeypatch.setattr(data_contract, "check_image_header", counting)
     return calls
 
 
-def test_every_leaf_decoded_once(tmp_path, in_process_pool, monkeypatch):
+def test_every_leaf_checked_once_without_decoding(tmp_path, monkeypatch):
     root = write_frames(tmp_path / "frames", 9)
-    calls = count_calls(monkeypatch)
+    calls = leaf_check_count(monkeypatch)
+    loads = []
+    real_load = ImageFile.ImageFile.load
+    monkeypatch.setattr(
+        ImageFile.ImageFile, "load", lambda self: loads.append(1) or real_load(self)
+    )
     validate_path(root, array_spec(), label="out")
-    assert sorted(calls["open"]) == sorted(str(p) for p in root.iterdir())
-    assert calls["load"] == 9 and calls["verify"] == 0
+    assert sorted(calls) == sorted(str(p) for p in root.iterdir())
+    assert loads == []  # header only: pixel data is never decoded
 
 
-def test_decodes_run_in_one_shared_process_pool(tmp_path):
-    root = write_frames(tmp_path / "frames", 9)
-    validate_path(root, array_spec(), label="out")
-    pool = data_contract._decode_pool()
-    assert isinstance(pool, ProcessPoolExecutor)
-    assert data_contract.IMAGE_DECODE_WORKERS >= 8
-    validate_path(root, array_spec(), label="out")
-    assert data_contract._decode_pool() is pool  # reused, not one pool per call
-    assert all(p.pid != os.getpid() for p in pool._processes.values())
+def test_missing_leaf_is_rejected(tmp_path):
+    root = write_frames(tmp_path / "frames", 3)
+    (root / "p_0000000000000003.png").symlink_to(tmp_path / "gone.png")
+    with pytest.raises(ContractError, match="missing array element or broken link"):
+        validate_path(root, array_spec(), label="out")
+    with pytest.raises(ContractError, match="missing input/output path"):
+        validate_path(tmp_path / "absent", array_spec(), label="out")
 
 
-def test_error_message_unchanged(tmp_path):
-    root = write_frames(tmp_path / "frames", 6, corrupt={2})
+def test_empty_file_is_rejected(tmp_path):
+    root = write_frames(tmp_path / "frames", 3)
+    (root / "p_0000000000000001.png").write_bytes(b"")
+    with pytest.raises(ContractError, match=r"p_0000000000000001\.png: empty file"):
+        validate_path(root, array_spec(), label="out")
+
+
+def test_text_file_is_rejected_with_unchanged_message(tmp_path):
+    root = write_frames(tmp_path / "frames", 6)
     bad = root / "p_0000000000000002.png"
+    bad.write_text("this is not an image\n")
     with pytest.raises(ContractError) as err:
         validate_path(root, array_spec(), label="output.frames")
     assert str(err.value) == (
         f"output.frames: invalid image file {bad}: cannot identify image file {str(bad)!r}"
     )
+
+
+def test_bad_header_is_rejected(tmp_path):
+    root = write_frames(tmp_path / "frames", 3)
+    target = root / "p_0000000000000000.png"
+    data = bytearray(target.read_bytes())
+    data[1] ^= 0x01  # PNG signature
+    target.write_bytes(bytes(data))
+    with pytest.raises(ContractError, match="cannot identify image file"):
+        validate_path(root, array_spec(), label="out")
+
+
+def test_zero_size_header_is_rejected(tmp_path, monkeypatch):
+    root = write_frames(tmp_path / "frames", 2)
+    real_open = Image.open
+
+    def zero_size(path, *args, **kwargs):
+        img = real_open(path, *args, **kwargs)
+        img._size = (0, 6)
+        return img
+
+    monkeypatch.setattr(Image, "open", zero_size)
+    with pytest.raises(ContractError, match="invalid image size 0x6"):
+        validate_path(root, array_spec(), label="out")
 
 
 def test_multi_frame_still_rejected(tmp_path):
@@ -108,98 +119,39 @@ def test_multi_frame_still_rejected(tmp_path):
         validate_path(root, array_spec(), label="out")
 
 
-def test_broken_worker_pool_falls_back_in_process(tmp_path, monkeypatch):
-    class Broken:
-        def submit(self, *args):
-            future = Future()
-            future.set_exception(BrokenProcessPool("worker killed"))
-            return future
-
-        def shutdown(self, **kwargs):
-            pass
-
-    broken = Broken()
-    monkeypatch.setattr(data_contract, "_pool", broken)
-    monkeypatch.setattr(data_contract, "_verified", {})
-    root = write_frames(tmp_path / "frames", 10, corrupt={7})
-    with pytest.raises(ContractError, match=r"p_0000000000000007\.png"):
-        validate_path(root, array_spec(), label="out")
-    assert data_contract._pool is None  # dropped; the next call builds a fresh pool
-    (root / "p_0000000000000007.png").unlink()
-    validate_path(root, array_spec(), label="out")
-
-
-def test_verified_input_gets_structural_check_only(tmp_path, in_process_pool, monkeypatch):
-    root = write_frames(tmp_path / "frames", 5)
-    validate_ports({"o": str(root)}, {"o": array_spec()}, direction="output")
-    calls = count_calls(monkeypatch)
-    validate_ports({"i": str(root)}, {"i": array_spec()}, direction="input")
-    assert calls["load"] == 0 and calls["verify"] == 5
-
-
-def test_unknown_input_is_fully_decoded(tmp_path, in_process_pool, monkeypatch):
-    root = write_frames(tmp_path / "frames", 5)  # never validated by this process
-    calls = count_calls(monkeypatch)
-    validate_ports({"i": str(root)}, {"i": array_spec()}, direction="input")
-    assert calls["load"] == 5 and calls["verify"] == 0
-
-
-def test_outputs_and_plain_calls_always_fully_decode(tmp_path, in_process_pool, monkeypatch):
-    root = write_frames(tmp_path / "frames", 4)
-    validate_path(root, array_spec(), label="out")
-    calls = count_calls(monkeypatch)
-    validate_ports({"o": str(root)}, {"o": array_spec()}, direction="output")
-    validate_path(root, array_spec(), label="out")
-    assert calls["load"] == 8 and calls["verify"] == 0
-
-
-def test_changed_file_after_verification_is_fully_decoded(tmp_path, in_process_pool, monkeypatch):
-    root = write_frames(tmp_path / "frames", 4)
-    validate_path(root, array_spec(), label="out")
-    target = root / "p_0000000000000001.png"
-    st = target.stat()
-    time.sleep(0.05)
-    # Same size, mtime restored: only inode/ctime can tell it changed.
-    Image.new("RGB", (8, 6), (250, 1, 1)).save(tmp_path / "other.png")
-    data = (tmp_path / "other.png").read_bytes()
-    if len(data) == st.st_size:
-        target.write_bytes(data)
-    else:
-        target.write_bytes(target.read_bytes())
-    os.utime(target, ns=(st.st_atime_ns, st.st_mtime_ns))
-    calls = count_calls(monkeypatch)
-    validate_ports({"i": str(root)}, {"i": array_spec()}, direction="input")
-    assert calls["load"] == 1 and calls["verify"] == 3
-
-
-def test_corrupted_after_verification_is_rejected(tmp_path, in_process_pool):
-    root = write_frames(tmp_path / "frames", 4)
-    validate_path(root, array_spec(), label="out")
-    (root / "p_0000000000000002.png").write_bytes(b"not a png")
-    with pytest.raises(ContractError, match=r"p_0000000000000002\.png"):
-        validate_ports({"i": str(root)}, {"i": array_spec()}, direction="input")
-
-
-def test_truncated_verified_input_is_rejected(tmp_path, in_process_pool):
-    root = write_frames(tmp_path / "frames", 3)
-    validate_path(root, array_spec(), label="out")
+def test_truncated_pixel_data_is_not_detected(tmp_path):
+    """Documented limit of the header-only check: a body cut short still passes."""
+    root = tmp_path / "frames"
+    root.mkdir()
+    Image.effect_noise((512, 512), 64).convert("RGB").save(root / "p_0000000000000000.png")
     target = root / "p_0000000000000000.png"
     data = target.read_bytes()
     target.write_bytes(data[: len(data) // 2])
-    with pytest.raises(ContractError, match=r"p_0000000000000000\.png"):
-        validate_ports({"i": str(root)}, {"i": array_spec()}, direction="input")
+    validate_path(root, array_spec(), label="out")  # passes: pixels are not decoded
+    with Image.open(target) as img, pytest.raises(OSError):
+        img.load()  # a full decode would have caught it
 
 
-def test_symlinked_view_of_verified_leaves(tmp_path, in_process_pool, monkeypatch):
-    root = write_frames(tmp_path / "frames", 3)
+def test_no_file_descriptor_leak(tmp_path):
+    root = write_frames(tmp_path / "frames", 50)
+    before = len(os.listdir("/proc/self/fd"))
+    for _ in range(5):
+        validate_path(root, array_spec(), label="out")
+    assert len(os.listdir("/proc/self/fd")) == before
+
+
+def test_4k_png_header_check_is_fast(tmp_path):
+    root = tmp_path / "frames"
+    root.mkdir()
+    Image.effect_noise((3840, 2160), 40).convert("RGB").save(
+        root / "p_0000000000000000.png", compress_level=1
+    )
+    for i in range(1, 20):
+        os.link(root / "p_0000000000000000.png", root / f"p_{i:016d}.png")
+    start = time.perf_counter()
     validate_path(root, array_spec(), label="out")
-    view = tmp_path / "view"
-    view.mkdir()
-    for p in sorted(root.iterdir()):
-        (view / p.name).symlink_to(p)
-    calls = count_calls(monkeypatch)
-    validate_ports({"i": str(view)}, {"i": array_spec()}, direction="input")
-    assert calls["load"] == 0 and calls["verify"] == 3
+    per_leaf = (time.perf_counter() - start) / 20
+    assert per_leaf < 0.01  # header only; a full 4K decode is ~130 ms
 
 
 def test_first_invalid_leaf_in_traversal_order_is_reported(tmp_path):
@@ -210,7 +162,7 @@ def test_first_invalid_leaf_in_traversal_order_is_reported(tmp_path):
 
 def test_last_leaf_still_checked(tmp_path):
     root = write_frames(tmp_path / "frames", 12, corrupt={11})
-    with pytest.raises(ContractError, match="invalid image file"):
+    with pytest.raises(ContractError, match=r"p_0000000000000011\.png"):
         validate_path(root, array_spec(), label="out")
 
 
@@ -285,9 +237,9 @@ async def test_job_output_validated_once_and_invalid_never_registered(tmp_path, 
     calls = []
     real = runtime.validate_ports
 
-    def counting(paths, specs, *, direction, params=None, **kwargs):
+    def counting(paths, specs, *, direction, params=None):
         calls.append(direction)
-        return real(paths, specs, direction=direction, params=params, **kwargs)
+        return real(paths, specs, direction=direction, params=params)
 
     with patch.object(runtime, "validate_ports", counting):
         await _run(node, manifest)

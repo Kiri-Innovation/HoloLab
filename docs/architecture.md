@@ -99,7 +99,8 @@ Measurements do not replace declarations or prove compatibility.
 
 Validation checks effective type structure, including collection layers and
 applicable axis-label rules. Image data is checked against the strict single-file
-or explicit collection contract. See [Port type IR](type-ir.md).
+or explicit collection contract: every image leaf, by `stat` and image header
+(single frame, positive size), without decoding pixels. See [Port type IR](type-ir.md).
 
 ## Persistence and recovery
 

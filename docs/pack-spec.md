@@ -326,16 +326,12 @@ The system guarantees actual delivered data conforms to the declaration. The
 algorithm developer owns the declaration's agreement with algorithm code; the
 system does not infer intent or statically analyze that code. Checks run when
 loading declarations, validating edges, before execution and before publishing
-any output (including cached output). Image arrays are validated **at every
-leaf**, including full decode, not by sampling handle summaries. Decodes run
-in a shared pool of worker processes. An input leaf that the same node process
-already fully decoded, and whose file identity (device, inode, size, mtime,
-ctime) is unchanged since, gets a structural `verify()` instead of a second
-full decode; any other input leaf is fully decoded. So that this survives a
-node restart, the node writes `.hololab-verified.json` (file name → identity)
-into each of a job's output directories after its output validation passes.
-The sidecar is a cache, not part of the contract: an entry counts only while
-the file's identity still matches, and an unreadable sidecar means a full decode.
+any output (including cached output). Image arrays are checked **at every
+leaf**, not by sampling handle summaries. Each image leaf is checked by `stat`
+and its header only: a non-empty file whose header is a single-frame image with
+positive width and height. Pixel data is not decoded, so the framework trusts the
+pack's output beyond that: a truncated or corrupted pixel body passes the check
+and surfaces in the algorithm that reads it.
 
 Top-level manifest `parallelism` and `batch_size` are optional positive integers
 (`>= 1`), recommending defaults for newly created nodes. Omitted or `null` means
