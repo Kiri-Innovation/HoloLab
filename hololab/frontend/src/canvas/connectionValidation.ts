@@ -1,3 +1,4 @@
+import { hasArrayViewConnection } from './arrayViewConnections';
 import type { Connection } from '@xyflow/react';
 import { portsCompatible, effectivePortArrayed, effectivePortDimLabels, tagsCompatible } from '../tags';
 import { effectiveOutputType, formatTypeLabelLong, type EdgeTypeCtx } from './edgeLabels';
@@ -55,8 +56,11 @@ export function validateConnection(conn: Connection, ctx: EdgeTypeCtx,
     dimLabels: effectivePortDimLabels(variant.arrayed, variant.dim_labels, pack.arrayable, tgt.arrayed_toggle, input.scalar),
     strict: input.require_axis_label_match ?? true,
   }));
-  const ok = targets.some(target => portsCompatible(source.tags, source.arrayed, target.tags, target.arrayed,
+  const directlyCompatible = targets.some(target => portsCompatible(source.tags, source.arrayed, target.tags, target.arrayed,
     input.scalar, source.dimLabels, target.dimLabels, target.strict));
+  // Only the connected branch is adapted; the source remains scalar.
+  // Do not insert nodes or promise runtime readiness from the browser.
+  const ok = directlyCompatible || hasArrayViewConnection(source, targets, ctx.catalogByKey, tgt.assigned_node_id);
   const tagMatch = targets.some(target => tagsCompatible(source.tags, target.tags));
   const cardinalityMatch = targets.some(target => source.arrayed === target.arrayed);
   const depthMatch = targets.some(target => portsCompatible(source.tags, source.arrayed, target.tags, target.arrayed,

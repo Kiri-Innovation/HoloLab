@@ -1,0 +1,634 @@
+{
+  "recipe_issues": [],
+  "workflow_id": "64ccb8a8-dc01-41ed-a2db-e8dc83946858",
+  "name": "Array view 接线验证（仅草稿，不运行）",
+  "graph": {
+    "recipe_dependencies": [
+      {
+        "name": "builtin/get-index",
+        "version": "0.1.0",
+        "hash": null,
+        "root": ".",
+        "packignore": ".packignore",
+        "requires": {}
+      },
+      {
+        "name": "builtin/slice",
+        "version": "0.1.0",
+        "hash": null,
+        "root": ".",
+        "packignore": ".packignore",
+        "requires": {}
+      },
+      {
+        "name": "col4d/merge-colmap4d",
+        "version": "0.3.0",
+        "hash": null,
+        "root": ".",
+        "packignore": ".packignore",
+        "requires": {
+          "packages": [
+            "colmap4d>=1.0.4",
+            "numpy",
+            "pillow"
+          ]
+        }
+      }
+    ],
+    "variables": {},
+    "variable_values": {},
+    "pinned_params": {},
+    "nodes": [
+      {
+        "local_params": [],
+        "param_bindings": {},
+        "operation": null,
+        "assembly": null,
+        "id": "view-source",
+        "kind": "algorithm",
+        "algorithm_name": "col4d/merge-colmap4d",
+        "algorithm_version": "0.3.0",
+        "view_type": null,
+        "title": null,
+        "position": {
+          "x": 60,
+          "y": 140
+        },
+        "params": {
+          "strict_validate": false
+        },
+        "port_values": {},
+        "assigned_node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "arrayed_toggle": false,
+        "parallelism": 1,
+        "batch_size": 1,
+        "preview_open": null,
+        "resolved_outputs": {
+          "model": {
+            "tags": [
+              "colmap4d"
+            ],
+            "arrayed": false,
+            "dim_labels": []
+          }
+        },
+        "port_types": {
+          "schemaVersion": 1,
+          "inputs": {
+            "4d_points": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "colmap4d-point-cloud"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": false,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": null,
+                "dim_labels_from": null,
+                "dim_labels_from_input": null,
+                "dim_labels_drop_outer": null,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "object",
+                  "tags": [
+                    "colmap4d-point-cloud"
+                  ],
+                  "contentAxes": []
+                },
+                "aggregate": {
+                  "kind": "object",
+                  "tags": [
+                    "colmap4d-point-cloud"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            },
+            "4d_cams": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "colmap4d-cams"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": false,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": null,
+                "dim_labels_from": null,
+                "dim_labels_from_input": null,
+                "dim_labels_drop_outer": null,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "object",
+                  "tags": [
+                    "colmap4d-cams"
+                  ],
+                  "contentAxes": []
+                },
+                "aggregate": {
+                  "kind": "object",
+                  "tags": [
+                    "colmap4d-cams"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            },
+            "4d_images": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "colmap4d-images"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": false,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": null,
+                "dim_labels_from": null,
+                "dim_labels_from_input": null,
+                "dim_labels_drop_outer": null,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "object",
+                  "tags": [
+                    "colmap4d-images"
+                  ],
+                  "contentAxes": []
+                },
+                "aggregate": {
+                  "kind": "object",
+                  "tags": [
+                    "colmap4d-images"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            }
+          },
+          "outputs": {
+            "model": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "colmap4d"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": false,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": null,
+                "dim_labels_from": null,
+                "dim_labels_from_input": null,
+                "dim_labels_drop_outer": 0,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "object",
+                  "tags": [
+                    "colmap4d"
+                  ],
+                  "contentAxes": []
+                },
+                "aggregate": {
+                  "kind": "object",
+                  "tags": [
+                    "colmap4d"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            }
+          }
+        },
+        "latest_run": null
+      },
+      {
+        "local_params": [],
+        "param_bindings": {},
+        "operation": null,
+        "assembly": null,
+        "id": "view-index",
+        "kind": "algorithm",
+        "algorithm_name": "builtin/get-index",
+        "algorithm_version": "0.1.0",
+        "view_type": null,
+        "title": null,
+        "position": {
+          "x": 480,
+          "y": 40
+        },
+        "params": {
+          "idx": 30
+        },
+        "port_values": {},
+        "assigned_node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "arrayed_toggle": false,
+        "parallelism": 1,
+        "batch_size": 1,
+        "preview_open": null,
+        "resolved_outputs": {
+          "item": {
+            "tags": [
+              "colmap4d"
+            ],
+            "arrayed": false,
+            "dim_labels": []
+          }
+        },
+        "port_types": {
+          "schemaVersion": 1,
+          "inputs": {
+            "arr": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "any"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": true,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": null,
+                "dim_labels_from": null,
+                "dim_labels_from_input": null,
+                "dim_labels_drop_outer": null,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "array",
+                  "axis": {
+                    "label": null
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "any"
+                    ],
+                    "contentAxes": []
+                  }
+                },
+                "aggregate": {
+                  "kind": "array",
+                  "axis": {
+                    "label": null
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "any"
+                    ],
+                    "contentAxes": []
+                  }
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            }
+          },
+          "outputs": {
+            "item": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "any"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": false,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": "arr",
+                "dim_labels_from": null,
+                "dim_labels_from_input": "arr",
+                "dim_labels_drop_outer": 1,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "object",
+                  "tags": [
+                    "colmap4d"
+                  ],
+                  "contentAxes": []
+                },
+                "aggregate": {
+                  "kind": "object",
+                  "tags": [
+                    "colmap4d"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            }
+          }
+        },
+        "latest_run": null
+      },
+      {
+        "local_params": [],
+        "param_bindings": {},
+        "operation": null,
+        "assembly": null,
+        "id": "view-slice",
+        "kind": "algorithm",
+        "algorithm_name": "builtin/slice",
+        "algorithm_version": "0.1.0",
+        "view_type": null,
+        "title": null,
+        "position": {
+          "x": 480,
+          "y": 320
+        },
+        "params": {
+          "start": 30,
+          "end": 32,
+          "step": 1
+        },
+        "port_values": {},
+        "assigned_node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "arrayed_toggle": false,
+        "parallelism": 1,
+        "batch_size": 1,
+        "preview_open": null,
+        "resolved_outputs": {
+          "out": {
+            "tags": [
+              "colmap4d"
+            ],
+            "arrayed": true,
+            "dim_labels": [
+              ""
+            ]
+          }
+        },
+        "port_types": {
+          "schemaVersion": 1,
+          "inputs": {
+            "in": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "any"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": true,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": null,
+                "dim_labels_from": null,
+                "dim_labels_from_input": null,
+                "dim_labels_drop_outer": null,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "array",
+                  "axis": {
+                    "label": null
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "any"
+                    ],
+                    "contentAxes": []
+                  }
+                },
+                "aggregate": {
+                  "kind": "array",
+                  "axis": {
+                    "label": null
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "any"
+                    ],
+                    "contentAxes": []
+                  }
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            }
+          },
+          "outputs": {
+            "out": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "any"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": true,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": "in",
+                "dim_labels_from": null,
+                "dim_labels_from_input": "in",
+                "dim_labels_drop_outer": 0,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "array",
+                  "axis": {
+                    "label": null
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "colmap4d"
+                    ],
+                    "contentAxes": []
+                  }
+                },
+                "aggregate": {
+                  "kind": "array",
+                  "axis": {
+                    "label": null
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "colmap4d"
+                    ],
+                    "contentAxes": []
+                  }
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            }
+          }
+        },
+        "latest_run": null
+      }
+    ],
+    "edges": [
+      {
+        "id": "emw3xpbf81",
+        "source": "view-source",
+        "sourceHandle": "model",
+        "target": "view-index",
+        "targetHandle": "arr",
+        "source_label": "col4d/merge-colmap4d",
+        "target_label": "builtin/get-index"
+      },
+      {
+        "id": "emw3xpbnf2",
+        "source": "view-source",
+        "sourceHandle": "model",
+        "target": "view-slice",
+        "targetHandle": "in",
+        "source_label": "col4d/merge-colmap4d",
+        "target_label": "builtin/slice"
+      }
+    ],
+    "is_dag": true,
+    "topology_text": "col4d/merge-colmap4d[model] → builtin/get-index[arr]\ncol4d/merge-colmap4d[model] → builtin/slice[in]"
+  },
+  "created_ts": 1793906409.637398,
+  "updated_ts": 1793906653.2533863
+}

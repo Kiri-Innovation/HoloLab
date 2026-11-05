@@ -89,3 +89,57 @@ it('allows replacing an occupied input only with a compatible source', () => {
   expect(validateConnection(conn, ctx).ok).toBe(false);
   expect(ctx.edges[0].id).toBe('old');
 });
+
+import compatibility from './arrayViewCompatibility.json';
+function arrayViewContext() {
+  const ctx = context({tags:['colmap4d'],arrayed:false}, {tags:['any'],arrayed:true});
+  const scalar = {tags:['colmap4d'],arrayed:false,dim_labels:[]};
+  const array = {tags:['colmap4d'],arrayed:true,dim_labels:['frame']};
+  const providers = [
+    {...compatibility, inputs:{model:scalar},outputs:{frames:array}},
+    {name:'col4d/colmap4d-from-array',version:'0.1.0',inputs:{frames:array},outputs:{model:scalar}},
+  ] as unknown as CatalogPack[];
+  for (const p of providers) ctx.catalogByKey.set(`${p.name}@${p.version}`, p);
+  return ctx;
+}
+it('admits a declared one-dimensional array view without mutating its scalar source', () => {
+  const ctx=arrayViewContext();
+  expect(validateConnection(conn,ctx).ok).toBe(true);
+  expect(ctx.catalogByKey.get('source@1')!.outputs.out.arrayed).toBe(false);
+  expect(ctx.edges).toEqual([]);
+});
+it('supports the exact old-gateway manifest fallback, but never a changed manifest', () => {
+  const ctx=arrayViewContext();
+  const owner=ctx.catalogByKey.get(`${compatibility.name}@${compatibility.version}`)! as CatalogPack & {type_capabilities?:unknown};
+  delete owner.type_capabilities;
+  expect(validateConnection(conn,ctx).ok).toBe(true);
+  owner.manifest_hash='changed';
+  expect(validateConnection(conn,ctx).ok).toBe(false);
+  Object.assign(owner,{type_capabilities:compatibility.type_capabilities});
+  expect(validateConnection(conn,ctx).ok).toBe(true);
+  Object.assign(owner,{type_capabilities:{}});
+  expect(validateConnection(conn,ctx).ok).toBe(false);
+});
+it('rejects missing or incompatible providers, wrong node, wrong axis and two-dimensional targets', () => {
+  for (const change of ['missing','signature','node','axis','rank','tag']) {
+    const ctx=arrayViewContext(), target=ctx.catalogByKey.get('target@1')!;
+    const restore=ctx.catalogByKey.get('col4d/colmap4d-from-array@0.1.0')!;
+    if(change==='missing') ctx.catalogByKey.delete('col4d/colmap4d-from-array@0.1.0');
+    if(change==='signature') restore.outputs.model.tags=['image'];
+    if(change==='node') ctx.nodes[1].assigned_node_id='absent';
+    if(change==='axis') target.inputs.in.dim_labels=['cam'];
+    if(change==='rank') target.inputs.in.dim_labels=['frame','cam'];
+    if(change==='tag') target.inputs.in.tags=['image'];
+    expect(validateConnection(conn,ctx).ok,change).toBe(false);
+  }
+});
+it('rejects competing declarations rather than selecting catalog order', () => {
+  const ctx=arrayViewContext();
+  ctx.catalogByKey.set('other@1',{...ctx.catalogByKey.get(`${compatibility.name}@${compatibility.version}`)!,name:'other'});
+  expect(validateConnection(conn,ctx).ok).toBe(false);
+});
+it('uses the same view for a scalar invocation lifted by fan-out', () => {
+  const ctx=arrayViewContext();ctx.nodes[1].arrayed_toggle=true;
+  ctx.catalogByKey.get('target@1')!.inputs.in={tags:['colmap4d'],arrayed:false} as CatalogPack['inputs'][string];
+  expect(validateConnection(conn,ctx).ok).toBe(true);
+});

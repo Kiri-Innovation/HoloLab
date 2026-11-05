@@ -1,0 +1,41 @@
+{
+  "name": "col4d/colmap4d-to-array",
+  "version": "0.1.0",
+  "manifest_hash": "cdd76461d9f5d285c876b0c621fa02760666248cb7f854321bf081d165904a7b",
+  "type_capabilities": {
+    "colmap4d": {
+      "array_views": {
+        "exposure_groups": {
+          "version": 1,
+          "array": {
+            "tags": [
+              "colmap4d"
+            ],
+            "storage": "dir",
+            "arrayed": true,
+            "dim_labels": [
+              "frame"
+            ]
+          },
+          "partition": {
+            "policy": "source_exposure_groups",
+            "order": "timestamp_then_stable_key",
+            "timestamp_unit": "ns"
+          },
+          "to_array": {
+            "name": "col4d/colmap4d-to-array",
+            "version": "0.1.0",
+            "input": "model",
+            "output": "frames"
+          },
+          "from_array": {
+            "name": "col4d/colmap4d-from-array",
+            "version": "0.1.0",
+            "input": "frames",
+            "output": "model"
+          }
+        }
+      }
+    }
+  }
+}

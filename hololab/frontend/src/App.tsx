@@ -1793,13 +1793,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         position: n.position, params: d.params ?? {}, port_values: (d as AlgorithmNodeData).port_values ?? {}, arrayed_toggle: d.arrayed_toggle,
         assigned_node_id: d.assigned_node_id }] : [];
     }),
-    catalogByKey: new Map(nodes.flatMap(n => {
+    // Conversion providers need not be visible nodes on this canvas. Keep the
+    // full inventory, with on-canvas declarations taking precedence as before.
+    catalogByKey: new Map([...catalogByKey, ...nodes.flatMap(n => {
       const d = algorithmDataForNode(n);
       return d ? [[`${d.pack.name}@${d.pack.version}`, d.pack] as const] : [];
-    })),
+    })]),
     edges: edges.map(e => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle ?? "",
       target: e.target, targetHandle: e.targetHandle ?? "" })),
-  }), [nodes, edges]);
+  }), [nodes, edges, catalogByKey]);
   const viewIds = useMemo(() => new Set(nodes.filter(n => (n.data as ViewNodeData).kind === "view").map(n => n.id)), [nodes]);
   const checkConnection = useCallback((conn: Connection) => validateConnection(conn, connectionContext, viewIds), [connectionContext, viewIds]);
   const { onConnectEnd, recordVerdict } = useConnectionFeedback(checkConnection);
