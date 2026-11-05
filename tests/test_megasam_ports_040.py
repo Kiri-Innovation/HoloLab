@@ -14,7 +14,7 @@ from test_megasam_components_040 import mega
 ROOT=Path(__file__).parents[1]
 class PortsAndFrames(unittest.TestCase):
     def test_manifest_union_and_names(self):
-        path=ROOT/'community_packs/megasam-track@0.4.0/manifest.yaml'
+        path=ROOT/'retired_packs/megasam-track@0.4.0/manifest.yaml'
         raw=yaml.safe_load(path.read_text()); manifest,_=load_manifest(path)
         expected=[dict(tags=['video-source'],arrayed=False,storage='dir'),
                   dict(tags=['image'],arrayed=True,dim_labels=['frame'],storage='dir')]
@@ -49,7 +49,7 @@ class PortsAndFrames(unittest.TestCase):
 
     def test_path_preparation_optional_exposure_and_hard_dependencies(self):
         from hololab.manifest.path_params import resolve_path_params
-        manifest,_=load_manifest(ROOT/'community_packs/megasam-track@0.4.0/manifest.yaml')
+        manifest,_=load_manifest(ROOT/'retired_packs/megasam-track@0.4.0/manifest.yaml')
         self.assertTrue(manifest.params['exposure_metadata_path'].optional)
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp); (root/'repo').mkdir(); (root/'python').write_text('fixture')

@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image
 from colmap4d import colmap_io as cio, read_points_t_bin, read_times_bin
 
-PACK = Path(__file__).parents[1]/'community_packs/megasam-track@0.4.0/run.py'
+PACK = Path(__file__).parents[1]/'retired_packs/megasam-track@0.4.0/run.py'
 spec=importlib.util.spec_from_file_location('mega040',PACK)
 mega=importlib.util.module_from_spec(spec); spec.loader.exec_module(mega)
 
