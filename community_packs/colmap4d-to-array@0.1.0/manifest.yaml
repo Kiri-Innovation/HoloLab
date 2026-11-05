@@ -1,0 +1,53 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/colmap4d-to-array
+version: 0.1.0
+description: Materialize exposure groups of single-source colmap4d.
+category: reconstruction/colmap4d
+inputs:
+  model:
+    tags:
+    - colmap4d
+    storage: dir
+    arrayed: false
+outputs:
+  frames: &id001
+    tags:
+    - colmap4d
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - frame
+params: {}
+runtime:
+  env: colmap4d
+  gpu:
+    required: false
+requires:
+  packages:
+  - colmap4d>=1.0.4
+  - numpy
+  - pillow
+exec:
+  shell: python -u "{{ pack_dir }}/convert.py" to_array --input "{{ inputs.model }}"
+    --output "{{ outputs.frames }}"
+type_capabilities:
+  colmap4d:
+    array_views:
+      exposure_groups:
+        version: 1
+        array: *id001
+        partition:
+          policy: source_exposure_groups
+          order: timestamp_then_stable_key
+          timestamp_unit: ns
+        to_array:
+          name: col4d/colmap4d-to-array
+          version: 0.1.0
+          input: model
+          output: frames
+        from_array:
+          name: col4d/colmap4d-from-array
+          version: 0.1.0
+          input: frames
+          output: model

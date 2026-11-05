@@ -1,0 +1,33 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/colmap4d-from-array
+version: 0.1.0
+description: Restore unmodified exposure-group subsets by source identity.
+category: reconstruction/colmap4d
+inputs:
+  frames:
+    tags:
+    - colmap4d
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - frame
+outputs:
+  model:
+    tags:
+    - colmap4d
+    storage: dir
+    arrayed: false
+params: {}
+runtime:
+  env: colmap4d
+  gpu:
+    required: false
+requires:
+  packages:
+  - colmap4d>=1.0.4
+  - numpy
+  - pillow
+exec:
+  shell: python -u "{{ pack_dir }}/convert.py" from_array --input "{{ inputs.frames
+    }}" --output "{{ outputs.model }}"
