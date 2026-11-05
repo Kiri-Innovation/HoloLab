@@ -64,3 +64,12 @@ def test_explicit_installed_packs_does_not_pull_in_the_former_directory(
     cfg = NodeConfig(pack_dirs=[tmp_path / "dev"], installed_packs=tmp_path / "mine")
     assert cfg.former_install_dir_in_use is None
     assert cfg.pack_scan_dirs == [tmp_path / "mine", tmp_path / "dev"]
+
+
+def test_former_install_dir_symlinked_to_installed_packs_is_not_scanned_twice(home: Path) -> None:
+    current = home / "node" / "installed_packs"
+    _installed(current)
+    (home / "node" / "packs").symlink_to(current, target_is_directory=True)
+    cfg = NodeConfig(pack_dirs=[])  # pack_dirs then defaults to node/packs (the alias)
+    assert cfg.former_install_dir_in_use is None
+    assert cfg.pack_scan_dirs == [current]

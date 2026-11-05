@@ -221,7 +221,8 @@ class NodeConfig(BaseModel):
         if self.installed_packs is not None:
             return None
         former = former_default_installed_packs_dir()
-        if former == self.effective_install_dir or not former.is_dir():
+        # A migrated node may keep ``packs`` as a symlink to ``installed_packs``.
+        if not former.is_dir() or former.resolve() == self.effective_install_dir.resolve():
             return None
         return former if any(former.glob("*/*/.hololab-install.json")) else None
 
@@ -230,7 +231,11 @@ class NodeConfig(BaseModel):
         """Installed packages win; keep operator source configuration unchanged."""
         former = self.former_install_dir_in_use
         roots = [self.effective_install_dir, *([former] if former else []), *self.pack_dirs]
-        return list(dict.fromkeys(roots))
+        # De-duplicate by target so a symlinked alias is not scanned twice.
+        unique: dict[Path, Path] = {}
+        for root in roots:
+            unique.setdefault(root.resolve(), root)
+        return list(unique.values())
 
     packs_dir: Path | None = Field(
         default=None,
