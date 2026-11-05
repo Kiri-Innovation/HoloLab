@@ -34,13 +34,16 @@ import hashlib
 import io
 import os
 import shutil
+import stat
 import tarfile
+from contextlib import asynccontextmanager
 from pathlib import Path
 
+import anyio
 import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Query
-from PIL import Image
 from fastapi.responses import FileResponse, Response, StreamingResponse
+from PIL import Image
 
 from hololab.package_identity import offered_identity, validate_identity
 
@@ -178,6 +181,60 @@ def _conditional_304(
     return None
 
 
+class _OpenedFileResponse(FileResponse):
+    """Frame a response from one open file, even if its path is replaced.
+
+    FileResponse normally stats a path, then opens it again and reads to EOF.
+    Training artifacts may grow between those operations (or while streaming).
+    Pin the inode before computing headers and cap full GETs at that fd's size.
+    Range parsing/framing remains Starlette's, using the same pinned descriptor.
+    This is not a snapshot of in-place overwrites/truncations: premature EOF is
+    an error, never padded or silently reported as a successful transfer.
+    """
+
+    async def __call__(self, scope, receive, send):
+        file = await anyio.open_file(self.path, mode="rb")
+        try:
+            self.stat_result = await anyio.to_thread.run_sync(os.fstat, file.fileno())
+            if not stat.S_ISREG(self.stat_result.st_mode):
+                raise RuntimeError(f"File at path {self.path} is not a file.")
+            self.set_stat_headers(self.stat_result)
+            self.headers["content-length"] = str(self.stat_result.st_size)
+            self._file = file
+            # Path-based sendfile would reopen the name and lose inode pinning.
+            scope = {
+                **scope,
+                "extensions": {
+                    k: v
+                    for k, v in scope.get("extensions", {}).items()
+                    if k != "http.response.pathsend"
+                },
+            }
+            await super().__call__(scope, receive, send)
+        finally:
+            with anyio.CancelScope(shield=True):
+                await file.aclose()
+
+    @asynccontextmanager
+    async def _open_file(self):
+        yield self._file
+
+    async def _handle_simple(self, send, send_header_only, send_pathsend):
+        await send({
+            "type": "http.response.start",
+            "status": self.status_code,
+            "headers": self.raw_headers,
+        })
+        remaining = 0 if send_header_only else self.stat_result.st_size
+        while remaining:
+            chunk = await self._file.read(min(self.chunk_size, remaining))
+            if not chunk:
+                raise RuntimeError(f"File at path {self.path} is shorter than expected.")
+            remaining -= len(chunk)
+            await send({"type": "http.response.body", "body": chunk, "more_body": True})
+        await send({"type": "http.response.body", "body": b"", "more_body": False})
+
+
 def create_fileserver_app(
     *,
     workspace_root: Path,
@@ -250,7 +307,7 @@ def create_fileserver_app(
             raise HTTPException(status_code=403, detail="path outside pack") from exc
         if not candidate.is_file():
             raise HTTPException(status_code=404, detail="viewer asset not found")
-        return FileResponse(candidate)
+        return _OpenedFileResponse(candidate)
 
     @app.get("/_scoped_pack/{scope}/{name}/{version}/{asset:path}", response_model=None)
     async def _scoped_pack_asset(scope: str, name: str, version: str, asset: str):
@@ -441,7 +498,7 @@ def create_fileserver_app(
 
         if not target.is_file():
             raise HTTPException(status_code=404, detail="not a file")
-        return FileResponse(target)
+        return _OpenedFileResponse(target)
 
     return app
 
@@ -585,7 +642,7 @@ async def _thumb_response(
     )
 
     if cache_path.is_file() and cache_path.stat().st_size > 0:
-        return FileResponse(cache_path, media_type="image/jpeg", headers=cache_headers)
+        return _OpenedFileResponse(cache_path, media_type="image/jpeg", headers=cache_headers)
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     tmp_path = cache_path.with_suffix(".tmp.jpg")
@@ -634,7 +691,7 @@ async def _thumb_response(
         # ffmpeg fan-out.
         if cache_path.is_file() and cache_path.stat().st_size > 0:
             tmp_path.unlink(missing_ok=True)
-            return FileResponse(cache_path, media_type="image/jpeg", headers=cache_headers)
+            return _OpenedFileResponse(cache_path, media_type="image/jpeg", headers=cache_headers)
 
         if is_still_image and await asyncio.to_thread(_image_has_transparency, video):
             cmd[cmd.index("-vf") + 1] = _alpha_thumbnail_filter(vf)
@@ -655,7 +712,7 @@ async def _thumb_response(
     # generated the same key would just clobber with an identical byte
     # sequence, so no locking needed.
     tmp_path.replace(cache_path)
-    return FileResponse(cache_path, media_type="image/jpeg", headers=cache_headers)
+    return _OpenedFileResponse(cache_path, media_type="image/jpeg", headers=cache_headers)
 
 
 def _parse_preview_dims(dims: str) -> tuple[int, int]:
@@ -738,7 +795,7 @@ async def _preview_response(
 
     if cache_path.is_file() and cache_path.stat().st_size > 0:
         legacy_path.unlink(missing_ok=True)
-        return FileResponse(cache_path, media_type="video/mp4", headers=cache_headers)
+        return _OpenedFileResponse(cache_path, media_type="video/mp4", headers=cache_headers)
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     # Unique tmp name so two concurrent transcodes on the same key don't
@@ -802,7 +859,7 @@ async def _preview_response(
         # redundant ffmpeg spawn under contention.
         if cache_path.is_file() and cache_path.stat().st_size > 0:
             tmp_path.unlink(missing_ok=True)
-            return FileResponse(cache_path, media_type="video/mp4", headers=cache_headers)
+            return _OpenedFileResponse(cache_path, media_type="video/mp4", headers=cache_headers)
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -820,7 +877,7 @@ async def _preview_response(
     # Retire only this source/dimensions/fps legacy entry, and only after
     # its replacement exists. Unvisited variants are retired on demand.
     legacy_path.unlink(missing_ok=True)
-    return FileResponse(cache_path, media_type="video/mp4", headers=cache_headers)
+    return _OpenedFileResponse(cache_path, media_type="video/mp4", headers=cache_headers)
 
 
 async def _tar_response(dir_path: Path) -> StreamingResponse:
