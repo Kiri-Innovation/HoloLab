@@ -1,4 +1,4 @@
-# megasam-track 0.4.0
+# k4d/megasam-track 0.4.0
 
 Public input: `frames: video-source | array[frame]<image>`. Public outputs: `4d_cams`, `4d_points`, `4d_images` (unchanged colmap4d component tags).
 

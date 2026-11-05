@@ -1,4 +1,4 @@
-# col4d/colmap4d-from-xmp-photos 0.1.0
+# k4d/colmap4d-from-xmp-photos 0.1.0
 
 The image input is strictly one-dimensional. Convert the upstream
 `arrayed[group,cam]<image>` with the type-agnostic `flatten-array@0.1.0`.

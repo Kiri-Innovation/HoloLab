@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: megasam-track
+name: k4d/megasam-track
 version: 0.4.0
 description: Standardize MegaSAM camera trajectories and depth-backprojected per-frame
   points as three timed colmap4d components.

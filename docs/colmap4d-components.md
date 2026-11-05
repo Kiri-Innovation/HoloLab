@@ -112,7 +112,7 @@ Image-array adapter extension (2026-11-05): `frames` also accepts
 HoloLab XMP coverage, then explicitly supplied `frames_fps` synthetic timing.
 The exposure records retain the same indexed mid-exposure nanosecond semantics;
 array JSON uses `frames_sha256` to bind the complete sorted input collection.
-See megasam-track@0.4.0/README.md for the canonical hash and rejection rules.
+See the README for `k4d/megasam-track@0.4.0` for the canonical hash and rejection rules.
 This changes adapter input provenance, not the stored colmap4d time format.
 
 ## Assembly and downstream boundaries
@@ -138,6 +138,6 @@ preserve a single-device fallback, and declares cam0 in devices. Single-camera
 training would need batch=1. This profile does not modify STG.
 
 `col4d/merge-colmap4d@0.1.5` remains frozen for old XMP-group workflows.
-`col4d/merge-colmap4d@0.2.0` is component assembly. The old XMP behavior has a
-separate identity `col4d/colmap4d-from-xmp-photos@0.1.0`; it derives exposure
+`k4d/merge-colmap4d@0.2.0` is component assembly. The old XMP behavior has a
+separate identity `k4d/colmap4d-from-xmp-photos@0.1.0`; it derives exposure
 centers from JPEG XMP and is not a consumer of these timed components.

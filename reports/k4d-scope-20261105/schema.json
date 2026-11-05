@@ -1,0 +1,23 @@
+[
+  {
+    "path": "hololab/community_packs/megasam-track@0.4.0/manifest.yaml",
+    "name": "k4d/megasam-track",
+    "version": "0.4.0",
+    "manifest_hash": "ffb40e16f2fbbf0434c046cd7b255149f0d87a8becc3636b56cdb8332cfbf48c",
+    "validated": true
+  },
+  {
+    "path": "hololab/community_packs/merge-colmap4d@0.2.0/manifest.yaml",
+    "name": "k4d/merge-colmap4d",
+    "version": "0.2.0",
+    "manifest_hash": "234fe31dab43a436a92b05d77c28a6b97e89b9cd396b340e80d26ae26c4bc362",
+    "validated": true
+  },
+  {
+    "path": "hololab/community_packs/colmap4d-from-xmp-photos@0.1.0/manifest.yaml",
+    "name": "k4d/colmap4d-from-xmp-photos",
+    "version": "0.1.0",
+    "manifest_hash": "043f7d40702e6b54b8ca660049a2db48ed6037409f04e95e05724e6b7eb92a69",
+    "validated": true
+  }
+]

@@ -1,0 +1,1273 @@
+{
+  "k4d/megasam-track@0.4.0": [
+    {
+      "name": "k4d/megasam-track",
+      "version": "0.4.0",
+      "manifest_hash": "ffb40e16f2fbbf0434c046cd7b255149f0d87a8becc3636b56cdb8332cfbf48c",
+      "code_sha256": "c416137aac4770c0c8ee5a6a02afbc923983770fefbf9e1a0c74ff22a509a9c8",
+      "content": {
+        "files": 3,
+        "bytes": 32700,
+        "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/megasam-track@0.4.0",
+        "hot": {
+          "files": 3,
+          "links": 0,
+          "bytes": 32700,
+          "top_level_names": [
+            "README.md",
+            "manifest.yaml",
+            "run.py"
+          ]
+        },
+        "cold": {
+          "files": 0,
+          "links": 0,
+          "bytes": 0,
+          "top_level_names": [],
+          "directories": []
+        },
+        "excluded": {
+          "files": 0,
+          "links": 0,
+          "bytes": 0,
+          "top_level_names": [],
+          "top_level": []
+        },
+        "top_level": [
+          {
+            "name": "run.py",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 20823,
+            "top_level_names": [
+              "run.py"
+            ]
+          },
+          {
+            "name": "README.md",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 6430,
+            "top_level_names": [
+              "README.md"
+            ]
+          },
+          {
+            "name": "manifest.yaml",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 5447,
+            "top_level_names": [
+              "manifest.yaml"
+            ]
+          }
+        ],
+        "tree": [
+          {
+            "name": "run.py",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 20823,
+            "top_level_names": [
+              "run.py"
+            ],
+            "children": [],
+            "children_truncated": 0
+          },
+          {
+            "name": "README.md",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 6430,
+            "top_level_names": [
+              "README.md"
+            ],
+            "children": [],
+            "children_truncated": 0
+          },
+          {
+            "name": "manifest.yaml",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 5447,
+            "top_level_names": [
+              "manifest.yaml"
+            ],
+            "children": [],
+            "children_truncated": 0
+          }
+        ]
+      },
+      "root": ".",
+      "cold": [],
+      "publication": null,
+      "requires": {
+        "packages": [
+          "colmap4d",
+          "ffmpeg"
+        ]
+      },
+      "runtime": {
+        "mode": "conda",
+        "env": "kiri"
+      },
+      "node_environments": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+          "runtime": {
+            "mode": "conda",
+            "env": "kiri"
+          },
+          "path": "/cloud/cloud-ssd1/envs/kiri"
+        }
+      },
+      "locations_by_node": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": [
+          {
+            "pack_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/megasam-track@0.4.0",
+            "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/megasam-track@0.4.0/manifest.yaml",
+            "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/megasam-track@0.4.0",
+            "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs",
+            "source_type": "source_scan",
+            "effective": true,
+            "manifest_hash": "ffb40e16f2fbbf0434c046cd7b255149f0d87a8becc3636b56cdb8332cfbf48c",
+            "code_sha256": "c416137aac4770c0c8ee5a6a02afbc923983770fefbf9e1a0c74ff22a509a9c8"
+          }
+        ]
+      },
+      "environment_by_node": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+          "status": "satisfied",
+          "checked_at": 1793867339.312814,
+          "issues": [],
+          "boundary": "\u672c\u5730\u80fd\u529b\u68c0\u67e5\u53ea\u8986\u76d6\u5df2\u58f0\u660e\u4e14\u5728\u53ef\u63a2\u6d4b\u8303\u56f4\u5185\u7684\u9879; \u901a\u8fc7\u4e0d\u4ee3\u8868\u4e00\u5b9a\u80fd\u8fd0\u884c\u3002\u73af\u5883\u672a\u51bb\u7ed3\u3001\u672a\u88ab\u4ee3\u7801\u8eab\u4efd\u8986\u76d6\u3002",
+          "environment_covered": false,
+          "runtime_verified": false,
+          "env": "kiri",
+          "requires": {
+            "packages": [
+              "colmap4d",
+              "ffmpeg"
+            ]
+          },
+          "prefix": "/cloud/cloud-ssd1/envs/kiri",
+          "cache_hit": true,
+          "fresh_fingerprint_validated": true,
+          "environment_fingerprint": "51fa624cf2bde38f9a44a4d0b774552462ec470471e37f1e3086f63d873f69c2",
+          "python": "3.12.12",
+          "packages": {
+            "colmap4d": "1.0.2",
+            "ffmpeg": "4.2.2"
+          },
+          "package_sources": {
+            "colmap4d": "python-distribution",
+            "ffmpeg": "conda-meta"
+          },
+          "runtime": {
+            "mode": "conda",
+            "env": "kiri"
+          },
+          "stale": false,
+          "next_recheck_at": 1793867399.312814
+        }
+      },
+      "node_ids": [
+        "3038e635-4840-46dd-aa0c-6bd9c477b852"
+      ],
+      "inputs": {
+        "frames": {
+          "tags": [],
+          "required": true,
+          "inline": null,
+          "inline_default": null,
+          "require_axis_label_match": true,
+          "storage": "dir",
+          "description": "One video-source or a flat frame-labelled image array.",
+          "arrayed": false,
+          "scalar": false,
+          "dim_labels": [],
+          "content_dims_from": null,
+          "any_of": [
+            {
+              "tags": [
+                "video-source"
+              ],
+              "arrayed": false,
+              "dim_labels": [],
+              "storage": "dir"
+            },
+            {
+              "tags": [
+                "image"
+              ],
+              "arrayed": true,
+              "dim_labels": [
+                "frame"
+              ],
+              "storage": "dir"
+            }
+          ]
+        }
+      },
+      "outputs": {
+        "4d_cams": {
+          "tags": [
+            "colmap4d-cams"
+          ],
+          "storage": "dir",
+          "description": null,
+          "arrayed": false,
+          "scalar": false,
+          "tags_from": null,
+          "dim_labels": [],
+          "dim_labels_from": null,
+          "dim_labels_from_input": null,
+          "dim_labels_drop_outer": 0,
+          "preview": null
+        },
+        "4d_points": {
+          "tags": [
+            "colmap4d-point-cloud"
+          ],
+          "storage": "dir",
+          "description": null,
+          "arrayed": false,
+          "scalar": false,
+          "tags_from": null,
+          "dim_labels": [],
+          "dim_labels_from": null,
+          "dim_labels_from_input": null,
+          "dim_labels_drop_outer": 0,
+          "preview": null
+        },
+        "4d_images": {
+          "tags": [
+            "colmap4d-images"
+          ],
+          "storage": "dir",
+          "description": null,
+          "arrayed": false,
+          "scalar": false,
+          "tags_from": null,
+          "dim_labels": [],
+          "dim_labels_from": null,
+          "dim_labels_from_input": null,
+          "dim_labels_drop_outer": 0,
+          "preview": null
+        }
+      },
+      "params": {
+        "megasam_repo": {
+          "type": "path",
+          "items": null,
+          "min": null,
+          "max": null,
+          "values": null,
+          "pinned": false,
+          "default": null,
+          "description": "MegaSAM source checkout and weights; privately copied to scratch.",
+          "optional": false,
+          "must_exist": true,
+          "path_kind": "directory"
+        },
+        "tracker_python": {
+          "type": "path",
+          "items": null,
+          "min": null,
+          "max": null,
+          "values": null,
+          "pinned": false,
+          "default": null,
+          "description": "Executable Python in the MegaSAM environment, with native dependencies.",
+          "optional": false,
+          "must_exist": true,
+          "path_kind": "file"
+        },
+        "sharp_repo": {
+          "type": "path",
+          "items": null,
+          "min": null,
+          "max": null,
+          "values": null,
+          "pinned": false,
+          "default": null,
+          "description": "Existing sharp-4dgs checkout containing per-frame/video_to_colmap.py; tracking wrapper only.",
+          "optional": false,
+          "must_exist": true,
+          "path_kind": "directory"
+        },
+        "skip": {
+          "type": "int",
+          "items": null,
+          "min": 1,
+          "max": null,
+          "values": null,
+          "pinned": false,
+          "default": 1,
+          "description": "Keep every Nth decoded display-order frame.",
+          "optional": false,
+          "must_exist": null,
+          "path_kind": null
+        },
+        "max_frames": {
+          "type": "int",
+          "items": null,
+          "min": 0,
+          "max": null,
+          "values": null,
+          "pinned": false,
+          "default": 0,
+          "description": "Maximum selected frames; zero means all.",
+          "optional": false,
+          "must_exist": null,
+          "path_kind": null
+        },
+        "depth_min": {
+          "type": "float",
+          "items": null,
+          "min": 0,
+          "max": null,
+          "values": null,
+          "pinned": false,
+          "default": 0.001,
+          "description": "Keep finite Z-depth strictly greater than this threshold.",
+          "optional": false,
+          "must_exist": null,
+          "path_kind": null
+        },
+        "pts_stride": {
+          "type": "int",
+          "items": null,
+          "min": 1,
+          "max": null,
+          "values": null,
+          "pinned": false,
+          "default": 2,
+          "description": "Pixel sampling stride in both axes.",
+          "optional": false,
+          "must_exist": null,
+          "path_kind": null
+        },
+        "timestamp_mode": {
+          "type": "enum",
+          "items": null,
+          "min": null,
+          "max": null,
+          "values": [
+            "exposure_metadata",
+            "pts_estimate",
+            "synthetic_uniform"
+          ],
+          "pinned": false,
+          "default": "exposure_metadata",
+          "description": "Exposure truth by default; alternate modes explicitly record estimated timestamps.",
+          "optional": false,
+          "must_exist": null,
+          "path_kind": null
+        },
+        "exposure_metadata_path": {
+          "type": "path",
+          "items": null,
+          "min": null,
+          "max": null,
+          "values": null,
+          "pinned": false,
+          "default": null,
+          "description": "Required for exposure_metadata: JSON video_sha256, clock_domain, frames with decoded_index and mid_exposure_ns or exposure_start_ns + exposure_ns.",
+          "optional": true,
+          "must_exist": true,
+          "path_kind": "file"
+        },
+        "fps_num": {
+          "type": "int",
+          "items": null,
+          "min": 1,
+          "max": null,
+          "values": null,
+          "pinned": false,
+          "default": null,
+          "description": "Positive rational frame-rate component; required only for synthetic_uniform, never inferred.",
+          "optional": true,
+          "must_exist": null,
+          "path_kind": null
+        },
+        "fps_den": {
+          "type": "int",
+          "items": null,
+          "min": 1,
+          "max": null,
+          "values": null,
+          "pinned": false,
+          "default": null,
+          "description": "Positive rational frame-rate component; required only for synthetic_uniform, never inferred.",
+          "optional": true,
+          "must_exist": null,
+          "path_kind": null
+        },
+        "frames_fps": {
+          "type": "float",
+          "items": null,
+          "min": 1e-06,
+          "max": null,
+          "values": null,
+          "pinned": false,
+          "default": null,
+          "description": "Image-array input only: explicitly supplied FPS when neither exposure_metadata_path nor image XMP supplies exposure centers. No default; timestamps use original sorted frame indexes.",
+          "optional": true,
+          "must_exist": null,
+          "path_kind": null
+        }
+      },
+      "description": "Standardize MegaSAM camera trajectories and depth-backprojected per-frame points as three timed colmap4d components.",
+      "category": [
+        "reconstruction",
+        "megasam"
+      ],
+      "docs": "Standardizes MegaSAM camera trajectories and per-frame point clouds into three scalar colmap4d application components. Points are depth-backprojected XYZ/RGB with source-frame exposure-center nanoseconds and reciprocal COLMAP observations. Binary encoding only. Components must be assembled before validate_full.\n\nRuns the existing Depth-Anything, UniDepth, MegaSAM, RAFT and CVD chain through sharp_repo/per-frame/video_to_colmap.py --convert-only --track_megasam. This use of the tracking wrapper does not run SHARP: Gaussian inference, optimization and completion are outside this pack. Depth NPZ and caches are private scratch, not ports. A private copy of megasam_repo protects native sources from outputs_cvd writes.\n\nDefault exposure_metadata requires a JSON file bound to video_sha256, clock_domain and decoded-index exposure centers. pts_estimate explicitly treats actual video PTS as approximate exposure centers; synthetic_uniform requires positive fps_num/fps_den. Skip/cap preserve original decoded indexes. See README.md and docs/colmap4d-components.md in the source repository. Video input is one file or a handle directory containing exactly one video. SDR inputs only; unsupported HDR/color primaries fail before inference. Rotation metadata is not applied. Scratch retains native products for diagnosis and can exceed 40 GB for long clips.\n\nInput frames accepts video-source OR array[frame]<image>. For videos, timestamp_mode and fps_num/fps_den are unchanged. For image arrays, exposure_metadata_path takes precedence (same exposure-center records, bound by frames_sha256); otherwise use complete HoloLab XMP exposure times, otherwise require explicit frames_fps for synthetic_uniform. Invalid/partial metadata is an error, not a fallback. timestamp_mode/fps_num/fps_den do not select array timing. Frames sort by element filename before skip/cap. See README.md for the deterministic array identity and color rules. Outputs are named 4d_cams, 4d_points, 4d_images; component tags are unchanged.\n",
+      "source_entry": "run.py",
+      "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/megasam-track@0.4.0/manifest.yaml",
+      "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs",
+      "arrayable": false,
+      "parallelism": null,
+      "batch_size": null,
+      "node_viewers": [],
+      "hide_default_output_previews": false,
+      "central": {
+        "state": "absent",
+        "reason": "not present in configured registry",
+        "checked_at": 1793867344.7047644,
+        "stale": false
+      }
+    }
+  ],
+  "k4d/merge-colmap4d@0.2.0": [
+    {
+      "name": "k4d/merge-colmap4d",
+      "version": "0.2.0",
+      "manifest_hash": "234fe31dab43a436a92b05d77c28a6b97e89b9cd396b340e80d26ae26c4bc362",
+      "code_sha256": "25e0bc1a24c730a6723afe6706874e2b515564a56f739c99a47d9041e99563c1",
+      "content": {
+        "files": 3,
+        "bytes": 14733,
+        "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.2.0",
+        "hot": {
+          "files": 3,
+          "links": 0,
+          "bytes": 14733,
+          "top_level_names": [
+            "README.md",
+            "manifest.yaml",
+            "merge_colmap4d.py"
+          ]
+        },
+        "cold": {
+          "files": 0,
+          "links": 0,
+          "bytes": 0,
+          "top_level_names": [],
+          "directories": []
+        },
+        "excluded": {
+          "files": 0,
+          "links": 0,
+          "bytes": 0,
+          "top_level_names": [],
+          "top_level": []
+        },
+        "top_level": [
+          {
+            "name": "merge_colmap4d.py",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 10286,
+            "top_level_names": [
+              "merge_colmap4d.py"
+            ]
+          },
+          {
+            "name": "manifest.yaml",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 2478,
+            "top_level_names": [
+              "manifest.yaml"
+            ]
+          },
+          {
+            "name": "README.md",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 1969,
+            "top_level_names": [
+              "README.md"
+            ]
+          }
+        ],
+        "tree": [
+          {
+            "name": "merge_colmap4d.py",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 10286,
+            "top_level_names": [
+              "merge_colmap4d.py"
+            ],
+            "children": [],
+            "children_truncated": 0
+          },
+          {
+            "name": "manifest.yaml",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 2478,
+            "top_level_names": [
+              "manifest.yaml"
+            ],
+            "children": [],
+            "children_truncated": 0
+          },
+          {
+            "name": "README.md",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 1969,
+            "top_level_names": [
+              "README.md"
+            ],
+            "children": [],
+            "children_truncated": 0
+          }
+        ]
+      },
+      "root": ".",
+      "cold": [],
+      "publication": null,
+      "requires": {
+        "packages": [
+          "colmap4d"
+        ]
+      },
+      "runtime": {
+        "mode": "conda",
+        "env": "colmap4d"
+      },
+      "node_environments": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+          "runtime": {
+            "mode": "conda",
+            "env": "colmap4d"
+          },
+          "path": "/cloud/cloud-ssd1/envs/kiri"
+        }
+      },
+      "locations_by_node": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": [
+          {
+            "pack_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.2.0",
+            "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.2.0/manifest.yaml",
+            "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.2.0",
+            "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs",
+            "source_type": "source_scan",
+            "effective": true,
+            "manifest_hash": "234fe31dab43a436a92b05d77c28a6b97e89b9cd396b340e80d26ae26c4bc362",
+            "code_sha256": "25e0bc1a24c730a6723afe6706874e2b515564a56f739c99a47d9041e99563c1"
+          }
+        ]
+      },
+      "environment_by_node": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+          "status": "satisfied",
+          "checked_at": 1793867338.868487,
+          "issues": [],
+          "boundary": "\u672c\u5730\u80fd\u529b\u68c0\u67e5\u53ea\u8986\u76d6\u5df2\u58f0\u660e\u4e14\u5728\u53ef\u63a2\u6d4b\u8303\u56f4\u5185\u7684\u9879; \u901a\u8fc7\u4e0d\u4ee3\u8868\u4e00\u5b9a\u80fd\u8fd0\u884c\u3002\u73af\u5883\u672a\u51bb\u7ed3\u3001\u672a\u88ab\u4ee3\u7801\u8eab\u4efd\u8986\u76d6\u3002",
+          "environment_covered": false,
+          "runtime_verified": false,
+          "env": "colmap4d",
+          "requires": {
+            "packages": [
+              "colmap4d"
+            ]
+          },
+          "prefix": "/cloud/cloud-ssd1/envs/kiri",
+          "cache_hit": true,
+          "fresh_fingerprint_validated": true,
+          "environment_fingerprint": "51fa624cf2bde38f9a44a4d0b774552462ec470471e37f1e3086f63d873f69c2",
+          "python": "3.12.12",
+          "packages": {
+            "colmap4d": "1.0.2"
+          },
+          "package_sources": {
+            "colmap4d": "python-distribution"
+          },
+          "runtime": {
+            "mode": "conda",
+            "env": "colmap4d"
+          },
+          "stale": false,
+          "next_recheck_at": 1793867398.868487
+        }
+      },
+      "node_ids": [
+        "3038e635-4840-46dd-aa0c-6bd9c477b852"
+      ],
+      "inputs": {
+        "4d_points": {
+          "tags": [
+            "colmap4d-point-cloud"
+          ],
+          "required": true,
+          "inline": null,
+          "inline_default": null,
+          "require_axis_label_match": true,
+          "storage": "dir",
+          "description": null,
+          "arrayed": false,
+          "scalar": false,
+          "dim_labels": [],
+          "content_dims_from": null,
+          "any_of": []
+        },
+        "4d_cams": {
+          "tags": [
+            "colmap4d-cams"
+          ],
+          "required": true,
+          "inline": null,
+          "inline_default": null,
+          "require_axis_label_match": true,
+          "storage": "dir",
+          "description": null,
+          "arrayed": false,
+          "scalar": false,
+          "dim_labels": [],
+          "content_dims_from": null,
+          "any_of": []
+        },
+        "4d_images": {
+          "tags": [
+            "colmap4d-images"
+          ],
+          "required": true,
+          "inline": null,
+          "inline_default": null,
+          "require_axis_label_match": true,
+          "storage": "dir",
+          "description": null,
+          "arrayed": false,
+          "scalar": false,
+          "dim_labels": [],
+          "content_dims_from": null,
+          "any_of": []
+        }
+      },
+      "outputs": {
+        "model": {
+          "tags": [
+            "colmap4d"
+          ],
+          "storage": "dir",
+          "description": null,
+          "arrayed": false,
+          "scalar": false,
+          "tags_from": null,
+          "dim_labels": [],
+          "dim_labels_from": null,
+          "dim_labels_from_input": null,
+          "dim_labels_drop_outer": 0,
+          "preview": null
+        }
+      },
+      "params": {},
+      "description": "Assemble timed points, camera observations and image pixels into a strict complete colmap4d model.",
+      "category": [
+        "reconstruction",
+        "colmap4d"
+      ],
+      "docs": "Three scalar application components, not grouped arrays. Layout: cams/{cameras,images,times,time_meta}; points/{points3D,points_t,time_meta}; pixels/images/<NAME>. Accepts bin/txt tables (bin preferred) and emits binary under model/sparse/0. Retains all IDs and exact int64 nanoseconds. No JPEG XMP time derivation.\n\nChecks complete time coverage, duplicate IDs, safe unique image names, pixel bijection and resolution, reciprocal observations/tracks, source-frame point time equality and track_centroid mean. Both metadata objects must declare the same spec/unit/convention/clock domain; recursively overlapping fields must agree. Unknown metadata is preserved. Single 8-bit RGB/RGBA SDR sRGB images are required; pixel decoding cannot prove historical color conversion. Finishes with colmap4d validate_full and strict warning handling. Entire model is loaded in RAM; provision memory for dense point clouds.\n\nComponents cannot masquerade as complete models. See README.md and the application profiles docs/colmap4d-components.md. Legacy grouped JPEG/XMP behavior remains frozen at 0.1.5 and is separately available as k4d/colmap4d-from-xmp-photos@0.1.0. No STG changes or training are performed.\n\nInput port identifiers are 4d_points, 4d_cams and 4d_images, matching the MegaSAM outputs. Types and on-disk format are unchanged.\n",
+      "source_entry": "merge_colmap4d.py",
+      "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.2.0/manifest.yaml",
+      "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs",
+      "arrayable": false,
+      "parallelism": null,
+      "batch_size": null,
+      "node_viewers": [],
+      "hide_default_output_previews": false,
+      "central": {
+        "state": "absent",
+        "reason": "not present in configured registry",
+        "checked_at": 1793867344.7047644,
+        "stale": false
+      }
+    }
+  ],
+  "k4d/colmap4d-from-xmp-photos@0.1.0": [
+    {
+      "name": "k4d/colmap4d-from-xmp-photos",
+      "version": "0.1.0",
+      "manifest_hash": "043f7d40702e6b54b8ca660049a2db48ed6037409f04e95e05724e6b7eb92a69",
+      "code_sha256": "c9751965f2823b13ce4dcf6b1d8618189d172909dd017654aa97f776ba93f942",
+      "content": {
+        "files": 3,
+        "bytes": 18038,
+        "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap4d-from-xmp-photos@0.1.0",
+        "hot": {
+          "files": 3,
+          "links": 0,
+          "bytes": 18038,
+          "top_level_names": [
+            "README.md",
+            "manifest.yaml",
+            "merge_colmap4d.py"
+          ]
+        },
+        "cold": {
+          "files": 0,
+          "links": 0,
+          "bytes": 0,
+          "top_level_names": [],
+          "directories": []
+        },
+        "excluded": {
+          "files": 0,
+          "links": 0,
+          "bytes": 0,
+          "top_level_names": [],
+          "top_level": []
+        },
+        "top_level": [
+          {
+            "name": "merge_colmap4d.py",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 14050,
+            "top_level_names": [
+              "merge_colmap4d.py"
+            ]
+          },
+          {
+            "name": "manifest.yaml",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 2529,
+            "top_level_names": [
+              "manifest.yaml"
+            ]
+          },
+          {
+            "name": "README.md",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 1459,
+            "top_level_names": [
+              "README.md"
+            ]
+          }
+        ],
+        "tree": [
+          {
+            "name": "merge_colmap4d.py",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 14050,
+            "top_level_names": [
+              "merge_colmap4d.py"
+            ],
+            "children": [],
+            "children_truncated": 0
+          },
+          {
+            "name": "manifest.yaml",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 2529,
+            "top_level_names": [
+              "manifest.yaml"
+            ],
+            "children": [],
+            "children_truncated": 0
+          },
+          {
+            "name": "README.md",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 1459,
+            "top_level_names": [
+              "README.md"
+            ],
+            "children": [],
+            "children_truncated": 0
+          }
+        ]
+      },
+      "root": ".",
+      "cold": [],
+      "publication": null,
+      "requires": {
+        "packages": [
+          "colmap4d"
+        ]
+      },
+      "runtime": {
+        "mode": "conda",
+        "env": "colmap4d"
+      },
+      "node_environments": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+          "runtime": {
+            "mode": "conda",
+            "env": "colmap4d"
+          },
+          "path": "/cloud/cloud-ssd1/envs/kiri"
+        }
+      },
+      "locations_by_node": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": [
+          {
+            "pack_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap4d-from-xmp-photos@0.1.0",
+            "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap4d-from-xmp-photos@0.1.0/manifest.yaml",
+            "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap4d-from-xmp-photos@0.1.0",
+            "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs",
+            "source_type": "source_scan",
+            "effective": true,
+            "manifest_hash": "043f7d40702e6b54b8ca660049a2db48ed6037409f04e95e05724e6b7eb92a69",
+            "code_sha256": "c9751965f2823b13ce4dcf6b1d8618189d172909dd017654aa97f776ba93f942"
+          }
+        ]
+      },
+      "environment_by_node": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+          "status": "satisfied",
+          "checked_at": 1793867338.868487,
+          "issues": [],
+          "boundary": "\u672c\u5730\u80fd\u529b\u68c0\u67e5\u53ea\u8986\u76d6\u5df2\u58f0\u660e\u4e14\u5728\u53ef\u63a2\u6d4b\u8303\u56f4\u5185\u7684\u9879; \u901a\u8fc7\u4e0d\u4ee3\u8868\u4e00\u5b9a\u80fd\u8fd0\u884c\u3002\u73af\u5883\u672a\u51bb\u7ed3\u3001\u672a\u88ab\u4ee3\u7801\u8eab\u4efd\u8986\u76d6\u3002",
+          "environment_covered": false,
+          "runtime_verified": false,
+          "env": "colmap4d",
+          "requires": {
+            "packages": [
+              "colmap4d"
+            ]
+          },
+          "prefix": "/cloud/cloud-ssd1/envs/kiri",
+          "cache_hit": true,
+          "fresh_fingerprint_validated": true,
+          "environment_fingerprint": "51fa624cf2bde38f9a44a4d0b774552462ec470471e37f1e3086f63d873f69c2",
+          "python": "3.12.12",
+          "packages": {
+            "colmap4d": "1.0.2"
+          },
+          "package_sources": {
+            "colmap4d": "python-distribution"
+          },
+          "runtime": {
+            "mode": "conda",
+            "env": "colmap4d"
+          },
+          "stale": false,
+          "next_recheck_at": 1793867398.868487
+        }
+      },
+      "node_ids": [
+        "3038e635-4840-46dd-aa0c-6bd9c477b852"
+      ],
+      "inputs": {
+        "points": {
+          "tags": [
+            "point-cloud"
+          ],
+          "required": true,
+          "inline": null,
+          "inline_default": null,
+          "require_axis_label_match": false,
+          "storage": "dir",
+          "description": null,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "group"
+          ],
+          "content_dims_from": null,
+          "any_of": []
+        },
+        "images": {
+          "tags": [
+            "image"
+          ],
+          "required": true,
+          "inline": null,
+          "inline_default": null,
+          "require_axis_label_match": true,
+          "storage": "dir",
+          "description": null,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [],
+          "content_dims_from": null,
+          "any_of": []
+        },
+        "cams": {
+          "tags": [
+            "colmap-cams"
+          ],
+          "required": true,
+          "inline": null,
+          "inline_default": null,
+          "require_axis_label_match": false,
+          "storage": "dir",
+          "description": null,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "group"
+          ],
+          "content_dims_from": null,
+          "any_of": []
+        }
+      },
+      "outputs": {
+        "model": {
+          "tags": [
+            "colmap4d"
+          ],
+          "storage": "dir",
+          "description": null,
+          "arrayed": false,
+          "scalar": false,
+          "tags_from": null,
+          "dim_labels": [],
+          "dim_labels_from": null,
+          "dim_labels_from_input": null,
+          "dim_labels_drop_outer": 0,
+          "preview": null
+        }
+      },
+      "params": {},
+      "description": "Build a complete colmap4d model from grouped COLMAP geometry and flat JPEG photos with HoloLab XMP exposure metadata.",
+      "category": [
+        "reconstruction",
+        "colmap4d"
+      ],
+      "docs": "The image input is strictly one-dimensional. Convert the upstream\n`arrayed[group,cam]<image>` with the type-agnostic `flatten-array@0.1.0`.\nRoot-level elements use the generic `<outer>__<inner>` convention\n(`gXXXXXX__camN.jpg` here).\n\nThe input element name is preserved as both COLMAP `Image.name` and the\nroot-level path below `images/`. Grouping remains recoverable from the name\nfor assembly alignment, without becoming an output directory hierarchy.\n\nIndependent legacy XMP producer, migrated from frozen col4d/merge-colmap4d@0.1.5. Input points/cams retain grouped array contracts; images is a flat image array with gXXXXXX__camN.jpg names. Image time is wallClockEpochNs + exposureNs // 2, with one common XMP timebase. Point times are integer track centroids. Output is a complete scalar colmap4d model, not three components. Source provenance identifies this new pack; all other native behavior is retained.\n\nLegacy compatibility includes blank image observation rows and retained point tracks addressing triangulation keypoints. This passes the existing colmap4d validator but does not claim the stronger reciprocal-track component profile. Use merge-colmap4d@0.2.0 only with actual component-profile inputs. No STG changes, GPU or training. See README.md.\n",
+      "source_entry": "merge_colmap4d.py",
+      "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap4d-from-xmp-photos@0.1.0/manifest.yaml",
+      "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs",
+      "arrayable": false,
+      "parallelism": null,
+      "batch_size": null,
+      "node_viewers": [],
+      "hide_default_output_previews": false,
+      "central": {
+        "state": "absent",
+        "reason": "not present in configured registry",
+        "checked_at": 1793867344.7047644,
+        "stale": false
+      }
+    }
+  ],
+  "megasam-track@0.4.0": [],
+  "kiri/megasam-track@0.4.0": [],
+  "col4d/merge-colmap4d@0.2.0": [],
+  "col4d/colmap4d-from-xmp-photos@0.1.0": [],
+  "col4d/merge-colmap4d@0.1.5": [
+    {
+      "name": "col4d/merge-colmap4d",
+      "version": "0.1.5",
+      "manifest_hash": "5b2a1de08576d9a4225eb251e96754e6e7c67ae0b4c6c2f8985e46f213006b48",
+      "code_sha256": "2c449b65f391694d6f090dd91ac9ffb88a434d81490ab697528163ce3b6a35dd",
+      "content": {
+        "files": 3,
+        "bytes": 16233,
+        "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.1.5",
+        "hot": {
+          "files": 3,
+          "links": 0,
+          "bytes": 16233,
+          "top_level_names": [
+            "README.md",
+            "manifest.yaml",
+            "merge_colmap4d.py"
+          ]
+        },
+        "cold": {
+          "files": 0,
+          "links": 0,
+          "bytes": 0,
+          "top_level_names": [],
+          "directories": []
+        },
+        "excluded": {
+          "files": 0,
+          "links": 0,
+          "bytes": 0,
+          "top_level_names": [],
+          "top_level": []
+        },
+        "top_level": [
+          {
+            "name": "merge_colmap4d.py",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 14042,
+            "top_level_names": [
+              "merge_colmap4d.py"
+            ]
+          },
+          {
+            "name": "manifest.yaml",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 1615,
+            "top_level_names": [
+              "manifest.yaml"
+            ]
+          },
+          {
+            "name": "README.md",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 576,
+            "top_level_names": [
+              "README.md"
+            ]
+          }
+        ],
+        "tree": [
+          {
+            "name": "merge_colmap4d.py",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 14042,
+            "top_level_names": [
+              "merge_colmap4d.py"
+            ],
+            "children": [],
+            "children_truncated": 0
+          },
+          {
+            "name": "manifest.yaml",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 1615,
+            "top_level_names": [
+              "manifest.yaml"
+            ],
+            "children": [],
+            "children_truncated": 0
+          },
+          {
+            "name": "README.md",
+            "kind": "file",
+            "layer": "hot",
+            "files": 1,
+            "links": 0,
+            "bytes": 576,
+            "top_level_names": [
+              "README.md"
+            ],
+            "children": [],
+            "children_truncated": 0
+          }
+        ]
+      },
+      "root": ".",
+      "cold": [],
+      "publication": null,
+      "requires": {
+        "packages": [
+          "colmap4d"
+        ]
+      },
+      "runtime": {
+        "mode": "conda",
+        "env": "colmap4d"
+      },
+      "node_environments": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+          "runtime": {
+            "mode": "conda",
+            "env": "colmap4d"
+          },
+          "path": "/cloud/cloud-ssd1/envs/kiri"
+        }
+      },
+      "locations_by_node": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": [
+          {
+            "pack_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.1.5",
+            "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.1.5/manifest.yaml",
+            "root_abs": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.1.5",
+            "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs",
+            "source_type": "source_scan",
+            "effective": true,
+            "manifest_hash": "5b2a1de08576d9a4225eb251e96754e6e7c67ae0b4c6c2f8985e46f213006b48",
+            "code_sha256": "2c449b65f391694d6f090dd91ac9ffb88a434d81490ab697528163ce3b6a35dd"
+          }
+        ]
+      },
+      "environment_by_node": {
+        "3038e635-4840-46dd-aa0c-6bd9c477b852": {
+          "status": "satisfied",
+          "checked_at": 1793866528.612454,
+          "issues": [],
+          "boundary": "\u672c\u5730\u80fd\u529b\u68c0\u67e5\u53ea\u8986\u76d6\u5df2\u58f0\u660e\u4e14\u5728\u53ef\u63a2\u6d4b\u8303\u56f4\u5185\u7684\u9879; \u901a\u8fc7\u4e0d\u4ee3\u8868\u4e00\u5b9a\u80fd\u8fd0\u884c\u3002\u73af\u5883\u672a\u51bb\u7ed3\u3001\u672a\u88ab\u4ee3\u7801\u8eab\u4efd\u8986\u76d6\u3002",
+          "environment_covered": false,
+          "runtime_verified": false,
+          "env": "colmap4d",
+          "requires": {
+            "packages": [
+              "colmap4d"
+            ]
+          },
+          "prefix": "/cloud/cloud-ssd1/envs/kiri",
+          "cache_hit": true,
+          "fresh_fingerprint_validated": true,
+          "environment_fingerprint": "51fa624cf2bde38f9a44a4d0b774552462ec470471e37f1e3086f63d873f69c2",
+          "python": "3.12.12",
+          "packages": {
+            "colmap4d": "1.0.2"
+          },
+          "package_sources": {
+            "colmap4d": "python-distribution"
+          },
+          "runtime": {
+            "mode": "conda",
+            "env": "colmap4d"
+          },
+          "stale": false,
+          "next_recheck_at": 1793866588.612454
+        }
+      },
+      "node_ids": [
+        "3038e635-4840-46dd-aa0c-6bd9c477b852"
+      ],
+      "inputs": {
+        "points": {
+          "tags": [
+            "point-cloud"
+          ],
+          "required": true,
+          "inline": null,
+          "inline_default": null,
+          "require_axis_label_match": false,
+          "storage": "dir",
+          "description": null,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "group"
+          ],
+          "content_dims_from": null,
+          "any_of": []
+        },
+        "images": {
+          "tags": [
+            "image"
+          ],
+          "required": true,
+          "inline": null,
+          "inline_default": null,
+          "require_axis_label_match": true,
+          "storage": "dir",
+          "description": null,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [],
+          "content_dims_from": null,
+          "any_of": []
+        },
+        "cams": {
+          "tags": [
+            "colmap-cams"
+          ],
+          "required": true,
+          "inline": null,
+          "inline_default": null,
+          "require_axis_label_match": false,
+          "storage": "dir",
+          "description": null,
+          "arrayed": true,
+          "scalar": false,
+          "dim_labels": [
+            "group"
+          ],
+          "content_dims_from": null,
+          "any_of": []
+        }
+      },
+      "outputs": {
+        "model": {
+          "tags": [
+            "colmap4d"
+          ],
+          "storage": "dir",
+          "description": null,
+          "arrayed": false,
+          "scalar": false,
+          "tags_from": null,
+          "dim_labels": [],
+          "dim_labels_from": null,
+          "dim_labels_from_input": null,
+          "dim_labels_drop_outer": 0,
+          "preview": null
+        }
+      },
+      "params": {},
+      "description": "Assemble grouped points/cams and flat images into one flat-layout colmap4d model.",
+      "category": [
+        "reconstruction",
+        "colmap4d"
+      ],
+      "docs": "The image input is strictly one-dimensional. Convert the upstream\n`arrayed[group,cam]<image>` with the type-agnostic `flatten-array@0.1.0`.\nRoot-level elements use the generic `<outer>__<inner>` convention\n(`gXXXXXX__camN.jpg` here).\n\nThe input element name is preserved as both COLMAP `Image.name` and the\nroot-level path below `images/`. Grouping remains recoverable from the name\nfor assembly alignment, without becoming an output directory hierarchy.\n",
+      "source_entry": "merge_colmap4d.py",
+      "manifest_path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.1.5/manifest.yaml",
+      "source_dir": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs",
+      "arrayable": false,
+      "parallelism": null,
+      "batch_size": null,
+      "node_viewers": [],
+      "hide_default_output_previews": false,
+      "central": {
+        "state": "identical",
+        "central_code_sha256": "2c449b65f391694d6f090dd91ac9ffb88a434d81490ab697528163ce3b6a35dd",
+        "yanked": false,
+        "source": "https://packs.xenotech.studio/",
+        "reason": null,
+        "checked_at": 1793867344.7047644,
+        "stale": false
+      }
+    }
+  ]
+}

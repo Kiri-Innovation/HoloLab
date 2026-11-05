@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: col4d/colmap4d-from-xmp-photos
+name: k4d/colmap4d-from-xmp-photos
 version: 0.1.0
 description: Build a complete colmap4d model from grouped COLMAP geometry and flat
   JPEG photos with HoloLab XMP exposure metadata.

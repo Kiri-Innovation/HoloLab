@@ -21,6 +21,8 @@ class PortsAndFrames(unittest.TestCase):
         # Schema currently ignores unknown keys: exact raw assertion catches declaration typos too.
         self.assertEqual(raw['inputs']['frames']['any_of'],expected)
         self.assertEqual(set(raw['inputs']['frames']),{'description','any_of'})
+        self.assertEqual(manifest.name,'k4d/megasam-track')
+        self.assertEqual(manifest.version,'0.4.0')
         self.assertEqual(set(manifest.inputs),{'frames'})
         self.assertEqual(set(manifest.outputs),{'4d_cams','4d_points','4d_images'})
         target=UnionType(variants=[from_legacy(v.tags,v.arrayed,v.dim_labels) for v in manifest.inputs['frames'].any_of])
@@ -33,6 +35,10 @@ class PortsAndFrames(unittest.TestCase):
                         dict(any_of=[dict(tags=['video-source'],storage='wrong'),expected[1]])]:
             with self.assertRaises(ValueError): InputSpec.model_validate(invalid)
         merge,_=load_manifest(ROOT/'community_packs/merge-colmap4d@0.2.0/manifest.yaml')
+        self.assertEqual(merge.name,'k4d/merge-colmap4d')
+        self.assertEqual(merge.version,'0.2.0')
+        xmp,_=load_manifest(ROOT/'community_packs/colmap4d-from-xmp-photos@0.1.0/manifest.yaml')
+        self.assertEqual((xmp.name,xmp.version),('k4d/colmap4d-from-xmp-photos','0.1.0'))
         self.assertEqual(set(merge.inputs),set(manifest.outputs))
         for key in merge.inputs: self.assertEqual(merge.inputs[key].tags,manifest.outputs[key].tags)
         from jinja2 import Environment, StrictUndefined

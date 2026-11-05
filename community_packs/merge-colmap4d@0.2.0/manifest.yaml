@@ -1,6 +1,6 @@
 apiVersion: hololab.dev/v1
 kind: Algorithm
-name: col4d/merge-colmap4d
+name: k4d/merge-colmap4d
 version: 0.2.0
 description: Assemble timed points, camera observations and image pixels into a strict
   complete colmap4d model.
@@ -23,7 +23,7 @@ docs: 'Three scalar application components, not grouped arrays. Layout: cams/{ca
 
   Components cannot masquerade as complete models. See README.md and the application
   profiles docs/colmap4d-components.md. Legacy grouped JPEG/XMP behavior remains frozen
-  at 0.1.5 and is separately available as col4d/colmap4d-from-xmp-photos@0.1.0. No
+  at 0.1.5 and is separately available as k4d/colmap4d-from-xmp-photos@0.1.0. No
   STG changes or training are performed.
 
 

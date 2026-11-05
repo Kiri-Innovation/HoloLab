@@ -1,0 +1,44 @@
+[
+  {
+    "theme": "light",
+    "key": "k4d/megasam-track@0.4.0",
+    "visible": true,
+    "scopeTreeHasThree": true,
+    "url": "http://127.0.0.1:8828/packs?view=local&section=category&tree=scope&pack=k4d%2Fmegasam-track%400.4.0"
+  },
+  {
+    "theme": "light",
+    "key": "k4d/merge-colmap4d@0.2.0",
+    "visible": true,
+    "scopeTreeHasThree": true,
+    "url": "http://127.0.0.1:8828/packs?view=local&section=category&tree=scope&pack=k4d%2Fmerge-colmap4d%400.2.0"
+  },
+  {
+    "theme": "light",
+    "key": "k4d/colmap4d-from-xmp-photos@0.1.0",
+    "visible": true,
+    "scopeTreeHasThree": true,
+    "url": "http://127.0.0.1:8828/packs?view=local&section=category&tree=scope&pack=k4d%2Fcolmap4d-from-xmp-photos%400.1.0"
+  },
+  {
+    "theme": "dark",
+    "key": "k4d/megasam-track@0.4.0",
+    "visible": true,
+    "scopeTreeHasThree": true,
+    "url": "http://127.0.0.1:8828/packs?view=local&section=category&tree=scope&pack=k4d%2Fmegasam-track%400.4.0"
+  },
+  {
+    "theme": "dark",
+    "key": "k4d/merge-colmap4d@0.2.0",
+    "visible": true,
+    "scopeTreeHasThree": true,
+    "url": "http://127.0.0.1:8828/packs?view=local&section=category&tree=scope&pack=k4d%2Fmerge-colmap4d%400.2.0"
+  },
+  {
+    "theme": "dark",
+    "key": "k4d/colmap4d-from-xmp-photos@0.1.0",
+    "visible": true,
+    "scopeTreeHasThree": true,
+    "url": "http://127.0.0.1:8828/packs?view=local&section=category&tree=scope&pack=k4d%2Fcolmap4d-from-xmp-photos%400.1.0"
+  }
+]
