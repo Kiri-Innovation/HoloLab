@@ -174,7 +174,7 @@ def test_last_leaf_still_checked(tmp_path):
         ({"type": "int", "default": 1, "max": 9}, 10, False),
         ({"type": "float", "default": 1.0, "min": 0.001}, 0.0, False),
         ({"type": "float", "default": 1.0, "min": 0.001}, 0.5, True),
-        ({"type": "int", "default": 1, "min": 1}, None, True),
+        ({"type": "int", "default": 1, "min": 1}, None, False),
         ({"type": "bool", "default": False}, True, True),
     ],
 )

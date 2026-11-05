@@ -127,3 +127,21 @@ def test_comparison_distinguishes_boolean_from_integer():
     current = frozen.model_copy(deep=True)
     current.nodes[0].params["flag"] = 1
     assert changed_nodes(current, frozen) == {"a"}
+
+
+@pytest.mark.parametrize("value", [None, 0, -1, "garbage", "30", True, float("nan"), float("inf")])
+def test_numeric_parameter_rejected_during_preparation(value):
+    g, packs = fixture()
+    packs[0]["params"]["frames_fps"] = {"type": "float", "default": 30, "min": 1e-6}
+    g.nodes[0].params["frames_fps"] = value
+    with pytest.raises(ValueError, match="frames_fps"):
+        resolve_recipe(g, packs)
+    shown = resolve_recipe(g, packs, tolerate_parameter_errors=True)
+    assert shown.execution["issues"][0]["kind"] == "invalid_parameters"
+    assert "frames_fps" in shown.execution["issues"][0]["message"]
+
+
+def test_numeric_parameter_omission_uses_default():
+    g, packs = fixture()
+    packs[0]["params"]["frames_fps"] = {"type": "float", "default": 30, "min": 1e-6}
+    assert resolve_recipe(g, packs).nodes[0].params["frames_fps"] == 30

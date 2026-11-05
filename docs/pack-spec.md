@@ -1016,3 +1016,7 @@ agreed MiddleCutPro inline transform with
 Without `--apply` this command only prints a reviewable payload. It touches only
 MiddleCutPro's `compose-final.port_values.transforms`, uses optimistic save,
 requires the new device capability and refuses to replace a connected input.
+
+### Numeric parameter preparation
+
+Before dispatch, scalar `int`/`float` parameters require numeric JSON values (booleans and numeric strings are rejected); float values must be finite. Explicit null is accepted only for optional parameters. Missing keys receive declared defaults before validation. Declared min/max bounds are then checked. Invalid values appear as parameter errors during preparation, including canvas display preparation, without starting a job.

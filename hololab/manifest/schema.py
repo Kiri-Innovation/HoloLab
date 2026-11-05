@@ -363,15 +363,16 @@ class ParamSpec(BaseModel):
         return self
 
     def validate_scalar_value(self, name: str, value: Any) -> None:
-        """Enforce declared ``min``/``max`` on scalar int/float values at dispatch.
-
-        Only the declared range is checked here; type coercion rules are unchanged
-        and non-numeric values are left to the existing validators.
-        """
+        """Validate numeric types, finite values and bounds before dispatch."""
         if self.type not in (ParamType.INT, ParamType.FLOAT):
             return
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
+        if value is None and self.optional:
             return
+        valid = type(value) is int if self.type is ParamType.INT else type(value) in (int, float)
+        if not valid:
+            raise ValueError(f"parameter {name!r}: expected a finite {self.type.value} value, got {value!r}")
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError(f"parameter {name!r}: expected a finite {self.type.value} value, got {value!r}")
         if self.min is not None and value < self.min:
             raise ValueError(f"parameter {name!r}: must be >= {self.min}, got {value!r}")
         if self.max is not None and value > self.max:
