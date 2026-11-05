@@ -59,7 +59,7 @@ np.savez(w/'megasam_run/original_resolution.npz',depths=np.ones((len(frames),hei
             exposure.write_text(json.dumps(dict(video_sha256=hashlib.sha256(video.read_bytes()).hexdigest(),clock_domain='sensor',frames=[
                 dict(decoded_index=0,mid_exposure_ns=101),dict(decoded_index=2,mid_exposure_ns=908)])))
             outputs={k:str(root/k) for k in ('cams','points','images')}
-            mega.main(dict(inputs={'video':str(video)},outputs=outputs,scratch=str(root/'scratch'),params=dict(
+            mega.main(dict(inputs={'frames':str(video)},outputs={'4d_'+k:v for k,v in outputs.items()},scratch=str(root/'scratch'),params=dict(
                 megasam_repo=str(repo),sharp_repo=str(sharp),tracker_python=sys.executable,skip=2,max_frames=2,
                 exposure_metadata_path=str(exposure))))
             self.assertEqual(read_times_bin(Path(outputs['cams'])/'times.bin'),{1:101,2:908})
@@ -67,6 +67,19 @@ np.savez(w/'megasam_run/original_resolution.npz',depths=np.ones((len(frames),hei
             meta=json.loads((Path(outputs['cams'])/'time_meta.json').read_text())
             self.assertEqual(meta['conversion']['selected_decoded_indexes'],[0,2])
             self.assertEqual(meta['conversion']['pixels']['output'],'sRGB RGB8')
+            frames=root/'input-frames'; frames.mkdir()
+            for j in range(4): Image.new('RGB',(8,8),(j*40,20,30)).save(frames/f'{j:04d}.png')
+            frame_outputs={k:str(root/('array-'+k)) for k in outputs}
+            mega.main(dict(inputs={'frames':str(frames)},outputs={'4d_'+k:v for k,v in frame_outputs.items()},
+                scratch=str(root/'array-scratch'),params=dict(megasam_repo=str(repo),sharp_repo=str(sharp),
+                tracker_python=sys.executable,skip=2,max_frames=2,frames_fps=25)))
+            self.assertEqual(read_times_bin(Path(frame_outputs['cams'])/'times.bin'),{1:0,2:80000000})
+            # Both full adapter branches must compose into a strict complete model.
+            from test_colmap4d_components_020 import merge
+            for label,bundle in [('video',outputs),('array',frame_outputs)]:
+                result=merge.assemble(bundle['cams'],bundle['points'],bundle['images'],root/(label+'-model'))
+                self.assertEqual(result['strict_problems'],0)
+
 
     def test_export_geometry_and_tracks(self):
         with tempfile.TemporaryDirectory() as tmp:

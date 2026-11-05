@@ -107,6 +107,14 @@ as optional provenance, without a second T_NS table. No `presentation` value is
 added to the frozen time_convention. Legacy SHARP NPZ files lack sufficient
 timing provenance by themselves.
 
+Image-array adapter extension (2026-11-05): `frames` also accepts
+`arrayed[frame]<image>`. Timing precedence is explicit exposure JSON, then full
+HoloLab XMP coverage, then explicitly supplied `frames_fps` synthetic timing.
+The exposure records retain the same indexed mid-exposure nanosecond semantics;
+array JSON uses `frames_sha256` to bind the complete sorted input collection.
+See megasam-track@0.4.0/README.md for the canonical hash and rejection rules.
+This changes adapter input provenance, not the stored colmap4d time format.
+
 ## Assembly and downstream boundaries
 
 Copy selected tables/sidecars to `model/sparse/0/` and pixels to `model/images/`.
@@ -116,7 +124,8 @@ compatibility, camera calibration, finite geometry and image bijection before
 writing. Source components remain read-only. Run strict full-model validation
 after assembly. Full validation alone does not check all geometry or tracks.
 
-Each component is `storage: dir, arrayed: false`, tagged respectively
+Public producer outputs and assembler inputs are `4d_cams`, `4d_points`,
+`4d_images` (snake_case port identifiers). Each component is `storage: dir, arrayed: false`, tagged respectively
 `colmap4d-cams`, `colmap4d-point-cloud`, `colmap4d-images`; no dim_labels.
 Do not add legacy tags to imply compatibility. Whole-model output is scalar
 `colmap4d`. Frames/cameras/points are internal records, not framework array axes.

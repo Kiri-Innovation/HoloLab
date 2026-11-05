@@ -29,7 +29,7 @@ def ns(value):
     return value
 
 
-def timestamps(params, indexes, frames, time_base, digest):
+def timestamps(params, indexes, frames, time_base, digest, identity_key="video_sha256"):
     mode = params.get('timestamp_mode', 'exposure_metadata')
     meta = dict(colmap4d_spec='1.0', time_unit='ns', time_convention='mid_exposure',
                 points_t_method='track_centroid')
@@ -38,8 +38,8 @@ def timestamps(params, indexes, frames, time_base, digest):
         if not path:
             raise ValueError('exposure_metadata_path required for exposure_metadata')
         data = json.loads(Path(path).read_text())
-        if data.get('video_sha256') != digest:
-            raise ValueError('Exposure metadata video_sha256 mismatch')
+        if data.get(identity_key) != digest:
+            raise ValueError(f'Exposure metadata {identity_key} mismatch')
         domain = data.get('clock_domain')
         if not isinstance(domain, str) or not domain.strip():
             raise ValueError('Exposure clock_domain required')
@@ -73,7 +73,8 @@ def timestamps(params, indexes, frames, time_base, digest):
         raise ValueError('Unknown timestamp_mode')
     meta['clock_domain'] = domain
     meta['conversion'] = dict(timestamp_mode=mode, estimated=mode != 'exposure_metadata',
-                              video_sha256=digest, selected_decoded_indexes=indexes)
+                              selected_decoded_indexes=indexes)
+    meta['conversion'][identity_key] = digest
     return times, meta
 
 
@@ -192,40 +193,115 @@ def export(work, outputs, times, meta, depth_min=.001, pts_stride=2):
     return dict(images=len(times), points=count)
 
 
-def main(config):
-    p = dict(config.get('params', {}))
-    allowed = {'megasam_repo','tracker_python','sharp_repo','skip','max_frames','depth_min',
-               'pts_stride','timestamp_mode','exposure_metadata_path','fps_num','fps_den'}
-    if set(p)-allowed:
-        raise ValueError(f'Unknown parameters: {set(p)-allowed}')
-    skip = integer(p.get('skip',1),'skip',1)
-    cap = integer(p.get('max_frames',0),'max_frames',0)
-    stride = integer(p.get('pts_stride',2),'pts_stride',1)
-    depth_min = p.get('depth_min',.001)
-    if type(depth_min) not in (int,float) or not math.isfinite(depth_min) or depth_min < 0:
-        raise ValueError('depth_min must be finite and nonnegative')
-    video = Path(config['inputs']['video']).resolve()
-    if video.is_dir():
-        candidates = [f for f in video.iterdir() if f.is_file() and f.suffix.lower() in
-                      {'.mp4','.mov','.mkv','.avi','.webm','.m4v'}]
-        if len(candidates) != 1:
-            raise ValueError('video-source must contain exactly one video')
-        video = candidates[0]
-    repo, sharp, python = [Path(p[k]).resolve() for k in ('megasam_repo','sharp_repo','tracker_python')]
-    if not repo.is_dir() or not (sharp/'per-frame/video_to_colmap.py').is_file() or not python.is_file():
-        raise ValueError('Invalid algorithm paths')
-    roots = [Path(config['outputs'][k]).resolve() for k in ('cams','points','images')]
-    scratch = Path(config['scratch']).resolve()
-    protected = [repo,sharp,video,python]
+VIDEO_SUFFIXES = {'.mp4','.mov','.mkv','.avi','.webm','.m4v'}
+
+
+def input_kind(source):
+    if source.is_file() and source.suffix.lower() in VIDEO_SUFFIXES:
+        return 'video', source
+    if not source.is_dir():
+        raise ValueError('frames must be a video-source or flat image array directory')
+    entries = [p for p in source.iterdir() if not p.name.startswith('.')]
+    videos = [p for p in entries if p.is_file() and p.suffix.lower() in VIDEO_SUFFIXES]
+    images = []
+    for entry in entries:
+        if not entry.is_file() or entry in videos: continue
+        try:
+            with Image.open(entry) as candidate:
+                candidate.verify()
+            images.append(entry)
+        except (OSError, ValueError, SyntaxError):
+            pass
+    if len(videos) == 1 and not images and all(p == videos[0] or p.suffix == '.json' for p in entries):
+        return 'video', videos[0]
+    if images and len(images) == len(entries):
+        return 'images', source
+    raise ValueError('Ambiguous/invalid frames: expected one video or only image leaves')
+
+
+def frame_identity(files):
+    """Bind metadata to the whole ordered array, before selection."""
+    records = []
+    for file in files:
+        h = hashlib.sha256()
+        with file.open('rb') as stream:
+            for block in iter(lambda: stream.read(1024*1024), b''): h.update(block)
+        records.append({'name': file.name, 'sha256': h.hexdigest()})
+    return hashlib.sha256(json.dumps(records,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
+
+
+def xmp_exposure(file):
+    import xml.etree.ElementTree as ET
+    with Image.open(file) as image:
+        blobs = [image.info[k] for k in ('xmp','XML:com.adobe.xmp') if k in image.info]
+        header = b'http://ns.adobe.com/xap/1.0/\0'
+        blobs += [value[len(header):] for marker,value in getattr(image,'applist',[])
+                  if marker == 'APP1' and value.startswith(header)]
+    values = {}
+    for blob in blobs:
+        for element in ET.fromstring(blob).iter():
+            for key,value in element.attrib.items():
+                if key.startswith('{https://hololab.dev/ns/rig/1.0/}'):
+                    name=key.split('}',1)[1]
+                    if name in values and values[name]!=value: raise ValueError('Conflicting XMP exposure fields')
+                    values[name]=value
+    relevant = {'wallClockEpochNs','exposureNs','timebase'}
+    if not relevant.intersection(values): return None
+    if not relevant <= values.keys(): raise ValueError('Incomplete XMP exposure metadata')
+    exposure = int(values['exposureNs'])
+    if exposure < 0 or not values['timebase'].strip(): raise ValueError('Invalid XMP exposure/timebase')
+    domain = {'server_epoch':'hololab_clocksync_server_epoch'}.get(values['timebase'],values['timebase'])
+    return ns(ns(int(values['wallClockEpochNs'])) + exposure//2), domain
+
+
+def prepare_frames(p, source, skip, cap, work):
+    files = sorted(source.iterdir(), key=lambda f: f.name)
+    files = [f for f in files if not f.name.startswith('.')]
+    indexes = list(range(0,len(files),skip))
+    if cap: indexes=indexes[:cap]
+    if len(indexes)<2: raise ValueError('MegaSAM needs at least two selected frames')
+    digest = frame_identity(files)
     if p.get('exposure_metadata_path'):
-        protected.append(Path(p['exposure_metadata_path']).resolve())
-    for i,a in enumerate(roots+[scratch]):
-        for b in (roots+[scratch])[i+1:]+protected:
-            if a == b or a in b.parents or b in a.parents:
-                raise ValueError('Output/scratch/source paths must not overlap')
-    for root in roots:
-        if root.exists() and any(root.iterdir()):
-            raise ValueError('Outputs must be empty')
+        times,meta=timestamps(dict(p,timestamp_mode='exposure_metadata'),indexes,[],None,digest,'frames_sha256')
+    else:
+        exposures=[xmp_exposure(files[i]) for i in indexes]
+        if any(item is not None for item in exposures):
+            if any(item is None for item in exposures): raise ValueError('Partial XMP coverage; no synthetic fallback')
+            domains={item[1] for item in exposures}
+            if len(domains)!=1: raise ValueError('Mixed XMP clock domains')
+            times=[item[0] for item in exposures]
+            meta=dict(colmap4d_spec='1.0',time_unit='ns',time_convention='mid_exposure',
+                      clock_domain=domains.pop(),points_t_method='track_centroid',
+                      conversion=dict(timestamp_mode='exposure_metadata',exposure_source='image_xmp',
+                                      estimated=False,frames_sha256=digest,selected_decoded_indexes=indexes))
+        else:
+            fps=p.get('frames_fps')
+            if type(fps) not in (int,float) or not math.isfinite(fps) or fps<=0:
+                raise ValueError('frames_fps must be explicitly positive when frames have no exposure metadata')
+            rate=Fraction(str(fps))
+            times,meta=timestamps(dict(timestamp_mode='synthetic_uniform',fps_num=rate.numerator,fps_den=rate.denominator),
+                                  indexes,[],None,digest,'frames_sha256')
+    size=None
+    for j,i in enumerate(indexes):
+        with Image.open(files[i]) as image:
+            image.load()
+            if image.mode not in ('RGB','RGBA') or getattr(image,'n_frames',1)!=1:
+                raise ValueError('Frames must be single 8-bit SDR RGB/RGBA images')
+            if size is not None and image.size!=size: raise ValueError('Frames must share a resolution')
+            size=image.size
+            # Embedded profiles are color-converted; untagged input is declared SDR sRGB.
+            if image.info.get('icc_profile'):
+                import io
+                from PIL import ImageCms
+                image=ImageCms.profileToProfile(image,ImageCms.ImageCmsProfile(io.BytesIO(image.info['icc_profile'])),
+                                                ImageCms.createProfile('sRGB'),outputMode='RGB')
+            image.convert('RGB').save(work/'frames'/f'frame_{j:06d}.png')
+    meta['conversion']['input_kind']='image_array'
+    meta['conversion']['pixels']=dict(output='sRGB RGB8',untagged_assumption='sRGB',alpha='discarded')
+    return times,meta
+
+
+def prepare_video(p, video, skip, cap, work):
     hasher = hashlib.sha256()
     with video.open('rb') as source:
         for block in iter(lambda: source.read(1024 * 1024), b''):
@@ -259,14 +335,48 @@ def main(config):
     color_filter = (f"colorspace=ispace={color['color_space']}:iprimaries={color['color_primaries']}:"
                     f"itrc={color['color_transfer']}:irange={color['color_range']}:"
                     "space=bt709:primaries=bt709:trc=srgb:range=pc:format=yuv444p12,format=rgb24")
-    scratch.mkdir(parents=True, exist_ok=True)
-    work = Path(tempfile.mkdtemp(prefix='megasam-040-', dir=scratch))
-    (work/'frames').mkdir()
     subprocess.run(['ffmpeg','-nostdin','-v','error','-noautorotate','-i',str(video),
         '-map','0:v:0','-vf',f'select=not(mod(n\\,{skip})),{color_filter}','-vsync','0','-frames:v',str(len(indexes)),
         '-start_number','0','-pix_fmt','rgb24',str(work/'frames/frame_%06d.png')],check=True,timeout=300)
     if len(list((work/'frames').glob('*.png'))) != len(indexes):
         raise ValueError('Decoder count differs from probed selection')
+    return times, meta
+
+
+def main(config):
+    p = dict(config.get('params', {}))
+    allowed = {'megasam_repo','tracker_python','sharp_repo','skip','max_frames','depth_min',
+               'pts_stride','timestamp_mode','exposure_metadata_path','fps_num','fps_den','frames_fps'}
+    if set(p)-allowed:
+        raise ValueError(f'Unknown parameters: {set(p)-allowed}')
+    skip = integer(p.get('skip',1),'skip',1)
+    cap = integer(p.get('max_frames',0),'max_frames',0)
+    stride = integer(p.get('pts_stride',2),'pts_stride',1)
+    depth_min = p.get('depth_min',.001)
+    if type(depth_min) not in (int,float) or not math.isfinite(depth_min) or depth_min < 0:
+        raise ValueError('depth_min must be finite and nonnegative')
+    source = Path(config['inputs']['frames']).resolve()
+    kind, source = input_kind(source)
+    repo, sharp, python = [Path(p[k]).resolve() for k in ('megasam_repo','sharp_repo','tracker_python')]
+    if not repo.is_dir() or not (sharp/'per-frame/video_to_colmap.py').is_file() or not python.is_file():
+        raise ValueError('Invalid algorithm paths')
+    roots = [Path(config['outputs']['4d_'+k]).resolve() for k in ('cams','points','images')]
+    scratch = Path(config['scratch']).resolve()
+    protected = [repo,sharp,source,python]
+    if p.get('exposure_metadata_path'):
+        protected.append(Path(p['exposure_metadata_path']).resolve())
+    for i,a in enumerate(roots+[scratch]):
+        for b in (roots+[scratch])[i+1:]+protected:
+            if a == b or a in b.parents or b in a.parents:
+                raise ValueError('Output/scratch/source paths must not overlap')
+    for root in roots:
+        if root.exists() and any(root.iterdir()):
+            raise ValueError('Outputs must be empty')
+    scratch.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix='megasam-040-', dir=scratch))
+    (work/'frames').mkdir()
+    times, meta = (prepare_video(p, source, skip, cap, work) if kind == 'video'
+                   else prepare_frames(p, source, skip, cap, work))
     private = work/'megasam-repo'
     subprocess.run(['cp','-rL','--reflink=auto',str(repo),str(private)],check=True,timeout=300)
     env = os.environ.copy()
@@ -276,7 +386,7 @@ def main(config):
     subprocess.run([str(python),str(sharp/'per-frame/video_to_colmap.py'),'--convert-only',
         '--track_megasam','--megasam-root',str(private),'-o',str(work)],cwd=sharp,env=env,check=True)
     print('[ITER 2/3] standardize components',flush=True)
-    result = export(work,config['outputs'],times,meta,depth_min,stride)
+    result = export(work,{k: config['outputs']['4d_'+k] for k in ('cams','points','images')},times,meta,depth_min,stride)
     print(json.dumps(result)); print('[ITER 3/3] done',flush=True)
 
 

@@ -7,3 +7,5 @@ Checks complete time coverage, duplicate IDs, safe unique image names, pixel bij
 Components cannot masquerade as complete models. See README.md and the application profiles docs/colmap4d-components.md. Legacy grouped JPEG/XMP behavior remains frozen at 0.1.5 and is separately available as col4d/colmap4d-from-xmp-photos@0.1.0. No STG changes or training are performed.
 
 CLI: `python merge_colmap4d.py --cams CAMS --points POINTS --images PIXELS --output MODEL`. Output must be empty and disjoint from inputs. Inputs are never modified. Failure before profile validation creates no output; a later I/O failure can leave a partial output without the completion marker. Text images support empty POINTS2D lines. Output uses binary normalization without ID or time remapping. No per-frame or per-group filename time inference.
+
+Public input port identifiers are now `4d_points`, `4d_cams`, `4d_images`, matching megasam-track@0.4.0. Component tags remain colmap4d-point-cloud / colmap4d-cams / colmap4d-images. The CLI still uses --points/--cams/--images internally; no file layout or assembly behavior changes.

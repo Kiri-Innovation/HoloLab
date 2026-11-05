@@ -26,19 +26,23 @@ docs: 'Three scalar application components, not grouped arrays. Layout: cams/{ca
   at 0.1.5 and is separately available as col4d/colmap4d-from-xmp-photos@0.1.0. No
   STG changes or training are performed.
 
+
+  Input port identifiers are 4d_points, 4d_cams and 4d_images, matching the MegaSAM
+  outputs. Types and on-disk format are unchanged.
+
   '
 inputs:
-  points:
+  4d_points:
     tags:
     - colmap4d-point-cloud
     arrayed: false
     storage: dir
-  cams:
+  4d_cams:
     tags:
     - colmap4d-cams
     arrayed: false
     storage: dir
-  images:
+  4d_images:
     tags:
     - colmap4d-images
     arrayed: false
@@ -61,8 +65,8 @@ runtime:
     mem_gb: 8.0
 exec:
   shell: "set -euo pipefail\npython \"{{ pack_dir }}/merge_colmap4d.py\" \\\n  --points\
-    \ \"{{ inputs.points }}\" \\\n  --images \"{{ inputs.images }}\" \\\n  --cams\
-    \ \"{{ inputs.cams }}\" \\\n  --output \"{{ outputs.model }}\"\n"
+    \ \"{{ inputs['4d_points'] }}\" \\\n  --images \"{{ inputs['4d_images'] }}\" \\\
+    \n  --cams \"{{ inputs['4d_cams'] }}\" \\\n  --output \"{{ outputs.model }}\"\n"
 idempotency:
   marker: '{{ outputs.model }}/.hololab-done'
 progress:

@@ -28,13 +28,31 @@ docs: 'Standardizes MegaSAM camera trajectories and per-frame point clouds into 
   inference. Rotation metadata is not applied. Scratch retains native products for
   diagnosis and can exceed 40 GB for long clips.
 
+
+  Input frames accepts video-source OR array[frame]<image>. For videos, timestamp_mode
+  and fps_num/fps_den are unchanged. For image arrays, exposure_metadata_path takes
+  precedence (same exposure-center records, bound by frames_sha256); otherwise use
+  complete HoloLab XMP exposure times, otherwise require explicit frames_fps for synthetic_uniform.
+  Invalid/partial metadata is an error, not a fallback. timestamp_mode/fps_num/fps_den
+  do not select array timing. Frames sort by element filename before skip/cap. See
+  README.md for the deterministic array identity and color rules. Outputs are named
+  4d_cams, 4d_points, 4d_images; component tags are unchanged.
+
   '
 inputs:
-  video:
-    tags:
-    - video-source
-    storage: dir
-    arrayed: false
+  frames:
+    description: One video-source or a flat frame-labelled image array.
+    any_of:
+    - tags:
+      - video-source
+      arrayed: false
+      storage: dir
+    - tags:
+      - image
+      arrayed: true
+      dim_labels:
+      - frame
+      storage: dir
 params:
   megasam_repo:
     type: path
@@ -100,18 +118,25 @@ params:
     min: 1
     description: Positive rational frame-rate component; required only for synthetic_uniform,
       never inferred.
+  frames_fps:
+    type: float
+    optional: true
+    min: 1.0e-06
+    description: 'Image-array input only: explicitly supplied FPS when neither exposure_metadata_path
+      nor image XMP supplies exposure centers. No default; timestamps use original
+      sorted frame indexes.'
 outputs:
-  cams:
+  4d_cams:
     tags:
     - colmap4d-cams
     storage: dir
     arrayed: false
-  points:
+  4d_points:
     tags:
     - colmap4d-point-cloud
     storage: dir
     arrayed: false
-  images:
+  4d_images:
     tags:
     - colmap4d-images
     storage: dir
