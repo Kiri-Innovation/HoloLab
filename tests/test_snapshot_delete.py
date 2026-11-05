@@ -406,3 +406,144 @@ def test_delete_nulls_children_parent_pointer(tmp_path: Path) -> None:
             return row.parent_snapshot_id if row is not None else "MISSING"
 
         assert client.portal.call(_read_child) is None
+
+
+# ---------------------------------------------------------------------------
+# Storage removed outside HoloLab: a known state, never a 404/500
+# ---------------------------------------------------------------------------
+
+
+def _node_where_storage_is_gone(client: TestClient) -> list[dict[str, Any]]:
+    """Fake node whose disk no longer holds the artifact: liveness says
+    ``dead`` and a delete is a successful no-op reporting ``already_missing``."""
+
+    recorded = _fake_online_node(client)
+    session = client.app.state.registry._sessions["node-a"]
+    plain_send = session.ws.send_text.side_effect
+
+    async def _send(text: str) -> None:
+        import json
+
+        frame = json.loads(text)
+        payload = frame.get("payload") or {}
+        if frame.get("kind") == "handle_check_req":
+            recorded.append(frame)
+            fut = client.app.state.pending_handle_checks.get(payload["req_id"])
+            if fut is not None and not fut.done():
+                fut.set_result(
+                    {
+                        "req_id": payload["req_id"],
+                        "results": [
+                            {"handle_id": h["handle_id"], "state": "dead"}
+                            for h in payload["handles"]
+                        ],
+                    }
+                )
+            return
+        if frame.get("kind") == "artifact_delete_req":
+            recorded.append(frame)
+            fut = client.app.state.pending_artifact_deletes.get(payload["req_id"])
+            if fut is not None and not fut.done():
+                fut.set_result(
+                    {
+                        "req_id": payload["req_id"],
+                        "ok": True,
+                        "freed_bytes": 0,
+                        "already_missing": True,
+                    }
+                )
+            return
+        await plain_send(text)
+
+    session.ws.send_text = AsyncMock(side_effect=_send)
+    return recorded
+
+
+def test_preview_counts_externally_removed_storage_as_missing(tmp_path: Path) -> None:
+    app = create_app(db_path=tmp_path / "missing-preview.sqlite")
+    with TestClient(app) as client:
+        _node_where_storage_is_gone(client)
+        snap_a, snap_b, _ = _seed_shared_artifact(client, "dddddddd-dddd-dddd-dddd-dddddddddddd")
+        assert client.delete(f"/api/snapshots/{snap_a}").status_code == 200
+
+        r = client.get(f"/api/snapshots/{snap_b}/deletion-preview")
+        assert r.status_code == 200, r.text
+        artifacts = r.json()["artifacts"]
+        assert artifacts["exclusive_count"] == 1
+        assert artifacts["exclusive_bytes"] == 1024  # registered size, unchanged meaning
+        assert artifacts["missing_count"] == 1
+        assert artifacts["reclaimable_bytes"] == 0
+
+
+def test_preview_liveness_unknown_when_node_offline(tmp_path: Path) -> None:
+    """Unknown is not missing: no node to ask means null, not 0 and not an error."""
+
+    app = create_app(db_path=tmp_path / "missing-offline.sqlite")
+    with TestClient(app) as client:
+        _fake_online_node(client)
+        snap_a, snap_b, _ = _seed_shared_artifact(client, "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+        assert client.delete(f"/api/snapshots/{snap_a}").status_code == 200
+        client.app.state.registry._sessions.pop("node-a")
+
+        r = client.get(f"/api/snapshots/{snap_b}/deletion-preview")
+        assert r.status_code == 200, r.text
+        artifacts = r.json()["artifacts"]
+        assert artifacts["exclusive_count"] == 1
+        assert artifacts["missing_count"] is None
+        assert artifacts["reclaimable_bytes"] is None
+
+
+def test_delete_run_whose_storage_was_removed_externally(tmp_path: Path) -> None:
+    """The user removed the workspace by hand; deleting the run still succeeds
+    and tombstones the records, reporting nothing as removed from disk."""
+
+    app = create_app(db_path=tmp_path / "missing-delete.sqlite")
+    with TestClient(app) as client:
+        recorded = _node_where_storage_is_gone(client)
+        snap_a, snap_b, handle_id = _seed_shared_artifact(
+            client, "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        )
+        assert client.delete(f"/api/snapshots/{snap_a}").status_code == 200
+
+        r = client.delete(f"/api/snapshots/{snap_b}")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["state"] == "deleted"
+        assert body["artifacts_removed_from_disk"] == 0
+        assert body["artifacts_tombstoned_only"] == 1
+        assert body["freed_bytes"] == 0
+        assert body["jobs_removed"] == 1
+        assert [f["kind"] for f in recorded].count("artifact_delete_req") == 1
+        assert client.get(f"/api/handles/{handle_id}").json()["deleted_ts"] is not None
+        assert client.get(f"/api/snapshots/{snap_b}/deletion-preview").status_code == 404
+        assert client.delete(f"/api/snapshots/{snap_b}").json()["state"] == "gone"
+
+
+def test_node_delete_reports_already_missing(tmp_path: Path) -> None:
+    """The real node handler: a missing path is a successful no-op flagged
+    ``already_missing``; an existing one is removed and not flagged."""
+
+    import asyncio
+
+    from hololab.node.config import NodeConfig
+    from hololab.node.runtime import NodeRuntime
+    from hololab.protocol.messages import ArtifactDeleteReq
+
+    root = tmp_path / "ws"
+    present = root / "w" / "x" / "j" / "y" / "out"
+    present.mkdir(parents=True)
+    (present / "a.png").write_bytes(b"12345")
+    node = NodeRuntime(NodeConfig(workspace_root=root))
+    node._send = AsyncMock()
+
+    def reply(path: Path) -> Any:
+        node._send.reset_mock()
+        req = ArtifactDeleteReq(req_id="r", handle_id="h", path=str(path), storage="dir")
+        asyncio.run(node._handle_artifact_delete_req(req))
+        return node._send.call_args.args[1]
+
+    gone = reply(root / "w" / "removed-by-hand" / "out")
+    assert gone.ok and gone.already_missing and not gone.freed_bytes
+    removed = reply(present)
+    assert removed.ok and not removed.already_missing and removed.freed_bytes == 5
+    assert not present.exists()

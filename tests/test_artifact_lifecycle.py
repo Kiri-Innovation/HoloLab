@@ -171,7 +171,9 @@ def test_parent_only_inheritance_preserves_80_real_files_and_links_then_reclaims
 
     old, new, leaves, links = s.run(seed)
     preview = s.preview(old)
-    assert preview["artifacts"] == {"exclusive_count": 0, "shared_count": 1, "exclusive_bytes": 0}
+    counts = {k: preview["artifacts"][k] for k in ("exclusive_count", "shared_count", "exclusive_bytes")}
+    assert counts == {"exclusive_count": 0, "shared_count": 1, "exclusive_bytes": 0}
+    assert preview["artifacts"]["missing_count"] == 0  # nothing exclusive to check
     assert preview["jobs"]["shared_count"] == 81
     result = s.delete(old)
     assert result.status_code == 200, result.text

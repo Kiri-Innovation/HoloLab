@@ -869,6 +869,21 @@ class SnapshotDeletionArtifactCounts(BaseModel):
     exclusive_bytes: int = Field(
         description="Sum of registered ``size_bytes`` for the exclusive set."
     )
+    missing_count: int | None = Field(
+        default=None,
+        description=(
+            "Storage roots in the exclusive set already gone from disk (removed "
+            "outside HoloLab). Deleting the run only tombstones their records. "
+            "Null when the producing node could not be asked (unknown)."
+        ),
+    )
+    reclaimable_bytes: int | None = Field(
+        default=None,
+        description=(
+            "``exclusive_bytes`` minus the registered size of missing storage. "
+            "Null when liveness is unknown."
+        ),
+    )
 
 
 class SnapshotDeletionJobCounts(BaseModel):

@@ -627,6 +627,9 @@ class ArtifactDeleteResp(BaseModel):
     freed_bytes: int | None = None
     # Populated on failure. UI surfaces this inline on the row.
     error: str | None = None
+    # True when nothing existed at the path (removed outside HoloLab): the
+    # delete succeeded as a no-op and only the records are tombstoned.
+    already_missing: bool = False
 
 
 # ---------------------------------------------------------------------------

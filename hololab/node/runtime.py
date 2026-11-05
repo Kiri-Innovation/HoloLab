@@ -1846,6 +1846,7 @@ class NodeRuntime:
         # Compute freed bytes best-effort BEFORE the rm so the response
         # can tell the UI how much disk it clawed back. Reuses the
         # dir-size walker the executor already uses for handle sizes.
+        already_missing = not os.path.lexists(target)
         freed = _dir_size_bytes(target) if target.exists() else 0
 
         try:
@@ -1877,6 +1878,7 @@ class NodeRuntime:
                 ok=True,
                 freed_bytes=freed,
                 error=None,
+                already_missing=already_missing,
             ),
         )
 

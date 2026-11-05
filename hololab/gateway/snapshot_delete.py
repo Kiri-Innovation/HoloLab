@@ -3,6 +3,11 @@
 Snapshot membership protects the whole recorded parent/shard/reuse family.
 Transitive producer inputs and overlapping address records protect storage too:
 zero direct references to a producing job is insufficient permission to rm.
+
+Storage that disappeared outside HoloLab (e.g. a workspace removed by hand) is a
+known state, not an error: the preview asks the node and counts it as missing,
+and deleting the run tombstones its records (the node reports the path was
+already gone) instead of failing.
 """
 
 from __future__ import annotations
@@ -18,6 +23,9 @@ from hololab.gateway.handles import Handle
 from hololab.logging import get_logger
 
 log = get_logger("gateway.snapshot_delete")
+
+# The preview is interactive; a node answers a stat batch in milliseconds.
+PREVIEW_LIVENESS_TIMEOUT_S = 3.0
 
 
 @dataclass
@@ -85,7 +93,31 @@ async def compute_impact(app: FastAPI, snapshot_id: str) -> DeletionImpact | Non
     )
 
 
-def impact_to_json(impact: DeletionImpact) -> dict[str, Any]:
+async def missing_artifacts(
+    app: FastAPI, handles: list[Handle], *, timeout_s: float = PREVIEW_LIVENESS_TIMEOUT_S
+) -> set[str] | None:
+    """Handle ids whose storage is already gone on the producing node.
+
+    One batched liveness check per node. ``None`` means unknown (a node is
+    offline or did not answer); unknown is not reported as missing.
+    """
+    by_node: dict[str, list[Handle]] = {}
+    for h in handles:
+        if h.deleted_ts is None:
+            by_node.setdefault(h.node_id, []).append(h)
+    missing: set[str] = set()
+    for node_id, group in by_node.items():
+        session = app.state.registry.get_session(node_id)
+        live = await art.check_handles_live(app, session, group, timeout_s=timeout_s)
+        if any(h.handle_id not in live for h in group):
+            return None
+        missing.update(hid for hid, row in live.items() if row.get("state") == "dead")
+    return missing
+
+
+def impact_to_json(impact: DeletionImpact, missing: set[str] | None = None) -> dict[str, Any]:
+    known = missing is not None
+    gone = [h for h in impact.physical_artifacts if known and h.handle_id in missing]
     return {
         "snapshot_id": impact.snapshot_id,
         "workflow_id": impact.workflow_id,
@@ -96,6 +128,12 @@ def impact_to_json(impact: DeletionImpact) -> dict[str, Any]:
             "exclusive_count": impact.exclusive_artifact_count,
             "shared_count": impact.shared_artifact_count,
             "exclusive_bytes": impact.exclusive_bytes,
+            "missing_count": len(gone) if known else None,
+            "reclaimable_bytes": (
+                impact.exclusive_bytes - sum(int(h.size_bytes or 0) for h in gone)
+                if known
+                else None
+            ),
         },
         "jobs": {
             "exclusive_count": len(impact.exclusive_job_ids),
@@ -126,12 +164,25 @@ async def delete_snapshot(app: FastAPI, snapshot_id: str) -> dict[str, Any]:
             await claim_cleanup(app.state.db, impact.physical_artifacts, snapshot_id=snapshot_id)
         freed_bytes = 0
         physically_deleted = 0
+        tombstoned_only = 0
         for handle in impact.physical_artifacts:
             session = app.state.registry.get_session(handle.node_id)
             # A failure keeps the snapshot and family rows for retry. Already
             # acknowledged roots are tombstoned and skipped on the next plan.
             resp = await art.delete_artifact(app, session, handle, excluding_snapshot=snapshot_id)
             freed_bytes += int(resp.get("freed_bytes") or 0)
+            # Storage already gone is still tombstoned through the node (a
+            # no-op there), but reported as such, not as removed from disk.
+            if resp.get("already_missing"):
+                tombstoned_only += 1
+                log.info(
+                    "artifact already missing; record tombstoned",
+                    snapshot_id=snapshot_id,
+                    handle_id=handle.handle_id,
+                    node_id=handle.node_id,
+                    path=handle.path,
+                )
+                continue
             physically_deleted += 1
             log.info(
                 "artifact physically deleted",
@@ -167,7 +218,7 @@ async def delete_snapshot(app: FastAPI, snapshot_id: str) -> dict[str, Any]:
             "jobs_removed": len(impact.exclusive_job_ids),
             "jobs_kept_shared": len(impact.shared_job_ids),
             "artifacts_removed_from_disk": physically_deleted,
-            "artifacts_tombstoned_only": 0,
+            "artifacts_tombstoned_only": tombstoned_only,
             "artifacts_kept_shared": impact.shared_artifact_count,
             "freed_bytes": freed_bytes,
             "artifact_tombstone_notes": [],

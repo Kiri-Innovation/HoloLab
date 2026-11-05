@@ -377,6 +377,13 @@ function RunListView({
         prev?.snapshotId === snapshotId ? { ...prev, preview, loading: false } : prev,
       );
     } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        // Already deleted (another tab or an earlier click): nothing left to
+        // confirm. Same outcome as DELETE answering ``gone`` — refresh the list.
+        setConfirm((prev) => (prev?.snapshotId === snapshotId ? null : prev));
+        onDeleted(snapshotId);
+        return;
+      }
       const msg = e instanceof ApiError ? `HTTP ${e.status}` : (e as Error).message;
       setConfirm((prev) =>
         prev?.snapshotId === snapshotId
@@ -384,7 +391,7 @@ function RunListView({
           : prev,
       );
     }
-  }, []);
+  }, [onDeleted]);
 
   const runDelete = useCallback(async () => {
     if (!confirm) return;
@@ -1433,6 +1440,16 @@ function formatBytes(n: number): string {
   return `${(mb / 1024).toFixed(2)} GB`;
 }
 
+function deleteHint(preview: SnapshotDeletionPreview): string {
+  const { exclusive_bytes, missing_count, reclaimable_bytes } = preview.artifacts;
+  if (missing_count) {
+    // Storage removed outside HoloLab: deleting only clears the records.
+    const left = reclaimable_bytes ?? 0;
+    return `其中 ${missing_count} 个已不在磁盘上，只清记录；实际可回收 ${left > 0 ? formatBytes(left) : "0 B"}`;
+  }
+  return exclusive_bytes > 0 ? `约 ${formatBytes(exclusive_bytes)}` : "0 B";
+}
+
 function deleteErrorMessage(e: unknown): string {
   let message = e instanceof ApiError ? `HTTP ${e.status}` : (e as Error).message;
   if (e instanceof ApiError && typeof e.detail === "object" && e.detail !== null) {
@@ -1593,7 +1610,7 @@ function DeleteConfirmModal({
                   <ImpactRow
                     label="将从磁盘删除"
                     value={String(preview.artifacts.exclusive_count)}
-                    hint={preview.artifacts.exclusive_bytes > 0 ? `约 ${formatBytes(preview.artifacts.exclusive_bytes)}` : "0 B"}
+                    hint={deleteHint(preview)}
                     accent="var(--error, #e05a5a)"
                   />
                   <ImpactRow

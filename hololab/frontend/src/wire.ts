@@ -792,6 +792,10 @@ export interface SnapshotDeletionPreview {
     exclusive_count: number;
     shared_count: number;
     exclusive_bytes: number;
+    // Exclusive storage already gone from disk (removed outside HoloLab);
+    // deleting only tombstones it. Null/absent = node not asked (unknown).
+    missing_count?: number | null;
+    reclaimable_bytes?: number | null;
   };
   jobs: { exclusive_count: number; shared_count: number };
 }

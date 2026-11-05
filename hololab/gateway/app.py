@@ -3091,12 +3091,16 @@ def _mount_routes(app: FastAPI) -> None:
         ),
     )
     async def snapshot_deletion_preview(snapshot_id: str) -> dict[str, Any]:
-        from hololab.gateway.snapshot_delete import compute_impact, impact_to_json
+        from hololab.gateway.snapshot_delete import (
+            compute_impact,
+            impact_to_json,
+            missing_artifacts,
+        )
 
         impact = await compute_impact(app, snapshot_id)
         if impact is None:
             raise HTTPException(status_code=404, detail="snapshot not found")
-        return impact_to_json(impact)
+        return impact_to_json(impact, await missing_artifacts(app, impact.physical_artifacts))
 
     @app.delete(
         "/api/snapshots/{snapshot_id}",
