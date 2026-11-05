@@ -15,6 +15,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from hololab.manifest.array_views import TypeCapability, reject_port_capabilities
 from hololab.manifest.requirements import Requirements
 from hololab.package_identity import validate_name, validate_version
 
@@ -96,6 +97,11 @@ class InputSpec(BaseModel):
     its own collection layers. ``any`` is an explicitly unconstrained leaf.
     Existing ``type`` / ``optional`` legacy fields remain ignored.
     """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_misplaced_array_capability(cls, value):
+        return reject_port_capabilities(value)
 
     model_config = ConfigDict(extra="ignore")
 
@@ -207,6 +213,11 @@ class OutputSpec(BaseModel):
     what the caller wires in. Cyclic references are rejected at
     validation time.
     """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_misplaced_array_capability(cls, value):
+        return reject_port_capabilities(value)
 
     model_config = ConfigDict(extra="ignore")
 
@@ -691,6 +702,24 @@ class Manifest(BaseModel):
     # not runtime constraints. None leaves the framework default of 1.
     parallelism: int | None = Field(default=None, ge=1)
     batch_size: int | None = Field(default=None, ge=1)
+
+    type_capabilities: dict[str, TypeCapability] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_misplaced_array_hooks(cls, value):
+        if isinstance(value, dict):
+            bad = {"array_views", "array_view", "to_array", "from_array", "array_ops"} & value.keys()
+            if bad:
+                raise ValueError("array hooks must be declared under type_capabilities")
+        return value
+
+    @field_validator("type_capabilities")
+    @classmethod
+    def _capability_tags(cls, value):
+        if any(not tag or tag.strip() != tag for tag in value):
+            raise ValueError("type capabilities require nonempty tags")
+        return value
 
     inputs: dict[str, InputSpec] = Field(default_factory=dict)
     outputs: dict[str, OutputSpec]
