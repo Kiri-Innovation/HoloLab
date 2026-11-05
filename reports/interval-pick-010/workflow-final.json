@@ -1,0 +1,661 @@
+{
+  "recipe_issues": [],
+  "workflow_id": "83b7948a-c12b-4e03-85fb-277c6c8f9627",
+  "name": "Interval Pick 0.1.0 verification",
+  "graph": {
+    "recipe_dependencies": [
+      {
+        "name": "builtin/frame-extraction",
+        "version": "0.1.1",
+        "hash": null,
+        "root": ".",
+        "packignore": ".packignore",
+        "requires": {
+          "packages": [
+            "ffmpeg"
+          ]
+        }
+      },
+      {
+        "name": "builtin/interval-pick",
+        "version": "0.1.0",
+        "hash": null,
+        "root": ".",
+        "packignore": ".packignore",
+        "requires": {}
+      },
+      {
+        "name": "builtin/single-video-source",
+        "version": "0.1.0",
+        "hash": null,
+        "root": ".",
+        "packignore": ".packignore",
+        "requires": {}
+      }
+    ],
+    "variables": {},
+    "variable_values": {},
+    "pinned_params": {},
+    "nodes": [
+      {
+        "local_params": [
+          "video_path"
+        ],
+        "param_bindings": {},
+        "operation": null,
+        "assembly": null,
+        "id": "nmw36g64g1",
+        "kind": "algorithm",
+        "algorithm_name": "builtin/single-video-source",
+        "algorithm_version": "0.1.0",
+        "view_type": null,
+        "title": null,
+        "position": {
+          "x": 229.04254782552988,
+          "y": 314.91149047371874
+        },
+        "params": {
+          "video_path": "/cloud/cloud-ssd1/Kiri4DGS/data/kiridog2/kiridog2_81f.mp4"
+        },
+        "port_values": {},
+        "assigned_node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "arrayed_toggle": false,
+        "parallelism": 1,
+        "batch_size": 1,
+        "preview_open": "videos_dir",
+        "resolved_outputs": {
+          "videos_dir": {
+            "tags": [
+              "video-source"
+            ],
+            "arrayed": false,
+            "dim_labels": []
+          }
+        },
+        "port_types": {
+          "schemaVersion": 1,
+          "inputs": {},
+          "outputs": {
+            "videos_dir": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "video-source"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": false,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": null,
+                "dim_labels_from": null,
+                "dim_labels_from_input": null,
+                "dim_labels_drop_outer": 0,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                },
+                "aggregate": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            }
+          }
+        },
+        "latest_run": {
+          "job_id": "1982debc-19e5-4068-9409-a2fbba314e67",
+          "snapshot_id": "6ab1c42c-4bfd-4fd5-a871-e7d6ded294c3",
+          "snapshot_created_ts": 1793906237.1690269,
+          "state": "done",
+          "fail_reason": null,
+          "algorithm_name": "builtin/single-video-source",
+          "algorithm_version": "0.1.0",
+          "job_created_ts": 1793906237.1837358,
+          "output_handles": {
+            "videos_dir": {
+              "runtime_shape": {
+                "handleId": "2c2c6a38-739f-43f2-8a68-b0be5e6caedc",
+                "tags": {
+                  "evidence": {
+                    "status": "complete",
+                    "value": [
+                      "video-source"
+                    ],
+                    "source": "registered-handle-metadata"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "shape-not-measured"
+                  }
+                },
+                "internalCounts": [],
+                "schemaVersion": 1
+              },
+              "handle_id": "2c2c6a38-739f-43f2-8a68-b0be5e6caedc",
+              "tags": [
+                "video-source"
+              ],
+              "dim_labels": [],
+              "dim_sizes": null,
+              "element_count": null,
+              "internal_count": null,
+              "internal_count_kind": null,
+              "internal_count_items": null,
+              "deleted": false
+            }
+          }
+        }
+      },
+      {
+        "local_params": [],
+        "param_bindings": {},
+        "operation": null,
+        "assembly": null,
+        "id": "nmw36u2ji2",
+        "kind": "algorithm",
+        "algorithm_name": "builtin/frame-extraction",
+        "algorithm_version": "0.1.1",
+        "view_type": null,
+        "title": null,
+        "position": {
+          "x": 610.0247501975235,
+          "y": 318.1226158941555
+        },
+        "params": {
+          "decode_threads": 1,
+          "encode_threads": 2,
+          "filter_threads": 1,
+          "png_compression": 1,
+          "png_predictor": "sub",
+          "max_frames": 1000,
+          "skip": 1,
+          "max_width": 0,
+          "start_frame": 0,
+          "end_frame": 0
+        },
+        "port_values": {},
+        "assigned_node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "arrayed_toggle": false,
+        "parallelism": 1,
+        "batch_size": 1,
+        "preview_open": "frame_sequence",
+        "resolved_outputs": {
+          "frame_sequence": {
+            "tags": [
+              "image"
+            ],
+            "arrayed": true,
+            "dim_labels": [
+              "frame"
+            ]
+          }
+        },
+        "port_types": {
+          "schemaVersion": 1,
+          "inputs": {
+            "video_dir": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "video-source"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": false,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": null,
+                "dim_labels_from": null,
+                "dim_labels_from_input": null,
+                "dim_labels_drop_outer": null,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                },
+                "aggregate": {
+                  "kind": "object",
+                  "tags": [
+                    "video-source"
+                  ],
+                  "contentAxes": []
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            }
+          },
+          "outputs": {
+            "frame_sequence": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "image"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": true,
+                "scalar": false,
+                "dim_labels": [
+                  "frame"
+                ],
+                "tags_from": null,
+                "dim_labels_from": null,
+                "dim_labels_from_input": null,
+                "dim_labels_drop_outer": 0,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "array",
+                  "axis": {
+                    "label": "frame"
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "image"
+                    ],
+                    "contentAxes": []
+                  }
+                },
+                "aggregate": {
+                  "kind": "array",
+                  "axis": {
+                    "label": "frame"
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "image"
+                    ],
+                    "contentAxes": []
+                  }
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            }
+          }
+        },
+        "latest_run": {
+          "job_id": "f42b494a-1e43-4c99-865e-9cba5db5686a",
+          "snapshot_id": "6ab1c42c-4bfd-4fd5-a871-e7d6ded294c3",
+          "snapshot_created_ts": 1793906237.1690269,
+          "state": "done",
+          "fail_reason": null,
+          "algorithm_name": "builtin/frame-extraction",
+          "algorithm_version": "0.1.1",
+          "job_created_ts": 1793906237.51253,
+          "output_handles": {
+            "frame_sequence": {
+              "runtime_shape": {
+                "handleId": "c63c50ad-3339-40b5-abd6-dbeb00a7ad4d",
+                "tags": {
+                  "evidence": {
+                    "status": "complete",
+                    "value": [
+                      "image"
+                    ],
+                    "source": "registered-handle-metadata"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "complete",
+                    "value": [
+                      {
+                        "label": "frame",
+                        "role": "collection",
+                        "size": {
+                          "evidence": {
+                            "status": "complete",
+                            "value": 81,
+                            "source": "directory-tree-scan"
+                          }
+                        }
+                      }
+                    ],
+                    "source": "handle-shape-probe"
+                  }
+                },
+                "internalCounts": [],
+                "schemaVersion": 1
+              },
+              "handle_id": "c63c50ad-3339-40b5-abd6-dbeb00a7ad4d",
+              "tags": [
+                "image"
+              ],
+              "dim_labels": [
+                "frame"
+              ],
+              "dim_sizes": [
+                81
+              ],
+              "element_count": 81,
+              "internal_count": null,
+              "internal_count_kind": null,
+              "internal_count_items": null,
+              "deleted": false
+            }
+          }
+        }
+      },
+      {
+        "local_params": [],
+        "param_bindings": {},
+        "operation": null,
+        "assembly": null,
+        "id": "pick",
+        "kind": "algorithm",
+        "algorithm_name": "builtin/interval-pick",
+        "algorithm_version": "0.1.0",
+        "view_type": null,
+        "title": null,
+        "position": {
+          "x": 1100.0,
+          "y": 270.0
+        },
+        "params": {
+          "interval": 3,
+          "start": 1
+        },
+        "port_values": {},
+        "assigned_node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "arrayed_toggle": false,
+        "parallelism": 1,
+        "batch_size": 1,
+        "preview_open": null,
+        "resolved_outputs": {
+          "out": {
+            "tags": [
+              "image"
+            ],
+            "arrayed": true,
+            "dim_labels": [
+              "frame"
+            ]
+          }
+        },
+        "port_types": {
+          "schemaVersion": 1,
+          "inputs": {
+            "in": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "any"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": true,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": null,
+                "dim_labels_from": null,
+                "dim_labels_from_input": null,
+                "dim_labels_drop_outer": null,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "array",
+                  "axis": {
+                    "label": null
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "any"
+                    ],
+                    "contentAxes": []
+                  }
+                },
+                "aggregate": {
+                  "kind": "array",
+                  "axis": {
+                    "label": null
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "any"
+                    ],
+                    "contentAxes": []
+                  }
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            }
+          },
+          "outputs": {
+            "out": {
+              "schemaVersion": 1,
+              "declaration": {
+                "tags": [
+                  "any"
+                ],
+                "require_axis_label_match": true,
+                "arrayed": true,
+                "scalar": false,
+                "dim_labels": [],
+                "tags_from": "in",
+                "dim_labels_from": null,
+                "dim_labels_from_input": "in",
+                "dim_labels_drop_outer": 0,
+                "content_dims_from": null
+              },
+              "views": {
+                "participation": "none",
+                "invocation": {
+                  "kind": "array",
+                  "axis": {
+                    "label": "frame"
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "image"
+                    ],
+                    "contentAxes": []
+                  }
+                },
+                "aggregate": {
+                  "kind": "array",
+                  "axis": {
+                    "label": "frame"
+                  },
+                  "element": {
+                    "kind": "object",
+                    "tags": [
+                      "image"
+                    ],
+                    "contentAxes": []
+                  }
+                }
+              },
+              "runtime": {
+                "handleId": null,
+                "tags": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "unknown",
+                    "reason": "not-measured"
+                  }
+                },
+                "internalCounts": []
+              }
+            }
+          }
+        },
+        "latest_run": {
+          "job_id": "52f88589-1407-4b05-bcf1-3b9650bd9839",
+          "snapshot_id": "6ab1c42c-4bfd-4fd5-a871-e7d6ded294c3",
+          "snapshot_created_ts": 1793906237.1690269,
+          "state": "done",
+          "fail_reason": null,
+          "algorithm_name": "builtin/interval-pick",
+          "algorithm_version": "0.1.0",
+          "job_created_ts": 1793906241.3732576,
+          "output_handles": {
+            "out": {
+              "runtime_shape": {
+                "handleId": "2bd30f7d-63b1-45bc-8f96-cf76a3693781",
+                "tags": {
+                  "evidence": {
+                    "status": "complete",
+                    "value": [
+                      "image"
+                    ],
+                    "source": "registered-handle-metadata"
+                  }
+                },
+                "axes": {
+                  "evidence": {
+                    "status": "complete",
+                    "value": [
+                      {
+                        "label": "frame",
+                        "role": "collection",
+                        "size": {
+                          "evidence": {
+                            "status": "complete",
+                            "value": 27,
+                            "source": "directory-tree-scan"
+                          }
+                        }
+                      }
+                    ],
+                    "source": "handle-shape-probe"
+                  }
+                },
+                "internalCounts": [],
+                "schemaVersion": 1
+              },
+              "handle_id": "2bd30f7d-63b1-45bc-8f96-cf76a3693781",
+              "tags": [
+                "image"
+              ],
+              "dim_labels": [
+                "frame"
+              ],
+              "dim_sizes": [
+                27
+              ],
+              "element_count": 27,
+              "internal_count": null,
+              "internal_count_kind": null,
+              "internal_count_items": null,
+              "deleted": false
+            }
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "emw36u4253",
+        "source": "nmw36g64g1",
+        "sourceHandle": "videos_dir",
+        "target": "nmw36u2ji2",
+        "targetHandle": "video_dir",
+        "source_label": "builtin/single-video-source",
+        "target_label": "builtin/frame-extraction"
+      },
+      {
+        "id": "pick-input",
+        "source": "nmw36u2ji2",
+        "sourceHandle": "frame_sequence",
+        "target": "pick",
+        "targetHandle": "in",
+        "source_label": "builtin/frame-extraction",
+        "target_label": "builtin/interval-pick"
+      }
+    ],
+    "is_dag": true,
+    "topology_text": "builtin/single-video-source[videos_dir]\n  \u2192 builtin/frame-extraction[video_dir \u2192 frame_sequence]\n  \u2192 builtin/interval-pick[in]"
+  },
+  "created_ts": 1793906161.6958048,
+  "updated_ts": 1793906286.2459888
+}

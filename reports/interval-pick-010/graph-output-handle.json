@@ -1,0 +1,23 @@
+{
+  "handle_id": "2bd30f7d-63b1-45bc-8f96-cf76a3693781",
+  "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+  "storage": "dir",
+  "tags": [
+    "image"
+  ],
+  "size_bytes": 54099953,
+  "output_port_name": "out",
+  "proxy_url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/83b7948a-c12b-4e03-85fb-277c6c8f9627/j/52f88589-1407-4b05-bcf1-3b9650bd9839/out",
+  "absolute_path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/83b7948a-c12b-4e03-85fb-277c6c8f9627/j/52f88589-1407-4b05-bcf1-3b9650bd9839/out",
+  "deleted_ts": null,
+  "preview": {
+    "viewer": "image",
+    "member": null
+  },
+  "dim_labels": [
+    "frame"
+  ],
+  "dim_sizes": [
+    27
+  ]
+}

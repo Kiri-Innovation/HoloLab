@@ -1,0 +1,12 @@
+{
+  "algorithm_name": "builtin/interval-pick",
+  "algorithm_version": "0.1.0",
+  "params": {
+    "interval": 3,
+    "start": 1
+  },
+  "input_handles": {
+    "in": "58d9a0f1-3ca7-4180-abe7-9e6266351d8f"
+  },
+  "workflow_id": "83b7948a-c12b-4e03-85fb-277c6c8f9627"
+}

@@ -120,6 +120,13 @@
       "manifest": "images-array-source@0.1.1/manifest.yaml",
       "code_sha256": "9c82c0b4bbe4f6c12d50b5f329517668c9c26ff67d7b0178f1f9591eee2e17d2",
       "identity_format": 2
+    },
+    {
+      "name": "builtin/interval-pick",
+      "version": "0.1.0",
+      "manifest": "interval-pick@0.1.0/manifest.yaml",
+      "code_sha256": "d5370f3c01629a4768da3bcf0185a94145c5272db06a35e2d9678e236fc7145e",
+      "identity_format": 2
     }
   ]
 }

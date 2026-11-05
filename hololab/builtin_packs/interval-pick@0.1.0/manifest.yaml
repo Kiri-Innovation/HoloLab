@@ -1,0 +1,45 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: builtin/interval-pick
+version: 0.1.0
+description: Pick every Nth element by zero-based index along an array's outer axis.
+category: basic/array/interval-pick
+requires: {}
+inputs:
+  in:
+    tags: [any]
+    arrayed: true
+    description: A materialized array directory of any element type; selects the outer axis.
+params:
+  interval:
+    type: int
+    default: 2
+    min: 1
+    description: Index stride, not time. 2 selects indexes 0, 2, 4, ... when start is 0.
+  start:
+    type: int
+    default: 0
+    min: 0
+    description: Zero-based starting index. A start beyond the array produces an empty array.
+outputs:
+  out:
+    tags: [any]
+    arrayed: true
+    tags_from: in
+    dim_labels_from_input: in
+    dim_labels_drop_outer: 0
+runtime:
+  mode: host
+  gpu:
+    required: false
+exec:
+  python: interval_pick.py
+  args: ["--input", "{{ inputs.in }}", "--output", "{{ outputs.out }}", "--interval", "{{ params.interval }}", "--start", "{{ params.start }}"]
+docs: >-
+  Select positions start, start+interval, ... from visible outer entries ordered
+  by basename bytes. No timestamps, FPS, frame-name parsing or content decoding.
+  Tags and all axis names are inherited; inner arrays are untouched.
+  Preserves selected entry names and links to resolved source elements, like slice.
+  Output is a real directory, not an array view. Sources must remain available.
+  Empty input or start >= N yields an empty output. Output must be empty and must
+  not overlap input. Uses only the Python standard library in the node host runtime.

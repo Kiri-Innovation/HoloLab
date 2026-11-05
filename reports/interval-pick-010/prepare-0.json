@@ -1,0 +1,6 @@
+{
+  "status": 422,
+  "body": {
+    "detail": "parameter 'interval': must be >= 1, got 0"
+  }
+}

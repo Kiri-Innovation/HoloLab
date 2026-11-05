@@ -1,0 +1,53 @@
+{
+  "name": "builtin/interval-pick",
+  "version": "0.1.0",
+  "manifest_hash": "edd1c333d6f0063d43729e4fead1b487cc1deacca30374b5feb8b3c1a48ca46e",
+  "code_sha256": "d5370f3c01629a4768da3bcf0185a94145c5272db06a35e2d9678e236fc7145e",
+  "origin": "bundled",
+  "runtime": {
+    "mode": "host",
+    "env": null,
+    "gpu": {
+      "required": false,
+      "vram_gb_min": null
+    },
+    "exclusive": false,
+    "expected_duration_min": null,
+    "resources": {
+      "scratch_gb": null,
+      "mem_gb": null,
+      "gpu_mem_gb": null
+    }
+  },
+  "input": {
+    "tags": [
+      "any"
+    ],
+    "required": true,
+    "inline": null,
+    "inline_default": null,
+    "require_axis_label_match": true,
+    "storage": "dir",
+    "description": "A materialized array directory of any element type; selects the outer axis.",
+    "arrayed": true,
+    "scalar": false,
+    "dim_labels": [],
+    "content_dims_from": null,
+    "any_of": []
+  },
+  "output": {
+    "tags": [
+      "any"
+    ],
+    "storage": "dir",
+    "description": null,
+    "preview": null,
+    "arrayed": true,
+    "scalar": false,
+    "tags_from": "in",
+    "dim_labels": [],
+    "dim_labels_from": null,
+    "dim_labels_from_input": "in",
+    "dim_labels_drop_outer": 0
+  }
+}
