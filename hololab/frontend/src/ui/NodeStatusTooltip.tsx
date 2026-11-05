@@ -8,11 +8,13 @@ export function NodeStatusDot({ status, state }: { status: NodeStatusPresentatio
       aria-label={text} data-hl-node-status={state || "idle"} data-status-tone={status.tone}
       data-tooltip={text} data-tooltip-status={status.conclusion}
       data-tooltip-reason={status.reason} data-tooltip-action={status.action}>
-      <JobStateMarker
-        state={state}
-        fallbackColour={`var(--${status.tone})`}
-        className="hl-node-status-dot"
-      />
+      {status.marker === "environment-missing"
+        ? <span className="hl-node-status-environment-missing" aria-hidden="true">!</span>
+        : <JobStateMarker
+            state={state}
+            fallbackColour={`var(--${status.tone})`}
+            className="hl-node-status-dot"
+          />}
     </span>
   </span>;
 }

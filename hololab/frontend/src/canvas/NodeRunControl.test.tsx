@@ -29,3 +29,9 @@ it('disables a blocked run immediately without disabling an active stop', () => 
   expect(running).toContain('停止运行（需确认；不是暂停）');
   expect(running).not.toContain('disabled=""');
 });
+it('keeps the environment explanation on a disabled run control', () => {
+  const reason='本地能力检查失败。处理环境问题后重新检查；当前配置不能启动新任务。';
+  const html=renderToStaticMarkup(<NodeRunControl id="node" pending={false} blockedReason={reason} onRun={()=>{}}/>);
+  expect(html).toContain('disabled=""');
+  expect(html).toContain(`data-tooltip="${reason}"`);
+});

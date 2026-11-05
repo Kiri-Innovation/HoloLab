@@ -430,7 +430,10 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const missingInputs = inputValueProblems(pack.inputs, (data as AlgorithmNodeData).port_values ?? {}, wiredInputs, arrayedOn);
   const inputProblem = missingInputs.length ? `输入未就绪：${missingInputs.join("、")}。运行会被拒绝，请检查输入来源和值。` : undefined;
   const upstreamProblem = upstreamBlockerByNode?.[id];
-  const runBlockReason = inputProblem ?? upstreamProblem;
+  const environmentProblem = environment?.status === "missing"
+    ? "本地能力检查失败。处理环境问题后重新检查；当前配置不能启动新任务。"
+    : undefined;
+  const runBlockReason = inputProblem ?? upstreamProblem ?? environmentProblem;
   const runState = runtime?.state;
   const previewSelection = useNodePreviewSelection(data as AlgorithmNodeData);
   const { defaultNodeViewer, expandables, currentPreview } = previewSelection;
@@ -536,7 +539,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       <NodeCardHeader id={id} name={pack.name} displayName={packDisplayName?.(pack.name) ?? pack.name} version={pack.version} device={assignedLabel}
         certification={certification}
         subtitle={`${assignedLabel} · v${pack.version}${pack.version.endsWith("+") ? " · dev" : ""}`}
-        state={displayedState} status={nodeStatus({ environment, state: displayedState, stale: staleness, failReason: runtime?.fail_reason, missingAlgorithm: pack.manifest_hash ? null : {name: pack.name, version: pack.version}, missingInputs, readOnly })}
+        state={displayedState} status={nodeStatus({ environment, state: displayedState, stale: staleness, failReason: runtime?.fail_reason, upstreamBlocked: !!upstreamProblem, missingAlgorithm: pack.manifest_hash ? null : {name: pack.name, version: pack.version}, missingInputs, readOnly })}
         actions={!readOnly && <NodeRunControl id={id} pending={runClickPending} state={runState} jobId={runtime?.job_id}
           stale={staleness?.kind === "self_dirty"} blockedReason={runBlockReason} onRun={handleRunClick} />}>
         {runErrorMsg && !runBlockReason && (

@@ -4,6 +4,8 @@ import type { NodeStaleness } from "./staleness";
 export type StatusTone = "neutral" | "info" | "success" | "warning" | "error";
 export interface NodeStatusPresentation {
   tone: StatusTone;
+  /** A readiness warning is deliberately not a job-state dot. */
+  marker?: "environment-missing";
   conclusion: string;
   reason: string;
   action: string;
@@ -18,11 +20,13 @@ export interface NodeStatusInput {
   /** Separate input also defines precedence for defensive/future combinations. */
   drift?: boolean;
   failReason?: string | null;
+  /** A prerequisite has not produced a usable result for this node yet. */
+  upstreamBlocked?: boolean;
   readOnly?: boolean;
 }
 
 /** Presentation only: never mutate runtime, scheduling, or shared job colours. */
-export function nodeStatus({ state, stale, drift = false, failReason, readOnly = false, missingAlgorithm, missingInputs = [], environment }: NodeStatusInput): NodeStatusPresentation {
+export function nodeStatus({ state, stale, drift = false, failReason, upstreamBlocked = false, readOnly = false, missingAlgorithm, missingInputs = [], environment }: NodeStatusInput): NodeStatusPresentation {
   const known = !state || ["loading", "pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted"].includes(state);
   const missingCurrentAlgorithm = !readOnly && !!missingAlgorithm;
   const invalidParameters = !readOnly && stale?.kind === "invalid_params";
@@ -50,6 +54,8 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
     result = { tone: "error", conclusion: "运行中断（未恢复）", reason: "设备重连后未认领任务，或失联超时未恢复；未记录具体原因。", action: "确认设备及残留进程状态后重新运行。" };
   } else if (state === "cancelled") {
     result = { tone: "neutral", conclusion: "已主动停止", reason: "任务收到停止指令，未成功完成；未记录操作者。", action: "如需继续，可以重新运行。" };
+  } else if (upstreamBlocked) {
+    result = { tone: "neutral", conclusion: "等待上游", reason: "上游节点尚未产生可用结果。", action: "先完成上游节点，再运行此节点。" };
   } else if (!state) {
     // Backend staleness deliberately marks an empty slot self_dirty so the
     // rerun planner can find work. That is not a previous result becoming
@@ -83,9 +89,13 @@ export function nodeStatus({ state, stale, drift = false, failReason, readOnly =
   // An unavailable report is evidence we could not obtain, not evidence that
   // the declared environment is missing.  Keep the runtime verdict intact;
   // EnvironmentChecks still exposes the report and offers an explicit retry.
-  if (!readOnly && environment?.status === "missing") {
+  // Only an explicit missing verdict makes the current draft unavailable.
+  // A live run keeps its blue status: the environment warning must not hide
+  // the fact that work is currently executing.  Likewise an upstream block
+  // is actionable before this node's own environment can matter.
+  if (!readOnly && !upstreamBlocked && state !== "running" && environment?.status === "missing") {
     const details = environment.issues.map(i => `${i.item}: 要求=${typeof i.required === "object" ? JSON.stringify(i.required) : i.required}; 当前=${typeof i.actual === "object" ? JSON.stringify(i.actual) : i.actual}; ${i.remedy}`).join("\n");
-    result = {tone: "error", conclusion: "本地能力检查失败", reason: `${environment.source ?? ""}\n${details}`, action: "处理环境问题后重新检查；当前配置不能启动新任务。"};
+    result = {tone: "neutral", marker: "environment-missing", conclusion: "本地能力检查失败", reason: `${environment.source ?? ""}\n${details}`, action: "处理环境问题后重新检查；当前配置不能启动新任务。"};
   }
   if (readOnly) {
     result.conclusion = state === "done" ? "此快照中的运行已完成" : `此快照：${result.conclusion}`;

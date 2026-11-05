@@ -118,13 +118,20 @@ it.each(['failed','orphaned','running','pending','assigned'])('preserves %s whil
   expect(blocked.reason).toContain('transforms');
 });
 
-it('environment failure is red only for the affected draft node and retains detailed evidence', () => {
+it('renders an explicit environment failure as a neutral attention marker and retains detailed evidence', () => {
   const environment = {status: 'missing' as const, source: 'test@1.0', issues: [{item:'package:absent',required:'absent>=2',actual:'未安装',remedy:'安装后重试'}]};
   const status = nodeStatus({state:'done', environment});
-  expect(status.tone).toBe('error');
+  expect(status.tone).toBe('neutral');
+  expect(status.marker).toBe('environment-missing');
   expect(status.reason).toContain('package:absent: 要求=absent>=2; 当前=未安装');
   expect(nodeStatus({state:'done'}).tone).toBe('success');
   expect(nodeStatus({state:'done',environment,readOnly:true}).tone).toBe('success');
+});
+
+it('keeps a live run blue and waits for upstream before showing an environment warning', () => {
+  const environment = {status: 'missing' as const, issues: []};
+  expect(nodeStatus({state:'running', environment})).toMatchObject({tone: 'info', conclusion: '正在运行'});
+  expect(nodeStatus({environment, upstreamBlocked: true})).toMatchObject({tone: 'neutral', conclusion: '等待上游'});
 });
 
 it('does not turn unavailable capability evidence into an environment failure', () => {
@@ -133,4 +140,8 @@ it('does not turn unavailable capability evidence into an environment failure', 
   expect(completed).toMatchObject({tone: 'success', conclusion: '已完成'});
   expect(completed.conclusion).not.toContain('能力检查失败');
   expect(nodeStatus({state:'running', environment}).tone).toBe('info');
+});
+
+it.each(['unknown', 'undeclared'] as const)('does not mistake %s capability evidence for a missing environment', status => {
+  expect(nodeStatus({environment: {status, issues: []}})).toMatchObject({tone: 'neutral', conclusion: '尚未运行'});
 });

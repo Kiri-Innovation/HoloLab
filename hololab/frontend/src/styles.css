@@ -632,6 +632,7 @@ a:hover { text-decoration: underline; }
 }
 @keyframes hl-job-state-spin { to { transform: rotate(360deg); } }
 .hl-node-status-dot { width: 8px; height: 8px; border-radius: var(--radius-pill); }
+.hl-node-status-environment-missing { width: 10px; height: 10px; display: grid; place-items: center; color: var(--neutral); font-size: 12px; font-weight: var(--fw-bold); line-height: 1; }
 .hl-tooltip--status { max-width: min(calc(300px * var(--tooltip-scale)), calc(100vw - 16px)); padding: calc(var(--space-2) * var(--tooltip-scale)) calc(var(--space-3) * var(--tooltip-scale)); }
 .hl-status-tooltip-content { display: flex; flex-direction: column; gap: calc(var(--space-1) * var(--tooltip-scale)); }
 .hl-status-tooltip-content strong { font-size: calc(var(--fs-md) * var(--tooltip-scale)); }
