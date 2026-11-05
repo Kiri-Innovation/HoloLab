@@ -127,8 +127,10 @@ after assembly. Full validation alone does not check all geometry or tracks.
 Public producer outputs and assembler inputs are `4d_cams`, `4d_points`,
 `4d_images` (snake_case port identifiers). Each component is `storage: dir, arrayed: false`, tagged respectively
 `colmap4d-cams`, `colmap4d-point-cloud`, `colmap4d-images`; no dim_labels.
-Do not add legacy tags to imply compatibility. Whole-model output is scalar
-`colmap4d`. Frames/cameras/points are internal records, not framework array axes.
+Do not add legacy tags to imply compatibility. Whole-model output uses the port name `colmap4d` and scalar tag
+`colmap4d` (MegaSAM 0.7.0, merge 0.4.0, frames-to-colmap4d 0.1.0).
+The split 0.1.0 input is also named `colmap4d`; its three outputs keep the
+component names above. Historical merge 0.3.0 retains its `model` port. Frames/cameras/points are internal records, not framework array axes.
 
 STG consumes the assembled model, requires complete point/image times and
 undistorted PINHOLE/SIMPLE_PINHOLE pixels, and normalizes time internally using

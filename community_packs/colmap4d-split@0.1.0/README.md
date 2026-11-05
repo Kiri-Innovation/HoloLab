@@ -1,8 +1,8 @@
 # col4d/colmap4d-split 0.1.0
 
-Input `model: colmap4d`; outputs `4d_cams: colmap4d-cams`,
+Input `colmap4d: colmap4d`; outputs `4d_cams: colmap4d-cams`,
 `4d_points: colmap4d-point-cloud`, `4d_images: colmap4d-images`.
-These scalar directories connect directly to merge-colmap4d 0.3.0.
+These scalar directories connect directly to merge-colmap4d 0.4.0.
 
 All three outputs are materialized once. There are no selection parameters.
 HoloLab allocates and registers every declared output, even without a consumer;

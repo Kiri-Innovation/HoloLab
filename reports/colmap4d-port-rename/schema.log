@@ -1,0 +1,4 @@
+k4d/megasam-track 0.7.0 e428599cacf020abec4fa4c1369421b363f1f7f40821dd42a85284695f03b57f ['frames'] ['colmap4d']
+col4d/colmap4d-split 0.1.0 53179dae1a07615742df7276e043eff1a861eddf59097367d4048971e8b56443 ['colmap4d'] ['4d_cams', '4d_points', '4d_images']
+col4d/merge-colmap4d 0.4.0 d94ab0f3c1d24e2b6ed2c065c69a9081e65e7ff74a300631fc8d51194ef4ee51 ['4d_points', '4d_cams', '4d_images'] ['colmap4d']
+col4d/frames-to-colmap4d 0.1.0 712c6159677d0e8341f4d97cb9f148694e0e7c35380b091ea148c4ac3affecfb ['points', 'images', 'cams'] ['colmap4d']

@@ -1,0 +1,98 @@
+[
+  {
+    "snapshot": "46399e1d-c0c6-4f75-8dad-29290d29afae",
+    "node": "nmw38vr8y4",
+    "name": "k4d/megasam-track",
+    "version": "0.5.0"
+  },
+  {
+    "snapshot": "0107b980-f956-4989-950b-beaba43dd69c",
+    "node": "nmw38vr8y4",
+    "name": "k4d/megasam-track",
+    "version": "0.5.0"
+  },
+  {
+    "snapshot": "538c22d2-0dac-4961-8820-610da495d1ed",
+    "node": "nmw38vr8y4",
+    "name": "k4d/megasam-track",
+    "version": "0.6.0"
+  },
+  {
+    "snapshot": "a7890fff-4cb5-41b5-8fac-855325a37bf7",
+    "node": "nmw38vr8y4",
+    "name": "k4d/megasam-track",
+    "version": "0.6.0"
+  },
+  {
+    "snapshot": "95108a1c-c201-46af-a1c1-e25064ff03fc",
+    "node": "nmw38vr8y4",
+    "name": "k4d/megasam-track",
+    "version": "0.6.1"
+  },
+  {
+    "snapshot": "402e7e1b-931a-4eaf-9579-3aa13723c4c9",
+    "node": "nmw38vr8y4",
+    "name": "k4d/megasam-track",
+    "version": "0.6.1"
+  },
+  {
+    "snapshot": "402e7e1b-931a-4eaf-9579-3aa13723c4c9",
+    "node": "nmw3rirdp1",
+    "name": "col4d/merge-colmap4d",
+    "version": "0.1.5"
+  },
+  {
+    "snapshot": "edc15d0f-b9be-4538-8262-5fc94d81725a",
+    "node": "nmw38vr8y4",
+    "name": "k4d/megasam-track",
+    "version": "0.6.1"
+  },
+  {
+    "snapshot": "edc15d0f-b9be-4538-8262-5fc94d81725a",
+    "node": "nmw3rirdp1",
+    "name": "col4d/merge-colmap4d",
+    "version": "0.1.5"
+  },
+  {
+    "snapshot": "edc15d0f-b9be-4538-8262-5fc94d81725a",
+    "node": "nmw3rj68z2",
+    "name": "col4d/merge-colmap4d",
+    "version": "0.2.0"
+  },
+  {
+    "snapshot": "239207d2-24a1-4a04-802e-f321b3146238",
+    "node": "nmw38vr8y4",
+    "name": "k4d/megasam-track",
+    "version": "0.6.1"
+  },
+  {
+    "snapshot": "239207d2-24a1-4a04-802e-f321b3146238",
+    "node": "nmw3rj68z2",
+    "name": "col4d/merge-colmap4d",
+    "version": "0.2.0"
+  },
+  {
+    "snapshot": "be957abb-4b03-4743-b62b-24b493c7e611",
+    "node": "nmw38vr8y4",
+    "name": "k4d/megasam-track",
+    "version": "0.6.1"
+  },
+  {
+    "snapshot": "be957abb-4b03-4743-b62b-24b493c7e611",
+    "node": "nmw3rj68z2",
+    "name": "col4d/merge-colmap4d",
+    "version": "0.2.0"
+  },
+  {
+    "snapshot": "666b4224-4ede-4073-8da6-069603f778eb",
+    "node": "nmw38vr8y4",
+    "name": "k4d/megasam-track",
+    "version": "0.6.1"
+  },
+  {
+    "snapshot": "666b4224-4ede-4073-8da6-069603f778eb",
+    "node": "nmw3rj68z2",
+    "name": "col4d/merge-colmap4d",
+    "version": "0.3.0"
+  }
+]

@@ -1,0 +1,208 @@
+[
+  {
+    "snapshot_id": "666b4224-4ede-4073-8da6-069603f778eb",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793901864.8277862,
+    "node_count": 4,
+    "job_count": 4,
+    "state_counts": {
+      "done": 4
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 6,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "be957abb-4b03-4743-b62b-24b493c7e611",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793898776.246222,
+    "node_count": 4,
+    "job_count": 4,
+    "state_counts": {
+      "done": 4
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 6,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "239207d2-24a1-4a04-802e-f321b3146238",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793897909.923407,
+    "node_count": 4,
+    "job_count": 3,
+    "state_counts": {
+      "done": 3
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 5,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "edc15d0f-b9be-4538-8262-5fc94d81725a",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793896639.2442224,
+    "node_count": 5,
+    "job_count": 3,
+    "state_counts": {
+      "done": 3
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 5,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "402e7e1b-931a-4eaf-9579-3aa13723c4c9",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793893325.7606447,
+    "node_count": 5,
+    "job_count": 4,
+    "state_counts": {
+      "done": 4
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 6,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "95108a1c-c201-46af-a1c1-e25064ff03fc",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793877524.61231,
+    "node_count": 3,
+    "job_count": 3,
+    "state_counts": {
+      "done": 3
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 5,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "a7890fff-4cb5-41b5-8fac-855325a37bf7",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793874658.6637642,
+    "node_count": 3,
+    "job_count": 3,
+    "state_counts": {
+      "done": 2,
+      "failed": 1
+    },
+    "state": "failed",
+    "artifact_counts": {
+      "total": 2,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "538c22d2-0dac-4961-8820-610da495d1ed",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793874084.727778,
+    "node_count": 3,
+    "job_count": 3,
+    "state_counts": {
+      "done": 3
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 5,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "0107b980-f956-4989-950b-beaba43dd69c",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793872772.9441845,
+    "node_count": 3,
+    "job_count": 3,
+    "state_counts": {
+      "done": 3
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 5,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "46399e1d-c0c6-4f75-8dad-29290d29afae",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793872516.3192415,
+    "node_count": 3,
+    "job_count": 3,
+    "state_counts": {
+      "done": 2,
+      "failed": 1
+    },
+    "state": "failed",
+    "artifact_counts": {
+      "total": 2,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "6f7ca3a2-cd0e-4926-ab2f-3c806037be7c",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793861599.3588145,
+    "node_count": 2,
+    "job_count": 2,
+    "state_counts": {
+      "done": 2
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 2,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  },
+  {
+    "snapshot_id": "49c3eba7-c2ea-4e0a-b09e-0db0fea2ce8b",
+    "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+    "created_ts": 1793860900.7796474,
+    "node_count": 1,
+    "job_count": 1,
+    "state_counts": {
+      "done": 1
+    },
+    "state": "done",
+    "artifact_counts": {
+      "total": 1,
+      "deleted": 0
+    },
+    "favorite": false,
+    "note": null
+  }
+]

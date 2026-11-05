@@ -1,0 +1,378 @@
+{
+  "job_id": "869c55f0-e063-4671-b323-97694baa4b6b",
+  "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+  "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+  "graph_node_id": null,
+  "algorithm_name": "col4d/merge-colmap4d",
+  "algorithm_version": "0.4.0",
+  "state": "done",
+  "progress": {
+    "current": 5,
+    "total": 5
+  },
+  "fail_reason": null,
+  "created_ts": 1793903377.208623,
+  "updated_ts": 1793903379.003838,
+  "started_ts": 1793903377.9130564,
+  "parent_job_id": null,
+  "shard_element_id": null,
+  "shard_element_ids": null,
+  "expected_shards": null,
+  "published_as": [],
+  "code_identity": {
+    "cold": {
+      "baseline_at": null,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stats": {
+        "bytes": 0,
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "verification": "not_checked"
+    },
+    "content": {
+      "cold": {
+        "bytes": 0,
+        "directories": [],
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "excluded": {
+        "bytes": 0,
+        "files": 0,
+        "links": 0,
+        "top_level": [],
+        "top_level_names": []
+      },
+      "hot": {
+        "bytes": 37019,
+        "files": 5,
+        "links": 0,
+        "top_level_names": [
+          "README.md",
+          "manifest.yaml",
+          "merge_colmap4d.py",
+          "strict_legacy.py",
+          "test_fast.py"
+        ]
+      },
+      "stats": {
+        "bytes": 37019,
+        "files": 5,
+        "links": 0,
+        "top_level_names": [
+          "README.md",
+          "manifest.yaml",
+          "merge_colmap4d.py",
+          "strict_legacy.py",
+          "test_fast.py"
+        ]
+      },
+      "top_level": [
+        {
+          "bytes": 13282,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "merge_colmap4d.py",
+          "top_level_names": [
+            "merge_colmap4d.py"
+          ]
+        },
+        {
+          "bytes": 10681,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "strict_legacy.py",
+          "top_level_names": [
+            "strict_legacy.py"
+          ]
+        },
+        {
+          "bytes": 5970,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "test_fast.py",
+          "top_level_names": [
+            "test_fast.py"
+          ]
+        },
+        {
+          "bytes": 4570,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "README.md",
+          "top_level_names": [
+            "README.md"
+          ]
+        },
+        {
+          "bytes": 2516,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "manifest.yaml",
+          "top_level_names": [
+            "manifest.yaml"
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "bytes": 13282,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "merge_colmap4d.py",
+          "top_level_names": [
+            "merge_colmap4d.py"
+          ]
+        },
+        {
+          "bytes": 10681,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "strict_legacy.py",
+          "top_level_names": [
+            "strict_legacy.py"
+          ]
+        },
+        {
+          "bytes": 5970,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "test_fast.py",
+          "top_level_names": [
+            "test_fast.py"
+          ]
+        },
+        {
+          "bytes": 4570,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "README.md",
+          "top_level_names": [
+            "README.md"
+          ]
+        },
+        {
+          "bytes": 2516,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "manifest.yaml",
+          "top_level_names": [
+            "manifest.yaml"
+          ]
+        }
+      ]
+    },
+    "controls": {
+      "gitignore_sha256": null,
+      "manifest_sha256": "d94ab0f3c1d24e2b6ed2c065c69a9081e65e7ff74a300631fc8d51194ef4ee51",
+      "packignore_sha256": null
+    },
+    "dependency_discovery_complete": false,
+    "effective_params": {
+      "strict_validate": false
+    },
+    "environment": {
+      "boundary": "\u672c\u5730\u80fd\u529b\u68c0\u67e5\u53ea\u8986\u76d6\u5df2\u58f0\u660e\u4e14\u5728\u53ef\u63a2\u6d4b\u8303\u56f4\u5185\u7684\u9879; \u901a\u8fc7\u4e0d\u4ee3\u8868\u4e00\u5b9a\u80fd\u8fd0\u884c\u3002\u73af\u5883\u672a\u51bb\u7ed3\u3001\u672a\u88ab\u4ee3\u7801\u8eab\u4efd\u8986\u76d6\u3002",
+      "cache_hit": true,
+      "checked_at": 1793903376.7529593,
+      "env": "colmap4d",
+      "environment_covered": false,
+      "environment_fingerprint": "3497629dc639065d9c5cb5e2e8e5a1eaac86b78be618850e8bcf23c9ae383a9b",
+      "fresh_fingerprint_validated": true,
+      "issues": [],
+      "package_sources": {
+        "colmap4d": "python-distribution",
+        "numpy": "python-distribution",
+        "pillow": "python-distribution"
+      },
+      "packages": {
+        "colmap4d": "1.0.4",
+        "numpy": "1.26.4",
+        "pillow": "11.3.0"
+      },
+      "prefix": "/cloud/cloud-ssd1/envs/kiri",
+      "python": "3.12.12",
+      "requires": {
+        "packages": [
+          "colmap4d>=1.0.4",
+          "numpy",
+          "pillow"
+        ]
+      },
+      "runtime_verified": false,
+      "status": "satisfied"
+    },
+    "fixed_excluded": {
+      "bytes": 61154,
+      "files": 3,
+      "links": 0,
+      "top_level_names": [
+        "__pycache__"
+      ]
+    },
+    "format": 2,
+    "git": {
+      "commit": "b3c093b4dfa82e3813f7cedfe77f27448d1b673e",
+      "dirty": true,
+      "tree_sha": "24aefb6588b21cef78d034c5a8974f6cde0ccdea"
+    },
+    "hot": {
+      "sha256": "120d9084fb34f1208d206c862768765bb363f944e6dcf5bf6ed97054bddf047f",
+      "stats": {
+        "bytes": 34503,
+        "files": 4,
+        "links": 0,
+        "top_level_names": [
+          "README.md",
+          "merge_colmap4d.py",
+          "strict_legacy.py",
+          "test_fast.py"
+        ]
+      },
+      "verification": "verified_at_submission"
+    },
+    "ignored": {
+      "bytes": 0,
+      "files": 0,
+      "links": 0,
+      "top_level_names": []
+    },
+    "manifest": {
+      "excluded_fields": [
+        "published_as",
+        "published_at",
+        "version",
+        "yank",
+        "yank_reason",
+        "yanked",
+        "yanked_at"
+      ],
+      "normalized": {
+        "apiVersion": "hololab.dev/v1",
+        "category": "reconstruction/colmap4d",
+        "description": "Assemble colmap4d components with array validation and byte-preserving binary copies; optional full strict validation.",
+        "docs": "Uses colmap4d.arrays.read_point_arrays and read_image_headers. No Python Point3D/observation objects on the canonical uniform-track binary fast path. Binary files and pixels are independently copied unchanged; IDs, observations and int64 ns are preserved. Default fast validation is not a validate_full certification: single-track reciprocity is exhaustive; multi-track reciprocity/centroids sample up to 4096 points and observations per image. All records receive structure, geometry, ID, time-coverage and bounds checks. strict_validate=true and text/nonuniform-layout fallbacks retain the legacy complete validator and final validate_full(strict). No library modifications, XMP inference, timestamp changes or hardlinks. See README.md for coverage and performance evidence.",
+        "exec": {
+          "shell": "set -euo pipefail\npython -u \"{{ pack_dir }}/merge_colmap4d.py\" --points \"{{ inputs['4d_points'] }}\" --cams \"{{ inputs['4d_cams'] }}\" --images \"{{ inputs['4d_images'] }}\" --output \"{{ outputs.colmap4d }}\" {% if params.strict_validate %}--strict-validate{% endif %}\n"
+        },
+        "idempotency": {
+          "marker": "{{ outputs.colmap4d }}/.hololab-done"
+        },
+        "inputs": {
+          "4d_cams": {
+            "arrayed": false,
+            "storage": "dir",
+            "tags": [
+              "colmap4d-cams"
+            ]
+          },
+          "4d_images": {
+            "arrayed": false,
+            "storage": "dir",
+            "tags": [
+              "colmap4d-images"
+            ]
+          },
+          "4d_points": {
+            "arrayed": false,
+            "storage": "dir",
+            "tags": [
+              "colmap4d-point-cloud"
+            ]
+          }
+        },
+        "kind": "Algorithm",
+        "name": "col4d/merge-colmap4d",
+        "outputs": {
+          "colmap4d": {
+            "arrayed": false,
+            "storage": "dir",
+            "tags": [
+              "colmap4d"
+            ]
+          }
+        },
+        "params": {
+          "strict_validate": {
+            "default": false,
+            "description": "Default false: validate binary structure, full ID/time coverage, geometry, pixels and track bounds with arrays. Single-observation points receive exhaustive reciprocal/time checks; multi-observation relations and centroids are sampled. Enable for untrusted/external data to run full legacy reciprocal checks and final validate_full(strict). Text/nonuniform layouts automatically use full validation.",
+            "type": "bool"
+          }
+        },
+        "progress": {
+          "stdout_regex": "\\[ITER (\\d+)/(\\d+)\\]"
+        },
+        "requires": {
+          "packages": [
+            "colmap4d>=1.0.4",
+            "numpy",
+            "pillow"
+          ]
+        },
+        "runtime": {
+          "env": "colmap4d",
+          "gpu": {
+            "required": false
+          },
+          "resources": {
+            "mem_gb": 8.0,
+            "scratch_gb": 12.0
+          }
+        },
+        "source_entry": "merge_colmap4d.py"
+      },
+      "raw_sha256": "d94ab0f3c1d24e2b6ed2c065c69a9081e65e7ff74a300631fc8d51194ef4ee51",
+      "sha256": "71e00052a2ec706c220e0a6b126f1a87a244544d8fd8b198487ba0fb8213e6fa"
+    },
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.4.0",
+    "quality_hints": [],
+    "recorded_at": 1793903377.16054,
+    "root": ".",
+    "sha256": "a18974c3740f589f51e27ec0fe1b7c6327141e2d3b402771dfd9a1e7a217bf24",
+    "source": "col4d/merge-colmap4d@0.4.0",
+    "uncovered": [],
+    "undeclared": []
+  },
+  "snapshot_id": null,
+  "params": {
+    "strict_validate": false
+  },
+  "input_handles": {
+    "4d_cams": "e78e8b88-6152-42bd-b8b1-d5f1fc2a0f31",
+    "4d_points": "c0dc824b-b927-433b-a7dc-5b85131127d3",
+    "4d_images": "97d4b3ed-966e-49c8-b718-2be00f9475e2"
+  },
+  "output_handles": {
+    "colmap4d": "b8802356-3b3e-4b2a-aeac-17bd92339ce7"
+  },
+  "fail_exit_code": null,
+  "fail_message": null
+}

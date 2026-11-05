@@ -1,0 +1,335 @@
+{
+  "job_id": "c6f34a5f-d0a0-4042-a896-b355ea7410af",
+  "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+  "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+  "graph_node_id": null,
+  "algorithm_name": "col4d/colmap4d-split",
+  "algorithm_version": "0.1.0",
+  "state": "done",
+  "progress": {
+    "current": 3,
+    "total": 3
+  },
+  "fail_reason": null,
+  "created_ts": 1793903375.445868,
+  "updated_ts": 1793903376.3310988,
+  "started_ts": 1793903375.9311862,
+  "parent_job_id": null,
+  "shard_element_id": null,
+  "shard_element_ids": null,
+  "expected_shards": null,
+  "published_as": [],
+  "code_identity": {
+    "cold": {
+      "baseline_at": null,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stats": {
+        "bytes": 0,
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "verification": "not_checked"
+    },
+    "content": {
+      "cold": {
+        "bytes": 0,
+        "directories": [],
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "excluded": {
+        "bytes": 0,
+        "files": 0,
+        "links": 0,
+        "top_level": [],
+        "top_level_names": []
+      },
+      "hot": {
+        "bytes": 9727,
+        "files": 4,
+        "links": 0,
+        "top_level_names": [
+          "README.md",
+          "manifest.yaml",
+          "split_colmap4d.py",
+          "test_split.py"
+        ]
+      },
+      "stats": {
+        "bytes": 9727,
+        "files": 4,
+        "links": 0,
+        "top_level_names": [
+          "README.md",
+          "manifest.yaml",
+          "split_colmap4d.py",
+          "test_split.py"
+        ]
+      },
+      "top_level": [
+        {
+          "bytes": 3812,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "split_colmap4d.py",
+          "top_level_names": [
+            "split_colmap4d.py"
+          ]
+        },
+        {
+          "bytes": 2629,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "test_split.py",
+          "top_level_names": [
+            "test_split.py"
+          ]
+        },
+        {
+          "bytes": 1806,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "README.md",
+          "top_level_names": [
+            "README.md"
+          ]
+        },
+        {
+          "bytes": 1480,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "manifest.yaml",
+          "top_level_names": [
+            "manifest.yaml"
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "bytes": 3812,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "split_colmap4d.py",
+          "top_level_names": [
+            "split_colmap4d.py"
+          ]
+        },
+        {
+          "bytes": 2629,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "test_split.py",
+          "top_level_names": [
+            "test_split.py"
+          ]
+        },
+        {
+          "bytes": 1806,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "README.md",
+          "top_level_names": [
+            "README.md"
+          ]
+        },
+        {
+          "bytes": 1480,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "manifest.yaml",
+          "top_level_names": [
+            "manifest.yaml"
+          ]
+        }
+      ]
+    },
+    "controls": {
+      "gitignore_sha256": null,
+      "manifest_sha256": "53179dae1a07615742df7276e043eff1a861eddf59097367d4048971e8b56443",
+      "packignore_sha256": null
+    },
+    "dependency_discovery_complete": false,
+    "effective_params": {},
+    "environment": {
+      "boundary": "\u672c\u5730\u80fd\u529b\u68c0\u67e5\u53ea\u8986\u76d6\u5df2\u58f0\u660e\u4e14\u5728\u53ef\u63a2\u6d4b\u8303\u56f4\u5185\u7684\u9879; \u901a\u8fc7\u4e0d\u4ee3\u8868\u4e00\u5b9a\u80fd\u8fd0\u884c\u3002\u73af\u5883\u672a\u51bb\u7ed3\u3001\u672a\u88ab\u4ee3\u7801\u8eab\u4efd\u8986\u76d6\u3002",
+      "cache_hit": true,
+      "checked_at": 1793903374.890518,
+      "env": "colmap4d",
+      "environment_covered": false,
+      "environment_fingerprint": "3497629dc639065d9c5cb5e2e8e5a1eaac86b78be618850e8bcf23c9ae383a9b",
+      "fresh_fingerprint_validated": true,
+      "issues": [],
+      "package_sources": {
+        "colmap4d": "python-distribution",
+        "numpy": "python-distribution"
+      },
+      "packages": {
+        "colmap4d": "1.0.4",
+        "numpy": "1.26.4"
+      },
+      "prefix": "/cloud/cloud-ssd1/envs/kiri",
+      "python": "3.12.12",
+      "requires": {
+        "packages": [
+          "colmap4d>=1.0.4",
+          "numpy"
+        ]
+      },
+      "runtime_verified": false,
+      "status": "satisfied"
+    },
+    "fixed_excluded": {
+      "bytes": 11819,
+      "files": 2,
+      "links": 0,
+      "top_level_names": [
+        "__pycache__"
+      ]
+    },
+    "format": 2,
+    "git": {
+      "commit": "b3c093b4dfa82e3813f7cedfe77f27448d1b673e",
+      "dirty": true,
+      "tree_sha": "24aefb6588b21cef78d034c5a8974f6cde0ccdea"
+    },
+    "hot": {
+      "sha256": "252679ddf8f9f2628c8815a9cc0d2d345b15f8672dde683caceda0da22add2df",
+      "stats": {
+        "bytes": 8247,
+        "files": 3,
+        "links": 0,
+        "top_level_names": [
+          "README.md",
+          "split_colmap4d.py",
+          "test_split.py"
+        ]
+      },
+      "verification": "verified_at_submission"
+    },
+    "ignored": {
+      "bytes": 0,
+      "files": 0,
+      "links": 0,
+      "top_level_names": []
+    },
+    "manifest": {
+      "excluded_fields": [
+        "published_as",
+        "published_at",
+        "version",
+        "yank",
+        "yank_reason",
+        "yanked",
+        "yanked_at"
+      ],
+      "normalized": {
+        "apiVersion": "hololab.dev/v1",
+        "category": "reconstruction/colmap4d",
+        "description": "Split a timed colmap4d model into camera, point and image components without rewriting IDs or times.",
+        "docs": "Three fixed outputs, no parameters. All three are materialized even if disconnected; only downstream consumption is demand-driven. Uses colmap4d arrays and header readers, then independent byte-preserving copies. Requires the timed component profile (times, points_t, time_meta and image pixels). Does not certify full reciprocal tracks or time coverage; merge strict_validate can validate untrusted data.",
+        "exec": {
+          "shell": "set -euo pipefail\npython -u \"{{ pack_dir }}/split_colmap4d.py\" --model \"{{ inputs.colmap4d }}\" --cams \"{{ outputs['4d_cams'] }}\" --points \"{{ outputs['4d_points'] }}\" --images \"{{ outputs['4d_images'] }}\"\n"
+        },
+        "inputs": {
+          "colmap4d": {
+            "arrayed": false,
+            "storage": "dir",
+            "tags": [
+              "colmap4d"
+            ]
+          }
+        },
+        "kind": "Algorithm",
+        "name": "col4d/colmap4d-split",
+        "outputs": {
+          "4d_cams": {
+            "arrayed": false,
+            "storage": "dir",
+            "tags": [
+              "colmap4d-cams"
+            ]
+          },
+          "4d_images": {
+            "arrayed": false,
+            "storage": "dir",
+            "tags": [
+              "colmap4d-images"
+            ]
+          },
+          "4d_points": {
+            "arrayed": false,
+            "storage": "dir",
+            "tags": [
+              "colmap4d-point-cloud"
+            ]
+          }
+        },
+        "params": {},
+        "progress": {
+          "stdout_regex": "\\[ITER (\\d+)/(\\d+)\\]"
+        },
+        "requires": {
+          "packages": [
+            "colmap4d>=1.0.4",
+            "numpy"
+          ]
+        },
+        "runtime": {
+          "env": "colmap4d",
+          "gpu": {
+            "required": false
+          },
+          "resources": {
+            "mem_gb": 8.0,
+            "scratch_gb": 12.0
+          }
+        },
+        "source_entry": "split_colmap4d.py"
+      },
+      "raw_sha256": "53179dae1a07615742df7276e043eff1a861eddf59097367d4048971e8b56443",
+      "sha256": "d3e2f83396efb0991821f565307b75d333a03462449e396a3fcaa3d8e1391bd7"
+    },
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap4d-split@0.1.0",
+    "quality_hints": [],
+    "recorded_at": 1793903375.4066834,
+    "root": ".",
+    "sha256": "fcc5225a0e590704a753dd58e3e2e99ca3354bbc05be41206d47c4ec3e0f3404",
+    "source": "col4d/colmap4d-split@0.1.0",
+    "uncovered": [],
+    "undeclared": []
+  },
+  "snapshot_id": null,
+  "params": {},
+  "input_handles": {
+    "colmap4d": "06f1d4e3-091c-4393-95a4-d6ba3b4ab47b"
+  },
+  "output_handles": {
+    "4d_cams": "e78e8b88-6152-42bd-b8b1-d5f1fc2a0f31",
+    "4d_points": "c0dc824b-b927-433b-a7dc-5b85131127d3",
+    "4d_images": "97d4b3ed-966e-49c8-b718-2be00f9475e2"
+  },
+  "fail_exit_code": null,
+  "fail_message": null
+}

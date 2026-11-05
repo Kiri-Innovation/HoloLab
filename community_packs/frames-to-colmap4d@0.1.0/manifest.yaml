@@ -60,7 +60,7 @@ inputs:
     - group
     require_axis_label_match: false
 outputs:
-  model:
+  colmap4d:
     tags:
     - colmap4d
     arrayed: false
@@ -78,8 +78,8 @@ runtime:
 exec:
   shell: "set -euo pipefail\npython \"{{ pack_dir }}/merge_colmap4d.py\" \\\n  --points\
     \ \"{{ inputs.points }}\" \\\n  --images \"{{ inputs.images }}\" \\\n  --cams\
-    \ \"{{ inputs.cams }}\" \\\n  --output \"{{ outputs.model }}\"\n"
+    \ \"{{ inputs.cams }}\" \\\n  --output \"{{ outputs.colmap4d }}\"\n"
 idempotency:
-  marker: '{{ outputs.model }}/.hololab-done'
+  marker: '{{ outputs.colmap4d }}/.hololab-done'
 progress:
   stdout_regex: \[ITER (\d+)/(\d+)\]

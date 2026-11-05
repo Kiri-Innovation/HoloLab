@@ -1,0 +1,18 @@
+{
+  "algorithm_name": "k4d/megasam-track",
+  "params": {
+    "skip": 5,
+    "max_frames": 16,
+    "depth_min": 0.001,
+    "pts_stride": 8,
+    "timestamp_mode": "pts_estimate",
+    "fps_num": null,
+    "fps_den": null,
+    "frames_fps": 30
+  },
+  "input_handles": {
+    "frames": "58d9a0f1-3ca7-4180-abe7-9e6266351d8f"
+  },
+  "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+  "algorithm_version": "0.7.0"
+}

@@ -1,0 +1,75 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/merge-colmap4d
+version: 0.4.0
+description: Assemble colmap4d components with array validation and byte-preserving
+  binary copies; optional full strict validation.
+source_entry: merge_colmap4d.py
+category: reconstruction/colmap4d
+docs: 'Uses colmap4d.arrays.read_point_arrays and read_image_headers. No Python Point3D/observation
+  objects on the canonical uniform-track binary fast path. Binary files and pixels
+  are independently copied unchanged; IDs, observations and int64 ns are preserved.
+  Default fast validation is not a validate_full certification: single-track reciprocity
+  is exhaustive; multi-track reciprocity/centroids sample up to 4096 points and observations
+  per image. All records receive structure, geometry, ID, time-coverage and bounds
+  checks. strict_validate=true and text/nonuniform-layout fallbacks retain the legacy
+  complete validator and final validate_full(strict). No library modifications, XMP
+  inference, timestamp changes or hardlinks. See README.md for coverage and performance
+  evidence.'
+inputs:
+  4d_points:
+    tags:
+    - colmap4d-point-cloud
+    arrayed: false
+    storage: dir
+  4d_cams:
+    tags:
+    - colmap4d-cams
+    arrayed: false
+    storage: dir
+  4d_images:
+    tags:
+    - colmap4d-images
+    arrayed: false
+    storage: dir
+outputs:
+  colmap4d:
+    tags:
+    - colmap4d
+    arrayed: false
+    storage: dir
+requires:
+  packages:
+  - colmap4d>=1.0.4
+  - numpy
+  - pillow
+runtime:
+  env: colmap4d
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 12.0
+    mem_gb: 8.0
+exec:
+  shell: 'set -euo pipefail
+
+    python -u "{{ pack_dir }}/merge_colmap4d.py" --points "{{ inputs[''4d_points'']
+    }}" --cams "{{ inputs[''4d_cams''] }}" --images "{{ inputs[''4d_images''] }}"
+    --output "{{ outputs.colmap4d }}" {% if params.strict_validate %}--strict-validate{%
+    endif %}
+
+    '
+idempotency:
+  marker: '{{ outputs.colmap4d }}/.hololab-done'
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
+params:
+  strict_validate:
+    type: bool
+    default: false
+    description: 'Default false: validate binary structure, full ID/time coverage,
+      geometry, pixels and track bounds with arrays. Single-observation points receive
+      exhaustive reciprocal/time checks; multi-observation relations and centroids
+      are sampled. Enable for untrusted/external data to run full legacy reciprocal
+      checks and final validate_full(strict). Text/nonuniform layouts automatically
+      use full validation.'
