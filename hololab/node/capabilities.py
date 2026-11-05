@@ -220,9 +220,24 @@ class CapabilityChecker:
                     report["cache_hit"] = True
                 else:
                     mark = fingerprint(prefix, cached[1]["paths"] if cached else [])
-                    if not fresh and cached and cached[0] == mark:
+                    # A strict preparation has to validate the environment at
+                    # *this* request, but that does not require launching a
+                    # Python process and enumerating every distribution when
+                    # the installation metadata is unchanged.  ``fingerprint``
+                    # stats the interpreter, conda metadata, dist-info and
+                    # editable-install markers used by the previous probe.
+                    # Thus a fresh caller still observes an install/uninstall
+                    # immediately, while an unchanged environment reuses the
+                    # already checked inventory.
+                    #
+                    # Hardware remains below this block and is deliberately
+                    # re-probed for ``fresh=True``; it is live state rather
+                    # than installation metadata.
+                    if cached and cached[0] == mark:
                         data = copy.deepcopy(cached[1])
                         report["cache_hit"] = True
+                        if fresh:
+                            report["fresh_fingerprint_validated"] = True
                     else:
                         data = probe_environment(prefix, conda_bin, activated)
                         after = fingerprint(prefix, data["paths"])

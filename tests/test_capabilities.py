@@ -199,7 +199,7 @@ def test_gpu_probe_cache_respects_visibility_and_fresh(tmp_path, monkeypatch):
     assert calls == ["0", "0", "1"]
 
 
-def test_fresh_checks_coalesce_one_environment_per_gateway_batch(tmp_path, monkeypatch):
+def test_fresh_checks_reuse_an_unchanged_fingerprinted_environment(tmp_path, monkeypatch):
     from hololab.node import capabilities
 
     manifest = declared(tmp_path, '  python: ">=3"\n')
@@ -214,8 +214,40 @@ def test_fresh_checks_coalesce_one_environment_per_gateway_batch(tmp_path, monke
     checker = CapabilityChecker()
     args = (manifest, {"test": str(tmp_path)}, "conda", {})
 
+    first = checker.check(*args, fresh=True, check_batch_id="one")
+    same_batch = checker.check(*args, fresh=True, check_batch_id="one")
+    another_request = checker.check(*args, fresh=True, check_batch_id="two")
+
+    # A fresh request still fingerprints the installation.  When that
+    # fingerprint is unchanged it may safely reuse the inventory rather than
+    # launch another Python process to enumerate distributions.
+    assert len(calls) == 1
+    assert first["cache_hit"] is False
+    assert same_batch["cache_hit"] is True
+    assert another_request["cache_hit"] is True
+    assert another_request["fresh_fingerprint_validated"] is True
+
+
+def test_fresh_check_reprobes_when_the_environment_fingerprint_changes(tmp_path, monkeypatch):
+    from hololab.node import capabilities
+
+    manifest = declared(tmp_path, '  python: ">=3"\n')
+    # First probe fingerprints before/after as ``before``. The second
+    # request sees ``after`` and must reprobe, then stores ``after``.
+    marks = iter(("before", "before", "after", "after"))
+    monkeypatch.setattr(capabilities, "fingerprint", lambda *args: next(marks))
+    calls = []
+
+    def probe(*_args):
+        calls.append(1)
+        return {"paths": [], "python": "3.11", "packages": {}}
+
+    monkeypatch.setattr(capabilities, "probe_environment", probe)
+    checker = CapabilityChecker()
+    args = (manifest, {"test": str(tmp_path)}, "conda", {})
+
     checker.check(*args, fresh=True, check_batch_id="one")
-    checker.check(*args, fresh=True, check_batch_id="one")
-    checker.check(*args, fresh=True, check_batch_id="two")
+    changed = checker.check(*args, fresh=True, check_batch_id="two")
 
     assert len(calls) == 2
+    assert changed["cache_hit"] is False
