@@ -174,7 +174,7 @@ def start_default(
         "--workspace-root",
         help=(
             "Override the node's artifact root for this run. Precedence: "
-            "this flag > config file value > ~/.hololab/node/workspace default. "
+            "this flag > config file value > ~/.hololab/node/artifacts default. "
             "Old artifacts under a previous root: add the old path to "
             "``legacy_workspace_roots`` in config.yaml so they stay resolvable."
         ),
@@ -762,7 +762,7 @@ def pack_resolve_install(
     source: list[str] = typer.Option([], help="Override configured mirrors"),
     destination: Path | None = typer.Option(
         None,
-        help="Installation pack directory, default installed_packs or node data directory/packs",
+        help="Installation pack directory, default installed_packs or node data directory/installed_packs",
     ),
     expected_hash: str | None = typer.Option(None),
 ) -> None:

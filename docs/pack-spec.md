@@ -112,7 +112,7 @@ The script is author-maintained, relative to `package_root`, and must not be
 excluded by `.packignore`. HoloLab injects read-only context variables
 `PACKAGE_ROOT`, `CONDA_PREFIX`, `PYTHON`, `PIP`, `CUDA_HOME`, and
 `PACK_CODE_SHA256`. It also receives the node's shared download caches
-`TORCH_HOME`, `HF_HOME` and `HF_HUB_CACHE` (default `<user data dir>/weights`,
+`TORCH_HOME`, `HF_HOME` and `HF_HUB_CACHE` (default `<node data dir>/weights`,
 see [Architecture](architecture.md)), exactly as jobs do;
 prefetch into them (or respect them with `${VAR:-default}`) rather than into
 `$CONDA_PREFIX`. It must use `set -euo pipefail`, must not create/activate

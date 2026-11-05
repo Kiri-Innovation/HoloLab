@@ -55,19 +55,36 @@ def gateway_sqlite_path() -> Path:
 
 
 def default_cache_root() -> Path:
-    """Default root of shared model/weight download caches (torch.hub, Hugging Face).
+    """Default root of the node's shared weight caches (torch.hub, Hugging Face).
 
-    Follows ``user_data_dir()``; not created here (the node creates the
-    library subdirectories it injects).
+    Node-owned data, so it lives beside the node's other data; follows
+    ``node_data_dir()``. The library subdirectories are created by the node.
     """
 
-    return user_data_dir() / "weights"
+    return node_data_dir() / "weights"
 
 
 def default_workspace_root() -> Path:
-    """Default location for job workspaces on this node."""
+    """Default location of job artifacts on this node."""
 
+    return node_data_dir() / "artifacts"
+
+
+def default_installed_packs_dir() -> Path:
+    """Default location of community packages installed on this node."""
+
+    return node_data_dir() / "installed_packs"
+
+
+# Former defaults. Nodes that never configured these paths keep finding what
+# they wrote there (see NodeConfig.effective_legacy_workspace_roots and
+# NodeConfig.pack_scan_dirs); nothing is moved automatically.
+def former_default_workspace_root() -> Path:
     return node_data_dir() / "workspace"
+
+
+def former_default_installed_packs_dir() -> Path:
+    return node_data_dir() / "packs"
 
 
 def frontend_dist_dir() -> Path | None:

@@ -377,6 +377,27 @@ class NodeRuntime:
         else:
             if cache_env:
                 log.info("download caches injected into jobs", **cache_env)
+        # Former default locations still in use are scanned/served, not moved.
+        former_installs = self._config.former_install_dir_in_use
+        if former_installs is not None:
+            log.warning(
+                "packages installed under the former default directory are still scanned; "
+                "move them to installed_packs (or set installed_packs) when convenient",
+                former=str(former_installs),
+                installed_packs=str(self._config.effective_install_dir),
+            )
+        implicit_roots = [
+            p
+            for p in self._config.effective_legacy_workspace_roots
+            if p not in self._config.legacy_workspace_roots
+        ]
+        if implicit_roots:
+            log.warning(
+                "artifacts under the former default workspace stay readable; new jobs write to "
+                "workspace_root",
+                former=[str(p) for p in implicit_roots],
+                workspace_root=str(self._config.workspace_root),
+            )
 
         # Warm the env cache — one ``conda run`` snapshot per configured
         # env, results saved in ``self._env_cache`` and passed into every
@@ -509,7 +530,7 @@ class NodeRuntime:
         argv += ["--library-root", str(cfg.library_root)]
         if self._config_path is not None:
             argv += ["--library-config", str(self._config_path)]
-        for p in cfg.legacy_workspace_roots:
+        for p in cfg.effective_legacy_workspace_roots:
             argv += ["--legacy-root", str(p)]
         for p in cfg.pack_scan_dirs:
             argv += ["--pack-dir", str(p)]
@@ -881,7 +902,9 @@ class NodeRuntime:
             node_id=self._node_id,
             node_token=self._node_token,
             workspace_root=str(self._config.workspace_root),
-            legacy_workspace_roots=[str(p) for p in self._config.legacy_workspace_roots],
+            legacy_workspace_roots=[
+                str(p) for p in self._config.effective_legacy_workspace_roots
+            ],
             flops_executor_id=self._config.flops_executor_id,
             # ``packs_dir`` (scalar) is the primary root — kept for
             # older gateways and for the "Jump to source" fallback
@@ -1552,7 +1575,7 @@ class NodeRuntime:
         gateway URL). The frontend edit form uses this shape 1:1.
         """
 
-        from hololab.paths import node_data_dir
+        from hololab.paths import default_installed_packs_dir
 
         cfg = self._config
         return {
@@ -1571,7 +1594,7 @@ class NodeRuntime:
             "pack_scan_dirs": [str(p) for p in cfg.pack_scan_dirs],
             "install_destination": self._install_destination(),
             "install_dir": str(cfg.install_dir) if cfg.install_dir is not None else None,
-            "default_install_dir": str(node_data_dir() / "packs"),
+            "default_install_dir": str(default_installed_packs_dir()),
             "flops_executor_id": cfg.flops_executor_id,
             # Read-only runtime limit.  Expose it so operators can verify
             # the value actually loaded by this daemon after a restart.
@@ -1722,7 +1745,7 @@ class NodeRuntime:
         initialised with.
         """
 
-        return [self._config.workspace_root, *self._config.legacy_workspace_roots]
+        return [self._config.workspace_root, *self._config.effective_legacy_workspace_roots]
 
     def _path_is_under_workspace(self, target: Path) -> bool:
         """Refuse to touch anything outside a configured workspace root.

@@ -15,7 +15,13 @@ from urllib.parse import urlparse
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from hololab.paths import default_cache_root, default_workspace_root, node_data_dir
+from hololab.paths import (
+    default_cache_root,
+    default_workspace_root,
+    former_default_installed_packs_dir,
+    former_default_workspace_root,
+    node_data_dir,
+)
 
 
 def _is_loopback_host(host: str | None) -> bool:
@@ -163,8 +169,9 @@ class NodeConfig(BaseModel):
     installed_packs: Path | None = Field(
         default=None,
         description=(
-            "Where community packages are installed; defaults to node_data_dir()/packs "
-            "and is scanned before pack_dirs. Formerly ``install_dir`` (still accepted)."
+            "Where community packages are installed; defaults to "
+            "node_data_dir()/installed_packs and is scanned before pack_dirs. "
+            "Formerly ``install_dir`` (still accepted)."
         ),
     )
 
@@ -205,9 +212,24 @@ class NodeConfig(BaseModel):
         return installation_destination(self.installed_packs)
 
     @property
+    def former_install_dir_in_use(self) -> Path | None:
+        """``node_data_dir()/packs`` when it still holds packages installed there.
+
+        That was the default installation directory before ``installed_packs``;
+        it stays scanned (after the current one) for nodes that never set it.
+        """
+        if self.installed_packs is not None:
+            return None
+        former = former_default_installed_packs_dir()
+        if former == self.effective_install_dir or not former.is_dir():
+            return None
+        return former if any(former.glob("*/*/.hololab-install.json")) else None
+
+    @property
     def pack_scan_dirs(self) -> list[Path]:
         """Installed packages win; keep operator source configuration unchanged."""
-        roots = [self.effective_install_dir, *self.pack_dirs]
+        former = self.former_install_dir_in_use
+        roots = [self.effective_install_dir, *([former] if former else []), *self.pack_dirs]
         return list(dict.fromkeys(roots))
 
     packs_dir: Path | None = Field(
@@ -303,6 +325,25 @@ class NodeConfig(BaseModel):
     # open in the UI without a filesystem copy.
     legacy_workspace_roots: list[Path] = Field(default_factory=list)
 
+    @property
+    def effective_legacy_workspace_roots(self) -> list[Path]:
+        """Configured legacy roots, plus the former default ``node/workspace``.
+
+        A node that never configured ``workspace_root`` wrote artifacts to
+        ``node_data_dir()/workspace`` before the default became
+        ``node_data_dir()/artifacts``; keep those handles resolvable.
+        """
+        roots = list(self.legacy_workspace_roots)
+        former = former_default_workspace_root()
+        if (
+            self.workspace_root == default_workspace_root()
+            and former != self.workspace_root
+            and former.is_dir()
+            and former not in roots
+        ):
+            roots.append(former)
+        return roots
+
     # Conda plumbing (explicit — never guessed from PATH)
     code_baselines_dir: Path = Field(default_factory=lambda: node_data_dir() / "code-baselines")
 
@@ -311,7 +352,7 @@ class NodeConfig(BaseModel):
     # receive the same variables (see ``cache_env``), so a model a setup hook
     # prefetches is the one jobs find, and environments and packs share one
     # copy. Precedence: ``cache_dirs.<name>`` > ``cache_root/<name>`` >
-    # ``default_cache_root()/<name>`` (``<user data dir>/weights``, resolved
+    # ``default_cache_root()/<name>`` (``<node data dir>/weights``, resolved
     # at use time so ``HOLOLAB_HOME`` / ``XDG_DATA_HOME`` are honoured).
     cache_root: Path | None = None
     cache_dirs: CacheDirs = Field(default_factory=CacheDirs)

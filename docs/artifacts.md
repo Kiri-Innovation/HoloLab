@@ -12,7 +12,7 @@ lifecycle policy is heading.
 
 ## Layout
 
-The node's workspace root — by default `~/.hololab/node/workspace/` —
+The node's workspace root (artifact root) — by default `~/.hololab/node/artifacts/` —
 contains one directory per workflow-run, sub-divided by job:
 
 ```
@@ -170,7 +170,7 @@ paths, cleanup entry points, lost ACKs, cancellation and both concurrency orders
 
 1. **CLI flag** `--workspace-root /path/to/root` on `hololab start` or `hololab start node` — highest priority; must be an absolute path.
 2. **Config file** `workspace_root: /path/to/root` in `~/.hololab/node/config.yaml` (or wherever `--config` points).
-3. **Default** `~/.hololab/node/workspace/` (or `$XDG_DATA_HOME/hololab/node/workspace`, `%APPDATA%\hololab\node\workspace` on Windows) — used when neither of the above is set.
+3. **Default** `~/.hololab/node/artifacts/` (or `$XDG_DATA_HOME/hololab/node/artifacts`, `%APPDATA%\hololab\node\artifacts` on Windows) — used when neither of the above is set. The former default `node/workspace/` is still served read-only (as an implicit legacy root) on nodes that use the default and still have it; new jobs write to `artifacts/`.
 
 ### From the UI (live, no restart)
 

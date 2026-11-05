@@ -53,8 +53,10 @@ pack_dirs:
 之后页面安装完成会立即重扫注册，无需再重启。
 安装弹窗只读显示节点报告的目标目录，不提供目录编辑框。
 
-未配置 `installed_packs` 时，页面和 CLI 一律安装到 `node_data_dir()/packs`，通常为
-`~/.hololab/node/packs`（数据根遵循 `HOLOLAB_HOME` / `XDG_DATA_HOME`）。默认目录也隐式扫描。
+未配置 `installed_packs` 时，页面和 CLI 一律安装到 `node_data_dir()/installed_packs`，通常为
+`~/.hololab/node/installed_packs`（数据根遵循 `HOLOLAB_HOME` / `XDG_DATA_HOME`）。默认目录也隐式扫描。
+旧默认目录 `node_data_dir()/packs` 里只要还有安装收据，就继续隐式扫描（排在新目录之后），
+节点启动时提示迁移；不会自动搬动。
 `pack_dirs` 仅指定本地开发包来源，不再决定下载落点。升级后未配置 `install_dir` 的部署
 将从原先开发目录的安装落点切换至默认数据目录；已有包不迁移，仍按原扫描配置加载。
 CLI `pack install --destination` 优先于 `install_dir`；指定其它目录时仍需将该目录加入

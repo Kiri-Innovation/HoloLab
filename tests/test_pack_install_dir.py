@@ -14,7 +14,7 @@ from tests.test_pack_dirs import _write_manifest
 
 def test_config_and_destination(tmp_path, monkeypatch):
     monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "home"))
-    default = tmp_path / "home/node/packs"
+    default = tmp_path / "home/node/installed_packs"
     local = tmp_path / "repo"
     (local / "packs").mkdir(parents=True)
     target = tmp_path / "downloads"
@@ -71,6 +71,6 @@ def test_installed_packs_is_the_new_name_and_install_dir_still_loads(tmp_path):
         NodeConfig.model_validate({"install_dir": str(target), "installed_packs": str(tmp_path / "x")})
 
 
-def test_unset_installed_packs_keeps_the_existing_default_directory(tmp_path, monkeypatch):
+def test_unset_installed_packs_defaults_to_node_installed_packs(tmp_path, monkeypatch):
     monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "home"))
-    assert NodeConfig().effective_install_dir == tmp_path / "home" / "node" / "packs"
+    assert NodeConfig().effective_install_dir == tmp_path / "home" / "node" / "installed_packs"

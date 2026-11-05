@@ -209,8 +209,9 @@ over a development source with the same name and version.
 
 Shared download caches let libraries with their own download channel and local
 index reuse one copy across environments and packs instead of filling each conda
-prefix. By default they live under `<user data dir>/weights` (normally
-`~/.hololab/weights`; `HOLOLAB_HOME` / `XDG_DATA_HOME` are honoured, `%APPDATA%`
+prefix. They are node-owned data, so by default they live beside the node's other
+data under `<node data dir>/weights` (normally `~/.hololab/node/weights`, next to
+`artifacts/` and `installed_packs/`; `HOLOLAB_HOME` / `XDG_DATA_HOME` are honoured, `%APPDATA%`
 on Windows). Relocate them, e.g. onto a data disk, or reuse an existing cache:
 
 ```yaml

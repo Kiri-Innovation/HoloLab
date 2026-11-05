@@ -41,9 +41,9 @@ def _weights(root: Path) -> dict[str, str]:
     }
 
 
-def test_unconfigured_node_defaults_to_user_data_weights(isolated_home: Path) -> None:
+def test_unconfigured_node_defaults_to_node_weights(isolated_home: Path) -> None:
     cfg = NodeConfig()
-    assert cfg.cache_env() == _weights(isolated_home / "weights")
+    assert cfg.cache_env() == _weights(isolated_home / "node" / "weights")
     env = cfg.ensure_cache_dirs()
     assert all(Path(env[key]).is_dir() for key in CACHE_KEYS)
     # The default is resolved at use time and is never written into the config.
@@ -53,7 +53,7 @@ def test_unconfigured_node_defaults_to_user_data_weights(isolated_home: Path) ->
 def test_default_follows_xdg_data_home_when_hololab_home_unset(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("HOLOLAB_HOME")
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
-    assert NodeConfig().cache_env() == _weights(tmp_path / "xdg" / "hololab" / "weights")
+    assert NodeConfig().cache_env() == _weights(tmp_path / "xdg" / "hololab" / "node" / "weights")
 
 
 def test_cache_root_derives_one_directory_per_library(tmp_path: Path) -> None:
@@ -74,7 +74,7 @@ def test_per_library_override_and_partial_configuration(tmp_path: Path) -> None:
     only_torch = NodeConfig(cache_dirs={"torch": tmp_path / "t"})
     env = only_torch.cache_env()
     assert env["TORCH_HOME"] == str(tmp_path / "t")
-    assert env["HF_HOME"] == str(tmp_path / "hololab-home" / "weights" / "huggingface")
+    assert env["HF_HOME"] == str(tmp_path / "hololab-home" / "node" / "weights" / "huggingface")
 
 
 @pytest.mark.parametrize(
@@ -102,7 +102,9 @@ def test_cache_configuration_round_trips_through_config_file(tmp_path: Path) -> 
     assert load_node_config(path).cache_env()["TORCH_HOME"] == str(tmp_path / "c" / "torch")
     write_node_config(NodeConfig(), path)
     assert load_node_config(path).cache_root is None
-    assert load_node_config(path).cache_env() == _weights(tmp_path / "hololab-home" / "weights")
+    assert load_node_config(path).cache_env() == _weights(
+        tmp_path / "hololab-home" / "node" / "weights"
+    )
 
 
 # --- job spawn: every executor path -------------------------------------------------
@@ -190,7 +192,7 @@ def test_job_plan_carries_the_node_cache_configuration(tmp_path: Path) -> None:
     plain = _make_exec_plan(
         _rendered(tmp_path), NodeConfig(), "/env", _pack(tmp_path), cached_env={}, cpu_mask=None
     )
-    assert plain.extra_env == _weights(tmp_path / "hololab-home" / "weights")
+    assert plain.extra_env == _weights(tmp_path / "hololab-home" / "node" / "weights")
 
 
 # --- pack setup hook ------------------------------------------------------------------
@@ -260,7 +262,7 @@ def test_setup_hook_without_configuration_uses_default_weights(tmp_path: Path, m
     prefix.mkdir()
     _run_hooks(tmp_path, monkeypatch, NodeConfig(), prefix)
     seen = json.loads((tmp_path / "seen.json").read_text())
-    default = _weights(tmp_path / "hololab-home" / "weights")
+    default = _weights(tmp_path / "hololab-home" / "node" / "weights")
     assert seen == default
     receipt = next((prefix / ".hololab-pack-setups").glob("*.json"))
     assert json.loads(receipt.read_text())["fingerprint"]["cache_env"] == default

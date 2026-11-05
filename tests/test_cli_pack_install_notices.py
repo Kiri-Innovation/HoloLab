@@ -97,5 +97,5 @@ def test_install_mentions_unconfigured_environment(tmp_path: Path) -> None:
 def test_cli_default_install_ignores_development_directory(tmp_path, monkeypatch):
     monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "home"))
     _install(tmp_path, {}, "default-destination", explicit_install_dir=False)
-    assert (tmp_path / "home/node/packs/community/default-destination@0.5.2").is_dir()
+    assert (tmp_path / "home/node/installed_packs/community/default-destination@0.5.2").is_dir()
     assert not (tmp_path / "development").exists()

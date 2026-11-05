@@ -41,7 +41,7 @@ def test_settings_roundtrip_rescan_and_catalog_destination(tmp_path, monkeypatch
         url = "/api/nodes/n/config"
         initial = client.get(url).json()["config"]
         assert initial["install_dir"] is None
-        assert initial["default_install_dir"] == str(tmp_path / "home/node/packs")
+        assert initial["default_install_dir"] == str(tmp_path / "home/node/installed_packs")
         response = client.patch(url, json={"patch": {"install_dir": str(target)}})
         assert response.status_code == 200, response.text
         assert yaml.safe_load(path.read_text())["installed_packs"] == str(target)

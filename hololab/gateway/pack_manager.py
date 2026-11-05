@@ -62,9 +62,9 @@ def public_error(exc: Exception) -> dict:
 
 
 def installation_destination(install_dir: Path | None = None) -> Path:
-    from hololab.paths import node_data_dir
+    from hololab.paths import default_installed_packs_dir
 
-    return install_dir if install_dir is not None else node_data_dir() / "packs"
+    return install_dir if install_dir is not None else default_installed_packs_dir()
 
 
 def install_on_node(
