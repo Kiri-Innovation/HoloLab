@@ -1,0 +1,144 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: megasam-track
+version: 0.4.0
+description: Standardize MegaSAM camera trajectories and depth-backprojected per-frame
+  points as three timed colmap4d components.
+category: reconstruction/megasam
+source_entry: run.py
+docs: 'Standardizes MegaSAM camera trajectories and per-frame point clouds into three
+  scalar colmap4d application components. Points are depth-backprojected XYZ/RGB with
+  source-frame exposure-center nanoseconds and reciprocal COLMAP observations. Binary
+  encoding only. Components must be assembled before validate_full.
+
+
+  Runs the existing Depth-Anything, UniDepth, MegaSAM, RAFT and CVD chain through
+  sharp_repo/per-frame/video_to_colmap.py --convert-only --track_megasam. This use
+  of the tracking wrapper does not run SHARP: Gaussian inference, optimization and
+  completion are outside this pack. Depth NPZ and caches are private scratch, not
+  ports. A private copy of megasam_repo protects native sources from outputs_cvd writes.
+
+
+  Default exposure_metadata requires a JSON file bound to video_sha256, clock_domain
+  and decoded-index exposure centers. pts_estimate explicitly treats actual video
+  PTS as approximate exposure centers; synthetic_uniform requires positive fps_num/fps_den.
+  Skip/cap preserve original decoded indexes. See README.md and docs/colmap4d-components.md
+  in the source repository. Video input is one file or a handle directory containing
+  exactly one video. SDR inputs only; unsupported HDR/color primaries fail before
+  inference. Rotation metadata is not applied. Scratch retains native products for
+  diagnosis and can exceed 40 GB for long clips.
+
+  '
+inputs:
+  video:
+    tags:
+    - video-source
+    storage: dir
+    arrayed: false
+params:
+  megasam_repo:
+    type: path
+    path_kind: directory
+    must_exist: true
+    description: MegaSAM source checkout and weights; privately copied to scratch.
+  tracker_python:
+    type: path
+    path_kind: file
+    must_exist: true
+    description: Executable Python in the MegaSAM environment, with native dependencies.
+  sharp_repo:
+    type: path
+    path_kind: directory
+    must_exist: true
+    description: Existing sharp-4dgs checkout containing per-frame/video_to_colmap.py;
+      tracking wrapper only.
+  skip:
+    type: int
+    default: 1
+    min: 1
+    description: Keep every Nth decoded display-order frame.
+  max_frames:
+    type: int
+    default: 0
+    min: 0
+    description: Maximum selected frames; zero means all.
+  depth_min:
+    type: float
+    default: 0.001
+    min: 0
+    description: Keep finite Z-depth strictly greater than this threshold.
+  pts_stride:
+    type: int
+    default: 2
+    min: 1
+    description: Pixel sampling stride in both axes.
+  timestamp_mode:
+    type: enum
+    default: exposure_metadata
+    values:
+    - exposure_metadata
+    - pts_estimate
+    - synthetic_uniform
+    description: Exposure truth by default; alternate modes explicitly record estimated
+      timestamps.
+  exposure_metadata_path:
+    type: path
+    path_kind: file
+    must_exist: true
+    optional: true
+    description: 'Required for exposure_metadata: JSON video_sha256, clock_domain,
+      frames with decoded_index and mid_exposure_ns or exposure_start_ns + exposure_ns.'
+  fps_num:
+    type: int
+    optional: true
+    min: 1
+    description: Positive rational frame-rate component; required only for synthetic_uniform,
+      never inferred.
+  fps_den:
+    type: int
+    optional: true
+    min: 1
+    description: Positive rational frame-rate component; required only for synthetic_uniform,
+      never inferred.
+outputs:
+  cams:
+    tags:
+    - colmap4d-cams
+    storage: dir
+    arrayed: false
+  points:
+    tags:
+    - colmap4d-point-cloud
+    storage: dir
+    arrayed: false
+  images:
+    tags:
+    - colmap4d-images
+    storage: dir
+    arrayed: false
+requires:
+  packages:
+  - colmap4d
+  - ffmpeg
+runtime:
+  env: kiri
+  gpu:
+    required: true
+    vram_gb_min: 8
+  resources:
+    scratch_gb: 40
+    mem_gb: 16
+    gpu_mem_gb: 8
+exec:
+  shell: 'set -euo pipefail
+
+    python "{{ pack_dir }}/run.py" <<''PACK_CONFIG''
+
+    {{ {''params'': params, ''inputs'': inputs, ''outputs'': outputs, ''scratch'':
+    scratch_dir} | tojson }}
+
+    PACK_CONFIG
+
+    '
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
