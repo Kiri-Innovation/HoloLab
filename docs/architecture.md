@@ -205,6 +205,29 @@ It also supplies `conda_bin`, `pack_dirs`, workspace roots and advertised URLs.
 The optional `install_dir` separates community downloads from development sources;
 it is implicitly scanned before `pack_dirs`, so an installed pack takes precedence
 over a development source with the same name and version.
+
+Optional shared download caches let libraries with their own download channel and
+local index reuse one copy across environments and packs instead of filling each
+conda prefix:
+
+```yaml
+cache_root: /data/hololab-cache        # -> <root>/torch and <root>/huggingface
+cache_dirs:                            # optional per-library overrides
+  huggingface: /data/huggingface_cache
+```
+
+When either is set, the node injects `TORCH_HOME`, `HF_HOME` and
+`HF_HUB_CACHE` (`$HF_HOME/hub`) into `pack setup` hooks and into every job spawn
+(cached, `conda run` and host paths alike), creating the directories if needed.
+Setup and jobs therefore resolve the same location; the setup receipt records these
+values, so changing them re-runs the hook. Injected values override variables
+inherited from the environment, and pack scripts that use `${TORCH_HOME:-…}`
+follow them. Packs that assign a variable unconditionally still win. Unset (the
+default) injects nothing and keeps each library's own default location. The
+Hugging Face login token lives under `HF_HOME`, so point `huggingface` at the
+directory holding the token if gated downloads are needed. Existing caches are not
+moved.
+
 Pack identity and execution declarations remain in the manifest. See
 [Writing a Pack](writing-a-pack.md) for source discovery and validation.
 

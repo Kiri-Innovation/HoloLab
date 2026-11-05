@@ -368,6 +368,16 @@ class NodeRuntime:
                 pids=orphaned,
             )
 
+        # Shared download caches (torch.hub / Hugging Face) are injected into
+        # every spawn; create them once so the first job does not race to.
+        try:
+            cache_env = self._config.ensure_cache_dirs()
+        except OSError as exc:
+            log.warning("cache directories could not be created", error=str(exc))
+        else:
+            if cache_env:
+                log.info("download caches injected into jobs", **cache_env)
+
         # Warm the env cache — one ``conda run`` snapshot per configured
         # env, results saved in ``self._env_cache`` and passed into every
         # subsequent ``ExecPlan``. Skipped entirely when the operator has
@@ -3288,6 +3298,7 @@ def _make_exec_plan(
         cached_env=cached_env,
         cpu_mask=cpu_mask,
         command=command,
+        extra_env=config.cache_env() or None,
     )
 
 

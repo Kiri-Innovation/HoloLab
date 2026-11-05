@@ -26,7 +26,8 @@ Two spawn paths, both preserving the invariant:
 
 Both paths pass an explicit ``env`` dict — the node runtime never
 mutates its own ``os.environ`` and never inherits the full daemon env
-into a child.
+into a child. ``ExecPlan.extra_env`` (the node's configured download
+caches, see ``NodeConfig.cache_env``) is layered on top in every path.
 """
 
 from __future__ import annotations
@@ -92,6 +93,9 @@ class ExecPlan:
     # A bundled host package supplies a fully explicit argv beginning with
     # the node interpreter.  It intentionally bypasses both conda paths.
     command: list[str] | None = None
+    # Node-configured variables (shared download caches) applied on top of
+    # whichever base env the spawn path uses; they win over inherited values.
+    extra_env: dict[str, str] | None = None
 
 
 @dataclass
@@ -142,6 +146,9 @@ async def run_subprocess(
         ]
         spawn_env = _clean_env()
         spawn_mode = "conda_run"
+    if plan.extra_env:
+        # Copy: ``cached_env`` is shared by every spawn of that environment.
+        spawn_env = {**spawn_env, **plan.extra_env}
 
     # CPU pinning wrapper. ``taskset`` is a thin syscall shim that
     # calls ``sched_setaffinity`` on the child before ``execve``; the

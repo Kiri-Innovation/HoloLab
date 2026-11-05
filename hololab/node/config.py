@@ -37,6 +37,30 @@ def _url_host(host: str) -> str:
     return f"[{host}]" if ":" in host and not host.startswith("[") else host
 
 
+def _absolute_cache_dir(value: Path | None, field: str) -> Path | None:
+    if value is not None:
+        value = value.expanduser()
+        if not value.is_absolute():
+            raise ValueError(f"{field} must be an absolute directory path")
+        if value.exists() and not value.is_dir():
+            raise ValueError(f"{field} must be a directory")
+    return value
+
+
+class CacheDirs(BaseModel):
+    """Per-library overrides of ``NodeConfig.cache_root``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    torch: Path | None = None
+    huggingface: Path | None = None
+
+    @field_validator("torch", "huggingface")
+    @classmethod
+    def _absolute(cls, value: Path | None, info) -> Path | None:
+        return _absolute_cache_dir(value, f"cache_dirs.{info.field_name}")
+
+
 class NodeConfig(BaseModel):
     """Machine-specific node settings, loaded from ``config.yaml``."""
 
@@ -259,6 +283,47 @@ class NodeConfig(BaseModel):
 
     # Conda plumbing (explicit — never guessed from PATH)
     code_baselines_dir: Path = Field(default_factory=lambda: node_data_dir() / "code-baselines")
+
+    # Shared download caches for libraries that keep their own local index
+    # (torch.hub, Hugging Face Hub). When set, ``pack setup`` hooks and every
+    # job spawn receive the same variables (see ``cache_env``), so a model a
+    # setup hook prefetches is the one jobs find, and environments and packs
+    # share one copy. ``cache_dirs`` entries override ``cache_root/<name>``.
+    # Unset (the default) injects nothing: libraries keep their own defaults.
+    cache_root: Path | None = None
+    cache_dirs: CacheDirs = Field(default_factory=CacheDirs)
+
+    @field_validator("cache_root")
+    @classmethod
+    def _absolute_cache_root(cls, value: Path | None) -> Path | None:
+        return _absolute_cache_dir(value, "cache_root")
+
+    def cache_env(self) -> dict[str, str]:
+        """Environment variables pointing libraries at the configured caches.
+
+        ``HF_HUB_CACHE`` is set alongside ``HF_HOME`` (its default location)
+        so that a more specific variable inherited from an environment
+        cannot silently split downloads from what setup prefetched.
+        """
+        torch = self.cache_dirs.torch or (self.cache_root / "torch" if self.cache_root else None)
+        hf = self.cache_dirs.huggingface or (
+            self.cache_root / "huggingface" if self.cache_root else None
+        )
+        env: dict[str, str] = {}
+        if torch is not None:
+            env["TORCH_HOME"] = str(torch)
+        if hf is not None:
+            env["HF_HOME"] = str(hf)
+            env["HF_HUB_CACHE"] = str(hf / "hub")
+        return env
+
+    def ensure_cache_dirs(self) -> dict[str, str]:
+        """Create the configured cache directories; return ``cache_env()``."""
+        env = self.cache_env()
+        for key in ("TORCH_HOME", "HF_HOME", "HF_HUB_CACHE"):
+            if key in env:
+                Path(env[key]).mkdir(parents=True, exist_ok=True)
+        return env
 
     conda_bin: str = "conda"
     envs: dict[str, str] = Field(default_factory=dict)  # logical name → prefix path

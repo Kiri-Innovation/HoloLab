@@ -397,7 +397,13 @@ def _verified_code_hash(manifest_path: Path) -> str:
     return record["sha256"]
 
 
-def _fingerprint(conda: str, prefix: Path, code_hash: str, script_hash: str) -> dict[str, str]:
+def _fingerprint(
+    conda: str,
+    prefix: Path,
+    code_hash: str,
+    script_hash: str,
+    cache_env: dict[str, str] | None = None,
+) -> dict[str, str]:
     probe = _run_in_env(
         conda,
         prefix,
@@ -418,7 +424,7 @@ def _fingerprint(conda: str, prefix: Path, code_hash: str, script_hash: str) -> 
         if nvcc
         else ""
     )
-    return {
+    fingerprint = {
         "code_sha256": code_hash,
         "script_sha256": script_hash,
         "python": lines[0] if lines else "",
@@ -427,6 +433,11 @@ def _fingerprint(conda: str, prefix: Path, code_hash: str, script_hash: str) -> 
         "nvcc": nvcc_value,
         "platform": platform.platform(),
     }
+    # Hooks often prefetch into these caches; moving them must re-run the
+    # hook. Omitted when unset so receipts from before this field still match.
+    if cache_env:
+        fingerprint["cache_env"] = dict(sorted(cache_env.items()))
+    return fingerprint
 
 
 def _check_hook_needs(conda: str, prefix: Path, setup: object) -> None:
@@ -477,7 +488,12 @@ def _check_hook_needs(conda: str, prefix: Path, setup: object) -> None:
 
 
 def _apply_hooks(
-    plan: EnvironmentPlan, conda: str, prefix: Path, events: list[str], dry_run: bool
+    plan: EnvironmentPlan,
+    conda: str,
+    prefix: Path,
+    events: list[str],
+    dry_run: bool,
+    cache_env: dict[str, str] | None = None,
 ) -> None:
     for manifest, manifest_path in plan.hooks:
         setup = manifest.setup
@@ -495,7 +511,7 @@ def _apply_hooks(
         code_hash = _verified_code_hash(manifest_path)
         script_hash = _hash(script)
         _check_hook_needs(conda, prefix, setup)
-        fingerprint = _fingerprint(conda, prefix, code_hash, script_hash)
+        fingerprint = _fingerprint(conda, prefix, code_hash, script_hash, cache_env)
         # Receipts are mutable operator state, never part of the verified pack.
         receipt = (
             prefix
@@ -523,6 +539,8 @@ def _apply_hooks(
                     "CUDA_HOME", str(Path(find_nvcc() or "/usr/local/cuda").parent.parent)
                 ),
                 "PACK_CODE_SHA256": code_hash,
+                # Same values every job spawn receives (NodeConfig.cache_env).
+                **(cache_env or {}),
             }
         )
         result = _run_in_env(conda, prefix, [setup.shell, str(script)], env=context)
@@ -687,7 +705,14 @@ def apply_plans(
                     raise SetupError(
                         f"failed to install {package!r} in {plan.name!r}; conda: {result.stderr.strip()}; pip: {pip.stderr.strip()}"
                     )
-        _apply_hooks(plan, conda, prefix, events, dry_run)
+        _apply_hooks(
+            plan,
+            conda,
+            prefix,
+            events,
+            dry_run,
+            cfg.ensure_cache_dirs() if not dry_run else cfg.cache_env(),
+        )
     if new_envs and not dry_run:
         if config_path.exists():
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

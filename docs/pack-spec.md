@@ -111,7 +111,11 @@ setup:
 The script is author-maintained, relative to `package_root`, and must not be
 excluded by `.packignore`. HoloLab injects read-only context variables
 `PACKAGE_ROOT`, `CONDA_PREFIX`, `PYTHON`, `PIP`, `CUDA_HOME`, and
-`PACK_CODE_SHA256`. It must use `set -euo pipefail`, must not create/activate
+`PACK_CODE_SHA256`. When the node configures shared download caches
+(`cache_root` / `cache_dirs`, see [Architecture](architecture.md)) the hook
+also receives `TORCH_HOME`, `HF_HOME` and `HF_HUB_CACHE`, exactly as jobs do;
+prefetch into them (or respect them with `${VAR:-default}`) rather than into
+`$CONDA_PREFIX`. It must use `set -euo pipefail`, must not create/activate
 conda environments, alter global conda configuration, or write the source tree.
 `PIP` is always a directly executable file path (normally
 `$CONDA_PREFIX/bin/pip`), never a shell command with arguments such as
