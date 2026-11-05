@@ -1,0 +1,14 @@
+[
+  {
+    "model": "index30",
+    "problems": [],
+    "strict_exit": 0,
+    "seconds": 1.3241728439970757
+  },
+  {
+    "model": "subset30-32",
+    "problems": [],
+    "strict_exit": 0,
+    "seconds": 3.1228206570012844
+  }
+]

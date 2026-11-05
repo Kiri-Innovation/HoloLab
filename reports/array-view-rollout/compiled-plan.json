@@ -1,0 +1,780 @@
+{
+  "recipe_dependencies": [],
+  "variables": {},
+  "variable_values": {},
+  "execution": {
+    "array_views": [
+      {
+        "edge_id": "scalar-to-slice",
+        "owner": "col4d/colmap4d-to-array@0.1.0",
+        "tag": "colmap4d",
+        "view": "exposure_groups",
+        "definition": {
+          "version": 1,
+          "array": {
+            "tags": [
+              "colmap4d"
+            ],
+            "arrayed": true,
+            "dim_labels": [
+              "frame"
+            ],
+            "storage": "dir"
+          },
+          "partition": {
+            "policy": "source_exposure_groups",
+            "order": "timestamp_then_stable_key",
+            "timestamp_unit": "ns"
+          },
+          "to_array": {
+            "name": "col4d/colmap4d-to-array",
+            "version": "0.1.0",
+            "input": "model",
+            "output": "frames"
+          },
+          "from_array": {
+            "name": "col4d/colmap4d-from-array",
+            "version": "0.1.0",
+            "input": "frames",
+            "output": "model"
+          }
+        },
+        "direction": "to_array",
+        "provider": {
+          "name": "col4d/colmap4d-to-array",
+          "version": "0.1.0",
+          "input": "model",
+          "output": "frames"
+        },
+        "node_id": "array-view-989c56446681c2650307"
+      },
+      {
+        "edge_id": "terminal-slice-out",
+        "owner": "col4d/colmap4d-to-array@0.1.0",
+        "tag": "colmap4d",
+        "view": "exposure_groups",
+        "definition": {
+          "version": 1,
+          "array": {
+            "tags": [
+              "colmap4d"
+            ],
+            "arrayed": true,
+            "dim_labels": [
+              "frame"
+            ],
+            "storage": "dir"
+          },
+          "partition": {
+            "policy": "source_exposure_groups",
+            "order": "timestamp_then_stable_key",
+            "timestamp_unit": "ns"
+          },
+          "to_array": {
+            "name": "col4d/colmap4d-to-array",
+            "version": "0.1.0",
+            "input": "model",
+            "output": "frames"
+          },
+          "from_array": {
+            "name": "col4d/colmap4d-from-array",
+            "version": "0.1.0",
+            "input": "frames",
+            "output": "model"
+          }
+        },
+        "direction": "from_array",
+        "provider": {
+          "name": "col4d/colmap4d-from-array",
+          "version": "0.1.0",
+          "input": "frames",
+          "output": "model"
+        },
+        "node_id": "array-view-0cd37ab38a0ddccf028a"
+      }
+    ],
+    "version": 1,
+    "parameter_inline_values": {},
+    "variable_values": {},
+    "resolved_variables": {},
+    "revision": "f7f03b55de29ea2c7da43deed068f6e330fc7f84d8160413d12c853b92cc9fb9",
+    "inline_values": {
+      "existing-model": {},
+      "slice": {},
+      "array-view-989c56446681c2650307": {},
+      "array-view-0cd37ab38a0ddccf028a": {}
+    },
+    "sources": {
+      "existing-model": {
+        "strict_validate": "default"
+      },
+      "slice": {
+        "start": "inline",
+        "end": "inline",
+        "step": "inline"
+      },
+      "array-view-989c56446681c2650307": {},
+      "array-view-0cd37ab38a0ddccf028a": {}
+    },
+    "environment_params": {
+      "existing-model": [],
+      "slice": [],
+      "array-view-989c56446681c2650307": [],
+      "array-view-0cd37ab38a0ddccf028a": []
+    },
+    "issues": [],
+    "packs": [
+      {
+        "apiVersion": "hololab.dev/v1",
+        "kind": "Algorithm",
+        "name": "col4d/merge-colmap4d",
+        "version": "0.3.0",
+        "root": ".",
+        "cold": [],
+        "external_code": [],
+        "requires": {
+          "python": null,
+          "packages": [
+            "colmap4d>=1.0.4",
+            "numpy",
+            "pillow"
+          ],
+          "package_indexes": {},
+          "package_checks": {},
+          "cuda": null,
+          "gpu": null
+        },
+        "setup": null,
+        "description": "Assemble colmap4d components with array validation and byte-preserving binary copies; optional full strict validation.",
+        "category": [
+          "reconstruction",
+          "colmap4d"
+        ],
+        "docs": "Uses colmap4d.arrays.read_point_arrays and read_image_headers. No Python Point3D/observation objects on the canonical uniform-track binary fast path. Binary files and pixels are independently copied unchanged; IDs, observations and int64 ns are preserved. Default fast validation is not a validate_full certification: single-track reciprocity is exhaustive; multi-track reciprocity/centroids sample up to 4096 points and observations per image. All records receive structure, geometry, ID, time-coverage and bounds checks. strict_validate=true and text/nonuniform-layout fallbacks retain the legacy complete validator and final validate_full(strict). No library modifications, XMP inference, timestamp changes or hardlinks. See README.md for coverage and performance evidence.",
+        "source_entry": "merge_colmap4d.py",
+        "arrayable": false,
+        "parallelism": null,
+        "batch_size": null,
+        "type_capabilities": {},
+        "inputs": {
+          "4d_points": {
+            "tags": [
+              "colmap4d-point-cloud"
+            ],
+            "required": true,
+            "inline": null,
+            "inline_default": null,
+            "require_axis_label_match": true,
+            "storage": "dir",
+            "description": null,
+            "arrayed": false,
+            "scalar": false,
+            "dim_labels": [],
+            "content_dims_from": null,
+            "any_of": []
+          },
+          "4d_cams": {
+            "tags": [
+              "colmap4d-cams"
+            ],
+            "required": true,
+            "inline": null,
+            "inline_default": null,
+            "require_axis_label_match": true,
+            "storage": "dir",
+            "description": null,
+            "arrayed": false,
+            "scalar": false,
+            "dim_labels": [],
+            "content_dims_from": null,
+            "any_of": []
+          },
+          "4d_images": {
+            "tags": [
+              "colmap4d-images"
+            ],
+            "required": true,
+            "inline": null,
+            "inline_default": null,
+            "require_axis_label_match": true,
+            "storage": "dir",
+            "description": null,
+            "arrayed": false,
+            "scalar": false,
+            "dim_labels": [],
+            "content_dims_from": null,
+            "any_of": []
+          }
+        },
+        "outputs": {
+          "model": {
+            "tags": [
+              "colmap4d"
+            ],
+            "storage": "dir",
+            "description": null,
+            "preview": null,
+            "arrayed": false,
+            "scalar": false,
+            "tags_from": null,
+            "dim_labels": [],
+            "dim_labels_from": null,
+            "dim_labels_from_input": null,
+            "dim_labels_drop_outer": 0
+          }
+        },
+        "params": {
+          "strict_validate": {
+            "type": "bool",
+            "items": null,
+            "default": false,
+            "description": "Default false: validate binary structure, full ID/time coverage, geometry, pixels and track bounds with arrays. Single-observation points receive exhaustive reciprocal/time checks; multi-observation relations and centroids are sampled. Enable for untrusted/external data to run full legacy reciprocal checks and final validate_full(strict). Text/nonuniform layouts automatically use full validation.",
+            "min": null,
+            "max": null,
+            "values": null,
+            "optional": false,
+            "pinned": false,
+            "must_exist": null,
+            "path_kind": null
+          }
+        },
+        "runtime": {
+          "mode": "conda",
+          "env": "colmap4d",
+          "gpu": {
+            "required": false,
+            "vram_gb_min": null
+          },
+          "exclusive": false,
+          "expected_duration_min": null,
+          "resources": {
+            "scratch_gb": 12.0,
+            "mem_gb": 8.0,
+            "gpu_mem_gb": null
+          }
+        },
+        "exec": {
+          "shell": "set -euo pipefail\npython -u \"{{ pack_dir }}/merge_colmap4d.py\" --points \"{{ inputs['4d_points'] }}\" --cams \"{{ inputs['4d_cams'] }}\" --images \"{{ inputs['4d_images'] }}\" --output \"{{ outputs.model }}\" {% if params.strict_validate %}--strict-validate{% endif %}\n",
+          "python": null,
+          "args": [],
+          "working_dir": null
+        },
+        "idempotency": {
+          "marker": "{{ outputs.model }}/.hololab-done"
+        },
+        "node_viewers": [],
+        "hide_default_output_previews": false,
+        "previews": [],
+        "progress": {
+          "stdout_regex": "\\[ITER (\\d+)/(\\d+)\\]",
+          "status_file": null
+        }
+      },
+      {
+        "apiVersion": "hololab.dev/v1",
+        "kind": "Algorithm",
+        "name": "col4d/colmap4d-to-array",
+        "version": "0.1.0",
+        "root": ".",
+        "cold": [],
+        "external_code": [],
+        "requires": {
+          "python": null,
+          "packages": [
+            "colmap4d>=1.0.4",
+            "numpy",
+            "pillow"
+          ],
+          "package_indexes": {},
+          "package_checks": {},
+          "cuda": null,
+          "gpu": null
+        },
+        "setup": null,
+        "description": "Materialize exposure groups of single-source colmap4d.",
+        "category": [
+          "reconstruction",
+          "colmap4d"
+        ],
+        "docs": null,
+        "source_entry": null,
+        "arrayable": false,
+        "parallelism": null,
+        "batch_size": null,
+        "type_capabilities": {
+          "colmap4d": {
+            "array_views": {
+              "exposure_groups": {
+                "version": 1,
+                "array": {
+                  "tags": [
+                    "colmap4d"
+                  ],
+                  "arrayed": true,
+                  "dim_labels": [
+                    "frame"
+                  ],
+                  "storage": "dir"
+                },
+                "partition": {
+                  "policy": "source_exposure_groups",
+                  "order": "timestamp_then_stable_key",
+                  "timestamp_unit": "ns"
+                },
+                "to_array": {
+                  "name": "col4d/colmap4d-to-array",
+                  "version": "0.1.0",
+                  "input": "model",
+                  "output": "frames"
+                },
+                "from_array": {
+                  "name": "col4d/colmap4d-from-array",
+                  "version": "0.1.0",
+                  "input": "frames",
+                  "output": "model"
+                }
+              }
+            }
+          }
+        },
+        "inputs": {
+          "model": {
+            "tags": [
+              "colmap4d"
+            ],
+            "required": true,
+            "inline": null,
+            "inline_default": null,
+            "require_axis_label_match": true,
+            "storage": "dir",
+            "description": null,
+            "arrayed": false,
+            "scalar": false,
+            "dim_labels": [],
+            "content_dims_from": null,
+            "any_of": []
+          }
+        },
+        "outputs": {
+          "frames": {
+            "tags": [
+              "colmap4d"
+            ],
+            "storage": "dir",
+            "description": null,
+            "preview": null,
+            "arrayed": true,
+            "scalar": false,
+            "tags_from": null,
+            "dim_labels": [
+              "frame"
+            ],
+            "dim_labels_from": null,
+            "dim_labels_from_input": null,
+            "dim_labels_drop_outer": 0
+          }
+        },
+        "params": {},
+        "runtime": {
+          "mode": "conda",
+          "env": "colmap4d",
+          "gpu": {
+            "required": false,
+            "vram_gb_min": null
+          },
+          "exclusive": false,
+          "expected_duration_min": null,
+          "resources": {
+            "scratch_gb": null,
+            "mem_gb": null,
+            "gpu_mem_gb": null
+          }
+        },
+        "exec": {
+          "shell": "python -u \"{{ pack_dir }}/convert.py\" to_array --input \"{{ inputs.model }}\" --output \"{{ outputs.frames }}\"",
+          "python": null,
+          "args": [],
+          "working_dir": null
+        },
+        "idempotency": null,
+        "node_viewers": [],
+        "hide_default_output_previews": false,
+        "previews": [],
+        "progress": null
+      },
+      {
+        "apiVersion": "hololab.dev/v1",
+        "kind": "Algorithm",
+        "name": "col4d/colmap4d-from-array",
+        "version": "0.1.0",
+        "root": ".",
+        "cold": [],
+        "external_code": [],
+        "requires": {
+          "python": null,
+          "packages": [
+            "colmap4d>=1.0.4",
+            "numpy",
+            "pillow"
+          ],
+          "package_indexes": {},
+          "package_checks": {},
+          "cuda": null,
+          "gpu": null
+        },
+        "setup": null,
+        "description": "Restore unmodified exposure-group subsets by source identity.",
+        "category": [
+          "reconstruction",
+          "colmap4d"
+        ],
+        "docs": null,
+        "source_entry": null,
+        "arrayable": false,
+        "parallelism": null,
+        "batch_size": null,
+        "type_capabilities": {},
+        "inputs": {
+          "frames": {
+            "tags": [
+              "colmap4d"
+            ],
+            "required": true,
+            "inline": null,
+            "inline_default": null,
+            "require_axis_label_match": true,
+            "storage": "dir",
+            "description": null,
+            "arrayed": true,
+            "scalar": false,
+            "dim_labels": [
+              "frame"
+            ],
+            "content_dims_from": null,
+            "any_of": []
+          }
+        },
+        "outputs": {
+          "model": {
+            "tags": [
+              "colmap4d"
+            ],
+            "storage": "dir",
+            "description": null,
+            "preview": null,
+            "arrayed": false,
+            "scalar": false,
+            "tags_from": null,
+            "dim_labels": [],
+            "dim_labels_from": null,
+            "dim_labels_from_input": null,
+            "dim_labels_drop_outer": 0
+          }
+        },
+        "params": {},
+        "runtime": {
+          "mode": "conda",
+          "env": "colmap4d",
+          "gpu": {
+            "required": false,
+            "vram_gb_min": null
+          },
+          "exclusive": false,
+          "expected_duration_min": null,
+          "resources": {
+            "scratch_gb": null,
+            "mem_gb": null,
+            "gpu_mem_gb": null
+          }
+        },
+        "exec": {
+          "shell": "python -u \"{{ pack_dir }}/convert.py\" from_array --input \"{{ inputs.frames }}\" --output \"{{ outputs.model }}\"",
+          "python": null,
+          "args": [],
+          "working_dir": null
+        },
+        "idempotency": null,
+        "node_viewers": [],
+        "hide_default_output_previews": false,
+        "previews": [],
+        "progress": null
+      },
+      {
+        "apiVersion": "hololab.dev/v1",
+        "kind": "Algorithm",
+        "name": "builtin/slice",
+        "version": "0.1.0",
+        "root": ".",
+        "cold": [],
+        "external_code": [],
+        "requires": {
+          "python": null,
+          "packages": [],
+          "package_indexes": {},
+          "package_checks": {},
+          "cuda": null,
+          "gpu": null
+        },
+        "setup": null,
+        "description": "Take a contiguous slice of an arrayed handle along its outermost dimension.",
+        "category": [
+          "basic",
+          "array",
+          "slice"
+        ],
+        "docs": null,
+        "source_entry": null,
+        "arrayable": false,
+        "parallelism": null,
+        "batch_size": null,
+        "type_capabilities": {},
+        "inputs": {
+          "in": {
+            "tags": [
+              "any"
+            ],
+            "required": true,
+            "inline": null,
+            "inline_default": null,
+            "require_axis_label_match": true,
+            "storage": "dir",
+            "description": "Any arrayed<T> handle — the slice runs on its outer dimension.",
+            "arrayed": true,
+            "scalar": false,
+            "dim_labels": [],
+            "content_dims_from": null,
+            "any_of": []
+          }
+        },
+        "outputs": {
+          "out": {
+            "tags": [
+              "any"
+            ],
+            "storage": "dir",
+            "description": null,
+            "preview": null,
+            "arrayed": true,
+            "scalar": false,
+            "tags_from": "in",
+            "dim_labels": [],
+            "dim_labels_from": null,
+            "dim_labels_from_input": "in",
+            "dim_labels_drop_outer": 0
+          }
+        },
+        "params": {
+          "start": {
+            "type": "int",
+            "items": null,
+            "default": 0,
+            "description": null,
+            "min": 0,
+            "max": null,
+            "values": null,
+            "optional": false,
+            "pinned": false,
+            "must_exist": null,
+            "path_kind": null
+          },
+          "end": {
+            "type": "int",
+            "items": null,
+            "default": -1,
+            "description": null,
+            "min": null,
+            "max": null,
+            "values": null,
+            "optional": false,
+            "pinned": false,
+            "must_exist": null,
+            "path_kind": null
+          },
+          "step": {
+            "type": "int",
+            "items": null,
+            "default": 1,
+            "description": null,
+            "min": 1,
+            "max": null,
+            "values": null,
+            "optional": false,
+            "pinned": false,
+            "must_exist": null,
+            "path_kind": null
+          }
+        },
+        "runtime": {
+          "mode": "host",
+          "env": null,
+          "gpu": {
+            "required": false,
+            "vram_gb_min": null
+          },
+          "exclusive": false,
+          "expected_duration_min": null,
+          "resources": {
+            "scratch_gb": null,
+            "mem_gb": null,
+            "gpu_mem_gb": null
+          }
+        },
+        "exec": {
+          "shell": "",
+          "python": "slice.py",
+          "args": [
+            "--input",
+            "{{ inputs.in }}",
+            "--output",
+            "{{ outputs.out }}",
+            "--start",
+            "{{ params.start }}",
+            "--end",
+            "{{ params.end }}",
+            "--step",
+            "{{ params.step }}"
+          ],
+          "working_dir": null
+        },
+        "idempotency": null,
+        "node_viewers": [],
+        "hide_default_output_previews": false,
+        "previews": [],
+        "progress": null
+      }
+    ]
+  },
+  "pinned_params": {
+    "col4d/merge-colmap4d@0.3.0": [],
+    "builtin/slice@0.1.0": [],
+    "col4d/colmap4d-to-array@0.1.0": [],
+    "col4d/colmap4d-from-array@0.1.0": []
+  },
+  "nodes": [
+    {
+      "id": "existing-model",
+      "kind": "algorithm",
+      "operation": null,
+      "assembly": null,
+      "algorithm_name": "col4d/merge-colmap4d",
+      "algorithm_version": "0.3.0",
+      "code_identity": null,
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "params": {
+        "strict_validate": false
+      },
+      "param_bindings": {},
+      "local_params": [],
+      "port_values": {},
+      "assigned_node_id": "local-demo",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "view_type": null,
+      "title": null
+    },
+    {
+      "id": "slice",
+      "kind": "algorithm",
+      "operation": null,
+      "assembly": null,
+      "algorithm_name": "builtin/slice",
+      "algorithm_version": "0.1.0",
+      "code_identity": null,
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "params": {
+        "start": 30,
+        "end": 32,
+        "step": 1
+      },
+      "param_bindings": {},
+      "local_params": [],
+      "port_values": {},
+      "assigned_node_id": "local-demo",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "view_type": null,
+      "title": null
+    },
+    {
+      "id": "array-view-989c56446681c2650307",
+      "kind": "algorithm",
+      "operation": null,
+      "assembly": null,
+      "algorithm_name": "col4d/colmap4d-to-array",
+      "algorithm_version": "0.1.0",
+      "code_identity": null,
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "params": {},
+      "param_bindings": {},
+      "local_params": [],
+      "port_values": {},
+      "assigned_node_id": "local-demo",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "view_type": null,
+      "title": null
+    },
+    {
+      "id": "array-view-0cd37ab38a0ddccf028a",
+      "kind": "algorithm",
+      "operation": null,
+      "assembly": null,
+      "algorithm_name": "col4d/colmap4d-from-array",
+      "algorithm_version": "0.1.0",
+      "code_identity": null,
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "params": {},
+      "param_bindings": {},
+      "local_params": [],
+      "port_values": {},
+      "assigned_node_id": "local-demo",
+      "arrayed_toggle": false,
+      "parallelism": 1,
+      "batch_size": 1,
+      "preview_open": null,
+      "view_type": null,
+      "title": null
+    }
+  ],
+  "edges": [
+    {
+      "id": "scalar-to-slice",
+      "source": "array-view-989c56446681c2650307",
+      "sourceHandle": "frames",
+      "target": "slice",
+      "targetHandle": "in"
+    },
+    {
+      "id": "scalar-to-slice-array-view-input",
+      "source": "existing-model",
+      "sourceHandle": "model",
+      "target": "array-view-989c56446681c2650307",
+      "targetHandle": "model"
+    },
+    {
+      "id": "terminal-slice-out-array-view-input",
+      "source": "slice",
+      "sourceHandle": "out",
+      "target": "array-view-0cd37ab38a0ddccf028a",
+      "targetHandle": "frames"
+    }
+  ]
+}
