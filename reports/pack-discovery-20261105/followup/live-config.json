@@ -1,0 +1,11 @@
+{
+  "pack_dirs": [
+    "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians/packs",
+    "/cloud/cloud-ssd1/Kiri4DGS/Utils/STG_to_SplaTV",
+    "/cloud/cloud-ssd1/Kiri4DGS/packages/FreeTimeGsVanilla/packs",
+    "/cloud/cloud-ssd1/.hololab/node/local-packs",
+    "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs",
+    "/cloud/cloud-ssd1/Kiri4DGS/packages/BiRefNet",
+    "/cloud/cloud-ssd1/Kiri4DGS/tryouts/mega-sam/packs"
+  ]
+}
