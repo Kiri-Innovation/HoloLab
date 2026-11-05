@@ -1,0 +1,4 @@
+ M hololab/frontend/src/canvas/connectionValidation.test.ts
+ M hololab/frontend/src/canvas/connectionValidation.ts
+?? hololab/frontend/src/canvas/arrayViewCompatibility.json
+?? hololab/frontend/src/canvas/arrayViewConnections.ts
