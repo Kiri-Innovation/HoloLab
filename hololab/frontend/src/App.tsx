@@ -454,6 +454,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [previewShardsByGraphNode, setPreviewShardsByGraphNode] = useState<
     Record<string, Record<string, PreviewShard[]>>
   >({});
+  // Tracks the currently selected execution generation and output handles.
+  // A fan-out adds one shard at a time; preserving unrelated preview maps is
+  // essential so that one completion cannot blank/re-adopt the whole canvas.
+  const previewGenerationByNodeRef = useRef<Record<string, string>>({});
+  const previewWorkByKeyRef = useRef<Record<string, string>>({});
   // Incrementing one entry remounts only that node's output preview(s).
   const [previewRefreshByGraphNode, setPreviewRefreshByGraphNode] = useState<Record<string, number>>({});
   const [nodeViewerFramesByGraphNode, setNodeViewerFramesByGraphNode] = useState<
@@ -1414,6 +1419,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // surface. Nodes whose relevant fields haven't changed keep their
   // identity so xyflow doesn't have to re-adopt them (see the
   // ``handleBounds``-reset failure mode above).
+  const outputHandleIdsByGraphNodeRef = useRef<Record<string, Record<string, string>>>({});
   const outputHandleIdsByGraphNode = useMemo(() => {
     // canvas-state already tells us the selected historical handle ids. Pass
     // them to ports before preview metadata arrives so batched facts can paint
@@ -1423,7 +1429,18 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       if (!job.graph_node_id || byGraphNode[job.graph_node_id] || !job.output_handles) continue;
       byGraphNode[job.graph_node_id] = job.output_handles;
     }
-    return byGraphNode;
+    const previous = outputHandleIdsByGraphNodeRef.current;
+    let changed = Object.keys(previous).length !== Object.keys(byGraphNode).length;
+    const stable: Record<string, Record<string, string>> = {};
+    for (const [nodeId, handles] of Object.entries(byGraphNode)) {
+      const prior = previous[nodeId];
+      const same = prior && Object.keys(prior).length === Object.keys(handles).length
+        && Object.entries(handles).every(([port, handle]) => prior[port] === handle);
+      stable[nodeId] = same ? prior : handles;
+      if (!same) changed = true;
+    }
+    outputHandleIdsByGraphNodeRef.current = changed ? stable : previous;
+    return outputHandleIdsByGraphNodeRef.current;
   }, [canvasJobs]);
   useEffect(() => {
     setNodes((current) =>
@@ -2593,13 +2610,30 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // State and previews use the same validated parent generation, with no run window.
   useEffect(() => {
     let cancelled = false;
-    setPreviewsByGraphNode({});
-    setPreviewShardsByGraphNode({});
-    setPreviewLoadingByGraphNode({});
-    setPreviewFactsPendingByGraphNode({});
-    setPreviewFactsFailedByGraphNode({});
-    setPreviewFactsByGraphNode({});
-    setPreviewLoadErrorsByGraphNode({});
+    // A new top-level job is a new output generation for that node. Clear
+    // only that node's prior artifacts; resetting every preview map here made
+    // every completed fan-out shard blank the entire canvas for one render.
+    const generationByNode: Record<string, string> = {};
+    for (const job of canvasJobs) if (job.graph_node_id && !job.parent_job_id) generationByNode[job.graph_node_id] = job.job_id;
+    const changedGenerations = new Set<string>();
+    for (const [nodeId, generation] of Object.entries(generationByNode)) {
+      if (previewGenerationByNodeRef.current[nodeId] && previewGenerationByNodeRef.current[nodeId] !== generation) changedGenerations.add(nodeId);
+    }
+    previewGenerationByNodeRef.current = generationByNode;
+    const dropChangedNodes = <T,>(previous: Record<string, T>): Record<string, T> => {
+      if (changedGenerations.size === 0) return previous;
+      let changed = false;
+      const next = { ...previous };
+      for (const nodeId of changedGenerations) if (nodeId in next) { delete next[nodeId]; changed = true; }
+      return changed ? next : previous;
+    };
+    setPreviewsByGraphNode(dropChangedNodes);
+    setPreviewShardsByGraphNode(dropChangedNodes);
+    setPreviewLoadingByGraphNode(dropChangedNodes);
+    setPreviewFactsPendingByGraphNode(dropChangedNodes);
+    setPreviewFactsFailedByGraphNode(dropChangedNodes);
+    setPreviewFactsByGraphNode(dropChangedNodes);
+    setPreviewLoadErrorsByGraphNode(dropChangedNodes);
     void (async () => {
       try {
         const perGraphPreviewWork: Array<{
@@ -2650,12 +2684,29 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         }
         const allPreviewWork = [...perGraphPreviewWork, ...perShardPreviewWork];
         if (allPreviewWork.length === 0) {
+          previewWorkByKeyRef.current = {};
           setHydrating(false);
           return;
         }
-        const pending: Record<string, Record<string, boolean>> = {};
-        for (const item of allPreviewWork) (pending[item.graphNodeId] ??= {})[item.portName] = true;
-        setPreviewLoadingByGraphNode(pending);
+        const nextWorkByKey: Record<string, string> = {};
+        const newWork = allPreviewWork.filter(item => {
+          const key = `${item.graphNodeId}\u0000${item.portName}\u0000${"elementId" in item ? item.elementId : ""}`;
+          nextWorkByKey[key] = item.handleId;
+          return previewWorkByKeyRef.current[key] !== item.handleId;
+        });
+        previewWorkByKeyRef.current = nextWorkByKey;
+        // Existing handles are already painted. Mark only newly materialised
+        // shard/parent handles loading, preserving every other node's data
+        // identity and preventing React Flow from re-adopting the whole graph.
+        if (newWork.length > 0) setPreviewLoadingByGraphNode(previous => {
+          let next = previous;
+          for (const item of newWork) {
+            if (next[item.graphNodeId]?.[item.portName]) continue;
+            if (next === previous) next = { ...previous };
+            next[item.graphNodeId] = { ...(next[item.graphNodeId] ?? {}), [item.portName]: true };
+          }
+          return next;
+        });
         // Apply the selected runtime and its port-level loading map together.
         // This prevents the one-render "never ran" flash between them.
         setHydrating(false);

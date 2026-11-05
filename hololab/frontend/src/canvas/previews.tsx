@@ -141,7 +141,7 @@ function Status({ text, kind }: { text: string; kind: "loading" | "error" | "inf
 // scalar viewer expects for that element. ``expectedTotal`` is the
 // parent's planned shard count, used for the pager's ``i / total`` text.
 export interface PartialArrayedInfo {
-  elements: { element_id: string; proxy_url: string }[];
+  elements: { element_id: string; proxy_url: string; handle_id?: string }[];
   expectedTotal?: number;
 }
 
@@ -236,6 +236,18 @@ export function Preview({
     return <ImagePreview url={refreshToken ? `${baseUrl}${separator}refresh=${refreshToken}` : baseUrl} />;
   }
   if (tags?.includes("image") && storage === "dir" && arrayed) {
+    // A fan-out's aggregate handle does not exist until every shard has
+    // finished. Its completed shard directories are nevertheless complete
+    // image sequences, so page through those immediately instead of asking
+    // the nested aggregate viewer to summarise an absent handle.
+    if (partial) {
+      return <ArrayedPaginator
+        baseUrl={baseUrl}
+        partial={partial}
+        dimLabels={dimLabels?.slice(0, 1)}
+        renderScalar={(elementBaseUrl, elementHandleId) => <FrameStripPreview baseUrl={elementBaseUrl} handleId={elementHandleId} />}
+      />;
+    }
     return (dimLabels?.length ?? 1) > 1
       ? <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />
       : <FrameStripPreview baseUrl={baseUrl} handleId={handleId} />;
@@ -2876,6 +2888,7 @@ function NestedFrameSequencePreview({
 
   const [state, setState] = useState<
     | { kind: "loading" }
+    | { kind: "waiting" }
     // ``totalGroupCount`` comes from the measured outer dimension when
     // available (otherwise all returned top-level dirs). ``groups`` is the
     // subset the capped summary enriched with at least one reachable image.
@@ -2889,7 +2902,7 @@ function NestedFrameSequencePreview({
 
   useEffect(() => {
     if (!handleId) {
-      setState({ kind: "err", message: "handle id required" });
+      setState({ kind: "waiting" });
       return;
     }
     let cancelled = false;
@@ -2960,10 +2973,10 @@ function NestedFrameSequencePreview({
 
   const [detailGroup, setDetailGroup] = useState<string | null>(null);
 
-  if (state.kind === "loading") {
+  if (state.kind === "loading" || state.kind === "waiting") {
     return (
       <div style={PREVIEW_SHELL}>
-        <Status text="reading grouped frames…" kind="loading" />
+        <Status text={state.kind === "waiting" ? "waiting for frames…" : "reading grouped frames…"} kind="loading" />
       </div>
     );
   }
@@ -4315,7 +4328,7 @@ function cancelIdle(id: number): void {
 interface ArrayedPaginatorProps {
   baseUrl: string;
   handleId?: string;
-  renderScalar: (elementBaseUrl: string) => React.ReactNode;
+  renderScalar: (elementBaseUrl: string, elementHandleId?: string) => React.ReactNode;
   // Partial mode — provided by the drawer while a fan-out is still in
   // progress. When set, the paginator skips the aggregate-handle
   // summary fetch entirely and pages through the given done shards.
@@ -4366,10 +4379,12 @@ function ArrayedPaginator({
   // when depth ≥ 2 at the outer level; empty otherwise.
   const [state, setState] = useState<
     | { kind: "loading" }
+    | { kind: "waiting" }
     | {
         kind: "ok";
         elements: string[];
         elementUrls?: string[];
+        elementHandleIds?: string[];
         expectedTotal?: number;
         innerByElement?: Record<string, string[]>;
       }
@@ -4399,6 +4414,7 @@ function ArrayedPaginator({
         kind: "ok",
         elements: partial.elements.map((e) => e.element_id),
         elementUrls: partial.elements.map((e) => e.proxy_url),
+        elementHandleIds: partial.elements.map((e) => e.handle_id ?? ""),
         expectedTotal: partial.expectedTotal,
       });
       setIdx((prev) =>
@@ -4407,7 +4423,7 @@ function ArrayedPaginator({
       return;
     }
     if (!handleId) {
-      setState({ kind: "err", message: "handle id required" });
+      setState({ kind: "waiting" });
       return;
     }
     let cancelled = false;
@@ -4500,10 +4516,10 @@ function ArrayedPaginator({
     };
   }, [idx, state, prefetchElement, partial, baseUrl]);
 
-  if (state.kind === "loading") {
+  if (state.kind === "loading" || state.kind === "waiting") {
     return (
       <div style={PREVIEW_SHELL}>
-        <Status text="reading elements…" kind="loading" />
+        <Status text={state.kind === "waiting" ? "waiting for elements…" : "reading elements…"} kind="loading" />
       </div>
     );
   }
@@ -4682,7 +4698,7 @@ function ArrayedPaginator({
             breadcrumb={breadcrumbParts}
           />
         ) : (
-          renderScalar(elementUrl)
+          renderScalar(elementUrl, state.elementHandleIds?.[safeIdx])
         )}
       </div>
     </div>

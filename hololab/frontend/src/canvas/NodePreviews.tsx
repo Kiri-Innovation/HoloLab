@@ -439,6 +439,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
                       elements: shardsForPort.map((s) => ({
                         element_id: s.element_id,
                         proxy_url: s.proxy_url,
+                        handle_id: s.handle_id,
                       })),
                       expectedTotal,
                     }}
