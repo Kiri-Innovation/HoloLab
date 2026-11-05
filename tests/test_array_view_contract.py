@@ -20,6 +20,7 @@ def test_roundtrip():
 
 @pytest.mark.parametrize("path,value", [
     (("array_views", "exposure_groups", "operations"), {}),
+    (("array_views", "exposure_groups", "version"), True),
     (("array_views", "exposure_groups", "array", "arrayed"), False),
     (("array_views", "exposure_groups", "array", "dim_labels"), ["frame", "cam"]),
     (("array_views", "exposure_groups", "array", "dim_labels"), [""]),

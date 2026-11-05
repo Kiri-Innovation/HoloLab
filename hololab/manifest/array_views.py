@@ -54,6 +54,13 @@ class ArrayView(StrictModel):
     to_array: Provider
     from_array: Provider
 
+    @field_validator("version", mode="before")
+    @classmethod
+    def integer_version(cls, value):
+        if type(value) is not int or value != 1:
+            raise ValueError("array view version must be integer 1")
+        return value
+
 
 class TypeCapability(StrictModel):
     array_views: dict[str, ArrayView] = Field(min_length=1)
