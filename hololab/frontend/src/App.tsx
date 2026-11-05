@@ -29,6 +29,7 @@ import { CanvasControls } from "./canvas/CanvasControls";
 //   - bottom: compute nodes, pulse and resource lenses
 
 import { CanvasToastAnchor } from "./ui/Toast";
+import { initialParameters } from "./canvas/initialParameters";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
@@ -1912,6 +1913,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           pack,
           assembly: pack.name === ASSEMBLE ? newAssembly() : undefined,
           assigned_node_id: pack.node_ids[0] ?? null, // default to the first eligible
+          params: initialParameters(pack),
           ...({ arrayed_toggle: false, parallelism: pack.parallelism ?? 1, batch_size: pack.batch_size ?? 1 } as object),
         },
       };
