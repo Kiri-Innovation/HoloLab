@@ -401,6 +401,92 @@ def test_failed_target_with_changed_fresh_identity_forks(tmp_path: Path, monkeyp
         assert response.json()["parent_snapshot_id"] == base
 
 
+def test_missing_unprepared_protected_pack_does_not_fork_target_continue(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Absent package evidence for B must not invalidate a C-only run.
+
+    The old snapshot records B's declaration.  The current single-node
+    preflight deliberately has no B package entry, as happens when an
+    unrelated protected node was not inspected.  That is unknown evidence,
+    not a proven package change.
+    """
+
+    from hololab.gateway import preparation
+
+    real_submitted_execution = preparation.submitted_execution
+
+    async def omit_b_pack(app, workflow_id, graph, *, required=None, token=None):
+        prepared = await real_submitted_execution(
+            app, workflow_id, graph, required=required, token=token
+        )
+        prepared.execution["packs"] = [
+            pack
+            for pack in prepared.execution["packs"]
+            if pack["name"] != "demo-replacement"
+        ]
+        return prepared
+
+    monkeypatch.setattr(preparation, "submitted_execution", omit_b_pack)
+    with TestClient(create_app(db_path=tmp_path / "missing-protected-pack.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "missing-protected-pack"
+        graph = _linear_graph()
+        graph.nodes[1].algorithm_name = "demo-replacement"
+        # Persist the old, complete catalog as frozen snapshot evidence.
+        graph.execution = {"packs": client.app.state.registry.catalog_json()}
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
+
+        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        assert response.status_code == 200, response.text
+        assert response.json()["operation"] == "continue"
+        assert response.json()["snapshot_id"] == base
+
+
+def test_changed_current_target_pack_forks_and_records_reason(tmp_path: Path) -> None:
+    """Two present, unequal package records remain a hard Fork boundary."""
+
+    with TestClient(create_app(db_path=tmp_path / "changed-target-pack.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "changed-target-pack"
+        graph = _linear_graph()
+        # A/B retain their current package record; only C's recorded package
+        # differs from the package freshly prepared for this retry.
+        graph.nodes[0].algorithm_name = "demo-replacement"
+        graph.nodes[1].algorithm_name = "demo-replacement"
+        old_packs = client.app.state.registry.catalog_json()
+        graph.execution = {
+            "packs": [
+                {**pack, "publication": {"code_sha256": "old-c"}}
+                if pack["name"] == "demo-echo"
+                else pack
+                for pack in old_packs
+            ]
+        }
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
+        _seed_attributed_job(
+            client,
+            workflow_id=wid,
+            snapshot_id=base,
+            graph_node_id="C",
+            job_id="failed-C",
+            state=JobState.FAILED,
+        )
+
+        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["operation"] == "fork"
+        assert body["fork_reason"]["kind"] == "protected_pack_changed"
+        assert body["fork_reason"]["graph_node_id"] == "C"
+
+        async def fork_reason() -> dict:
+            snap = await client.app.state.workflows.get_snapshot(body["snapshot_id"])
+            return snap.graph.execution["fork_reason"]
+
+        assert client.portal.call(fork_reason) == body["fork_reason"]
+
+
 def test_dispatch_forks_when_slot_taken(tmp_path: Path) -> None:
     """A snapshot with A + B + C done. Dispatching B (fork) creates a
     NEW snapshot; the new snapshot inherits A but drops B + C (C is

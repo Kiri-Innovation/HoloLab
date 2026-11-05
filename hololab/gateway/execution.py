@@ -1637,14 +1637,31 @@ async def _dispatch_graph_node(
         for nid in list(changed):
             changed |= downstream_closure(frozen_base, nid) | downstream_closure(prepared, nid)
     head = await snapshot_jobs.get_latest_snapshot_for_workflow(workflow_id)
-    can_continue = bool(
-        baseline
-        and head == base_snapshot_id
-        and retryable
-        and not (changed & protected)
-        and prepared.variables == frozen_base.variables
-        and prepared.variable_values == frozen_base.variable_values
-    )
+    # A Fork is not merely a boolean outcome: retain the first proven reason
+    # on the child snapshot.  This makes an old run explainable without
+    # reverse-engineering whichever live catalog happened to be available
+    # when it was dispatched.  ``None`` means no Fork was required (or this
+    # is the initial snapshot).
+    fork_reason: dict[str, Any] | None = None
+    if baseline:
+        if head != base_snapshot_id:
+            fork_reason = {"kind": "run_head_changed", "head_snapshot_id": head}
+        elif not retryable:
+            fork_reason = {
+                "kind": "target_slot_not_retryable",
+                "graph_node_id": graph_node_id,
+                "state": existing.state.value if existing else None,
+            }
+        elif changed & protected:
+            fork_reason = {
+                "kind": "protected_configuration_changed",
+                "graph_node_ids": sorted(changed & protected),
+            }
+        elif prepared.variables != frozen_base.variables or (
+            prepared.variable_values != frozen_base.variable_values
+        ):
+            fork_reason = {"kind": "workflow_variables_changed"}
+    can_continue = bool(baseline and fork_reason is None)
     # Whole-graph/rerun orchestrators own their not-yet-dispatched slots too.
     # They run beyond the HTTP lock; never append into their frozen run plan.
     if any(
@@ -1654,6 +1671,8 @@ async def _dispatch_graph_node(
         for task in getattr(app.state, "workflow_run_tasks", ())
     ):
         can_continue = False
+        if baseline and fork_reason is None:
+            fork_reason = {"kind": "base_run_still_orchestrating"}
     if can_continue:
         old_packs = (frozen_base.execution or {}).get("packs", [])
         new_packs = (prepared.execution or {}).get("packs", [])
@@ -1680,8 +1699,20 @@ async def _dispatch_graph_node(
                 ),
                 None,
             )
-            if old_pack is not None and old_pack != new_pack:
+            # A single-node preflight only provides current package evidence
+            # for packages it could actually inspect.  A missing entry is
+            # therefore *unknown*, not evidence that an unrelated protected
+            # node changed.  Only two present, unequal records prove a
+            # package declaration changed.  This mirrors the code-identity
+            # rule below for absent fresh identity evidence.
+            if old_pack is not None and new_pack is not None and old_pack != new_pack:
                 can_continue = False
+                fork_reason = {
+                    "kind": "protected_pack_changed",
+                    "graph_node_id": node.id,
+                    "old_pack": old_pack,
+                    "new_pack": new_pack,
+                }
                 break
     # A failed/cancelled attempt can be retried in place only with identical
     # code evidence.  ``code_identity=None`` on the newly prepared graph does
@@ -1697,6 +1728,10 @@ async def _dispatch_graph_node(
             and old_node.code_identity != new_node.code_identity
         ):
             can_continue = False
+            fork_reason = {
+                "kind": "retry_code_identity_changed",
+                "graph_node_id": graph_node_id,
+            }
 
     if can_continue:
         from hololab.gateway.canvas_jobs import canvas_jobs
@@ -1719,6 +1754,11 @@ async def _dispatch_graph_node(
                 and await snapshot_jobs.get_job_at(base_snapshot_id, nid) != job["job_id"]
             ):
                 can_continue = False
+                fork_reason = {
+                    "kind": "upstream_selected_from_other_run",
+                    "graph_node_id": nid,
+                    "job_id": job["job_id"],
+                }
                 break
 
     lineage_spans["continue_fork_decision"] = time.monotonic() - decision_started
@@ -1756,6 +1796,12 @@ async def _dispatch_graph_node(
     else:
         cleared = downstream_closure(graph, graph_node_id) | {graph_node_id} | changed
         parent_snapshot_id = base_snapshot_id
+        if parent_snapshot_id is not None:
+            # No schema migration is needed: execution is immutable snapshot
+            # evidence and is already persisted in graph_json.  Keep this
+            # field on child snapshots only; a first snapshot is a normal
+            # initial Continue, not a Fork to explain.
+            graph.execution["fork_reason"] = fork_reason or {"kind": "unknown"}
         snap = await workflows_store.create_snapshot(
             workflow_id=workflow_id,
             graph=graph,
@@ -1913,11 +1959,13 @@ async def _dispatch_graph_node(
     if parent_snapshot_id is not None:
         result["parent_snapshot_id"] = parent_snapshot_id
         result["forked_at"] = graph_node_id
+        result["fork_reason"] = fork_reason or {"kind": "unknown"}
     log.info(
         "single-node dispatch profile",
         workflow_id=workflow_id,
         graph_node_id=graph_node_id,
         job_id=job_id,
+        fork_reason=fork_reason,
         lock_wait_s=round(lock_wait_s, 4),
         total_s=round(time.monotonic() - started, 4),
         **{f"{name}_s": round(value, 4) for name, value in spans.items()},
