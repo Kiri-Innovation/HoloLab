@@ -5,7 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from hololab.content_scope import Baselines, IdentityMismatch, Scope, capture, verify
+from hololab.content_scope import (
+    Baselines,
+    IdentityMismatch,
+    Scope,
+    capture,
+    verification_fingerprint,
+    verify,
+)
 
 
 def package(tmp_path):
@@ -58,6 +65,23 @@ def test_hot_cold_ignored_and_rule_controls(tmp_path, monkeypatch):
         verify(manifest, record)
     (root / ".packignore").write_text("*\n")
     with pytest.raises(IdentityMismatch, match=r"\.packignore"):
+        verify(manifest, record)
+
+
+def test_verification_fingerprint_detects_same_size_code_change(tmp_path):
+    root, manifest, baselines = package(tmp_path)
+    record = capture(manifest, baselines)
+    before = verification_fingerprint(manifest, record)
+    source = root / "stg_state.py"
+    original_mtime = source.stat().st_mtime_ns
+    # Deliberately preserve byte length and restore mtime: ctime is the
+    # additional witness that prevents an ordinary metadata-only spoof from
+    # borrowing a prior full-tree verification.
+    source.write_text("print('changed!')\n")
+    os.utime(source, ns=(original_mtime, original_mtime))
+    after = verification_fingerprint(manifest, record)
+    assert after != before
+    with pytest.raises(IdentityMismatch, match=r"hot"):
         verify(manifest, record)
 
 

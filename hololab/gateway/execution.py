@@ -1962,83 +1962,109 @@ async def _resolve_inputs_from_snapshot(
     is no longer used.
     """
 
-    snapshot_jobs: SnapshotJobsStore = app.state.snapshot_jobs
-    jobs_store: JobsStore = app.state.jobs_store
-    handles: HandleBook = app.state.handles
-
     wired: dict[str, str] = {}
+    node_by_id = {node.id: node for node in graph.nodes}
+    consumer = node_by_id[graph_node_id]
+    from hololab.constants import is_constant
+    from hololab.gateway.artifact_lifecycle import resolve_job_origin
+    from hololab.gateway.constants import ensure_input
+
+    constant_edges = []
+    upstream_edges = []
     for edge in graph.edges:
         if edge.target != graph_node_id:
             continue
-        source_gnode = edge.source
-        from hololab.constants import is_constant
-        from hololab.gateway.constants import ensure_input
+        (constant_edges if is_constant(node_by_id[edge.source]) else upstream_edges).append(edge)
 
-        source = next(n for n in graph.nodes if n.id == source_gnode)
-        if is_constant(source):
-            consumer = next(n for n in graph.nodes if n.id == graph_node_id)
-            try:
-                wired[edge.targetHandle] = await ensure_input(
-                    app, target_snapshot_id, source, consumer
+    # The old path opened three independent read transactions for every
+    # upstream edge (snapshot membership -> job -> handles). Under writer
+    # contention that made even one-input nodes spend hundreds of milliseconds
+    # awaiting the database pool. Keep the exact parent-preferred selection,
+    # but resolve the complete direct-upstream set through one read connection.
+    async with app.state.db.read() as conn:
+        for edge in upstream_edges:
+            source_gnode = edge.source
+            async with conn.execute(
+                """
+                WITH candidates AS (
+                    SELECT j.job_id, j.parent_job_id, j.created_ts
+                    FROM snapshot_jobs sj
+                    JOIN jobs j ON j.job_id = sj.job_id
+                    WHERE sj.snapshot_id = ? AND sj.graph_node_id = ?
                 )
-            except ValueError as exc:
-                raise DispatchError(str(exc)) from exc
-            continue
-        upstream_job_id = await snapshot_jobs.get_job_at(target_snapshot_id, source_gnode)
-        if upstream_job_id is None:
-            # No attribution row at all — the upstream slot has never
-            # been dispatched in this snapshot. Under the pre-refactor
-            # "attribute-on-DONE" model this branch also caught the
-            # mid-fan-out window; that window no longer exists because
-            # ``_prepare_fanout`` attributes at creation.
-            raise DispatchError(
-                f"上游节点 {source_gnode!r} 没有可用于本次运行的产物。"
-                "画布上的历史结果可能来自另一条运行分支，不能直接作为这里的输入；"
-                "请先在当前流程中重新运行该上游链路，再运行本节点。"
+                SELECT COALESCE(
+                    (SELECT job_id FROM candidates WHERE parent_job_id IS NULL
+                     ORDER BY created_ts DESC LIMIT 1),
+                    (SELECT parent_job_id FROM candidates WHERE parent_job_id IS NOT NULL
+                     ORDER BY created_ts DESC LIMIT 1)
+                )
+                """,
+                (target_snapshot_id, source_gnode),
+            ) as cur:
+                row = await cur.fetchone()
+            upstream_job_id = await resolve_job_origin(conn, row[0]) if row and row[0] else None
+            if upstream_job_id is None:
+                # No attribution row at all — the upstream slot has never
+                # been dispatched in this snapshot.
+                raise DispatchError(
+                    f"上游节点 {source_gnode!r} 没有可用于本次运行的产物。"
+                    "画布上的历史结果可能来自另一条运行分支，不能直接作为这里的输入；"
+                    "请先在当前流程中重新运行该上游链路，再运行本节点。"
+                )
+            async with conn.execute(
+                "SELECT state, progress_current, progress_total, expected_shards "
+                "FROM jobs WHERE job_id=?",
+                (upstream_job_id,),
+            ) as cur:
+                upstream_job = await cur.fetchone()
+            if upstream_job is None:
+                raise DispatchError(
+                    f"upstream graph node {source_gnode!r} attribution points at "
+                    f"unknown job {upstream_job_id!r}; re-run to recover"
+                )
+            state = JobState(upstream_job[0])
+            if state in (JobState.PENDING, JobState.ASSIGNED, JobState.RUNNING):
+                shards_done = upstream_job[1]
+                shards_total = upstream_job[2] or upstream_job[3]
+                if shards_done is not None and shards_total is not None:
+                    progress = f" ({shards_done}/{shards_total} shards done)"
+                elif shards_total is not None:
+                    progress = f" (0/{shards_total} shards done)"
+                else:
+                    progress = ""
+                raise DispatchError(
+                    f"upstream graph node {source_gnode!r} is still {state.value}"
+                    f"{progress}; wait for it to finish, then retry"
+                )
+            if state != JobState.DONE:
+                raise DispatchError(
+                    f"upstream graph node {source_gnode!r} last attempt {state.value}; re-run it"
+                )
+            async with conn.execute(
+                "SELECT output_port_name, handle_id FROM handles "
+                "WHERE job_id=? AND deleted_ts IS NULL",
+                (upstream_job_id,),
+            ) as cur:
+                by_port = {row[0]: row[1] for row in await cur.fetchall() if row[0]}
+            handle_id = by_port.get(edge.sourceHandle)
+            if handle_id is None:
+                raise DispatchError(
+                    f"upstream graph node {source_gnode!r} produced no output for port "
+                    f"{edge.sourceHandle!r}"
+                )
+            wired[edge.targetHandle] = handle_id
+
+    for edge in constant_edges:
+        source = node_by_id[edge.source]
+        try:
+            wired[edge.targetHandle] = await ensure_input(
+                app, target_snapshot_id, source, consumer
             )
-        upstream_job = await jobs_store.get(upstream_job_id)
-        if upstream_job is None:
-            # Row-level race: attribution exists but the job row is
-            # missing. Treat as "no artifact" so the operator can
-            # re-dispatch to recover.
-            raise DispatchError(
-                f"upstream graph node {source_gnode!r} attribution points at "
-                f"unknown job {upstream_job_id!r}; re-run to recover"
-            )
-        state = upstream_job.state
-        if state in (JobState.PENDING, JobState.ASSIGNED, JobState.RUNNING):
-            # Attributed but still in flight. Aggregate shard progress
-            # from the parent row when available; a non-fanout job has
-            # None/None and the message drops the shard suffix.
-            shards_done = upstream_job.progress_current
-            shards_total = upstream_job.progress_total or upstream_job.expected_shards
-            if shards_done is not None and shards_total is not None:
-                progress = f" ({shards_done}/{shards_total} shards done)"
-            elif shards_total is not None:
-                progress = f" (0/{shards_total} shards done)"
-            else:
-                progress = ""
-            raise DispatchError(
-                f"upstream graph node {source_gnode!r} is still {state.value}"
-                f"{progress}; wait for it to finish, then retry"
-            )
-        if state != JobState.DONE:
-            raise DispatchError(
-                f"upstream graph node {source_gnode!r} last attempt {state.value}; re-run it"
-            )
-        # state is DONE → wire the handles.
-        registered = await handles.list_by_job(upstream_job_id)
-        by_port = {h.output_port_name: h.handle_id for h in registered if h.output_port_name}
-        handle_id = by_port.get(edge.sourceHandle)
-        if handle_id is None:
-            raise DispatchError(
-                f"upstream graph node {source_gnode!r} produced no output for port "
-                f"{edge.sourceHandle!r}"
-            )
-        wired[edge.targetHandle] = handle_id
+        except ValueError as exc:
+            raise DispatchError(str(exc)) from exc
+
     from hololab.gateway.constants import ensure_inline_inputs
 
-    consumer = next(n for n in graph.nodes if n.id == graph_node_id)
     try:
         wired = await ensure_inline_inputs(app, target_snapshot_id, consumer, wired)
         entry = next(

@@ -530,6 +530,22 @@ class WorkflowStore:
             updated_ts=row[4],
         )
 
+    @staticmethod
+    async def _read_updated_ts(conn: aiosqlite.Connection, workflow_id: str) -> float | None:
+        """Read only the CAS field used by dispatch-time snapshot writes.
+
+        ``_read_row`` parses the whole draft graph and applies local bindings.
+        Snapshot creation/extension only needs this scalar to reject a draft
+        that changed during dispatch, so parsing the graph here was pure
+        critical-path work on every Continue/Fork.
+        """
+
+        async with conn.execute(
+            "SELECT updated_ts FROM workflows WHERE workflow_id=?", (workflow_id,)
+        ) as cur:
+            row = await cur.fetchone()
+        return row[0] if row is not None else None
+
     async def _get_cached(self, workflow_id: str) -> WorkflowRow | None:
         async with self._db.read() as conn:
             return await self._read_row(conn, workflow_id)
@@ -682,8 +698,8 @@ class WorkflowStore:
         async def _write(conn: aiosqlite.Connection) -> None:
             expected = (graph.execution or {}).get("draft_updated_ts")
             if expected is not None:
-                current = await self._read_row(conn, workflow_id)
-                if current is None or current.updated_ts != expected:
+                current_updated_ts = await self._read_updated_ts(conn, workflow_id)
+                if current_updated_ts is None or current_updated_ts != expected:
                     from fastapi import HTTPException
 
                     raise HTTPException(
@@ -762,19 +778,22 @@ class WorkflowStore:
                 (baseline.workflow_id,),
             ) as cur:
                 head = await cur.fetchone()
-            current = await self._read_row(conn, baseline.workflow_id)
+            current_updated_ts = await self._read_updated_ts(conn, baseline.workflow_id)
             expected = (graph.execution or {}).get("draft_updated_ts")
             if (
                 not head
                 or head[0] != sid
-                or (expected is not None and (current is None or current.updated_ts != expected))
+                or (expected is not None and current_updated_ts != expected)
             ):
                 raise HTTPException(409, "Run head or draft changed before Continue commit")
             async with conn.execute(
                 "SELECT graph_json FROM snapshots WHERE snapshot_id=?", (sid,)
             ) as cur:
                 row = await cur.fetchone()
-            if not row or WorkflowGraph.model_validate_json(row[0]) != baseline.graph:
+            # Snapshots are only written through ``model_dump_json`` below.
+            # Comparing that canonical representation avoids reparsing a large
+            # graph merely to implement a compare-and-swap guard.
+            if not row or row[0] != baseline.graph.model_dump_json(exclude_none=True):
                 raise HTTPException(409, "Run evidence changed before Continue commit")
             await conn.execute(
                 "UPDATE snapshots SET graph_json=? WHERE snapshot_id=?",

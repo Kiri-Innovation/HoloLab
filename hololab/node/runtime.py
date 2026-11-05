@@ -271,6 +271,10 @@ class NodeRuntime:
         # includes every manifest/config input that changes an accept/reject
         # verdict and is force-probed again when its TTL expires.
         self._environment_report_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        # ``(manifest path, submitted content identity) -> stat witness``.
+        # A witness match only reuses a prior full SHA-256 verification; it is
+        # never accepted as a content identity by itself.
+        self._identity_verification_cache: dict[tuple[str, str], str] = {}
         # (pack name, version) -> latest report sent to the gateway.
         self._environment_evidence: dict[tuple[str, str], dict[str, Any]] = {}
 
@@ -2252,21 +2256,53 @@ class NodeRuntime:
         startup_spans["local_setup_and_render"] = time.monotonic() - local_setup_started
 
         async def verify_identity() -> None:
+            bundled_record = None
             if pack.origin == "bundled":
                 from hololab.bundled import verified_record
 
-                await asyncio.to_thread(verified_record, pack.manifest_path)
-            if getattr(assign, "code_identity", None):
-                from hololab.content_scope import verify
+                bundled_started = time.monotonic()
+                bundled_record = await asyncio.to_thread(verified_record, pack.manifest_path)
+                startup_spans["bundled_identity"] = time.monotonic() - bundled_started
 
-                await asyncio.to_thread(verify, pack.manifest_path, assign.code_identity)
+            async def verify_record(record: dict, span_name: str) -> None:
+                """Full-verify only when this execution sees changed files."""
+                from hololab.content_scope import verification_fingerprint, verify
+
+                verify_started = time.monotonic()
+                identity_key = (
+                    str(pack.manifest_path.resolve()),
+                    str(record.get("sha256")),
+                )
+                witness = await asyncio.to_thread(
+                    verification_fingerprint, pack.manifest_path, record
+                )
+                if self._identity_verification_cache.get(identity_key) != witness:
+                    await asyncio.to_thread(verify, pack.manifest_path, record)
+                    self._identity_verification_cache[identity_key] = witness
+                startup_spans[span_name] = time.monotonic() - verify_started
+
+            if getattr(assign, "code_identity", None):
+                # Bundled inventory validation already recomputed the exact
+                # content identity. It is stronger than a second traversal of
+                # the same tree, while this comparison still binds the process
+                # to the identity captured during strict preparation.
+                if bundled_record is not None:
+                    if bundled_record.get("sha256") != assign.code_identity.get("sha256"):
+                        from hololab.content_scope import mismatch
+
+                        mismatch(
+                            assign.code_identity,
+                            "hot",
+                            assign.code_identity.get("sha256"),
+                            bundled_record.get("sha256"),
+                        )
+                else:
+                    await verify_record(assign.code_identity, "submitted_identity")
             from hololab.pack_install import receipt_for
 
             receipt = receipt_for(pack.manifest_path)
             if receipt:
-                from hololab.content_scope import verify
-
-                await asyncio.to_thread(verify, pack.manifest_path, receipt["identity"])
+                await verify_record(receipt["identity"], "installation_receipt")
             if pack.manifest.requires is not None:
                 from hololab.node.capabilities import enforce
 
@@ -2274,7 +2310,11 @@ class NodeRuntime:
                 # this immutable assignment. At the fork boundary we still
                 # validate the package/environment fingerprint, but do not
                 # re-launch the expensive probe process when it is unchanged.
-                enforce(await self._environment_report(pack.manifest, validate_cached=True))
+                environment_started = time.monotonic()
+                report = await self._environment_report(pack.manifest, validate_cached=True)
+                startup_spans["environment_validation"] = time.monotonic() - environment_started
+                startup_spans["environment_cache_hit"] = int(bool(report.get("cache_hit")))
+                enforce(report)
 
         # Idempotency check. Non-batched only; batched shards always
         # re-execute (see the ``idempotency_marker=None`` override

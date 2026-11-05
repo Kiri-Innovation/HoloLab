@@ -599,3 +599,31 @@ def verify(path: Path, record: dict) -> None:
     if actual != record["hot"]["sha256"]:
         mismatch(record, "hot", record["hot"]["sha256"], actual)
     # Cold baseline deliberately NOT read/recomputed here.
+
+
+def verification_fingerprint(path: Path, record: dict) -> str:
+    """Return a cheap, current witness for an already verified hot tree.
+
+    This is deliberately *not* an identity: a changed fingerprint requires a
+    full :func:`verify` before execution.  It lets a long-lived node avoid
+    rereading every source byte for an unchanged package while retaining a
+    per-spawn check of controls and every included filesystem entry.  ctime is
+    included in addition to mtime/size so an ordinary write that restores its
+    mtime cannot borrow a previous verification.
+    """
+
+    check_controls(path, record)
+    scope = Scope.load(path)
+    entries = list(scope.entries(hot_only=True))
+    selected = entries if record["format"] == 1 else hot_entries(scope, entries)
+    h = hashlib.sha256()
+    for entry in sorted(selected, key=lambda e: os.fsencode(e.relative)):
+        observed = os.lstat(entry.path)
+        h.update(entry.mode.encode() + b" " + os.fsencode(entry.relative) + b"\0")
+        h.update(
+            f"{observed.st_ino}:{observed.st_mode}:{observed.st_size}:"
+            f"{observed.st_mtime_ns}:{observed.st_ctime_ns}".encode()
+        )
+        if stat.S_ISLNK(observed.st_mode):
+            h.update(b"\0" + os.fsencode(os.readlink(entry.path)))
+    return h.hexdigest()

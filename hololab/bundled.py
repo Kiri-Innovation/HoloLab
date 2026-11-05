@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import threading
 from pathlib import Path
 
 from hololab.package_identity import canonical_name, package_key
@@ -12,6 +13,13 @@ from hololab.package_identity import canonical_name, package_key
 
 class BundledPackageError(ValueError):
     pass
+
+
+# A process-local acceleration only. Every reuse still recomputes a stat-based
+# witness for the complete hot tree; any difference falls back to the original
+# full-byte identity verification below.
+_verified_records: dict[Path, tuple[dict, str]] = {}
+_verified_records_lock = threading.Lock()
 
 
 def is_builtin(name: str) -> bool:
@@ -48,8 +56,23 @@ def release_entries() -> list[dict]:
 
 def verified_record(manifest: Path) -> dict:
     """Verify bytes against the shipped inventory, including on every execution."""
-    from hololab.content_scope import Baselines, capture
+    from hololab.content_scope import Baselines, capture, verification_fingerprint
     from hololab.pack_registry import HashMismatch
+
+    manifest = manifest.resolve()
+    with _verified_records_lock:
+        cached = _verified_records.get(manifest)
+    if cached is not None:
+        record, expected_fingerprint = cached
+        try:
+            if verification_fingerprint(manifest, record) == expected_fingerprint:
+                # Callers attach execution-only evidence, so never hand out
+                # the cached object itself.
+                return json.loads(json.dumps(record))
+        except (OSError, ValueError):
+            # A control or filesystem change must go through the canonical
+            # full verifier below, which returns the usual hash-mismatch error.
+            pass
 
     root = resource_root().resolve()
     chosen = None
@@ -83,6 +106,9 @@ def verified_record(manifest: Path) -> dict:
         "name": "hololab",
         "version": json.loads((root / "index.json").read_text())["distribution_version"],
     }
+    fingerprint = verification_fingerprint(manifest, record)
+    with _verified_records_lock:
+        _verified_records[manifest] = (json.loads(json.dumps(record)), fingerprint)
     return record
 
 
