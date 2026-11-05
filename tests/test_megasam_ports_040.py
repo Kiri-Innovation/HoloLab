@@ -47,6 +47,24 @@ class PortsAndFrames(unittest.TestCase):
             pack_dir='/pack',inputs={key:'/'+key for key in merge.inputs},outputs={'model':'/model'})
         for key in merge.inputs: self.assertIn('/'+key,script)
 
+    def test_path_preparation_optional_exposure_and_hard_dependencies(self):
+        from hololab.manifest.path_params import resolve_path_params
+        manifest,_=load_manifest(ROOT/'community_packs/megasam-track@0.4.0/manifest.yaml')
+        self.assertTrue(manifest.params['exposure_metadata_path'].optional)
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); (root/'repo').mkdir(); (root/'python').write_text('fixture')
+            params=dict(megasam_repo=str(root/'repo'),sharp_repo=str(root/'repo'),tracker_python=str(root/'python'),exposure_metadata_path=None)
+            for mode in ('exposure_metadata','pts_estimate','synthetic_uniform'):
+                resolved=resolve_path_params(manifest.params,dict(params,timestamp_mode=mode))
+                self.assertIsNone(resolved['exposure_metadata_path'])
+            for name in ('megasam_repo','sharp_repo','tracker_python'):
+                self.assertFalse(manifest.params[name].optional)
+                with self.assertRaisesRegex(ValueError,name): resolve_path_params(manifest.params,dict(params,**{name:None}))
+            with self.assertRaisesRegex(ValueError,'exposure_metadata_path required'):
+                mega.timestamps(dict(params,timestamp_mode='exposure_metadata'),[0],[],None,'hash')
+            self.assertEqual(mega.timestamps(dict(params,timestamp_mode='pts_estimate'),[0],[{'pts':2}],'1/10','hash')[0],[200000000])
+            self.assertEqual(mega.timestamps(dict(params,timestamp_mode='synthetic_uniform',fps_num=25,fps_den=1),[1],[],None,'hash')[0],[40000000])
+
     def test_frame_timing_precedence_and_failures(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp); source=root/'source'; source.mkdir(); work=root/'work'; (work/'frames').mkdir(parents=True)

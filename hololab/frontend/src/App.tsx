@@ -1,3 +1,4 @@
+import { preparationDisplayReports } from "./canvas/parameterReadiness";
 import { useRecipeChecks } from "./packs/useRecipeChecks";
 import { PackManager } from "./packs/PackManager";
 import { WorkflowVariables } from "./canvas/WorkflowVariables";
@@ -3165,7 +3166,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             />
           </>
         ) : (
-          <CapabilityContext.Provider value={executionAnalysis.data?.environment_checks ?? capabilityChecks.reports}>
+          <CapabilityContext.Provider value={preparationDisplayReports(executionAnalysis.data?.environment_checks ?? capabilityChecks.reports, executionAnalysis.isCurrent ? executionAnalysis.data : undefined)}>
           <ReactFlow
             nodes={nodes}
             edges={displayEdges}

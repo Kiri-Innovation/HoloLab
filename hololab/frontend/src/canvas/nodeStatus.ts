@@ -1,3 +1,4 @@
+import {parameterReadiness, type PathParameterSpecs} from './parameterReadiness';
 import type { EnvironmentReport } from "./EnvironmentChecks";
 import type { NodeStaleness } from "./staleness";
 
@@ -15,6 +16,7 @@ export interface NodeStatusInput {
   missingAlgorithm?: { name: string; version: string } | null;
   missingInputs?: string[];
   environment?: EnvironmentReport;
+  parameterSpecs?: PathParameterSpecs;
   state?: string;
   stale?: NodeStaleness | null;
   /** Separate input also defines precedence for defensive/future combinations. */
@@ -26,7 +28,7 @@ export interface NodeStatusInput {
 }
 
 /** Presentation only: never mutate runtime, scheduling, or shared job colours. */
-export function nodeStatus({ state, stale, drift = false, failReason, upstreamBlocked = false, readOnly = false, missingAlgorithm, missingInputs = [], environment }: NodeStatusInput): NodeStatusPresentation {
+export function nodeStatus({ state, stale, drift = false, failReason, upstreamBlocked = false, readOnly = false, missingAlgorithm, missingInputs = [], environment, parameterSpecs }: NodeStatusInput): NodeStatusPresentation {
   const known = !state || ["loading", "pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted"].includes(state);
   const missingCurrentAlgorithm = !readOnly && !!missingAlgorithm;
   const invalidParameters = !readOnly && stale?.kind === "invalid_params";
@@ -93,7 +95,10 @@ export function nodeStatus({ state, stale, drift = false, failReason, upstreamBl
   // A live run keeps its blue status: the environment warning must not hide
   // the fact that work is currently executing.  Likewise an upstream block
   // is actionable before this node's own environment can matter.
-  if (!readOnly && !upstreamBlocked && state !== "running" && environment?.status === "missing") {
+  const parameterProblem = parameterReadiness(environment, parameterSpecs);
+  if (!readOnly && !upstreamBlocked && state !== "running" && parameterProblem) {
+    result = {tone: "neutral", marker: "environment-missing", ...parameterProblem};
+  } else if (!readOnly && !upstreamBlocked && state !== "running" && environment?.status === "missing") {
     const details = environment.issues.map(i => `${i.item}: 要求=${typeof i.required === "object" ? JSON.stringify(i.required) : i.required}; 当前=${typeof i.actual === "object" ? JSON.stringify(i.actual) : i.actual}; ${i.remedy}`).join("\n");
     result = {tone: "neutral", marker: "environment-missing", conclusion: "本地能力检查失败", reason: `${environment.source ?? ""}\n${details}`, action: "处理环境问题后重新检查；当前配置不能启动新任务。"};
   }

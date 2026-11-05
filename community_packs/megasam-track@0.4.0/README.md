@@ -38,3 +38,11 @@ Array identity is SHA256 of UTF-8 JSON with `ensure_ascii=False`, `sort_keys=Tru
 Frames must be single 8-bit RGB/RGBA SDR images with identical dimensions. Embedded ICC profiles are converted to sRGB; untagged images are explicitly assumed sRGB. Alpha is discarded for MegaSAM's RGB input. Preserve the original pixel orientation (no EXIF rotation). XMP is read before canonical PNG conversion. Native tracking, depth backprojection, output bin encoding and SHARP boundaries are unchanged.
 
 Port identifiers follow existing snake_case (`frame_sequence`, `videos_dir`, `colmap_4d`), hence `4d_cams` / `4d_points` / `4d_images`. These are dictionary keys, not Python variable identifiers; shell templates use bracket lookup where needed. This user-authorized first-release contract edit retains version 0.4.0; it does not silently alias old port names.
+
+## Path readiness versus environment checks
+
+`megasam_repo`, `sharp_repo` and `tracker_python` are mandatory for both input paths: the adapter copies MegaSAM, launches sharp_repo/per-frame/video_to_colmap.py and uses tracker_python as the interpreter. It is not a tracking script path. The logical `kiri` runtime does not implicitly supply these three parameters.
+
+`exposure_metadata_path` remains `optional: true` in the manifest. With video input it is required by the adapter only when timestamp_mode=exposure_metadata; it may be null for pts_estimate and synthetic_uniform. With image-array input it is an optional timing override; otherwise use complete XMP or explicitly supplied frames_fps. Setting video timestamp_mode=pts_estimate does not supply time to an image array.
+
+HoloLab's declared dependency check (colmap4d/ffmpeg) and parameter preparation are distinct. A successful dependency check does not fill path parameters or guarantee native MegaSAM inference. A prepare_params diagnostic includes values for optional paths too; that values dictionary is not a list of mandatory fields.

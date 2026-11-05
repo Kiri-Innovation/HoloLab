@@ -111,3 +111,10 @@ it('does not let an old hover preparation survive a successful draft save', asyn
   expect(requestCalls).toHaveLength(3);
   expect(new Headers(requestCalls[2][1]?.headers).get('X-Preparation-Token')).toBe('fresh');
 });
+
+it('classifies parameter preparation blockers without dispatching a job', async () => {
+ const fetch=vi.fn(async()=>new Response(JSON.stringify({token:'blocked',run_blockers:['n (pack): 本地能力检查失败 prepare_params'],environment_checks:{n:{status:'unknown',issues:[{item:'prepare_params',required:{repo:null,optional:null},actual:'Parameter repo: enter a nonempty path string',remedy:'fill'}]}}}),{status:200}));
+ vi.stubGlobal('fetch',fetch);
+ await expect(runWorkflow('parameter-blocker')).rejects.toThrow('必填参数未填');
+ expect(fetch).toHaveBeenCalledTimes(1);
+});

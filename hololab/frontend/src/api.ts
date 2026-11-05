@@ -1,3 +1,5 @@
+import { preparationBlockerText } from "./canvas/parameterReadiness";
+import type { EnvironmentReport } from "./canvas/EnvironmentChecks";
 // Thin REST client. All calls are same-origin — in dev, Vite proxies /api and
 // /proxy to the gateway on :8828 (see vite.config.ts).
 //
@@ -376,7 +378,7 @@ export const deleteWorkflow = (workflow_id: string) =>
     json<{ workflow_id: string; state: string }>,
   );
 
-type Preparation = { token: string; run_blockers?: string[] };
+type Preparation = { token: string; run_blockers?: string[]; environment_checks?: Record<string, EnvironmentReport> };
 const preparationCache = new Map<string, Preparation>();
 // Hover and click frequently overlap.  One strict prepare can include a
 // seconds-long node-side identity check, so never start a second equivalent
@@ -457,7 +459,7 @@ async function preparationHeaders(
   const inflight = preparationInFlight.get(key);
   if (inflight) {
     const prepared = await inflight;
-    if (prepared.run_blockers?.length) throw new Error(prepared.run_blockers.join("\n"));
+    if (prepared.run_blockers?.length) throw new Error(preparationBlockerText(prepared));
     return {
       headers: { "X-Preparation-Token": prepared.token, "X-Request-ID": newId() },
       elapsedMs: performance.now() - started,
@@ -466,8 +468,8 @@ async function preparationHeaders(
   const prepared = await resilientFetch(`/api/workflows/${workflowId}/prepare`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: preparationBody(nodeId, graph),
-  }).then(json<{ token: string; run_blockers?: string[] }>);
-  if (prepared.run_blockers?.length) throw new Error(prepared.run_blockers.join("\n"));
+  }).then(json<Preparation>);
+  if (prepared.run_blockers?.length) throw new Error(preparationBlockerText(prepared));
   return {
     headers: { "X-Preparation-Token": prepared.token, "X-Request-ID": newId() },
     elapsedMs: performance.now() - started,

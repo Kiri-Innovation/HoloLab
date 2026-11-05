@@ -1,3 +1,4 @@
+import {parameterReadiness} from './parameterReadiness';
 import { EvidenceValue } from "./EvidenceValue";
 import { createContext, useEffect, useRef, useState } from "react";
 import type { WorkflowGraph } from "../wire";
@@ -16,6 +17,8 @@ export interface EnvironmentReport {
 export const CapabilityContext = createContext<Record<string, EnvironmentReport>>({});
 export function environmentLabel(report?: EnvironmentReport) {
   if (!report) return "环境未校验";
+  const preparation = parameterReadiness(report);
+  if (preparation) return preparation.conclusion;
   return ({ undeclared: "环境未声明", satisfied: "已声明的可探测项满足", missing: "环境/硬件缺失", unknown: "环境无法确认" })[report.status];
 }
 

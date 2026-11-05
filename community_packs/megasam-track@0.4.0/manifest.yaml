@@ -58,17 +58,17 @@ params:
     type: path
     path_kind: directory
     must_exist: true
-    description: MegaSAM source checkout and weights; privately copied to scratch.
+    description: Required for both input paths. MegaSAM source checkout and weights; privately copied to scratch.
   tracker_python:
     type: path
     path_kind: file
     must_exist: true
-    description: Executable Python in the MegaSAM environment, with native dependencies.
+    description: Required for both input paths. Executable Python interpreter (not a script) with MegaSAM native dependencies.
   sharp_repo:
     type: path
     path_kind: directory
     must_exist: true
-    description: Existing sharp-4dgs checkout containing per-frame/video_to_colmap.py;
+    description: Required for both input paths. Existing sharp-4dgs checkout containing per-frame/video_to_colmap.py;
       tracking wrapper only.
   skip:
     type: int
@@ -104,8 +104,10 @@ params:
     path_kind: file
     must_exist: true
     optional: true
-    description: 'Required for exposure_metadata: JSON video_sha256, clock_domain,
-      frames with decoded_index and mid_exposure_ns or exposure_start_ns + exposure_ns.'
+    description: 'Conditional: required only for VIDEO input with timestamp_mode=exposure_metadata.
+      Leave null for video pts_estimate or synthetic_uniform. For IMAGE ARRAY input this
+      optional file overrides XMP/FPS timing. JSON identity is video_sha256 (video) or
+      frames_sha256 (array), with clock_domain and indexed exposure-center records.'
   fps_num:
     type: int
     optional: true

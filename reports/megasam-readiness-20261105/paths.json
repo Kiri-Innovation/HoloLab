@@ -1,0 +1,32 @@
+[
+  {
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/tryouts/mega-sam",
+    "exists": true,
+    "directory": true,
+    "executable": true
+  },
+  {
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs/per-frame/video_to_colmap.py",
+    "exists": true,
+    "directory": false,
+    "executable": false
+  },
+  {
+    "path": "/cloud/cloud-ssd1/envs/kiri/bin/python",
+    "exists": true,
+    "directory": false,
+    "executable": true
+  },
+  {
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/tryouts/mega-sam/base/droid_backends.cpython-312-x86_64-linux-gnu.so",
+    "exists": true,
+    "directory": false,
+    "executable": true
+  },
+  {
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/tryouts/mega-sam/base/thirdparty/lietorch/lietorch_backends.cpython-312-x86_64-linux-gnu.so",
+    "exists": true,
+    "directory": false,
+    "executable": true
+  }
+]
