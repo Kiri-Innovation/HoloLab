@@ -72,12 +72,16 @@ def _fake_online_node(client: TestClient) -> None:
         ws=ws,
         advertised_url=None,
         gpu=GpuInfo(),
-        packs=[PackInventoryEntry(name="demo-echo", version="0.1.0", manifest_hash="test")],
+        packs=[
+            PackInventoryEntry(name="demo-echo", version="0.1.0", manifest_hash="test"),
+            PackInventoryEntry(name="demo-replacement", version="0.1.0", manifest_hash="test"),
+        ],
         protocol_v=1,
     )
     client.app.state.registry._sessions[session.node_id] = session
     client.app.state.registry.catalog_json = lambda: [
-        {"name": "demo-echo", "version": "0.1.0", "inputs": {}, "outputs": {}, "params": {}}
+        {"name": name, "version": "0.1.0", "inputs": {}, "outputs": {}, "params": {}}
+        for name in ("demo-echo", "demo-replacement")
     ]
 
 
@@ -157,6 +161,157 @@ def test_dispatch_continues_when_slot_empty(tmp_path: Path) -> None:
         members = {j["graph_node_id"]: j["job_id"] for j in detail["jobs"]}
         assert members == {"A": f"{base[:8]}-A", "B": f"{base[:8]}-B", "C": body["job_id"]}
         assert body["job_id"]  # a fresh job id was minted
+
+
+def _save_draft(client: TestClient, workflow_id: str, graph: WorkflowGraph) -> None:
+    async def save() -> None:
+        await client.app.state.workflows.save_draft(
+            workflow_id=workflow_id, name="lineage semantics", graph=graph
+        )
+
+    client.portal.call(save)
+
+
+def _run_ids(client: TestClient, workflow_id: str) -> set[str]:
+    response = client.get(f"/api/workflows/{workflow_id}/runs")
+    assert response.status_code == 200, response.text
+    return {item["snapshot_id"] for item in response.json()}
+
+
+def test_adding_outgoing_edge_from_recorded_node_continues_for_existing_consumer(tmp_path: Path) -> None:
+    """A→D is a new consumer; it does not invalidate A's recorded output."""
+
+    with TestClient(create_app(db_path=tmp_path / "outgoing-c.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "outgoing-c"
+        graph = _linear_graph()
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
+        before_runs = _run_ids(client, wid)
+
+        graph.nodes.append(
+            GraphNode(
+                id="D", algorithm_name="demo-echo", algorithm_version="0.1.0", assigned_node_id="node-a"
+            )
+        )
+        graph.edges.append(GraphEdge(id="ead", source="A", sourceHandle="out", target="D", targetHandle="in"))
+        _save_draft(client, wid, graph)
+        # Editing a draft is not a run mutation: no snapshot exists solely
+        # because an outgoing edge was added.
+        assert _run_ids(client, wid) == before_runs
+        analysis = client.post(
+            f"/api/workflows/{wid}/analyze", json={"graph": graph.model_dump()}
+        )
+        assert analysis.status_code == 200, analysis.text
+        assert analysis.json()["staleness"]["A"] is None
+        assert analysis.json()["staleness"]["D"]["kind"] == "self_dirty"
+
+        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["operation"] == "continue"
+        assert body["snapshot_id"] == base
+        assert _run_ids(client, wid) == before_runs
+        members = {job["graph_node_id"] for job in client.get(f"/api/snapshots/{base}").json()["jobs"]}
+        assert members == {"A", "B", "C"}
+
+
+def test_adding_outgoing_edge_from_recorded_node_continues_for_new_consumer(tmp_path: Path) -> None:
+    """The new D slot appends to the run and resolves A from its old output."""
+
+    with TestClient(create_app(db_path=tmp_path / "outgoing-d.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "outgoing-d"
+        graph = _linear_graph()
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
+        before_runs = _run_ids(client, wid)
+
+        graph.nodes.append(
+            GraphNode(
+                id="D", algorithm_name="demo-echo", algorithm_version="0.1.0", assigned_node_id="node-a"
+            )
+        )
+        graph.edges.append(GraphEdge(id="ead", source="A", sourceHandle="out", target="D", targetHandle="in"))
+        _save_draft(client, wid, graph)
+
+        response = client.post(f"/api/workflows/{wid}/dispatch/D", params={"base_snapshot_id": base})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["operation"] == "continue"
+        assert body["snapshot_id"] == base
+        assert _run_ids(client, wid) == before_runs
+        members = {job["graph_node_id"] for job in client.get(f"/api/snapshots/{base}").json()["jobs"]}
+        assert members == {"A", "B", "D"}
+
+
+def test_changing_recorded_upstream_forks_then_blocks_stale_downstream(tmp_path: Path) -> None:
+    """A changed A invalidates B/C; C cannot consume B until the branch reruns it."""
+
+    with TestClient(create_app(db_path=tmp_path / "changed-upstream.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "changed-upstream"
+        graph = _linear_graph()
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
+        graph.nodes[0].params = {"changed": True}
+        _save_draft(client, wid, graph)
+
+        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        assert response.status_code == 400, response.text
+        assert "上游节点 'B' 没有可用于本次运行的产物" in response.json()["detail"]
+        runs = _run_ids(client, wid)
+        assert base in runs
+        child_ids = runs - {base}
+        assert len(child_ids) == 1
+        child = child_ids.pop()
+        async def read_parent() -> str | None:
+            return (await client.app.state.workflows.get_snapshot(child)).parent_snapshot_id
+
+        assert client.portal.call(read_parent) == base
+        detail = client.get(f"/api/snapshots/{child}").json()
+        # The fork materialized no stale A/B output into the child, and C was
+        # never submitted because its direct input was unavailable.
+        assert detail["jobs"] == []
+
+
+def test_replacing_unrecorded_node_continues_same_run(tmp_path: Path) -> None:
+    with TestClient(create_app(db_path=tmp_path / "replace-empty.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "replace-empty"
+        graph = _linear_graph()
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
+        before_runs = _run_ids(client, wid)
+        graph.nodes[2].algorithm_name = "demo-replacement"
+        _save_draft(client, wid, graph)
+
+        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["operation"] == "continue"
+        assert body["snapshot_id"] == base
+        assert _run_ids(client, wid) == before_runs
+        job = next(job for job in client.get(f"/api/snapshots/{base}").json()["jobs"] if job["graph_node_id"] == "C")
+        assert job["algorithm_name"] == "demo-replacement"
+
+
+def test_replacing_recorded_node_forks_new_run(tmp_path: Path) -> None:
+    with TestClient(create_app(db_path=tmp_path / "replace-recorded.sqlite")) as client:
+        _fake_online_node(client)
+        wid = "replace-recorded"
+        graph = _linear_graph()
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B", "C"])
+        before_runs = _run_ids(client, wid)
+        graph.nodes[2].algorithm_name = "demo-replacement"
+        _save_draft(client, wid, graph)
+
+        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["operation"] == "fork"
+        assert body["snapshot_id"] != base
+        assert body["parent_snapshot_id"] == base
+        assert _run_ids(client, wid) == before_runs | {body["snapshot_id"]}
+        members = {job["graph_node_id"]: job for job in client.get(f"/api/snapshots/{body['snapshot_id']}").json()["jobs"]}
+        assert set(members) == {"A", "B", "C"}
+        assert members["C"]["algorithm_name"] == "demo-replacement"
 
 
 def test_dispatch_forks_when_slot_taken(tmp_path: Path) -> None:
