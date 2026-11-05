@@ -1,0 +1,85 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/colmap4d-from-xmp-photos
+version: 0.1.0
+description: Build a complete colmap4d model from grouped COLMAP geometry and flat
+  JPEG photos with HoloLab XMP exposure metadata.
+source_entry: merge_colmap4d.py
+category: reconstruction/colmap4d
+docs: 'The image input is strictly one-dimensional. Convert the upstream
+
+  `arrayed[group,cam]<image>` with the type-agnostic `flatten-array@0.1.0`.
+
+  Root-level elements use the generic `<outer>__<inner>` convention
+
+  (`gXXXXXX__camN.jpg` here).
+
+
+  The input element name is preserved as both COLMAP `Image.name` and the
+
+  root-level path below `images/`. Grouping remains recoverable from the name
+
+  for assembly alignment, without becoming an output directory hierarchy.
+
+
+  Independent legacy XMP producer, migrated from frozen col4d/merge-colmap4d@0.1.5.
+  Input points/cams retain grouped array contracts; images is a flat image array with
+  gXXXXXX__camN.jpg names. Image time is wallClockEpochNs + exposureNs // 2, with
+  one common XMP timebase. Point times are integer track centroids. Output is a complete
+  scalar colmap4d model, not three components. Source provenance identifies this new
+  pack; all other native behavior is retained.
+
+
+  Legacy compatibility includes blank image observation rows and retained point tracks
+  addressing triangulation keypoints. This passes the existing colmap4d validator
+  but does not claim the stronger reciprocal-track component profile. Use merge-colmap4d@0.2.0
+  only with actual component-profile inputs. No STG changes, GPU or training. See
+  README.md.
+
+  '
+inputs:
+  points:
+    tags:
+    - point-cloud
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - group
+    require_axis_label_match: false
+  images:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+  cams:
+    tags:
+    - colmap-cams
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - group
+    require_axis_label_match: false
+outputs:
+  model:
+    tags:
+    - colmap4d
+    arrayed: false
+    storage: dir
+requires:
+  packages:
+  - colmap4d
+runtime:
+  env: colmap4d
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 2.0
+    mem_gb: 8.0
+exec:
+  shell: "set -euo pipefail\npython \"{{ pack_dir }}/merge_colmap4d.py\" \\\n  --points\
+    \ \"{{ inputs.points }}\" \\\n  --images \"{{ inputs.images }}\" \\\n  --cams\
+    \ \"{{ inputs.cams }}\" \\\n  --output \"{{ outputs.model }}\"\n"
+idempotency:
+  marker: '{{ outputs.model }}/.hololab-done'
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
