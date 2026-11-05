@@ -312,8 +312,10 @@ def test_workflow_open_lists_missing_and_preparation_fails(tmp_path, monkeypatch
     pack = make_pack(tmp_path)
     checker = CapabilityChecker()
     envs = {"test": sys.prefix}
+    rpc_kinds = []
 
     async def rpc(app, selected, kind, request, *args, **kwargs):
+        rpc_kinds.append(kind)
         assert kind == "capability_req"
         return {
             "report": checker.check(
@@ -363,10 +365,15 @@ def test_workflow_open_lists_missing_and_preparation_fails(tmp_path, monkeypatch
         monkeypatch.setattr(
             "hololab.gateway.canvas_jobs.canvas_jobs", AsyncMock(return_value=evidence)
         )
+        rpc_kinds.clear()
         analysis = client.post(base + "/analyze", json={"graph": graph.model_dump()})
         assert analysis.status_code == 200, analysis.text
         assert analysis.json()["canvas_jobs"][0]["state"] == "done"
-        assert set(analysis.json()["environment_checks"]) == {"a", "b"}
+        # Canvas analysis is a local staleness/diff calculation.  Environment
+        # badges have their own endpoint; polling /analyze must not fan out
+        # fresh capability RPCs across every node in a workflow.
+        assert "environment_checks" not in analysis.json()
+        assert rpc_kinds == []
         prepared = client.post(base + "/prepare", json={})
         assert prepared.status_code == 200, prepared.text
         assert len(prepared.json()["run_blockers"]) == 2

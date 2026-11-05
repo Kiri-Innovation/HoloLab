@@ -257,7 +257,12 @@ def changed_nodes(current: WorkflowGraph, frozen: WorkflowGraph) -> set[str]:
 
 
 async def prepare_execution(
-    app, graph: WorkflowGraph, *, required: set[str] | None = None, strict: bool = True
+    app,
+    graph: WorkflowGraph,
+    *,
+    required: set[str] | None = None,
+    strict: bool = True,
+    check_environment: bool = True,
 ) -> WorkflowGraph:
     """Resolve and normalize; display callers collect failures with strict=False.
 
@@ -290,8 +295,13 @@ async def prepare_execution(
     # Keep pre-normalization effective configuration for later single-node
     # Continue checks; untouched upstream paths must not be re-prepared.
     result.execution["requested_nodes"] = {n.id: semantic_node(n) for n in result.nodes}
-    result.execution["environment_checks"] = await check_workflow(
-        app, result, required=required, fresh=True
+    # ``/analyze`` needs normalized effective parameters but is not an
+    # execution preflight.  Let it reuse this resolver without fanning out
+    # fresh environment inventories across the whole canvas.
+    result.execution["environment_checks"] = (
+        await check_workflow(app, result, required=required, fresh=True)
+        if check_environment
+        else {}
     )
     spans["environment_checks"] = time.monotonic() - started - sum(spans.values())
     blocked = {
@@ -331,19 +341,30 @@ async def prepare_execution(
                 raise ValueError(reply["error"])
             node.params = reply["params"]
         except (ValueError, TimeoutError, ConnectionError, HTTPException) as exc:
-            report = result.execution["environment_checks"][node.id]
-            report["status"] = "unknown"
-            report["issues"].append(
-                {
-                    "item": "prepare_params",
-                    "required": {key: node.params.get(key) for key in paths},
-                    "actual": str(exc),
-                    "remedy": "检查该节点的执行设备与本地路径参数后重新准备",
-                }
-            )
+            report = result.execution["environment_checks"].get(node.id)
+            if report is not None:
+                report["status"] = "unknown"
+                report["issues"].append(
+                    {
+                        "item": "prepare_params",
+                        "required": {key: node.params.get(key) for key in paths},
+                        "actual": str(exc),
+                        "remedy": "检查该节点的执行设备与本地路径参数后重新准备",
+                    }
+                )
+            else:
+                result.execution["issues"].append(
+                    {
+                        "kind": "prepare_params",
+                        "node_id": node.id,
+                        "message": str(exc),
+                    }
+                )
             blocked.add(node.id)
     spans["prepare_params"] = time.monotonic() - started - sum(spans.values())
     if strict:
+        if not check_environment:
+            raise ValueError("strict preparation requires environment checks")
         enforce_workflow(result.execution["environment_checks"])
         # A preparation token is an execution preflight, not merely an
         # environment report.  Capture the immutable code evidence here so a
@@ -359,6 +380,7 @@ async def prepare_execution(
         "prepare profile",
         graph_node_ids=sorted(required),
         strict=strict,
+        environment_checks_enabled=check_environment,
         total_s=round(time.monotonic() - started, 4),
         **{f"{name}_s": round(value, 4) for name, value in spans.items()},
     )
@@ -525,18 +547,26 @@ async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph, *, disp
     from hololab.constants import is_constant
     from hololab.gateway.workflows import downstream_closure, topological_order
 
-    # First paint needs deterministic draft normalization and historical
-    # evidence, not a fresh node RPC.  Dispatch still calls prepare_execution
-    # and remains the only strict/fresh environment gate.
-    prepared = (
-        resolve_recipe(
-            graph,
-            copy.deepcopy(app.state.registry.catalog_json()),
-            tolerate_parameter_errors=True,
-        )
-        if display_only
-        else await prepare_execution(app, graph, strict=False)
+    # Analysis is deliberately not an environment preflight.  It is polled
+    # while the canvas is open, so routing it through a normal preparation
+    # used to issue fresh capability RPCs for every algorithm in the graph.
+    # Those reports are neither consumed by staleness/diff calculation nor
+    # trusted as an execution gate (the independent capability endpoint owns
+    # canvas badges; strict preparation owns submission).  We retain path
+    # parameter normalization because it contributes to the effective graph,
+    # but suppress environment RPCs.  In particular, an operator
+    # hovering/clicking one node cannot contend with a 41-node background
+    # environment inventory.
+    prepared = await prepare_execution(
+        app,
+        graph,
+        strict=False,
+        check_environment=False,
     )
+    # Absence intentionally makes the frontend use its independent capability
+    # check result rather than mistaking an empty analysis-only map for a
+    # capability verdict.
+    prepared.execution.pop("environment_checks", None)
     sid = await app.state.snapshot_jobs.get_latest_snapshot_for_workflow(workflow_id)
     snapshot = await app.state.workflows.get_snapshot(sid) if sid else None
     baseline = await historical_execution(app, snapshot) if snapshot else None
