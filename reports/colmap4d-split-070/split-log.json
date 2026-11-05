@@ -1,0 +1,27 @@
+{
+  "job_id": "be88568f-f75e-496a-96c5-e7ea1f19f446",
+  "lines": [
+    {
+      "stream": "stdout",
+      "line": "[ITER 1/3] read arrays and image headers",
+      "ts": 1793902345.001868
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 2/3] copy components byte-for-byte",
+      "ts": 1793902347.550037
+    },
+    {
+      "stream": "stdout",
+      "line": "[ITER 3/3] done",
+      "ts": 1793902349.8547132
+    },
+    {
+      "stream": "stdout",
+      "line": "{\"images\": 81, \"points\": 41990400, \"seconds\": 5.165058954000415, \"max_rss_kib\": 3932412}",
+      "ts": 1793902349.8547132
+    }
+  ],
+  "total_returned": 4,
+  "truncated": false
+}

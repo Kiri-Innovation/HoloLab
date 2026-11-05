@@ -1,0 +1,57 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/colmap4d-split
+version: 0.1.0
+description: Split a timed colmap4d model into camera, point and image components
+  without rewriting IDs or times.
+source_entry: split_colmap4d.py
+category: reconstruction/colmap4d
+docs: Three fixed outputs, no parameters. All three are materialized even if disconnected;
+  only downstream consumption is demand-driven. Uses colmap4d arrays and header readers,
+  then independent byte-preserving copies. Requires the timed component profile (times,
+  points_t, time_meta and image pixels). Does not certify full reciprocal tracks or
+  time coverage; merge strict_validate can validate untrusted data.
+inputs:
+  model:
+    tags:
+    - colmap4d
+    arrayed: false
+    storage: dir
+outputs:
+  4d_cams:
+    tags:
+    - colmap4d-cams
+    arrayed: false
+    storage: dir
+  4d_points:
+    tags:
+    - colmap4d-point-cloud
+    arrayed: false
+    storage: dir
+  4d_images:
+    tags:
+    - colmap4d-images
+    arrayed: false
+    storage: dir
+params: {}
+requires:
+  packages:
+  - colmap4d>=1.0.4
+  - numpy
+runtime:
+  env: colmap4d
+  gpu:
+    required: false
+  resources:
+    scratch_gb: 12.0
+    mem_gb: 8.0
+exec:
+  shell: 'set -euo pipefail
+
+    python -u "{{ pack_dir }}/split_colmap4d.py" --model "{{ inputs.model }}" --cams
+    "{{ outputs[''4d_cams''] }}" --points "{{ outputs[''4d_points''] }}" --images
+    "{{ outputs[''4d_images''] }}"
+
+    '
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]

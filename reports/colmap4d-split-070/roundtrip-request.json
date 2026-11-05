@@ -1,0 +1,11 @@
+{
+  "algorithm_name": "col4d/merge-colmap4d",
+  "algorithm_version": "0.3.0",
+  "params": {},
+  "input_handles": {
+    "4d_cams": "bc9f2db5-f6bc-467a-943d-8d1460b0ebbb",
+    "4d_points": "39cfaa45-10d5-4281-899a-0fbabd1481e3",
+    "4d_images": "0429de10-29d2-4166-a32d-bde8cb00ec8e"
+  },
+  "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169"
+}
