@@ -1683,11 +1683,19 @@ async def _dispatch_graph_node(
             if old_pack is not None and old_pack != new_pack:
                 can_continue = False
                 break
-    # A failed attempt can be retried in place only with identical code evidence.
-    if existing and frozen_base:
+    # A failed/cancelled attempt can be retried in place only with identical
+    # code evidence.  ``code_identity=None`` on the newly prepared graph does
+    # not assert that code changed: it means this node was not given fresh
+    # identity evidence in this preparation (for example a legacy/unverified
+    # node).  It must not turn unrelated protected nodes into a fork.  A real
+    # newly captured identity remains a strict comparison against the record.
+    if existing and retryable and frozen_base:
         old_node = next(n for n in frozen_base.nodes if n.id == graph_node_id)
         new_node = next(n for n in prepared.nodes if n.id == graph_node_id)
-        if old_node.code_identity != new_node.code_identity:
+        if (
+            new_node.code_identity is not None
+            and old_node.code_identity != new_node.code_identity
+        ):
             can_continue = False
 
     if can_continue:

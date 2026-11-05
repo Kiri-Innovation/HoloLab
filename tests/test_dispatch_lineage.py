@@ -314,6 +314,93 @@ def test_replacing_recorded_node_forks_new_run(tmp_path: Path) -> None:
         assert members["C"]["algorithm_name"] == "demo-replacement"
 
 
+def test_unprepared_protected_identity_does_not_fork_target_continue(tmp_path: Path, monkeypatch) -> None:
+    """A single-node C preflight must not compare B's absent fresh evidence."""
+
+    async def capture_only_target(_app, prepared, *, required=None) -> None:
+        assert required == {"C"}
+        next(node for node in prepared.nodes if node.id == "C").code_identity = {
+            "sha256": "c-current"
+        }
+
+    monkeypatch.setattr("hololab.gateway.preparation.capture_code_identities", capture_only_target)
+    with TestClient(create_app(db_path=tmp_path / "unprepared-protected.sqlite")) as client:
+        _fake_online_node(client)
+        client.app.state.registry._sessions["node-a"].content_identity = True
+        wid = "unprepared-protected"
+        graph = _linear_graph()
+        # The old run has a recorded identity for protected B.  The new
+        # single-node preparation deliberately captures C only.
+        graph.nodes[1].code_identity = {"sha256": "b-recorded"}
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
+
+        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        assert response.status_code == 200, response.text
+        assert response.json()["operation"] == "continue"
+        assert response.json()["snapshot_id"] == base
+
+
+def test_failed_target_without_fresh_identity_retries_in_place(tmp_path: Path, monkeypatch) -> None:
+    """Missing current evidence is unknown, not proof that a failed slot changed."""
+
+    async def no_fresh_identity(_app, _prepared, *, required=None) -> None:
+        assert required == {"C"}
+
+    monkeypatch.setattr("hololab.gateway.preparation.capture_code_identities", no_fresh_identity)
+    with TestClient(create_app(db_path=tmp_path / "missing-identity.sqlite")) as client:
+        _fake_online_node(client)
+        client.app.state.registry._sessions["node-a"].content_identity = True
+        wid = "missing-identity"
+        graph = _linear_graph()
+        graph.nodes[2].code_identity = {"sha256": "c-recorded"}
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
+        _seed_attributed_job(
+            client,
+            workflow_id=wid,
+            snapshot_id=base,
+            graph_node_id="C",
+            job_id="failed-C",
+            state=JobState.FAILED,
+        )
+
+        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        assert response.status_code == 200, response.text
+        assert response.json()["operation"] == "continue"
+        assert response.json()["snapshot_id"] == base
+
+
+def test_failed_target_with_changed_fresh_identity_forks(tmp_path: Path, monkeypatch) -> None:
+    """Preserve the safety rule: a proven code change never retries in place."""
+
+    async def capture_changed_identity(_app, prepared, *, required=None) -> None:
+        assert required == {"C"}
+        next(node for node in prepared.nodes if node.id == "C").code_identity = {
+            "sha256": "c-new"
+        }
+
+    monkeypatch.setattr("hololab.gateway.preparation.capture_code_identities", capture_changed_identity)
+    with TestClient(create_app(db_path=tmp_path / "changed-identity.sqlite")) as client:
+        _fake_online_node(client)
+        client.app.state.registry._sessions["node-a"].content_identity = True
+        wid = "changed-identity"
+        graph = _linear_graph()
+        graph.nodes[2].code_identity = {"sha256": "c-old"}
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
+        _seed_attributed_job(
+            client,
+            workflow_id=wid,
+            snapshot_id=base,
+            graph_node_id="C",
+            job_id="failed-C",
+            state=JobState.FAILED,
+        )
+
+        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        assert response.status_code == 200, response.text
+        assert response.json()["operation"] == "fork"
+        assert response.json()["parent_snapshot_id"] == base
+
+
 def test_dispatch_forks_when_slot_taken(tmp_path: Path) -> None:
     """A snapshot with A + B + C done. Dispatching B (fork) creates a
     NEW snapshot; the new snapshot inherits A but drops B + C (C is
