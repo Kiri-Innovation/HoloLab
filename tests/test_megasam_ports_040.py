@@ -35,10 +35,10 @@ class PortsAndFrames(unittest.TestCase):
                         dict(any_of=[dict(tags=['video-source'],storage='wrong'),expected[1]])]:
             with self.assertRaises(ValueError): InputSpec.model_validate(invalid)
         merge,_=load_manifest(ROOT/'community_packs/merge-colmap4d@0.2.0/manifest.yaml')
-        self.assertEqual(merge.name,'k4d/merge-colmap4d')
+        self.assertEqual(merge.name,'col4d/merge-colmap4d')
         self.assertEqual(merge.version,'0.2.0')
-        xmp,_=load_manifest(ROOT/'community_packs/colmap4d-from-xmp-photos@0.1.0/manifest.yaml')
-        self.assertEqual((xmp.name,xmp.version),('k4d/colmap4d-from-xmp-photos','0.1.0'))
+        xmp,_=load_manifest(ROOT/'community_packs/frames-to-colmap4d@0.1.0/manifest.yaml')
+        self.assertEqual((xmp.name,xmp.version),('col4d/frames-to-colmap4d','0.1.0'))
         self.assertEqual(set(merge.inputs),set(manifest.outputs))
         for key in merge.inputs: self.assertEqual(merge.inputs[key].tags,manifest.outputs[key].tags)
         from jinja2 import Environment, StrictUndefined

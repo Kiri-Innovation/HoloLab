@@ -1,0 +1,16 @@
+{
+  "handle_id": "b7893ddb-fbac-4cde-8826-a39ded419815",
+  "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+  "storage": "dir",
+  "tags": [
+    "colmap4d-cams"
+  ],
+  "size_bytes": 12444207,
+  "output_port_name": "4d_cams",
+  "proxy_url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/d016086a-5c3a-4c6f-8250-ad9268a278e8/4d_cams",
+  "absolute_path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/9967b1f8-3646-41f5-a269-394b6d392169/j/d016086a-5c3a-4c6f-8250-ad9268a278e8/4d_cams",
+  "deleted_ts": null,
+  "preview": null,
+  "dim_labels": null,
+  "dim_sizes": null
+}

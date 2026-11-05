@@ -7,7 +7,7 @@ import unittest
 
 ROOT=Path(__file__).parents[1]/'community_packs'
 OLD=ROOT/'merge-colmap4d@0.1.5/merge_colmap4d.py'
-NEW=ROOT/'colmap4d-from-xmp-photos@0.1.0/merge_colmap4d.py'
+NEW=ROOT/'frames-to-colmap4d@0.1.0/merge_colmap4d.py'
 
 def load(path,name):
     spec=importlib.util.spec_from_file_location(name,path)
@@ -16,7 +16,7 @@ def load(path,name):
 
 class XMPParity(unittest.TestCase):
     def test_algorithm_identity(self):
-        self.assertEqual(OLD.read_text().replace('col4d/merge-colmap4d@0.1.5','k4d/colmap4d-from-xmp-photos@0.1.0'),NEW.read_text())
+        self.assertEqual(OLD.read_text().replace('col4d/merge-colmap4d@0.1.5','col4d/frames-to-colmap4d@0.1.0'),NEW.read_text())
 
     def test_full_legacy_assembly(self):
         old,new=load(OLD,'oldxmp'),load(NEW,'newxmp')

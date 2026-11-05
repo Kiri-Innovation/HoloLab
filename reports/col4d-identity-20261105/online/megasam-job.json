@@ -1,0 +1,1358 @@
+{
+  "job_id": "d016086a-5c3a-4c6f-8250-ad9268a278e8",
+  "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169",
+  "node_id": "3038e635-4840-46dd-aa0c-6bd9c477b852",
+  "graph_node_id": "nmw38vr8y4",
+  "algorithm_name": "k4d/megasam-track",
+  "algorithm_version": "0.6.1",
+  "state": "done",
+  "progress": {
+    "current": 3,
+    "total": 3
+  },
+  "fail_reason": null,
+  "created_ts": 1793896639.4228735,
+  "updated_ts": 1793896745.7625651,
+  "started_ts": 1793896640.1706688,
+  "parent_job_id": null,
+  "shard_element_id": null,
+  "shard_element_ids": null,
+  "expected_shards": null,
+  "published_as": [],
+  "code_identity": {
+    "cold": {
+      "baseline_at": null,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stats": {
+        "bytes": 0,
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "verification": "not_checked"
+    },
+    "content": {
+      "cold": {
+        "bytes": 0,
+        "directories": [],
+        "files": 0,
+        "links": 0,
+        "top_level_names": []
+      },
+      "excluded": {
+        "bytes": 7165525772,
+        "files": 457,
+        "links": 3,
+        "top_level": [
+          {
+            "bytes": 2674460950,
+            "files": 209,
+            "layer": "ignored",
+            "links": 2,
+            "name": "weights",
+            "top_level_names": [
+              "weights"
+            ]
+          },
+          {
+            "bytes": 1341401910,
+            "files": 1,
+            "layer": "ignored",
+            "links": 1,
+            "name": "Depth-Anything",
+            "top_level_names": [
+              "Depth-Anything"
+            ]
+          },
+          {
+            "bytes": 872612080,
+            "files": 35,
+            "layer": "ignored",
+            "links": 0,
+            "name": "reconstructions",
+            "top_level_names": [
+              "reconstructions"
+            ]
+          },
+          {
+            "bytes": 864906106,
+            "files": 7,
+            "layer": "ignored",
+            "links": 0,
+            "name": "outputs",
+            "top_level_names": [
+              "outputs"
+            ]
+          },
+          {
+            "bytes": 721962528,
+            "files": 21,
+            "layer": "ignored",
+            "links": 0,
+            "name": "cache_flow",
+            "top_level_names": [
+              "cache_flow"
+            ]
+          },
+          {
+            "bytes": 617803774,
+            "files": 7,
+            "layer": "ignored",
+            "links": 0,
+            "name": "outputs_cvd",
+            "top_level_names": [
+              "outputs_cvd"
+            ]
+          },
+          {
+            "bytes": 25775400,
+            "files": 14,
+            "layer": "ignored",
+            "links": 0,
+            "name": "base",
+            "top_level_names": [
+              "base"
+            ]
+          },
+          {
+            "bytes": 21108000,
+            "files": 1,
+            "layer": "ignored",
+            "links": 0,
+            "name": "cvd_opt",
+            "top_level_names": [
+              "cvd_opt"
+            ]
+          },
+          {
+            "bytes": 20812149,
+            "files": 1,
+            "layer": "ignored",
+            "links": 0,
+            "name": "checkpoints",
+            "top_level_names": [
+              "checkpoints"
+            ]
+          },
+          {
+            "bytes": 4682875,
+            "files": 161,
+            "layer": "ignored",
+            "links": 0,
+            "name": "reports",
+            "top_level_names": [
+              "reports"
+            ]
+          }
+        ],
+        "top_level_names": [
+          "Depth-Anything",
+          "base",
+          "cache_flow",
+          "checkpoints",
+          "cvd_opt",
+          "outputs",
+          "outputs_cvd",
+          "reconstructions",
+          "reports",
+          "weights"
+        ]
+      },
+      "hot": {
+        "bytes": 70193796,
+        "files": 3860,
+        "links": 0,
+        "top_level_names": [
+          ".gitignore",
+          ".gitmodules",
+          "CONTRIBUTING.md",
+          "Depth-Anything",
+          "LICENSE",
+          "README.md",
+          "UniDepth",
+          "base",
+          "camera_tracking_scripts",
+          "colmap_read_model.py",
+          "colmap_sim_postprocess.py",
+          "cvd_opt",
+          "download_weights.py",
+          "environment.yml",
+          "evaluations_depth",
+          "evaluations_poses",
+          "intrinsics_utils.py",
+          "mono_depth_scripts",
+          "packs",
+          "pose_prior_utils.py",
+          "retired_packs",
+          "tests",
+          "tools"
+        ]
+      },
+      "stats": {
+        "bytes": 70193796,
+        "files": 3860,
+        "links": 0,
+        "top_level_names": [
+          ".gitignore",
+          ".gitmodules",
+          "CONTRIBUTING.md",
+          "Depth-Anything",
+          "LICENSE",
+          "README.md",
+          "UniDepth",
+          "base",
+          "camera_tracking_scripts",
+          "colmap_read_model.py",
+          "colmap_sim_postprocess.py",
+          "cvd_opt",
+          "download_weights.py",
+          "environment.yml",
+          "evaluations_depth",
+          "evaluations_poses",
+          "intrinsics_utils.py",
+          "mono_depth_scripts",
+          "packs",
+          "pose_prior_utils.py",
+          "retired_packs",
+          "tests",
+          "tools"
+        ]
+      },
+      "top_level": [
+        {
+          "bytes": 48576574,
+          "files": 3728,
+          "layer": "hot",
+          "links": 0,
+          "name": "base",
+          "top_level_names": [
+            "base"
+          ]
+        },
+        {
+          "bytes": 21196904,
+          "files": 63,
+          "layer": "hot",
+          "links": 0,
+          "name": "UniDepth",
+          "top_level_names": [
+            "UniDepth"
+          ]
+        },
+        {
+          "bytes": 89654,
+          "files": 14,
+          "layer": "hot",
+          "links": 0,
+          "name": "cvd_opt",
+          "top_level_names": [
+            "cvd_opt"
+          ]
+        },
+        {
+          "bytes": 67077,
+          "files": 15,
+          "layer": "hot",
+          "links": 0,
+          "name": "retired_packs",
+          "top_level_names": [
+            "retired_packs"
+          ]
+        },
+        {
+          "bytes": 56872,
+          "files": 4,
+          "layer": "hot",
+          "links": 0,
+          "name": "camera_tracking_scripts",
+          "top_level_names": [
+            "camera_tracking_scripts"
+          ]
+        },
+        {
+          "bytes": 35027,
+          "files": 7,
+          "layer": "hot",
+          "links": 0,
+          "name": "packs",
+          "top_level_names": [
+            "packs"
+          ]
+        },
+        {
+          "bytes": 28768,
+          "files": 3,
+          "layer": "hot",
+          "links": 0,
+          "name": "tools",
+          "top_level_names": [
+            "tools"
+          ]
+        },
+        {
+          "bytes": 21914,
+          "files": 5,
+          "layer": "hot",
+          "links": 0,
+          "name": "Depth-Anything",
+          "top_level_names": [
+            "Depth-Anything"
+          ]
+        },
+        {
+          "bytes": 16421,
+          "files": 3,
+          "layer": "hot",
+          "links": 0,
+          "name": "evaluations_poses",
+          "top_level_names": [
+            "evaluations_poses"
+          ]
+        },
+        {
+          "bytes": 14037,
+          "files": 3,
+          "layer": "hot",
+          "links": 0,
+          "name": "tests",
+          "top_level_names": [
+            "tests"
+          ]
+        },
+        {
+          "bytes": 13397,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "pose_prior_utils.py",
+          "top_level_names": [
+            "pose_prior_utils.py"
+          ]
+        },
+        {
+          "bytes": 12673,
+          "files": 1,
+          "layer": "hot",
+          "links": 0,
+          "name": "colmap_sim_postprocess.py",
+          "top_level_names": [
+            "colmap_sim_postprocess.py"
+          ]
+        }
+      ],
+      "tree": [
+        {
+          "bytes": 48576574,
+          "children": [
+            {
+              "bytes": 43890500,
+              "files": 3654,
+              "kind": "directory",
+              "layer": "hot",
+              "links": 0,
+              "name": "thirdparty",
+              "top_level_names": [
+                "base"
+              ]
+            },
+            {
+              "bytes": 3342010,
+              "files": 11,
+              "kind": "directory",
+              "layer": "hot",
+              "links": 0,
+              "name": "data",
+              "top_level_names": [
+                "base"
+              ]
+            },
+            {
+              "bytes": 1002377,
+              "files": 3,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "misc",
+              "top_level_names": [
+                "base"
+              ]
+            },
+            {
+              "bytes": 184315,
+              "files": 33,
+              "kind": "directory",
+              "layer": "hot",
+              "links": 0,
+              "name": "droid_slam",
+              "top_level_names": [
+                "base"
+              ]
+            },
+            {
+              "bytes": 116114,
+              "files": 4,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "src",
+              "top_level_names": [
+                "base"
+              ]
+            },
+            {
+              "bytes": 18343,
+              "files": 4,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "evaluation_scripts",
+              "top_level_names": [
+                "base"
+              ]
+            },
+            {
+              "bytes": 6377,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "train.py",
+              "top_level_names": [
+                "base"
+              ]
+            },
+            {
+              "bytes": 4957,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "demo.py",
+              "top_level_names": [
+                "base"
+              ]
+            }
+          ],
+          "children_truncated": 9,
+          "files": 3728,
+          "kind": "directory",
+          "layer": "hot",
+          "links": 0,
+          "name": "base",
+          "top_level_names": [
+            "base"
+          ]
+        },
+        {
+          "bytes": 21196904,
+          "children": [
+            {
+              "bytes": 20851487,
+              "files": 8,
+              "kind": "directory",
+              "layer": "hot",
+              "links": 0,
+              "name": "assets",
+              "top_level_names": [
+                "UniDepth"
+              ]
+            },
+            {
+              "bytes": 337189,
+              "files": 46,
+              "kind": "directory",
+              "layer": "hot",
+              "links": 0,
+              "name": "unidepth",
+              "top_level_names": [
+                "UniDepth"
+              ]
+            },
+            {
+              "bytes": 2923,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "scripts",
+              "top_level_names": [
+                "UniDepth"
+              ]
+            },
+            {
+              "bytes": 2405,
+              "files": 4,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "configs",
+              "top_level_names": [
+                "UniDepth"
+              ]
+            },
+            {
+              "bytes": 1259,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "hubconf.py",
+              "top_level_names": [
+                "UniDepth"
+              ]
+            },
+            {
+              "bytes": 897,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "requirements.txt",
+              "top_level_names": [
+                "UniDepth"
+              ]
+            },
+            {
+              "bytes": 618,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "pyproject.toml",
+              "top_level_names": [
+                "UniDepth"
+              ]
+            },
+            {
+              "bytes": 126,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": ".gitignore",
+              "top_level_names": [
+                "UniDepth"
+              ]
+            }
+          ],
+          "children_truncated": 0,
+          "files": 63,
+          "kind": "directory",
+          "layer": "hot",
+          "links": 0,
+          "name": "UniDepth",
+          "top_level_names": [
+            "UniDepth"
+          ]
+        },
+        {
+          "bytes": 89654,
+          "children": [
+            {
+              "bytes": 55490,
+              "files": 9,
+              "kind": "directory",
+              "layer": "hot",
+              "links": 0,
+              "name": "core",
+              "top_level_names": [
+                "cvd_opt"
+              ]
+            },
+            {
+              "bytes": 17842,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "cvd_opt.py",
+              "top_level_names": [
+                "cvd_opt"
+              ]
+            },
+            {
+              "bytes": 7391,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "geometry_utils.py",
+              "top_level_names": [
+                "cvd_opt"
+              ]
+            },
+            {
+              "bytes": 6260,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "preprocess_flow.py",
+              "top_level_names": [
+                "cvd_opt"
+              ]
+            },
+            {
+              "bytes": 1361,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "cvd_opt_sintel.sh",
+              "top_level_names": [
+                "cvd_opt"
+              ]
+            },
+            {
+              "bytes": 1310,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "cvd_opt_dycheck.sh",
+              "top_level_names": [
+                "cvd_opt"
+              ]
+            }
+          ],
+          "children_truncated": 0,
+          "files": 14,
+          "kind": "directory",
+          "layer": "hot",
+          "links": 0,
+          "name": "cvd_opt",
+          "top_level_names": [
+            "cvd_opt"
+          ]
+        },
+        {
+          "bytes": 67077,
+          "children": [
+            {
+              "bytes": 33593,
+              "files": 7,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "megasam-track@0.6.0",
+              "top_level_names": [
+                "retired_packs"
+              ]
+            },
+            {
+              "bytes": 33050,
+              "files": 7,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "megasam-track@0.5.0",
+              "top_level_names": [
+                "retired_packs"
+              ]
+            },
+            {
+              "bytes": 434,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "README.md",
+              "top_level_names": [
+                "retired_packs"
+              ]
+            }
+          ],
+          "children_truncated": 0,
+          "files": 15,
+          "kind": "directory",
+          "layer": "hot",
+          "links": 0,
+          "name": "retired_packs",
+          "top_level_names": [
+            "retired_packs"
+          ]
+        },
+        {
+          "bytes": 56872,
+          "children": [
+            {
+              "bytes": 23797,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "test_demo.py",
+              "top_level_names": [
+                "camera_tracking_scripts"
+              ]
+            },
+            {
+              "bytes": 11742,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "colmap_read_model.py",
+              "top_level_names": [
+                "camera_tracking_scripts"
+              ]
+            },
+            {
+              "bytes": 10751,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "test_dycheck.py",
+              "top_level_names": [
+                "camera_tracking_scripts"
+              ]
+            },
+            {
+              "bytes": 10582,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "test_sintel.py",
+              "top_level_names": [
+                "camera_tracking_scripts"
+              ]
+            }
+          ],
+          "children_truncated": 0,
+          "files": 4,
+          "kind": "directory",
+          "layer": "hot",
+          "links": 0,
+          "name": "camera_tracking_scripts",
+          "top_level_names": [
+            "camera_tracking_scripts"
+          ]
+        },
+        {
+          "bytes": 35027,
+          "children": [
+            {
+              "bytes": 35027,
+              "files": 7,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "megasam-track@0.6.1",
+              "top_level_names": [
+                "packs"
+              ]
+            }
+          ],
+          "children_truncated": 0,
+          "files": 7,
+          "kind": "directory",
+          "layer": "hot",
+          "links": 0,
+          "name": "packs",
+          "top_level_names": [
+            "packs"
+          ]
+        },
+        {
+          "bytes": 28768,
+          "children": [
+            {
+              "bytes": 26179,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "export_scene_to_colmap.py",
+              "top_level_names": [
+                "tools"
+              ]
+            },
+            {
+              "bytes": 1351,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "evaluate_sintel.sh",
+              "top_level_names": [
+                "tools"
+              ]
+            },
+            {
+              "bytes": 1238,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "evaluate_dycheck.sh",
+              "top_level_names": [
+                "tools"
+              ]
+            }
+          ],
+          "children_truncated": 0,
+          "files": 3,
+          "kind": "directory",
+          "layer": "hot",
+          "links": 0,
+          "name": "tools",
+          "top_level_names": [
+            "tools"
+          ]
+        },
+        {
+          "bytes": 21914,
+          "children": [
+            {
+              "bytes": 17693,
+              "files": 3,
+              "kind": "directory",
+              "layer": "hot",
+              "links": 0,
+              "name": "depth_anything",
+              "top_level_names": [
+                "Depth-Anything"
+              ]
+            },
+            {
+              "bytes": 4186,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "run_videos.py",
+              "top_level_names": [
+                "Depth-Anything"
+              ]
+            },
+            {
+              "bytes": 35,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": ".gitignore",
+              "top_level_names": [
+                "Depth-Anything"
+              ]
+            }
+          ],
+          "children_truncated": 0,
+          "files": 5,
+          "kind": "directory",
+          "layer": "hot",
+          "links": 0,
+          "name": "Depth-Anything",
+          "top_level_names": [
+            "Depth-Anything"
+          ]
+        },
+        {
+          "bytes": 16421,
+          "children": [
+            {
+              "bytes": 7024,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "evaluate_dycheck.py",
+              "top_level_names": [
+                "evaluations_poses"
+              ]
+            },
+            {
+              "bytes": 5644,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "evaluate_sintel.py",
+              "top_level_names": [
+                "evaluations_poses"
+              ]
+            },
+            {
+              "bytes": 3753,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "evaluate_rpe.py",
+              "top_level_names": [
+                "evaluations_poses"
+              ]
+            }
+          ],
+          "children_truncated": 0,
+          "files": 3,
+          "kind": "directory",
+          "layer": "hot",
+          "links": 0,
+          "name": "evaluations_poses",
+          "top_level_names": [
+            "evaluations_poses"
+          ]
+        },
+        {
+          "bytes": 14037,
+          "children": [
+            {
+              "bytes": 6028,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "test_pose_prior_utils.py",
+              "top_level_names": [
+                "tests"
+              ]
+            },
+            {
+              "bytes": 5421,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "test_colmap_sim_postprocess.py",
+              "top_level_names": [
+                "tests"
+              ]
+            },
+            {
+              "bytes": 2588,
+              "files": 1,
+              "kind": "file",
+              "layer": "hot",
+              "links": 0,
+              "name": "test_intrinsics_utils.py",
+              "top_level_names": [
+                "tests"
+              ]
+            }
+          ],
+          "children_truncated": 0,
+          "files": 3,
+          "kind": "directory",
+          "layer": "hot",
+          "links": 0,
+          "name": "tests",
+          "top_level_names": [
+            "tests"
+          ]
+        },
+        {
+          "bytes": 13397,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "pose_prior_utils.py",
+          "top_level_names": [
+            "pose_prior_utils.py"
+          ]
+        },
+        {
+          "bytes": 12673,
+          "children": [],
+          "children_truncated": 0,
+          "files": 1,
+          "kind": "file",
+          "layer": "hot",
+          "links": 0,
+          "name": "colmap_sim_postprocess.py",
+          "top_level_names": [
+            "colmap_sim_postprocess.py"
+          ]
+        }
+      ]
+    },
+    "controls": {
+      "gitignore_sha256": "c12ee7d28d680405a9549c9906b085700eed9d19d51f65371d4f56982d12b866",
+      "manifest_sha256": "7bfb6ccf227c7b7d3e7024229dc2297dd7de82943a427ae753e51cdb0f088bcd",
+      "packignore_sha256": "9892822ac6c5a6e206b9ce21c9c0082297c4396ec9e6cb0a28accaedc7643493"
+    },
+    "dependency_discovery_complete": false,
+    "effective_params": {
+      "depth_min": 0.001,
+      "fps_den": null,
+      "fps_num": null,
+      "frames_fps": 30,
+      "max_frames": 16,
+      "pts_stride": 8,
+      "skip": 5,
+      "timestamp_mode": "pts_estimate"
+    },
+    "environment": {
+      "boundary": "本地能力检查只覆盖已声明且在可探测范围内的项; 通过不代表一定能运行。环境未冻结、未被代码身份覆盖。",
+      "cache_hit": true,
+      "checked_at": 1793896637.3370988,
+      "env": "megasam",
+      "environment_covered": false,
+      "environment_fingerprint": "634b4e851fc0f1740bed10c4939cd7c1078cc254a39fb64bdbec3e554d63b6b0",
+      "fresh_fingerprint_validated": true,
+      "issues": [],
+      "package_sources": {
+        "colmap4d": "python-distribution",
+        "einops": "python-distribution",
+        "ffmpeg": "conda-meta",
+        "huggingface-hub": "python-distribution",
+        "imageio": "python-distribution",
+        "kornia": "python-distribution",
+        "matplotlib": "python-distribution",
+        "numpy": "python-distribution",
+        "opencv-python": "python-distribution",
+        "pillow": "python-distribution",
+        "safetensors": "python-distribution",
+        "scipy": "python-distribution",
+        "timm": "python-distribution",
+        "torch": "python-distribution",
+        "torchvision": "python-distribution",
+        "tqdm": "python-distribution",
+        "transformers": "python-distribution"
+      },
+      "packages": {
+        "colmap4d": "1.0.2",
+        "einops": "0.8.2",
+        "ffmpeg": "4.2.2",
+        "huggingface-hub": "0.25.1",
+        "imageio": "2.37.2",
+        "kornia": "0.8.2",
+        "matplotlib": "3.10.8",
+        "numpy": "1.26.4",
+        "opencv-python": "4.9.0.80",
+        "pillow": "11.3.0",
+        "safetensors": "0.7.0",
+        "scipy": "1.17.1",
+        "timm": "1.0.25",
+        "torch": "2.8.0+cu128",
+        "torchvision": "0.23.0+cu128",
+        "tqdm": "4.67.3",
+        "transformers": "4.38.0"
+      },
+      "prefix": "/cloud/cloud-ssd1/envs/kiri",
+      "python": "3.12.12",
+      "requires": {
+        "package_checks": {
+          "torch": {
+            "attribute": "version.cuda",
+            "module": "torch"
+          }
+        },
+        "packages": [
+          "colmap4d",
+          "ffmpeg",
+          "torch",
+          "torchvision",
+          "numpy",
+          "opencv-python",
+          "pillow",
+          "scipy",
+          "tqdm",
+          "matplotlib",
+          "imageio",
+          "timm",
+          "einops",
+          "kornia",
+          "huggingface-hub",
+          "transformers",
+          "safetensors"
+        ],
+        "python": ">=3.10,<3.13"
+      },
+      "runtime_verified": false,
+      "status": "satisfied"
+    },
+    "fixed_excluded": {
+      "bytes": 864746,
+      "files": 105,
+      "links": 0,
+      "top_level_names": [
+        ".git",
+        "Depth-Anything",
+        "UniDepth",
+        "__pycache__",
+        "base",
+        "cvd_opt",
+        "packs",
+        "retired_packs",
+        "weights"
+      ]
+    },
+    "format": 2,
+    "git": {
+      "commit": "7e200316bb0eda58e39eb8728027ca6626f47bb0",
+      "dirty": false,
+      "tree_sha": "5ced89d31723d58e5868765868b317a42a3145a4"
+    },
+    "hot": {
+      "sha256": "4ca8884fd2216190645c1befdb0d57fa2d643f02a7771118d4376045f8ea95ad",
+      "stats": {
+        "bytes": 70189563,
+        "files": 3860,
+        "links": 0,
+        "top_level_names": [
+          ".gitignore",
+          ".gitmodules",
+          ".packignore",
+          "CONTRIBUTING.md",
+          "Depth-Anything",
+          "LICENSE",
+          "README.md",
+          "UniDepth",
+          "base",
+          "camera_tracking_scripts",
+          "colmap_read_model.py",
+          "colmap_sim_postprocess.py",
+          "cvd_opt",
+          "download_weights.py",
+          "environment.yml",
+          "evaluations_depth",
+          "evaluations_poses",
+          "intrinsics_utils.py",
+          "mono_depth_scripts",
+          "packs",
+          "pose_prior_utils.py",
+          "retired_packs",
+          "tests",
+          "tools"
+        ]
+      },
+      "verification": "verified_at_submission"
+    },
+    "ignored": {
+      "bytes": 7165525772,
+      "files": 457,
+      "links": 3,
+      "top_level_names": [
+        "Depth-Anything",
+        "base",
+        "cache_flow",
+        "checkpoints",
+        "cvd_opt",
+        "outputs",
+        "outputs_cvd",
+        "reconstructions",
+        "reports",
+        "weights"
+      ]
+    },
+    "manifest": {
+      "excluded_fields": [
+        "published_as",
+        "published_at",
+        "version",
+        "yank",
+        "yank_reason",
+        "yanked",
+        "yanked_at"
+      ],
+      "normalized": {
+        "apiVersion": "hololab.dev/v1",
+        "category": "reconstruction/megasam",
+        "description": "Standardize MegaSAM camera trajectories and depth-backprojected per-frame points as three timed colmap4d components.",
+        "docs": "Repository-owned MegaSAM chain: Depth-Anything, UniDepth, camera tracking, RAFT and CVD. Outputs camera trajectories and depth-backprojected per-frame points, plus independent images. No SHARP or Gaussian inference. Binary colmap4d components require assembly before validate_full. No exposure metadata input in 0.6.1: video defaults to pts_estimate; uniform video timing requires fps_num/fps_den; image arrays require frames_fps. Times are explicitly estimated, not measured exposure truth. All source scripts/checkpoints resolve within this repository; subprocesses use the node-selected logical runtime interpreter. See packs/megasam-track@0.6.1/README.md.",
+        "exec": {
+          "shell": "set -euo pipefail\npython \"{{ package_root }}/packs/megasam-track@0.6.1/run.py\" <<'PACK_CONFIG'\n{{ {'params': params, 'inputs': inputs, 'outputs': outputs, 'scratch': scratch_dir} | tojson }}\nPACK_CONFIG\n"
+        },
+        "inputs": {
+          "frames": {
+            "any_of": [
+              {
+                "arrayed": false,
+                "storage": "dir",
+                "tags": [
+                  "video-source"
+                ]
+              },
+              {
+                "arrayed": true,
+                "dim_labels": [
+                  "frame"
+                ],
+                "storage": "dir",
+                "tags": [
+                  "image"
+                ]
+              }
+            ],
+            "description": "One video-source or a flat frame-labelled image array."
+          }
+        },
+        "kind": "Algorithm",
+        "name": "k4d/megasam-track",
+        "outputs": {
+          "4d_cams": {
+            "arrayed": false,
+            "storage": "dir",
+            "tags": [
+              "colmap4d-cams"
+            ]
+          },
+          "4d_images": {
+            "arrayed": false,
+            "storage": "dir",
+            "tags": [
+              "colmap4d-images"
+            ]
+          },
+          "4d_points": {
+            "arrayed": false,
+            "storage": "dir",
+            "tags": [
+              "colmap4d-point-cloud"
+            ]
+          }
+        },
+        "params": {
+          "depth_min": {
+            "default": 0.001,
+            "description": "Keep finite Z-depth strictly greater than this threshold.",
+            "min": 0,
+            "type": "float"
+          },
+          "fps_den": {
+            "description": "仅视频 synthetic_uniform 模式：输入视频帧率的分母，须为正整数；例如 30000/1001 FPS。不自动推断。",
+            "min": 1,
+            "optional": true,
+            "type": "int"
+          },
+          "fps_num": {
+            "description": "仅视频 synthetic_uniform 模式：输入视频帧率的分子，须为正整数，与 fps_den 配合；pts_estimate 和图片数组不使用此值。",
+            "min": 1,
+            "optional": true,
+            "type": "int"
+          },
+          "frames_fps": {
+            "default": 30,
+            "description": "colmap4d 要求每帧有明确时间戳。图片数组按输入顺序以 i / fps（i 从 0 开始）生成时间，产物标注 synthetic_uniform 和 estimated=true。默认 30 FPS，适合不关心精确时间轴的情况；若来自视频，请填图片序列的等效帧率（上游抽帧降采样后应相应降低）。本包 skip 保留原输入索引，无需再调整此值。此参数只决定输出时间轴，不参与相机与深度重建。视频输入不使用此值：默认采用视频 PTS 近似曝光中心。必须为有限正数。",
+            "min": 1e-06,
+            "type": "float"
+          },
+          "max_frames": {
+            "default": 0,
+            "description": "Maximum selected frames; zero means all.",
+            "min": 0,
+            "type": "int"
+          },
+          "pts_stride": {
+            "default": 2,
+            "description": "Pixel sampling stride in both axes.",
+            "min": 1,
+            "type": "int"
+          },
+          "skip": {
+            "default": 1,
+            "description": "每 N 个输入帧保留一帧；按原输入索引计算时间，因此不必因本参数改变 frames_fps。",
+            "min": 1,
+            "type": "int"
+          },
+          "timestamp_mode": {
+            "default": "pts_estimate",
+            "description": "仅视频输入：pts_estimate 使用视频 PTS 近似每帧曝光中心；synthetic_uniform 按 fps_num/fps_den 合成均匀时间。两者均标注 estimated=true，不代表测得的曝光中心。图片数组始终使用 frames_fps 合成时间。",
+            "type": "enum",
+            "values": [
+              "pts_estimate",
+              "synthetic_uniform"
+            ]
+          }
+        },
+        "progress": {
+          "stdout_regex": "\\[ITER (\\d+)/(\\d+)\\]"
+        },
+        "requires": {
+          "package_checks": {
+            "torch": {
+              "attribute": "version.cuda",
+              "module": "torch",
+              "truthy": true
+            }
+          },
+          "packages": [
+            "colmap4d",
+            "ffmpeg",
+            "torch",
+            "torchvision",
+            "numpy",
+            "opencv-python",
+            "pillow",
+            "scipy",
+            "tqdm",
+            "matplotlib",
+            "imageio",
+            "timm",
+            "einops",
+            "kornia",
+            "huggingface-hub",
+            "transformers",
+            "safetensors"
+          ],
+          "python": ">=3.10,<3.13"
+        },
+        "root": "../..",
+        "runtime": {
+          "env": "megasam",
+          "gpu": {
+            "required": true,
+            "vram_gb_min": 8
+          },
+          "resources": {
+            "gpu_mem_gb": 8,
+            "mem_gb": 16,
+            "scratch_gb": 40
+          }
+        },
+        "setup": {
+          "modules": [
+            "torch",
+            "droid_backends",
+            "lietorch",
+            "unidepth"
+          ],
+          "needs": [
+            "cuda-toolkit",
+            "cxx-compiler"
+          ],
+          "script": "packs/megasam-track@0.6.1/setup.sh",
+          "shell": "bash"
+        },
+        "source_entry": "packs/megasam-track@0.6.1/run.py"
+      },
+      "raw_sha256": "7bfb6ccf227c7b7d3e7024229dc2297dd7de82943a427ae753e51cdb0f088bcd",
+      "sha256": "94b0735b4a674c328a14c8c23a1ae1aedf422c4dae434dac33ef4f9af7a7c371"
+    },
+    "path": "/cloud/cloud-ssd1/Kiri4DGS/tryouts/mega-sam",
+    "quality_hints": [],
+    "recorded_at": 1793896637.9265916,
+    "root": "../..",
+    "sha256": "29e8823d63c8ae12a2c789c98d37e3996e9336681331c1eb4af42fa0316f581d",
+    "source": "k4d/megasam-track@0.6.1",
+    "uncovered": [],
+    "undeclared": []
+  },
+  "snapshot_id": "edc15d0f-b9be-4538-8262-5fc94d81725a",
+  "params": {
+    "skip": 5,
+    "max_frames": 16,
+    "depth_min": 0.001,
+    "pts_stride": 8,
+    "timestamp_mode": "pts_estimate",
+    "fps_num": null,
+    "fps_den": null,
+    "frames_fps": 30
+  },
+  "input_handles": {
+    "frames": "58d9a0f1-3ca7-4180-abe7-9e6266351d8f"
+  },
+  "output_handles": {
+    "4d_cams": "b7893ddb-fbac-4cde-8826-a39ded419815",
+    "4d_points": "89644427-2b11-472a-a4fe-6e9d4e44b87d",
+    "4d_images": "0d2413bf-ff94-426b-89dc-136cdeea3b39"
+  },
+  "fail_exit_code": null,
+  "fail_message": null
+}

@@ -1,0 +1,8 @@
+✓ col4d/frames-to-colmap4d@0.1.0
+  hash:       8f239eb39339b84329fccd060af79882aa9f26083625369c0bbfc2e89b436f3b
+  env:        colmap4d
+  category:   reconstruction/colmap4d
+  docs:       yes (12 lines)
+  inputs:     ['points', 'images', 'cams']
+  outputs:    ['model']
+  previews:   0

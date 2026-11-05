@@ -1,0 +1,16 @@
+{
+  "snapshot_id": "edc15d0f-b9be-4538-8262-5fc94d81725a",
+  "job_id": "d016086a-5c3a-4c6f-8250-ad9268a278e8",
+  "state": "assigned",
+  "graph_node_id": "nmw38vr8y4",
+  "algorithm_name": "k4d/megasam-track",
+  "algorithm_version": "0.6.1",
+  "operation": "fork",
+  "parent_snapshot_id": "402e7e1b-931a-4eaf-9579-3aa13723c4c9",
+  "forked_at": "nmw38vr8y4",
+  "fork_reason": {
+    "kind": "target_slot_not_retryable",
+    "graph_node_id": "nmw38vr8y4",
+    "state": "done"
+  }
+}

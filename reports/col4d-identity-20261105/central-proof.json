@@ -1,0 +1,657 @@
+[
+  {
+    "url": "https://packs.xenotech.studio/packs/k4d/merge-colmap4d/",
+    "status": 404,
+    "body": "{\"detail\":\"Package not found\"}"
+  },
+  {
+    "url": "https://packs.xenotech.studio/packs/k4d/colmap4d-from-xmp-photos/",
+    "status": 404,
+    "body": "{\"detail\":\"Package not found\"}"
+  },
+  {
+    "url": "https://packs.xenotech.studio/packs/col4d/merge-colmap4d/",
+    "status": 200,
+    "body": {
+      "format": 1,
+      "authority": "hololab-central",
+      "releases": {
+        "col4d/merge-colmap4d@0.1.5": {
+          "name": "col4d/merge-colmap4d",
+          "version": "0.1.5",
+          "code_sha256": "2c449b65f391694d6f090dd91ac9ffb88a434d81490ab697528163ce3b6a35dd",
+          "archive_sha256": "c28dc57719b7c180a75eedd19be96ba1290a6bc6305440abd99057019152ab51",
+          "archive": "files/c28dc57719b7c180a75eedd19be96ba1290a6bc6305440abd99057019152ab51.tgz",
+          "archive_bytes": 5421,
+          "unpacked_bytes": 16267,
+          "manifest": "manifest.yaml",
+          "env": "colmap4d",
+          "category": [
+            "reconstruction",
+            "colmap4d"
+          ],
+          "requires": {
+            "packages": [
+              "colmap4d"
+            ]
+          },
+          "external": {
+            "dependency_discovery_complete": false,
+            "uncovered": [],
+            "undeclared": []
+          },
+          "evidence": {
+            "cold": {
+              "baseline_at": null,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stats": {
+                "bytes": 0,
+                "files": 0,
+                "links": 0,
+                "top_level_names": []
+              },
+              "verification": "not_checked"
+            },
+            "content": {
+              "cold": {
+                "bytes": 0,
+                "directories": [],
+                "files": 0,
+                "links": 0,
+                "top_level_names": []
+              },
+              "excluded": {
+                "bytes": 0,
+                "files": 0,
+                "links": 0,
+                "top_level": [],
+                "top_level_names": []
+              },
+              "hot": {
+                "bytes": 16233,
+                "files": 3,
+                "links": 0,
+                "top_level_names": [
+                  "README.md",
+                  "manifest.yaml",
+                  "merge_colmap4d.py"
+                ]
+              },
+              "stats": {
+                "bytes": 16233,
+                "files": 3,
+                "links": 0,
+                "top_level_names": [
+                  "README.md",
+                  "manifest.yaml",
+                  "merge_colmap4d.py"
+                ]
+              },
+              "top_level": [
+                {
+                  "bytes": 14042,
+                  "files": 1,
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "merge_colmap4d.py",
+                  "top_level_names": [
+                    "merge_colmap4d.py"
+                  ]
+                },
+                {
+                  "bytes": 1615,
+                  "files": 1,
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "manifest.yaml",
+                  "top_level_names": [
+                    "manifest.yaml"
+                  ]
+                },
+                {
+                  "bytes": 576,
+                  "files": 1,
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "README.md",
+                  "top_level_names": [
+                    "README.md"
+                  ]
+                }
+              ],
+              "tree": [
+                {
+                  "bytes": 14042,
+                  "children": [],
+                  "children_truncated": 0,
+                  "files": 1,
+                  "kind": "file",
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "merge_colmap4d.py",
+                  "top_level_names": [
+                    "merge_colmap4d.py"
+                  ]
+                },
+                {
+                  "bytes": 1615,
+                  "children": [],
+                  "children_truncated": 0,
+                  "files": 1,
+                  "kind": "file",
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "manifest.yaml",
+                  "top_level_names": [
+                    "manifest.yaml"
+                  ]
+                },
+                {
+                  "bytes": 576,
+                  "children": [],
+                  "children_truncated": 0,
+                  "files": 1,
+                  "kind": "file",
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "README.md",
+                  "top_level_names": [
+                    "README.md"
+                  ]
+                }
+              ]
+            },
+            "controls": {
+              "gitignore_sha256": null,
+              "manifest_sha256": "5b2a1de08576d9a4225eb251e96754e6e7c67ae0b4c6c2f8985e46f213006b48",
+              "packignore_sha256": null
+            },
+            "dependency_discovery_complete": false,
+            "fixed_excluded": {
+              "bytes": 35149,
+              "files": 2,
+              "links": 0,
+              "top_level_names": [
+                "__pycache__"
+              ]
+            },
+            "format": 2,
+            "git": {
+              "commit": "e73da6f5a7d37373086499df7c141d0772835528",
+              "dirty": true,
+              "tree_sha": "e9509661b5a68b05698ac6edec4d84c9836df365"
+            },
+            "hot": {
+              "sha256": "f6fe2d6dc931da393863a4cf95711a9a7b10c56337dfb083f2c6e7a5f66a2db3",
+              "stats": {
+                "bytes": 14618,
+                "files": 2,
+                "links": 0,
+                "top_level_names": [
+                  "README.md",
+                  "merge_colmap4d.py"
+                ]
+              },
+              "verification": "verified_at_submission"
+            },
+            "ignored": {
+              "bytes": 0,
+              "files": 0,
+              "links": 0,
+              "top_level_names": []
+            },
+            "manifest": {
+              "excluded_fields": [
+                "published_as",
+                "published_at",
+                "version",
+                "yank",
+                "yank_reason",
+                "yanked",
+                "yanked_at"
+              ],
+              "normalized": {
+                "apiVersion": "hololab.dev/v1",
+                "category": "reconstruction/colmap4d",
+                "description": "Assemble grouped points/cams and flat images into one flat-layout colmap4d model.",
+                "docs": "The image input is strictly one-dimensional. Convert the upstream\n`arrayed[group,cam]<image>` with the type-agnostic `flatten-array@0.1.0`.\nRoot-level elements use the generic `<outer>__<inner>` convention\n(`gXXXXXX__camN.jpg` here).\n\nThe input element name is preserved as both COLMAP `Image.name` and the\nroot-level path below `images/`. Grouping remains recoverable from the name\nfor assembly alignment, without becoming an output directory hierarchy.\n",
+                "exec": {
+                  "shell": "set -euo pipefail\npython \"{{ pack_dir }}/merge_colmap4d.py\" \\\n  --points \"{{ inputs.points }}\" \\\n  --images \"{{ inputs.images }}\" \\\n  --cams \"{{ inputs.cams }}\" \\\n  --output \"{{ outputs.model }}\"\n"
+                },
+                "idempotency": {
+                  "marker": "{{ outputs.model }}/.hololab-done"
+                },
+                "inputs": {
+                  "cams": {
+                    "arrayed": true,
+                    "dim_labels": [
+                      "group"
+                    ],
+                    "require_axis_label_match": false,
+                    "storage": "dir",
+                    "tags": [
+                      "colmap-cams"
+                    ]
+                  },
+                  "images": {
+                    "arrayed": true,
+                    "storage": "dir",
+                    "tags": [
+                      "image"
+                    ]
+                  },
+                  "points": {
+                    "arrayed": true,
+                    "dim_labels": [
+                      "group"
+                    ],
+                    "require_axis_label_match": false,
+                    "storage": "dir",
+                    "tags": [
+                      "point-cloud"
+                    ]
+                  }
+                },
+                "kind": "Algorithm",
+                "name": "col4d/merge-colmap4d",
+                "outputs": {
+                  "model": {
+                    "arrayed": false,
+                    "storage": "dir",
+                    "tags": [
+                      "colmap4d"
+                    ]
+                  }
+                },
+                "progress": {
+                  "stdout_regex": "\\[ITER (\\d+)/(\\d+)\\]"
+                },
+                "requires": {
+                  "packages": [
+                    "colmap4d"
+                  ]
+                },
+                "runtime": {
+                  "env": "colmap4d",
+                  "gpu": {
+                    "required": false
+                  },
+                  "resources": {
+                    "mem_gb": 8.0,
+                    "scratch_gb": 2.0
+                  }
+                },
+                "source_entry": "merge_colmap4d.py"
+              },
+              "raw_sha256": "5b2a1de08576d9a4225eb251e96754e6e7c67ae0b4c6c2f8985e46f213006b48",
+              "sha256": "90779f981b96c0d06fa84764a64ef13fb60efd6b54ce18b63aacfc11dd4adc35"
+            },
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/merge-colmap4d@0.1.5",
+            "quality_hints": [],
+            "recorded_at": 1793269920.8934324,
+            "root": ".",
+            "sha256": "2c449b65f391694d6f090dd91ac9ffb88a434d81490ab697528163ce3b6a35dd",
+            "source": "col4d/merge-colmap4d@0.1.5",
+            "uncovered": [],
+            "undeclared": []
+          },
+          "published_at": "2026-10-29T10:32:01.348815+00:00",
+          "publisher": "trusted-publisher",
+          "yanked": false,
+          "yank_reason": null,
+          "yank_updated_at": null
+        }
+      }
+    }
+  },
+  {
+    "url": "https://packs.xenotech.studio/packs/col4d/frames-to-colmap4d/",
+    "status": 404,
+    "body": "{\"detail\":\"Package not found\"}"
+  },
+  {
+    "url": "https://packs.xenotech.studio/packs/col4d/colmap4d-temporal-grouping/",
+    "status": 200,
+    "body": {
+      "format": 1,
+      "authority": "hololab-central",
+      "releases": {
+        "col4d/colmap4d-temporal-grouping@0.1.2": {
+          "name": "col4d/colmap4d-temporal-grouping",
+          "version": "0.1.2",
+          "code_sha256": "70930f593915bf9498229cb7efc24214f65b6c2bccc8676f5348f97d616bcb9b",
+          "archive_sha256": "9e6366f5999f89e5b4538eddb14809f83796271e16560734e0f0556ada749c8b",
+          "archive": "files/9e6366f5999f89e5b4538eddb14809f83796271e16560734e0f0556ada749c8b.tgz",
+          "archive_bytes": 6500,
+          "unpacked_bytes": 20170,
+          "manifest": "manifest.yaml",
+          "env": "colmap4d",
+          "category": [
+            "reconstruction",
+            "colmap4d"
+          ],
+          "requires": {
+            "packages": [
+              "colmap4d",
+              "matplotlib",
+              "plotly"
+            ]
+          },
+          "external": {
+            "dependency_discovery_complete": false,
+            "uncovered": [],
+            "undeclared": []
+          },
+          "evidence": {
+            "cold": {
+              "baseline_at": null,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "stats": {
+                "bytes": 0,
+                "files": 0,
+                "links": 0,
+                "top_level_names": []
+              },
+              "verification": "not_checked"
+            },
+            "content": {
+              "cold": {
+                "bytes": 0,
+                "directories": [],
+                "files": 0,
+                "links": 0,
+                "top_level_names": []
+              },
+              "excluded": {
+                "bytes": 0,
+                "files": 0,
+                "links": 0,
+                "top_level": [],
+                "top_level_names": []
+              },
+              "hot": {
+                "bytes": 20109,
+                "files": 4,
+                "links": 0,
+                "top_level_names": [
+                  "README.md",
+                  "group_temporal_images.py",
+                  "manifest.yaml",
+                  "timeline.py"
+                ]
+              },
+              "stats": {
+                "bytes": 20109,
+                "files": 4,
+                "links": 0,
+                "top_level_names": [
+                  "README.md",
+                  "group_temporal_images.py",
+                  "manifest.yaml",
+                  "timeline.py"
+                ]
+              },
+              "top_level": [
+                {
+                  "bytes": 8943,
+                  "files": 1,
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "group_temporal_images.py",
+                  "top_level_names": [
+                    "group_temporal_images.py"
+                  ]
+                },
+                {
+                  "bytes": 7487,
+                  "files": 1,
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "timeline.py",
+                  "top_level_names": [
+                    "timeline.py"
+                  ]
+                },
+                {
+                  "bytes": 2448,
+                  "files": 1,
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "manifest.yaml",
+                  "top_level_names": [
+                    "manifest.yaml"
+                  ]
+                },
+                {
+                  "bytes": 1231,
+                  "files": 1,
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "README.md",
+                  "top_level_names": [
+                    "README.md"
+                  ]
+                }
+              ],
+              "tree": [
+                {
+                  "bytes": 8943,
+                  "children": [],
+                  "children_truncated": 0,
+                  "files": 1,
+                  "kind": "file",
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "group_temporal_images.py",
+                  "top_level_names": [
+                    "group_temporal_images.py"
+                  ]
+                },
+                {
+                  "bytes": 7487,
+                  "children": [],
+                  "children_truncated": 0,
+                  "files": 1,
+                  "kind": "file",
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "timeline.py",
+                  "top_level_names": [
+                    "timeline.py"
+                  ]
+                },
+                {
+                  "bytes": 2448,
+                  "children": [],
+                  "children_truncated": 0,
+                  "files": 1,
+                  "kind": "file",
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "manifest.yaml",
+                  "top_level_names": [
+                    "manifest.yaml"
+                  ]
+                },
+                {
+                  "bytes": 1231,
+                  "children": [],
+                  "children_truncated": 0,
+                  "files": 1,
+                  "kind": "file",
+                  "layer": "hot",
+                  "links": 0,
+                  "name": "README.md",
+                  "top_level_names": [
+                    "README.md"
+                  ]
+                }
+              ]
+            },
+            "controls": {
+              "gitignore_sha256": null,
+              "manifest_sha256": "cf29f897d5a1a3f8713731c0a6c8e105d6dbd54482ed7aa545c9e90745f63eec",
+              "packignore_sha256": null
+            },
+            "dependency_discovery_complete": false,
+            "fixed_excluded": {
+              "bytes": 22731,
+              "files": 2,
+              "links": 0,
+              "top_level_names": [
+                "__pycache__"
+              ]
+            },
+            "format": 2,
+            "git": {
+              "commit": "e73da6f5a7d37373086499df7c141d0772835528",
+              "dirty": true,
+              "tree_sha": "e9509661b5a68b05698ac6edec4d84c9836df365"
+            },
+            "hot": {
+              "sha256": "e2e925f1d790822d18496ece99d9937b31c6f456d923c1b26b0a9f5f9e605266",
+              "stats": {
+                "bytes": 17661,
+                "files": 3,
+                "links": 0,
+                "top_level_names": [
+                  "README.md",
+                  "group_temporal_images.py",
+                  "timeline.py"
+                ]
+              },
+              "verification": "verified_at_submission"
+            },
+            "ignored": {
+              "bytes": 0,
+              "files": 0,
+              "links": 0,
+              "top_level_names": []
+            },
+            "manifest": {
+              "excluded_fields": [
+                "published_as",
+                "published_at",
+                "version",
+                "yank",
+                "yank_reason",
+                "yanked",
+                "yanked_at"
+              ],
+              "normalized": {
+                "apiVersion": "hololab.dev/v1",
+                "category": "reconstruction/colmap4d",
+                "description": "Materialize XMP-timestamped rig images on colmap4d's fixed time grid and emit a rig_timeline visualization bundle from the same grouping result.\n",
+                "docs": "Reads ``arrayed[cam,index]<image>`` and emits both\n``arrayed[group,cam]<image,colmap4d-temporal-groups>`` and the legacy-compatible\n``rig_timeline`` PNG/HTML/report bundle. Grouping uses the public\n``colmap4d.group_by_grid`` API from colmap4d 1.0.2 or newer.\n",
+                "exec": {
+                  "shell": "set -euo pipefail\nTRIM=()\nif [ \"{{ params.trim_edges | lower }}\" = \"true\" ]; then\n  TRIM=(--trim-edges)\nfi\npython \"{{ pack_dir }}/group_temporal_images.py\" \\\n  --frames \"{{ inputs.frames }}\" \\\n  --output \"{{ outputs.groups }}\" \\\n  --timeline-output \"{{ outputs.exposure_timeline }}\" \\\n  --grid-ns {{ params.grid_ns }} \\\n  --n-cams {{ params.n_cams }} \\\n  \"${TRIM[@]}\"\ntest -s \"{{ outputs.exposure_timeline }}/exposure_timeline_full.png\"\ntest -s \"{{ outputs.exposure_timeline }}/exposure_timeline_zoom.html\"\n"
+                },
+                "idempotency": {
+                  "marker": "{{ outputs.groups }}/.hololab-done"
+                },
+                "inputs": {
+                  "frames": {
+                    "arrayed": true,
+                    "description": "ClockSync server-epoch JPEG tree with per-image rig XMP.",
+                    "dim_labels": [
+                      "cam",
+                      "index"
+                    ],
+                    "storage": "dir",
+                    "tags": [
+                      "image"
+                    ]
+                  }
+                },
+                "kind": "Algorithm",
+                "name": "col4d/colmap4d-temporal-grouping",
+                "outputs": {
+                  "exposure_timeline": {
+                    "arrayed": false,
+                    "description": "Legacy-compatible exposure_timeline PNG/HTML/report bundle.",
+                    "storage": "dir",
+                    "tags": [
+                      "rig_timeline"
+                    ]
+                  },
+                  "groups": {
+                    "arrayed": true,
+                    "description": "Materialized group/camera JPEG array with hidden grouping provenance.",
+                    "dim_labels": [
+                      "group",
+                      "cam"
+                    ],
+                    "storage": "dir",
+                    "tags": [
+                      "image",
+                      "colmap4d-temporal-groups"
+                    ]
+                  }
+                },
+                "params": {
+                  "grid_ns": {
+                    "default": 33333333,
+                    "description": "Fixed-grid bucket width in nanoseconds.",
+                    "min": 1,
+                    "type": "int"
+                  },
+                  "n_cams": {
+                    "default": 0,
+                    "description": "Expected devices for complete buckets; 0 infers all XMP aliases.",
+                    "min": 0,
+                    "type": "int"
+                  },
+                  "trim_edges": {
+                    "default": true,
+                    "description": "Keep the inclusive first-to-last complete span, including interior gaps.",
+                    "type": "bool"
+                  }
+                },
+                "progress": {
+                  "stdout_regex": "\\[ITER (\\d+)/(\\d+)\\]"
+                },
+                "requires": {
+                  "packages": [
+                    "colmap4d",
+                    "matplotlib",
+                    "plotly"
+                  ]
+                },
+                "runtime": {
+                  "env": "colmap4d",
+                  "expected_duration_min": [
+                    0.05,
+                    2
+                  ],
+                  "gpu": {
+                    "required": false
+                  },
+                  "resources": {
+                    "mem_gb": 2.0,
+                    "scratch_gb": 0.5
+                  }
+                },
+                "source_entry": "group_temporal_images.py"
+              },
+              "raw_sha256": "cf29f897d5a1a3f8713731c0a6c8e105d6dbd54482ed7aa545c9e90745f63eec",
+              "sha256": "7a757a8d06d5d7f4767cb0dc64dd59a286fd326deded29ee4d5ec04a90398028"
+            },
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap4d-temporal-grouping@0.1.2",
+            "quality_hints": [],
+            "recorded_at": 1793269918.7111816,
+            "root": ".",
+            "sha256": "70930f593915bf9498229cb7efc24214f65b6c2bccc8676f5348f97d616bcb9b",
+            "source": "col4d/colmap4d-temporal-grouping@0.1.2",
+            "uncovered": [],
+            "undeclared": []
+          },
+          "published_at": "2026-10-29T10:31:59.371157+00:00",
+          "publisher": "trusted-publisher",
+          "yanked": false,
+          "yank_reason": null,
+          "yank_updated_at": null
+        }
+      }
+    }
+  }
+]

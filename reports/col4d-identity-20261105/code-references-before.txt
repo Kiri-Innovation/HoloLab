@@ -1,0 +1,14 @@
+hololab/docs/colmap4d-components.md:141:`k4d/merge-colmap4d@0.2.0` is component assembly. The old XMP behavior has a
+hololab/docs/colmap4d-components.md:142:separate identity `k4d/colmap4d-from-xmp-photos@0.1.0`; it derives exposure
+hololab/tests/test_megasam_ports_040.py:38:        self.assertEqual(merge.name,'k4d/merge-colmap4d')
+hololab/tests/test_megasam_ports_040.py:40:        xmp,_=load_manifest(ROOT/'community_packs/colmap4d-from-xmp-photos@0.1.0/manifest.yaml')
+hololab/tests/test_megasam_ports_040.py:41:        self.assertEqual((xmp.name,xmp.version),('k4d/colmap4d-from-xmp-photos','0.1.0'))
+hololab/community_packs/merge-colmap4d@0.2.0/README.md:1:# k4d/merge-colmap4d 0.2.0
+hololab/community_packs/merge-colmap4d@0.2.0/README.md:7:Components cannot masquerade as complete models. See README.md and the application profiles docs/colmap4d-components.md. Legacy grouped JPEG/XMP behavior remains frozen at 0.1.5 and is separately available as k4d/colmap4d-from-xmp-photos@0.1.0. No STG changes or training are performed.
+hololab/community_packs/merge-colmap4d@0.2.0/manifest.yaml:3:name: k4d/merge-colmap4d
+hololab/community_packs/merge-colmap4d@0.2.0/manifest.yaml:26:  at 0.1.5 and is separately available as k4d/colmap4d-from-xmp-photos@0.1.0. No
+hololab/community_packs/colmap4d-from-xmp-photos@0.1.0/README.md:1:# k4d/colmap4d-from-xmp-photos 0.1.0
+hololab/community_packs/colmap4d-from-xmp-photos@0.1.0/manifest.yaml:3:name: k4d/colmap4d-from-xmp-photos
+hololab/community_packs/colmap4d-from-xmp-photos@0.1.0/merge_colmap4d.py:300:                "source": "k4d/colmap4d-from-xmp-photos@0.1.0",
+hololab/tests/test_colmap4d_xmp_010.py:10:NEW=ROOT/'colmap4d-from-xmp-photos@0.1.0/merge_colmap4d.py'
+hololab/tests/test_colmap4d_xmp_010.py:19:        self.assertEqual(OLD.read_text().replace('col4d/merge-colmap4d@0.1.5','k4d/colmap4d-from-xmp-photos@0.1.0'),NEW.read_text())

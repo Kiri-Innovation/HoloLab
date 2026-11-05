@@ -297,7 +297,7 @@ def merge(points_root: Path, images_root: Path, cams_root: Path, output: Path) -
                 for alias, value in sorted(devices.items())
             },
             "conversion": {
-                "source": "k4d/colmap4d-from-xmp-photos@0.1.0",
+                "source": "col4d/frames-to-colmap4d@0.1.0",
                 "source_groups": len(group_names),
                 "input_timebase": source_timebase,
                 "midpoint_formula": "wallClockEpochNs + exposureNs // 2",

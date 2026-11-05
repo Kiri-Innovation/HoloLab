@@ -1,0 +1,13 @@
+test_assembly_preserves_ids_ns (test_colmap4d_components_020.Components.test_assembly_preserves_ids_ns) ... ok
+test_invalid_components (test_colmap4d_components_020.Components.test_invalid_components) ... ok
+test_text_empty_observations (test_colmap4d_components_020.Components.test_text_empty_observations) ... ok
+test_tracks_and_duplicate_ids (test_colmap4d_components_020.Components.test_tracks_and_duplicate_ids) ... ok
+test_algorithm_identity (test_colmap4d_xmp_010.XMPParity.test_algorithm_identity) ... ok
+test_full_legacy_assembly (test_colmap4d_xmp_010.XMPParity.test_full_legacy_assembly) ... [ITER 1/1] merged g000000
+[ITER 1/1] merged g000000
+ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.069s
+
+OK

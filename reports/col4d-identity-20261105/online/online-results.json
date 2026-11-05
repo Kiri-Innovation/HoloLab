@@ -1,0 +1,19 @@
+{
+  "megasam": {
+    "job_id": "d016086a-5c3a-4c6f-8250-ad9268a278e8",
+    "seconds": 105.59189629554749,
+    "snapshot_id": "edc15d0f-b9be-4538-8262-5fc94d81725a",
+    "outputs": {
+      "4d_cams": "b7893ddb-fbac-4cde-8826-a39ded419815",
+      "4d_points": "89644427-2b11-472a-a4fe-6e9d4e44b87d",
+      "4d_images": "0d2413bf-ff94-426b-89dc-136cdeea3b39"
+    }
+  },
+  "merge": {
+    "job_id": "2d592ab0-f005-4a66-8bb0-741edb5d1abe",
+    "seconds": 8.398444890975952,
+    "outputs": {
+      "model": "69483dee-9121-4bb8-bcb8-090bf63dc536"
+    }
+  }
+}

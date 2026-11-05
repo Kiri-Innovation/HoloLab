@@ -138,6 +138,8 @@ preserve a single-device fallback, and declares cam0 in devices. Single-camera
 training would need batch=1. This profile does not modify STG.
 
 `col4d/merge-colmap4d@0.1.5` remains frozen for old XMP-group workflows.
-`k4d/merge-colmap4d@0.2.0` is component assembly. The old XMP behavior has a
-separate identity `k4d/colmap4d-from-xmp-photos@0.1.0`; it derives exposure
+`col4d/merge-colmap4d@0.2.0` is component assembly. The old XMP behavior has a
+separate identity `col4d/frames-to-colmap4d@0.1.0`; it derives exposure
 centers from JPEG XMP and is not a consumer of these timed components.
+
+Scope convention: `col4d` is the colmap4d format-tool ecosystem (assembly, XMP conversion, temporal grouping); algorithm packs such as `k4d/megasam-track` retain their algorithm scope. `col4d/frames-to-colmap4d@0.1.0` requires existing grouped points/cams as well as XMP JPEG frames; its name does not imply image-only reconstruction. Unpublished identity corrections replace `k4d/merge-colmap4d@0.2.0` and `k4d/colmap4d-from-xmp-photos@0.1.0`; historical snapshots/reports keep their original identities.

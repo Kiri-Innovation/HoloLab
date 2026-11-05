@@ -1,4 +1,4 @@
-# k4d/colmap4d-from-xmp-photos 0.1.0
+# col4d/frames-to-colmap4d 0.1.0
 
 The image input is strictly one-dimensional. Convert the upstream
 `arrayed[group,cam]<image>` with the type-agnostic `flatten-array@0.1.0`.
@@ -14,3 +14,5 @@ Independent legacy XMP producer, migrated from frozen col4d/merge-colmap4d@0.1.5
 Legacy compatibility includes blank image observation rows and retained point tracks addressing triangulation keypoints. This passes the existing colmap4d validator but does not claim the stronger reciprocal-track component profile. Use merge-colmap4d@0.2.0 only with actual component-profile inputs. No STG changes, GPU or training. See README.md.
 
 The algorithm is copied from 0.1.5; only conversion.source changes. The old pack is retained byte-for-byte. This is not an automatic workflow migration.
+
+Despite the frames-to-colmap4d name, this is an assembly/conversion tool, not an image-only reconstruction algorithm: grouped points and cams geometry plus flat XMP-bearing JPEG frames are all required. The col4d scope identifies colmap4d format tooling; MegaSAM remains an algorithm in k4d.
