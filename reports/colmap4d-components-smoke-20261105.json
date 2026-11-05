@@ -1,0 +1,40 @@
+{
+  "root": "/tmp/dog-megasam040-smoke-ughz9qkx",
+  "export": {
+    "images": 81,
+    "points": 165240
+  },
+  "assembly": {
+    "images": 81,
+    "points": 165240,
+    "strict_problems": 0
+  },
+  "stg_cameras": 81,
+  "stg_points": 165240,
+  "export_seconds": 50.713799856999685,
+  "assembly_seconds": 7.666321579999931,
+  "total_seconds": 60.56326487000115,
+  "pts_stride": 32,
+  "timestamp_mode": "synthetic_uniform",
+  "gpu_inference": false,
+  "synthetic_smoke": {
+    "root": "/tmp/colmap4d-components-smoke-y2ei64e_",
+    "images": 2,
+    "points": 2,
+    "strict_problems": 0,
+    "camera_times": [
+      0,
+      1
+    ],
+    "point_times": [
+      0,
+      1
+    ]
+  },
+  "schema": "3 manifests loaded successfully",
+  "unit_tests": {
+    "passed": 9,
+    "seconds": 0.32
+  },
+  "inference_rerun": false
+}
