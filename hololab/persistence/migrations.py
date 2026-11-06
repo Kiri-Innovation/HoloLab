@@ -833,6 +833,66 @@ CREATE TABLE handle_facts (
 )
 
 
+# V31 — artifact relocation, durable maintenance fences and location CAS.
+MIGRATIONS.append((31, """
+
+ALTER TABLE handles ADD COLUMN location_version INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE artifact_migrations (
+ migration_id TEXT PRIMARY KEY, node_id TEXT NOT NULL, source TEXT NOT NULL,
+ target TEXT NOT NULL, scope TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'planned',
+ plan_digest TEXT NOT NULL, plan_json TEXT NOT NULL, idempotency_key TEXT UNIQUE,
+ epoch INTEGER NOT NULL DEFAULT 0, error TEXT, created_ts REAL NOT NULL, updated_ts REAL NOT NULL
+);
+CREATE TABLE artifact_migration_units (
+ unit_id TEXT PRIMARY KEY, migration_id TEXT NOT NULL REFERENCES artifact_migrations,
+ source TEXT NOT NULL, target TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'planned',
+ receipt_json TEXT, lease_token TEXT, lease_until REAL, epoch INTEGER NOT NULL DEFAULT 0,
+ UNIQUE(migration_id,source)
+);
+CREATE TABLE artifact_migration_handles (
+ migration_id TEXT NOT NULL REFERENCES artifact_migrations, unit_id TEXT NOT NULL,
+ handle_id TEXT NOT NULL REFERENCES handles, old_path TEXT NOT NULL, new_path TEXT NOT NULL,
+ expected_version INTEGER NOT NULL, PRIMARY KEY(migration_id,handle_id)
+);
+CREATE TABLE artifact_migration_claims (
+ migration_id TEXT PRIMARY KEY REFERENCES artifact_migrations, node_id TEXT NOT NULL UNIQUE,
+ source TEXT NOT NULL, epoch INTEGER NOT NULL, started_ts REAL NOT NULL
+);
+CREATE TABLE artifact_path_aliases (
+ old_path TEXT PRIMARY KEY, new_path TEXT NOT NULL, backup_path TEXT NOT NULL,
+ migration_id TEXT NOT NULL REFERENCES artifact_migrations, state TEXT NOT NULL,
+ source_identity TEXT NOT NULL
+);
+CREATE TRIGGER artifact_migration_stale_location BEFORE UPDATE OF path ON handles
+WHEN NEW.path<>OLD.path AND NEW.location_version<>OLD.location_version+1
+BEGIN SELECT RAISE(ABORT,'stale artifact location; locate again'); END;
+CREATE TRIGGER artifact_migration_handles_update BEFORE UPDATE ON handles
+WHEN EXISTS(SELECT 1 FROM artifact_migration_claims c WHERE c.node_id=OLD.node_id)
+AND NOT (NEW.location_version=OLD.location_version+1 AND EXISTS(
+ SELECT 1 FROM artifact_migration_handles mh JOIN artifact_migrations m USING(migration_id)
+ WHERE mh.handle_id=OLD.handle_id AND (
+ (m.state='prepared' AND NEW.path=mh.new_path AND OLD.path=mh.old_path)
+ OR (m.state='rolling_back' AND NEW.path=mh.old_path AND OLD.path=mh.new_path))))
+BEGIN SELECT RAISE(ABORT,'artifact migration maintenance freeze'); END;
+CREATE TRIGGER artifact_migration_handles_insert BEFORE INSERT ON handles
+WHEN EXISTS(SELECT 1 FROM artifact_migration_claims c WHERE c.node_id=NEW.node_id)
+BEGIN SELECT RAISE(ABORT,'artifact migration maintenance freeze'); END;
+CREATE TRIGGER artifact_migration_handles_delete BEFORE DELETE ON handles
+WHEN EXISTS(SELECT 1 FROM artifact_migration_claims c WHERE c.node_id=OLD.node_id)
+BEGIN SELECT RAISE(ABORT,'artifact migration maintenance freeze'); END;
+CREATE TRIGGER artifact_migration_cleanup_insert BEFORE INSERT ON artifact_cleanup_claims
+WHEN EXISTS(SELECT 1 FROM artifact_migration_claims c WHERE c.node_id=NEW.node_id)
+BEGIN SELECT RAISE(ABORT,'artifact migration maintenance freeze'); END;
+CREATE TRIGGER artifact_migration_jobs_insert BEFORE INSERT ON jobs
+WHEN EXISTS(SELECT 1 FROM artifact_migration_claims c WHERE NEW.node_id IS NULL OR c.node_id=NEW.node_id)
+BEGIN SELECT RAISE(ABORT,'artifact migration maintenance freeze'); END;
+CREATE TRIGGER artifact_migration_jobs_dispatch BEFORE UPDATE ON jobs
+WHEN NEW.state IN ('pending','assigned','running','orphaned') AND EXISTS(
+ SELECT 1 FROM artifact_migration_claims c WHERE NEW.node_id IS NULL OR c.node_id=NEW.node_id)
+BEGIN SELECT RAISE(ABORT,'artifact migration maintenance freeze'); END;
+"""))
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 
