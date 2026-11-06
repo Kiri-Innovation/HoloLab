@@ -26,8 +26,9 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
   const pane = page.locator(".react-flow__pane");
   const viewport = page.locator(".react-flow__viewport");
   await expect(pane).toBeVisible();
-  const mode = page.getByRole("checkbox", { name: "触控板导航" });
-  await expect(mode).not.toBeChecked();
+  const mode = page.getByRole("button", { name: "触控板导航", exact: true });
+  await expect(mode).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".react-flow__controls").getByRole("button", { name: "触控板导航", exact: true })).toBeVisible();
   const logs: unknown[] = [];
   const transform = () => viewport.evaluate((el) => {
     const values = getComputedStyle(el).transform.match(/matrix\(([^)]+)\)/)?.[1].split(",").map(Number);
@@ -67,7 +68,8 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
 
   // These are the small pixel events Chrome sends for a two-finger trackpad
   // scroll. Every cardinal direction changes translation without scale.
-  await mode.check();
+  await mode.click();
+  await expect(mode).toHaveAttribute("aria-pressed", "true");
   const lineBefore = await transform();
   await wheel(0, 1, false, 1);
   await expect.poll(async () => (await transform()).scale).not.toBe(lineBefore.scale);
@@ -112,8 +114,29 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
   mkdirSync("/tmp/trackpad-navigation", { recursive: true });
   await page.screenshot({ path: "/tmp/trackpad-navigation/gesture-simulation.png" });
   writeFileSync("/tmp/trackpad-navigation/wheel-events.json", JSON.stringify(logs, null, 2));
-  await mode.uncheck();
+  await page.reload();
+  await expect(mode).toHaveAttribute("aria-pressed", "true");
+  await mode.click();
+  await expect(mode).toHaveAttribute("aria-pressed", "false");
   const restored = await transform();
   await wheel(0, 5);
   await expect.poll(async () => (await transform()).scale).not.toBe(restored.scale);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
+    for (const enabled of [false, true]) {
+      if ((await mode.getAttribute("aria-pressed")) !== String(enabled)) await mode.click();
+      await pane.hover();
+      await mode.hover();
+      await expect(page.getByRole("tooltip")).toContainText(enabled ? "已开启" : "已关闭");
+      expect(await mode.getAttribute("title")).toBeNull();
+      const controls = page.locator(".react-flow__controls");
+      const sizes = await controls.locator("button").evaluateAll(buttons => buttons.map(button => {
+        const box = button.getBoundingClientRect();
+        return { width: box.width, height: box.height };
+      }));
+      expect(sizes.every(size => size.width === sizes[0].width && size.height === sizes[0].height)).toBe(true);
+      await page.screenshot({ path: `/tmp/trackpad-navigation/${theme}-${enabled ? "on" : "off"}.png` });
+      await pane.hover();
+    }
+  }
 });

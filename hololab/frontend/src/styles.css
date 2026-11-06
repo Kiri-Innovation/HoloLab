@@ -243,6 +243,11 @@ a:hover { text-decoration: underline; }
   background: var(--surface-hover) !important;
 }
 .react-flow__controls-button svg { fill: currentColor; }
+.react-flow__controls-button.hl-trackpad-navigation[aria-pressed="true"] {
+  background: var(--surface-hover) !important;
+  color: var(--text) !important;
+  box-shadow: inset 3px 0 0 var(--text-body);
+}
 
 .react-flow__minimap {
   background: var(--surface) !important;

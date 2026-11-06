@@ -1840,7 +1840,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const rfWrapper = useRef<HTMLDivElement>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
-  const [trackpadNavigation, setTrackpadNavigation] = useState(false);
+  // Same browser-preference storage policy as useResizableSlot: best effort,
+  // with a usable in-memory fallback when storage is unavailable.
+  const [trackpadNavigation, setTrackpadNavigation] = useState(() => {
+    try { return window.localStorage.getItem("hololab.canvas.trackpadNavigation") === "true"; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("hololab.canvas.trackpadNavigation", String(trackpadNavigation)); }
+    catch { /* Keep the mode usable for this visit when storage is disabled. */ }
+  }, [trackpadNavigation]);
 
   // Explicit opt-in: smooth mouse wheels and trackpads can emit identical
   // event streams. Never change navigation based on delta magnitude/timing.
@@ -3228,14 +3237,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             proOptions={{ hideAttribution: true }}
           >
             <FrameSelectedShortcut nodeId={selectedNode?.id ?? null} />
-            <CanvasControls />
-            <Panel position="top-left">
-              <label className="nodrag nopan nowheel" style={{ background: "var(--surface)", padding: "6px 10px", borderRadius: 6 }}
-                title="开启后双指滑动平移、捏合缩放；使用鼠标滚轮缩放时请关闭">
-                <input type="checkbox" checked={trackpadNavigation}
-                  onChange={event => setTrackpadNavigation(event.target.checked)} /> 触控板导航
-              </label>
-            </Panel>
+            <CanvasControls trackpadNavigation={trackpadNavigation}
+              onToggleTrackpadNavigation={() => setTrackpadNavigation(current => !current)} />
             <CanvasToastAnchor />
             <Panel
               position="bottom-right"
