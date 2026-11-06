@@ -26,10 +26,13 @@ from hololab.protocol.messages import GpuInfo, PackInventoryEntry
 PACK = Path(__file__).parents[1] / 'community_packs/repeat-4d@0.2.0'
 
 
-@pytest.mark.parametrize('version,override', [('0.2.0', 0), ('0.3.0', None), ('0.3.0', 0)])
+@pytest.mark.parametrize('version,override', [('0.2.0', 0), ('0.3.0', None), ('0.3.0', 0), ('into', 0)])
 def test_parallel_camera_cli_and_aggregate(tmp_path, monkeypatch, version, override):
-    PACK = Path(__file__).parents[1] / f'community_packs/repeat-4d@{version}'
-    tag = 'colmap-camera' if version == '0.2.0' else 'colmap4d-single-cam'
+    pack_name = 'repeat-into-4d@0.1.0' if version == 'into' else f'repeat-4d@{version}'
+    script = 'repeat_into_4d.py' if version == 'into' else 'repeat_4d.py'
+    PACK = Path(__file__).parents[1] / 'community_packs' / pack_name
+    tag = ('colmap-single-cam' if version == 'into' else
+           'colmap-camera' if version == '0.2.0' else 'colmap4d-single-cam')
     manifest, _ = load_manifest(PACK / 'manifest.yaml')
     entry = manifest.model_dump(mode='json', by_alias=True)
     entry.update(node_ids=['local'], manifest_hash='test')
@@ -85,7 +88,7 @@ def test_parallel_camera_cli_and_aggregate(tmp_path, monkeypatch, version, overr
         assert handle.path == camera and handle.storage == 'file'
         assert job.params == node.params
         process = await asyncio.create_subprocess_exec(
-            sys.executable, str(PACK / 'repeat_4d.py'), '--camera', camera,
+            sys.executable, str(PACK / script), '--camera', camera,
             '--output', output, '--duration', str(job.params['duration']),
             '--fps', str(job.params['fps']),
             *(['--start-time-ns', str(override)] if override is not None else []),
@@ -136,4 +139,4 @@ def test_parallel_camera_cli_and_aggregate(tmp_path, monkeypatch, version, overr
         assert list(colmap4d.read_times_bin(output / 'times.bin').values()) == [
             origin, origin + 333333333, origin + 666666667]
         meta = json.loads((output / 'time_meta.json').read_text())
-        assert meta['conversion']['producer'] == f'col4d/repeat-4d@{version}'
+        assert meta['conversion']['producer'] == f'col4d/{pack_name}'

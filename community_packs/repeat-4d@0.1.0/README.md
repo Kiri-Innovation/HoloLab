@@ -1,5 +1,11 @@
 # col4d/repeat-4d 0.1.0
 
+> Legacy archive: retained for historical references and reproducibility.
+> For new workflows use `col4d/repeat-into-4d@0.1.0`, which consumes
+> `colmap-single-cam` and takes its time origin from `start_time_ns` (default 0).
+> Convert timed leaves explicitly with `col4d/single-cam-drop-time@0.1.0`.
+> The contract below describes this retained legacy version, not the new node.
+
 Repeat one timeless static camera into a synthetic `colmap4d-cams` component.
 This is a format-domain utility in `community_packs`, independent of any
 reconstruction algorithm. The requested `repeat-4d` name follows the existing
