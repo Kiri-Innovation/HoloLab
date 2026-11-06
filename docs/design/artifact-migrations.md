@@ -120,3 +120,19 @@ file-service configuration update before copying. Thumbnail/video generation
 returns 503 while frozen; raw reads remain available. Markers survive failures
 and are cleared by cancel or successful cutover. Unmanaged external writers
 remain outside this protocol and source mutation still fails closed.
+
+Finalize is synchronous and may spend a long time rehashing the destination.
+The CLI waits without a read timeout for finalize/rollback; a disconnected HTTP
+client does not imply that server-side work stopped. Status exposes
+`filesystem_locked` separately from the in-process copy `worker_running` flag.
+Never clear a claim solely because the latter is false.
+
+A failed finalize releases its temporary maintenance claim: it does not modify
+the live destination. If the source backup was already removed but the database
+still says cleanup_pending, an explicitly authorized finalize can reconcile the
+terminal state after full destination verification, destination inode identity,
+the compatibility alias and the source parent mount have been checked. Historical
+operation records and receipts remain available. Cancellation also terminalizes
+all of an aborted operation's units, rather than leaving retryable_failed units
+under an aborted parent. Gateway maintenance-fence errors use 503 with a retry
+hint; workflow CAS conflicts remain 409 and must not be blindly overwritten.

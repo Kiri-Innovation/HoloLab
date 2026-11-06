@@ -1,0 +1,72 @@
+{
+  "state": {
+    "timestamp": 1793974922.3017373,
+    "claims": [],
+    "migrations": [
+      [
+        "3bbc68eb-6d1c-4640-a035-2118ce3cde20",
+        "aborted",
+        "Drain source node jobs before freezing writes"
+      ],
+      [
+        "fa13e786-b60c-4377-92ba-80a6101e9039",
+        "completed",
+        null
+      ]
+    ],
+    "units": [
+      [
+        "3bbc68eb-6d1c-4640-a035-2118ce3cde20",
+        "aborted",
+        110
+      ],
+      [
+        "fa13e786-b60c-4377-92ba-80a6101e9039",
+        "completed",
+        91
+      ]
+    ],
+    "aliases": [
+      [
+        "fa13e786-b60c-4377-92ba-80a6101e9039",
+        "source_reclaimed"
+      ]
+    ],
+    "main_process_unchanged": true
+  },
+  "browser_after": {
+    "timestamp": "2026-11-06T14:22:11.732Z",
+    "save_statuses": [
+      200,
+      200
+    ],
+    "stale_status": 409,
+    "stale_code": "workflow_conflict",
+    "nodes": 47,
+    "edges": 64,
+    "health_status": 200
+  },
+  "browser_before": {
+    "browser": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+    "save_status": 200,
+    "stale_status": 409,
+    "stale_code": "workflow_conflict",
+    "nodes": 47,
+    "edges": 64,
+    "updated_ts": 1793973302.7000976
+  },
+  "validation": {
+    "python_passed": 61,
+    "playwright_passed": 8,
+    "ruff": "passed",
+    "live_gpu_dispatch_performed": false,
+    "full_target_sha256_verified": true,
+    "files": 45518,
+    "bytes": 448202716327,
+    "symlinks": 31404,
+    "main_gateway_restarted": false,
+    "maintenance_api_reloaded": true,
+    "official_finalize_idempotent_http_status": 200
+  },
+  "code_commit": "2f6effc"
+}
