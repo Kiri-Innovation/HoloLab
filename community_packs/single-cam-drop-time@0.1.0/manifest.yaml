@@ -1,0 +1,36 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/single-cam-drop-time
+version: 0.1.0
+description: Explicitly remove time from one timed camera, preserving all six geometry fields.
+category: reconstruction/colmap4d
+source_entry: drop_time.py
+arrayable: true
+parallelism: 4
+batch_size: 1
+docs: >-
+  Input is exactly model, width, height, params, qvec, tvec and timestamp_ns
+  (signed int64 nanoseconds). Output contains exactly the six geometry fields.
+  No timestamp is inferred or retained. This conversion is intentionally lossy;
+  recovering a timed camera requires an explicitly supplied timestamp.
+  Enable arrayed_toggle on the workflow node for per-element array conversion.
+inputs:
+  camera:
+    tags: [colmap4d-single-cam]
+    storage: file
+    arrayed: false
+outputs:
+  camera:
+    tags: [colmap-single-cam]
+    storage: file
+    arrayed: false
+params: {}
+requires:
+  packages: [colmap4d>=1.0.4]
+runtime:
+  env: colmap4d
+  gpu: {required: false}
+exec:
+  shell: >-
+    python -u "{{ pack_dir }}/drop_time.py"
+    --camera "{{ inputs.camera }}" --output "{{ outputs.camera }}"

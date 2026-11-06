@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 import colmap4d
 from colmap4d.arrays import read_image_headers
 from fastapi.testclient import TestClient
@@ -25,17 +26,20 @@ from hololab.protocol.messages import GpuInfo, PackInventoryEntry
 PACK = Path(__file__).parents[1] / 'community_packs/repeat-4d@0.2.0'
 
 
-def test_parallel_camera_cli_and_aggregate(tmp_path, monkeypatch):
+@pytest.mark.parametrize('version,override', [('0.2.0', 0), ('0.3.0', None), ('0.3.0', 0)])
+def test_parallel_camera_cli_and_aggregate(tmp_path, monkeypatch, version, override):
+    PACK = Path(__file__).parents[1] / f'community_packs/repeat-4d@{version}'
+    tag = 'colmap-camera' if version == '0.2.0' else 'colmap4d-single-cam'
     manifest, _ = load_manifest(PACK / 'manifest.yaml')
     entry = manifest.model_dump(mode='json', by_alias=True)
     entry.update(node_ids=['local'], manifest_hash='test')
     source = dict(name='source', version='1.0.0', inputs={}, outputs={
-        'out': dict(tags=['colmap-camera'], arrayed=True, dim_labels=['camera'])})
+        'out': dict(tags=[tag], arrayed=True, dim_labels=['camera'])})
     graph = WorkflowGraph(nodes=[
         GraphNode(id='source', algorithm_name='source', algorithm_version='1.0.0'),
         GraphNode(id='repeat', algorithm_name=manifest.name, algorithm_version=manifest.version,
                   assigned_node_id='local', arrayed_toggle=True, parallelism=2, batch_size=1,
-                  params=dict(duration=1, fps=3, start_time_ns=0)),
+                  params=dict(duration=1, fps=3, start_time_ns=override)),
     ], edges=[dict(id='edge', source='source', sourceHandle='out',
                    target='repeat', targetHandle='camera')])
     packs = packs_by_key_from_catalog([source, entry])
@@ -52,7 +56,8 @@ def test_parallel_camera_cli_and_aggregate(tmp_path, monkeypatch):
     for i in range(3):
         (arr / f'{i}.json').write_text(json.dumps(dict(
             model='PINHOLE', width=640, height=480, params=[500, 510, 320, 240],
-            qvec=[1, 0, 0, 0], tvec=[i, 0, 0])))
+            qvec=[1, 0, 0, 0], tvec=[i, 0, 0],
+            **({'timestamp_ns': 123456789 + i} if version == '0.3.0' else {}))))
     app = create_app(db_path=tmp_path / 'test.sqlite')
     active = peak = 0
     gate = asyncio.Event()
@@ -82,7 +87,8 @@ def test_parallel_camera_cli_and_aggregate(tmp_path, monkeypatch):
         process = await asyncio.create_subprocess_exec(
             sys.executable, str(PACK / 'repeat_4d.py'), '--camera', camera,
             '--output', output, '--duration', str(job.params['duration']),
-            '--fps', str(job.params['fps']), '--start-time-ns', str(job.params['start_time_ns']),
+            '--fps', str(job.params['fps']),
+            *(['--start-time-ns', str(override)] if override is not None else []),
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         stdout, stderr = await process.communicate()
         assert process.returncode == 0, (stdout, stderr)
@@ -104,7 +110,7 @@ def test_parallel_camera_cli_and_aggregate(tmp_path, monkeypatch):
         async def run():
             await app.state.handles.register(Handle(
                 handle_id='cameras', node_id='local', storage='dir',
-                tags=['colmap-camera'], path=str(arr)))
+                tags=[tag], path=str(arr)))
             await app.state.workflows.save_draft(workflow_id='wf', name='test', graph=graph)
             snap = await app.state.workflows.create_snapshot(workflow_id='wf', graph=graph)
             ids = await execution.run_snapshot(
@@ -126,6 +132,8 @@ def test_parallel_camera_cli_and_aggregate(tmp_path, monkeypatch):
         images = read_image_headers(output / 'images.bin')
         assert len(images) == 3
         assert all(image.tvec == [i, 0, 0] for image in images.values())
-        assert list(colmap4d.read_times_bin(output / 'times.bin').values()) == [0, 333333333, 666666667]
+        origin = 123456789 + i if override is None else override
+        assert list(colmap4d.read_times_bin(output / 'times.bin').values()) == [
+            origin, origin + 333333333, origin + 666666667]
         meta = json.loads((output / 'time_meta.json').read_text())
-        assert meta['conversion']['producer'] == 'col4d/repeat-4d@0.2.0'
+        assert meta['conversion']['producer'] == f'col4d/repeat-4d@{version}'

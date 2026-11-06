@@ -1,0 +1,65 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/repeat-4d
+version: 0.3.0
+description: Repeat one static camera over a synthetic time interval.
+category: reconstruction/colmap4d
+arrayable: true
+parallelism: 4
+batch_size: 1
+source_entry: repeat_4d.py
+docs: >-
+  Input is one timed colmap4d-single-cam JSON (model, width, height, params,
+  qvec wxyz, tvec, timestamp_ns signed int64 ns; world-to-camera). Output is a colmap4d-cams component.
+  Frame count is floor(duration * fps), from 1 to 1000000.
+  Times are origin + round(i * 1e9 / fps), nearest ties-to-even.
+  Origin defaults to the element timestamp_ns; start_time_ns optionally overrides it.
+  Enable arrayed_toggle on the workflow node to map over cameras; parallelism
+  bounds concurrent invocations. Outputs collect along the input outer axis.
+  All cameras share duration and fps. Explicit start_time_ns=0 synchronizes origins.
+  No pixels or point observations are generated. Time is explicitly synthetic.
+inputs:
+  camera:
+    tags: [colmap4d-single-cam]
+    storage: file
+    arrayed: false
+outputs:
+  4d_cams:
+    tags: [colmap4d-cams]
+    storage: dir
+    arrayed: false
+params:
+  duration:
+    type: float
+    default: 1.0
+    min: 5.0e-324
+    description: Positive duration in seconds; fractional frame count is floored.
+  fps:
+    type: float
+    default: 30.0
+    min: 5.0e-324
+    max: 1000000000
+    description: Positive frames per second (maximum nanosecond resolution).
+  start_time_ns:
+    type: int
+    optional: true
+    default: null
+    min: -9223372036854775808
+    max: 9223372036854775807
+    description: Optional signed int64 ns origin override; unset uses the input timestamp_ns, explicit zero synchronizes all cameras.
+requires:
+  packages: [colmap4d>=1.0.4]
+runtime:
+  env: colmap4d
+  gpu: {required: false}
+  resources: {scratch_gb: 0.2, mem_gb: 2.0}
+exec:
+  shell: >-
+    python -u "{{ pack_dir }}/repeat_4d.py"
+    --camera "{{ inputs.camera }}" --output "{{ outputs['4d_cams'] }}"
+    --duration {{ params.duration }} --fps {{ params.fps }}
+    {% if params.get('start_time_ns') is not none %}
+    --start-time-ns {{ params.start_time_ns }}
+    {% endif %}
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
