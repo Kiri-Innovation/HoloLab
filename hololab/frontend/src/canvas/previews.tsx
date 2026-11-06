@@ -1,3 +1,4 @@
+import { Colmap4DPreview } from "./Colmap4DPreview";
 import { MediaResolution } from "./MediaResolution";
 import { VideoResolution } from "./VideoResolution";
 // In-canvas preview drawers.
@@ -215,6 +216,14 @@ export function Preview({
   partial,
   refreshToken = 0,
 }: PreviewProps) {
+  // The explicit declaration wins; tag fallback also supports pre-upgrade handles.
+  if (spec?.viewer === "colmap4d" || (!spec && tags?.includes("colmap4d"))) {
+    if (storage !== "dir") return <Status text="colmap4d preview requires a directory" kind="error" />;
+    const render = (url: string) => <Colmap4DPreview key={url} baseUrl={`${url.replace(/\/$/, "")}/${spec?.member ?? "sparse/0"}`} />;
+    return arrayed
+      ? <ArrayedPaginator baseUrl={baseUrl} handleId={handleId} partial={partial} dimLabels={dimLabels} renderScalar={render} />
+      : render(baseUrl);
+  }
   // Existing handles/older running gateways may not yet carry inferred specs.
   // A historical explicit ``text`` spec must not override the data class of
   // a known binary artifact.  Some already-published STG manifests predate

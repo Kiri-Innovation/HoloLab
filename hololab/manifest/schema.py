@@ -189,7 +189,7 @@ class OutputPreview(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    viewer: Literal["splatv", "ftgsply", "ply-3dgs", "lagsplat", "video", "image", "text", "video-grid"]
+    viewer: Literal["colmap4d", "splatv", "ftgsply", "ply-3dgs", "lagsplat", "video", "image", "text", "video-grid"]
     member: str | None = None
 
 

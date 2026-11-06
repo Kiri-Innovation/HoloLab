@@ -1,0 +1,15 @@
+{
+  "loadedMs": 34465,
+  "beforeCounts": {
+    "1": 2
+  },
+  "afterCounts": {
+    "1": 2
+  },
+  "status": [
+    "预览抽样：199,955 / 41,990,400 点 · 合成/估计时间 ",
+    "预览抽样：199,955 / 41,990,400 点 · 合成/估计时间 "
+  ],
+  "frameText": "COLMAP Util\n81 Images | 1 Cameras\nTime (colmap4d)\n1.867 / 2.667 s\nσ window ±\n% (266.7 ms) — points + cameras\npoints\nCPU\nGPU",
+  "errors": []
+}
