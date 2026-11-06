@@ -169,7 +169,9 @@ class LocalMigration:
         self.plan = migration["plan"]
         self.mid = migration["migration_id"]
         self.source, self.target = Path(self.plan["source"]), Path(self.plan["target"])
-        self.area = self.target.parent / (".hololab-migration-" + self.mid)
+        self.area = Path(self.plan.get("target_root", self.target)).parent / (
+            ".hololab-migration-" + self.mid
+        )
         self.backup = self.source.parent / (".hololab-migration-source-" + self.mid)
         self.stop = None
         self.progress = dict(files=0, bytes=0, reused_bytes=0, symlinks=0, external_links=0)
@@ -207,6 +209,21 @@ class LocalMigration:
 
     def prepare(self, *, repair_existing=False):
         self.check_roots()
+        self.progress = dict(files=0, bytes=0, reused_bytes=0, symlinks=0, external_links=0)
+        cached = {}
+        for name in ("manifest.jsonl", "manifest.jsonl.tmp"):
+            previous = self.area / name
+            if previous.exists():
+                if previous.is_symlink():
+                    raise ValueError("Unsafe migration manifest")
+                with previous.open() as stream:
+                    for line in stream:
+                        try:
+                            record = json.loads(line)
+                        except ValueError:
+                            break  # only complete, durable file records are reusable
+                        if record.get("type") == "file":
+                            cached[record["path"]] = record
         if (
             self.target.exists()
             and not self.plan["adopt_existing"]
@@ -266,7 +283,14 @@ class LocalMigration:
                 elif stat.S_ISREG(mode):
                     no_symlink_parents(target)
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    sha = hash_file(source)
+                    checkpoint = cached.get(rel)
+                    if checkpoint and checkpoint["source_fingerprint"] == before:
+                        sha = checkpoint["sha256"]
+                        self.progress["source_hash_cache_hits"] = (
+                            self.progress.get("source_hash_cache_hits", 0) + 1
+                        )
+                    else:
+                        sha = hash_file(source)
                     reused = False
                     if os.path.lexists(target):
                         if target.is_symlink() or not target.is_file():
@@ -369,7 +393,9 @@ class LocalMigration:
             raise InterruptedError("Migration cancelled before commit")
         if os.stat(self.source).st_dev != self.plan["source_identity"][0]:
             raise ValueError("Source mount changed")
-        parent = self.target if self.target.exists() else self.target.parent
+        parent = self.target
+        while not parent.exists():
+            parent = parent.parent
         if os.stat(parent).st_dev != self.plan["target_device"]:
             raise ValueError("Destination mount changed")
 
@@ -500,3 +526,26 @@ def preflight(source, target, preserve_existing_missing=False):
         elif len(blockers) < 20:
             blockers.append(f"Unsupported special file: {p}")
     return dict(counts=counts, blockers=blockers, missing=missing)
+
+
+def freeze_marker(root):
+    key = hashlib.sha256(os.fsencode(os.path.normpath(str(root)))).hexdigest()[:24]
+    return Path(root).parent / (".hololab-migration-freeze-" + key)
+
+
+def set_preview_freeze(source, target, mid, enabled):
+    for root in (source, target):
+        marker = freeze_marker(root)
+        if os.path.lexists(marker):
+            if marker.is_symlink() or marker.read_text() != mid:
+                raise ValueError("Preview freeze marker belongs to another operation")
+            if not enabled:
+                marker.unlink()
+                sync_dir(marker.parent)
+        elif enabled:
+            fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, "w") as stream:
+                stream.write(mid)
+                stream.flush()
+                os.fsync(stream.fileno())
+            sync_dir(marker.parent)

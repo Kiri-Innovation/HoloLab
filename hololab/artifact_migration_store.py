@@ -68,6 +68,7 @@ class MigrationStore:
         workspace=False,
         adopt_existing=False,
         preserve_existing_missing=False,
+        layout_root=None,
     ):
         source, target = canonical(source), canonical(target)
         if contains(source, target) or contains(target, source):
@@ -96,6 +97,14 @@ class MigrationStore:
                     hp = canonical(h["path"])
                     if hp != source and contains(hp, source):
                         source, changed = hp, True
+        target_root = target
+        if layout_root is not None:
+            layout_root = canonical(layout_root)
+            if not contains(layout_root, source):
+                raise ValueError("Expanded unit is outside its workspace namespace")
+            relative = os.path.relpath(source, layout_root)
+            if relative != ".":
+                target = os.path.join(target_root, relative)
         if contains(source, target) or contains(target, source):
             raise ValueError("Expanded storage unit overlaps destination")
         if Path(source).is_symlink():
@@ -121,6 +130,8 @@ class MigrationStore:
 
         survey = await asyncio.to_thread(preflight, source, target, preserve_existing_missing)
         plan = dict(
+            source_root=layout_root or source,
+            target_root=target_root,
             preserve_existing_missing=preserve_existing_missing,
             preflight=survey,
             node_id=node_id,

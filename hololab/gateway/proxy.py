@@ -39,6 +39,8 @@ def strip_workspace_prefix(session: NodeSession | None, absolute_path: str) -> s
     candidates.extend(session.legacy_workspace_roots or [])
     for root in candidates:
         stripped = root.rstrip("/")
+        if absolute_path == stripped:
+            return ""
         if absolute_path.startswith(stripped + "/"):
             return absolute_path[len(stripped) + 1 :]
     return absolute_path

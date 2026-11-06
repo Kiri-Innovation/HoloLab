@@ -198,3 +198,29 @@ def test_mode_and_sparse_layout_are_preserved(tmp_path):
     assert q.stat().st_size == p.stat().st_size
     assert q.stat().st_mode & 0o777 == 0o640
     assert q.stat().st_blocks * 512 < q.stat().st_size
+
+
+def test_resume_reuses_source_hash_only_with_matching_fingerprint(tmp_path, monkeypatch):
+    import hololab.artifact_migration_files as files
+
+    w = worker(tmp_path)
+    (w.source / "f").write_text("original")
+    with w.lock():
+        w.prepare()
+    original = files.hash_file
+    reads = []
+
+    def counted(path):
+        reads.append(Path(path))
+        return original(path)
+
+    monkeypatch.setattr(files, "hash_file", counted)
+    with w.lock():
+        receipt = w.prepare()
+    assert w.source / "f" not in reads
+    assert w.target / "f" in reads
+    assert receipt["progress"]["source_hash_cache_hits"] == 1
+    (w.source / "f").write_text("changed source")
+    with w.lock(), pytest.raises(ValueError, match="checksum"):
+        w.prepare()
+    assert w.source / "f" in reads

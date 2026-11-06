@@ -220,11 +220,13 @@ class _OpenedFileResponse(FileResponse):
         yield self._file
 
     async def _handle_simple(self, send, send_header_only, send_pathsend):
-        await send({
-            "type": "http.response.start",
-            "status": self.status_code,
-            "headers": self.raw_headers,
-        })
+        await send(
+            {
+                "type": "http.response.start",
+                "status": self.status_code,
+                "headers": self.raw_headers,
+            }
+        )
         remaining = 0 if send_header_only else self.stat_result.st_size
         while remaining:
             chunk = await self._file.read(min(self.chunk_size, remaining))
@@ -390,6 +392,12 @@ def create_fileserver_app(
         if_none_match: str | None = Header(default=None, alias="if-none-match"),
         if_modified_since: str | None = Header(default=None, alias="if-modified-since"),
     ):
+        from hololab.artifact_migration_files import freeze_marker
+
+        if any(freeze_marker(root).exists() for root in all_roots):
+            raise HTTPException(
+                status_code=503, detail="Preview generation is frozen for artifact migration"
+            )
         try:
             width, height = _parse_thumb_dims(dims)
         except ValueError as exc:
@@ -432,6 +440,12 @@ def create_fileserver_app(
         if_none_match: str | None = Header(default=None, alias="if-none-match"),
         if_modified_since: str | None = Header(default=None, alias="if-modified-since"),
     ):
+        from hololab.artifact_migration_files import freeze_marker
+
+        if any(freeze_marker(root).exists() for root in all_roots):
+            raise HTTPException(
+                status_code=503, detail="Preview generation is frozen for artifact migration"
+            )
         try:
             width, height = _parse_preview_dims(dims)
         except ValueError as exc:
@@ -557,8 +571,7 @@ def _alpha_thumbnail_filter(vf: str) -> str:
     # the aspect-preserving resize and before that final dimension adjustment.
     checker = "(216-40*mod(floor(X/8)+floor(Y/8),2))"
     channels = ":".join(
-        f"{c}='{c}(X,Y)*alpha(X,Y)/255+{checker}*(1-alpha(X,Y)/255)'"
-        for c in "rgb"
+        f"{c}='{c}(X,Y)*alpha(X,Y)/255+{checker}*(1-alpha(X,Y)/255)'" for c in "rgb"
     )
     result = f"format=rgba,{scale},format=rgba,geq={channels}:a=255,format=rgb24"
     return f"{result},{padding}" if padding else result
@@ -617,7 +630,9 @@ async def _thumb_response(
         raise HTTPException(status_code=500, detail=f"stat failed: {exc}") from exc
 
     is_still_image = video.suffix.lower() in _STILL_IMAGE_EXTS
-    key_material = f"{video.resolve()}|{stat.st_mtime_ns}|{width}x{height}|{at:.3f}|{_THUMB_VERSION}".encode()
+    key_material = (
+        f"{video.resolve()}|{stat.st_mtime_ns}|{width}x{height}|{at:.3f}|{_THUMB_VERSION}".encode()
+    )
     if unpadded:
         key_material += b"|unpadded-v1"
     digest = hashlib.sha256(key_material).hexdigest()[:32]
@@ -631,7 +646,9 @@ async def _thumb_response(
         if_none_match=if_none_match,
         # Source mtime cannot validate a changed still-image rendering.
         # ETag must also take precedence over If-Modified-Since.
-        if_modified_since=None if (is_still_image or unpadded or if_none_match) else if_modified_since,
+        if_modified_since=None
+        if (is_still_image or unpadded or if_none_match)
+        else if_modified_since,
     )
     if not_modified is not None:
         return not_modified

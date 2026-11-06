@@ -291,3 +291,58 @@ async def test_finalize_allows_new_target_files_without_discarding_them(api):
     assert r.json()["state"] == "completed"
     assert (target / "file").read_text() == "payload"
     assert (source / "new-job-output").read_text() == "new data after migration"
+
+
+async def test_single_artifact_preserves_workspace_preview_namespace(tmp_path):
+    from hololab.node.fileserver import create_fileserver_app
+
+    source = tmp_path / "workspace"
+    artifact = source / "w" / "job" / "images"
+    artifact.mkdir(parents=True)
+    (artifact / "one.png").write_bytes(b"image bytes")
+    target = tmp_path / "new-workspace"
+    app = maintenance_app(db_path=tmp_path / "db", node_id="local", roots=[source], token=TOKEN)
+    async with app.router.lifespan_context(app):
+        svc = app.state.artifact_migrations
+
+        async def seed(c):
+            await c.execute(
+                "INSERT INTO nodes(node_id,node_name,created_ts) VALUES ('local','test',0)"
+            )
+            await c.execute(
+                "INSERT INTO handles(handle_id,node_id,kind,tags_json,path,created_ts) VALUES ('h','local','dir','[]',?,0)",
+                (str(artifact),),
+            )
+
+        await svc.store.db.write(seed)
+        m = await svc.plan(node_id="local", source=None, target=str(target), handle_id="h")
+        assert m["source"] == str(artifact) and m["target"] == str(target / "w/job/images")
+        await svc.start(m["migration_id"], m["plan_digest"], "key")
+        await svc.tasks[m["migration_id"]]
+        assert (await svc.status(m["migration_id"]))["state"] == "cleanup_pending"
+        server = create_fileserver_app(workspace_root=source, legacy_workspace_roots=[target])
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=server), base_url="http://files"
+        ) as files:
+            r = await files.get("/w/job/images/one.png")
+            assert r.status_code == 200 and r.content == b"image bytes"
+
+
+async def test_preview_writes_are_frozen_but_raw_reads_work(tmp_path):
+    from hololab.artifact_migration_files import set_preview_freeze
+    from hololab.node.fileserver import create_fileserver_app
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "f").write_text("readable")
+    target = tmp_path / "target"
+    set_preview_freeze(source, target, "test", True)
+    server = create_fileserver_app(workspace_root=source)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=server), base_url="http://files"
+    ) as client:
+        assert (await client.get("/f")).text == "readable"
+        assert (await client.get("/_thumb/320x180/missing.mp4")).status_code == 503
+        assert (await client.get("/_preview/320x180/missing.mp4")).status_code == 503
+        set_preview_freeze(source, target, "test", False)
+        assert (await client.get("/_thumb/320x180/missing.mp4")).status_code == 404

@@ -38,8 +38,9 @@ operator authorization. Source backup is a sibling named
 Removing the old mount path will invalidate that compatibility.
 
 For an artifact, use `--handle HANDLE_ID` or `--path /old/object`. Here
-`--target-root` is the destination address of the selected object (directory or
-file), not a root automatically prepended to its original full relative path.
+`--target-root` is the destination workspace root. The selected object's
+workspace-relative suffix is preserved, so existing and new preview URLs use
+the same namespace. The plan shows the expanded source unit and final target.
 An enclosing directory handle expands the selection to preserve aggregate and
 shard views. A symlink-only handle requires selecting its enclosing directory.
 
@@ -79,7 +80,10 @@ coordinator uses Library-style leases, heartbeats and receipts with five
 artifact-specific tables. Detailed JSONL manifests live on the destination
 filesystem next to the destination root. File-boundary checkpoints avoid
 recopying completed verified files. **A partial large file restarts**, and all
-completed files are rehashed on resume; byte-range resume is deferred.
+completed destination files are rehashed on resume. A source hash from this
+operation's own durable manifest can be reused only when device, inode, mode,
+size, mtime and ctime still match under the retained maintenance claim. New or
+changed sources are hashed afresh. Byte-range resume is deferred.
 
 ## Recovery and limitations
 
@@ -107,3 +111,10 @@ refused. Full adversarial directory-symlink race hardening is not claimed.
 Tests use small independent temporary directories, cover commit/alias replay,
 location CAS, freeze races, symlink classes, target conflicts, disk exhaustion,
 source mutation, cancellation, rollback and explicit source reclamation.
+
+Preview-cache generation is also a writer. Maintenance creates operation-owned
+freeze markers outside both workspace trees and loads the guard through the
+file-service configuration update before copying. Thumbnail/video generation
+returns 503 while frozen; raw reads remain available. Markers survive failures
+and are cleared by cancel or successful cutover. Unmanaged external writers
+remain outside this protocol and source mutation still fails closed.

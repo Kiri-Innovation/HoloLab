@@ -11,7 +11,7 @@ import time
 import uuid
 from pathlib import Path
 
-from hololab.artifact_migration_files import LocalMigration
+from hololab.artifact_migration_files import LocalMigration, set_preview_freeze
 from hololab.artifact_migration_store import MigrationStore, contains
 
 COMMITTED = {"committed", "compatibility_ready", "cleanup_pending", "completed"}
@@ -64,6 +64,10 @@ class MigrationService:
             else:
                 raise ValueError("An explicit source root is required")
         self.authorize(kwargs["node_id"], os.path.normpath(kwargs["source"]))
+        kwargs["layout_root"] = max(
+            (r for r in self.allowed_roots if contains(r, os.path.normpath(kwargs["source"]))),
+            key=len,
+        )
         result = await self.store.plan(**kwargs)
         self.authorize(result["node_id"], result["source"])
         return result
@@ -109,8 +113,9 @@ class MigrationService:
             response.raise_for_status()
             cfg = response.json().get("config", response.json())
             legacy = list(cfg.get("legacy_workspace_roots", []))
-            if m["target"] not in [cfg.get("workspace_root"), *legacy]:
-                legacy.append(m["target"])
+            target_root = m["plan"].get("target_root", m["target"])
+            if target_root not in [cfg.get("workspace_root"), *legacy]:
+                legacy.append(target_root)
                 response = await client.patch(
                     path, json={"patch": {"legacy_workspace_roots": legacy}}
                 )
@@ -122,7 +127,7 @@ class MigrationService:
             response = await client.get(path)
             response.raise_for_status()
             cfg = response.json().get("config", response.json())
-            if m["target"] not in [
+            if target_root not in [
                 cfg.get("workspace_root"),
                 *cfg.get("legacy_workspace_roots", []),
             ]:
@@ -193,6 +198,14 @@ class MigrationService:
                     return
                 if m["state"] != "committed":
                     m = await self.store.claim(mid, plan_digest, key)
+                    await self.io(
+                        set_preview_freeze,
+                        Path(m["plan"].get("source_root", w.source)),
+                        Path(m["plan"].get("target_root", w.target)),
+                        mid,
+                        True,
+                    )
+                    await self.ensure_visible(m)
                     token = str(uuid.uuid4())
                     epoch = m["epoch"]
 
@@ -246,6 +259,14 @@ class MigrationService:
                 if m["scope"] == "workspace":
                     await self.select_primary(m, m["target"])
 
+                await self.io(
+                    set_preview_freeze,
+                    Path(m["plan"].get("source_root", w.source)),
+                    Path(m["plan"].get("target_root", w.target)),
+                    mid,
+                    False,
+                )
+
                 async def finish(conn):
                     await conn.execute(
                         "UPDATE artifact_path_aliases SET state='ready' WHERE migration_id=?",
@@ -281,6 +302,13 @@ class MigrationService:
                         )
 
                     await self.store.db.write(release)
+                    await self.io(
+                        set_preview_freeze,
+                        Path(m["plan"].get("source_root", w.source)),
+                        Path(m["plan"].get("target_root", w.target)),
+                        mid,
+                        False,
+                    )
             else:
 
                 async def error(conn):
@@ -318,6 +346,13 @@ class MigrationService:
             await conn.execute("DELETE FROM artifact_migration_claims WHERE migration_id=?", (mid,))
 
         await self.store.db.write(write)
+        await self.io(
+            set_preview_freeze,
+            Path(m["plan"].get("source_root", m["source"])),
+            Path(m["plan"].get("target_root", m["target"])),
+            mid,
+            False,
+        )
         # Prepared destination is retained for review; source was not changed.
         return await self.status(mid)
 
