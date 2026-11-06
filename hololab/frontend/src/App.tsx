@@ -19,7 +19,7 @@ import { InspectorPreview } from "./canvas/InspectorPreview";
 import { FrameSelectedShortcut } from "./canvas/FrameSelectedShortcut";
 import { WorkflowConflictDialog } from "./canvas/WorkflowConflictDialog";
 import { CanvasControls } from "./canvas/CanvasControls";
-import { TrackpadScrollDetector, keepsExistingWheelBehavior } from "./canvas/trackpadNavigation";
+import { shouldPanWheel, keepsExistingWheelBehavior } from "./canvas/trackpadNavigation";
 // Blueprint canvas — the top-level shell.
 //
 // Layout:
@@ -1840,19 +1840,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const rfWrapper = useRef<HTMLDivElement>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
-  // React Flow's defaults deliberately remain responsible for mouse-wheel
-  // zooming and Ctrl-wheel pinch zooming. A macOS two-finger scroll, however,
-  // is a small pixel-wheel stream; intercept just that stream before d3 sees
-  // it and translate the viewport like a map. WheelEvent does not expose a
-  // device type, so the detector is necessarily conservative (and leaves
-  // large/discrete mouse-wheel deltas on the existing path).
+  const [trackpadNavigation, setTrackpadNavigation] = useState(false);
+
+  // Explicit opt-in: smooth mouse wheels and trackpads can emit identical
+  // event streams. Never change navigation based on delta magnitude/timing.
   useEffect(() => {
-    if (!rfInstance) return;
-    const detector = new TrackpadScrollDetector();
+    if (!rfInstance || !trackpadNavigation) return;
     const onWheel = (event: WheelEvent) => {
       if (!event.target || keepsExistingWheelBehavior(event.target)) return;
       const pane = event.target instanceof Element && event.target.closest(".react-flow__pane");
-      if (!pane || !detector.isTrackpadScroll(event, performance.now())) return;
+      if (!pane || !shouldPanWheel(trackpadNavigation, event)) return;
 
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -1867,7 +1864,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     };
     window.addEventListener("wheel", onWheel, { capture: true, passive: false });
     return () => window.removeEventListener("wheel", onWheel, { capture: true });
-  }, [rfInstance]);
+  }, [rfInstance, trackpadNavigation]);
 
   const [fitInitialGraph, setFitInitialGraph] = useState(true);
   const [creationAnchor, setCreationAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -3232,6 +3229,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           >
             <FrameSelectedShortcut nodeId={selectedNode?.id ?? null} />
             <CanvasControls />
+            <Panel position="top-left">
+              <label className="nodrag nopan nowheel" style={{ background: "var(--surface)", padding: "6px 10px", borderRadius: 6 }}
+                title="开启后双指滑动平移、捏合缩放；使用鼠标滚轮缩放时请关闭">
+                <input type="checkbox" checked={trackpadNavigation}
+                  onChange={event => setTrackpadNavigation(event.target.checked)} /> 触控板导航
+              </label>
+            </Panel>
             <CanvasToastAnchor />
             <Panel
               position="bottom-right"

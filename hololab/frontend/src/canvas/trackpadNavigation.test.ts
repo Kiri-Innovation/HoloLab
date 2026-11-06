@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TrackpadScrollDetector } from "./trackpadNavigation";
+import { shouldPanWheel } from "./trackpadNavigation";
 
 const wheel = (overrides: Partial<Pick<WheelEvent, "ctrlKey" | "deltaMode" | "deltaX" | "deltaY">> = {}) => ({
   ctrlKey: false,
@@ -9,18 +9,17 @@ const wheel = (overrides: Partial<Pick<WheelEvent, "ctrlKey" | "deltaMode" | "de
   ...overrides,
 });
 
-describe("TrackpadScrollDetector", () => {
-  it("recognises small free-direction pixel scrolls and keeps their gesture latched", () => {
-    const detector = new TrackpadScrollDetector();
-    expect(detector.isTrackpadScroll(wheel({ deltaX: 16 }), 100)).toBe(true);
-    expect(detector.isTrackpadScroll(wheel({ deltaY: -90 }), 150)).toBe(true);
-    expect(detector.isTrackpadScroll(wheel({ deltaY: 100 }), 301)).toBe(false);
+describe("explicit trackpad navigation", () => {
+  it("uses the selected mode for every delta magnitude", () => {
+    expect(shouldPanWheel(false, wheel({ deltaX: 16 }))).toBe(false);
+    expect(shouldPanWheel(false, wheel({ deltaY: 1 }))).toBe(false);
+    expect(shouldPanWheel(true, wheel({ deltaY: -90 }))).toBe(true);
+    expect(shouldPanWheel(true, wheel({ deltaY: 100 }))).toBe(true);
   });
 
-  it("leaves discrete mouse wheels and Ctrl-wheel pinch to React Flow", () => {
-    const detector = new TrackpadScrollDetector();
-    expect(detector.isTrackpadScroll(wheel({ deltaY: 100 }), 100)).toBe(false);
-    expect(detector.isTrackpadScroll(wheel({ deltaY: 12, ctrlKey: true }), 100)).toBe(false);
-    expect(detector.isTrackpadScroll(wheel({ deltaY: 1, deltaMode: 1 }), 100)).toBe(false);
+  it("leaves mouse mode, Ctrl-wheel pinch and line wheels to React Flow", () => {
+    expect(shouldPanWheel(false, wheel({ deltaY: 100 }))).toBe(false);
+    expect(shouldPanWheel(true, wheel({ deltaY: 12, ctrlKey: true }))).toBe(false);
+    expect(shouldPanWheel(true, wheel({ deltaY: 1, deltaMode: 1 }))).toBe(false);
   });
 });

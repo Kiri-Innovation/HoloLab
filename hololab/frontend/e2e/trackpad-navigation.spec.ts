@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 
 test.use({ viewport: { width: 1400, height: 950 } });
 
-test("small free-direction wheel streams pan while mouse wheel and Ctrl-wheel still zoom", async ({ page }) => {
+test("explicit mode keeps variable mouse sequences zooming and trackpad sequences panning", async ({ page }) => {
   const pack = {
     name: "trackpad-test", version: "1", manifest_hash: "trackpad", node_ids: ["device"],
     inputs: {}, outputs: {}, params: {},
@@ -26,14 +26,29 @@ test("small free-direction wheel streams pan while mouse wheel and Ctrl-wheel st
   const pane = page.locator(".react-flow__pane");
   const viewport = page.locator(".react-flow__viewport");
   await expect(pane).toBeVisible();
+  const mode = page.getByRole("checkbox", { name: "触控板导航" });
+  await expect(mode).not.toBeChecked();
+  const logs: unknown[] = [];
   const transform = () => viewport.evaluate((el) => {
     const values = getComputedStyle(el).transform.match(/matrix\(([^)]+)\)/)?.[1].split(",").map(Number);
     if (!values) throw new Error("React Flow viewport did not have a matrix transform");
     return { scale: values[0], x: values[4], y: values[5] };
   });
-  const wheel = (deltaX: number, deltaY: number, ctrlKey = false) => pane.evaluate((el, init) => {
+  const wheel = async (deltaX: number, deltaY: number, ctrlKey = false, deltaMode = 0) => {
+    const before = await transform();
+    await pane.evaluate((el, init) => {
     el.dispatchEvent(new WheelEvent("wheel", { ...init, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
-  }, { deltaX, deltaY, ctrlKey });
+    }, { deltaX, deltaY, ctrlKey, deltaMode });
+    logs.push({ deltaX, deltaY, deltaMode, ctrlKey, before, after: await transform() });
+  };
+
+  for (const sequence of [[100, 100, 100], [1, 2, 5, 10, 4, 1], [40, 60, 20, 100]]) {
+    for (const delta of sequence) {
+      const before = await transform();
+      await wheel(0, delta);
+      await expect.poll(async () => (await transform()).scale).not.toBe(before.scale);
+    }
+  }
 
   // A conventional wheel-sized event retains the baseline React Flow zoom.
   const mouseBefore = await transform();
@@ -52,6 +67,10 @@ test("small free-direction wheel streams pan while mouse wheel and Ctrl-wheel st
 
   // These are the small pixel events Chrome sends for a two-finger trackpad
   // scroll. Every cardinal direction changes translation without scale.
+  await mode.check();
+  const lineBefore = await transform();
+  await wheel(0, 1, false, 1);
+  await expect.poll(async () => (await transform()).scale).not.toBe(lineBefore.scale);
   for (const [deltaX, deltaY] of [[18, 0], [-18, 0], [0, 18], [0, -18]]) {
     const before = await transform();
     await wheel(deltaX, deltaY);
@@ -92,4 +111,9 @@ test("small free-direction wheel streams pan while mouse wheel and Ctrl-wheel st
 
   mkdirSync("/tmp/trackpad-navigation", { recursive: true });
   await page.screenshot({ path: "/tmp/trackpad-navigation/gesture-simulation.png" });
+  writeFileSync("/tmp/trackpad-navigation/wheel-events.json", JSON.stringify(logs, null, 2));
+  await mode.uncheck();
+  const restored = await transform();
+  await wheel(0, 5);
+  await expect.poll(async () => (await transform()).scale).not.toBe(restored.scale);
 });
