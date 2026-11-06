@@ -1,3 +1,4 @@
+import { colmap4dUrl } from './colmap4dUrls';
 import { Colmap4DPreview } from "./Colmap4DPreview";
 import { MediaResolution } from "./MediaResolution";
 import { VideoResolution } from "./VideoResolution";
@@ -223,8 +224,8 @@ export function Preview({
     const render = (url: string) => <Colmap4DPreview key={url}
       camsOnly={camsOnly} nodeId={producingNode?.node_id}
       absolutePath={absolutePath ? absolutePath + decodeURIComponent(url.slice(baseUrl.length)) : undefined}
-      baseUrl={`${url.replace(/\/$/, "")}/${spec?.member ?? (camsOnly ? "." : "sparse/0")}`}
-      imagesUrl={`${url.replace(/\/$/, "")}/images`} />;
+      baseUrl={colmap4dUrl(url, spec?.member ?? (camsOnly ? "." : "sparse/0"))}
+      imagesUrl={colmap4dUrl(url, "images")} />;
     return arrayed
       ? <ArrayedPaginator baseUrl={baseUrl} handleId={handleId} partial={partial} dimLabels={dimLabels} renderScalar={render} />
       : render(baseUrl);

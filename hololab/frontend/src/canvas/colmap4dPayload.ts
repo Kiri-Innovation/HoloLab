@@ -1,3 +1,4 @@
+import { colmap4dUrl } from './colmap4dUrls';
 /** Bounded preview bridge. Stream source tables; never materialize full point/track maps.
  * This is a display-only subset, not a reconstruction export. IDs and ns stay intact.
  */
@@ -81,7 +82,7 @@ export async function loadColmap4dPayload(base: string, progress: (text: string)
     bytes += n;
     if (Date.now() - last > 250) { progress(`读取预览：${(bytes / 1048576).toFixed(0)} MiB（流式扫描）`); last = Date.now(); }
   };
-  const root = base.replace(/\/$/, '');
+  const root = base.startsWith('/proxy/') ? colmap4dUrl(base) : base.replace(/\/$/, '');
   async function open(name: string, timeout = 15000) {
     const r = await fetch(`${root}/${name}`, {signal: AbortSignal.timeout(timeout)});
     if (!r.ok) { await r.body?.cancel(); throw new Error(`${name}: HTTP ${r.status}`); }
