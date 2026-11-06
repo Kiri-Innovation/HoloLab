@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import glob
+import hashlib
 import json
 import os
 import re
@@ -39,7 +40,7 @@ from hololab.manifest.render import (
     rendered_scratch_dir,
     rendered_staging_dir,
 )
-from hololab.node.config import NodeConfig, write_node_config
+from hololab.node.config import NodeConfig, load_node_config, node_config_path, write_node_config
 from hololab.node.env_cache import warmup_env_cache
 from hololab.node.executor import ExecPlan, ExecResult, run_subprocess
 from hololab.node.file_tunnel import FileTunnelClient
@@ -69,6 +70,7 @@ from hololab.protocol import (
     NodeConfigGetResp,
     NodeConfigSetReq,
     NodeConfigSetResp,
+    NodeConfigUpdated,
     PreviewReady,
     Register,
     RegisterErr,
@@ -93,6 +95,18 @@ RECONNECT_MAX_DELAY = 30.0
 # Inventory evidence is display metadata, never an execution admission
 # decision.  Keep this explicit so deployments can tune freshness.
 ENVIRONMENT_RECHECK_INTERVAL_SECONDS = 60.0
+
+_HOT_CONFIG_FIELDS = frozenset(
+    {
+        "pack_dirs",
+        "installed_packs",
+        "workspace_root",
+        "legacy_workspace_roots",
+        "node_name",
+        "advertised_url",
+        "flops_executor_id",
+    }
+)
 
 # Handle-locate retry policy — gateway restarts drop the WS mid-flight
 # and the pending response never arrives; and under CPU pressure the
@@ -157,6 +171,7 @@ class NodeRuntime:
         config: NodeConfig,
         *,
         config_path: Path | None = None,
+        config_overrides: dict[str, Any] | None = None,
         child_started: Callable[[int], None] | None = None,
         child_stopped: Callable[[int], None] | None = None,
     ) -> None:
@@ -164,7 +179,13 @@ class NodeRuntime:
         # Path to persist identity updates back to. When None the runtime
         # falls back to the default (~/.hololab/node/config.yaml); tests
         # supply an explicit path so writes don't touch the user's home.
-        self._config_path = config_path
+        self._config_path = node_config_path(config_path)
+        # CLI flags have higher precedence than config.yaml for the whole
+        # lifetime of this process, including subsequent disk reloads.
+        self._config_overrides = dict(config_overrides or {})
+        self._config_apply_lock = asyncio.Lock()
+        self._restart_required_fields: list[str] = []
+        self._last_config_reload_error: str | None = None
         # The product CLI persists these identities in its service record.
         # Keep the runtime reusable by making that persistence an optional
         # observer rather than coupling node internals to CLI policy.
@@ -254,6 +275,7 @@ class NodeRuntime:
         # Pack watcher — respawned when ``pack_dirs`` changes so the
         # awatch call binds to the new list.
         self._watch_task: asyncio.Task[None] | None = None
+        self._config_watch_task: asyncio.Task[None] | None = None
         self._pack_reload_lock = asyncio.Lock()
 
         # Env cache — populated once at startup by
@@ -443,6 +465,9 @@ class NodeRuntime:
         self._watch_task = asyncio.create_task(
             self._pack_watch_loop(), name="hololab-node-pack-watch"
         )
+        self._config_watch_task = asyncio.create_task(
+            self._config_watch_loop(), name="hololab-node-config-watch"
+        )
         # Scratch sweep runs once immediately (catch anything stranded by
         # a previous run) and then hourly. Bounds worst-case disk usage
         # for failed/cancelled jobs whose scratch is intentionally kept
@@ -473,7 +498,14 @@ class NodeRuntime:
             # ``hololab start`` restart hits EADDRINUSE on 8829.
             with contextlib.suppress(Exception):
                 await self._stop_file_server()
-            for t in (self._watch_task, sweep_task, metrics_task, environment_task, library_task):
+            for t in (
+                self._watch_task,
+                self._config_watch_task,
+                sweep_task,
+                metrics_task,
+                environment_task,
+                library_task,
+            ):
                 if t is None:
                     continue
                 t.cancel()
@@ -651,14 +683,15 @@ class NodeRuntime:
                 await self._watch_task
             self._watch_task = None
 
-        new_packs = _load_packs(list(self._config.pack_scan_dirs))
-        self._packs = new_packs
-        await self._refresh_environment_evidence(send_update=False)
-        if self._ws is not None:
-            inventory = self._pack_inventory()
-            await self._safe_send(
-                "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs))
-            )
+        async with self._pack_reload_lock:
+            new_packs = await asyncio.to_thread(_load_packs, list(self._config.pack_scan_dirs))
+            self._packs = new_packs
+            await self._refresh_environment_evidence(send_update=False)
+            if self._ws is not None:
+                inventory = await asyncio.to_thread(self._pack_inventory)
+                await self._safe_send(
+                    "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs))
+                )
 
         self._watch_task = asyncio.create_task(
             self._pack_watch_loop(), name="hololab-node-pack-watch"
@@ -680,7 +713,11 @@ class NodeRuntime:
         from hololab.protocol.messages import PackReloadResp
 
         try:
+            sync = await self.sync_config_from_disk(trigger="manual-pack-reload")
             result = await self._reload_packs()
+            if sync.get("pack_roots_changed"):
+                result["manifest_changed"] = True
+            result["config_sync"] = sync
         except Exception as exc:
             result = {"error": str(exc)}
         await self._safe_send(
@@ -723,6 +760,34 @@ class NodeRuntime:
             raise
         except Exception as exc:
             log.warning("pack watcher errored", error=str(exc))
+
+    async def _config_watch_loop(self) -> None:
+        """Watch config.yaml's parent so atomic editor replacements are seen."""
+
+        target = self._config_path.resolve()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        previous_digest = await asyncio.to_thread(_file_digest, target)
+        try:
+            from watchfiles import awatch
+
+            log.info("config watcher started", path=str(target))
+            async for changes in awatch(target.parent, recursive=False, debounce=300, step=100):
+                if not any(Path(changed).resolve() == target for _, changed in changes):
+                    continue
+                digest = await asyncio.to_thread(_file_digest, target)
+                if digest is None or digest == previous_digest:
+                    continue
+                previous_digest = digest
+                result = await self.sync_config_from_disk(trigger="watch")
+                if result.get("ok"):
+                    await self._safe_send(
+                        "node_config_updated",
+                        NodeConfigUpdated(config=self._effective_config_view()),
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning("config watcher errored", path=str(target), error=str(exc))
 
     def _packs_equivalent(self, other: dict[tuple[str, str], LoadedPack]) -> bool:
         """Return True if ``other`` has the same (name, version, hash) set as current."""
@@ -902,9 +967,7 @@ class NodeRuntime:
             node_id=self._node_id,
             node_token=self._node_token,
             workspace_root=str(self._config.workspace_root),
-            legacy_workspace_roots=[
-                str(p) for p in self._config.effective_legacy_workspace_roots
-            ],
+            legacy_workspace_roots=[str(p) for p in self._config.effective_legacy_workspace_roots],
             flops_executor_id=self._config.flops_executor_id,
             # ``packs_dir`` (scalar) is the primary root — kept for
             # older gateways and for the "Jump to source" fallback
@@ -1599,6 +1662,8 @@ class NodeRuntime:
             # Read-only runtime limit.  Expose it so operators can verify
             # the value actually loaded by this daemon after a restart.
             "max_concurrent_jobs": cfg.max_concurrent_jobs,
+            "restart_required_fields": list(self._restart_required_fields),
+            "last_reload_error": self._last_config_reload_error,
         }
 
     async def _handle_config_get_req(self, req: NodeConfigGetReq) -> None:
@@ -1681,18 +1746,7 @@ class NodeRuntime:
             )
             return
 
-        # Detect whether roots changed so we know whether to bounce the
-        # file server. Comparing the string form dodges Path equality
-        # quirks (trailing slash, symlink resolution).
-        old_primary = str(self._config.workspace_root)
-        old_legacy = [str(p) for p in self._config.legacy_workspace_roots]
-        old_pack_dirs = [str(p) for p in self._config.pack_scan_dirs]
         new_cfg = self._config.model_copy(update=updates)
-        new_primary = str(new_cfg.workspace_root)
-        new_legacy = [str(p) for p in new_cfg.legacy_workspace_roots]
-        new_pack_dirs = [str(p) for p in new_cfg.pack_scan_dirs]
-        roots_changed = (old_primary != new_primary) or (old_legacy != new_legacy)
-        pack_dirs_changed = old_pack_dirs != new_pack_dirs
 
         # Persist first — if config.yaml write fails, we don't want a
         # live-only config that vanishes on next boot.
@@ -1710,20 +1764,7 @@ class NodeRuntime:
             )
             return
 
-        self._config = new_cfg
-        if roots_changed or pack_dirs_changed:
-            log.info(
-                "workspace or pack roots changed via UI — restarting file server",
-                primary=new_primary,
-                legacy=new_legacy,
-            )
-            await self._restart_file_server()
-        if pack_dirs_changed:
-            log.info(
-                "pack_dirs changed via UI — rescanning + restarting watcher",
-                pack_dirs=new_pack_dirs,
-            )
-            await self._restart_pack_watcher()
+        await self._apply_config_candidate(new_cfg, trigger="api-patch")
 
         await self._send(
             "node_config_set_resp",
@@ -1734,6 +1775,96 @@ class NodeRuntime:
                 error=None,
             ),
         )
+
+    async def sync_config_from_disk(self, *, trigger: str) -> dict[str, Any]:
+        """Reload config.yaml and apply its live-safe fields.
+
+        Invalid files leave the last known-good runtime configuration intact.
+        CLI overrides are re-applied before diffing, preserving their lifetime
+        precedence over edits made directly to YAML.
+        """
+
+        async with self._config_apply_lock:
+            try:
+                if not self._config_path.is_file():
+                    raise FileNotFoundError(f"config file not found: {self._config_path}")
+                candidate = await asyncio.to_thread(load_node_config, self._config_path)
+                if self._config_overrides:
+                    candidate = candidate.model_copy(update=self._config_overrides)
+                result = await self._apply_config_candidate_locked(candidate, trigger=trigger)
+            except Exception as exc:
+                self._last_config_reload_error = str(exc)
+                log.warning(
+                    "config reload failed; keeping last known-good config",
+                    trigger=trigger,
+                    path=str(self._config_path),
+                    error=str(exc),
+                )
+                return {"ok": False, "error": str(exc)}
+            self._last_config_reload_error = None
+            return {"ok": True, **result}
+
+    async def _apply_config_candidate(
+        self, candidate: NodeConfig, *, trigger: str
+    ) -> dict[str, Any]:
+        async with self._config_apply_lock:
+            return await self._apply_config_candidate_locked(candidate, trigger=trigger)
+
+    async def _apply_config_candidate_locked(
+        self, candidate: NodeConfig, *, trigger: str
+    ) -> dict[str, Any]:
+        """Apply one validated candidate. Lock order: config, then packs."""
+
+        old_dump = self._config.model_dump()
+        candidate_dump = candidate.model_dump()
+        changed = sorted(k for k in old_dump if old_dump[k] != candidate_dump[k])
+        restart_required = sorted(set(changed) - _HOT_CONFIG_FIELDS)
+        hot_changed = sorted(set(changed) & _HOT_CONFIG_FIELDS)
+
+        # Restart-only values stay live at their old values. They remain on
+        # disk and are reported until a process restart loads them.
+        applied_dump = dict(candidate_dump)
+        for field in restart_required:
+            applied_dump[field] = old_dump[field]
+        applied = NodeConfig.model_validate(applied_dump)
+
+        old_pack_dirs = [str(p) for p in self._config.pack_scan_dirs]
+        new_pack_dirs = [str(p) for p in applied.pack_scan_dirs]
+        roots_changed = any(
+            field in hot_changed for field in ("workspace_root", "legacy_workspace_roots")
+        )
+        packs_changed = old_pack_dirs != new_pack_dirs
+
+        self._config = applied
+        self._restart_required_fields = restart_required
+        if restart_required:
+            log.warning(
+                "config fields changed but require restart",
+                trigger=trigger,
+                fields=restart_required,
+            )
+        if roots_changed or packs_changed:
+            log.info(
+                "live config roots changed; restarting file server",
+                trigger=trigger,
+                workspace_root=str(applied.workspace_root),
+                pack_dirs=new_pack_dirs,
+            )
+            await self._restart_file_server()
+        if packs_changed:
+            log.info(
+                "live pack roots changed; rescanning and restarting watcher",
+                trigger=trigger,
+                pack_dirs=new_pack_dirs,
+            )
+            await self._restart_pack_watcher()
+        return {
+            "changed_fields": changed,
+            "applied_fields": hot_changed,
+            "restart_required_fields": restart_required,
+            "pack_roots_changed": packs_changed,
+            "config": self._effective_config_view(),
+        }
 
     # -- artifact liveness / cleanup ----------------------------------------
 
@@ -2494,14 +2625,14 @@ class NodeRuntime:
                 job_id=assign.job_id,
                 graph_node=assign.graph_node_id,
                 job_received_ts=round(received_ts, 6),
-                spawn_called_ts=(round(spawn_called_ts, 6) if spawn_called_ts is not None else None),
+                spawn_called_ts=(
+                    round(spawn_called_ts, 6) if spawn_called_ts is not None else None
+                ),
                 spawn_returned_ts=round(spawn_returned_ts, 6),
                 received_to_spawn_call_s=round(
                     (spawn_called_at or spawn_returned_at) - received_at, 4
                 ),
-                spawn_s=round(
-                    spawn_returned_at - (spawn_called_at or spawn_returned_at), 4
-                ),
+                spawn_s=round(spawn_returned_at - (spawn_called_at or spawn_returned_at), 4),
                 received_to_spawn_s=round(spawn_returned_at - received_at, 4),
                 **{f"{name}_s": round(value, 4) for name, value in startup_spans.items()},
             )
@@ -3197,6 +3328,13 @@ def _pack_watch_roots(pack_dirs: list[Path]) -> list[Path]:
         if watched not in seen:
             seen.append(watched)
     return seen
+
+
+def _file_digest(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
 
 
 def _load_packs(pack_dirs: list[Path]) -> dict[tuple[str, str], LoadedPack]:

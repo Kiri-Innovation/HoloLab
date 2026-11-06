@@ -13,7 +13,12 @@ def test_manual_reload_without_watcher_updates_catalog(tmp_path, monkeypatch):
     from tests.test_scoped_packages import session
 
     root = tmp_path / "packs"
-    runtime = NodeRuntime(NodeConfig(pack_dirs=[root], install_dir=tmp_path / "installed"))
+    config_path = tmp_path / "config.yaml"
+    cfg = NodeConfig(pack_dirs=[root], install_dir=tmp_path / "installed")
+    from hololab.node.config import write_node_config
+
+    write_node_config(cfg, config_path)
+    runtime = NodeRuntime(cfg, config_path=config_path)
     runtime._refresh_environment_evidence = AsyncMock()
     node = session([])
     node.node_id = "n"
