@@ -1863,12 +1863,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       event.preventDefault();
       event.stopImmediatePropagation();
       const viewport = rfInstance.getViewport();
-      // Match React Flow's built-in pan-on-scroll speed while retaining its
-      // default zoom-on-scroll behaviour for physical mouse wheels.
+      // Match React Flow's scroll direction/speed. deltaMode only specifies
+      // units (pixels, lines, pages); it never selects a navigation behaviour.
+      const unitX = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? pane.clientWidth : 1;
+      const unitY = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? pane.clientHeight : 1;
       void rfInstance.setViewport({
         ...viewport,
-        x: viewport.x - event.deltaX * 0.5,
-        y: viewport.y - event.deltaY * 0.5,
+        x: viewport.x - event.deltaX * unitX * 0.5,
+        y: viewport.y - event.deltaY * unitY * 0.5,
       });
     };
     window.addEventListener("wheel", onWheel, { capture: true, passive: false });

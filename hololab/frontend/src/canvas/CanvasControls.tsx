@@ -30,7 +30,7 @@ export function CanvasControls({ trackpadNavigation, onToggleTrackpadNavigation,
       aria-label={trackpadNavigation ? "切换回鼠标导航（滚轮缩放）" : "切换为触控板导航（双指滑动平移、捏合缩放）"}
       aria-pressed={trackpadNavigation ?? false}
       data-tooltip={trackpadNavigation
-        ? "切换回鼠标导航（滚轮缩放）"
+        ? "触控板导航：滚轮/双指滑动平移画布（Ctrl+滚轮或捏合缩放）；点击切换回鼠标导航"
         : "切换为触控板导航（双指滑动平移、捏合缩放）"}
       onClick={onToggleTrackpadNavigation}
     >

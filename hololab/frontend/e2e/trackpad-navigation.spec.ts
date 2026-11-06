@@ -73,17 +73,18 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
   await mode.click();
   await expect(mode).toHaveAttribute("aria-pressed", "true");
   expect(await mode.locator("svg").innerHTML()).not.toBe(mouseIcon);
-  const lineBefore = await transform();
-  await wheel(0, 1, false, 1);
-  await expect.poll(async () => (await transform()).scale).not.toBe(lineBefore.scale);
-  for (const [deltaX, deltaY] of [[18, 0], [-18, 0], [0, 18], [0, -18]]) {
+  for (const [deltaX, deltaY, deltaMode] of [[18, 0, 0], [-18, 0, 0], [0, 18, 0], [0, -18, 0],
+    [0, 1, 1], [0, -1, 2], [12, 24, 0], [0, 100, 0], [0, 1, 0], [0, 60, 0]]) {
     const before = await transform();
-    await wheel(deltaX, deltaY);
+    await wheel(deltaX, deltaY, false, deltaMode);
     await expect.poll(async () => {
       const after = await transform();
       return deltaX === 0 ? after.y : after.x;
     }).not.toBe(deltaX === 0 ? before.y : before.x);
     expect((await transform()).scale).toBeCloseTo(before.scale, 6);
+    const after = await transform();
+    if (deltaX !== 0) expect(Math.sign(after.x - before.x)).toBe(-Math.sign(deltaX));
+    if (deltaY !== 0) expect(Math.sign(after.y - before.y)).toBe(-Math.sign(deltaY));
   }
 
   // macOS pinch is represented as Ctrl-wheel and remains React Flow zoom.
@@ -132,7 +133,8 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
       await mode.hover();
       const label = enabled ? "切换回鼠标导航（滚轮缩放）" : "切换为触控板导航（双指滑动平移、捏合缩放）";
       await expect(mode).toHaveAttribute("aria-label", label);
-      await expect(page.getByRole("tooltip")).toHaveText(label);
+      await expect(page.getByRole("tooltip")).toHaveText(enabled
+        ? "触控板导航：滚轮/双指滑动平移画布（Ctrl+滚轮或捏合缩放）；点击切换回鼠标导航" : label);
       if (!enabled) expect(await mode.locator("svg").innerHTML()).toBe(mouseIcon);
       expect(await mode.getAttribute("title")).toBeNull();
       const controls = page.locator(".react-flow__controls");

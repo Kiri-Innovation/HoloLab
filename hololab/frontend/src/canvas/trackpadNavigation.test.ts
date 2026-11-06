@@ -17,9 +17,10 @@ describe("explicit trackpad navigation", () => {
     expect(shouldPanWheel(true, wheel({ deltaY: 100 }))).toBe(true);
   });
 
-  it("leaves mouse mode, Ctrl-wheel pinch and line wheels to React Flow", () => {
+  it("leaves only mouse mode and Ctrl-wheel pinch to React Flow", () => {
     expect(shouldPanWheel(false, wheel({ deltaY: 100 }))).toBe(false);
     expect(shouldPanWheel(true, wheel({ deltaY: 12, ctrlKey: true }))).toBe(false);
-    expect(shouldPanWheel(true, wheel({ deltaY: 1, deltaMode: 1 }))).toBe(false);
+    expect(shouldPanWheel(true, wheel({ deltaY: 1, deltaMode: 1 }))).toBe(true);
+    expect(shouldPanWheel(true, wheel({ deltaY: 1, deltaMode: 2 }))).toBe(true);
   });
 });

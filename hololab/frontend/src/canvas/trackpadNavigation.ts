@@ -1,9 +1,9 @@
 /** Device identity cannot be inferred reliably from wheel deltas or timing.
  * An explicit mode keeps every scroll sequence on a stable navigation path.
- * Ctrl-wheel (pinch) and line/page wheels retain React Flow's default path.
+ * Only Ctrl-wheel (pinch) retains React Flow's default zoom path.
  */
-export function shouldPanWheel(enabled: boolean, event: Pick<WheelEvent, "ctrlKey" | "deltaMode">): boolean {
-  return enabled && !event.ctrlKey && event.deltaMode === 0;
+export function shouldPanWheel(enabled: boolean, event: Pick<WheelEvent, "ctrlKey">): boolean {
+  return enabled && !event.ctrlKey;
 }
 
 /** Elements whose existing wheel contract must take precedence over canvas panning. */
