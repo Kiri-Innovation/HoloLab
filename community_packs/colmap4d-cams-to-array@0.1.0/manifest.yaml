@@ -2,12 +2,12 @@ apiVersion: hololab.dev/v1
 kind: Algorithm
 name: col4d/colmap4d-cams-to-array
 version: 0.1.0
-description: Convert between timed camera components and per-image timeless camera
+description: Convert between timed camera components and per-image timed camera
   leaves with lossless provenance.
 docs: >-
-  Per-image camera leaves ordered by timestamp then IMAGE_ID. Six-field timeless
-  JSON is compatible with repeat-4d; hidden provenance retains original IDs,
-  ns times and records for exact restoration. Keep hidden files when copying arrays.
+  Per-image camera leaves ordered by timestamp then IMAGE_ID. Seven-field JSON
+  includes timestamp_ns (signed int64 ns); hidden provenance retains original IDs
+  and records for exact restoration. Inverse reads time from each JSON leaf. Keep hidden files when copying arrays.
   interval-pick symlinks preserve provenance access. Inverse requires unmodified
   leaves from this converter, rejects mixed sources and empty selections.
   Binary camera components only. Use explicit nodes; automatic array view is not declared.
@@ -22,7 +22,7 @@ inputs:
 outputs:
   cameras:
     tags:
-    - colmap-camera
+    - colmap4d-single-cam
     storage: dir
     arrayed: true
     dim_labels:

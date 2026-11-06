@@ -1,4 +1,4 @@
-"""Lossless binary camera-component views with timeless six-field JSON leaves."""
+"""Lossless binary camera-component views with timed seven-field JSON leaves."""
 import argparse
 import base64
 import hashlib
@@ -13,7 +13,7 @@ from colmap4d import colmap_io as cio
 from colmap4d.arrays import read_image_headers
 
 SIDECAR = '.camera-view.json'
-FORMAT = 'hololab.camera-view.v1'
+FORMAT = 'hololab.camera-view.v2'
 
 
 def require(ok, message):
@@ -100,9 +100,18 @@ def empty_output(source, output):
             'output must be an empty directory')
 
 
-def leaf(camera, image):
+def timestamp(data):
+    value = data.get('timestamp_ns')
+    require(type(value) is int and -(2**63) <= value < 2**63,
+            'timestamp_ns must be a signed int64 integer')
+    return value
+
+
+def leaf(camera, image, timestamp_ns):
     data = dict(model=camera.model, width=camera.width, height=camera.height,
-                params=list(camera.params), qvec=list(image.qvec), tvec=list(image.tvec))
+                params=list(camera.params), qvec=list(image.qvec), tvec=list(image.tvec),
+                timestamp_ns=timestamp_ns)
+    timestamp(data)
     require(all(math.isfinite(x) for k in ('params', 'qvec', 'tvec') for x in data[k]),
             'nonfinite camera')
     require(abs(math.hypot(*data['qvec']) - 1) < 1e-6, 'invalid unit quaternion')
@@ -132,7 +141,7 @@ def to_array(source, output):
         image = images[iid]
         require(image.camera_id in cameras, 'unknown CAMERA_ID')
         name = f'p_{position:016d}.json'
-        payloads[name] = leaf(cameras[image.camera_id], image)
+        payloads[name] = leaf(cameras[image.camera_id], image, times[iid])
         entries[name] = dict(image_id=iid, camera_id=image.camera_id, timestamp_ns=times[iid],
                              sha256=sha(payloads[name]))
     # Root metadata is hidden from array enumeration. Links made by interval-pick
@@ -158,11 +167,12 @@ def from_array(source, output):
     cache = {}
     namespace = None
     selected = set()
+    leaf_times = {}
     evidence = None
     archive = None
     for path in paths:
         resolved = path.resolve(strict=True)
-        require(resolved.is_file(), 'colmap-camera elements must be files')
+        require(resolved.is_file(), 'colmap4d-single-cam elements must be files')
         sidecar = resolved.parent / SIDECAR
         if sidecar not in cache:
             raw = sidecar.read_bytes()
@@ -175,8 +185,17 @@ def from_array(source, output):
         require(namespace == digest, 'source identity conflict; automatic remapping forbidden')
         entry = data['entries'].get(resolved.name)
         require(entry is not None, 'missing element identity')
-        require(sha(resolved.read_bytes()) == entry['sha256'], 'camera leaf was modified')
-        selected.add(entry['image_id'])
+        payload = resolved.read_bytes()
+        camera = json.loads(payload)
+        require(isinstance(camera, dict) and set(camera) == {
+            'model', 'width', 'height', 'params', 'qvec', 'tvec', 'timestamp_ns'},
+            'colmap4d-single-cam requires exactly seven fields')
+        time_ns = timestamp(camera)
+        require(sha(payload) == entry['sha256'], 'camera leaf was modified')
+        iid = entry['image_id']
+        require(iid not in leaf_times or leaf_times[iid] == time_ns, 'image timestamp conflict')
+        leaf_times[iid] = time_ns
+        selected.add(iid)
     tables = {k: {i: decode(raw) for i, raw in rows} for k, rows in evidence['tables'].items()}
     image_records = dict(evidence['image_records'])
     require(selected <= image_records.keys() and selected <= tables['times'].keys(), 'missing source record')
@@ -184,7 +203,10 @@ def from_array(source, output):
     # Keep all original intrinsics, including unused ones, and original table order.
     restored = {}
     for kind in ('cameras', 'times'):
-        rows = [record for iid, record in tables[kind].items() if kind == 'cameras' or iid in selected]
+        # Original times table supplies identity/order only. Time values come
+        # from the typed JSON leaves, never from the provenance snapshot.
+        rows = [record if kind == 'cameras' else struct.pack('<Iq', iid, leaf_times[iid])
+                for iid, record in tables[kind].items() if kind == 'cameras' or iid in selected]
         restored[kind] = struct.pack('<Q', len(rows)) + b''.join(rows)
         records(restored[kind], kind)
     output.mkdir(parents=True, exist_ok=True)

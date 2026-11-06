@@ -24,7 +24,6 @@ def load(name, path):
 
 view = load('camera_view', PACK / 'convert.py')
 pick = load('camera_pick', ROOT / 'hololab/builtin_packs/interval-pick@0.1.0/interval_pick.py')
-repeat = load('camera_repeat', ROOT / 'community_packs/repeat-4d@0.1.0/repeat_4d.py')
 
 
 def fixture(root):
@@ -50,11 +49,11 @@ def test_schema():
         pack = ROOT / f'community_packs/colmap4d-cams-{direction}-array@0.1.0'
         m = Manifest.model_validate(yaml.safe_load((pack/'manifest.yaml').read_text()))
         array = m.outputs['cameras'] if direction == 'to' else m.inputs['cameras']
-        assert array.arrayed and array.dim_labels == ['camera'] and array.tags == ['colmap-camera']
+        assert array.arrayed and array.dim_labels == ['camera'] and array.tags == ['colmap4d-single-cam']
     assert (PACK/'convert.py').read_bytes() == (ROOT/'community_packs/colmap4d-cams-from-array@0.1.0/convert.py').read_bytes()
 
 
-def test_exact_roundtrip_selection_and_repeat(tmp_path):
+def test_exact_roundtrip_selection_and_timed_leaves(tmp_path):
     source = tmp_path/'source'
     fixture(source)
     array, restored = tmp_path/'array', tmp_path/'restored'
@@ -63,7 +62,10 @@ def test_exact_roundtrip_selection_and_repeat(tmp_path):
     assert [v['image_id'] for v in evidence['entries'].values()] == [2,9,5]
     for p in array.glob('*.json'):
         if not p.name.startswith('.'):
-            assert len(repeat.load_camera(p)) == 6
+            data = json.loads(p.read_text())
+            assert set(data) == {'model','width','height','params','qvec','tvec','timestamp_ns'}
+            assert data['timestamp_ns'] == evidence['entries'][p.name]['timestamp_ns']
+            assert type(data['timestamp_ns']) is int
     view.from_array(array, restored)
     for p in source.iterdir():
         assert p.read_bytes() == (restored/p.name).read_bytes()
@@ -127,3 +129,30 @@ def test_portable_array_and_archive_integrity(tmp_path):
     archive.write_bytes(raw)
     with pytest.raises(ValueError, match='archive was modified'):
         view.from_array(tmp_path/'copy', tmp_path/'bad')
+
+
+@pytest.mark.parametrize('bad', [True, 1.0, '1', None, -(2**63)-1, 2**63])
+def test_invalid_leaf_timestamp(tmp_path, bad):
+    fixture(tmp_path/'source')
+    view.to_array(tmp_path/'source', tmp_path/'array')
+    path = tmp_path/'array/p_0000000000000000.json'
+    data = json.loads(path.read_text())
+    data['timestamp_ns'] = bad
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match='signed int64'):
+        view.from_array(tmp_path/'array', tmp_path/'out')
+    assert not (tmp_path/'out').exists()
+
+
+def test_restore_reads_leaf_time_not_sidecar_snapshot(tmp_path):
+    fixture(tmp_path/'source')
+    view.to_array(tmp_path/'source', tmp_path/'array')
+    path = tmp_path/'array'/view.SIDECAR
+    evidence = json.loads(path.read_text())
+    for entry in evidence['entries'].values():
+        entry['timestamp_ns'] = 123
+    evidence['tables']['times'] = [[iid, view.encode(struct.pack('<Iq', iid, 123))]
+                                   for iid, raw in evidence['tables']['times']]
+    path.write_text(json.dumps(evidence))
+    view.from_array(tmp_path/'array', tmp_path/'out')
+    assert (tmp_path/'source/times.bin').read_bytes() == (tmp_path/'out/times.bin').read_bytes()

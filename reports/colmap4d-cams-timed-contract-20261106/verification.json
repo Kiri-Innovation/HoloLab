@@ -1,0 +1,165 @@
+{
+  "source": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams",
+  "artifacts": "/cloud/cloud-ssd1/Kiri4DGS/tmp/cams-array-nyomr92x",
+  "schema": [
+    {
+      "name": "col4d/colmap4d-cams-to-array",
+      "version": "0.1.0",
+      "valid": true
+    },
+    {
+      "name": "col4d/colmap4d-cams-from-array",
+      "version": "0.1.0",
+      "valid": true
+    },
+    {
+      "name": "col4d/single-cam-drop-time",
+      "version": "0.1.0",
+      "valid": true
+    }
+  ],
+  "commands": [
+    {
+      "argv": [
+        "/cloud/cloud-ssd1/Kiri4DGS/hololab/.venv-runtime/bin/python",
+        "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap4d-cams-to-array@0.1.0/convert.py",
+        "to_array",
+        "--input",
+        "/cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams",
+        "--output",
+        "/cloud/cloud-ssd1/Kiri4DGS/tmp/cams-array-nyomr92x/array"
+      ],
+      "stdout": "{\"images\": 81}"
+    },
+    {
+      "argv": [
+        "/cloud/cloud-ssd1/Kiri4DGS/hololab/.venv-runtime/bin/python",
+        "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap4d-cams-from-array@0.1.0/convert.py",
+        "from_array",
+        "--input",
+        "/cloud/cloud-ssd1/Kiri4DGS/tmp/cams-array-nyomr92x/array",
+        "--output",
+        "/cloud/cloud-ssd1/Kiri4DGS/tmp/cams-array-nyomr92x/restored"
+      ],
+      "stdout": "{\"images\": 81}"
+    },
+    {
+      "argv": [
+        "/cloud/cloud-ssd1/Kiri4DGS/hololab/.venv-runtime/bin/python",
+        "/cloud/cloud-ssd1/Kiri4DGS/hololab/hololab/builtin_packs/interval-pick@0.1.0/interval_pick.py",
+        "--input",
+        "/cloud/cloud-ssd1/Kiri4DGS/tmp/cams-array-nyomr92x/array",
+        "--output",
+        "/cloud/cloud-ssd1/Kiri4DGS/tmp/cams-array-nyomr92x/picked",
+        "--interval",
+        "10"
+      ],
+      "stdout": "interval-pick: picked 9/81 elements; interval=10, start=0 (indexes)"
+    },
+    {
+      "argv": [
+        "/cloud/cloud-ssd1/Kiri4DGS/hololab/.venv-runtime/bin/python",
+        "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/colmap4d-cams-from-array@0.1.0/convert.py",
+        "from_array",
+        "--input",
+        "/cloud/cloud-ssd1/Kiri4DGS/tmp/cams-array-nyomr92x/picked",
+        "--output",
+        "/cloud/cloud-ssd1/Kiri4DGS/tmp/cams-array-nyomr92x/subset"
+      ],
+      "stdout": "{\"images\": 9}"
+    },
+    {
+      "argv": [
+        "/cloud/cloud-ssd1/Kiri4DGS/hololab/.venv-runtime/bin/python",
+        "/cloud/cloud-ssd1/Kiri4DGS/hololab/community_packs/single-cam-drop-time@0.1.0/drop_time.py",
+        "--camera",
+        "/cloud/cloud-ssd1/Kiri4DGS/tmp/cams-array-nyomr92x/picked/p_0000000000000000.json",
+        "--output",
+        "/cloud/cloud-ssd1/Kiri4DGS/tmp/cams-array-nyomr92x/timeless.json"
+      ],
+      "stdout": ""
+    }
+  ],
+  "files": {
+    "cameras.bin": {
+      "source_sha256": "0aa118d335229e32f0a67deb6879d62609ea197c5ba011308261fc239f1098ea",
+      "restored_sha256": "0aa118d335229e32f0a67deb6879d62609ea197c5ba011308261fc239f1098ea",
+      "bytes": 64
+    },
+    "images.bin": {
+      "source_sha256": "cfc3fd5904a45f02dc74c017f9d153298f8dc15c6831b1fd3144e4672b6eace7",
+      "restored_sha256": "cfc3fd5904a45f02dc74c017f9d153298f8dc15c6831b1fd3144e4672b6eace7",
+      "bytes": 1007776898
+    },
+    "times.bin": {
+      "source_sha256": "a58d8197fdf568ac61f4aef8be8ac4baa858f6d1ab6ed8c7c19b22d04ad1b59d",
+      "restored_sha256": "a58d8197fdf568ac61f4aef8be8ac4baa858f6d1ab6ed8c7c19b22d04ad1b59d",
+      "bytes": 980
+    },
+    "time_meta.json": {
+      "source_sha256": "a233d33a6ebfe7013925aa921849148fdbd85e266ef4f4060de085d44636f389",
+      "restored_sha256": "a233d33a6ebfe7013925aa921849148fdbd85e266ef4f4060de085d44636f389",
+      "bytes": 1537
+    }
+  },
+  "existing_drop_time_script_sha256": "f32ea57de08387a64bbf7c774b3bc548ab61adac0ea0240361367ab57a8a9489",
+  "leaf_type": "colmap4d-single-cam",
+  "drop_time_output_type": "colmap-single-cam",
+  "roundtrip_byte_equal": true,
+  "subset": [
+    {
+      "camera_id": 1,
+      "image_id": 1,
+      "sha256": "efad018a555a34f0d7c7c073133ad5a0f0f00968b78e93dbcdbf4ae2268dc21c",
+      "timestamp_ns": 0
+    },
+    {
+      "camera_id": 1,
+      "image_id": 11,
+      "sha256": "ff254cbc16370c48c55183cc1b3996e7259519a05ae1b59e007e8c965f31f3d7",
+      "timestamp_ns": 333333333
+    },
+    {
+      "camera_id": 1,
+      "image_id": 21,
+      "sha256": "0a4cc4fc0f97dbf6f017f9420b680b3199d33c2dcac350103a86fa28e09580dd",
+      "timestamp_ns": 666666667
+    },
+    {
+      "camera_id": 1,
+      "image_id": 31,
+      "sha256": "3be87dbe83f511e7fc4e25347a66225c194c2b2437e8f2e6487cfb40744c0525",
+      "timestamp_ns": 1000000000
+    },
+    {
+      "camera_id": 1,
+      "image_id": 41,
+      "sha256": "a1ff5a3f32d52d7e7c87e26371d15cda0e98333127075b0ee5e0f995fa15fdf3",
+      "timestamp_ns": 1333333333
+    },
+    {
+      "camera_id": 1,
+      "image_id": 51,
+      "sha256": "f58f1a404a75c3eb010cb139745b87ee8634e8a7e4eb5f41fe008d0e41479a6f",
+      "timestamp_ns": 1666666667
+    },
+    {
+      "camera_id": 1,
+      "image_id": 61,
+      "sha256": "9b548c4881fbcc35dd1e816fcda738157fdbb3986bc4424af0b9ed1b38044d87",
+      "timestamp_ns": 2000000000
+    },
+    {
+      "camera_id": 1,
+      "image_id": 71,
+      "sha256": "d60fcbfa240c0584967d9d0e471d505b7a3d8744690c240d54453a7c1d48bb8b",
+      "timestamp_ns": 2333333333
+    },
+    {
+      "camera_id": 1,
+      "image_id": 81,
+      "sha256": "2e62ea00f2a211d370087152e6f0bf052d332de1cae74054a63a3ce8c9cb5d1b",
+      "timestamp_ns": 2666666667
+    }
+  ]
+}

@@ -1,5 +1,8 @@
 # Camera component array converters — 2026-11-06
 
+> 历史报告：描述 ec51cd1 的旧六字段实现。统一契约修正及最新证据见
+> ../colmap4d-cams-timed-contract-20261106/README.md；以下结果仅作为历史记录。
+
 新增 col4d/colmap4d-cams-to-array@0.1.0 和
 col4d/colmap4d-cams-from-array@0.1.0，沿用 colmap4d-split/to-array 的 scope。
 仅新增两个 pack、独立测试和本报告。没有重启任何服务，没有发布 registry、
