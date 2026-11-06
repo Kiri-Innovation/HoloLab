@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useViewerInteraction, ViewerInteractionShield } from './ViewerInteraction';
 import { versionedViewerUrl } from './viewerBuild';
-import type { loadColmap4dPayload } from './colmap4dPayload';
-import { imageDirectorySize, imagePath, LOAD_CONFIRM_BYTES, pointSize } from './colmap4dResources';
+import { loadColmap4dMetadata, loadColmap4dPayload } from './colmap4dPayload';
+import { imagePath, LOAD_CONFIRM_BYTES } from './colmap4dResources';
 
 type Payload = Awaited<ReturnType<typeof loadColmap4dPayload>>;
 type Part = 'images' | 'points';
 type Resource = {bytes?: number; state: 'checking' | 'ask' | 'skipped' | 'loading' | 'loaded' | 'error'; detail?: string};
 const formatSize = (n?: number) => n == null ? '体积未知' : n >= 1e9 ? `${(n / 1e9).toFixed(2)} GB` : `${(n / 1e6).toFixed(1)} MB`;
 
-export function Colmap4DPreview({baseUrl, imagesUrl, camsOnly = false, nodeId, absolutePath}: {
-  baseUrl: string; imagesUrl: string; camsOnly?: boolean; nodeId?: string; absolutePath?: string;
+export function Colmap4DPreview({baseUrl, imagesUrl, camsOnly = false}: {
+  baseUrl: string; imagesUrl: string; camsOnly?: boolean;
 }) {
   const {wrapperRef, activated, activate} = useViewerInteraction();
   const frame = useRef<HTMLIFrameElement>(null);
@@ -22,7 +22,7 @@ export function Colmap4DPreview({baseUrl, imagesUrl, camsOnly = false, nodeId, a
   const [parts, setParts] = useState<Record<Part, Resource>>({images: {state: 'checking'}, points: {state: 'checking'}});
   const payload = useRef<Payload['files']>([]);
   const sent = useRef(false);
-  const cameraView = useRef<Payload['cameraView']>();
+  const cameraView = useRef<{v: number; mode: string; yaw: number; pitch: number; fov: number; orbitTarget: number[]; orbitRadius: number}>();
   const actions = useRef<(part: Part) => void>(() => {});
   useEffect(() => {
     const receive = (event: MessageEvent) => {
@@ -40,7 +40,7 @@ export function Colmap4DPreview({baseUrl, imagesUrl, camsOnly = false, nodeId, a
     return () => window.removeEventListener('message', receive);
   }, []);
   useEffect(() => {
-    const abort = new AbortController(); const workers = new Set<Worker>(); let alive = true;
+    const abort = new AbortController(); let alive = true;
     const files = new Map<string, Blob>(); const busy = new Set<Part>(); let names: string[] = [];
     setError(false); setStatus('读取相机 / 位姿 / 时间轴…');
     setParts({images: {state: 'checking'}, points: {state: 'checking'}});
@@ -53,28 +53,15 @@ export function Colmap4DPreview({baseUrl, imagesUrl, camsOnly = false, nodeId, a
       payload.current = [...files].map(([name, blob]) => ({name, blob}));
       sent.current = false; setReady(false); setRevision(n => n + 1);
     };
-    const load = (phase: 'cameras' | 'points') => new Promise<Payload>((resolve, reject) => {
-      const worker = new Worker(new URL('./colmap4d.worker.ts', import.meta.url), {type: 'module'}); workers.add(worker);
-      const done = () => { worker.terminate(); workers.delete(worker); };
-      worker.onmessage = event => {
-        if (event.data.type === 'loaded') { done(); resolve(event.data.payload); }
-        else if (event.data.type === 'error') { done(); reject(new Error(event.data.text)); }
-        else if (alive) {
-          if (phase === 'cameras') setStatus(event.data.text);
-          else update('points', {detail: event.data.text});
-        }
-      };
-      worker.onerror = event => { done(); reject(new Error(event.message)); };
-      worker.postMessage({baseUrl, phase});
-    });
+    const load = (part: 'cameras' | 'points') => loadColmap4dPayload(baseUrl, part, abort.signal);
+    let metadata: ReturnType<typeof loadColmap4dMetadata> | undefined;
     const start = async (part: Part) => {
       if (busy.has(part) || !alive) return;
       busy.add(part); update(part, {state: 'loading', detail: undefined});
       try {
         if (part === 'points') {
           const p = await load('points');
-          // Remove the camera-only placeholder before installing TXT or BIN points.
-          files.delete('points3D.bin'); publish(p.files);
+          publish(p.files);
           update(part, {state: 'loaded', detail: `${p.shown < p.total ? '预览抽样' : '全部点'}：${p.shown.toLocaleString()} / ${p.total.toLocaleString()} 点`});
         } else {
           const added: Payload['files'] = [];
@@ -98,11 +85,12 @@ export function Colmap4DPreview({baseUrl, imagesUrl, camsOnly = false, nodeId, a
       try {
         let bytes: number;
         if (part === 'points') {
-          const size = await pointSize(baseUrl, abort.signal); bytes = size.bytes;
-          update(part, {detail: `几何 ${formatSize(size.geometry)} + 时间 ${formatSize(size.times)}`});
+          const size = await (metadata ??= loadColmap4dMetadata(baseUrl, abort.signal)); bytes = size.points_bytes;
+          update(part, {detail: `几何 ${formatSize(size.points_geometry_bytes)} + 时间 ${formatSize(size.points_time_bytes)}`});
         } else {
-          if (!nodeId || !absolutePath) throw new Error('无法取得目录体积，请手动选择');
-          bytes = await imageDirectorySize(nodeId, `${absolutePath}/images`, abort.signal);
+          const size = await (metadata ??= loadColmap4dMetadata(baseUrl, abort.signal));
+          if (size.images_bytes == null) throw new Error(size.image_size_error || '图片体积未知');
+          bytes = size.images_bytes;
         }
         update(part, {bytes, state: 'ask'});
         if (bytes <= LOAD_CONFIRM_BYTES && alive) void start(part);
@@ -110,13 +98,13 @@ export function Colmap4DPreview({baseUrl, imagesUrl, camsOnly = false, nodeId, a
     };
     void load('cameras').then(p => {
       if (!alive) return;
-      cameraView.current = p.cameraView;
+      cameraView.current = p.cameraBounds ? {v: 2, mode: 'orbit', yaw: 2.365, pitch: .485, fov: 60, orbitTarget: p.cameraBounds.center, orbitRadius: Math.max(.2, p.cameraBounds.radius) * 3} : undefined;
       names = [...new Set(p.imageNames)]; publish(p.files);
       setStatus(`相机 / 位姿 / 时间轴已加载${p.estimated ? ' · 合成/估计时间' : ''}`);
       if (!camsOnly) { void decide('images'); void decide('points'); }
     }).catch(e => { if (alive) { setError(true); setStatus(e.message); } });
-    return () => { alive = false; abort.abort(); workers.forEach(w => w.terminate()); };
-  }, [baseUrl, imagesUrl, camsOnly, nodeId, absolutePath, retry]);
+    return () => { alive = false; abort.abort(); };
+  }, [baseUrl, imagesUrl, camsOnly, retry]);
   return <div className="nodrag nowheel" style={{width: '100%'}}>
     <div role="status" style={{background: '#171b24', fontSize: 11, padding: '6px 8px', color: error ? 'var(--error)' : '#e5e7eb'}}>
       {status} {error && <button onClick={() => setRetry(n => n + 1)}>重试</button>}

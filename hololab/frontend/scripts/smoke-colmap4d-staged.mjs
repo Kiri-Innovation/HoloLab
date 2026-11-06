@@ -1,6 +1,5 @@
-// Uses the actual component via Vite and real file service/RPC.
-// Port 15174 exercises the gateway tunnel; a separate direct-file-service proxy
-// can isolate transport failures without restarting either production service.
+// Uses the actual component via Vite with the production gateway /proxy route.
+// Acceptance must keep this transport; do not replace it with a direct node proxy.
 import { chromium } from '@playwright/test';
 import fs from 'node:fs';
 const origin = process.argv[2] || 'http://127.0.0.1:15174';
@@ -33,10 +32,9 @@ try {
  page.on('response', async r=>{if(r.status()>=400)console.log('HTTP',r.status(),r.url(),await r.text().catch(()=>''));});
  page.on('pageerror', e => {evidence.errors.push(e.message); console.log('PAGE ERROR',e.message);});
  page.on('request', r => {if(r.url().includes('/proxy/')) evidence.requests.push({url:r.url(),range:r.headers().range});});
- if (imageGate) await page.route('**/api/nodes/*/paths?*', async route => {
+ if (imageGate) await page.route('**/_format/colmap4d/**?part=metadata', async route => {
    const response = await route.fetch(); const data = await response.json();
-   const file = data.entries?.find(entry => entry.kind === 'file');
-   if (file) file.size += 201000000; // Explicit oversized-metadata fixture; pixel data stays real.
+   data.result.images_bytes += 201000000; // Explicit metadata fixture; pixels stay real.
    return route.fulfill({response, json: data});
  });
  await page.route('**/__staged*', route => {

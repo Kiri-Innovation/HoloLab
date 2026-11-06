@@ -368,6 +368,10 @@ def create_fileserver_app(
             return False  # at least one root accepts this sub-path
         return True
 
+    from hololab.node.format_preview import mount_format_previews
+
+    mount_format_previews(app, _resolve_under_any)
+
     # Thumbnail endpoint. Declared before the catch-all so FastAPI's route
     # matcher picks the specific ``/_thumb/…`` prefix first.
     #

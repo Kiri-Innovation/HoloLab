@@ -1,0 +1,50 @@
+{
+  "sizes": {
+    "files": {
+      "cameras.bin": 64,
+      "images.bin": 1007776898,
+      "times.bin": 980,
+      "points3D.bin": 2477433608,
+      "points_t.bin": 671846408,
+      "time_meta.json": 1537
+    },
+    "cameras_bytes": 1007779479,
+    "points_bytes": 3149280016,
+    "images_bytes": 132098827,
+    "points_geometry_bytes": 2477433608,
+    "points_time_bytes": 671846408,
+    "image_size_error": null
+  },
+  "cameras": {
+    "seconds": 0.001328966987784952,
+    "source_records": 81,
+    "shown": 0,
+    "files": {
+      "cameras.bin": 64,
+      "images.bin": 7298,
+      "points3D.bin": 8,
+      "times.bin": 980,
+      "time_meta.json": 970
+    },
+    "camera_bounds": {
+      "center": [
+        0.42999113767704306,
+        -0.0688215666254776,
+        0.14271373907293072
+      ],
+      "radius": 0.4580059238380383
+    },
+    "max_rss_kib": 13568
+  },
+  "points": {
+    "seconds": 22.181322435004404,
+    "source_records": 41990400,
+    "shown": 200000,
+    "files": {
+      "points3D.bin": 10200008,
+      "points_t.bin": 3200008
+    },
+    "camera_bounds": null,
+    "max_rss_kib": 179112
+  }
+}

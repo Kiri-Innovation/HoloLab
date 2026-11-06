@@ -222,8 +222,7 @@ export function Preview({
     if (storage !== "dir") return <Status text="colmap4d preview requires a directory" kind="error" />;
     const camsOnly = tags?.includes("colmap4d-cams");
     const render = (url: string) => <Colmap4DPreview key={url}
-      camsOnly={camsOnly} nodeId={producingNode?.node_id}
-      absolutePath={absolutePath ? absolutePath + decodeURIComponent(url.slice(baseUrl.length)) : undefined}
+      camsOnly={camsOnly}
       baseUrl={colmap4dUrl(url, spec?.member ?? (camsOnly ? "." : "sparse/0"))}
       imagesUrl={colmap4dUrl(url, "images")} />;
     return arrayed

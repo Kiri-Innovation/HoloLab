@@ -42,7 +42,7 @@ def _allowed_path(path: str) -> bool:
     if any(piece in {"", ".", ".."} for piece in pieces[1:]):
         return False
     return path.startswith(
-        ("/_thumb/", "/_preview/", "/_glob", "/_pack/", "/_scoped_pack/")
+        ("/_thumb/", "/_preview/", "/_glob", "/_pack/", "/_scoped_pack/", "/_format/")
     ) or not path.startswith("/_")
 
 
