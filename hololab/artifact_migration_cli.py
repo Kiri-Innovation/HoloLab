@@ -57,6 +57,9 @@ def show(data):
     result["source"] = data.get("source")
     result["target"] = data.get("target")
     result["aliases"] = data.get("aliases", [])
+    result["preflight"] = {
+        k: v for k, v in data.get("plan", {}).get("preflight", {}).items() if k != "missing"
+    }
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
@@ -70,8 +73,13 @@ def plan(
     workspace: bool = typer.Option(False, "--workspace"),
     source_root: str | None = typer.Option(None, "--source-root"),
     adopt_existing: bool = typer.Option(False, "--adopt-existing"),
+    preserve_existing_missing: bool = typer.Option(
+        False,
+        "--preserve-existing-missing",
+        help="Preserve and report pre-existing missing dependencies; never allow cycles.",
+    ),
 ):
-    if not path and not source_root:
+    if not path and not source_root and not handle and not workspace:
         raise typer.BadParameter("--path or --source-root is required")
     show(
         request(
@@ -85,6 +93,7 @@ def plan(
                 handle_id=handle,
                 workspace=workspace,
                 adopt_existing=adopt_existing,
+                preserve_existing_missing=preserve_existing_missing,
             ),
         )
     )

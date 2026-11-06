@@ -6,6 +6,7 @@ single artifact. Physical work belongs to the local maintenance worker.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -58,7 +59,15 @@ class MigrationStore:
         return row
 
     async def plan(
-        self, *, node_id, source, target, handle_id=None, workspace=False, adopt_existing=False
+        self,
+        *,
+        node_id,
+        source,
+        target,
+        handle_id=None,
+        workspace=False,
+        adopt_existing=False,
+        preserve_existing_missing=False,
     ):
         source, target = canonical(source), canonical(target)
         if contains(source, target) or contains(target, source):
@@ -89,6 +98,8 @@ class MigrationStore:
                         source, changed = hp, True
         if contains(source, target) or contains(target, source):
             raise ValueError("Expanded storage unit overlaps destination")
+        if Path(source).is_symlink():
+            raise ValueError("A symlink artifact requires migrating its enclosing directory")
         affected = [h for h in handles if contains(source, canonical(h["path"]))]
         if any(h["node_id"] != node_id for h in affected):
             raise ValueError("Storage is also registered to another node")
@@ -106,7 +117,12 @@ class MigrationStore:
         parent = Path(target)
         while not parent.exists():
             parent = parent.parent
+        from hololab.artifact_migration_files import preflight
+
+        survey = await asyncio.to_thread(preflight, source, target, preserve_existing_missing)
         plan = dict(
+            preserve_existing_missing=preserve_existing_missing,
+            preflight=survey,
             node_id=node_id,
             source=source,
             target=target,
@@ -221,8 +237,23 @@ class MigrationStore:
 
         await self.db.write(write)
 
-    async def commit(self, mid):
+    async def commit(self, mid, epoch=None, cancel_event=None):
         async def write(conn):
+            if cancel_event is not None and cancel_event.is_set():
+                raise InterruptedError("Migration cancelled before commit")
+            if epoch is not None:
+                async with conn.execute(
+                    "SELECT epoch FROM artifact_migration_claims WHERE migration_id=?", (mid,)
+                ) as cur:
+                    claim = await cur.fetchone()
+                if claim is None or claim[0] != epoch:
+                    raise ValueError("Migration lease was superseded")
+                async with conn.execute(
+                    "SELECT 1 FROM artifact_migration_units WHERE migration_id=? AND (epoch<>? OR lease_until<? OR receipt_json IS NULL) LIMIT 1",
+                    (mid, epoch, time.time()),
+                ) as cur:
+                    if await cur.fetchone():
+                        raise ValueError("Migration lease expired or receipt missing")
             async with conn.execute(
                 "SELECT state FROM artifact_migrations WHERE migration_id=?", (mid,)
             ) as cur:

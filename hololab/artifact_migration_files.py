@@ -67,13 +67,17 @@ def entries(root):
         yield from walk(root)
 
 
-def mapped_link(source_link, target_link, source_root, target_root):
+def mapped_link(source_link, target_link, source_root, target_root, preserve_missing=False):
     text = os.readlink(source_link)
     logical = os.path.normpath(text if os.path.isabs(text) else str(source_link.parent / text))
     # Validate the original dependency graph before rewriting. Lexical mapping
     # handles links through other links without accidentally copying referents.
     try:
         resolved = source_link.resolve(strict=True)
+    except FileNotFoundError as exc:
+        if not preserve_missing:
+            raise ValueError(f"Broken or cyclic symlink: {source_link}: {exc}") from exc
+        resolved = source_link.resolve(strict=False)
     except (OSError, RuntimeError) as exc:
         raise ValueError(f"Broken or cyclic symlink: {source_link}: {exc}") from exc
     if contains(str(source_root), logical):
@@ -153,6 +157,7 @@ class LocalMigration:
         self.source, self.target = Path(self.plan["source"]), Path(self.plan["target"])
         self.area = self.target.parent / (".hololab-migration-" + self.mid)
         self.backup = self.source.parent / (".hololab-migration-source-" + self.mid)
+        self.stop = None
         self.progress = dict(files=0, bytes=0, reused_bytes=0, symlinks=0, external_links=0)
 
     @contextlib.contextmanager
@@ -213,7 +218,13 @@ class LocalMigration:
                 seen.add(rel)
                 record = dict(path=rel, source_fingerprint=before)
                 if stat.S_ISLNK(mode):
-                    new, kind, resolved = mapped_link(source, target, self.source, self.target)
+                    new, kind, resolved = mapped_link(
+                        source,
+                        target,
+                        self.source,
+                        self.target,
+                        self.plan.get("preserve_existing_missing", False),
+                    )
                     old = os.readlink(source)
                     if os.path.lexists(target):
                         if not target.is_symlink() or os.readlink(target) not in (old, new):
@@ -221,9 +232,14 @@ class LocalMigration:
                     else:
                         target.parent.mkdir(parents=True, exist_ok=True)
                     # All links are installed after regular files are prepared.
-                    links.append((target, new, kind, resolved, source))
+                    links.append((target, new, kind, resolved, source, not source.exists()))
                     record.update(
-                        type="symlink", original=old, link=new, dependency=kind, resolved=resolved
+                        missing=not source.exists(),
+                        type="symlink",
+                        original=old,
+                        link=new,
+                        dependency=kind,
+                        resolved=resolved,
                     )
                     self.progress["symlinks"] += 1
                     self.progress["external_links"] += int(kind == "external")
@@ -288,7 +304,7 @@ class LocalMigration:
         if extra:
             raise ValueError(f"Unaccounted destination entries: {extra[:10]}")
         self.journal(state="verifying")
-        for target, new, _, _, source in links:
+        for target, new, _, _, source, _ in links:
             temp = target.parent / (".hololab-link-" + self.mid)
             if os.path.lexists(temp):
                 if not temp.is_symlink():
@@ -299,18 +315,19 @@ class LocalMigration:
             shutil.copystat(source, target, follow_symlinks=False)
             sync_dir(target.parent)
         # Verify object correspondence, not merely whether a path exists.
-        for target, _, kind, resolved, _ in links:
-            actual = target.resolve(strict=True)
+        for target, _, kind, resolved, _, missing in links:
+            actual = target.resolve(strict=not missing)
             expected = (
                 str(self.target) + resolved[len(str(self.source)) :]
                 if kind == "internal" and contains(str(self.source), resolved)
                 else resolved
             )
-            if str(actual) != str(Path(expected).resolve(strict=True)):
+            if str(actual) != str(Path(expected).resolve(strict=not missing)):
                 raise ValueError(f"Symlink resolves to unexpected object: {target}")
         for source, target in reversed(dirs):
             shutil.copystat(source, target, follow_symlinks=False)
             sync_dir(target)
+        self.check_mount()
         self.assert_unchanged(inventory)
         os.replace(manifest_tmp, self.area / "manifest.jsonl")
         sync_dir(self.area)
@@ -333,6 +350,8 @@ class LocalMigration:
         return receipt
 
     def check_mount(self):
+        if self.stop is not None and self.stop.is_set():
+            raise InterruptedError("Migration cancelled before commit")
         if os.stat(self.source).st_dev != self.plan["source_identity"][0]:
             raise ValueError("Source mount changed")
         parent = self.target if self.target.exists() else self.target.parent
@@ -396,11 +415,32 @@ class LocalMigration:
                 elif r["type"] == "symlink":
                     if not p.is_symlink() or os.readlink(p) != r["link"]:
                         raise ValueError(f"Target link changed: {p}")
-                    p.resolve(strict=True)
+                    p.resolve(strict=not r.get("missing", False))
                 elif p.is_symlink() or not p.is_dir():
                     raise ValueError(f"Target directory changed: {p}")
         if any(rel not in seen for rel, _ in entries(self.target)):
             raise ValueError("Target membership changed since migration")
+
+    def verify_backup(self):
+        if not self.backup.exists() or self.backup.is_symlink():
+            raise ValueError("Original source backup is unavailable")
+        if identity(self.backup) != self.plan["source_identity"]:
+            raise ValueError("Original source backup identity changed")
+        seen = set()
+        with (self.area / "manifest.jsonl").open() as stream:
+            for r in map(json.loads, stream):
+                seen.add(r["path"])
+                p = self.backup if r["path"] == "." else self.backup / r["path"]
+                if r["type"] == "file":
+                    if p.is_symlink() or hash_file(p) != r["sha256"]:
+                        raise ValueError(f"Source backup content changed: {p}")
+                elif r["type"] == "symlink":
+                    if not p.is_symlink() or os.readlink(p) != r["original"]:
+                        raise ValueError(f"Source backup link changed: {p}")
+                elif p.is_symlink() or not p.is_dir():
+                    raise ValueError(f"Source backup directory changed: {p}")
+        if any(rel not in seen for rel, _ in entries(self.backup)):
+            raise ValueError("Source backup membership changed")
 
     def reclaim(self):
         if not self.source.is_symlink() or os.readlink(self.source) != str(self.target):
@@ -415,3 +455,33 @@ class LocalMigration:
         else:
             self.backup.unlink()
         sync_dir(self.backup.parent)
+
+
+def preflight(source, target, preserve_existing_missing=False):
+    source, target = Path(source), Path(target)
+    counts = dict(files=0, dirs=0, symlinks=0, bytes=0, missing_links=0, external_links=0)
+    blockers = []
+    missing = []
+    for rel, p in entries(source):
+        st = p.lstat()
+        if stat.S_ISREG(st.st_mode):
+            counts["files"] += 1
+            counts["bytes"] += st.st_size
+        elif stat.S_ISDIR(st.st_mode):
+            counts["dirs"] += 1
+        elif stat.S_ISLNK(st.st_mode):
+            counts["symlinks"] += 1
+            try:
+                _, kind, resolved = mapped_link(
+                    p, target / rel, source, target, preserve_existing_missing
+                )
+                counts["external_links"] += int(kind == "external")
+                if not p.exists():
+                    counts["missing_links"] += 1
+                    missing.append(dict(path=rel, link=os.readlink(p), resolved=resolved))
+            except ValueError as exc:
+                if len(blockers) < 20:
+                    blockers.append(str(exc))
+        elif len(blockers) < 20:
+            blockers.append(f"Unsupported special file: {p}")
+    return dict(counts=counts, blockers=blockers, missing=missing)

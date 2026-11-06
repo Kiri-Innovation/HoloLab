@@ -31,11 +31,12 @@ router = APIRouter(
 
 class Plan(BaseModel):
     node_id: str
-    source: str
+    source: str | None = None
     target: str
     handle_id: str | None = None
     workspace: bool = False
     adopt_existing: bool = False
+    preserve_existing_missing: bool = False
 
 
 class Execute(BaseModel):

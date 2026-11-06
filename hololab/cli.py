@@ -34,6 +34,7 @@ import uvicorn
 import yaml
 
 from hololab import __version__
+from hololab.artifact_migration_cli import artifacts_app
 from hololab.gateway.app import create_app
 from hololab.logging import configure as configure_logging
 from hololab.logging import get_logger
@@ -68,8 +69,6 @@ app.add_typer(start_app, name="start", invoke_without_command=True)
 
 pack_app = typer.Typer(help="Author-side tools for algorithm packs.")
 app.add_typer(pack_app, name="pack")
-
-from hololab.artifact_migration_cli import artifacts_app
 
 app.add_typer(artifacts_app, name="artifacts")
 

@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -121,3 +122,51 @@ def test_hardlinks_and_empty_directory(tmp_path):
         w.prepare()
     assert (w.target / "a").stat().st_ino == (w.target / "b").stat().st_ino
     assert (w.target / "empty").is_dir()
+
+
+def test_preserve_existing_missing_is_explicit_and_never_allows_cycles(tmp_path):
+    w = worker(tmp_path)
+    (w.source / "internal").symlink_to(w.source / "absent")
+    (w.source / "external").symlink_to(tmp_path / "external-absent")
+    w.plan["preserve_existing_missing"] = True
+    with w.lock():
+        result = w.prepare()
+        assert result["progress"]["symlinks"] == 2
+        assert (w.target / "internal").is_symlink() and not (w.target / "internal").exists()
+        w.verify_target()
+    records = [json.loads(line) for line in (w.area / "manifest.jsonl").read_text().splitlines()]
+    assert all(r.get("missing") for r in records if r["type"] == "symlink")
+    (w.source / "cycle").symlink_to("cycle")
+    with w.lock(), pytest.raises(ValueError, match="cyclic"):
+        w.prepare()
+
+
+def test_enospc_does_not_publish_or_change_source(tmp_path, monkeypatch):
+    import shutil
+
+    w = worker(tmp_path)
+    (w.source / "f").write_text("data")
+    monkeypatch.setattr(shutil, "disk_usage", lambda _: type("Usage", (), {"free": 0})())
+    with w.lock(), pytest.raises(OSError, match="capacity"):
+        w.prepare()
+    assert (w.source / "f").read_text() == "data"
+    assert not (w.target / "f").exists()
+
+
+def test_file_content_change_mid_hash_is_rejected(tmp_path, monkeypatch):
+    import hololab.artifact_migration_files as files
+
+    w = worker(tmp_path)
+    (w.source / "f").write_text("data")
+    original = files.hash_file
+
+    def change(path):
+        value = original(path)
+        if path == w.source / "f":
+            path.write_text("changed")
+        return value
+
+    monkeypatch.setattr(files, "hash_file", change)
+    with w.lock(), pytest.raises(ValueError):
+        w.prepare()
+    assert not w.source.is_symlink()

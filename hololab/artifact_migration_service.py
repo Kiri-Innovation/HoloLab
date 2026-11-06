@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import json
 import os
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -42,12 +43,26 @@ class MigrationService:
         self.allowed_roots = [os.path.normpath(str(p)) for p in allowed_roots]
         self.gateway_url = gateway_url
         self.tasks = {}
+        self.cancel_events = {}
 
     def authorize(self, node_id, source):
         if node_id != self.node_id or not any(contains(r, source) for r in self.allowed_roots):
             raise ValueError("Migration worker only serves its configured local node and roots")
 
     async def plan(self, **kwargs):
+        if not kwargs.get("source"):
+            if kwargs.get("handle_id"):
+                rows = await self.store.rows(
+                    "SELECT path FROM handles WHERE handle_id=? AND node_id=?",
+                    (kwargs["handle_id"], kwargs["node_id"]),
+                )
+                if not rows:
+                    raise ValueError("Unknown local handle")
+                kwargs["source"] = rows[0]["path"]
+            elif len(self.allowed_roots) == 1:
+                kwargs["source"] = self.allowed_roots[0]
+            else:
+                raise ValueError("An explicit source root is required")
         self.authorize(kwargs["node_id"], os.path.normpath(kwargs["source"]))
         result = await self.store.plan(**kwargs)
         self.authorize(result["node_id"], result["source"])
@@ -70,10 +85,15 @@ class MigrationService:
         self.authorize(m["node_id"], m["source"])
         if m["plan_digest"] != plan_digest:
             raise ValueError("Plan digest mismatch")
+        if m["plan"].get("preflight", {}).get("blockers"):
+            raise ValueError(
+                "Plan contains unresolved blockers; repair the source and create a new plan"
+            )
         if m["state"] in {"aborted", "rolled_back"}:
             raise ValueError("Migration is terminal")
         if m["idempotency_key"] and m["idempotency_key"] != key:
             raise ValueError("Idempotency key mismatch")
+        self.cancel_events[mid] = threading.Event()
         self.tasks[mid] = asyncio.create_task(self.run(mid, plan_digest, key, repair_existing))
         return await self.status(mid)
 
@@ -130,6 +150,7 @@ class MigrationService:
     async def run(self, mid, plan_digest, key, repair_existing=False):
         m = await self.store.get(mid)
         w = LocalMigration(m)
+        w.stop = self.cancel_events.get(mid)
         try:
             with w.lock():
                 writers = copy_writers(m["source"], m["target"])
@@ -168,7 +189,7 @@ class MigrationService:
                         await self.store.state(mid, "prepared")
                         await self.ensure_visible(m)
                         await self.io(w.assert_unchanged)
-                        await self.store.commit(mid)
+                        await self.store.commit(mid, epoch=epoch, cancel_event=w.stop)
                     finally:
                         beat.cancel()
                         with contextlib.suppress(asyncio.CancelledError):
@@ -214,7 +235,19 @@ class MigrationService:
             message = str(exc)
             current = await self.store.get(mid)
             if current["state"] not in COMMITTED:
-                await self.store.state(mid, "retryable_failed", str(exc))
+                await self.store.state(
+                    mid,
+                    "aborted" if isinstance(exc, InterruptedError) else "retryable_failed",
+                    str(exc),
+                )
+                if isinstance(exc, InterruptedError):
+
+                    async def release(conn):
+                        await conn.execute(
+                            "DELETE FROM artifact_migration_claims WHERE migration_id=?", (mid,)
+                        )
+
+                    await self.store.db.write(release)
             else:
 
                 async def error(conn):
@@ -232,6 +265,15 @@ class MigrationService:
         return await self.store.get(mid)
 
     async def cancel(self, mid):
+        task = self.tasks.get(mid)
+        if task is not None and not task.done():
+            current = await self.store.get(mid)
+            if current["state"] in COMMITTED:
+                raise ValueError("Already committed; use rollback")
+            self.cancel_events[mid].set()
+            result = await self.status(mid)
+            result["cancel_requested"] = True
+            return result
         m = await self.idle(mid)
         if m["state"] in COMMITTED:
             raise ValueError("Already committed; use rollback")
@@ -276,6 +318,11 @@ class MigrationService:
         with w.lock():
             await self.maintenance_claim(m)
             await self.io(w.verify_target)
+            journal = json.loads((w.area / "state.json").read_text())
+            if journal.get("state") == "reclaiming":
+                raise ValueError("Source reclamation has begun; rollback is unavailable")
+            if w.source.is_symlink():
+                await self.io(w.verify_backup)
             await self.io(w.restore_alias)
 
             async def write(conn):
@@ -317,6 +364,10 @@ class MigrationService:
         with w.lock():
             await self.maintenance_claim(m)
             await self.io(w.verify_target)
+            journal = json.loads((w.area / "state.json").read_text())
+            if journal.get("state") != "reclaiming":
+                await self.io(w.verify_backup)
+                w.journal(state="reclaiming")
             await self.io(w.reclaim)
 
             async def write(conn):
