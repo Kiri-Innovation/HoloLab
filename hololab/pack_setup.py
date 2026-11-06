@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 from collections import defaultdict
@@ -25,6 +26,7 @@ from packaging.version import Version
 
 from hololab.content_scope import Baselines, capture
 from hololab.manifest import load_manifest
+from hololab.manifest.requirements import parse_conda_spec
 from hololab.node.config import NodeConfig
 from hololab.pack_install import receipt_for
 from hololab.package_identity import canonical_name, parse_spec
@@ -54,6 +56,7 @@ class EnvironmentPlan:
     hooks: tuple[tuple[object, Path], ...] = ()
     package_indexes: tuple[tuple[str, str], ...] = ()
     package_checks: tuple[tuple[str, str, str, bool], ...] = ()
+    conda_packages: tuple[str, ...] = ()
 
 
 def select_python_version(requirement: str | None) -> str:
@@ -203,10 +206,19 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
                 f"conflicting Python requirements for environment {env!r}: "
                 + ", ".join(sorted(python_values))
             )
+        conda_requested: dict[str, str] = {}
         requested: dict[str, Requirement] = {}
         indexes: dict[str, str] = {}
         checks: dict[str, tuple[str, str, bool]] = {}
         for manifest in group:
+            for raw in manifest.requires.conda_packages if manifest.requires else []:
+                _, name, _ = parse_conda_spec(raw)
+                if name in conda_requested and conda_requested[name] != raw:
+                    raise SetupError(
+                        f"conflicting conda requirements for environment {env!r}: "
+                        f"{conda_requested[name]} vs {raw}; use identical declarations"
+                    )
+                conda_requested[name] = raw
             for raw in manifest.requires.packages if manifest.requires else []:
                 requirement = Requirement(raw)
                 previous = requested.get(requirement.name.lower())
@@ -242,6 +254,7 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
                 tuple(group_with_paths),
                 tuple(sorted(indexes.items())),
                 tuple((name, *value) for name, value in sorted(checks.items())),
+                tuple(sorted(conda_requested.values())),
             )
         )
     return plans
@@ -284,6 +297,78 @@ def _satisfied(conda: str, prefix: Path, raw: str) -> bool:
     requirement = Requirement(raw)
     version = _installed_version(conda, prefix, requirement.name)
     return version is not None and (not requirement.specifier or version in requirement.specifier)
+
+
+def _conda_satisfied(conda: str, prefix: Path, raw: str) -> bool:
+    channel, name, version = parse_conda_spec(raw)
+    result = _run([conda, "list", "--prefix", str(prefix), "--json"])
+    if result.returncode:
+        raise SetupError(f"cannot inspect conda packages in {prefix}: {result.stderr.strip()}")
+    try:
+        rows = json.loads(result.stdout)
+        for row in rows:
+            if row["name"] != name or row.get("channel") == "pypi":
+                continue
+            # conda list reports a canonical channel name, or a channel URL.
+            source = row.get("channel", "").rstrip("/")
+            if channel and source not in {channel, f"https://conda.anaconda.org/{channel}"}:
+                continue
+            # A single '=' in conda means a version prefix, including without '*'.
+            if version is None:
+                return True
+            wanted = tuple(int(part) for part in version.removesuffix(".*").split("."))
+            release = re.match(r"[0-9]+(?:\.[0-9]+)*", row["version"])
+            if release:
+                actual = tuple(int(part) for part in release[0].split("."))
+                actual += (0,) * max(0, len(wanted) - len(actual))
+                if actual[: len(wanted)] == wanted:
+                    return True
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
+        raise SetupError(f"invalid conda package list for {prefix}") from exc
+    return False
+
+
+def _install_conda_packages(
+    plan: EnvironmentPlan,
+    conda: str | None,
+    prefix: Path | None,
+    events: list[str],
+    dry_run: bool,
+) -> None:
+    if not plan.conda_packages:
+        return
+    for raw in plan.conda_packages:
+        parse_conda_spec(raw)
+    if dry_run:
+        events.append(
+            f"{plan.name}: check/install conda packages: {', '.join(plan.conda_packages)}"
+        )
+        return
+    if all(_conda_satisfied(conda, prefix, raw) for raw in plan.conda_packages):
+        events.append(f"{plan.name}: conda packages already satisfied")
+        return
+    # Solve together, so all declared constraints hold in the final environment.
+    channels = sorted({parse_conda_spec(raw)[0] for raw in plan.conda_packages} - {None})
+    command = [conda, "install", "--yes", "--prefix", str(prefix)]
+    for channel in channels:
+        command.extend(["--channel", channel])
+    command.extend(plan.conda_packages)
+    result = _run(command)
+    if result.returncode:
+        raise SetupError(
+            f"failed to install conda packages {plan.conda_packages!r} in {plan.name!r}: "
+            f"{result.stderr.strip() or result.stdout.strip()}"
+        )
+    if not all(_conda_satisfied(conda, prefix, raw) for raw in plan.conda_packages):
+        raise SetupError(f"conda package verification failed in {plan.name!r}")
+    events.append(f"{plan.name}: installed conda packages: {', '.join(plan.conda_packages)}")
+
+
+def _target_nvcc(prefix: Path) -> str | None:
+    candidate = prefix / "bin" / "nvcc"
+    if candidate.is_file() and os.access(candidate, os.X_OK):
+        return str(candidate)
+    return find_nvcc()
 
 
 def _environment_python_version(conda: str, prefix: Path) -> Version | None:
@@ -418,7 +503,7 @@ def _fingerprint(
             "setup prerequisite missing: Python or PyTorch is unavailable in the target environment"
         )
     lines = probe.stdout.splitlines()
-    nvcc = find_nvcc()
+    nvcc = _target_nvcc(prefix)
     nvcc_value = (
         subprocess.run([nvcc, "--version"], text=True, capture_output=True).stdout.strip()
         if nvcc
@@ -442,7 +527,7 @@ def _fingerprint(
 
 def _check_hook_needs(conda: str, prefix: Path, setup: object) -> None:
     # Python/torch/CUDA runtime are always relevant to native CUDA hooks.
-    nvcc = find_nvcc()
+    nvcc = _target_nvcc(prefix)
     if "cuda-toolkit" in setup.needs and not nvcc:
         raise SetupError(
             "setup prerequisite missing: CUDA compiler (nvcc). Install CUDA Toolkit, or set CUDA_HOME to its directory."
@@ -528,6 +613,14 @@ def _apply_hooks(
                     f"{manifest.name}@{manifest.version}: setup hook already matches fingerprint"
                 )
                 continue
+        local_nvcc = prefix / "bin" / "nvcc"
+        cuda_home = (
+            str(prefix)
+            if local_nvcc.is_file() and os.access(local_nvcc, os.X_OK)
+            else os.environ.get(
+                "CUDA_HOME", str(Path(find_nvcc() or "/usr/local/cuda/bin/nvcc").parent.parent)
+            )
+        )
         context = os.environ.copy()
         context.update(
             {
@@ -535,9 +628,7 @@ def _apply_hooks(
                 "CONDA_PREFIX": str(prefix),
                 "PYTHON": str(prefix / "bin" / "python"),
                 "PIP": str(prefix / "bin" / "pip"),
-                "CUDA_HOME": os.environ.get(
-                    "CUDA_HOME", str(Path(find_nvcc() or "/usr/local/cuda").parent.parent)
-                ),
+                "CUDA_HOME": cuda_home,
                 "PACK_CODE_SHA256": code_hash,
                 # Same values every job spawn receives (NodeConfig.cache_env).
                 **(cache_env or {}),
@@ -594,6 +685,7 @@ def apply_plans(
                 f"with Python {selected_python}"
             )
             if dry_run:
+                _install_conda_packages(plan, conda, prefix, events, True)
                 for package in plan.packages:
                     events.append(
                         f"{plan.name}: install {package} (conda-forge, then pip fallback)"
@@ -638,6 +730,7 @@ def apply_plans(
                         f"{plan.name}: warning: Python {installed_python} is outside the "
                         "ecosystem-compatible range (3.10-3.13); setup will not rebuild it"
                     )
+        _install_conda_packages(plan, conda, prefix, events, dry_run)
         package_indexes = dict(plan.package_indexes)
         package_checks = {
             name: (module, attribute, truthy)

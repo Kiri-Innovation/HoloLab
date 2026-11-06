@@ -126,6 +126,35 @@ fingerprint skips rebuilding. Declared `modules` are imported afterwards as an
 ABI smoke test. Hooks run **only** on explicit `pack setup`, never while an
 archive is installed.
 
+### Conda dependencies
+
+`requires.conda_packages` is an optional list of strings, installed together before
+`requires.packages` and setup hooks. Omitting it preserves the existing behavior.
+
+```yaml
+requires:
+  conda_packages:
+    - nvidia::cuda-nvcc=13.0.*
+    - nvidia::cuda-cudart-dev=13.0.*
+    - nvidia::cuda-cccl=13.0.*
+```
+
+Supported syntax is `[channel::]name[=version[.*]]`, with conda's single-equals
+prefix matching for numeric dotted versions. Channels are simple names (such as `nvidia` or `conda-forge`);
+without a channel conda uses the operator's configured channels. Named channels
+are not centrally allowlisted: selecting a package source is an explicit author
+and operator trust decision. URLs, paths, labels, build selectors, comparison
+operators, whitespace and shell syntax are rejected. Installation uses an argv
+list, never a shell. Same-name declarations sharing an environment must be
+identical; conflicting declarations fail before installation.
+
+Installed conda records must match the name, version prefix and declared channel;
+pip records cannot satisfy a conda declaration. Already satisfied declarations
+skip installation; installation failure stops setup without a pip fallback.
+The target prefix's `bin/nvcc` takes precedence over host CUDA for hook checks,
+fingerprints and injected `CUDA_HOME`. `requires.cuda` still describes the
+minimum driver-supported CUDA version, not an installed toolkit.
+
 ### Package indexes
 
 Use `requires.package_indexes` when a dependency must come from a package

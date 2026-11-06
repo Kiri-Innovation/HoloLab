@@ -7,6 +7,21 @@ from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
+# Deliberately a small MatchSpec subset: named channels, names, prefix versions.
+# No URLs, paths, build strings, options, whitespace or shell metacharacters.
+_CONDA_SPEC = re.compile(
+    r"(?:(?P<channel>[a-z0-9][a-z0-9_-]*)::)?"
+    r"(?P<name>[a-z0-9][a-z0-9_.-]*)"
+    r"(?:=(?P<version>[0-9]+(?:\.[0-9]+)*(?:\.\*)?))?"
+)
+
+
+def parse_conda_spec(value: str) -> tuple[str | None, str, str | None]:
+    match = _CONDA_SPEC.fullmatch(value)
+    if match is None:
+        raise ValueError("conda_packages requires [channel::]name[=version[.*]]")
+    return match.group("channel", "name", "version")
+
 
 class GpuRequirements(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -41,6 +56,7 @@ class Requirements(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     python: str | None = None
     packages: list[str] = Field(default_factory=list)
+    conda_packages: list[str] = Field(default_factory=list)
     # Per-distribution simple indexes. This is deliberately generic: CUDA
     # wheels are one consumer, but private/accelerator package indexes are not
     # specific to PyTorch.
@@ -54,6 +70,7 @@ class Requirements(BaseModel):
         return (
             self.python is None
             and not self.packages
+            and not self.conda_packages
             and not self.package_indexes
             and not self.package_checks
             and self.cuda is None
@@ -80,6 +97,13 @@ class Requirements(BaseModel):
             requirement = Requirement(value)
             if requirement.url or requirement.marker or requirement.extras:
                 raise ValueError("packages accepts distribution names and versions only")
+        return values
+
+    @field_validator("conda_packages")
+    @classmethod
+    def conda_specifiers(cls, values):
+        for value in values:
+            parse_conda_spec(value)
         return values
 
     @field_validator("package_indexes")
