@@ -1,0 +1,40 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/colmap4d-cams-to-array
+version: 0.1.0
+description: Convert between timed camera components and per-image timeless camera
+  leaves with lossless provenance.
+docs: >-
+  Per-image camera leaves ordered by timestamp then IMAGE_ID. Six-field timeless
+  JSON is compatible with repeat-4d; hidden provenance retains original IDs,
+  ns times and records for exact restoration. Keep hidden files when copying arrays.
+  interval-pick symlinks preserve provenance access. Inverse requires unmodified
+  leaves from this converter, rejects mixed sources and empty selections.
+  Binary camera components only. Use explicit nodes; automatic array view is not declared.
+category: reconstruction/colmap4d
+source_entry: convert.py
+inputs:
+  4d_cams:
+    tags:
+    - colmap4d-cams
+    storage: dir
+    arrayed: false
+outputs:
+  cameras:
+    tags:
+    - colmap-camera
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - camera
+params: {}
+runtime:
+  env: colmap4d
+  gpu:
+    required: false
+requires:
+  packages:
+  - colmap4d>=1.0.4
+exec:
+  shell: python -u "{{ pack_dir }}/convert.py" to_array --input "{{ inputs['4d_cams']
+    }}" --output "{{ outputs['cameras'] }}"
