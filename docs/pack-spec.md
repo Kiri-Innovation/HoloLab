@@ -152,7 +152,11 @@ Installed conda records must match the name, version prefix and declared channel
 pip records cannot satisfy a conda declaration. Already satisfied declarations
 skip installation; installation failure stops setup without a pip fallback.
 The target prefix's `bin/nvcc` takes precedence over host CUDA for hook checks,
-fingerprints and injected `CUDA_HOME`. `requires.cuda` still describes the
+fingerprints and injected `CUDA_HOME`. The `cxx-compiler` prerequisite also checks
+the target prefix for `c++`, `g++`, `clang++`, and native conda-prefixed drivers
+before host PATH, so a declared conda C++ compiler satisfies the check without
+activation or a host compiler. Hooks remain responsible for selecting their
+compiler (for example through `CC`/`CXX`). `requires.cuda` still describes the
 minimum driver-supported CUDA version, not an installed toolkit.
 
 ### Package indexes

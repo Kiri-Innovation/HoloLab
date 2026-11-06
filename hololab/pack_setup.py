@@ -371,6 +371,18 @@ def _target_nvcc(prefix: Path) -> str | None:
     return find_nvcc()
 
 
+def _target_cxx(prefix: Path) -> str | None:
+    """Find native or conda-prefixed C++ drivers before consulting host PATH."""
+    names = ("c++", "g++", "clang++")
+    candidates = [prefix / "bin" / name for name in names]
+    triplet = f"{platform.machine()}-conda-linux-gnu"
+    candidates.extend(prefix / "bin" / f"{triplet}-{suffix}" for suffix in ("c++", "g++"))
+    for candidate in candidates:
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return next((path for name in names if (path := shutil.which(name))), None)
+
+
 def _environment_python_version(conda: str, prefix: Path) -> Version | None:
     result = _run([conda, "run", "--prefix", str(prefix), "python", "--version"])
     if result.returncode:
@@ -532,11 +544,10 @@ def _check_hook_needs(conda: str, prefix: Path, setup: object) -> None:
         raise SetupError(
             "setup prerequisite missing: CUDA compiler (nvcc). Install CUDA Toolkit, or set CUDA_HOME to its directory."
         )
-    if "cxx-compiler" in setup.needs and not (
-        shutil.which("c++") or shutil.which("g++") or shutil.which("clang++")
-    ):
+    if "cxx-compiler" in setup.needs and not _target_cxx(prefix):
         raise SetupError(
-            "setup prerequisite missing: C++ compiler. Install g++ or clang++ and retry."
+            "setup prerequisite missing: C++ compiler in target environment or host PATH. "
+            "Declare a conda compiler in requires.conda_packages, or install g++/clang++ and retry."
         )
     if "cuda-toolkit" in setup.needs:
         check = _run_in_env(

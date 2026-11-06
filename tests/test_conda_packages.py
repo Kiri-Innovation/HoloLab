@@ -153,3 +153,37 @@ def test_new_environment_dry_run(monkeypatch, tmp_path):
     events = setup.apply_plans([plan], SimpleNamespace(), tmp_path / "node.yaml", dry_run=True)
     assert any("nvidia::cuda-nvcc=13.0.*" in event for event in events)
     assert not (tmp_path / "node.yaml").exists()
+
+
+@pytest.mark.parametrize(
+    "name", ["c++", "g++", "clang++", "x86_64-conda-linux-gnu-c++", "x86_64-conda-linux-gnu-g++"]
+)
+def test_cxx_needs_uses_target_environment_without_host(monkeypatch, tmp_path, name):
+    compiler = tmp_path / "bin" / name
+    compiler.parent.mkdir()
+    compiler.write_text("#!/bin/sh\n")
+    compiler.chmod(0o755)
+    monkeypatch.setattr(setup.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(setup.shutil, "which", lambda _: None)
+    assert setup._target_cxx(tmp_path) == str(compiler)
+    setup._check_hook_needs("conda", tmp_path, SimpleNamespace(needs=["cxx-compiler"]))
+
+
+def test_cxx_needs_host_fallback_and_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(setup.shutil, "which", lambda name: "/host/g++" if name == "g++" else None)
+    assert setup._target_cxx(tmp_path) == "/host/g++"
+    setup._check_hook_needs("conda", tmp_path, SimpleNamespace(needs=["cxx-compiler"]))
+    monkeypatch.setattr(setup.shutil, "which", lambda _: None)
+    with pytest.raises(setup.SetupError, match=r"requires\.conda_packages"):
+        setup._check_hook_needs("conda", tmp_path, SimpleNamespace(needs=["cxx-compiler"]))
+
+
+def test_target_cxx_precedes_host_and_rejects_non_executable(monkeypatch, tmp_path):
+    compiler = tmp_path / "bin/x86_64-conda-linux-gnu-c++"
+    compiler.parent.mkdir()
+    compiler.write_text("#!/bin/sh\n")
+    monkeypatch.setattr(setup.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(setup.shutil, "which", lambda _: "/host/c++")
+    assert setup._target_cxx(tmp_path) == "/host/c++"
+    compiler.chmod(0o755)
+    assert setup._target_cxx(tmp_path) == str(compiler)
