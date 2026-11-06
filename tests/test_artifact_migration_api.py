@@ -245,3 +245,35 @@ async def test_gateway_root_patch_contract_and_primary_convergence(api, monkeypa
     assert str(source) in config["legacy_workspace_roots"]
     await svc.select_primary(m, str(source))
     assert config["workspace_root"] == str(source)
+
+
+@pytest.mark.parametrize("boundary", ["prepared", "exchanged"])
+async def test_persistent_boundary_replay(api, monkeypatch, boundary):
+    from hololab.artifact_migration_files import LocalMigration
+
+    client, svc, source, target = api
+    m = await create(client, source, target)
+    if boundary == "prepared":
+        original = svc.store.commit
+
+        async def fail(*args, **kw):
+            raise OSError("crash before commit")
+
+        monkeypatch.setattr(svc.store, "commit", fail)
+    else:
+        original = LocalMigration.alias
+
+        def fail(self):
+            original(self)
+            raise OSError("crash after exchange")
+
+        monkeypatch.setattr(LocalMigration, "alias", fail)
+    result = await execute(client, svc, m)
+    assert result["state"] == ("retryable_failed" if boundary == "prepared" else "committed")
+    if boundary == "prepared":
+        monkeypatch.setattr(svc.store, "commit", original)
+    else:
+        monkeypatch.setattr(LocalMigration, "alias", original)
+    result = await execute(client, svc, m)
+    assert result["state"] == "cleanup_pending", result
+    assert source.is_symlink() and (target / "file").read_text() == "payload"
