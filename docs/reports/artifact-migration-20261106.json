@@ -1,0 +1,108 @@
+{
+  "migration_id": "fa13e786-b60c-4377-92ba-80a6101e9039",
+  "state": "cleanup_pending",
+  "source": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab",
+  "target": "/cloud/cloud-ssd2/hololab",
+  "backup": "/cloud/cloud-ssd1/Kiri4DGS/output/.hololab-migration-source-fa13e786-b60c-4377-92ba-80a6101e9039",
+  "source_retained": true,
+  "handles_updated": 10544,
+  "claims_remaining": 0,
+  "receipt": {
+    "state": "prepared",
+    "manifest_sha256": "440e6a659001f232c803285d5548749750ed7b3c2560f086d3e7fb3d45849cc8",
+    "source_identity": [
+      64528,
+      31982534
+    ],
+    "target_identity": [
+      64544,
+      51380225
+    ],
+    "progress": {
+      "files": 45518,
+      "bytes": 448202716327,
+      "reused_bytes": 448202705319,
+      "symlinks": 31404,
+      "external_links": 97,
+      "source_hash_cache_hits": 45509
+    }
+  },
+  "symlinks": 31404,
+  "preexisting_missing_preserved": 4015,
+  "new_missing": 0,
+  "primary_root": "/cloud/cloud-ssd2/hololab",
+  "legacy_roots": [
+    "/cloud/cloud-ssd1/Kiri4DGS/output/hololab"
+  ],
+  "preview_samples": [
+    {
+      "handle_id": "90e71548-4c00-412a-93cb-77ba523bc3ec",
+      "range_status": 206,
+      "bytes_match": true,
+      "absolute_path": "/cloud/cloud-ssd2/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks",
+      "proxy_url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks"
+    },
+    {
+      "handle_id": "07d2d6c1-c02c-49cf-8bf3-74a924e37bc0",
+      "range_status": 206,
+      "bytes_match": true,
+      "absolute_path": "/cloud/cloud-ssd2/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000079",
+      "proxy_url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000079"
+    },
+    {
+      "handle_id": "93818b34-46b5-4ecb-b69c-3f1cfbd78568",
+      "range_status": 206,
+      "bytes_match": true,
+      "absolute_path": "/cloud/cloud-ssd2/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000078",
+      "proxy_url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000078"
+    },
+    {
+      "handle_id": "f2c3554c-9e17-4b93-bcf6-5e4880049179",
+      "range_status": 206,
+      "bytes_match": true,
+      "absolute_path": "/cloud/cloud-ssd2/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000077",
+      "proxy_url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000077"
+    },
+    {
+      "handle_id": "450a428c-9ac8-4e0f-a92d-d071b9d39fae",
+      "range_status": 206,
+      "bytes_match": true,
+      "absolute_path": "/cloud/cloud-ssd2/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000076",
+      "proxy_url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000076"
+    },
+    {
+      "handle_id": "2d4078b4-1e9e-496d-a012-5466046f5bd7",
+      "range_status": 206,
+      "bytes_match": true,
+      "absolute_path": "/cloud/cloud-ssd2/hololab/w/9967b1f8-3646-41f5-a269-394b6d392169/j/6796f7e2-462d-42c3-8eb8-32432645ea44/camera/p_0000000000000080",
+      "proxy_url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/6796f7e2-462d-42c3-8eb8-32432645ea44/camera/p_0000000000000080"
+    }
+  ],
+  "thumbnail_status": 200,
+  "thumbnail_bytes": 3496,
+  "validated_ts": 1793960711.3040338,
+  "proxy_stability_probe": {
+    "requests": 192,
+    "statuses": {
+      "206": 192
+    },
+    "all_content_matched": true
+  },
+  "controlled_main_restart": {
+    "reason": "Load existing reverse-tunnel closed-slot fixes after repeated 502 and premature EOF in the older running process",
+    "old_pid": 2424289,
+    "new_pid": 3030552,
+    "screen_session": "hololab-migrated",
+    "workspace_argument": "/cloud/cloud-ssd2/hololab"
+  },
+  "original_gateway_parent_still_running": false,
+  "gateway_health_status": 200,
+  "gateway_pid": 3030552,
+  "tests": {
+    "migration_specific": 37,
+    "selected_regression": 191,
+    "regression_seconds": 58.0
+  },
+  "source_deleted": false,
+  "maintenance_api": "http://127.0.0.1:8830"
+}
