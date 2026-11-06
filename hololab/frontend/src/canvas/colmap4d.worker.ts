@@ -1,7 +1,7 @@
 import { loadColmap4dPayload } from './colmap4dPayload';
-self.onmessage = async (event: MessageEvent<{baseUrl: string}>) => {
+self.onmessage = async (event: MessageEvent<{baseUrl: string; phase: 'cameras' | 'points'}>) => {
   try {
-    const payload = await loadColmap4dPayload(event.data.baseUrl, text => self.postMessage({type: 'progress', text}));
+    const payload = await loadColmap4dPayload(event.data.baseUrl, text => self.postMessage({type: 'progress', text}), undefined, event.data.phase);
     self.postMessage({type: 'loaded', payload});
   } catch (error) { self.postMessage({type: 'error', text: (error as Error).message}); }
 };

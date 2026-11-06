@@ -71,3 +71,37 @@ test('rejects truncated time sidecars rather than showing a silent static model'
   const files=binaryFiles(); files.set('times.bin',u64(1)); serve(files);
   await expect(loadColmap4dPayload('/model',()=>{})).rejects.toThrow('Truncated');
 });
+test('camera stage seeks over observations and never requests points or point times', async () => {
+  const files = binaryFiles();
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const name = url.split('/').at(-1)!;
+    if (name.startsWith('points')) throw new Error('Unexpected heavy request');
+    const body = files.get(name)!;
+    const bytes = typeof body === 'string' ? new TextEncoder().encode(body) : body;
+    const range = (options?.headers as Record<string, string>)?.Range;
+    if (range) {
+      const [start, end] = range.slice(6).split('-').map(Number);
+      return new Response(bytes.slice(start, end + 1), {status: 206, headers: {'Content-Range': `bytes ${start}-${Math.min(end, bytes.length - 1)}/${bytes.length}`}});
+    }
+    return new Response(bytes);
+  }));
+  const p = await loadColmap4dPayload('/model', () => {}, 3, 'cameras');
+  expect(p.imageNames).toEqual(['a.png']);
+  expect(p.shown).toBe(0);
+  expect(p.files.map(f => f.name)).toEqual(['cameras.bin', 'images.bin', 'points3D.bin', 'times.bin', 'time_meta.json']);
+});
+test('point stage requests no camera tables and keeps sampling independent', async () => {
+  const files = binaryFiles();
+  for (const name of ['cameras.bin', 'images.bin', 'times.bin', 'time_meta.json']) files.delete(name);
+  serve(files);
+  const p = await loadColmap4dPayload('/model', () => {}, 3, 'points');
+  expect(p.files.map(f => f.name)).toEqual(['points3D.bin', 'points_t.bin']);
+  expect([p.total, p.shown]).toEqual([7, 3]);
+});
+test('camera stage refuses an ignored Range without buffering the heavy image table', async () => {
+  const heavy = new Response('not a bounded response');
+  const read = vi.spyOn(heavy, 'arrayBuffer');
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('cameras.bin') ? new Response(u64(0)) : heavy));
+  await expect(loadColmap4dPayload('/model', () => {}, 3, 'cameras')).rejects.toThrow('requires HTTP Range');
+  expect(read).not.toHaveBeenCalled();
+});

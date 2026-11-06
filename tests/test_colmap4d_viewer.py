@@ -10,7 +10,8 @@ def test_colmap4d_declaration_and_default():
     assert port.preview == infer_preview_for_output(None, ["colmap4d"])
     explicit = OutputPreview(viewer="text", member="notes.txt")
     assert infer_preview_for_output(explicit, ["colmap4d"]) is explicit
-    for component in ["colmap4d-cams", "colmap4d-point-cloud", "colmap4d-images"]:
+    assert infer_preview_for_output(None, ["colmap4d-cams"]) == OutputPreview(viewer="colmap4d", member=".")
+    for component in ["colmap4d-point-cloud", "colmap4d-images"]:
         assert infer_preview_for_output(None, [component]) is None
 
 

@@ -217,9 +217,14 @@ export function Preview({
   refreshToken = 0,
 }: PreviewProps) {
   // The explicit declaration wins; tag fallback also supports pre-upgrade handles.
-  if (spec?.viewer === "colmap4d" || (!spec && tags?.includes("colmap4d"))) {
+  if (spec?.viewer === "colmap4d" || (!spec && tags?.some(tag => tag === "colmap4d" || tag === "colmap4d-cams"))) {
     if (storage !== "dir") return <Status text="colmap4d preview requires a directory" kind="error" />;
-    const render = (url: string) => <Colmap4DPreview key={url} baseUrl={`${url.replace(/\/$/, "")}/${spec?.member ?? "sparse/0"}`} />;
+    const camsOnly = tags?.includes("colmap4d-cams");
+    const render = (url: string) => <Colmap4DPreview key={url}
+      camsOnly={camsOnly} nodeId={producingNode?.node_id}
+      absolutePath={absolutePath ? absolutePath + decodeURIComponent(url.slice(baseUrl.length)) : undefined}
+      baseUrl={`${url.replace(/\/$/, "")}/${spec?.member ?? (camsOnly ? "." : "sparse/0")}`}
+      imagesUrl={`${url.replace(/\/$/, "")}/images`} />;
     return arrayed
       ? <ArrayedPaginator baseUrl={baseUrl} handleId={handleId} partial={partial} dimLabels={dimLabels} renderScalar={render} />
       : render(baseUrl);

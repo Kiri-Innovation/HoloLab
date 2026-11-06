@@ -43,6 +43,7 @@ from hololab.manifest.schema import OutputPreview
 # ``viewer`` field must be one of the literals declared on
 # ``OutputPreview.viewer`` (splatv / ftgsply / ply-3dgs / lagsplat / video / image / text / video-grid).
 TAG_VIEWER_REGISTRY: dict[str, OutputPreview] = {
+    "colmap4d-cams": OutputPreview(viewer="colmap4d", member="."),
     "colmap4d": OutputPreview(viewer="colmap4d", member="sparse/0"),
     # Video source — one video file in a directory (scalar). Also the
     # element type for arrayed<video-source> from builtin/video-array-source; the

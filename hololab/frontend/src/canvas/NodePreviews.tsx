@@ -47,6 +47,7 @@ export interface ExpandablePort {
 // caret because this promotion looks at the port's ``tags`` directly.
 const FRONTEND_VIEWER_TAGS = new Set<string>([
   "colmap4d",
+  "colmap4d-cams",
   "splatv",
   "ftgsply",
   "ply-3dgs",

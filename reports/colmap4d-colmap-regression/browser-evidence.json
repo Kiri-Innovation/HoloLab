@@ -1,0 +1,54 @@
+{
+  "ready": true,
+  "failures": [],
+  "errors": [],
+  "responses": [
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:8828/__vendor_smoke"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:8828/colmaputil/index.html?embed=1"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:8828/colmaputil/assets/ui-vendor-BPKP1zNG.js"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:8828/colmaputil/assets/index-C7MtOhGC.css"
+    },
+    {
+      "status": 200,
+      "url": "http://127.0.0.1:8828/colmaputil/assets/index-C-udCvWU.js"
+    }
+  ],
+  "text": "COLMAP Util\n3 Images | 1 Cameras",
+  "draws": [
+    {
+      "method": "drawArrays",
+      "mode": 1,
+      "count": 164,
+      "instances": null
+    },
+    {
+      "method": "drawArrays",
+      "mode": 1,
+      "count": 2,
+      "instances": null
+    },
+    {
+      "method": "drawArraysInstanced",
+      "mode": 6,
+      "count": 4,
+      "instances": 125
+    },
+    {
+      "method": "drawArrays",
+      "mode": 1,
+      "count": 48,
+      "instances": null
+    }
+  ]
+}

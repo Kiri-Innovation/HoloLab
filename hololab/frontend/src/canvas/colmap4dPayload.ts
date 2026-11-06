@@ -43,27 +43,56 @@ class Stream {
     }
     return out;
   }
-  async close() { await this.reader.cancel(); }
+  async close() {
+    // At a normal table boundary consume EOF before releasing the tunnel.
+    if (this.pos === this.chunk.length) await this.reader.read();
+    await this.reader.cancel();
+  }
 }
 
-export async function loadColmap4dPayload(base: string, progress: (text: string) => void, budget = POINT_BUDGET) {
+/** Seek over observations without downloading them (the live file proxy supports Range). */
+class RangeReader {
+  private offset = 0;
+  private start = 0;
+  private buffer = new Uint8Array(0);
+  constructor(private url: string, private progress: (n: number) => void) {}
+  async read(n: number, keep = true): Promise<Uint8Array> {
+    if (!Number.isSafeInteger(n) || n < 0) throw new Error('Invalid record length');
+    if (!keep) { this.offset += n; return new Uint8Array(0); }
+    if (this.offset < this.start || this.offset + n > this.start + this.buffer.length) {
+      const r = await fetch(this.url, {cache: 'no-store', signal: AbortSignal.timeout(15000), headers: {Range: `bytes=${this.offset}-${this.offset + Math.max(n, 4096) - 1}`}});
+      if (r.status !== 206) { await r.body?.cancel(); throw new Error(`Camera Range: HTTP ${r.status}`); }
+      if (r.headers.get('content-range')?.split(/[ -]/)[1] !== String(this.offset)) {
+        await r.arrayBuffer(); throw new Error('Unexpected camera byte range');
+      }
+      this.start = this.offset;
+      this.buffer = new Uint8Array(await r.arrayBuffer()); this.progress(this.buffer.length);
+    }
+    const b = this.buffer.subarray(this.offset - this.start, this.offset - this.start + n);
+    if (b.length !== n) throw new Error('Truncated camera table');
+    this.offset += n; return b;
+  }
+  async close() {}
+}
+
+export async function loadColmap4dPayload(base: string, progress: (text: string) => void, budget = POINT_BUDGET, phase: 'all' | 'cameras' | 'points' = 'all') {
   let bytes = 0, last = 0;
   const report = (n: number) => {
     bytes += n;
     if (Date.now() - last > 250) { progress(`读取预览：${(bytes / 1048576).toFixed(0)} MiB（流式扫描）`); last = Date.now(); }
   };
   const root = base.replace(/\/$/, '');
-  async function open(name: string) {
-    const r = await fetch(`${root}/${name}`);
+  async function open(name: string, timeout = 15000) {
+    const r = await fetch(`${root}/${name}`, {signal: AbortSignal.timeout(timeout)});
     if (!r.ok) { await r.body?.cancel(); throw new Error(`${name}: HTTP ${r.status}`); }
     return r;
   }
   async function table(name: string) {
-    const r = await fetch(`${root}/${name}.bin`);
+    const r = await fetch(`${root}/${name}.bin`, {signal: AbortSignal.timeout(name === 'cameras' || name === 'times' ? 15000 : 600000)});
     if (r.ok) return { binary: true, response: r };
     await r.body?.cancel();
     if (r.status !== 404) throw new Error(`${name}.bin: HTTP ${r.status}`);
-    return { binary: false, response: await open(`${name}.txt`) };
+    return { binary: false, response: await open(`${name}.txt`, name === 'cameras' || name === 'times' ? 15000 : 600000) };
   }
   async function small(r: Response) {
     const reader = r.body!.getReader(), parts: Uint8Array<ArrayBuffer>[] = []; let size = 0;
@@ -93,78 +122,104 @@ export async function loadColmap4dPayload(base: string, progress: (text: string)
     } finally { await reader.cancel(); }
   }
   const files: {name: string; blob: Blob}[] = [];
-  const cams = await table('cameras');
-  files.push({ name: `cameras.${cams.binary ? 'bin' : 'txt'}`, blob: await small(cams.response) });
-  const images = await table('images');
-  if (images.binary) {
-    const s = new Stream(images.response, report);
-    try {
-      const n = count(await s.read(8));
-      if (n > 100_000) throw new Error('Too many cameras for preview (100,000 maximum)');
-      const parts: Uint8Array<ArrayBuffer>[] = [prefix(n)]; let retainedBytes = 8;
-      for (let i = 0; i < n; i++) {
-        parts.push((await s.read(64)).slice());
-        const name: number[] = [];
-        do { name.push((await s.read(1))[0]); if (name.length > 65536) throw new Error('Invalid image name'); } while (name[name.length - 1]);
-        retainedBytes += 72 + name.length;
-        if (retainedBytes > SMALL_LIMIT) throw new Error('Image headers exceed preview budget');
-        parts.push(new Uint8Array(name));
-        const observations = count(await s.read(8));
-        parts.push(prefix(0)); await s.read(observations * 24, false);
-      }
-      files.push({name: 'images.bin', blob: new Blob(parts)});
-    } finally { await s.close(); }
-  } else {
-    const rows: string[] = []; let pose = true, retainedChars = 0;
-    for await (const line of lines(images.response)) {
-      if (line.trimStart().startsWith('#')) continue;
-      if (pose && !line.trim()) continue;
-      if (pose) {
-        retainedChars += line.length;
-        if (retainedChars > SMALL_LIMIT) throw new Error('Image headers exceed preview budget');
-        rows.push(line + '\n\n');
-      }
-      pose = !pose;
-      if (rows.length > 100_000) throw new Error('Too many cameras for preview');
+  const imageNames: string[] = [];
+  const centers: number[][] = [];
+  const addCenter = ([w, x, y, z, tx, ty, tz]: number[]) => {
+    centers.push([
+      -((1 - 2*y*y - 2*z*z)*tx + (2*x*y + 2*w*z)*ty + (2*x*z - 2*w*y)*tz),
+      -((2*x*y - 2*w*z)*tx + (1 - 2*x*x - 2*z*z)*ty + (2*y*z + 2*w*x)*tz),
+      -((2*x*z + 2*w*y)*tx + (2*y*z - 2*w*x)*ty + (1 - 2*x*x - 2*y*y)*tz),
+    ]);
+  };
+  if (phase !== 'points') {
+    const cams = await table('cameras');
+    files.push({ name: `cameras.${cams.binary ? 'bin' : 'txt'}`, blob: await small(cams.response) });
+    const probe = phase === 'cameras' ? await fetch(`${root}/images.bin`, {cache: 'no-store', signal: AbortSignal.timeout(15000), headers: {Range: 'bytes=0-7'}}) : null;
+    if (probe && ![206, 404].includes(probe.status)) {
+      await probe.body?.cancel(); throw new Error(`Camera preview requires HTTP Range (HTTP ${probe.status})`);
     }
-    if (!pose) throw new Error('Missing image observation row');
-    files.push({name: 'images.txt', blob: new Blob(rows)});
-  }
-  const points = await table('points3D');
-  const selected = new Set<bigint>(); let total = 0;
-  if (points.binary) {
-    const s = new Stream(points.response, report);
-    try {
-      total = count(await s.read(8)); const stride = Math.max(1, Math.ceil(total / budget));
-      const parts: Uint8Array<ArrayBuffer>[] = [];
-      for (let i = 0; i < total; i++) {
-        const h = await s.read(51), tracks = count(h, 43);
-        if (i % stride === 0) {
-          const row = h.slice(); row.fill(0, 43);
-          selected.add(view(row).getBigUint64(0, true)); parts.push(row);
+    const images = probe?.ok ? {binary: true, response: probe} : await table('images');
+    if (probe && !probe.ok) await probe.body?.cancel();
+    if (images.binary) {
+      if (phase === 'cameras') await images.response.arrayBuffer();
+      const s = phase === 'cameras' ? new RangeReader(`${root}/images.bin`, report) : new Stream(images.response, report);
+      try {
+        const n = count(await s.read(8));
+        if (n > 100_000) throw new Error('Too many cameras for preview (100,000 maximum)');
+        const parts: Uint8Array<ArrayBuffer>[] = [prefix(n)]; let retainedBytes = 8;
+        for (let i = 0; i < n; i++) {
+          const header = (await s.read(64)).slice();
+          addCenter(Array.from({length: 7}, (_, j) => view(header).getFloat64(4 + j * 8, true)));
+          parts.push(header);
+          const name: number[] = [];
+          do { name.push((await s.read(1))[0]); if (name.length > 65536) throw new Error('Invalid image name'); } while (name[name.length - 1]);
+          retainedBytes += 72 + name.length;
+          if (retainedBytes > SMALL_LIMIT) throw new Error('Image headers exceed preview budget');
+          imageNames.push(new TextDecoder().decode(new Uint8Array(name.slice(0, -1))));
+          parts.push(new Uint8Array(name));
+          const observations = count(await s.read(8));
+          parts.push(prefix(0)); await s.read(observations * 24, false);
         }
-        await s.read(tracks * 8, false);
+        files.push({name: 'images.bin', blob: new Blob(parts)});
+      } finally { await s.close(); }
+    } else {
+      const rows: string[] = []; let pose = true, retainedChars = 0;
+      for await (const line of lines(images.response)) {
+        if (line.trimStart().startsWith('#')) continue;
+        if (pose && !line.trim()) continue;
+        if (pose) {
+          retainedChars += line.length;
+          if (retainedChars > SMALL_LIMIT) throw new Error('Image headers exceed preview budget');
+          addCenter(line.trim().split(/\s+/).slice(1, 8).map(Number));
+          imageNames.push(line.trim().split(/\s+/).slice(9).join(' '));
+          rows.push(line + '\n\n');
+        }
+        pose = !pose;
+        if (rows.length > 100_000) throw new Error('Too many cameras for preview');
       }
-      files.push({name: 'points3D.bin', blob: new Blob([prefix(parts.length), ...parts])});
-    } finally { await s.close(); }
-  } else {
-    // Deterministic reservoir: uniform over row order, bounded even without a count header.
-    const rows: string[] = []; let seed = 0x12345678;
-    for await (const line of lines(points.response)) {
-      if (!line.trim() || line.trimStart().startsWith('#')) continue;
-      total++;
-      seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
-      const slot = total <= budget ? total - 1 : Math.floor((seed >>> 0) / 4294967296 * total);
-      if (slot < budget) {
-        const fields = line.trim().split(/\s+/, 8);
-        if (fields.length < 8) throw new Error('Invalid point row');
-        rows[slot] = fields.join(' ') + '\n';
-      }
+      if (!pose) throw new Error('Missing image observation row');
+      files.push({name: 'images.txt', blob: new Blob(rows)});
     }
-    for (const row of rows) selected.add(BigInt(row.split(' ', 1)[0]));
-    files.push({name: 'points3D.txt', blob: new Blob(rows)});
   }
-  for (const name of ['times', 'points_t']) {
+  const selected = new Set<bigint>(); let total = 0;
+  if (phase !== 'cameras') {
+    const points = await table('points3D');
+    if (points.binary) {
+      const s = new Stream(points.response, report);
+      try {
+        total = count(await s.read(8)); const stride = Math.max(1, Math.ceil(total / budget));
+        const parts: Uint8Array<ArrayBuffer>[] = [];
+        for (let i = 0; i < total; i++) {
+          const h = await s.read(51), tracks = count(h, 43);
+          if (i % stride === 0) {
+            const row = h.slice(); row.fill(0, 43);
+            selected.add(view(row).getBigUint64(0, true)); parts.push(row);
+          }
+          await s.read(tracks * 8, false);
+        }
+        files.push({name: 'points3D.bin', blob: new Blob([prefix(parts.length), ...parts])});
+      } finally { await s.close(); }
+    } else {
+      // Deterministic reservoir: uniform over row order, bounded even without a count header.
+      const rows: string[] = []; let seed = 0x12345678;
+      for await (const line of lines(points.response)) {
+        if (!line.trim() || line.trimStart().startsWith('#')) continue;
+        total++;
+        seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+        const slot = total <= budget ? total - 1 : Math.floor((seed >>> 0) / 4294967296 * total);
+        if (slot < budget) {
+          const fields = line.trim().split(/\s+/, 8);
+          if (fields.length < 8) throw new Error('Invalid point row');
+          rows[slot] = fields.join(' ') + '\n';
+        }
+      }
+      for (const row of rows) selected.add(BigInt(row.split(' ', 1)[0]));
+      files.push({name: 'points3D.txt', blob: new Blob(rows)});
+    }
+  } else {
+    files.push({name: 'points3D.bin', blob: new Blob([prefix(0)])});
+  }
+  for (const name of phase === 'cameras' ? ['times'] : phase === 'points' ? ['points_t'] : ['times', 'points_t']) {
     const t = await table(name), pointTime = name === 'points_t';
     const records = new Map<bigint, bigint>();
     if (t.binary) {
@@ -200,10 +255,16 @@ export async function loadColmap4dPayload(base: string, progress: (text: string)
     }
     files.push({name: `${name}.bin`, blob: new Blob([b])});
   }
+  if (phase === 'points') return {files, total, shown: selected.size, bytes, estimated: false, imageNames, cameraView: undefined};
   const metaBlob = await small(await open('time_meta.json'));
   const meta = JSON.parse(await metaBlob.text());
   if (!meta || typeof meta !== 'object' || Array.isArray(meta)) throw new Error('Invalid time_meta.json');
   files.push({name: 'time_meta.json', blob: metaBlob});
   const estimated = meta.conversion?.estimated === true || String(meta.conversion?.timestamp_mode ?? '').includes('synthetic');
-  return {files, total, shown: selected.size, bytes, estimated};
+  const valid = centers.filter(p => p.every(Number.isFinite));
+  const target = [0, 1, 2].map(axis => valid.reduce((sum, p) => sum + p[axis], 0) / Math.max(1, valid.length));
+  let radius = .2;
+  for (const p of valid) radius = Math.max(radius, Math.hypot(...p.map((v, i) => v - target[i])));
+  const cameraView = {v: 2, mode: 'orbit', yaw: 2.365, pitch: .485, fov: 60, orbitTarget: target, orbitRadius: radius * 3};
+  return {files, total, shown: selected.size, bytes, estimated, imageNames, cameraView};
 }

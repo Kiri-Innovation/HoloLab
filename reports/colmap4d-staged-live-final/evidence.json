@@ -1,0 +1,75 @@
+{
+  "origin": "http://127.0.0.1:15174",
+  "imageGate": false,
+  "errors": [],
+  "requests": [
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/cameras.bin"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=0-7"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=0-4095"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=12441698-12445793"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=24883388-24887483"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=37325078-37329173"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=49766768-49770863"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=62208458-62212553"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=74650148-74654243"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=87091838-87095933"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=99533528-99537623"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=111975218-111979313"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=124416908-124421003"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=136858598-136862693"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=149300288-149304383"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=161741978-161746073"
+    },
+    {
+      "url": "http://127.0.0.1:15174/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+      "range": "bytes=174183668-174187763"
+    }
+  ],
+  "transportFailure": "Camera Range: HTTP 502 重试"
+}
