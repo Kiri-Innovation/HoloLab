@@ -16,7 +16,7 @@ test('pinned fields pass wheel to canvas without changing focused numeric values
   await route.fulfill({json:body});
  });
  await page.goto('/w/wheel');const pinned=page.getByRole('group',{name:'Pinned parameters',exact:true});await expect(pinned).toBeVisible();
- await page.getByRole('button',{name:'触控板导航',exact:true}).click();
+ await page.getByRole('button',{name:'切换为触控板导航（双指滑动平移、捏合缩放）',exact:true}).click();
  const viewport=page.locator('.react-flow__viewport');const transform=()=>viewport.evaluate(el=>getComputedStyle(el).transform);
  fs.mkdirSync('/tmp/pinned-wheel',{recursive:true});
  // CDP records actual native wheel listeners on the container/ancestor path.

@@ -27,17 +27,22 @@ export function CanvasControls({ trackpadNavigation, onToggleTrackpadNavigation,
     {props.children}
     {onToggleTrackpadNavigation && <ControlButton
       className="hl-trackpad-navigation"
-      aria-label="触控板导航"
+      aria-label={trackpadNavigation ? "切换回鼠标导航（滚轮缩放）" : "切换为触控板导航（双指滑动平移、捏合缩放）"}
       aria-pressed={trackpadNavigation ?? false}
       data-tooltip={trackpadNavigation
-        ? "触控板导航：已开启，双指滑动平移、捏合缩放；点击切回鼠标模式"
-        : "触控板导航：已关闭；点击开启双指滑动平移、捏合缩放"}
+        ? "切换回鼠标导航（滚轮缩放）"
+        : "切换为触控板导航（双指滑动平移、捏合缩放）"}
       onClick={onToggleTrackpadNavigation}
     >
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
         <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="3" />
-          <path d="M9 15V8m6 7V8M7 10l2-2 2 2m2 0 2-2 2 2M4 17h16" />
+          {trackpadNavigation ? <>
+            <rect x="3" y="3" width="18" height="18" rx="3" />
+            <path d="M9 15V8m6 7V8M7 10l2-2 2 2m2 0 2-2 2 2M4 17h16" />
+          </> : <>
+            <rect x="6" y="2" width="12" height="20" rx="6" />
+            <path d="M12 6v4M6 12h12" />
+          </>}
         </g>
       </svg>
     </ControlButton>}

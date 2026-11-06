@@ -26,9 +26,11 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
   const pane = page.locator(".react-flow__pane");
   const viewport = page.locator(".react-flow__viewport");
   await expect(pane).toBeVisible();
-  const mode = page.getByRole("button", { name: "触控板导航", exact: true });
+  const mode = page.locator(".react-flow__controls .hl-trackpad-navigation");
   await expect(mode).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".react-flow__controls").getByRole("button", { name: "触控板导航", exact: true })).toBeVisible();
+  await expect(mode).toHaveCount(1);
+  await expect(mode).toBeVisible();
+  const mouseIcon = await mode.locator("svg").innerHTML();
   const logs: unknown[] = [];
   const transform = () => viewport.evaluate((el) => {
     const values = getComputedStyle(el).transform.match(/matrix\(([^)]+)\)/)?.[1].split(",").map(Number);
@@ -70,6 +72,7 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
   // scroll. Every cardinal direction changes translation without scale.
   await mode.click();
   await expect(mode).toHaveAttribute("aria-pressed", "true");
+  expect(await mode.locator("svg").innerHTML()).not.toBe(mouseIcon);
   const lineBefore = await transform();
   await wheel(0, 1, false, 1);
   await expect.poll(async () => (await transform()).scale).not.toBe(lineBefore.scale);
@@ -127,7 +130,10 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
       if ((await mode.getAttribute("aria-pressed")) !== String(enabled)) await mode.click();
       await pane.hover();
       await mode.hover();
-      await expect(page.getByRole("tooltip")).toContainText(enabled ? "已开启" : "已关闭");
+      const label = enabled ? "切换回鼠标导航（滚轮缩放）" : "切换为触控板导航（双指滑动平移、捏合缩放）";
+      await expect(mode).toHaveAttribute("aria-label", label);
+      await expect(page.getByRole("tooltip")).toHaveText(label);
+      if (!enabled) expect(await mode.locator("svg").innerHTML()).toBe(mouseIcon);
       expect(await mode.getAttribute("title")).toBeNull();
       const controls = page.locator(".react-flow__controls");
       const sizes = await controls.locator("button").evaluateAll(buttons => buttons.map(button => {
@@ -137,6 +143,7 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
       expect(sizes.every(size => size.width === sizes[0].width && size.height === sizes[0].height)).toBe(true);
       await page.screenshot({ path: `/tmp/trackpad-navigation/${theme}-${enabled ? "on" : "off"}.png` });
       await pane.hover();
+      await controls.screenshot({ path: `/tmp/trackpad-navigation/${theme}-${enabled ? "on" : "off"}-controls.png` });
     }
   }
 });
