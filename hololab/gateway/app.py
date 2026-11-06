@@ -447,6 +447,9 @@ def create_app(
 
     # Routes MUST be registered before the ``/`` static mount, since starlette
     # dispatches in registration order and a ``Mount("/")`` catches every path.
+    from hololab.gateway.artifact_migrations import router as artifact_migrations_router
+
+    app.include_router(artifact_migrations_router)
     app.include_router(library_management_router)
     app.include_router(library_download_router)
     app.include_router(library_gc_router)

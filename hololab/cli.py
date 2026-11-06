@@ -69,6 +69,10 @@ app.add_typer(start_app, name="start", invoke_without_command=True)
 pack_app = typer.Typer(help="Author-side tools for algorithm packs.")
 app.add_typer(pack_app, name="pack")
 
+from hololab.artifact_migration_cli import artifacts_app
+
+app.add_typer(artifacts_app, name="artifacts")
+
 log = get_logger("cli")
 
 # Package directory — used as the reload watch dir for uvicorn.
