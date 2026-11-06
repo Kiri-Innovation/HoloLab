@@ -95,7 +95,7 @@ def summarize_handle(
         * everything else              → ``kind="unknown"``, size only
 
     On top of kind + fields we also try to fill:
-        * ``element_count`` — subdir count on dir handles (edge chip ``[N]``).
+        * ``element_count`` — collection count on dir handles (edge chip ``[N]``).
         * ``dim_sizes`` — per-dim element counts, outer dim first
           (``[100, 21]`` for a 2-D frame x cam handle). Computed only when
           the caller supplies ``depth`` (from the producing port's
@@ -146,7 +146,8 @@ def _annotate_element_and_internal_counts(
 ) -> None:
     """Fill ``element_count`` + ``dim_sizes`` + ``internal_count`` + kind.
 
-    ``element_count`` counts immediate non-dot subdirs on dir handles. The
+    ``element_count`` counts immediate non-dot subdirs, plus files when the
+    first collection layer is also the leaf layer. The
     frontend uses it to render the edge chip's ``[N]``; whether the port
     is *treated* as arrayed is the graph edge's business.
 
@@ -171,8 +172,13 @@ def _annotate_element_and_internal_counts(
 
     if handle.storage == "dir" and path.is_dir():
         try:
+            leaf_layer = (
+                depth is not None
+                and depth - content_dim_count_for(list(handle.tags)) == 1
+            )
             children = sorted(
-                c for c in path.iterdir() if not c.name.startswith(".") and c.is_dir()
+                c for c in path.iterdir()
+                if not c.name.startswith(".") and (c.is_dir() or (leaf_layer and c.is_file()))
             )
             element_count = len(children)
             if children:
@@ -248,8 +254,8 @@ def _measure_dim_sizes(
     every level (a ragged tree yields ``None`` — no averaged lies).
     Phase 2 hands the leaf reached in phase 1 to
     :func:`tag_probes.probe_content_dims` for the tag's intrinsic
-    layers if a tag registers them. ``image`` has none: every declared
-    axis is a collection, whose final children must be individual files.
+    layers if a tag registers them. Collection leaves may be files or
+    directories; intermediate collection layers must be directories.
 
     Returns ``(sizes, sample_leaf)`` where ``sample_leaf`` is the path
     used for the tag_probes internal_count sniff (the phase-1 leaf, or
@@ -303,9 +309,9 @@ def _measure_dim_shape(
                         (entry for entry in scan if not entry.name.startswith(".")),
                         key=lambda entry: entry.name,
                     )
-                file_leaf = "image" in tags and layer == dir_depth - 1
+                leaf_layer = layer == dir_depth - 1
                 if any(
-                    not (entry.is_file() if file_leaf else entry.is_dir())
+                    not (entry.is_dir() or (leaf_layer and entry.is_file()))
                     for entry in kids
                 ):
                     return None, None, ranges + [None] * (depth - len(ranges))

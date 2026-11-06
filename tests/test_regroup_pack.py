@@ -488,7 +488,7 @@ def test_handle_summary_dim_sizes_image_2d_flat(tmp_path: Path) -> None:
 
 
 def test_handle_summary_dim_sizes_image_2d_legacy_frames_dir(tmp_path: Path) -> None:
-    """An undeclared extra directory layer does not yield a valid image shape."""
+    """Counting accepts directory leaves; image validation owns leaf validity."""
     from hololab.gateway.handle_summary import summarize_handle
     from hololab.gateway.handles import Handle
 
@@ -505,11 +505,11 @@ def test_handle_summary_dim_sizes_image_2d_legacy_frames_dir(tmp_path: Path) -> 
         path=str(root),
     )
     res = summarize_handle(h, depth=2)
-    assert "dim_sizes" not in res
+    assert res["dim_sizes"] == [3, 1]
     axes = res["runtime_shape"]["axes"]["evidence"]
     assert axes["status"] == "complete"
     assert axes["value"][0]["size"]["evidence"]["value"] == 3
-    assert axes["value"][1]["size"]["evidence"]["reason"] == "not-measured"
+    assert axes["value"][1]["size"]["evidence"]["value"] == 1
 
 
 def test_handle_summary_dim_sizes_image_1d_flat(tmp_path: Path) -> None:
