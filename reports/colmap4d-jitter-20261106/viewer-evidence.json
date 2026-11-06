@@ -1,0 +1,15 @@
+{
+  "mode": "Offline sampling visualization; not a live transport acceptance test",
+  "errors": [],
+  "networkFailures": [],
+  "draws": {
+    "old_frontend": [
+      2469
+    ],
+    "jitter": [
+      2470
+    ]
+  },
+  "old_frontend": "COLMAP Util\n81 Images | 1 Cameras\nTime (colmap4d)\n0.000 / 2.667 s\nσ window ±\n% (0.0 ms) — points + cameras\npoints\nCPU\nGPU",
+  "jitter": "COLMAP Util\n81 Images | 1 Cameras\nTime (colmap4d)\n0.000 / 2.667 s\nσ window ±\n% (0.0 ms) — points + cameras\npoints\nCPU\nGPU"
+}
