@@ -61,6 +61,9 @@ class TunnelConnection:
                         self.response.set_exception(
                             RuntimeError(frame.get("detail", "node tunnel error"))
                         )
+                        # No response/body iterator exists for a pre-header rejection.
+                        # A queued EOF would truncate the next request on this socket.
+                        continue
                     await self.body.put(None)
         finally:
             self.closed = True
@@ -167,10 +170,11 @@ class TunnelRegistry:
             raise HTTPException(status_code=429, detail="Preview tunnel is saturated") from exc
 
     async def release(self, connection: TunnelConnection) -> None:
-        if connection.closed:
-            return
         key = (connection.node_id, connection.session_id)
         async with self._lock:
+            # A disconnect may have detached the socket while we waited for this lock.
+            if connection.closed:
+                return
             queue = self._idle.get(key)
             if queue is not None and not queue.full():
                 queue.put_nowait(connection)
