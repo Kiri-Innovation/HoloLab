@@ -277,3 +277,17 @@ async def test_persistent_boundary_replay(api, monkeypatch, boundary):
     result = await execute(client, svc, m)
     assert result["state"] == "cleanup_pending", result
     assert source.is_symlink() and (target / "file").read_text() == "payload"
+
+
+async def test_finalize_allows_new_target_files_without_discarding_them(api):
+    client, svc, source, target = api
+    m = await create(client, source, target)
+    await execute(client, svc, m)
+    (target / "new-job-output").write_text("new data after migration")
+    r = await client.post(
+        f"/api/artifact-migrations/{m['migration_id']}/finalize", json={"delete_source": True}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["state"] == "completed"
+    assert (target / "file").read_text() == "payload"
+    assert (source / "new-job-output").read_text() == "new data after migration"

@@ -398,7 +398,7 @@ class MigrationService:
         w = LocalMigration(m)
         with w.lock():
             await self.maintenance_claim(m)
-            await self.io(w.verify_target)
+            await self.io(w.verify_target, allow_extra=True)
             journal = json.loads((w.area / "state.json").read_text())
             if journal.get("state") != "reclaiming":
                 await self.io(w.verify_backup)

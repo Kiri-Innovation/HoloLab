@@ -410,7 +410,7 @@ class LocalMigration:
             raise ValueError("Source is not recoverable")
         # Do not delete target; clients may still hold its absolute path.
 
-    def verify_target(self):
+    def verify_target(self, *, allow_extra=False):
         journal = json.loads((self.area / "state.json").read_text())
         manifest = self.area / "manifest.jsonl"
         # The prepared receipt is stored separately because later state journals
@@ -433,7 +433,7 @@ class LocalMigration:
                     p.resolve(strict=not r.get("missing", False))
                 elif p.is_symlink() or not p.is_dir():
                     raise ValueError(f"Target directory changed: {p}")
-        if any(rel not in seen for rel, _ in entries(self.target)):
+        if not allow_extra and any(rel not in seen for rel, _ in entries(self.target)):
             raise ValueError("Target membership changed since migration")
 
     def verify_backup(self):
