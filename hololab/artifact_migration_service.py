@@ -111,7 +111,9 @@ class MigrationService:
             legacy = list(cfg.get("legacy_workspace_roots", []))
             if m["target"] not in [cfg.get("workspace_root"), *legacy]:
                 legacy.append(m["target"])
-                response = await client.patch(path, json={"legacy_workspace_roots": legacy})
+                response = await client.patch(
+                    path, json={"patch": {"legacy_workspace_roots": legacy}}
+                )
                 response.raise_for_status()
                 result = response.json()
                 if result.get("ok") is False:
@@ -125,6 +127,35 @@ class MigrationService:
                 *cfg.get("legacy_workspace_roots", []),
             ]:
                 raise ValueError("Target root is not visible to file service")
+
+    async def select_primary(self, m, primary):
+        if not self.gateway_url:
+            return
+        import httpx
+
+        async with httpx.AsyncClient(timeout=60, trust_env=False) as client:
+            url = f"{self.gateway_url.rstrip('/')}/api/nodes/{m['node_id']}/config"
+            response = await client.get(url)
+            response.raise_for_status()
+            cfg = response.json().get("config", response.json())
+            legacy = list(
+                dict.fromkeys([*cfg.get("legacy_workspace_roots", []), m["source"], m["target"]])
+            )
+            legacy = [p for p in legacy if p != primary]
+            if (
+                cfg.get("workspace_root") != primary
+                or cfg.get("legacy_workspace_roots", []) != legacy
+            ):
+                response = await client.patch(
+                    url,
+                    json={"patch": {"workspace_root": primary, "legacy_workspace_roots": legacy}},
+                )
+                response.raise_for_status()
+            response = await client.get(url)
+            response.raise_for_status()
+            cfg = response.json().get("config", response.json())
+            if cfg.get("workspace_root") != primary:
+                raise ValueError("Primary workspace root did not converge")
 
     async def heartbeat(self, mid, token, epoch):
         while True:
@@ -212,6 +243,8 @@ class MigrationService:
 
                 await self.store.db.write(alias_intent)
                 await self.io(w.alias)
+                if m["scope"] == "workspace":
+                    await self.select_primary(m, m["target"])
 
                 async def finish(conn):
                     await conn.execute(
@@ -324,6 +357,8 @@ class MigrationService:
             if w.source.is_symlink():
                 await self.io(w.verify_backup)
             await self.io(w.restore_alias)
+            if m["scope"] == "workspace":
+                await self.select_primary(m, m["source"])
 
             async def write(conn):
                 await conn.execute(

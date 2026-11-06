@@ -61,14 +61,47 @@ async def test_commit_rolls_back_all_handles(store):
     s, p = store
     plan = await s.plan(node_id="n", source=str(p / "source"), target=str(p / "dest"))
 
+    await s.claim(plan["migration_id"], plan["plan_digest"], "k")
+
     async def change(c):
-        await c.execute("UPDATE handles SET location_version=1 WHERE handle_id='shard'")
+        await c.execute(
+            "UPDATE artifact_migration_handles SET expected_version=1 WHERE handle_id='shard'"
+        )
 
     await s.db.write(change)
-    await s.claim(plan["migration_id"], plan["plan_digest"], "k")
     await s.state(plan["migration_id"], "prepared")
     with pytest.raises(ValueError, match="changed"):
         await s.commit(plan["migration_id"])
     assert all(
         r["path"].startswith(str(p / "source")) for r in await s.rows("SELECT path FROM handles")
     )
+
+
+async def test_new_handle_invalidates_plan(store):
+    s, p = store
+    plan = await s.plan(node_id="n", source=str(p / "source"), target=str(p / "dest"))
+
+    async def extra(c):
+        await c.execute(
+            "INSERT INTO handles(handle_id,node_id,kind,tags_json,path,created_ts) VALUES ('extra','n','file','[]',?,0)",
+            (str(p / "source" / "new"),),
+        )
+
+    await s.db.write(extra)
+    with pytest.raises(ValueError, match="membership"):
+        await s.claim(plan["migration_id"], plan["plan_digest"], "key")
+    assert not await s.rows("SELECT * FROM artifact_migration_claims")
+
+
+async def test_location_version_register_roundtrip_rejects_late_updates(store):
+    from hololab.gateway.handles import Handle, HandleBook
+
+    s, p = store
+    book = HandleBook(s.db)
+    h = await book.get("shard")
+    h.path = str(p / "other")
+    await book.register(h)
+    updated = await book.get("shard")
+    assert updated.location_version == 1
+    with pytest.raises(ValueError, match="Stale"):
+        await book.register(Handle(handle_id="shard", node_id="n", storage="file", path="stale"))

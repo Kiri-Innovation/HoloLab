@@ -213,6 +213,21 @@ class MigrationStore:
             ) as cur:
                 if await cur.fetchone():
                     raise ValueError("Artifact cleanup must finish before migration")
+            async with conn.execute(
+                "SELECT handle_id,path,location_version FROM handles WHERE node_id=?", (node,)
+            ) as cur:
+                actual = {
+                    r[0]: (r[1], r[2])
+                    for r in await cur.fetchall()
+                    if contains(source, canonical(r[1]))
+                }
+            async with conn.execute(
+                "SELECT handle_id,old_path,expected_version FROM artifact_migration_handles WHERE migration_id=?",
+                (mid,),
+            ) as cur:
+                expected = {r[0]: (r[1], r[2]) for r in await cur.fetchall()}
+            if actual != expected:
+                raise ValueError("Handle membership or locations changed; create a fresh plan")
             await conn.execute(
                 "INSERT INTO artifact_migration_claims VALUES (?,?,?,?,?) ON CONFLICT(migration_id) DO UPDATE SET epoch=excluded.epoch",
                 (mid, node, source, epoch + 1, now),

@@ -14,9 +14,10 @@ node identity. It does not start node runtimes, reset online flags, sweep jobs,
 or touch GPUs. Its private token is created with mode 0600; never put it in a
 command argument. A gateway URL lets the coordinator add the destination as a
 legacy root before commit. The existing configuration API restarts the **file
-server child**, not the gateway/node parent. The source root remains the stable
-logical workspace address; after exchange it routes all future writes to the
-new disk. Changing the primary configured root is optional and separate.
+server child**, not the gateway/node parent. After exchange the coordinator changes the primary configured workspace root
+to the destination and retains the old root as a legacy entry, before releasing
+the write fence. This may restart the file-server child a second time. The old
+root also remains a compatibility symlink for cached/embedded paths.
 
 ```sh
 hololab artifacts migrate serve --db-path /path/to/hololab.sqlite \
@@ -94,8 +95,8 @@ journal supports retry after partial cleanup without following child symlinks.
 No automatic content rewriting is attempted for absolute paths embedded in JSON,
 models or scripts; old-root compatibility preserves those addresses. All normal
 cache/inline old paths remain readable through that compatibility entry. A
-physical-primary-root switch and proactive locate-cache invalidation are not
-needed for this frozen implementation and remain future work.
+proactive locate-cache invalidation is deferred; compatibility keeps already
+issued addresses readable while future jobs use the new primary root.
 
 External dependencies are checked for accessibility, not copied or content
 hashed. No filesystem snapshot is created; unmanaged external writes can violate

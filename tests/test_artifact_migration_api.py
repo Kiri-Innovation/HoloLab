@@ -218,3 +218,30 @@ async def test_live_cancel_is_cooperative(api, monkeypatch):
     await svc.tasks[m["migration_id"]]
     assert (await svc.status(m["migration_id"]))["state"] == "aborted"
     assert not source.is_symlink()
+
+
+async def test_gateway_root_patch_contract_and_primary_convergence(api, monkeypatch):
+    import json
+
+    client, svc, source, target = api
+    m = await create(client, source, target)
+    config = {"workspace_root": str(source), "legacy_workspace_roots": []}
+
+    def gateway(request):
+        if request.method == "PATCH":
+            body = json.loads(request.content)
+            assert list(body) == ["patch"]
+            config.update(body["patch"])
+        return httpx.Response(200, json={"node_id": "local", "config": dict(config)})
+
+    original = httpx.AsyncClient
+    transport = httpx.MockTransport(gateway)
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: original(transport=transport, **kw))
+    svc.gateway_url = "http://gateway"
+    await svc.ensure_visible(m)
+    assert str(target) in config["legacy_workspace_roots"]
+    await svc.select_primary(m, str(target))
+    assert config["workspace_root"] == str(target)
+    assert str(source) in config["legacy_workspace_roots"]
+    await svc.select_primary(m, str(source))
+    assert config["workspace_root"] == str(source)

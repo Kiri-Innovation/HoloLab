@@ -48,6 +48,7 @@ class Handle:
     # tells the Artifacts page to render the row in the "deleted" bucket
     # instead of "dead" (file gone but not by us).
     deleted_ts: float | None = None
+    location_version: int = 0
 
 
 class HandleBook:
@@ -69,22 +70,24 @@ class HandleBook:
             # being produced again, e.g. rerun-from-node overwriting an
             # existing path. The Artifacts-page delete flow doesn't come
             # through here; it calls ``mark_deleted`` directly.
-            await conn.execute(
+            result = await conn.execute(
                 """
                 INSERT INTO handles
                     (handle_id, node_id, job_id, kind, tags_json, path, size_bytes, sha256,
-                     output_port_name, created_ts, deleted_ts)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     output_port_name, created_ts, deleted_ts, location_version)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(handle_id) DO UPDATE SET
                     node_id=excluded.node_id,
                     job_id=excluded.job_id,
                     kind=excluded.kind,
                     tags_json=excluded.tags_json,
+                    location_version=handles.location_version + (handles.path<>excluded.path),
                     path=excluded.path,
                     size_bytes=excluded.size_bytes,
                     sha256=excluded.sha256,
                     output_port_name=excluded.output_port_name,
                     deleted_ts=NULL
+                WHERE handles.location_version=excluded.location_version OR handles.path=excluded.path
                 """,
                 (
                     handle.handle_id,
@@ -98,8 +101,12 @@ class HandleBook:
                     handle.output_port_name,
                     handle.created_ts,
                     handle.deleted_ts,
+                    handle.location_version,
                 ),
             )
+
+            if result.rowcount != 1:
+                raise ValueError("Stale handle location version; locate again")
 
         await self._db.write(_write)
 
@@ -135,34 +142,40 @@ class HandleBook:
                     h.output_port_name,
                     h.created_ts,
                     h.deleted_ts,
+                    h.location_version,
                 )
                 for h in handles
             ]
-            await conn.executemany(
+            result = await conn.executemany(
                 """
                 INSERT INTO handles
                     (handle_id, node_id, job_id, kind, tags_json, path, size_bytes, sha256,
-                     output_port_name, created_ts, deleted_ts)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     output_port_name, created_ts, deleted_ts, location_version)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(handle_id) DO UPDATE SET
                     node_id=excluded.node_id,
                     job_id=excluded.job_id,
                     kind=excluded.kind,
                     tags_json=excluded.tags_json,
+                    location_version=handles.location_version + (handles.path<>excluded.path),
                     path=excluded.path,
                     size_bytes=excluded.size_bytes,
                     sha256=excluded.sha256,
                     output_port_name=excluded.output_port_name,
                     deleted_ts=NULL
+                WHERE handles.location_version=excluded.location_version OR handles.path=excluded.path
                 """,
                 rows,
             )
+
+            if result.rowcount != len(rows):
+                raise ValueError("Stale handle location version; locate again")
 
         await self._db.write(_write)
 
     _COLS = (
         "handle_id, node_id, job_id, kind, tags_json, path, size_bytes, sha256, "
-        "output_port_name, created_ts, deleted_ts"
+        "output_port_name, created_ts, deleted_ts, location_version"
     )
 
     @staticmethod
@@ -179,6 +192,7 @@ class HandleBook:
             output_port_name=row[8],
             created_ts=row[9],
             deleted_ts=row[10],
+            location_version=row[11],
         )
 
     async def get(self, handle_id: str) -> Handle | None:
