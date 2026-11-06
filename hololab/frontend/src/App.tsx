@@ -19,6 +19,7 @@ import { InspectorPreview } from "./canvas/InspectorPreview";
 import { FrameSelectedShortcut } from "./canvas/FrameSelectedShortcut";
 import { WorkflowConflictDialog } from "./canvas/WorkflowConflictDialog";
 import { CanvasControls } from "./canvas/CanvasControls";
+import { TrackpadScrollDetector, keepsExistingWheelBehavior } from "./canvas/trackpadNavigation";
 // Blueprint canvas — the top-level shell.
 //
 // Layout:
@@ -1839,6 +1840,35 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const rfWrapper = useRef<HTMLDivElement>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
+  // React Flow's defaults deliberately remain responsible for mouse-wheel
+  // zooming and Ctrl-wheel pinch zooming. A macOS two-finger scroll, however,
+  // is a small pixel-wheel stream; intercept just that stream before d3 sees
+  // it and translate the viewport like a map. WheelEvent does not expose a
+  // device type, so the detector is necessarily conservative (and leaves
+  // large/discrete mouse-wheel deltas on the existing path).
+  useEffect(() => {
+    if (!rfInstance) return;
+    const detector = new TrackpadScrollDetector();
+    const onWheel = (event: WheelEvent) => {
+      if (!event.target || keepsExistingWheelBehavior(event.target)) return;
+      const pane = event.target instanceof Element && event.target.closest(".react-flow__pane");
+      if (!pane || !detector.isTrackpadScroll(event, performance.now())) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const viewport = rfInstance.getViewport();
+      // Match React Flow's built-in pan-on-scroll speed while retaining its
+      // default zoom-on-scroll behaviour for physical mouse wheels.
+      void rfInstance.setViewport({
+        ...viewport,
+        x: viewport.x - event.deltaX * 0.5,
+        y: viewport.y - event.deltaY * 0.5,
+      });
+    };
+    window.addEventListener("wheel", onWheel, { capture: true, passive: false });
+    return () => window.removeEventListener("wheel", onWheel, { capture: true });
+  }, [rfInstance]);
+
   const [fitInitialGraph, setFitInitialGraph] = useState(true);
   const [creationAnchor, setCreationAnchor] = useState<{ x: number; y: number } | null>(null);
   const [nodeMenu, setNodeMenu] = useState<{ nodeId: string; position: NodeMenuPosition } | null>(null);
@@ -3185,6 +3215,11 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             onConnectEnd={onConnectEnd}
             onInit={setRfInstance}
             panOnDrag={[0, 1]}
+            // Explicitly preserve the former React Flow defaults. Trackpad
+            // scrolling is handled above; Ctrl-wheel remains native pinch.
+            zoomOnScroll
+            zoomOnPinch
+            preventScrolling
             onPaneContextMenu={(event) => {
               if (!(event.target instanceof Element) || !event.target.classList.contains("react-flow__pane")) return;
               event.preventDefault();
