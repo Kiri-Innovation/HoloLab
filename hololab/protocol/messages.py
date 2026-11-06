@@ -489,6 +489,12 @@ class NodeConfigSetResp(BaseModel):
     error: str | None = None
 
 
+class NodeConfigUpdated(BaseModel):
+    """Node → Gateway: live config changed outside a REST PATCH request."""
+
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
 # ---------------------------------------------------------------------------
 # Handles (the data-plane address book)
 # ---------------------------------------------------------------------------

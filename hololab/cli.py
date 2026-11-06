@@ -45,6 +45,8 @@ from hololab.node.fileserver_control import (
     stop_owned_file_server,
 )
 from hololab.node.runtime import NodeRuntime
+from hololab.package_identity import canonical_name, parse_spec, validate_name
+from hololab.paths import default_workspace_root, frontend_dist_dir
 from hololab.service_control import (
     ServiceAlreadyRunning,
     begin_service,
@@ -53,8 +55,6 @@ from hololab.service_control import (
     stop_service,
     unregister_child,
 )
-from hololab.package_identity import canonical_name, parse_spec, validate_name
-from hololab.paths import default_workspace_root, frontend_dist_dir
 
 app = typer.Typer(
     name="hololab",
@@ -81,8 +81,15 @@ def _legacy_service_parent(file_server_pid: int) -> int | None:
     for _ in range(8):
         try:
             status = Path(f"/proc/{pid}/status").read_text()
-            parent = int(next(line.split()[1] for line in status.splitlines() if line.startswith("PPid:")))
-            argv = Path(f"/proc/{parent}/cmdline").read_bytes().decode(errors="replace").split("\0")[:-1]
+            parent = int(
+                next(line.split()[1] for line in status.splitlines() if line.startswith("PPid:"))
+            )
+            argv = (
+                Path(f"/proc/{parent}/cmdline")
+                .read_bytes()
+                .decode(errors="replace")
+                .split("\0")[:-1]
+            )
         except (FileNotFoundError, StopIteration, ValueError, IndexError):
             return None
         # The child relationship plus this exact command shape is the legacy
@@ -125,7 +132,8 @@ def stop(
     legacy_pid = None
     if not stopped:
         legacy_child = owned_file_server_pid(
-            port=cfg.file_server_port, workspace_root=cfg.workspace_root,
+            port=cfg.file_server_port,
+            workspace_root=cfg.workspace_root,
             pidfile=pidfile_path(cfg.file_server_port),
         )
         if legacy_child is not None:
@@ -137,7 +145,8 @@ def stop(
                 # the verified child fallback below.
                 time.sleep(0.15)
     legacy_stopped = stop_owned_file_server(
-        port=cfg.file_server_port, workspace_root=cfg.workspace_root,
+        port=cfg.file_server_port,
+        workspace_root=cfg.workspace_root,
         pidfile=pidfile_path(cfg.file_server_port),
     )
     if stopped or legacy_stopped or legacy_pid is not None:
@@ -266,7 +275,9 @@ def start_node(
     if updates:
         cfg = cfg.model_copy(update=updates)
     _print_node_summary(cfg)
-    asyncio.run(_run_node_until_stopped(NodeRuntime(cfg, config_path=node_config)))
+    asyncio.run(
+        _run_node_until_stopped(NodeRuntime(cfg, config_path=node_config, config_overrides=updates))
+    )
 
 
 async def _run_node_until_stopped(runtime: NodeRuntime) -> None:
@@ -424,6 +435,7 @@ async def _run_all_in_one_async(
         NodeRuntime(
             cfg,
             config_path=node_config_path,
+            config_overrides=updates,
             child_started=register_child,
             child_stopped=unregister_child,
         ).run(),
@@ -433,7 +445,9 @@ async def _run_all_in_one_async(
     # Wait until either task exits (usually because the gateway shut
     # down after receiving the signal). Then drain the other one.
     try:
-        _, pending = await asyncio.wait({server_task, node_task}, return_when=asyncio.FIRST_COMPLETED)
+        _, pending = await asyncio.wait(
+            {server_task, node_task}, return_when=asyncio.FIRST_COMPLETED
+        )
         for t in pending:
             t.cancel()
         for t in pending:

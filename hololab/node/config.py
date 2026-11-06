@@ -460,7 +460,11 @@ class NodeConfig(BaseModel):
     flops_executor_id: str | None = None
 
 
-def _default_config_path() -> Path:
+def node_config_path(path: Path | None = None) -> Path:
+    """Return the concrete config path used by the node runtime."""
+
+    if path is not None:
+        return path.expanduser().resolve()
     return node_data_dir() / "config.yaml"
 
 
@@ -472,8 +476,7 @@ def load_node_config(path: Path | None = None) -> NodeConfig:
     fail at assignment.
     """
 
-    if path is None:
-        path = _default_config_path()
+    path = node_config_path(path)
 
     if not path.exists():
         return NodeConfig()
@@ -485,8 +488,7 @@ def load_node_config(path: Path | None = None) -> NodeConfig:
 def write_node_config(cfg: NodeConfig, path: Path | None = None) -> Path:
     """Persist a config to disk. Returns the path written."""
 
-    if path is None:
-        path = _default_config_path()
+    path = node_config_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     dump = cfg.model_dump(mode="json")
     # ``Path`` fields serialize as strings via ``mode="json"``; that's fine.

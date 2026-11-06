@@ -363,7 +363,9 @@ def create_app(
         # Repair that invariant before accepting new work.  This only changes
         # never-dispatched children; assigned/running rows remain recoverable
         # through the orphan/reconcile path below.
-        repaired_children = await app.state.jobs_store.terminalize_pending_children_of_terminal_parents()
+        repaired_children = (
+            await app.state.jobs_store.terminalize_pending_children_of_terminal_parents()
+        )
         if repaired_children:
             log.warning(
                 "startup repaired pending fanout children of terminal parents",
@@ -864,38 +866,8 @@ def _mount_routes(app: FastAPI) -> None:
                 status_code=400,
                 detail=resp.get("error") or "node rejected the config patch",
             )
-        # Sync the in-memory session view so proxy-URL rewrites (see
-        # ``strip_workspace_prefix``) and an explicitly changed upstream URL
-        # take effect without needing the node to reconnect.
         cfg = resp.get("config", {}) or {}
-        new_primary = cfg.get("workspace_root")
-        if isinstance(new_primary, str) and new_primary:
-            session.workspace_root = new_primary
-        new_legacy = cfg.get("legacy_workspace_roots")
-        if isinstance(new_legacy, list):
-            session.legacy_workspace_roots = [str(p) for p in new_legacy]
-        if "advertised_url" in cfg:
-            v = cfg.get("advertised_url")
-            session.advertised_url = v if isinstance(v, str) and v else None
-        # Same pattern for the Cobrowser device id — mirror straight
-        # onto the session so ``GET /api/nodes`` and the frontend's
-        # "Open in Cocoder" button pick up the new value without
-        # waiting for the node to reconnect.
-        if "flops_executor_id" in cfg:
-            v = cfg.get("flops_executor_id")
-            session.flops_executor_id = v if isinstance(v, str) and v else None
-        # Mirror pack_dirs + primary packs_dir so the frontend sees the
-        # new pack sources on the next ``GET /api/nodes`` without the
-        # node reconnecting. The next ``packs_updated`` frame will
-        # bring the pack inventory into sync separately.
-        new_pack_dirs = cfg.get("pack_scan_dirs", cfg.get("pack_dirs"))
-        if isinstance(new_pack_dirs, list):
-            session.pack_dirs = [str(p) for p in new_pack_dirs]
-            session.packs_dir = cfg.get("packs_dir") or (
-                session.pack_dirs[0] if session.pack_dirs else None
-            )
-        if "install_destination" in cfg:
-            session.install_destination = cfg["install_destination"]
+        _update_session_from_config(session, cfg)
         return {"node_id": node_id, "config": cfg}
 
     @app.get(
@@ -1969,6 +1941,9 @@ def _mount_routes(app: FastAPI) -> None:
                     pending_key="pending_pack_reloads",
                     timeout_s=120,
                 )
+                sync_cfg = reply["result"].get("config_sync", {}).get("config")
+                if isinstance(sync_cfg, dict):
+                    _update_session_from_config(session, sync_cfg)
                 return {"node_id": session.node_id, **reply["result"]}
             except HTTPException as exc:
                 return {"node_id": session.node_id, "error": str(exc.detail)}
@@ -2030,6 +2005,7 @@ def _mount_routes(app: FastAPI) -> None:
     async def workflow_canvas_state(workflow_id: str) -> dict[str, Any]:
         """Current effective jobs + drift, without environment RPCs."""
         from hololab.gateway.preparation import analyze_execution
+
         row = await app.state.workflows.get_draft(workflow_id)
         if row is None:
             raise HTTPException(status_code=404, detail="workflow not found")
@@ -2047,10 +2023,23 @@ def _mount_routes(app: FastAPI) -> None:
         # preview handle ids and stale badges; returning whole job records made
         # this endpoint larger than the workflow itself.
         job_fields = (
-            "job_id", "graph_node_id", "parent_job_id", "shard_element_id",
-            "shard_element_ids", "state", "progress", "expected_shards",
-            "node_id", "workflow_id", "snapshot_id", "created_ts", "started_ts",
-            "updated_ts", "fail_reason", "output_handles", "historical_only",
+            "job_id",
+            "graph_node_id",
+            "parent_job_id",
+            "shard_element_id",
+            "shard_element_ids",
+            "state",
+            "progress",
+            "expected_shards",
+            "node_id",
+            "workflow_id",
+            "snapshot_id",
+            "created_ts",
+            "started_ts",
+            "updated_ts",
+            "fail_reason",
+            "output_handles",
+            "historical_only",
         )
         result = {
             "canvas_jobs": [
@@ -2066,6 +2055,7 @@ def _mount_routes(app: FastAPI) -> None:
     @app.post("/api/handles/facts", tags=["handles"])
     async def handle_facts(body: dict[str, Any]) -> dict[str, Any]:
         from hololab.gateway.handle_facts import batch, persist
+
         ids = body.get("handle_ids", [])
         if not isinstance(ids, list) or not all(isinstance(x, str) for x in ids):
             raise HTTPException(422, detail="handle_ids must be a string list")
@@ -2088,16 +2078,22 @@ def _mount_routes(app: FastAPI) -> None:
             if handle is None:
                 continue
             pending.add(handle_id)
+
             async def backfill(h: Handle, hid: str) -> None:
                 try:
                     _preview, labels, _sizes, _tags = await _resolve_handle_display_meta(
-                        h, registry=registry, jobs_store=jobs_store,
-                        workflows=app.state.workflows, measure_dimensions=False,
+                        h,
+                        registry=registry,
+                        jobs_store=jobs_store,
+                        workflows=app.state.workflows,
+                        measure_dimensions=False,
                     )
                     await persist(app, h, labels)
                 finally:
                     pending.discard(hid)
-            asyncio.create_task(backfill(handle, handle_id))
+
+            task = asyncio.create_task(backfill(handle, handle_id))
+            task.add_done_callback(lambda _task: None)
         return {"facts": facts}
 
     @app.post("/api/workflows/{workflow_id}/prepare", tags=["workflows"])
@@ -2592,6 +2588,7 @@ def _mount_routes(app: FastAPI) -> None:
         registry: NodeRegistry = app.state.registry
 
         from hololab.gateway.array_views import compile_array_views
+
         try:
             execution_graph, _ = compile_array_views(row.graph, registry.catalog_json())
         except ValueError as exc:
@@ -2730,7 +2727,7 @@ def _mount_routes(app: FastAPI) -> None:
             async with (
                 app.state.db.read() as conn,
                 conn.execute(
-                """
+                    """
                 WITH run_snapshots AS (
                   SELECT snapshot_id, workflow_id, created_ts,
                          COALESCE(json_array_length(graph_json, '$.nodes'), 0) AS node_count,
@@ -2770,7 +2767,17 @@ def _mount_routes(app: FastAPI) -> None:
 
         summaries: dict[str, dict[str, Any]] = {}
         for row in rows:
-            snapshot_id, row_workflow_id, created_ts, node_count, favorite, note, error, state, count = row
+            (
+                snapshot_id,
+                row_workflow_id,
+                created_ts,
+                node_count,
+                favorite,
+                note,
+                error,
+                state,
+                count,
+            ) = row
             summary = summaries.setdefault(
                 snapshot_id,
                 {
@@ -2819,7 +2826,9 @@ def _mount_routes(app: FastAPI) -> None:
                     "job_count": job_count,
                     "state_counts": state_counts,
                     "state": rollup,
-                    "artifact_counts": artifact_counts.get(summary["snapshot_id"], {"total": 0, "deleted": 0}),
+                    "artifact_counts": artifact_counts.get(
+                        summary["snapshot_id"], {"total": 0, "deleted": 0}
+                    ),
                     "favorite": summary["favorite"],
                     "note": summary["note"],
                 }
@@ -4407,6 +4416,34 @@ def _artifact_row_to_json(row: Any) -> dict[str, Any]:
     }
 
 
+def _update_session_from_config(session: Any, cfg: dict[str, Any]) -> None:
+    """Mirror a node's effective live config into its gateway session."""
+
+    node_name = cfg.get("node_name")
+    if isinstance(node_name, str) and node_name:
+        session.node_name = node_name
+    new_primary = cfg.get("workspace_root")
+    if isinstance(new_primary, str) and new_primary:
+        session.workspace_root = new_primary
+    new_legacy = cfg.get("legacy_workspace_roots")
+    if isinstance(new_legacy, list):
+        session.legacy_workspace_roots = [str(p) for p in new_legacy]
+    if "advertised_url" in cfg:
+        value = cfg.get("advertised_url")
+        session.advertised_url = value if isinstance(value, str) and value else None
+    if "flops_executor_id" in cfg:
+        value = cfg.get("flops_executor_id")
+        session.flops_executor_id = value if isinstance(value, str) and value else None
+    new_pack_dirs = cfg.get("pack_scan_dirs", cfg.get("pack_dirs"))
+    if isinstance(new_pack_dirs, list):
+        session.pack_dirs = [str(p) for p in new_pack_dirs]
+        session.packs_dir = cfg.get("packs_dir") or (
+            session.pack_dirs[0] if session.pack_dirs else None
+        )
+    if "install_destination" in cfg:
+        session.install_destination = cfg["install_destination"]
+
+
 async def _dispatch_node_frame(
     kind: str,
     payload: Any,
@@ -4484,6 +4521,10 @@ async def _dispatch_node_frame(
             fut = pending.pop(payload.req_id, None)
             if fut is not None and not fut.done():
                 fut.set_result(payload.model_dump())
+        return
+
+    if kind == "node_config_updated":
+        _update_session_from_config(session, payload.config)
         return
 
     if kind == "ensure_constant_resp":
@@ -4715,10 +4756,14 @@ async def _dispatch_node_frame(
         # Persist in the background so the next cold canvas has dimensions
         # without re-walking the artifact tree.
         from hololab.gateway.handle_facts import persist as persist_handle_facts
+
         for handle in done_handles:
-            spec = registry.get_output_port_spec(new.algorithm_name, new.algorithm_version, handle.output_port_name or "")
+            spec = registry.get_output_port_spec(
+                new.algorithm_name, new.algorithm_version, handle.output_port_name or ""
+            )
             labels = list(spec.dim_labels) if spec is not None else None
-            asyncio.create_task(persist_handle_facts(app, handle, labels))
+            task = asyncio.create_task(persist_handle_facts(app, handle, labels))
+            task.add_done_callback(lambda _task: None)
         output_handles = {
             h.output_port_name: h.handle_id for h in done_handles if h.output_port_name
         }

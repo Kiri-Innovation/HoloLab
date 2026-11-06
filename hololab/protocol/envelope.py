@@ -70,6 +70,7 @@ _KIND_REGISTRY: dict[str, type[BaseModel]] = {
     "node_config_get_resp": messages.NodeConfigGetResp,
     "node_config_set_req": messages.NodeConfigSetReq,
     "node_config_set_resp": messages.NodeConfigSetResp,
+    "node_config_updated": messages.NodeConfigUpdated,
     "handle_check_req": messages.HandleCheckReq,
     "handle_check_resp": messages.HandleCheckResp,
     "artifact_delete_req": messages.ArtifactDeleteReq,
