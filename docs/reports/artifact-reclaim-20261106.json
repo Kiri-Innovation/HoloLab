@@ -1,0 +1,886 @@
+{
+  "result": "blocked_by_active_jobs",
+  "source_deleted": false,
+  "target_deleted": false,
+  "manual_fallback_used": false,
+  "reclaimed_bytes": 0,
+  "precheck": {
+    "time_utc": "2026-11-06T10:59:23.235084+00:00",
+    "migration_id": "fa13e786-b60c-4377-92ba-80a6101e9039",
+    "backup": "/cloud/cloud-ssd1/Kiri4DGS/output/.hololab-migration-source-fa13e786-b60c-4377-92ba-80a6101e9039",
+    "target": "/cloud/cloud-ssd2/hololab",
+    "before_disks": {
+      "/cloud/cloud-ssd1": {
+        "total_bytes": 1584190193664,
+        "free_bytes": 102956847104,
+        "available_bytes": 33126440960,
+        "used_bytes": 1481233346560
+      },
+      "/cloud/cloud-ssd2": {
+        "total_bytes": 1055735832576,
+        "free_bytes": 590435160064,
+        "available_bytes": 536731291648,
+        "used_bytes": 465300672512
+      }
+    },
+    "backup_allocated_bytes": 446300041216,
+    "compatibility_link": {
+      "path": "/cloud/cloud-ssd1/Kiri4DGS/output/hololab",
+      "target": "/cloud/cloud-ssd2/hololab"
+    },
+    "jobs": {
+      "source_count": 92,
+      "target_count": 96,
+      "missing_from_target": []
+    },
+    "large_files": [
+      {
+        "path": "w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+        "size_bytes": 1007776898,
+        "manifest_sha256": "cfc3fd5904a45f02dc74c017f9d153298f8dc15c6831b1fd3144e4672b6eace7",
+        "source_sha256": "cfc3fd5904a45f02dc74c017f9d153298f8dc15c6831b1fd3144e4672b6eace7",
+        "target_sha256": "cfc3fd5904a45f02dc74c017f9d153298f8dc15c6831b1fd3144e4672b6eace7",
+        "matched": true
+      },
+      {
+        "path": "w/9967b1f8-3646-41f5-a269-394b6d392169/j/0d0e7b79-633f-4b0a-8fe8-27407245ea2a/model/sparse/0/images.bin",
+        "size_bytes": 1007776898,
+        "manifest_sha256": "cfc3fd5904a45f02dc74c017f9d153298f8dc15c6831b1fd3144e4672b6eace7",
+        "source_sha256": "cfc3fd5904a45f02dc74c017f9d153298f8dc15c6831b1fd3144e4672b6eace7",
+        "target_sha256": "cfc3fd5904a45f02dc74c017f9d153298f8dc15c6831b1fd3144e4672b6eace7",
+        "matched": true
+      },
+      {
+        "path": "w/9967b1f8-3646-41f5-a269-394b6d392169/j/587cae81-d96b-4abe-85c4-f64a7752713d/model/sparse/0/images.bin",
+        "size_bytes": 1007776898,
+        "manifest_sha256": "bc99181e3685573164c45ce5dcf597831256bdff83a6db5c106d2560a94a617f",
+        "source_sha256": "bc99181e3685573164c45ce5dcf597831256bdff83a6db5c106d2560a94a617f",
+        "target_sha256": "bc99181e3685573164c45ce5dcf597831256bdff83a6db5c106d2560a94a617f",
+        "matched": true
+      }
+    ],
+    "symlink_samples": {
+      "internal": [
+        {
+          "path": "w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/083b0fd0-28ad-4649-bf1e-75d96451309e/supervision/colmap4d/images/frame_0000",
+          "link": "../../../../37a6935c-0bb6-47c4-a56f-395c5172d743/folder/p_0000000000000000/images",
+          "resolved": "/cloud/cloud-ssd2/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/37a6935c-0bb6-47c4-a56f-395c5172d743/folder/p_0000000000000000/images",
+          "readable": true
+        },
+        {
+          "path": "w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/083b0fd0-28ad-4649-bf1e-75d96451309e/supervision/colmap4d/images/frame_0001",
+          "link": "../../../../37a6935c-0bb6-47c4-a56f-395c5172d743/folder/p_0000000000000001/images",
+          "resolved": "/cloud/cloud-ssd2/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/37a6935c-0bb6-47c4-a56f-395c5172d743/folder/p_0000000000000001/images",
+          "readable": true
+        },
+        {
+          "path": "w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/083b0fd0-28ad-4649-bf1e-75d96451309e/supervision/colmap4d/images/frame_0002",
+          "link": "../../../../37a6935c-0bb6-47c4-a56f-395c5172d743/folder/p_0000000000000002/images",
+          "resolved": "/cloud/cloud-ssd2/hololab/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/37a6935c-0bb6-47c4-a56f-395c5172d743/folder/p_0000000000000002/images",
+          "readable": true
+        }
+      ],
+      "external": [
+        {
+          "path": "w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/7038e737-0798-4595-a4d2-442d63cf3908/videos_dir/p_0000000000000000/input.mp4",
+          "link": "/cloud/cloud-ssd1/Kiri4DGS/data/camarray/taogs/4K_Actor1_Magic_2/data1.mp4",
+          "resolved": "/cloud/cloud-ssd1/Kiri4DGS/data/camarray/taogs/4K_Actor1_Magic_2/data1.mp4",
+          "readable": true
+        },
+        {
+          "path": "w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/7038e737-0798-4595-a4d2-442d63cf3908/videos_dir/p_0000000000000001/input.mp4",
+          "link": "/cloud/cloud-ssd1/Kiri4DGS/data/camarray/taogs/4K_Actor1_Magic_2/data10.mp4",
+          "resolved": "/cloud/cloud-ssd1/Kiri4DGS/data/camarray/taogs/4K_Actor1_Magic_2/data10.mp4",
+          "readable": true
+        },
+        {
+          "path": "w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/7038e737-0798-4595-a4d2-442d63cf3908/videos_dir/p_0000000000000002/input.mp4",
+          "link": "/cloud/cloud-ssd1/Kiri4DGS/data/camarray/taogs/4K_Actor1_Magic_2/data11.mp4",
+          "resolved": "/cloud/cloud-ssd1/Kiri4DGS/data/camarray/taogs/4K_Actor1_Magic_2/data11.mp4",
+          "readable": true
+        }
+      ]
+    },
+    "preview_samples": [
+      {
+        "handle_id": "90e71548-4c00-412a-93cb-77ba523bc3ec",
+        "url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000032/p_0000000000000021.png",
+        "status": 206,
+        "head_sha256": "6e8984f93e73efe79213c1c1a8d4eb8f56e1ab528e0326729d5c4b66057638d7",
+        "matched": true
+      },
+      {
+        "handle_id": "07d2d6c1-c02c-49cf-8bf3-74a924e37bc0",
+        "url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000079/p_0000000000000021.png",
+        "status": 206,
+        "head_sha256": "d1e4d8bb4647ce73ba2b7ec6b69b618d9fb42b3787e8b5b1caa54f1c3340aa9b",
+        "matched": true
+      },
+      {
+        "handle_id": "93818b34-46b5-4ecb-b69c-3f1cfbd78568",
+        "url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000078/p_0000000000000021.png",
+        "status": 206,
+        "head_sha256": "6d6063494917d349c3ed11515fda3e9b12996ddf736895360b3ec738de478054",
+        "matched": true
+      },
+      {
+        "handle_id": "f2c3554c-9e17-4b93-bcf6-5e4880049179",
+        "url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000077/p_0000000000000021.png",
+        "status": 206,
+        "head_sha256": "dac8f080e3a0be6ceaa473b2967d887b5db80b03566d34a7d4e6a93a9c0e13bd",
+        "matched": true
+      },
+      {
+        "handle_id": "450a428c-9ac8-4e0f-a92d-d071b9d39fae",
+        "url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/586915eb-0a2d-4566-b0f1-f6febd1957b3/j/b6d8c738-790a-476e-a9ea-44fee5607da9/masks/p_0000000000000076/p_0000000000000021.png",
+        "status": 206,
+        "head_sha256": "e0c5992905390d700740cb685625ed7f5657d01089f6a92f39b9732505d0749b",
+        "matched": true
+      },
+      {
+        "handle_id": "2d4078b4-1e9e-496d-a012-5466046f5bd7",
+        "url": "/proxy/3038e635-4840-46dd-aa0c-6bd9c477b852/w/9967b1f8-3646-41f5-a269-394b6d392169/j/6796f7e2-462d-42c3-8eb8-32432645ea44/camera/p_0000000000000080",
+        "status": 206,
+        "head_sha256": "e7421f636fd5c635f2eb2e4fc553b49fb7026210ab2dc7051a6a7a2ec9f692da",
+        "matched": true
+      }
+    ],
+    "api_health": {
+      "status": "ok",
+      "version": "0.0.1",
+      "protocol_v_min": 1,
+      "protocol_v_max": 1,
+      "ts": 1793962794.9783478
+    },
+    "roots": {
+      "workspace_root": "/cloud/cloud-ssd2/hololab",
+      "legacy_workspace_roots": [
+        "/cloud/cloud-ssd1/Kiri4DGS/output/hololab"
+      ]
+    },
+    "thumbnail": {
+      "status": 200,
+      "bytes": 3496,
+      "type": "image/jpeg"
+    },
+    "live_jobs": [
+      [
+        null,
+        "pending",
+        60
+      ],
+      [
+        "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "running",
+        5
+      ]
+    ],
+    "completed_utc": "2026-11-06T10:59:55.022838+00:00"
+  },
+  "official_finalize_attempt": {
+    "command": [
+      ".venv-runtime/bin/hololab",
+      "artifacts",
+      "migrate",
+      "finalize",
+      "fa13e786-b60c-4377-92ba-80a6101e9039",
+      "--delete-source"
+    ],
+    "started_utc": "2026-11-06T11:01:27.822613+00:00",
+    "ended_utc": "2026-11-06T11:01:28.658211+00:00",
+    "exit_code": 2,
+    "stdout": "",
+    "stderr": "HTTP Request: POST http://127.0.0.1:8830/api/artifact-migrations/fa13e786-b60c-4377-92ba-80a6101e9039/finalize \"HTTP/1.1 409 Conflict\"\nUsage: hololab artifacts migrate finalize [OPTIONS] {migration_id}\nTry 'hololab artifacts migrate finalize --help' for help.\n╭─ Error ──────────────────────────────────────────────────────────────────────╮\n│ Invalid value: 409: {\"detail\":\"Drain node jobs before rollback/finalize\"}    │\n╰──────────────────────────────────────────────────────────────────────────────╯\n",
+    "before_disks": {
+      "/cloud/cloud-ssd1": {
+        "total_bytes": 1584190193664,
+        "used_bytes": 1481233477632,
+        "available_bytes": 33126309888
+      },
+      "/cloud/cloud-ssd2": {
+        "total_bytes": 1055735832576,
+        "used_bytes": 470466129920,
+        "available_bytes": 531565834240
+      }
+    },
+    "after_disks": {
+      "/cloud/cloud-ssd1": {
+        "total_bytes": 1584190193664,
+        "used_bytes": 1481233477632,
+        "available_bytes": 33126309888
+      },
+      "/cloud/cloud-ssd2": {
+        "total_bytes": 1055735832576,
+        "used_bytes": 470466387968,
+        "available_bytes": 531565576192
+      }
+    },
+    "ssd1_available_change_bytes": 0,
+    "backup_exists": true,
+    "compatibility_symlink_exists": true
+  },
+  "postcheck": {
+    "time_utc": "2026-11-06T11:02:59.285936+00:00",
+    "backup_exists": true,
+    "backup_identity": [
+      64528,
+      31982534
+    ],
+    "compatibility_symlink": "/cloud/cloud-ssd2/hololab",
+    "large_file_read_samples": [
+      {
+        "path": "w/9967b1f8-3646-41f5-a269-394b6d392169/j/03fb2084-8f8c-43c2-9bda-aa27955ede38/4d_cams/images.bin",
+        "size_bytes": 1007776898,
+        "head_tail_match": true
+      },
+      {
+        "path": "w/9967b1f8-3646-41f5-a269-394b6d392169/j/0d0e7b79-633f-4b0a-8fe8-27407245ea2a/model/sparse/0/images.bin",
+        "size_bytes": 1007776898,
+        "head_tail_match": true
+      },
+      {
+        "path": "w/9967b1f8-3646-41f5-a269-394b6d392169/j/587cae81-d96b-4abe-85c4-f64a7752713d/model/sparse/0/images.bin",
+        "size_bytes": 1007776898,
+        "head_tail_match": true
+      }
+    ],
+    "job_directories": {
+      "586915eb-0a2d-4566-b0f1-f6febd1957b3": {
+        "source": 52,
+        "target": 56,
+        "missing": []
+      },
+      "83b7948a-c12b-4e03-85fb-277c6c8f9627": {
+        "source": 4,
+        "target": 4,
+        "missing": []
+      },
+      "9967b1f8-3646-41f5-a269-394b6d392169": {
+        "source": 34,
+        "target": 34,
+        "missing": []
+      },
+      "adhoc-e088ee23-e6a4-4086-b0e1-80c523d07455": {
+        "source": 1,
+        "target": 1,
+        "missing": []
+      },
+      "adhoc-ee78c058-0253-4d68-8655-e80fae44bd06": {
+        "source": 1,
+        "target": 1,
+        "missing": []
+      }
+    },
+    "symlink_samples_passed": 6,
+    "api_health": {
+      "status": "ok",
+      "version": "0.0.1",
+      "protocol_v_min": 1,
+      "protocol_v_max": 1,
+      "ts": 1793962979.369815
+    },
+    "previews": [
+      {
+        "handle_id": "90e71548-4c00-412a-93cb-77ba523bc3ec",
+        "status": 206,
+        "matched": true
+      },
+      {
+        "handle_id": "07d2d6c1-c02c-49cf-8bf3-74a924e37bc0",
+        "status": 206,
+        "matched": true
+      },
+      {
+        "handle_id": "93818b34-46b5-4ecb-b69c-3f1cfbd78568",
+        "status": 206,
+        "matched": true
+      },
+      {
+        "handle_id": "f2c3554c-9e17-4b93-bcf6-5e4880049179",
+        "status": 206,
+        "matched": true
+      },
+      {
+        "handle_id": "450a428c-9ac8-4e0f-a92d-d071b9d39fae",
+        "status": 206,
+        "matched": true
+      },
+      {
+        "handle_id": "2d4078b4-1e9e-496d-a012-5466046f5bd7",
+        "status": 206,
+        "matched": true
+      }
+    ],
+    "migration_state": [
+      "cleanup_pending",
+      null
+    ],
+    "maintenance_claims": 0,
+    "live_jobs": [
+      [
+        null,
+        "pending",
+        56
+      ],
+      [
+        "3038e635-4840-46dd-aa0c-6bd9c477b852",
+        "running",
+        5
+      ]
+    ]
+  },
+  "disk_statistics": {
+    "started_utc": "2026-11-06T11:03:00.052866+00:00",
+    "du": {
+      "/cloud/cloud-ssd1/Kiri4DGS": {
+        "command": [
+          "du",
+          "-x",
+          "-B1",
+          "--max-depth=1",
+          "/cloud/cloud-ssd1/Kiri4DGS"
+        ],
+        "exit_code": 0,
+        "stderr": "",
+        "entries": [
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS",
+            "allocated_bytes": 1158736683008,
+            "GiB": 1079.158
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output",
+            "allocated_bytes": 665756942336,
+            "GiB": 620.034
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/weights",
+            "allocated_bytes": 227199279104,
+            "GiB": 211.596
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/SpacetimeGaussians",
+            "allocated_bytes": 101668704256,
+            "GiB": 94.686
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/temp",
+            "allocated_bytes": 75463942144,
+            "GiB": 70.281
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/data",
+            "allocated_bytes": 44617375744,
+            "GiB": 41.553
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/tryouts",
+            "allocated_bytes": 13425963008,
+            "GiB": 12.504
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/tmp",
+            "allocated_bytes": 11689095168,
+            "GiB": 10.886
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/packages",
+            "allocated_bytes": 7376166912,
+            "GiB": 6.87
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/hololab",
+            "allocated_bytes": 6172348416,
+            "GiB": 5.748
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/.git",
+            "allocated_bytes": 4852621312,
+            "GiB": 4.519
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/Utils",
+            "allocated_bytes": 366833664,
+            "GiB": 0.342
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/backups",
+            "allocated_bytes": 62595072,
+            "GiB": 0.058
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/results",
+            "allocated_bytes": 55926784,
+            "GiB": 0.052
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/pose-Benchmark",
+            "allocated_bytes": 11935744,
+            "GiB": 0.011
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/reports",
+            "allocated_bytes": 8314880,
+            "GiB": 0.008
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/sharp-4dgs",
+            "allocated_bytes": 5779456,
+            "GiB": 0.005
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/scripts",
+            "allocated_bytes": 1708032,
+            "GiB": 0.002
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/sparse-4dgs",
+            "allocated_bytes": 589824,
+            "GiB": 0.001
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/.flops",
+            "allocated_bytes": 282624,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/.ruff_cache",
+            "allocated_bytes": 90112,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/env_helper",
+            "allocated_bytes": 86016,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/.pytest_cache",
+            "allocated_bytes": 36864,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/media",
+            "allocated_bytes": 16384,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/outputs_test",
+            "allocated_bytes": 8192,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/.flops_tmp",
+            "allocated_bytes": 8192,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/.vscode",
+            "allocated_bytes": 8192,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/.claude",
+            "allocated_bytes": 4096,
+            "GiB": 0.0
+          }
+        ]
+      },
+      "/cloud/cloud-ssd1/Kiri4DGS/output": {
+        "command": [
+          "du",
+          "-x",
+          "-B1",
+          "--max-depth=1",
+          "/cloud/cloud-ssd1/Kiri4DGS/output"
+        ],
+        "exit_code": 0,
+        "stderr": "",
+        "entries": [
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output",
+            "allocated_bytes": 665756942336,
+            "GiB": 620.034
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/.hololab-migration-source-fa13e786-b60c-4377-92ba-80a6101e9039",
+            "allocated_bytes": 446300041216,
+            "GiB": 415.649
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/dog_megasam",
+            "allocated_bytes": 22996484096,
+            "GiB": 21.417
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/dog_h20_extrap20",
+            "allocated_bytes": 15213547520,
+            "GiB": 14.169
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/stg-resolution-10f-20261030",
+            "allocated_bytes": 15123628032,
+            "GiB": 14.085
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_megasam_full",
+            "allocated_bytes": 15123300352,
+            "GiB": 14.085
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/dog_h20_vista",
+            "allocated_bytes": 14837080064,
+            "GiB": 13.818
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_stg_run2_v2",
+            "allocated_bytes": 13692968960,
+            "GiB": 12.753
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/array-view-validation-20261105",
+            "allocated_bytes": 13086326784,
+            "GiB": 12.188
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_stg_run5_15cam",
+            "allocated_bytes": 12964163584,
+            "GiB": 12.074
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiriting1_megasam",
+            "allocated_bytes": 12761714688,
+            "GiB": 11.885
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/jackintro1_megasam",
+            "allocated_bytes": 9961869312,
+            "GiB": 9.278
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/colmap4d-split-070",
+            "allocated_bytes": 9382899712,
+            "GiB": 8.739
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiritingwithdog1_megasam",
+            "allocated_bytes": 9191387136,
+            "GiB": 8.56
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_megasam",
+            "allocated_bytes": 8665616384,
+            "GiB": 8.07
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_sharp4dgs_export_v2",
+            "allocated_bytes": 7950643200,
+            "GiB": 7.405
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/jackintro1_sharp4dgs_export",
+            "allocated_bytes": 7319080960,
+            "GiB": 6.816
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_sharp4dgs_export",
+            "allocated_bytes": 7147384832,
+            "GiB": 6.657
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiriting1_sharp4dgs_export_v2",
+            "allocated_bytes": 2610384896,
+            "GiB": 2.431
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/fixanything_sweeps",
+            "allocated_bytes": 2387210240,
+            "GiB": 2.223
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_stg_run2",
+            "allocated_bytes": 1616846848,
+            "GiB": 1.506
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_stg",
+            "allocated_bytes": 1563844608,
+            "GiB": 1.456
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/fixanything_sweeps_15cam",
+            "allocated_bytes": 1561157632,
+            "GiB": 1.454
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiriting1_stg_v2",
+            "allocated_bytes": 1505947648,
+            "GiB": 1.403
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_stg_run4_15cam",
+            "allocated_bytes": 1446129664,
+            "GiB": 1.347
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/jackintro1_stg",
+            "allocated_bytes": 1359187968,
+            "GiB": 1.266
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/jackintro1_stg_v2",
+            "allocated_bytes": 1352462336,
+            "GiB": 1.26
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/dog_extrapolated_20",
+            "allocated_bytes": 1049632768,
+            "GiB": 0.978
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/dog_100f_megasam",
+            "allocated_bytes": 777838592,
+            "GiB": 0.724
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_sharp4dgs_export_v2_vistaonly",
+            "allocated_bytes": 495136768,
+            "GiB": 0.461
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_241traj",
+            "allocated_bytes": 435195904,
+            "GiB": 0.405
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiriting1_241traj_v2",
+            "allocated_bytes": 393388032,
+            "GiB": 0.366
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_241traj_v2",
+            "allocated_bytes": 373010432,
+            "GiB": 0.347
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_generated_new16",
+            "allocated_bytes": 368922624,
+            "GiB": 0.344
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_generated",
+            "allocated_bytes": 365424640,
+            "GiB": 0.34
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/jackintro1_241traj",
+            "allocated_bytes": 364912640,
+            "GiB": 0.34
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_generated_v2",
+            "allocated_bytes": 362012672,
+            "GiB": 0.337
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiriting1_241traj",
+            "allocated_bytes": 348262400,
+            "GiB": 0.324
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiriting1_generated_v2",
+            "allocated_bytes": 339738624,
+            "GiB": 0.316
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_generated_v2_15cam",
+            "allocated_bytes": 336236544,
+            "GiB": 0.313
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiriting1_generated",
+            "allocated_bytes": 331702272,
+            "GiB": 0.309
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/jackintro1_generated",
+            "allocated_bytes": 303804416,
+            "GiB": 0.283
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/megasam-pack-050-smoke",
+            "allocated_bytes": 264904704,
+            "GiB": 0.247
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/dog_sharp_h20",
+            "allocated_bytes": 262889472,
+            "GiB": 0.245
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_work",
+            "allocated_bytes": 201613312,
+            "GiB": 0.188
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiri-dog-vista4d-multiview-v3",
+            "allocated_bytes": 124817408,
+            "GiB": 0.116
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiri-dog-vista4d-multiview",
+            "allocated_bytes": 115662848,
+            "GiB": 0.108
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/dog_native5",
+            "allocated_bytes": 51257344,
+            "GiB": 0.048
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/dog_extrapolated_smoke",
+            "allocated_bytes": 48189440,
+            "GiB": 0.045
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/dog_extrap5",
+            "allocated_bytes": 38977536,
+            "GiB": 0.036
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/colmap4d-render-video-validation-cpu",
+            "allocated_bytes": 8810496,
+            "GiB": 0.008
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/colmap4d-render-video-validation",
+            "allocated_bytes": 8658944,
+            "GiB": 0.008
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/birefnet-validation-20261030",
+            "allocated_bytes": 5713920,
+            "GiB": 0.005
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/birefnet-v2-verification",
+            "allocated_bytes": 4022272,
+            "GiB": 0.004
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/colmap4d-render-video-validation-960",
+            "allocated_bytes": 1941504,
+            "GiB": 0.002
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_sharp4dgs_export_v2_15cam",
+            "allocated_bytes": 1536000,
+            "GiB": 0.001
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiriting1_work",
+            "allocated_bytes": 1429504,
+            "GiB": 0.001
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/jackintro1_work",
+            "allocated_bytes": 1138688,
+            "GiB": 0.001
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/rig_fix_v1",
+            "allocated_bytes": 847872,
+            "GiB": 0.001
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/colmap4d-render-video-deps",
+            "allocated_bytes": 811008,
+            "GiB": 0.001
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/birefnet-arrayed-011-validation",
+            "allocated_bytes": 696320,
+            "GiB": 0.001
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/fixanything_sweeps_v2_15cam",
+            "allocated_bytes": 217088,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_fixed_cams",
+            "allocated_bytes": 167936,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/kiridog2_inference16",
+            "allocated_bytes": 69632,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/fa_sweep",
+            "allocated_bytes": 4096,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd1/Kiri4DGS/output/diagnostics",
+            "allocated_bytes": 4096,
+            "GiB": 0.0
+          }
+        ]
+      },
+      "/cloud/cloud-ssd2": {
+        "command": [
+          "du",
+          "-x",
+          "-B1",
+          "--max-depth=1",
+          "/cloud/cloud-ssd2"
+        ],
+        "exit_code": 0,
+        "stderr": "",
+        "entries": [
+          {
+            "path": "/cloud/cloud-ssd2",
+            "allocated_bytes": 467567443968,
+            "GiB": 435.456
+          },
+          {
+            "path": "/cloud/cloud-ssd2/hololab",
+            "allocated_bytes": 467525038080,
+            "GiB": 435.417
+          },
+          {
+            "path": "/cloud/cloud-ssd2/.hololab-migration-fa13e786-b60c-4377-92ba-80a6101e9039",
+            "allocated_bytes": 42381312,
+            "GiB": 0.039
+          },
+          {
+            "path": "/cloud/cloud-ssd2/lost+found",
+            "allocated_bytes": 16384,
+            "GiB": 0.0
+          },
+          {
+            "path": "/cloud/cloud-ssd2/.hololab-migration-3bbc68eb-6d1c-4640-a035-2118ce3cde20",
+            "allocated_bytes": 4096,
+            "GiB": 0.0
+          }
+        ]
+      }
+    },
+    "df_h": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/vdb        1.5T  1.4T   31G  98% /cloud/cloud-ssd1\n/dev/vdc        984G  436G  498G  47% /cloud/cloud-ssd2\n",
+    "disks": {
+      "/cloud/cloud-ssd1": {
+        "total_bytes": 1584190193664,
+        "used_bytes": 1481233690624,
+        "available_bytes": 33126096896
+      },
+      "/cloud/cloud-ssd2": {
+        "total_bytes": 1055735832576,
+        "used_bytes": 467740418048,
+        "available_bytes": 534291546112
+      }
+    },
+    "completed_utc": "2026-11-06T11:03:11.826643+00:00"
+  },
+  "recorded_utc": "2026-11-06T11:07:31.588658+00:00"
+}
