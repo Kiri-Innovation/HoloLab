@@ -99,6 +99,22 @@ def hash_file(path):
     return h.hexdigest()
 
 
+def preserve_metadata(source, target):
+    original = os.lstat(source)
+    copied = os.lstat(target)
+    if os.geteuid() == 0 and (original.st_uid, original.st_gid) != (copied.st_uid, copied.st_gid):
+        os.chown(target, original.st_uid, original.st_gid, follow_symlinks=False)
+    shutil.copystat(source, target, follow_symlinks=False)
+
+
+def sync_file(path):
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def copy_sparse(source, dest):
     """Copy sparse extents where supported; never follow the final component."""
     src = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
@@ -133,10 +149,8 @@ def copy_sparse(source, dest):
     finally:
         os.close(src)
         os.close(out)
-    shutil.copystat(source, dest, follow_symlinks=False)
-    s = os.lstat(source)
-    if os.geteuid() == 0:
-        os.chown(dest, s.st_uid, s.st_gid, follow_symlinks=False)
+    preserve_metadata(source, dest)
+    sync_file(dest)
 
 
 def exchange(a, b):
@@ -277,7 +291,8 @@ class LocalMigration:
                             raise ValueError(f"Copied file checksum mismatch: {source}")
                         os.replace(temp, target)
                         sync_dir(target.parent)
-                    shutil.copystat(source, target, follow_symlinks=False)
+                    preserve_metadata(source, target)
+                    sync_file(target)
                     hardlinks.setdefault((before[0], before[1]), target)
                     record.update(
                         type="file", size=before[3], sha256=sha, target_identity=identity(target)
@@ -325,7 +340,7 @@ class LocalMigration:
             if str(actual) != str(Path(expected).resolve(strict=not missing)):
                 raise ValueError(f"Symlink resolves to unexpected object: {target}")
         for source, target in reversed(dirs):
-            shutil.copystat(source, target, follow_symlinks=False)
+            preserve_metadata(source, target)
             sync_dir(target)
         self.check_mount()
         self.assert_unchanged(inventory)

@@ -170,3 +170,31 @@ def test_file_content_change_mid_hash_is_rejected(tmp_path, monkeypatch):
     with w.lock(), pytest.raises(ValueError):
         w.prepare()
     assert not w.source.is_symlink()
+
+
+def test_source_backup_mutation_refuses_destructive_cleanup(tmp_path):
+    w = worker(tmp_path)
+    (w.source / "f").write_text("original")
+    with w.lock():
+        w.prepare()
+        w.alias()
+        (w.backup / "f").write_text("unique new source bytes")
+        with pytest.raises(ValueError, match="backup content"):
+            w.verify_backup()
+        assert (w.backup / "f").read_text() == "unique new source bytes"
+
+
+def test_mode_and_sparse_layout_are_preserved(tmp_path):
+    w = worker(tmp_path)
+    p = w.source / "sparse"
+    with p.open("wb") as f:
+        f.write(b"start")
+        f.seek(8 * 1024**2)
+        f.write(b"end")
+    p.chmod(0o640)
+    with w.lock():
+        w.prepare()
+    q = w.target / "sparse"
+    assert q.stat().st_size == p.stat().st_size
+    assert q.stat().st_mode & 0o777 == 0o640
+    assert q.stat().st_blocks * 512 < q.stat().st_size
