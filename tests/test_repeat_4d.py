@@ -15,7 +15,7 @@ from hololab.manifest.schema import Manifest
 from hololab.gateway.workflows import WorkflowGraph
 from hololab.gateway.preparation import resolve_recipe
 
-PACK = Path(__file__).parents[1] / 'community_packs/repeat-4d@0.1.0'
+PACK = Path(__file__).parents[1] / 'community_packs/repeat-4d@0.2.0'
 spec = importlib.util.spec_from_file_location('repeat_4d', PACK/'repeat_4d.py')
 repeat = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(repeat)
@@ -29,6 +29,8 @@ def manifest():
 
 def test_schema_and_ports():
     m = manifest()
+    assert m.arrayable and m.parallelism == 4 and m.batch_size == 1
+    assert not m.inputs['camera'].arrayed
     assert m.inputs['camera'].tags == ['colmap-camera']
     assert m.outputs['4d_cams'].tags == ['colmap4d-cams']
     assert not m.outputs['4d_cams'].arrayed
