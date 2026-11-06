@@ -346,3 +346,39 @@ async def test_preview_writes_are_frozen_but_raw_reads_work(tmp_path):
         assert (await client.get("/_preview/320x180/missing.mp4")).status_code == 503
         set_preview_freeze(source, target, "test", False)
         assert (await client.get("/_thumb/320x180/missing.mp4")).status_code == 404
+
+
+async def test_rollback_ignores_new_preview_cache_but_rejects_new_data_without_freeze(api):
+    client, svc, source, target = api
+    m = await create(client, source, target)
+    await execute(client, svc, m)
+    (target / "new-data").write_text("keep this")
+    r = await client.post(f"/api/artifact-migrations/{m['migration_id']}/rollback")
+    assert r.status_code == 409
+    assert not await svc.store.rows("SELECT * FROM artifact_migration_claims")
+    (target / "new-data").unlink()
+    (target / ".hololab-thumbs").mkdir()
+    (target / ".hololab-thumbs" / "new.jpg").write_bytes(b"cache")
+    r = await client.post(f"/api/artifact-migrations/{m['migration_id']}/rollback")
+    assert r.status_code == 200, r.text
+    assert r.json()["state"] == "rolled_back" and not source.is_symlink()
+    assert (target / ".hololab-thumbs" / "new.jpg").read_bytes() == b"cache"
+
+
+async def test_rollback_intent_resumes_after_source_exchange(api, monkeypatch):
+    client, svc, source, target = api
+    m = await create(client, source, target)
+    await execute(client, svc, m)
+    original = svc.select_primary
+
+    async def fail(*args, **kw):
+        raise ValueError("config convergence interrupted")
+
+    monkeypatch.setattr(svc, "select_primary", fail)
+    r = await client.post(f"/api/artifact-migrations/{m['migration_id']}/rollback")
+    assert r.status_code == 409
+    assert (await svc.status(m["migration_id"]))["state"] == "rolling_back"
+    monkeypatch.setattr(svc, "select_primary", original)
+    r = await client.post(f"/api/artifact-migrations/{m['migration_id']}/resume")
+    assert r.status_code == 202 and r.json()["state"] == "rolled_back", r.text
+    assert not await svc.store.rows("SELECT * FROM artifact_migration_claims")

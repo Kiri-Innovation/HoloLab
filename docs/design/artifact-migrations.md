@@ -93,7 +93,9 @@ and immediately before metadata commit. After commit, use rollback instead.
 Rollback verifies the destination and retained source, then restores the source
 address and increments location versions again. Destination data is retained
 for readers. Rollback refuses changed target membership/content or started
-source reclamation. Source reclamation separately rechecks both copies; its
+source reclamation; newly generated preview-cache members are retained and do
+not block rollback. A refusal before filesystem changes releases its temporary
+maintenance fence. A persisted rolling_back intent resumes through the same API. Source reclamation separately rechecks both copies; its
 journal supports retry after partial cleanup without following child symlinks.
 
 No automatic content rewriting is attempted for absolute paths embedded in JSON,

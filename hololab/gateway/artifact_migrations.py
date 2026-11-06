@@ -75,6 +75,8 @@ async def status(mid: str, request: Request):
 async def resume(mid: str, request: Request):
     svc = service_instance(request)
     m = await svc.store.get(mid)
+    if m["state"] == "rolling_back":
+        return await svc.rollback(mid)
     return await svc.start(mid, m["plan_digest"], m["idempotency_key"] or mid)
 
 

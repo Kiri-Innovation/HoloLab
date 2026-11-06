@@ -436,7 +436,7 @@ class LocalMigration:
             raise ValueError("Source is not recoverable")
         # Do not delete target; clients may still hold its absolute path.
 
-    def verify_target(self, *, allow_extra=False):
+    def verify_target(self, *, allow_extra=False, allow_preview_cache=False):
         journal = json.loads((self.area / "state.json").read_text())
         manifest = self.area / "manifest.jsonl"
         # The prepared receipt is stored separately because later state journals
@@ -459,8 +459,16 @@ class LocalMigration:
                     p.resolve(strict=not r.get("missing", False))
                 elif p.is_symlink() or not p.is_dir():
                     raise ValueError(f"Target directory changed: {p}")
-        if not allow_extra and any(rel not in seen for rel, _ in entries(self.target)):
-            raise ValueError("Target membership changed since migration")
+        if not allow_extra:
+            extras = [rel for rel, _ in entries(self.target) if rel not in seen]
+            if allow_preview_cache:
+                extras = [
+                    rel
+                    for rel in extras
+                    if rel.split("/")[0] not in {".hololab-thumbs", ".hololab-previews"}
+                ]
+            if extras:
+                raise ValueError("Target membership changed since migration")
 
     def verify_backup(self):
         if not self.backup.exists() or self.backup.is_symlink():

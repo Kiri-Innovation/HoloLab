@@ -385,12 +385,24 @@ class MigrationService:
         w = LocalMigration(m)
         with w.lock():
             await self.maintenance_claim(m)
-            await self.io(w.verify_target)
-            journal = json.loads((w.area / "state.json").read_text())
-            if journal.get("state") == "reclaiming":
-                raise ValueError("Source reclamation has begun; rollback is unavailable")
-            if w.source.is_symlink():
-                await self.io(w.verify_backup)
+            try:
+                await self.io(w.verify_target, allow_preview_cache=True)
+                journal = json.loads((w.area / "state.json").read_text())
+                if journal.get("state") == "reclaiming":
+                    raise ValueError("Source reclamation has begun; rollback is unavailable")
+                if w.source.is_symlink():
+                    await self.io(w.verify_backup)
+            except BaseException:
+                if m["state"] != "rolling_back":
+
+                    async def release(conn):
+                        await conn.execute(
+                            "DELETE FROM artifact_migration_claims WHERE migration_id=?", (mid,)
+                        )
+
+                    await self.store.db.write(release)
+                raise
+            await self.store.state(mid, "rolling_back")
             await self.io(w.restore_alias)
             if m["scope"] == "workspace":
                 await self.select_primary(m, m["source"])
@@ -409,6 +421,10 @@ class MigrationService:
                         raise ValueError("Handle changed after commit; rollback refused")
                 await conn.execute(
                     "UPDATE artifact_migrations SET state='rolled_back' WHERE migration_id=?",
+                    (mid,),
+                )
+                await conn.execute(
+                    "UPDATE artifact_migration_units SET state='rolled_back' WHERE migration_id=?",
                     (mid,),
                 )
                 await conn.execute(
