@@ -26,7 +26,10 @@ def configure(
 
 def request(ctx, method, suffix="", body=None):
     token = ctx.obj["token_file"].read_text().strip()
-    with httpx.Client(timeout=120, trust_env=False) as client:
+    # Full verification of hundreds of GB can take much longer than two
+    # minutes. A client timeout does not cancel the server-side filesystem work.
+    timeout = None if suffix.endswith(("/finalize", "/rollback")) else 120
+    with httpx.Client(timeout=timeout, trust_env=False) as client:
         r = client.request(
             method,
             ctx.obj["url"] + "/api/artifact-migrations" + suffix,
@@ -48,6 +51,7 @@ def show(data):
             "epoch",
             "error",
             "worker_running",
+            "filesystem_locked",
             "local_progress",
         )
         if k in data

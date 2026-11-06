@@ -382,3 +382,118 @@ async def test_rollback_intent_resumes_after_source_exchange(api, monkeypatch):
     r = await client.post(f"/api/artifact-migrations/{m['migration_id']}/resume")
     assert r.status_code == 202 and r.json()["state"] == "rolled_back", r.text
     assert not await svc.store.rows("SELECT * FROM artifact_migration_claims")
+
+
+async def test_finalize_recovers_missing_backup_and_releases_claim(api):
+    import shutil
+
+    client, svc, source, target = api
+    m = await create(client, source, target)
+    result = await execute(client, svc, m)
+    backup = Path(result["aliases"][0]["backup_path"])
+    await svc.maintenance_claim(result)
+    shutil.rmtree(backup)
+    r = await client.post(
+        f"/api/artifact-migrations/{m['migration_id']}/finalize", json={"delete_source": True}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["state"] == "completed"
+    assert not await svc.store.rows("SELECT * FROM artifact_migration_claims")
+    assert (target / "file").read_text() == "payload"
+
+    async def register_job(conn):
+        await conn.execute(
+            "INSERT INTO jobs(job_id,workflow_id,algorithm_name,algorithm_version,"
+            "params_json,input_handles_json,state,created_ts,updated_ts) "
+            "VALUES ('after-recovery','wf','test','1','{}','{}','pending',0,0)"
+        )
+
+    await svc.store.db.write(register_job)
+
+
+async def test_failed_finalize_releases_dispatch_freeze(api):
+    client, svc, source, target = api
+    m = await create(client, source, target)
+    result = await execute(client, svc, m)
+    (target / "file").write_text("corrupted")
+    r = await client.post(
+        f"/api/artifact-migrations/{m['migration_id']}/finalize", json={"delete_source": True}
+    )
+    assert r.status_code == 409
+    assert not await svc.store.rows("SELECT * FROM artifact_migration_claims")
+    assert Path(result["aliases"][0]["backup_path"], "file").read_text() == "payload"
+    assert (await svc.status(m["migration_id"]))["state"] == "cleanup_pending"
+
+
+async def test_cancel_terminalizes_failed_units(api):
+    client, svc, source, target = api
+    m = await create(client, source, target)
+
+    async def fail(conn):
+        await conn.execute(
+            "UPDATE artifact_migration_units SET state='retryable_failed' WHERE migration_id=?",
+            (m["migration_id"],),
+        )
+
+    await svc.store.db.write(fail)
+    result = await svc.cancel(m["migration_id"])
+    assert result["state"] == "aborted"
+    assert {r["state"] for r in result["units"]} == {"aborted"}
+
+
+async def test_missing_backup_recovery_requires_compatibility_alias(api):
+    import shutil
+
+    client, svc, source, target = api
+    m = await create(client, source, target)
+    result = await execute(client, svc, m)
+    shutil.rmtree(Path(result["aliases"][0]["backup_path"]))
+    source.unlink()
+    r = await client.post(
+        f"/api/artifact-migrations/{m['migration_id']}/finalize", json={"delete_source": True}
+    )
+    assert r.status_code == 409
+    assert (await svc.status(m["migration_id"]))["state"] == "cleanup_pending"
+    assert not await svc.store.rows("SELECT * FROM artifact_migration_claims")
+
+
+async def test_gateway_translates_maintenance_freeze(tmp_path):
+    import sqlite3
+
+    from hololab.gateway.app import create_app
+
+    app = create_app(db_path=tmp_path / "gateway.sqlite")
+    response = await app.exception_handlers[sqlite3.IntegrityError](
+        None, sqlite3.IntegrityError("artifact migration maintenance freeze")
+    )
+    assert response.status_code == 503
+    assert response.headers["retry-after"] == "30"
+    assert b"artifact_migration_maintenance" in response.body
+
+
+async def test_status_observes_cross_process_filesystem_lock(api):
+    from hololab.artifact_migration_files import LocalMigration
+
+    client, svc, source, target = api
+    m = await create(client, source, target)
+    worker = LocalMigration(m)
+    assert not (await svc.status(m["migration_id"]))["filesystem_locked"]
+    with worker.lock():
+        assert (await svc.status(m["migration_id"]))["filesystem_locked"]
+    assert not (await svc.status(m["migration_id"]))["filesystem_locked"]
+
+
+async def test_finalize_refuses_replaced_destination(api):
+    client, svc, source, target = api
+    m = await create(client, source, target)
+    result = await execute(client, svc, m)
+    target.rename(target.with_name("retained-original"))
+    target.mkdir()
+    (target / "file").write_text("payload")
+    r = await client.post(
+        f"/api/artifact-migrations/{m['migration_id']}/finalize", json={"delete_source": True}
+    )
+    assert r.status_code == 409
+    assert "identity" in r.text
+    assert not await svc.store.rows("SELECT * FROM artifact_migration_claims")
+    assert Path(result["aliases"][0]["backup_path"], "file").read_text() == "payload"

@@ -266,6 +266,17 @@ def create_app(
 
     @app.exception_handler(sqlite3.IntegrityError)
     async def namespace_conflict(request, exc):
+        if str(exc) == "artifact migration maintenance freeze":
+            return JSONResponse(
+                status_code=503,
+                headers={"Retry-After": "30"},
+                content={
+                    "detail": {
+                        "code": "artifact_migration_maintenance",
+                        "message": "Artifact migration maintenance is in progress; retry after it completes.",
+                    }
+                },
+            )
         if str(exc).startswith("Library directory operation is pending"):
             return JSONResponse(status_code=409, content={"detail": str(exc)})
         raise exc

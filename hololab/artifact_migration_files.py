@@ -187,6 +187,21 @@ class LocalMigration:
         finally:
             os.close(fd)
 
+    def locked(self):
+        """Observe cross-process work without creating files or changing claims."""
+        try:
+            fd = os.open(self.area / "owner.lock", os.O_RDONLY | os.O_NOFOLLOW)
+        except FileNotFoundError:
+            return False
+        try:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            return False
+        finally:
+            os.close(fd)
+
     def journal(self, **data):
         fd = os.open(self.area, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
@@ -443,6 +458,8 @@ class LocalMigration:
         # describe compatibility/cleanup rather than the copy phase.
         receipt_path = self.area / "receipt.json"
         receipt = json.loads(receipt_path.read_text()) if receipt_path.exists() else journal
+        if identity(self.target) != receipt["target_identity"]:
+            raise ValueError("Destination identity changed")
         if hash_file(manifest) != receipt["manifest_sha256"]:
             raise ValueError("Migration manifest checksum mismatch")
         seen = set()
@@ -494,7 +511,9 @@ class LocalMigration:
     def reclaim(self):
         if not self.source.is_symlink() or os.readlink(self.source) != str(self.target):
             raise ValueError("Compatibility alias missing")
-        if not self.backup.exists():
+        if not os.path.lexists(self.backup):
+            if os.stat(self.backup.parent).st_dev != self.plan["source_identity"][0]:
+                raise ValueError("Original source mount is unavailable")
             return
         if identity(self.backup) != self.plan["source_identity"] or self.backup.is_symlink():
             raise ValueError("Source backup ownership changed")

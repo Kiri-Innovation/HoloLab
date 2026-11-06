@@ -80,6 +80,7 @@ class MigrationService:
             with contextlib.suppress(OSError, ValueError):
                 m["local_progress"] = json.loads(journal.read_text())
         m["worker_running"] = mid in self.tasks and not self.tasks[mid].done()
+        m["filesystem_locked"] = w.locked()
         return m
 
     async def start(self, mid, plan_digest, key, repair_existing=False):
@@ -343,6 +344,10 @@ class MigrationService:
             await conn.execute(
                 "UPDATE artifact_migrations SET state='aborted' WHERE migration_id=?", (mid,)
             )
+            await conn.execute(
+                "UPDATE artifact_migration_units SET state='aborted',lease_until=NULL WHERE migration_id=?",
+                (mid,),
+            )
             await conn.execute("DELETE FROM artifact_migration_claims WHERE migration_id=?", (mid,))
 
         await self.store.db.write(write)
@@ -449,12 +454,26 @@ class MigrationService:
         w = LocalMigration(m)
         with w.lock():
             await self.maintenance_claim(m)
-            await self.io(w.verify_target, allow_extra=True)
-            journal = json.loads((w.area / "state.json").read_text())
-            if journal.get("state") != "reclaiming":
-                await self.io(w.verify_backup)
+            try:
+                await self.io(w.verify_target, allow_extra=True)
+                journal = json.loads((w.area / "state.json").read_text())
+                # A crash (or an external authorized cleanup) can remove the
+                # backup before the database completion transaction. Reconcile
+                # only after verifying the entire destination and alias.
+                if os.path.lexists(w.backup) and journal.get("state") != "reclaiming":
+                    await self.io(w.verify_backup)
                 w.journal(state="reclaiming")
-            await self.io(w.reclaim)
+                await self.io(w.reclaim)
+            except BaseException:
+                # Finalize never changes the live target. Failed verification
+                # must not leave a permanent node-wide dispatch freeze.
+                async def release(conn):
+                    await conn.execute(
+                        "DELETE FROM artifact_migration_claims WHERE migration_id=?", (mid,)
+                    )
+
+                await self.store.db.write(release)
+                raise
 
             async def write(conn):
                 await conn.execute(
@@ -473,6 +492,7 @@ class MigrationService:
                 )
 
             await self.store.db.write(write)
+            w.journal(state="completed")
         return await self.status(mid)
 
     async def close(self):
