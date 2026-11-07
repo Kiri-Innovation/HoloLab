@@ -13,8 +13,9 @@ from hololab.manifest.schema import load_manifest
 
 
 @pytest.mark.asyncio
-async def test_camera_array_reaches_single_video_invocations(tmp_path):
-    pack = Path(__file__).resolve().parents[1] / "community_packs/birefnet-mask@2.2.3"
+@pytest.mark.parametrize("version", ["2.2.3", "2.2.4"])
+async def test_camera_array_reaches_single_video_invocations(tmp_path, version):
+    pack = Path(__file__).resolve().parents[1] / f"community_packs/birefnet-mask@{version}"
     manifest, _ = load_manifest(pack / "manifest.yaml")
     # This is the execution router's pack-side gate, independent of the UI toggle.
     assert manifest.arrayable
