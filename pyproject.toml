@@ -75,6 +75,9 @@ exclude = ["hololab/frontend/vendor/ColmapUtil/**"]
 include = ["/hololab/builtin_packs", "/hololab"]
 
 [tool.ruff]
+# Keep bundled upstream model code unchanged, including explicit pre-commit paths.
+force-exclude = true
+extend-exclude = ["community_packs/*/vendor/**"]
 line-length = 100
 target-version = "py310"
 

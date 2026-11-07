@@ -1,0 +1,129 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: community/birefnet-mask
+version: 2.2.3
+description: BiRefNet foreground segmentation preserving people, held props and soft
+  alpha edges.
+category: generation/segment-anything
+source_entry: run.py
+arrayable: true
+inputs:
+  video:
+    any_of:
+    - tags:
+      - video-source
+      arrayed: false
+    - tags:
+      - image
+      arrayed: true
+      dim_labels:
+      - frame
+    require_axis_label_match: true
+    description: One video file/single-video handle, or an ordered array of images.
+      Frame selection uses zero-based source positions for both input forms.
+outputs:
+  masks:
+    tags:
+    - image
+    arrayed: true
+    storage: dir
+    dim_labels:
+    - frame
+    description: Ordered p_<i:016d>.png grayscale alpha masks; 0 background, 255 foreground,
+      continuous soft edges. The frame axis enumerates selected video frames or selected
+      input array positions, densely renumbered from zero in source order.
+params:
+  max_frames:
+    description: Maximum number of selected frames, for video and image arrays.
+    type: int
+    default: 50
+    min: 1
+  skip:
+    description: Select every Nth source position, counting from start_frame.
+    type: int
+    default: 1
+    min: 1
+  start_frame:
+    description: Inclusive zero-based source frame or array position.
+    type: int
+    default: 0
+    min: 0
+  end_frame:
+    description: Exclusive source position; 0 means no upper bound.
+    type: int
+    default: 0
+    min: 0
+  max_width:
+    description: Downscale only, preserving aspect ratio; 0 keeps native size, for
+      either input.
+    type: int
+    default: 0
+    min: 0
+  checkpoint:
+    type: path
+    optional: true
+    default: null
+    description: Optional local safetensors file/directory; defaults to the verified
+      node weights cache populated by pack setup.
+  batch_size:
+    type: int
+    default: 4
+    min: 1
+runtime:
+  env: birefnet-mask
+  gpu:
+    required: true
+  resources:
+    scratch_gb: 2
+    mem_gb: 8
+    gpu_mem_gb: 16
+requires:
+  python: '>=3.11,<3.12'
+  conda_packages:
+  - conda-forge::ffmpeg
+  packages:
+  - torch==2.8.0+cu128
+  - torchvision==0.23.0+cu128
+  - numpy==1.26.4
+  - Pillow==13.0.0
+  - huggingface-hub==0.36.0
+  - safetensors==0.7.0
+  - transformers==4.38.0
+  - timm==1.0.25
+  - opencv-python-headless==4.11.0.86
+  - tqdm==4.67.1
+  - einops==0.8.2
+  - kornia==0.8.2
+  package_indexes:
+    torch: https://download.pytorch.org/whl/cu128
+    torchvision: https://download.pytorch.org/whl/cu128
+    numpy: https://pypi.org/simple
+exec:
+  shell: python "{{ pack_dir }}/run.py" --video "{{ inputs.video }}" --output "{{
+    outputs.masks }}" --scratch "{{ scratch_dir }}" --max-frames "{{ params.max_frames
+    }}" --skip "{{ params.skip }}" --start-frame "{{ params.start_frame }}" --end-frame
+    "{{ params.end_frame }}" --max-width "{{ params.max_width }}" --checkpoint "{{
+    params.checkpoint or "" }}" --batch-size "{{ params.batch_size }}"
+idempotency:
+  marker: '{{ outputs.masks }}/.hololab-done'
+progress:
+  stdout_regex: \[ITER (\d+)/(\d+)\]
+previews:
+- id: first_mask
+  type: image
+  path: '{{ outputs.masks }}/p_0000000000000000.png'
+setup:
+  script: setup.sh
+  shell: bash
+  modules:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  - transformers
+  - timm
+  - safetensors
+  - huggingface_hub
+  - einops
+  - kornia
