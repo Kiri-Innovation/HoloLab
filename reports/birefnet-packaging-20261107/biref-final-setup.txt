@@ -1,0 +1,18 @@
+birefnet-mask: create or reuse conda environment named birefnet-mask with Python 3.11
+birefnet-mask: installed conda packages: conda-forge::ffmpeg
+birefnet-mask: install torch==2.8.0 (conda-forge, then pip fallback)
+birefnet-mask: install torchvision==0.23.0 (conda-forge, then pip fallback)
+birefnet-mask: install numpy==1.26.4 (conda-forge, then pip fallback)
+birefnet-mask: install Pillow==11.3.0 (conda-forge, then pip fallback)
+birefnet-mask: install huggingface-hub==0.25.1 (conda-forge, then pip fallback)
+birefnet-mask: install safetensors==0.7.0 (conda-forge, then pip fallback)
+birefnet-mask: install transformers==4.38.0 (conda-forge, then pip fallback)
+birefnet-mask: install timm==1.0.25 (conda-forge, then pip fallback)
+birefnet-mask: install opencv-python-headless==4.11.0.86 (conda-forge, then pip fallback)
+birefnet-mask: install tqdm==4.67.1 (conda-forge, then pip fallback)
+birefnet-mask: install einops==0.8.2 (conda-forge, then pip fallback)
+birefnet-mask: install kornia==0.8.2 (conda-forge, then pip fallback)
+community/birefnet-mask@2.2.1: setup hook completed
+backed up config to /root/.hololab/node/config.yaml.setup-20261107T111704Z.bak
+birefnet-mask: added mapping /cloud/cloud-ssd1/conda/envs/birefnet-mask
+Setup complete. Restart hololab/node so the environment mapping and cache take effect.
