@@ -150,7 +150,7 @@ def test_setup_existing_mapping_installs_only_unsatisfied_and_never_rebuilds(
         commands.append(command)
         if command[1:3] == ["list", "--prefix"]:
             package = command[-1]
-            rows = [{"version": "2.0"}] if package == "numpy" else []
+            rows = [{"name": "numpy", "version": "2.0"}] if package == "numpy" else []
             return subprocess.CompletedProcess(command, 0, __import__("json").dumps(rows), "")
         if command[1:3] == ["run", "--prefix"]:
             return subprocess.CompletedProcess(command, 0, "Python 3.15.2\n", "")
@@ -373,3 +373,17 @@ def test_failed_package_check_reinstalls_despite_matching_source_receipt(
     apply_plans(installed_plans(cfg, "community/gpu@1.0.0", False), cfg, config, dry_run=False)
 
     assert any("--force-reinstall" in command for command in commands)
+
+
+def test_installed_version_ignores_regex_neighbors(tmp_path, monkeypatch):
+    import hololab.pack_setup as setup
+    rows = [
+        {"name": "libopenvino-pytorch-frontend", "version": "2024.4.0"},
+        {"name": "libtorch", "version": "2.5.1"},
+        {"name": "pytorch", "version": "2.5.1"},
+        {"name": "torch", "version": "2.8.0+cu128"},
+        {"name": "torchvision", "version": "0.23.0"},
+    ]
+    monkeypatch.setattr(setup, "_run", lambda command: subprocess.CompletedProcess(command, 0, json.dumps(rows), ""))
+    assert str(setup._installed_version("conda", tmp_path, "torch")) == "2.8.0+cu128"
+    assert setup._installed_version("conda", tmp_path, "tor") is None

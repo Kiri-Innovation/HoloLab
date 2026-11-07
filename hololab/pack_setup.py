@@ -286,8 +286,12 @@ def _installed_version(conda: str, prefix: Path, package: str) -> Version | None
         return None
     try:
         rows = json.loads(result.stdout)
-        if rows:
-            return Version(rows[0]["version"])
+        # conda's package argument is a regex: torch also returns libtorch,
+        # pytorch and torchvision. Only the exact distribution satisfies it.
+        normalized = re.sub(r"[-_.]+", "-", package).lower()
+        for row in rows:
+            if re.sub(r"[-_.]+", "-", row["name"]).lower() == normalized:
+                return Version(row["version"])
     except (json.JSONDecodeError, KeyError, ValueError):
         return None
     return None
