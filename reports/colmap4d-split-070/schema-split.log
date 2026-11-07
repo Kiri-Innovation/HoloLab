@@ -1,2 +1,0 @@
-col4d/colmap4d-split 0.1.0 6fe421b7cf1e36d0df056d3b1419437524c1e619b6a974dfde1e444b899e3d41 inputs ['model'] outputs ['4d_cams', '4d_points', '4d_images']
-k4d/megasam-track 0.7.0 fa74984fe3350bca7522b100066a5c9d2dc67ee1526c9ea0718ae39ffba2d54e inputs ['frames'] outputs ['model']

@@ -1,6 +1,0 @@
-   视频: input.mp4 · fps=2.00 · 总帧=2
-   上限: 50 帧
-抽帧:   0%|          | 0/2 [00:00<?, ?it/s]抽帧: 100%|██████████| 2/2 [00:00<00:00, 12052.60it/s]
-[ITER 1/2] BiRefNet
-[ITER 2/2] BiRefNet
-{"video": "/tmp/biref-final-acceptance/input.mp4", "input_kind": "video", "input": "/tmp/biref-final-acceptance/input.mp4", "model": "BiRefNet", "checkpoint": "/root/.hololab/node/weights/birefnet/model.safetensors", "weights_source": "ZhengPeng7/BiRefNet", "weights_revision": "e2bf8e4460fc8fa32bba5ea4d94b3233d367b0e4", "batch_size": 1, "count": 2, "size": [320, 240], "mode": "L", "value_range": [0, 255], "soft_alpha": true, "coverage_advisory_frames": [], "extractor_sha256": "25dbf524d88d7cd2a30d042e3f589704d41a6d4893ecce03bb564dabe83b43c1", "selection": {"max_frames": 50, "skip": 1, "start_frame": 0, "end_frame": 0, "max_width": 0}, "scratch_frame_bytes": 21060, "peak_gpu_allocated_gb": 1.5791616439819336, "elapsed_seconds": 3.162978912998369}

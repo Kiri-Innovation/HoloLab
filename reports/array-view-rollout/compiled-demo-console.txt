@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "/cloud/cloud-ssd1/Kiri4DGS/hololab/reports/array-view-rollout/compiled_demo.py", line 34, in <module>
-    log_path=report/f'demo-{nid}.txt'
-
-AttributeError: 'RenderedManifest' object has no attribute 'args'

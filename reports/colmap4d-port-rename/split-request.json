@@ -1,9 +1,0 @@
-{
-  "algorithm_name": "col4d/colmap4d-split",
-  "algorithm_version": "0.1.0",
-  "params": {},
-  "input_handles": {
-    "colmap4d": "06f1d4e3-091c-4393-95a4-d6ba3b4ab47b"
-  },
-  "workflow_id": "9967b1f8-3646-41f5-a269-394b6d392169"
-}

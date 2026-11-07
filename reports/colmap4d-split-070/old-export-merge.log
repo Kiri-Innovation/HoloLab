@@ -1,8 +1,0 @@
-[ITER 0/5] fast array validation
-[strict] reading cameras
-[ITER 1/5] array readers: IDs/geometry (no Point3D or observation objects)
-[ITER 2/5] validate coverage/tracks: 41990400 points, 81 images, track width 1
-[ITER 3/5] pixel bijection, resolution and full image decoding
-[ITER 4/5] byte-preserving binary and image copy (independent files, no hardlinks)
-[ITER 5/5] done in 12.694s; validation=exhaustive-single-track
-{"images": 81, "points": 41990400, "validation": "exhaustive-single-track", "strict_validate": false, "fallback": null, "seconds": 12.693513598998834, "max_rss_kib": 4455012}

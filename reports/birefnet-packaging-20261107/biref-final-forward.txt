@@ -1,6 +1,0 @@
-{"python": "/cloud/cloud-ssd1/conda/envs/birefnet-mask/bin/python", "torch": "2.8.0+cu128", "torchvision": "0.23.0+cu128", "transformers": "4.38.0", "cuda": true, "weights": "/root/.hololab/node/weights/birefnet/model.safetensors", "sha256": "9ab37426bf4de0567af6b5d21b16151357149139362e6e8992021b8ce356a154"}
-[ITER 1/2] BiRefNet
-[ITER 2/2] BiRefNet
-{"video": null, "input_kind": "array", "input": "/tmp/biref-final-acceptance/frames", "model": "BiRefNet", "checkpoint": "/root/.hololab/node/weights/birefnet/model.safetensors", "weights_source": "ZhengPeng7/BiRefNet", "weights_revision": "e2bf8e4460fc8fa32bba5ea4d94b3233d367b0e4", "batch_size": 1, "count": 2, "size": [320, 240], "mode": "L", "value_range": [0, 255], "soft_alpha": true, "coverage_advisory_frames": [], "extractor_sha256": null, "selection": {"max_frames": 50, "skip": 1, "start_frame": 0, "end_frame": 0, "max_width": 0}, "scratch_frame_bytes": 0, "peak_gpu_allocated_gb": 1.5791616439819336, "elapsed_seconds": 3.058117708998907}
-MASK_FORWARD_OK
-No broken requirements found.

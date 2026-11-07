@@ -1,8 +1,0 @@
-test_frame_timing_precedence_and_failures (test_megasam_ports_040.PortsAndFrames.test_frame_timing_precedence_and_failures) ... ok
-test_manifest_union_and_names (test_megasam_ports_040.PortsAndFrames.test_manifest_union_and_names) ... ok
-test_path_preparation_optional_exposure_and_hard_dependencies (test_megasam_ports_040.PortsAndFrames.test_path_preparation_optional_exposure_and_hard_dependencies) ... ok
-
-----------------------------------------------------------------------
-Ran 3 tests in 0.085s
-
-OK

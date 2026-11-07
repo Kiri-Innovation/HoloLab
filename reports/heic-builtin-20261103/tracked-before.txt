@@ -1,8 +1,0 @@
-community_packs/images-array-source@0.1.0/README.md
-community_packs/images-array-source@0.1.0/manifest.yaml
-community_packs/images-array-source@0.1.0/requirements.txt
-community_packs/images-array-source@0.1.0/run.py
-community_packs/images-array-source@0.1.1/README.md
-community_packs/images-array-source@0.1.1/manifest.yaml
-community_packs/images-array-source@0.1.1/requirements.txt
-community_packs/images-array-source@0.1.1/run.py
