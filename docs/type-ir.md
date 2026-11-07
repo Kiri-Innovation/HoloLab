@@ -215,9 +215,10 @@ row remains unknown.
 Snapshot Pack declarations still come from the catalog for the recorded algorithm
 version; do not assume every historical input declaration is frozen separately.
 The saved `arrayed_toggle` is forwarded to card and tooltip context, while the
-Pack's `arrayable` capability comes from its catalog entry. `parallelism` and
-`batch_size` are execution settings, not visual array-depth rules. Preview data
-comes from snapshot jobs and handles, not current draft staleness.
+Pack's `arrayable` capability comes from its catalog entry. `parallelism` is an
+execution setting, not a visual array-depth rule. Canvas `batch_size` has been
+removed and is accepted only as legacy input. Preview data comes from snapshot
+jobs and handles, not current draft staleness.
 
 ## Legacy data policy
 

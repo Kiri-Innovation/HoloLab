@@ -370,22 +370,22 @@ positive width and height. Pixel data is not decoded, so the framework trusts th
 pack's output beyond that: a truncated or corrupted pixel body passes the check
 and surfaces in the algorithm that reads it.
 
-Top-level manifest `parallelism` and `batch_size` are optional positive integers
-(`>= 1`), recommending defaults for newly created nodes. Omitted or `null` means
-no recommendation: the framework default remains **1** for each field. Canvas
-drops and creation-menu choices copy these values into the workflow node at
-creation time. The workflow stores explicit numbers, never empty values; later
-user edits and existing workflow values take precedence. This is **not a runtime
-fallback** and does not change `arrayed_toggle` or impose runtime constraints.
+Top-level manifest `parallelism` is an optional positive integer (`>= 1`)
+recommending the default for newly created nodes. Omitted or `null` leaves the
+framework default at **1**. The canvas copies it at creation; existing workflow
+values and user edits take precedence. It is not a runtime constraint and does
+not enable `arrayed_toggle`. API clients must copy the recommendation themselves.
+Changing it changes the pack's code identity and requires a new pack version.
 
-Both fields participate in code identity hashing (they are not release metadata).
-**Changing a recommendation requires a new pack version.** A changed manifest
-cannot replay an old snapshot with its previous code identity; retain the original
-pack content to reproduce that snapshot.
-
-API clients creating workflows must copy catalog recommendations themselves if
-desired. The backend graph model fills omitted fields with **1**; workflow upsert,
-recipe import and ad-hoc dispatch do not apply catalog recommendations.
+Canvas `batch_size` has been removed: every outer element gets its own shard.
+Old workflow fields are accepted, normalized to 1 (with a warning for values >1),
+and omitted from subsequent serialization. Old manifest recommendations are
+still parsed unchanged to preserve existing pack identities, but are ignored.
+Algorithm parameters such as `params.batch_size` remain fully supported.
+Batching only reduced framework overhead; it did not share algorithm processes,
+models or CUDA contexts and made scheduling/failure granularity coarser.
+Legacy batched job records and wire assignments remain readable for compatibility;
+new runs never create them.
 
 Shard mechanics:
 
@@ -401,8 +401,7 @@ Shard mechanics:
   Aggregation is automatic: after all shards finish, the framework registers
   one parent output handle per port pointing at `{parent_workspace}/{port}/`.
   Completion order never changes list order. Retrying the same position writes
-  the same output slot. `batch_size` groups consecutive positions for dispatch
-  without changing input correspondence or output ordering.
+  the same output slot. Every position is dispatched independently.
 - `parallelism` bounds concurrent shard dispatch. Shard jobs are created up
   front; one failure does not short-circuit the pool. The parent is marked
   failed after all shards reach terminal states; downstream nodes are not

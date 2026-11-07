@@ -129,16 +129,12 @@ describe("computeStaleness — inflight_old_params", () => {
     expect(computeStaleness(draft, null, runtimes, []).n).toBeNull();
   });
 
-  it("batch_size drift on done node → self_dirty with 批处理大小 reason", () => {
-    // Mirrors the parallelism drift branch. batch_size is structural
-    // (changes the shard-count math) so a draft/snapshot mismatch must
-    // surface as a self_dirty reason.
+  it("ignores removed batch_size when comparing draft and snapshot", () => {
     const draft = mkGraph([mkNode({ id: "n", batch_size: 4 })]);
     const snap = mkGraph([mkNode({ id: "n", batch_size: 1 })]);
     const runtimes: Record<string, NodeRuntime> = { n: { state: "done" } };
     const s = computeStaleness(draft, snap, runtimes, []).n;
-    expect(s?.kind).toBe("self_dirty");
-    expect(s?.title).toContain("批处理大小");
+    expect(s).toBeNull();
   });
 
   it("done node with drift → self_dirty (unchanged behaviour, not the new chip)", () => {

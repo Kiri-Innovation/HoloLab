@@ -111,17 +111,7 @@ export function diffGraphs(
       });
     }
 
-    // batch_size — structural (elements per shard subprocess). Missing
-    // treated as 1 (pre-batching no-op).
     if (JSON.stringify(dn.assembly ?? null) !== JSON.stringify(sn.assembly ?? null)) items.push({description: `节点 ${label} 组装槽位、顺序或轴名已改`});
-    const dBatch = Math.max(1, Number(dn.batch_size ?? 1));
-    const sBatch = Math.max(1, Number(sn.batch_size ?? 1));
-    if (dBatch !== sBatch) {
-      items.push({
-        description: `节点 ${label} 批处理大小: ${sBatch} → ${dBatch}`,
-      });
-    }
-
     // Compare supplied effective values; missing historical fields stay missing.
     const dp = dn.params ?? {};
     const sp = sn.params ?? {};

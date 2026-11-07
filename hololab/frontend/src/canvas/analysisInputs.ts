@@ -18,7 +18,7 @@ export function semanticGraph(graph: WorkflowGraph | null) {
     nodes: nodes.map(n => ({id:n.id, kind:n.kind, operation:n.operation, assembly:n.assembly,
       algorithm_name:canonicalPackageName(n.algorithm_name ?? ''), algorithm_version:n.algorithm_version,
       local_params:n.local_params, param_bindings:n.param_bindings, params:n.params, port_values:n.port_values, assigned_node_id:n.assigned_node_id,
-      arrayed_toggle:n.arrayed_toggle, parallelism:n.parallelism, batch_size:n.batch_size,
+      arrayed_toggle:n.arrayed_toggle, parallelism:n.parallelism,
     })).sort((a,b) => a.id.localeCompare(b.id)),
     edges: graph.edges.filter(e => ids.has(e.source) && ids.has(e.target)).map(e => ({
       source:e.source, sourceHandle:e.sourceHandle, target:e.target, targetHandle:e.targetHandle,

@@ -189,7 +189,17 @@ class OutputPreview(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    viewer: Literal["colmap4d", "splatv", "ftgsply", "ply-3dgs", "lagsplat", "video", "image", "text", "video-grid"]
+    viewer: Literal[
+        "colmap4d",
+        "splatv",
+        "ftgsply",
+        "ply-3dgs",
+        "lagsplat",
+        "video",
+        "image",
+        "text",
+        "video-grid",
+    ]
     member: str | None = None
 
 
@@ -381,9 +391,13 @@ class ParamSpec(BaseModel):
             return
         valid = type(value) is int if self.type is ParamType.INT else type(value) in (int, float)
         if not valid:
-            raise ValueError(f"parameter {name!r}: expected a finite {self.type.value} value, got {value!r}")
+            raise ValueError(
+                f"parameter {name!r}: expected a finite {self.type.value} value, got {value!r}"
+            )
         if isinstance(value, float) and not math.isfinite(value):
-            raise ValueError(f"parameter {name!r}: expected a finite {self.type.value} value, got {value!r}")
+            raise ValueError(
+                f"parameter {name!r}: expected a finite {self.type.value} value, got {value!r}"
+            )
         if self.min is not None and value < self.min:
             raise ValueError(f"parameter {name!r}: must be >= {self.min}, got {value!r}")
         if self.max is not None and value > self.max:
@@ -701,6 +715,7 @@ class Manifest(BaseModel):
     # Recommended defaults copied into a workflow node at creation time,
     # not runtime constraints. None leaves the framework default of 1.
     parallelism: int | None = Field(default=None, ge=1)
+    # Deprecated: parse unchanged for old pack identities; never apply as a default.
     batch_size: int | None = Field(default=None, ge=1)
 
     type_capabilities: dict[str, TypeCapability] = Field(default_factory=dict)
@@ -709,7 +724,13 @@ class Manifest(BaseModel):
     @classmethod
     def _reject_misplaced_array_hooks(cls, value):
         if isinstance(value, dict):
-            bad = {"array_views", "array_view", "to_array", "from_array", "array_ops"} & value.keys()
+            bad = {
+                "array_views",
+                "array_view",
+                "to_array",
+                "from_array",
+                "array_ops",
+            } & value.keys()
             if bad:
                 raise ValueError("array hooks must be declared under type_capabilities")
         return value

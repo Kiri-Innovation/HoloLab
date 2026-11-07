@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from hololab.gateway.port_type_ir import PortTypes
 from hololab.gateway.type_observation import InternalCountItem, RuntimeObservation
@@ -256,7 +256,8 @@ class CatalogPackEntry(BaseModel):
     batch_size: int | None = Field(
         default=None,
         ge=1,
-        description="Recommended batch size copied at node creation; not a runtime constraint.",
+        exclude=True,
+        description="Deprecated compatibility field; canvas batching has been removed.",
     )
 
 
@@ -604,10 +605,14 @@ class GraphNodeOut(BaseModel):
     # fan-out. Default 1 = serial (pre-pool behavior). See GraphNode in
     # gateway/workflows.py for the full semantics.
     parallelism: int = Field(default=1, ge=1)
-    # Structural — batched shards (Candidate A). N elements per subprocess.
-    # Default 1 = one element per subprocess (pre-batching, no-op). See
-    # ``GraphNode.batch_size`` in workflows.py for the invariant.
-    batch_size: int = Field(default=1, ge=1)
+    # Legacy input accepted but never emitted. GraphNode normalizes it to 1.
+    batch_size: int = Field(default=1, ge=1, exclude=True)
+
+    @field_validator("batch_size")
+    @classmethod
+    def ignore_legacy_batch_size(cls, value: int) -> int:
+        return 1
+
     # Cosmetic — persisted with the workflow graph so the frontend can
     # hydrate its preview-drawer state without a separate round-trip.
     # See docs/workflow-schema.md for the cosmetic/structural boundary.

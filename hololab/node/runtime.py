@@ -2090,7 +2090,8 @@ class NodeRuntime:
     ) -> None:
         """Full job path: resolve pack, render manifest, spawn subprocess, report.
 
-        Batched shards (Candidate A, ``assign.shard_element_ids`` non-empty
+        Legacy wire compatibility only (new runs never batch elements).
+        Batched shards (``assign.shard_element_ids`` non-empty
         with length > 1): render the pack's ``exec.shell`` once per
         element in the batch, chain them with ``set -euo pipefail`` in
         one bash wrapper, run as a single subprocess. First failing

@@ -1,23 +1,4 @@
-"""Candidate A (batched shards): ``GraphNode.batch_size > 1`` coalesces
-elements into fewer shard jobs without changing the pack contract.
-
-Semantics covered:
-
-  1. **``batch_size=1``** — one shard per position; ``shard_element_ids``
-     stays NULL and ``shard_element_id`` carries the encoded position.
-  2. **``batch_size=B`` groups elements into ``ceil(N / B)`` shards**,
-     each carrying its full ``shard_element_ids`` list in the DB.
-     Sub-handle count (one per (element, arrayed_port)) is invariant
-     — only the SHARD row count drops.
-  3. **``JobAssign`` fields** — batched shards carry
-     ``shard_element_ids`` + ``shard_input_paths`` (index-aligned);
-     ``input_paths`` is empty (per-element paths supersede the scalar
-     shortcut). Non-batched shards carry the scalar C1 form.
-  4. **Batched shell wrapper** — the node runtime concatenates every
-     element's rendered shell with ``set -euo pipefail`` so the first
-     element to fail aborts the whole batch, matching the user's
-     "arrayed job is an integral unit" cancel/deploy semantics.
-"""
+"""Legacy canvas batch_size is accepted but fan-out always uses one element per job."""
 
 from __future__ import annotations
 
@@ -115,317 +96,66 @@ def _graph_node(batch_size: int = 1) -> GraphNode:
     )
 
 
-# ---------------------------------------------------------------------------
-# 1) batch_size=1 produces one shard per position
-# ---------------------------------------------------------------------------
-
-
+@pytest.mark.parametrize("legacy_size", [1, 2, 4, 100])
 @pytest.mark.asyncio
-async def test_batch_size_1_produces_one_shard_per_element(tmp_path: Path) -> None:
-    """batch_size=1 uses one shard row per position,
-    ``shard_element_ids`` NULL, list-form
-    fields on the returned tuple are all length-1.
-    """
-
-    element_ids = ["e0", "e1", "e2", "e3"]
-    store, book, parent = await _seeded_book_with_parent(tmp_path, element_ids)
+async def test_legacy_batch_size_never_coalesces_80_elements(tmp_path, legacy_size):
+    elements = [f"camera-{i}" for i in range(80)]
+    store, book, parent = await _seeded_book_with_parent(tmp_path, elements)
+    node = _graph_node(batch_size=legacy_size)
     shards = await _prepare_shard_rows(
         store=store,
         handles=book,
-        plan=_plan(parent, element_ids),
+        plan=_plan(parent, elements),
         snapshot_id="snap",
         workflow_id="wf",
-        gnode=_graph_node(batch_size=1),
+        gnode=node,
     )
-    assert len(shards) == 4
-    for _idx, batch_eids, shard, batch_paths in shards:
-        assert len(batch_eids) == 1
-        assert len(batch_paths) == 1
-        fetched = await store.get(shard.job_id)
-        assert fetched is not None
-        # Single-position rows use the scalar encoding.
-        assert fetched.shard_element_ids is None
-        assert fetched.shard_element_id == batch_eids[0]
+    assert node.batch_size == 1
+    assert "batch_size" not in node.model_dump()
+    assert len(shards) == 80
+    assert len({shard.job_id for _, _, shard, _ in shards}) == 80
+    for i, (_, ids, shard, paths) in enumerate(shards):
+        assert ids == [encode_position(i)]
+        assert len(paths) == 1
+        assert paths[0]["frames"].endswith(f"/camera-{i}")
+        persisted = await store.get(shard.job_id)
+        assert persisted.parent_job_id == "parent-1"
+        assert persisted.shard_element_id == encode_position(i)
+        assert persisted.shard_element_ids is None
 
 
-# ---------------------------------------------------------------------------
-# 2) batch_size=B groups elements
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_batch_size_3_coalesces_10_elements_into_4_shards(tmp_path: Path) -> None:
-    """10 elements with B=3 → 4 shard jobs (3 + 3 + 3 + 1). Every shard
-    row's ``shard_element_ids`` list is exactly the batch it covers;
-    the scalar ``shard_element_id`` is the first element.
-    """
-
-    element_ids = [f"e{i}" for i in range(10)]
-    store, book, parent = await _seeded_book_with_parent(tmp_path, element_ids)
-    shards = await _prepare_shard_rows(
-        store=store,
-        handles=book,
-        plan=_plan(parent, element_ids),
-        snapshot_id="snap",
-        workflow_id="wf",
-        gnode=_graph_node(batch_size=3),
-    )
-    assert len(shards) == 4
-    expected_batches = [
-        [encode_position(i) for i in range(3)],
-        [encode_position(i) for i in range(3, 6)],
-        [encode_position(i) for i in range(6, 9)],
-        [encode_position(9)],
-    ]
-    for (_idx, batch_eids, shard, batch_paths), expected in zip(
-        shards, expected_batches, strict=True
-    ):
-        assert batch_eids == expected
-        assert len(batch_paths) == len(expected)
-        fetched = await store.get(shard.job_id)
-        assert fetched is not None
-        assert fetched.shard_element_id == expected[0]
-        # Batched rows (len > 1) carry the full list. The trailing
-        # single-element batch keeps the scalar-only shape so it
-        # round-trips through the DB with the same layout as a
-        # batch_size=1 shard.
-        if len(expected) > 1:
-            assert fetched.shard_element_ids == expected
-        else:
-            assert fetched.shard_element_ids is None
-
-
-@pytest.mark.asyncio
-async def test_batch_size_larger_than_element_count(tmp_path: Path) -> None:
-    """Guard: B >> N produces one shard covering every element (no
-    empty tail batch, no crash). ``shard_element_ids`` populated
-    because the single batch has len > 1.
-    """
-
-    element_ids = ["e0", "e1", "e2"]
-    store, book, parent = await _seeded_book_with_parent(tmp_path, element_ids)
-    shards = await _prepare_shard_rows(
-        store=store,
-        handles=book,
-        plan=_plan(parent, element_ids),
-        snapshot_id="snap",
-        workflow_id="wf",
-        gnode=_graph_node(batch_size=100),
-    )
-    assert len(shards) == 1
-    _idx, batch_eids, shard, batch_paths = shards[0]
-    assert batch_eids == [encode_position(i) for i in range(3)]
-    assert len(batch_paths) == 3
-    fetched = await store.get(shard.job_id)
-    assert fetched is not None
-    assert fetched.shard_element_ids == [encode_position(i) for i in range(3)]
-
-
-# ---------------------------------------------------------------------------
-# 3) Sub-handle count is invariant to batching
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_subhandle_count_unchanged_by_batching(tmp_path: Path) -> None:
-    """Batching only merges SHARD rows; the per-(element, arrayed_port)
-    sub-handle count stays the same. 6 elements x 1 arrayed port = 6
-    sub-handles, whether we ship 6 shard rows (B=1) or 2 shard rows
-    (B=3).
-    """
-
-    element_ids = [f"e{i}" for i in range(6)]
-    store, book, parent = await _seeded_book_with_parent(tmp_path, element_ids)
-    shards_b1 = await _prepare_shard_rows(
-        store=store,
-        handles=book,
-        plan=_plan(parent, element_ids),
-        snapshot_id="snap-b1",
-        workflow_id="wf",
-        gnode=_graph_node(batch_size=1),
-    )
-    subhandles_b1_paths = [
-        p
-        for _idx, _eids, _shard, batch_paths in shards_b1
-        for path_dict in batch_paths
-        for p in path_dict.values()
-    ]
-
-    # Fresh state for the second run so sub-handle registration doesn't
-    # collide across the two _prepare_shard_rows calls.
-    store2, book2, parent2 = await _seeded_book_with_parent(tmp_path / "again", element_ids)
-    shards_b3 = await _prepare_shard_rows(
-        store=store2,
-        handles=book2,
-        plan=_plan(parent2, element_ids),
-        snapshot_id="snap-b3",
-        workflow_id="wf",
-        gnode=_graph_node(batch_size=3),
-    )
-    subhandles_b3_paths = [
-        p
-        for _idx, _eids, _shard, batch_paths in shards_b3
-        for path_dict in batch_paths
-        for p in path_dict.values()
-    ]
-
-    # Same total count (6), same set of underlying element leaves (the
-    # ``basename`` — the parent path prefixes differ because the second
-    # call runs in a fresh tmp subdir, but the leaf names must match).
-    assert len(subhandles_b1_paths) == 6
-    assert len(subhandles_b3_paths) == 6
-    assert sorted(Path(p).name for p in subhandles_b1_paths) == sorted(
-        Path(p).name for p in subhandles_b3_paths
-    )
-    # Shard row count changed (6 → 2).
-    assert len(shards_b1) == 6
-    assert len(shards_b3) == 2
-
-
-# ---------------------------------------------------------------------------
-# 4) JobAssign fields on the wire
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_batched_shard_carries_element_ids_and_paths_on_wire(tmp_path: Path) -> None:
-    """End-to-end coverage of the wire: patch ``_dispatch_prepared_shard``
-    to capture the built ``JobAssign`` payload and verify the batched
-    fields are populated (or empty at B=1) exactly as the node runtime
-    expects.
-    """
-
-    from hololab.gateway.execution import _dispatch_prepared_shard
-
-    async def _capture(**kwargs) -> None:
-        _capture.calls.append(kwargs)  # type: ignore[attr-defined]
-
-    _capture.calls = []  # type: ignore[attr-defined]
-
-    # Batched B=3 (4 elements → 2 shards, [e0,e1,e2] and [e3]).
-    element_ids = ["e0", "e1", "e2", "e3"]
-    store, book, parent = await _seeded_book_with_parent(tmp_path, element_ids)
-    shards = await _prepare_shard_rows(
-        store=store,
-        handles=book,
-        plan=_plan(parent, element_ids),
-        snapshot_id="snap",
-        workflow_id="wf",
-        gnode=_graph_node(batch_size=3),
-    )
-
-    # Directly invoke ``_dispatch_prepared_shard`` via a monkeypatched
-    # stub so we can inspect the assembled JobAssign without actually
-    # standing up a NodeSession / WebSocket.
-    from unittest.mock import AsyncMock, MagicMock
-
-    captured: list = []
-
-    class _FakeSession:
-        from hololab.protocol.messages import PackInventoryEntry
-
-        packs = (PackInventoryEntry(name="pack", version="0.1.0", manifest_hash="test"),)
-        node_id = "node-a"
-        protocol_v = 1
-        send_lock = MagicMock()
-        send_lock.__aenter__ = AsyncMock()
-        send_lock.__aexit__ = AsyncMock()
-
-        class _WS:
-            send_text = AsyncMock(side_effect=lambda frame: captured.append(frame))
-
-        ws = _WS()
-
-    class _FakeRegistry:
-        def get_session(self, _node_id: str):
-            return _FakeSession()
-
-    class _FakeHub:
-        def broadcast(self, _frame) -> None:
-            pass
-
-    for _idx, batch_eids, shard, batch_paths in shards:
-        # Reload shard row so PENDING invariant holds.
-        fresh = await store.get(shard.job_id)
-        assert fresh is not None
-        # Match the ``_run_one`` call convention: single-element batches
-        # keep the scalar C1 shortcut populated so the node can skip a
-        # per-shard handle_locate for that lone element.
-        await _dispatch_prepared_shard(
-            registry=_FakeRegistry(),  # type: ignore[arg-type]
-            store=store,
-            hub=_FakeHub(),  # type: ignore[arg-type]
-            gnode=_graph_node(batch_size=3),
-            shard=fresh,
-            shard_element_id=batch_eids[0],
-            shard_output_prefix="/tmp/ws/parent-1",
-            shard_input_paths=batch_paths[0] if len(batch_eids) == 1 else {},
-            batch_element_ids=batch_eids,
-            batch_input_paths=batch_paths,
-        )
-
+def test_legacy_workflow_load_warns_and_preserves_algorithm_batch_size(monkeypatch):
     import json
+    from unittest.mock import Mock
 
-    frames = [json.loads(f) for f in captured]
-    assert len(frames) == 2
+    from hololab.gateway import workflows
+    from hololab.gateway.models import GraphNodeOut
 
-    # First shard: batch [e0, e1, e2]. Wire carries shard_element_ids +
-    # per-element shard_input_paths. Legacy scalar input_paths is empty
-    # under batching (per-element paths supersede it).
-    p0 = frames[0]["payload"]
-    assert p0["shard_element_id"] == encode_position(0)
-    assert p0["shard_element_ids"] == [encode_position(i) for i in range(3)]
-    assert len(p0["shard_input_paths"]) == 3
-    assert p0["input_paths"] == {}
-    # Each per-element path map carries the arrayed port only.
-    for i, eid in enumerate(["e0", "e1", "e2"]):
-        assert "frames" in p0["shard_input_paths"][i]
-        assert p0["shard_input_paths"][i]["frames"].endswith(f"/{eid}")
-
-    # Second shard: single-element batch [e3]. Batched wire is empty,
-    # falls back to scalar shard_element_id + scalar input_paths — the
-    # pre-batching C1 shape.
-    p1 = frames[1]["payload"]
-    assert p1["shard_element_id"] == encode_position(3)
-    assert p1["shard_element_ids"] == []
-    assert p1["shard_input_paths"] == []
-    assert "frames" in p1["input_paths"]
-    assert p1["input_paths"]["frames"].endswith("/e3")
-
-
-# ---------------------------------------------------------------------------
-# 5) Batched shell has ``set -euo pipefail`` so first fail aborts
-# ---------------------------------------------------------------------------
-
-
-def test_batched_shell_wraps_with_pipefail() -> None:
-    """The batched wrapper prepends ``set -euo pipefail`` so bash
-    aborts the whole subprocess on the first non-zero exit. Assert
-    on the string composed by the node runtime.
-
-    Uses the same string template the runtime does (see
-    ``hololab/node/runtime.py`` — the wrapper prepends the header
-    and joins per-element rendered shells with a comment header).
-    """
-
-    per_elem_shells = [
-        "echo elem-a\n",
-        "false\n",
-        "echo elem-c\n",
-    ]
-    batch_eids = ["a", "b", "c"]
-    wrapped_shells = [
-        f"# element {i + 1}/{len(per_elem_shells)}: {eid}\n{shell}"
-        for i, (shell, eid) in enumerate(zip(per_elem_shells, batch_eids, strict=True))
-    ]
-    final = "set -euo pipefail\n" + "\n".join(wrapped_shells)
-
-    # Header + per-element comments + shells all present, in order.
-    assert final.startswith("set -euo pipefail\n")
-    assert "# element 1/3: a" in final
-    assert "# element 2/3: b" in final
-    assert "# element 3/3: c" in final
-    # The ``false`` element sits ahead of ``echo elem-c`` and, under
-    # ``set -e``, ``elem-c`` will not execute — this is the guaranteed
-    # "arrayed job is an integral unit" behaviour under bash.
-    assert final.index("false") < final.index("elem-c")
+    warning = Mock()
+    monkeypatch.setattr(workflows.log, "warning", warning)
+    graph = workflows.graph_from_json(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "id": "legacy",
+                        "algorithm_name": "community/birefnet-mask",
+                        "algorithm_version": "2.2.3",
+                        "batch_size": 4,
+                        "parallelism": 2,
+                        "params": {"batch_size": 4},
+                    }
+                ],
+                "edges": [],
+            }
+        )
+    )
+    assert graph.nodes[0].batch_size == 1
+    warning.assert_called_once()
+    assert warning.call_args.kwargs["batch_size"] == 4
+    saved = json.loads(workflows.graph_to_json(graph))
+    assert "batch_size" not in saved["nodes"][0]
+    assert saved["nodes"][0]["params"]["batch_size"] == 4
+    assert saved["nodes"][0]["parallelism"] == 2
+    response = GraphNodeOut.model_validate(graph.nodes[0].model_dump()).model_dump()
+    assert "batch_size" not in response

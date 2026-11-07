@@ -1954,7 +1954,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           assembly: pack.name === ASSEMBLE ? newAssembly() : undefined,
           assigned_node_id: pack.node_ids[0] ?? null, // default to the first eligible
           params: initialParameters(pack),
-          ...({ arrayed_toggle: false, parallelism: pack.parallelism ?? 1, batch_size: pack.batch_size ?? 1 } as object),
+          ...({ arrayed_toggle: false, parallelism: pack.parallelism ?? 1 } as object),
         },
       };
       setNodes((ns) => ns.concat(node));
@@ -2331,9 +2331,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                   ...(patch.parallelism !== undefined
                     ? { parallelism: patch.parallelism }
                     : {}),
-                  ...(patch.batch_size !== undefined
-                    ? { batch_size: patch.batch_size }
-                    : {}),
                 },
               }
             : n,
@@ -2374,7 +2371,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           params?: Record<string, unknown>;
           arrayed_toggle?: boolean;
           parallelism?: number;
-          batch_size?: number;
         };
         return {
           id: n.id,
@@ -2390,8 +2386,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           arrayed_toggle: Boolean(d.arrayed_toggle),
           // Structural — bounded parallel shard dispatch (default 1).
           parallelism: Math.max(1, Number(d.parallelism ?? 1)),
-          // Structural — batched shards; default 1 = pre-batching no-op.
-          batch_size: Math.max(1, Number(d.batch_size ?? 1)),
           // Cosmetic — persisted with the workflow so it survives
           // refresh + cross-device browsing (the whole point of the
           // "not localStorage" decision).
@@ -2503,7 +2497,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               ...({ local_params: gn.local_params, param_bindings: gn.param_bindings, params: gn.params, port_values: found ? reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) : gn.port_values } as object),
               ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
               ...({ parallelism: gn.parallelism ?? 1 } as object),
-              ...({ batch_size: gn.batch_size ?? 1 } as object),
               runtime: runtimeByGraphNode[gn.id],
               previews: previewsByGraphNode[gn.id],
               nodeViewerFrames: nodeViewerFramesByGraphNode[gn.id],
@@ -3465,16 +3458,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                       parallelism?: number;
                     }
                   ).parallelism ?? 1,
-                ),
-              ),
-              batch_size: Math.max(
-                1,
-                Number(
-                  (
-                  selectedAlgorithmData as AlgorithmNodeData & {
-                      batch_size?: number;
-                    }
-                  ).batch_size ?? 1,
                 ),
               ),
             }

@@ -51,14 +51,18 @@ def test_schema_and_catalog(tmp_path, values):
                 manifest_hash="test",
                 manifest_path=str(path),
                 source_dir=str(tmp_path),
+                locations=[],
             )
         ],
     )
     entry = registry.catalog_json()[0]
     api = CatalogPackEntry.model_validate(entry).model_dump()
-    for field in ("parallelism", "batch_size"):
-        assert getattr(manifest, field) == values.get(field)
-        assert entry[field] == api[field] == values.get(field)
+    assert manifest.parallelism == values.get("parallelism")
+    assert entry["parallelism"] == api["parallelism"] == values.get("parallelism")
+    # Old declarations retain their code identity but no longer recommend batching.
+    assert manifest.batch_size == values.get("batch_size")
+    assert "batch_size" not in entry
+    assert "batch_size" not in api
 
 
 @pytest.mark.parametrize("field", ["parallelism", "batch_size"])
@@ -88,4 +92,4 @@ def test_backend_graph_defaults_and_explicit_values():
     default = GraphNode(**node)
     assert (default.parallelism, default.batch_size) == (1, 1)
     explicit = GraphNode(**node, parallelism=7, batch_size=3)
-    assert (explicit.parallelism, explicit.batch_size) == (7, 3)
+    assert (explicit.parallelism, explicit.batch_size) == (7, 1)

@@ -39,8 +39,8 @@ test.afterAll(async () => {
   if (temporary) await rm(temporary, { recursive: true, force: true });
 });
 
-for (const [suffix, parallelism, batch_size] of [
-  ["recommended", 4, 2], ["omitted", 1, 1], ["null", 1, 1],
+for (const [suffix, parallelism] of [
+  ["recommended", 4], ["omitted", 1], ["null", 1],
 ] as const) {
   test(`palette drop persists ${suffix} recommendations and preserves user edits`, async ({ page, request }) => {
     // All HTTP API requests reach the isolated real gateway; no catalog/save mocks.
@@ -70,9 +70,10 @@ for (const [suffix, parallelism, batch_size] of [
         }));
       }, { x: bounds.x + 300, y: bounds.y + 250 });
       await expect.poll(async () => (await read()).graph.nodes).toEqual([
-        expect.objectContaining({ parallelism, batch_size, arrayed_toggle: false }),
+        expect.objectContaining({ parallelism, arrayed_toggle: false }),
       ]);
       const saved = await read();
+      expect(saved.graph.nodes[0]).not.toHaveProperty("batch_size");
       console.log("API_READBACK " + JSON.stringify({ workflow_id, nodes: saved.graph.nodes.map(
         ({ id, algorithm_name, algorithm_version, parallelism, batch_size, arrayed_toggle }: any) =>
           ({ id, algorithm_name, algorithm_version, parallelism, batch_size, arrayed_toggle }),
@@ -80,13 +81,13 @@ for (const [suffix, parallelism, batch_size] of [
       await page.locator('[data-hololab-node="algorithm"]').click();
       await page.locator("input[data-hl-arrayed-toggle]").check();
       await page.locator("input[data-hl-parallelism]").fill("7");
-      await page.locator("input[data-hl-batch-size]").fill("3");
-      await page.locator("input[data-hl-batch-size]").blur();
-      await expect.poll(async () => (await read()).graph.nodes[0]).toMatchObject({ parallelism: 7, batch_size: 3 });
+      await page.locator("input[data-hl-parallelism]").blur();
+      await expect(page.locator("input[data-hl-batch-size]")).toHaveCount(0);
+      await expect.poll(async () => (await read()).graph.nodes[0]).toMatchObject({ parallelism: 7 });
       await page.reload();
       await page.locator('[data-hololab-node="algorithm"]').click();
       await expect(page.locator("input[data-hl-parallelism]")).toHaveValue("7");
-      await expect(page.locator("input[data-hl-batch-size]")).toHaveValue("3");
+      await expect(page.locator("input[data-hl-batch-size]")).toHaveCount(0);
     } finally {
       await page.goto("about:blank");
       expect((await request.delete(url)).ok()).toBe(true);

@@ -144,7 +144,7 @@ type NodePortTypes = {
 | Snapshot 标签 | 已冻结的生产方解析输出，以及 Snapshot 的 Job Handle。 |
 | 连接反馈 | 结构化的源类型、目标类型和兼容性原因。 |
 
-Snapshot 的 Pack 声明仍然来自目录中所记录的算法版本；不要假定每个历史输入声明都单独冻结保存。已保存的 `arrayed_toggle` 会传给卡片与提示上下文，而 Pack 的 `arrayable` 能力来自其目录条目。`parallelism` 和 `batch_size` 是执行设置，不是显示数组深度的规则。预览数据来自 Snapshot 的 Job 和 Handle，而非当前草稿的过期状态。
+Snapshot 的 Pack 声明仍然来自目录中所记录的算法版本；不要假定每个历史输入声明都单独冻结保存。已保存的 `arrayed_toggle` 会传给卡片与提示上下文，而 Pack 的 `arrayable` 能力来自其目录条目。`parallelism` 是执行设置，不影响显示数组深度；画布 `batch_size` 已移除，旧字段仅用于兼容读取。预览数据来自 Snapshot 的 Job 和 Handle，而非当前草稿的过期状态。
 
 ## 旧数据处理策略
 

@@ -1,18 +1,6 @@
 // Regression for the "Agent 与 UI 能力须对称" invariant.
 //
-// The gateway's ``GraphNode.batch_size`` field is settable via REST but
-// had no NodeInspector control — an operator could only inspect it by
-// tailing SQL. This spec pins the new number input: it renders next to
-// ``parallelism`` when the pack is arrayable and ``arrayed_toggle`` is
-// on, edits mutate the controlled value (proving App-level plumbing
-// wires the patch through toGraph), and the field stays hidden when
-// arrayed_toggle is off (batch_size is only meaningful on fan-outs —
-// mirroring the parallelism gate).
-//
-// Autosave round-trip is not re-asserted here — e2e/network-resilience
-// already exercises that path end-to-end via the same useDraftAutosave
-// hook; duplicating the wait+poll for POST /api/workflows would only
-// add flake without new coverage.
+// Old workflow fields must not restore the removed batching control.
 
 import { test, expect, type Route } from "@playwright/test";
 
@@ -80,6 +68,8 @@ function jsonRoute(body: unknown) {
 }
 
 async function stubCommon(page: import("@playwright/test").Page) {
+  await page.routeWebSocket("**/*", () => {});
+  await page.route(`**/api/workflows/${WORKFLOW_ID}/canvas-state`, jsonRoute({ canvas_jobs: [], staleness: {} }));
   await page.route("**/api/pack-catalog", jsonRoute([pack()]));
   await page.route("**/api/nodes", jsonRoute([
     {
@@ -121,78 +111,23 @@ async function stubCommon(page: import("@playwright/test").Page) {
   });
 }
 
-test.describe("NodeInspector — batch_size", () => {
-  test("arrayed_toggle on → input renders, defaults to persisted value, edits accepted", async ({ page }) => {
-    await stubCommon(page);
-    await page.route(`**/api/workflows/${WORKFLOW_ID}`, jsonRoute({
-      workflow_id: WORKFLOW_ID,
-      name: "batch-size-spec",
-      graph: draftGraph({ arrayed_toggle: true, batch_size: 1 }),
-      created_ts: CREATED_TS,
-      updated_ts: CREATED_TS,
-    }));
-
-    await page.goto(`/w/${WORKFLOW_ID}`);
-
-    // Click the node to select it → NodeInspector renders.
-    const node = page.locator(`[data-hololab-node="algorithm"]`);
-    await expect(node).toHaveCount(1, { timeout: 15_000 });
-    await node.click();
-
-    // Input is present next to parallelism, defaults to the persisted
-    // value (1). The min attribute pins the lower bound to ``ge=1`` from
-    // the backend GraphNode schema.
-    const input = page.locator(`input[data-hl-batch-size]`);
-    await expect(input).toBeVisible();
-    await expect(input).toHaveValue("1");
-    await expect(input).toHaveAttribute("min", "1");
-
-    // Edit → controlled value flips to 4. Only possible if
-    // onChange → onInspectorChange → setNodes(batch_size:4) → the
-    // Inspector re-reads selected.batch_size = 4 → the input re-renders
-    // at 4. Proves the App-level plumbing carries the patch (toGraph
-    // and back).
-    await input.focus();
-    await input.fill("4");
-    await input.blur();
-    await expect(input).toHaveValue("4");
-
-    // Sub-1 input clamps back to 1 (mirrors the backend ge=1 invariant).
-    await input.fill("0");
-    await input.blur();
-    await expect(input).toHaveValue("1");
-
-    // Screenshot for the record — mirrors the parallelism e2e coverage
-    // style so an operator PR reviewer can eyeball the new field.
-    await page.screenshot({
-      path: "test-results/inspector-batch-size-visible.png",
-      fullPage: true,
+test.describe("NodeInspector — removed canvas batching", () => {
+  for (const enabled of [true, false]) {
+    test(`legacy batch_size=4 loads without control, fan-out=${enabled}`, async ({ page }) => {
+      await stubCommon(page);
+      await page.route(`**/api/workflows/${WORKFLOW_ID}`, jsonRoute({
+        workflow_id: WORKFLOW_ID, name: "legacy-batch-size",
+        graph: draftGraph({ arrayed_toggle: enabled, batch_size: 4 }),
+        created_ts: CREATED_TS, updated_ts: CREATED_TS,
+      }));
+      await page.goto(`/w/${WORKFLOW_ID}`);
+      const node = page.locator('[data-hololab-node="algorithm"]');
+      await expect(node).toHaveCount(1);
+      await node.click();
+      await expect(page.locator('input[data-hl-batch-size]')).toHaveCount(0);
+      await expect(page.getByText("批处理大小", { exact: true })).toHaveCount(0);
+      await expect(page.locator('input[data-hl-arrayed-toggle]')).toBeVisible();
+      await expect(page.locator('input[data-hl-parallelism]')).toHaveCount(enabled ? 1 : 0);
     });
-  });
-
-  test("arrayed_toggle off → input absent (parity with parallelism gate)", async ({ page }) => {
-    // batch_size only makes sense on fan-outs; the Inspector must not
-    // dangle a bare number field for scalar nodes. Same gate as
-    // parallelism at NodeInspector.tsx:298.
-    await stubCommon(page);
-    await page.route(`**/api/workflows/${WORKFLOW_ID}`, jsonRoute({
-      workflow_id: WORKFLOW_ID,
-      name: "batch-size-scalar",
-      graph: draftGraph({ arrayed_toggle: false }),
-      created_ts: CREATED_TS,
-      updated_ts: CREATED_TS,
-    }));
-
-    await page.goto(`/w/${WORKFLOW_ID}`);
-
-    const node = page.locator(`[data-hololab-node="algorithm"]`);
-    await expect(node).toHaveCount(1, { timeout: 15_000 });
-    await node.click();
-
-    // Sanity: Fan-out section header exists (the pack is arrayable) but
-    // the batch_size and parallelism fields are gated behind the toggle.
-    await expect(page.locator(`input[data-hl-arrayed-toggle]`)).toBeVisible();
-    await expect(page.locator(`input[data-hl-batch-size]`)).toHaveCount(0);
-    await expect(page.locator(`input[data-hl-parallelism]`)).toHaveCount(0);
-  });
+  }
 });

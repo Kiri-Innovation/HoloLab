@@ -292,8 +292,8 @@ async def test_batches_and_reverse_completion_preserve_output_positions(
 ):
     app, node, plan = await prepared(tmp_path, batch_size=batch_size)
     completions = []
-    # Release whole batches in reverse order without relying on clock timing.
-    leads = list(range(0, 3, batch_size))
+    # Legacy batch_size is ignored; release individual shards in reverse order.
+    leads = list(range(3))
     gates = {lead: asyncio.Event() for lead in leads}
     gates[leads[-1]].set()
 
@@ -326,8 +326,7 @@ async def test_batches_and_reverse_completion_preserve_output_positions(
         "data10.mp4",
         "data2.mp4",
     ]
-    if batch_size == 1:
-        assert completions == [2, 1, 0]
+    assert completions == [2, 1, 0]
 
 
 def test_retry_same_position_reuses_output_slot(tmp_path):

@@ -693,28 +693,16 @@ async def _prepare_shard_rows(
     # ``handle_locate`` round-trip against the gateway. See
     # ``JobAssign.input_paths`` in ``protocol/messages.py``.
     #
-    # Batched shards (Candidate A, ``gnode.batch_size > 1``): coalesce
-    # every ``B`` consecutive elements into one shard row + one
-    # ``JobAssign`` frame. The sub-handle count stays the same (one
-    # per (element, arrayed_port)); only the SHARD row count drops
-    # from N to ``ceil(N / B)``. Each shard carries the full
-    # ``shard_element_ids`` list + a per-element ``shard_input_paths``
-    # list so the node can render the pack shell once per element and
-    # chain them under ``set -euo pipefail`` in a single subprocess.
-    # For a single-element batch, ``shard_element_ids`` stays NULL.
+    # One outer element is always one shard. Legacy GraphNode.batch_size
+    # is accepted on input only and must never change dispatch granularity.
     sub_handles: list[Handle] = []
     shard_rows: list[Job] = []
     shards: list[tuple[int, list[str], Job, list[dict[str, str]]]] = []
     now = time.time()
-    batch_size = max(1, int(getattr(gnode, "batch_size", 1) or 1))
     element_ids = plan.element_ids
 
-    def _batches() -> list[list[str]]:
-        if batch_size <= 1:
-            return [[eid] for eid in element_ids]
-        return [element_ids[i : i + batch_size] for i in range(0, len(element_ids), batch_size)]
-
-    for idx, batch in enumerate(_batches()):
+    for idx, element_id in enumerate(element_ids):
+        batch = [element_id]
         batch_input_paths: list[dict[str, str]] = []
         # Non-arrayed inputs are the same for every element in the batch
         # (scalar upstream). Arrayed inputs differ per element — one
@@ -765,7 +753,7 @@ async def _prepare_shard_rows(
             graph_node_id=gnode.id,
             parent_job_id=plan.parent_job.job_id,
             shard_element_id=batch[0],
-            shard_element_ids=list(batch) if len(batch) > 1 else None,
+            shard_element_ids=None,
             created_ts=now,
             updated_ts=now,
         )
@@ -1030,8 +1018,9 @@ async def _dispatch_prepared_shard(
     per-shard ``handle_locate`` round-trip for those ports. Ports omitted
     from this map fall through to the usual locate path on the node.
 
-    ``batch_element_ids`` + ``batch_input_paths`` (Candidate A): when a
-    shard covers more than one element (``gnode.batch_size > 1``), pass
+    Legacy wire compatibility: ``batch_element_ids`` + ``batch_input_paths``
+    may describe old multi-element assignments. New runs always pass
+    a single element and its input paths. For legacy callers these can hold
     the full ordered list of elements and their per-element input paths.
     Both list lengths must match. The node uses these to render the
     pack's shell once per element and chain them under one bash
@@ -1137,7 +1126,9 @@ async def _mark_parent_failed(
     _, payload = event_from_transition(parent_running, parent_failed)
     await store.update(parent_failed, "transition:failed", payload)
     _push_update(hub, parent_failed)
-    for child in await store.terminalize_pending_children_of_terminal_parents([parent_failed.job_id]):
+    for child in await store.terminalize_pending_children_of_terminal_parents(
+        [parent_failed.job_id]
+    ):
         _push_update(hub, child)
 
 
@@ -1723,10 +1714,7 @@ async def _dispatch_graph_node(
     if existing and retryable and frozen_base:
         old_node = next(n for n in frozen_base.nodes if n.id == graph_node_id)
         new_node = next(n for n in prepared.nodes if n.id == graph_node_id)
-        if (
-            new_node.code_identity is not None
-            and old_node.code_identity != new_node.code_identity
-        ):
+        if new_node.code_identity is not None and old_node.code_identity != new_node.code_identity:
             can_continue = False
             fork_reason = {
                 "kind": "retry_code_identity_changed",
@@ -2064,8 +2052,8 @@ async def _resolve_inputs_from_snapshot(
                 # been dispatched in this snapshot.
                 raise DispatchError(
                     f"上游节点 {source_gnode!r} 没有可用于本次运行的产物。"
-                    "画布上的历史结果可能来自另一条运行分支，不能直接作为这里的输入；"
-                    "请先在当前流程中重新运行该上游链路，再运行本节点。"
+                    "画布上的历史结果可能来自另一条运行分支，不能直接作为这里的输入；"  # noqa: RUF001
+                    "请先在当前流程中重新运行该上游链路，再运行本节点。"  # noqa: RUF001
                 )
             async with conn.execute(
                 "SELECT state, progress_current, progress_total, expected_shards "
@@ -2113,9 +2101,7 @@ async def _resolve_inputs_from_snapshot(
     for edge in constant_edges:
         source = node_by_id[edge.source]
         try:
-            wired[edge.targetHandle] = await ensure_input(
-                app, target_snapshot_id, source, consumer
-            )
+            wired[edge.targetHandle] = await ensure_input(app, target_snapshot_id, source, consumer)
         except ValueError as exc:
             raise DispatchError(str(exc)) from exc
 

@@ -11,7 +11,7 @@ it('ignores view nodes, view edges, positions and previews, not execution fields
  const edited=structuredClone(graph);edited.nodes[0].position.x=500;edited.nodes[0].preview_open='out';
  edited.nodes.push({id:'view',kind:'view'});edited.edges.push({source:'a',target:'view'});
  expect(stable(semanticGraph(edited))).toBe(stable(semanticGraph(graph)));
- for(const field of ['params','port_values','assigned_node_id','arrayed_toggle','parallelism','batch_size']){
+ for(const field of ['params','port_values','assigned_node_id','arrayed_toggle','parallelism']){
   const g=structuredClone(graph);g.nodes[0][field]='changed';expect(stable(semanticGraph(g))).not.toBe(stable(semanticGraph(graph)));
  }
 });
@@ -45,4 +45,11 @@ it('invalidates the shared analysis when variable declarations, local values or 
  expect(analysisSignatures(declaration).edit).not.toBe(key);
  const binding=structuredClone(initial);binding.nodes[0].param_bindings={path:'dataset_dir'};
  expect(analysisSignatures(binding).edit).not.toBe(key);
+});
+
+it('ignores removed canvas batching but retains algorithm batch parameters',()=>{
+ const legacy=structuredClone(graph);legacy.nodes[0].batch_size=4;
+ expect(stable(semanticGraph(legacy))).toBe(stable(semanticGraph(graph)));
+ legacy.nodes[0].params.batch_size=4;
+ expect(stable(semanticGraph(legacy))).not.toBe(stable(semanticGraph(graph)));
 });

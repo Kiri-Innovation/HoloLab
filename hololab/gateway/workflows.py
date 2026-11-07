@@ -19,7 +19,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 import aiosqlite
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hololab.gateway.array_assemble import AssemblySlots, port_view
 from hololab.gateway.port_type_ir import (
@@ -126,18 +126,16 @@ class GraphNode(BaseModel):
     # an ``arrayable`` pack. Framework-level knob — deliberately not in
     # ``params`` so it never collides with pack-authored parameter names.
     parallelism: int = Field(default=1, ge=1)
-    # Structural — how many arrayed<T> elements share a single shard
-    # subprocess (Candidate A, "batched shards"). Default 1 = one
-    # element per subprocess, byte-for-byte identical to the pre-
-    # batching layout. batch_size=B with N elements produces
-    # ``ceil(N / B)`` shard jobs; the node runtime renders the pack's
-    # exec.shell once per element inside the batch and glues them
-    # with ``set -euo pipefail`` so a single element failing aborts
-    # the whole batch (matches the "arrayed job is an integral unit"
-    # deployment / cancel semantics — see docs/pack-spec.md#batching).
-    # Only meaningful together with ``arrayed_toggle``. Framework-level
-    # knob — kept out of ``params`` for the same reason as ``parallelism``.
-    batch_size: int = Field(default=1, ge=1)
+    # Legacy input only. Canvas batching was removed; never persist it again.
+    batch_size: int = Field(default=1, ge=1, exclude=True)
+
+    @field_validator("batch_size")
+    @classmethod
+    def ignore_legacy_batch_size(cls, value: int) -> int:
+        if value > 1:
+            log.warning("canvas batch_size removed; using one element per shard", batch_size=value)
+        return 1
+
     # Cosmetic — the name of the output port whose preview drawer is
     # currently expanded, or ``None`` when the drawer is closed.
     # Nullable so old graph JSON blobs (produced before this field

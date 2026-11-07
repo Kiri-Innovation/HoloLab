@@ -16,9 +16,9 @@ from typing import Any
 from pydantic import TypeAdapter
 
 from hololab.gateway.recipe import split_graph
-from hololab.logging import get_logger
 from hololab.gateway.workflows import WorkflowGraph, freeze_parameter_pins
 from hololab.inline_values import effective_inline
+from hololab.logging import get_logger
 from hololab.manifest.array_migration import migrate_array_params
 from hololab.manifest.schema import ParamSpec
 from hololab.package_identity import (
@@ -50,6 +50,7 @@ def digest(value: Any) -> str:
 
 def context_revision(graph: WorkflowGraph, catalog: list[dict]) -> str:
     from hololab.gateway.array_views import compile_array_views
+
     graph, _ = compile_array_views(graph, catalog)
     recipe, bindings, _ = split_graph(graph)
     data = recipe.graph.model_dump(exclude={"execution"})
@@ -91,6 +92,7 @@ def resolve_recipe(
     """
     validate_graph_identities(graph)
     from hololab.gateway.array_views import compile_array_views
+
     graph, _ = compile_array_views(graph, catalog)
     result = freeze_parameter_pins(graph, catalog)
     packs = {package_key(p["name"], p["version"]): copy.deepcopy(p) for p in catalog}
@@ -102,7 +104,7 @@ def resolve_recipe(
             {
                 "node_id": node_id,
                 "kind": "invalid_parameters",
-                "message": f"参数不合法：{exc}",
+                "message": f"参数不合法：{exc}",  # noqa: RUF001
             }
         )
 
@@ -198,7 +200,11 @@ def resolve_recipe(
         node.port_values = {port: value[1]["value"] for port, value in inputs.items()}
         inline_values[node.id] = inputs
     result.execution = {
-        **({"array_views": graph.execution["array_views"]} if (graph.execution or {}).get("array_views") else {}),
+        **(
+            {"array_views": graph.execution["array_views"]}
+            if (graph.execution or {}).get("array_views")
+            else {}
+        ),
         "version": 1,
         "parameter_inline_values": {
             n.id: copy.deepcopy(n.params) for n in graph.nodes if n.param_bindings
@@ -232,7 +238,6 @@ def semantic_node(node) -> dict:
             "assigned_node_id",
             "arrayed_toggle",
             "parallelism",
-            "batch_size",
         }
     )
 
@@ -292,9 +297,14 @@ async def prepare_execution(
                 break
             ancestors = expanded
         if ancestors & {p["node_id"] for p in result.execution["array_views"]}:
-            raise HTTPException(status_code=422, detail="Array-view execution currently requires a whole-workflow run; single-node continuation is not yet supported")
+            raise HTTPException(
+                status_code=422,
+                detail="Array-view execution currently requires a whole-workflow run; single-node continuation is not yet supported",
+            )
     spans["resolve_recipe"] = time.monotonic() - started
-    required = required if required is not None else {n.id for n in result.nodes if n.kind != "view"}
+    required = (
+        required if required is not None else {n.id for n in result.nodes if n.kind != "view"}
+    )
     invalid_nodes = {
         issue["node_id"]
         for issue in result.execution["issues"]
@@ -515,7 +525,6 @@ def configuration_diff(current: WorkflowGraph, baseline: WorkflowGraph | None) -
         "algorithm_version": "版本",
         "arrayed_toggle": "Fan-out",
         "parallelism": "并行执行数",
-        "batch_size": "批处理大小",
         "assembly": "数组组装",
         "operation": "内建操作",
         "kind": "节点类型",
@@ -556,7 +565,9 @@ def configuration_diff(current: WorkflowGraph, baseline: WorkflowGraph | None) -
     return items
 
 
-async def analyze_execution(app, workflow_id: str, graph: WorkflowGraph, *, display_only: bool = False) -> dict:
+async def analyze_execution(
+    app, workflow_id: str, graph: WorkflowGraph, *, display_only: bool = False
+) -> dict:
     """Authoritative effective values and staleness for one editing revision."""
     from hololab.constants import is_constant
     from hololab.gateway.workflows import downstream_closure, topological_order
@@ -809,8 +820,7 @@ def merge_continuation(
             if nid in before.get(key, {}):
                 after.setdefault(key, {})[nid] = copy.deepcopy(before[key][nid])
     after["prepared_nodes"] = sorted(
-        (set(before.get("prepared_nodes", [])) & protected)
-        | set(after.get("prepared_nodes", []))
+        (set(before.get("prepared_nodes", [])) & protected) | set(after.get("prepared_nodes", []))
     )
     # Keep full per-submission evidence (catalog/checks/variables/revision), so
     # later preparation never overwrites an earlier execution's environment.

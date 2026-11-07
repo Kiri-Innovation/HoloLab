@@ -9,7 +9,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import aiosqlite
 from fastapi import WebSocket
@@ -17,6 +17,9 @@ from fastapi import WebSocket
 from hololab.package_identity import offered_identity, package_key, same_package
 from hololab.persistence.db import Database
 from hololab.protocol.messages import EnvironmentEvidenceEntry, GpuInfo, PackInventoryEntry
+
+if TYPE_CHECKING:
+    from hololab.gateway.jobs import Job
 
 
 class NodeAuthError(Exception):
@@ -593,7 +596,6 @@ class NodeRegistry:
                         "source_dir": pk.source_dir,
                         "arrayable": False,
                         "parallelism": None,
-                        "batch_size": None,
                         "node_viewers": [],
                         "hide_default_output_previews": False,
                     },
@@ -667,7 +669,6 @@ class NodeRegistry:
                         }
                         entry["arrayable"] = manifest.arrayable
                         entry["parallelism"] = manifest.parallelism
-                        entry["batch_size"] = manifest.batch_size
                         entry["node_viewers"] = [
                             viewer.model_dump(mode="json") for viewer in manifest.node_viewers
                         ]
@@ -909,7 +910,7 @@ class JobsStore:
         # Per-job list of Futures that will resolve to the terminal Job.
         # Populated by :meth:`wait_terminal`, drained by :meth:`update`
         # when a job flips into a terminal state.
-        self._terminal_waiters: dict[str, list[asyncio.Future[Job]]] = {}  # noqa: F821
+        self._terminal_waiters: dict[str, list[asyncio.Future[Job]]] = {}
 
     async def set_code_identity(self, job_id: str, record: dict | None) -> None:
         if record is None:
@@ -941,7 +942,7 @@ class JobsStore:
             row = await cur.fetchone()
         return json.loads(row[0]) if row else None
 
-    async def create(self, job: Job) -> None:  # noqa: F821 - forward ref
+    async def create(self, job: Job) -> None:
         from hololab.gateway.jobs import Job, JobState  # local import to avoid cycle
 
         assert isinstance(job, Job)
@@ -1023,7 +1024,7 @@ class JobsStore:
 
         await self._db.write(_write)
 
-    async def create_many(self, jobs: list[Job]) -> None:  # noqa: F821
+    async def create_many(self, jobs: list[Job]) -> None:
         """Insert N jobs + their ``created`` events under one SQLite transaction.
 
         Fan-out phase-1 (see :func:`hololab.gateway.execution._execute_fanout_body`)
@@ -1144,7 +1145,7 @@ class JobsStore:
 
         await self._db.write(_write)
 
-    async def update(self, job: Job, event_kind: str, event_payload_json: str) -> None:  # noqa: F821
+    async def update(self, job: Job, event_kind: str, event_payload_json: str) -> None:
         # V8 attribution: when a job transitions INTO done and has both
         # snapshot_id + graph_node_id, we also insert the snapshot_jobs
         # row here. The WS ``job_done`` handler also writes it (belt-and-
@@ -1241,7 +1242,7 @@ class JobsStore:
 
         await self._db.write(_write)
 
-    def _notify_terminal(self, job: Job) -> None:  # noqa: F821
+    def _notify_terminal(self, job: Job) -> None:
         """Fulfill every pending future waiting on ``job.job_id``. Idempotent
         — a re-transition to the same terminal state (shouldn't happen per
         the state machine but doesn't hurt) is a no-op because the futures
@@ -1255,7 +1256,7 @@ class JobsStore:
             if not fut.done():
                 fut.set_result(job)
 
-    async def wait_terminal(self, job_id: str, *, timeout_s: float) -> Job:  # noqa: F821
+    async def wait_terminal(self, job_id: str, *, timeout_s: float) -> Job:
         """Block until ``job_id`` reaches a terminal state, or raise on timeout.
 
         Event-bus replacement for the old poll loop (previously
@@ -1274,7 +1275,7 @@ class JobsStore:
 
         import contextlib
 
-        from hololab.gateway.jobs import Job, JobState  # local import to avoid cycle
+        from hololab.gateway.jobs import JobState  # local import to avoid cycle
 
         loop = asyncio.get_event_loop()
         fut: asyncio.Future[Job] = loop.create_future()
@@ -1307,7 +1308,7 @@ class JobsStore:
                 if not pending:
                     self._terminal_waiters.pop(job_id, None)
 
-    async def get(self, job_id: str) -> Job | None:  # noqa: F821
+    async def get(self, job_id: str) -> Job | None:
         from hololab.gateway.jobs import Job, JobState
         from hololab.protocol.messages import JobFailReason
 
@@ -1356,7 +1357,7 @@ class JobsStore:
             shard_element_ids=json.loads(row[22]) if row[22] else None,
         )
 
-    async def list_shards_of(self, parent_job_id: str) -> list[Job]:  # noqa: F821
+    async def list_shards_of(self, parent_job_id: str) -> list[Job]:
         """Return every shard job attributed to the given parent, oldest first.
 
         Used by the fan-in step of arrayed<T> fan-out to collect all shard
@@ -1446,10 +1447,7 @@ class JobsStore:
         terminal_states = ("done", "failed", "cancelled", "interrupted")
 
         async def _write(conn: aiosqlite.Connection) -> list[str]:
-            where = (
-                "c.state='pending' AND p.parent_job_id IS NULL "
-                "AND p.state IN (?, ?, ?, ?)"
-            )
+            where = "c.state='pending' AND p.parent_job_id IS NULL AND p.state IN (?, ?, ?, ?)"
             params: list[Any] = list(terminal_states)
             if parent_job_ids is not None:
                 if not parent_job_ids:
@@ -1520,7 +1518,7 @@ class JobsStore:
             self._notify_terminal(child)
         return changed
 
-    async def list_orphaned_for_node(self, node_id: str) -> list[Job]:  # noqa: F821
+    async def list_orphaned_for_node(self, node_id: str) -> list[Job]:
         """Return every ``orphaned`` job owned by the given node.
 
         Used at register-time reconciliation to match the node's live

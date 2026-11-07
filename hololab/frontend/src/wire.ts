@@ -399,6 +399,7 @@ export interface CatalogPack {
   arrayable?: boolean;
   // Recommendations copied only when creating a node; null/absent means 1.
   parallelism?: number | null;
+  /** Deprecated catalog input; never used as a creation default. */
   batch_size?: number | null;
 }
 
@@ -627,12 +628,7 @@ export interface GraphNode {
   // concurrency = min(parallelism, node daemon max_concurrent_jobs).
   // Only meaningful when arrayed_toggle is true on an arrayable pack.
   parallelism?: number;
-  // Structural — how many arrayed<T> elements share a single shard
-  // subprocess (batched shards). Default 1 = one element per subprocess
-  // (pre-batching, no-op). ``batch_size=B`` with N elements produces
-  // ``ceil(N / B)`` shard jobs; a single element failing aborts the
-  // whole batch (``set -euo pipefail``). Only meaningful when
-  // ``arrayed_toggle`` is true on an arrayable pack.
+  // Deprecated input only; ignored and omitted from new saves.
   batch_size?: number;
   // Cosmetic (observer-only) field. Name of the output port whose
   // preview drawer is expanded; null when the drawer is closed.

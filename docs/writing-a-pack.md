@@ -405,19 +405,17 @@ machine's checkout or conda paths into a published manifest.
 
 ## Recommended node defaults
 
-A pack can recommend `parallelism: 4` and `batch_size: 2` at the top level of
-`manifest.yaml` (illustrative values; benchmark your pack before choosing them).
-Each field is optional and must be at least 1; omitted or `null` leaves the
-framework default of 1. The canvas copies the recommendations into explicit
-workflow node values when the node is created. Existing nodes and subsequent
-user edits keep their stored values: these are creation defaults, **not runtime
-fallbacks or constraints**, and they do not enable `arrayed_toggle`. API clients
-must copy the catalog values themselves; omitted API fields still become 1.
+A pack can recommend `parallelism: 4` at the top level of `manifest.yaml`.
+It must be at least 1; omitted or `null` leaves the framework default of 1.
+The canvas copies it into the node at creation. It is not a runtime constraint
+and does not enable `arrayed_toggle`. Existing nodes retain their own settings.
+API clients must copy the catalog recommendation themselves.
 
-These fields are part of the pack's code identity. **Bump the pack version when
-changing either recommendation**: changing the manifest changes its identity,
-so old snapshots require the original pack content to replay. See
-[the pack contract](pack-spec.md#arrayed-and-arrayable).
+Canvas `batch_size` is no longer supported. Old declarations are parsed only
+for compatibility and ignored; algorithm-owned `params.batch_size` is unaffected.
+Do not edit old manifests merely to remove the deprecated field: their code
+identity must remain reproducible. Changing `parallelism` recommendations still
+requires a new version; see [the pack contract](pack-spec.md#arrayed-and-arrayable).
 
 ## Writing an arrayable pack
 
