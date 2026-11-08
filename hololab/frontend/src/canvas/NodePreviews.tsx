@@ -234,13 +234,9 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
           // specifically) also carries its own ``nodrag`` for
           // defence-in-depth.
           //
-          // Wheel is NOT blocked here: earlier builds stopped the
-          // wheel event at the drawer wrapper so the canvas couldn't
-          // zoom over an open preview, but that turned the drawer
-          // into a wheel black hole. The user wants the natural
-          // behavior back — wheel over the drawer zooms the canvas
-          // like it does anywhere else, unless a specific descendant
-          // opts out via xyflow's ``nowheel`` (none in this file yet).
+          // Wheel follows the canvas navigation mode: pan in trackpad
+          // mode, zoom in mouse mode. Embedded viewers opt out through
+          // their own ``nowheel`` / ``nopan`` containers.
           className="nodrag hl-preview-drawer"
           style={{
             padding: 8,

@@ -103,25 +103,28 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
   await wheel(0, -18, true);
   await expect.poll(async () => (await transform()).scale).not.toBe(pinchBefore.scale);
 
-  // Preview drawers deliberately retain their historical wheel-to-zoom path;
-  // embedded nowheel views remain fully insulated from canvas navigation.
+  // Drawers follow trackpad navigation, while nested viewers remain insulated.
   const previewBefore = await transform();
-  await pane.evaluate((el) => {
+  await node.evaluate((el) => {
     const drawer = document.createElement("div");
     drawer.className = "hl-preview-drawer";
     el.append(drawer);
-    drawer.dispatchEvent(new WheelEvent("wheel", { deltaY: 18, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
+    drawer.dispatchEvent(new WheelEvent("wheel", { deltaX: 12, deltaY: 18, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
     drawer.remove();
   });
-  await expect.poll(async () => (await transform()).scale).not.toBe(previewBefore.scale);
+  await expect.poll(async () => (await transform()).y).not.toBe(previewBefore.y);
+  expect((await transform()).scale).toBeCloseTo(previewBefore.scale, 6);
 
   const embeddedBefore = await transform();
-  await pane.evaluate((el) => {
+  await node.evaluate((el) => {
+    const drawer = document.createElement("div");
+    drawer.className = "hl-preview-drawer";
     const embedded = document.createElement("div");
     embedded.className = "nowheel";
-    el.append(embedded);
+    drawer.append(embedded);
+    el.append(drawer);
     embedded.dispatchEvent(new WheelEvent("wheel", { deltaY: 18, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
-    embedded.remove();
+    drawer.remove();
   });
   await page.waitForTimeout(200);
   expect(await transform()).toEqual(embeddedBefore);
@@ -171,4 +174,73 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
       await controls.screenshot({ path: `/tmp/trackpad-navigation/${theme}-${enabled ? "on" : "off"}-controls.png` });
     }
   }
+});
+
+test("real 80-image drawer follows canvas mode and reports scroll dimensions", async ({ page }, info) => {
+  const pack = {
+    name: "drawer-test", version: "1", manifest_hash: "drawer", node_ids: ["device"],
+    inputs: {}, outputs: { images: { tags: ["image"], arrayed: true, dim_labels: ["frame"], preview: null } },
+    params: { count: { type: "int", default: 17, pinned: true, optional: false } },
+  };
+  const graph = { nodes: [{ id: "drawer", algorithm_name: pack.name, algorithm_version: "1",
+    assigned_node_id: "device", params: { count: 17 }, preview_open: "images", position: { x: 0, y: 0 } }], edges: [] };
+  await page.routeWebSocket("**", () => {});
+  await page.addInitScript(() => { delete (window as { IntersectionObserver?: unknown }).IntersectionObserver; });
+  await page.route("**/proxy/device/**", route => route.fulfill({ status: 404 }));
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    let body: unknown = [];
+    if (path === "/api/pack-catalog") body = [pack];
+    else if (path === "/api/nodes/metrics/history") body = { nodes: {}, sample_interval_s: 3 };
+    else if (path === "/api/workflows/drawer") body = { workflow_id: "drawer", name: "80 image drawer", graph, created_ts: 1, updated_ts: 1 };
+    else if (path === "/api/workflows/drawer/canvas-state") body = { staleness: {}, canvas_jobs: [{
+      job_id: "drawer-job", graph_node_id: "drawer", node_id: "device", workflow_id: "drawer", algorithm_name: pack.name,
+      algorithm_version: "1", state: "done", params: { count: 17 }, input_handles: {}, output_handles: { images: "images" }, created_ts: 1,
+    }] };
+    else if (path === "/api/workflows/drawer/runs") body = [{ snapshot_id: "drawer-run", workflow_id: "drawer", created_ts: 1,
+      state_counts: { done: 1 }, overall_state: "done", node_count: 1, job_count: 1 }];
+    else if (path === "/api/snapshots/drawer-run") body = { snapshot_id: "drawer-run", workflow_id: "drawer", graph, created_ts: 1,
+      jobs: [{ job_id: "drawer-job", graph_node_id: "drawer", node_id: "device", workflow_id: "drawer", algorithm_name: pack.name,
+        algorithm_version: "1", state: "done", params: { count: 17 }, input_handles: {}, output_handles: { images: "images" }, created_ts: 1 }] };
+    else if (path === "/api/handles/images") body = { handle_id: "images", node_id: "device", storage: "dir", tags: ["image"],
+      proxy_url: "/proxy/device/images", absolute_path: "/images", deleted_ts: null, preview: null, dim_labels: ["frame"], dim_sizes: [80] };
+    else if (path === "/api/handles/images/summary") body = { fields: { entries: Array.from({ length: 80 }, (_, i) => ({ name: `image-${i}.jpg`, is_dir: false })) } };
+    await route.fulfill({ json: body });
+  });
+  await page.goto("/w/drawer");
+  const drawer = page.locator(".react-flow__node .hl-preview-drawer");
+  await expect(drawer.locator("[data-hl-frame-count]")).toHaveAttribute("data-hl-frame-count", "80");
+  const dimensions = await drawer.evaluate(el => [el, ...el.querySelectorAll("*")].map(element => ({
+    tag: element.tagName, classes: element.getAttribute("class"),
+    scrollHeight: element.scrollHeight, clientHeight: element.clientHeight,
+    overflowY: getComputedStyle(element).overflowY,
+  })));
+  console.log("80-image drawer scroll dimensions:", JSON.stringify(dimensions));
+  await info.attach("drawer-scroll-dimensions", { body: JSON.stringify(dimensions, null, 2), contentType: "application/json" });
+  const viewport = page.locator(".react-flow__viewport");
+  const transform = () => viewport.evaluate(el => {
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+    return { x: matrix.m41, y: matrix.m42, scale: matrix.a };
+  });
+  const wheelAt = (target: typeof drawer, ctrlKey = false) => target.evaluate((el, ctrlKey) => {
+    el.dispatchEvent(new WheelEvent("wheel", { deltaX: 2.67, deltaY: 1.33, ctrlKey, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
+  }, ctrlKey);
+  const mode = page.locator(".hl-trackpad-navigation");
+  const mouseBefore = await transform();
+  await wheelAt(drawer);
+  await expect.poll(async () => (await transform()).scale).not.toBe(mouseBefore.scale);
+  await mode.click();
+  const panBefore = await transform();
+  await wheelAt(drawer);
+  await expect.poll(async () => (await transform()).x).not.toBe(panBefore.x);
+  expect((await transform()).scale).toBeCloseTo(panBefore.scale, 6);
+  const pinned = page.getByRole("group", { name: "Pinned parameters", exact: true });
+  await expect(pinned).toBeVisible();
+  const pinnedBefore = await transform();
+  await wheelAt(pinned);
+  await expect.poll(async () => (await transform()).scale).not.toBe(pinnedBefore.scale);
+  await expect(pinned.getByRole("spinbutton")).toHaveValue("17");
+  const pinchBefore = await transform();
+  await wheelAt(drawer, true);
+  await expect.poll(async () => (await transform()).scale).not.toBe(pinchBefore.scale);
 });

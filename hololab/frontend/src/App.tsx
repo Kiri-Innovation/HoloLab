@@ -1919,7 +1919,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   useEffect(() => {
     if (!rfInstance || !trackpadNavigation) return;
     const onWheel = (event: WheelEvent) => {
-      if (!event.target || keepsExistingWheelBehavior(event.target)) return;
+      if (!event.target || keepsExistingWheelBehavior(event.target, trackpadNavigation)) return;
       const flow = event.target instanceof Element && event.target.closest(".react-flow");
       if (!flow || !shouldPanWheel(trackpadNavigation, event)) return;
 
