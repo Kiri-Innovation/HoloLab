@@ -1,4 +1,5 @@
 import "./workflowEvidence.css";
+import { omitEmptyOptionalPaths } from "./optionalPaths";
 import { canonicalPackageName } from "../packageIdentity";
 import { parameterDifferenceText } from "./parameterDifferences";
 import type { VariableDeclarations } from "../wire";
@@ -59,9 +60,9 @@ function InlinePackParameterField({ pack, params, name, names, nodeId, initialDi
 }
 
 /** Merge against the latest state, including legacy array read-time conversion. */
-export function mergeParameterPatch(pack: Pick<CatalogPack, "name" | "version">,
+export function mergeParameterPatch(pack: Pick<CatalogPack, "name" | "version"> & Partial<Pick<CatalogPack, "params">>,
   current: Record<string, unknown>, patch: Record<string, unknown>) {
-  return { ...arrayParamsForEditor(pack.name, pack.version, current), ...patch };
+  return omitEmptyOptionalPaths(pack.params, { ...arrayParamsForEditor(pack.name, pack.version, current), ...patch });
 }
 
 

@@ -30,6 +30,7 @@ import { shouldPanWheel, keepsExistingWheelBehavior } from "./canvas/trackpadNav
 //   - bottom: compute nodes, pulse and resource lenses
 
 import { CanvasToastAnchor, showToast } from "./ui/Toast";
+import { omitEmptyOptionalPaths } from "./canvas/optionalPaths";
 import { initialParameters } from "./canvas/initialParameters";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -1853,7 +1854,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     nodes: nodes.flatMap(n => {
       const d = algorithmDataForNode(n);
       return d ? [{ ...assemblyFields(d.assembly), ...constantFields(d.pack.name), id: n.id, algorithm_name: d.pack.name, algorithm_version: d.pack.version,
-        position: n.position, params: d.params ?? {}, port_values: (d as AlgorithmNodeData).port_values ?? {}, arrayed_toggle: d.arrayed_toggle,
+        position: n.position, params: omitEmptyOptionalPaths(d.pack.params, d.params ?? {}), port_values: (d as AlgorithmNodeData).port_values ?? {}, arrayed_toggle: d.arrayed_toggle,
         assigned_node_id: d.assigned_node_id }] : [];
     }),
     // Conversion providers need not be visible nodes on this canvas. Keep the
@@ -2121,7 +2122,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         // Real params — effectiveOutputType reads dim_labels_from here
         // (e.g. regroup.out → output_dims) so the chip renders the
         // right labels before any handle summary lands.
-        params: d.params ?? {}, port_values: (d as AlgorithmNodeData).port_values ?? {},
+        params: omitEmptyOptionalPaths(d.pack.params, d.params ?? {}), port_values: (d as AlgorithmNodeData).port_values ?? {},
         assigned_node_id: data.assigned_node_id,
         arrayed_toggle: Boolean(d.arrayed_toggle),
       };
@@ -2296,7 +2297,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         algorithm_name: data.pack.name,
         algorithm_version: data.pack.version,
         position: n.position,
-        params: d.params ?? {}, port_values: (d as AlgorithmNodeData).port_values ?? {},
+        params: omitEmptyOptionalPaths(d.pack.params, d.params ?? {}), port_values: (d as AlgorithmNodeData).port_values ?? {},
         assigned_node_id: data.assigned_node_id,
         arrayed_toggle: Boolean(d.arrayed_toggle),
       };
@@ -2442,7 +2443,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           position: { x: n.position.x, y: n.position.y },
           local_params: d.local_params ?? [],
           param_bindings: d.param_bindings ?? {},
-          params: d.params ?? {}, port_values: d.pack.manifest_hash ? reconcileInlineValues(d.pack.inputs, d.port_values, edges.filter(e => e.target === n.id).map(e => e.targetHandle), !!(d.arrayed_toggle && d.pack.arrayable)) : d.port_values,
+          params: omitEmptyOptionalPaths(d.pack.params, d.params ?? {}), port_values: d.pack.manifest_hash ? reconcileInlineValues(d.pack.inputs, d.port_values, edges.filter(e => e.target === n.id).map(e => e.targetHandle), !!(d.arrayed_toggle && d.pack.arrayable)) : d.port_values,
           assigned_node_id: d.assigned_node_id,
           // Structural — see docs/pack-spec.md#arrayed-and-arrayable.
           arrayed_toggle: Boolean(d.arrayed_toggle),
@@ -2556,7 +2557,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               replacementMode: ownReplacementBaseline || catalogReplacementBaseline || witnessReplacementBaseline ? 'strict' : connectionInferred ? 'connections' : undefined,
               assembly: gn.assembly,
               assigned_node_id: gn.assigned_node_id,
-              ...({ local_params: gn.local_params, param_bindings: gn.param_bindings, params: gn.params, port_values: found ? reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) : gn.port_values } as object),
+              ...({ local_params: gn.local_params, param_bindings: gn.param_bindings, params: omitEmptyOptionalPaths(pack.params, gn.params ?? {}), port_values: found ? reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) : gn.port_values } as object),
               ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
               ...({ parallelism: gn.parallelism ?? 1 } as object),
               runtime: runtimeByGraphNode[gn.id],

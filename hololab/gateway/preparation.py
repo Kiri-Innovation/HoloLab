@@ -67,13 +67,25 @@ def context_revision(graph: WorkflowGraph, catalog: list[dict]) -> str:
 
 
 def effective_parameters(explicit: dict | None, pack: dict | None) -> dict:
-    """Only preparation fills missing keys; explicit null and empty values win."""
+    """Fill defaults; retain explicit values except unset optional paths."""
     defaults = {
         name: copy.deepcopy(spec["default"])
         for name, spec in ((pack or {}).get("params") or {}).items()
         if isinstance(spec, dict) and "default" in spec
     }
     defaults.update(copy.deepcopy(explicit or {}))
+    # Missing optional paths stay absent; explicit nonempty paths still validate.
+    for name, spec in ((pack or {}).get("params") or {}).items():
+        if (
+            isinstance(spec, dict)
+            and spec.get("type") == "path"
+            and spec.get("optional")
+            and (
+                defaults.get(name) is None
+                or (isinstance(defaults.get(name), str) and not defaults[name].strip())
+            )
+        ):
+            defaults.pop(name, None)
     return defaults
 
 
@@ -136,6 +148,8 @@ def resolve_recipe(
         explicit = migrate_array_params(node.algorithm_name, node.algorithm_version, node.params)
         try:
             for key in node.local_params:
+                if specs.get(key, {}).get("type") == "path" and specs[key].get("optional"):
+                    continue
                 if key not in node.param_bindings and explicit.get(key) in (None, ""):
                     raise ValueError(f"节点 {node.id} 参数 {key} 需要本地值 (配方未携带绝对路径)")
         except ValueError as exc:

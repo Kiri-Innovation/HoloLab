@@ -145,6 +145,11 @@ def render_manifest(manifest: Manifest, ctx: RenderContext) -> RenderedManifest:
     """Render all templatable strings of a manifest against a context."""
 
     bindings = ctx.to_bindings()
+    # Legacy templates may use `params.optional_path or ""`. Supply an empty
+    # binding only while rendering; never persist it in a graph or JobAssign.
+    for name, spec in manifest.params.items():
+        if spec.type.value == "path" and spec.optional:
+            bindings["params"].setdefault(name, "" if spec.default == "" else None)
 
     shell = _render_str(manifest.exec.shell, bindings, where="exec.shell")
     working_dir = (

@@ -63,6 +63,21 @@ from hololab.protocol import JobAssign, JobFailReason, encode
 log = get_logger("gateway.exec")
 
 
+def _pack_declaration(pack: dict[str, Any]) -> dict[str, Any]:
+    # Probe evidence is machine-local and mutable (including checked_at).
+    # Refreshing it must not invalidate already-produced upstream artifacts.
+    return {key: value for key, value in pack.items() if key != "environment_by_node"}
+
+
+def _code_declaration(identity: dict[str, Any] | None) -> dict[str, Any] | None:
+    if identity is None:
+        return None
+    # Scoped content and control-file hashes define code identity. Capture
+    # time, environment, deployment paths and repository HEAD are provenance;
+    # unrelated framework commits must not invalidate this package's output.
+    return {key: identity.get(key) for key in ("format", "sha256", "controls")}
+
+
 class WorkflowRunError(RuntimeError):
     """Raised for run-time problems (upstream failed, node dropped, timeout)."""
 
@@ -1696,7 +1711,11 @@ async def _dispatch_graph_node(
             # node changed.  Only two present, unequal records prove a
             # package declaration changed.  This mirrors the code-identity
             # rule below for absent fresh identity evidence.
-            if old_pack is not None and new_pack is not None and old_pack != new_pack:
+            if (
+                old_pack is not None
+                and new_pack is not None
+                and _pack_declaration(old_pack) != _pack_declaration(new_pack)
+            ):
                 can_continue = False
                 fork_reason = {
                     "kind": "protected_pack_changed",
@@ -1714,7 +1733,9 @@ async def _dispatch_graph_node(
     if existing and retryable and frozen_base:
         old_node = next(n for n in frozen_base.nodes if n.id == graph_node_id)
         new_node = next(n for n in prepared.nodes if n.id == graph_node_id)
-        if new_node.code_identity is not None and old_node.code_identity != new_node.code_identity:
+        if new_node.code_identity is not None and _code_declaration(
+            old_node.code_identity
+        ) != _code_declaration(new_node.code_identity):
             can_continue = False
             fork_reason = {
                 "kind": "retry_code_identity_changed",

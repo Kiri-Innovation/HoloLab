@@ -178,7 +178,9 @@ def _run_ids(client: TestClient, workflow_id: str) -> set[str]:
     return {item["snapshot_id"] for item in response.json()}
 
 
-def test_adding_outgoing_edge_from_recorded_node_continues_for_existing_consumer(tmp_path: Path) -> None:
+def test_adding_outgoing_edge_from_recorded_node_continues_for_existing_consumer(
+    tmp_path: Path,
+) -> None:
     """A→D is a new consumer; it does not invalidate A's recorded output."""
 
     with TestClient(create_app(db_path=tmp_path / "outgoing-c.sqlite")) as client:
@@ -190,28 +192,35 @@ def test_adding_outgoing_edge_from_recorded_node_continues_for_existing_consumer
 
         graph.nodes.append(
             GraphNode(
-                id="D", algorithm_name="demo-echo", algorithm_version="0.1.0", assigned_node_id="node-a"
+                id="D",
+                algorithm_name="demo-echo",
+                algorithm_version="0.1.0",
+                assigned_node_id="node-a",
             )
         )
-        graph.edges.append(GraphEdge(id="ead", source="A", sourceHandle="out", target="D", targetHandle="in"))
+        graph.edges.append(
+            GraphEdge(id="ead", source="A", sourceHandle="out", target="D", targetHandle="in")
+        )
         _save_draft(client, wid, graph)
         # Editing a draft is not a run mutation: no snapshot exists solely
         # because an outgoing edge was added.
         assert _run_ids(client, wid) == before_runs
-        analysis = client.post(
-            f"/api/workflows/{wid}/analyze", json={"graph": graph.model_dump()}
-        )
+        analysis = client.post(f"/api/workflows/{wid}/analyze", json={"graph": graph.model_dump()})
         assert analysis.status_code == 200, analysis.text
         assert analysis.json()["staleness"]["A"] is None
         assert analysis.json()["staleness"]["D"]["kind"] == "self_dirty"
 
-        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
         assert response.status_code == 200, response.text
         body = response.json()
         assert body["operation"] == "continue"
         assert body["snapshot_id"] == base
         assert _run_ids(client, wid) == before_runs
-        members = {job["graph_node_id"] for job in client.get(f"/api/snapshots/{base}").json()["jobs"]}
+        members = {
+            job["graph_node_id"] for job in client.get(f"/api/snapshots/{base}").json()["jobs"]
+        }
         assert members == {"A", "B", "C"}
 
 
@@ -227,19 +236,28 @@ def test_adding_outgoing_edge_from_recorded_node_continues_for_new_consumer(tmp_
 
         graph.nodes.append(
             GraphNode(
-                id="D", algorithm_name="demo-echo", algorithm_version="0.1.0", assigned_node_id="node-a"
+                id="D",
+                algorithm_name="demo-echo",
+                algorithm_version="0.1.0",
+                assigned_node_id="node-a",
             )
         )
-        graph.edges.append(GraphEdge(id="ead", source="A", sourceHandle="out", target="D", targetHandle="in"))
+        graph.edges.append(
+            GraphEdge(id="ead", source="A", sourceHandle="out", target="D", targetHandle="in")
+        )
         _save_draft(client, wid, graph)
 
-        response = client.post(f"/api/workflows/{wid}/dispatch/D", params={"base_snapshot_id": base})
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/D", params={"base_snapshot_id": base}
+        )
         assert response.status_code == 200, response.text
         body = response.json()
         assert body["operation"] == "continue"
         assert body["snapshot_id"] == base
         assert _run_ids(client, wid) == before_runs
-        members = {job["graph_node_id"] for job in client.get(f"/api/snapshots/{base}").json()["jobs"]}
+        members = {
+            job["graph_node_id"] for job in client.get(f"/api/snapshots/{base}").json()["jobs"]
+        }
         assert members == {"A", "B", "D"}
 
 
@@ -254,7 +272,9 @@ def test_changing_recorded_upstream_forks_then_blocks_stale_downstream(tmp_path:
         graph.nodes[0].params = {"changed": True}
         _save_draft(client, wid, graph)
 
-        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
         assert response.status_code == 400, response.text
         assert "上游节点 'B' 没有可用于本次运行的产物" in response.json()["detail"]
         runs = _run_ids(client, wid)
@@ -262,6 +282,7 @@ def test_changing_recorded_upstream_forks_then_blocks_stale_downstream(tmp_path:
         child_ids = runs - {base}
         assert len(child_ids) == 1
         child = child_ids.pop()
+
         async def read_parent() -> str | None:
             return (await client.app.state.workflows.get_snapshot(child)).parent_snapshot_id
 
@@ -282,13 +303,19 @@ def test_replacing_unrecorded_node_continues_same_run(tmp_path: Path) -> None:
         graph.nodes[2].algorithm_name = "demo-replacement"
         _save_draft(client, wid, graph)
 
-        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
         assert response.status_code == 200, response.text
         body = response.json()
         assert body["operation"] == "continue"
         assert body["snapshot_id"] == base
         assert _run_ids(client, wid) == before_runs
-        job = next(job for job in client.get(f"/api/snapshots/{base}").json()["jobs"] if job["graph_node_id"] == "C")
+        job = next(
+            job
+            for job in client.get(f"/api/snapshots/{base}").json()["jobs"]
+            if job["graph_node_id"] == "C"
+        )
         assert job["algorithm_name"] == "demo-replacement"
 
 
@@ -297,24 +324,33 @@ def test_replacing_recorded_node_forks_new_run(tmp_path: Path) -> None:
         _fake_online_node(client)
         wid = "replace-recorded"
         graph = _linear_graph()
-        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B", "C"])
+        base = _seed_snapshot_with_jobs(
+            client, workflow_id=wid, graph=graph, done_at=["A", "B", "C"]
+        )
         before_runs = _run_ids(client, wid)
         graph.nodes[2].algorithm_name = "demo-replacement"
         _save_draft(client, wid, graph)
 
-        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
         assert response.status_code == 200, response.text
         body = response.json()
         assert body["operation"] == "fork"
         assert body["snapshot_id"] != base
         assert body["parent_snapshot_id"] == base
         assert _run_ids(client, wid) == before_runs | {body["snapshot_id"]}
-        members = {job["graph_node_id"]: job for job in client.get(f"/api/snapshots/{body['snapshot_id']}").json()["jobs"]}
+        members = {
+            job["graph_node_id"]: job
+            for job in client.get(f"/api/snapshots/{body['snapshot_id']}").json()["jobs"]
+        }
         assert set(members) == {"A", "B", "C"}
         assert members["C"]["algorithm_name"] == "demo-replacement"
 
 
-def test_unprepared_protected_identity_does_not_fork_target_continue(tmp_path: Path, monkeypatch) -> None:
+def test_unprepared_protected_identity_does_not_fork_target_continue(
+    tmp_path: Path, monkeypatch
+) -> None:
     """A single-node C preflight must not compare B's absent fresh evidence."""
 
     async def capture_only_target(_app, prepared, *, required=None) -> None:
@@ -334,7 +370,9 @@ def test_unprepared_protected_identity_does_not_fork_target_continue(tmp_path: P
         graph.nodes[1].code_identity = {"sha256": "b-recorded"}
         base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
 
-        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
         assert response.status_code == 200, response.text
         assert response.json()["operation"] == "continue"
         assert response.json()["snapshot_id"] == base
@@ -363,7 +401,9 @@ def test_failed_target_without_fresh_identity_retries_in_place(tmp_path: Path, m
             state=JobState.FAILED,
         )
 
-        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
         assert response.status_code == 200, response.text
         assert response.json()["operation"] == "continue"
         assert response.json()["snapshot_id"] == base
@@ -374,11 +414,11 @@ def test_failed_target_with_changed_fresh_identity_forks(tmp_path: Path, monkeyp
 
     async def capture_changed_identity(_app, prepared, *, required=None) -> None:
         assert required == {"C"}
-        next(node for node in prepared.nodes if node.id == "C").code_identity = {
-            "sha256": "c-new"
-        }
+        next(node for node in prepared.nodes if node.id == "C").code_identity = {"sha256": "c-new"}
 
-    monkeypatch.setattr("hololab.gateway.preparation.capture_code_identities", capture_changed_identity)
+    monkeypatch.setattr(
+        "hololab.gateway.preparation.capture_code_identities", capture_changed_identity
+    )
     with TestClient(create_app(db_path=tmp_path / "changed-identity.sqlite")) as client:
         _fake_online_node(client)
         client.app.state.registry._sessions["node-a"].content_identity = True
@@ -395,7 +435,9 @@ def test_failed_target_with_changed_fresh_identity_forks(tmp_path: Path, monkeyp
             state=JobState.FAILED,
         )
 
-        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
         assert response.status_code == 200, response.text
         assert response.json()["operation"] == "fork"
         assert response.json()["parent_snapshot_id"] == base
@@ -421,9 +463,7 @@ def test_missing_unprepared_protected_pack_does_not_fork_target_continue(
             app, workflow_id, graph, required=required, token=token
         )
         prepared.execution["packs"] = [
-            pack
-            for pack in prepared.execution["packs"]
-            if pack["name"] != "demo-replacement"
+            pack for pack in prepared.execution["packs"] if pack["name"] != "demo-replacement"
         ]
         return prepared
 
@@ -437,7 +477,9 @@ def test_missing_unprepared_protected_pack_does_not_fork_target_continue(
         graph.execution = {"packs": client.app.state.registry.catalog_json()}
         base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
 
-        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
         assert response.status_code == 200, response.text
         assert response.json()["operation"] == "continue"
         assert response.json()["snapshot_id"] == base
@@ -473,7 +515,9 @@ def test_changed_current_target_pack_forks_and_records_reason(tmp_path: Path) ->
             state=JobState.FAILED,
         )
 
-        response = client.post(f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base})
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
         assert response.status_code == 200, response.text
         body = response.json()
         assert body["operation"] == "fork"
@@ -1184,3 +1228,81 @@ def test_continue_does_not_compete_with_whole_graph_runner(tmp_path):
                 await asyncio.gather(runner, return_exceptions=True)
 
             client.portal.call(stop)
+
+
+def test_environment_probe_timestamp_does_not_fork_or_lose_upstream(tmp_path):
+    with TestClient(create_app(db_path=tmp_path / "probe-only.sqlite")) as client:
+        _fake_online_node(client)
+        graph = _linear_graph()
+        catalog = client.app.state.registry.catalog_json
+        graph.execution = {
+            "packs": [
+                {
+                    **pack,
+                    "environment_by_node": {"node-a": {"status": "satisfied", "checked_at": 1}},
+                }
+                for pack in catalog()
+            ]
+        }
+        base = _seed_snapshot_with_jobs(
+            client, workflow_id="probe-only", graph=graph, done_at=["A", "B"]
+        )
+        client.app.state.registry.catalog_json = lambda: [
+            {**pack, "environment_by_node": {"node-a": {"status": "satisfied", "checked_at": 999}}}
+            for pack in catalog()
+        ]
+        response = client.post(
+            "/api/workflows/probe-only/dispatch/C", params={"base_snapshot_id": base}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["operation"] == "continue"
+        assert response.json()["snapshot_id"] == base
+
+
+@pytest.mark.parametrize("change", ["metadata", "hash", "controls"])
+def test_retry_uses_code_content_not_probe_time_or_environment(tmp_path, monkeypatch, change):
+    old = {
+        "sha256": "same-code",
+        "controls": {"manifest_sha256": "same-manifest"},
+        "recorded_at": 1,
+        "environment": {"prefix": None},
+        "git": {"commit": "old-repository-head"},
+    }
+    fresh = {
+        **old,
+        "recorded_at": 999,
+        "environment": {"prefix": "/node/env"},
+        "git": {"commit": "unrelated-framework-commit"},
+    }
+    if change == "hash":
+        fresh["sha256"] = "different-code"
+    if change == "controls":
+        fresh["controls"] = {"manifest_sha256": "different-manifest"}
+
+    async def capture(_app, prepared, *, required=None):
+        next(node for node in prepared.nodes if node.id == "C").code_identity = fresh
+
+    monkeypatch.setattr("hololab.gateway.preparation.capture_code_identities", capture)
+    with TestClient(create_app(db_path=tmp_path / f"retry-{change}.sqlite")) as client:
+        _fake_online_node(client)
+        client.app.state.registry._sessions["node-a"].content_identity = True
+        wid = f"retry-{change}"
+        graph = _linear_graph()
+        graph.nodes[2].code_identity = old
+        base = _seed_snapshot_with_jobs(client, workflow_id=wid, graph=graph, done_at=["A", "B"])
+        _seed_attributed_job(
+            client,
+            workflow_id=wid,
+            snapshot_id=base,
+            graph_node_id="C",
+            job_id="failed-C",
+            state=JobState.FAILED,
+        )
+        response = client.post(
+            f"/api/workflows/{wid}/dispatch/C", params={"base_snapshot_id": base}
+        )
+        assert response.status_code == 200, response.text
+        expected = "continue" if change == "metadata" else "fork"
+        assert response.json()["operation"] == expected
+        if change == "metadata":
+            assert response.json()["snapshot_id"] == base

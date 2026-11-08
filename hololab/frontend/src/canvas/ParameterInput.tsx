@@ -14,7 +14,7 @@ export interface ParameterInputProps {
 /** Shared scalar dispatch for standalone parameters and array rows. */
 export function ParameterInput({ name, spec, value, nodeId, initialDirectory, onChange }: ParameterInputProps) {
   if (spec.type === "path") return <PathInput name={name} value={String(value ?? "")}
-    nodeId={nodeId} pathKind={spec.path_kind} initialDirectory={initialDirectory} onChange={onChange} />;
+    nodeId={nodeId} optional={spec.optional} pathKind={spec.path_kind} initialDirectory={initialDirectory} onChange={onChange} />;
   if (spec.type === "enum") {
     const values = spec.values ?? [];
     const index = values.findIndex(option => option === value);

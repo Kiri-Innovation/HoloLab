@@ -516,3 +516,18 @@ plain per-video extractor — no branching required.
 - Full pack spec — [`pack-spec.md`](pack-spec.md)
 - Arrayed<T> type system — [`pack-spec.md`](pack-spec.md#arrayed-and-arrayable)
 - Source and artifact location jumps require the Flops Cobrowser integration and configured device mapping.
+
+## Keep node resources out of workflow parameters
+
+Model checkpoints, framework checkout locations and shared caches are node-local
+resources. Resolve them inside the pack from the node weights cache (for example
+`HOLOLAB_HOME/node/weights/<model>`, or the framework-injected `HF_HOME`), with
+optional administrator environment overrides. Do not declare `checkpoint` or
+`hololab_root` path parameters merely to locate those resources. Setup owns cache
+population; recipes should not carry machine-specific resource paths.
+
+Dataset locations such as `video_dir` remain user-controlled path parameters.
+Required paths still need values and executing-node validation. An unset optional
+path is omitted from editable and prepared params, including after clearing the
+editor; it is not a `null` placeholder. Legacy templates can read an absent
+optional path as `None` at render time without persisting that binding.

@@ -5,7 +5,7 @@ import { PathLibraryBrowser } from "./PathLibraryBrowser";
 
 type Entry = { name: string; path: string; kind: "directory" | "file" | "other" | "unavailable"; symlink: boolean; size: number | null; modified_ts: number | null };
 type Page = { path: string; parent: string; entries: Entry[]; next_offset: number | null };
-type Props = { value: string; onChange: (value: string) => void; nodeId: string | null; name: string; pathKind?: "any" | "file" | "directory" | null; initialDirectory?: string };
+type Props = { value: string; onChange: (value: string) => void; nodeId: string | null; name: string; pathKind?: "any" | "file" | "directory" | null; initialDirectory?: string; optional?: boolean };
 function split(value: string) {
   const index = value.lastIndexOf("/");
   return index < 0 ? { path: "/", prefix: value } : { path: value.slice(0, index + 1), prefix: value.slice(index + 1) };
@@ -17,7 +17,7 @@ async function list(node: string, path: string, prefix = "", offset = 0, signal?
   if (!response.ok) throw new Error(response.status === 504 ? "This node did not reply. Check its connection and upgrade it for path browsing." : typeof data.detail === "string" ? data.detail : `Cannot browse paths (${response.status})`);
   return data;
 }
-export function PathInput({ value, onChange, nodeId, name, pathKind = "any", initialDirectory = "/" }: Props) {
+export function PathInput({ value, onChange, nodeId, name, pathKind = "any", initialDirectory = "/", optional = false }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const popup = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -136,7 +136,7 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
   }
   return <div className="hl-path-input">
     <div className="hl-path-field">
-      <input ref={input} aria-label={name} role="combobox" aria-autocomplete="list" aria-expanded={suggest && !!nodeId} aria-controls={suggest ? `${id}-suggestions` : undefined} aria-activedescendant={suggest && suggestions[active] ? `${id}-suggestion-${active}` : undefined} value={value || initialDirectory || "/"} placeholder="Absolute path on the compute node" onFocus={showSuggestions} onChange={e => { onChange(e.target.value); showSuggestions(); }} onBlur={() => setSuggest(false)} onKeyDown={e => {
+      <input ref={input} aria-label={name} role="combobox" aria-autocomplete="list" aria-expanded={suggest && !!nodeId} aria-controls={suggest ? `${id}-suggestions` : undefined} aria-activedescendant={suggest && suggestions[active] ? `${id}-suggestion-${active}` : undefined} value={optional ? value : value || initialDirectory || "/"} placeholder="Absolute path on the compute node" onFocus={showSuggestions} onChange={e => { onChange(e.target.value); showSuggestions(); }} onBlur={() => setSuggest(false)} onKeyDown={e => {
         if (e.key === "Escape") { setSuggest(false); e.stopPropagation(); }
         if (suggest && suggestions.length && ["ArrowDown", "ArrowUp", "Tab", "Enter"].includes(e.key)) {
           e.preventDefault(); e.stopPropagation();

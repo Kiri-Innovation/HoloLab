@@ -28,7 +28,8 @@ def resolve_path_params(
         if spec.type is not ParamType.PATH:
             continue
         value = params.get(name, spec.default)
-        if value is None and spec.optional:
+        if spec.optional and (value is None or (isinstance(value, str) and not value.strip())):
+            result.pop(name, None)
             continue
         if not isinstance(value, str) or not value.strip() or "\0" in value:
             raise ValueError(f"Parameter {name}: enter a nonempty path string")
