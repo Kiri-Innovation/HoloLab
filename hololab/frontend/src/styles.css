@@ -70,8 +70,8 @@ body {
 .hl-button:hover:not(:disabled), button:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--text-subtle); }
 .hl-button:active:not(:disabled), button:active:not(:disabled) { background: var(--surface-alt); }
 .hl-button:disabled, button:disabled { opacity: .52; cursor: not-allowed; }
-.hl-button--primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: var(--fw-semibold); }
-.hl-button--primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.hl-button--primary { background: var(--text); border-color: var(--text); color: var(--text-inverse); font-weight: var(--fw-semibold); }
+.hl-button--primary:hover:not(:disabled) { background: var(--text-body); border-color: var(--text-body); }
 .hl-button--secondary { background: var(--surface); }
 .hl-button--ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
 .hl-button--ghost:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }

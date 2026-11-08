@@ -21,9 +21,9 @@ export const CONTROL_STYLE: CSSProperties = {
 
 export const PRIMARY_CONTROL_STYLE: CSSProperties = {
   ...CONTROL_STYLE,
-  background: "var(--accent)",
-  borderColor: "var(--accent)",
-  color: "var(--accent-fg)",
+  background: "var(--text)",
+  borderColor: "var(--text)",
+  color: "var(--text-inverse)",
   fontWeight: 600,
 };
 

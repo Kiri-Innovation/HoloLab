@@ -346,9 +346,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         onClick={onCreate}
         style={{
           marginTop: 8,
-          border: "1px solid var(--accent)",
-          background: "var(--accent)",
-          color: "var(--accent-fg)",
+          ...PRIMARY_CONTROL_STYLE,
           padding: "8px 18px",
           borderRadius: "var(--radius-sm)",
           cursor: "pointer",
