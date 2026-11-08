@@ -677,7 +677,16 @@ export const dispatchNode = async (
     // exactly once from the persisted server draft, rather than repeating the
     // caller's already-stale graph. The server remains the authority on the
     // revision comparison.
-    if (!(err instanceof ApiError) || err.status !== 409) throw err;
+    // 409 is also the gateway's normal "this node already has an active
+    // job" response.  Retrying that response submits a second dispatch after
+    // the first one has already won, which both obscures the useful job id and
+    // makes the card show a spurious failure.  Only retry the precise stale
+    // preparation-token response.
+    if (
+      !(err instanceof ApiError) ||
+      err.status !== 409 ||
+      !/preparation\s+is\s+stale/i.test(err.message)
+    ) throw err;
     const result = await submit(await headers(undefined));
     return {
       ...result,

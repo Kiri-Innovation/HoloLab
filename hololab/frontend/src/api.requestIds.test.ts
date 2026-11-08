@@ -89,6 +89,19 @@ it('re-prepares the persisted draft once after a stale preparation token', async
   expect(JSON.parse(String(prepareCalls[1][1]?.body))).toEqual({node_id: 'node'});
 });
 
+it('does not retry an active-job 409 as if its preparation token were stale', async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async url => new Response(
+    JSON.stringify(String(url).endsWith('/prepare')
+      ? {token: 'prepared'}
+      : {detail: "node 'node' already has an active job 12345678-1234-4234-8234-123456789abc"}),
+    {status: String(url).endsWith('/prepare') ? 200 : 409},
+  ));
+  vi.stubGlobal('fetch', fetch);
+
+  await expect(dispatchNode('workflow-active', 'node')).rejects.toThrow('already has an active job');
+  expect(fetch.mock.calls.filter(([url]) => String(url).includes('/dispatch/'))).toHaveLength(1);
+});
+
 it('does not let an old hover preparation survive a successful draft save', async () => {
   let resolveOld!: (value: {token: string}) => void;
   const old = new Promise<{token: string}>(resolve => { resolveOld = resolve; });

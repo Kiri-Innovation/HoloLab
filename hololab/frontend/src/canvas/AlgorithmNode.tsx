@@ -17,7 +17,7 @@ import { PortHandle } from "./PortHandle";
 // dataset attributes. The App-level onConnect validator reads those tags to
 // enforce tag compatibility at edge-drawing time.
 
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { NodeRunControl } from "./NodeRunControl";
 import { nodeStatus } from "./nodeStatus";
 import { NodeCardHeader } from "./NodeCardHeader";
@@ -453,12 +453,17 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const [showCompositionOutput, setShowCompositionOutput] = useState(false);
   const [runClickPending, setRunClickPending] = useState(false);
   const [runErrorMsg, setRunErrorMsg] = useState<string | null>(null);
+  // React state is committed after this click handler returns.  A ref closes
+  // the small same-task window where a rapid double-click can observe the old
+  // ``runClickPending === false`` twice.
+  const runClickLock = useRef(false);
 
   useEffect(() => { if (!runBlockReason) setRunErrorMsg(null); }, [runBlockReason]);
 
   const handleRunClick = async (inputAt?: number) => {
-    if (runInFlight || runClickPending) return;
+    if (runInFlight || runClickPending || runClickLock.current) return;
     if (runBlockReason) { setRunErrorMsg(runBlockReason); return; }
+    runClickLock.current = true;
     setRunClickPending(true);
     // This is deliberately optimistic: the request is now owned by the
     // dispatcher, while a later failure clears it and shows the reason.
@@ -474,6 +479,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
       // still clear on their own — this is a maximum, not a minimum.
       setTimeout(() => setRunErrorMsg(null), 8000);
     } finally {
+      runClickLock.current = false;
       setRunClickPending(false);
     }
   };

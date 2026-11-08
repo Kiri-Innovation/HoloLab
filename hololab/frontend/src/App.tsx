@@ -29,7 +29,7 @@ import { shouldPanWheel, keepsExistingWheelBehavior } from "./canvas/trackpadNav
 //   - right:  selection inspector / recent jobs, run history
 //   - bottom: compute nodes, pulse and resource lenses
 
-import { CanvasToastAnchor } from "./ui/Toast";
+import { CanvasToastAnchor, showToast } from "./ui/Toast";
 import { initialParameters } from "./canvas/initialParameters";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -73,6 +73,7 @@ import {
   ApiError,
   dispatchNode,
   getComputeNodes,
+  getJob,
   getCanvasState,
   getHandle,
   getHandleFacts,
@@ -473,6 +474,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // One optimistic Recent-jobs row per node. A WS frame can beat the REST
   // response, so both paths consume this mapping before inserting the real row.
   const optimisticJobByGraphNodeRef = useRef<Record<string, string>>({});
+  // The node card's lock prevents pointer double-clicks, while this lock
+  // protects every event source (context menu and preview controls included)
+  // before React has committed the optimistic state.
+  const dispatchInFlightByGraphNodeRef = useRef(new Set<string>());
   // Used only for user-visible timing diagnostics. The REST acknowledgement
   // creates the row, while the later RUNNING WS frame is the truthful blue
   // state; retaining both timestamps exposes any gap between them.
@@ -1585,6 +1590,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         reject("save the workflow first (no workflow_id yet)");
         return;
       }
+      if (dispatchInFlightByGraphNodeRef.current.has(graph_node_id)) {
+        // A second bridge event owns no request.  Resolving it keeps auxiliary
+        // controls quiet while the original request remains authoritative.
+        resolve();
+        return;
+      }
+      dispatchInFlightByGraphNodeRef.current.add(graph_node_id);
       // The browser owns this acknowledgement, so render it before starting
       // any save/prepare work. It is intentionally not a canvas runtime job.
       optimisticJobByGraphNodeRef.current[graph_node_id] = optimistic_job_id;
@@ -1650,6 +1662,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           return result;
         }).then(
           (result) => {
+            dispatchInFlightByGraphNodeRef.current.delete(graph_node_id);
             dispatchResponseAtByJobIdRef.current[result.job_id] = performance.now();
             dispatchInputAtByJobIdRef.current[result.job_id] = clickedAt;
             delete pendingDispatchInputAtByGraphNodeRef.current[graph_node_id];
@@ -1732,7 +1745,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             setRunsPanelRefreshToken((t) => t + 1);
             resolve();
           },
-          (err: Error) => {
+          async (err: Error) => {
+            dispatchInFlightByGraphNodeRef.current.delete(graph_node_id);
             delete pendingDispatchInputAtByGraphNodeRef.current[graph_node_id];
             const optimistic = optimisticJobByGraphNodeRef.current[graph_node_id];
             delete optimisticJobByGraphNodeRef.current[graph_node_id];
@@ -1741,10 +1755,58 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               delete next[optimistic];
               return next;
             });
+            // A lost response, an old tab, or an earlier rapid duplicate can
+            // reach the gateway after this node was accepted.  The gateway
+            // names the active job in its 409; attach to that job instead of
+            // presenting a red failure for work that is actually running.
+            const activeJobId = /already has an active job ([0-9a-f-]{36})/i.exec(err?.message ?? "")?.[1];
+            if (activeJobId) {
+              try {
+                const active = await getJob(activeJobId);
+                if (active.workflow_id === wid && active.graph_node_id === graph_node_id && active.snapshot_id) {
+                  const adopted: CanvasJob = {
+                    ...active,
+                    workflow_id: wid,
+                    graph_node_id,
+                    snapshot_id: active.snapshot_id,
+                  };
+                  setCanvasJobs((prev) => [
+                    ...prev.filter((job) => job.graph_node_id !== graph_node_id),
+                    adopted,
+                  ]);
+                  setJobsById((prev) => ({
+                    ...prev,
+                    [active.job_id]: {
+                      job_id: active.job_id,
+                      algorithm_name: active.algorithm_name,
+                      algorithm_version: active.algorithm_version,
+                      graph_node_id,
+                      state: active.state,
+                      progress: active.progress,
+                      created_ts: active.created_ts,
+                      updated_ts: active.updated_ts,
+                      fail_reason: active.fail_reason,
+                      workflow_id: wid,
+                    } as RecentJobRow,
+                  }));
+                  latestSnapshotIdRef.current = active.snapshot_id;
+                  setLatestSnapshotId(active.snapshot_id);
+                  resetNodeViewerForRun(graph_node_id, active.job_id);
+                  setSnapshotRefreshTick((tick) => tick + 1);
+                  showToast({ tone: "success", message: "该节点已在运行，已接管其进度" });
+                  resolve();
+                  return;
+                }
+              } catch {
+                // Preserve the original dispatch error if the job vanished or
+                // cannot be read; it is safer than inventing a runtime state.
+              }
+            }
             reject(err?.message || "dispatch failed");
           },
         );
       } catch (err) {
+        dispatchInFlightByGraphNodeRef.current.delete(graph_node_id);
         reject(err instanceof Error ? err.message : String(err));
       }
     };
