@@ -1926,14 +1926,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       event.preventDefault();
       event.stopImmediatePropagation();
       const viewport = rfInstance.getViewport();
-      // Match React Flow's scroll direction/speed. deltaMode only specifies
+      // Map scroll deltas 1:1 to viewport displacement. deltaMode only specifies
       // units (pixels, lines, pages); it never selects a navigation behaviour.
       const unitX = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? flow.clientWidth : 1;
       const unitY = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? flow.clientHeight : 1;
       void rfInstance.setViewport({
         ...viewport,
-        x: viewport.x - event.deltaX * unitX * 0.5,
-        y: viewport.y - event.deltaY * unitY * 0.5,
+        x: viewport.x - event.deltaX * unitX,
+        y: viewport.y - event.deltaY * unitY,
       });
     };
     window.addEventListener("wheel", onWheel, { capture: true, passive: false });
