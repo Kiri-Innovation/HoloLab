@@ -2,3 +2,9 @@ kind: Type
 name: int
 preview:
   viewer: text
+summary: hololab.gateway.handle_summary:_summarize_int
+dispatch:
+  order: 0
+  tags:
+  - int
+  storage: file

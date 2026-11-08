@@ -45,3 +45,25 @@ def test_summary_interface_errors_and_timeout(tmp_path):
     start = time.monotonic()
     assert registry.get('custom').summary(Path('/missing'), 'file') is None
     assert time.monotonic() - start < 3
+
+
+def test_live_consumer_and_cache_follow_source_edit(tmp_path, monkeypatch):
+    import hololab.type_registry as types
+    from hololab.gateway.handles import Handle
+    from hololab.gateway.handle_summary import HandleSummaryCache
+    from hololab.gateway.tag_viewers import infer_preview_for_output
+    directory = tmp_path / 'types' / 'custom'
+    directory.mkdir(parents=True)
+    manifest = directory / 'manifest.yaml'
+    manifest.write_text('name: custom\nsummary: summary.py:summary\npreview: {viewer: text}\n')
+    source = directory / 'summary.py'
+    source.write_text('def summary(path, storage):\n return {"counts": {"count": 3, "kind": "items"}}\n')
+    monkeypatch.setattr(types, 'registry', TypeRegistry([tmp_path], bundled=False))
+    handle = Handle('hot', 'node', storage='file', path=str(tmp_path / 'value'), tags=['custom'])
+    cache = HandleSummaryCache()
+    assert cache.get_or_compute(handle, dim_labels=[])['internal_count'] == 3
+    source.write_text(source.read_text().replace('3', '7'))
+    assert cache.get_or_compute(handle, dim_labels=[])['internal_count'] == 7
+    assert infer_preview_for_output(None, ['custom']).viewer == 'text'
+    manifest.write_text(manifest.read_text().replace('viewer: text', 'viewer: image'))
+    assert infer_preview_for_output(None, ['custom']).viewer == 'image'

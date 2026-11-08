@@ -350,7 +350,22 @@ _REGISTRY: dict[str, ProbeFn] = {
 
 def probe_for_tag(tag: str) -> ProbeFn | None:
     """Return the registered probe for ``tag``, or None."""
-    return _REGISTRY.get(tag)
+    from hololab.type_registry import registry
+    definition = registry.get(tag)
+    if definition is None:
+        return None
+    if definition.declaration.get("probe"):
+        return lambda path: definition.call("probe", path)
+    if not definition.declaration.get("summary"):
+        return None
+    def probe(path):
+        value = definition.summary(path, "dir" if path.is_dir() else "file")
+        counts = value.get("counts") if value else None
+        if not counts:
+            return None
+        return ProbeResult(count=counts["count"], kind=counts["kind"],
+                           items=tuple(ProbeItem(**item) for item in counts.get("items", [])))
+    return probe
 
 
 def internal_count_for(tags: list[str], sample_path: Path) -> ProbeResult | None:
@@ -362,12 +377,12 @@ def internal_count_for(tags: list[str], sample_path: Path) -> ProbeResult | None
     handle's own path.
     """
     for tag in tags:
-        fn = _REGISTRY.get(tag)
+        fn = probe_for_tag(tag)
         if fn is None:
             continue
         try:
             res = fn(sample_path)
-        except OSError:
+        except Exception:
             continue
         if res is not None:
             return res
@@ -408,9 +423,11 @@ def content_dim_count_for(tags: list[str]) -> int:
         dir_depth = len(dim_labels) - content_dim_count_for(tags)
     """
     for tag in tags:
-        entry = _CONTENT_DIM_REGISTRY.get(tag)
+        from hololab.type_registry import registry
+        definition = registry.get(tag)
+        entry = definition.declaration.get("content_dims") if definition else None
         if entry is not None:
-            return entry[0]
+            return entry["count"]
     return 0
 
 
@@ -423,12 +440,14 @@ def probe_content_dims(tags: list[str], sample_path: Path) -> list[int] | None:
     reports).
     """
     for tag in tags:
-        entry = _CONTENT_DIM_REGISTRY.get(tag)
+        from hololab.type_registry import registry
+        definition = registry.get(tag)
+        entry = definition.declaration.get("content_dims") if definition else None
         if entry is None:
             continue
-        _n, probe = entry
         try:
-            return probe(sample_path)
-        except OSError:
+            value = definition.summary(sample_path, "dir" if sample_path.is_dir() else "file")
+            return value.get("content_dims") if value else None
+        except Exception:
             return None
     return None

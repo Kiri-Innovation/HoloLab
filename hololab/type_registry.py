@@ -85,7 +85,24 @@ class TypeRegistry:
             self.generation = digest.hexdigest()
         return self.generation
 
+    def refresh(self):
+        files = []
+        for root in (*self.roots, *((BUNDLED_ROOT,) if self.bundled else ())):
+            root = root.parent if root.is_file() else root
+            for file in sorted((root / "types").glob("**/*")):
+                if file.is_file() and "__pycache__" not in file.parts:
+                    try:
+                        stat = file.stat()
+                        files.append((str(file), stat.st_mtime_ns, stat.st_size))
+                    except OSError:
+                        pass
+        stamp = tuple(files)
+        if stamp != getattr(self, "_stamp", None):
+            self.reload()
+            self._stamp = stamp
+
     def get(self, name):
+        self.refresh()
         return self.definitions.get(name)
 
 

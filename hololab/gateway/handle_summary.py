@@ -116,23 +116,28 @@ def summarize_handle(
 def _dispatch_summary(handle: Handle, path: Path) -> dict[str, Any]:
     """Original kind/fields dispatch — split out so annotators layer on top."""
 
-    if "int" in handle.tags and handle.storage == "file":
-        return _summarize_int(path, handle)
+    from hololab.type_registry import registry
 
-    if handle.storage == "dir":
-        return _summarize_dir(path, handle)
-
-    if "splatv" in handle.tags or path.suffix == ".splatv":
-        return _summarize_splatv(path, handle)
-
-    suffix = path.suffix.lower()
-    if suffix in (".mp4", ".mov", ".mkv", ".webm"):
-        return _summarize_video(path, handle)
-    if "image" in handle.tags or suffix in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
-        return _summarize_image(path, handle)
-    if suffix in (".txt", ".log", ".json", ".md", ".yaml", ".yml"):
-        return _summarize_text(path, handle)
-
+    registry.refresh()
+    definitions = sorted(registry.definitions.values(), key=lambda d: d.declaration.get("dispatch", {}).get("order", 1000))
+    for definition in definitions:
+        rule = definition.declaration.get("dispatch")
+        if not rule or (rule.get("storage") and rule["storage"] != handle.storage):
+            continue
+        suffix = path.suffix if rule.get("case_sensitive") else path.suffix.lower()
+        if (rule.get("tags") or rule.get("suffixes")) and not (
+            set(rule.get("tags", [])).intersection(handle.tags) or suffix in rule.get("suffixes", [])
+        ):
+            continue
+        value = definition.summary(path, handle.storage)
+        if value is not None:
+            count = definition.declaration.get("summary_count", {})
+            number = value.get("fields", {}).get(count.get("field"))
+            if isinstance(number, int):
+                value["internal_count"] = number
+                value["internal_count_kind"] = count["kind"]
+            return value
+        return {"kind": "unknown", "fields": {}}
     return {"kind": "unknown", "fields": {}}
 
 
@@ -192,11 +197,8 @@ def _annotate_element_and_internal_counts(
             if leaf is not None:
                 sample_path = leaf
 
-    fields = result.get("fields") or {}
-    if result.get("kind") == "splatv" and isinstance(fields.get("camera_count"), int):
-        result["internal_count"] = int(fields["camera_count"])
-        result["internal_count_kind"] = "cameras"
-    else:
+    root_count = "internal_count" in result
+    if not root_count:
         probe = internal_count_for(list(handle.tags), sample_path)
         if probe is not None:
             if probe.items:
@@ -224,7 +226,7 @@ def _annotate_element_and_internal_counts(
         if dimension_leaf is not None and dimension_leaf != path
         else None
     )
-    if result.get("kind") == "splatv" and isinstance(fields.get("camera_count"), int):
+    if root_count:
         sample = None  # camera_count above was read from the root file itself.
     result["runtime_shape"] = observe_summary(
         handle_id=handle.handle_id,
@@ -761,6 +763,12 @@ class HandleSummaryCache:
         ``dim_sizes`` measurement walks the right depth.
         """
 
+        from hololab.type_registry import registry
+        registry.refresh()
+        with self._lock:
+            if getattr(self, "_type_generation", None) != registry.generation:
+                self._store.clear()
+                self._type_generation = registry.generation
         cache_key = (handle.handle_id, tuple(dim_labels or []))
         with self._lock:
             hit = self._store.get(cache_key)

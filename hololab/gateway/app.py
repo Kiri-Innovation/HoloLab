@@ -4401,6 +4401,8 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
         # ``node_online`` so a frontend watching a live workflow
         # already sees the node dot flip green before its orphaned
         # shard dots start refilling with real state.
+        from hololab.type_registry import configure
+        configure([Path(root) for node in registry.all_sessions() for root in (node.pack_dirs or [])])
         await _reconcile_orphaned_on_register(store, hub, session, payload.running_jobs)
 
         # Step 2: process subsequent frames until disconnect.
@@ -4929,6 +4931,8 @@ async def _dispatch_node_frame(
 
     if kind == "packs_updated":
         assert isinstance(payload, PacksUpdated)
+        from hololab.type_registry import configure
+        configure([Path(root) for node in registry.all_sessions() for root in (node.pack_dirs or [])])
         await registry.replace_packs(session.node_id, payload.packs, payload.envs)
         # Notify frontend subscribers by re-emitting node_online with new packs.
         hub.broadcast(

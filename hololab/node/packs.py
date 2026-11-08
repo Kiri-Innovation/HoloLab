@@ -223,7 +223,7 @@ def scan_packs(pack_source: Path) -> list[LoadedPack]:
     # Mode 3 — directory of pack subdirectories (legacy repo layout).
     out: list[LoadedPack] = []
     for entry in sorted(pack_source.iterdir()):
-        if entry.name in {"output", "outputs", "data", "assets", ".git"} or not entry.is_dir():
+        if entry.name in {"output", "outputs", "data", "assets", ".git", "types"} or not entry.is_dir():
             continue
         manifest_path = manifest_at(entry)
         if not manifest_path.is_file():

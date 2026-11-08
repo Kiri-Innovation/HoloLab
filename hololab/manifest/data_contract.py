@@ -21,6 +21,14 @@ class ContractError(ValueError):
 
 
 def check_declaration(spec: Any) -> None:
+    from hololab.type_registry import registry
+    registry.refresh()
+    for definition in registry.definitions.values():
+        if definition.declaration.get("check_declaration"):
+            definition.call("check_declaration", spec)
+
+
+def _check_image_declaration(spec: Any) -> None:
     removed = REMOVED_IMAGE_TAGS.intersection(spec.tags)
     if removed:
         raise ValueError(
@@ -57,7 +65,10 @@ def validate_path(path: Path, spec: Any, *, label: str, params: dict | None = No
         )
     if not path.exists():
         raise ContractError(f"{label}: missing input/output path: {path}")
-    image_leaf = "image" in spec.tags
+    from hololab.type_registry import registry
+    leaf_checks = [definition for tag in spec.tags
+                   if (definition := registry.get(tag)) is not None
+                   and definition.declaration.get("validate_leaf")]
     depth = max(1, len(spec.dim_labels)) if spec.arrayed else 0
     key = getattr(spec, "dim_labels_from", None)
     if key and params and isinstance(params.get(key), list):
@@ -75,15 +86,8 @@ def validate_path(path: Path, spec: Any, *, label: str, params: dict | None = No
                 if not child.name.startswith("."):
                     visit(child, remaining - 1)
             return
-        if not image_leaf:
-            # Opaque bundle contents belong to their tag's validator. `any`
-            # can be a file, a bundle, or another collection at this leaf.
-            return
-        if not current.is_file():
-            raise ContractError(
-                f"{label}: expected one image file, got directory/non-file: {current}"
-            )
-        check_image_header(current, label=label)
+        for definition in leaf_checks:
+            definition.call("validate_leaf", current, label=label)
 
     try:
         # Depth-first in sorted order, so the first failure reported is the
@@ -91,6 +95,14 @@ def validate_path(path: Path, spec: Any, *, label: str, params: dict | None = No
         visit(path, depth)
     except OSError as exc:
         raise ContractError(f"{label}: cannot validate {path}: {exc}") from exc
+
+
+def _check_image_leaf(current: Path, *, label: str) -> None:
+    if not current.is_file():
+        raise ContractError(
+            f"{label}: expected one image file, got directory/non-file: {current}"
+        )
+    check_image_header(current, label=label)
 
 
 def check_image_header(path: Path, *, label: str) -> tuple[int, int]:

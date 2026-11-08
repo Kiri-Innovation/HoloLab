@@ -85,7 +85,10 @@ def infer_preview_for_output(
     if explicit_preview is not None:
         return explicit_preview
     for tag in tags:
-        registered = TAG_VIEWER_REGISTRY.get(tag)
+        from hololab.type_registry import registry
+        definition = registry.get(tag)
+        value = definition.declaration.get("preview") if definition else None
+        registered = OutputPreview(**value) if value else None
         if registered is not None:
             return registered
     return None

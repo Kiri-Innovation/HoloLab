@@ -739,7 +739,8 @@ class NodeRuntime:
         # a ``packs_updated`` without needing to restart the node.
         try:
             pack_dirs = list(self._config.pack_scan_dirs)
-            watch_roots = _pack_watch_roots(pack_dirs)
+            from hololab.type_registry import BUNDLED_ROOT
+            watch_roots = _pack_watch_roots([*pack_dirs, BUNDLED_ROOT / "types"])
 
             # Deferred import so plain --help stays fast.  Keep it inside
             # the guarded block: a missing optional dependency used to make
@@ -3346,7 +3347,9 @@ def _file_digest(path: Path) -> str | None:
 
 def _load_packs(pack_dirs: list[Path]) -> dict[tuple[str, str], LoadedPack]:
     from hololab.bundled import load_bundled_packs
+    from hololab.type_registry import configure
 
+    configure(pack_dirs)
     # Bundled inventory is loaded before, and separately from, user roots.
     # User builtin names are rejected by scan_multi_packs rather than allowed
     # to participate in its normal first-wins rule.

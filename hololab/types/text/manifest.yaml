@@ -1,0 +1,12 @@
+kind: Type
+name: text
+summary: hololab.gateway.handle_summary:_summarize_text
+dispatch:
+  order: 50
+  suffixes:
+  - .txt
+  - .log
+  - .json
+  - .md
+  - .yaml
+  - .yml
