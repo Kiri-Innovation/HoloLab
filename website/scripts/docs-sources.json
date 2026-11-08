@@ -496,5 +496,71 @@
     "locale": "zh-CN",
     "contentLanguage": "zh-CN",
     "navigationOrder": 170
+  },
+  {
+    "source": "website/content/en/use/migrating-artifacts.md",
+    "slug": "use/migrating-artifacts",
+    "section": "learn",
+    "title": "Migrating artifact storage",
+    "group": "Full Features Intro",
+    "order": 51,
+    "locale": "en",
+    "contentLanguage": "en",
+    "navigationOrder": 51
+  },
+  {
+    "source": "website/content/zh/use/migrating-artifacts.md",
+    "slug": "use/migrating-artifacts",
+    "section": "learn",
+    "title": "迁移产物存储",
+    "group": "Full Features Intro",
+    "order": 51,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "navigationOrder": 51
+  },
+  {
+    "source": "website/content/en/use/storage-layout.md",
+    "slug": "use/storage-layout",
+    "section": "learn",
+    "title": "Where HoloLab keeps its files",
+    "group": "Full Features Intro",
+    "order": 52,
+    "locale": "en",
+    "contentLanguage": "en",
+    "navigationOrder": 52
+  },
+  {
+    "source": "website/content/zh/use/storage-layout.md",
+    "slug": "use/storage-layout",
+    "section": "learn",
+    "title": "HoloLab 的文件存在哪里",
+    "group": "Full Features Intro",
+    "order": 52,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "navigationOrder": 52
+  },
+  {
+    "source": "website/content/en/contributor/pack-environments.md",
+    "slug": "contributor/pack-environments",
+    "section": "contributor",
+    "title": "Pack environments and dependencies",
+    "group": "Collaboration and reproducibility",
+    "order": 145,
+    "locale": "en",
+    "contentLanguage": "en",
+    "navigationOrder": 145
+  },
+  {
+    "source": "website/content/zh/contributor/pack-environments.md",
+    "slug": "contributor/pack-environments",
+    "section": "contributor",
+    "title": "包环境与依赖",
+    "group": "Collaboration and reproducibility",
+    "order": 145,
+    "locale": "zh-CN",
+    "contentLanguage": "zh-CN",
+    "navigationOrder": 145
   }
 ]
