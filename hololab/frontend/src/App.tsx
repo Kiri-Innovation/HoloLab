@@ -3292,6 +3292,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             deleteKeyCode="Backspace"
             fitView={fitInitialGraph}
             minZoom={dynamicMinZoom}
+            maxZoom={4}
             proOptions={{ hideAttribution: true }}
           >
             <FrameSelectedShortcut nodeId={selectedNode?.id ?? null} />

@@ -478,6 +478,7 @@ export function SnapshotCanvas({
       edgesFocusable={false}
       deleteKeyCode={null}
       fitView
+      maxZoom={4}
       proOptions={{ hideAttribution: true }}
     >
       {/* Toggle Panel + MiniMap both anchor bottom-right; when the
