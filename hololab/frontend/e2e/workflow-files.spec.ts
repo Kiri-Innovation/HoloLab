@@ -76,7 +76,12 @@ async function fixture(context: BrowserContext) {
       path = new URL(req.url()).pathname;
     let body: any = [];
     if (path === "/api/workflows" && req.method() === "POST") posts++;
-    if (path === "/api/workflows/file-test") body = doc;
+    if (path === "/api/workflows/file-test/move" && req.method() === "POST") {
+      const move = req.postDataJSON();
+      doc = { ...doc, path: `${move.parent_dir}/${move.name}`, rev: doc.rev + 1 };
+      broadcast();
+      body = { id: doc.id, path: doc.path, rev: doc.rev };
+    } else if (path === "/api/workflows/file-test") body = doc;
     else if (path === "/api/workflows")
       body = [{ ...doc, node_count: 1, last_run: null }];
     else if (path === "/api/pack-catalog")
@@ -292,3 +297,34 @@ test("workflow file modals cancel with Escape or Cancel without requests", async
   await expect(open).toHaveCount(0);
   expect(requests).toBe(0);
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`gallery shows path tooltip and moves workflow file in ${theme}`, async ({
+    context,
+    page,
+  }, testInfo) => {
+    await fixture(context);
+    await page.goto("/");
+    await page.evaluate((value) => (document.documentElement.dataset.theme = value), theme);
+    const card = page.locator(".hl-workflow-card");
+    const path = card.locator(".hl-workflow-path");
+    await expect(path).toHaveText("/tmp/Original.workflow");
+    await path.hover();
+    await expect(page.getByRole("tooltip")).toContainText("/tmp/Original.workflow");
+    await card.hover();
+    await card.getByRole("button", { name: "移动文件" }).click();
+    const dialog = page.getByRole("dialog", { name: "移动 workflow 文件" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel("目标 workflow 文件名").fill("Moved.workflow");
+    const request = page.waitForRequest(
+      (r) => new URL(r.url()).pathname === "/api/workflows/file-test/move",
+    );
+    await dialog.getByRole("button", { name: "移动", exact: true }).click();
+    expect((await request).postDataJSON()).toEqual({
+      parent_dir: "/tmp",
+      name: "Moved.workflow",
+    });
+    await expect(path).toHaveText("/tmp/Moved.workflow");
+    await page.screenshot({ path: testInfo.outputPath(`gallery-path-${theme}.png`) });
+  });
+}

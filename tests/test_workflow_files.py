@@ -345,3 +345,53 @@ def test_new_relink_missing_and_identity_guards(tmp_path):
             ).status_code
             == 422
         )
+
+
+def test_move_workflow_file_updates_registry_and_broadcasts(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from hololab.gateway.app import create_app
+
+    destination_dir = tmp_path / "moved"
+    destination_dir.mkdir()
+    with TestClient(create_app(db_path=tmp_path / "db.sqlite", workflows_dir=tmp_path)) as client:
+        created = client.post(
+            "/api/workflow-files", json={"parent_dir": str(tmp_path), "name": "original"}
+        )
+        assert created.status_code == 200, created.text
+        workflow_id = created.json()["id"]
+        source = Path(created.json()["path"])
+        with client.websocket_connect("/ws/frontend") as websocket:
+            moved = client.post(
+                f"/api/workflows/{workflow_id}/move",
+                json={"parent_dir": str(destination_dir), "name": "renamed.workflow"},
+            )
+            assert moved.status_code == 200, moved.text
+            destination = destination_dir / "renamed.workflow"
+            assert moved.json()["path"] == str(destination)
+            assert destination.exists() and not source.exists()
+            assert client.get("/api/workflows").json()[0]["path"] == str(destination)
+            detail = client.get(f"/api/workflows/{workflow_id}")
+            assert detail.status_code == 200 and detail.json()["path"] == str(destination)
+            frame = websocket.receive_json()
+            assert frame["kind"] == "workflow_changed"
+            assert frame["payload"]["id"] == workflow_id
+            assert frame["payload"]["path"] == str(destination)
+
+        occupied = destination_dir / "occupied.workflow"
+        write_document(
+            occupied, WorkflowDocument(id="occupied", name="occupied", graph=WorkflowGraph())
+        )
+        exists = client.post(
+            f"/api/workflows/{workflow_id}/move",
+            json={"parent_dir": str(destination_dir), "name": "occupied.workflow"},
+        )
+        assert exists.status_code == 409
+        assert "already exists" in exists.json()["detail"]
+        destination.unlink()
+        missing = client.post(
+            f"/api/workflows/{workflow_id}/move",
+            json={"parent_dir": str(destination_dir), "name": "again.workflow"},
+        )
+        assert missing.status_code == 409
+        assert "source workflow file is missing" in missing.json()["detail"]

@@ -518,6 +518,17 @@ a:hover { text-decoration: underline; }
   background: var(--surface) !important; box-shadow: none;
 }
 .hl-workflow-card:hover { border-color: var(--border-strong) !important; background: var(--surface-hover) !important; box-shadow: none !important; }
+.hl-workflow-path {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hl-workflow-path:focus-visible { outline: 1px solid var(--border-strong); outline-offset: 2px; }
 .hl-artifact-summary {
   background: var(--surface-2) !important; border-bottom-color: var(--border) !important;
   box-shadow: none;

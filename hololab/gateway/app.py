@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import errno
 import json
 import os
 import secrets
@@ -2440,6 +2441,47 @@ def _mount_routes(app: FastAPI) -> None:
             return {"id": workflow_id, "path": str(path)}
         except (KeyError, ValueError, OSError) as exc:
             raise HTTPException(422, str(exc)) from exc
+
+    @app.post("/api/workflows/{workflow_id}/move", tags=["workflows"])
+    async def move_workflow_file(workflow_id: str, body: dict[str, Any]):
+        """Move a workflow file and atomically retarget its registry entry."""
+        try:
+            if "parent_dir" not in body:
+                raise ValueError("parent_dir is required")
+            parent_dir = body["parent_dir"]
+            if not isinstance(parent_dir, str):
+                raise ValueError("parent_dir must be a string")
+            name = body.get("name")
+            if name is not None and not isinstance(name, str):
+                raise ValueError("name must be a string when provided")
+            moved = await app.state.workflow_files.move(workflow_id, Path(parent_dir), name)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except NotADirectoryError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except FileExistsError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(403, f"permission denied while moving workflow: {exc}") from exc
+        except OSError as exc:
+            if exc.errno == errno.EXDEV:
+                raise HTTPException(409, str(exc)) from exc
+            raise HTTPException(422, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+        files = app.state.workflow_files
+        document = files.documents.get(workflow_id)
+        if document is None:
+            from hololab.gateway.workflow_files import read_document
+
+            document = read_document(Path(moved["path"]))
+            files.documents[workflow_id] = document
+        if files.on_changed:
+            await files.on_changed(workflow_id, document, moved["rev"])
+        return moved
 
     @app.post("/api/workflow-files/open", tags=["workflows"])
     async def open_workflow_document(body: dict[str, Any]):

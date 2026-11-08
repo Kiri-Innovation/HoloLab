@@ -38,6 +38,7 @@ export function Modal({ open, onClose, title, children, maxWidth = 720 }: ModalP
     <div
       role="dialog"
       aria-modal="true"
+      aria-label={title}
       onClick={onClose}
       style={{
         position: "fixed",

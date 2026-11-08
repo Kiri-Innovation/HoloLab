@@ -266,6 +266,9 @@ export interface WorkflowLastRun {
 }
 
 export interface WorkflowSummary {
+  id?: string | null;
+  path?: string | null;
+  missing?: boolean;
   workflow_id: string;
   name: string;
   node_count: number;
@@ -276,6 +279,16 @@ export interface WorkflowSummary {
 
 export const listWorkflows = () =>
   resilientFetch("/api/workflows").then(json<WorkflowSummary[]>);
+
+export const moveWorkflowFile = (
+  workflowId: string,
+  body: { parent_dir: string; name?: string },
+) =>
+  resilientFetch(`/api/workflows/${encodeURIComponent(workflowId)}/move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(json<{ id: string; path: string; rev: number }>);
 
 export const getWorkflow = (workflow_id: string) =>
   resilientFetch(`/api/workflows/${workflow_id}`).then(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import errno
 import json
 import os
 import uuid
@@ -357,6 +358,73 @@ class WorkflowFiles:
             self.revisions.setdefault(document.id, 0)
             await self.resolve(document.id)
             return {"id": document.id, "path": str(path)}
+
+    async def move(self, wid: str, parent: Path, name: str | None = None) -> dict:
+        """Move a registered workflow without losing its durable identity.
+
+        The registry update happens while the file lock is held, immediately
+        after the filesystem rename.  A cross-device rename is deliberately
+        rejected: a copy/delete fallback has a wider failure window and must
+        not silently turn an operator's move into a partial copy.
+        """
+        parent = parent.expanduser().resolve()
+        if not parent.is_dir():
+            raise NotADirectoryError(f"destination directory does not exist: {parent}")
+        async with self.lock:
+            entry = next((r for r in await self.entries() if r[0] == wid), None)
+            if entry is None:
+                raise KeyError("workflow path not registered")
+            source = Path(entry[1])
+            if not source.is_file():
+                raise FileNotFoundError(f"source workflow file is missing: {source}")
+            filename = source.name if name is None else name.strip()
+            if (
+                not filename
+                or Path(filename).name != filename
+                or filename in (".", "..")
+                or not filename.endswith(".workflow")
+            ):
+                raise ValueError("name must be a nonempty .workflow filename component")
+            destination = parent / filename
+            if destination == source:
+                return {"id": wid, "path": str(source), "rev": self.revisions.get(wid, 0)}
+            if destination.exists():
+                raise FileExistsError(f"destination workflow file already exists: {destination}")
+            try:
+                document = read_document(source)
+            except (ValueError, OSError) as exc:
+                raise ValueError(f"cannot move invalid workflow file: {exc}") from exc
+            if document.id != wid:
+                raise ValueError("workflow file id does not match registry")
+
+            # A queued browser edit belongs to this document, not its old
+            # pathname. Flush it before the move so cancelling the debounce
+            # cannot discard user changes or later recreate the old path.
+            task = self._save_tasks.pop(wid, None)
+            if task:
+                task.cancel()
+                if serialize(document) != self.disk_bytes.get(wid):
+                    raise ValueError(f"workflow file changed before move: {source}")
+                document = self.documents[wid]
+                write_document(source, document)
+                self.disk_bytes[wid] = serialize(document)
+            try:
+                os.rename(source, destination)
+            except OSError as exc:
+                if exc.errno == errno.EXDEV:
+                    raise OSError(
+                        errno.EXDEV,
+                        "cross-device moves are not supported; choose a directory on the same filesystem",
+                        str(destination),
+                    ) from exc
+                raise
+            await self.register(document, destination)
+            await self.store._save_cached(workflow_id=wid, name=document.name, graph=document.graph)
+            self.known_paths.discard(source.resolve())
+            self.known_paths.add(destination.resolve())
+            self.missing_ids.discard(wid)
+            self.revisions[wid] = self.revisions.get(wid, 0) + 1
+            return {"id": wid, "path": str(destination), "rev": self.revisions[wid]}
 
     async def edit(
         self, wid: str, base_rev: int, ops: list[dict]

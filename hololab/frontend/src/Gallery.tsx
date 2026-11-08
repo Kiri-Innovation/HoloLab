@@ -11,13 +11,15 @@ import { RecipeFileActions } from "./canvas/RecipeFileActions";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { WorkflowSummary } from "./api";
-import { ApiError, deleteWorkflow, getWorkflow, listWorkflows } from "./api";
+import { ApiError, deleteWorkflow, getWorkflow, listWorkflows, moveWorkflowFile } from "./api";
 import { WorkflowFilePicker } from "./canvas/WorkflowFiles";
+import { PathInput } from "./canvas/PathInput";
 import { editWorkflowFile } from "./canvas/editWorkflowFile";
 import { stateColour } from "./canvas/AlgorithmNode";
 import { CopyRefButton } from "./canvas/CopyRefButton";
 import { ThemeToggle } from "./theme/ThemeToggle";
 import { CONTROL_STYLE, PRIMARY_CONTROL_STYLE } from "./ui/controlStyles";
+import { Modal } from "./ui/Modal";
 
 const CARD_MIN_WIDTH = 260;
 
@@ -37,6 +39,7 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
   const [rows, setRows] = useState<WorkflowSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picker, setPicker] = useState<"create" | "open" | null>(null);
+  const [moving, setMoving] = useState<WorkflowSummary | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -51,6 +54,35 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  // Gallery cards are summaries, so reload them when a canvas or another
+  // Gallery tab changes a file-backed workflow (including a path-only move).
+  useEffect(() => {
+    const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/frontend`;
+    let stopped = false;
+    let retry: number | undefined;
+    const connect = () => {
+      const ws = new WebSocket(url);
+      ws.onmessage = (event) => {
+        try {
+          const frame = JSON.parse(event.data);
+          if (frame.kind === "workflow_changed" || frame.kind === "workflow_updated") void refresh();
+        } catch {
+          // Ignore unrelated malformed telemetry frames; the App connection
+          // remains responsible for the canvas-level protocol.
+        }
+      };
+      ws.onclose = () => {
+        if (!stopped) retry = window.setTimeout(connect, 1000);
+      };
+      ws.onerror = () => ws.close();
+    };
+    connect();
+    return () => {
+      stopped = true;
+      if (retry !== undefined) window.clearTimeout(retry);
+    };
   }, [refresh]);
 
   const onCreate = useCallback(() => setPicker("create"), []);
@@ -128,6 +160,7 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
           onOpen={onOpen}
           onRename={onRename}
           onDelete={onDelete}
+          onMove={setMoving}
           onCreate={onCreate}
         />
       </main>
@@ -138,6 +171,14 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
           onClose={() => setPicker(null)}
         />
       )}
+      <WorkflowMoveDialog
+        row={moving}
+        onClose={() => setMoving(null)}
+        onMoved={async () => {
+          setMoving(null);
+          await refresh();
+        }}
+      />
     </div>
   );
 }
@@ -266,12 +307,14 @@ function GalleryBody({
   onOpen,
   onRename,
   onDelete,
+  onMove,
   onCreate,
 }: {
   rows: WorkflowSummary[] | null;
   onOpen: (id: string) => void;
   onRename: (row: WorkflowSummary, newName: string) => Promise<void>;
   onDelete: (row: WorkflowSummary) => Promise<void>;
+  onMove: (row: WorkflowSummary) => void;
   onCreate: () => void;
 }) {
   if (rows === null) {
@@ -300,6 +343,7 @@ function GalleryBody({
           onOpen={onOpen}
           onRename={onRename}
           onDelete={onDelete}
+          onMove={onMove}
         />
       ))}
     </div>
@@ -370,11 +414,13 @@ function WorkflowCard({
   onOpen,
   onRename,
   onDelete,
+  onMove,
 }: {
   row: WorkflowSummary;
   onOpen: (id: string) => void;
   onRename: (row: WorkflowSummary, newName: string) => Promise<void>;
   onDelete: (row: WorkflowSummary) => Promise<void>;
+  onMove: (row: WorkflowSummary) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(row.name);
@@ -487,6 +533,15 @@ function WorkflowCard({
               ✎
             </IconButton>
             <IconButton
+              title="移动文件"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMove(row);
+              }}
+            >
+              ↗
+            </IconButton>
+            <IconButton
               title="删除流程"
               onClick={(e) => {
                 e.stopPropagation();
@@ -499,12 +554,111 @@ function WorkflowCard({
         )}
       </div>
 
+      {row.path && (
+        <div
+          className="hl-workflow-path"
+          data-tooltip={row.path}
+          data-tooltip-placement="below"
+          tabIndex={0}
+          aria-label={`服务器文件路径：${row.path}`}
+        >
+          {row.path}
+        </div>
+      )}
+
       <div style={{ flex: 1 }} />
 
       <LastRunLine last={row.last_run} />
     </div>
   );
 }
+
+function WorkflowMoveDialog({
+  row,
+  onClose,
+  onMoved,
+}: {
+  row: WorkflowSummary | null;
+  onClose: () => void;
+  onMoved: () => Promise<void>;
+}) {
+  const [parentDir, setParentDir] = useState("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!row?.path) return;
+    const slash = row.path.lastIndexOf("/");
+    setParentDir(slash > 0 ? row.path.slice(0, slash) : "/");
+    setName(row.path.slice(slash + 1));
+    setError("");
+  }, [row]);
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!row || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await moveWorkflowFile(row.workflow_id, { parent_dir: parentDir, name });
+      await onMoved();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open={row !== null} onClose={busy ? () => {} : onClose} title="移动 workflow 文件" maxWidth={620}>
+      <form onSubmit={submit} style={{ display: "grid", gap: "var(--space-4)" }}>
+        <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "var(--fs-sm)" }}>
+          通过 HoloLab 移动会同时更新工作流登记路径。
+        </p>
+        <label style={FIELD_STYLE}>
+          目标目录
+          <PathInput nodeId="gateway" name="workflow-move-directory" value={parentDir} onChange={setParentDir} pathKind="directory" />
+        </label>
+        <label style={FIELD_STYLE}>
+          文件名
+          <input aria-label="目标 workflow 文件名" value={name} onChange={(e) => setName(e.target.value)} style={NAME_INPUT_STYLE} />
+        </label>
+        {error && <p role="alert" style={{ margin: 0, color: "var(--error)", fontSize: "var(--fs-sm)" }}>{error}</p>}
+        <div style={ACTIONS_STYLE}>
+          <button type="button" style={CONTROL_STYLE} onClick={onClose} disabled={busy}>取消</button>
+          <button type="submit" style={PRIMARY_CONTROL_STYLE} disabled={busy || !parentDir || !name}>移动</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+const FIELD_STYLE = {
+  display: "grid",
+  gap: "var(--space-2)",
+  color: "var(--text-body)",
+  fontSize: "var(--fs-sm)",
+};
+
+const NAME_INPUT_STYLE = {
+  width: "100%",
+  height: "var(--control-h-md)",
+  boxSizing: "border-box" as const,
+  padding: "0 var(--space-2)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-sm)",
+  background: "var(--surface-2)",
+  color: "var(--text-body)",
+  fontSize: "var(--fs-sm)",
+};
+
+const ACTIONS_STYLE = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: "var(--space-2)",
+  marginTop: "var(--space-2)",
+};
 
 function IconButton({
   children,
