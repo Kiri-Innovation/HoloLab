@@ -252,7 +252,11 @@ ORPHAN_FINALIZER_INTERVAL_S = 30.0
 
 
 def create_app(
-    *, db_path: Path | None = None, library_config: LibraryConfig | None = None
+    *,
+    db_path: Path | None = None,
+    library_config: LibraryConfig | None = None,
+    workflows_dir: Path | None = None,
+    workflow_config_path: Path | None = None,
 ) -> FastAPI:
     """Construct the FastAPI app. Called by CLI or tests.
 
@@ -355,6 +359,25 @@ def create_app(
         )
         if app.state.workflows.file_authority:
             await app.state.workflows.file_authority.recover_all()
+        from hololab.gateway.workflow_files import WorkflowFiles
+        from hololab.node.config import load_node_config
+
+        def workflow_config():
+            return load_node_config(workflow_config_path)
+
+        root = workflows_dir or (
+            path.parent / "workflow-files"
+            if db_path and workflow_config_path is None
+            else workflow_config().workflows_dir
+        )
+        app.state.workflow_files = WorkflowFiles(app.state.workflows, root)
+        app.state.workflows.workflow_files = app.state.workflow_files
+        await app.state.workflow_files.scan()
+        app.state.workflow_files_task = asyncio.create_task(app.state.workflow_files.watch())
+        if workflows_dir is None and (db_path is None or workflow_config_path is not None):
+            app.state.workflow_config_task = asyncio.create_task(
+                app.state.workflow_files.config_loop(workflow_config)
+            )
         from hololab.gateway.workflow_reads import (
             PackUsageIndex,
             prepare_read_indexes,
@@ -436,7 +459,10 @@ def create_app(
 
     @app.on_event("shutdown")
     async def _shutdown() -> None:
+        app.state.workflow_files.stop_event.set()
         for attr in (
+            "workflow_files_task",
+            "workflow_config_task",
             "heartbeat_task",
             "orphan_finalizer_task",
             "latency_task",
@@ -445,7 +471,8 @@ def create_app(
         ):
             task = getattr(app.state, attr, None)
             if task is not None:
-                task.cancel()
+                if attr not in ("workflow_files_task", "workflow_config_task"):
+                    task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
         library = getattr(app.state, "library", None)
@@ -2210,6 +2237,31 @@ def _mount_routes(app: FastAPI) -> None:
 
         from hololab.gateway.workflow_reads import last_runs
 
+        indexed = {row["workflow_id"]: row for row in drafts}
+        for wid, path, _mtime in await app.state.workflow_files.entries():
+            try:
+                row = await workflows_store.get_draft(wid)
+            except (ValueError, OSError) as exc:
+                log.warning(
+                    "workflow list using last-known cache",
+                    workflow_id=wid,
+                    path=path,
+                    error=str(exc),
+                )
+                row = await workflows_store._get_cached(wid)
+            if row is not None:
+                indexed[wid] = dict(
+                    workflow_id=wid,
+                    name=row.name,
+                    node_count=len(row.graph.nodes),
+                    created_ts=row.created_ts,
+                    updated_ts=row.updated_ts,
+                )
+            if wid in indexed:
+                indexed[wid].update(id=wid, path=path, missing=not Path(path).exists())
+        drafts = list(indexed.values())
+        for item in drafts:
+            item.setdefault("id", item["workflow_id"])
         runs = await last_runs(app.state.db, [row["workflow_id"] for row in drafts])
         for row in drafts:
             row["last_run"] = runs.get(row["workflow_id"])
@@ -2282,6 +2334,75 @@ def _mount_routes(app: FastAPI) -> None:
             "issues": diagnostics(graph, app.state.registry.catalog_json()),
         }
 
+    @app.post("/api/workflows/reload", tags=["workflows"])
+    async def reload_workflow_files():
+        return await app.state.workflow_files.scan()
+
+    @app.post("/api/workflow-files", tags=["workflows"])
+    async def create_workflow_file(body: dict[str, Any]):
+        try:
+            return await app.state.workflow_files.create(Path(body["parent_dir"]), body["name"])
+        except (KeyError, ValueError, OSError) as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.post("/api/workflows/{workflow_id}/relink", tags=["workflows"])
+    async def relink_workflow_file(workflow_id: str, body: dict[str, Any]):
+        from hololab.gateway.workflow_files import read_document
+
+        try:
+            path = Path(body["path"]).resolve()
+            document = read_document(path)
+            if document.id != workflow_id:
+                raise ValueError("workflow id mismatch")
+            async with app.state.workflow_files.lock:
+                await app.state.workflow_files.register(document, path)
+            return {"id": workflow_id, "path": str(path)}
+        except (KeyError, ValueError, OSError) as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.put("/api/workflows/{workflow_id}/content", tags=["workflows"])
+    async def put_workflow_content(workflow_id: str, body: dict[str, Any]):
+        from hololab.gateway.workflow_files import WorkflowDocument, write_document
+
+        files = app.state.workflow_files
+        async with files.lock:
+            entry = next((r for r in await files.entries() if r[0] == workflow_id), None)
+            if entry is None or not Path(entry[1]).exists():
+                raise HTTPException(404, "workflow file missing")
+            path = Path(entry[1])
+            if "expected_mtime" not in body or "base_rev" not in body:
+                raise HTTPException(428, "expected_mtime and base_rev required")
+            if body.get("id", workflow_id) != workflow_id:
+                raise HTTPException(409, "workflow id is immutable")
+            if "formatVersion" in body and (
+                type(body["formatVersion"]) is not int or body["formatVersion"] != 1
+            ):
+                raise HTTPException(422, "unsupported workflow formatVersion")
+            if body["expected_mtime"] != path.stat().st_mtime:
+                raise HTTPException(409, "workflow file changed")
+            from hololab.gateway.workflow_files import read_document
+
+            try:
+                current = read_document(path)
+            except (ValueError, OSError) as exc:
+                raise HTTPException(422, str(exc)) from exc
+            if current.id != workflow_id:
+                raise HTTPException(409, "workflow file id changed")
+            if type(body["base_rev"]) is not int or body["base_rev"] < 0:
+                raise HTTPException(
+                    422, "base_rev must be a nonnegative integer (reserved for Phase 2)"
+                )
+            try:
+                document = WorkflowDocument(id=workflow_id, name=body["name"], graph=body["graph"])
+                write_document(path, document)
+                await files.register(document, path)
+                await files.store._save_cached(
+                    workflow_id=workflow_id, name=document.name, graph=document.graph
+                )
+            except (KeyError, ValueError, OSError) as exc:
+                raise HTTPException(422, str(exc)) from exc
+            return {"id": workflow_id, "path": str(path), "mtime": path.stat().st_mtime, "rev": 0}
+
     @app.get(
         "/api/workflows/{workflow_id}",
         response_model=WorkflowDetailOut,
@@ -2291,7 +2412,7 @@ def _mount_routes(app: FastAPI) -> None:
     async def get_workflow(workflow_id: str) -> dict[str, Any]:
         try:
             row = await app.state.workflows.get_draft(workflow_id)
-        except ValueError as exc:
+        except (ValueError, OSError) as exc:
             raise HTTPException(422, f"配方文件无法打开: {exc}") from exc
         if row is None:
             raise HTTPException(status_code=404, detail="workflow not found")
@@ -2321,6 +2442,7 @@ def _mount_routes(app: FastAPI) -> None:
             # canvas has no consumer for them, so keep them on explicit
             # validation/preparation paths rather than the first paint.
             "recipe_issues": [],
+            **await app.state.workflow_files.metadata(workflow_id),
             "workflow_id": row.workflow_id,
             "name": row.name,
             "graph": agent_graph_dict(row.graph, packs_by_key, latest_runs=latest_runs),
@@ -2483,6 +2605,23 @@ def _mount_routes(app: FastAPI) -> None:
         summary="Delete a workflow draft (past snapshots + jobs are preserved).",
     )
     async def delete_workflow(workflow_id: str) -> dict[str, str]:
+        files = app.state.workflow_files
+        async with files.lock:
+            entry = next((r for r in await files.entries() if r[0] == workflow_id), None)
+            if entry:
+                path = Path(entry[1])
+                if path.exists():
+                    from hololab.gateway.workflow_files import read_document
+
+                    try:
+                        if read_document(path).id != workflow_id:
+                            raise HTTPException(409, "workflow file id changed")
+                        path.unlink()
+                    except (OSError, ValueError) as exc:
+                        raise HTTPException(422, f"{path}: {exc}") from exc
+                # Keep the last-known cache and registry: deleting that parent
+                # row would cascade into historical snapshots in existing DBs.
+                return {"workflow_id": workflow_id, "state": "deleted"}
         await app.state.workflows.delete_draft(workflow_id)
         return {"workflow_id": workflow_id, "state": "deleted"}
 

@@ -697,6 +697,9 @@ class WorkflowLastRun(BaseModel):
 
 
 class WorkflowSummary(BaseModel):
+    id: str | None = None
+    path: str | None = None
+    missing: bool = False
     workflow_id: str
     name: str
     node_count: int
@@ -706,6 +709,11 @@ class WorkflowSummary(BaseModel):
 
 
 class WorkflowDetail(BaseModel):
+    id: str | None = None
+    path: str | None = None
+    missing: bool = False
+    mtime: float | None = None
+    rev: int = 0
     recipe_issues: list[dict[str, Any]] = Field(default_factory=list)
     workflow_id: str
     name: str

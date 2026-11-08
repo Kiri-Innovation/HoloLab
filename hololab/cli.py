@@ -72,6 +72,50 @@ app.add_typer(pack_app, name="pack")
 
 app.add_typer(artifacts_app, name="artifacts")
 
+workflow_app = typer.Typer(help="Workflow document tools.")
+app.add_typer(workflow_app, name="workflow")
+
+
+@workflow_app.command("migrate-files")
+def workflow_migrate_files(
+    db_path: Path | None = typer.Option(None, "--db-path"),
+    workflows_dir: Path | None = typer.Option(None, "--workflows-dir"),
+    config: Path | None = typer.Option(None, "--config"),
+):
+    """Explicitly export DB drafts; never invoked by gateway reads."""
+    from hololab.gateway.workflow_files import WorkflowFiles
+    from hololab.gateway.workflows import WorkflowStore
+    from hololab.paths import gateway_sqlite_path
+    from hololab.persistence.db import open_database
+
+    destination = workflows_dir or load_node_config(config).workflows_dir
+
+    async def migrate():
+        db = await open_database(db_path or gateway_sqlite_path())
+        try:
+            store = WorkflowStore(db)
+            files = WorkflowFiles(store, destination)
+            destination.mkdir(parents=True, exist_ok=True)
+            report = {"success": 0, "renamed": [], "renamed_count": 0, "empty": 0, "skipped": 0}
+            registered = {r[0] for r in await files.entries()}
+            for item in await store.list_drafts():
+                row = await store._get_cached(item["workflow_id"])
+                if row.workflow_id in registered:
+                    report["skipped"] += 1
+                    continue
+                result = await files.create(destination, row.name, row.graph, row.workflow_id)
+                report["success"] += 1
+                report["empty"] += not row.graph.nodes
+                if Path(result["path"]).stem != row.name:
+                    report["renamed"].append(result)
+                    report["renamed_count"] += 1
+            return report
+        finally:
+            await db.close()
+
+    typer.echo(json.dumps(asyncio.run(migrate()), ensure_ascii=False, indent=2))
+
+
 log = get_logger("cli")
 
 # Package directory — used as the reload watch dir for uvicorn.
@@ -388,7 +432,7 @@ async def _run_all_in_one_async(
         typer.echo(f"✗ {exc}; use `hololab stop` first", err=True)
         raise typer.Exit(2) from exc
 
-    gateway_app = create_app()
+    gateway_app = create_app(workflow_config_path=node_config_path)
     config = uvicorn.Config(
         gateway_app,
         host=host,

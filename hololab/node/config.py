@@ -166,6 +166,13 @@ class NodeConfig(BaseModel):
             "when neither field is set on load."
         ),
     )
+    workflows_dir: Path = Path("/cloud/cloud-ssd1/Kiri4DGS")
+
+    @field_validator("workflows_dir")
+    @classmethod
+    def _absolute_workflows_dir(cls, value: Path) -> Path:
+        return _absolute_cache_dir(value, "workflows_dir")
+
     installed_packs: Path | None = Field(
         default=None,
         description=(

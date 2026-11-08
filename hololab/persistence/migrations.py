@@ -834,7 +834,10 @@ CREATE TABLE handle_facts (
 
 
 # V31 — artifact relocation, durable maintenance fences and location CAS.
-MIGRATIONS.append((31, """
+MIGRATIONS.append(
+    (
+        31,
+        """
 
 ALTER TABLE handles ADD COLUMN location_version INTEGER NOT NULL DEFAULT 0;
 CREATE TABLE artifact_migrations (
@@ -890,7 +893,21 @@ CREATE TRIGGER artifact_migration_jobs_dispatch BEFORE UPDATE ON jobs
 WHEN NEW.state IN ('pending','assigned','running','orphaned') AND EXISTS(
  SELECT 1 FROM artifact_migration_claims c WHERE NEW.node_id IS NULL OR c.node_id=NEW.node_id)
 BEGIN SELECT RAISE(ABORT,'artifact migration maintenance freeze'); END;
-"""))
+""",
+    )
+)
+
+
+MIGRATIONS.append(
+    (
+        32,
+        """
+CREATE TABLE workflow_files (
+ id TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE, mtime_seen REAL NOT NULL
+);
+""",
+    )
+)
 
 
 async def current_schema_version(conn: aiosqlite.Connection) -> int:

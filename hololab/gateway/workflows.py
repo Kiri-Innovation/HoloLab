@@ -357,6 +357,7 @@ class WorkflowStore:
     def __init__(self, db: Database, *, recipe_root=None, catalog=None) -> None:
         self._db = db
         self.file_authority = None
+        self.workflow_files = None
         if recipe_root is not None:
             from hololab.gateway.file_authority import FileAuthority
 
@@ -368,6 +369,8 @@ class WorkflowStore:
         return await self._save_cached(**kwargs)
 
     async def get_draft(self, workflow_id: str) -> WorkflowRow | None:
+        if self.workflow_files is not None:
+            return await self.workflow_files.resolve(workflow_id)
         if self.file_authority:
             return await self.file_authority.get(workflow_id)
         return await self._get_cached(workflow_id)

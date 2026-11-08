@@ -99,6 +99,7 @@ ENVIRONMENT_RECHECK_INTERVAL_SECONDS = 60.0
 _HOT_CONFIG_FIELDS = frozenset(
     {
         "pack_dirs",
+        "workflows_dir",
         "installed_packs",
         "workspace_root",
         "legacy_workspace_roots",
@@ -1654,6 +1655,7 @@ class NodeRuntime:
             # ``pack_dirs`` (below) which lists every configured root.
             "packs_dir": str(cfg.pack_dirs[0]) if cfg.pack_dirs else None,
             "pack_dirs": [str(p) for p in cfg.pack_dirs],
+            "workflows_dir": str(cfg.workflows_dir),
             "pack_scan_dirs": [str(p) for p in cfg.pack_scan_dirs],
             "install_destination": self._install_destination(),
             "install_dir": str(cfg.install_dir) if cfg.install_dir is not None else None,
@@ -1721,6 +1723,10 @@ class NodeRuntime:
                     updates["installed_packs"] = validated.installed_packs
                 elif key == "pack_dirs":
                     updates["pack_dirs"] = _coerce_pack_dirs_patch(raw)
+                elif key == "workflows_dir":
+                    updates["workflows_dir"] = NodeConfig.model_validate(
+                        {**self._config.model_dump(), "workflows_dir": raw}
+                    ).workflows_dir
                 elif key == "flops_executor_id":
                     # Cobrowser integration — see docs/cobrowser-integration.md.
                     # Free-form string (typically ``dev_xxxxxxxx``); the
