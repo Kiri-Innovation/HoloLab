@@ -3,15 +3,13 @@ from pathlib import Path
 from hololab.type_registry import TypeRegistry
 
 
-def test_bundled_mirrors_legacy_tables():
-    from hololab.gateway.tag_probes import _REGISTRY
-    from hololab.gateway.tag_viewers import TAG_VIEWER_REGISTRY
+def test_bundled_hooks_are_type_owned():
     registry = TypeRegistry()
-    for name, fn in _REGISTRY.items():
-        assert registry.get(name).declaration['probe'].endswith(':' + fn.__name__)
-    for name, preview in TAG_VIEWER_REGISTRY.items():
-        assert registry.get(name).declaration['preview']['viewer'] == preview.viewer
-        assert registry.get(name).declaration['preview'].get('member') == preview.member
+    for definition in registry.definitions.values():
+        for hook in ('summary', 'check_declaration', 'validate_leaf'):
+            if target := definition.declaration.get(hook):
+                assert target.split(':')[0].endswith('.py')
+                assert (definition.directory / target.split(':')[0]).is_file()
 
 
 def test_scan_typeset_order_and_reload(tmp_path):
@@ -68,3 +66,61 @@ def test_live_consumer_and_cache_follow_source_edit(tmp_path, monkeypatch):
     assert infer_preview_for_output(None, ['custom']).viewer == 'text'
     manifest.write_text(manifest.read_text().replace('viewer: text', 'viewer: image'))
     assert infer_preview_for_output(None, ['custom']).viewer == 'image'
+
+
+def test_type_assets_and_catalog_hot_reload(tmp_path, monkeypatch):
+    import hololab.type_registry as types
+    from fastapi.testclient import TestClient
+    from hololab.gateway.app import create_app
+    from hololab.gateway.tag_viewers import infer_preview_for_output
+    directory = tmp_path / 'types' / 'custom'
+    (directory / 'viewer').mkdir(parents=True)
+    manifest = directory / 'manifest.yaml'
+    manifest.write_text('name: custom\npreview: {viewer: iframe, entry: viewer/index.html}\n')
+    html = directory / 'viewer/index.html'
+    html.write_text('<html>before</html>')
+    monkeypatch.setattr(types, 'registry', TypeRegistry([tmp_path], bundled=False))
+    with TestClient(create_app(db_path=tmp_path / 'gateway.sqlite')) as client:
+        before = client.get('/api/types').json()['generation']
+        entry = infer_preview_for_output(None, ['custom']).entry
+        assert client.get(entry).text == '<html>before</html>'
+        html.write_text('<html>after</html>')
+        assert client.get(entry).text == '<html>after</html>'
+        assert client.get('/api/types').json()['generation'] != before
+        assert client.get('/api/types/custom/assets/%2e%2e/secret').status_code == 404
+
+
+async def test_existing_pack_watcher_publishes_type_edits(tmp_path, monkeypatch):
+    import asyncio
+    from unittest.mock import AsyncMock
+    import hololab.type_registry as types
+    from hololab.node.config import NodeConfig
+    from hololab.node.runtime import NodeRuntime, _load_packs
+    from hololab.gateway.tag_viewers import infer_preview_for_output
+    monkeypatch.setattr(types, 'registry', TypeRegistry([tmp_path]))
+    directory = tmp_path / 'types/custom'
+    directory.mkdir(parents=True)
+    manifest = directory / 'manifest.yaml'
+    manifest.write_text('name: custom\npreview: {viewer: text}\n')
+    runtime = NodeRuntime(NodeConfig(pack_dirs=[tmp_path], install_dir=tmp_path / 'installed'))
+    runtime._packs = _load_packs(runtime._config.pack_scan_dirs)
+    changed = asyncio.Event()
+    observed = []
+    async def send(kind, payload):
+        if kind == 'packs_updated':
+            observed.append(infer_preview_for_output(None, ['custom']).viewer)
+            changed.set()
+    runtime._send = send
+    runtime._refresh_environment_evidence = AsyncMock()
+    task = asyncio.create_task(runtime._pack_watch_loop())
+    try:
+        await asyncio.sleep(.5)
+        assert infer_preview_for_output(None, ['custom']).viewer == 'text'
+        manifest.write_text('name: custom\npreview: {viewer: image}\n')
+        await asyncio.wait_for(changed.wait(), 8)
+        assert observed[-1] == 'image'
+    finally:
+        task.cancel()
+        import contextlib
+        with contextlib.suppress(asyncio.CancelledError):
+            await task

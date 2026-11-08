@@ -41,3 +41,20 @@ test('backend text decision is not overwritten by a splatv tag', async ({page}) 
   await expect(page.getByText('no preview available for binary content')).toHaveCount(2);
   await expect(page.locator('pre')).toHaveCount(0);
 });
+
+
+test('type-owned HTML receives the existing viewer state protocol', async ({page}) => {
+  await page.route('**/api/types/custom/assets/viewer/index.html?*', r => r.fulfill({
+    contentType: 'text/html',
+    body: `<html><body>waiting<script>
+      window.addEventListener('message', e => {
+        if (e.data.type === 'hololab-viewer-state') document.body.dataset.history = e.data.history_url;
+      });
+    </script></body></html>`,
+  }));
+  await page.goto('/e2e/fixtures/inspector-preview.html?mode=type-viewer');
+  await expect(page.locator('iframe')).toHaveCount(2);
+  for (const iframe of await page.locator('iframe').all()) {
+    await expect(iframe.contentFrame().locator('body')).toHaveAttribute('data-history', '/fixture-image.svg');
+  }
+});

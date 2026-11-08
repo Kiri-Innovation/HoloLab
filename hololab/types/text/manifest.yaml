@@ -1,6 +1,6 @@
 kind: Type
 name: text
-summary: hololab.gateway.handle_summary:_summarize_text
+summary: summary.py:summary
 dispatch:
   order: 50
   suffixes:

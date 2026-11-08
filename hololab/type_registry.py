@@ -7,6 +7,8 @@ import json
 import subprocess
 import sys
 import threading
+import types
+from functools import lru_cache
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,19 @@ from typing import Any
 import yaml
 
 BUNDLED_ROOT = Path(__file__).resolve().parent
+
+
+@lru_cache(maxsize=128)
+def _load_function(path: str, source: bytes, function: str):
+    name = "_hololab_type_" + hashlib.sha256(path.encode() + source).hexdigest()
+    module = types.ModuleType(name)
+    module.__file__ = path
+    sys.modules[name] = module
+    try:
+        exec(compile(source, path, "exec"), module.__dict__)
+        return module.__dict__[function]
+    finally:
+        sys.modules.pop(name, None)
 
 
 @dataclass(frozen=True)
@@ -29,9 +44,7 @@ class TypeDefinition:
         module, function = target.split(":", 1)
         if module.endswith(".py"):
             path = self.directory / module
-            namespace = {"__file__": str(path), "__name__": "_hololab_type"}
-            exec(compile(path.read_bytes(), str(path), "exec"), namespace)
-            return namespace[function](*args, **kwargs)
+            return _load_function(str(path), path.read_bytes(), function)(*args, **kwargs)
         return getattr(importlib.import_module(module), function)(*args, **kwargs)
 
     def summary(self, path: Path, storage: str) -> dict | None:

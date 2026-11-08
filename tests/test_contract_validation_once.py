@@ -37,13 +37,15 @@ def write_frames(root, count, corrupt=()):
 
 def leaf_check_count(monkeypatch):
     calls = []
-    real = data_contract.check_image_header
+    from hololab.type_registry import TypeDefinition
+    real = TypeDefinition.call
 
-    def counting(path, *, label):
-        calls.append(str(path))
-        return real(path, label=label)
+    def counting(self, hook, *args, **kwargs):
+        if hook == "validate_leaf":
+            calls.append(str(args[0]))
+        return real(self, hook, *args, **kwargs)
 
-    monkeypatch.setattr(data_contract, "check_image_header", counting)
+    monkeypatch.setattr(TypeDefinition, "call", counting)
     return calls
 
 

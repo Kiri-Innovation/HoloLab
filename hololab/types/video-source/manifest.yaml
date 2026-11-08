@@ -2,7 +2,7 @@ kind: Type
 name: video-source
 preview:
   viewer: video-grid
-summary: hololab.gateway.handle_summary:_summarize_video
+summary: summary.py:summary
 dispatch:
   order: 30
   suffixes:

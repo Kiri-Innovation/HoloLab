@@ -2,7 +2,7 @@ kind: Type
 name: image
 preview:
   viewer: image
-summary: hololab.gateway.handle_summary:_summarize_image
+summary: summary.py:summary
 dispatch:
   order: 40
   tags:
@@ -14,8 +14,8 @@ dispatch:
   - .gif
   - .webp
 element: file
-check_declaration: hololab.manifest.data_contract:_check_image_declaration
-validate_leaf: hololab.manifest.data_contract:_check_image_leaf
+check_declaration: contract.py:_check_image_declaration
+validate_leaf: contract.py:_check_image_leaf
 preview_rule:
   order: 40
   override: any
@@ -23,3 +23,7 @@ preview_rule:
     viewer: image
     options:
       image_type: true
+check_header: contract.py:check_image_header
+retired_tags:
+- image_sequence
+- frame_sequence

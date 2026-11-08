@@ -1,9 +1,9 @@
 kind: Type
 name: colmap-cams
-probe: hololab.gateway.tag_probes:_probe_colmap_cams
 preview_rule:
   order: 50
   override: any
   preview:
     viewer: colmap-cams
   storage: dir
+summary: summary.py:summary

@@ -2,7 +2,7 @@ kind: Type
 name: splatv
 preview:
   viewer: splatv
-summary: hololab.gateway.handle_summary:_summarize_splatv
+summary: summary.py:summary
 dispatch:
   order: 20
   tags:

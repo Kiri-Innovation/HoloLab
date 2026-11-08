@@ -2039,6 +2039,25 @@ def _mount_routes(app: FastAPI) -> None:
             raise HTTPException(409, result["error"])
         return result
 
+    @app.get("/api/types", tags=["packs"])
+    async def type_catalog():
+        from hololab.type_registry import registry as types
+        types.refresh()
+        return {"generation": types.generation, "types": [d.declaration for d in types.definitions.values()]}
+
+    @app.get("/api/types/{name}/assets/{asset:path}", tags=["packs"])
+    async def type_asset(name: str, asset: str):
+        from hololab.type_registry import registry as types
+        from fastapi.responses import FileResponse
+        definition = types.get(name)
+        if definition is None:
+            raise HTTPException(404, "type not found")
+        root = definition.directory.resolve()
+        target = (root / asset).resolve()
+        if not target.is_relative_to(root) or not target.is_file():
+            raise HTTPException(404, "type asset not found")
+        return FileResponse(target, headers={"Cache-Control": "no-store"})
+
     @app.post("/api/packs/reload", tags=["packs"])
     async def reload_packs(node_id: str | None = None):
         from hololab.protocol.messages import PackReloadReq

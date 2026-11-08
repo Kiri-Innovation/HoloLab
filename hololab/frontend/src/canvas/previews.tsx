@@ -217,6 +217,17 @@ export function Preview({
   partial,
   refreshToken = 0,
 }: PreviewProps) {
+  if (spec?.entry) {
+    return <NodeViewerFrame
+      viewer={{ id: "type-viewer", entry: spec.entry, renderer: "iframe" }}
+      assetUrl={spec.entry}
+      packName="" packVersion="" assignedNodeId={null}
+      frames={[{ proxy_url: baseUrl, iteration: null, node_id: null }]}
+      historyTarget={handleId ? { handle_id: handleId, proxy_url: baseUrl, node_id: "" } : null}
+      running={false} workflowViewLoaded={true} workflowViewManaged={false}
+      refreshToken={refreshToken}
+    />;
+  }
   if (spec?.viewer === "colmap4d") {
     if (storage !== "dir") return <Status text="colmap4d preview requires a directory" kind="error" />;
     const camsOnly = Boolean(spec.options?.cams_only);

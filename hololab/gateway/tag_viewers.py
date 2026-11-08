@@ -79,13 +79,20 @@ def infer_preview_for_output(
     """Resolve declaration-owned defaults and historical preview precedence."""
     from hololab.type_registry import registry
 
+    def declared_preview(value, definition):
+        from urllib.parse import quote
+        result = OutputPreview(**value)
+        if result.entry:
+            result = result.model_copy(update={"entry": "/api/types/" + quote(definition.name, safe="") + "/assets/" + result.entry + "?v=" + registry.generation})
+        return result
+
     definitions = [d for tag in tags if (d := registry.get(tag)) is not None]
     preview = explicit_preview
     if preview is None:
         for definition in definitions:
             value = definition.declaration.get("preview")
             if value:
-                preview = OutputPreview(**value)
+                preview = declared_preview(value, definition)
                 break
     # Terminal renderer behavior used to precede every browser intercept.
     registry.refresh()
@@ -96,12 +103,12 @@ def infer_preview_for_output(
             for matched in definitions:
                 options.update(matched.declaration.get("preview", {}).get("options", {}))
             return preview.model_copy(update={"options": {**options, **preview.options}})
-    rules = sorted((d.declaration["preview_rule"] for d in definitions if "preview_rule" in d.declaration), key=lambda rule: rule["order"])
-    for rule in rules:
+    rules = sorted(((d.declaration["preview_rule"], d) for d in definitions if "preview_rule" in d.declaration), key=lambda item: item[0]["order"])
+    for rule, definition in rules:
         if storage is not None and rule.get("storage") not in (None, storage):
             continue
         override = rule.get("override", "missing")
         if preview is not None and override != "any" and not (override == "text" and preview.viewer == "text"):
             continue
-        return OutputPreview(**rule["preview"])
+        return declared_preview(rule["preview"], definition)
     return preview

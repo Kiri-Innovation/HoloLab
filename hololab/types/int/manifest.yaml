@@ -2,7 +2,7 @@ kind: Type
 name: int
 preview:
   viewer: text
-summary: hololab.gateway.handle_summary:_summarize_int
+summary: summary.py:summary
 dispatch:
   order: 0
   tags:

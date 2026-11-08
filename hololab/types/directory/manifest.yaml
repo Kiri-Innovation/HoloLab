@@ -1,6 +1,6 @@
 kind: Type
 name: directory
-summary: hololab.gateway.handle_summary:_summarize_dir
+summary: summary.py:summary
 dispatch:
   order: 10
   storage: dir

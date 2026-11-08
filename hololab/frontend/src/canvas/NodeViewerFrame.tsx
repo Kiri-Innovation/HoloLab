@@ -41,6 +41,7 @@ export function NodeViewerFrame({
   workflowViewManaged,
   onWorkflowDefaultChange,
   sceneUrl,
+  assetUrl,
   refreshToken = 0,
 }: {
   viewer: NodeViewerSpec;
@@ -58,6 +59,8 @@ export function NodeViewerFrame({
   onWorkflowDefaultChange?: (view: WorkflowViewerView | null) => void;
   /** Built-in Gaussian viewer uses the same focus/camera host without a pack relay. */
   sceneUrl?: string;
+  /** Type-owned viewer assets use the same message protocol and host. */
+  assetUrl?: string;
   /** Explicit node-local refresh; does not restart the live-glob poller. */
   refreshToken?: number;
 }) {
@@ -129,9 +132,9 @@ export function NodeViewerFrame({
   const nodeId = (frames.length ? frames[frames.length - 1].node_id : null)
     ?? historyTarget?.node_id
     ?? assignedNodeId;
-  const src = sceneUrl ? versionedViewerUrl(sceneUrl + (DEBUG_VIEWERS ? '&debug=1' : '')) : nodeId
+  const src = assetUrl ?? (sceneUrl ? versionedViewerUrl(sceneUrl + (DEBUG_VIEWERS ? '&debug=1' : '')) : nodeId
     ? versionedViewerUrl(packAssetUrl(nodeId, packName, packVersion, viewer.entry) + (DEBUG_VIEWERS ? "?debug=1" : ""))
-    : null;
+    : null);
 
   useEffect(() => {
     if (!src) return;

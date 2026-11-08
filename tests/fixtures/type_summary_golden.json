@@ -1,0 +1,1887 @@
+{
+  "colmap-cameras-txt:sparse": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "colmap-cameras-txt:sparse",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-cameras-txt"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-cameras-txt:empty": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 0,
+      "total_size_bytes": 0,
+      "entries": [],
+      "truncated": false
+    },
+    "runtime_shape": {
+      "handleId": "colmap-cameras-txt:empty",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-cameras-txt"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-cameras-txt:missing": {
+    "kind": "dir",
+    "fields": {
+      "error": "path is not a directory: <ROOT>/missing"
+    },
+    "runtime_shape": {
+      "handleId": "colmap-cameras-txt:missing",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-cameras-txt"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-points-txt:sparse": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "colmap-points-txt:sparse",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-points-txt"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-points-txt:empty": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 0,
+      "total_size_bytes": 0,
+      "entries": [],
+      "truncated": false
+    },
+    "runtime_shape": {
+      "handleId": "colmap-points-txt:empty",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-points-txt"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-points-txt:missing": {
+    "kind": "dir",
+    "fields": {
+      "error": "path is not a directory: <ROOT>/missing"
+    },
+    "runtime_shape": {
+      "handleId": "colmap-points-txt:missing",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-points-txt"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-images-txt:sparse": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "colmap-images-txt:sparse",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-images-txt"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-images-txt:empty": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 0,
+      "total_size_bytes": 0,
+      "entries": [],
+      "truncated": false
+    },
+    "runtime_shape": {
+      "handleId": "colmap-images-txt:empty",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-images-txt"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-images-txt:missing": {
+    "kind": "dir",
+    "fields": {
+      "error": "path is not a directory: <ROOT>/missing"
+    },
+    "runtime_shape": {
+      "handleId": "colmap-images-txt:missing",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-images-txt"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-cams:sparse": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "colmap-cams:sparse",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-cams"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-cams:empty": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 0,
+      "total_size_bytes": 0,
+      "entries": [],
+      "truncated": false
+    },
+    "runtime_shape": {
+      "handleId": "colmap-cams:empty",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-cams"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-cams:missing": {
+    "kind": "dir",
+    "fields": {
+      "error": "path is not a directory: <ROOT>/missing"
+    },
+    "runtime_shape": {
+      "handleId": "colmap-cams:missing",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-cams"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "point-cloud:sparse": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "point-cloud:sparse",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "point-cloud"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "point-cloud:empty": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 0,
+      "total_size_bytes": 0,
+      "entries": [],
+      "truncated": false
+    },
+    "runtime_shape": {
+      "handleId": "point-cloud:empty",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "point-cloud"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "point-cloud:missing": {
+    "kind": "dir",
+    "fields": {
+      "error": "path is not a directory: <ROOT>/missing"
+    },
+    "runtime_shape": {
+      "handleId": "point-cloud:missing",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "point-cloud"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-folder:sparse": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "colmap-folder:sparse",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-folder"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-folder:empty": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 0,
+      "total_size_bytes": 0,
+      "entries": [],
+      "truncated": false
+    },
+    "runtime_shape": {
+      "handleId": "colmap-folder:empty",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-folder"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap-folder:missing": {
+    "kind": "dir",
+    "fields": {
+      "error": "path is not a directory: <ROOT>/missing"
+    },
+    "runtime_shape": {
+      "handleId": "colmap-folder:missing",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap-folder"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "pose:sparse": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "pose:sparse",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "pose"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "pose:empty": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 0,
+      "total_size_bytes": 0,
+      "entries": [],
+      "truncated": false
+    },
+    "runtime_shape": {
+      "handleId": "pose:empty",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "pose"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "pose:missing": {
+    "kind": "dir",
+    "fields": {
+      "error": "path is not a directory: <ROOT>/missing"
+    },
+    "runtime_shape": {
+      "handleId": "pose:missing",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "pose"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "intr:sparse": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "intr:sparse",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "intr"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "intr:empty": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 0,
+      "total_size_bytes": 0,
+      "entries": [],
+      "truncated": false
+    },
+    "runtime_shape": {
+      "handleId": "intr:empty",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "intr"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "intr:missing": {
+    "kind": "dir",
+    "fields": {
+      "error": "path is not a directory: <ROOT>/missing"
+    },
+    "runtime_shape": {
+      "handleId": "intr:missing",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "intr"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap:sparse": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "colmap:sparse",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap:empty": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 0,
+      "total_size_bytes": 0,
+      "entries": [],
+      "truncated": false
+    },
+    "runtime_shape": {
+      "handleId": "colmap:empty",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "colmap:missing": {
+    "kind": "dir",
+    "fields": {
+      "error": "path is not a directory: <ROOT>/missing"
+    },
+    "runtime_shape": {
+      "handleId": "colmap:missing",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "count.txt:int": {
+    "kind": "scalar-int",
+    "fields": {
+      "value": -12
+    },
+    "runtime_shape": {
+      "handleId": "count.txt:int",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "int"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "bad.txt:int": {
+    "kind": "scalar-int",
+    "fields": {
+      "error": "not a base-10 integer: 'not an integer�'",
+      "raw": "not an integer�"
+    },
+    "runtime_shape": {
+      "handleId": "bad.txt:int",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "int"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "missing.txt:int": {
+    "kind": "scalar-int",
+    "fields": {
+      "error": "read failed: [Errno 2] No such file or directory: '<ROOT>/missing.txt'"
+    },
+    "runtime_shape": {
+      "handleId": "missing.txt:int",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "int"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "image.png:image": {
+    "kind": "image",
+    "fields": {
+      "format": "png",
+      "size_bytes": 78,
+      "width": 16,
+      "height": 12
+    },
+    "runtime_shape": {
+      "handleId": "image.png:image",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "image"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "image.jpg:": {
+    "kind": "image",
+    "fields": {
+      "format": "jpg",
+      "size_bytes": 633,
+      "width": 16,
+      "height": 12
+    },
+    "runtime_shape": {
+      "handleId": "image.jpg:",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "image.gif:": {
+    "kind": "image",
+    "fields": {
+      "format": "gif",
+      "size_bytes": 64,
+      "note": "dimensions not parsed for this format"
+    },
+    "runtime_shape": {
+      "handleId": "image.gif:",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "missing.png:image": {
+    "kind": "image",
+    "fields": {
+      "error": "read failed: [Errno 2] No such file or directory: '<ROOT>/missing.png'"
+    },
+    "runtime_shape": {
+      "handleId": "missing.png:image",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "image"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "opaque:image": {
+    "kind": "image",
+    "fields": {
+      "format": "",
+      "size_bytes": 6,
+      "note": "dimensions not parsed for this format"
+    },
+    "runtime_shape": {
+      "handleId": "opaque:image",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "image"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "movie.mp4:": {
+    "kind": "video",
+    "fields": {
+      "container": "mp4",
+      "size_bytes": 12,
+      "mtime": 100000.0,
+      "note": "duration / resolution require ffprobe (not currently invoked); download via proxy_url if you need them"
+    },
+    "runtime_shape": {
+      "handleId": "movie.mp4:",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "missing.mp4:": {
+    "kind": "video",
+    "fields": {
+      "container": "mp4",
+      "error": "stat failed: [Errno 2] No such file or directory: '<ROOT>/missing.mp4'",
+      "note": "duration / resolution require ffprobe (not currently invoked); download via proxy_url if you need them"
+    },
+    "runtime_shape": {
+      "handleId": "missing.mp4:",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "count.txt:": {
+    "kind": "text",
+    "fields": {
+      "format": "txt",
+      "size_bytes": 5,
+      "line_count_preview": 1,
+      "first_lines": [
+        " -12"
+      ]
+    },
+    "runtime_shape": {
+      "handleId": "count.txt:",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "bad.txt:": {
+    "kind": "text",
+    "fields": {
+      "format": "txt",
+      "size_bytes": 16,
+      "line_count_preview": 1,
+      "first_lines": [
+        "not an integer�"
+      ]
+    },
+    "runtime_shape": {
+      "handleId": "bad.txt:",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "missing.txt:": {
+    "kind": "text",
+    "fields": {
+      "error": "read failed: [Errno 2] No such file or directory: '<ROOT>/missing.txt'"
+    },
+    "runtime_shape": {
+      "handleId": "missing.txt:",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "handle-unavailable"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "opaque:": {
+    "kind": "unknown",
+    "fields": {},
+    "runtime_shape": {
+      "handleId": "opaque:",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "scene.splatv:": {
+    "kind": "splatv",
+    "fields": {
+      "magic_hex": "0x674b",
+      "header_json_bytes": 66,
+      "texture_width": 4,
+      "texture_height": 4,
+      "gaussian_count": 4,
+      "camera_count": 2,
+      "type": "test"
+    },
+    "internal_count": 2,
+    "internal_count_kind": "cameras",
+    "runtime_shape": {
+      "handleId": "scene.splatv:",
+      "legacyCountKind": "cameras",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [
+        {
+          "key": "",
+          "count": {
+            "evidence": {
+              "status": "complete",
+              "value": 2,
+              "source": "tag-internal-count-probe"
+            }
+          }
+        }
+      ],
+      "schemaVersion": 1
+    }
+  },
+  "short.splatv:splatv": {
+    "kind": "splatv",
+    "fields": {
+      "error": "file too small"
+    },
+    "runtime_shape": {
+      "handleId": "short.splatv:splatv",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "splatv"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "magic.splatv:": {
+    "kind": "splatv",
+    "fields": {
+      "magic_hex": "0x6261",
+      "header_json_bytes": 1751606885,
+      "error": "unexpected magic 0x6261 (expected 0x674b)"
+    },
+    "runtime_shape": {
+      "handleId": "magic.splatv:",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "window.splatv:": {
+    "kind": "splatv",
+    "fields": {
+      "magic_hex": "0x674b",
+      "header_json_bytes": 999999,
+      "error": "header extends past probe window"
+    },
+    "runtime_shape": {
+      "handleId": "window.splatv:",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "json.splatv:": {
+    "kind": "splatv",
+    "fields": {
+      "magic_hex": "0x674b",
+      "header_json_bytes": 1,
+      "error": "header JSON parse: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+    },
+    "runtime_shape": {
+      "handleId": "json.splatv:",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "collection:None": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "collection:None",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "collection:0": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "collection:0",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "unknown",
+          "reason": "shape-not-measured"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "collection:1": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 4,
+    "dim_sizes": [
+      4
+    ],
+    "runtime_shape": {
+      "handleId": "collection:1",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            {
+              "label": "outer",
+              "role": "collection",
+              "size": {
+                "evidence": {
+                  "status": "complete",
+                  "value": 4,
+                  "source": "directory-tree-scan"
+                }
+              }
+            }
+          ],
+          "source": "handle-shape-probe"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  },
+  "collection:2": {
+    "kind": "dir",
+    "fields": {
+      "entry_count": 4,
+      "total_size_bytes": 122,
+      "entries": [
+        {
+          "name": "cameras.txt",
+          "is_dir": false,
+          "size_bytes": 33
+        },
+        {
+          "name": "images.txt",
+          "is_dir": false,
+          "size_bytes": 51
+        },
+        {
+          "name": "points3D.txt",
+          "is_dir": false,
+          "size_bytes": 38
+        },
+        {
+          "name": "images",
+          "is_dir": true,
+          "size_bytes": null,
+          "children": [
+            {
+              "name": "a.png",
+              "is_dir": false,
+              "size_bytes": 6
+            },
+            {
+              "name": ".hidden",
+              "is_dir": false,
+              "size_bytes": 6
+            }
+          ],
+          "entry_count": 2
+        }
+      ],
+      "truncated": false
+    },
+    "element_count": 1,
+    "runtime_shape": {
+      "handleId": "collection:2",
+      "tags": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            "colmap"
+          ],
+          "source": "registered-handle-metadata"
+        }
+      },
+      "axes": {
+        "evidence": {
+          "status": "complete",
+          "value": [
+            {
+              "label": "outer",
+              "role": "collection",
+              "size": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              }
+            },
+            {
+              "label": "inner",
+              "role": "collection",
+              "size": {
+                "evidence": {
+                  "status": "unknown",
+                  "reason": "not-measured"
+                }
+              }
+            }
+          ],
+          "source": "handle-shape-probe"
+        }
+      },
+      "internalCounts": [],
+      "schemaVersion": 1
+    }
+  }
+}
