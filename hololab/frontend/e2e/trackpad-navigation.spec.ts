@@ -9,7 +9,9 @@ async function openWorkflow(page: Page) {
   const packs = [
     pack("wheel-images", { images: output(["image"], true) }, {}, {
       count: { type: "int", default: 17, pinned: true, optional: false },
-      ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`p${i}`, { type: "string", default: `value ${i}`, pinned: true, optional: false }])),
+      use_gpu: { type: "bool", default: true, pinned: true, optional: false },
+      refine_intrinsics: { type: "bool", default: false, pinned: true, optional: false },
+      sift_max_num_feat: { type: "int", default: 8192, pinned: true, optional: false },
     }),
     pack("wheel-sink", {}, { images: output(["image"], true), value: { ...output(["float"]), storage: "file", scalar: true, optional: true, inline_default: 1 } }),
     pack("kiri/image-crop", { image: output(["image"]) }),
@@ -23,9 +25,11 @@ async function openWorkflow(page: Page) {
   ];
   const ids = ["images", "sink", "crop", "compose", "text", "colmap", "custom", "lagsplat", "colmap3d"];
   const graph = {
-    nodes: packs.map((p, i) => ({ id: ids[i], algorithm_name: p.name, algorithm_version: "1", assigned_node_id: "device",
+    nodes: [...packs.map((p, i) => ({ id: ids[i], algorithm_name: p.name, algorithm_version: "1", assigned_node_id: "device",
       params: i === 0 ? { count: 17 } : {}, preview_open: Object.keys(p.outputs)[0] ?? null,
       position: { x: (i % 3) * 600, y: Math.floor(i / 3) * 750 } })),
+      { id: "pinned-list", kind: "intrinsic", operation: "constant-float-array", algorithm_name: "@builtin/constant-float-array",
+        algorithm_version: "1", params: { items: Array(24).fill(17) }, position: { x: 1800, y: 0 } }],
     edges: [{ id: "wire", source: "images", sourceHandle: "images", target: "sink", targetHandle: "images" }],
   };
   const jobs = [0, 4, 5, 7, 8].map(i => ({ job_id: `job-${ids[i]}`, graph_node_id: ids[i], node_id: "device", workflow_id: "wheel-matrix",
@@ -95,8 +99,11 @@ const rows: readonly WheelTarget[] = [
   ["inactive COLMAP3D shield", '.react-flow__node[data-id="colmap3d"] [data-viewer-interaction] > div', "canvas"],
   ["active COLMAP3D host", '.react-flow__node[data-id="colmap3d"] [data-viewer-interaction]', "focused-frame", "colmap3d"],
   ["inline parameter", ".hl-inline-port-card", "local"],
-  ["pinned panel", '.react-flow__node[data-id="images"] .hl-pinned-parameters', "parameters"],
-  ["pinned number", '.react-flow__node[data-id="images"] .hl-pinned-parameters input[type="number"]', "parameters"],
+  ["node-card parameters", '.react-flow__node[data-id="images"] .hl-pinned-parameters', "canvas"],
+  ["node-card checkbox", '.react-flow__node[data-id="images"] input[aria-label="use_gpu"]', "canvas"],
+  ["node-card number", '.react-flow__node[data-id="images"] input[aria-label="count"]', "canvas"],
+  ["pinned panel", '.react-flow__node[data-id="pinned-list"] .hl-pinned-parameters', "parameters"],
+  ["pinned number", '.react-flow__node[data-id="pinned-list"] .hl-pinned-parameters input[type="number"]', "parameters"],
   ["crop editor", ".hl-image-crop-editor", "local"],
   ["composition editor", ".hl-compose-editor", "local"],
   ["COLMAP viewer", '.react-flow__node[data-id="colmap"] .nowheel', "local"],
@@ -187,11 +194,11 @@ test("wheel ownership matrix on a real workflow", async ({ page }, info) => {
     await page.waitForTimeout(300);
   };
   for (const [name, selector] of [
-    ["parameters", '.react-flow__node[data-id="images"] .hl-pinned-parameters'],
+    ["parameters", '.react-flow__node[data-id="pinned-list"] .hl-pinned-parameters'],
     ["diagnostic", '.react-flow__node[data-id="text"] [data-viewer-interaction]'],
   ]) {
     const host = page.locator(selector);
-    await frameNode(name === "parameters" ? "images" : "text");
+    await frameNode(name === "parameters" ? "pinned-list" : "text");
     if (name === "diagnostic") {
       await host.locator(':scope > div').last().dispatchEvent("click");
       await expect(host).toHaveAttribute("data-wheel-owner", "local");
@@ -208,7 +215,7 @@ test("wheel ownership matrix on a real workflow", async ({ page }, info) => {
     await page.mouse.wheel(0, 80);
     await page.waitForTimeout(180);
     expect(await transform(), `${name} at scroll boundary`).toEqual(before);
-    if (name === "parameters") await expect(host.getByRole("spinbutton")).toHaveValue("17");
+    if (name === "parameters") await expect(host.getByRole("spinbutton").first()).toHaveValue("17");
   }
 
   // Real iframe events stay within the viewer document. Activation declares

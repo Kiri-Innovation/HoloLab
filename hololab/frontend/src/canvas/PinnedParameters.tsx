@@ -7,7 +7,12 @@ import { effectiveParameterPins } from "./parameterPins";
 import { arrayParamsForEditor } from "./arrayMigration";
 
 /** Presentation only: uses the same fields and update path as Inspector. */
-export function PinnedParameters({ id, data }: { id: string; data: AlgorithmNodeData }) {
+export function PinnedParameters({ id, data, wheelOwner = "local" }: {
+  id: string;
+  data: AlgorithmNodeData;
+  /** Node-card parameters navigate the canvas; standalone lists own scrolling. */
+  wheelOwner?: "canvas" | "local";
+}) {
   const context = useCanvasContext();
   const pins = data.readOnly ? data.pinnedParams ?? [] : effectiveParameterPins(context.pinnedParams ?? {}, data.pack);
   const params = data.params ?? {};
@@ -22,11 +27,11 @@ export function PinnedParameters({ id, data }: { id: string; data: AlgorithmNode
     const observer = new ResizeObserver(measure);
     const element = root.current;
     if (element) observer.observe(element);
-    // In trackpad mode this panel owns scrolling, including at its boundaries.
-    // Mouse mode and Ctrl-wheel retain the former React Flow zoom path.
+    // Only standalone lists own trackpad scrolling, including at boundaries.
+    // Node-card fields, mouse mode and Ctrl-wheel retain canvas navigation.
     // A native non-passive listener also prevents numeric input stepping.
     const wheel = (event: WheelEvent) => {
-      if (context.trackpadNavigation && !event.ctrlKey) {
+      if (wheelOwner === "local" && context.trackpadNavigation && !event.ctrlKey) {
         event.stopPropagation();
         event.preventDefault();
         const unit = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? element?.clientHeight ?? 1 : 1;
@@ -42,12 +47,12 @@ export function PinnedParameters({ id, data }: { id: string; data: AlgorithmNode
       observer.disconnect(); cancelAnimationFrame(frame);
       element?.removeEventListener("wheel", wheel);
     };
-  }, [id, signature, update, context.trackpadNavigation]);
+  }, [id, signature, update, context.trackpadNavigation, wheelOwner]);
   if (!rows.length) return null;
   const editable = arrayParamsForEditor(data.pack.name, data.pack.version, params);
   return <div ref={root} className="hl-pinned-parameters hl-inspector-parameters nodrag nopan"
-    data-wheel-owner="local"
-    style={context.trackpadNavigation ? { maxHeight: 260, overflow: "auto", overscrollBehavior: "contain" } : undefined}
+    data-wheel-owner={wheelOwner === "local" ? "local" : undefined}
+    style={wheelOwner === "local" && context.trackpadNavigation ? { maxHeight: 260, overflow: "auto", overscrollBehavior: "contain" } : undefined}
     role="group" aria-label="Pinned parameters" onKeyDown={event => event.stopPropagation()}
     onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
     {rows.map(({ name, names, label, type }) => {

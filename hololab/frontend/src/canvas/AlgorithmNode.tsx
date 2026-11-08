@@ -691,7 +691,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
         </div>
       </div>
 
-      <PinnedParameters id={id} data={data as AlgorithmNodeData} />
+      <PinnedParameters id={id} data={data as AlgorithmNodeData} wheelOwner="canvas" />
 
       {/* FOOTER — run result: elapsed + relative-time + progress + actions.
           Header carries identity (compute-node · version); footer is
