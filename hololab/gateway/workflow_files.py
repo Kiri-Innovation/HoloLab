@@ -359,6 +359,36 @@ class WorkflowFiles:
             await self.resolve(document.id)
             return {"id": document.id, "path": str(path)}
 
+    async def delete(self, wid: str) -> bool:
+        """Permanently delete a registered workflow, including a missing one.
+
+        A missing registered path denotes an external deletion and remains in
+        the registry so it can be relinked.  Calling DELETE is the deliberate
+        exception: it removes both the registry entry and its DB draft cache.
+        """
+        async with self.lock:
+            entry = next((row for row in await self.entries() if row[0] == wid), None)
+            if entry is None:
+                return False
+            path = Path(entry[1])
+            if path.exists():
+                try:
+                    if read_document(path).id != wid:
+                        raise ValueError("workflow file id changed")
+                    path.unlink()
+                except (OSError, ValueError) as exc:
+                    raise ValueError(f"{path}: {exc}") from exc
+            task = self._save_tasks.pop(wid, None)
+            if task:
+                task.cancel()
+            await self.store.delete_draft(wid)
+            self.documents.pop(wid, None)
+            self.revisions.pop(wid, None)
+            self.missing_ids.discard(wid)
+            self.disk_bytes.pop(wid, None)
+            self.known_paths.discard(path.resolve())
+            return True
+
     async def move(self, wid: str, parent: Path, name: str | None = None) -> dict:
         """Move a registered workflow without losing its durable identity.
 

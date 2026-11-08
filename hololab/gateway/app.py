@@ -2810,26 +2810,18 @@ def _mount_routes(app: FastAPI) -> None:
         "/api/workflows/{workflow_id}",
         response_model=WorkflowDeleteResult,
         tags=["workflows"],
-        summary="Delete a workflow draft (past snapshots + jobs are preserved).",
+        summary="Permanently delete a workflow draft and its local workflow file.",
     )
     async def delete_workflow(workflow_id: str) -> dict[str, str]:
         files = app.state.workflow_files
-        async with files.lock:
-            entry = next((r for r in await files.entries() if r[0] == workflow_id), None)
-            if entry:
-                path = Path(entry[1])
-                if path.exists():
-                    from hololab.gateway.workflow_files import read_document
-
-                    try:
-                        if read_document(path).id != workflow_id:
-                            raise HTTPException(409, "workflow file id changed")
-                        path.unlink()
-                    except (OSError, ValueError) as exc:
-                        raise HTTPException(422, f"{path}: {exc}") from exc
-                # Keep the last-known cache and registry: deleting that parent
-                # row would cascade into historical snapshots in existing DBs.
+        try:
+            if await files.delete(workflow_id):
                 return {"workflow_id": workflow_id, "state": "deleted"}
+        except ValueError as exc:
+            detail = str(exc)
+            if detail.endswith("workflow file id changed"):
+                raise HTTPException(409, detail) from exc
+            raise HTTPException(422, detail) from exc
         await app.state.workflows.delete_draft(workflow_id)
         return {"workflow_id": workflow_id, "state": "deleted"}
 

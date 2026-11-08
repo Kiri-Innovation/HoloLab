@@ -145,8 +145,34 @@ def test_api_content_dispatch_and_recipe_coexist(tmp_path, monkeypatch):
             client.portal.call(
                 client.app.state.workflows.get_snapshot, dispatched.json()["snapshot_id"]
             )
-            is not None
+            is None
         )
+
+
+def test_api_delete_removes_cache_but_external_missing_stays_visible(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from hololab.gateway.app import create_app
+
+    with TestClient(create_app(db_path=tmp_path / "db.sqlite", workflows_dir=tmp_path)) as client:
+        created = client.post(
+            "/api/workflow-files", json={"parent_dir": str(tmp_path), "name": "api-delete"}
+        ).json()
+        wid, path = created["id"], Path(created["path"])
+        assert client.delete(f"/api/workflows/{wid}").status_code == 200
+        assert not path.exists()
+        assert wid not in {row["id"] for row in client.get("/api/workflows").json()}
+
+        external = client.post(
+            "/api/workflow-files", json={"parent_dir": str(tmp_path), "name": "external-delete"}
+        ).json()
+        external_id, external_path = external["id"], Path(external["path"])
+        external_path.unlink()
+        listed = {row["id"]: row for row in client.get("/api/workflows").json()}
+        assert listed[external_id]["missing"] is True
+        # DELETE doubles as the cleanup endpoint for an already-missing card.
+        assert client.delete(f"/api/workflows/{external_id}").status_code == 200
+        assert external_id not in {row["id"] for row in client.get("/api/workflows").json()}
 
 
 def test_migration_cli_only_temporary_data(tmp_path):

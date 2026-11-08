@@ -650,6 +650,17 @@ class WorkflowStore:
                 await self._db.write(delete_file_record)
 
         async def _write(conn: aiosqlite.Connection) -> None:
+            # File-backed drafts keep a DB cache for offline/missing-file
+            # recovery.  An API delete is an explicit permanent deletion, so
+            # it must remove that registry/cache pair as well; otherwise the
+            # gallery's registry -> cache fallback resurrects a ghost card.
+            await conn.execute("DELETE FROM workflow_files WHERE id=?", (workflow_id,))
+            await conn.execute(
+                "DELETE FROM workflow_recipe_files WHERE workflow_id=?", (workflow_id,)
+            )
+            await conn.execute(
+                "DELETE FROM workflow_recipe_intents WHERE workflow_id=?", (workflow_id,)
+            )
             await conn.execute("DELETE FROM workflows WHERE workflow_id=?", (workflow_id,))
 
         await self._db.write(_write)
