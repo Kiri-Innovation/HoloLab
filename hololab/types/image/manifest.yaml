@@ -1,0 +1,4 @@
+kind: Type
+name: image
+preview:
+  viewer: image

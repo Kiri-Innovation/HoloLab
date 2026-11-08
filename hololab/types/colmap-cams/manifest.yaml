@@ -1,0 +1,3 @@
+kind: Type
+name: colmap-cams
+probe: hololab.gateway.tag_probes:_probe_colmap_cams

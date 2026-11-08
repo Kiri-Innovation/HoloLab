@@ -1,0 +1,5 @@
+kind: Type
+name: colmap4d
+preview:
+  viewer: colmap4d
+  member: sparse/0

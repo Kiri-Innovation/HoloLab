@@ -1,0 +1,3 @@
+kind: Type
+name: colmap-images-txt
+probe: hololab.gateway.tag_probes:_probe_colmap_images_txt

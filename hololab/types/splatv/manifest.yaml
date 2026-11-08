@@ -1,0 +1,4 @@
+kind: Type
+name: splatv
+preview:
+  viewer: splatv

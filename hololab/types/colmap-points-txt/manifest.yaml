@@ -1,0 +1,3 @@
+kind: Type
+name: colmap-points-txt
+probe: hololab.gateway.tag_probes:_probe_colmap_points_txt

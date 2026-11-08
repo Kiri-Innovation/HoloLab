@@ -1,0 +1,4 @@
+kind: Type
+name: video-source
+preview:
+  viewer: video-grid

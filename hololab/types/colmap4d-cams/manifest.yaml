@@ -1,0 +1,5 @@
+kind: Type
+name: colmap4d-cams
+preview:
+  viewer: colmap4d
+  member: .

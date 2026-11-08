@@ -1,0 +1,3 @@
+kind: Type
+name: pose
+probe: hololab.gateway.tag_probes:_probe_pose
