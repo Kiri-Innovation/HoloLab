@@ -379,7 +379,8 @@ def test_pack_watcher_rescans_and_pushes_manifest_viewer_edits(tmp_path: Path, m
     )
 
     async def fake_awatch(*roots, **kwargs):
-        assert roots == (install_root, root)
+        from hololab.type_registry import BUNDLED_ROOT
+        assert roots == (install_root, root, BUNDLED_ROOT / "types")
         assert kwargs == {"recursive": True, "step": 250}
         yield {("added", str(manifest))}
         await asyncio.Event().wait()

@@ -6,3 +6,5 @@ preview_rule:
   preview:
     viewer: colmap-points
   storage: dir
+preview_fallback:
+  viewer: unregistered

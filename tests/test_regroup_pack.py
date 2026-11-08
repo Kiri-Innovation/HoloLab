@@ -541,12 +541,13 @@ def test_summarize_dir_caps_flat_image_children(tmp_path: Path) -> None:
     Direct call on ``_summarize_dir`` avoids the app layer while the
     surrounding gateway rewire lands in another branch.
     """
-    from hololab.gateway.handle_summary import _FRAMES_DRILL_CAP, _summarize_dir
+    from hololab.type_registry import registry
+    definition = registry.get("directory")
     from hololab.gateway.handles import Handle
 
     root = tmp_path / "by_frame_flat"
     root.mkdir()
-    n_frames = _FRAMES_DRILL_CAP * 3 + 1
+    n_frames = 8 * 3 + 1
     for frame in ("frame_0000", "frame_0001"):
         e = root / frame
         e.mkdir()
@@ -559,13 +560,13 @@ def test_summarize_dir_caps_flat_image_children(tmp_path: Path) -> None:
         tags=["image"],
         path=str(root),
     )
-    res = _summarize_dir(root, handle)
+    res = definition.summary(root, handle.storage)
     entries = res["fields"]["entries"]
     assert len(entries) == 2
     for entry in entries:
         assert entry["is_dir"] is True
         assert all(not c["is_dir"] for c in entry["children"])
-        assert len(entry["children"]) == _FRAMES_DRILL_CAP
+        assert len(entry["children"]) == 8
         assert entry["entry_count"] == n_frames
 
 

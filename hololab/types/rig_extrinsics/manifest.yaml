@@ -6,3 +6,5 @@ preview_rule:
   preview:
     viewer: rig-extrinsics
   storage: dir
+preview_fallback:
+  viewer: unregistered

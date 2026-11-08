@@ -1,80 +1,39 @@
-"""Guard the ``colmap-cams`` preview: iframe wiring + vendored ColmapUtil.
+"""Type-declared COLMAP viewers still reach the shipped renderer assets."""
 
-The ``colmap-cams`` output of ``colmap-sfm-cams-only`` renders via an
-iframe pointed at the vendored ColmapUtil build under
-``hololab/frontend/public/colmaputil/``. Three failure modes we want to
-catch cheaply:
-
-1. Someone drops the tag intercept in ``previews.tsx`` — the canvas
-   silently falls back to ``BasicInfoPreview`` (a text-listing card
-   instead of the 3D viewer).
-2. Someone forgets to promote the tag in
-   ``AlgorithmNode.FRONTEND_VIEWER_TAGS`` — the caret disappears
-   whenever the gateway hasn't ingested the backend registry entry
-   for the tag yet (typical during rolling upgrades).
-3. The frontend build omits the generated ColmapUtil dist — the iframe
-   404s at load time.
-
-We inspect the built dist for the string ``"colmap-cams"`` inside the
-bundle (both tag routes must contain it, so we assert the count is
->=2), the iframe URL literal ``/colmaputil/index.html?embed=1``, and
-the presence of ``dist/colmaputil/index.html``. The manifest test
-already exists in ``test_colmap_packs.py`` — this file targets the
-frontend wiring only.
-"""
-
-from __future__ import annotations
-
+import os
 from pathlib import Path
 
 import pytest
 
+from hololab.gateway.tag_viewers import infer_preview_for_output
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_FRONTEND = _REPO_ROOT / "hololab" / "frontend"
+_FRONTEND = _REPO_ROOT / "hololab/frontend"
+_DIST = Path(os.environ.get("HOLOLAB_TEST_FRONTEND_DIST", _FRONTEND / "dist"))
 
 
-def _find_dist_js() -> Path | None:
-    dist_assets = _FRONTEND / "dist" / "assets"
-    if not dist_assets.is_dir():
-        return None
-    matches = sorted(dist_assets.glob("index-*.js"))
+def _find_dist_js():
+    matches = sorted((_DIST / "assets").glob("index-*.js"))
     return matches[-1] if matches else None
 
 
-def test_bundle_contains_colmap_cams_tag_routing() -> None:
-    """Both routing sites (Preview intercept + FRONTEND_VIEWER_TAGS) must
-    emit the literal ``colmap-cams`` string into the bundle. Two hits
-    minimum — a lower count means one of the two was silently dropped
-    and the caret / dispatch pair falls out of sync.
-    """
-
-    js_path = _find_dist_js()
-    if js_path is None:
-        pytest.skip("frontend dist not built — run `npm run build` first")
-    js = js_path.read_text(encoding="utf-8", errors="replace")
-    hits = js.count("colmap-cams")
-    assert hits >= 2, (
-        f"expected >=2 occurrences of 'colmap-cams' in the built bundle "
-        f"(Preview intercept + FRONTEND_VIEWER_TAGS promotion), found {hits}"
-    )
-
-
-def test_bundle_contains_colmap_points_tag_routing() -> None:
-    """Same guard for ``colmap-points`` — the tag needs to appear in
-    the Preview dispatch intercept AND the FRONTEND_VIEWER_TAGS set.
-    Losing either drops the caret from ``colmap-triangulate`` outputs
-    on any rolling upgrade.
-    """
-
-    js_path = _find_dist_js()
-    if js_path is None:
-        pytest.skip("frontend dist not built — run `npm run build` first")
-    js = js_path.read_text(encoding="utf-8", errors="replace")
-    hits = js.count("colmap-points")
-    assert hits >= 2, (
-        f"expected >=2 occurrences of 'colmap-points' in the built bundle "
-        f"(Preview intercept + FRONTEND_VIEWER_TAGS promotion), found {hits}"
-    )
+@pytest.mark.parametrize(
+    "tag,viewer",
+    [
+        ("colmap-cams", "colmap-cams"),
+        ("point-cloud", "colmap-points"),
+        ("colmap-points", "colmap-points"),
+        ("colmap-folder", "colmap-frame"),
+        ("colmap-frame", "colmap-frame"),
+        ("colmap", "colmap-frame"),
+    ],
+)
+def test_declared_viewer_is_shipped(tag, viewer):
+    assert infer_preview_for_output(None, [tag], "dir").viewer == viewer
+    path = _find_dist_js()
+    if path is None:
+        pytest.skip("frontend dist not built")
+    assert viewer in path.read_text()
 
 
 def test_bundle_iframes_vendored_colmaputil() -> None:
@@ -101,10 +60,9 @@ def test_vendored_colmaputil_dist_is_present() -> None:
 
     if _find_dist_js() is None:
         pytest.skip("frontend dist not built — run `npm run build` first")
-    index = _FRONTEND / "dist" / "colmaputil" / "index.html"
+    index = _DIST / "colmaputil" / "index.html"
     assert index.is_file(), (
-        f"missing {index.relative_to(_REPO_ROOT)} — rebuild ColmapUtil "
-        f"via npm run build; see vendor/HOLOLAB_VENDORED.md"
+        f"missing {index} — rebuild ColmapUtil via npm run build; see vendor/HOLOLAB_VENDORED.md"
     )
     assert not list(index.parent.rglob("*.vsix")), "VSIX must not ship in the frontend"
     html = index.read_text(encoding="utf-8", errors="replace")
@@ -114,87 +72,4 @@ def test_vendored_colmaputil_dist_is_present() -> None:
     assert "/colmaputil/assets/" in html, (
         "vendored ColmapUtil dist wasn't built with base=/colmaputil/ — "
         "run `npm run build:vendor` in hololab/frontend"
-    )
-
-
-def test_bundle_contains_colmap_frame_tag_routing() -> None:
-    """``colmap-frame`` must appear in the bundle at both routing sites:
-    the Preview dispatch intercept (previews.tsx) and FRONTEND_VIEWER_TAGS
-    (AlgorithmNode.tsx). Two hits minimum — losing either silently drops
-    the caret or the 3D viewer for colmap-triangulate@0.3.0 output frames.
-    """
-
-    js_path = _find_dist_js()
-    if js_path is None:
-        pytest.skip("frontend dist not built — run `npm run build` first")
-    js = js_path.read_text(encoding="utf-8", errors="replace")
-    hits = js.count("colmap-frame")
-    assert hits >= 2, (
-        f"expected >=2 occurrences of 'colmap-frame' in the built bundle "
-        f"(Preview intercept + FRONTEND_VIEWER_TAGS promotion), found {hits}"
-    )
-
-
-def test_bundle_contains_point_cloud_tag_routing() -> None:
-    """``point-cloud`` (2026-09-22 type-system refactor) must appear at
-    both routing sites: the Preview dispatch intercept (previews.tsx)
-    and FRONTEND_VIEWER_TAGS (AlgorithmNode.tsx). Two hits minimum.
-
-    Losing either silently drops the caret + 3D viewer from
-    ``colmap-sfm@0.3.0.points`` and ``colmap-triangulate@0.7.0.points``,
-    reverting them to the plain dir listing — the exact regression
-    the user reported on the tri.points expand on 2026-09-22.
-    """
-
-    js_path = _find_dist_js()
-    if js_path is None:
-        pytest.skip("frontend dist not built — run `npm run build` first")
-    js = js_path.read_text(encoding="utf-8", errors="replace")
-    hits = js.count("point-cloud")
-    assert hits >= 2, (
-        f"expected >=2 occurrences of 'point-cloud' in the built bundle "
-        f"(Preview intercept + FRONTEND_VIEWER_TAGS promotion), found {hits}"
-    )
-
-
-def test_bundle_contains_colmap_folder_tag_routing() -> None:
-    """``colmap-folder`` (2026-09-22 type-system refactor) must appear at
-    both routing sites: the Preview dispatch intercept (previews.tsx)
-    and FRONTEND_VIEWER_TAGS (AlgorithmNode.tsx). Two hits minimum.
-
-    Losing either drops the caret + 3D viewer from
-    ``merge-colmap@0.2.0/0.3.0.folder`` — the assembled per-frame
-    ``colmap-folder`` handles that stg-train consumes. Fatal for a
-    forensic look at what merge produced before dispatch.
-    """
-
-    js_path = _find_dist_js()
-    if js_path is None:
-        pytest.skip("frontend dist not built — run `npm run build` first")
-    js = js_path.read_text(encoding="utf-8", errors="replace")
-    hits = js.count("colmap-folder")
-    assert hits >= 2, (
-        f"expected >=2 occurrences of 'colmap-folder' in the built bundle "
-        f"(Preview intercept + FRONTEND_VIEWER_TAGS promotion), found {hits}"
-    )
-
-
-def test_bundle_contains_colmap_tag_routing() -> None:
-    """``colmap`` (the v0.4.0 rename of colmap-frame) must appear at both
-    routing sites too — same rationale, for colmap-triangulate@0.4.0."""
-
-    js_path = _find_dist_js()
-    if js_path is None:
-        pytest.skip("frontend dist not built — run `npm run build` first")
-    js = js_path.read_text(encoding="utf-8", errors="replace")
-    # The intercept-clause literal in previews.tsx (``tags.includes("colmap")``)
-    # and the FRONTEND_VIEWER_TAGS entry both emit the exact string
-    # ``"colmap"`` — but ``"colmap-frame"``/``"colmap-cams"``/etc. contain
-    # it as a substring, so we count with the trailing quote to isolate
-    # the bare tag. Two hits minimum.
-    hits = js.count('"colmap"')
-    assert hits >= 2, (
-        f"expected >=2 occurrences of '\"colmap\"' (quoted, bare tag) in the "
-        f"built bundle (Preview intercept + FRONTEND_VIEWER_TAGS promotion), "
-        f"found {hits}"
     )

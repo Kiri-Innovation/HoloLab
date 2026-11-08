@@ -691,7 +691,7 @@ class NodeRuntime:
             if self._ws is not None:
                 inventory = await asyncio.to_thread(self._pack_inventory)
                 await self._safe_send(
-                    "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs))
+                    "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs), type_roots=[str(root) for root in self._config.pack_scan_dirs])
                 )
 
         self._watch_task = asyncio.create_task(
@@ -706,7 +706,7 @@ class NodeRuntime:
             self._packs = packs
             inventory = await asyncio.to_thread(self._pack_inventory)
             await self._send(
-                "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs))
+                "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs), type_roots=[str(root) for root in self._config.pack_scan_dirs])
             )
             return {"count": len(packs), "manifest_changed": changed}
 

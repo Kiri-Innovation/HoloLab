@@ -175,9 +175,9 @@ class OutputPreview(BaseModel):
     gateway's ``/proxy/{node}/...`` route.
 
     Fields:
-        viewer  — one of ``splatv | ftgsply | ply-3dgs | lagsplat | video | image | text | video-grid``.
+        viewer  — renderer identifier resolved by the type declaration.
                   Frontend chooses the concrete component based on this
-                  string.
+                  string; ``entry`` can instead supply a type-owned HTML viewer.
         member  — for ``storage: dir`` outputs, the relative entry inside
                   the directory. For single-file viewers (video/image/…)
                   this is a literal relative path. For ``video-grid`` it

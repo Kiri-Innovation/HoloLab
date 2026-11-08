@@ -1,19 +1,23 @@
-"""Concrete invocation contracts. No algorithm inference and no sampling.
+"""Generic invocation traversal and type-owned contract callbacks.
 
-Image leaves are individual image files. Collections are explicit directory
-layers; dot-prefixed framework metadata is not an element. Symbolic links are
-allowed (array utilities use them), but every referenced leaf is checked.
-
-An image leaf is checked by ``stat`` and its header only (format, single frame,
-positive width and height); pixel data is not decoded. The framework trusts the
-node's pack output beyond that, so a truncated or corrupted pixel body passes
-here and surfaces in the algorithm that reads it.
+Collections remain explicit directory layers; dot-prefixed metadata is not an
+element. Existing type checks are loaded from declarations without introducing
+new checks or changing their error messages.
 """
 
 from pathlib import Path
 from typing import Any
 
-REMOVED_IMAGE_TAGS = frozenset({"image_sequence", "frame_sequence"})
+
+def retired_tags() -> frozenset[str]:
+    from hololab.type_registry import registry
+
+    registry.refresh()
+    return frozenset(
+        tag
+        for definition in registry.definitions.values()
+        for tag in definition.declaration.get("retired_tags", [])
+    )
 
 
 class ContractError(ValueError):
@@ -22,27 +26,11 @@ class ContractError(ValueError):
 
 def check_declaration(spec: Any) -> None:
     from hololab.type_registry import registry
+
     registry.refresh()
     for definition in registry.definitions.values():
         if definition.declaration.get("check_declaration"):
             definition.call("check_declaration", spec)
-
-
-def _check_image_declaration(spec: Any) -> None:
-    removed = REMOVED_IMAGE_TAGS.intersection(spec.tags)
-    if removed:
-        raise ValueError(
-            f"removed image type(s): {sorted(removed)}; declare image file or arrayed<image>"
-        )
-    if "image" not in spec.tags:
-        return
-    if not spec.arrayed and spec.dim_labels:
-        raise ValueError("image is one file, with no content dimensions; use arrayed: true")
-    required = "dir" if spec.arrayed else "file"
-    if spec.storage.value != required:
-        raise ValueError(f"image contract requires storage: {required}")
-    if getattr(spec, "content_dims_from", None):
-        raise ValueError("image has no intrinsic content dimensions")
 
 
 def validate_path(path: Path, spec: Any, *, label: str, params: dict | None = None) -> None:
@@ -66,9 +54,13 @@ def validate_path(path: Path, spec: Any, *, label: str, params: dict | None = No
     if not path.exists():
         raise ContractError(f"{label}: missing input/output path: {path}")
     from hololab.type_registry import registry
-    leaf_checks = [definition for tag in spec.tags
-                   if (definition := registry.get(tag)) is not None
-                   and definition.declaration.get("validate_leaf")]
+
+    leaf_checks = [
+        definition
+        for tag in spec.tags
+        if (definition := registry.get(tag)) is not None
+        and definition.declaration.get("validate_leaf")
+    ]
     depth = max(1, len(spec.dim_labels)) if spec.arrayed else 0
     key = getattr(spec, "dim_labels_from", None)
     if key and params and isinstance(params.get(key), list):
@@ -95,36 +87,6 @@ def validate_path(path: Path, spec: Any, *, label: str, params: dict | None = No
         visit(path, depth)
     except OSError as exc:
         raise ContractError(f"{label}: cannot validate {path}: {exc}") from exc
-
-
-def _check_image_leaf(current: Path, *, label: str) -> None:
-    if not current.is_file():
-        raise ContractError(
-            f"{label}: expected one image file, got directory/non-file: {current}"
-        )
-    check_image_header(current, label=label)
-
-
-def check_image_header(path: Path, *, label: str) -> tuple[int, int]:
-    """Non-empty file whose header is a single-frame image of positive size.
-
-    Reads the header only (``Image.open`` is lazy); the ``with`` block closes the
-    file. Returns ``(width, height)``.
-    """
-    from PIL import Image
-
-    try:
-        if path.stat().st_size == 0:
-            raise ValueError("empty file")
-        with Image.open(path) as img:
-            if getattr(img, "n_frames", 1) != 1:
-                raise ValueError("multi-frame image is not a single image")
-            width, height = img.size
-        if width <= 0 or height <= 0:
-            raise ValueError(f"invalid image size {width}x{height}")
-    except Exception as exc:
-        raise ContractError(f"{label}: invalid image file {path}: {exc}") from exc
-    return width, height
 
 
 def validate_ports(

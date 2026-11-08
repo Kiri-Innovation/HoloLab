@@ -10,3 +10,4 @@ dispatch:
   - .mov
   - .mkv
   - .webm
+summary_role: fields

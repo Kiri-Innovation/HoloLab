@@ -1,3 +1,4 @@
 kind: Type
 name: intr
 summary: summary.py:summary
+summary_role: counts

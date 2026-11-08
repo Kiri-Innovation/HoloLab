@@ -1,21 +1,22 @@
 """Path-discovered type definitions. No data validation policy lives here."""
+
 from __future__ import annotations
 
 import hashlib
-import importlib
 import json
 import subprocess
 import sys
 import threading
 import types
-from functools import lru_cache
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 BUNDLED_ROOT = Path(__file__).resolve().parent
+_module_lock = threading.RLock()
 
 
 @lru_cache(maxsize=128)
@@ -23,12 +24,13 @@ def _load_function(path: str, source: bytes, function: str):
     name = "_hololab_type_" + hashlib.sha256(path.encode() + source).hexdigest()
     module = types.ModuleType(name)
     module.__file__ = path
-    sys.modules[name] = module
-    try:
-        exec(compile(source, path, "exec"), module.__dict__)
-        return module.__dict__[function]
-    finally:
-        sys.modules.pop(name, None)
+    with _module_lock:
+        sys.modules[name] = module
+        try:
+            exec(compile(source, path, "exec"), module.__dict__)
+            return module.__dict__[function]
+        finally:
+            sys.modules.pop(name, None)
 
 
 @dataclass(frozen=True)
@@ -42,10 +44,8 @@ class TypeDefinition:
         if not target:
             return None
         module, function = target.split(":", 1)
-        if module.endswith(".py"):
-            path = self.directory / module
-            return _load_function(str(path), path.read_bytes(), function)(*args, **kwargs)
-        return getattr(importlib.import_module(module), function)(*args, **kwargs)
+        path = self.directory / module
+        return _load_function(str(path), path.read_bytes(), function)(*args, **kwargs)
 
     def summary(self, path: Path, storage: str) -> dict | None:
         if not self.declaration.get("summary"):
@@ -53,14 +53,47 @@ class TypeDefinition:
         try:
             result = subprocess.run(
                 [sys.executable, "-m", "hololab.type_worker"],
-                input=json.dumps({"directory": str(self.directory), "declaration": self.declaration,
-                                  "path": str(path), "storage": storage}),
-                capture_output=True, text=True, timeout=2,
+                input=json.dumps(
+                    {
+                        "directory": str(self.directory),
+                        "declaration": self.declaration,
+                        "path": str(path),
+                        "storage": storage,
+                    }
+                ),
+                capture_output=True,
+                text=True,
+                timeout=2,
             )
             value = json.loads(result.stdout) if result.returncode == 0 else None
             return value if isinstance(value, dict) else None
         except (OSError, ValueError, subprocess.TimeoutExpired):
             return None
+
+
+def _loadable(entry):
+    """Check the definition envelope, never the artifact it describes."""
+    if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
+        return False
+    for hook in ("summary", "check_declaration", "validate_leaf", "check_header"):
+        target = entry.get(hook)
+        if target is not None and (not isinstance(target, str) or ":" not in target):
+            return False
+    for field in (
+        "preview",
+        "preview_rule",
+        "preview_fallback",
+        "dispatch",
+        "content_dims",
+        "summary_count",
+    ):
+        value = entry.get(field)
+        if value is not None and not isinstance(value, dict):
+            return False
+    for field in ("dispatch", "preview_rule"):
+        if not isinstance(entry.get(field, {}).get("order", 0), (int, float)):
+            return False
+    return True
 
 
 class TypeRegistry:
@@ -87,11 +120,20 @@ class TypeRegistry:
                             digest.update(str(file).encode())
                             digest.update(file.read_bytes())
                     data = yaml.safe_load(manifest.read_text())
+                    if not isinstance(data, dict) or data.get("kind", "Type") not in (
+                        "Type",
+                        "TypeSet",
+                    ):
+                        continue
                     entries = data.get("types", []) if data.get("kind") == "TypeSet" else [data]
+                    if not isinstance(entries, list):
+                        continue
                     for entry in entries:
-                        if isinstance(entry, dict) and isinstance(entry.get("name"), str):
-                            definitions.setdefault(entry["name"], TypeDefinition(entry["name"], manifest.parent, entry))
-                except (OSError, ValueError, AttributeError, yaml.YAMLError):
+                        if _loadable(entry):
+                            definitions.setdefault(
+                                entry["name"], TypeDefinition(entry["name"], manifest.parent, entry)
+                            )
+                except (OSError, ValueError, TypeError, AttributeError, yaml.YAMLError):
                     continue
         with self._lock:
             self.definitions = definitions

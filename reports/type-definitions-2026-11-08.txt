@@ -1,0 +1,207 @@
+HoloLab 类型声明迁移（2026-11-08）
+
+范围与运行状态
+类型发现、后端摘要/计数、原有 image 校验、默认预览选择和热加载统一走类型声明。
+未修改任何 community/builtin pack、sharp-4dgs 或其它会话文件；未 push、未发布 registry 探针。
+未重启现有服务，未覆盖线上 frontend/dist。浏览器、watcher、HTTP 和打包验证均使用隔离测试实例/临时目录。
+现有运行进程尚未加载本次平台改动；首次部署由使用者安排，随后类型文件修改无需重启。
+
+声明接口
+内置扫描根是 hololab/；随 wheel 分发 hololab/types/*。用户扫描根来自现有 pack_scan_dirs。
+扫描 <root>/types/*/manifest.yaml，不按类型名建立源码白名单。目录名不决定注册名。
+用户根按配置顺序先到先得，随后加载内置根；重复名字采用首个声明。
+kind: Type（可省略）声明单个类型；kind: TypeSet + types 列表可以在一个文件声明多个类型。
+内置类型一个类型一个目录。类型定义无效/不可读时跳过，不新增产物校验、strict 模式或违规计数。
+
+最小例子：
+  kind: Type
+  name: custom
+  element: file
+  summary: summary.py:summary
+  preview:
+    viewer: iframe
+    entry: viewer/index.html
+
+  # summary.py
+  def summary(path, storage):
+      # path 是 pathlib.Path；storage 是 "file" 或 "dir"。
+      return {"kind": "custom", "fields": {"format": "custom"},
+              "counts": {"count": 3, "kind": "items",
+                         "items": [{"label": "item", "value": 3}]}}
+
+summary 返回 JSON dict 或 None。字段/计数均可选；不认识返回 None。
+counts 的 count/kind 保留旧标量协议；items 非空时沿用旧 internal_count_items 协议。
+summary 在可终止子进程内运行，2 秒期限包含启动/导入/执行，报错、超时或非 JSON 返回值均降级为未测量。
+每次运行类型局部 helper 从源码加载，避免秒级 pyc 时间戳导致同长度编辑失效。
+summary_role: counts 表示仅对采样叶计数；summary_role: fields 表示只负责根摘要。
+未指定 role/dispatch 的新类型按 tag 名匹配摘要，不需编辑平台分派代码。
+dispatch 的 order/storage/tags/suffixes/case_sensitive 保留历史根摘要的选择顺序。
+content_dims: {count: N} 声明内在维数；summary 返回 content_dims: [尺寸...]。未测量仍返回 None。
+element 是形态声明，不自动引入新校验。image 的 check_declaration/validate_leaf 是原有检查的原样迁移。
+
+预览协议
+preview.viewer 可以引用现有 React renderer；这些 renderer 的布局、分页、交互实现继续复用。
+preview.entry 指向类型目录的 HTML，走 /api/types/{name}/assets/{path}，相对资源可一并放入目录。
+NodeViewerFrame 仍发送 hololab-viewer-state（viewer_id、frames、history_url、running、progress 等）。
+类型资产带 generation URL，HTTP no-store，目录越界访问返回 404。
+preview_rule 声明历史覆盖优先级：order、storage、when、override（missing/text/any）和 preview。
+历史 image/rig/colmap 抢占以及二进制数据覆盖旧 text 的规则已迁入声明；不是新加优先级。
+preview_terminal 保留原先优先于其它拦截的 renderer；preview_fallback 保留错误 storage 时原有未注册 viewer 降级。
+浏览器不再拥有 FRONTEND_VIEWER_TAGS，也不按 tag 改写下发的 viewer。
+
+热加载链路
+现有 pack watcher 同时监视内置 types 和各 pack 根；源文件或声明变化触发原有 packs_updated/node_online 通道。
+/api/packs/reload 复用同一重扫函数。PacksUpdated.type_roots 同步运行中变更的扫描根。
+声明/实现/资产内容参与类型 generation；请求入口也检查文件变化。
+HandleSummaryCache、持久化 handle_facts 和浏览器 handle/edge facts 缓存按 generation 失效。
+catalog 附带 type_generation；不修改 pack manifest hash 或代码身份。
+同一 pack hash、同一 handle 的已打开预览会重新取元数据，类型资产变化会改变 iframe URL。
+旧持久化 facts 初次读取进入 pending 并按原有后台机制补测；不会修改产物本身。
+
+行为证据
+1. 修改前从本机只读 SQLite/真实产物采集 11 份完整摘要，迁移后逐字典比较 11/11 相等。
+   实际可用产物涵盖 image、video-source、colmap4d、colmap4d-cams 及 colmap4d 叶类型。
+   本机未找到所有旧 COLMAP/splatv 类型的在册可用真实产物，不能把合成案例称为真实产物覆盖。
+等价对照针对完整 summarize_handle 输出和最终 viewer 选择。预览 wire 新增 options/entry，catalog 新增 type_generation；这是消除前端自行拦截所需的加法元数据，不宣称整个 HTTP envelope 字节不变。
+2. tests/fixtures/type_summary_golden.json 是从迁移前源代码直接执行生成的 50 个冻结输出。
+   覆盖全部 9 个 COLMAP 探针、int/image/video/text/splatv、损坏头、缺失路径、零/未知计数、集合维度。
+   tests/test_type_summary_golden.py 比较完整输出，包含 runtime_shape 与降级字段。
+3. 原有 image 检查的错误消息、每叶一次、无像素解码等由既有 contract 测试验证；没有新增检查。
+4. tests/test_type_preview_policy.py 覆盖旧 renderer 选择、覆盖顺序、scalar/array 和错误 storage 的降级。
+
+热加载演示证据（均未重启测试实例）
+- tests/test_type_registry.py::test_existing_pack_watcher_publishes_type_edits：真实 watchfiles 监听；text 改 image；收到 packs_updated 后看到 image。
+- test_live_consumer_and_cache_follow_source_edit：同一 HandleSummaryCache、同一 handle；源码计数 3 改 7；立即读到 7。
+- test_durable_facts_recompute_after_type_edit：旧 DB facts 失效，补测得到 7；内部 generation 不外泄到 facts 响应。
+- test_type_assets_and_catalog_hot_reload：同一个 TestClient；HTML before 改 after；原 URL 返回新内容，generation 改变。
+- test_summary_helpers_reload_without_stale_bytecode：预存 pyc，helper 同长度同 mtime 编辑仍返回新值。
+- test_gateway_pack_update_uses_changed_type_roots：pack 更新帧同步新根；gateway 无需重启找到新类型。
+- frontend/e2e/type-hot-reload.spec.ts：真实 App + WebSocket（API 响应桩），pack hash/handle 不变，文本预览切到图片，浏览器未 reload。
+- frontend/e2e/preview-dispatch-regression.spec.ts：下发 text 不被 splatv tag 抢占；自带 HTML 收到原 viewer-state 消息。
+
+阶段提交与验证（第五阶段提交号见 git log /交付答复）
+① 7f1aecc feat: add path-discovered type declarations and summary executor
+   type_registry.py/type_worker.py、内置镜像 manifest、扫描/接口测试。41 passed。
+② 6a41926 refactor: resolve backend type behavior through declarations
+   tag_probes/tag_viewers/handle_summary/data_contract 消费注册表；pack watcher/reload；缓存失效。
+   测试分组 49 passed、144 passed/1 skipped、4 passed；真实摘要 11/11。
+③ d2ddb08 refactor: make backend type declarations authoritative for previews
+   Preview/NodePreviews 删除 tag 路由；声明 preview_rule；后端解析 + wire 扩展。
+   Python 41 passed；Chromium 4 passed；tsc 通过。
+④ 49cb2c6 refactor: move format implementations into type packages
+   类型 summary.py/contract.py、HTML 资产接口、消息协议、冻结金标准。
+   Python 113 passed/1 skipped；Chromium 5 passed；50 金标准及 11 真实摘要相等；tsc 通过。
+⑤ 清理旧表/重复实现、补全 DB/前端缓存失效、扫描根传播、辅助模块加载与回归证据。
+   最终验证统计见同目录 type-migration-evidence.json。
+
+复跑（不触碰运行中服务）
+  .venv-runtime/bin/python -m pytest tests/test_type_registry.py tests/test_type_summary_golden.py tests/test_type_preview_policy.py -q
+  cd hololab/frontend
+  npx tsc --noEmit
+  npm test -- --reporter=dot
+  npx playwright test e2e/type-hot-reload.spec.ts e2e/preview-dispatch-regression.spec.ts
+  npx vite build --outDir /tmp/hololab-type-migration-dist
+
+已知边界
+- 已有 test_strict_image_contract 的三项失败在迁移前代码同样可复现：
+  test_bypass_wire_directory_is_rejected_before_executor（测试 runtime 没有 gateway connection）；
+  test_current_main_chain_edges_and_broadcast_contract（外部 STG pack 版本与测试固定版本不一致）。
+  test_port_type_ir::test_http_graph_and_resolve_share_additive_contract（旧测试 mock 未接收 catalog_json(keys=...) 参数）。
+  未为此改动其它 pack 或既有业务逻辑，最终相关回归将这三项单独排除并记录。
+- gateway 与节点的类型源码可见性沿用当前 pack manifest/摘要的共享文件系统假设；未新增跨机源码分发服务。
+- 摘要实现由类型作者保持廉价。2 秒后未测量是本次约定，不保证昂贵扫描继续给出旧的长耗时结果。
+- React renderer 复用原组件；新类型可以使用自带 HTML 而不改前端源码。内置类型的标签映射/策略已全部声明化。
+- 未将新平台代码注入当前服务；需要使用者安排首次部署。未作运行中服务已经升级的声明。
+
+逐项搬迁对照（原行号以 baseline_commit 为准；新行号以本次提交为准）
+count probe colmap-cameras-txt
+  hololab/gateway/tag_probes.py:93 -> hololab/types/colmap-cameras-txt/manifest.yaml:1, hololab/types/colmap-cameras-txt/summary.py:58
+count probe colmap-points-txt
+  hololab/gateway/tag_probes.py:117 -> hololab/types/colmap-points-txt/manifest.yaml:1, hololab/types/colmap-points-txt/summary.py:52
+count probe colmap-images-txt
+  hololab/gateway/tag_probes.py:135 -> hololab/types/colmap-images-txt/manifest.yaml:1, hololab/types/colmap-images-txt/summary.py:81
+count probe colmap-cams
+  hololab/gateway/tag_probes.py:149 -> hololab/types/colmap-cams/manifest.yaml:1, hololab/types/colmap-cams/summary.py:112
+count probe point-cloud
+  hololab/gateway/tag_probes.py:194 -> hololab/types/point-cloud/manifest.yaml:1, hololab/types/point-cloud/summary.py:84
+count probe colmap-folder
+  hololab/gateway/tag_probes.py:211 -> hololab/types/colmap-folder/manifest.yaml:1, hololab/types/colmap-folder/summary.py:129
+count probe pose
+  hololab/gateway/tag_probes.py:256 -> hololab/types/pose/manifest.yaml:1, hololab/types/pose/summary.py:82
+count probe intr
+  hololab/gateway/tag_probes.py:271 -> hololab/types/intr/manifest.yaml:1, hololab/types/intr/summary.py:65
+count probe colmap
+  hololab/gateway/tag_probes.py:285 -> hololab/types/colmap/manifest.yaml:1, hololab/types/colmap/summary.py:109
+default viewer colmap4d-cams
+  hololab/gateway/tag_viewers.py:45 -> hololab/types/colmap4d-cams/manifest.yaml:3
+default viewer colmap4d
+  hololab/gateway/tag_viewers.py:45 -> hololab/types/colmap4d/manifest.yaml:3
+default viewer video-source
+  hololab/gateway/tag_viewers.py:45 -> hololab/types/video-source/manifest.yaml:3
+default viewer splatv
+  hololab/gateway/tag_viewers.py:45 -> hololab/types/splatv/manifest.yaml:3
+default viewer ply-3dgs
+  hololab/gateway/tag_viewers.py:45 -> hololab/types/ply-3dgs/manifest.yaml:3
+default viewer ftgsply
+  hololab/gateway/tag_viewers.py:45 -> hololab/types/ftgsply/manifest.yaml:3
+default viewer lagsplat_model
+  hololab/gateway/tag_viewers.py:45 -> hololab/types/lagsplat_model/manifest.yaml:3
+default viewer image
+  hololab/gateway/tag_viewers.py:45 -> hololab/types/image/manifest.yaml:3
+default viewer int
+  hololab/gateway/tag_viewers.py:45 -> hololab/types/int/manifest.yaml:3
+root summary int
+  hololab/gateway/handle_summary.py:348 -> hololab/types/int/manifest.yaml:6, hololab/types/int/summary.py:34
+root summary splatv
+  hololab/gateway/handle_summary.py:380 -> hololab/types/splatv/manifest.yaml:6, hololab/types/splatv/summary.py:61
+root summary video-source
+  hololab/gateway/handle_summary.py:435 -> hololab/types/video-source/manifest.yaml:6, hololab/types/video-source/summary.py:26
+root summary image
+  hololab/gateway/handle_summary.py:459 -> hololab/types/image/manifest.yaml:6, hololab/types/image/summary.py:76
+root summary text
+  hololab/gateway/handle_summary.py:532 -> hololab/types/text/manifest.yaml:4, hololab/types/text/summary.py:30
+root summary directory
+  hololab/gateway/handle_summary.py:558 -> hololab/types/directory/manifest.yaml:4, hololab/types/directory/summary.py:149
+empty content dimensions registry
+  hololab/gateway/tag_probes.py:398 -> hololab/gateway/tag_probes.py:129
+image declaration and leaf/header checks
+  hololab/manifest/data_contract.py:23, hololab/manifest/data_contract.py:96 -> hololab/types/image/manifest.yaml:20, hololab/types/image/contract.py:1
+frontend routing colmap
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/colmap/manifest.yaml:3
+frontend routing colmap-cams
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/colmap-cams/manifest.yaml:3
+frontend routing colmap-folder
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/colmap-folder/manifest.yaml:3
+frontend routing colmap-frame
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/colmap-frame/manifest.yaml:3
+frontend routing colmap-points
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/colmap-points/manifest.yaml:3
+frontend routing colmap4d
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/colmap4d/manifest.yaml:6
+frontend routing colmap4d-cams
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/colmap4d-cams/manifest.yaml:8
+frontend routing ftgsply
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/ftgsply/manifest.yaml:5
+frontend routing image
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/image/manifest.yaml:23
+frontend routing ply-3dgs
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/ply-3dgs/manifest.yaml:5
+frontend routing point-cloud
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/point-cloud/manifest.yaml:3
+frontend routing rig_capture
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/rig_capture/manifest.yaml:3
+frontend routing rig_extrinsics
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/rig_extrinsics/manifest.yaml:3
+frontend routing rig_frames
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/rig_frames/manifest.yaml:3
+frontend routing rig_frames_grouped
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/rig_frames_grouped/manifest.yaml:3
+frontend routing rig_points4d
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/rig_points4d/manifest.yaml:3
+frontend routing rig_timeline
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/rig_timeline/manifest.yaml:3
+frontend routing splatv
+  hololab/frontend/src/canvas/previews.tsx:224, hololab/frontend/src/canvas/NodePreviews.tsx:48 -> hololab/types/splatv/manifest.yaml:16
+
+最终统计：Python 481 passed / 2 skipped / 3 既有失败单列；前端单元 778 passed；浏览器 6 passed；构建产物检查 8 passed；tsc、Vite build、wheel 类型资源包含检查通过。
+wheel 只验证了类型资源随包分发，沿用原 frontend/dist，不作为本次可部署成品交付。

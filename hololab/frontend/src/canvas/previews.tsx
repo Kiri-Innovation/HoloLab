@@ -148,13 +148,7 @@ export interface PartialArrayedInfo {
 }
 
 export interface PreviewProps {
-  // The pack's declared viewer spec. Optional because some viewers are
-  // tag-driven from the frontend and don't need one (see the tag
-  // intercepts at the top of ``Preview()``): a ``arrayed<image>`` or
-  // ``colmap-cams`` output whose pack manifest is silent about
-  // ``preview:`` still routes to the right viewer via its tags. When
-  // this is undefined and no tag intercept matches, we render an
-  // error pill.
+  // Backend-resolved type/pack preview. Tags never override this decision.
   spec?: OutputPreviewSpec;
   // Base URL of the handle. For file-storage handles this IS the file
   // URL. For dir-storage the viewer appends ``/`` + spec.member.
@@ -174,11 +168,7 @@ export interface PreviewProps {
   // ``flops_executor_id`` at render time and know which node to
   // name in the "not configured" guide text.
   producingNode?: ComputeNode | null;
-  // Port tags (from OutputPortSpec.tags). Lets the frontend pick a
-  // richer viewer than the tag-registry default when the shape is
-  // known — e.g. a ``arrayed<image>`` dir gets the stacked-strip
-  // viewer instead of the "first frame only" image viewer that the
-  // registry falls back to.
+  // Retained for diagnostics when no renderer was resolved.
   tags?: string[];
   // Effective ``arrayed`` state of the port on this graph node
   // (manifest declaration OR pack.arrayable ∧ node.arrayed_toggle;
@@ -358,7 +348,7 @@ export function Preview({
     );
   }
 
-  if (!spec) {
+  if (!spec || spec.viewer === "unregistered") {
     return (
       <div style={PREVIEW_SHELL}>
         <Status

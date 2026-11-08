@@ -7,3 +7,6 @@ preview_rule:
     viewer: colmap-frame
   storage: dir
 summary: summary.py:summary
+summary_role: counts
+preview_fallback:
+  viewer: unregistered

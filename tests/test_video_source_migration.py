@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from hololab.gateway.tag_viewers import TAG_VIEWER_REGISTRY
+from hololab.gateway.tag_viewers import infer_preview_for_output
 from hololab.manifest import load_manifest
 
 BUILTINS_ROOT = Path(__file__).resolve().parent.parent / "hololab" / "builtin_packs"
@@ -50,7 +50,7 @@ def test_frame_extraction_input_drops_retired_string_tag() -> None:
 
 
 def test_video_source_array_tag_removed_from_viewer_registry() -> None:
-    assert "video-source-array" not in TAG_VIEWER_REGISTRY
+    assert infer_preview_for_output(None, ["video-source-array"]) is None
 
 
 def test_no_live_references_to_retired_tag_string() -> None:

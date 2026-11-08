@@ -274,6 +274,7 @@ class PacksUpdated(BaseModel):
     Payload is the complete new inventory; the gateway overwrites its cache.
     """
 
+    type_roots: list[str] | None = None
     packs: list[PackInventoryEntry] = Field(default_factory=list)
     # Logical conda environment name -> absolute prefix on this node.
     # This belongs to the node-wide inventory rather than each pack.

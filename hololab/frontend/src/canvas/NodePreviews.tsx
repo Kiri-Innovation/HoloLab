@@ -238,16 +238,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
                     {header}
                     <Preview
                       key={`${target.handle_id}:${previewRefreshToken}`}
-                      // Prefer the runtime-resolved preview from the
-                      // handle response over the catalog's static
-                      // declaration. A ``regroup.out`` port declares
-                      // ``preview: null`` in the catalog (its element
-                      // type is only known at wire time), but the
-                      // backend's ``tag_viewers`` resolver turns the
-                      // resolved runtime tag into a real spec on
-                      // ``target.preview``. When neither is set the
-                      // tag intercepts in Preview() still handle
-                      // frontend-driven viewers by tag alone.
+                      // Runtime type resolution takes precedence over catalog defaults.
                       spec={target.preview ?? port.preview ?? undefined}
                       baseUrl={target.proxy_url}
                       storage={target.storage}
@@ -256,18 +247,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
                       producingNode={
                         computeNodesById?.[target.node_id] ?? null
                       }
-                      // Tag-driven viewer routing: prefer the runtime
-                      // handle's tags (resolved via ``tags_from`` at
-                      // handle_register — see gateway/app.py) over the
-                      // catalog's static declaration. A ``regroup.out``
-                      // handle wired from an ``image`` source arrives
-                      // here as ``["image"]``, matching the image
-                      // preview; the raw ``port.tags`` would be
-                      // ``["any"]`` and skip every intercept in
-                      // previews.tsx. Fall back to ``port.tags`` for
-                      // legacy handles registered before the resolver
-                      // shipped (tags list still populated but never
-                      // rewritten).
+                      // Tags are diagnostic context; renderer policy belongs to the backend.
                       tags={target.tags.length > 0 ? target.tags : port.tags}
                       arrayed={effectivePortArrayed(
                         port.arrayed,

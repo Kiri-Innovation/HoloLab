@@ -1087,9 +1087,9 @@ def tags_compatible(a: list[str], b: list[str]) -> bool:
     Removed image aliases are rejected even against the ``any`` wildcard.
     """
 
-    from hololab.manifest.data_contract import REMOVED_IMAGE_TAGS
+    from hololab.manifest.data_contract import retired_tags
 
-    if REMOVED_IMAGE_TAGS.intersection(a) or REMOVED_IMAGE_TAGS.intersection(b):
+    if retired_tags().intersection(a) or retired_tags().intersection(b):
         return False
     if ANY_TAG in a or ANY_TAG in b:
         return True

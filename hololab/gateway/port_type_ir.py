@@ -179,7 +179,7 @@ def compatible(
     broadcast: bool = False,
     require_axis_label_match: bool = True,
 ) -> bool:
-    from hololab.manifest.data_contract import REMOVED_IMAGE_TAGS
+    from hololab.manifest.data_contract import retired_tags
 
     if isinstance(target, UnionType):
         return any(
@@ -209,7 +209,7 @@ def compatible(
             t = t.element
         return t.tags if isinstance(t, ObjectType) else []
 
-    if REMOVED_IMAGE_TAGS.intersection([*leaf_tags(source), *leaf_tags(target)]):
+    if retired_tags().intersection([*leaf_tags(source), *leaf_tags(target)]):
         return False
     if isinstance(source, UnknownType) or isinstance(target, UnknownType):
         return False

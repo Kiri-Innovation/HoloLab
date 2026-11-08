@@ -8,3 +8,4 @@ dispatch:
   tags:
   - int
   storage: file
+summary_role: fields

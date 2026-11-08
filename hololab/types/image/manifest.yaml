@@ -5,6 +5,10 @@ preview:
 summary: summary.py:summary
 dispatch:
   order: 40
+  when:
+  - storage: file
+  - storage: dir
+    arrayed: true
   tags:
   - image
   suffixes:
@@ -18,6 +22,10 @@ check_declaration: contract.py:_check_image_declaration
 validate_leaf: contract.py:_check_image_leaf
 preview_rule:
   order: 40
+  when:
+  - storage: file
+  - storage: dir
+    arrayed: true
   override: any
   preview:
     viewer: image
@@ -27,3 +35,4 @@ check_header: contract.py:check_image_header
 retired_tags:
 - image_sequence
 - frame_sequence
+summary_role: fields

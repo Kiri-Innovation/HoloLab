@@ -1,8 +1,10 @@
 from pathlib import Path
 from typing import Any
+
 from hololab.manifest.data_contract import ContractError
 
 REMOVED_IMAGE_TAGS = frozenset({"image_sequence", "frame_sequence"})
+
 
 def _check_image_declaration(spec: Any) -> None:
     removed = REMOVED_IMAGE_TAGS.intersection(spec.tags)
@@ -20,11 +22,10 @@ def _check_image_declaration(spec: Any) -> None:
     if getattr(spec, "content_dims_from", None):
         raise ValueError("image has no intrinsic content dimensions")
 
+
 def _check_image_leaf(current: Path, *, label: str) -> None:
     if not current.is_file():
-        raise ContractError(
-            f"{label}: expected one image file, got directory/non-file: {current}"
-        )
+        raise ContractError(f"{label}: expected one image file, got directory/non-file: {current}")
     check_image_header(current, label=label)
 
 

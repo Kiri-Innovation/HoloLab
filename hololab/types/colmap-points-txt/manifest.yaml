@@ -1,3 +1,4 @@
 kind: Type
 name: colmap-points-txt
 summary: summary.py:summary
+summary_role: counts

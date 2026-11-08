@@ -4611,7 +4611,7 @@ async def _resolve_handle_display_meta(
     the frontend gets the same resolved preview + dims from either
     endpoint. The preview walks precedence:
 
-        explicit manifest ``preview:`` block ─► TAG_VIEWER_REGISTRY[tag]
+        explicit manifest ``preview:`` block + scanned type preview policy
         (see ``hololab.gateway.tag_viewers.infer_preview_for_output``)
 
     dims come from the producing port's ``dim_labels`` (via
@@ -4648,7 +4648,6 @@ async def _resolve_handle_display_meta(
             )
 
     explicit_preview = port_spec.preview if port_spec is not None else None
-    preview = infer_preview_for_output(explicit_preview, resolved_tags, handle.storage)
 
     raw_dim_labels = None
     if job is not None and job.algorithm_name == "@builtin/array-assemble":
@@ -4675,6 +4674,7 @@ async def _resolve_handle_display_meta(
                         raw_dim_labels = list(dynamic)
                 if getattr(job, "expected_shards", None) is not None:
                     raw_dim_labels = ["", *raw_dim_labels]
+    preview = infer_preview_for_output(explicit_preview, resolved_tags, handle.storage, bool(raw_dim_labels))
     # A generic producer may register `any`; measurement uses its resolved leaf
     # tag so arrays of image FILES are not mistaken for directories of bundles.
     if not measure_dimensions:
@@ -4950,6 +4950,8 @@ async def _dispatch_node_frame(
 
     if kind == "packs_updated":
         assert isinstance(payload, PacksUpdated)
+        if payload.type_roots is not None:
+            session.pack_dirs = payload.type_roots
         from hololab.type_registry import configure
         configure([Path(root) for node in registry.all_sessions() for root in (node.pack_dirs or [])])
         await registry.replace_packs(session.node_id, payload.packs, payload.envs)

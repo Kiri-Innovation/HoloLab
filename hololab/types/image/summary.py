@@ -1,14 +1,9 @@
 from __future__ import annotations
-import json
-import re
+
 import struct
 from pathlib import Path
 from typing import Any
 
-_MAX_HEADER_BYTES = 256 * 1024
-_MAX_DIR_ENTRIES = 100
-_FRAMES_DRILL_CAP = 8
-_IMAGE_SUFFIX_RE = re.compile(r"\.(png|jpe?g|webp|bmp|gif)$", re.IGNORECASE)
 
 def _summarize_image(path: Path, _storage: str) -> dict[str, Any]:
     fields: dict[str, Any] = {"format": path.suffix.lstrip(".").lower()}

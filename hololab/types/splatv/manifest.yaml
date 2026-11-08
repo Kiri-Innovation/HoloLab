@@ -19,3 +19,4 @@ preview_rule:
   preview:
     viewer: splatv
   storage: file
+summary_role: fields

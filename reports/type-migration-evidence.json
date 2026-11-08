@@ -1,0 +1,1823 @@
+{
+  "baseline_commit": "dfaa8e33ccd631449acc845d69b58aa5a0274b9c",
+  "stages": [
+    {
+      "stage": 1,
+      "commit": "7f1aecc",
+      "title": "feat: add path-discovered type declarations and summary executor",
+      "changes_at_commit": [
+        {
+          "file": "hololab/type_registry.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/type_worker.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-cameras-txt/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-cams/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-folder/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-images-txt/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-points-txt/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap4d-cams/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap4d/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/ftgsply/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/image/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/int/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/intr/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/lagsplat_model/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/ply-3dgs/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/point-cloud/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/pose/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/splatv/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/video-source/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "tests/test_type_registry.py",
+          "changed_lines": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "stage": 2,
+      "commit": "6a41926",
+      "title": "refactor: resolve backend type behavior through declarations",
+      "changes_at_commit": [
+        {
+          "file": "hololab/gateway/app.py",
+          "changed_lines": [
+            4404,
+            4934
+          ]
+        },
+        {
+          "file": "hololab/gateway/handle_summary.py",
+          "changed_lines": [
+            119,
+            200,
+            229,
+            766
+          ]
+        },
+        {
+          "file": "hololab/gateway/tag_probes.py",
+          "changed_lines": [
+            353,
+            380,
+            385,
+            426,
+            430,
+            443,
+            447,
+            449
+          ]
+        },
+        {
+          "file": "hololab/gateway/tag_viewers.py",
+          "changed_lines": [
+            88
+          ]
+        },
+        {
+          "file": "hololab/manifest/data_contract.py",
+          "changed_lines": [
+            24,
+            68,
+            89,
+            100
+          ]
+        },
+        {
+          "file": "hololab/node/packs.py",
+          "changed_lines": [
+            226
+          ]
+        },
+        {
+          "file": "hololab/node/runtime.py",
+          "changed_lines": [
+            742,
+            3350,
+            3352
+          ]
+        },
+        {
+          "file": "hololab/type_registry.py",
+          "changed_lines": [
+            88,
+            105
+          ]
+        },
+        {
+          "file": "hololab/types/directory/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/image/manifest.yaml",
+          "changed_lines": [
+            5
+          ]
+        },
+        {
+          "file": "hololab/types/int/manifest.yaml",
+          "changed_lines": [
+            5
+          ]
+        },
+        {
+          "file": "hololab/types/splatv/manifest.yaml",
+          "changed_lines": [
+            5
+          ]
+        },
+        {
+          "file": "hololab/types/text/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/video-source/manifest.yaml",
+          "changed_lines": [
+            5
+          ]
+        },
+        {
+          "file": "tests/test_type_registry.py",
+          "changed_lines": [
+            48
+          ]
+        }
+      ]
+    },
+    {
+      "stage": 3,
+      "commit": "d2ddb08",
+      "title": "refactor: make backend type declarations authoritative for previews",
+      "changes_at_commit": [
+        {
+          "file": "hololab/frontend/e2e/fixtures/inspector-preview.tsx",
+          "changed_lines": [
+            18,
+            21
+          ]
+        },
+        {
+          "file": "hololab/frontend/e2e/preview-dispatch-regression.spec.ts",
+          "changed_lines": [
+            33,
+            40
+          ]
+        },
+        {
+          "file": "hololab/frontend/src/canvas/NodePreviews.tsx",
+          "changed_lines": [
+            39,
+            53
+          ]
+        },
+        {
+          "file": "hololab/frontend/src/canvas/previews.tsx",
+          "changed_lines": [
+            220,
+            222,
+            231,
+            234,
+            237,
+            240,
+            244,
+            256,
+            258,
+            262,
+            264,
+            282,
+            284,
+            302,
+            304,
+            308,
+            310,
+            314,
+            316,
+            320,
+            322,
+            326,
+            328,
+            341,
+            344,
+            349,
+            405
+          ]
+        },
+        {
+          "file": "hololab/frontend/src/wire.ts",
+          "changed_lines": [
+            212
+          ]
+        },
+        {
+          "file": "hololab/gateway/app.py",
+          "changed_lines": [
+            4632
+          ]
+        },
+        {
+          "file": "hololab/gateway/registry.py",
+          "changed_lines": [
+            721
+          ]
+        },
+        {
+          "file": "hololab/gateway/tag_viewers.py",
+          "changed_lines": [
+            77,
+            79,
+            82
+          ]
+        },
+        {
+          "file": "hololab/manifest/schema.py",
+          "changed_lines": [
+            16,
+            192,
+            197
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-cams/manifest.yaml",
+          "changed_lines": [
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-folder/manifest.yaml",
+          "changed_lines": [
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-frame/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-points/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap/manifest.yaml",
+          "changed_lines": [
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/colmap4d-cams/manifest.yaml",
+          "changed_lines": [
+            6
+          ]
+        },
+        {
+          "file": "hololab/types/colmap4d/manifest.yaml",
+          "changed_lines": [
+            6
+          ]
+        },
+        {
+          "file": "hololab/types/ftgsply/manifest.yaml",
+          "changed_lines": [
+            5
+          ]
+        },
+        {
+          "file": "hololab/types/image/manifest.yaml",
+          "changed_lines": [
+            19
+          ]
+        },
+        {
+          "file": "hololab/types/ply-3dgs/manifest.yaml",
+          "changed_lines": [
+            5
+          ]
+        },
+        {
+          "file": "hololab/types/point-cloud/manifest.yaml",
+          "changed_lines": [
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/rig_capture/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/rig_extrinsics/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/rig_frames/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/rig_frames_grouped/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/rig_points4d/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/rig_timeline/manifest.yaml",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/splatv/manifest.yaml",
+          "changed_lines": [
+            16
+          ]
+        },
+        {
+          "file": "tests/test_colmap4d_viewer.py",
+          "changed_lines": [
+            13
+          ]
+        },
+        {
+          "file": "tests/test_handle_lookup_api.py",
+          "changed_lines": [
+            157
+          ]
+        },
+        {
+          "file": "tests/test_type_preview_policy.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "tests/test_type_registry.py",
+          "changed_lines": [
+            13
+          ]
+        }
+      ]
+    },
+    {
+      "stage": 4,
+      "commit": "49cb2c6",
+      "title": "refactor: move format implementations into type packages",
+      "changes_at_commit": [
+        {
+          "file": "hololab/frontend/e2e/fixtures/inspector-preview.tsx",
+          "changed_lines": [
+            20
+          ]
+        },
+        {
+          "file": "hololab/frontend/e2e/preview-dispatch-regression.spec.ts",
+          "changed_lines": [
+            44
+          ]
+        },
+        {
+          "file": "hololab/frontend/src/canvas/NodeViewerFrame.tsx",
+          "changed_lines": [
+            44,
+            62,
+            135,
+            137
+          ]
+        },
+        {
+          "file": "hololab/frontend/src/canvas/previews.tsx",
+          "changed_lines": [
+            220
+          ]
+        },
+        {
+          "file": "hololab/gateway/app.py",
+          "changed_lines": [
+            2042
+          ]
+        },
+        {
+          "file": "hololab/gateway/tag_viewers.py",
+          "changed_lines": [
+            82,
+            95,
+            106,
+            113
+          ]
+        },
+        {
+          "file": "hololab/type_registry.py",
+          "changed_lines": [
+            10,
+            21,
+            47
+          ]
+        },
+        {
+          "file": "hololab/type_worker.py",
+          "changed_lines": [
+            12
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-cameras-txt/manifest.yaml",
+          "changed_lines": [
+            3
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-cameras-txt/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-cams/manifest.yaml",
+          "changed_lines": [
+            2,
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-cams/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-folder/manifest.yaml",
+          "changed_lines": [
+            2,
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-folder/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-images-txt/manifest.yaml",
+          "changed_lines": [
+            3
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-images-txt/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-points-txt/manifest.yaml",
+          "changed_lines": [
+            3
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-points-txt/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/colmap/manifest.yaml",
+          "changed_lines": [
+            2,
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/colmap/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/directory/manifest.yaml",
+          "changed_lines": [
+            3
+          ]
+        },
+        {
+          "file": "hololab/types/directory/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/image/contract.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/image/manifest.yaml",
+          "changed_lines": [
+            5,
+            17,
+            26
+          ]
+        },
+        {
+          "file": "hololab/types/image/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/int/manifest.yaml",
+          "changed_lines": [
+            5
+          ]
+        },
+        {
+          "file": "hololab/types/int/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/intr/manifest.yaml",
+          "changed_lines": [
+            3
+          ]
+        },
+        {
+          "file": "hololab/types/intr/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/point-cloud/manifest.yaml",
+          "changed_lines": [
+            2,
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/point-cloud/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/pose/manifest.yaml",
+          "changed_lines": [
+            3
+          ]
+        },
+        {
+          "file": "hololab/types/pose/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/splatv/manifest.yaml",
+          "changed_lines": [
+            5
+          ]
+        },
+        {
+          "file": "hololab/types/splatv/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/text/manifest.yaml",
+          "changed_lines": [
+            3
+          ]
+        },
+        {
+          "file": "hololab/types/text/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "hololab/types/video-source/manifest.yaml",
+          "changed_lines": [
+            5
+          ]
+        },
+        {
+          "file": "hololab/types/video-source/summary.py",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "tests/fixtures/type_summary_golden.json",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "tests/test_contract_validation_once.py",
+          "changed_lines": [
+            40,
+            43,
+            48
+          ]
+        },
+        {
+          "file": "tests/test_type_registry.py",
+          "changed_lines": [
+            6,
+            8,
+            69
+          ]
+        },
+        {
+          "file": "tests/test_type_summary_golden.py",
+          "changed_lines": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "stage": 5,
+      "commit": "the commit containing this report; see git log",
+      "title": "refactor: remove legacy type tables and complete reload propagation",
+      "changes": [
+        {
+          "file": "hololab/frontend/src/App.tsx",
+          "changed_lines": [
+            78,
+            148,
+            565,
+            569,
+            571,
+            578,
+            582,
+            595,
+            686,
+            1252,
+            2758,
+            2856
+          ]
+        },
+        {
+          "file": "hololab/frontend/src/api.ts",
+          "changed_lines": [
+            206
+          ]
+        },
+        {
+          "file": "hololab/frontend/src/canvas/NodePreviews.tsx",
+          "changed_lines": [
+            241,
+            250
+          ]
+        },
+        {
+          "file": "hololab/frontend/src/canvas/edgeSummaryCache.ts",
+          "changed_lines": [
+            43,
+            60,
+            65,
+            85
+          ]
+        },
+        {
+          "file": "hololab/frontend/src/canvas/previews.tsx",
+          "changed_lines": [
+            151,
+            171,
+            351
+          ]
+        },
+        {
+          "file": "hololab/frontend/src/wire.ts",
+          "changed_lines": [
+            356
+          ]
+        },
+        {
+          "file": "hololab/gateway/app.py",
+          "changed_lines": [
+            4614,
+            4650,
+            4677,
+            4953
+          ]
+        },
+        {
+          "file": "hololab/gateway/handle_facts.py",
+          "changed_lines": [
+            12,
+            31,
+            36,
+            55
+          ]
+        },
+        {
+          "file": "hololab/gateway/handle_summary.py",
+          "changed_lines": [
+            1,
+            9,
+            10,
+            21,
+            57,
+            85,
+            91,
+            102,
+            107,
+            162,
+            164,
+            210,
+            295,
+            326,
+            371,
+            396,
+            402
+          ]
+        },
+        {
+          "file": "hololab/gateway/models.py",
+          "changed_lines": [
+            302
+          ]
+        },
+        {
+          "file": "hololab/gateway/port_type_ir.py",
+          "changed_lines": [
+            182,
+            212
+          ]
+        },
+        {
+          "file": "hololab/gateway/registry.py",
+          "changed_lines": [
+            503,
+            578,
+            725
+          ]
+        },
+        {
+          "file": "hololab/gateway/tag_probes.py",
+          "changed_lines": [
+            59,
+            63,
+            67,
+            72,
+            78,
+            128,
+            140,
+            158
+          ]
+        },
+        {
+          "file": "hololab/gateway/tag_viewers.py",
+          "changed_lines": [
+            1,
+            6,
+            12,
+            19,
+            22,
+            46,
+            55,
+            66,
+            75,
+            82
+          ]
+        },
+        {
+          "file": "hololab/gateway/workflows.py",
+          "changed_lines": [
+            1090,
+            1092
+          ]
+        },
+        {
+          "file": "hololab/manifest/data_contract.py",
+          "changed_lines": [
+            1,
+            3,
+            11,
+            29,
+            35,
+            57,
+            91
+          ]
+        },
+        {
+          "file": "hololab/manifest/schema.py",
+          "changed_lines": [
+            178,
+            180
+          ]
+        },
+        {
+          "file": "hololab/node/runtime.py",
+          "changed_lines": [
+            694,
+            709
+          ]
+        },
+        {
+          "file": "hololab/protocol/messages.py",
+          "changed_lines": [
+            277
+          ]
+        },
+        {
+          "file": "hololab/type_registry.py",
+          "changed_lines": [
+            2,
+            5,
+            10,
+            12,
+            19,
+            27,
+            47,
+            56,
+            74,
+            123,
+            129,
+            132
+          ]
+        },
+        {
+          "file": "hololab/type_worker.py",
+          "changed_lines": [
+            2,
+            4,
+            12,
+            36
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-cameras-txt/manifest.yaml",
+          "changed_lines": [
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-cameras-txt/summary.py",
+          "changed_lines": [
+            2,
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-cams/manifest.yaml",
+          "changed_lines": [
+            10
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-cams/summary.py",
+          "changed_lines": [
+            2,
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-folder/manifest.yaml",
+          "changed_lines": [
+            10
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-folder/summary.py",
+          "changed_lines": [
+            2,
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-frame/manifest.yaml",
+          "changed_lines": [
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-images-txt/manifest.yaml",
+          "changed_lines": [
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-images-txt/summary.py",
+          "changed_lines": [
+            2,
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-points-txt/manifest.yaml",
+          "changed_lines": [
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-points-txt/summary.py",
+          "changed_lines": [
+            2,
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/colmap-points/manifest.yaml",
+          "changed_lines": [
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/colmap/manifest.yaml",
+          "changed_lines": [
+            10
+          ]
+        },
+        {
+          "file": "hololab/types/colmap/summary.py",
+          "changed_lines": [
+            2,
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/directory/manifest.yaml",
+          "changed_lines": [
+            7
+          ]
+        },
+        {
+          "file": "hololab/types/directory/summary.py",
+          "changed_lines": [
+            2,
+            3,
+            6,
+            11
+          ]
+        },
+        {
+          "file": "hololab/types/image/contract.py",
+          "changed_lines": [
+            3,
+            8,
+            25,
+            28
+          ]
+        },
+        {
+          "file": "hololab/types/image/manifest.yaml",
+          "changed_lines": [
+            8,
+            25,
+            38
+          ]
+        },
+        {
+          "file": "hololab/types/image/summary.py",
+          "changed_lines": [
+            2,
+            6
+          ]
+        },
+        {
+          "file": "hololab/types/int/manifest.yaml",
+          "changed_lines": [
+            11
+          ]
+        },
+        {
+          "file": "hololab/types/int/summary.py",
+          "changed_lines": [
+            2,
+            5
+          ]
+        },
+        {
+          "file": "hololab/types/intr/manifest.yaml",
+          "changed_lines": [
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/intr/summary.py",
+          "changed_lines": [
+            2,
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/point-cloud/manifest.yaml",
+          "changed_lines": [
+            10
+          ]
+        },
+        {
+          "file": "hololab/types/point-cloud/summary.py",
+          "changed_lines": [
+            2,
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/pose/manifest.yaml",
+          "changed_lines": [
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/pose/summary.py",
+          "changed_lines": [
+            2,
+            4
+          ]
+        },
+        {
+          "file": "hololab/types/rig_capture/manifest.yaml",
+          "changed_lines": [
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/rig_extrinsics/manifest.yaml",
+          "changed_lines": [
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/rig_frames/manifest.yaml",
+          "changed_lines": [
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/rig_frames_grouped/manifest.yaml",
+          "changed_lines": [
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/rig_points4d/manifest.yaml",
+          "changed_lines": [
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/rig_timeline/manifest.yaml",
+          "changed_lines": [
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/splatv/manifest.yaml",
+          "changed_lines": [
+            22
+          ]
+        },
+        {
+          "file": "hololab/types/splatv/summary.py",
+          "changed_lines": [
+            2,
+            3,
+            9
+          ]
+        },
+        {
+          "file": "hololab/types/text/manifest.yaml",
+          "changed_lines": [
+            13
+          ]
+        },
+        {
+          "file": "hololab/types/text/summary.py",
+          "changed_lines": [
+            2,
+            7
+          ]
+        },
+        {
+          "file": "hololab/types/video-source/manifest.yaml",
+          "changed_lines": [
+            13
+          ]
+        },
+        {
+          "file": "hololab/types/video-source/summary.py",
+          "changed_lines": [
+            2,
+            5
+          ]
+        },
+        {
+          "file": "tests/test_colmap_cams_preview_bundle.py",
+          "changed_lines": [
+            1,
+            3,
+            8,
+            11,
+            15,
+            20,
+            63,
+            65,
+            75
+          ]
+        },
+        {
+          "file": "tests/test_contract_validation_once.py",
+          "changed_lines": [
+            17
+          ]
+        },
+        {
+          "file": "tests/test_int_handle.py",
+          "changed_lines": [
+            27,
+            96
+          ]
+        },
+        {
+          "file": "tests/test_pack_dirs.py",
+          "changed_lines": [
+            382
+          ]
+        },
+        {
+          "file": "tests/test_regroup_pack.py",
+          "changed_lines": [
+            544,
+            550,
+            563,
+            569
+          ]
+        },
+        {
+          "file": "tests/test_type_preview_policy.py",
+          "changed_lines": [
+            2,
+            7,
+            39
+          ]
+        },
+        {
+          "file": "tests/test_type_registry.py",
+          "changed_lines": [
+            9,
+            11,
+            16,
+            18,
+            21,
+            23,
+            26,
+            33,
+            35,
+            41,
+            46,
+            49,
+            51,
+            56,
+            58,
+            60,
+            63,
+            72,
+            80,
+            82,
+            86,
+            107,
+            109,
+            112,
+            116,
+            122,
+            124,
+            127,
+            132,
+            136,
+            140,
+            143
+          ]
+        },
+        {
+          "file": "tests/test_type_summary_golden.py",
+          "changed_lines": [
+            2,
+            9,
+            11,
+            16,
+            18,
+            23,
+            40,
+            76,
+            98,
+            102
+          ]
+        },
+        {
+          "file": "tests/test_video_source_migration.py",
+          "changed_lines": [
+            19,
+            53
+          ]
+        },
+        {
+          "file": "hololab/frontend/e2e/type-hot-reload.spec.ts",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "reports/type-definitions-2026-11-08.txt",
+          "changed_lines": [
+            1
+          ]
+        },
+        {
+          "file": "reports/type-migration-evidence.json",
+          "changed_lines": [
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "migration_map": [
+    {
+      "knowledge": "count probe colmap-cameras-txt",
+      "before": "hololab/gateway/tag_probes.py:93",
+      "after": [
+        "hololab/types/colmap-cameras-txt/manifest.yaml:1",
+        "hololab/types/colmap-cameras-txt/summary.py:58"
+      ]
+    },
+    {
+      "knowledge": "count probe colmap-points-txt",
+      "before": "hololab/gateway/tag_probes.py:117",
+      "after": [
+        "hololab/types/colmap-points-txt/manifest.yaml:1",
+        "hololab/types/colmap-points-txt/summary.py:52"
+      ]
+    },
+    {
+      "knowledge": "count probe colmap-images-txt",
+      "before": "hololab/gateway/tag_probes.py:135",
+      "after": [
+        "hololab/types/colmap-images-txt/manifest.yaml:1",
+        "hololab/types/colmap-images-txt/summary.py:81"
+      ]
+    },
+    {
+      "knowledge": "count probe colmap-cams",
+      "before": "hololab/gateway/tag_probes.py:149",
+      "after": [
+        "hololab/types/colmap-cams/manifest.yaml:1",
+        "hololab/types/colmap-cams/summary.py:112"
+      ]
+    },
+    {
+      "knowledge": "count probe point-cloud",
+      "before": "hololab/gateway/tag_probes.py:194",
+      "after": [
+        "hololab/types/point-cloud/manifest.yaml:1",
+        "hololab/types/point-cloud/summary.py:84"
+      ]
+    },
+    {
+      "knowledge": "count probe colmap-folder",
+      "before": "hololab/gateway/tag_probes.py:211",
+      "after": [
+        "hololab/types/colmap-folder/manifest.yaml:1",
+        "hololab/types/colmap-folder/summary.py:129"
+      ]
+    },
+    {
+      "knowledge": "count probe pose",
+      "before": "hololab/gateway/tag_probes.py:256",
+      "after": [
+        "hololab/types/pose/manifest.yaml:1",
+        "hololab/types/pose/summary.py:82"
+      ]
+    },
+    {
+      "knowledge": "count probe intr",
+      "before": "hololab/gateway/tag_probes.py:271",
+      "after": [
+        "hololab/types/intr/manifest.yaml:1",
+        "hololab/types/intr/summary.py:65"
+      ]
+    },
+    {
+      "knowledge": "count probe colmap",
+      "before": "hololab/gateway/tag_probes.py:285",
+      "after": [
+        "hololab/types/colmap/manifest.yaml:1",
+        "hololab/types/colmap/summary.py:109"
+      ]
+    },
+    {
+      "knowledge": "default viewer colmap4d-cams",
+      "before": "hololab/gateway/tag_viewers.py:45",
+      "after": [
+        "hololab/types/colmap4d-cams/manifest.yaml:3"
+      ]
+    },
+    {
+      "knowledge": "default viewer colmap4d",
+      "before": "hololab/gateway/tag_viewers.py:45",
+      "after": [
+        "hololab/types/colmap4d/manifest.yaml:3"
+      ]
+    },
+    {
+      "knowledge": "default viewer video-source",
+      "before": "hololab/gateway/tag_viewers.py:45",
+      "after": [
+        "hololab/types/video-source/manifest.yaml:3"
+      ]
+    },
+    {
+      "knowledge": "default viewer splatv",
+      "before": "hololab/gateway/tag_viewers.py:45",
+      "after": [
+        "hololab/types/splatv/manifest.yaml:3"
+      ]
+    },
+    {
+      "knowledge": "default viewer ply-3dgs",
+      "before": "hololab/gateway/tag_viewers.py:45",
+      "after": [
+        "hololab/types/ply-3dgs/manifest.yaml:3"
+      ]
+    },
+    {
+      "knowledge": "default viewer ftgsply",
+      "before": "hololab/gateway/tag_viewers.py:45",
+      "after": [
+        "hololab/types/ftgsply/manifest.yaml:3"
+      ]
+    },
+    {
+      "knowledge": "default viewer lagsplat_model",
+      "before": "hololab/gateway/tag_viewers.py:45",
+      "after": [
+        "hololab/types/lagsplat_model/manifest.yaml:3"
+      ]
+    },
+    {
+      "knowledge": "default viewer image",
+      "before": "hololab/gateway/tag_viewers.py:45",
+      "after": [
+        "hololab/types/image/manifest.yaml:3"
+      ]
+    },
+    {
+      "knowledge": "default viewer int",
+      "before": "hololab/gateway/tag_viewers.py:45",
+      "after": [
+        "hololab/types/int/manifest.yaml:3"
+      ]
+    },
+    {
+      "knowledge": "root summary int",
+      "before": "hololab/gateway/handle_summary.py:348",
+      "after": [
+        "hololab/types/int/manifest.yaml:6",
+        "hololab/types/int/summary.py:34"
+      ]
+    },
+    {
+      "knowledge": "root summary splatv",
+      "before": "hololab/gateway/handle_summary.py:380",
+      "after": [
+        "hololab/types/splatv/manifest.yaml:6",
+        "hololab/types/splatv/summary.py:61"
+      ]
+    },
+    {
+      "knowledge": "root summary video-source",
+      "before": "hololab/gateway/handle_summary.py:435",
+      "after": [
+        "hololab/types/video-source/manifest.yaml:6",
+        "hololab/types/video-source/summary.py:26"
+      ]
+    },
+    {
+      "knowledge": "root summary image",
+      "before": "hololab/gateway/handle_summary.py:459",
+      "after": [
+        "hololab/types/image/manifest.yaml:6",
+        "hololab/types/image/summary.py:76"
+      ]
+    },
+    {
+      "knowledge": "root summary text",
+      "before": "hololab/gateway/handle_summary.py:532",
+      "after": [
+        "hololab/types/text/manifest.yaml:4",
+        "hololab/types/text/summary.py:30"
+      ]
+    },
+    {
+      "knowledge": "root summary directory",
+      "before": "hololab/gateway/handle_summary.py:558",
+      "after": [
+        "hololab/types/directory/manifest.yaml:4",
+        "hololab/types/directory/summary.py:149"
+      ]
+    },
+    {
+      "knowledge": "empty content dimensions registry",
+      "before": "hololab/gateway/tag_probes.py:398",
+      "after": [
+        "hololab/gateway/tag_probes.py:129"
+      ],
+      "note": "No built-in intrinsic dimensions added; optional content_dims declarations replace the empty table."
+    },
+    {
+      "knowledge": "image declaration and leaf/header checks",
+      "before": [
+        "hololab/manifest/data_contract.py:23",
+        "hololab/manifest/data_contract.py:96"
+      ],
+      "after": [
+        "hololab/types/image/manifest.yaml:20",
+        "hololab/types/image/contract.py:1"
+      ]
+    },
+    {
+      "knowledge": "frontend routing colmap",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/colmap/manifest.yaml:3"
+      ],
+      "renderer": "colmap-frame"
+    },
+    {
+      "knowledge": "frontend routing colmap-cams",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/colmap-cams/manifest.yaml:3"
+      ],
+      "renderer": "colmap-cams"
+    },
+    {
+      "knowledge": "frontend routing colmap-folder",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/colmap-folder/manifest.yaml:3"
+      ],
+      "renderer": "colmap-frame"
+    },
+    {
+      "knowledge": "frontend routing colmap-frame",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/colmap-frame/manifest.yaml:3"
+      ],
+      "renderer": "colmap-frame"
+    },
+    {
+      "knowledge": "frontend routing colmap-points",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/colmap-points/manifest.yaml:3"
+      ],
+      "renderer": "colmap-points"
+    },
+    {
+      "knowledge": "frontend routing colmap4d",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/colmap4d/manifest.yaml:6"
+      ],
+      "renderer": "colmap4d"
+    },
+    {
+      "knowledge": "frontend routing colmap4d-cams",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/colmap4d-cams/manifest.yaml:8"
+      ],
+      "renderer": "colmap4d"
+    },
+    {
+      "knowledge": "frontend routing ftgsply",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/ftgsply/manifest.yaml:5"
+      ],
+      "renderer": "ftgsply"
+    },
+    {
+      "knowledge": "frontend routing image",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/image/manifest.yaml:23"
+      ],
+      "renderer": "image"
+    },
+    {
+      "knowledge": "frontend routing ply-3dgs",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/ply-3dgs/manifest.yaml:5"
+      ],
+      "renderer": "ply-3dgs"
+    },
+    {
+      "knowledge": "frontend routing point-cloud",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/point-cloud/manifest.yaml:3"
+      ],
+      "renderer": "colmap-points"
+    },
+    {
+      "knowledge": "frontend routing rig_capture",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/rig_capture/manifest.yaml:3"
+      ],
+      "renderer": "rig-capture"
+    },
+    {
+      "knowledge": "frontend routing rig_extrinsics",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/rig_extrinsics/manifest.yaml:3"
+      ],
+      "renderer": "rig-extrinsics"
+    },
+    {
+      "knowledge": "frontend routing rig_frames",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/rig_frames/manifest.yaml:3"
+      ],
+      "renderer": "nested-images"
+    },
+    {
+      "knowledge": "frontend routing rig_frames_grouped",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/rig_frames_grouped/manifest.yaml:3"
+      ],
+      "renderer": "nested-images"
+    },
+    {
+      "knowledge": "frontend routing rig_points4d",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/rig_points4d/manifest.yaml:3"
+      ],
+      "renderer": "rig-points4d"
+    },
+    {
+      "knowledge": "frontend routing rig_timeline",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/rig_timeline/manifest.yaml:3"
+      ],
+      "renderer": "rig-timeline"
+    },
+    {
+      "knowledge": "frontend routing splatv",
+      "before": [
+        "hololab/frontend/src/canvas/previews.tsx:224",
+        "hololab/frontend/src/canvas/NodePreviews.tsx:48"
+      ],
+      "after": [
+        "hololab/types/splatv/manifest.yaml:16"
+      ],
+      "renderer": "splatv"
+    }
+  ],
+  "verification": {
+    "python": "481 passed, 2 skipped, 3 known pre-existing tests deselected",
+    "frontend_unit": "778 passed in 73 test files",
+    "browser": "6 passed",
+    "built_renderer_checks": "8 passed",
+    "typescript": "passed",
+    "vite_build": "passed; output /tmp/hololab-type-migration-dist",
+    "real_artifacts": {
+      "equal": 11,
+      "total": 11,
+      "tags": [
+        "colmap-single-cam",
+        "colmap4d",
+        "colmap4d-cams",
+        "colmap4d-images",
+        "colmap4d-point-cloud",
+        "colmap4d-single-cam",
+        "image",
+        "video-source"
+      ],
+      "baseline_sha256": "cbec07c6e06e4632a642e3489b69a3e73c608ce8aba1f3c2c501971011e56613"
+    },
+    "golden": {
+      "cases": 50,
+      "fixture": "tests/fixtures/type_summary_golden.json",
+      "sha256": "188bdb589f4a41637c0e5d51d97a32cfd169bea4ad9ffeabc4bacc3c4308922b"
+    },
+    "wheel_type_entries": 44,
+    "wheel_note": "Type asset inclusion check only. This wheel retained existing frontend/dist and is not offered as a deployment build."
+  },
+  "logs": {
+    "build": "/tmp/hololab-type-migration-baseline/build.log",
+    "stage4-python": "/tmp/hololab-type-migration-baseline/stage4-python.log",
+    "stage4-tsc": "/tmp/hololab-type-migration-baseline/stage4-tsc.log",
+    "stage3-browser": "/tmp/hololab-type-migration-baseline/stage3-browser.log",
+    "preexisting-ir-failure": "/tmp/hololab-type-migration-baseline/preexisting-ir-failure.log",
+    "stage5-python": "/tmp/hololab-type-migration-baseline/stage5-python.log",
+    "stage2-contract-filtered": "/tmp/hololab-type-migration-baseline/stage2-contract-filtered.log",
+    "stage4-hot": "/tmp/hololab-type-migration-baseline/stage4-hot.log",
+    "hot-browser": "/tmp/hololab-type-migration-baseline/hot-browser.log",
+    "stage5-tsc": "/tmp/hololab-type-migration-baseline/stage5-tsc.log",
+    "lint": "/tmp/hololab-type-migration-baseline/lint.log",
+    "stage4-browser": "/tmp/hololab-type-migration-baseline/stage4-browser.log",
+    "stage3-tsc": "/tmp/hololab-type-migration-baseline/stage3-tsc.log",
+    "final-python": "/tmp/hololab-type-migration-baseline/final-python.log",
+    "stage2-contract-tests": "/tmp/hololab-type-migration-baseline/stage2-contract-tests.log",
+    "stage3-python": "/tmp/hololab-type-migration-baseline/stage3-python.log",
+    "preexisting-failures": "/tmp/hololab-type-migration-baseline/preexisting-failures.log",
+    "frontend-unit": "/tmp/hololab-type-migration-baseline/frontend-unit.log",
+    "wheel": "/tmp/hololab-type-migration-baseline/wheel.log",
+    "stage2-tests": "/tmp/hololab-type-migration-baseline/stage2-tests.log",
+    "final-hot-python": "/tmp/hololab-type-migration-baseline/final-hot-python.log",
+    "final-browser": "/tmp/hololab-type-migration-baseline/final-browser.log"
+  },
+  "scope": {
+    "restarted_existing_services": false,
+    "pushed": false,
+    "published_registry_probes": false,
+    "modified_packs": false,
+    "production_frontend_replaced": false
+  },
+  "hot_reload_note": "Real file/watchfiles tests run in isolated instances; App browser test uses API response stubs and real WebSocket delivery. No claim that running production processes have loaded the new platform code."
+}

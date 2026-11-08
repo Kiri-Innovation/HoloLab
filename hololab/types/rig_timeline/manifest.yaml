@@ -6,3 +6,5 @@ preview_rule:
   preview:
     viewer: rig-timeline
   storage: dir
+preview_fallback:
+  viewer: unregistered

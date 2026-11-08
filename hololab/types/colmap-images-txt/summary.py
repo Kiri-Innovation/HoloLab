@@ -1,7 +1,8 @@
 from __future__ import annotations
-from pathlib import Path
+
 from dataclasses import asdict, dataclass
-from collections.abc import Callable
+from pathlib import Path
+
 
 @dataclass(frozen=True)
 class ProbeItem:

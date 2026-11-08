@@ -40,6 +40,7 @@ export function factsFromSummary(s: { handle_id: string; runtime_shape?: unknown
 // invalidated — a handle's element count doesn't change after emit).
 const pending = new Map<string, Promise<EdgeSummaryFacts>>();
 const resolved = new Map<string, EdgeSummaryFacts>();
+let cacheGeneration = 0;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach(listener => listener());
 
@@ -56,10 +57,12 @@ export function loadEdgeSummaryFacts(
 ): Promise<EdgeSummaryFacts> {
   const hit = pending.get(handleId);
   if (hit) return hit;
+  const generation = cacheGeneration;
   const p = getHandleSummary(handleId)
     .then(factsFromSummary)
     .catch((): EdgeSummaryFacts => ({}))
     .then((facts) => {
+      if (generation !== cacheGeneration) return facts;
       resolved.set(handleId, facts);
       notify();
       return facts;
@@ -79,6 +82,7 @@ export function peekEdgeSummaryFacts(
 /** Test hook — drop all cached state so a scenario can re-observe the
  *  fetch path. Not used by production code. */
 export function _resetEdgeSummaryCache(): void {
+  cacheGeneration += 1;
   pending.clear();
   resolved.clear();
   notify();

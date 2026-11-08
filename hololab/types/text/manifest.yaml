@@ -10,3 +10,4 @@ dispatch:
   - .md
   - .yaml
   - .yml
+summary_role: fields

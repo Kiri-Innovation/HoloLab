@@ -203,6 +203,11 @@ const _fetchHandleSummaryLimited = pLimit(
     resilientFetch(`/api/handles/${handle_id}/summary`, { cache: "no-store" }).then(json<HandleSummary>),
 );
 
+export function invalidateTypeMetadata(): void {
+  _handleInfoCache.clear();
+  _handleSummaryCache.clear();
+}
+
 /** Drop cached metadata before an operator explicitly refreshes a preview. */
 export const invalidateHandleCache = (handle_id: string) => {
   _handleInfoCache.delete(handle_id);

@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from PIL import Image, ImageFile
 
-from hololab.manifest import data_contract
 from hololab.manifest.data_contract import ContractError, validate_path
 from hololab.manifest.schema import OutputSpec, ParamSpec
 

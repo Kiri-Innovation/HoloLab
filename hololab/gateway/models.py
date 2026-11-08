@@ -299,7 +299,7 @@ class HandleInfo(BaseModel):
         description=(
             "Resolved preview spec: the pack's explicit ``preview:`` block if "
             "declared, otherwise the entry inferred from the (resolved) tags "
-            "via ``TAG_VIEWER_REGISTRY``. Frontend keys drawer promotion off "
+            "via scanned type declarations. Frontend keys drawer promotion off "
             "this — a generic ``regroup.out`` handle wired from an ``image`` "
             "source lands here as ``{viewer: image, member: frame_000000.png}`` "
             "so its drawer opens as a viewer instead of the basic-info fallback."

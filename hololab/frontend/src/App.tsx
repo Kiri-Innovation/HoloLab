@@ -75,6 +75,7 @@ import {
   getJob,
   getCanvasState,
   getHandle,
+  invalidateTypeMetadata,
   getHandleFacts,
   invalidateHandleCache,
   getMetricsHistory,
@@ -144,7 +145,7 @@ import {
   formatTypeLabel,
   formatTypeLabelLong,
 } from "./canvas/edgeLabels";
-import { seedEdgeFacts, seedEdgeSummaryFacts } from "./canvas/edgeSummaryCache";
+import { seedEdgeFacts, seedEdgeSummaryFacts, _resetEdgeSummaryCache } from "./canvas/edgeSummaryCache";
 import { RunsPanel } from "./canvas/RunsPanel";
 import { useWorkflowFile } from "./canvas/useWorkflowFile";
 import { WorkflowFileRecovery } from "./canvas/WorkflowFiles";
@@ -561,17 +562,29 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // Initial REST and the first WS ``node_online`` often arrive together.
   // Coalesce their catalog refreshes so the second result cannot restart the
   // workflow hydrator while its first request is still in flight.
+  const typeGenerationRef = useRef<string | undefined>(undefined);
+  const typeGeneration = catalog.find(pack => pack.type_generation)?.type_generation ?? "";
   const catalogRefreshRef = useRef<Promise<void> | null>(null);
   const catalogRefreshedAtRef = useRef<number | null>(null);
+  const catalogRefreshQueuedRef = useRef(false);
 
-  const refreshCatalog = useCallback(async () => {
-    if (catalogRefreshRef.current) return catalogRefreshRef.current;
+  const refreshCatalog = useCallback(async function refresh(force = false): Promise<void> {
+    if (catalogRefreshRef.current) {
+      catalogRefreshQueuedRef.current ||= force;
+      return catalogRefreshRef.current;
+    }
     // Initial WS inventory announcements are informational duplicates of the
     // startup REST fetch. Keep genuine later online/offline refreshes intact.
-    if (catalogRefreshedAtRef.current !== null && performance.now() - catalogRefreshedAtRef.current < 1_000) return;
+    if (!force && catalogRefreshedAtRef.current !== null && performance.now() - catalogRefreshedAtRef.current < 1_000) return;
     const request = (async () => {
       try {
         const [cat, nodes] = await Promise.all([getPackCatalog(), getComputeNodes()]);
+        const generation = cat.find(pack => pack.type_generation)?.type_generation;
+        if (typeGenerationRef.current !== generation) {
+          invalidateTypeMetadata();
+          _resetEdgeSummaryCache();
+          typeGenerationRef.current = generation;
+        }
         setCatalog([...cat, constantPresentation(false), constantPresentation(true), assemblyPresentation(nodes.filter(n => n.intrinsics?.includes("array-assemble")).map(n => n.node_id))]);
         setComputeNodes(nodes);
         catalogRefreshedAtRef.current = performance.now();
@@ -579,6 +592,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         console.warn("catalog refresh failed", e);
       } finally {
         catalogRefreshRef.current = null;
+        if (catalogRefreshQueuedRef.current) {
+          catalogRefreshQueuedRef.current = false;
+          void refresh(true);
+        }
       }
     })();
     catalogRefreshRef.current = request;
@@ -666,7 +683,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
     const handle = (env: Envelope) => {
       if (env.kind === "node_online" || env.kind === "node_offline") {
-        void refreshCatalog();
+        void refreshCatalog(true);
         if (env.kind === "node_online") {
           const _p = env.payload as NodeOnlinePayload;
           void _p;
@@ -1232,7 +1249,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const replacementMode = ownBaseline || catalogBaseline || witnessBaseline || data.replacementMode === 'strict' ? 'strict'
           : connectionInferred ? 'connections' : data.replacementMode;
         const replacementBasis = ownBaseline ? undefined : catalogBaseline ? `依据本机 ${fresh!.name}@${fresh!.version} 的完整 I/O 声明` : witnessBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : data.replacementBasis;
-        const refreshesPack = Boolean(fresh && fresh.manifest_hash !== data.pack.manifest_hash);
+        const refreshesPack = Boolean(fresh && (fresh.manifest_hash !== data.pack.manifest_hash || fresh.type_generation !== data.pack.type_generation));
         if (!refreshesPack && replacementBaseline === data.replacementBaseline && replacementBasis === data.replacementBasis) {
           return n;
         }
@@ -2738,8 +2755,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         const nextWorkByKey: Record<string, string> = {};
         const newWork = allPreviewWork.filter(item => {
           const key = `${item.graphNodeId}\u0000${item.portName}\u0000${"elementId" in item ? item.elementId : ""}`;
-          nextWorkByKey[key] = item.handleId;
-          return previewWorkByKeyRef.current[key] !== item.handleId;
+          const identity = `${item.handleId}\u0000${typeGeneration}`;
+          nextWorkByKey[key] = identity;
+          return previewWorkByKeyRef.current[key] !== identity;
         });
         previewWorkByKeyRef.current = nextWorkByKey;
         // Existing handles are already painted. Mark only newly materialised
@@ -2835,7 +2853,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       } finally { /* each metadata request settles its own pending flag */ }
     })();
     return () => { cancelled = true; };
-  }, [JSON.stringify(canvasJobs.map(j => [j.job_id, j.output_handles]))]);
+  }, [JSON.stringify(canvasJobs.map(j => [j.job_id, j.output_handles])), typeGeneration]);
 
   const stalenessByGraphNode = executionAnalysis.data?.staleness ?? firstPaintStaleness ?? EMPTY_STALENESS;
   useEffect(() => {

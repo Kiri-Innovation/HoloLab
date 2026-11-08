@@ -500,6 +500,9 @@ class NodeRegistry:
         no online node can execute.
         """
 
+        from hololab.type_registry import registry as types
+        types.refresh()
+
         # (name, version) -> catalog entry
         by_key: dict[tuple[str, str], dict[str, Any]] = {}
 
@@ -572,6 +575,7 @@ class NodeRegistry:
                         "name": pk.name,
                         "version": pk.version,
                         "manifest_hash": pk.manifest_hash,
+                        "type_generation": types.generation,
                         "code_sha256": getattr(pk, "code_sha256", None),
                         "content": content,
                         "root": getattr(pk, "root", "."),
@@ -718,7 +722,7 @@ class NodeRegistry:
                                     inferred.model_dump(mode="json")
                                     if (
                                         inferred := infer_preview_for_output(
-                                            s.preview, list(s.tags), s.storage.value
+                                            s.preview, list(s.tags), s.storage.value, s.arrayed
                                         )
                                     )
                                     is not None

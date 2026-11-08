@@ -1,3 +1,4 @@
 kind: Type
 name: colmap-cameras-txt
 summary: summary.py:summary
+summary_role: counts

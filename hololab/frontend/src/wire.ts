@@ -353,6 +353,7 @@ export interface PackLocation {
 }
 
 export interface CatalogPack {
+  type_generation?: string;
   locations_by_node?: Record<string, PackLocation[]>;
   requires?: Record<string, unknown> | null;
   runtime?: {mode?: "conda" | "host"; env?: string | null} | null;

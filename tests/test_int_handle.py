@@ -25,7 +25,6 @@ from hololab.gateway.app import create_app
 from hololab.gateway.handle_summary import summarize_handle
 from hololab.gateway.handles import Handle
 from hololab.gateway.tag_viewers import (
-    TAG_VIEWER_REGISTRY,
     infer_preview_for_output,
 )
 
@@ -94,7 +93,7 @@ def test_summarize_missing_int_tag_falls_through_to_text(tmp_path: Path) -> None
 
 def test_int_tag_registers_text_viewer() -> None:
     """The tag→viewer registry maps ``int`` to the text viewer for v1."""
-    preview = TAG_VIEWER_REGISTRY.get("int")
+    preview = infer_preview_for_output(None, ["int"])
     assert preview is not None
     assert preview.viewer == "text"
 
