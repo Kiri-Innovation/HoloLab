@@ -236,7 +236,7 @@ export function NodePreviews({ data, selection, onRun, inspector = false }: {
           //
           // Wheel follows the canvas navigation mode: pan in trackpad
           // mode, zoom in mouse mode. Embedded viewers opt out through
-          // their own ``nowheel`` / ``nopan`` containers.
+          // their explicit ``data-wheel-owner="local"`` containers.
           className="nodrag hl-preview-drawer"
           style={{
             padding: 8,

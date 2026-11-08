@@ -105,7 +105,7 @@ export function Colmap4DPreview({baseUrl, imagesUrl, camsOnly = false}: {
     }).catch(e => { if (alive) { setError(true); setStatus(e.message); } });
     return () => { alive = false; abort.abort(); };
   }, [baseUrl, imagesUrl, camsOnly, retry]);
-  return <div className="nodrag nowheel" style={{width: '100%'}}>
+  return <div className="nodrag nowheel" data-wheel-owner="local" style={{width: '100%'}}>
     <div role="status" style={{background: '#171b24', fontSize: 11, padding: '6px 8px', color: error ? 'var(--error)' : '#e5e7eb'}}>
       {status} {error && <button onClick={() => setRetry(n => n + 1)}>重试</button>}
     </div>

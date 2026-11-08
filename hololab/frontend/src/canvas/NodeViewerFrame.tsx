@@ -7,6 +7,7 @@ import { getHandleSummary, tailJobLog } from "../api";
 import { WORKFLOW_FACTORY_VIEW } from "./workflowFactoryView";
 import { versionedViewerUrl } from "./viewerBuild";
 import { useViewerInteraction, ViewerInteractionShield, viewerInteractionBorder } from "./ViewerInteraction";
+import { useCanvasContext } from "./CanvasContext";
 
 export interface LiveViewerFrame {
   proxy_url: string;
@@ -61,6 +62,7 @@ export function NodeViewerFrame({
   refreshToken?: number;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { trackpadNavigation } = useCanvasContext();
   const [loaded, setLoaded] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
   const [assetError, setAssetError] = useState<string | null>(null);
@@ -379,7 +381,7 @@ export function NodeViewerFrame({
     return <div style={{ padding: 12, color: "var(--status-failed)", fontSize: 11 }}>{assetError}</div>;
   }
   return (
-    <div ref={wrapperRef} tabIndex={-1} data-viewer-interaction={activated ? "active" : "inactive"} style={{ position: "relative", outline: "none" }}>
+    <div ref={wrapperRef} tabIndex={-1} className={activated && trackpadNavigation ? "nowheel" : undefined} data-viewer-interaction={activated ? "active" : "inactive"} data-wheel-owner={activated ? "local" : undefined} style={{ position: "relative", outline: "none" }}>
     <iframe
       ref={iframeRef}
       src={src}

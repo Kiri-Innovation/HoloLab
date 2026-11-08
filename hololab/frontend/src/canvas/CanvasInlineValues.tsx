@@ -19,7 +19,7 @@ export const InlinePortCard = memo(function InlinePortCard({ id, name, spec, val
 }) {
   const { onInlineValueChange, onInspectInput } = useCanvasContext();
   const scalar = !array && spec.tags[0] === 'float';
-  return <div className="hl-inline-port-card nodrag nopan nowheel" aria-label={`${name} inline value`}
+  return <div className="hl-inline-port-card nodrag nopan nowheel" data-wheel-owner="local" aria-label={`${name} inline value`}
     onKeyDown={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}
     onDoubleClick={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
     {scalar ? <><code>float</code><fieldset disabled={frozen || !onInlineValueChange}>

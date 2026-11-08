@@ -1401,6 +1401,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     return blockers;
   }, [canvasJobs, edges, hydrating, nodes, runtimeByGraphNode]);
 
+  // Explicit, persisted navigation mode shared with local wheel owners.
+  const [trackpadNavigation, setTrackpadNavigation] = useState(() => {
+    try { return window.localStorage.getItem("hololab.canvas.trackpadNavigation") === "true"; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("hololab.canvas.trackpadNavigation", String(trackpadNavigation)); }
+    catch { /* Keep the mode usable for this visit when storage is disabled. */ }
+  }, [trackpadNavigation]);
+
   const canvasContextValue = useMemo(
     () => ({
       workflow_id: workflowId,
@@ -1408,6 +1418,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       computeNodesById,
       packDisplayName,
       hydrating,
+      trackpadNavigation,
       dispatch_snapshot_id: viewingSnapshot?.snapshot_id ?? latestSnapshotId,
       upstreamBlockerByNode,
       pinnedParams, variables,
@@ -1420,7 +1431,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       viewer_view_managed: viewerViewManaged,
       setViewerDefault: setWorkflowViewerDefault,
     }),
-    [workflowId, workflowName, computeNodesById, packDisplayName, hydrating, viewingSnapshot?.snapshot_id, latestSnapshotId, upstreamBlockerByNode, pinnedParams, variables, updateParameterBinding, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
+    [workflowId, workflowName, computeNodesById, packDisplayName, hydrating, trackpadNavigation, viewingSnapshot?.snapshot_id, latestSnapshotId, upstreamBlockerByNode, pinnedParams, variables, updateParameterBinding, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
   );
 
   // Push job runtime + resolved previews + previewOpen into each node's
@@ -1903,23 +1914,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const rfWrapper = useRef<HTMLDivElement>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
-  // Same browser-preference storage policy as useResizableSlot: best effort,
-  // with a usable in-memory fallback when storage is unavailable.
-  const [trackpadNavigation, setTrackpadNavigation] = useState(() => {
-    try { return window.localStorage.getItem("hololab.canvas.trackpadNavigation") === "true"; }
-    catch { return false; }
-  });
-  useEffect(() => {
-    try { window.localStorage.setItem("hololab.canvas.trackpadNavigation", String(trackpadNavigation)); }
-    catch { /* Keep the mode usable for this visit when storage is disabled. */ }
-  }, [trackpadNavigation]);
-
   // Explicit opt-in: smooth mouse wheels and trackpads can emit identical
   // event streams. Never change navigation based on delta magnitude/timing.
   useEffect(() => {
     if (!rfInstance || !trackpadNavigation) return;
     const onWheel = (event: WheelEvent) => {
-      if (!event.target || keepsExistingWheelBehavior(event.target, trackpadNavigation)) return;
+      if (!event.target || keepsExistingWheelBehavior(event.target)) return;
       const flow = event.target instanceof Element && event.target.closest(".react-flow");
       if (!flow || !shouldPanWheel(trackpadNavigation, event)) return;
 
@@ -3300,6 +3300,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             <CanvasToastAnchor />
             <Panel
               position="bottom-right"
+              data-wheel-owner="local"
               style={{ marginBottom: minimapOpen ? 158 : 0 }}
             >
               <MinimapToggleButton
@@ -3307,7 +3308,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 onToggle={() => setMinimapOpen((o) => !o)}
               />
             </Panel>
-            {minimapOpen && <MiniMap className="nowheel" pannable />}
+            {minimapOpen && <div data-wheel-owner="local" style={{ display: "contents" }}><MiniMap className="nowheel" pannable /></div>}
             <Background gap={20} color="var(--rf-grid)" />
           </ReactFlow>
           </CapabilityContext.Provider>

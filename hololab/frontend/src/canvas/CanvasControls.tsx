@@ -23,7 +23,7 @@ export function CanvasControls({ trackpadNavigation, onToggleTrackpadNavigation,
       button.setAttribute("aria-label", label);
     }
   }, [interactive, props.showZoom, props.showFitView, props.showInteractive]);
-  return <div ref={host} style={{ display: "contents" }}><Controls {...props}>
+  return <div ref={host} data-wheel-owner="local" style={{ display: "contents" }}><Controls {...props}>
     {props.children}
     {onToggleTrackpadNavigation && <ControlButton
       className="hl-trackpad-navigation"

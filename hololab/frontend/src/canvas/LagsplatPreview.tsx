@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
 import { useViewerInteraction, ViewerInteractionShield, viewerInteractionBorder } from "./ViewerInteraction";
+import { useCanvasContext } from "./CanvasContext";
 
 // The standalone viewer fetches only the browser export through the gateway
 // proxy.  It never receives or reads torch checkpoints.
 export function LagsplatPreview({ baseUrl }: { baseUrl: string }) {
   const ref = useRef<HTMLIFrameElement>(null);
+  const { trackpadNavigation } = useCanvasContext();
   const {wrapperRef, activated, activate, onFrameLoad} = useViewerInteraction(true, ref);
   useEffect(() => {
     const frame = ref.current;
@@ -17,7 +19,7 @@ export function LagsplatPreview({ baseUrl }: { baseUrl: string }) {
     return () => frame.removeEventListener("load", send);
   }, [baseUrl]);
   return (
-    <div ref={wrapperRef} tabIndex={-1} data-viewer-interaction={activated ? "active" : "inactive"} style={{ position: "relative", height: 220, overflow: "hidden", outline: "none" }}>
+    <div ref={wrapperRef} tabIndex={-1} className={activated && trackpadNavigation ? "nowheel" : undefined} data-viewer-interaction={activated ? "active" : "inactive"} data-wheel-owner={activated ? "local" : undefined} style={{ position: "relative", height: 220, overflow: "hidden", outline: "none" }}>
       <iframe
         ref={ref}
         onLoad={onFrameLoad}

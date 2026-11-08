@@ -22,10 +22,17 @@ export function PinnedParameters({ id, data }: { id: string; data: AlgorithmNode
     const observer = new ResizeObserver(measure);
     const element = root.current;
     if (element) observer.observe(element);
-    // Cancel number-input stepping, not propagation: React Flow must still
-    // receive the wheel. A native non-passive listener keeps editing focused
-    // (React's delegated wheel listener is passive). Inspector is unaffected.
+    // In trackpad mode this panel owns scrolling, including at its boundaries.
+    // Mouse mode and Ctrl-wheel retain the former React Flow zoom path.
+    // A native non-passive listener also prevents numeric input stepping.
     const wheel = (event: WheelEvent) => {
+      if (context.trackpadNavigation && !event.ctrlKey) {
+        event.stopPropagation();
+        event.preventDefault();
+        const unit = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? element?.clientHeight ?? 1 : 1;
+        element?.scrollBy({ left: event.deltaX * unit, top: event.deltaY * unit });
+        return;
+      }
       if (event.target instanceof HTMLInputElement && event.target.type === "number") {
         event.preventDefault();
       }
@@ -35,10 +42,12 @@ export function PinnedParameters({ id, data }: { id: string; data: AlgorithmNode
       observer.disconnect(); cancelAnimationFrame(frame);
       element?.removeEventListener("wheel", wheel);
     };
-  }, [id, signature, update]);
+  }, [id, signature, update, context.trackpadNavigation]);
   if (!rows.length) return null;
   const editable = arrayParamsForEditor(data.pack.name, data.pack.version, params);
   return <div ref={root} className="hl-pinned-parameters hl-inspector-parameters nodrag nopan"
+    data-wheel-owner="local"
+    style={context.trackpadNavigation ? { maxHeight: 260, overflow: "auto", overscrollBehavior: "contain" } : undefined}
     role="group" aria-label="Pinned parameters" onKeyDown={event => event.stopPropagation()}
     onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
     {rows.map(({ name, names, label, type }) => {

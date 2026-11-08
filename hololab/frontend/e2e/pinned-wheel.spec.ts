@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import fs from 'node:fs';
 test.use({video:'on',viewport:{width:1400,height:950}});
-test('pinned fields pass wheel to canvas without changing focused numeric values',async({page})=>{
+test('pinned fields retain local wheel ownership without changing focused numeric values',async({page})=>{
  const spec=(type:string,value:unknown)=>({type,default:value,pinned:true,optional:false});
  const pack={name:'wheel-test',version:'1',manifest_hash:'test',node_ids:['device'],inputs:{},outputs:{},params:{count:spec('int',17),mode:{...spec('enum','a'),values:['a','b']},path:spec('path','/')}};
  let graph:any={nodes:[{id:'test',algorithm_name:pack.name,algorithm_version:'1',assigned_node_id:'device',params:{count:17,mode:'a',path:'/'},position:{x:0,y:0}}],edges:[]};let version=1;
@@ -30,8 +30,8 @@ test('pinned fields pass wheel to canvas without changing focused numeric values
   const input=pinned.getByRole('spinbutton',{name:'count'});await input.fill('23');await expect.poll(()=>graph.nodes[0].params.count).toBe(23);
   await input.hover();const before=await transform();await page.mouse.wheel(0,80);
   if(process.env.DIAGNOSE_WHEEL){await page.waitForTimeout(400);fs.writeFileSync('/tmp/pinned-wheel/before.json',JSON.stringify({before,after:await transform(),value:await input.inputValue()}));return;}
-  await expect.poll(transform).not.toBe(before);fs.writeFileSync(`/tmp/pinned-wheel/${theme}-after.json`,JSON.stringify({before,after:await transform(),value:await input.inputValue()}));await expect(input).toHaveValue('23');await expect(input).toBeFocused();
-  await pinned.locator('.hl-pinned-label').first().hover();const overLabel=await transform();await page.mouse.wheel(0,-80);await expect.poll(transform).not.toBe(overLabel);
+  await page.waitForTimeout(200);expect(await transform()).toBe(before);fs.writeFileSync(`/tmp/pinned-wheel/${theme}-after.json`,JSON.stringify({before,after:await transform(),value:await input.inputValue()}));await expect(input).toHaveValue('23');await expect(input).toBeFocused();
+  await pinned.locator('.hl-pinned-label').first().hover();const overLabel=await transform();await page.mouse.wheel(0,-80);await page.waitForTimeout(200);expect(await transform()).toBe(overLabel);
   await page.screenshot({path:`/tmp/pinned-wheel/${theme}.png`});
  }
  await pinned.getByRole('combobox',{name:'mode'}).click();await page.getByRole('option',{name:'b',exact:true}).click();await expect.poll(()=>graph.nodes[0].params.mode).toBe('b');

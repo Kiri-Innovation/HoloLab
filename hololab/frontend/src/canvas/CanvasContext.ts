@@ -43,6 +43,8 @@ export interface CanvasContextValue {
   // pending → "cleaned"; then handles land → real preview). See the
   // block comment on the placeholder computation in AlgorithmNode.tsx.
   hydrating: boolean;
+  /** Local controls retain wheel ownership while the canvas scrolls to pan. */
+  trackpadNavigation?: boolean;
   // Snapshot a draft-view dispatch will extend.  A canvas result may be a
   // compatible historical result from another branch; it remains useful to
   // inspect, but cannot be wired into a new job unless it is attributed to

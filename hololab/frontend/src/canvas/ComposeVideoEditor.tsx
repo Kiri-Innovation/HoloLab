@@ -294,6 +294,7 @@ export function ComposeVideoEditor({
   return (
     <section
       className="hl-compose-editor nodrag nopan nowheel"
+      data-wheel-owner="local"
       aria-label="Composition editor"
       onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}

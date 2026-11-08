@@ -3741,6 +3741,7 @@ function Colmap3DPreview({
   imagesBaseUrl,
 }: Colmap3DPreviewProps) {
   const {
+    trackpadNavigation,
     viewer_view,
     viewer_view_loaded,
     viewer_view_managed,
@@ -3888,7 +3889,7 @@ function Colmap3DPreview({
   }, [reconnectTick, retry.tick, handshaken]);
 
   return (
-    <div ref={interactionRef} data-viewer-interaction={activated ? "active" : "inactive"} style={{ position: "relative" }}>
+    <div ref={interactionRef} className={activated && trackpadNavigation ? "nowheel" : undefined} data-viewer-interaction={activated ? "active" : "inactive"} data-wheel-owner={activated ? "local" : undefined} style={{ position: "relative" }}>
       <iframe
         ref={iframeRef}
         // ``?embed=1`` hides ColmapUtil's InitiationPage / sidebar /

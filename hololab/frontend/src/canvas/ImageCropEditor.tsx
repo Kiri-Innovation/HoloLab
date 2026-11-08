@@ -68,7 +68,7 @@ export function ImageCropEditor({ id, readOnly = false }: { id: string; readOnly
     gesture.current = undefined; setDraft(null);
     if (!cancel && writable && next) onParamsChange?.(id, next);
   }
-  return <section tabIndex={-1} className="hl-image-crop-editor nodrag nopan nowheel" aria-label="Image crop editor" onPointerDown={e => e.stopPropagation()} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Escape') end(true); }}>
+  return <section tabIndex={-1} className="hl-image-crop-editor nodrag nopan nowheel" data-wheel-owner="local" aria-label="Image crop editor" onPointerDown={e => e.stopPropagation()} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Escape') end(true); }}>
     <header><strong>Image crop editor</strong><span>{readOnly ? '历史只读' : '拖动裁剪框 / 八向缩放'}</span></header>
     <small>使用上游最近产物 · 左上角为原点 · 正数向内裁，负数向外扩（px）</small>
     <div role="status">{!handle ? '请连接 image 并运行上游；可先编辑数值' : loadError ? `${loadError}；可编辑数值` : !bitmap ? '正在读取图像尺寸；可先编辑数值' : error ?? `${w} × ${h} → ${rect.width} × ${rect.height} px`}</div>

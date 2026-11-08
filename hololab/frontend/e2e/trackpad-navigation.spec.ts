@@ -1,246 +1,237 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 
-test.use({ viewport: { width: 1400, height: 950 } });
+test.use({ viewport: { width: 1700, height: 1100 } });
 
-test("explicit mode keeps variable mouse sequences zooming and trackpad sequences panning", async ({ page }) => {
-  const pack = {
-    name: "trackpad-test", version: "1", manifest_hash: "trackpad", node_ids: ["device"],
-    inputs: {}, outputs: {}, params: {},
-  };
+async function openWorkflow(page: Page) {
+  const output = (tags: string[], arrayed = false) => ({ tags, arrayed, dim_labels: arrayed ? ["frame"] : [], preview: null });
+  const pack = (name: string, outputs = {}, inputs = {}, params = {}) => ({ name, version: "1", manifest_hash: "wheel", node_ids: ["device"], outputs, inputs, params });
+  const packs = [
+    pack("wheel-images", { images: output(["image"], true) }, {}, {
+      count: { type: "int", default: 17, pinned: true, optional: false },
+      ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`p${i}`, { type: "string", default: `value ${i}`, pinned: true, optional: false }])),
+    }),
+    pack("wheel-sink", {}, { images: output(["image"], true), value: { ...output(["float"]), storage: "file", scalar: true, optional: true, inline_default: 1 } }),
+    pack("kiri/image-crop", { image: output(["image"]) }),
+    pack("kiri/compose-video", { video: output(["video"]) }),
+    pack("wheel-text", { text: { ...output(["text"]), preview: { viewer: "text", member: null } } }),
+    pack("wheel-colmap", { scene: output(["colmap4d-cams"]) }),
+    { ...pack("wheel-custom"), hide_default_output_previews: true,
+      node_viewers: [{ id: "custom", title: "Custom viewer", renderer: "iframe", entry: "viewer.html", default: true }] },
+    pack("wheel-lagsplat", { model: { ...output(["lagsplat"]), preview: { viewer: "lagsplat", member: null } } }),
+    pack("wheel-colmap3d", { scene: output(["colmap-cams"]) }),
+  ];
+  const ids = ["images", "sink", "crop", "compose", "text", "colmap", "custom", "lagsplat", "colmap3d"];
   const graph = {
-    nodes: [{ id: "trackpad", algorithm_name: pack.name, algorithm_version: pack.version, assigned_node_id: "device", params: {}, position: { x: 0, y: 0 } }],
-    edges: [],
+    nodes: packs.map((p, i) => ({ id: ids[i], algorithm_name: p.name, algorithm_version: "1", assigned_node_id: "device",
+      params: i === 0 ? { count: 17 } : {}, preview_open: Object.keys(p.outputs)[0] ?? null,
+      position: { x: (i % 3) * 600, y: Math.floor(i / 3) * 750 } })),
+    edges: [{ id: "wire", source: "images", sourceHandle: "images", target: "sink", targetHandle: "images" }],
   };
-  await page.routeWebSocket("**", () => {});
-  await page.route("**/api/**", async (route) => {
-    const path = new URL(route.request().url()).pathname;
-    let body: unknown = [];
-    if (path === "/api/pack-catalog") body = [pack];
-    else if (path === "/api/nodes/metrics/history") body = { nodes: {}, sample_interval_s: 3 };
-    else if (path === "/api/workflows/trackpad") body = { workflow_id: "trackpad", name: "Trackpad verification", graph, created_ts: 1, updated_ts: 1 };
-    await route.fulfill({ json: body });
-  });
-
-  await page.goto("/w/trackpad");
-  const pane = page.locator(".react-flow__pane");
-  const viewport = page.locator(".react-flow__viewport");
-  await expect(pane).toBeVisible();
-  const mode = page.locator(".react-flow__controls .hl-trackpad-navigation");
-  await expect(mode).toHaveAttribute("aria-pressed", "false");
-  await expect(mode).toHaveCount(1);
-  await expect(mode).toBeVisible();
-  const mouseIcon = await mode.locator("svg").innerHTML();
-  const logs: unknown[] = [];
-  const transform = () => viewport.evaluate((el) => {
-    const values = getComputedStyle(el).transform.match(/matrix\(([^)]+)\)/)?.[1].split(",").map(Number);
-    if (!values) throw new Error("React Flow viewport did not have a matrix transform");
-    return { scale: values[0], x: values[4], y: values[5] };
-  });
-  const wheel = async (deltaX: number, deltaY: number, ctrlKey = false, deltaMode = 0) => {
-    const before = await transform();
-    await pane.evaluate((el, init) => {
-    el.dispatchEvent(new WheelEvent("wheel", { ...init, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
-    }, { deltaX, deltaY, ctrlKey, deltaMode });
-    logs.push({ deltaX, deltaY, deltaMode, ctrlKey, before, after: await transform() });
-  };
-  const wheelAt = async (target: typeof pane, deltaX: number, deltaY: number, ctrlKey = false) => {
-    await target.evaluate((el, init) => {
-      el.dispatchEvent(new WheelEvent("wheel", { ...init, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
-    }, { deltaX, deltaY, ctrlKey });
-  };
-
-  for (const sequence of [[100, 100, 100], [1, 2, 5, 10, 4, 1], [40, 60, 20, 100]]) {
-    for (const delta of sequence) {
-      const before = await transform();
-      await wheel(0, delta);
-      await expect.poll(async () => (await transform()).scale).not.toBe(before.scale);
-    }
-  }
-
-  // A conventional wheel-sized event retains the baseline React Flow zoom.
-  const mouseBefore = await transform();
-  await pane.hover();
-  await page.mouse.wheel(0, 100);
-  await expect.poll(async () => (await transform()).scale).not.toBe(mouseBefore.scale);
-
-  // The existing left-button drag pan path is unrelated to wheel handling.
-  const paneBox = (await pane.boundingBox())!;
-  const dragBefore = await transform();
-  await page.mouse.move(paneBox.x + paneBox.width - 80, paneBox.y + 80);
-  await page.mouse.down();
-  await page.mouse.move(paneBox.x + paneBox.width - 40, paneBox.y + 120);
-  await page.mouse.up();
-  await expect.poll(async () => (await transform()).x).not.toBe(dragBefore.x);
-
-  // These are the small pixel events Chrome sends for a two-finger trackpad
-  // scroll. Every cardinal direction changes translation without scale.
-  await mode.click();
-  await expect(mode).toHaveAttribute("aria-pressed", "true");
-  expect(await mode.locator("svg").innerHTML()).not.toBe(mouseIcon);
-  // Node cards are siblings of the pane, but are still inside .react-flow.
-  // Their XYFlow-provided `nopan` class must not hide trackpad wheel events.
-  const node = page.locator(".react-flow__node").first();
-  const nodeBefore = await transform();
-  await wheelAt(node, 18, 24);
-  await expect.poll(async () => (await transform()).x).not.toBe(nodeBefore.x);
-  expect((await transform()).scale).toBeCloseTo(nodeBefore.scale, 6);
-  for (const [deltaX, deltaY, deltaMode] of [[18, 0, 0], [0, 18, 0], [12, 24, 0]]) {
-    const before = await transform();
-    await wheel(deltaX, deltaY, false, deltaMode);
-    await expect.poll(async () => {
-      const after = await transform();
-      return deltaX === 0 ? after.y : after.x;
-    }).not.toBe(deltaX === 0 ? before.y : before.x);
-    expect((await transform()).scale).toBeCloseTo(before.scale, 6);
-    const after = await transform();
-    if (deltaX !== 0) expect(Math.sign(after.x - before.x)).toBe(-Math.sign(deltaX));
-    if (deltaY !== 0) expect(Math.sign(after.y - before.y)).toBe(-Math.sign(deltaY));
-  }
-
-  // macOS pinch is represented as Ctrl-wheel and remains React Flow zoom.
-  const pinchBefore = await transform();
-  await wheel(0, -18, true);
-  await expect.poll(async () => (await transform()).scale).not.toBe(pinchBefore.scale);
-
-  // Drawers follow trackpad navigation, while nested viewers remain insulated.
-  const previewBefore = await transform();
-  await node.evaluate((el) => {
-    const drawer = document.createElement("div");
-    drawer.className = "hl-preview-drawer";
-    el.append(drawer);
-    drawer.dispatchEvent(new WheelEvent("wheel", { deltaX: 12, deltaY: 18, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
-    drawer.remove();
-  });
-  await expect.poll(async () => (await transform()).y).not.toBe(previewBefore.y);
-  expect((await transform()).scale).toBeCloseTo(previewBefore.scale, 6);
-
-  const embeddedBefore = await transform();
-  await node.evaluate((el) => {
-    const drawer = document.createElement("div");
-    drawer.className = "hl-preview-drawer";
-    const embedded = document.createElement("div");
-    embedded.className = "nowheel";
-    drawer.append(embedded);
-    el.append(drawer);
-    embedded.dispatchEvent(new WheelEvent("wheel", { deltaY: 18, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
-    drawer.remove();
-  });
-  await page.waitForTimeout(200);
-  expect(await transform()).toEqual(embeddedBefore);
-
-  // XYFlow chrome is within .react-flow too, but is not canvas navigation.
-  const controlsBefore = await transform();
-  await wheelAt(page.locator(".react-flow__controls"), 0, 18);
-  expect(await transform()).toEqual(controlsBefore);
-  await page.getByRole("button", { name: "Show minimap" }).click();
-  const minimapBefore = await transform();
-  await wheelAt(page.locator(".react-flow__minimap"), 0, 18);
-  expect(await transform()).toEqual(minimapBefore);
-
-  mkdirSync("/tmp/trackpad-navigation", { recursive: true });
-  await page.screenshot({ path: "/tmp/trackpad-navigation/gesture-simulation.png" });
-  writeFileSync("/tmp/trackpad-navigation/wheel-events.json", JSON.stringify(logs, null, 2));
-  await page.reload();
-  await expect(mode).toHaveAttribute("aria-pressed", "true");
-  await mode.click();
-  await expect(mode).toHaveAttribute("aria-pressed", "false");
-  const restored = await transform();
-  await wheel(0, 5);
-  await expect.poll(async () => (await transform()).scale).not.toBe(restored.scale);
-  const nodeMouseBefore = await transform();
-  await wheelAt(node, 0, 5);
-  await expect.poll(async () => (await transform()).scale).not.toBe(nodeMouseBefore.scale);
-  for (const theme of ["light", "dark"]) {
-    await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
-    for (const enabled of [false, true]) {
-      if ((await mode.getAttribute("aria-pressed")) !== String(enabled)) await mode.click();
-      await pane.hover();
-      await mode.hover();
-      const label = enabled ? "切换回鼠标导航（滚轮缩放）" : "切换为触控板导航（双指滑动平移、捏合缩放）";
-      await expect(mode).toHaveAttribute("aria-label", label);
-      await expect(page.getByRole("tooltip")).toHaveText(enabled
-        ? "触控板导航：滚轮/双指滑动平移画布（Ctrl+滚轮或捏合缩放）；点击切换回鼠标导航" : label);
-      if (!enabled) expect(await mode.locator("svg").innerHTML()).toBe(mouseIcon);
-      expect(await mode.getAttribute("title")).toBeNull();
-      const controls = page.locator(".react-flow__controls");
-      const sizes = await controls.locator("button").evaluateAll(buttons => buttons.map(button => {
-        const box = button.getBoundingClientRect();
-        return { width: box.width, height: box.height };
-      }));
-      expect(sizes.every(size => size.width === sizes[0].width && size.height === sizes[0].height)).toBe(true);
-      await page.screenshot({ path: `/tmp/trackpad-navigation/${theme}-${enabled ? "on" : "off"}.png` });
-      await pane.hover();
-      await controls.screenshot({ path: `/tmp/trackpad-navigation/${theme}-${enabled ? "on" : "off"}-controls.png` });
-    }
-  }
-});
-
-test("real 80-image drawer follows canvas mode and reports scroll dimensions", async ({ page }, info) => {
-  const pack = {
-    name: "drawer-test", version: "1", manifest_hash: "drawer", node_ids: ["device"],
-    inputs: {}, outputs: { images: { tags: ["image"], arrayed: true, dim_labels: ["frame"], preview: null } },
-    params: { count: { type: "int", default: 17, pinned: true, optional: false } },
-  };
-  const graph = { nodes: [{ id: "drawer", algorithm_name: pack.name, algorithm_version: "1",
-    assigned_node_id: "device", params: { count: 17 }, preview_open: "images", position: { x: 0, y: 0 } }], edges: [] };
+  const jobs = [0, 4, 5, 7, 8].map(i => ({ job_id: `job-${ids[i]}`, graph_node_id: ids[i], node_id: "device", workflow_id: "wheel-matrix",
+    algorithm_name: packs[i].name, algorithm_version: "1", state: "done", params: {}, input_handles: {},
+    output_handles: { [Object.keys(packs[i].outputs)[0]]: ids[i] }, created_ts: 1 }));
   await page.routeWebSocket("**", () => {});
   await page.addInitScript(() => { delete (window as { IntersectionObserver?: unknown }).IntersectionObserver; });
-  await page.route("**/proxy/device/**", route => route.fulfill({ status: 404 }));
+  const frame = '<body style="margin:0;height:100vh"><div id="wheels">0</div><script>let count=0;addEventListener("wheel",e=>{e.preventDefault();document.querySelector("#wheels").textContent=String(++count)},{passive:false});parent.postMessage({type:"colmap-ready"},location.origin)</script></body>';
+  for (const url of ["**/colmaputil/index.html?*", "**/lagsplat-viewer.html", "**/pack-assets/**"]) {
+    await page.route(url, route => route.fulfill({ contentType: "text/html", body: frame }));
+  }
+  await page.route("**/proxy/device/**", route => {
+    if (route.request().url().includes("/text")) return route.fulfill({ body: Array.from({ length: 150 }, (_, i) => `Diagnostic line ${i}`).join("\n") });
+    if (route.request().url().includes("/_format/colmap4d/")) return route.fulfill({ json: {
+      format: "colmap4d", part: "cameras", result: { files: [{ name: "cameras.txt", base64: "IyBlbXB0eQ==" }],
+        total: 0, shown: 0, image_names: [], estimated: false, camera_bounds: null, next_offset: null },
+    } });
+    if (route.request().url().includes("/colmap3d")) return route.fulfill({ body: "# empty COLMAP fixture\n" });
+    return route.fulfill({ status: 404 });
+  });
   await page.route("**/api/**", async route => {
     const path = new URL(route.request().url()).pathname;
     let body: unknown = [];
-    if (path === "/api/pack-catalog") body = [pack];
+    if (path === "/api/pack-catalog") body = packs;
     else if (path === "/api/nodes/metrics/history") body = { nodes: {}, sample_interval_s: 3 };
-    else if (path === "/api/workflows/drawer") body = { workflow_id: "drawer", name: "80 image drawer", graph, created_ts: 1, updated_ts: 1 };
-    else if (path === "/api/workflows/drawer/canvas-state") body = { staleness: {}, canvas_jobs: [{
-      job_id: "drawer-job", graph_node_id: "drawer", node_id: "device", workflow_id: "drawer", algorithm_name: pack.name,
-      algorithm_version: "1", state: "done", params: { count: 17 }, input_handles: {}, output_handles: { images: "images" }, created_ts: 1,
-    }] };
-    else if (path === "/api/workflows/drawer/runs") body = [{ snapshot_id: "drawer-run", workflow_id: "drawer", created_ts: 1,
-      state_counts: { done: 1 }, overall_state: "done", node_count: 1, job_count: 1 }];
-    else if (path === "/api/snapshots/drawer-run") body = { snapshot_id: "drawer-run", workflow_id: "drawer", graph, created_ts: 1,
-      jobs: [{ job_id: "drawer-job", graph_node_id: "drawer", node_id: "device", workflow_id: "drawer", algorithm_name: pack.name,
-        algorithm_version: "1", state: "done", params: { count: 17 }, input_handles: {}, output_handles: { images: "images" }, created_ts: 1 }] };
-    else if (path === "/api/handles/images") body = { handle_id: "images", node_id: "device", storage: "dir", tags: ["image"],
-      proxy_url: "/proxy/device/images", absolute_path: "/images", deleted_ts: null, preview: null, dim_labels: ["frame"], dim_sizes: [80] };
+    else if (path === "/api/workflows/wheel-matrix") body = { workflow_id: "wheel-matrix", name: "Wheel ownership matrix", graph, created_ts: 1, updated_ts: 1 };
+    else if (path === "/api/workflows/wheel-matrix/canvas-state") body = { canvas_jobs: jobs, staleness: {} };
     else if (path === "/api/handles/images/summary") body = { fields: { entries: Array.from({ length: 80 }, (_, i) => ({ name: `image-${i}.jpg`, is_dir: false })) } };
+    else if (["images", "text", "colmap", "lagsplat", "colmap3d"].some(id => path === `/api/handles/${id}`)) {
+      const id = path.split("/").at(-1)!;
+      body = { handle_id: id, node_id: "device", storage: id === "text" ? "file" : "dir", tags: [id === "images" ? "image" : id === "colmap" ? "colmap4d-cams" : id === "colmap3d" ? "colmap-cams" : id],
+        proxy_url: `/proxy/device/${id}`, absolute_path: `/${id}`, deleted_ts: null, preview: ["text", "lagsplat"].includes(id) ? { viewer: id, member: null } : null,
+        dim_labels: id === "images" ? ["frame"] : [], dim_sizes: id === "images" ? [80] : [] };
+    }
     await route.fulfill({ json: body });
   });
-  await page.goto("/w/drawer");
-  const drawer = page.locator(".react-flow__node .hl-preview-drawer");
-  await expect(drawer.locator("[data-hl-frame-count]")).toHaveAttribute("data-hl-frame-count", "80");
-  const dimensions = await drawer.evaluate(el => [el, ...el.querySelectorAll("*")].map(element => ({
-    tag: element.tagName, classes: element.getAttribute("class"),
-    scrollHeight: element.scrollHeight, clientHeight: element.clientHeight,
-    overflowY: getComputedStyle(element).overflowY,
-  })));
-  console.log("80-image drawer scroll dimensions:", JSON.stringify(dimensions));
-  await info.attach("drawer-scroll-dimensions", { body: JSON.stringify(dimensions, null, 2), contentType: "application/json" });
+  await page.goto("/w/wheel-matrix");
+  await expect(page.locator('[data-hl-frame-count="80"]')).toBeAttached();
+  await expect(page.locator(".react-flow__edge .react-flow__edge-path")).toBeAttached();
+  await expect(page.locator('.react-flow__node[data-id="text"] pre')).toContainText("Diagnostic line 149");
+  await page.getByRole("button", { name: "Show minimap" }).click();
+}
+
+type WheelTarget = readonly [name: string, selector: string, owner: "canvas" | "local" | "parameters" | "chrome" | "focused-frame", activateNode?: string];
+const rows: readonly WheelTarget[] = [
+  ["background", ".react-flow__pane", "canvas"],
+  ["viewport", ".react-flow__viewport", "canvas"],
+  ["node wrapper", '.react-flow__node[data-id="images"]', "canvas"],
+  ["node header", '.react-flow__node[data-id="images"] [data-hl-node-title]', "canvas"],
+  ["node footer/button", '.react-flow__node[data-id="images"] [data-hl-node-footer] button', "canvas"],
+  ["port text", '.react-flow__node[data-id="images"] [data-tooltip-type]', "canvas"],
+  ["handle", ".react-flow__handle", "canvas"],
+  ["edge SVG path", ".react-flow__edge-path", "canvas"],
+  ["edge wrapper", ".react-flow__edge", "canvas"],
+  ["edge hit path", ".react-flow__edge-interaction", "canvas"],
+  ["edge label", ".hl-edge-chip", "canvas"],
+  ["edge label portal", ".react-flow__edgelabel-renderer", "canvas"],
+  ["drawer", '.react-flow__node[data-id="images"] .hl-preview-drawer', "canvas"],
+  ["image tile", "[data-hl-frame-card]", "canvas"],
+  ["image", "[data-hl-frame-card] img", "canvas"],
+  ["inactive diagnostic", '.react-flow__node[data-id="text"] pre', "canvas"],
+  ["active diagnostic", '.react-flow__node[data-id="text"] pre', "local", "text"],
+  ["inactive custom viewer shield", '.react-flow__node[data-id="custom"] [data-viewer-interaction] > div', "canvas"],
+  ["active custom viewer host", '.react-flow__node[data-id="custom"] [data-viewer-interaction]', "focused-frame", "custom"],
+  ["inactive LaGSplat shield", '.react-flow__node[data-id="lagsplat"] [data-viewer-interaction] > div', "canvas"],
+  ["active LaGSplat host", '.react-flow__node[data-id="lagsplat"] [data-viewer-interaction]', "focused-frame", "lagsplat"],
+  ["inactive COLMAP3D shield", '.react-flow__node[data-id="colmap3d"] [data-viewer-interaction] > div', "canvas"],
+  ["active COLMAP3D host", '.react-flow__node[data-id="colmap3d"] [data-viewer-interaction]', "focused-frame", "colmap3d"],
+  ["inline parameter", ".hl-inline-port-card", "local"],
+  ["pinned panel", '.react-flow__node[data-id="images"] .hl-pinned-parameters', "parameters"],
+  ["pinned number", '.react-flow__node[data-id="images"] .hl-pinned-parameters input[type="number"]', "parameters"],
+  ["crop editor", ".hl-image-crop-editor", "local"],
+  ["composition editor", ".hl-compose-editor", "local"],
+  ["COLMAP viewer", '.react-flow__node[data-id="colmap"] .nowheel', "local"],
+  ["controls", ".react-flow__controls", "chrome"],
+  ["controls button", ".react-flow__controls-fitview svg", "chrome"],
+  ["minimap", ".react-flow__minimap", "chrome"],
+  ["minimap SVG", ".react-flow__minimap-svg", "chrome"],
+  ["minimap node", ".react-flow__minimap-node", "chrome"],
+  ["toggle panel", '.react-flow__panel:has(button[aria-label="Hide minimap"])', "chrome"],
+] as const;
+
+test("wheel ownership matrix on a real workflow", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  await openWorkflow(page);
   const viewport = page.locator(".react-flow__viewport");
   const transform = () => viewport.evaluate(el => {
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(el).transform);
-    return { x: matrix.m41, y: matrix.m42, scale: matrix.a };
+    const m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+    return { x: m.m41, y: m.m42, scale: m.a };
   });
-  const wheelAt = (target: typeof drawer, ctrlKey = false) => target.evaluate((el, ctrlKey) => {
-    el.dispatchEvent(new WheelEvent("wheel", { deltaX: 2.67, deltaY: 1.33, ctrlKey, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
-  }, ctrlKey);
   const mode = page.locator(".hl-trackpad-navigation");
-  const mouseBefore = await transform();
-  await wheelAt(drawer);
-  await expect.poll(async () => (await transform()).scale).not.toBe(mouseBefore.scale);
-  await mode.click();
-  const panBefore = await transform();
-  await wheelAt(drawer);
-  await expect.poll(async () => (await transform()).x).not.toBe(panBefore.x);
-  expect((await transform()).scale).toBeCloseTo(panBefore.scale, 6);
-  const pinned = page.getByRole("group", { name: "Pinned parameters", exact: true });
-  await expect(pinned).toBeVisible();
-  const pinnedBefore = await transform();
-  await wheelAt(pinned);
-  await expect.poll(async () => (await transform()).scale).not.toBe(pinnedBefore.scale);
-  await expect(pinned.getByRole("spinbutton")).toHaveValue("17");
-  const pinchBefore = await transform();
-  await wheelAt(drawer, true);
-  await expect.poll(async () => (await transform()).scale).not.toBe(pinchBefore.scale);
+  const results: { name: string; enabled: boolean; ctrlKey: boolean; decision: string; behavior: string; expected: string; before: unknown; after: unknown }[] = [];
+
+  for (const enabled of [false, true]) {
+    if (await mode.getAttribute("aria-pressed") !== String(enabled)) await mode.click();
+    // Inventory every rendered element, using the actual production helper.
+    const inventory = await page.locator(".react-flow").evaluate(async (root, enabled) => {
+      const modulePath = "/src/canvas/trackpadNavigation.ts";
+      const { keepsExistingWheelBehavior, shouldPanWheel } = await import(modulePath);
+      return [...root.querySelectorAll("*")].map(el => ({ tag: el.tagName, classes: el.getAttribute("class"),
+        owner: el.closest("[data-wheel-owner]")?.getAttribute("data-wheel-owner") ?? null,
+        decision: keepsExistingWheelBehavior(el) ? "exempt" : shouldPanWheel(enabled, { ctrlKey: false }) ? "pan" : "zoom",
+        scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, overflowY: getComputedStyle(el).overflowY,
+      }));
+    }, enabled);
+    mkdirSync("/tmp/hololab-wheel-matrix", { recursive: true });
+    writeFileSync(`/tmp/hololab-wheel-matrix/inventory-${enabled}.json`, JSON.stringify(inventory, null, 2));
+    // Every rendered element must have the same decision as its explicit owner;
+    // no framework class or ancestor combination may create a hidden exception.
+    if (enabled) for (const element of inventory) expect(element.decision).toBe(element.owner === "local" ? "exempt" : "pan");
+    await info.attach(`element-inventory-${enabled}`, { body: JSON.stringify(inventory, null, 2), contentType: "application/json" });
+
+    for (const ctrlKey of [false, true]) {
+      for (const [name, selector, owner, activateNode] of rows) {
+        const target = page.locator(selector).first();
+        const gate = page.locator(`.react-flow__node[data-id="${activateNode}"] [data-viewer-interaction]`);
+        if (activateNode) {
+          await gate.locator(':scope > div').last().dispatchEvent("click");
+          await expect(gate).toHaveAttribute("data-wheel-owner", "local");
+        }
+        await expect(target, name).toBeAttached();
+        await page.waitForTimeout(170); // Let d3 finish its previous wheel gesture.
+        const before = await transform();
+        const decision = await target.evaluate(async el => {
+          const modulePath = "/src/canvas/trackpadNavigation.ts";
+          return (await import(modulePath)).keepsExistingWheelBehavior(el) ? "exempt" : "canvas";
+        });
+        // Zoom toward 1 so long matrices cannot hit min/max zoom and create a
+        // false "local" result. Panning still exercises both signs of deltaY.
+        await target.evaluate((el, init) => el.dispatchEvent(new WheelEvent("wheel", {
+          bubbles: true, cancelable: true, deltaX: 4, ...init, clientX: 650, clientY: 400,
+        })), { ctrlKey, deltaY: before.scale < 1 ? -5 : 5 });
+        await page.waitForTimeout(30);
+        const after = await transform();
+        const behavior = after.scale !== before.scale ? "zoom" : after.x !== before.x || after.y !== before.y ? "pan" : "local";
+        const expected = owner === "canvas" ? enabled && !ctrlKey ? "pan" : "zoom"
+          : owner === "parameters" ? enabled && !ctrlKey ? "local" : "zoom"
+          : owner === "focused-frame" ? enabled ? "local" : "zoom" : "local";
+        results.push({ name, enabled, ctrlKey, decision, behavior, expected, before, after });
+        expect(behavior, `${name}, trackpad=${enabled}, ctrl=${ctrlKey}`).toBe(expected);
+        await expect(mode).toHaveAttribute("aria-pressed", String(enabled));
+        if (activateNode) {
+          await page.locator("body").dispatchEvent("mousedown");
+          await expect(gate).toHaveAttribute("data-viewer-interaction", "inactive");
+        }
+      }
+    }
+  }
+  mkdirSync("/tmp/hololab-wheel-matrix", { recursive: true });
+  writeFileSync("/tmp/hololab-wheel-matrix/after.json", JSON.stringify(results, null, 2));
+  console.log(`Wheel matrix: ${rows.length} targets × 2 modes × 2 Ctrl states = ${results.length} passing cells`);
+  await info.attach("wheel-matrix", { body: JSON.stringify(results, null, 2), contentType: "application/json" });
+
+  // Synthetic wheel verifies routing; native wheel verifies real local scrolling.
+  // Fit first so the browser can hit the actual target after the navigation matrix.
+  const frameNode = async (id: string) => {
+    await page.locator(`.react-flow__node[data-id="${id}"] [data-hl-node-title]`).dispatchEvent("click");
+    await page.locator("body").press("f");
+    await page.waitForTimeout(300);
+  };
+  for (const [name, selector] of [
+    ["parameters", '.react-flow__node[data-id="images"] .hl-pinned-parameters'],
+    ["diagnostic", '.react-flow__node[data-id="text"] [data-viewer-interaction]'],
+  ]) {
+    const host = page.locator(selector);
+    await frameNode(name === "parameters" ? "images" : "text");
+    if (name === "diagnostic") {
+      await host.locator(':scope > div').last().dispatchEvent("click");
+      await expect(host).toHaveAttribute("data-wheel-owner", "local");
+    }
+    const scroller = name === "parameters" ? host : host.locator(':scope > div').first();
+    expect(await scroller.evaluate(el => el.scrollHeight > el.clientHeight), name).toBe(true);
+    await scroller.evaluate(el => { el.scrollTop = 0; });
+    await host.hover();
+    const before = await transform();
+    await page.mouse.wheel(0, 80);
+    await expect.poll(() => scroller.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+    expect(await transform(), name).toEqual(before);
+    await scroller.evaluate(el => { el.scrollTop = el.scrollHeight; });
+    await page.mouse.wheel(0, 80);
+    await page.waitForTimeout(180);
+    expect(await transform(), `${name} at scroll boundary`).toEqual(before);
+    if (name === "parameters") await expect(host.getByRole("spinbutton")).toHaveValue("17");
+  }
+
+  // Real iframe events stay within the viewer document. Activation declares
+  // ownership only while focused; inactive shields remain canvas targets above.
+  for (const id of ["custom", "lagsplat", "colmap3d", "colmap"]) {
+    await frameNode(id);
+    const node = page.locator(`.react-flow__node[data-id="${id}"]`);
+    const gate = node.locator("[data-viewer-interaction]");
+    await expect(gate).toHaveAttribute("data-viewer-interaction", "inactive");
+    await gate.locator(':scope > div').last().dispatchEvent("click");
+    await expect(gate).toHaveAttribute("data-viewer-interaction", "active");
+    const iframe = gate.locator("iframe");
+    const counter = iframe.contentFrame().locator("#wheels");
+    const count = await counter.innerText();
+    await iframe.hover();
+    const before = await transform();
+    await page.mouse.wheel(0, 80);
+    await expect.poll(() => counter.innerText()).not.toBe(count);
+    expect(await transform(), id).toEqual(before);
+    await page.locator("body").dispatchEvent("mousedown");
+    await expect(gate).toHaveAttribute("data-viewer-interaction", "inactive");
+  }
+  // The preference is stable across wheel targets and reloads.
+  await page.reload();
+  await expect(mode).toHaveAttribute("aria-pressed", "true");
 });

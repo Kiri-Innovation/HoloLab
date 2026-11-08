@@ -5,7 +5,7 @@ test('diagnostic iframe and text output scroll only while focused',async({page})
  const assets=process.env.DIAGNOSTIC_ASSETS;
  await page.route('**/pack-assets/**',async route=>{
   const name=new URL(route.request().url()).pathname.split('/').pop()!;
-  const fallback='<html><head></head><body style="margin:0"><div style="height:850px">Training diagnostic scroll fixture</div></body></html>';
+  const fallback='<!doctype html><html><head></head><body style="margin:0"><div style="height:850px">Training diagnostic scroll fixture</div></body></html>';
   await route.fulfill({contentType:name.endsWith('.css')?'text/css':name.endsWith('.js')?'text/javascript':'text/html',body:assets?fs.readFileSync(`${assets}/${name==='viewer.html'?'index.html':name}`):fallback});
  });
  await page.route('**/fixture-ssim/*',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160"><rect width="320" height="160" fill="#273544"/><text x="15" y="80" fill="white">SSIM test image</text></svg>'}));

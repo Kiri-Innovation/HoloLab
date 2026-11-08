@@ -118,6 +118,7 @@ export function ViewerInteractionShield({ activate, forwardCanvasDrag = false }:
 export function ViewerScrollRegion({children, maxHeight}: {children: ReactNode; maxHeight: number}) {
   const {wrapperRef, activated, activate} = useViewerInteraction();
   return <div ref={wrapperRef} tabIndex={-1} data-viewer-interaction={activated ? "active" : "inactive"}
+    data-wheel-owner={activated ? "local" : undefined}
     className={activated ? "nodrag nopan nowheel" : "nodrag"}
     style={{position: "relative", outline: "none", border: viewerInteractionBorder(activated), borderRadius: "var(--radius-sm)"}}>
     <div style={{maxHeight, overflow: activated ? "auto" : "hidden"}}>{children}</div>
