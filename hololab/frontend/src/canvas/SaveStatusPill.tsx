@@ -49,7 +49,7 @@ function styleFor(status: SaveStatus): Style | null {
         bg: "var(--info-soft, var(--surface-alt))",
         fg: "var(--info, var(--text))",
         border: "1px solid var(--info, var(--border))",
-        label: "Saving…",
+        label: "保存中…",
         interactive: false,
       };
     case "saved":
@@ -57,7 +57,7 @@ function styleFor(status: SaveStatus): Style | null {
         bg: "var(--surface-alt)",
         fg: "var(--text-subtle)",
         border: "1px solid var(--border)",
-        label: "Saved",
+        label: "已保存",
         interactive: false,
       };
     case "error":

@@ -748,6 +748,21 @@ class WorkflowUpdated(BaseModel):
     origin: str | None = None
 
 
+class WorkflowChanged(BaseModel):
+    """Gateway → frontend authoritative file-document revision."""
+
+    id: str
+    rev: int
+    name: str
+    graph: dict[str, Any]
+    path: str | None = None
+    missing: bool = False
+    rejected: bool = False
+    error: str | None = None
+    request_id: str | None = None
+    saved: bool = False
+
+
 class PathBrowseReq(BaseModel):
     req_id: str
     path: str = Field(max_length=4096)

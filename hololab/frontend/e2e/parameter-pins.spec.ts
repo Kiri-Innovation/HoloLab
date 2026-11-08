@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import {applyOps} from '../src/canvas/workflowPatch';
 
 async function fixture(page: Page, grouped = false, defaults = false) {
   const pack:any = { name:'pin-demo',version:'1.0',manifest_hash:'pins',node_ids:['compute'],description:'Parameter pin regression fixture',
@@ -17,13 +18,21 @@ async function fixture(page: Page, grouped = false, defaults = false) {
   const catalog = [pack, {...pack,version:'2.0'}];
   let graph:any={nodes:['a','b','c'].map((id,i)=>({id,algorithm_name:pack.name,algorithm_version:i===2?'2.0':pack.version,position:{x:40+i*250,y:100},params:{count:i+1},assigned_node_id:'compute',arrayed_toggle:i===1})),edges:[{id:'a-b',source:'a',sourceHandle:'output',target:'b',targetHandle:'input'}]};
   const saved:any[]=[];
-  await page.routeWebSocket('**',()=>{});
+  let rev=0;
+  await page.routeWebSocket('**',ws=>{ws.onMessage(raw=>{
+    const frame=JSON.parse(String(raw));if(frame.kind!=='workflow_edit')return;
+    const p=frame.payload;graph=applyOps({name:'Parameter pins — test fixture',graph},p.ops).graph;rev++;
+    saved.push({graph});
+    const payload={id:'pins',name:'Parameter pins — test fixture',graph,rev,request_id:p.request_id};
+    ws.send(JSON.stringify({kind:'workflow_changed',payload}));
+    setTimeout(()=>ws.send(JSON.stringify({kind:'workflow_changed',payload:{...payload,saved:true}})),20);
+  });});
   await page.route('**/api/**',async route=>{
     const request=route.request(); const path=new URL(request.url()).pathname; let body:any=[];
     if(path==='/api/pack-catalog')body=catalog;
     else if(path==='/api/nodes')body=[{node_id:'compute',node_name:'Test compute',packs:catalog,gpu:{count:0},connected_ts:1}];
     else if(path==='/api/nodes/metrics/history')body={sample_interval_s:3,nodes:{}};
-    else if(path==='/api/workflows/pins')body={workflow_id:'pins',name:'Parameter pins — test fixture',graph,created_ts:1,updated_ts:1};
+    else if(path==='/api/workflows/pins')body={workflow_id:'pins',name:'Parameter pins — test fixture',graph,rev,missing:false,created_ts:1,updated_ts:1};
     else if(path==='/api/workflows'&&request.method()==='POST'){
       const data=request.postDataJSON(); saved.push(data); graph=data.graph; body={workflow_id:'pins',updated_ts:1};
     }

@@ -1,6 +1,6 @@
 # Workflow 文件化设计（评审稿）
 
-状态：评审中（未实施）。本文定义「workflow 草稿从数据库记录改为本地文件」的完整设计。
+状态：已实现文件编辑通道与前端；4090 已执行迁移。本文保留原设计背景，最终协议与上线注意事项见 §14。
 
 ## 1. 背景与目标
 
@@ -212,4 +212,83 @@ VS Code Remote 的做法：**文件只在服务端机器上，编辑器是瘦视
   这是文件形态的固有属性，和 VS Code（文件在远端机器、客户端都连那台）语义一致。
 - **不做完整 OT/CRDT**：图编辑是低频结构化操作，rev + 元素级 LWW + 手动重载逃生门已经覆盖现实场景；
   全量 OT 的复杂度对当前收益不成立。
+
+## 14. 实现协议与部署约定
+
+本节记录最终实现；兼容期的 DB 兜底保留，覆盖上文「迁移后移除兜底」的原计划。
+4090、A800、XENO-PC 独立迁移；不能通过一台机器的迁移推断其它机器已迁移。
+
+### 文件编辑消息
+
+前端连接 `/ws/frontend`，发送普通 envelope：
+
+```json
+{"kind":"workflow_edit","payload":{"id":"workflow-uuid","base_rev":0,"request_id":"per-edit-id","ops":[{"op":"node.map.set","id":"node-id","field":"params","key":"iterations","value":100}]}}
+```
+
+网关广播 `workflow_changed`，payload 包含 `id, rev, name, graph, request_id,
+path, missing, rejected, error, saved`。接受一个 patch 后 rev 加一，广播包括发起者；
+`request_id` 用于确认本次乐观编辑。落后或超前的 base_rev 都拒绝，仅向发起者
+返回 `rejected: true` 与当前完整文档。无效操作整批回滚。
+
+| ops | 地址与值 | 画布动作 |
+|---|---|---|
+| `name.set` | `value` | 工作流改名，含 Gallery |
+| `node.add` / `node.remove` | `node` / `id` | 拖入、菜单新增、复制、删除（同步清理关联边） |
+| `node.pos.set` | `id, position` | 拖动节点 |
+| `node.map.set` | `id, field, key, value/remove` | 参数、内联端口值、变量绑定；按单个键合并 |
+| `node.set` | `id, value`（部分字段） | 算法替换、设备、arrayed/parallelism、组合槽、常量、预览、视图标题、local_params |
+| `edge.add` / `edge.remove` / `edge.set` | `edge` / `id` / `id,value` | 连线、断线、替换输入连接、边字段 |
+| `graph.map.set` | `field, key, value/remove` | 变量声明、变量取值、每个包的参数固定项 |
+| `graph.set` | `field, value` | execution、recipe_dependencies 等图级字段 |
+
+网关也接受 `node.params.set`、`node.port-values.set`、`node.bindings.set` 整个
+映射替换，日常前端使用键粒度的 `node.map.set`。节点 id 不可通过 `node.set` 更改；
+`graph.set` 不能替换 nodes/edges。节点与边变更通过同一 canonical graph diff 汇合，
+不依赖某个 UI 入口是否单独记得调用保存。
+
+前端每次变更立即发 patch，同一客户端最多一个未确认 patch；后续变更合并为下一次发送。
+冲突时在服务器返回的文档上重放仅本地修改的字段，默认元素级 LWW，并提供重载逃生门。
+断线重连先读取当前文档/rev，补发未确认字段。已删除的节点不因字段重放而复活。
+
+### 落盘、读取与 rev
+
+网关保持每个 workflow 的权威内存文档，800ms 防抖后 tmp+rename。编辑 ACK 与
+持久化确认分开：接受 patch 时 `saved: false`；落盘成功广播同 rev 的 `saved: true`。
+UI 的「已保存」及 dispatch 保存屏障等待持久化确认。保存失败返回含路径的 error，
+关闭标签页时未持久化的编辑会触发浏览器提示，不发送旧的 HTTP 全量 beacon。
+
+外部改动取消尚未落盘的旧任务、加载文件、rev 加一并广播全量；自身落盘通过内容指纹
+排除回声。删除广播 `missing: true`，保存不能悄悄重建被删除的文件。watcher 增量处理
+变更路径，不因一次自动保存遍历整个数据目录；同时覆盖配置目录与已注册的目录外文件。
+PUT content 仍保留 expected_mtime + base_rev CAS，
+也更新内存状态和广播。正常关闭会刷新尚未落盘的文档。
+
+rev 在同一网关进程内单调递增；重启后从新会话的 GET 重新获取，客户端不复用旧 rev。
+GET/dispatch 在待落盘期间读网关内存文档，其余时间文件优先；缺文件时保留 DB 兼容兜底。
+DB 仍是缓存/审计，不是新版画布的编辑目标。recipe/FileAuthority 与谱系表保持原样。
+
+### 新建、打开、恢复与迁移核对
+
+新建/打开使用 gateway 的 PathInput（本地路径浏览复用既有 list_path）。
+`POST /api/workflow-files/open {path}` 显式注册；同路径 id 不同返回 409，并要求
+明确选择不同文件（`replace_id`）或重新定位原资源。`POST /api/workflows/{id}/recreate`
+只允许在已登记但不存在的原路径创建空图，保留 id，绝不覆盖现存文件。
+从配方导入的新画布走 `/api/workflow-files/import-recipe`，旧配方接口保留。
+从快照克隆回草稿也转换成元素 patch，不改动快照本身。
+
+迁移前可运行（使用本机 gateway 的 Python 环境）：
+
+```bash
+python tools/workflow_file_audit.py > /tmp/workflows-before.json
+hololab workflow migrate-files --workflows-dir /cloud/cloud-ssd1/Kiri4DGS
+python tools/workflow_file_audit.py --before /tmp/workflows-before.json --gateway http://127.0.0.1:8828
+```
+
+注意既有 `WorkflowStore._read_row` 会把 `workflow_bindings` 内的设备、local_params
+和变量取值叠加到 draft_json，dispatch 原本就读这个有效图。迁移保留整个有效图；审计
+同时对比「剥离相同本地绑定后的 DB 草稿投影」和「含绑定的完整执行图」两种 SHA-256，
+避免只核对 draft_json 而误判或丢失绑定。原始 JSON 字节会因稳定排序与补默认值而变化。
+A800 迁移前协调正在进行的编辑；XENO-PC 的目标目录按其本机配置指定。新版前端与迁移
+一起部署，旧标签页需刷新以获取新编辑通道。
 - **同一前端开两个标签页编辑同一 workflow**：等价于两个前端，走同一套 rev 流程。

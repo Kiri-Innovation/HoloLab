@@ -66,6 +66,7 @@ _KIND_REGISTRY: dict[str, type[BaseModel]] = {
     "node_online": messages.NodeOnline,
     "node_offline": messages.NodeOffline,
     "workflow_updated": messages.WorkflowUpdated,
+    "workflow_changed": messages.WorkflowChanged,
     "node_config_get_req": messages.NodeConfigGetReq,
     "node_config_get_resp": messages.NodeConfigGetResp,
     "node_config_set_req": messages.NodeConfigSetReq,

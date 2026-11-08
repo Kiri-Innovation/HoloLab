@@ -11,7 +11,9 @@ import { RecipeFileActions } from "./canvas/RecipeFileActions";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { WorkflowSummary } from "./api";
-import { ApiError, deleteWorkflow, getWorkflow, listWorkflows, saveWorkflow } from "./api";
+import { ApiError, deleteWorkflow, getWorkflow, listWorkflows } from "./api";
+import { WorkflowFilePicker } from './canvas/WorkflowFiles';
+import {editWorkflowFile} from './canvas/editWorkflowFile';
 import { stateColour } from "./canvas/AlgorithmNode";
 import { CopyRefButton } from "./canvas/CopyRefButton";
 import { ThemeToggle } from "./theme/ThemeToggle";
@@ -35,6 +37,7 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
   const [rows, setRows] = useState<WorkflowSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState<boolean>(false);
+  const [picker,setPicker]=useState<'create'|'open'|null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -53,18 +56,7 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
 
   const onCreate = useCallback(async () => {
     if (creating) return;
-    setCreating(true);
-    try {
-      const r = await saveWorkflow({
-        name: defaultNewName(rows ?? []),
-        graph: { nodes: [], edges: [] },
-      });
-      onOpen(r.workflow_id);
-    } catch (e) {
-      const msg = e instanceof ApiError ? `HTTP ${e.status}` : (e as Error).message;
-      setError(`could not create workflow: ${msg}`);
-      setCreating(false);
-    }
+    setPicker('create');
   }, [creating, rows, onOpen]);
 
   const onRename = useCallback(
@@ -74,12 +66,7 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
       // We don't have the graph body here (list endpoint is lightweight);
       // fetch just what we need to preserve on rename.
       const detail = await getWorkflow(row.workflow_id);
-      await saveWorkflow({
-        workflow_id: row.workflow_id,
-        name: trimmed,
-        graph: detail.graph,
-        base_updated_ts: detail.updated_ts,
-      });
+      await editWorkflowFile(row.workflow_id,detail.rev,[{op:'name.set',value:trimmed}]);
       await refresh();
     },
     [refresh],
@@ -113,7 +100,8 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
         fontFamily: "var(--font-sans)",
       }}
     >
-      <RecipeFileActions onOpen={onOpen} />
+      <div><RecipeFileActions onOpen={onOpen} /><button onClick={()=>setPicker('open')}>打开 .workflow</button>
+      {picker&&<WorkflowFilePicker mode={picker} onOpen={onOpen} onClose={()=>{setPicker(null);setCreating(false);}} />}</div>
       <GalleryHeader
         creating={creating}
         onCreate={onCreate}
@@ -630,19 +618,6 @@ function LastRunLine({ last }: { last: WorkflowSummary["last_run"] }) {
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
-
-function defaultNewName(existing: WorkflowSummary[]): string {
-  // Pick a stable-ish default so a spam-clicker doesn't get four rows
-  // named "untitled". Untitled 1, Untitled 2 …
-  const base = "Untitled";
-  const taken = new Set(existing.map((r) => r.name));
-  if (!taken.has(base)) return base;
-  for (let i = 1; i < 999; i++) {
-    const cand = `${base} ${i}`;
-    if (!taken.has(cand)) return cand;
-  }
-  return base;
-}
 
 function formatRelative(secs: number): string {
   const now = Date.now() / 1000;

@@ -714,6 +714,7 @@ class WorkflowDetail(BaseModel):
     missing: bool = False
     mtime: float | None = None
     rev: int = 0
+    saving: bool = False
     recipe_issues: list[dict[str, Any]] = Field(default_factory=list)
     workflow_id: str
     name: str

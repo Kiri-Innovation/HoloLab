@@ -27,9 +27,9 @@ export function RecipeFileActions({workflowId, beforeExport, onOpen, onReload, o
     <input ref={fileInput} aria-label="从配方文件新建工作流" type="file" accept=".json,application/json" hidden disabled={busy}
       onChange={e => { const file = e.target.files?.[0]; if (!file) return;
         void act(async () => {
-          const response = await fetch("/api/recipes/import", {method:"POST",headers:{"Content-Type":"application/json"},body:await file.text()});
+          const response = await fetch("/api/workflow-files/import-recipe", {method:"POST",headers:{"Content-Type":"application/json"},body:await file.text()});
           if (!response.ok) throw Error();
-          onOpen((await response.json()).workflow_id);
+          onOpen((await response.json()).id);
         }, "已新建工作流；请在 Pack Manager 的使用情况中查看待处理节点。", "未能导入，请确认文件是有效的配方 JSON，并检查连接后重试。");
         e.target.value = "";
       }} />

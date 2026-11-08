@@ -14,7 +14,6 @@ import { mergeParameterPatch } from "./canvas/PackParameterField";
 import { effectiveParameterPins, parameterPinKey, toggleParameterPins } from "./canvas/parameterPins";
 import { ExecutableNode } from "./canvas/AssemblyNode";
 import { ASSEMBLE, assemblyPresentation, assemblyFields, newAssembly } from "./canvas/assembly";
-import { newId } from "./newId";
 import { InspectorPreview } from "./canvas/InspectorPreview";
 import { FrameSelectedShortcut } from "./canvas/FrameSelectedShortcut";
 import { WorkflowConflictDialog } from "./canvas/WorkflowConflictDialog";
@@ -68,7 +67,6 @@ import type {
   SnapshotDetail,
   SnapshotJob,
   WorkflowGraph,
-  WorkflowUpdatedPayload,
 } from "./wire";
 import {
   ApiError,
@@ -85,10 +83,8 @@ import {
   getSnapshot,
   getWorkflow,
   getWorkflowViewerView,
-  patchWorkflowGraphNodeCosmetic,
   rerunFromNode,
   runWorkflow,
-  saveWorkflow,
   putWorkflowViewerView,
   warmNodePreparation,
   invalidateWorkflowPreparations,
@@ -150,7 +146,8 @@ import {
 } from "./canvas/edgeLabels";
 import { seedEdgeFacts, seedEdgeSummaryFacts } from "./canvas/edgeSummaryCache";
 import { RunsPanel } from "./canvas/RunsPanel";
-import { useDraftAutosave } from "./canvas/useDraftAutosave";
+import { useWorkflowFile } from "./canvas/useWorkflowFile";
+import { WorkflowFileRecovery } from "./canvas/WorkflowFiles";
 import { CapabilityContext, EnvironmentChecks, useCapabilityChecks } from "./canvas/EnvironmentChecks";
 import { SnapshotBanner } from "./canvas/SnapshotBanner";
 import { SnapshotCanvas } from "./canvas/SnapshotCanvas";
@@ -529,24 +526,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // Set below in the workflowId useEffect.
   const workflowIdRef = useRef<string | null>(null);
   const saveRecipeRef = useRef<() => Promise<void>>(async () => {});
-  // Mirrors ``workflowUpdatedTs`` so the WS ``workflow_updated`` handler
-  // (registered once at mount) can compare the pushed ``updated_ts``
-  // against our own base without re-subscribing on every save. Bumped
-  // by ``onSaved`` and by ``markClean`` before the state commit, so a
-  // broadcast arriving on the tab that just saved (echo of its own
-  // round-trip) reads the fresh base and is correctly filtered out.
-  const workflowUpdatedTsRef = useRef<number | undefined>(undefined);
-  // Opaque per-tab id — sent as ``origin`` on every save and echoed on
-  // the ``workflow_updated`` broadcast so this tab can distinguish its
-  // own round-trip from a genuine remote update, including HTTP LAN deployments.
-  const originIdRef = useRef<string>(newId());
-  // Populated by a useEffect after ``autosave`` + ``onLoad`` are defined.
-  // The WS effect calls into this ref so it doesn't need to be
-  // re-registered whenever those change identity — that would tear down
-  // and rebuild the socket on every keystroke into the graph.
-  const remoteUpdateHandlerRef = useRef<((p: WorkflowUpdatedPayload) => void) | null>(
-    null,
-  );
   // Mirrors ``latestSnapshotId`` so the WS ``job_update`` handler —
   // registered once at mount — can gate upserts into
   // ``latestSnapshotJobs`` by snapshot without re-subscribing on every
@@ -696,14 +675,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           const _p = env.payload as NodeOfflinePayload;
           void _p;
         }
-      } else if (env.kind === "workflow_updated") {
-        // Layer-3 push: someone (another tab, an agent, curl, or this
-        // tab's own save) just wrote to a workflow. The handler is
-        // stored in a ref so it can read the current autosave / hydrate
-        // closures without forcing the socket to re-subscribe. See the
-        // effect just below where the ref is populated.
-        const p = env.payload as WorkflowUpdatedPayload;
-        remoteUpdateHandlerRef.current?.(p);
       } else if (env.kind === "node_metrics") {
         // Live per-node CPU / mem / GPU sample. Append into the bounded
         // ring for this node; the pulse panel derives sparklines
@@ -958,13 +929,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [conflictSummary, setConflictSummary] = useState<string>();
   const [workflowFileError, setWorkflowFileError] = useState<string>("");
   const [workflowName, setWorkflowName] = useState<string>("untitled");
-  // The ``updated_ts`` we last observed for this draft — seeded on load
-  // and bumped on every successful save. Fed into the autosave hook as
-  // the optimistic-lock base so a stale tab can't clobber a concurrent
-  // writer's edits (see ``useDraftAutosave``).
-  const [workflowUpdatedTs, setWorkflowUpdatedTs] = useState<number | undefined>(
-    undefined,
-  );
   // The past run (if any) the user has opened on the canvas via the
   // Runs panel. When non-null the middle column swaps from the editable
   // draft ReactFlow to a read-only SnapshotCanvas and a "read-only" banner
@@ -1554,22 +1518,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         ...prev,
         [detail.graph_node_id]: detail.port_name,
       }));
-      // Fire-and-forget cosmetic patch — the endpoint updates the
-      // draft's ``graph.preview_open`` and mirrors to the workflow's
-      // most recent snapshot. We read ``workflowId`` off a ref so the
-      // listener doesn't have to be re-registered every time the
-      // workflow changes. Network failure just means the state
-      // survives this session but not the next refresh — the drawer
-      // still visually toggles because state was updated locally
-      // first.
-      const wid = workflowIdRef.current;
-      if (wid) {
-        void patchWorkflowGraphNodeCosmetic(wid, detail.graph_node_id, {
-          preview_open: detail.port_name,
-        }).catch((err) => {
-          console.warn("preview_open patch failed", err);
-        });
-      }
+      // preview_open is part of toGraph, so the same WS element patch
+      // channel persists it without a separate DB-draft cosmetic write.
     };
     window.addEventListener(PREVIEW_TOGGLE_EVENT, onToggle);
     return () => window.removeEventListener(PREVIEW_TOGGLE_EVENT, onToggle);
@@ -1842,9 +1792,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   useEffect(() => {
     workflowIdRef.current = workflowId;
   }, [workflowId]);
-  useEffect(() => {
-    workflowUpdatedTsRef.current = workflowUpdatedTs;
-  }, [workflowUpdatedTs]);
 
   // Workflow-scoped jobs feed the RecentJobsPanel and summary chip.
   const workflowJobs = useMemo<RecentJobRow[]>(() => {
@@ -2418,6 +2365,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     return {
       variables, variable_values: variableValues,
       recipe_dependencies: lastHydratedWireRef.current?.recipe_dependencies ?? [],
+      execution: lastHydratedWireRef.current?.execution ?? null,
       pinned_params: pinnedParams,
       nodes: nodes.map((n) => {
         if ((n.data as ViewNodeData).kind === "view") {
@@ -2919,68 +2867,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     setNodes((cur) => cur.map((n) => ({ ...n, selected: n.id === target })));
   }, [rfInstance, stalenessByGraphNode, toGraph, setNodes]);
 
-  const autosave = useDraftAutosave({
-    serialisedSnapshot: autosaveSnapshot,
-    enabled: !viewingSnapshot,
-    initialBaseUpdatedTs: workflowUpdatedTs,
-    save: async (baseTs, signal) => {
-      const result = await saveWorkflow({
-        workflow_id: workflowId ?? undefined,
-        name: workflowName || "untitled",
-        graph: toGraph(),
-        base_updated_ts: baseTs,
-        origin: originIdRef.current,
-      }, signal);
-      return { workflow_id: result.workflow_id, updated_ts: result.updated_ts };
-    },
-    beaconBody: (baseTs) => ({
-      url: "/api/workflows",
-      body: JSON.stringify({
-        workflow_id: workflowId ?? undefined,
-        name: workflowName || "untitled",
-        graph: toGraph(),
-        base_updated_ts: baseTs,
-        origin: originIdRef.current,
-      }),
-    }),
-    onSaved: (wid, updatedTs) => {
-      invalidateWorkflowPreparations(wid);
-      workflowIdRef.current = wid;
-      if (workflowId !== wid) {
-        setWorkflowId(wid);
-        window.history.replaceState(null, "", `/w/${encodeURIComponent(wid)}`);
-      }
-      // Bump the ref before the state commit so a broadcast that races
-      // the setter (echo of our own save) reads the fresh base and is
-      // correctly filtered out.
-      workflowUpdatedTsRef.current = updatedTs;
-      setWorkflowUpdatedTs(updatedTs);
-    },
-    onConflict: (detail) => {
-      setConflictSummary("file_changes" in detail && detail.file_changes ? JSON.stringify(detail.file_changes, null, 2) : detail.message);
-      // Someone else (another tab, an agent, curl) has written a
-      // newer version, or we sent a save without a base_updated_ts on
-      // an existing row (stale bundle). Either way the server refused
-      // to clobber. Surface it and let the user decide — a page reload
-      // re-fetches the fresh draft; the toolbar's "conflict" pill is
-      // the UI affordance for that recovery step.
-      const currentTs = detail.current.updated_ts;
-      if (detail.code === "workflow_conflict") {
-        console.error(
-          "[autosave] workflow was modified concurrently — reload to see the fresh graph",
-          {
-            base_updated_ts: detail.base_updated_ts,
-            current_updated_ts: currentTs,
-          },
-        );
-      } else {
-        console.error(
-          "[autosave] stale bundle save was rejected — reload to pick up the version-aware code",
-          { current_updated_ts: currentTs },
-        );
-      }
-      setConflictDialogOpen(true);
-    },
+  const [workflowMissing, setWorkflowMissing] = useState(false);
+  const autosave = useWorkflowFile({
+    id: workflowId, snapshot: autosaveSnapshot, enabled: !viewingSnapshot && !workflowMissing,
+    adopt: document => { setWorkflowMissing(false); setWorkflowName(document.name); fromGraph(document.graph); if (workflowId) invalidateWorkflowPreparations(workflowId); },
+    missing: () => setWorkflowMissing(true),
+    conflict: () => { setConflictSummary("并发编辑已按元素合并，当前本地修改优先。可重载放弃本地编辑。"); setConflictDialogOpen(true); },
   });
 
   saveRecipeRef.current = autosave.save;
@@ -3086,20 +2978,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       setWorkflowFileError("");
       const [w, state] = await Promise.all([getWorkflow(id), getCanvasState(id)]).catch(error => {
         setWorkflowFileError(String(error));
+        if (error instanceof ApiError && error.status === 422 && error.message.includes("id does not match")) setWorkflowMissing(true);
         setHydrating(false);
         throw error;
       });
-      // Reset the autosave hook so it treats the freshly-loaded graph
-      // as clean — otherwise, when the app switches workflows (or the
-      // user hits reload after a WS-driven remote update), the hook
-      // would still hold the previous workflow's ``lastSavedSerialised``
-      // and ``baseUpdatedTs`` and fire a save-of-nothing that could
-      // clobber concurrent edits.
-      autosave.resync(w.updated_ts);
+      // Pin the file editor to the loaded document/revision before
+      // hydrating ReactFlow; hydration itself must not emit patches.
+      autosave.load(w);
+      setWorkflowMissing(w.missing);
       setWorkflowId(w.workflow_id);
-      workflowUpdatedTsRef.current = w.updated_ts;
       setWorkflowName(w.name);
-      setWorkflowUpdatedTs(w.updated_ts);
       fromGraph(w.graph);
       setLatestSnapshotGraph(null);
       setLatestSnapshotId(null); // both reset until hydration fills them in
@@ -3135,68 +3023,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       console.warn("could not open workflow", initialWorkflowId, err);
     });
   }, [initialWorkflowId, workflowId, reconnectTick, onLoad]);
-
-  // Wire the WS ``workflow_updated`` handler. The socket effect uses a ref
-  // rather than closing over ``onLoad`` / ``autosave`` directly so a save
-  // debounce doesn't tear down and rebuild the WebSocket every 800 ms.
-  //
-  // Filtering rules (all "ignore" outcomes are silent — no UI churn):
-  //   * Not the workflow we're viewing → ignore.
-  //   * Frame's ``updated_ts`` is not newer than the one we already know
-  //     about → ignore. Catches our own save's echo (``onSaved`` bumps
-  //     ``workflowUpdatedTsRef`` before the state commit fires the setter
-  //     — the broadcast arrives with the same ts our ref already holds)
-  //     and stale replays from a socket reconnect.
-  //   * ``origin`` matches our per-tab id → ignore. Defence-in-depth on
-  //     top of the ts check for the pathological case where a broadcast
-  //     races the ref bump.
-  //
-  // If the tab is clean (``idle`` / ``saved``): re-fetch the workflow and
-  // re-hydrate the canvas silently — the user sees the graph update on
-  // its own, matching the "画布一旦被改动就立刻在前端也更新" ask.
-  //
-  // If the tab is dirty (any other status): park autosave in ``conflict``
-  // and pop an alert. We do NOT silently overwrite the user's in-progress
-  // edits with someone else's writes — that's the opposite of the guard
-  // we're installing.
-  useEffect(() => {
-    remoteUpdateHandlerRef.current = (p) => {
-      if (p.workflow_id !== workflowIdRef.current) return;
-      if (p.origin && p.origin === originIdRef.current) return;
-      const known = workflowUpdatedTsRef.current;
-      if (known !== undefined && p.updated_ts <= known) return;
-
-      const status = autosave.status;
-      const isClean = status === "idle" || status === "saved";
-      if (isClean) {
-        // No local edits → adopt server truth. onLoad calls
-        // ``autosave.resync`` internally so the freshly-hydrated graph
-        // is treated as the new clean baseline.
-        void onLoad(p.workflow_id).catch((err) => {
-          console.warn("workflow_updated silent-sync failed", err);
-        });
-        return;
-      }
-      // Dirty tab — surface the collision and stop autosave from
-      // firing.  We build a WorkflowConflictDetail-shaped payload from
-      // the broadcast plus what we already know so ``markConflict``
-      // fires ``onConflict`` with the same signature the 409 path
-      // uses.  The graph field is best-effort empty here; the caller's
-      // ``onConflict`` handler only reads ``updated_ts`` for the alert.
-      autosave.markConflict({
-        code: "workflow_conflict",
-        message: "workflow was modified by another writer",
-        base_updated_ts: known ?? 0,
-        current: {
-          workflow_id: p.workflow_id,
-          name: p.name,
-          graph: { nodes: [], edges: [] },
-          created_ts: 0,
-          updated_ts: p.updated_ts,
-        },
-      });
-    };
-  }, [autosave, onLoad]);
 
   const isMobile = useIsMobilePortrait();
 
@@ -3241,7 +3067,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const canvasContentSlot = (
     <>
-      {workflowFileError && <div role="alert">配方文件无法打开，请检查文件与连接后重试。</div>}
+      {workflowFileError && <div role="alert">{workflowFileError}</div>}
+      {autosave.error && <div role="alert">{autosave.error}</div>}
+      {workflowMissing && <WorkflowFileRecovery id={workflowId ?? initialWorkflowId} mismatch={(workflowFileError + autosave.error).includes("id does not match")} onOpen={id => { setWorkflowMissing(false); void onLoad(id); }} />}
       <AnalysisProfiler><CanvasContext.Provider value={resolvedCanvasContext}>
         {viewingSnapshot ? (
           <>
@@ -3533,7 +3361,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     />
   );
 
-  const conflictDialog = <WorkflowConflictDialog summary={conflictSummary} open={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} />;
+  const conflictDialog = <WorkflowConflictDialog summary={conflictSummary} open={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} onReload={() => { autosave.discard(); window.location.reload(); }} />;
 
   // Mobile portrait: swap to the tab shell. Above the 900px breakpoint
   // ``isMobile`` is always false so this branch is dead code for

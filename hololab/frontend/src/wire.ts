@@ -91,6 +91,18 @@ export interface WorkflowUpdatedPayload {
   updated_ts: number;
   origin: string | null;
 }
+export interface WorkflowChangedPayload {
+  id: string;
+  rev: number;
+  name: string;
+  graph: WorkflowGraph;
+  request_id?: string | null;
+  path?: string | null;
+  missing: boolean;
+  rejected: boolean;
+  saved: boolean;
+  error?: string | null;
+}
 export interface JobUpdatePayload {
   job_id: string;
   state: string;

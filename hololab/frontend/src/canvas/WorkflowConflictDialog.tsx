@@ -1,17 +1,14 @@
 import { Modal } from "../ui/Modal";
 
-export function WorkflowConflictDialog({ open, onClose, summary }: { open: boolean; onClose: () => void; summary?: string }) {
+export function WorkflowConflictDialog({ open, onClose, onReload = () => window.location.reload(), summary }: { open: boolean; onClose: () => void; onReload?: () => void; summary?: string }) {
   return <Modal open={open} onClose={onClose} title="Workflow changed" maxWidth={560}>
     <p style={{ marginTop: 0, lineHeight: 1.6 }}>
-      {"This workflow was modified in another tab (or by an agent) after " +
-        "you opened it. Reload the page to see the fresh version; your " +
-        "unsaved edits will be lost. (Save is parked until you reload " +
-        "to protect the other writer's changes.)"}
+      并发编辑已按元素合并，本地修改的字段优先。你可以继续编辑，或重载放弃尚未确认的本地编辑。
     </p>
     {summary && <pre style={{whiteSpace:"pre-wrap"}}>{summary}</pre>}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
-      <button type="button" autoFocus onClick={onClose}>暂不刷新</button>
-      <button type="button" className="hl-button hl-button--primary" onClick={() => window.location.reload()}>重新加载</button>
+      <button type="button" autoFocus onClick={onClose}>继续编辑</button>
+      <button type="button" className="hl-button hl-button--primary" onClick={onReload}>重载放弃本地</button>
     </div>
   </Modal>;
 }

@@ -144,6 +144,7 @@ from hololab.protocol import (
     Register,
     RegisterErr,
     RegisterOk,
+    WorkflowChanged,
     WorkflowUpdated,
     decode,
     encode,
@@ -372,6 +373,77 @@ def create_app(
         )
         app.state.workflow_files = WorkflowFiles(app.state.workflows, root)
         app.state.workflows.workflow_files = app.state.workflow_files
+
+        async def workflow_file_changed(wid, document, rev):
+            metadata = await app.state.workflow_files.metadata(wid)
+            metadata.pop("id", None)
+            metadata.pop("rev", None)
+            app.state.hub.broadcast(
+                encode(
+                    "workflow_changed",
+                    WorkflowChanged(
+                        id=wid,
+                        rev=rev,
+                        name=document.name,
+                        graph=document.graph.model_dump(mode="json"),
+                        **metadata,
+                    ),
+                )
+            )
+
+        app.state.workflow_files.on_changed = workflow_file_changed
+
+        async def workflow_file_missing(wid, rev):
+            document = app.state.workflow_files.documents[wid]
+            metadata = await app.state.workflow_files.metadata(wid)
+            metadata.pop("id", None)
+            metadata.pop("rev", None)
+            app.state.hub.broadcast(
+                encode(
+                    "workflow_changed",
+                    WorkflowChanged(
+                        id=wid,
+                        rev=rev,
+                        name=document.name,
+                        graph=document.graph.model_dump(mode="json"),
+                        **metadata,
+                    ),
+                )
+            )
+
+        app.state.workflow_files.on_missing = workflow_file_missing
+
+        async def workflow_file_saved(wid, document, rev):
+            app.state.hub.broadcast(
+                encode(
+                    "workflow_changed",
+                    WorkflowChanged(
+                        id=wid,
+                        rev=rev,
+                        name=document.name,
+                        graph=document.graph.model_dump(mode="json"),
+                        saved=True,
+                    ),
+                )
+            )
+
+        async def workflow_file_save_error(wid, error):
+            document = app.state.workflow_files.documents[wid]
+            app.state.hub.broadcast(
+                encode(
+                    "workflow_changed",
+                    WorkflowChanged(
+                        id=wid,
+                        rev=app.state.workflow_files.revisions[wid],
+                        name=document.name,
+                        graph=document.graph.model_dump(mode="json"),
+                        error=error,
+                    ),
+                )
+            )
+
+        app.state.workflow_files.on_saved = workflow_file_saved
+        app.state.workflow_files.on_save_error = workflow_file_save_error
         await app.state.workflow_files.scan()
         app.state.workflow_files_task = asyncio.create_task(app.state.workflow_files.watch())
         if workflows_dir is None and (db_path is None or workflow_config_path is not None):
@@ -460,6 +532,7 @@ def create_app(
     @app.on_event("shutdown")
     async def _shutdown() -> None:
         app.state.workflow_files.stop_event.set()
+        await app.state.workflow_files.close()
         for attr in (
             "workflow_files_task",
             "workflow_config_task",
@@ -780,6 +853,13 @@ def _mount_routes(app: FastAPI) -> None:
 
         from hololab.protocol.messages import PathBrowseReq
 
+        if node_id == "gateway":
+            from hololab.node.path_browser import list_path
+
+            data = await asyncio.to_thread(list_path, path, prefix, offset, limit)
+            if data.get("error"):
+                raise HTTPException(data.get("status", 400), data["error"])
+            return {"node_id": node_id, **data}
         session = app.state.registry.get_session(node_id)
         if session is None:
             raise HTTPException(status_code=404, detail="Compute node is offline")
@@ -2356,9 +2436,78 @@ def _mount_routes(app: FastAPI) -> None:
                 raise ValueError("workflow id mismatch")
             async with app.state.workflow_files.lock:
                 await app.state.workflow_files.register(document, path)
+            await app.state.workflow_files.scan()
             return {"id": workflow_id, "path": str(path)}
         except (KeyError, ValueError, OSError) as exc:
             raise HTTPException(422, str(exc)) from exc
+
+    @app.post("/api/workflow-files/open", tags=["workflows"])
+    async def open_workflow_document(body: dict[str, Any]):
+        from hololab.gateway.workflow_files import read_document
+
+        files = app.state.workflow_files
+        try:
+            path = Path(body["path"]).expanduser().resolve()
+            document = read_document(path)
+            async with files.lock:
+                for wid, existing, _ in await files.entries():
+                    if wid == document.id and Path(existing) != path and Path(existing).exists():
+                        raise HTTPException(
+                            409, "duplicate workflow id; use relink or resolve the duplicate"
+                        )
+                    if wid != document.id and Path(existing) == path:
+                        if body.get("replace_id") != wid:
+                            raise HTTPException(
+                                409,
+                                {
+                                    "code": "workflow_id_mismatch",
+                                    "expected_id": wid,
+                                    "id": document.id,
+                                    "path": str(path),
+                                },
+                            )
+
+                        async def unlink_registration(conn, wid=wid):
+                            await conn.execute("DELETE FROM workflow_files WHERE id=?", (wid,))
+
+                        await files.store._db.write(unlink_registration)
+                await files.register(document, path)
+            await files.scan()
+            return {"id": document.id, "path": str(path)}
+        except (KeyError, OSError, ValueError) as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.post("/api/workflow-files/import-recipe", tags=["workflows"])
+    async def import_recipe_as_workflow_file(body: dict[str, Any]):
+        from hololab.gateway.recipe_files import RecipeDocument, graph_from_document
+
+        try:
+            document = RecipeDocument.model_validate(body)
+            files = app.state.workflow_files
+            return await files.create(files.root, document.name, graph_from_document(document))
+        except (ValueError, OSError) as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.post("/api/workflows/{workflow_id}/recreate", tags=["workflows"])
+    async def recreate_workflow_document(workflow_id: str):
+        from hololab.gateway.workflow_files import WorkflowDocument, write_document
+
+        files = app.state.workflow_files
+        async with files.lock:
+            entry = next((r for r in await files.entries() if r[0] == workflow_id), None)
+            if entry is None:
+                raise HTTPException(404, "workflow path not registered")
+            path = Path(entry[1])
+            if path.exists():
+                raise HTTPException(409, "path already exists; inspect its identity before opening")
+            cached = await files.store._get_cached(workflow_id)
+            document = WorkflowDocument(
+                id=workflow_id, name=cached.name if cached else path.stem, graph=WorkflowGraph()
+            )
+            write_document(path, document)
+            await files.register(document, path)
+        await files.scan()
+        return {"id": workflow_id, "path": str(path)}
 
     @app.put("/api/workflows/{workflow_id}/content", tags=["workflows"])
     async def put_workflow_content(workflow_id: str, body: dict[str, Any]):
@@ -2392,16 +2541,33 @@ def _mount_routes(app: FastAPI) -> None:
                 raise HTTPException(
                     422, "base_rev must be a nonnegative integer (reserved for Phase 2)"
                 )
+            if body["base_rev"] != files.revisions.get(workflow_id, 0):
+                raise HTTPException(409, "workflow revision changed")
             try:
                 document = WorkflowDocument(id=workflow_id, name=body["name"], graph=body["graph"])
+                task = files._save_tasks.pop(workflow_id, None)
+                if task:
+                    task.cancel()
                 write_document(path, document)
+                from hololab.gateway.workflow_files import serialize
+
+                files.documents[workflow_id] = document
+                files.disk_bytes[workflow_id] = serialize(document)
+                files.revisions[workflow_id] = files.revisions.get(workflow_id, 0) + 1
                 await files.register(document, path)
                 await files.store._save_cached(
                     workflow_id=workflow_id, name=document.name, graph=document.graph
                 )
             except (KeyError, ValueError, OSError) as exc:
                 raise HTTPException(422, str(exc)) from exc
-            return {"id": workflow_id, "path": str(path), "mtime": path.stat().st_mtime, "rev": 0}
+            if files.on_changed:
+                await files.on_changed(workflow_id, document, files.revisions[workflow_id])
+            return {
+                "id": workflow_id,
+                "path": str(path),
+                "mtime": path.stat().st_mtime,
+                "rev": files.revisions[workflow_id],
+            }
 
     @app.get(
         "/api/workflows/{workflow_id}",
@@ -5057,9 +5223,76 @@ async def _handle_frontend_socket(app: FastAPI, ws: WebSocket) -> None:
     pump_task = asyncio.create_task(hub.pump(sub))
     try:
         while True:
-            # We don't currently accept frames from the frontend; drain and
-            # ignore so the socket stays alive.
-            await ws.receive_text()
+            raw = await ws.receive_text()
+            try:
+                frame = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if frame.get("kind") != "workflow_edit":
+                continue
+            payload = frame.get("payload", frame)
+            try:
+                wid, base_rev, ops = payload["id"], payload["base_rev"], payload["ops"]
+                if (
+                    not isinstance(wid, str)
+                    or type(base_rev) is not int
+                    or not isinstance(ops, list)
+                ):
+                    raise ValueError("workflow_edit requires id, integer base_rev and ops array")
+                accepted, document, rev, error = await app.state.workflow_files.edit(
+                    wid, base_rev, ops
+                )
+                metadata = await app.state.workflow_files.metadata(wid)
+                metadata.pop("id", None)
+                metadata.pop("rev", None)
+                changed = encode(
+                    "workflow_changed",
+                    WorkflowChanged(
+                        id=wid,
+                        rev=rev,
+                        name=document.name,
+                        graph=document.graph.model_dump(mode="json"),
+                        rejected=not accepted,
+                        error=error,
+                        request_id=payload.get("request_id"),
+                        **metadata,
+                    ),
+                )
+                if accepted:
+                    hub.broadcast(changed)
+                else:
+                    sub.queue.put_nowait(changed)
+            except FileNotFoundError:
+                sub.queue.put_nowait(
+                    encode(
+                        "workflow_changed",
+                        WorkflowChanged(
+                            id=payload.get("id", ""),
+                            rev=0,
+                            name="",
+                            graph={},
+                            missing=True,
+                            rejected=True,
+                            error="workflow file missing",
+                            request_id=payload.get("request_id"),
+                        ),
+                    )
+                )
+            except (KeyError, ValueError) as exc:
+                sub.queue.put_nowait(
+                    encode(
+                        "workflow_changed",
+                        WorkflowChanged(
+                            id=payload.get("id", ""),
+                            rev=0,
+                            name="",
+                            graph={},
+                            rejected=True,
+                            error=str(exc),
+                            request_id=payload.get("request_id"),
+                        ),
+                    )
+                )
     except WebSocketDisconnect:
         pass
     except Exception as exc:

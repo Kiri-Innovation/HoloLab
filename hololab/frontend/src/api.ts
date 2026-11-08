@@ -10,6 +10,8 @@ import type { EnvironmentReport } from "./canvas/EnvironmentChecks";
 
 import { pLimit, resilientFetch } from "./net";
 import { newId } from "./newId";
+import {editWorkflowFile} from './canvas/editWorkflowFile';
+import {diffDocument} from './canvas/workflowPatch';
 import type {
   CatalogPack,
   ComputeNode,
@@ -281,6 +283,9 @@ export const getWorkflow = (workflow_id: string) =>
       workflow_id: string;
       name: string;
       graph: WorkflowGraph;
+      path: string | null;
+      missing: boolean;
+      rev: number;
       created_ts: number;
       updated_ts: number;
     }>,
@@ -521,18 +526,12 @@ export const deleteSnapshot = (snapshot_id: string) =>
     json<SnapshotDeleteResult>,
   );
 
-export const restoreFromSnapshot = (workflow_id: string, snapshot_id: string) =>
-  resilientFetch(
-    `/api/workflows/${workflow_id}/restore-from-snapshot/${snapshot_id}`,
-    { method: "POST" },
-  ).then(
-    json<{
-      workflow_id: string;
-      name: string;
-      restored_from_snapshot_id: string;
-      updated_ts: number;
-    }>,
-  );
+export const restoreFromSnapshot = async (workflow_id: string, snapshot_id: string) => {
+  const [current,snapshot]=await Promise.all([getWorkflow(workflow_id),getSnapshot(snapshot_id)]);
+  if(snapshot.workflow_id!==workflow_id)throw Error('snapshot belongs to a different workflow');
+  const ops=diffDocument(current,{name:current.name,graph:snapshot.graph});
+  if(ops.length)await editWorkflowFile(workflow_id,current.rev,ops);
+};
 
 export const rerunFromNode = (snapshot_id: string, graph_node_id: string) =>
   resilientFetch(

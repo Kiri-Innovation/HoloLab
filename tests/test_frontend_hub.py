@@ -91,3 +91,48 @@ def test_frontend_ws_connects_and_receives_broadcast(tmp_path: Path) -> None:
         received = ws.receive_text()
         assert "job_update" in received
         assert "demo-echo" in received
+
+
+def test_workflow_edit_broadcasts_and_rejects_stale_revision(tmp_path: Path) -> None:
+    """Structured file patches ACK all subscribers with authoritative state."""
+    from hololab.gateway.workflow_files import WorkflowDocument, write_document
+    from hololab.gateway.workflows import WorkflowGraph
+
+    root = tmp_path / "documents"
+    root.mkdir()
+    write_document(
+        root / "one.workflow", WorkflowDocument(id="one", name="before", graph=WorkflowGraph())
+    )
+    app = create_app(db_path=tmp_path / "test.sqlite", workflows_dir=root)
+    with (
+        TestClient(app) as client,
+        client.websocket_connect("/ws/frontend") as first,
+        client.websocket_connect("/ws/frontend") as second,
+    ):
+        first.send_json(
+            {
+                "kind": "workflow_edit",
+                "payload": {
+                    "id": "one",
+                    "base_rev": 0,
+                    "ops": [{"op": "name.set", "value": "after"}],
+                },
+            }
+        )
+        one, two = json.loads(first.receive_text()), json.loads(second.receive_text())
+        assert one["kind"] == two["kind"] == "workflow_changed"
+        assert one["payload"]["name"] == two["payload"]["name"] == "after"
+        assert one["payload"]["rev"] == 1
+        second.send_json(
+            {
+                "kind": "workflow_edit",
+                "payload": {
+                    "id": "one",
+                    "base_rev": 0,
+                    "ops": [{"op": "name.set", "value": "lost"}],
+                },
+            }
+        )
+        rejected = json.loads(second.receive_text())
+        assert rejected["payload"]["rejected"] is True
+        assert rejected["payload"]["name"] == "after"

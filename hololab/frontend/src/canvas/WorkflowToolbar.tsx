@@ -3,8 +3,8 @@ import "./workflowToolbar.css";
 import { RecipeFileActions } from "./RecipeFileActions";
 // Top bar: workflow name + autosave status pill + Run button.
 //
-// The classic Save button has been retired — the draft autosaves 800 ms
-// after any user edit (see ``useDraftAutosave``). ``saveStatus`` +
+// Edits stream immediately over WS; the gateway debounces disk writes
+// for 800 ms (see ``useWorkflowFile``). ``saveStatus`` +
 // ``onSaveRetry`` drive the pill that replaces it: quiescent when
 // nothing's changed, ``Saving…`` mid-request, ``Save failed · Retry``
 // on network error (click to reattempt), etc.
