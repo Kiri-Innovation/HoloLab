@@ -1920,16 +1920,16 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     if (!rfInstance || !trackpadNavigation) return;
     const onWheel = (event: WheelEvent) => {
       if (!event.target || keepsExistingWheelBehavior(event.target)) return;
-      const pane = event.target instanceof Element && event.target.closest(".react-flow__pane");
-      if (!pane || !shouldPanWheel(trackpadNavigation, event)) return;
+      const flow = event.target instanceof Element && event.target.closest(".react-flow");
+      if (!flow || !shouldPanWheel(trackpadNavigation, event)) return;
 
       event.preventDefault();
       event.stopImmediatePropagation();
       const viewport = rfInstance.getViewport();
       // Match React Flow's scroll direction/speed. deltaMode only specifies
       // units (pixels, lines, pages); it never selects a navigation behaviour.
-      const unitX = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? pane.clientWidth : 1;
-      const unitY = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? pane.clientHeight : 1;
+      const unitX = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? flow.clientWidth : 1;
+      const unitY = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? flow.clientHeight : 1;
       void rfInstance.setViewport({
         ...viewport,
         x: viewport.x - event.deltaX * unitX * 0.5,
@@ -3295,7 +3295,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             proOptions={{ hideAttribution: true }}
           >
             <FrameSelectedShortcut nodeId={selectedNode?.id ?? null} />
-            <CanvasControls trackpadNavigation={trackpadNavigation}
+            <CanvasControls className="nowheel" trackpadNavigation={trackpadNavigation}
               onToggleTrackpadNavigation={() => setTrackpadNavigation(current => !current)} />
             <CanvasToastAnchor />
             <Panel
@@ -3307,7 +3307,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 onToggle={() => setMinimapOpen((o) => !o)}
               />
             </Panel>
-            {minimapOpen && <MiniMap pannable />}
+            {minimapOpen && <MiniMap className="nowheel" pannable />}
             <Background gap={20} color="var(--rf-grid)" />
           </ReactFlow>
           </CapabilityContext.Provider>

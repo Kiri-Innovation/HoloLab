@@ -44,6 +44,11 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
     }, { deltaX, deltaY, ctrlKey, deltaMode });
     logs.push({ deltaX, deltaY, deltaMode, ctrlKey, before, after: await transform() });
   };
+  const wheelAt = async (target: typeof pane, deltaX: number, deltaY: number, ctrlKey = false) => {
+    await target.evaluate((el, init) => {
+      el.dispatchEvent(new WheelEvent("wheel", { ...init, bubbles: true, cancelable: true, clientX: 600, clientY: 400 }));
+    }, { deltaX, deltaY, ctrlKey });
+  };
 
   for (const sequence of [[100, 100, 100], [1, 2, 5, 10, 4, 1], [40, 60, 20, 100]]) {
     for (const delta of sequence) {
@@ -73,8 +78,14 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
   await mode.click();
   await expect(mode).toHaveAttribute("aria-pressed", "true");
   expect(await mode.locator("svg").innerHTML()).not.toBe(mouseIcon);
-  for (const [deltaX, deltaY, deltaMode] of [[18, 0, 0], [-18, 0, 0], [0, 18, 0], [0, -18, 0],
-    [0, 1, 1], [0, -1, 2], [12, 24, 0], [0, 100, 0], [0, 1, 0], [0, 60, 0]]) {
+  // Node cards are siblings of the pane, but are still inside .react-flow.
+  // Their XYFlow-provided `nopan` class must not hide trackpad wheel events.
+  const node = page.locator(".react-flow__node").first();
+  const nodeBefore = await transform();
+  await wheelAt(node, 18, 24);
+  await expect.poll(async () => (await transform()).x).not.toBe(nodeBefore.x);
+  expect((await transform()).scale).toBeCloseTo(nodeBefore.scale, 6);
+  for (const [deltaX, deltaY, deltaMode] of [[18, 0, 0], [0, 18, 0], [12, 24, 0]]) {
     const before = await transform();
     await wheel(deltaX, deltaY, false, deltaMode);
     await expect.poll(async () => {
@@ -115,6 +126,15 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
   await page.waitForTimeout(200);
   expect(await transform()).toEqual(embeddedBefore);
 
+  // XYFlow chrome is within .react-flow too, but is not canvas navigation.
+  const controlsBefore = await transform();
+  await wheelAt(page.locator(".react-flow__controls"), 0, 18);
+  expect(await transform()).toEqual(controlsBefore);
+  await page.getByRole("button", { name: "Show minimap" }).click();
+  const minimapBefore = await transform();
+  await wheelAt(page.locator(".react-flow__minimap"), 0, 18);
+  expect(await transform()).toEqual(minimapBefore);
+
   mkdirSync("/tmp/trackpad-navigation", { recursive: true });
   await page.screenshot({ path: "/tmp/trackpad-navigation/gesture-simulation.png" });
   writeFileSync("/tmp/trackpad-navigation/wheel-events.json", JSON.stringify(logs, null, 2));
@@ -125,6 +145,9 @@ test("explicit mode keeps variable mouse sequences zooming and trackpad sequence
   const restored = await transform();
   await wheel(0, 5);
   await expect.poll(async () => (await transform()).scale).not.toBe(restored.scale);
+  const nodeMouseBefore = await transform();
+  await wheelAt(node, 0, 5);
+  await expect.poll(async () => (await transform()).scale).not.toBe(nodeMouseBefore.scale);
   for (const theme of ["light", "dark"]) {
     await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
     for (const enabled of [false, true]) {

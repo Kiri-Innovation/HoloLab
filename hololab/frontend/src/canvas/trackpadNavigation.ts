@@ -8,6 +8,10 @@ export function shouldPanWheel(enabled: boolean, event: Pick<WheelEvent, "ctrlKe
 
 /** Elements whose existing wheel contract must take precedence over canvas panning. */
 export function keepsExistingWheelBehavior(target: EventTarget | null): boolean {
-  return target instanceof Element
-    && Boolean(target.closest(".nowheel, .nopan, .hl-preview-drawer"));
+  if (!(target instanceof Element)) return false;
+  const protectedAncestor = target.closest(".nowheel, .nopan, .hl-preview-drawer");
+  // XYFlow adds `nopan` to every draggable node wrapper. That marker only
+  // controls drag-to-pan, not the node card's wheel contract; nested `nopan`
+  // controls (including pinned parameters) still retain their own behavior.
+  return Boolean(protectedAncestor && !protectedAncestor.matches(".react-flow__node.nopan"));
 }
