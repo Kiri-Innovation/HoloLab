@@ -74,21 +74,34 @@ TAG_VIEWER_REGISTRY: dict[str, OutputPreview] = {
 def infer_preview_for_output(
     explicit_preview: OutputPreview | None,
     tags: list[str],
+    storage: str | None = None,
 ) -> OutputPreview | None:
-    """Return the preview spec for one output port.
+    """Resolve declaration-owned defaults and historical preview precedence."""
+    from hololab.type_registry import registry
 
-    Explicit manifest declaration wins; otherwise the first tag with a
-    registry entry supplies the default. Returns ``None`` when nothing
-    matches — that port has no preview drawer.
-    """
-
-    if explicit_preview is not None:
-        return explicit_preview
-    for tag in tags:
-        from hololab.type_registry import registry
-        definition = registry.get(tag)
-        value = definition.declaration.get("preview") if definition else None
-        registered = OutputPreview(**value) if value else None
-        if registered is not None:
-            return registered
-    return None
+    definitions = [d for tag in tags if (d := registry.get(tag)) is not None]
+    preview = explicit_preview
+    if preview is None:
+        for definition in definitions:
+            value = definition.declaration.get("preview")
+            if value:
+                preview = OutputPreview(**value)
+                break
+    # Terminal renderer behavior used to precede every browser intercept.
+    registry.refresh()
+    for definition in registry.definitions.values():
+        value = definition.declaration.get("preview", {})
+        if definition.declaration.get("preview_terminal") and preview and preview.viewer == value.get("viewer"):
+            options = {}
+            for matched in definitions:
+                options.update(matched.declaration.get("preview", {}).get("options", {}))
+            return preview.model_copy(update={"options": {**options, **preview.options}})
+    rules = sorted((d.declaration["preview_rule"] for d in definitions if "preview_rule" in d.declaration), key=lambda rule: rule["order"])
+    for rule in rules:
+        if storage is not None and rule.get("storage") not in (None, storage):
+            continue
+        override = rule.get("override", "missing")
+        if preview is not None and override != "any" and not (override == "text" and preview.viewer == "text"):
+            continue
+        return OutputPreview(**rule["preview"])
+    return preview

@@ -16,3 +16,10 @@ dispatch:
 element: file
 check_declaration: hololab.manifest.data_contract:_check_image_declaration
 validate_leaf: hololab.manifest.data_contract:_check_image_leaf
+preview_rule:
+  order: 40
+  override: any
+  preview:
+    viewer: image
+    options:
+      image_type: true

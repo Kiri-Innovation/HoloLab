@@ -1,0 +1,8 @@
+kind: Type
+name: rig_points4d
+preview_rule:
+  order: 90
+  override: any
+  preview:
+    viewer: rig-points4d
+  storage: dir

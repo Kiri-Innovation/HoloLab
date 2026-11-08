@@ -1,0 +1,8 @@
+kind: Type
+name: rig_extrinsics
+preview_rule:
+  order: 80
+  override: any
+  preview:
+    viewer: rig-extrinsics
+  storage: dir

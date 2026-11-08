@@ -37,63 +37,6 @@ export interface ExpandablePort {
   kind: ExpandKind;
 }
 
-// Tags for which the frontend intercepts Preview() dispatch and picks
-// its own viewer regardless of what the backend's tag_viewers.py
-// registered (or didn't). Kept in one place so a new frontend-driven
-// tag family only has to touch two spots: this set + the intercept
-// clause in previews.tsx's Preview() function. Rolling upgrades where
-// the running gateway hasn't ingested a new tag_viewers.py entry
-// yet — like ``colmap-cams`` at the time of writing — still get the
-// caret because this promotion looks at the port's ``tags`` directly.
-const FRONTEND_VIEWER_TAGS = new Set<string>([
-  "colmap4d",
-  "colmap4d-cams",
-  "splatv",
-  "ftgsply",
-  "ply-3dgs",
-  "image",
-  "colmap-cams",
-  // ``point-cloud`` is the 2026-09-22 type-system refactor's canonical
-  // tag for triangulated points; ``colmap-points`` was the retired
-  // predecessor (colmap-triangulate@0.1.0). Both route to
-  // ColmapPointsPreview in previews.tsx.
-  "point-cloud",
-  "colmap-points",
-  // ``colmap-folder`` is the 2026-09-22 refactor's canonical tag for a
-  // self-contained COLMAP folder (sparse/0/ + optional images/), emitted
-  // by merge-colmap@0.2.0/0.3.0 (which also carries ``colmap`` as a
-  // legacy compat alias so stg-train@0.2.0 accepts the edge without a
-  // manifest bump). ``colmap-frame`` is the retired
-  // colmap-triangulate@0.3.0 tag. All three route to ColmapFramePreview.
-  "colmap-folder",
-  "colmap",
-  "colmap-frame",
-  // Rig chain — iframe/ColmapUtil previews. rig_extrinsics is the
-  // post-BA rig model; rig_points4d is the per-group triangulation.
-  "rig_extrinsics",
-  "rig_points4d",
-  // Exposure-timeline diagnostic figure (moved from k4d/rig-frame-extraction to
-  // k4d/rig-temporal-grouping@0.1.1, where the buckets are actual data).
-  "rig_timeline",
-  // rig-capture-source's per-alias camera dirs — 7-tile video grid.
-  "rig_capture",
-  // Per-alias JPEG tree from k4d/rig-frame-extraction / k4d/rig-temporal-grouping.
-  // Rendered as arrayed<arrayed<image>> via NestedFrameSequencePreview.
-  "rig_frames",
-  // Per-group directory tree from k4d/rig-temporal-grouping@0.1.2 — element =
-  // one time bucket, children = the participating aliases' JPEGs. Same
-  // NestedFrameSequencePreview shape (element/image tree).
-  "rig_frames_grouped",
-]);
-
-function hasFrontendViewerTag(tags: string[] | undefined): boolean {
-  if (!tags) return false;
-  for (const t of tags) {
-    if (FRONTEND_VIEWER_TAGS.has(t)) return true;
-  }
-  return false;
-}
-
 function expandableOutputs(
   pack: CatalogPack,
   previews: Record<string, PreviewTarget> | undefined,
@@ -107,18 +50,9 @@ function expandableOutputs(
   const infos: ExpandablePort[] = [];
   for (const [name, spec] of Object.entries(pack.outputs)) {
     const target = previews?.[name] ?? null;
-    // A port becomes a viewer when EITHER the pack pre-declared one, OR
-    // the pack's manifest tags map to a frontend intercept, OR the
-    // runtime handle resolved a preview / a frontend-viewer tag. The
-    // last clause is what makes generic ports (``regroup.out``:
-    // ``tags: [any]`` + ``preview: null`` at catalog time) still open
-    // as a viewer once their runtime tag lands as ``["image"]`` — the
-    // backend's ``tag_viewers`` resolver has already turned that into a
-    // real preview spec on ``target.preview``.
-    const staticViewer = spec.preview || hasFrontendViewerTag(spec.tags);
-    const runtimeViewer = Boolean(
-      target && (target.preview || hasFrontendViewerTag(target.tags)),
-    );
+    // Backend type declarations own both static and runtime viewer selection.
+    const staticViewer = spec.preview;
+    const runtimeViewer = Boolean(target?.preview);
     if (staticViewer || runtimeViewer) {
       viewers.push({ name, spec, target, kind: "viewer" });
     } else if (target) {

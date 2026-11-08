@@ -1,0 +1,8 @@
+kind: Type
+name: colmap-frame
+preview_rule:
+  order: 70
+  override: any
+  preview:
+    viewer: colmap-frame
+  storage: dir

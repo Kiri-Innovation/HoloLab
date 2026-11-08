@@ -3,3 +3,10 @@ name: colmap4d
 preview:
   viewer: colmap4d
   member: sparse/0
+preview_rule:
+  order: 0
+  override: missing
+  preview:
+    viewer: colmap4d
+    member: sparse/0
+preview_terminal: true

@@ -2,3 +2,9 @@ kind: Type
 name: ply-3dgs
 preview:
   viewer: ply-3dgs
+preview_rule:
+  order: 30
+  override: text
+  preview:
+    viewer: ply-3dgs
+  storage: file

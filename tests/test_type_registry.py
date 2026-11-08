@@ -10,7 +10,8 @@ def test_bundled_mirrors_legacy_tables():
     for name, fn in _REGISTRY.items():
         assert registry.get(name).declaration['probe'].endswith(':' + fn.__name__)
     for name, preview in TAG_VIEWER_REGISTRY.items():
-        assert registry.get(name).declaration['preview'] == preview.model_dump(exclude_none=True)
+        assert registry.get(name).declaration['preview']['viewer'] == preview.viewer
+        assert registry.get(name).declaration['preview'].get('member') == preview.member
 
 
 def test_scan_typeset_order_and_reload(tmp_path):

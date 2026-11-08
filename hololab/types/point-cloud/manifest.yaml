@@ -1,3 +1,9 @@
 kind: Type
 name: point-cloud
 probe: hololab.gateway.tag_probes:_probe_point_cloud
+preview_rule:
+  order: 60
+  override: any
+  preview:
+    viewer: colmap-points
+  storage: dir

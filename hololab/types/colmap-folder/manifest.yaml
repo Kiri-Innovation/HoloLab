@@ -1,3 +1,9 @@
 kind: Type
 name: colmap-folder
 probe: hololab.gateway.tag_probes:_probe_colmap_folder
+preview_rule:
+  order: 70
+  override: any
+  preview:
+    viewer: colmap-frame
+  storage: dir

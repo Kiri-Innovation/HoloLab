@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, model_serializer
 
 from hololab.manifest.array_views import TypeCapability, reject_port_capabilities
 from hololab.manifest.requirements import Requirements
@@ -189,18 +189,20 @@ class OutputPreview(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    viewer: Literal[
-        "colmap4d",
-        "splatv",
-        "ftgsply",
-        "ply-3dgs",
-        "lagsplat",
-        "video",
-        "image",
-        "text",
-        "video-grid",
-    ]
+    viewer: str
+    options: dict[str, Any] = Field(default_factory=dict)
+    entry: str | None = None
     member: str | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_preview(self, handler):
+        value = handler(self)
+        if not self.options:
+            value.pop("options", None)
+        if self.entry is None:
+            value.pop("entry", None)
+        return value
+
 
 
 class OutputSpec(BaseModel):

@@ -217,10 +217,9 @@ export function Preview({
   partial,
   refreshToken = 0,
 }: PreviewProps) {
-  // The explicit declaration wins; tag fallback also supports pre-upgrade handles.
-  if (spec?.viewer === "colmap4d" || (!spec && tags?.some(tag => tag === "colmap4d" || tag === "colmap4d-cams"))) {
+  if (spec?.viewer === "colmap4d") {
     if (storage !== "dir") return <Status text="colmap4d preview requires a directory" kind="error" />;
-    const camsOnly = tags?.includes("colmap4d-cams");
+    const camsOnly = Boolean(spec.options?.cams_only);
     const render = (url: string) => <Colmap4DPreview key={url}
       camsOnly={camsOnly}
       baseUrl={colmap4dUrl(url, spec?.member ?? (camsOnly ? "." : "sparse/0"))}
@@ -229,31 +228,20 @@ export function Preview({
       ? <ArrayedPaginator baseUrl={baseUrl} handleId={handleId} partial={partial} dimLabels={dimLabels} renderScalar={render} />
       : render(baseUrl);
   }
-  // Existing handles/older running gateways may not yet carry inferred specs.
-  // A historical explicit ``text`` spec must not override the data class of
-  // a known binary artifact.  Some already-published STG manifests predate
-  // tag-viewer inference; decoding their model bytes with TextPreview turns
-  // a stale declaration into mojibake. These intercepts only supersede
-  // ``text``; every other explicit pack override retains its precedence.
-  if ((!spec || spec.viewer === "text") && tags?.includes('splatv') && storage === 'file') {
+  if (spec?.viewer === "splatv" && storage === 'file') {
     return <SplatvPreview url={baseUrl} />;
   }
-  if ((!spec || spec.viewer === "text") && tags?.includes('ftgsply') && storage === 'file') {
+  if (spec?.viewer === "ftgsply" && storage === 'file') {
     return <GaussianScenePreview url={baseUrl} ftgsPly />;
   }
-  if ((!spec || spec.viewer === "text") && tags?.includes('ply-3dgs') && storage === 'file') {
+  if (spec?.viewer === "ply-3dgs" && storage === 'file') {
     return <GaussianScenePreview url={baseUrl} />;
   }
-  // Image is one file. Only explicit collections use sequence viewers.
-  if (tags?.includes("image") && storage === "file") {
+  if (spec?.viewer === "image" && spec.options?.image_type && storage === "file") {
     const separator = baseUrl.includes("?") ? "&" : "?";
     return <ImagePreview url={refreshToken ? `${baseUrl}${separator}refresh=${refreshToken}` : baseUrl} />;
   }
-  if (tags?.includes("image") && storage === "dir" && arrayed) {
-    // A fan-out's aggregate handle does not exist until every shard has
-    // finished. Its completed shard directories are nevertheless complete
-    // image sequences, so page through those immediately instead of asking
-    // the nested aggregate viewer to summarise an absent handle.
+  if (spec?.viewer === "image" && spec.options?.image_type && storage === "dir" && arrayed) {
     if (partial) {
       return <ArrayedPaginator
         baseUrl={baseUrl}
@@ -266,37 +254,14 @@ export function Preview({
       ? <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />
       : <FrameStripPreview baseUrl={baseUrl} handleId={handleId} />;
   }
-  // ``colmap-cams`` — COLMAP sparse reconstruction (cameras.txt +
-  // images.txt in a dir handle). Renders inside an iframe backed by
-  // the vendored ColmapUtil build (see
-  // ``vendor/HOLOLAB_VENDORED.md``). We route by tag so
-  // packs producing this type never need to declare a viewer, matching
-  // the image-array pattern above.
   if (
-    tags &&
-    tags.includes("colmap-cams") &&
+    spec?.viewer === "colmap-cams" &&
     storage === "dir"
   ) {
     return <ColmapCamsPreview baseUrl={baseUrl} />;
   }
-  // ``point-cloud`` (2026-09-22 type-system refactor) / ``colmap-points``
-  // (legacy) — triangulated point cloud (``points3D.txt`` in a dir
-  // handle). Same iframe/ColmapUtil pipeline as colmap-cams but the
-  // reverse file-substitution: real points, empty cameras/images.
-  //
-  // Producer surface:
-  //   * ``point-cloud`` — ``colmap-sfm@0.3.0.points`` (scalar) and
-  //     ``colmap-triangulate@0.7.0.points`` (aggregate:
-  //     ``arrayed<point-cloud>[frame]``).
-  //   * ``colmap-points`` — retired ``colmap-triangulate@0.1.0`` output;
-  //     kept in the intercept so historical snapshots still preview.
-  //
-  // The arrayed form uses ``ArrayedPaginator`` (same as the legacy
-  // ``colmap-points`` path did) so the user can page through per-frame
-  // clouds. Both tags route to the same ``ColmapPointsPreview``.
   if (
-    tags &&
-    (tags.includes("point-cloud") || tags.includes("colmap-points")) &&
+    spec?.viewer === "colmap-points" &&
     storage === "dir"
   ) {
     if (arrayed) {
@@ -315,33 +280,8 @@ export function Preview({
     }
     return <ColmapPointsPreview baseUrl={baseUrl} />;
   }
-  // ``colmap-folder`` (2026-09-22 type-system refactor) / ``colmap`` /
-  // ``colmap-frame`` (legacy) — self-contained COLMAP folder: sparse/0/
-  // {cameras,images,points3D}.{bin,txt} + optional images/ (undistorted).
-  //
-  // Producer surface:
-  //   * ``colmap-folder`` — ``merge-colmap@0.2.0/0.3.0.folder``
-  //     (aggregate: ``arrayed<colmap-folder>[frame]`` when merge is
-  //     arrayable at 0.2/0.3). Same on-disk shape as the legacy
-  //     ``colmap`` / ``colmap-frame`` handles so ``ColmapFramePreview``
-  //     (with its ``sparse/0/`` sub-path + ``images/`` frustum
-  //     thumbnails) is reused verbatim.
-  //   * ``colmap`` — ``colmap-triangulate@0.4.0+`` output (still emitted
-  //     as a compat alias by ``merge-colmap@0.2.0/0.3.0.folder`` so
-  //     ``stg-train@0.2.0.colmap_frames`` accepts the edge without a
-  //     manifest bump on its side).
-  //   * ``colmap-frame`` — retired ``colmap-triangulate@0.3.0`` output;
-  //     kept in the intercept so historical snapshots still preview.
-  //
-  // The full triple-fetch (cameras+images+points3D) gives genuine
-  // frustum wireframes on top of the triangulated point cloud —
-  // a richer view than the point-cloud viewer (which only has points).
-  // The arrayed form wraps the scalar viewer with ``ArrayedPaginator``.
   if (
-    tags &&
-    (tags.includes("colmap-folder") ||
-      tags.includes("colmap") ||
-      tags.includes("colmap-frame")) &&
+    spec?.viewer === "colmap-frame" &&
     storage === "dir"
   ) {
     if (arrayed) {
@@ -360,75 +300,32 @@ export function Preview({
     }
     return <ColmapFramePreview baseUrl={baseUrl} />;
   }
-  // ``rig_extrinsics`` — rig-calibration ships a COLMAP model at
-  // ``sparse_phase2_txt/{cameras,images,points3D}.txt`` (post phase-2
-  // BA, converted to text). Reuses Colmap3DPreview to show the 7-cam
-  // frustums + triangulated points that the mapper produced.
   if (
-    tags &&
-    tags.includes("rig_extrinsics") &&
+    spec?.viewer === "rig-extrinsics" &&
     storage === "dir"
   ) {
     return <RigExtrinsicsPreview baseUrl={baseUrl} />;
   }
-  // ``rig_points4d`` — rig-group-triangulation ships one COLMAP model
-  // per time-group under ``work/group_NNNN/text/``. The top-level dir
-  // isn't an arrayed handle (it's a scalar dir with per-group subdirs),
-  // so ArrayedPaginator doesn't fit; this viewer reads
-  // ``groups_manifest.json`` for the group list and pages through the
-  // per-group models.
   if (
-    tags &&
-    tags.includes("rig_points4d") &&
+    spec?.viewer === "rig-points4d" &&
     storage === "dir"
   ) {
     return <RigPoints4dPreview baseUrl={baseUrl} />;
   }
-  // ``rig_timeline`` — the exposure-timeline diagnostic figure produced
-  // by ``k4d/rig-temporal-grouping@0.1.1`` (previously briefly emitted by
-  // ``k4d/rig-frame-extraction@0.1.1``; moved because the bucket edges only
-  // become real data once grouping has run). Shows the static PNG with a
-  // corner link to the interactive HTML (plotly) for hover tooltips + zoom.
   if (
-    tags &&
-    tags.includes("rig_timeline") &&
+    spec?.viewer === "rig-timeline" &&
     storage === "dir"
   ) {
     return <RigTimelinePreview baseUrl={baseUrl} />;
   }
-  // ``rig_frames`` — per-alias JPEG tree produced by
-  // ``k4d/rig-frame-extraction`` and passed through by ``k4d/rig-temporal-grouping``.
-  // Layout: ``<parent>/<alias>/NNNNNN.jpg`` — the classic
-  // ``arrayed<arrayed<image>>`` shape that ``NestedFrameSequencePreview``
-  // handles natively (with element = alias, image = frame).
   if (
-    tags &&
-    tags.includes("rig_frames") &&
+    spec?.viewer === "nested-images" &&
     storage === "dir"
   ) {
     return <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />;
   }
-  // ``rig_frames_grouped`` — per-bucket directory tree from
-  // k4d/rig-temporal-grouping@0.1.2. Layout ``<parent>/gNNNNNN/<alias>.jpg`` +
-  // ``<parent>/gNNNNNN/group.json`` — same ``arrayed<arrayed<image>>``
-  // shape (element = group dir, image children = the participating cams),
-  // so the existing viewer paints one card per group with a stack of
-  // its cameras' thumbnails.  ``group.json`` sits next to the JPEGs and
-  // is ignored by ``SEQUENCE_IMG_RE``.
   if (
-    tags &&
-    tags.includes("rig_frames_grouped") &&
-    storage === "dir"
-  ) {
-    return <NestedFrameSequencePreview baseUrl={baseUrl} handleId={handleId} />;
-  }
-  // ``rig_capture`` — rig-capture-source's per-alias camera dirs
-  // (``camN/<orig-timestamp>.mp4`` + sidecars). Renders a
-  // multi-camera video grid on the builtin/video-array-source pattern, with
-  // one tile per rig camera labelled by its alias.
-  if (
-    tags &&
-    tags.includes("rig_capture") &&
+    spec?.viewer === "rig-capture" &&
     storage === "dir"
   ) {
     if (!handleId) {
@@ -442,24 +339,14 @@ export function Preview({
       <VideoGridPreview
         baseUrl={baseUrl}
         handleId={handleId}
-        // ``filterEntries`` already flattens ``<alias>/<file>``, drops
-        // the top-level ``manifest.json``/``rig_map.json``/``set_name.txt``
-        // via ``isVideoName``, and drops per-alias ``*.jsonl`` sidecars for
-        // the same reason. No explicit glob needed.
         memberGlob={undefined}
         dirAbsolutePath={absolutePath}
         producingNode={producingNode}
-        // Alias is the first path segment (``cam0/2026-…mp4`` → ``cam0``).
         entryLabel={(name) => name.split("/", 1)[0] || null}
       />
     );
   }
 
-  // No tag intercept matched and the caller didn't hand us a spec.
-  // Happens when a port has a frontend-driven tag (e.g. colmap-cams)
-  // for a non-``dir`` storage form the intercepts don't cover, or a
-  // future tag was added to FRONTEND_VIEWER_TAGS without a matching
-  // intercept clause below. Render an error pill rather than crashing.
   if (!spec) {
     return (
       <div style={PREVIEW_SHELL}>
@@ -515,7 +402,7 @@ export function Preview({
       // tsc rejects the assignment to ``never`` and the build fails.
       // Runtime still renders a labelled error (in case a *server*
       // rolls out a new viewer name before the frontend does).
-      const unhandled: never = spec.viewer;
+      const unhandled = spec.viewer;
       return (
         <div style={PREVIEW_SHELL}>
           <Status text={`unknown viewer: ${unhandled as string}`} kind="error" />

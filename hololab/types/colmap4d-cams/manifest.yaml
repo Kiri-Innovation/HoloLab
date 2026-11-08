@@ -3,3 +3,14 @@ name: colmap4d-cams
 preview:
   viewer: colmap4d
   member: .
+  options:
+    cams_only: true
+preview_rule:
+  order: 0
+  override: missing
+  preview:
+    viewer: colmap4d
+    member: .
+    options:
+      cams_only: true
+preview_terminal: true

@@ -718,7 +718,7 @@ class NodeRegistry:
                                     inferred.model_dump(mode="json")
                                     if (
                                         inferred := infer_preview_for_output(
-                                            s.preview, list(s.tags)
+                                            s.preview, list(s.tags), s.storage.value
                                         )
                                     )
                                     is not None

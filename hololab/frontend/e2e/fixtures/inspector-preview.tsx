@@ -15,10 +15,10 @@ const query=new URLSearchParams(location.search);
 const mode=query.get('mode') || 'default';
 document.documentElement.dataset.theme=query.get('theme') || 'light';
 const custom=['custom','hidden','legacy'].includes(mode);
-const pack:any={name:'preview-test',version:'1.0.0',node_ids:['compute'],manifest_hash:'fixture',description:'Preview policy regression fixture',params:{amount:{type:'int',default:1}},inputs:{},outputs:{result:{tags:mode==='unsupported'?['opaque']:['image'],arrayed:false,dim_labels:[],preview:null}},...(custom?{node_viewers:[{id:'custom',entry:'viewer.html',default:true}]}:{}),...(mode==='legacy'?{}:{hide_default_output_previews:mode==='hidden'})};
-const target:any={handle_id:'image',port_name:'result',proxy_url:'/fixture-image.svg',node_id:'compute',storage:'file',absolute_path:'/example/output.svg',deleted:false,tags:mode==='unsupported'?['opaque']:['image'],arrayed:false,dim_labels:[],dim_sizes:[],preview:null};
+const pack:any={name:'preview-test',version:'1.0.0',node_ids:['compute'],manifest_hash:'fixture',description:'Preview policy regression fixture',params:{amount:{type:'int',default:1}},inputs:{},outputs:{result:{tags:mode==='unsupported'?['opaque']:['image'],arrayed:false,dim_labels:[],preview:mode==='unsupported'?null:{viewer:'image',member:null,options:{image_type:true}}}},...(custom?{node_viewers:[{id:'custom',entry:'viewer.html',default:true}]}:{}),...(mode==='legacy'?{}:{hide_default_output_previews:mode==='hidden'})};
+const target:any={handle_id:'image',port_name:'result',proxy_url:'/fixture-image.svg',node_id:'compute',storage:'file',absolute_path:'/example/output.svg',deleted:false,tags:mode==='unsupported'?['opaque']:['image'],arrayed:false,dim_labels:[],dim_sizes:[],preview:mode==='unsupported'?null:{viewer:'image',member:null,options:{image_type:true}}};
 if(mode==='sequence'){
- Object.assign(target,{proxy_url:'/proxy/compute/overlay',storage:'dir',absolute_path:'/example/overlay',arrayed:true,dim_labels:['frame'],dim_sizes:[50],preview:{viewer:'image',member:null}});
+ Object.assign(target,{proxy_url:'/proxy/compute/overlay',storage:'dir',absolute_path:'/example/overlay',arrayed:true,dim_labels:['frame'],dim_sizes:[50],preview:{viewer:'image',member:null,options:{image_type:true}}});
  Object.assign(pack.outputs.result,{arrayed:true,dim_labels:['frame']});
 }
 if(['text','splatv','video','splatv-text'].includes(mode)){

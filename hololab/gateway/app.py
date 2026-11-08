@@ -4629,7 +4629,7 @@ async def _resolve_handle_display_meta(
             )
 
     explicit_preview = port_spec.preview if port_spec is not None else None
-    preview = infer_preview_for_output(explicit_preview, resolved_tags)
+    preview = infer_preview_for_output(explicit_preview, resolved_tags, handle.storage)
 
     raw_dim_labels = None
     if job is not None and job.algorithm_name == "@builtin/array-assemble":

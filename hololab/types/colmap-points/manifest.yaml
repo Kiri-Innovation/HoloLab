@@ -1,0 +1,8 @@
+kind: Type
+name: colmap-points
+preview_rule:
+  order: 60
+  override: any
+  preview:
+    viewer: colmap-points
+  storage: dir

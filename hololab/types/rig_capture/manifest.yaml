@@ -1,0 +1,8 @@
+kind: Type
+name: rig_capture
+preview_rule:
+  order: 130
+  override: any
+  preview:
+    viewer: rig-capture
+  storage: dir

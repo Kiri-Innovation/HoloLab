@@ -30,13 +30,14 @@ test('splatv header still loads and dispatches the scene iframe', async ({page})
   }
 });
 
-test('splatv tag overrides a stale text viewer declaration', async ({page}) => {
+test('backend text decision is not overwritten by a splatv tag', async ({page}) => {
   const json = Buffer.from(JSON.stringify({width: 4,height: 4,cameras:[]}));
   const body = Buffer.alloc(8 + json.length);
   body.writeUInt16LE(0x674b); body.writeUInt32LE(json.length,4); json.copy(body,8);
   await page.route('**/proxy/compute/result/output.splatv', r => r.fulfill({body,contentType:'application/octet-stream'}));
   await page.route('**/colmaputil/index.html?*', r => r.fulfill({body:'<html><body>Splatv scene</body></html>',contentType:'text/html'}));
   await page.goto('/e2e/fixtures/inspector-preview.html?mode=splatv-text');
-  await expect(page.locator('iframe')).toHaveCount(2);
+  await expect(page.locator('iframe')).toHaveCount(0);
+  await expect(page.getByText('no preview available for binary content')).toHaveCount(2);
   await expect(page.locator('pre')).toHaveCount(0);
 });

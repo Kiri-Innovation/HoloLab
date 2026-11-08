@@ -2,3 +2,9 @@ kind: Type
 name: ftgsply
 preview:
   viewer: ftgsply
+preview_rule:
+  order: 20
+  override: text
+  preview:
+    viewer: ftgsply
+  storage: file

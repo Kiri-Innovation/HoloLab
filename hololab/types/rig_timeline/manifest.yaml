@@ -1,0 +1,8 @@
+kind: Type
+name: rig_timeline
+preview_rule:
+  order: 100
+  override: any
+  preview:
+    viewer: rig-timeline
+  storage: dir

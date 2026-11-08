@@ -13,3 +13,9 @@ dispatch:
 summary_count:
   field: camera_count
   kind: cameras
+preview_rule:
+  order: 10
+  override: text
+  preview:
+    viewer: splatv
+  storage: file

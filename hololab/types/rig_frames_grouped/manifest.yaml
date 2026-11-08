@@ -1,0 +1,8 @@
+kind: Type
+name: rig_frames_grouped
+preview_rule:
+  order: 120
+  override: any
+  preview:
+    viewer: nested-images
+  storage: dir
