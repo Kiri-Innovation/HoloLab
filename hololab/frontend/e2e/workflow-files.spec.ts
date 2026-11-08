@@ -236,26 +236,33 @@ test("new and open workflow use gateway PathInput and file API", async ({
   await fixture(context);
   await page.goto("/");
   await page
-    .getByRole("button", { name: "+ New workflow", exact: true })
+    .getByRole("button", { name: "+ 新建 workflow", exact: true })
     .click();
   const create = page.getByRole("dialog", { name: "新建 workflow 文件" });
+  await expect(create).toBeVisible();
+  await expect(create).toHaveAttribute("aria-modal", "true");
+  await expect(create).toHaveCSS("position", "fixed");
+  const box = await create.locator(":scope > div").boundingBox();
+  expect(box).not.toBeNull();
+  expect(Math.abs((box!.x + box!.width / 2) - 640)).toBeLessThan(2);
+  expect(Math.abs((box!.y + box!.height / 2) - 360)).toBeLessThan(2);
+  await create.click({ position: { x: 4, y: 4 } });
   await expect(create).toBeVisible();
   await create.getByLabel("Workflow 文件名").fill("new");
   const request = page.waitForRequest(
     (r) => new URL(r.url()).pathname === "/api/workflow-files",
   );
-  await create.getByRole("button", { name: "创建", exact: true }).click();
+  await create.getByLabel("Workflow 文件名").press("Enter");
   expect((await request).postDataJSON()).toEqual({
     parent_dir: "/cloud/cloud-ssd1/Kiri4DGS",
     name: "new",
   });
   await page.goto("/");
   await page
-    .getByRole("button", { name: "打开 .workflow", exact: true })
+    .getByRole("button", { name: "打开 workflow", exact: true })
     .click();
   const open = page.getByRole("dialog", { name: "打开 workflow 文件" });
   await open.locator("input").first().fill("/tmp/open.workflow");
-  await open.locator("input").first().press("Escape");
   const opening = page.waitForRequest(
     (r) => new URL(r.url()).pathname === "/api/workflow-files/open",
   );
@@ -263,4 +270,25 @@ test("new and open workflow use gateway PathInput and file API", async ({
   expect((await opening).postDataJSON()).toEqual({
     path: "/tmp/open.workflow",
   });
+});
+
+test("workflow file modals cancel with Escape or Cancel without requests", async ({
+  context,
+  page,
+}) => {
+  await fixture(context);
+  let requests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/workflow-files")) requests++;
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "+ 新建 workflow", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "新建 workflow 文件" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "新建 workflow 文件" })).toHaveCount(0);
+  await page.getByRole("button", { name: "打开 workflow", exact: true }).click();
+  const open = page.getByRole("dialog", { name: "打开 workflow 文件" });
+  await open.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(open).toHaveCount(0);
+  expect(requests).toBe(0);
 });

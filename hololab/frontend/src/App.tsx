@@ -3069,7 +3069,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     <>
       {workflowFileError && <div role="alert">{workflowFileError}</div>}
       {autosave.error && <div role="alert">{autosave.error}</div>}
-      {workflowMissing && <WorkflowFileRecovery id={workflowId ?? initialWorkflowId} mismatch={(workflowFileError + autosave.error).includes("id does not match")} onOpen={id => { setWorkflowMissing(false); void onLoad(id); }} />}
+      {workflowMissing && <WorkflowFileRecovery id={workflowId ?? initialWorkflowId} mismatch={(workflowFileError + autosave.error).includes("id does not match")} onOpen={id => { setWorkflowMissing(false); void onLoad(id); }} onClose={() => setWorkflowMissing(false)} />}
       <AnalysisProfiler><CanvasContext.Provider value={resolvedCanvasContext}>
         {viewingSnapshot ? (
           <>

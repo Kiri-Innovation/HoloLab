@@ -12,8 +12,8 @@ import { RecipeFileActions } from "./canvas/RecipeFileActions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { WorkflowSummary } from "./api";
 import { ApiError, deleteWorkflow, getWorkflow, listWorkflows } from "./api";
-import { WorkflowFilePicker } from './canvas/WorkflowFiles';
-import {editWorkflowFile} from './canvas/editWorkflowFile';
+import { WorkflowFilePicker } from "./canvas/WorkflowFiles";
+import { editWorkflowFile } from "./canvas/editWorkflowFile";
 import { stateColour } from "./canvas/AlgorithmNode";
 import { CopyRefButton } from "./canvas/CopyRefButton";
 import { ThemeToggle } from "./theme/ThemeToggle";
@@ -36,8 +36,7 @@ export interface GalleryProps {
 export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }: GalleryProps) {
   const [rows, setRows] = useState<WorkflowSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState<boolean>(false);
-  const [picker,setPicker]=useState<'create'|'open'|null>(null);
+  const [picker, setPicker] = useState<"create" | "open" | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -54,10 +53,8 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
     void refresh();
   }, [refresh]);
 
-  const onCreate = useCallback(async () => {
-    if (creating) return;
-    setPicker('create');
-  }, [creating, rows, onOpen]);
+  const onCreate = useCallback(() => setPicker("create"), []);
+  const onOpenFile = useCallback(() => setPicker("open"), []);
 
   const onRename = useCallback(
     async (row: WorkflowSummary, newName: string) => {
@@ -94,17 +91,16 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
       style={{
         height: "100vh",
         display: "grid",
-        gridTemplateRows: "auto auto 1fr",
+        gridTemplateRows: "auto 1fr",
         background: "var(--bg)",
         color: "var(--text-body)",
         fontFamily: "var(--font-sans)",
       }}
     >
-      <div><RecipeFileActions onOpen={onOpen} /><button onClick={()=>setPicker('open')}>打开 .workflow</button>
-      {picker&&<WorkflowFilePicker mode={picker} onOpen={onOpen} onClose={()=>{setPicker(null);setCreating(false);}} />}</div>
       <GalleryHeader
-        creating={creating}
         onCreate={onCreate}
+        onOpenFile={onOpenFile}
+        onOpen={onOpen}
         onRefresh={refresh}
         onOpenArtifacts={onOpenArtifacts}
         onOpenLibrary={onOpenLibrary}
@@ -135,6 +131,13 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
           onCreate={onCreate}
         />
       </main>
+      {picker && (
+        <WorkflowFilePicker
+          mode={picker}
+          onOpen={onOpen}
+          onClose={() => setPicker(null)}
+        />
+      )}
     </div>
   );
 }
@@ -144,16 +147,18 @@ export function Gallery({ onOpen, onOpenArtifacts, onOpenLibrary, onOpenPacks }:
 // ---------------------------------------------------------------------------
 
 function GalleryHeader({
-  creating,
   onCreate,
+  onOpenFile,
+  onOpen,
   onRefresh,
   onOpenArtifacts,
   onOpenLibrary,
   onOpenPacks,
   workflowCount,
 }: {
-  creating: boolean;
   onCreate: () => void;
+  onOpenFile: () => void;
+  onOpen: (workflowId: string) => void;
   onRefresh: () => void;
   onOpenArtifacts: () => void;
   onOpenLibrary: () => void;
@@ -202,6 +207,7 @@ function GalleryHeader({
       />
       <button type="button" onClick={onOpenLibrary} style={CONTROL_STYLE}>Library</button>
       <button type="button" onClick={onOpenPacks} style={CONTROL_STYLE}>Pack Manager</button>
+      <RecipeFileActions onOpen={onOpen} compact />
       <button
         type="button"
         onClick={onOpenArtifacts}
@@ -235,15 +241,17 @@ function GalleryHeader({
       </button>
       <button
         type="button"
-        onClick={onCreate}
-        disabled={creating}
-        style={{
-          ...PRIMARY_CONTROL_STYLE,
-          cursor: creating ? "wait" : "pointer",
-          opacity: creating ? 0.7 : 1,
-        }}
+        onClick={onOpenFile}
+        style={CONTROL_STYLE}
       >
-        + New workflow
+        打开 workflow
+      </button>
+      <button
+        type="button"
+        onClick={onCreate}
+        style={PRIMARY_CONTROL_STYLE}
+      >
+        + 新建 workflow
       </button>
     </div>
   );
