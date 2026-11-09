@@ -81,8 +81,8 @@ def test_install_order_and_idempotence(monkeypatch, tmp_path):
     )
     cfg = SimpleNamespace(ensure_cache_dirs=lambda: {})
     setup.apply_plans([plan], cfg, tmp_path / "node.yaml", dry_run=False)
-    assert calls[0][-1] == "nvidia::cuda-nvcc=13.0.*"
-    assert calls[1][-1] == "demo"
+    assert calls[0][-2:] == ["nvidia::cuda-nvcc=13.0.*", "--no-channel-priority"]
+    assert calls[1][-2:] == ["demo", "--no-channel-priority"]
     assert calls[2] == ["hook"]
     calls.clear()
     setup.apply_plans([plan], cfg, tmp_path / "node.yaml", dry_run=False)
@@ -104,6 +104,33 @@ def test_failure_no_pip_fallback_and_dry_run(monkeypatch, tmp_path):
     with pytest.raises(setup.SetupError, match="solver conflict"):
         setup._install_conda_packages(plan, "conda", tmp_path, [], False)
     assert len(calls) == 1
+
+
+def test_conda_priority_option_falls_back_only_when_unsupported(monkeypatch, tmp_path):
+    plan = setup.EnvironmentPlan("verify", (), None, (), tmp_path, conda_packages=("x",))
+    installed = False
+    calls = []
+
+    def satisfied(*args):
+        return installed
+
+    def run(cmd):
+        nonlocal installed
+        calls.append(cmd)
+        if "--no-channel-priority" in cmd:
+            return subprocess.CompletedProcess(
+                cmd, 2, "", "error: unrecognized arguments: --no-channel-priority"
+            )
+        installed = True
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(setup, "_conda_satisfied", satisfied)
+    monkeypatch.setattr(setup, "_run", run)
+    events = []
+    setup._install_conda_packages(plan, "conda", tmp_path, events, False)
+    assert calls[0][-1] == "--no-channel-priority"
+    assert calls[1] == calls[0][:-1]
+    assert any("does not support --no-channel-priority" in event for event in events)
 
 
 def test_target_nvcc_precedes_host(monkeypatch, tmp_path):
