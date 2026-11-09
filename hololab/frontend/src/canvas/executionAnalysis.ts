@@ -9,7 +9,7 @@ import { pendingAlgorithmChanges } from './pendingAlgorithmChanges';
 export type CanvasJob = SnapshotJob & { snapshot_id: string; historical_only?: boolean };
 
 export interface ExecutionAnalysis {
-  issues?: {kind: string; node_id?: string; message: string}[];
+  issues?: {kind: string; node_id?: string; edge_id?: string; message: string}[];
   canvas_jobs?: CanvasJob[];
   environment_checks?: Record<string, EnvironmentReport>;
   revision: string;

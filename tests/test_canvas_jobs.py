@@ -240,3 +240,46 @@ async def test_display_analysis_isolates_invalid_legacy_node_parameters(monkeypa
         "changeReasons": ["参数不合法：parameter 'skip': must be >= 1, got 0"],
     }
     assert result["issues"][0]["node_id"] == "bad"
+
+
+@pytest.mark.asyncio
+async def test_display_analysis_isolates_zero_candidate_edge(monkeypatch):
+    from tests.test_array_view_planner import fixture
+    from hololab.gateway.preparation import analyze_execution
+    g, catalog = fixture()
+    catalog[0]['outputs']['out'] = dict(tags=['image'], arrayed=False)
+    before = g.model_dump()
+    monkeypatch.setattr('hololab.gateway.canvas_jobs.canvas_jobs', AsyncMock(return_value=[]))
+    app = SimpleNamespace(state=SimpleNamespace(
+        registry=SimpleNamespace(catalog_json=lambda: catalog, get_session=lambda _: None),
+        snapshot_jobs=SimpleNamespace(get_latest_snapshot_for_workflow=AsyncMock(return_value=None)),
+    ))
+    result = await analyze_execution(app, 'w', g, display_only=True)
+    assert g.model_dump() == before
+    assert result['issues'][0]['edge_id'] == 'a'
+    assert 'got 0' in result['staleness']['slice']['title']
+    assert 'source' in result['staleness']
+    assert result['canvas_jobs'] == []
+
+
+def test_canvas_state_returns_200_with_invalid_edge_and_other_jobs(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    from hololab.gateway.app import create_app
+    from tests.test_array_view_planner import fixture
+    g, catalog = fixture()
+    catalog[0]['outputs']['out'] = dict(tags=['image'], arrayed=False)
+    app = create_app(db_path=tmp_path / 'unused.sqlite')
+    app.state.registry = SimpleNamespace(catalog_json=lambda: catalog, get_session=lambda _: None)
+    app.state.workflows = SimpleNamespace(get_draft=AsyncMock(return_value=SimpleNamespace(graph=g, updated_ts=1)))
+    app.state.snapshot_jobs = SimpleNamespace(get_latest_snapshot_for_workflow=AsyncMock(return_value=None))
+    selected = dict(job_id='retained', graph_node_id='source', state='done', created_ts=1)
+    monkeypatch.setattr('hololab.gateway.canvas_jobs.canvas_jobs', AsyncMock(return_value=[selected]))
+    client = TestClient(app, raise_server_exceptions=True)
+    response = client.get('/api/workflows/w/canvas-state')
+    client.close()
+    assert response.status_code == 200
+    body = response.json()
+    assert body['issues'][0]['edge_id'] == 'a'
+    assert 'got 0' in body['staleness']['slice']['title']
+    assert body['canvas_jobs'][0]['job_id'] == 'retained'
+    assert g.edges[0].source == 'source'

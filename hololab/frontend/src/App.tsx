@@ -968,6 +968,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   >(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<any>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<TypedEdgeData>>([]);
+  const [edgeIssues, setEdgeIssues] = useState<NonNullable<import("./canvas/executionAnalysis").ExecutionAnalysis["issues"]>>([]);
   // Reconcile every draft edge mutation (connect, keyboard/multi-delete,
   // upstream-node deletion, hydration). Snapshots render through a separate canvas.
   useEffect(() => {
@@ -2119,6 +2120,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         edges: graphEdges,
         catalogByKey,
       });
+      // Preparation owns array-view provenance; use its per-edge verdict.
+      const invalidReason = edgeIssues.find(issue => issue.kind === 'invalid_edge' && issue.edge_id === e.id)?.message;
       const label = formatTypeLabel(t);
       const labelLong = formatTypeLabelLong(t);
       const sourceHandleName = e.sourceHandle ?? "";
@@ -2128,6 +2131,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         ?? null;
       const prev = e.data as TypedEdgeData | undefined;
       if (
+        prev?.invalidReason === invalidReason &&
         prev?.label === label &&
         prev.labelLong === labelLong &&
         prev.handleId === handleId &&
@@ -2141,12 +2145,13 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           ...(prev ?? {}),
           label,
           labelLong,
+          invalidReason,
           edgeType: t,
           handleId,
         },
       };
     });
-  }, [edges, nodes, catalogByKey, previewsByGraphNode, canvasJobs]);
+  }, [edges, nodes, catalogByKey, previewsByGraphNode, canvasJobs, edgeIssues]);
 
   // Snapshot-mode counterparts. Derived from viewingSnapshot +
   // snapshotSelectedGraphNodeId so the read-only inspector reflects
@@ -2649,6 +2654,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   useRecipeChecks(analysisGraph, !viewingSnapshot);
   const capabilityChecks = useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick]), !viewingSnapshot);
   const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick + snapshotRefreshTick});
+  useEffect(() => {
+    if (executionAnalysis.data) setEdgeIssues(executionAnalysis.data.issues ?? []);
+  }, [executionAnalysis.data]);
   const [firstPaintStaleness, setFirstPaintStaleness] = useState<Record<string, NodeStaleness | null>>({});
   const resolvedCanvasContext = useMemo(() => ({...canvasContextValue,
     effectiveParamsByNode: Object.fromEntries((executionAnalysis.isCurrent ? executionAnalysis.data?.graph.nodes ?? [] : []).map(n => [n.id, n.params])),
@@ -3010,6 +3018,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       setLatestSnapshotGraph(null);
       setLatestSnapshotId(null); // both reset until hydration fills them in
       setFirstPaintStaleness(state.staleness ?? {});
+      setEdgeIssues(state.issues ?? []);
       const firstPaintJobs = state.canvas_jobs ?? [];
       setCanvasJobs(firstPaintJobs);
       // An empty result is a completed selection, not an absent response.

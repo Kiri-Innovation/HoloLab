@@ -120,3 +120,31 @@ def test_fanout_collects_real_elements_before_restore():
     result,plans=compile_array_views(graph,catalog)
     assert [p['direction'] for p in plans]==['to_array','from_array']
     assert next(n for n in result.nodes if n.id=='slice').arrayed_toggle is True
+
+
+@pytest.mark.parametrize('empty_offers', [False, True])
+def test_zero_candidates_can_be_reported_without_changing_user_edges(empty_offers):
+    graph, catalog = fixture()
+    catalog[0]['outputs']['out'] = dict(tags=['image'], arrayed=False)
+    if empty_offers:
+        catalog[-2].pop('type_capabilities')
+    before = graph.model_dump()
+    with pytest.raises(ValueError, match='edge a:.*got 0'):
+        compile_array_views(graph, catalog)
+    issues = []
+    shown, _ = compile_array_views(graph, catalog, issues=issues)
+    assert graph.model_dump() == before
+    assert shown.edges[0] == graph.edges[0]
+    assert issues[0] == dict(kind='invalid_edge', edge_id='a', node_id='slice',
+                             message='edge a: array view selection requires one candidate, got 0')
+
+
+def test_display_resolver_keeps_zero_candidate_edge_but_submission_rejects_it():
+    from hololab.gateway.preparation import resolve_recipe
+    graph, catalog = fixture()
+    catalog[0]['outputs']['out'] = dict(tags=['image'], arrayed=False)
+    shown = resolve_recipe(graph, catalog, tolerate_parameter_errors=True)
+    assert shown.execution['issues'][0]['edge_id'] == 'a'
+    assert shown.execution['revision']
+    with pytest.raises(ValueError, match='got 0'):
+        resolve_recipe(graph, catalog)

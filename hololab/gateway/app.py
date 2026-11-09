@@ -2188,6 +2188,7 @@ def _mount_routes(app: FastAPI) -> None:
                 for job in evidence["canvas_jobs"]
             ],
             "staleness": evidence["staleness"],
+            "issues": evidence["issues"],
         }
         cache[workflow_id] = (row.updated_ts, now, result)
         app.state.canvas_state_cache = cache

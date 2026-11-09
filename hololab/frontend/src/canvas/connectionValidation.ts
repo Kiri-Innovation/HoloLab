@@ -52,6 +52,9 @@ export function validateConnection(conn: Connection, ctx: EdgeTypeCtx,
     return reject('不同数组形状的联合类型输入不能启用 arrayed fan-out。');
   }
   const source = effectiveOutputType(conn.source, conn.sourceHandle, ctx);
+  if (srcPack.outputs[conn.sourceHandle].tags_from && source.tags.includes('any')) {
+    return reject('源端口类型尚未确定，请先连接上游数据。');
+  }
   const variants = input.any_of?.length ? input.any_of : [input];
   const targets = variants.map(variant => ({
     tags: variant.tags,

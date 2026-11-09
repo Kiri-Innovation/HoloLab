@@ -50,6 +50,7 @@ export interface TypedEdgeData extends Record<string, unknown> {
   /** Compact chip label without runtime counts (e.g. ``colmap`` or
    *  ``colmap[?]``). TypedEdge re-formats with counts once hovered. */
   label?: string;
+  invalidReason?: string;
   /** Full label for the hover title so a truncated chip stays discoverable. */
   labelLong?: string;
   /** Full type descriptor (tags + arrayed depth + dim labels). Needed
@@ -205,7 +206,7 @@ function TypedEdgeInner({
   const handleId = d?.handleId ?? null;
 
   const enriched = useTypeSummary(edgeType ?? { tags: [], arrayed: false, dimLabels: [] }, handleId);
-  const label = edgeType ? formatTypeLabel(enriched) : baseLabel;
+  const label = (d?.invalidReason ? "⚠ " : "") + (edgeType ? formatTypeLabel(enriched) : baseLabel);
   const sourceData = useStore(s => s.nodeLookup.get(source)?.data) as AlgorithmNodeData | undefined;
   const targetData = useStore(s => s.nodeLookup.get(target)?.data) as AlgorithmNodeData | undefined;
   const targetFanout = Boolean(targetData?.arrayed_toggle && targetData.pack?.arrayable);
@@ -223,7 +224,7 @@ function TypedEdgeInner({
     handleId, direction: targetFanout ? 'input' : 'output', broadcast: Boolean(scalarInput),
   }, port);
 
-  const stroke = selected ? "var(--accent)" : "var(--rf-edge, var(--border-strong))";
+  const stroke = d?.invalidReason ? "var(--danger, #dc2626)" : selected ? "var(--accent)" : "var(--rf-edge, var(--border-strong))";
   const strokeWidth = selected ? STROKE_SELECTED : STROKE_DEFAULT;
 
   // Dot mode: short-span edge and not currently expanded.
@@ -405,6 +406,9 @@ function TypedEdgeInner({
             data-pop={showPop ? "" : undefined}
             data-covered={covered ? "" : undefined}
             {...tooltip}
+            title={d?.invalidReason}
+            data-invalid={d?.invalidReason ? "" : undefined}
+            aria-label={d?.invalidReason}
             onClick={onChipClick}
             onMouseEnter={onChipEnter}
             style={chipStyle}

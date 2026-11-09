@@ -163,3 +163,18 @@ it('maps uniform scalar union components over cameras without weakening their ta
   }
   expect(validateConnection(conn, context({ tags: ['image'], arrayed: true }, union, true)).ok).toBe(false);
 });
+
+it('rejects get-index image item → Vista frame array even with scalar broadcast declared', () => {
+  const ctx = context({ tags: ['any'], tags_from: 'arr', dim_labels_from_input: 'arr', dim_labels_drop_outer: 1 },
+    { tags: ['image'], arrayed: true, scalar: true, dim_labels: ['frame'] });
+  const feeder = { name: 'frames', version: '1', inputs: {}, outputs: {
+    frames: { tags: ['image'], arrayed: true, dim_labels: ['frame'] },
+  } } as unknown as CatalogPack;
+  ctx.catalogByKey.set('frames@1', feeder);
+  ctx.catalogByKey.get('source@1')!.inputs.arr = { tags: ['any'], arrayed: true } as CatalogPack['inputs'][string];
+  ctx.nodes = [...ctx.nodes, { id: 'frames', algorithm_name: 'frames', algorithm_version: '1', params: {} } as GraphNode];
+  ctx.edges = [...ctx.edges, { id: 'upstream', source: 'frames', sourceHandle: 'frames', target: 's', targetHandle: 'arr' }];
+  expect(validateConnection(conn, ctx)).toMatchObject({ ok: false, actual: 'image', reason: '单个数据与数组不能直接连接。' });
+  ctx.edges = [];
+  expect(validateConnection(conn, ctx)).toMatchObject({ ok: false, reason: '源端口类型尚未确定，请先连接上游数据。' });
+});

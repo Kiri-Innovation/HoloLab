@@ -12,7 +12,12 @@ from hololab.gateway.port_type_ir import ArrayType, ObjectType, compatible, from
 from hololab.package_identity import package_key
 
 
-def compile_array_views(graph, catalog):
+def compile_array_views(graph, catalog, *, issues=None):
+    """Compile strictly, or collect per-edge failures in ``issues`` for display.
+
+    A failed conversion leaves its original edge intact in the copied graph.
+    Execution callers omit ``issues`` and still fail closed.
+    """
     from hololab.gateway.workflows import (
         GraphNode, GraphEdge, packs_by_key_from_catalog, resolved_port_types,
         execution_topological_order,
@@ -21,8 +26,6 @@ def compile_array_views(graph, catalog):
     offers = resolve_capabilities([
         (f"{p['name']}@{p['version']}", p.get("type_capabilities", {})) for p in catalog
     ])
-    if not offers:
-        return result, []
     packs = packs_by_key_from_catalog(catalog)
     catalog_by_key = {package_key(p['name'], p['version']): p for p in catalog}
     plans = []
@@ -97,22 +100,28 @@ def compile_array_views(graph, catalog):
             labels = typ.inputs[edge.targetHandle].declaration.require_axis_label_match
             if fits(src, dst, labels):
                 continue
-            if isinstance(src, ObjectType) and isinstance(dst, ArrayType):
-                candidates = [(owner, tag, name, view) for (tag, name), (owner, view) in offers.items()
-                              if tag in src.tags and fits(from_legacy(view.array.tags, True, view.array.dim_labels), dst, labels)]
-                if len(candidates) != 1:
-                    raise ValueError(f'edge {edge.id}: array view selection requires one candidate, got {len(candidates)}')
-                owner, tag, name, view = candidates[0]
-                key = insert(edge, owner, tag, name, view, 'to_array')
-                lineage[key] = candidates[0]
-            elif isinstance(src, ArrayType) and isinstance(dst, ObjectType):
-                origin = lineage.get((edge.source, edge.sourceHandle))
-                if origin is None:
-                    raise ValueError(f'edge {edge.id}: cannot restore array without view provenance')
-                owner, tag, name, view = origin
-                if not fits(ObjectType(tags=[tag]), dst):
-                    raise ValueError(f'edge {edge.id}: restoration target differs from original type')
-                insert(edge, owner, tag, name, view, 'from_array')
+            try:
+                if isinstance(src, ObjectType) and isinstance(dst, ArrayType):
+                    candidates = [(owner, tag, name, view) for (tag, name), (owner, view) in offers.items()
+                                  if tag in src.tags and fits(from_legacy(view.array.tags, True, view.array.dim_labels), dst, labels)]
+                    if len(candidates) != 1:
+                        raise ValueError(f'edge {edge.id}: array view selection requires one candidate, got {len(candidates)}')
+                    owner, tag, name, view = candidates[0]
+                    key = insert(edge, owner, tag, name, view, 'to_array')
+                    lineage[key] = candidates[0]
+                elif isinstance(src, ArrayType) and isinstance(dst, ObjectType):
+                    origin = lineage.get((edge.source, edge.sourceHandle))
+                    if origin is None:
+                        raise ValueError(f'edge {edge.id}: cannot restore array without view provenance')
+                    owner, tag, name, view = origin
+                    if not fits(ObjectType(tags=[tag]), dst):
+                        raise ValueError(f'edge {edge.id}: restoration target differs from original type')
+                    insert(edge, owner, tag, name, view, 'from_array')
+            except ValueError as exc:
+                if issues is None:
+                    raise
+                issues.append(dict(kind='invalid_edge', edge_id=edge.id,
+                                   node_id=edge.target, message=str(exc)))
         # Only declared generic passthrough outputs propagate a view. Arbitrary
         # algorithm results of the same tag do not acquire trustworthy provenance.
         typ = port_types(node)
@@ -145,7 +154,13 @@ def compile_array_views(graph, catalog):
         owner, tag, name, view = origin
         sentinel = GraphEdge(id=f"terminal-{source_id}-{source_port}", source=source_id,
                              sourceHandle=source_port, target=source_id, targetHandle=source_port)
-        insert(sentinel, owner, tag, name, view, 'from_array')
+        try:
+            insert(sentinel, owner, tag, name, view, 'from_array')
+        except ValueError as exc:
+            if issues is None:
+                raise
+            issues.append(dict(kind='invalid_edge', edge_id=sentinel.id,
+                               node_id=source_id, message=str(exc)))
     if plans:
         result.execution = {**(result.execution or {}), "array_views": plans}
     return result, plans

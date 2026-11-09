@@ -48,10 +48,12 @@ def digest(value: Any) -> str:
     ).hexdigest()
 
 
-def context_revision(graph: WorkflowGraph, catalog: list[dict]) -> str:
+def context_revision(
+    graph: WorkflowGraph, catalog: list[dict], *, tolerate_array_view_errors: bool = False
+) -> str:
     from hololab.gateway.array_views import compile_array_views
 
-    graph, _ = compile_array_views(graph, catalog)
+    graph, _ = compile_array_views(graph, catalog, issues=[] if tolerate_array_view_errors else None)
     recipe, bindings, _ = split_graph(graph)
     data = recipe.graph.model_dump(exclude={"execution"})
     for node in data["nodes"]:
@@ -105,10 +107,13 @@ def resolve_recipe(
     validate_graph_identities(graph)
     from hololab.gateway.array_views import compile_array_views
 
-    graph, _ = compile_array_views(graph, catalog)
+    array_view_issues = []
+    graph, _ = compile_array_views(
+        graph, catalog, issues=array_view_issues if tolerate_parameter_errors else None
+    )
     result = freeze_parameter_pins(graph, catalog)
     packs = {package_key(p["name"], p["version"]): copy.deepcopy(p) for p in catalog}
-    sources, environment, issues = {}, {}, []
+    sources, environment, issues = {}, {}, array_view_issues
     inline_values = {}
 
     def record_invalid_parameters(node_id: str, exc: ValueError) -> None:
@@ -228,7 +233,7 @@ def resolve_recipe(
             name: copy.deepcopy(graph.variable_values.get(name, declaration.default))
             for name, declaration in graph.variables.items()
         },
-        "revision": context_revision(graph, catalog),
+        "revision": context_revision(graph, catalog, tolerate_array_view_errors=tolerate_parameter_errors),
         "inline_values": inline_values,
         "sources": sources,
         "environment_params": environment,
@@ -641,9 +646,21 @@ async def analyze_execution(
         for issue in prepared.execution["issues"]
         if issue.get("kind") == "invalid_parameters"
     }
+    invalid_edges = {}
+    for issue in prepared.execution["issues"]:
+        if issue.get("kind") == "invalid_edge":
+            invalid_edges.setdefault(issue["node_id"], []).append(issue["message"])
     states, diffs = {}, configuration_diff(prepared, baseline)
     for node in prepared.nodes:
         if node.kind == "view" or is_constant(node):
+            continue
+        if errors := invalid_edges.get(node.id):
+            states[node.id] = {
+                "kind": "invalid_params",
+                "title": "输入连线无法解析：" + "; ".join(errors),
+                "changeReasons": errors,
+            }
+            dirty |= downstream_closure(prepared, node.id)
             continue
         if error := invalid_parameters.get(node.id):
             # This is a current-draft validation failure, not a failure to
