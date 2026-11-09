@@ -1,0 +1,5 @@
+# Runtime source allowlist; documentation and tests do not affect identity or export.
+/*
+!/manifest.yaml
+!/merge_colmap4d.py
+!/strict_legacy.py
