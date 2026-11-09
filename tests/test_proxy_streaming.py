@@ -183,9 +183,7 @@ async def test_proxy_repairs_stale_url_with_embedded_workspace_root(
         "node",
         "cloud/cloud-ssd1/Kiri4DGS/output/hololab/w/wf/j/job/masks/p.png",
         _make_request(),
-        _FakeRegistry(
-            _FakeSession(workspace_root="/cloud/cloud-ssd1/Kiri4DGS/output/hololab")
-        ),  # type: ignore[arg-type]
+        _FakeRegistry(_FakeSession(workspace_root="/cloud/cloud-ssd1/Kiri4DGS/output/hololab")),  # type: ignore[arg-type]
     )
 
     assert resp.status_code == 200
@@ -464,3 +462,27 @@ async def test_proxy_falls_back_to_file_server_listener_when_advertised_url_is_m
         ),  # type: ignore[arg-type]
     )
     assert await _collect_body(response) == b"fallback works"
+
+
+async def test_tunnel_failure_logs_and_reports_exception_type(caplog):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from fastapi import HTTPException
+
+    connection = SimpleNamespace(request=AsyncMock(side_effect=TimeoutError()))
+    tunnels = SimpleNamespace(acquire=AsyncMock(return_value=connection), release=AsyncMock())
+    registry = SimpleNamespace(
+        get_session=lambda _: SimpleNamespace(
+            node_id="node", session_id="session", workspace_root=None, legacy_workspace_roots=[]
+        ),
+        tunnels=tunnels,
+    )
+    with pytest.raises(HTTPException) as failure:
+        await proxy_mod.proxy_get("node", "_format/colmap4d/model", _make_request(), registry)
+    assert failure.value.status_code == 502
+    assert "TimeoutError" in failure.value.detail
+    assert "TimeoutError" in caplog.text
+    assert "body_bytes=0" in caplog.text
+    assert "elapsed=" in caplog.text
+    tunnels.release.assert_awaited_once_with(connection)

@@ -8,6 +8,8 @@ docs/architecture.md#preview-channel.
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 
 import httpx
 from fastapi import HTTPException, Request
@@ -15,6 +17,8 @@ from fastapi.responses import Response, StreamingResponse
 
 from hololab.gateway.derived_cache import DerivedPreviewCache
 from hololab.gateway.registry import NodeRegistry, NodeSession
+
+log = logging.getLogger(__name__)
 
 
 def strip_workspace_prefix(session: NodeSession | None, absolute_path: str) -> str:
@@ -306,6 +310,7 @@ async def proxy_get(node_id: str, path: str, request: Request, registry: NodeReg
                 for name, value in request.headers.items()
                 if name.lower() in ("range", "if-modified-since", "if-none-match")
             }
+            started = time.monotonic()
             try:
                 upstream, body = await connection.request(
                     request.method,
@@ -314,11 +319,20 @@ async def proxy_get(node_id: str, path: str, request: Request, registry: NodeReg
                     headers,
                 )
             except Exception as exc:
+                detail = f"{type(exc).__name__}: {exc}"
+                log.warning(
+                    "preview tunnel failed node=%s path=%s elapsed=%.3fs body_bytes=0 error=%s",
+                    node_id,
+                    path,
+                    time.monotonic() - started,
+                    detail,
+                    exc_info=True,
+                )
                 await tunnel_registry.release(connection)
                 if cache_owner and cache is not None:
                     await cache.fail(node_id, path, request.url.query)
                 raise HTTPException(
-                    status_code=502, detail=f"preview tunnel failed: {exc}"
+                    status_code=502, detail=f"preview tunnel failed: {detail}"
                 ) from exc
             response_headers = {
                 k: v

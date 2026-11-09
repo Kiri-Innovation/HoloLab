@@ -181,3 +181,36 @@ async def test_send_failure_retires_socket_and_response_future(tunnel):
     assert connection.closed
     assert connection.response.cancelled()
     assert registry._idle[("n", "s")].empty()
+
+
+async def test_format_preparation_can_outlast_ordinary_header_timeout(tunnel, monkeypatch):
+    from hololab.gateway import tunnel as module
+
+    monkeypatch.setattr(module, "_RESPONSE_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(module, "_FORMAT_RESPONSE_TIMEOUT_S", 1.0)
+    connection, socket, registry = tunnel
+    pending = asyncio.create_task(
+        connection.request("GET", "/_format/colmap4d/w/model", "part=points", {})
+    )
+    request = await socket.sent.get()
+    await asyncio.sleep(0.05)
+    assert not pending.done()
+    await socket.frame("response", request["stream_id"], status=200, headers={})
+    _, body = await pending
+    await socket.incoming.put({"bytes": b"complete preview"})
+    await socket.frame("end", request["stream_id"], bytes_sent=16)
+    assert await collect(body) == b"complete preview"
+    assert await registry.acquire("n", "s") is connection
+
+
+@pytest.mark.parametrize("path", ["/file", "/_format/colmap4d/w/model"])
+async def test_header_timeout_is_actionable_and_retires_socket(tunnel, monkeypatch, path):
+    from hololab.gateway import tunnel as module
+
+    monkeypatch.setattr(module, "_RESPONSE_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(module, "_FORMAT_RESPONSE_TIMEOUT_S", 0.01)
+    connection, socket, registry = tunnel
+    with pytest.raises(TimeoutError, match=r"response headers timed out after 0\.01s"):
+        await connection.request("GET", path, "", {})
+    assert connection.closed and socket.closed
+    assert registry._idle[("n", "s")].empty()
