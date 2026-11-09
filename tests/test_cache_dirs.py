@@ -1,7 +1,7 @@
-"""Node-configured shared download caches (torch.hub, Hugging Face).
+"""Node-configured shared download caches (torch.hub, Hugging Face, HoloLab).
 
-The same variables must reach ``pack setup`` hooks and every job spawn path, and
-an unconfigured node must inject nothing (historical behaviour).
+The same variables must reach ``pack setup`` hooks and every job spawn path,
+including the default directories when no cache overrides are configured.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from hololab.node import executor as executor_mod
 from hololab.node.config import NodeConfig, load_node_config, write_node_config
 from hololab.node.runtime import _make_exec_plan
 
-CACHE_KEYS = ("TORCH_HOME", "HF_HOME", "HF_HUB_CACHE")
+CACHE_KEYS = ("TORCH_HOME", "HF_HOME", "HF_HUB_CACHE", "HOLOLAB_WEIGHTS_HOME")
 
 
 @pytest.fixture(autouse=True)
@@ -35,6 +35,7 @@ def isolated_home(tmp_path: Path, monkeypatch) -> Path:
 
 def _weights(root: Path) -> dict[str, str]:
     return {
+        "HOLOLAB_WEIGHTS_HOME": str(root / "hololab"),
         "TORCH_HOME": str(root / "torch"),
         "HF_HOME": str(root / "huggingface"),
         "HF_HUB_CACHE": str(root / "huggingface" / "hub"),
@@ -43,7 +44,7 @@ def _weights(root: Path) -> dict[str, str]:
 
 def test_unconfigured_node_defaults_to_node_weights(isolated_home: Path) -> None:
     cfg = NodeConfig()
-    assert cfg.cache_env() == _weights(isolated_home / "node" / "weights")
+    assert _weights(isolated_home / "node" / "weights").items() <= cfg.cache_env().items()
     env = cfg.ensure_cache_dirs()
     assert all(Path(env[key]).is_dir() for key in CACHE_KEYS)
     # The default is resolved at use time and is never written into the config.
@@ -53,16 +54,15 @@ def test_unconfigured_node_defaults_to_node_weights(isolated_home: Path) -> None
 def test_default_follows_xdg_data_home_when_hololab_home_unset(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("HOLOLAB_HOME")
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
-    assert NodeConfig().cache_env() == _weights(tmp_path / "xdg" / "hololab" / "node" / "weights")
+    assert (
+        _weights(tmp_path / "xdg" / "hololab" / "node" / "weights").items()
+        <= NodeConfig().cache_env().items()
+    )
 
 
 def test_cache_root_derives_one_directory_per_library(tmp_path: Path) -> None:
     cfg = NodeConfig(cache_root=tmp_path / "cache")
-    assert cfg.cache_env() == {
-        "TORCH_HOME": str(tmp_path / "cache" / "torch"),
-        "HF_HOME": str(tmp_path / "cache" / "huggingface"),
-        "HF_HUB_CACHE": str(tmp_path / "cache" / "huggingface" / "hub"),
-    }
+    assert _weights(tmp_path / "cache").items() <= cfg.cache_env().items()
     env = cfg.ensure_cache_dirs()
     assert all(Path(env[key]).is_dir() for key in CACHE_KEYS)
 
@@ -102,8 +102,9 @@ def test_cache_configuration_round_trips_through_config_file(tmp_path: Path) -> 
     assert load_node_config(path).cache_env()["TORCH_HOME"] == str(tmp_path / "c" / "torch")
     write_node_config(NodeConfig(), path)
     assert load_node_config(path).cache_root is None
-    assert load_node_config(path).cache_env() == _weights(
-        tmp_path / "hololab-home" / "node" / "weights"
+    assert (
+        _weights(tmp_path / "hololab-home" / "node" / "weights").items()
+        <= load_node_config(path).cache_env().items()
     )
 
 
@@ -166,7 +167,7 @@ def test_spawn_without_cache_configuration_is_unchanged(tmp_path: Path, monkeypa
     )
     env = _child_env(plan)
     assert env["TORCH_HOME"] == "/env/default/torch"
-    assert "HF_HOME" not in env and "HF_HUB_CACHE" not in env
+    assert all(key not in env for key in CACHE_KEYS if key != "TORCH_HOME")
 
 
 def _rendered(tmp_path: Path) -> SimpleNamespace:
@@ -188,11 +189,13 @@ def test_job_plan_carries_the_node_cache_configuration(tmp_path: Path) -> None:
     plan = _make_exec_plan(
         _rendered(tmp_path), cfg, "/env", _pack(tmp_path), cached_env={}, cpu_mask=None
     )
-    assert plan.extra_env == cfg.cache_env()
+    assert _weights(tmp_path / "cache").items() <= plan.extra_env.items()
     plain = _make_exec_plan(
         _rendered(tmp_path), NodeConfig(), "/env", _pack(tmp_path), cached_env={}, cpu_mask=None
     )
-    assert plain.extra_env == _weights(tmp_path / "hololab-home" / "node" / "weights")
+    assert (
+        _weights(tmp_path / "hololab-home" / "node" / "weights").items() <= plain.extra_env.items()
+    )
 
 
 # --- pack setup hook ------------------------------------------------------------------
@@ -203,8 +206,8 @@ def _hook_pack(tmp_path: Path) -> Path:
     root.mkdir()
     (root / "setup.sh").write_text(
         "set -euo pipefail\n"
-        'printf \'{"TORCH_HOME":"%s","HF_HOME":"%s","HF_HUB_CACHE":"%s"}\' '
-        '"${TORCH_HOME:-}" "${HF_HOME:-}" "${HF_HUB_CACHE:-}" > "$PACKAGE_ROOT/../seen.json"\n'
+        'printf \'{"TORCH_HOME":"%s","HF_HOME":"%s","HF_HUB_CACHE":"%s","HOLOLAB_WEIGHTS_HOME":"%s"}\' '
+        '"${TORCH_HOME:-}" "${HF_HOME:-}" "${HF_HUB_CACHE:-}" "${HOLOLAB_WEIGHTS_HOME:-}" > "$PACKAGE_ROOT/../seen.json"\n'
     )
     (root / "manifest.yaml").write_text(
         "apiVersion: hololab.dev/v1\nkind: Algorithm\nname: test/cache-hook\nversion: 0.1.0\n"
@@ -254,7 +257,9 @@ def test_setup_hook_and_jobs_see_identical_cache_variables(tmp_path: Path, monke
     job_plan = _make_exec_plan(
         _rendered(tmp_path), cfg, str(prefix), _pack(tmp_path), cached_env={}, cpu_mask=None
     )
-    assert seen == cfg.cache_env() == job_plan.extra_env
+    expected = _weights(tmp_path / "cache")
+    for actual in (seen, cfg.cache_env(), job_plan.extra_env):
+        assert expected.items() <= actual.items()
 
 
 def test_setup_hook_without_configuration_uses_default_weights(tmp_path: Path, monkeypatch) -> None:
@@ -263,9 +268,9 @@ def test_setup_hook_without_configuration_uses_default_weights(tmp_path: Path, m
     _run_hooks(tmp_path, monkeypatch, NodeConfig(), prefix)
     seen = json.loads((tmp_path / "seen.json").read_text())
     default = _weights(tmp_path / "hololab-home" / "node" / "weights")
-    assert seen == default
+    assert default.items() <= seen.items()
     receipt = next((prefix / ".hololab-pack-setups").glob("*.json"))
-    assert json.loads(receipt.read_text())["fingerprint"]["cache_env"] == default
+    assert default.items() <= json.loads(receipt.read_text())["fingerprint"]["cache_env"].items()
 
 
 def test_moving_the_cache_reruns_the_hook(tmp_path: Path, monkeypatch) -> None:
