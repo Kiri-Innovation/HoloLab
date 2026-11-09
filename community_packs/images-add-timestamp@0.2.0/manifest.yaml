@@ -1,0 +1,45 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/images-add-timestamp
+version: 0.2.0
+arrayable: true
+description: Attach matching per-camera timestamps and identity to frame arrays.
+docs: Fan-out positionally pairs outer camera arrays on images and timestamps.
+  Each invocation consumes a complete frame array and one timed component.
+  Preserve per-camera image IDs, names, timestamps and optional camera records.
+  To reuse a timestamp-only timeline, explicitly repeat it for every camera.
+source_entry: run.py
+inputs:
+  images:
+    tags:
+    - image
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - frame
+  timestamps:
+    storage: dir
+    any_of:
+    - tags:
+      - colmap4d-images
+    - tags:
+      - colmap4d-timestamps
+outputs:
+  timed_images:
+    tags:
+    - colmap4d-images
+    storage: dir
+requires:
+  packages:
+  - colmap4d>=1.0.4
+  - pillow
+runtime:
+  env: colmap4d
+exec:
+  shell: 'python "{{ manifest_dir }}/run.py" <<''CONFIG''
+
+    {{ {''inputs'': inputs, ''outputs'': outputs, ''params'': params} | tojson }}
+
+    CONFIG
+
+    '

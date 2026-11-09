@@ -143,3 +143,23 @@ it('uses the same view for a scalar invocation lifted by fan-out', () => {
   ctx.catalogByKey.get('target@1')!.inputs.in={tags:['colmap4d'],arrayed:false} as CatalogPack['inputs'][string];
   expect(validateConnection(conn,ctx).ok).toBe(true);
 });
+
+
+it('broadcasts a complete source frame array while mapping camera/frame renders', () => {
+  const frames = { tags: ['image'], arrayed: true, dim_labels: ['frame'] };
+  const source = { ...frames, scalar: true };
+  expect(validateConnection(conn, context(frames, source, true)).ok).toBe(true);
+  expect(validateConnection(conn, context(frames, frames, true)).ok).toBe(false);
+  expect(validateConnection(conn, context({ ...frames, dim_labels: ['camera', 'frame'] }, frames, true)).ok).toBe(true);
+  expect(validateConnection(conn, context({ ...frames, dim_labels: ['camera', 'frame'] }, source, true)).ok).toBe(false);
+});
+it('maps uniform scalar union components over cameras without weakening their tags', () => {
+  const union = { tags: [], any_of: [
+    { tags: ['colmap4d-images'] }, { tags: ['colmap4d-timestamps'] },
+  ] };
+  for (const tag of ['colmap4d-images', 'colmap4d-timestamps']) {
+    expect(validateConnection(conn, context({ tags: [tag], arrayed: true, dim_labels: ['camera'] }, union, true)).ok).toBe(true);
+    expect(validateConnection(conn, context({ tags: [tag] }, union, true)).ok).toBe(false);
+  }
+  expect(validateConnection(conn, context({ tags: ['image'], arrayed: true }, union, true)).ok).toBe(false);
+});

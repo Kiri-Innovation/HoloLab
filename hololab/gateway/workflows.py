@@ -1492,12 +1492,15 @@ def validate_snapshot(
         if (
             node.arrayed_toggle
             and pack_for_toggle is not None
-            and any(port.any_of for port in pack_for_toggle.inputs.values())
+            and any(
+                port.any_of and len({(arrayed, labels) for _, arrayed, labels in port.any_of}) > 1
+                for port in pack_for_toggle.inputs.values()
+            )
         ):
             issues.append(
                 ValidationIssue(
                     where=f"node:{node.id}",
-                    message="arrayed_toggle cannot be enabled on a node with any_of inputs",
+                    message="arrayed_toggle cannot be enabled on a node with mixed-shape any_of inputs",
                 )
             )
         if node.kind != "intrinsic":
@@ -1967,7 +1970,7 @@ def resolved_port_types(
                 )
             aggregate = from_legacy(fields["tags"], fields["arrayed"], fields["dim_labels"])
             if direction == "inputs" and port.any_of:
-                from hololab.gateway.port_type_ir import UnionType
+                from hololab.gateway.port_type_ir import UnionType, wrap_array
 
                 aggregate = UnionType(
                     variants=[
@@ -1975,6 +1978,12 @@ def resolved_port_types(
                         for tags, arrayed, labels in port.any_of
                     ]
                 )
+                if (
+                    fanout
+                    and not port.scalar
+                    and len({(arrayed, labels) for _, arrayed, labels in port.any_of}) == 1
+                ):
+                    aggregate = wrap_array(aggregate)
             views = views_from_aggregate(aggregate, participation)
             group[name] = PortTypeIR(
                 declaration=declaration, views=views, runtime=unknown_runtime()

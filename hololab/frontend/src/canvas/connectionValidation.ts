@@ -45,8 +45,11 @@ export function validateConnection(conn: Connection, ctx: EdgeTypeCtx,
   const pack = ctx.catalogByKey.get(`${tgt.algorithm_name}@${tgt.algorithm_version}`);
   const input = pack?.inputs[conn.targetHandle];
   if (!srcPack?.outputs[conn.sourceHandle] || !pack || !input) return reject('端口声明不可用，请检查算法版本。');
-  if (tgt.arrayed_toggle && input.any_of?.length) {
-    return reject('联合类型输入不能启用 arrayed fan-out。');
+  if (tgt.arrayed_toggle && input.any_of?.length
+    && new Set(input.any_of.map(variant => JSON.stringify([
+      Boolean(variant.arrayed), variant.dim_labels ?? [],
+    ]))).size > 1) {
+    return reject('不同数组形状的联合类型输入不能启用 arrayed fan-out。');
   }
   const source = effectiveOutputType(conn.source, conn.sourceHandle, ctx);
   const variants = input.any_of?.length ? input.any_of : [input];

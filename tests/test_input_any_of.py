@@ -21,11 +21,7 @@ VARIANTS = (
 
 def test_manifest_accepts_complete_input_union() -> None:
     manifest, _ = load_manifest(
-        Path(__file__).parents[2]
-        / "SpacetimeGaussians"
-        / "packs"
-        / "stg-init@0.3.2"
-        / "manifest.yaml"
+        Path(__file__).parents[2] / "SpacetimeGaussians" / "packs" / "stg-init" / "manifest.yaml"
     )
     assert [variant.tags for variant in manifest.inputs["colmap_4d"].any_of] == [
         ["colmap4d"],
@@ -77,3 +73,34 @@ def test_resolved_input_preserves_union_and_fanout_is_rejected() -> None:
         packs_offered_by_node={"worker": {("stg-init", "0.3.1")}},
     )
     assert any("arrayed_toggle cannot be enabled" in issue.message for issue in issues)
+
+
+def test_same_shape_union_maps_one_outer_camera_axis() -> None:
+    variants = ((("colmap4d-images",), False, ()), (("colmap4d-timestamps",), False, ()))
+    pack = PackHandle(
+        inputs={
+            "timestamps": InputPortView(tags=(), required=True, arrayed=False, any_of=variants)
+        },
+        outputs={},
+        arrayable=True,
+    )
+    node = GraphNode(
+        id="n",
+        algorithm_name="attach",
+        algorithm_version="0.2.0",
+        assigned_node_id="worker",
+        arrayed_toggle=True,
+    )
+    graph = WorkflowGraph(nodes=[node], edges=[])
+    types, _ = resolved_port_types(node, pack, graph, {"n": node}, {("attach", "0.2.0"): pack})
+    port = types.inputs["timestamps"]
+    assert port.views.participation == "map-input"
+    assert render_type(port.views.aggregate) == "arrayed<colmap4d-images | colmap4d-timestamps>"
+    assert render_type(port.views.invocation) == "colmap4d-images | colmap4d-timestamps"
+    issues = validate_snapshot(
+        graph,
+        packs_by_key={("attach", "0.2.0"): pack},
+        online_node_ids={"worker"},
+        packs_offered_by_node={"worker": {("attach", "0.2.0")}},
+    )
+    assert not any("arrayed_toggle cannot be enabled" in issue.message for issue in issues)
