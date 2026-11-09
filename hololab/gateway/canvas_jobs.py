@@ -1,10 +1,61 @@
 """Draft evidence selection; never changes frozen run membership."""
 
 import asyncio
+import time
 
 from hololab.constants import is_constant
 from hololab.gateway.preparation import changed_nodes, digest, historical_execution
 from hololab.gateway.workflows import downstream_closure, topological_order
+
+
+async def canvas_state(app, workflow_id, row):
+    """Coalesce first-paint requests and reuse completed evidence for one second."""
+    cache = getattr(app.state, "canvas_state_cache", None)
+    if cache is None:
+        cache = app.state.canvas_state_cache = {}
+    cached = cache.get(workflow_id)
+    if cached and cached[0] == row.updated_ts and time.monotonic() - cached[1] < 1.0:
+        return cached[2]
+    pending = getattr(app.state, "canvas_state_pending", None)
+    if pending is None:
+        pending = app.state.canvas_state_pending = {}
+    flight = pending.get(workflow_id)
+    if flight is None or flight[0] != row.updated_ts:
+        async def compute():
+            from hololab.gateway.preparation import analyze_execution
+
+            evidence = await analyze_execution(app, workflow_id, row.graph, display_only=True)
+            # First paint does not need full jobs, prepared graphs or catalogues.
+            fields = (
+                "job_id", "graph_node_id", "parent_job_id", "shard_element_id",
+                "shard_element_ids", "state", "progress", "expected_shards",
+                "node_id", "workflow_id", "snapshot_id", "created_ts", "started_ts",
+                "updated_ts", "fail_reason", "output_handles", "historical_only",
+            )
+            result = {
+                "canvas_jobs": [{key: job[key] for key in fields if key in job}
+                                for job in evidence["canvas_jobs"]],
+                "staleness": evidence["staleness"],
+                "issues": evidence["issues"],
+            }
+            # A cold computation may itself exceed the TTL. Timestamp its
+            # completion so the first hot request can actually reuse it.
+            if pending.get(workflow_id) == (row.updated_ts, asyncio.current_task()):
+                cache[workflow_id] = (row.updated_ts, time.monotonic(), result)
+            return result
+
+        task = asyncio.create_task(compute())
+        flight = pending[workflow_id] = (row.updated_ts, task)
+
+        def finished(completed):
+            if pending.get(workflow_id) == flight:
+                pending.pop(workflow_id, None)
+            if not completed.cancelled():
+                completed.exception()  # Also retrieve errors after a client disconnects.
+
+        task.add_done_callback(finished)
+    # One disconnected browser must not cancel another browser's shared work.
+    return await asyncio.shield(flight[1])
 
 
 def select_canvas_jobs(graph, candidates, sources):

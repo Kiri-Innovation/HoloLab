@@ -8,6 +8,99 @@ from hololab.gateway.canvas_jobs import select_canvas_jobs
 from hololab.gateway.workflows import GraphEdge, GraphNode, WorkflowGraph
 
 
+@pytest.mark.asyncio
+async def test_historical_execution_copies_only_used_frozen_packs():
+    from hololab.gateway.preparation import historical_execution
+
+    source = graph()
+    source.execution = dict(draft_updated_ts=123, packs=[
+        dict(name="test", version="1.0.0", params={"value": 1}),
+        dict(name="unused", version="1.0.0", params={"value": 2}),
+    ])
+    before = source.model_dump()
+    result = await historical_execution(None, SimpleNamespace(graph=source))
+    assert [p["name"] for p in result.execution["packs"]] == ["test"]
+    assert "draft_updated_ts" not in result.execution
+    result.execution["packs"][0]["params"]["value"] = 9
+    result.nodes[0].params["value"] = 9
+    assert source.model_dump() == before
+
+
+@pytest.mark.asyncio
+async def test_canvas_state_cache_is_completion_based_coalesced_and_compact(monkeypatch):
+    import asyncio
+    import hololab.gateway.canvas_jobs as canvas
+
+    clock = [0.0]
+    monkeypatch.setattr(canvas, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    entered, release = asyncio.Event(), asyncio.Event()
+    calls = []
+
+    async def analyze(*args, **kwargs):
+        calls.append(kwargs)
+        entered.set()
+        await release.wait()
+        return dict(canvas_jobs=[dict(job_id="j", state="running", params={"large": "unused"})],
+                    staleness={}, issues=[dict(kind="invalid_edge", edge_id="broken")])
+
+    monkeypatch.setattr("hololab.gateway.preparation.analyze_execution", analyze)
+    app = SimpleNamespace(state=SimpleNamespace())
+    row = SimpleNamespace(updated_ts=1, graph=graph())
+    first = asyncio.create_task(canvas.canvas_state(app, "w", row))
+    await entered.wait()
+    second = asyncio.create_task(canvas.canvas_state(app, "w", row))
+    await asyncio.sleep(0)
+    clock[0] = 3  # Cold computation exceeds the one-second TTL.
+    release.set()
+    a, b = await asyncio.gather(first, second)
+    assert a is b
+    assert calls == [dict(display_only=True)]
+    assert a["issues"][0]["edge_id"] == "broken"
+    assert a["canvas_jobs"] == [dict(job_id="j", state="running")]
+    assert await canvas.canvas_state(app, "w", row) is a
+    assert len(calls) == 1
+    clock[0] = 4.1
+    await canvas.canvas_state(app, "w", row)
+    assert len(calls) == 2
+    row.updated_ts = 2
+    await canvas.canvas_state(app, "w", row)
+    assert len(calls) == 3
+    assert not app.state.canvas_state_pending
+
+
+@pytest.mark.asyncio
+async def test_canvas_state_shared_work_survives_disconnect_and_retries_errors(monkeypatch):
+    import asyncio
+    from hololab.gateway.canvas_jobs import canvas_state
+
+    entered, release = asyncio.Event(), asyncio.Event()
+    calls = []
+
+    async def analyze(*args, **kwargs):
+        calls.append(1)
+        entered.set()
+        await release.wait()
+        if len(calls) == 1:
+            raise ValueError("temporary failure")
+        return dict(canvas_jobs=[], staleness={}, issues=[])
+
+    monkeypatch.setattr("hololab.gateway.preparation.analyze_execution", analyze)
+    app = SimpleNamespace(state=SimpleNamespace())
+    row = SimpleNamespace(updated_ts=1, graph=graph())
+    first = asyncio.create_task(canvas_state(app, "w", row))
+    await entered.wait()
+    second = asyncio.create_task(canvas_state(app, "w", row))
+    await asyncio.sleep(0)
+    first.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await first
+    release.set()
+    with pytest.raises(ValueError, match="temporary failure"):
+        await second
+    assert await canvas_state(app, "w", row) == dict(canvas_jobs=[], staleness={}, issues=[])
+    assert len(calls) == 2
+
+
 def graph():
     return WorkflowGraph(
         nodes=[

@@ -10,8 +10,10 @@ import json
 from hololab.manifest.array_views import resolve_capabilities
 from hololab.gateway.port_type_ir import ArrayType, ObjectType, compatible, from_legacy
 from hololab.package_identity import package_key
+from hololab.type_registry import type_read_batch
 
 
+@type_read_batch
 def compile_array_views(graph, catalog, *, issues=None):
     """Compile strictly, or collect per-edge failures in ``issues`` for display.
 

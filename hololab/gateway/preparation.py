@@ -17,6 +17,7 @@ from pydantic import TypeAdapter
 
 from hololab.gateway.recipe import split_graph
 from hololab.gateway.workflows import WorkflowGraph, freeze_parameter_pins
+from hololab.type_registry import type_read_batch
 from hololab.inline_values import effective_inline
 from hololab.logging import get_logger
 from hololab.manifest.array_migration import migrate_array_params
@@ -48,12 +49,15 @@ def digest(value: Any) -> str:
     ).hexdigest()
 
 
+@type_read_batch
 def context_revision(
-    graph: WorkflowGraph, catalog: list[dict], *, tolerate_array_view_errors: bool = False
+    graph: WorkflowGraph, catalog: list[dict], *, tolerate_array_view_errors: bool = False,
+    array_views_compiled: bool = False,
 ) -> str:
     from hololab.gateway.array_views import compile_array_views
 
-    graph, _ = compile_array_views(graph, catalog, issues=[] if tolerate_array_view_errors else None)
+    if not array_views_compiled:
+        graph, _ = compile_array_views(graph, catalog, issues=[] if tolerate_array_view_errors else None)
     recipe, bindings, _ = split_graph(graph)
     data = recipe.graph.model_dump(exclude={"execution"})
     for node in data["nodes"]:
@@ -91,6 +95,7 @@ def effective_parameters(explicit: dict | None, pack: dict | None) -> dict:
     return defaults
 
 
+@type_read_batch
 def resolve_recipe(
     graph: WorkflowGraph,
     catalog: list[dict],
@@ -112,7 +117,12 @@ def resolve_recipe(
         graph, catalog, issues=array_view_issues if tolerate_parameter_errors else None
     )
     result = freeze_parameter_pins(graph, catalog)
-    packs = {package_key(p["name"], p["version"]): copy.deepcopy(p) for p in catalog}
+    used = {package_key(n.algorithm_name, n.algorithm_version) for n in graph.nodes}
+    packs = {
+        package_key(p["name"], p["version"]): copy.deepcopy(p)
+        for p in catalog
+        if package_key(p["name"], p["version"]) in used
+    }
     sources, environment, issues = {}, {}, array_view_issues
     inline_values = {}
 
@@ -233,7 +243,8 @@ def resolve_recipe(
             name: copy.deepcopy(graph.variable_values.get(name, declaration.default))
             for name, declaration in graph.variables.items()
         },
-        "revision": context_revision(graph, catalog, tolerate_array_view_errors=tolerate_parameter_errors),
+        "revision": context_revision(graph, catalog, tolerate_array_view_errors=tolerate_parameter_errors,
+                                     array_views_compiled=True),
         "inline_values": inline_values,
         "sources": sources,
         "environment_params": environment,
@@ -306,7 +317,9 @@ async def prepare_execution(
     started = time.monotonic()
     spans: dict[str, float] = {}
     validate_graph_identities(graph)
-    catalog = copy.deepcopy(app.state.registry.catalog_json())
+    # The registry builds fresh dictionaries; resolve_recipe independently
+    # freezes only the declarations used by this graph (including providers).
+    catalog = app.state.registry.catalog_json()
     result = resolve_recipe(graph, catalog, tolerate_parameter_errors=not strict)
     if required is not None and (result.execution or {}).get("array_views"):
         ancestors = set(required)
@@ -502,7 +515,21 @@ async def submitted_execution(
 
 async def historical_execution(app, snapshot) -> WorkflowGraph:
     """Old records use recorded jobs, never today's parameter defaults."""
-    graph = snapshot.graph.model_copy(deep=True)
+    # Older snapshots froze the entire catalog. Copy only the packs used by
+    # this graph, just as resolve_recipe does for newly prepared executions.
+    source = snapshot.graph
+    graph = source.model_copy(update={"execution": None}).model_copy(deep=True)
+    if source.execution:
+        used = {package_key(n.algorithm_name, n.algorithm_version) for n in source.nodes}
+        graph.execution = copy.deepcopy(
+            {
+                **source.execution,
+                "packs": [
+                    p for p in source.execution.get("packs", [])
+                    if package_key(p["name"], p["version"]) in used
+                ],
+            }
+        )
     if graph.execution:
         graph.execution.pop("draft_updated_ts", None)
         return graph

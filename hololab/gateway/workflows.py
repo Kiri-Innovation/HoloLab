@@ -35,6 +35,7 @@ from hololab.gateway.port_type_ir import (
 from hololab.logging import get_logger
 from hololab.package_identity import alias_index, package_key, validate_graph_identities
 from hololab.persistence.db import Database
+from hololab.type_registry import type_read_batch
 
 log = get_logger("gateway.workflows")
 
@@ -1996,6 +1997,7 @@ def _resolved_outputs_for_node(node, pack, graph, node_by_id, packs_by_key):
     return resolved_port_types(node, pack, graph, node_by_id, packs_by_key)[1]
 
 
+@type_read_batch
 def agent_graph_dict(
     graph: WorkflowGraph,
     packs_by_key: dict[tuple[str, str], PackHandle] | None = None,

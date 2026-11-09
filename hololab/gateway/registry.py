@@ -17,6 +17,7 @@ from fastapi import WebSocket
 from hololab.package_identity import offered_identity, package_key, same_package
 from hololab.persistence.db import Database
 from hololab.protocol.messages import EnvironmentEvidenceEntry, GpuInfo, PackInventoryEntry
+from hololab.type_registry import type_read_batch
 
 if TYPE_CHECKING:
     from hololab.gateway.jobs import Job
@@ -488,6 +489,7 @@ class NodeRegistry:
             for r in rows
         ]
 
+    @type_read_batch
     def catalog_json(self, *, keys: set[tuple[str, str]] | None = None) -> list[dict[str, Any]]:
         """Aggregated pack catalog with full port/param signatures.
 

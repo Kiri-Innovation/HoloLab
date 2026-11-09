@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+from contextlib import contextmanager
+from contextvars import ContextVar
 import json
 import subprocess
 import sys
 import threading
 import types
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Any
 
@@ -98,6 +100,7 @@ def _loadable(entry):
 
 class TypeRegistry:
     def __init__(self, roots=(), *, bundled=True):
+        self._batch_depth = ContextVar(f"type_registry_batch_{id(self)}", default=0)
         self.roots = tuple(Path(p) for p in roots)
         self.bundled = bundled
         self.definitions: dict[str, TypeDefinition] = {}
@@ -141,6 +144,8 @@ class TypeRegistry:
         return self.generation
 
     def refresh(self):
+        if self._batch_depth.get():
+            return
         files = []
         for root in (*self.roots, *((BUNDLED_ROOT,) if self.bundled else ())):
             root = root.parent if root.is_file() else root
@@ -156,12 +161,36 @@ class TypeRegistry:
             self.reload()
             self._stamp = stamp
 
+    @contextmanager
+    def read_batch(self):
+        """Refresh once per synchronous operation, not once per port/array axis.
+
+        The next operation still scans for edits immediately; this is not a
+        time-based cache and does not delay type/asset hot reloads.
+        """
+        depth = self._batch_depth.get()
+        if not depth:
+            self.refresh()
+        token = self._batch_depth.set(depth + 1)
+        try:
+            yield
+        finally:
+            self._batch_depth.reset(token)
+
     def get(self, name):
         self.refresh()
         return self.definitions.get(name)
 
 
 registry = TypeRegistry()
+
+
+def type_read_batch(function):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        with registry.read_batch():
+            return function(*args, **kwargs)
+    return wrapped
 
 
 def configure(roots):

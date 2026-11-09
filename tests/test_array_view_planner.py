@@ -102,6 +102,32 @@ def test_preparation_freezes_plan_and_provider_version():
     assert resolved.execution['array_views'][0]['provider']['version']=='0.1.0'
 
 
+def test_resolver_compiles_once_and_freezes_only_used_declarations(monkeypatch):
+    import hololab.gateway.array_views as views
+    from hololab.gateway.preparation import resolve_recipe, context_revision
+
+    graph, catalog = fixture()
+    catalog.append(dict(name="test/unrelated", version="0.1.0", inputs={}, outputs={},
+                        description="unrelated installed pack"))
+    original = views.compile_array_views
+    calls = []
+
+    def compile(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(views, "compile_array_views", compile)
+    resolved = resolve_recipe(graph, catalog)
+    assert len(calls) == 1
+    frozen = resolved.execution["packs"]
+    assert "test/unrelated" not in {p["name"] for p in frozen}
+    assert {p["name"] for p in frozen} == {n.algorithm_name for n in resolved.nodes}
+    assert resolved.execution["revision"] == context_revision(graph, catalog)
+    before = deepcopy(frozen)
+    catalog[0]["outputs"]["out"]["tags"] = ["changed"]
+    assert frozen == before
+
+
 def test_compiled_graph_is_valid_under_unchanged_type_checker():
     from hololab.gateway.workflows import validate_snapshot
     graph,catalog=fixture()

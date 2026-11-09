@@ -3,6 +3,41 @@ from pathlib import Path
 from hololab.type_registry import TypeRegistry
 
 
+def test_read_batch_scans_once_and_next_operation_sees_edits(tmp_path, monkeypatch):
+    import pytest
+    import hololab.type_registry as types
+    from hololab.manifest.data_contract import retired_tags
+
+    directory = tmp_path / "types" / "custom"
+    directory.mkdir(parents=True)
+    manifest = directory / "manifest.yaml"
+    manifest.write_text("name: custom\nretired_tags: [old]\n")
+    registry = TypeRegistry([tmp_path], bundled=False)
+    monkeypatch.setattr(types, "registry", registry)
+    scans = []
+    original = Path.glob
+
+    def glob(path, pattern, **kwargs):
+        if path == tmp_path / "types" and pattern == "**/*":
+            scans.append(pattern)
+        return original(path, pattern, **kwargs)
+
+    monkeypatch.setattr(Path, "glob", glob)
+    with registry.read_batch():
+        for _ in range(100):
+            assert retired_tags() == {"old"}
+            with registry.read_batch():
+                assert registry.get("custom")
+    assert len(scans) == 1
+    manifest.write_text("name: custom\nretired_tags: [new-tag]\n")
+    with pytest.raises(RuntimeError), registry.read_batch():
+        assert retired_tags() == {"new-tag"}
+        raise RuntimeError("failed operation")
+    assert len(scans) == 2
+    assert registry.get("custom")
+    assert len(scans) == 3  # An exception must not leave refresh suppressed.
+
+
 def test_bundled_hooks_are_type_owned():
     registry = TypeRegistry()
     for definition in registry.definitions.values():
