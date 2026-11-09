@@ -1,0 +1,33 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/colmap4d-images-to-images
+version: 0.1.0
+description: colmap4d-images-to-images
+source_entry: run.py
+inputs:
+  timed_images:
+    tags:
+    - colmap4d-images
+    storage: dir
+outputs:
+  images:
+    tags:
+    - image
+    storage: dir
+    arrayed: true
+    dim_labels:
+    - frame
+requires:
+  packages:
+  - colmap4d>=1.0.4
+  - pillow
+runtime:
+  env: colmap4d
+exec:
+  shell: 'python "{{ manifest_dir }}/run.py" <<''CONFIG''
+
+    {{ {''inputs'': inputs, ''outputs'': outputs, ''params'': params} | tojson }}
+
+    CONFIG
+
+    '
