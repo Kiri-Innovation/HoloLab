@@ -1,0 +1,53 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/capture-point-cloud
+version: 0.1.0
+category: reconstruction/colmap4d
+description: Capture static geometry around a timed camera's timestamp.
+source_entry: capture.py
+arrayable: true
+parallelism: 1
+batch_size: 1
+docs: >-
+  Keep points whose center time satisfies abs(t - timestamp_ns) <= time_range_s
+  in seconds, including both endpoints. time_range_s is the window half-width.
+  Output contains only points3D.txt (XYZ/RGB, original IDs, zero error, no tracks
+  or time sidecars). Missing point center times are excluded; dangling time IDs
+  are ignored. Empty windows produce a valid zero-point cloud.
+  Enable fan-out to map timestamp_cam arrays; 4d_points broadcasts unchanged to
+  every shard. Dense cloud readers load into CPU memory; default parallelism is 1.
+inputs:
+  timestamp_cam:
+    tags: [colmap4d-single-cam]
+    storage: file
+    arrayed: false
+  4d_points:
+    tags: [colmap4d-point-cloud]
+    storage: dir
+    arrayed: false
+    scalar: true
+outputs:
+  points:
+    tags: [point-cloud]
+    storage: dir
+    arrayed: false
+params:
+  time_range_s:
+    type: float
+    default: 0.03
+    min: 0
+    description: Inclusive half-width in seconds around timestamp_cam.timestamp_ns.
+requires:
+  packages: [colmap4d>=1.0.4, numpy>=1.26]
+runtime:
+  env: colmap4d
+  gpu: {required: false}
+  resources: {scratch_gb: 1.0, mem_gb: 24.0}
+exec:
+  shell: >-
+    python -u "{{ pack_dir }}/capture.py"
+    --timestamp-cam "{{ inputs.timestamp_cam }}"
+    --points "{{ inputs['4d_points'] }}" --output "{{ outputs.points }}"
+    --time-range-s {{ params.time_range_s }}
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
