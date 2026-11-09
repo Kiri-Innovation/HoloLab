@@ -616,7 +616,7 @@ export interface LatestRun {
   output_handles: Record<string, LatestOutputHandle>;
 }
 
-export interface VariableDeclaration { type: "path" | "int"; description?: string; default?: unknown; }
+export interface VariableDeclaration { type: "path" | "int" | "float"; description?: string; default?: unknown; }
 export type VariableDeclarations = Record<string, VariableDeclaration>;
 
 export interface GraphNode {

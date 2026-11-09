@@ -182,12 +182,19 @@ def resolve_recipe(
                 value = graph.variable_values.get(variable, declaration.default)
                 if value is None or value == "":
                     raise ValueError(f"{prefix} 未提供值")
-                valid = isinstance(value, str) if declaration.type == "path" else type(value) is int
+                if declaration.type == "path":
+                    valid = isinstance(value, str)
+                elif declaration.type == "int":
+                    valid = type(value) is int
+                else:
+                    valid = type(value) in (int, float)
                 if not valid:
                     raise ValueError(
                         f"{prefix} 值类型错误: 需要 {declaration.type}, 当前 {type(value).__name__}"
                     )
-                node.params[parameter] = copy.deepcopy(value)
+                node.params[parameter] = (
+                    float(value) if declaration.type == "float" else copy.deepcopy(value)
+                )
                 sources[node.id][parameter] = "workflow-variable"
         except ValueError as exc:
             if not tolerate_parameter_errors:

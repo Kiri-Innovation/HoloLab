@@ -82,7 +82,7 @@ class GraphPosition(ExtensionModel):
 
 class VariableDeclaration(ExtensionModel):
     model_config = ConfigDict(extra="allow")
-    type: Literal["path", "int"]
+    type: Literal["path", "int", "float"]
     description: str = ""
     default: Any = None
 

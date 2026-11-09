@@ -77,7 +77,7 @@ export function PackParameterField(props: Parameters<typeof InlinePackParameterF
 }) {
   const { variables = {}, binding, onBindingChange, effectiveValue } = props;
   const type = props.pack.params[props.name].type;
-  if (!onBindingChange || (type !== "path" && type !== "int") || props.names.length !== 1) {
+  if (!onBindingChange || (type !== "path" && type !== "int" && type !== "float") || props.names.length !== 1) {
     return InlinePackParameterField(props);
   }
   const choices = matchingVariables(variables, type);
@@ -102,7 +102,7 @@ export function PackParameterField(props: Parameters<typeof InlinePackParameterF
           {choices.map(variable => <option key={variable} value={variable}>→ {variable}</option>)}
         </select>
         {!choices.includes(binding ?? "") && <p role="status">{binding ? "声明缺失或类型不匹配；请重新选择。" : "尚未选择变量。"}</p>}
-        {!choices.length && <p>请在工作流变量中添加 {type === "int" ? "整数" : "路径"} 变量。</p>}
+        {!choices.length && <p>请在工作流变量中添加 {type === "int" ? "整数" : type === "float" ? "浮点数" : "路径"} 变量。</p>}
         <details><summary>解析值{effectiveValue === undefined ? " · 尚未解析" : ""}</summary>{text}</details>
       </div> : <InlinePackParameterField {...props} />}
     </div>
