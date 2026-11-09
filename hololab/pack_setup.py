@@ -498,16 +498,45 @@ def _hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _run_in_env(conda: str, prefix: Path, command: list[str], *, env: dict[str, str] | None = None):
+def _run_in_env(
+    conda: str,
+    prefix: Path,
+    command: list[str],
+    *,
+    env: dict[str, str] | None = None,
+    stream_output: bool = False,
+):
     # Keep this separately injectable from _run: setup needs its deliberately
     # constrained context, while the older package installer needs no env.
-    return subprocess.run(
-        [conda, "run", "--prefix", str(prefix), *command],
+    argv = [conda, "run", "--prefix", str(prefix)]
+    if stream_output:
+        # conda otherwise captures its child's stdio too, defeating the
+        # line-by-line relay below.  Setup hooks can compile or download for a
+        # long time, so their progress must remain visible to the CLI.
+        argv.append("--no-capture-output")
+    argv.extend(command)
+    if not stream_output:
+        return subprocess.run(
+            argv,
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+        )
+
+    proc = subprocess.Popen(
+        argv,
         text=True,
-        capture_output=True,
-        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         env=env,
     )
+    assert proc.stdout is not None
+    output: list[str] = []
+    for line in proc.stdout:
+        print(line, end="", flush=True)
+        output.append(line)
+    return subprocess.CompletedProcess(argv, proc.wait(), "".join(output), "")
 
 
 def _package_root(manifest: object, manifest_path: Path) -> Path:
@@ -678,7 +707,9 @@ def _apply_hooks(
                 **(cache_env or {}),
             }
         )
-        result = _run_in_env(conda, prefix, [setup.shell, str(script)], env=context)
+        result = _run_in_env(
+            conda, prefix, [setup.shell, str(script)], env=context, stream_output=True
+        )
         if result.returncode:
             tail = (result.stderr or result.stdout).strip()[-4000:]
             raise SetupError(

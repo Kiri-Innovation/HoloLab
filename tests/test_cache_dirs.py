@@ -222,7 +222,7 @@ def _run_hooks(tmp_path: Path, monkeypatch, cfg: NodeConfig, prefix: Path) -> li
     )
     manifest, _ = load_manifest(manifest_path)
 
-    def fake_run_in_env(conda, prefix, command, *, env=None):
+    def fake_run_in_env(conda, prefix, command, *, env=None, stream_output=False):
         if command[0] == "python":  # fingerprint / smoke probes
             return subprocess.CompletedProcess(command, 0, "3.12.0\n2.9.1\n13.0\n", "")
         return subprocess.run(command, text=True, capture_output=True, env=env, check=False)
