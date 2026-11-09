@@ -168,6 +168,16 @@ index in environment-local setup state and reinstalls a package from that index
 when no matching record exists, so an earlier wheel from another source is not
 silently accepted.
 
+For packages without a declared `package_indexes` entry, HoloLab leaves the
+operator's configured primary pip index in place and passes PyPI
+(`https://pypi.org/simple`) as an extra index. This lets a lagging mirror fall
+back to PyPI. A declared package index is intentionally exclusive: HoloLab uses
+it as `--index-url` without the PyPI fallback, so CUDA-specific wheels such as
+PyTorch cannot be replaced by a PyPI CPU wheel. Pip commands and failures log
+the index arguments; when investigating an apparently missing release, query
+the PyPI truth directly at `https://pypi.org/pypi/<package>/json` rather than
+relying on the version list from a mirror-configured pip.
+
 Add a generic `package_checks` assertion when matching source provenance alone
 does not identify an artifact variant. A failed check makes setup reinstall the
 package from its declared index before native-hook prerequisites are checked.

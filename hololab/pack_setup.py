@@ -48,6 +48,7 @@ class SetupError(ValueError):
 DEFAULT_PYTHON = "3.11"
 _PYTHON_CANDIDATES = ("3.11", "3.12", "3.10", "3.9", "3.8", "3.7", "3.6", "3.13", "3.14", "3.15")
 _ECOSYSTEM_PYTHONS = frozenset({"3.10", "3.11", "3.12", "3.13"})
+PYPI_SIMPLE_INDEX = "https://pypi.org/simple"
 
 
 @dataclass(frozen=True)
@@ -372,11 +373,17 @@ def _install_indexed_packages(plan, conda, prefix, events):
                     "install",
                     "--constraint",
                     str(constraint),
+                    "--extra-index-url",
+                    PYPI_SIMPLE_INDEX,
                     *others,
                 ]
             )
             if result.returncode:
-                raise SetupError(f"constrained pip dependencies failed: {result.stderr[-4000:]}")
+                raise SetupError(
+                    "constrained pip dependencies failed "
+                    f"(primary pip index plus fallback {PYPI_SIMPLE_INDEX}): "
+                    f"{(result.stdout or result.stderr)[-4000:]}"
+                )
     for raw in indexed:
         name = Requirement(raw).name.lower()
         if not _source_satisfied(conda, prefix, raw, indexes[name], checks.get(name)):
@@ -986,7 +993,8 @@ def apply_plans(
                 )
                 if pip.returncode:
                     raise SetupError(
-                        f"failed to install {package!r} from declared package index {index!r} in {plan.name!r}: {pip.stderr.strip()}"
+                        f"failed to install {package!r} from declared package index {index!r} "
+                        f"in {plan.name!r}: {(pip.stdout or pip.stderr).strip()}"
                     )
                 _record_package_source(prefix, package, index)
                 continue
@@ -1007,12 +1015,16 @@ def apply_plans(
                         "-m",
                         "pip",
                         "install",
+                        "--extra-index-url",
+                        PYPI_SIMPLE_INDEX,
                         package,
                     ]
                 )
                 if pip.returncode:
                     raise SetupError(
-                        f"failed to install {package!r} in {plan.name!r}; conda: {result.stderr.strip()}; pip: {pip.stderr.strip()}"
+                        f"failed to install {package!r} in {plan.name!r}; conda: {result.stderr.strip()}; "
+                        f"pip (primary pip index plus fallback {PYPI_SIMPLE_INDEX}): "
+                        f"{(pip.stdout or pip.stderr).strip()}"
                     )
         _apply_hooks(
             plan,

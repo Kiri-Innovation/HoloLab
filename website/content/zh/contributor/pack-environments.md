@@ -39,6 +39,17 @@ setup:
 - `requires.packages` 使用 Python **发行包名称**，不一定与 import 名相同，可带 PEP 440 版本约束。不接受 URL、extras 或条件 marker。setup 通常先尝试 conda-forge，再回退到 pip；声明 `package_indexes` 可以为指定包选择索引。
 - 除 Python 包外，也要声明原生库和构建前置依赖。可选的 `cuda` 表示驱动至少支持的 CUDA 版本，不代表 toolkit 已安装；GPU 要求也不保证当前有足够空闲显存。
 
+### pip 镜像滞后
+
+未声明专属 `package_indexes` 的 pip 回退会保留节点配置的主镜像，并附加官方 PyPI
+`https://pypi.org/simple` 作为兜底。因此镜像尚未同步的新版本仍可安装；setup 日志和失败信息会标出该兜底。
+若某包声明了专属索引（例如 CUDA PyTorch wheels 的
+`https://download.pytorch.org/whl/cu128`），该索引是排他的 `--index-url`，不会加 PyPI
+兜底，以免解析到 PyPI 的 CPU wheel。
+
+镜像机出现 `No matching distribution found` 时，不要只根据 pip 列出的可用版本判断包是否发布；直接访问
+`https://pypi.org/pypi/<pkg>/json` 查询 PyPI 真值，并查看 setup 日志中的索引参数。
+
 需要可复现时，优先声明实际验证过的精确依赖版本。计划共用环境的包应保持声明兼容。已发布 manifest 不可变，更改依赖应发布新包版本，参见[包身份](package-identity-registry.md)。
 
 ## 逻辑环境名与实际环境

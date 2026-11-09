@@ -336,6 +336,36 @@ def test_declared_package_index_replaces_unproven_existing_wheel(
     pip = next(command for command in commands if "pip" in command)
     assert ["--index-url", index] == pip[pip.index("--index-url") : pip.index("--index-url") + 2]
     assert "--force-reinstall" in pip
+    assert "--extra-index-url" not in pip
+
+
+def test_unindexed_pip_fallback_uses_official_pypi_extra_index(tmp_path: Path, monkeypatch) -> None:
+    packs = tmp_path / "packs"
+    _manifest(packs, "community/plain", "1.0.0", "plain-env", ["colmap4d>=1.0.5"])
+    prefix = tmp_path / "plain-env"
+    prefix.mkdir()
+    config = tmp_path / "config.yaml"
+    config.write_text(f"pack_dirs: [{packs}]\nenvs:\n  plain-env: {prefix}\n")
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr("hololab.pack_setup.find_conda", lambda: "/fake/conda")
+    monkeypatch.setattr("hololab.pack_setup._satisfied", lambda *_args: False)
+    monkeypatch.setattr(
+        "hololab.pack_setup._run_conda_solver",
+        lambda command, _events: subprocess.CompletedProcess(command, 1, "", "not in conda-forge"),
+    )
+    monkeypatch.setattr("hololab.pack_setup._environment_python_version", lambda *_args: None)
+
+    def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("hololab.pack_setup._run", fake_run)
+    cfg = load_node_config(config)
+    apply_plans(installed_plans(cfg, "community/plain@1.0.0", False), cfg, config, dry_run=False)
+
+    pip = next(command for command in commands if "pip" in command)
+    assert pip[pip.index("--extra-index-url") + 1] == "https://pypi.org/simple"
 
 
 def test_failed_package_check_reinstalls_despite_matching_source_receipt(

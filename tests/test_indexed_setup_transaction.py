@@ -38,6 +38,9 @@ def test_indexed_packages_are_first_and_constrain_all_python_dependencies(tmp_pa
     assert installs[0][-1] == "torch==2.8.0+cu128"
     assert installs[1][-1] == "torchvision==0.23.0+cu128"
     assert installs[2][-1] == "timm"
+    assert "--extra-index-url" not in installs[0]
+    assert "--extra-index-url" not in installs[1]
+    assert installs[2][installs[2].index("--extra-index-url") + 1] == setup.PYPI_SIMPLE_INDEX
     assert not any(c[1] == "install" for c in calls)
 
 
