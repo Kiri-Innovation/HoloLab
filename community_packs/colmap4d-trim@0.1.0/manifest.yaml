@@ -1,0 +1,54 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/colmap4d-trim
+version: 0.1.0
+description: Trim timed COLMAP records and pixels to an absolute nanosecond window.
+category: reconstruction/colmap4d
+source_entry: trim.py
+docs: |-
+  Absolute nanoseconds, never frame indices or seconds. Keep start_time_ns <= t < end_time_ns;
+  -1 reserves an unbounded end. Equal timestamps stay together. Out-of-range bounds warn
+  and intersect available records; empty selections fail. IDs and clock metadata stay unchanged.
+  The output inherits its input type. Cams trim image records, times and referenced intrinsics.
+  Points trim by points_t. Whole models trim all components and prune reciprocal links without
+  compacting observation indices. A changed track-centroid time claim fails explicitly.
+  Timed pixels require times plus images records or image_names.json. Legacy pixel-only
+  components have no absolute time axis and fail rather than infer time from filenames.
+  Uses colmap4d object readers/writers and independent copies; dense models need substantial CPU RAM.
+inputs:
+  input:
+    storage: dir
+    any_of:
+    - tags: [colmap4d]
+    - tags: [colmap4d-cams]
+    - tags: [colmap4d-images]
+    - tags: [colmap4d-point-cloud]
+outputs:
+  output:
+    tags: [any]
+    tags_from: input
+    storage: dir
+params:
+  start_time_ns:
+    type: int
+    default: 0
+    description: Inclusive absolute signed int64 timestamp in nanoseconds.
+  end_time_ns:
+    type: int
+    default: -1
+    description: Exclusive absolute signed int64 timestamp; -1 means through the last record.
+requires:
+  packages: [colmap4d>=1.0.4]
+runtime:
+  env: colmap4d
+  gpu:
+    required: false
+  resources:
+    mem_gb: 64
+    scratch_gb: 12
+exec:
+  shell: |
+    set -euo pipefail
+    python "{{ manifest_dir }}/trim.py" <<'CONFIG'
+    {{ {'inputs': inputs, 'outputs': outputs, 'params': params} | tojson }}
+    CONFIG

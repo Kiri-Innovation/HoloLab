@@ -14,3 +14,5 @@ preview_rule:
     options:
       cams_only: true
 preview_terminal: true
+summary: summary.py:summary
+summary_role: counts
