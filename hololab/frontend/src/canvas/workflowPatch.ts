@@ -16,6 +16,7 @@ const nodeFields = [
   "param_bindings",
   "local_params",
   "port_values",
+  "device",
   "assigned_node_id",
   "arrayed_toggle",
   "parallelism",
@@ -32,6 +33,7 @@ const graphFields = [
 ];
 const defaults: Record<string, unknown> = {
   kind: "algorithm",
+  device: "default",
   position: { x: 0, y: 0 },
   params: {},
   port_values: {},

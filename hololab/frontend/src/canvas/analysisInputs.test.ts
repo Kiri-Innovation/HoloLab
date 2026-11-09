@@ -11,7 +11,7 @@ it('ignores view nodes, view edges, positions and previews, not execution fields
  const edited=structuredClone(graph);edited.nodes[0].position.x=500;edited.nodes[0].preview_open='out';
  edited.nodes.push({id:'view',kind:'view'});edited.edges.push({source:'a',target:'view'});
  expect(stable(semanticGraph(edited))).toBe(stable(semanticGraph(graph)));
- for(const field of ['params','port_values','assigned_node_id','arrayed_toggle','parallelism']){
+ for(const field of ['params','port_values','device','assigned_node_id','arrayed_toggle','parallelism']){
   const g=structuredClone(graph);g.nodes[0][field]='changed';expect(stable(semanticGraph(g))).not.toBe(stable(semanticGraph(graph)));
  }
 });

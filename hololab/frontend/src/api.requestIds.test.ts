@@ -131,3 +131,35 @@ it('classifies parameter preparation blockers without dispatching a job', async 
  await expect(runWorkflow('parameter-blocker')).rejects.toThrow('必填参数未填');
  expect(fetch).toHaveBeenCalledTimes(1);
 });
+
+it.each(['cold','warm','inflight'])('single-node %s preparation ignores other nodes missing declarations',async path=>{
+ const workflow=`scoped-${path}`;
+ const issues=Array.from({length:12},(_,i)=>({node_id:`other-${i}`,message:'Algorithm declaration unavailable'}));
+ let release!:()=>void;
+ const gate=new Promise<void>(resolve=>{release=resolve;});
+ const fetch=vi.fn<typeof globalThis.fetch>(async url=>{
+  if(String(url).endsWith('/prepare')) {
+   if(path==='inflight')await gate;
+   return new Response(JSON.stringify({token:'scoped',issues,run_blockers:issues.map(i=>i.message)}),{status:200});
+  }
+  return new Response(JSON.stringify({snapshot_id:'snapshot',job_id:'job',state:'assigned',operation:'continue'}),{status:200});
+ });
+ vi.stubGlobal('fetch',fetch);
+ let warming:Promise<void>|undefined;
+ if(path==='warm')await warmNodePreparation(workflow,'target');
+ if(path==='inflight')warming=warmNodePreparation(workflow,'target');
+ const pending=dispatchNode(workflow,'target');
+ release();
+ await pending;
+ await warming;
+ expect(fetch.mock.calls.filter(([url])=>String(url).endsWith('/prepare'))).toHaveLength(1);
+ expect(fetch.mock.calls.some(([url])=>String(url).includes('/dispatch/target'))).toBe(true);
+});
+
+it('single-node preparation still rejects its own missing declaration',async()=>{
+ const missing='Algorithm declaration unavailable';
+ const fetch=vi.fn(async()=>new Response(JSON.stringify({token:'blocked',issues:[{node_id:'target',message:missing},{node_id:'other',message:missing}],run_blockers:[missing,missing]}),{status:200}));
+ vi.stubGlobal('fetch',fetch);
+ await expect(dispatchNode('scoped-target-missing','target')).rejects.toThrow(missing);
+ expect(fetch).toHaveBeenCalledTimes(1);
+});

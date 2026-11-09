@@ -399,7 +399,7 @@ def test_workflow_open_lists_missing_and_preparation_fails(tmp_path, monkeypatch
         unavailable = client.post(
             "/api/capabilities/check", json={"graph": graph.model_dump()}
         ).json()
-        assert unavailable["nodes"]["a"]["status"] == "unknown"  # Never invent undeclared.
+        assert unavailable["nodes"]["a"]["status"] == "missing"  # Exact package absent.
 
 
 @pytest.mark.asyncio

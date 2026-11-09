@@ -713,3 +713,9 @@ a:hover { text-decoration: underline; }
   --inverse-muted: var(--text-muted);
   --inverse-soft: var(--surface-hover);
 }
+
+.hl-workflow-devices { display: grid; gap: 10px; padding: 14px; border-bottom: 1px solid var(--border); }
+.hl-device-row { display: grid; grid-template-columns: minmax(60px, 1fr) minmax(0, 2fr); align-items: center; gap: 8px; }
+.hl-device-row select, .hl-workflow-devices input { min-width: 0; width: 100%; }
+.hl-workflow-devices form { display: flex; gap: 8px; }
+.hl-compute-assignment output { overflow-wrap: anywhere; color: var(--text-muted); }

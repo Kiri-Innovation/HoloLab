@@ -63,3 +63,31 @@ export function preparationBlockerText(prepared: {run_blockers?: string[]; envir
     return [`${id} (${report.source ?? ''}): ${problem.conclusion}`, problem.reason, problem.action, other].filter(Boolean).join('\n');
   }).join('\n');
 }
+
+
+/** Older gateways mix unrelated graph issues into a single-node preflight.
+ * Remove only blockers proven to belong to other nodes. Keep target/global
+ * issues and unstructured failures, including identical target messages.
+ */
+export function scopeNodePreparation<T extends {
+  run_blockers?: string[];
+  issues?: {node_id?: string; message: string}[];
+}>(prepared: T, nodeId?: string): T {
+  if (!nodeId || !prepared.issues?.length || !prepared.run_blockers?.length) return prepared;
+  const other = new Map<string, number>();
+  const relevant = new Map<string, number>();
+  const total = new Map<string, number>();
+  for (const issue of prepared.issues) {
+    const counts = issue.node_id && issue.node_id !== nodeId ? other : relevant;
+    counts.set(issue.message, (counts.get(issue.message) ?? 0) + 1);
+  }
+  for (const blocker of prepared.run_blockers) total.set(blocker, (total.get(blocker) ?? 0) + 1);
+  const remove = new Map([...other].map(([message, count]) => [message,
+    Math.min(count, Math.max(0, (total.get(message) ?? 0) - (relevant.get(message) ?? 0)))]));
+  return {...prepared, run_blockers: prepared.run_blockers.filter(blocker => {
+    const remaining = remove.get(blocker) ?? 0;
+    if (!remaining) return true;
+    remove.set(blocker, remaining - 1);
+    return false;
+  })};
+}

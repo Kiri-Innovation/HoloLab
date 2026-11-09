@@ -128,6 +128,7 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   /** Strict contracts compare every port; connection contracts prove only ports used by this graph. */
   replacementMode?: "strict" | "connections";
   arrayed_toggle?: boolean;
+  device?: string;
   assigned_node_id: string | null;
   /** Draft node parameters, included in the CoBrowser reference snapshot. */
   local_params?: string[];
@@ -492,7 +493,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
     ? assignedComputeNode.node_name
     : assigned_node_id
       ? assigned_node_id.slice(0, 6)
-      : "not assigned";
+      : `设备 ${data.device ?? "default"} · 自动分配`;
   const progressLabel =
     runtime?.progress && runtime.progress.total > 0
       ? `${runtime.progress.current}/${runtime.progress.total}`

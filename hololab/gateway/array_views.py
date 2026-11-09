@@ -71,7 +71,7 @@ def compile_array_views(graph, catalog, *, issues=None):
             raise ValueError('array view generated node ID collision')
         target = nodes[edge.target]
         new = GraphNode(id=node_id, algorithm_name=hook.name, algorithm_version=hook.version,
-                        assigned_node_id=target.assigned_node_id)
+                        device=target.device, assigned_node_id=target.assigned_node_id)
         result.nodes.append(new)
         nodes[node_id] = new
         replacement = GraphEdge(id=edge.id + '-array-view-input', source=edge.source,

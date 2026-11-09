@@ -78,7 +78,7 @@ def setup(client, tmp_path, identity_mode="legacy"):
         workspace_root=str(tmp_path),
     )
     app.state.registry._sessions["node"] = session
-    app.state.registry.catalog_json = lambda: deepcopy(catalog)
+    app.state.registry.catalog_json = lambda **kwargs: deepcopy(catalog)
     graph = WorkflowGraph(
         nodes=[
             GraphNode(

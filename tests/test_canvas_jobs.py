@@ -8,6 +8,14 @@ from hololab.gateway.canvas_jobs import select_canvas_jobs
 from hololab.gateway.workflows import GraphEdge, GraphNode, WorkflowGraph
 
 
+@pytest.fixture
+def device_resolution(monkeypatch):
+    """These display tests isolate invalid graphs from gateway routing/storage."""
+    monkeypatch.setattr("hololab.gateway.device_bindings.resolve_devices", AsyncMock(return_value={
+        "revision": 0, "assignments": {}, "routing": {}, "reports": {}, "issues": [],
+    }))
+
+
 def graph():
     return WorkflowGraph(
         nodes=[
@@ -215,7 +223,7 @@ async def test_analysis_pairs_history_verdict_with_job_membership(monkeypatch, m
 
 
 @pytest.mark.asyncio
-async def test_display_analysis_isolates_invalid_legacy_node_parameters(monkeypatch):
+async def test_display_analysis_isolates_invalid_legacy_node_parameters(monkeypatch, device_resolution):
     """One old parameter cannot turn the whole canvas-state response into a 500."""
     from hololab.gateway.preparation import analyze_execution
 
@@ -243,7 +251,7 @@ async def test_display_analysis_isolates_invalid_legacy_node_parameters(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_display_analysis_isolates_zero_candidate_edge(monkeypatch):
+async def test_display_analysis_isolates_zero_candidate_edge(monkeypatch, device_resolution):
     from tests.test_array_view_planner import fixture
     from hololab.gateway.preparation import analyze_execution
     g, catalog = fixture()
@@ -262,7 +270,7 @@ async def test_display_analysis_isolates_zero_candidate_edge(monkeypatch):
     assert result['canvas_jobs'] == []
 
 
-def test_canvas_state_returns_200_with_invalid_edge_and_other_jobs(monkeypatch, tmp_path):
+def test_canvas_state_returns_200_with_invalid_edge_and_other_jobs(monkeypatch, tmp_path, device_resolution):
     from fastapi.testclient import TestClient
     from hololab.gateway.app import create_app
     from tests.test_array_view_planner import fixture

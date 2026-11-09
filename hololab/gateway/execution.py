@@ -1582,9 +1582,6 @@ async def _dispatch_graph_node(
     if gnode.kind not in ("algorithm", "intrinsic"):
         raise DispatchError(f"graph node {graph_node_id!r} is a view and cannot be dispatched")
 
-    if gnode.assigned_node_id is None:
-        raise DispatchError(f"graph node {graph_node_id!r} has no assigned compute node")
-
     from hololab.gateway.preparation import (
         changed_nodes,
         historical_execution,
