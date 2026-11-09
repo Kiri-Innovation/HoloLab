@@ -11,8 +11,12 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import subprocess
+import tempfile
+import threading
+import time
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -261,7 +265,123 @@ def installed_plans(cfg: NodeConfig, spec: str | None, all_packs: bool) -> list[
 
 
 def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, text=True, capture_output=True, check=False)
+    mutating = command[1:2] in (["create"], ["install"]) or "pip" in command
+    started = time.monotonic()
+    if mutating:
+        print(f"[pack setup] begin (0s): {shlex.join(command)}", flush=True)
+        argv = list(command)
+        if argv[1:2] == ["run"]:
+            argv.insert(2, "--no-capture-output")
+        stopped = threading.Event()
+
+        def heartbeat():
+            while not stopped.wait(30):
+                print(
+                    f"[pack setup] running ({time.monotonic() - started:.1f}s): {shlex.join(command)}",
+                    flush=True,
+                )
+
+        ticker = threading.Thread(target=heartbeat, daemon=True)
+        ticker.start()
+        output = []
+        try:
+            with subprocess.Popen(
+                argv, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            ) as proc:
+                for line in proc.stdout:
+                    print(line, end="", flush=True)
+                    output.append(line)
+                code = proc.wait()
+            result = subprocess.CompletedProcess(command, code, "".join(output), "")
+        finally:
+            stopped.set()
+            ticker.join()
+    else:
+        result = subprocess.run(command, text=True, capture_output=True, check=False)
+    if mutating:
+        print(
+            f"[pack setup] done ({time.monotonic() - started:.1f}s, exit={result.returncode}): {shlex.join(command)}",
+            flush=True,
+        )
+    return result
+
+
+def _install_indexed_packages(plan, conda, prefix, events):
+    """Use one Python resolver after conda; conda cannot preserve pip wheel origins.
+
+    Install index-owned distributions first, constrain their exact resolved
+    versions during the remaining pip transaction, then verify again before
+    any native hook. Never run another conda solve over these pip files.
+    """
+    indexes = dict(plan.package_indexes)
+    checks = {name: (module, attr, truthy) for name, module, attr, truthy in plan.package_checks}
+    indexed = [raw for raw in plan.packages if Requirement(raw).name.lower() in indexes]
+    others = [raw for raw in plan.packages if Requirement(raw).name.lower() not in indexes]
+    constraints = []
+    for raw in indexed:
+        name = Requirement(raw).name.lower()
+        index = indexes[name]
+        if not _source_satisfied(conda, prefix, raw, index, checks.get(name)):
+            result = _run(
+                [
+                    conda,
+                    "run",
+                    "--prefix",
+                    str(prefix),
+                    "python",
+                    "-m",
+                    "pip",
+                    "install",
+                    "--upgrade",
+                    "--force-reinstall",
+                    "--index-url",
+                    index,
+                    raw,
+                ]
+            )
+            if result.returncode:
+                raise SetupError(f"index install failed for {raw}: {result.stderr[-4000:]}")
+            _record_package_source(prefix, raw, index)
+        result = _run(
+            [
+                conda,
+                "run",
+                "--prefix",
+                str(prefix),
+                "python",
+                "-c",
+                f"import importlib.metadata; print(importlib.metadata.version({name!r}))",
+            ]
+        )
+        if result.returncode:
+            raise SetupError(f"cannot determine installed version of {name}")
+        constraints.append(f"{name}=={result.stdout.strip()}")
+    with tempfile.TemporaryDirectory(prefix="hololab-pip-constraints-") as temp:
+        constraint = Path(temp) / "constraints.txt"
+        constraint.write_text("\n".join(constraints) + "\n")
+        if others:
+            result = _run(
+                [
+                    conda,
+                    "run",
+                    "--prefix",
+                    str(prefix),
+                    "python",
+                    "-m",
+                    "pip",
+                    "install",
+                    "--constraint",
+                    str(constraint),
+                    *others,
+                ]
+            )
+            if result.returncode:
+                raise SetupError(f"constrained pip dependencies failed: {result.stderr[-4000:]}")
+    for raw in indexed:
+        name = Requirement(raw).name.lower()
+        if not _source_satisfied(conda, prefix, raw, indexes[name], checks.get(name)):
+            raise SetupError(f"indexed package changed during dependency installation: {raw}")
+    events.append(f"{plan.name}: constrained pip dependencies and indexed package checks passed")
 
 
 def _channel_priority_option_unsupported(result: subprocess.CompletedProcess[str]) -> bool:
@@ -707,6 +827,15 @@ def _apply_hooks(
                 **(cache_env or {}),
             }
         )
+        if "cuda-toolkit" in setup.needs:
+            # PyTorch CUDA wheels ship cuBLAS/cuSPARSE headers in their nvidia
+            # distributions rather than CUDA_HOME/include. Make those target
+            # env headers visible to both the host compiler and nvcc.
+            wheel_headers = sorted(prefix.glob("lib/python*/site-packages/nvidia/*/include"))
+            if wheel_headers:
+                context["CPATH"] = os.pathsep.join(
+                    [*(str(path) for path in wheel_headers), context.get("CPATH", "")]
+                ).rstrip(os.pathsep)
         result = _run_in_env(
             conda, prefix, [setup.shell, str(script)], env=context, stream_output=True
         )
@@ -715,11 +844,18 @@ def _apply_hooks(
             raise SetupError(
                 f"setup hook failed for {manifest.name}@{manifest.version} (exit {result.returncode}):\n{tail}"
             )
-        for module in setup.modules:
-            smoke = _run_in_env(conda, prefix, ["python", "-c", f"import {module}"])
+        if setup.modules:
+            # Preserve declared initialization order in one process: CUDA
+            # extensions often rely on torch loading libc10/libtorch first.
+            program = (
+                "import importlib\nfor name in "
+                + repr(setup.modules)
+                + ": importlib.import_module(name)"
+            )
+            smoke = _run_in_env(conda, prefix, ["python", "-c", program])
             if smoke.returncode:
                 raise SetupError(
-                    f"setup smoke test failed importing {module}: {smoke.stderr.strip()}"
+                    f"setup smoke test failed importing {setup.modules}: {smoke.stderr.strip()}"
                 )
         receipt.parent.mkdir(parents=True, exist_ok=True)
         receipt.write_text(
@@ -806,6 +942,10 @@ def apply_plans(
                         "ecosystem-compatible range (3.10-3.13); setup will not rebuild it"
                     )
         _install_conda_packages(plan, conda, prefix, events, dry_run)
+        if plan.package_indexes and not dry_run:
+            _install_indexed_packages(plan, conda, prefix, events)
+            _apply_hooks(plan, conda, prefix, events, False, cfg.ensure_cache_dirs())
+            continue
         package_indexes = dict(plan.package_indexes)
         package_checks = {
             name: (module, attribute, truthy)

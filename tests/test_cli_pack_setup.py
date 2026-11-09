@@ -166,7 +166,7 @@ def test_setup_existing_mapping_installs_only_unsatisfied_and_never_rebuilds(
     assert any("numpy already satisfied" in event for event in events)
     assert any("existing Python 3.15.2" in event for event in events)
     assert any("outside the ecosystem-compatible range" in event for event in events)
-    assert any(command[1] == "install" and command[-1] == "ffmpeg" for command in commands)
+    assert any(command[1] == "install" and "ffmpeg" in command for command in commands)
     assert not any(command[1] == "create" for command in commands)
     assert config.read_text() == f"pack_dirs: [{packs}]\nenvs:\n  kiri: {prefix}\n"
 
@@ -200,7 +200,7 @@ def test_setup_new_environment_writes_mapping_and_backup(tmp_path: Path, monkeyp
     apply_plans(installed_plans(cfg, "community/one@1.0.0", False), cfg, config, dry_run=False)
 
     assert any(command[1] == "create" for command in commands)
-    assert next(command for command in commands if command[1] == "create")[-1] == "python=3.11"
+    assert "python=3.11" in next(command for command in commands if command[1] == "create")
     assert "test-setup-env:" in config.read_text()
     assert list(tmp_path.glob("config.yaml.setup-*.bak"))
 
@@ -242,7 +242,7 @@ def test_setup_new_environment_honors_python_constraint(tmp_path: Path, monkeypa
         installed_plans(cfg, "community/constrained@1.0.0", False), cfg, config, dry_run=False
     )
 
-    assert next(command for command in commands if command[1] == "create")[-1] == "python=3.11"
+    assert "python=3.11" in next(command for command in commands if command[1] == "create")
 
 
 def test_cuda_hook_reports_missing_compiler_in_plain_language(tmp_path: Path, monkeypatch) -> None:
@@ -319,7 +319,11 @@ def test_declared_package_index_replaces_unproven_existing_wheel(
     def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
         commands.append(command)
         if command[1:3] == ["list", "--prefix"]:
-            return subprocess.CompletedProcess(command, 0, '[{"version": "2.0"}]', "")
+            return subprocess.CompletedProcess(
+                command, 0, '[{"name": "torch", "version": "2.0"}]', ""
+            )
+        if command[1:3] == ["run", "--prefix"] and "importlib.metadata" in command[-1]:
+            return subprocess.CompletedProcess(command, 0, "2.0\n", "")
         if command[1:3] == ["run", "--prefix"]:
             return subprocess.CompletedProcess(command, 0, "Python 3.12.0\n", "")
         return subprocess.CompletedProcess(command, 0, "", "")
@@ -360,8 +364,14 @@ def test_failed_package_check_reinstalls_despite_matching_source_receipt(
     def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
         commands.append(command)
         if command[1:3] == ["list", "--prefix"]:
-            return subprocess.CompletedProcess(command, 0, '[{"version": "2.0"}]', "")
+            return subprocess.CompletedProcess(
+                command, 0, '[{"name": "torch", "version": "2.0"}]', ""
+            )
+        if command[1:3] == ["run", "--prefix"] and "importlib.metadata" in command[-1]:
+            return subprocess.CompletedProcess(command, 0, "2.0\n", "")
         if command[1:3] == ["run", "--prefix"] and "import importlib" in command[-1]:
+            if any("pip" in previous for previous in commands):
+                return subprocess.CompletedProcess(command, 0, "", "")
             return subprocess.CompletedProcess(command, 1, "", "CPU-only torch")
         if command[1:3] == ["run", "--prefix"]:
             return subprocess.CompletedProcess(command, 0, "Python 3.12.0\n", "")
@@ -377,6 +387,7 @@ def test_failed_package_check_reinstalls_despite_matching_source_receipt(
 
 def test_installed_version_ignores_regex_neighbors(tmp_path, monkeypatch):
     import hololab.pack_setup as setup
+
     rows = [
         {"name": "libopenvino-pytorch-frontend", "version": "2024.4.0"},
         {"name": "libtorch", "version": "2.5.1"},
@@ -384,6 +395,8 @@ def test_installed_version_ignores_regex_neighbors(tmp_path, monkeypatch):
         {"name": "torch", "version": "2.8.0+cu128"},
         {"name": "torchvision", "version": "0.23.0"},
     ]
-    monkeypatch.setattr(setup, "_run", lambda command: subprocess.CompletedProcess(command, 0, json.dumps(rows), ""))
+    monkeypatch.setattr(
+        setup, "_run", lambda command: subprocess.CompletedProcess(command, 0, json.dumps(rows), "")
+    )
     assert str(setup._installed_version("conda", tmp_path, "torch")) == "2.8.0+cu128"
     assert setup._installed_version("conda", tmp_path, "tor") is None
