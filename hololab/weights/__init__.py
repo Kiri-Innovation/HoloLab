@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import unicodedata
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, urlsplit
@@ -70,16 +71,36 @@ def cache_home(cache_dir=None):
     )
 
 
-def _items(spec_path, only):
+def _revision(value):
+    if (
+        not value
+        or value == "."
+        or ".." in value
+        or "/" in value
+        or "\\" in value
+        or any(unicodedata.category(char) == "Cc" for char in value)
+    ):
+        raise ValueError("Unsafe weight revision: reject slashes, '..', and control characters")
+    return value
+
+
+def _items(spec_path, only, *, registry=False):
     items = json.loads(Path(spec_path).read_text())["items"]
     by_id = {}
     for item in items:
         if item["id"] in by_id:
             raise ValueError("Duplicate weight id")
-        match = re.fullmatch(r"hf:([\w.-]+/[\w.-]+)@([a-fA-F0-9]{40})", item["source"])
+        match = re.fullmatch(r"hf:([\w.-]+/[\w.-]+)@(.+)", item["source"], re.DOTALL)
         if not match:
-            raise ValueError("source must be hf:owner/repo@40-character-commit-sha")
-        item = dict(item, repo=match[1], revision=match[2].lower())
+            raise ValueError("source must be hf:owner/repo@revision")
+        revision = _revision(match[2])
+        if not registry:
+            if not re.fullmatch(r"[a-fA-F0-9]{40}", revision):
+                raise ValueError(
+                    "source must be hf:owner/repo@40-character-commit-sha without an endpoint"
+                )
+            revision = revision.lower()
+        item = dict(item, repo=match[1], revision=revision)
         for pattern in item.get("patterns", []):
             _path(pattern)
         item["sha256"] = {_path(p): _sha(s) for p, s in item.get("sha256", {}).items()}
@@ -203,7 +224,8 @@ def _registry(client, endpoint, item, snapshot):
     )
     response.raise_for_status()
     resolved = response.json()
-    digest = _sha(resolved.get("digest", resolved.get("dir_sha")))
+    weight = resolved.get("weight", resolved)
+    digest = _sha(weight.get("sha", weight.get("digest", weight.get("dir_sha"))))
     response = client.get(endpoint + "/weights/manifests/" + digest + ".json")
     response.raise_for_status()
     raw = response.content
@@ -281,7 +303,7 @@ def _from_hf(item, snapshot):
 def resolve_weights(spec_path: Path, *, only=None, cache_dir=None) -> dict[str, Path]:
     """Resolve fully verified local selections; never access the network."""
     home = cache_home(cache_dir)
-    return {item["id"]: _local(home, item) for item in _items(spec_path, only)}
+    return {item["id"]: _local(home, item) for item in _items(spec_path, only, registry=True)}
 
 
 def fetch_weights(
@@ -309,7 +331,7 @@ def fetch_weights(
     home = cache_home(cache_dir)
     result = {}
     with httpx.Client(follow_redirects=True, timeout=60) as client:
-        for item in _items(spec_path, only):
+        for item in _items(spec_path, only, registry=bool(endpoint)):
             state = _state(home, item)
             with _lock(state.with_suffix(".lock")):
                 try:

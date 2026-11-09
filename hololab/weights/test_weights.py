@@ -34,7 +34,9 @@ def fixture(tmp_path, monkeypatch):
         def do_GET(self):
             calls.append((self.path, self.headers.get("Range")))
             if self.path.startswith("/weights/resolve/"):
-                body = json.dumps({"digest": digest, "files": [entry]}).encode()
+                body = json.dumps(
+                    {"format": 1, "weight": {"sha": digest, "files": [entry]}}
+                ).encode()
             elif self.path == "/weights/index.json":
                 body = json.dumps(
                     [{"name": "o/r", "revision": "a" * 40, "digest": digest}]
@@ -246,3 +248,46 @@ def test_hf_etag_validation(fixture, monkeypatch):
     hub.get_hf_file_metadata = lambda *a: SimpleNamespace(etag="0" * 64, size=len(content))
     with pytest.raises(weights.WeightsIntegrityError, match="etag"):
         weights._from_hf(item, weights._snapshot(home, item))
+
+
+def test_registry_short_revision_and_offline_resolve(fixture, monkeypatch):
+    spec, home, endpoint, calls, _ = fixture
+    data = json.loads(spec.read_text())
+    data["items"][0]["source"] = "hf:o/r@V1"
+    spec.write_text(json.dumps(data))
+    monkeypatch.setenv("HOLOLAB_WEIGHTS_ENDPOINT", endpoint)
+    result = weights.fetch_weights(spec, cache_dir=home, fallback="error")
+    assert result["tiny"].name == "V1"
+    assert any(path == "/weights/resolve/o/r?revision=V1" for path, _ in calls)
+    monkeypatch.delenv("HOLOLAB_WEIGHTS_ENDPOINT")
+    assert weights.resolve_weights(spec, cache_dir=home) == result
+    with pytest.raises(ValueError, match="40-character-commit-sha"):
+        weights.fetch_weights(spec, cache_dir=home)
+    runner = CliRunner()
+    assert (
+        runner.invoke(
+            app, ["weights", "fetch", "--spec", str(spec), "--cache-dir", str(home)]
+        ).exit_code
+        == 2
+    )
+    assert (
+        runner.invoke(
+            app, ["weights", "resolve", "--spec", str(spec), "--cache-dir", str(home)]
+        ).exit_code
+        == 0
+    )
+
+
+@pytest.mark.parametrize(
+    "revision", ["", ".", "..", "../bad", "a/b", "a\\b", "a..b", "a\n", "a\x00", "a\x7f", "a\x85"]
+)
+def test_registry_revision_path_safety(fixture, revision):
+    spec, home, endpoint, calls, _ = fixture
+    data = json.loads(spec.read_text())
+    data["items"][0]["source"] = "hf:o/r@" + revision
+    spec.write_text(json.dumps(data))
+    with pytest.raises(ValueError):
+        weights.fetch_weights(spec, cache_dir=home, endpoint=endpoint)
+    with pytest.raises(ValueError):
+        weights.resolve_weights(spec, cache_dir=home)
+    assert not calls

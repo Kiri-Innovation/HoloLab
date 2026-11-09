@@ -10,11 +10,16 @@ any deployment prefix, before `/weights`. Endpoint precedence is CLI,
 `HOLOLAB_WEIGHTS_ENDPOINT`, then no registry (HF). The default fallback is HF.
 No endpoint always selects HF, including with `--fallback error`.
 
-The spec follows the existing `items` format: `id`, immutable
-`hf:owner/repo@40-character-commit`, optional `patterns`, `requires`, `sha256`
+The spec follows the existing `items` format: `id`,
+`hf:owner/repo@revision`, optional `patterns`, `requires`, `sha256`
 and informational `bytes`. IDs select a transitive dependency closure.
-Registry names use the source's `owner/repo`, and revision uses its commit.
-Resolve responses supply `digest` (or `dir_sha`); manifests are fetched from
+Registry names use the source's `owner/repo`, and revision uses its source
+revision. Registry revisions preserve case and allow
+nonempty tags, rejecting slashes, backslashes, `..`, `.` and control characters.
+Without an endpoint, fetch still requires a 40-character HF commit SHA. Offline
+resolve accepts safe tags without an endpoint.
+The deployed resolve response supplies `weight.sha` (legacy top-level `digest`
+or `dir_sha` is also accepted); manifests are fetched from
 `/weights/manifests/<digest>.json` and hashed as raw bytes, without Unicode
 normalization. Every manifest file requires `path`, `sha256`, and `bytes`.
 The client uses resolve rather than downloading the full registry index.

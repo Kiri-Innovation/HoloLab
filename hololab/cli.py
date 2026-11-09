@@ -1269,7 +1269,9 @@ def _weights_command(
         if directory is None:
             directory = load_node_config(config).cache_env()["HOLOLAB_WEIGHTS_HOME"]
         if dry_run:
-            items = _items(spec, only)
+            items = _items(
+                spec, only, registry=bool(endpoint or os.environ.get("HOLOLAB_WEIGHTS_ENDPOINT"))
+            )
             typer.echo(
                 json.dumps(
                     {
