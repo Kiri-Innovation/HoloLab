@@ -1255,5 +1255,81 @@ def _print_dev_banner(host: str, port: int, frontend_url: str) -> None:
     typer.echo("─" * 60)
 
 
+weights_app = typer.Typer(help="Fetch verified weights or resolve local cached paths.")
+app.add_typer(weights_app, name="weights")
+
+
+def _weights_command(
+    spec, only, cache_dir, config, as_json, endpoint=None, fallback="hf", fetch=False, dry_run=False
+):
+    from hololab.weights import WeightsError, _items, fetch_weights, resolve_weights
+
+    try:
+        directory = cache_dir or os.environ.get("HOLOLAB_WEIGHTS_HOME")
+        if directory is None:
+            directory = load_node_config(config).cache_env()["HOLOLAB_WEIGHTS_HOME"]
+        if dry_run:
+            items = _items(spec, only)
+            typer.echo(
+                json.dumps(
+                    {
+                        "cache_dir": str(directory),
+                        "endpoint": endpoint or os.environ.get("HOLOLAB_WEIGHTS_ENDPOINT"),
+                        "fallback": fallback,
+                        "items": [i["id"] for i in items],
+                    }
+                )
+            )
+            return
+        if fetch:
+            paths = fetch_weights(
+                spec, only=only, cache_dir=directory, endpoint=endpoint, fallback=fallback
+            )
+        else:
+            paths = resolve_weights(spec, only=only, cache_dir=directory)
+        if as_json:
+            typer.echo(json.dumps({key: str(value) for key, value in paths.items()}))
+        else:
+            for key, value in paths.items():
+                typer.echo(f"{key}\t{value}")
+    except ValueError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    except (WeightsError, OSError, KeyError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+
+@weights_app.command("fetch")
+def weights_fetch(
+    spec: Path = typer.Option(..., "--spec"),
+    only: list[str] = typer.Option(None, "--only"),
+    cache_dir: Path | None = typer.Option(None, "--cache-dir"),
+    config: Path | None = typer.Option(None, "--config"),
+    endpoint: str | None = typer.Option(None, "--endpoint", "--mirror"),
+    fallback: str = typer.Option("hf", "--fallback"),
+    as_json: bool = typer.Option(False, "--json"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+):
+    """Fetch from verified cache, a content-addressed registry, or HF."""
+    if fallback not in ("hf", "error"):
+        raise typer.BadParameter("must be hf or error", param_hint="--fallback")
+    _weights_command(
+        spec, only, cache_dir, config, as_json, endpoint, fallback, fetch=True, dry_run=dry_run
+    )
+
+
+@weights_app.command("resolve")
+def weights_resolve(
+    spec: Path = typer.Option(..., "--spec"),
+    only: list[str] = typer.Option(None, "--only"),
+    cache_dir: Path | None = typer.Option(None, "--cache-dir"),
+    config: Path | None = typer.Option(None, "--config"),
+    as_json: bool = typer.Option(False, "--json"),
+):
+    """Print verified local paths without accessing any service."""
+    _weights_command(spec, only, cache_dir, config, as_json)
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()

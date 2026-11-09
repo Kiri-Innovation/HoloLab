@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from contextlib import suppress
 from urllib.parse import quote
 
 import httpx
@@ -167,7 +166,10 @@ class FileTunnelClient:
                     )
                 )
 
+                bytes_sent = 0
+
                 async def pump() -> None:
+                    nonlocal bytes_sent
                     # A 2.7 MiB thumbnail otherwise becomes roughly forty
                     # 64 KiB WebSocket messages.  Fewer, bounded 256 KiB
                     # frames materially reduce masking/ASGI scheduling cost
@@ -175,36 +177,57 @@ class FileTunnelClient:
                     # gateway queue remains the per-flow backpressure point.
                     async for chunk in response.aiter_raw(chunk_size=_BODY_CHUNK_SIZE):
                         await ws.send(chunk)
+                        bytes_sent += len(chunk)
 
                 writer = asyncio.create_task(pump())
                 reader = asyncio.create_task(ws.recv())
                 cancelled = False
-                while not writer.done():
-                    done, _ = await asyncio.wait(
-                        {writer, reader}, return_when=asyncio.FIRST_COMPLETED
-                    )
-                    if writer in done:
-                        break
-                    incoming = reader.result()
-                    if isinstance(incoming, str):
-                        control = json.loads(incoming)
-                        if (
-                            control.get("kind") == "cancel"
-                            and control.get("stream_id") == stream_id
-                        ):
-                            writer.cancel()
-                            with suppress(asyncio.CancelledError):
-                                await writer
-                            cancelled = True
+                try:
+                    while not writer.done():
+                        done, _ = await asyncio.wait(
+                            {writer, reader}, return_when=asyncio.FIRST_COMPLETED
+                        )
+                        if writer in done:
                             break
-                    reader = asyncio.create_task(ws.recv())
-                if not reader.done():
-                    reader.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await reader
-                if not cancelled:
-                    await writer
-                await ws.send(json.dumps({"kind": "end", "stream_id": stream_id}))
+                        incoming = reader.result()
+                        if isinstance(incoming, str):
+                            control = json.loads(incoming)
+                            if (
+                                control.get("kind") == "cancel"
+                                and control.get("stream_id") == stream_id
+                            ):
+                                cancelled = True
+                                break
+                        reader = asyncio.create_task(ws.recv())
+                    if not cancelled:
+                        await writer
+                finally:
+                    # A failed reader/disconnect must not leave an orphan pump
+                    # sending old binary frames into a later response.
+                    for task in (writer, reader):
+                        if not task.done():
+                            task.cancel()
+                    await asyncio.gather(writer, reader, return_exceptions=True)
+                if cancelled:
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "kind": "error",
+                                "stream_id": stream_id,
+                                "detail": "HTTP stream cancelled",
+                            }
+                        )
+                    )
+                    return
+                no_body = method == "HEAD" or response.status_code in (204, 304)
+                expected = 0 if no_body else response.headers.get("content-length")
+                if expected is not None and bytes_sent != int(expected):
+                    raise RuntimeError(
+                        f"upstream content-length mismatch: {bytes_sent} != {expected}"
+                    )
+                await ws.send(
+                    json.dumps({"kind": "end", "stream_id": stream_id, "bytes_sent": bytes_sent})
+                )
         except asyncio.CancelledError:
             raise
         except Exception as exc:

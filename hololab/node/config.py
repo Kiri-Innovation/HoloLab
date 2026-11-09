@@ -60,8 +60,9 @@ class CacheDirs(BaseModel):
 
     torch: Path | None = None
     huggingface: Path | None = None
+    weights: Path | None = None
 
-    @field_validator("torch", "huggingface")
+    @field_validator("torch", "huggingface", "weights")
     @classmethod
     def _absolute(cls, value: Path | None, info) -> Path | None:
         return _absolute_cache_dir(value, f"cache_dirs.{info.field_name}")
@@ -385,6 +386,7 @@ class NodeConfig(BaseModel):
         torch = self.cache_dirs.torch or root / "torch"
         hf = self.cache_dirs.huggingface or root / "huggingface"
         return {
+            "HOLOLAB_WEIGHTS_HOME": str(self.cache_dirs.weights or root / "hololab"),
             "TORCH_HOME": str(torch),
             "HF_HOME": str(hf),
             "HF_HUB_CACHE": str(hf / "hub"),
@@ -393,7 +395,7 @@ class NodeConfig(BaseModel):
     def ensure_cache_dirs(self) -> dict[str, str]:
         """Create the configured cache directories; return ``cache_env()``."""
         env = self.cache_env()
-        for key in ("TORCH_HOME", "HF_HOME", "HF_HUB_CACHE"):
+        for key in ("TORCH_HOME", "HF_HOME", "HF_HUB_CACHE", "HOLOLAB_WEIGHTS_HOME"):
             if key in env:
                 Path(env[key]).mkdir(parents=True, exist_ok=True)
         return env

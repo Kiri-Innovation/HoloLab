@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Image sequence</title>
+<style>
+:root { color-scheme: dark; font: 12px system-ui,sans-serif; color: #ddd; background: #171717; }
+* { box-sizing: border-box; }
+body { margin: 0; display: flex; flex-direction: column; height: 100vh; }
+#stage { flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; background: #111; position: relative; }
+#stage img { width: 100%; height: 100%; object-fit: contain; position: absolute; }
+#status { z-index: 1; background: #171717dd; padding: 4px; }
+footer { padding: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+button, select, input { accent-color: #aaa; color: inherit; background: #292929; border: 1px solid #555; border-radius: 3px; }
+button, select { padding: 4px 8px; } button { min-width: 54px; }
+#seek { width: 100%; margin: 0; } #fps { width: 52px; padding: 4px; }
+label { display: inline-flex; gap: 4px; align-items: center; } #position { margin-left: auto; font-variant-numeric: tabular-nums; }
+</style>
+<div id="stage"><span id="status" role="status">Waiting for sequence…</span></div>
+<footer>
+<input id="seek" type="range" min="0" max="0" value="0" aria-label="Frame" disabled>
+<button id="play" disabled>Play</button>
+<label>Camera <select id="camera" aria-label="Camera" disabled></select></label>
+<label>FPS <input id="fps" type="number" min="1" max="120" value="30"></label>
+<label><input id="loop" type="checkbox" checked> Loop</label>
+<span id="position">0 / 0</span>
+</footer>
+<script type="module">
+const $ = id => document.getElementById(id);
+const stage = $('stage'), status = $('status'), seek = $('seek'), play = $('play');
+const camera = $('camera'), fps = $('fps'), loop = $('loop'), position = $('position');
+let groups = new Map(), frames = [], index = 0, playing = false, base = '', generation = 0;
+let timer, controller, shown;
+const cache = new Map();
+function stop() { playing = false; clearTimeout(timer); play.textContent = 'Play'; }
+function clearCache() {
+  shown?.remove(); shown = null;
+  for (const item of cache.values()) { item.image.removeAttribute('src'); item.image.remove(); }
+  cache.clear();
+}
+function windowFrames() {
+  const wanted = new Set();
+  for (let offset = -2; offset <= 3; offset++) {
+    let n = index + offset;
+    if (loop.checked) n = (n % frames.length + frames.length) % frames.length;
+    if (n >= 0 && n < frames.length) wanted.add(n);
+  }
+  for (const [n, item] of cache) if (!wanted.has(n)) {
+    item.image.remove(); item.image.removeAttribute('src'); cache.delete(n);
+  }
+  for (const n of wanted) if (!cache.has(n)) {
+    const image = new Image(); image.alt = frames[n].name; image.decoding = 'sync';
+    const item = {image, ready: false, failed: false}; cache.set(n, item);
+    image.onload = async () => {
+      try { await image.decode(); } catch { item.failed = true; }
+      if (cache.get(n) !== item) return;
+      item.ready = !item.failed;
+      if (n === index) display();
+    };
+    image.onerror = () => { item.failed = true; if (n === index && cache.get(n) === item) display(); };
+    image.src = base.replace(/\/$/, '') + '/' + frames[n].name.split('/').map(encodeURIComponent).join('/');
+  }
+}
+function display() {
+  const item = cache.get(index);
+  if (item?.ready) {
+    if (shown !== item.image) { shown?.remove(); shown = item.image; stage.prepend(shown); }
+    status.hidden = true;
+  } else { status.hidden = false; status.textContent = item?.failed ? 'Frame could not be loaded' : 'Loading frame…'; }
+  seek.value = String(index);
+  position.textContent = `${index + 1} / ${frames.length} · f${frames[index].frame}`;
+}
+function render() { if (!frames.length) return; windowFrames(); display(); }
+function schedule() {
+  clearTimeout(timer);
+  if (!playing) return;
+  timer = setTimeout(() => {
+    // Buffer instead of running past images which have not loaded yet.
+    const next = index + 1 < frames.length ? index + 1 : loop.checked ? 0 : null;
+    if (next === null) { stop(); return; }
+    const item = cache.get(next);
+    if (item?.ready || item?.failed) { index = next; render(); }
+    schedule();
+  }, 1000 / Math.min(120, Math.max(1, Number(fps.value) || 30)));
+}
+play.onclick = () => {
+  if (playing) { stop(); return; }
+  if (index === frames.length - 1) { index = 0; render(); }
+  playing = true; play.textContent = 'Pause'; schedule();
+};
+seek.oninput = () => { index = Number(seek.value); render(); };
+fps.onchange = () => { fps.value = String(Math.min(120, Math.max(1, Number(fps.value) || 30))); schedule(); };
+loop.onchange = render;
+camera.onchange = () => {
+  const frame = frames[index]?.frame;
+  clearCache(); frames = groups.get(camera.value) || [];
+  index = Math.max(0, frames.findIndex(item => item.frame === frame));
+  seek.max = String(Math.max(0, frames.length - 1)); render(); schedule();
+};
+async function load(url) {
+  const version = ++generation;
+  controller?.abort(); controller = new AbortController();
+  stop(); clearCache(); frames = []; groups.clear();
+  play.disabled = seek.disabled = camera.disabled = true;
+  status.hidden = false; status.textContent = 'Reading sequence…';
+  try {
+    const proxy = new URL(url, location.origin), parts = proxy.pathname.split('/').filter(Boolean);
+    if (proxy.origin !== location.origin || parts[0] !== 'proxy' || parts.length < 3) throw Error('Expected a proxy directory URL');
+    base = proxy.pathname;
+    const listings = await Promise.all(['*', 'images/*'].map(async pattern => {
+      const query = new URLSearchParams({base: parts.slice(2).map(decodeURIComponent).join('/'), pattern});
+      const response = await fetch(`/proxy/${parts[1]}/_glob?${query}`, {signal: controller.signal, cache: 'no-store'});
+      if (!response.ok) throw Error(`Directory listing: HTTP ${response.status}`);
+      return (await response.json()).files || [];
+    }));
+    const body = {files: listings.flat()};
+    if (version !== generation) return;
+    for (const name of body.files || []) {
+      const match = /^(?:images\/)?f(\d+)__cam(\d+)\.(?:png|jpe?g|webp)$/i.exec(name);
+      if (!match) continue;
+      const key = `cam${Number(match[2])}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({name, frame: Number(match[1])});
+    }
+    const cameras = [...groups.keys()].sort((a,b) => Number(a.slice(3)) - Number(b.slice(3)));
+    camera.replaceChildren(...cameras.map(name => new Option(name, name)));
+    for (const list of groups.values()) list.sort((a,b) => a.frame - b.frame);
+    if (!cameras.length) throw Error('No f<frame>__cam<camera> images found');
+    camera.value = groups.has('cam0') ? 'cam0' : cameras[0];
+    play.disabled = seek.disabled = camera.disabled = false; index = 0; camera.onchange();
+  } catch (error) {
+    if (version !== generation || error.name === 'AbortError') return;
+    status.hidden = false; status.textContent = error.message;
+  }
+}
+window.addEventListener('message', event => {
+  if (event.source !== parent || event.origin !== location.origin || event.data?.type !== 'hololab-viewer-state') return;
+  const url = event.data.frames?.[0]?.proxy_url;
+  if (url && url !== base) load(url);
+});
+window.addEventListener('pagehide', () => { stop(); controller?.abort(); clearCache(); });
+</script>
+</html>
