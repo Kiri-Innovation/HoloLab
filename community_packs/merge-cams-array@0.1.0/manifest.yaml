@@ -1,0 +1,33 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/merge-cams-array
+version: 0.1.0
+description: Merge timed camera components into one timestamp-ordered timeline.
+category: reconstruction/colmap4d
+source_entry: merge.py
+docs: >-
+  Stable timestamp order, then shard name and original IMAGE_ID. Remaps image
+  and intrinsic IDs; identical intrinsics deduplicate, differing intrinsics remain
+  distinct. Requires matching ns clocks and conventions. Preserves source metadata
+  under conversion.sources and recomputes counts/time bounds. No point references.
+inputs:
+  cameras:
+    tags: [colmap4d-cams]
+    storage: dir
+    arrayed: true
+    dim_labels: [camera]
+outputs:
+  4d_cams:
+    tags: [colmap4d-cams]
+    storage: dir
+    arrayed: false
+params: {}
+requires:
+  packages: [colmap4d>=1.0.4]
+runtime:
+  env: colmap4d
+  gpu: {required: false}
+exec:
+  shell: >-
+    python -u "{{ pack_dir }}/merge.py"
+    --input "{{ inputs.cameras }}" --output "{{ outputs['4d_cams'] }}"
