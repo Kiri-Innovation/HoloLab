@@ -1,0 +1,48 @@
+apiVersion: hololab.dev/v1
+kind: Algorithm
+name: col4d/repeat-into-4d
+version: 0.2.0
+description: Repeat one static camera over a reference camera timeline.
+category: reconstruction/colmap4d
+arrayable: true
+parallelism: 4
+batch_size: 1
+source_entry: repeat_into_4d.py
+docs: >-
+  Input is one timeless colmap-single-cam JSON (model, width, height, params,
+  qvec wxyz, tvec; world-to-camera). Output is a colmap4d-cams component.
+  timestamp_cameras supplies only timestamps and time_meta; its geometry is ignored.
+  Timestamps are deduplicated and sorted as exact int64 nanoseconds.
+  All time_meta bytes, including clock_domain, are inherited unchanged.
+  Enable arrayed_toggle to map camera geometry; timestamp_cameras broadcasts
+  to every shard. Each geometry produces one frame per unique timestamp.
+  No pixels or point observations are generated.
+inputs:
+  camera:
+    tags: [colmap-single-cam]
+    storage: file
+    arrayed: false
+  timestamp_cameras:
+    tags: [colmap4d-cams]
+    storage: dir
+    arrayed: false
+    scalar: true
+outputs:
+  4d_cams:
+    tags: [colmap4d-cams]
+    storage: dir
+    arrayed: false
+params: {}
+requires:
+  packages: [colmap4d>=1.0.4]
+runtime:
+  env: colmap4d
+  gpu: {required: false}
+  resources: {scratch_gb: 0.2, mem_gb: 2.0}
+exec:
+  shell: >-
+    python -u "{{ pack_dir }}/repeat_into_4d.py"
+    --camera "{{ inputs.camera }}" --output "{{ outputs['4d_cams'] }}"
+    --timestamp-cameras "{{ inputs.timestamp_cameras }}"
+progress:
+  stdout_regex: '\[ITER (\d+)/(\d+)\]'
