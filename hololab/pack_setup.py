@@ -264,6 +264,35 @@ def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, text=True, capture_output=True, check=False)
 
 
+def _channel_priority_option_unsupported(result: subprocess.CompletedProcess[str]) -> bool:
+    """Return whether a solver rejected the per-invocation priority override."""
+    output = f"{result.stdout}\n{result.stderr}"
+    return bool(
+        re.search(
+            r"(?:unrecognized|unknown) (?:arguments?|option).*--no-channel-priority",
+            output,
+            re.IGNORECASE,
+        )
+    )
+
+
+def _run_conda_solver(command: list[str], events: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run one solve without inheriting the host's channel-priority policy.
+
+    ``--no-channel-priority`` is supported by current conda and makes package
+    versions win over channel priority.  Retrying only when the CLI rejects the
+    option keeps old conda usable without masking actual solver failures.
+    """
+    result = _run([*command, "--no-channel-priority"])
+    if result.returncode and _channel_priority_option_unsupported(result):
+        events.append(
+            "warning: conda does not support --no-channel-priority; "
+            "retrying with this machine's channel_priority setting"
+        )
+        return _run(command)
+    return result
+
+
 def _prefix_for_name(conda: str, name: str) -> Path:
     result = _run([conda, "env", "list", "--json"])
     if result.returncode:
@@ -357,7 +386,7 @@ def _install_conda_packages(
     for channel in channels:
         command.extend(["--channel", channel])
     command.extend(plan.conda_packages)
-    result = _run(command)
+    result = _run_conda_solver(command, events)
     if result.returncode:
         raise SetupError(
             f"failed to install conda packages {plan.conda_packages!r} in {plan.name!r}: "
@@ -722,7 +751,7 @@ def apply_plans(
                 # unconstrained conda resolution otherwise selects the newest
                 # interpreter, often ahead of package wheel support.
                 command.append(f"python={selected_python}")
-                result = _run(command)
+                result = _run_conda_solver(command, events)
                 if result.returncode:
                     raise SetupError(
                         f"failed to create {plan.name!r}: {result.stderr.strip()}"
@@ -792,8 +821,9 @@ def apply_plans(
                 continue
             if dry_run:
                 continue
-            result = _run(
-                [conda, "install", "--yes", "--prefix", str(prefix), "-c", "conda-forge", package]
+            result = _run_conda_solver(
+                [conda, "install", "--yes", "--prefix", str(prefix), "-c", "conda-forge", package],
+                events,
             )
             if result.returncode:
                 pip = _run(
