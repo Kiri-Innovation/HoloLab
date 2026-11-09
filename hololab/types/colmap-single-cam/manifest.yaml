@@ -1,0 +1,13 @@
+kind: Type
+name: colmap-single-cam
+preview_rule:
+  order: 0
+  override: missing
+  when:
+    - arrayed: true
+  preview:
+    viewer: colmap4d
+    entry: viewer.html
+    member: .
+    options:
+      cams_only: true
