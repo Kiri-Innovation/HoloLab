@@ -910,6 +910,26 @@ CREATE TABLE workflow_files (
 )
 
 
+MIGRATIONS.append(
+    (
+        33,
+        """
+CREATE TABLE workflow_device_bindings (
+ workflow_id TEXT NOT NULL REFERENCES workflows(workflow_id) ON DELETE CASCADE,
+ logical_id TEXT NOT NULL,
+ node_id TEXT NOT NULL,
+ updated_ts REAL NOT NULL,
+ PRIMARY KEY (workflow_id, logical_id)
+);
+CREATE TABLE workflow_device_binding_revisions (
+ workflow_id TEXT PRIMARY KEY REFERENCES workflows(workflow_id) ON DELETE CASCADE,
+ revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0)
+);
+""",
+    )
+)
+
+
 async def current_schema_version(conn: aiosqlite.Connection) -> int:
     """Return the DB's applied schema version, or 0 for a fresh database."""
 

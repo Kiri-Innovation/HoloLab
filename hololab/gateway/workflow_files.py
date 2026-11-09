@@ -11,9 +11,9 @@ import uuid
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from pydantic import ConfigDict, Field, StrictInt
 
-from hololab.gateway.workflows import GraphNode, WorkflowGraph, WorkflowRow
+from hololab.gateway.workflows import ExtensionModel, GraphNode, WorkflowGraph, WorkflowRow
 from hololab.logging import get_logger
 
 log = get_logger("gateway.workflow_files")
@@ -21,8 +21,8 @@ CURRENT_VERSION = 1
 MIGRATIONS = {}
 
 
-class WorkflowDocument(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class WorkflowDocument(ExtensionModel):
+    model_config = ConfigDict(extra="allow")
     formatVersion: StrictInt = CURRENT_VERSION
     id: str = Field(min_length=1)
     name: str
@@ -58,6 +58,8 @@ def serialize(document: WorkflowDocument) -> bytes:
     # Models already dump schema fields in declaration order. Only free-form
     # mappings lack a schema order, so stabilize those separately.
     for node in data["graph"]["nodes"]:
+        # Physical assignments are gateway-local; legacy files remain readable.
+        node.pop("assigned_node_id", None)
         for key in ("params", "port_values", "param_bindings", "code_identity"):
             if key in node:
                 node[key] = free_mapping(node[key])

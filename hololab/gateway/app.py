@@ -27,6 +27,11 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from hololab import PROTOCOL_V_MAX, PROTOCOL_V_MIN
 from hololab.gateway.derived_cache import DerivedPreviewCache
+from hololab.gateway.device_bindings import (
+    DeviceBindingConflict,
+    DeviceBindingPatch,
+    DeviceBindingStore,
+)
 from hololab.gateway.execution import (
     DispatchError,
     WorkflowRunError,
@@ -2047,8 +2052,9 @@ def _mount_routes(app: FastAPI) -> None:
 
     @app.get("/api/types/{name}/assets/{asset:path}", tags=["packs"])
     async def type_asset(name: str, asset: str):
-        from hololab.type_registry import registry as types
         from fastapi.responses import FileResponse
+
+        from hololab.type_registry import registry as types
         definition = types.get(name)
         if definition is None:
             raise HTTPException(404, "type not found")
@@ -2571,6 +2577,27 @@ def _mount_routes(app: FastAPI) -> None:
         await files.scan()
         return {"id": workflow_id, "path": str(path)}
 
+    @app.get("/api/workflows/{workflow_id}/device-bindings", tags=["workflows"])
+    async def get_device_bindings(workflow_id: str):
+        if await app.state.workflows.get_draft(workflow_id) is None:
+            raise HTTPException(404, "workflow not found")
+        return await DeviceBindingStore(app.state.db).get(workflow_id)
+
+    @app.patch("/api/workflows/{workflow_id}/device-bindings", tags=["workflows"])
+    async def patch_device_bindings(workflow_id: str, body: DeviceBindingPatch):
+        if await app.state.workflows.get_draft(workflow_id) is None:
+            raise HTTPException(404, "workflow not found")
+        try:
+            return await DeviceBindingStore(app.state.db).patch(workflow_id, body)
+        except DeviceBindingConflict as exc:
+            raise HTTPException(
+                409, {"code": "device_binding_conflict", "current": exc.current}
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(404, "workflow not found") from exc
+
     @app.put("/api/workflows/{workflow_id}/content", tags=["workflows"])
     async def put_workflow_content(workflow_id: str, body: dict[str, Any]):
         from hololab.gateway.workflow_files import WorkflowDocument, write_document
@@ -2606,7 +2633,19 @@ def _mount_routes(app: FastAPI) -> None:
             if body["base_rev"] != files.revisions.get(workflow_id, 0):
                 raise HTTPException(409, "workflow revision changed")
             try:
-                document = WorkflowDocument(id=workflow_id, name=body["name"], graph=body["graph"])
+                from hololab.gateway.workflows import preserve_graph_extensions
+
+                incoming = WorkflowDocument.model_validate(
+                    {
+                        key: value
+                        for key, value in body.items()
+                        if key not in ("expected_mtime", "base_rev")
+                    }
+                    | {"id": workflow_id}
+                )
+                if workflow_id in files._save_tasks:
+                    current = files.documents.get(workflow_id) or current
+                document = preserve_graph_extensions(current, incoming)
                 task = files._save_tasks.pop(workflow_id, None)
                 if task:
                     task.cancel()

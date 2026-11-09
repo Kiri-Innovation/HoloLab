@@ -76,6 +76,25 @@ workflow_app = typer.Typer(help="Workflow document tools.")
 app.add_typer(workflow_app, name="workflow")
 
 
+@workflow_app.command("migrate-devices")
+def workflow_migrate_devices(
+    db_path: Path = typer.Option(..., "--db-path", exists=True, dir_okay=False),
+    workflows_dir: Path = typer.Option(..., "--workflows-dir", exists=True, file_okay=False),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+    backup_dir: Path | None = typer.Option(None, "--backup-dir"),
+):
+    """Plan legacy device migration; --apply requires an offline gateway and makes backups."""
+    from hololab.gateway.migrate_device_bindings import migrate
+
+    typer.echo(
+        json.dumps(
+            migrate(db_path, workflows_dir, dry_run=dry_run, backup_dir=backup_dir),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+
+
 @workflow_app.command("migrate-files")
 def workflow_migrate_files(
     db_path: Path | None = typer.Option(None, "--db-path"),

@@ -15,6 +15,7 @@ from hololab.gateway.workflows import WorkflowGraph
 from hololab.package_identity import package_key
 
 NODE_FIELDS = {
+    "device",
     "id",
     "kind",
     "operation",

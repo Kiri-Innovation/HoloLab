@@ -74,7 +74,10 @@ def test_legacy_migration_keeps_local_bindings_out_of_file(tmp_path):
         path = tmp_path / "workflows" / row.workflow_id / "recipe.json"
         assert not path.exists()
         detail = client.get(f"/api/workflows/{row.workflow_id}").json()
-        assert "/private/" not in path.read_text() and "device" not in path.read_text()
+        assert "/private/" not in path.read_text()
+        portable_node = json.loads(path.read_text())["graph"]["nodes"][0]
+        assert "assigned_node_id" not in portable_node
+        assert portable_node["device"] == "default"
         assert detail["graph"]["nodes"][0]["params"]["path"] == "/private/source"
         assert detail["graph"]["variable_values"] == {"data": "/private/data"}
         assert detail["graph"]["nodes"][0]["assigned_node_id"] == "device"

@@ -20,6 +20,7 @@ from hololab.gateway.workflows import (
     WorkflowGraph,
     WorkflowPreconditionRequired,
     draft_graph,
+    preserve_graph_extensions,
 )
 
 
@@ -134,7 +135,7 @@ class FileAuthority:
             and e.source in ids | view_ids
             and e.target in ids | view_ids
         )
-        return graph
+        return preserve_graph_extensions(local, graph)
 
     async def recover(self, wid):
         async with self.store._db.read() as conn:

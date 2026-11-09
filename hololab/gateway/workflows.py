@@ -11,6 +11,7 @@ See ``docs/workflow-schema.md`` for the schema and semantics. This module owns:
 
 from __future__ import annotations
 
+import copy
 import json
 import time
 import uuid
@@ -19,7 +20,14 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 import aiosqlite
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from hololab.gateway.array_assemble import AssemblySlots, port_view
 from hololab.gateway.port_type_ir import (
@@ -43,22 +51,43 @@ log = get_logger("gateway.workflows")
 # ---------------------------------------------------------------------------
 
 
-class GraphPosition(BaseModel):
+class ExtensionModel(BaseModel):
+    """Keep opaque JSON extensions, including explicit nulls, on round-trip."""
+
+    model_config = ConfigDict(extra="allow")
+
+    @model_serializer(mode="wrap")
+    def _serialize_extensions(self, handler, info):
+        data = handler(self)
+        self._preserve_null_extensions(data, info)
+        return data
+
+    def _preserve_null_extensions(self, data, info):
+        for key, value in (self.model_extra or {}).items():
+            if (
+                value is None
+                and (info.include is None or key in info.include)
+                and (info.exclude is None or key not in info.exclude)
+            ):
+                data[key] = None
+
+
+class GraphPosition(ExtensionModel):
     """Cosmetic canvas coordinate."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
     x: float = 0.0
     y: float = 0.0
 
 
-class VariableDeclaration(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class VariableDeclaration(ExtensionModel):
+    model_config = ConfigDict(extra="allow")
     type: Literal["path", "int"]
     description: str = ""
     default: Any = None
 
 
-class GraphNode(BaseModel):
+class GraphNode(ExtensionModel):
     """One algorithm-pack instance on the blueprint.
 
     Fields are classified into two families:
@@ -79,7 +108,7 @@ class GraphNode(BaseModel):
       switching to the "last run" view carries the state over.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
     id: str
     # ``kind`` deliberately lives in the persisted graph instead of being a
@@ -100,6 +129,18 @@ class GraphNode(BaseModel):
     local_params: list[str] = Field(default_factory=list)
     port_values: dict[str, Any] = Field(default_factory=dict)
     assigned_node_id: str | None = None
+    device: str = Field(default="default", strict=True, min_length=1)
+
+    @model_serializer(mode="wrap")
+    def _serialize_device(self, handler, info):
+        data = handler(self)
+        self._preserve_null_extensions(data, info)
+        from hololab.constants import is_constant
+
+        if self.kind == "view" or is_constant(self):
+            data.pop("device", None)
+        return data
+
     # Read-only: computed on every GET by :func:`agent_graph_dict` from
     # the pack catalog. Declared here so an agent (or the frontend) can
     # POST the same graph JSON it just GET'd — the field is accepted on
@@ -219,7 +260,7 @@ def is_algorithm_node(node: GraphNode) -> bool:
     return node.kind in ("algorithm", "intrinsic")
 
 
-class GraphEdge(BaseModel):
+class GraphEdge(ExtensionModel):
     """One data-dependency edge between two algorithm nodes' ports.
 
     ``source_label`` / ``target_label`` are denormalised outputs the GET
@@ -230,7 +271,7 @@ class GraphEdge(BaseModel):
     labels are re-derived when we render the next GET.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
     id: str
     source: str
@@ -241,7 +282,7 @@ class GraphEdge(BaseModel):
     target_label: str | None = Field(default=None, exclude=True)
 
 
-class WorkflowGraph(BaseModel):
+class WorkflowGraph(ExtensionModel):
     """Complete graph — nodes + edges. Same shape for draft and snapshot.
 
     ``is_dag`` / ``topology_text`` mirror the denormalisation on ``GraphEdge``:
@@ -249,7 +290,7 @@ class WorkflowGraph(BaseModel):
     take the GET body and PUT it back without hand-stripping fields.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
     recipe_dependencies: list[dict[str, Any]] = Field(default_factory=list)
     variables: dict[str, VariableDeclaration] = Field(default_factory=dict)
@@ -265,6 +306,46 @@ class WorkflowGraph(BaseModel):
 # ---------------------------------------------------------------------------
 # Persistence
 # ---------------------------------------------------------------------------
+
+
+def preserve_graph_extensions(previous: BaseModel, incoming: BaseModel):
+    """Keep omitted extensions, matching graph residents by stable ID.
+
+    Known editable fields still use replacement semantics (including removals
+    from params/maps and deletion of nodes/edges). Device is the one known
+    field whose omission identifies an older client.
+    """
+    result = incoming.model_copy(deep=True)
+    extras = copy.deepcopy(previous.model_extra or {})
+    extras.update(result.model_extra or {})
+    if result.model_config.get("extra") == "allow":
+        object.__setattr__(result, "__pydantic_extra__", extras)
+    for name in type(incoming).model_fields:
+        old, new = getattr(previous, name), getattr(result, name)
+        if name == "device" and name not in incoming.model_fields_set:
+            result.device = old
+        elif isinstance(old, BaseModel) and isinstance(new, BaseModel):
+            setattr(result, name, preserve_graph_extensions(old, new))
+        elif name in ("nodes", "edges"):
+            by_id = {item.id: item for item in old}
+            setattr(
+                result,
+                name,
+                [
+                    preserve_graph_extensions(by_id[item.id], item) if item.id in by_id else item
+                    for item in new
+                ],
+            )
+        elif name == "variables":
+            setattr(
+                result,
+                name,
+                {
+                    key: preserve_graph_extensions(old[key], value) if key in old else value
+                    for key, value in new.items()
+                },
+            )
+    return result
 
 
 @dataclass
@@ -364,6 +445,10 @@ class WorkflowStore:
             self.file_authority = FileAuthority(self, recipe_root, catalog or (lambda: []))
 
     async def save_draft(self, **kwargs) -> WorkflowRow:
+        if kwargs.get("workflow_id"):
+            previous = await self.get_draft(kwargs["workflow_id"])
+            if previous:
+                kwargs["graph"] = preserve_graph_extensions(previous.graph, kwargs["graph"])
         if self.file_authority:
             return await self.file_authority.save(**kwargs)
         return await self._save_cached(**kwargs)
