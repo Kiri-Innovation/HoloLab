@@ -107,6 +107,7 @@ def test_full_content_save_keeps_unknown_and_omitted_device(tmp_path):
     path.write_text(json.dumps(document()))
     with TestClient(create_app(db_path=tmp_path / "db.sqlite", workflows_dir=root)) as client:
         got = client.get("/api/workflows/wf").json()
+        assert got["graph"]["nodes"][0]["device"] == "gpu"
         old_graph = copy.deepcopy(document()["graph"])
         old_graph.pop("frontend_private")
         old_graph.pop("null_private")

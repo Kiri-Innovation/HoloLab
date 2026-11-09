@@ -596,6 +596,7 @@ class GraphNodeOut(BaseModel):
     position: dict[str, float] = Field(default_factory=lambda: {"x": 0.0, "y": 0.0})
     params: dict[str, Any] = Field(default_factory=dict)
     port_values: dict[str, Any] = Field(default_factory=dict)
+    device: str | None = Field(default=None, exclude_if=lambda value: value is None)
     assigned_node_id: str | None = None
     # Structural — when the pack is ``arrayable``, this per-node checkbox
     # promotes non-arrayed ports to arrayed at wire time and fan-outs at

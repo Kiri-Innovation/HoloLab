@@ -632,6 +632,7 @@ export interface GraphNode {
   position: { x: number; y: number };
   params: Record<string, unknown>;
   port_values?: Record<string, unknown>;
+  device?: string;
   assigned_node_id: string | null;
   // Structural — when the pack is ``arrayable``, this checkbox promotes
   // every non-arrayed port to arrayed at wire time and fan-outs at

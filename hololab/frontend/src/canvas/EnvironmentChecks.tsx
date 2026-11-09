@@ -22,7 +22,7 @@ export function environmentLabel(report?: EnvironmentReport) {
   return ({ undeclared: "环境未声明", satisfied: "已声明的可探测项满足", missing: "环境/硬件缺失", unknown: "环境无法确认" })[report.status];
 }
 
-export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enabled: boolean) {
+export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enabled: boolean, workflowId?: string | null) {
   const [reports, setReports] = useState<Record<string, EnvironmentReport>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -40,7 +40,7 @@ export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enab
     const timer = window.setTimeout(() => {
       void fetch("/api/capabilities/check", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ graph: JSON.parse(query), fresh }), signal: controller.signal,
+        body: JSON.stringify({ graph: JSON.parse(query), workflow_id: workflowId, fresh }), signal: controller.signal,
       }).then(async response => {
         if (!response.ok) throw new Error(await response.text());
         return response.json() as Promise<{ nodes: Record<string, EnvironmentReport> }>;
@@ -49,7 +49,7 @@ export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enab
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 400);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [query, revision, refresh, reload, enabled]);
+  }, [query, revision, refresh, reload, enabled, workflowId]);
   useEffect(() => {
     const focus = () => setReload(n => n + 1);
     window.addEventListener("focus", focus);
@@ -61,7 +61,7 @@ export function useCapabilityChecks(graph: WorkflowGraph, revision: string, enab
 export function capabilityGraph(graph: WorkflowGraph) {
   return { nodes: graph.nodes.filter(n => (n.kind ?? "algorithm") === "algorithm").map(n => ({
     id: n.id, kind: "algorithm", algorithm_name: n.algorithm_name,
-    algorithm_version: n.algorithm_version, assigned_node_id: n.assigned_node_id,
+    algorithm_version: n.algorithm_version, device: n.device, assigned_node_id: n.assigned_node_id,
   })), edges: [] };
 }
 

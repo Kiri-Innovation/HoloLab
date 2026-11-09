@@ -2126,7 +2126,10 @@ def _mount_routes(app: FastAPI) -> None:
         from hololab.gateway.capabilities import check_workflow
 
         try:
+            from hololab.gateway.device_bindings import resolve_devices
+
             graph = WorkflowGraph.model_validate(body["graph"])
+            await resolve_devices(app, graph, workflow_id=body.get("workflow_id"), strict=False)
             return {"nodes": await check_workflow(app, graph, fresh=bool(body.get("fresh", False)))}
         except (ValueError, KeyError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -2259,13 +2262,18 @@ def _mount_routes(app: FastAPI) -> None:
         )
         try:
             prepared = await prepare_execution(
-                app, graph, required=required, strict=bool(body.get("node_id"))
+                app,
+                graph,
+                required=required,
+                strict=bool(body.get("node_id")),
+                workflow_id=workflow_id,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         from hololab.gateway.capabilities import environment_errors
 
         errors = environment_errors(prepared.execution["environment_checks"])
+        errors.extend(issue["message"] for issue in prepared.execution["issues"])
         token = str(uuid.uuid4())
 
         async def write(conn):
@@ -3017,13 +3025,21 @@ def _mount_routes(app: FastAPI) -> None:
         for session in registry.all_sessions():
             packs_offered_by_node[session.node_id] = {(p.name, p.version) for p in session.packs}
 
+        from hololab.gateway.preparation import submitted_execution
+        from hololab.gateway.workflows import is_task_node
+
+        prepared = (
+            await submitted_execution(app, workflow_id, execution_graph)
+            if any(is_task_node(n) for n in execution_graph.nodes)
+            else execution_graph
+        )
         issues = validate_snapshot(
-            execution_graph,
+            prepared,
             packs_by_key=packs_by_key,
             online_node_ids=online_node_ids,
             packs_offered_by_node=packs_offered_by_node,
         )
-        for node in execution_graph.nodes:
+        for node in prepared.nodes:
             if node.kind == "intrinsic":
                 session = registry.get_session(node.assigned_node_id)
                 if session is not None and node.operation not in session.intrinsics:
@@ -3048,9 +3064,6 @@ def _mount_routes(app: FastAPI) -> None:
                 "mode": "constants",
                 "message": "常量无需运行",
             }
-        from hololab.gateway.preparation import submitted_execution
-
-        prepared = await submitted_execution(app, workflow_id, execution_graph)
         snapshot = await app.state.workflows.create_snapshot(
             workflow_id=workflow_id, graph=prepared
         )

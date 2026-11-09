@@ -84,3 +84,97 @@ class DeviceBindingStore:
             return await self._read(conn, workflow_id)
 
         return await self.db.write(write)
+
+
+async def resolve_devices(app, graph, *, workflow_id=None, required=None, probe=True, strict=True):
+    """Resolve into an execution copy only; never persist an automatic assignment.
+
+    Explicit logical bindings win. Legacy API assignments remain usable when
+    there is no binding. Automatic candidates offer the exact package/operation,
+    pass the declared capability contract, and are ordered by active job count.
+    """
+    from hololab.gateway.capabilities import check_workflow
+    from hololab.gateway.workflows import WorkflowGraph, is_task_node
+    from hololab.package_identity import offered_identity
+
+    state = (
+        await DeviceBindingStore(app.state.db).get(workflow_id)
+        if workflow_id
+        else {"revision": None, "bindings": {}}
+    )
+    async with (
+        app.state.db.read() as conn,
+        conn.execute(
+            "SELECT node_id,COUNT(*) FROM jobs "
+            "WHERE state IN ('pending','assigned','running','orphaned') "
+            "GROUP BY node_id"
+        ) as cursor,
+    ):
+        loads = dict(await cursor.fetchall())
+    sessions = sorted(
+        app.state.registry.all_sessions(), key=lambda s: (loads.get(s.node_id, 0), s.node_id)
+    )
+    reports, issues, assignments, routing = {}, [], {}, {}
+    for node in graph.nodes:
+        if not is_task_node(node):
+            continue
+        needed = required is None or node.id in required
+        bound = state["bindings"].get(node.device)
+        target = bound or node.assigned_node_id
+        routing[node.id] = "binding" if bound else "legacy" if target else "automatic"
+        candidates = [app.state.registry.get_session(target)] if target else sessions
+        failures = []
+        selected = None
+        for session in candidates:
+            if session is None:
+                failures.append(f"compute node {target!r} is not online")
+                continue
+            if node.kind == "intrinsic":
+                if node.operation not in session.intrinsics:
+                    failures.append(f"{session.node_id}: operation {node.operation} unavailable")
+                    continue
+            else:
+                try:
+                    offered_identity(session.packs, node.algorithm_name, node.algorithm_version)
+                except ValueError as exc:
+                    failures.append(f"{session.node_id}: {exc}")
+                    continue
+            candidate = node.model_copy(update={"assigned_node_id": session.node_id})
+            if needed and probe and node.kind == "algorithm" and not target:
+                checked = await check_workflow(app, WorkflowGraph(nodes=[candidate]), fresh=True)
+                report = checked[node.id]
+                if report["status"] in ("missing", "unknown"):
+                    failures.append(f"{session.node_id}: {report['status']}")
+                    continue
+                reports[node.id] = report
+            selected = session.node_id
+            break
+        if selected is None:
+            message = f"{node.id}: no suitable online execution node for device {node.device!r}" + (
+                ": " + "; ".join(failures) if failures else ""
+            )
+            if needed and strict:
+                raise ValueError(message)
+            if needed:
+                issues.append({"kind": "device_resolution", "node_id": node.id, "message": message})
+            node.assigned_node_id = target
+            continue
+        node.assigned_node_id = selected
+        assignments[node.id] = selected
+    return {
+        "workflow_id": workflow_id,
+        "revision": state["revision"],
+        "assignments": assignments,
+        "routing": routing,
+        "reports": reports,
+        "issues": issues,
+    }
+
+
+async def verify_device_revision(app, workflow_id, execution):
+    from fastapi import HTTPException
+
+    evidence = execution.get("device_bindings", {})
+    current = await DeviceBindingStore(app.state.db).get(workflow_id)
+    if evidence.get("revision") != current["revision"]:
+        raise HTTPException(409, "Device bindings changed during preparation; prepare again")

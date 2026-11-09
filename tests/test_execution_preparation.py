@@ -145,3 +145,17 @@ def test_numeric_parameter_omission_uses_default():
     g, packs = fixture()
     packs[0]["params"]["frames_fps"] = {"type": "float", "default": 30, "min": 1e-6}
     assert resolve_recipe(g, packs).nodes[0].params["frames_fps"] == 30
+
+
+
+def test_preparation_revision_ignores_file_and_api_node_order():
+    from hololab.gateway.workflows import GraphEdge
+
+    graph, catalog = fixture()
+    graph.nodes.append(graph.nodes[0].model_copy(update={"id": "b"}))
+    graph.edges = [GraphEdge(id="edge", source="a", sourceHandle="out", target="b", targetHandle="in")]
+    before = context_revision(graph, catalog)
+    graph.nodes.reverse()
+    assert context_revision(graph, catalog) == before
+    graph.nodes[0].device = "gpu"
+    assert context_revision(graph, catalog) != before
