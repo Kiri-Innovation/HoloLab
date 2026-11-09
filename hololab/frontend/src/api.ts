@@ -1,4 +1,4 @@
-import { preparationBlockerText } from "./canvas/parameterReadiness";
+import { preparationBlockerText, scopeNodePreparation } from "./canvas/parameterReadiness";
 import type { EnvironmentReport } from "./canvas/EnvironmentChecks";
 // Thin REST client. All calls are same-origin — in dev, Vite proxies /api and
 // /proxy to the gateway on :8828 (see vite.config.ts).
@@ -401,7 +401,12 @@ export const deleteWorkflow = (workflow_id: string) =>
     json<{ workflow_id: string; state: string }>,
   );
 
-type Preparation = { token: string; run_blockers?: string[]; environment_checks?: Record<string, EnvironmentReport> };
+type Preparation = {
+  token: string;
+  run_blockers?: string[];
+  issues?: {node_id?: string; message: string}[];
+  environment_checks?: Record<string, EnvironmentReport>;
+};
 const preparationCache = new Map<string, Preparation>();
 // Hover and click frequently overlap.  One strict prepare can include a
 // seconds-long node-side identity check, so never start a second equivalent
@@ -445,7 +450,7 @@ export async function warmNodePreparation(
     pending = resilientFetch(`/api/workflows/${workflowId}/prepare`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: preparationBody(nodeId, graph),
-    }).then(json<Preparation>);
+    }).then(json<Preparation>).then(prepared => scopeNodePreparation(prepared, nodeId));
     preparationInFlight.set(key, pending);
     void pending.finally(() => {
       if (preparationInFlight.get(key) === pending) preparationInFlight.delete(key);
@@ -491,7 +496,7 @@ async function preparationHeaders(
   const prepared = await resilientFetch(`/api/workflows/${workflowId}/prepare`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: preparationBody(nodeId, graph),
-  }).then(json<Preparation>);
+  }).then(json<Preparation>).then(prepared => scopeNodePreparation(prepared, nodeId));
   if (prepared.run_blockers?.length) throw new Error(preparationBlockerText(prepared));
   return {
     headers: { "X-Preparation-Token": prepared.token, "X-Request-ID": newId() },

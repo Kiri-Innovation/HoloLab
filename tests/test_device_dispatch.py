@@ -344,3 +344,64 @@ def test_automatic_downstream_keeps_completed_upstream_after_load_changes(gatewa
     assignments = {n["id"]: n["assigned_node_id"] for n in snapshot["graph"]["nodes"]}
     assert assignments == {"a": "worker", "b": "idle"}
     assert {j["job_id"] for j in snapshot["jobs"]} == {first["job_id"], second.json()["job_id"]}
+
+
+@pytest.mark.parametrize("name", ["community/video-trim", "builtin/slice"])
+@pytest.mark.parametrize("legacy", [False, True])
+def test_single_node_preparation_does_not_block_on_twelve_other_missing_packs(
+    gateway, name, legacy
+):
+    session = online(gateway, "worker")
+    session.packs = [PackInventoryEntry(name=name, version="0.1.0", manifest_hash="available")]
+    catalog = [
+        {
+            "name": name,
+            "version": "0.1.0",
+            "inputs": {},
+            "outputs": {},
+            "params": {"count": {"type": "int", "default": 3}},
+        }
+    ]
+    gateway.app.state.registry.catalog_json = lambda **kwargs: catalog
+    target = {"id": "target", "algorithm_name": name, "algorithm_version": "0.1.0"}
+    if legacy:
+        target["assigned_node_id"] = "worker"  # Cross-machine documents predate device.
+    else:
+        target["device"] = "gpu"
+        bind(gateway, "worker")
+    graph = WorkflowGraph.model_validate(
+        {
+            "nodes": [
+                target,
+                *[
+                    {
+                        "id": f"missing-{i}",
+                        "algorithm_name": f"remote/missing-{i}",
+                        "algorithm_version": "0.1.0",
+                    }
+                    for i in range(12)
+                ],
+            ],
+            "edges": [],
+        }
+    )
+    if legacy:
+        assert "device" not in graph.nodes[0].model_fields_set
+    gateway.portal.call(
+        lambda: gateway.app.state.workflows.save_draft(
+            workflow_id="wf", name="Cross-machine graph", graph=graph
+        )
+    )
+    response = gateway.post("/api/workflows/wf/prepare", json={"node_id": "target"})
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["run_blockers"] == []
+    assert len(result["issues"]) == 12  # Graph diagnostics remain available.
+    assert all(i["node_id"].startswith("missing-") for i in result["issues"])
+    assert result["graph"]["execution"]["prepared_nodes"] == ["target"]
+    prepared_target = next(node for node in result["graph"]["nodes"] if node["id"] == "target")
+    assert prepared_target["params"] == {"count": 3}
+    assert prepared_target["assigned_node_id"] == "worker"
+    whole = gateway.post("/api/workflows/wf/prepare", json={})
+    assert whole.status_code == 200, whole.text
+    assert len(whole.json()["run_blockers"]) >= 12

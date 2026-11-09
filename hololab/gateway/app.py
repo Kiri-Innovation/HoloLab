@@ -2273,7 +2273,11 @@ def _mount_routes(app: FastAPI) -> None:
         from hololab.gateway.capabilities import environment_errors
 
         errors = environment_errors(prepared.execution["environment_checks"])
-        errors.extend(issue["message"] for issue in prepared.execution["issues"])
+        errors.extend(
+            issue["message"]
+            for issue in prepared.execution["issues"]
+            if not issue.get("node_id") or issue["node_id"] in required
+        )
         token = str(uuid.uuid4())
 
         async def write(conn):
