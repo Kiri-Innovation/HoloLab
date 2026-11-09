@@ -127,6 +127,34 @@ def tree_digest(entries: list[Entry], digests: dict[str, str] | None = None) -> 
     return h.hexdigest()
 
 
+def package_ignore_path(manifest_path: Path, root: Path) -> Path | None:
+    """A distinct manifest-directory control; root==pack keeps legacy semantics."""
+    directory = manifest_path.absolute().parent.resolve()
+    return directory / ".packignore" if directory != root else None
+
+
+def read_package_ignore(path: Path | None) -> bytes | None:
+    if path is None:
+        return None
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise ValueError("package .packignore must be a regular control file")
+    return path.read_bytes() if path.exists() else None
+
+
+def package_ignore_spec(raw: bytes | None) -> GitIgnoreSpec:
+    lines = (raw or b"").decode("utf-8").splitlines()
+    for number, line in enumerate(lines, 1):
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("!"):
+            raise ValueError(f"package .packignore:{number}: re-inclusion (!) is not allowed")
+        # Matching never traverses the filesystem. Reject explicit traversal
+        # spellings too, including escaped dots; escaped !/# remain literals.
+        if ".." in line.replace("\\", "").rstrip(" ").split("/"):
+            raise ValueError(f"package .packignore:{number}: '..' path segments are not allowed")
+    return GitIgnoreSpec.from_lines(lines)
+
+
 @dataclass
 class Scope:
     manifest_path: Path
@@ -136,6 +164,7 @@ class Scope:
     ignore_bytes: bytes | None
     gitignore_bytes: bytes | None
     manifest: Any
+    package_ignore_bytes: bytes | None = None
 
     @classmethod
     def load(cls, path: Path) -> Scope:
@@ -154,6 +183,8 @@ class Scope:
         # A control file cannot point outside the scope through a symlink.
         if ignore.is_symlink():
             raise ValueError(".packignore must be a regular control file")
+        package_ignore = read_package_ignore(package_ignore_path(path, root))
+        package_ignore_spec(package_ignore)
         return cls(
             path,
             root,
@@ -162,17 +193,30 @@ class Scope:
             ignore.read_bytes() if ignore.exists() else None,
             gitignore.read_bytes() if gitignore.is_file() else None,
             manifest,
+            package_ignore,
         )
 
     @property
     def controls(self) -> dict:
-        return {
+        result = {
             "manifest_sha256": sha(self.manifest_bytes),
             "packignore_sha256": sha(self.ignore_bytes) if self.ignore_bytes is not None else None,
             "gitignore_sha256": sha(self.gitignore_bytes)
             if self.gitignore_bytes is not None
             else None,
         }
+        # Omit the new field entirely for old packages and historical records.
+        if self.package_ignore_bytes is not None:
+            result["package_packignore_sha256"] = sha(self.package_ignore_bytes)
+        return result
+
+    @property
+    def package_ignore_relative(self) -> str | None:
+        if self.package_ignore_bytes is None:
+            return None
+        return Path(
+            os.path.relpath(self.manifest_path.parent / ".packignore", self.root)
+        ).as_posix()
 
     def is_cold(self, relative: str) -> bool:
         return any(relative == p or relative.startswith(p + "/") or p == "." for p in self.cold)
@@ -191,6 +235,7 @@ class Scope:
             (self.gitignore_bytes or b"").decode("utf-8").splitlines()
             + (self.ignore_bytes or b"").decode("utf-8").splitlines()
         )
+        package_spec = package_ignore_spec(self.package_ignore_bytes)
         manifest_inside = (
             str(self.manifest_path.relative_to(self.root))
             if self.manifest_path.is_relative_to(self.root)
@@ -202,6 +247,8 @@ class Scope:
         # cannot safely run a hook that was not shipped with it.
         setup_script = self.manifest.setup.script if self.manifest.setup else None
         protected = {".packignore"}
+        if self.package_ignore_relative is not None:
+            protected.add(self.package_ignore_relative)
         if manifest_inside is not None:
             protected.add(manifest_inside)
         if setup_script is not None:
@@ -214,6 +261,7 @@ class Scope:
             parent_rel: str = "",
             fixed_parent: bool = False,
             ignored_parent: bool = False,
+            package_ignored_parent: bool = False,
         ):
             for item in os.scandir(directory):
                 path = item.path
@@ -224,12 +272,18 @@ class Scope:
                 )
                 isdir = stat.S_ISDIR(st.st_mode)
                 ignored = ignored_parent or spec.match_file(rel + ("/" if isdir else ""))
+                package_ignored = package_ignored_parent or (
+                    self.package_ignore_bytes is not None
+                    and package_spec.match_file(rel + ("/" if isdir else ""))
+                )
                 control = rel in protected
                 layer = (
                     "hot"
                     if control
                     else "fixed"
                     if fixed
+                    else "ignored"
+                    if package_ignored
                     else "cold"
                     if self.is_cold(rel)
                     else "ignored"
@@ -244,10 +298,10 @@ class Scope:
                     if (
                         hot_only
                         and not contains_control
-                        and (fixed or self.is_cold(rel) or ignored)
+                        and (fixed or self.is_cold(rel) or ignored or package_ignored)
                     ):
                         continue
-                    yield from walk(path, rel, fixed, ignored)
+                    yield from walk(path, rel, fixed, ignored, package_ignored)
                 elif stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
                     if hot_only and layer != "hot":
                         continue
@@ -264,6 +318,20 @@ class Scope:
                     raise ValueError(f"unsupported content entry: {path}")
 
         yield from walk(os.fspath(self.root))
+        # A manifest may sit above root (root: content/). Its distinct control
+        # still belongs to identity/export, just like the external manifest.
+        relative = self.package_ignore_relative
+        if relative is not None and not self.manifest_path.parent.is_relative_to(self.root):
+            path = self.manifest_path.parent / ".packignore"
+            st = path.stat()
+            yield Entry(
+                path,
+                relative,
+                "100755" if st.st_mode & 0o111 else "100644",
+                st.st_size,
+                "hot",
+                st.st_mtime_ns,
+            )
 
 
 def statistics(entries: list[Entry]) -> dict:
@@ -392,16 +460,17 @@ class Baselines:
                 "stats": statistics([]),
                 "verification": "not_checked",
             }
-        key = canonical(
-            [
-                str(scope.root),
-                scope.manifest.name,
-                scope.manifest.version,
-                scope.cold,
-                scope.controls["packignore_sha256"],
-                FORMAT,
-            ]
-        )
+        key_parts = [
+            str(scope.root),
+            scope.manifest.name,
+            scope.manifest.version,
+            scope.cold,
+            scope.controls["packignore_sha256"],
+            FORMAT,
+        ]
+        if scope.package_ignore_bytes is not None:
+            key_parts.append(sha(scope.package_ignore_bytes))
+        key = canonical(key_parts)
         self.directory.mkdir(parents=True, exist_ok=True)
         destination = self.directory / (key + ".json")
         with (self.directory / (key + ".lock")).open("a") as lock:
@@ -515,7 +584,8 @@ def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> 
     content = [
         entry
         for entry in entries
-        if entry.layer in {"hot", "cold"} and entry.relative != ".packignore"
+        if entry.layer in {"hot", "cold"}
+        and entry.relative not in {".packignore", scope.package_ignore_relative}
     ]
     normalized = normalized_manifest(scope.manifest_bytes)
     record = {
@@ -590,6 +660,21 @@ def check_controls(path: Path, record: dict) -> None:
     actual = sha(ignore.read_bytes()) if ignore.exists() else None
     if actual != expected["packignore_sha256"]:
         mismatch(record, ".packignore", expected["packignore_sha256"], actual)
+    package_ignore = package_ignore_path(path, root)
+    try:
+        package_raw = read_package_ignore(package_ignore)
+    except ValueError:
+        mismatch(
+            record,
+            "package .packignore",
+            expected.get("package_packignore_sha256"),
+            "not a regular control file",
+        )
+    actual_package = sha(package_raw) if package_raw is not None else None
+    if actual_package != expected.get("package_packignore_sha256"):
+        mismatch(
+            record, "package .packignore", expected.get("package_packignore_sha256"), actual_package
+        )
     gitignore = root / ".gitignore"
     actual_gitignore = sha(gitignore.read_bytes()) if gitignore.is_file() else None
     if actual_gitignore != expected.get("gitignore_sha256"):
