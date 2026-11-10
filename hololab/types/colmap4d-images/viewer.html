@@ -2,13 +2,17 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Image sequence</title>
+<title>4D image video preview</title>
 <style>
 :root { color-scheme: dark; font: 12px system-ui,sans-serif; color: #ddd; background: #171717; }
 * { box-sizing: border-box; }
 body { margin: 0; display: flex; flex-direction: column; height: 100vh; }
 #stage { flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; background: #111; position: relative; }
-#stage img { width: 100%; height: 100%; object-fit: contain; position: absolute; }
+#stage video { width: 100%; height: 100%; object-fit: contain; position: absolute; }
+[hidden] { display: none !important; }
+#partitions { padding: 6px 8px; display: flex; gap: 8px; align-items: center; font: 11px ui-monospace,monospace; }
+#partitions button { min-width: 22px; height: 20px; padding: 0; }
+#partition-label { flex: 1; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 #status { z-index: 1; background: #171717dd; padding: 4px; }
 footer { padding: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 button, select, input { accent-color: #aaa; color: inherit; background: #292929; border: 1px solid #555; border-radius: 3px; }
@@ -16,7 +20,8 @@ button, select { padding: 4px 8px; } button { min-width: 54px; }
 #seek { width: 100%; margin: 0; } #fps { width: 52px; padding: 4px; }
 label { display: inline-flex; gap: 4px; align-items: center; } #position { margin-left: auto; font-variant-numeric: tabular-nums; }
 </style>
-<div id="stage"><span id="status" role="status">Waiting for sequence…</span></div>
+<nav id="partitions" aria-label="Fan-out partitions" hidden><button id="previous" aria-label="previous element">‹</button><span id="partition-label"></span><button id="next" aria-label="next element">›</button></nav>
+<div id="stage"><video id="video" muted playsinline preload="auto"></video><span id="status" role="status">Waiting for sequence…</span></div>
 <footer>
 <input id="seek" type="range" min="0" max="0" value="0" aria-label="Frame" disabled>
 <button id="play" disabled>Play</button>
@@ -26,118 +31,174 @@ label { display: inline-flex; gap: 4px; align-items: center; } #position { margi
 <span id="position">0 / 0</span>
 </footer>
 <script type="module">
+import {safeName, readImages, readTimes, legacyImages, groupImages, partitions} from './sequence.js';
+import {synthesize} from './preview-video.js';
 const $ = id => document.getElementById(id);
-const stage = $('stage'), status = $('status'), seek = $('seek'), play = $('play');
+const status = $('status'), seek = $('seek'), play = $('play'), video = $('video');
 const camera = $('camera'), fps = $('fps'), loop = $('loop'), position = $('position');
-let groups = new Map(), frames = [], index = 0, playing = false, base = '', generation = 0;
-let timer, controller, shown;
-const cache = new Map();
-function stop() { playing = false; clearTimeout(timer); play.textContent = 'Play'; }
-function clearCache() {
-  shown?.remove(); shown = null;
-  for (const item of cache.values()) { item.image.removeAttribute('src'); item.image.remove(); }
-  cache.clear();
+const pager = $('partitions'), label = $('partition-label');
+let base = '', selectedBase = '', members = [], page = 0, groups = new Map(), frames = [];
+let listingController, selectionController, encodingController, objectUrl, encodedFps = 30;
+let requestedPlaying = false;
+const rate = () => Math.min(120, Math.max(1, Number(fps.value) || 30));
+const urlFor = (root, name) => root + '/' + name.split('/').map(encodeURIComponent).join('/');
+
+function clearVideo() {
+  video.pause(); video.removeAttribute('src'); video.load();
+  if (objectUrl) URL.revokeObjectURL(objectUrl);
+  objectUrl = null; play.disabled = seek.disabled = true;
+  play.textContent = 'Play'; seek.value = '0'; position.textContent = '0 / 0';
 }
-function windowFrames() {
-  const wanted = new Set();
-  for (let offset = -2; offset <= 3; offset++) {
-    let n = index + offset;
-    if (loop.checked) n = (n % frames.length + frames.length) % frames.length;
-    if (n >= 0 && n < frames.length) wanted.add(n);
-  }
-  for (const [n, item] of cache) if (!wanted.has(n)) {
-    item.image.remove(); item.image.removeAttribute('src'); cache.delete(n);
-  }
-  for (const n of wanted) if (!cache.has(n)) {
-    const image = new Image(); image.alt = frames[n].name; image.decoding = 'sync';
-    const item = {image, ready: false, failed: false}; cache.set(n, item);
-    image.onload = async () => {
-      try { await image.decode(); } catch { item.failed = true; }
-      if (cache.get(n) !== item) return;
-      item.ready = !item.failed;
-      if (n === index) display();
-    };
-    image.onerror = () => { item.failed = true; if (n === index && cache.get(n) === item) display(); };
-    image.src = base.replace(/\/$/, '') + '/' + frames[n].name.split('/').map(encodeURIComponent).join('/');
-  }
+function message(text) { status.hidden = false; status.textContent = text; }
+function failure(error, signal) {
+  if (signal.aborted) return;
+  message(error.message); requestedPlaying = false;
 }
-function display() {
-  const item = cache.get(index);
-  if (item?.ready) {
-    if (shown !== item.image) { shown?.remove(); shown = item.image; stage.prepend(shown); }
-    status.hidden = true;
-  } else { status.hidden = false; status.textContent = item?.failed ? 'Frame could not be loaded' : 'Loading frame…'; }
+function updatePosition() {
+  if (!frames.length || !objectUrl) return;
+  const index = Math.min(frames.length - 1, Math.floor(video.currentTime * encodedFps + 0.001));
   seek.value = String(index);
   position.textContent = `${index + 1} / ${frames.length} · f${frames[index].frame}`;
 }
-function render() { if (!frames.length) return; windowFrames(); display(); }
-function schedule() {
-  clearTimeout(timer);
-  if (!playing) return;
-  timer = setTimeout(() => {
-    // Buffer instead of running past images which have not loaded yet.
-    const next = index + 1 < frames.length ? index + 1 : loop.checked ? 0 : null;
-    if (next === null) { stop(); return; }
-    const item = cache.get(next);
-    if (item?.ready || item?.failed) { index = next; render(); }
-    schedule();
-  }, 1000 / Math.min(120, Math.max(1, Number(fps.value) || 30)));
+async function start() {
+  try { await video.play(); }
+  catch (error) { requestedPlaying = false; play.textContent = 'Play'; message(`Press Play to preview: ${error.message}`); }
 }
 play.onclick = () => {
-  if (playing) { stop(); return; }
-  if (index === frames.length - 1) { index = 0; render(); }
-  playing = true; play.textContent = 'Pause'; schedule();
+  requestedPlaying = video.paused;
+  if (!requestedPlaying) video.pause();
+  else { if (video.ended) video.currentTime = 0; void start(); }
 };
-seek.oninput = () => { index = Number(seek.value); render(); };
-fps.onchange = () => { fps.value = String(Math.min(120, Math.max(1, Number(fps.value) || 30))); schedule(); };
-loop.onchange = render;
-camera.onchange = () => {
-  const frame = frames[index]?.frame;
-  clearCache(); frames = groups.get(camera.value) || [];
-  index = Math.max(0, frames.findIndex(item => item.frame === frame));
-  seek.max = String(Math.max(0, frames.length - 1)); render(); schedule();
+video.onplay = () => { play.textContent = 'Pause'; status.hidden = true; };
+video.onpause = () => { play.textContent = 'Play'; };
+video.onended = () => { requestedPlaying = false; updatePosition(); };
+video.ontimeupdate = video.onseeked = updatePosition;
+video.onerror = () => { if (objectUrl) message('This browser could not play the generated WebM preview'); };
+seek.oninput = () => { video.currentTime = Number(seek.value) / encodedFps; updatePosition(); };
+fps.onchange = () => {
+  fps.value = String(rate());
+  if (objectUrl) {
+    try { video.playbackRate = rate() / encodedFps; return; }
+    catch { /* Extreme FPS ratios exceed some browsers' playbackRate range. */ }
+  }
+  if (frames.length) void encode(frames[Number(seek.value)]?.frame);
 };
+loop.onchange = () => { video.loop = loop.checked; };
+
+async function encode(frameId) {
+  encodingController?.abort(); encodingController = new AbortController();
+  const {signal} = encodingController;
+  clearVideo();
+  frames = groups.get(camera.value) || [];
+  seek.max = String(Math.max(0, frames.length - 1));
+  message('Preparing video…');
+  const root = selectedBase, sequence = frames, targetFps = rate();
+  try {
+    if (!video.canPlayType('video/webm; codecs="vp8"')) throw Error('This browser does not support VP8/WebM previews');
+    const blob = await synthesize(sequence, name => urlFor(root, name), targetFps, signal,
+      (done, total) => { if (!signal.aborted) message(`Preparing video ${done} / ${total}…`); });
+    signal.throwIfAborted();
+    encodedFps = targetFps;
+    objectUrl = URL.createObjectURL(blob);
+    // Register before src: a small in-memory video can become ready immediately.
+    video.addEventListener('loadeddata', () => {
+      if (signal.aborted) return;
+      const index = Math.max(0, sequence.findIndex(item => item.frame === frameId));
+      video.currentTime = index / encodedFps;
+      play.disabled = seek.disabled = false; status.hidden = true; updatePosition();
+      if (requestedPlaying) void start();
+    }, {once: true, signal});
+    video.src = objectUrl; video.loop = loop.checked; video.playbackRate = rate() / encodedFps;
+  } catch (error) { failure(error, signal); }
+}
+camera.onchange = () => { const frame = frames[Number(seek.value)]?.frame; void encode(frame); };
+
+async function listing(root, pattern, signal) {
+  const parts = new URL(root, location.origin).pathname.split('/').filter(Boolean);
+  const query = new URLSearchParams({base: parts.slice(2).map(decodeURIComponent).join('/'), pattern});
+  const response = await fetch(`/proxy/${parts[1]}/_glob?${query}`, {signal, cache: 'no-store'});
+  if (!response.ok) throw Error(`Directory listing: HTTP ${response.status}`);
+  const {files} = await response.json();
+  if (!Array.isArray(files)) throw Error('Invalid directory listing');
+  return files.filter(safeName);
+}
+async function binary(root, name, signal) {
+  const response = await fetch(urlFor(root, name), {signal, cache: 'no-store'});
+  if (!response.ok) throw Error(`${name}: HTTP ${response.status}`);
+  return response.arrayBuffer();
+}
+async function selectPage() {
+  selectionController?.abort(); selectionController = new AbortController();
+  encodingController?.abort();
+  const {signal} = selectionController;
+  clearVideo(); camera.disabled = true; frames = []; groups.clear();
+  pager.hidden = members.length <= 1;
+  label.textContent = `${members[page] || ''}  ${page + 1} / ${members.length}`;
+  label.title = members[page] || '';
+  selectedBase = members.length ? urlFor(base, members[page]) : base;
+  const root = selectedBase, previousCamera = camera.value;
+  message('Reading sequence…');
+  try {
+    const files = await listing(root, '*', signal);
+    let records, times;
+    if (files.includes('images.bin')) {
+      const buffers = await Promise.all([binary(root, 'images.bin', signal),
+        files.includes('times.bin') ? binary(root, 'times.bin', signal) : null]);
+      records = readImages(buffers[0]); times = buffers[1] ? readTimes(buffers[1]) : new Map();
+    } else {
+      records = legacyImages([...files, ...await listing(root, 'images/*', signal)]);
+    }
+    signal.throwIfAborted();
+    groups = groupImages(records, times);
+    const cameras = [...groups.keys()].sort((a, b) => a.localeCompare(b, 'en', {numeric: true}));
+    camera.replaceChildren(...cameras.map(name => new Option(name, name)));
+    if (!cameras.length) throw Error('No preview images found in this sequence');
+    camera.value = groups.has(previousCamera) ? previousCamera : groups.has('cam0') ? 'cam0' : cameras[0];
+    camera.disabled = false;
+    void encode();
+  } catch (error) { failure(error, signal); }
+}
+function move(delta) {
+  if (members.length <= 1) return;
+  page = (page + delta + members.length) % members.length;
+  void selectPage();
+}
+$('previous').onclick = () => move(-1); $('next').onclick = () => move(1);
+// Match ArrayedPaginator: a compact top row, wrapping arrows and hover keys.
+let hovered = false;
+document.body.onmouseenter = () => { hovered = true; };
+document.body.onmouseleave = () => { hovered = false; };
+document.addEventListener('keydown', event => {
+  if (!hovered || pager.hidden || /^(INPUT|SELECT)$/.test(event.target.tagName)) return;
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    event.preventDefault(); move(event.key === 'ArrowLeft' ? -1 : 1);
+  }
+});
 async function load(url) {
-  const version = ++generation;
-  controller?.abort(); controller = new AbortController();
-  stop(); clearCache(); frames = []; groups.clear();
-  play.disabled = seek.disabled = camera.disabled = true;
-  status.hidden = false; status.textContent = 'Reading sequence…';
+  listingController?.abort(); listingController = new AbortController();
+  selectionController?.abort(); encodingController?.abort();
+  const {signal} = listingController;
+  requestedPlaying = false; clearVideo(); camera.disabled = true; pager.hidden = true;
+  message('Reading sequence…');
   try {
     const proxy = new URL(url, location.origin), parts = proxy.pathname.split('/').filter(Boolean);
     if (proxy.origin !== location.origin || parts[0] !== 'proxy' || parts.length < 3) throw Error('Expected a proxy directory URL');
-    base = proxy.pathname;
-    const listings = await Promise.all(['*', 'images/*'].map(async pattern => {
-      const query = new URLSearchParams({base: parts.slice(2).map(decodeURIComponent).join('/'), pattern});
-      const response = await fetch(`/proxy/${parts[1]}/_glob?${query}`, {signal: controller.signal, cache: 'no-store'});
-      if (!response.ok) throw Error(`Directory listing: HTTP ${response.status}`);
-      return (await response.json()).files || [];
-    }));
-    const body = {files: listings.flat()};
-    if (version !== generation) return;
-    for (const name of body.files || []) {
-      const match = /^(?:images\/)?f(\d+)__cam(\d+)\.(?:png|jpe?g|webp)$/i.exec(name);
-      if (!match) continue;
-      const key = `cam${Number(match[2])}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push({name, frame: Number(match[1])});
-    }
-    const cameras = [...groups.keys()].sort((a,b) => Number(a.slice(3)) - Number(b.slice(3)));
-    camera.replaceChildren(...cameras.map(name => new Option(name, name)));
-    for (const list of groups.values()) list.sort((a,b) => a.frame - b.frame);
-    if (!cameras.length) throw Error('No f<frame>__cam<camera> images found');
-    camera.value = groups.has('cam0') ? 'cam0' : cameras[0];
-    play.disabled = seek.disabled = camera.disabled = false; index = 0; camera.onchange();
-  } catch (error) {
-    if (version !== generation || error.name === 'AbortError') return;
-    status.hidden = false; status.textContent = error.message;
-  }
+    base = proxy.pathname.replace(/\/$/, '');
+    // _glob returns files only. Discover shards through their metadata or
+    // legacy images, without fetching/encoding any unselected shard's pixels.
+    const files = (await Promise.all(['p_*/*', 'p_*/images/*'].map(pattern => listing(base, pattern, signal)))).flat();
+    signal.throwIfAborted();
+    members = partitions(files); page = 0;
+    void selectPage();
+  } catch (error) { failure(error, signal); }
 }
 window.addEventListener('message', event => {
   if (event.source !== parent || event.origin !== location.origin || event.data?.type !== 'hololab-viewer-state') return;
   const url = event.data.frames?.[0]?.proxy_url;
-  if (url && url !== base) load(url);
+  if (url && new URL(url, location.origin).pathname.replace(/\/$/, '') !== base) void load(url);
 });
-window.addEventListener('pagehide', () => { stop(); controller?.abort(); clearCache(); });
+window.addEventListener('pagehide', () => {
+  listingController?.abort(); selectionController?.abort(); encodingController?.abort(); clearVideo();
+});
 </script>
 </html>
