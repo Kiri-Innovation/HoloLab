@@ -436,6 +436,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   const [previewFactsByGraphNode, setPreviewFactsByGraphNode] = useState<Record<string, Record<string, Record<string, unknown>>>>({});
   const [previewLoadErrorsByGraphNode, setPreviewLoadErrorsByGraphNode] = useState<Record<string, Record<string, string>>>({});
   const [jobsById, setJobsById] = useState<Record<string, RecentJobRow>>({});
+  const currentJobsRef = useRef(jobsById);
+  currentJobsRef.current = jobsById;
 
   // Preview state, keyed by graph node id:
   //   * previewsByGraphNode: resolved proxy URLs for each output port that
@@ -1570,7 +1572,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         reject("save the workflow first (no workflow_id yet)");
         return;
       }
-      if (dispatchInFlightByGraphNodeRef.current.has(graph_node_id)) {
+      if (dispatchInFlightByGraphNodeRef.current.has(graph_node_id) ||
+          Object.values(currentJobsRef.current).some(job => job.graph_node_id === graph_node_id &&
+            (job as RecentJobRow & {workflow_id?: string}).workflow_id === wid &&
+            ["pending", "assigned", "running", "orphaned"].includes(job.state))) {
         // A second bridge event owns no request.  Resolving it keeps auxiliary
         // controls quiet while the original request remains authoritative.
         resolve();
@@ -1739,7 +1744,17 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             // reach the gateway after this node was accepted.  The gateway
             // names the active job in its 409; attach to that job instead of
             // presenting a red failure for work that is actually running.
-            const activeJobId = /already has an active job ([0-9a-f-]{36})/i.exec(err?.message ?? "")?.[1];
+            // Reconcile conflicts by authoritative job state, regardless of
+            // which submission layer rejected this attempt or its wording.
+            let activeJobId: string | undefined;
+            if (err instanceof ApiError && err.status === 409) {
+              const jobs = await getRecentJobs().catch(() => []);
+              activeJobId = jobs
+                .filter(job => job.workflow_id === wid && job.graph_node_id === graph_node_id
+                  && ["pending", "assigned", "running", "orphaned"].includes(String(job.state)))
+                .sort((a, b) => Number(b.created_ts) - Number(a.created_ts))
+                .map(job => String(job.job_id))[0];
+            }
             if (activeJobId) {
               try {
                 const active = await getJob(activeJobId);

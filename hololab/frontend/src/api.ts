@@ -640,7 +640,9 @@ export const dispatchNode = async (
       return await resilientFetch(
         dispatchUrl,
         { method: "POST", headers: { ...headers, "X-HoloLab-Timing-ID": timingId } },
-        { retryNonIdempotent: true },
+        // A lost response may already have queued a fan-out parent. Never
+        // replay this POST automatically while its durable claim is pending.
+        { retryNonIdempotent: false },
       ).then(json<{
         snapshot_id: string;
         job_id: string;
