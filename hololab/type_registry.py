@@ -3,19 +3,22 @@
 from __future__ import annotations
 
 import hashlib
-from contextlib import contextmanager
-from contextvars import ContextVar
 import json
 import subprocess
 import sys
 import threading
 import types
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from hololab.paths import gateway_sqlite_path
+from hololab.persistent_cache import PersistentCache
 
 BUNDLED_ROOT = Path(__file__).resolve().parent
 _module_lock = threading.RLock()
@@ -99,19 +102,58 @@ def _loadable(entry):
 
 
 class TypeRegistry:
-    def __init__(self, roots=(), *, bundled=True):
+    def __init__(self, roots=(), *, bundled=True, persistent_cache=None):
         self._batch_depth = ContextVar(f"type_registry_batch_{id(self)}", default=0)
         self.roots = tuple(Path(p) for p in roots)
         self.bundled = bundled
         self.definitions: dict[str, TypeDefinition] = {}
         self.generation = ""
         self._lock = threading.RLock()
+        self._persistent_cache = persistent_cache
         self.reload()
+
+    def bind_persistent_cache(self, path: Path) -> None:
+        """Attach the gateway SQLite after its migrations have completed."""
+        from hololab.persistent_cache import PersistentCache
+
+        self._persistent_cache = PersistentCache(path)
+        self.reload()
+
+    def _input_fingerprint(self, roots) -> str:
+        """Strict type input evidence: path, mtime, size and content hash."""
+        h = hashlib.sha256()
+        for root in roots:
+            root = root.parent if root.is_file() else root
+            # Keep this separate from refresh's cheap glob so a refresh does
+            # not invoke its public scan twice.
+            for file in sorted((root / "types").rglob("*")):
+                if file.is_file() and "__pycache__" not in file.parts:
+                    stat = file.stat()
+                    h.update(f"{file}:{stat.st_mtime_ns}:{stat.st_size}:".encode())
+                    h.update(hashlib.sha256(file.read_bytes()).digest())
+        return h.hexdigest()
 
     def reload(self):
         definitions = {}
         digest = hashlib.sha256()
         roots = (*self.roots, *((BUNDLED_ROOT,) if self.bundled else ()))
+        fingerprint = self._input_fingerprint(roots)
+        cache_key = json.dumps([str(p.resolve()) for p in roots], separators=(",", ":"))
+        cached = (
+            self._persistent_cache.get("type_registry", cache_key, fingerprint)
+            if self._persistent_cache
+            else None
+        )
+        if cached is not None:
+            definitions = {
+                item["name"]: TypeDefinition(
+                    item["name"], Path(item["directory"]), item["declaration"]
+                )
+                for item in cached
+            }
+            with self._lock:
+                self.definitions, self.generation = definitions, fingerprint
+            return self.generation
         for root in roots:
             if root.is_file():
                 root = root.parent
@@ -141,6 +183,16 @@ class TypeRegistry:
         with self._lock:
             self.definitions = definitions
             self.generation = digest.hexdigest()
+        if self._persistent_cache:
+            self._persistent_cache.put(
+                "type_registry",
+                cache_key,
+                fingerprint,
+                [
+                    {"name": d.name, "directory": str(d.directory), "declaration": d.declaration}
+                    for d in definitions.values()
+                ],
+            )
         return self.generation
 
     def refresh(self):
@@ -182,7 +234,9 @@ class TypeRegistry:
         return self.definitions.get(name)
 
 
-registry = TypeRegistry()
+# This gives a restarted gateway its catalogue before FastAPI startup hooks
+# run. The table DDL is idempotent; the formal gateway migration records it.
+registry = TypeRegistry(persistent_cache=PersistentCache(gateway_sqlite_path()))
 
 
 def type_read_batch(function):
@@ -190,6 +244,7 @@ def type_read_batch(function):
     def wrapped(*args, **kwargs):
         with registry.read_batch():
             return function(*args, **kwargs)
+
     return wrapped
 
 

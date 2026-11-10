@@ -332,7 +332,6 @@ MIGRATIONS.append(
     ),
 )
 
-
 # V10: arrayed<T> fan-out — a graph node whose pack is ``arrayable`` and
 # whose ``arrayed_toggle`` is on becomes one *parent* job + N *shard* jobs,
 # one per element of its arrayed inputs. Both new columns are additive and
@@ -904,6 +903,21 @@ MIGRATIONS.append(
         """
 CREATE TABLE workflow_files (
  id TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE, mtime_seen REAL NOT NULL
+);
+""",
+    )
+)
+
+# V33: restart-surviving derived facts. The fingerprint remains part of the
+# row and is compared by the owning subsystem before payload reuse.
+MIGRATIONS.append(
+    (
+        33,
+        """
+CREATE TABLE IF NOT EXISTS persistent_cache (
+ cache_kind TEXT NOT NULL, cache_key TEXT NOT NULL, fingerprint TEXT NOT NULL,
+ payload_json TEXT NOT NULL, created_ts REAL NOT NULL, verified_ts REAL NOT NULL,
+ PRIMARY KEY (cache_kind, cache_key)
 );
 """,
     )

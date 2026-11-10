@@ -299,6 +299,11 @@ def create_app(
     async def _startup() -> None:
         path = db_path or gateway_sqlite_path()
         db = await open_database(path)
+        # Type definitions are process-local objects, but their parsed
+        # catalogue is restart-safe in this gateway-owned SQLite database.
+        from hololab import type_registry
+
+        type_registry.registry.bind_persistent_cache(path)
         await reset_all_online_flags(db)
         # Any job that was in-flight when the previous gateway died
         # gets a *recoverable* ``orphaned`` marker so the register-
@@ -2042,13 +2047,19 @@ def _mount_routes(app: FastAPI) -> None:
     @app.get("/api/types", tags=["packs"])
     async def type_catalog():
         from hololab.type_registry import registry as types
+
         types.refresh()
-        return {"generation": types.generation, "types": [d.declaration for d in types.definitions.values()]}
+        return {
+            "generation": types.generation,
+            "types": [d.declaration for d in types.definitions.values()],
+        }
 
     @app.get("/api/types/{name}/assets/{asset:path}", tags=["packs"])
     async def type_asset(name: str, asset: str):
-        from hololab.type_registry import registry as types
         from fastapi.responses import FileResponse
+
+        from hololab.type_registry import registry as types
+
         definition = types.get(name)
         if definition is None:
             raise HTTPException(404, "type not found")
@@ -4380,7 +4391,10 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
         # already sees the node dot flip green before its orphaned
         # shard dots start refilling with real state.
         from hololab.type_registry import configure
-        configure([Path(root) for node in registry.all_sessions() for root in (node.pack_dirs or [])])
+
+        configure(
+            [Path(root) for node in registry.all_sessions() for root in (node.pack_dirs or [])]
+        )
         await _reconcile_orphaned_on_register(store, hub, session, payload.running_jobs)
 
         # Step 2: process subsequent frames until disconnect.
@@ -4633,7 +4647,9 @@ async def _resolve_handle_display_meta(
                         raw_dim_labels = list(dynamic)
                 if getattr(job, "expected_shards", None) is not None:
                     raw_dim_labels = ["", *raw_dim_labels]
-    preview = infer_preview_for_output(explicit_preview, resolved_tags, handle.storage, bool(raw_dim_labels))
+    preview = infer_preview_for_output(
+        explicit_preview, resolved_tags, handle.storage, bool(raw_dim_labels)
+    )
     # A generic producer may register `any`; measurement uses its resolved leaf
     # tag so arrays of image FILES are not mistaken for directories of bundles.
     if not measure_dimensions:
@@ -4912,7 +4928,10 @@ async def _dispatch_node_frame(
         if payload.type_roots is not None:
             session.pack_dirs = payload.type_roots
         from hololab.type_registry import configure
-        configure([Path(root) for node in registry.all_sessions() for root in (node.pack_dirs or [])])
+
+        configure(
+            [Path(root) for node in registry.all_sessions() for root in (node.pack_dirs or [])]
+        )
         await registry.replace_packs(session.node_id, payload.packs, payload.envs)
         # Notify frontend subscribers by re-emitting node_online with new packs.
         hub.broadcast(

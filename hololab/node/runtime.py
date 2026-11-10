@@ -48,6 +48,8 @@ from hololab.node.fileserver_control import assert_port_available, pidfile_path,
 from hololab.node.orphan_cleanup import cleanup_workspace_orphans
 from hololab.node.packs import LoadedPack, scan_multi_packs
 from hololab.package_identity import installed_key
+from hololab.paths import node_data_dir
+from hololab.persistent_cache import PersistentCache
 from hololab.protocol import (
     ArtifactDeleteReq,
     ArtifactDeleteResp,
@@ -294,6 +296,9 @@ class NodeRuntime:
         # includes every manifest/config input that changes an accept/reject
         # verdict and is force-probed again when its TTL expires.
         self._environment_report_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        # Node-owned: this file is intentionally not the gateway database,
+        # because nodes may run on a different machine/process.
+        self._persistent_cache = PersistentCache(node_data_dir() / "runtime-cache.sqlite")
         # ``(manifest path, submitted content identity) -> stat witness``.
         # A witness match only reuses a prior full SHA-256 verification; it is
         # never accepted as a content identity by itself.
@@ -486,6 +491,11 @@ class NodeRuntime:
         environment_task = asyncio.create_task(
             self._environment_recheck_loop(), name="hololab-node-environment-recheck"
         )
+        # Yield once: restart must become responsive before low-priority
+        # revalidation starts walking code trees or probing environments.
+        revalidate_task = asyncio.create_task(
+            self._revalidate_persistent_cache(), name="hololab-node-cache-revalidate"
+        )
 
         from hololab.node.library import poll_library
 
@@ -505,6 +515,7 @@ class NodeRuntime:
                 sweep_task,
                 metrics_task,
                 environment_task,
+                revalidate_task,
                 library_task,
             ):
                 if t is None:
@@ -691,7 +702,12 @@ class NodeRuntime:
             if self._ws is not None:
                 inventory = await asyncio.to_thread(self._pack_inventory)
                 await self._safe_send(
-                    "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs), type_roots=[str(root) for root in self._config.pack_scan_dirs])
+                    "packs_updated",
+                    PacksUpdated(
+                        packs=inventory,
+                        envs=dict(self._config.envs),
+                        type_roots=[str(root) for root in self._config.pack_scan_dirs],
+                    ),
                 )
 
         self._watch_task = asyncio.create_task(
@@ -706,7 +722,12 @@ class NodeRuntime:
             self._packs = packs
             inventory = await asyncio.to_thread(self._pack_inventory)
             await self._send(
-                "packs_updated", PacksUpdated(packs=inventory, envs=dict(self._config.envs), type_roots=[str(root) for root in self._config.pack_scan_dirs])
+                "packs_updated",
+                PacksUpdated(
+                    packs=inventory,
+                    envs=dict(self._config.envs),
+                    type_roots=[str(root) for root in self._config.pack_scan_dirs],
+                ),
             )
             return {"count": len(packs), "manifest_changed": changed}
 
@@ -740,6 +761,7 @@ class NodeRuntime:
         try:
             pack_dirs = list(self._config.pack_scan_dirs)
             from hololab.type_registry import BUNDLED_ROOT
+
             watch_roots = _pack_watch_roots([*pack_dirs, BUNDLED_ROOT / "types"])
 
             # Deferred import so plain --help stays fast.  Keep it inside
@@ -1292,6 +1314,29 @@ class NodeRuntime:
             sort_keys=True,
             separators=(",", ":"),
         )
+        # This is the durable validity key, intentionally smaller than the
+        # in-process convenience key above: interpreter, resolved conda
+        # prefix, pack identity and its dependency declaration are the
+        # environment contract.  JSON hashing keeps declarations canonical.
+        requires_hash = hashlib.sha256(
+            json.dumps(
+                cache_value(getattr(manifest, "requires", None)),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        durable_key = json.dumps(
+            {
+                "python": sys.executable,
+                "python_version": sys.version,
+                "conda_prefix": str(prefix) if prefix is not None else None,
+                "pack": f"{manifest.name}@{manifest.version}",
+                "requires": requires_hash,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        durable_fingerprint = hashlib.sha256(cache_key.encode()).hexdigest()
         now = time.monotonic()
         cached = self._environment_report_cache.get(cache_key)
         if (
@@ -1301,6 +1346,13 @@ class NodeRuntime:
             and now - cached[0] < self._config.env_cache_timeout_s
         ):
             return json.loads(json.dumps(cached[1]))
+        if not fresh and not validate_cached:
+            persisted = self._persistent_cache.get(
+                "environment_report", durable_key, durable_fingerprint
+            )
+            if isinstance(persisted, dict):
+                self._environment_report_cache[cache_key] = (now, persisted)
+                return json.loads(json.dumps(persisted))
         report = await asyncio.to_thread(
             self._capability_checker.check,
             manifest,
@@ -1322,6 +1374,7 @@ class NodeRuntime:
             time.monotonic(),
             json.loads(json.dumps(report)),
         )
+        self._persistent_cache.put("environment_report", durable_key, durable_fingerprint, report)
         return report
 
     async def _capability_reply(self, request) -> None:
@@ -1376,12 +1429,39 @@ class NodeRuntime:
             environment = await self._environment_report(manifest)
             if not request.refresh_cold:
                 enforce(environment)
-            record = await asyncio.to_thread(
-                capture,
-                pack.manifest_path,
-                Baselines(self._config.code_baselines_dir),
-                refresh_cold=request.refresh_cold,
+            # The persisted row's fingerprint is the existing cheap tree
+            # witness.  It still stats every included entry and validates all
+            # controls before an identity is accepted (option b), while a
+            # changed witness forces a full capture below.
+            identity_key = json.dumps(
+                {"pack_root": str(pack.package_root), "manifest_sha256": checked_manifest_hash},
+                sort_keys=True,
             )
+            prior = self._persistent_cache.get_any("code_identity", identity_key)
+            record = None
+            if isinstance(prior, dict) and not request.refresh_cold:
+                try:
+                    from hololab.content_scope import verification_fingerprint
+
+                    witness = await asyncio.to_thread(
+                        verification_fingerprint, pack.manifest_path, prior
+                    )
+                    record = self._persistent_cache.get("code_identity", identity_key, witness)
+                except Exception:
+                    record = None
+            if record is None:
+                record = await asyncio.to_thread(
+                    capture,
+                    pack.manifest_path,
+                    Baselines(self._config.code_baselines_dir),
+                    refresh_cold=request.refresh_cold,
+                )
+                from hololab.content_scope import verification_fingerprint
+
+                witness = await asyncio.to_thread(
+                    verification_fingerprint, pack.manifest_path, record
+                )
+                self._persistent_cache.put("code_identity", identity_key, witness, record)
             if record["controls"]["manifest_sha256"] != checked_manifest_hash:
                 raise ValueError("环境检查期间 manifest 已变化, 请重新提交")
             record["environment"] = environment  # Evidence only, never included in sha256.
@@ -1389,6 +1469,34 @@ class NodeRuntime:
         except Exception as exc:
             response = CodeIdentityResp(req_id=request.req_id, error=str(exc))
         await self._safe_send("code_identity_resp", response)
+
+    async def _revalidate_persistent_cache(self) -> None:
+        """Best-effort serial low-priority refresh; never delays serving jobs."""
+        await asyncio.sleep(2)
+        for pack in list(self._packs.values()):
+            try:
+                from hololab.manifest import load_manifest
+
+                manifest, _ = load_manifest(pack.manifest_path)
+                await self._environment_report(manifest)
+                from hololab.content_scope import Baselines, capture, verification_fingerprint
+
+                record = await asyncio.to_thread(
+                    capture, pack.manifest_path, Baselines(self._config.code_baselines_dir)
+                )
+                witness = await asyncio.to_thread(
+                    verification_fingerprint, pack.manifest_path, record
+                )
+                key = json.dumps(
+                    {
+                        "pack_root": str(pack.package_root),
+                        "manifest_sha256": record["controls"]["manifest_sha256"],
+                    },
+                    sort_keys=True,
+                )
+                self._persistent_cache.put("code_identity", key, witness, record)
+            except Exception:
+                log.debug("persistent cache revalidation skipped", pack=str(pack.manifest_path))
 
     async def _prepare_params_reply(self, request) -> None:
         from hololab.manifest.path_params import resolve_path_params
