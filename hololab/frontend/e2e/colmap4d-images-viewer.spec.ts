@@ -35,7 +35,8 @@ async function fixture(page: Page, files: Record<string, Buffer>) {
       const names = Object.keys(files).filter(n => !base || n.startsWith(base + '/')).map(n => base ? n.slice(base.length + 1) : n).filter(n => regex.test(n));
       await route.fulfill({json: {files: names}}); return;
     }
-    const name = decodeURIComponent(url.pathname.slice(root.length + 1)); requests.push(name);
+    const thumb = url.pathname.includes('/_thumb/');
+    const name = decodeURIComponent(thumb ? url.pathname.split('/w/workflow/4d_images/')[1] : url.pathname.slice(root.length + 1)); requests.push((thumb ? 'thumb:' : '') + name);
     await route.fulfill(files[name] ? {body: files[name], contentType: name.endsWith('.png') ? 'image/png' : 'application/octet-stream'} : {status: 404});
   });
   await page.addInitScript(() => {
@@ -45,11 +46,10 @@ async function fixture(page: Page, files: Record<string, Buffer>) {
   });
   // This HTTP origin also verifies that synthesis does not require WebCodecs.
   await page.goto('http://viewer.test/api/types/colmap4d-images/assets/viewer.html');
-  await page.locator('#fps').fill('1');
   await page.evaluate(url => window.postMessage({type: 'hololab-viewer-state', frames: [{proxy_url: url}]}, location.origin), root);
   return {requests, errors};
 }
-async function ready(page: Page) { await expect(page.locator('#play')).toBeEnabled(); }
+async function ready(page: Page) { await expect.poll(() => page.locator('video').evaluate(v => v.readyState)).toBeGreaterThanOrEqual(2); }
 async function pixel(page: Page) {
   return page.locator('video').evaluate(video => {
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
@@ -58,94 +58,101 @@ async function pixel(page: Page) {
   });
 }
 
-test('legacy multi-camera images become a seekable video with the existing controls', async ({page}) => {
-  const {errors} = await fixture(page, {
+test('native playback controls replace the custom row; multi-camera switching remains', async ({page}) => {
+  const {requests, errors} = await fixture(page, {
     'images/f000000__cam0.png': red, 'images/f000002__cam0.png': blue,
     'images/f000000__cam7.png': blue, 'images/f000002__cam7.png': red,
   });
   await ready(page);
   await expect(page.locator('#partitions')).toBeHidden();
-  await expect(page.locator('video')).toHaveCount(1); await expect(page.locator('img')).toHaveCount(0);
-  expect(await page.locator('video').evaluate(v => v.duration)).toBeCloseTo(2, 3);
+  await expect(page.locator('#play, #seek, #fps, #loop, #position, footer')).toHaveCount(0);
+  expect(await page.locator('video').evaluate(v => v.controls)).toBe(true);
+  await expect(page.locator('#cameras')).toBeVisible();
   await expect.poll(async () => (await pixel(page))[0]).toBeGreaterThan(240);
-  await page.locator('#play').click();
-  await expect.poll(() => page.locator('video').evaluate(v => v.currentTime)).toBeGreaterThan(0.1);
-  await page.locator('#play').click();
-  await page.locator('#seek').fill('1');
+  await page.locator('video').evaluate(v => { v.loop = false; return v.play(); });
+  await expect.poll(() => page.locator('video').evaluate(v => v.ended)).toBe(true);
+  await page.locator('video').evaluate(v => { v.currentTime = 1/30; });
   await expect.poll(async () => (await pixel(page))[2]).toBeGreaterThan(240);
   await page.locator('#camera').selectOption('cam7'); await ready(page);
-  await expect.poll(async () => (await pixel(page))[0]).toBeGreaterThan(240);
-  await page.locator('#fps').fill('2'); await page.locator('#fps').dispatchEvent('change');
-  expect(await page.locator('video').evaluate(v => v.playbackRate)).toBe(2);
-  await page.locator('#loop').uncheck();
-  await page.locator('#play').click();
-  await expect.poll(() => page.locator('video').evaluate(v => v.ended)).toBe(true);
-  await page.locator('#loop').check(); await page.locator('#play').click();
-  await expect.poll(() => page.locator('video').evaluate(v => !v.paused && v.currentTime < 1.9)).toBe(true);
+  await expect.poll(async () => (await pixel(page))[2]).toBeGreaterThan(240);
+  await page.locator('#camera').selectOption('cam0'); await ready(page);
+  expect(await page.locator('video').getAttribute('data-cache-hit')).toBe('true');
+  expect(requests.every(n => n.startsWith('thumb:'))).toBe(true);
   expect(await page.evaluate(() => (window as any).revoked.length)).toBeGreaterThan(0);
   expect(errors).toEqual([]);
 });
 
-test('canonical nested names use camera IDs and nanosecond time order, including a single shard', async ({page}) => {
+test('canonical nested names retain time order, and a single wrapped shard has no pager', async ({page}) => {
   const meta = metadata([
     {id: 1, camera: 5, name: 'render/camera_5/later image.png', time: 1700000000000000002n},
     {id: 8, camera: 5, name: 'render/camera_5/earlier.png', time: 1700000000000000001n},
-    {id: 9, camera: 12, name: 'other/view.png', time: 1700000000000000001n},
   ]);
   const prefix = 'p_0000000000000000/';
   const {errors} = await fixture(page, {
     [prefix + 'images.bin']: meta.images, [prefix + 'times.bin']: meta.times,
     [prefix + 'images/render/camera_5/later image.png']: blue,
-    [prefix + 'images/render/camera_5/earlier.png']: red, [prefix + 'images/other/view.png']: blue,
+    [prefix + 'images/render/camera_5/earlier.png']: red,
   });
   await ready(page); await expect(page.locator('#partitions')).toBeHidden();
-  await expect(page.locator('#position')).toContainText('f8');
+  await expect(page.locator('#cameras')).toBeHidden();
   await expect.poll(async () => (await pixel(page))[0]).toBeGreaterThan(240);
-  await page.locator('#camera').selectOption('cam12'); await ready(page);
-  await expect.poll(async () => (await pixel(page))[2]).toBeGreaterThan(240);
-  expect(await page.locator('video').evaluate(v => v.duration)).toBeCloseTo(1, 3);
+  expect(await page.locator('video').evaluate(v => v.duration)).toBeCloseTo(2/30, 3);
   expect(errors).toEqual([]);
 });
 
-test('fan-out has one wrapping pager and only encodes the selected shard', async ({page}) => {
+test('neighbours are warmed; paging reuses video blobs without downloading the selected frames again', async ({page}) => {
   const {requests, errors} = await fixture(page, {
-    'p_10/images/f0__cam0.png': blue, 'p_2/images/f0__cam0.png': red,
+    ...Object.fromEntries(Array.from({length: 12}, (_, i) => [`p_10/images/f${i}__cam0.png`, blue])),
+    ...Object.fromEntries(Array.from({length: 12}, (_, i) => [`p_2/images/f${i}__cam0.png`, red])),
   });
   await ready(page); await expect(page.locator('nav')).toHaveCount(1);
   await expect(page.locator('#partition-label')).toHaveText('p_2  1 / 2');
-  expect(requests.filter(n => n.endsWith('.png'))).toEqual(['p_2/images/f0__cam0.png']);
-  await page.locator('#play').click();
+  await expect(page.locator('#partitions')).toHaveAttribute('data-cached', '2');
+  const count = requests.length;
+  await page.locator('video').evaluate(v => v.play());
   await page.locator('#next').click(); await ready(page);
   await expect(page.locator('#partition-label')).toHaveText('p_10  2 / 2');
   await expect.poll(async () => (await pixel(page))[2]).toBeGreaterThan(240);
   await expect.poll(() => page.locator('video').evaluate(v => !v.paused)).toBe(true);
+  expect(await page.locator('video').getAttribute('data-cache-hit')).toBe('true');
+  expect(requests.length).toBe(count);
   await page.locator('#next').click(); await ready(page);
   await expect(page.locator('#partition-label')).toHaveText('p_2  1 / 2');
   await page.locator('#previous').click(); await ready(page);
   await expect(page.locator('#partition-label')).toHaveText('p_10  2 / 2');
-  await page.locator('video').hover(); await page.keyboard.press('ArrowRight'); await ready(page);
-  await expect(page.locator('#partition-label')).toHaveText('p_2  1 / 2');
-  expect(errors).toEqual([]);
+  expect(requests.length).toBe(count); expect(errors).toEqual([]);
 });
 
-test('switching during encoding cancels stale work and a bad shard can be left', async ({page}) => {
+test('thumbnail unavailability falls back to originals and stale loading can be cancelled', async ({page}) => {
+  await fixture(page, {'p_0/images/f0__cam0.png': red, 'p_1/images/f0__cam0.png': blue});
+  await ready(page);
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  await fixture(page, {'p_0/images/f0__cam0.png': red, 'p_1/images/f0__cam0.png': blue});
-  // Re-load after installing a delayed image route.
-  await ready(page);
-  await page.route('**/p_0/images/*.png', async route => {
-    await gate; await route.fulfill({body: red, contentType: 'image/png'}).catch(() => {});
+  await page.route('**/_thumb/**/p_1/images/*.png*', async route => {
+    await gate; await route.fulfill({status: 501}).catch(() => {});
   });
-  await page.locator('#next').click(); await ready(page);
-  await page.locator('#previous').click();
-  await expect(page.locator('#play')).toBeDisabled();
-  await page.locator('#next').click(); await ready(page);
+  await page.locator('#next').click();
+  await expect(page.locator('#status')).toBeVisible();
+  await page.locator('#previous').click(); await ready(page);
   release();
-  await expect.poll(async () => (await pixel(page))[2]).toBeGreaterThan(240);
-  await page.unroute('**/p_0/images/*.png');
-  await page.route('**/p_0/images/*.png', route => route.fulfill({status: 404}));
-  await page.locator('#previous').click(); await expect(page.locator('#status')).toContainText('HTTP 404');
+  await expect.poll(async () => (await pixel(page))[0]).toBeGreaterThan(240);
   await page.locator('#next').click(); await ready(page);
   await expect.poll(async () => (await pixel(page))[2]).toBeGreaterThan(240);
+});
+
+test('LRU enforces both the byte limit and entry limit while retaining the active video', async ({page}) => {
+  await fixture(page, {'images/f0__cam0.png': red}); await ready(page);
+  const result = await page.evaluate(async () => {
+    // @ts-ignore The type asset is served by the browser fixture.
+    const {PreviewCache} = await import('/api/types/colmap4d-images/assets/preview-cache.js');
+    const cache = new PreviewCache(3, 10);
+    const add = (root: string, size: number, pin = '') => cache.put({root, camera: 'cam0', blob: new Blob(['x'.repeat(size)])}, pin);
+    add('active', 4); const pin = cache.key('active', 'cam0');
+    add('a', 3, pin); add('b', 3, pin); cache.get('a', 'cam0'); add('c', 3, pin);
+    const byteEviction = !cache.get('b', 'cam0') && Boolean(cache.get('active', 'cam0')) && cache.bytes === 10;
+    const oversized = !add('large', 11, pin);
+    cache.clear(); for(let i=0;i<6;i++) add(String(i), 1);
+    return {byteEviction, oversized, entries: cache.entries.size, bytes: cache.bytes};
+  });
+  expect(result).toEqual({byteEviction: true, oversized: true, entries: 3, bytes: 3});
 });

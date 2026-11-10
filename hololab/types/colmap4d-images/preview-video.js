@@ -66,19 +66,45 @@ export function webm(frames, width, height, fps) {
   return new Blob([header, element(0x18538067, [info, tracks, table, ...clusters])], {type: 'video/webm'});
 }
 
-export async function synthesize(frames, urlFor, fps, signal, progress) {
+export function thumbnailUrl(root, name) {
+  const url = new URL(root, location.origin), parts = url.pathname.split('/').filter(Boolean);
+  const path = [...parts.slice(2), ...name.split('/').map(encodeURIComponent)].join('/');
+  return `/proxy/${parts[1]}/_thumb/640x480/${path}?at=0&unpadded=true`;
+}
+
+export async function synthesize(frames, urlFor, fps, parentSignal, progress, originalUrlFor) {
+  const controller = new AbortController(), signal = controller.signal;
+  const cancel = () => controller.abort();
+  parentSignal.addEventListener('abort', cancel, {once: true});
+  if (parentSignal.aborted) cancel();
   const canvas = document.createElement('canvas'), context = canvas.getContext('2d', {alpha: false});
   const encoded = [];
+  let useOriginal = false;
+  const pending = new Map();
+  async function load(index) {
+    let response = await fetch((useOriginal ? originalUrlFor : urlFor)(frames[index].name), {signal});
+    if (!response.ok && originalUrlFor) {
+      useOriginal = true;
+      response = await fetch(originalUrlFor(frames[index].name), {signal});
+    }
+    if (!response.ok) throw Error(`${frames[index].name}: HTTP ${response.status}`);
+    return response.blob();
+  }
   try {
     for (let i = 0; i < frames.length; i++) {
       signal.throwIfAborted();
-      const response = await fetch(urlFor(frames[i].name), {signal});
-      if (!response.ok) throw Error(`${frames[i].name}: HTTP ${response.status}`);
-      const image = await createImageBitmap(await response.blob());
+      // Pipeline up to four compressed thumbnails, but decode only one image.
+      // This overlaps HTTP/transcode latency without a decoded-frame cache.
+      for (let n = i; n < Math.min(frames.length, i + 4); n++) if (!pending.has(n)) {
+        const promise = load(n); promise.catch(() => {}); pending.set(n, promise);
+      }
+      const blob = await pending.get(i); pending.delete(i);
+      signal.throwIfAborted();
+      const image = await createImageBitmap(blob);
       try {
         signal.throwIfAborted();
         if (!i) {
-          const scale = Math.min(1, 1280 / Math.max(image.width, image.height));
+          const scale = Math.min(1, 640 / Math.max(image.width, image.height));
           canvas.width = Math.max(1, Math.round(image.width * scale));
           canvas.height = Math.max(1, Math.round(image.height * scale));
         }
@@ -87,13 +113,13 @@ export async function synthesize(frames, urlFor, fps, signal, progress) {
         const w = image.width * scale, h = image.height * scale;
         context.drawImage(image, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
       } finally { image.close(); }
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.85));
+      const encodedBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.85));
       signal.throwIfAborted();
-      if (!blob) throw Error('Could not encode preview frame');
-      encoded.push(vp8Frame(await blob.arrayBuffer()));
+      if (!encodedBlob) throw Error('Could not encode preview frame');
+      encoded.push(vp8Frame(await encodedBlob.arrayBuffer()));
       progress(i + 1, frames.length);
     }
     signal.throwIfAborted();
     return webm(encoded, canvas.width, canvas.height, fps);
-  } finally { canvas.width = canvas.height = 1; }
+  } finally { controller.abort(); parentSignal.removeEventListener('abort', cancel); pending.clear(); canvas.width = canvas.height = 1; }
 }
