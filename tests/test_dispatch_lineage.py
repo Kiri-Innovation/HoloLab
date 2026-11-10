@@ -15,6 +15,8 @@ Covers the V8 lineage-first snapshot model:
 from __future__ import annotations
 
 from pathlib import Path
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -26,6 +28,25 @@ from hololab.gateway.jobs import Job, JobState
 from hololab.gateway.registry import NodeSession
 from hololab.gateway.workflows import GraphEdge, GraphNode, WorkflowGraph
 from hololab.protocol.messages import GpuInfo, PackInventoryEntry
+
+
+@pytest.mark.asyncio
+async def test_input_resolution_reuses_request_catalog(monkeypatch):
+    from hololab.gateway.execution import _resolve_inputs_from_snapshot
+
+    @asynccontextmanager
+    async def read():
+        yield None  # No upstream edges: no database query is needed.
+
+    monkeypatch.setattr("hololab.gateway.constants.ensure_inline_inputs", AsyncMock(return_value={}))
+    catalog = [dict(name="demo", version="1", inputs={})]
+    registry = SimpleNamespace(catalog_json=lambda: pytest.fail("catalog rebuilt"))
+    app = SimpleNamespace(state=SimpleNamespace(db=SimpleNamespace(read=read), registry=registry))
+    graph = WorkflowGraph(nodes=[GraphNode(id="n", algorithm_name="demo", algorithm_version="1")])
+    assert await _resolve_inputs_from_snapshot(
+        app, workflow_id="w", target_snapshot_id="s", graph=graph,
+        graph_node_id="n", catalog=catalog,
+    ) == {}
 
 
 def _linear_graph() -> WorkflowGraph:

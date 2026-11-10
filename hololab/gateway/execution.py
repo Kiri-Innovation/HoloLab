@@ -1773,6 +1773,7 @@ async def _dispatch_graph_node(
     lineage_spans["continue_fork_decision"] = time.monotonic() - decision_started
     mutation_started = time.monotonic()
     materialize_s = 0.0
+    input_catalog = None
     parent_snapshot_id = None
     if can_continue:
         # Constants and other dependency nodes are also frozen evidence.
@@ -1782,6 +1783,7 @@ async def _dispatch_graph_node(
                 break
             protected |= ancestors
         graph = merge_continuation(frozen_base, prepared, protected)
+        input_catalog = registry.catalog_json()
         # Check inputs before changing any evidence on the existing run.
         await _resolve_inputs_from_snapshot(
             app,
@@ -1797,6 +1799,7 @@ async def _dispatch_graph_node(
                 }
             ),
             graph_node_id=graph_node_id,
+            catalog=input_catalog,
         )
         await workflows_store.extend_snapshot(baseline, graph, protected=protected)
         target_snapshot_id = base_snapshot_id
@@ -1844,6 +1847,7 @@ async def _dispatch_graph_node(
         target_snapshot_id=target_snapshot_id,
         graph=graph,
         graph_node_id=graph_node_id,
+        catalog=input_catalog,
     )
     spans["input_resolution"] = time.monotonic() - started - sum(spans.values())
 
@@ -1990,6 +1994,7 @@ async def _resolve_inputs_from_snapshot(
     target_snapshot_id: str,
     graph: WorkflowGraph,
     graph_node_id: str,
+    catalog: list[dict[str, Any]] | None = None,
 ) -> dict[str, str]:
     """Read every incoming edge's upstream artifact from the snapshot.
 
@@ -2133,7 +2138,7 @@ async def _resolve_inputs_from_snapshot(
         entry = next(
             (
                 p
-                for p in app.state.registry.catalog_json()
+                for p in (catalog if catalog is not None else app.state.registry.catalog_json())
                 if package_key(p["name"], p["version"])
                 == package_key(consumer.algorithm_name, consumer.algorithm_version)
             ),
