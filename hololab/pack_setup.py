@@ -49,6 +49,20 @@ DEFAULT_PYTHON = "3.11"
 _PYTHON_CANDIDATES = ("3.11", "3.12", "3.10", "3.9", "3.8", "3.7", "3.6", "3.13", "3.14", "3.15")
 _ECOSYSTEM_PYTHONS = frozenset({"3.10", "3.11", "3.12", "3.13"})
 PYPI_SIMPLE_INDEX = "https://pypi.org/simple"
+# weights -> node.config imports node.__init__ -> runtime -> manifest.render.
+# Keep this explicit: installing all project dependencies would pull the web
+# server and image-processing stack into every model environment. HF is lazy
+# imported by weights, but must also work when its download fallback is used.
+_HOLOLAB_RUNTIME_REQUIREMENTS = {
+    "httpx": "httpx>=0.27",
+    "pydantic": "pydantic>=2.8",
+    "pyyaml": "pyyaml>=6.0",
+    "websockets": "websockets>=14",
+    "structlog": "structlog>=24.4",
+    "jinja2": "jinja2>=3.1",
+    "packaging": "packaging>=24",
+    "huggingface-hub": "huggingface-hub>=0.20",
+}
 
 
 @dataclass(frozen=True)
@@ -874,6 +888,102 @@ def _apply_hooks(
         events.append(f"{manifest.name}@{manifest.version}: setup hook completed")
 
 
+def _install_hololab_runtime(
+    conda: str | None, prefix: Path | None, events: list[str], *, dry_run: bool = False
+) -> None:
+    """Make the source checkout and weight helpers available, best effort.
+
+    Probe the target interpreter instead of trusting a receipt or PYTHONPATH:
+    an interrupted install, another checkout or removed dependencies must heal
+    on the next setup. A healthy editable install needs no pip invocation.
+    """
+    source = Path(__file__).resolve().parent.parent
+    label = str(prefix) if prefix else "target environment"
+    if dry_run:
+        events.append(
+            f"{label}: check/install editable hololab from {source} (--no-deps) "
+            "and minimal weight runtime dependencies"
+        )
+        return
+    python = [conda, "run", "--prefix", str(prefix), "python"]
+    program = f"""
+import importlib.metadata as metadata
+import json
+from pathlib import Path
+versions = {{}}
+for name in {list(_HOLOLAB_RUNTIME_REQUIREMENTS)!r}:
+    try:
+        versions[name] = metadata.version(name)
+    except metadata.PackageNotFoundError:
+        pass
+editable = False
+try:
+    direct = json.loads(metadata.distribution('hololab').read_text('direct_url.json') or '{{}}')
+    editable = (direct.get('dir_info', {{}}).get('editable') is True
+                and direct.get('url') == {source.as_uri()!r})
+except (metadata.PackageNotFoundError, ValueError):
+    pass
+error = ''
+try:
+    import hololab
+    editable = editable and Path(hololab.__file__).resolve().parent == Path({str(source / "hololab")!r})
+except Exception:
+    editable = False
+try:
+    from hololab.weights import resolve_weights
+    from hololab.node.config import NodeConfig
+    import huggingface_hub
+    assert callable(resolve_weights)
+except Exception as exc:
+    error = str(exc)
+print(json.dumps(dict(versions=versions, editable=editable, error=error)))
+"""
+
+    def probe():
+        result = _run([*python, "-I", "-c", program])
+        if result.returncode:
+            raise SetupError((result.stderr or result.stdout).strip()[-4000:])
+        return json.loads(result.stdout)
+
+    def missing(state):
+        return [
+            raw
+            for name, raw in _HOLOLAB_RUNTIME_REQUIREMENTS.items()
+            if name not in state["versions"]
+            or Version(state["versions"][name]) not in Requirement(raw).specifier
+        ]
+
+    try:
+        if not (source / "pyproject.toml").is_file():
+            raise SetupError(f"hololab source checkout not found at {source}")
+        state = probe()
+        needed = missing(state)
+        if not needed and state["editable"] and not state["error"]:
+            events.append(f"{label}: editable hololab and weight runtime already satisfied")
+            return
+        if needed:
+            result = _run(
+                [*python, "-m", "pip", "install", "--extra-index-url", PYPI_SIMPLE_INDEX, *needed]
+            )
+            if result.returncode:
+                raise SetupError((result.stderr or result.stdout).strip()[-4000:])
+        if not state["editable"]:
+            result = _run([*python, "-m", "pip", "install", "--no-deps", "-e", str(source)])
+            if result.returncode:
+                raise SetupError((result.stderr or result.stdout).strip()[-4000:])
+        state = probe()
+        if missing(state) or not state["editable"] or state["error"]:
+            raise SetupError(f"weight runtime verification failed: {state}")
+        events.append(f"{label}: installed editable hololab and verified weight runtime")
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        # Packs may still have their own fallback. Do not undo otherwise useful
+        # setup work; retry the live probe on every subsequent setup invocation.
+        events.append(
+            f"{label}: warning: hololab runtime setup failed: {exc}; "
+            "hololab.weights may be unavailable; rerun pack setup to retry"
+        )
+
+
 def apply_plans(
     plans: list[EnvironmentPlan], cfg: NodeConfig, config_path: Path, *, dry_run: bool
 ) -> list[str]:
@@ -908,6 +1018,7 @@ def apply_plans(
                     events.append(
                         f"{plan.name}: install {package} (conda-forge, then pip fallback)"
                     )
+                _install_hololab_runtime(conda, prefix, events, dry_run=True)
                 continue
             # conda create -n is itself safe with a pre-existing name only if
             # omitted; first attempt to discover it without modifying anything.
@@ -951,6 +1062,7 @@ def apply_plans(
         _install_conda_packages(plan, conda, prefix, events, dry_run)
         if plan.package_indexes and not dry_run:
             _install_indexed_packages(plan, conda, prefix, events)
+            _install_hololab_runtime(conda, prefix, events)
             _apply_hooks(plan, conda, prefix, events, False, cfg.ensure_cache_dirs())
             continue
         package_indexes = dict(plan.package_indexes)
@@ -1026,6 +1138,7 @@ def apply_plans(
                         f"pip (primary pip index plus fallback {PYPI_SIMPLE_INDEX}): "
                         f"{(pip.stdout or pip.stderr).strip()}"
                     )
+        _install_hololab_runtime(conda, prefix, events, dry_run=dry_run)
         _apply_hooks(
             plan,
             conda,
