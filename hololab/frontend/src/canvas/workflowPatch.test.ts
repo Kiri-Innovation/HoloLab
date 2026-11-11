@@ -46,6 +46,7 @@ describe("workflow element patches", () => {
       param_bindings: { z: "v" },
       port_values: { in: 1 },
       local_params: ["z"],
+      device: "gpu",
       assigned_node_id: "device",
       arrayed_toggle: true,
       parallelism: 3,

@@ -1,4 +1,4 @@
-"""Read-only format-library adapters. Transport/limits only; no format parsing."""
+"""Read-only format-library adapters with cached scan results; no format parsing."""
 
 from __future__ import annotations
 
@@ -11,10 +11,19 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import JSONResponse, Response
+
+from hololab.node.format_preview_cache import (
+    FormatPreviewCache,
+    SourceChangedError,
+    library_identity,
+    scan_key,
+)
 
 
 def mount_format_previews(app: FastAPI, resolve_path: Callable[[str], Path | None]) -> None:
     slots = asyncio.Semaphore(2)
+    cache = FormatPreviewCache()
 
     @app.get("/_format/colmap4d/{sub:path}")
     async def colmap4d_preview(
@@ -39,28 +48,41 @@ def mount_format_previews(app: FastAPI, resolve_path: Callable[[str], Path | Non
             ) from exc
 
         def call():
-            if part == "metadata":
-                return asdict(library.inspect_components(path))
-            result = asdict(
-                library.preview_files(
-                    path,
-                    part=part,
-                    budget=budget,
-                    offset=offset,
-                    limit=limit,
-                )
+            def compute():
+                if part == "metadata":
+                    result = asdict(library.inspect_components(path))
+                else:
+                    result = asdict(
+                        library.preview_files(
+                            path,
+                            part=part,
+                            budget=budget,
+                            offset=offset,
+                            limit=limit,
+                        )
+                    )
+                    result["files"] = [
+                        {"name": name, "base64": base64.b64encode(data).decode("ascii")}
+                        for name, data in result["files"].items()
+                    ]
+                return JSONResponse({"format": "colmap4d", "part": part, "result": result}).body
+
+            try:
+                implementation = library_identity(library)
+            except OSError:
+                # An unreadable library source must not break a working import.
+                return compute()
+            return cache.render(
+                lambda: scan_key(path, part, (budget, offset, limit), implementation), compute
             )
-            result["files"] = [
-                {"name": name, "base64": base64.b64encode(data).decode("ascii")}
-                for name, data in result["files"].items()
-            ]
-            return result
 
         try:
             async with slots:
-                result = await asyncio.to_thread(call)
+                body = await asyncio.to_thread(call)
+        except SourceChangedError as exc:
+            raise HTTPException(409, str(exc)) from exc
         except FileNotFoundError as exc:
             raise HTTPException(404, str(exc)) from exc
         except (ValueError, OSError) as exc:
             raise HTTPException(422, str(exc)) from exc
-        return {"format": "colmap4d", "part": part, "result": result}
+        return Response(body, media_type="application/json")

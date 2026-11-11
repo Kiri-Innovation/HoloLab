@@ -63,6 +63,10 @@ def context_revision(
     for node in data["nodes"]:
         node["algorithm_name"] = canonical_name(node.get("algorithm_name"))
         node.pop("code_identity", None)
+    # File serialization and API reads can order graph residents differently.
+    # Only topology/configuration changes invalidate a prepared execution.
+    data["nodes"].sort(key=lambda node: node["id"])
+    data["edges"].sort(key=lambda edge: edge["id"])
     keys = {package_key(n.algorithm_name, n.algorithm_version) for n in recipe.graph.nodes}
     packs = sorted(
         (p for p in catalog if package_key(p["name"], p["version"]) in keys),
@@ -188,12 +192,19 @@ def resolve_recipe(
                 value = graph.variable_values.get(variable, declaration.default)
                 if value is None or value == "":
                     raise ValueError(f"{prefix} 未提供值")
-                valid = isinstance(value, str) if declaration.type == "path" else type(value) is int
+                if declaration.type == "path":
+                    valid = isinstance(value, str)
+                elif declaration.type == "int":
+                    valid = type(value) is int
+                else:
+                    valid = type(value) in (int, float)
                 if not valid:
                     raise ValueError(
                         f"{prefix} 值类型错误: 需要 {declaration.type}, 当前 {type(value).__name__}"
                     )
-                node.params[parameter] = copy.deepcopy(value)
+                node.params[parameter] = (
+                    float(value) if declaration.type == "float" else copy.deepcopy(value)
+                )
                 sources[node.id][parameter] = "workflow-variable"
         except ValueError as exc:
             if not tolerate_parameter_errors:
@@ -266,6 +277,7 @@ def semantic_node(node) -> dict:
             "params",
             "port_values",
             "assigned_node_id",
+            "device",
             "arrayed_toggle",
             "parallelism",
         }
@@ -287,9 +299,21 @@ def changed_nodes(current: WorkflowGraph, frozen: WorkflowGraph) -> set[str]:
 
     for nid, node in current_nodes.items():
         old = previous.get(nid)
+        current_value = semantic_node(node)
+        old_value = semantic_node(old) if old is not None else None
+        # Automatic placement is execution evidence, not a draft edit. A load
+        # change must not invalidate usable upstream results or fork a pipeline.
+        if all(
+            (g.execution or {}).get("device_bindings", {}).get("routing", {}).get(nid)
+            == "automatic"
+            for g in (current, frozen)
+        ):
+            current_value.pop("assigned_node_id", None)
+            if old_value is not None:
+                old_value.pop("assigned_node_id", None)
         if (
             old is None
-            or digest(semantic_node(node)) != digest(semantic_node(old))
+            or digest(current_value) != digest(old_value)
             or inputs(current, nid) != inputs(frozen, nid)
         ):
             changed.add(nid)
@@ -303,6 +327,7 @@ async def prepare_execution(
     required: set[str] | None = None,
     strict: bool = True,
     check_environment: bool = True,
+    workflow_id: str | None = None,
 ) -> WorkflowGraph:
     """Resolve and normalize; display callers collect failures with strict=False.
 
@@ -347,15 +372,34 @@ async def prepare_execution(
     # because resolve_recipe raises before returning such a result.
     required -= invalid_nodes
     from hololab.gateway.capabilities import check_workflow, enforce_workflow
+    from hololab.gateway.device_bindings import resolve_devices
 
-    # Keep pre-normalization effective configuration for later single-node
-    # Continue checks; untouched upstream paths must not be re-prepared.
+    # Keep requests before device/path normalization for single-node Continue.
     result.execution["requested_nodes"] = {n.id: semantic_node(n) for n in result.nodes}
+    devices = await resolve_devices(
+        app,
+        result,
+        workflow_id=workflow_id,
+        required=required,
+        probe=check_environment,
+        strict=strict,
+    )
+    result.execution["device_bindings"] = {
+        key: value for key, value in devices.items() if key not in ("reports", "issues")
+    }
+    result.execution["issues"].extend(devices["issues"])
+    required = required - {issue["node_id"] for issue in devices["issues"]}
+
     # ``/analyze`` needs normalized effective parameters but is not an
     # execution preflight.  Let it reuse this resolver without fanning out
     # fresh environment inventories across the whole canvas.
     result.execution["environment_checks"] = (
-        await check_workflow(app, result, required=required, fresh=True)
+        {
+            **devices["reports"],
+            **await check_workflow(
+                app, result, required=required - set(devices["reports"]), fresh=True
+            ),
+        }
         if check_environment
         else {}
     )
@@ -493,9 +537,12 @@ async def submitted_execution(
             )
     else:
         try:
-            prepared = await prepare_execution(app, graph, required=required)
+            prepared = await prepare_execution(app, graph, required=required, workflow_id=workflow_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+    from hololab.gateway.device_bindings import verify_device_revision
+
+    await verify_device_revision(app, workflow_id, prepared.execution)
     latest = await app.state.workflows.get_draft(workflow_id)
     if latest is None or prepared.execution["revision"] != context_revision(
         latest.graph, app.state.registry.catalog_json()
@@ -567,6 +614,7 @@ def configuration_diff(current: WorkflowGraph, baseline: WorkflowGraph | None) -
 
     labels = {
         "assigned_node_id": "执行节点",
+        "device": "逻辑设备",
         "algorithm_name": "算法",
         "algorithm_version": "版本",
         "arrayed_toggle": "Fan-out",
@@ -633,6 +681,7 @@ async def analyze_execution(
         graph,
         strict=False,
         check_environment=False,
+        workflow_id=workflow_id,
     )
     # Absence intentionally makes the frontend use its independent capability
     # check result rather than mistaking an empty analysis-only map for a
@@ -684,7 +733,7 @@ async def analyze_execution(
         if errors := invalid_edges.get(node.id):
             states[node.id] = {
                 "kind": "invalid_params",
-                "title": "输入连线无法解析：" + "; ".join(errors),
+                "title": "输入连线无法解析：" + "; ".join(errors),  # noqa: RUF001
                 "changeReasons": errors,
             }
             dirty |= downstream_closure(prepared, node.id)

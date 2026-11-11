@@ -12,8 +12,9 @@ from hololab.node.fileserver import create_fileserver_app
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
     pytest.importorskip("colmap4d.preview")
+    monkeypatch.setenv("HOLOLAB_HOME", str(tmp_path / "node-state"))
     model = tmp_path / "w" / "workflow" / "model"
     model.mkdir(parents=True)
     (model / "cameras.txt").write_text("1 PINHOLE 640 480 500 500 320 240\n")

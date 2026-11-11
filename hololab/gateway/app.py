@@ -27,6 +27,11 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from hololab import PROTOCOL_V_MAX, PROTOCOL_V_MIN
 from hololab.gateway.derived_cache import DerivedPreviewCache
+from hololab.gateway.device_bindings import (
+    DeviceBindingConflict,
+    DeviceBindingPatch,
+    DeviceBindingStore,
+)
 from hololab.gateway.execution import (
     DispatchError,
     WorkflowRunError,
@@ -2131,7 +2136,10 @@ def _mount_routes(app: FastAPI) -> None:
         from hololab.gateway.capabilities import check_workflow
 
         try:
+            from hololab.gateway.device_bindings import resolve_devices
+
             graph = WorkflowGraph.model_validate(body["graph"])
+            await resolve_devices(app, graph, workflow_id=body.get("workflow_id"), strict=False)
             return {"nodes": await check_workflow(app, graph, fresh=bool(body.get("fresh", False)))}
         except (ValueError, KeyError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -2222,13 +2230,22 @@ def _mount_routes(app: FastAPI) -> None:
         )
         try:
             prepared = await prepare_execution(
-                app, graph, required=required, strict=bool(body.get("node_id"))
+                app,
+                graph,
+                required=required,
+                strict=bool(body.get("node_id")),
+                workflow_id=workflow_id,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         from hololab.gateway.capabilities import environment_errors
 
         errors = environment_errors(prepared.execution["environment_checks"])
+        errors.extend(
+            issue["message"]
+            for issue in prepared.execution["issues"]
+            if not issue.get("node_id") or issue["node_id"] in required
+        )
         token = str(uuid.uuid4())
 
         async def write(conn):
@@ -2540,6 +2557,27 @@ def _mount_routes(app: FastAPI) -> None:
         await files.scan()
         return {"id": workflow_id, "path": str(path)}
 
+    @app.get("/api/workflows/{workflow_id}/device-bindings", tags=["workflows"])
+    async def get_device_bindings(workflow_id: str):
+        if await app.state.workflows.get_draft(workflow_id) is None:
+            raise HTTPException(404, "workflow not found")
+        return await DeviceBindingStore(app.state.db).get(workflow_id)
+
+    @app.patch("/api/workflows/{workflow_id}/device-bindings", tags=["workflows"])
+    async def patch_device_bindings(workflow_id: str, body: DeviceBindingPatch):
+        if await app.state.workflows.get_draft(workflow_id) is None:
+            raise HTTPException(404, "workflow not found")
+        try:
+            return await DeviceBindingStore(app.state.db).patch(workflow_id, body)
+        except DeviceBindingConflict as exc:
+            raise HTTPException(
+                409, {"code": "device_binding_conflict", "current": exc.current}
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(404, "workflow not found") from exc
+
     @app.put("/api/workflows/{workflow_id}/content", tags=["workflows"])
     async def put_workflow_content(workflow_id: str, body: dict[str, Any]):
         from hololab.gateway.workflow_files import WorkflowDocument, write_document
@@ -2575,7 +2613,19 @@ def _mount_routes(app: FastAPI) -> None:
             if body["base_rev"] != files.revisions.get(workflow_id, 0):
                 raise HTTPException(409, "workflow revision changed")
             try:
-                document = WorkflowDocument(id=workflow_id, name=body["name"], graph=body["graph"])
+                from hololab.gateway.workflows import preserve_graph_extensions
+
+                incoming = WorkflowDocument.model_validate(
+                    {
+                        key: value
+                        for key, value in body.items()
+                        if key not in ("expected_mtime", "base_rev")
+                    }
+                    | {"id": workflow_id}
+                )
+                if workflow_id in files._save_tasks:
+                    current = files.documents.get(workflow_id) or current
+                document = preserve_graph_extensions(current, incoming)
                 task = files._save_tasks.pop(workflow_id, None)
                 if task:
                     task.cancel()
@@ -2947,13 +2997,21 @@ def _mount_routes(app: FastAPI) -> None:
         for session in registry.all_sessions():
             packs_offered_by_node[session.node_id] = {(p.name, p.version) for p in session.packs}
 
+        from hololab.gateway.preparation import submitted_execution
+        from hololab.gateway.workflows import is_task_node
+
+        prepared = (
+            await submitted_execution(app, workflow_id, execution_graph)
+            if any(is_task_node(n) for n in execution_graph.nodes)
+            else execution_graph
+        )
         issues = validate_snapshot(
-            execution_graph,
+            prepared,
             packs_by_key=packs_by_key,
             online_node_ids=online_node_ids,
             packs_offered_by_node=packs_offered_by_node,
         )
-        for node in execution_graph.nodes:
+        for node in prepared.nodes:
             if node.kind == "intrinsic":
                 session = registry.get_session(node.assigned_node_id)
                 if session is not None and node.operation not in session.intrinsics:
@@ -2978,9 +3036,6 @@ def _mount_routes(app: FastAPI) -> None:
                 "mode": "constants",
                 "message": "常量无需运行",
             }
-        from hololab.gateway.preparation import submitted_execution
-
-        prepared = await submitted_execution(app, workflow_id, execution_graph)
         snapshot = await app.state.workflows.create_snapshot(
             workflow_id=workflow_id, graph=prepared
         )

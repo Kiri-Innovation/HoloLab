@@ -31,7 +31,8 @@ def install_submission_guard(app):
             or "/dispatch/" in request.url.path
             or "/rerun-from/" in request.url.path
         )
-        if applies and len(parts) > 3 and parts[2] == "workflows":
+        binding_edit = request.method == "PATCH" and request.url.path.endswith("/device-bindings")
+        if (applies or binding_edit) and len(parts) > 3 and parts[2] == "workflows":
             async with workflow_locks.setdefault(parts[3], asyncio.Lock()):
                 return await guard(request, call_next)
         return await guard(request, call_next)

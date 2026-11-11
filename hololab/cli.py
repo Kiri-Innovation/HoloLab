@@ -76,6 +76,25 @@ workflow_app = typer.Typer(help="Workflow document tools.")
 app.add_typer(workflow_app, name="workflow")
 
 
+@workflow_app.command("migrate-devices")
+def workflow_migrate_devices(
+    db_path: Path = typer.Option(..., "--db-path", exists=True, dir_okay=False),
+    workflows_dir: Path = typer.Option(..., "--workflows-dir", exists=True, file_okay=False),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+    backup_dir: Path | None = typer.Option(None, "--backup-dir"),
+):
+    """Plan legacy device migration; --apply requires an offline gateway and makes backups."""
+    from hololab.gateway.migrate_device_bindings import migrate
+
+    typer.echo(
+        json.dumps(
+            migrate(db_path, workflows_dir, dry_run=dry_run, backup_dir=backup_dir),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+
+
 @workflow_app.command("migrate-files")
 def workflow_migrate_files(
     db_path: Path | None = typer.Option(None, "--db-path"),
@@ -1255,7 +1274,7 @@ def _print_dev_banner(host: str, port: int, frontend_url: str) -> None:
     typer.echo("─" * 60)
 
 
-weights_app = typer.Typer(help="Fetch verified weights or resolve local cached paths.")
+weights_app = typer.Typer(help="Fetch, resolve, or publish verified weights.")
 app.add_typer(weights_app, name="weights")
 
 
@@ -1300,6 +1319,47 @@ def _weights_command(
     except (WeightsError, OSError, KeyError) as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(1) from exc
+
+
+@weights_app.command("publish")
+def weights_publish(
+    root: Path = typer.Option(..., "--root"),
+    name: str = typer.Option(..., "--name"),
+    publisher_env: Path = typer.Option(..., "--publisher-env"),
+    resume_dir: Path | None = typer.Option(None, "--resume-dir"),
+    part_size_mib: int = typer.Option(64, "--part-size-mib"),
+    manifest_file: Path | None = typer.Option(None, "--manifest-file"),
+    paths: Path | None = typer.Option(
+        None, "--paths", help="JSON array of relative file paths to upload."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+):
+    """Upload weight blobs and a manifest to COS; ledger registration stays server-side."""
+    from hololab.weights import WeightsError
+    from hololab.weights.publish import publish
+
+    try:
+        report = publish(
+            root,
+            name,
+            publisher_env,
+            resume_dir=resume_dir,
+            part_size_mib=part_size_mib,
+            manifest_file=manifest_file,
+            paths_file=paths,
+            dry_run=dry_run,
+        )
+    except ValueError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    except (WeightsError, OSError) as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    except Exception:
+        # SDK exception strings can include request details. Keep secrets out of CLI logs.
+        typer.echo("error: COS upload failed; retry with the same --resume-dir", err=True)
+        raise typer.Exit(1) from None
+    typer.echo(json.dumps(report, ensure_ascii=False, indent=2))
 
 
 @weights_app.command("fetch")

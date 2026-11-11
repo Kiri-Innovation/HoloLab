@@ -40,3 +40,18 @@ it('uses analyze issues without dropping capability reports or mutating their st
  expect(env.issues).toHaveLength(0);
  expect(parameterReadiness(merged.a,specs)!.conclusion).toBe('必填参数未填');
 });
+
+it('scopes legacy preparation blockers without dropping target, global or unknown failures', async()=>{
+ const {scopeNodePreparation}=await import('./parameterReadiness');
+ const missing='Algorithm declaration unavailable';
+ const issues=Array.from({length:12},(_,i)=>({node_id:`other-${i}`,message:missing}));
+ const legacy={run_blockers:[...issues.map(i=>i.message),'target: path missing','global failure'],issues};
+ expect(scopeNodePreparation(legacy,'target').run_blockers).toEqual(['target: path missing','global failure']);
+ expect(legacy.run_blockers).toHaveLength(14);
+ expect(scopeNodePreparation(legacy).run_blockers).toHaveLength(14);
+ const target={run_blockers:[...legacy.run_blockers,missing],issues:[...issues,{node_id:'target',message:missing}]};
+ expect(scopeNodePreparation(target,'target').run_blockers).toEqual(['target: path missing','global failure',missing]);
+ expect(scopeNodePreparation({...target,run_blockers:[missing]},'target').run_blockers).toEqual([missing]);
+ expect(scopeNodePreparation({run_blockers:[missing]},'target').run_blockers).toEqual([missing]);
+ expect(scopeNodePreparation({run_blockers:[missing],issues:[{message:missing}]},'target').run_blockers).toEqual([missing]);
+});

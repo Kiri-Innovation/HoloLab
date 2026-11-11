@@ -616,7 +616,7 @@ export interface LatestRun {
   output_handles: Record<string, LatestOutputHandle>;
 }
 
-export interface VariableDeclaration { type: "path" | "int"; description?: string; default?: unknown; }
+export interface VariableDeclaration { type: "path" | "int" | "float"; description?: string; default?: unknown; }
 export type VariableDeclarations = Record<string, VariableDeclaration>;
 
 export interface GraphNode {
@@ -632,6 +632,7 @@ export interface GraphNode {
   position: { x: number; y: number };
   params: Record<string, unknown>;
   port_values?: Record<string, unknown>;
+  device?: string;
   assigned_node_id: string | null;
   // Structural — when the pack is ``arrayable``, this checkbox promotes
   // every non-arrayed port to arrayed at wire time and fan-outs at

@@ -389,7 +389,7 @@ references, not a private copy of pack code. Migrating a historical pack does
 not rewrite saved artifact bytes. Reusing old handles still requires contract
 validation; a viewable historical result is not proof it can be executed again.
 
-## Scalar workflow variables (path / int)
+## Scalar workflow variables (path / int / float)
 
 Variable declarations are shared recipe semantics. Local values are bindings,
 not package code identity or distributable defaults. The graph API remains the
@@ -425,6 +425,10 @@ on ordinary effective parameters before the existing node-side path
 normalization. An explicitly supplied local value wins over a declaration's
 default; absent local values use that default. Null/empty values fail for bound
 variables. Integers must be JSON integers, not booleans or numeric strings.
+Floats accept finite JSON numbers (including integers), but reject booleans and
+numeric strings; bound float parameters are dispatched as floats. Defaults and
+local values retain their original representation. The float editor uses
+`type="number" step="any"`; the integer editor keeps `step="1"`.
 Missing declarations and type mismatches fail with node, parameter and variable
 names before dispatch. Unbound variables may remain unset. No implicit
 string-to-path conversion or binding to array/enum parameters is implemented.

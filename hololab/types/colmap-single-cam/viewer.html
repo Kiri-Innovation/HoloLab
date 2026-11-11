@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Camera array</title>
+<style>
+:root { color-scheme: dark; font: 12px system-ui,sans-serif; color: #e5e7eb; background: #171b24; }
+body { margin: 0; display: flex; flex-direction: column; height: 100vh; }
+header { padding: 6px 8px; display: flex; gap: 8px; align-items: center; }
+#status { flex: 1; } [data-error] { color: #fca5a5; }
+button { color: inherit; background: #292f3b; border: 1px solid #555; border-radius: 3px; cursor: pointer; }
+iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: #000; }
+</style>
+<header><span id="status" role="status">等待相机数组…</span><button id="retry" hidden>重试</button></header>
+<script type="module">
+import {assemble} from './assemble.js';
+
+const status = document.getElementById('status'), retry = document.getElementById('retry');
+let base = '', generation = 0, controller, frame, payload, temporary;
+
+async function removeTemporary(directory) {
+  if (directory) await directory.root.removeEntry(directory.name, {recursive: true}).catch(() => {});
+}
+
+// OPFS is browser-local preview storage. Plain HTTP browsers without OPFS use
+// the same temporary File set in memory. Never write into the job's output.
+async function previewDirectory(files) {
+  let directory;
+  try {
+    if (!navigator.storage?.getDirectory) return {files};
+    const root = await navigator.storage.getDirectory();
+    const name = `hololab-camera-preview-${crypto.randomUUID()}`;
+    const handle = await root.getDirectoryHandle(name, {create: true});
+    directory = {root, name};
+    const stored = [];
+    for (const file of files) {
+      const entry = await handle.getFileHandle(file.name, {create: true});
+      const stream = await entry.createWritable();
+      try { await stream.write(file.blob); } finally { await stream.close(); }
+      stored.push({name: file.name, blob: await entry.getFile()});
+    }
+    return {files: stored, directory};
+  } catch {
+    await removeTemporary(directory);
+    return {files};
+  }
+}
+
+async function load(url) {
+  const version = ++generation;
+  controller?.abort(); controller = new AbortController();
+  const {signal} = controller;
+  frame?.remove(); frame = null; payload = null;
+  const old = temporary; temporary = null; await removeTemporary(old);
+  if (version !== generation) return;
+  status.removeAttribute('data-error'); retry.hidden = true;
+  status.textContent = '读取相机数组…';
+  try {
+    const proxy = new URL(url, location.origin), parts = proxy.pathname.split('/').filter(Boolean);
+    if (proxy.origin !== location.origin || parts[0] !== 'proxy' || parts.length < 3) throw Error('Expected a proxy directory URL');
+    base = proxy.pathname.replace(/\/$/, '');
+    const query = new URLSearchParams({base: parts.slice(2).map(decodeURIComponent).join('/'), pattern: '*'});
+    const listing = await fetch(`/proxy/${parts[1]}/_glob?${query}`, {signal, cache: 'no-store'});
+    if (!listing.ok) throw Error(`Directory listing: HTTP ${listing.status}`);
+    const {files} = await listing.json();
+    if (!Array.isArray(files)) throw Error('Invalid directory listing');
+    // Member files need not have an extension (fanout writes p_000… leaves).
+    const names = [...new Set(files)].filter(name => typeof name === 'string'
+      && name && !name.startsWith('.') && !name.includes('/') && !name.includes('\\')).sort();
+    if (!names.length) throw Error('相机数组为空，或成员尚未完成');
+    const entries = new Array(names.length);
+    let cursor = 0, done = 0;
+    await Promise.all(Array.from({length: Math.min(4, names.length)}, async () => {
+      while (cursor < names.length) {
+        const index = cursor++, name = names[index];
+        const response = await fetch(`${base}/${encodeURIComponent(name)}`, {signal, cache: 'no-store'});
+        if (!response.ok) throw Error(`${name}: HTTP ${response.status}`);
+        try { entries[index] = {name, camera: await response.json()}; }
+        catch { throw Error(`${name}: invalid camera JSON`); }
+        if (version === generation) status.textContent = `读取相机 ${++done} / ${names.length}…`;
+      }
+    }));
+    if (version !== generation) return;
+    const assembled = assemble(entries);
+    const prepared = await previewDirectory(assembled.files);
+    if (version !== generation) { await removeTemporary(prepared.directory); return; }
+    temporary = prepared.directory;
+    payload = {...assembled, files: prepared.files};
+    // A fresh frame serializes ColmapUtil loads, including retries and refresh.
+    frame = document.createElement('iframe');
+    frame.title = 'COLMAP camera array';
+    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+    frame.src = '/colmaputil/index.html?embed=1';
+    document.body.append(frame);
+    status.textContent = `${payload.count} 个相机 · 静态位姿 · 无点云`;
+  } catch (error) {
+    if (version !== generation || error.name === 'AbortError') return;
+    controller.abort();
+    status.setAttribute('data-error', ''); status.textContent = error.message; retry.hidden = false;
+  }
+}
+
+retry.onclick = () => { if (base) void load(base); };
+window.addEventListener('message', event => {
+  if (event.origin !== location.origin) return;
+  if (event.source === frame?.contentWindow && payload) {
+    if (event.data?.type === 'colmap-ready') {
+      frame.contentWindow.postMessage({type: 'colmap-load-files', files: payload.files,
+        name: 'Camera array', options: {cams_only: true}}, location.origin);
+    }
+    if (event.data?.type === 'hololab-viewer-ready') {
+      frame.contentWindow.postMessage({type: 'hololab-viewer-camera', managed: true,
+        has_default: true, view: payload.view}, location.origin);
+      parent.postMessage({type: 'hololab-viewer-ready', viewer_id: 'type-viewer'}, location.origin);
+    }
+    return;
+  }
+  if (event.source !== parent || event.data?.type !== 'hololab-viewer-state') return;
+  const url = event.data.frames?.[0]?.proxy_url;
+  if (url && url !== base) void load(url);
+});
+window.addEventListener('pagehide', () => {
+  generation++; controller?.abort(); void removeTemporary(temporary);
+});
+parent.postMessage({type: 'hololab-viewer-resize', viewer_id: 'type-viewer', height: 460}, location.origin);
+</script>
+</html>

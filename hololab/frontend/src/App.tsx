@@ -1,15 +1,16 @@
+import { WorkflowDevices, useWorkflowDevices, logicalDevices } from "./canvas/WorkflowDevices";
 import { preparationDisplayReports } from "./canvas/parameterReadiness";
 import { useRecipeChecks } from "./packs/useRecipeChecks";
 import { PackManager } from "./packs/PackManager";
 import { WorkflowVariables } from "./canvas/WorkflowVariables";
 import type { VariableDeclarations } from "./wire";
-import { canonicalPackageName, packageCatalogIndex, samePackage } from "./packageIdentity";
+import { canonicalPackageName, packageCatalogIndex } from "./packageIdentity";
 import { AnalysisProfiler } from "./canvas/AnalysisProfiler";
 import { analysisMetrics } from "./canvas/analysisMetrics";
 import { applyStaleness } from "./canvas/applyStaleness";
 import { useExecutionAnalysis, type CanvasJob } from "./canvas/executionAnalysis";
 import { reconcileInlineValues } from './canvas/inlineValues';
-import { constantFields, constantPresentation } from "./canvas/constants";
+import { constantFields, constantPresentation, isConstantName } from "./canvas/constants";
 import { mergeParameterPatch } from "./canvas/PackParameterField";
 import { effectiveParameterPins, parameterPinKey, toggleParameterPins } from "./canvas/parameterPins";
 import { ExecutableNode } from "./canvas/AssemblyNode";
@@ -897,6 +898,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   // --- workflow model ---------------------------------------------------
   const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const workflowDevices = useWorkflowDevices(workflowId, reconnectTick);
+  const [addedDevices, setAddedDevices] = useState<string[]>([]);
+  useEffect(() => { setAddedDevices([]); }, [workflowId]);
   const workflowLoadRef = useRef<{ id: string; promise: Promise<void> } | null>(null);
   const [viewerView, setViewerView] = useState<WorkflowViewerView | null>(null);
   const [viewerViewLoaded, setViewerViewLoaded] = useState(false);
@@ -1351,7 +1355,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // recreate the old "card says one thing, jobs list another" race.
   const upstreamBlockerByNode = useMemo<Record<string, string>>(() => {
     if (hydrating) return {};
-    const kindByNodeId = new Map(nodes.map(node => [node.id, node.type]));
+    const kindByNodeId = new Map(nodes.map(node => [node.id, isConstantName((node.data as AlgorithmNodeData).pack?.name ?? "") ? "constant" : node.type]));
     const jobById = new Map(canvasJobs.map(job => [job.job_id, job]));
     const blockers: Record<string, string> = {};
     for (const edge of edges) {
@@ -1995,7 +1999,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         data: {
           pack,
           assembly: pack.name === ASSEMBLE ? newAssembly() : undefined,
-          assigned_node_id: pack.node_ids[0] ?? null, // default to the first eligible
+          device: "default",
+          assigned_node_id: null,
           params: initialParameters(pack),
           ...({ arrayed_toggle: false, parallelism: pack.parallelism ?? 1 } as object),
         },
@@ -2365,8 +2370,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                 ...n,
                 data: {
                   ...n.data,
+                  ...(patch.device !== undefined ? {device: patch.device} : {}),
                   assigned_node_id:
-                    patch.assigned_node_id !== undefined
+                    patch.device !== undefined ? null : patch.assigned_node_id !== undefined
                       ? patch.assigned_node_id
                       : n.data.assigned_node_id,
                   ...(patch.param_bindings ? {param_bindings: patch.param_bindings} : {}),
@@ -2429,6 +2435,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           local_params: d.local_params ?? [],
           param_bindings: d.param_bindings ?? {},
           params: omitEmptyOptionalPaths(d.pack.params, d.params ?? {}), port_values: d.pack.manifest_hash ? reconcileInlineValues(d.pack.inputs, d.port_values, edges.filter(e => e.target === n.id).map(e => e.targetHandle), !!(d.arrayed_toggle && d.pack.arrayable)) : d.port_values,
+          device: d.device ?? "default",
           assigned_node_id: d.assigned_node_id,
           // Structural — see docs/pack-spec.md#arrayed-and-arrayable.
           arrayed_toggle: Boolean(d.arrayed_toggle),
@@ -2541,6 +2548,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
               replacementBasis: ownReplacementBaseline ? undefined : catalogReplacementBaseline ? `依据本机 ${found!.name}@${found!.version} 的完整 I/O 声明` : witnessReplacementBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : undefined,
               replacementMode: ownReplacementBaseline || catalogReplacementBaseline || witnessReplacementBaseline ? 'strict' : connectionInferred ? 'connections' : undefined,
               assembly: gn.assembly,
+              device: gn.device ?? "default",
               assigned_node_id: gn.assigned_node_id,
               ...({ local_params: gn.local_params, param_bindings: gn.param_bindings, params: omitEmptyOptionalPaths(pack.params, gn.params ?? {}), port_values: found ? reconcileInlineValues(pack.inputs, gn.port_values, graph.edges.filter(e => e.target === gn.id).map(e => e.targetHandle), !!(gn.arrayed_toggle && pack.arrayable)) : gn.port_values } as object),
               ...({ arrayed_toggle: gn.arrayed_toggle ?? false } as object),
@@ -2667,8 +2675,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // sentinel row visibility and the "检查" modal content.
   const analysisGraph = toGraph();
   useRecipeChecks(analysisGraph, !viewingSnapshot);
-  const capabilityChecks = useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick]), !viewingSnapshot);
-  const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick + snapshotRefreshTick});
+  const capabilityChecks = useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick, workflowDevices.state?.revision]), !viewingSnapshot, workflowId);
+  const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick + snapshotRefreshTick + (workflowDevices.state?.revision ?? 0)});
   useEffect(() => {
     if (executionAnalysis.data) setEdgeIssues(executionAnalysis.data.issues ?? []);
   }, [executionAnalysis.data]);
@@ -3260,8 +3268,14 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       )}};
     }));
   };
+  const deviceNames = logicalDevices(nodes.flatMap(n => {
+    const data = algorithmNodeData(n.data);
+    return data && !isConstantName(data.pack.name) ? [data.device ?? "default"] : [];
+  }), workflowDevices.state?.bindings, addedDevices);
   const workflowSlot = (
     <div className="hl-workflow-sidebar">
+      {!viewingSnapshot && <WorkflowDevices key={workflowId} names={deviceNames} nodes={computeNodes} devices={workflowDevices}
+        onAdd={name => setAddedDevices(current => [...current, name])} />}
       {!viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues} onChange={onWorkflowVariablesChange} />}
       <div className="hl-workflow-checks"><EnvironmentChecks checks={capabilityChecks} /></div>
       <section className="hl-workflow-analysis" role="status" data-analysis-state={executionAnalysis.status}>
@@ -3301,23 +3315,21 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     />
   );
   const selectedAlgorithmData = selectedNode ? algorithmNodeData(selectedNode.data) : null;
+  const actualDevice = selectedNode && selectedAlgorithmData
+    ? (executionAnalysis.isCurrent ? executionAnalysis.data?.graph.nodes.find(n => n.id === selectedNode.id)?.assigned_node_id : null)
+      ?? workflowDevices.state?.bindings[selectedAlgorithmData.device ?? "default"] ?? selectedAlgorithmData.assigned_node_id
+    : null;
   const assignmentSlot = !viewingSnapshot && selectedAlgorithmData ? (
-        <div className="hl-compute-assignment">
-          <label htmlFor="hl-assigned-node">Assigned node</label>
-          <select id="hl-assigned-node" value={selectedAlgorithmData.assigned_node_id || ""}
-            title={`Compute nodes serving ${selectedAlgorithmData.pack.name}@${selectedAlgorithmData.pack.version}`}
-            onChange={e => onInspectorChange({ assigned_node_id: e.target.value || null })}>
-            <option value="">— unassigned —</option>
-            {selectedAlgorithmData.assigned_node_id && !computeNodes.some(cn => cn.node_id === selectedAlgorithmData.assigned_node_id && cn.packs.some(p => samePackage(p.name, p.version, selectedAlgorithmData.pack.name, selectedAlgorithmData.pack.version))) && (
-              <option value={selectedAlgorithmData.assigned_node_id}>{selectedAlgorithmData.assigned_node_id} · unavailable</option>
-            )}
-            {computeNodes.filter(cn => cn.packs.some(p => samePackage(p.name, p.version, selectedAlgorithmData.pack.name, selectedAlgorithmData.pack.version))).map(cn => (
-              <option key={cn.node_id} value={cn.node_id}>{cn.node_name} · {cn.node_id.slice(0, 6)}</option>
-            ))}
-          </select>
-          {!computeNodes.some(cn => cn.packs.some(p => samePackage(p.name, p.version, selectedAlgorithmData.pack.name, selectedAlgorithmData.pack.version))) && <small style={{ gridColumn: "1 / -1", color: "var(--error)" }}>No online compute node offers this pack.</small>}
-        </div>
-      ) : null;
+    <div className="hl-compute-assignment">
+      <label htmlFor="hl-logical-device">逻辑设备</label>
+      <select id="hl-logical-device" value={selectedAlgorithmData.device ?? "default"}
+        onChange={event => onInspectorChange({device: event.target.value})}>
+        {deviceNames.map(name => <option key={name} value={name}>{name}</option>)}
+      </select>
+      <span>实际设备</span>
+      <output aria-label="实际设备">{actualDevice ? `${computeNodesById[actualDevice]?.node_name ?? actualDevice} · ${actualDevice}` : "自动分配（运行时确定）"}</output>
+    </div>
+  ) : null;
   const nodesSlot = <ComputeNodesPanel nodes={computeNodes} metricsByNode={metricsByNode} />;
   const dockSelection = viewingSnapshot
     ? snapshotSelectedGraphNodeId ?? snapshotSelectedEdgeId
@@ -3377,7 +3389,8 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
                   }
                 ).params ?? {},
               port_values: selectedAlgorithmData.port_values,
-              assigned_node_id: selectedAlgorithmData.assigned_node_id,
+              device: selectedAlgorithmData.device ?? "default",
+              assigned_node_id: actualDevice,
               arrayed_toggle: Boolean(
                 (
                   selectedAlgorithmData as AlgorithmNodeData & {

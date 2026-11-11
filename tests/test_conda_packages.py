@@ -75,6 +75,9 @@ def test_install_order_and_idempotence(monkeypatch, tmp_path):
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
     monkeypatch.setattr(setup, "_run", run)
+    monkeypatch.setattr(
+        setup, "_install_hololab_runtime", lambda *args, **kwargs: calls.append(["hololab-runtime"])
+    )
     monkeypatch.setattr(setup, "_apply_hooks", lambda *args: calls.append(["hook"]))
     plan = setup.EnvironmentPlan(
         "verify", ("demo",), None, (), tmp_path, conda_packages=("nvidia::cuda-nvcc=13.0.*",)
@@ -83,7 +86,7 @@ def test_install_order_and_idempotence(monkeypatch, tmp_path):
     setup.apply_plans([plan], cfg, tmp_path / "node.yaml", dry_run=False)
     assert calls[0][-2:] == ["nvidia::cuda-nvcc=13.0.*", "--no-channel-priority"]
     assert calls[1][-2:] == ["demo", "--no-channel-priority"]
-    assert calls[2] == ["hook"]
+    assert calls[2:] == [["hololab-runtime"], ["hook"]]
     calls.clear()
     setup.apply_plans([plan], cfg, tmp_path / "node.yaml", dry_run=False)
     assert all("nvidia::cuda-nvcc=13.0.*" not in cmd for cmd in calls)

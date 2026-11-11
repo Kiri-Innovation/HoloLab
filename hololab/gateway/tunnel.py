@@ -21,6 +21,11 @@ from fastapi import HTTPException, WebSocket
 _QUEUE_LIMIT = 64
 _BODY_QUEUE_LIMIT = 8
 _ACQUIRE_TIMEOUT_S = 5.0
+_RESPONSE_TIMEOUT_S = 10.0
+# Format adapters scan source tables before returning their bounded preview.
+# Multi-GB models legitimately take longer than an ordinary file's headers.
+# This bounds preparation only; body transfer has no total-duration/size limit.
+_FORMAT_RESPONSE_TIMEOUT_S = 300.0
 
 
 @dataclass(eq=False)
@@ -117,7 +122,15 @@ class TunnelConnection:
                     separators=(",", ":"),
                 )
             )
-            response = await asyncio.wait_for(self.response, timeout=10)
+            timeout = (
+                _FORMAT_RESPONSE_TIMEOUT_S if path.startswith("/_format/") else _RESPONSE_TIMEOUT_S
+            )
+            try:
+                response = await asyncio.wait_for(self.response, timeout=timeout)
+            except asyncio.TimeoutError as exc:
+                raise TimeoutError(
+                    f"node preview response headers timed out after {timeout:g}s"
+                ) from exc
         except BaseException:
             # A clean pre-header rejection has no queued body and can be
             # reused. Timeout/cancellation/send failure have no such boundary.
