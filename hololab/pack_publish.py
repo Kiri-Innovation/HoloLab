@@ -174,9 +174,7 @@ def publish(
         data = yaml.safe_load(scope.manifest_bytes)
         data["version"] = version
         selected.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
-        staged = capture(
-            selected, Baselines(temp / "staged-baseline"), refresh_cold=True, archived=True
-        )
+        staged = capture(selected, Baselines(temp / "staged-baseline"), refresh_cold=True)
         if staged["sha256"] != original["sha256"]:
             raise RegistryError("发布副本与源身份不同, 停止发布; 检查并发修改或包布局")
         # Freeze only selected scope contents and manifest; no exporter-specific ignores.

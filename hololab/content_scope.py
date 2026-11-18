@@ -73,55 +73,6 @@ def git(root: Path, *args: str) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
-def gitignored_paths(root: Path, *paths: str) -> set[str]:
-    """Use the worktree index and only per-directory .gitignore rules."""
-    if git(root, "rev-parse", "--show-toplevel") is None:
-        # An exported tree has no index. Its shipped files are already selected,
-        # including any tracked files that matched a source .gitignore.
-        return set()
-
-    def ls_files(directory: Path, pathspecs: tuple[str, ...], *args: str) -> list[bytes]:
-        result = subprocess.run(
-            [
-                "git",
-                "--no-optional-locks",
-                "--literal-pathspecs",
-                "-C",
-                str(directory),
-                "ls-files",
-                "-z",
-                *args,
-                "--",
-                *pathspecs,
-            ],
-            check=True,
-            capture_output=True,
-        )
-        return result.stdout.rstrip(b"\0").split(b"\0") if result.stdout else []
-
-    def collect(directory: Path, pathspecs: tuple[str, ...]) -> Iterator[str]:
-        for path in ls_files(
-            directory, pathspecs, "--others", "--ignored", "--exclude-per-directory=.gitignore"
-        ):
-            yield (directory / os.fsdecode(path)).relative_to(root).as_posix()
-        # Git does not enumerate the contents of a gitlink from its parent index.
-        submodules = {
-            directory / os.fsdecode(entry.split(b"\t", 1)[1])
-            for entry in ls_files(directory, pathspecs, "--stage")
-            if entry.startswith(b"160000 ")
-        }
-        for submodule in submodules:
-            if (submodule / ".git").exists():
-                yield from collect(submodule, (".",))
-
-    return set(collect(root, paths or (".",)))
-
-
-def read_gitignore(root: Path) -> bytes | None:
-    path = root / ".gitignore"
-    return path.read_bytes() if not path.is_symlink() and path.is_file() else None
-
-
 def resolve_root(manifest_path: Path, root: str = ".") -> Path:
     directory = manifest_path.absolute().parent.resolve()
     resolved = (directory / root).resolve()
@@ -214,12 +165,10 @@ class Scope:
     gitignore_bytes: bytes | None
     manifest: Any
     package_ignore_bytes: bytes | None = None
-    archived: bool = False
 
     @classmethod
-    def load(cls, path: Path, *, archived: bool = False) -> Scope:
+    def load(cls, path: Path) -> Scope:
         from hololab.manifest.schema import load_manifest
-        from hololab.pack_install import receipt_for
 
         # Entries are enumerated below the resolved root.  Canonicalise the
         # manifest's directory the same way, or a symlinked parent (for example
@@ -230,6 +179,7 @@ class Scope:
         manifest, _ = load_manifest(path)
         root = resolve_root(path, manifest.root)
         ignore = root / ".packignore"
+        gitignore = root / ".gitignore"
         # A control file cannot point outside the scope through a symlink.
         if ignore.is_symlink():
             raise ValueError(".packignore must be a regular control file")
@@ -241,10 +191,9 @@ class Scope:
             tuple(Path(p).as_posix() for p in manifest.cold),
             path.read_bytes(),
             ignore.read_bytes() if ignore.exists() else None,
-            read_gitignore(root),
+            gitignore.read_bytes() if gitignore.is_file() else None,
             manifest,
             package_ignore,
-            archived or receipt_for(path) is not None,
         )
 
     @property
@@ -275,11 +224,17 @@ class Scope:
     def entries(self, *, hot_only: bool = False) -> Iterator[Entry]:
         """Public enumeration contract, also suitable for an archive writer.
 
-        The hot-only file walk prunes fixed, cold, and pack-ignored directories.
-        Full enumeration accounts for ignored bytes without reading them.
+        hot_only prunes ignored/cold directories without even stat'ing their
+        descendants. Full enumeration accounts ignored bytes but never reads them.
         """
-        git_ignored = set() if self.archived else gitignored_paths(self.root)
-        spec = GitIgnoreSpec.from_lines((self.ignore_bytes or b"").decode("utf-8").splitlines())
+        # A package's explicit rules take precedence over its repository's
+        # ordinary ignore rules.  This makes a root shared by several packs
+        # describe the same omission users see in the checkout (notably data
+        # and training outputs), without a second directory walk.
+        spec = GitIgnoreSpec.from_lines(
+            (self.gitignore_bytes or b"").decode("utf-8").splitlines()
+            + (self.ignore_bytes or b"").decode("utf-8").splitlines()
+        )
         package_spec = package_ignore_spec(self.package_ignore_bytes)
         manifest_inside = (
             str(self.manifest_path.relative_to(self.root))
@@ -298,16 +253,6 @@ class Scope:
             protected.add(manifest_inside)
         if setup_script is not None:
             protected.add(setup_script)
-        for rel in protected:
-            if rel in git_ignored:
-                raise ValueError(f"required package file is ignored by Git: {rel}")
-        if manifest_inside is None and not self.archived:
-            external = [self.manifest_path.name]
-            if self.package_ignore_bytes is not None:
-                external.append(".packignore")
-            ignored = gitignored_paths(self.manifest_path.parent, *external)
-            if ignored:
-                raise ValueError(f"required package files are ignored by Git: {sorted(ignored)}")
 
         # Keep the walk on strings until an entry is emitted.  ``Path.relative_to``
         # was surprisingly the dominant cost for large shared pack roots.
@@ -338,7 +283,7 @@ class Scope:
                     else "fixed"
                     if fixed
                     else "ignored"
-                    if package_ignored or rel in git_ignored
+                    if package_ignored
                     else "cold"
                     if self.is_cold(rel)
                     else "ignored"
@@ -525,20 +470,19 @@ class Baselines:
         ]
         if scope.package_ignore_bytes is not None:
             key_parts.append(sha(scope.package_ignore_bytes))
-        cold_entries = [
-            e for e in (entries if entries is not None else scope.entries()) if e.layer == "cold"
-        ]
-        # Keep the baseline for content edits, but never reuse a digest of a
-        # different path set after ignore rules or the Git index change.
-        membership = canonical(sorted(e.relative for e in cold_entries))
         key = canonical(key_parts)
         self.directory.mkdir(parents=True, exist_ok=True)
         destination = self.directory / (key + ".json")
         with (self.directory / (key + ".lock")).open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
+            if destination.exists() and not refresh:
+                return json.loads(destination.read_text())
             previous = json.loads(destination.read_text()) if destination.exists() else None
-            if previous and not refresh and previous.get("membership") == membership:
-                return previous
+            cold_entries = (
+                [e for e in entries if e.layer == "cold"]
+                if entries is not None
+                else [e for e in scope.entries() if e.layer == "cold"]
+            )
             digest = tree_digest(cold_entries, digests)
             value = {
                 "sha256": digest,
@@ -549,7 +493,6 @@ class Baselines:
                 "baseline_status": "updated" if refresh else "initialized",
                 "previous_sha256": previous["sha256"] if previous else None,
                 "content_changed": previous["sha256"] != digest if previous else None,
-                "membership": membership,
             }
             fd, tmp = tempfile.mkstemp(dir=self.directory, prefix=".baseline-")
             try:
@@ -620,10 +563,8 @@ class DigestCache:
             return result
 
 
-def capture(
-    path: Path, baselines: Baselines, *, refresh_cold: bool = False, archived: bool = False
-) -> dict:
-    scope = Scope.load(path, archived=archived)
+def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> dict:
+    scope = Scope.load(path)
     entries = list(scope.entries())
     # Baselines live under node data by default, so this sibling also stays
     # outside pack source trees.  Callers with a temporary Baselines instance
@@ -734,8 +675,8 @@ def check_controls(path: Path, record: dict) -> None:
         mismatch(
             record, "package .packignore", expected.get("package_packignore_sha256"), actual_package
         )
-    gitignore = read_gitignore(root)
-    actual_gitignore = sha(gitignore) if gitignore is not None else None
+    gitignore = root / ".gitignore"
+    actual_gitignore = sha(gitignore.read_bytes()) if gitignore.is_file() else None
     if actual_gitignore != expected.get("gitignore_sha256"):
         mismatch(record, ".gitignore", expected.get("gitignore_sha256"), actual_gitignore)
 

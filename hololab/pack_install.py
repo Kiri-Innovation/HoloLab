@@ -247,15 +247,13 @@ def install(spec: str, sources: list[str], destination: Path, pack_dirs: list[Pa
             content.mkdir()
             extract_verified(archive, content, release.unpacked_bytes)
             manifest = content / safe_relative(release.manifest)
-            scope = Scope.load(manifest, archived=True)
+            scope = Scope.load(manifest)
             if not scope.root.is_relative_to(content) or not same_package(
                 scope.manifest.name, scope.manifest.version, release.name, release.version
             ):
                 raise HashMismatch("包体 manifest 身份或 root 与索引不一致, 必须停止")
             with tempfile.TemporaryDirectory(prefix="hololab-install-baseline-") as baseline:
-                record = capture(
-                    manifest, Baselines(Path(baseline)), refresh_cold=True, archived=True
-                )
+                record = capture(manifest, Baselines(Path(baseline)), refresh_cold=True)
             if record["sha256"] != release.code_sha256:
                 raise HashMismatch(
                     f"找到但哈希不匹配, 必须停止: 索引={release.code_sha256}; 包体={record['sha256']}"

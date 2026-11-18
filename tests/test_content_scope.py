@@ -1,7 +1,6 @@
 import os
 import shutil
 import subprocess
-import tarfile
 from pathlib import Path
 
 import pytest
@@ -14,8 +13,6 @@ from hololab.content_scope import (
     verification_fingerprint,
     verify,
 )
-from hololab.pack_install import install
-from hololab.pack_publish import publish
 
 
 def package(tmp_path):
@@ -200,7 +197,6 @@ def test_gitignore_negation_requires_reincluding_parent(tmp_path):
 
 def test_content_inventory_reports_layers_top_level_and_gitignored_size(tmp_path):
     root, manifest, baselines = package(tmp_path)
-    subprocess.run(["git", "init", "-q", str(root)], check=True)
     (root / ".gitignore").write_text("/output/\n")
     (root / "output").mkdir()
     (root / "output" / "checkpoint.bin").write_bytes(b"x" * 12)
@@ -219,94 +215,3 @@ def test_content_inventory_reports_layers_top_level_and_gitignored_size(tmp_path
     assert thirdparty["layer"] == "cold"
     assert thirdparty["kind"] == "directory"
     assert thirdparty["children"][0]["name"] == "lib.py"
-
-
-def test_gitignore_checkout_identity_matches_archive_and_install(tmp_path):
-    root, manifest, baselines = package(tmp_path)
-    repo = root.parent
-    subprocess.run(["git", "init", "-q", str(repo)], check=True)
-
-    def git(*args):
-        subprocess.run(["git", "-C", str(repo), *args], check=True)
-
-    (repo / ".gitignore").write_text("/source/ancestor.py\n/source/blocked/\n")
-    (repo / ".git/info/exclude").write_text("machine-local.py\n")
-    global_excludes = repo / "global-ignore"
-    global_excludes.write_text("global-local.py\n")
-    git("config", "core.excludesFile", str(global_excludes))
-    (root / ".gitignore").write_text("*.bin\n!/blocked/keep.py\n")
-    (root / "blocked").mkdir()
-    (root / "blocked/.gitignore").write_text("!keep.py\n")
-    (root / "thirdparty/.gitignore").write_text("/build/\n!keep.bin\n")
-    (root / "thirdparty/build").mkdir()
-    (manifest.parent / ".packignore").write_text("/thirdparty/pack-only.py\n")
-    included = {
-        "thirdparty/keep.bin",
-        "thirdparty/build/tracked.bin",
-        "machine-local.py",
-        "global-local.py",
-    }
-    excluded = {
-        "ancestor.py",
-        "blocked/keep.py",
-        "thirdparty/drop.bin",
-        "thirdparty/build/untracked.bin",
-        "thirdparty/pack-only.py",
-    }
-    for path in included | excluded:
-        (root / path).write_text("original\n")
-    git("add", "-f", "source/thirdparty/build/tracked.bin", "source/thirdparty/pack-only.py")
-    entries = list(Scope.load(manifest).entries())
-    selected = {e.relative for e in entries if e.layer in {"hot", "cold"}}
-    assert included <= selected
-    assert excluded.isdisjoint(selected)
-
-    before = capture(manifest, baselines)
-    for path in excluded:
-        (root / path).write_text("changed ignored file\n")
-    assert capture(manifest, baselines, refresh_cold=True)["sha256"] == before["sha256"]
-    (root / "thirdparty/build/tracked.bin").write_text("changed tracked file\n")
-    expected = capture(manifest, baselines, refresh_cold=True)["sha256"]
-    assert expected != before["sha256"]
-
-    source = (tmp_path / "registry").as_uri()
-    release = publish(manifest, source, "test")
-    assert release.code_sha256 == expected
-    with tarfile.open(tmp_path / "registry" / release.archive) as archive:
-        assert {member.name for member in archive if not member.isdir()} == selected
-    installed = install("demo@1.0.0", [source], tmp_path / "installed", [])
-    assert installed["code_sha256"] == expected
-    assert capture(Path(installed["manifest"]), baselines)["sha256"] == expected
-
-    # A cached cold digest must be refreshed when Git changes its membership.
-    (root / "thirdparty/.gitignore").write_text("/build/\n")
-    updated = capture(manifest, baselines)
-    assert updated["cold"]["stats"]["files"] == before["cold"]["stats"]["files"] - 1
-    assert updated["cold"]["sha256"] != before["cold"]["sha256"]
-
-
-def test_gitignore_uses_submodule_index_and_rules(tmp_path):
-    root, manifest, _ = package(tmp_path)
-    submodule = root / "thirdparty" / "vendor"
-    submodule.mkdir()
-    for repo in (root, submodule):
-        subprocess.run(["git", "init", "-q", str(repo)], check=True)
-    (submodule / ".gitignore").write_text("*.so\n")
-    (submodule / "tracked.so").touch()
-    (submodule / "generated.so").touch()
-    subprocess.run(["git", "-C", str(submodule), "add", "-f", "tracked.so"], check=True)
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "update-index",
-            "--add",
-            "--cacheinfo",
-            f"160000,{'1' * 40},thirdparty/vendor",
-        ],
-        check=True,
-    )
-    layers = {e.relative: e.layer for e in Scope.load(manifest).entries()}
-    assert layers["thirdparty/vendor/tracked.so"] == "cold"
-    assert layers["thirdparty/vendor/generated.so"] == "ignored"
