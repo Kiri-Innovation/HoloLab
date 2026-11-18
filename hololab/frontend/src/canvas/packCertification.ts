@@ -3,11 +3,21 @@ import type { CatalogPack } from "../wire";
 
 export type PackCertification = "builtin" | "community" | null;
 
-/** Built-in packs are shipped with HoloLab; community packs require registry parity. */
+// Keep in sync with OFFICIAL_REGISTRY in hololab/pack_registry.py.
+const OFFICIAL_REGISTRY = "https://packs.xenotech.studio/";
+
+/** Built-in packs ship with HoloLab. Other packs must match an active official release. */
 export function packCertification(pack: Pick<CatalogPack, "name" | "central">): PackCertification {
   const name = canonicalPackageName(pack.name);
   if (name.startsWith("builtin/")) return "builtin";
-  if (name.startsWith("community/") && pack.central?.state === "identical") return "community";
+  // The gateway compares the local and registry hashes for the same canonical name and version.
+  const { central } = pack;
+  if (
+    central?.state === "identical" &&
+    central.source === OFFICIAL_REGISTRY &&
+    central.yanked === false &&
+    central.stale === false
+  ) return "community";
   return null;
 }
 

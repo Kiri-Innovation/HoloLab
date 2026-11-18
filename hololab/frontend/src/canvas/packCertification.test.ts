@@ -2,13 +2,39 @@ import { expect, it } from "vitest";
 import type { CatalogPack } from "../wire";
 import { certificationMessage, packCertification } from "./packCertification";
 
-it.each([
-  ["builtin/video-array-source", { state: "absent" }, "builtin"],
-  ["community/colmap-sfm", { state: "identical" }, "community"],
-  ["builtin/frame-extraction", { state: "absent" }, "builtin"],
-  ["community/colmap-sfm", { state: "differs" }, null],
-] as const)("classifies %s by its reproducible distribution", (name, central, expected) => {
-  expect(packCertification({ name, central } as Pick<CatalogPack, "name" | "central">)).toBe(expected);
+const activeRelease = {
+  state: "identical",
+  source: "https://packs.xenotech.studio/",
+  yanked: false,
+  stale: false,
+} satisfies CatalogPack["central"];
+
+it.each(["k4d/stg-init", "community/foo", "another/foo"])(
+  "certifies %s when its content matches an active official release",
+  (name) => {
+    expect(packCertification({ name, central: activeRelease })).toBe("community");
+  },
+);
+
+it.each<[string, CatalogPack["central"]]>([
+  ["different content", { ...activeRelease, state: "differs" }],
+  ["unknown comparison", { ...activeRelease, state: "unknown" }],
+  ["unpublished version", { state: "absent" }],
+  ["yanked release", { ...activeRelease, yanked: true }],
+  ["stale comparison", { ...activeRelease, stale: true }],
+  ["untrusted registry", { ...activeRelease, source: "https://packs.xenotech.studio.example/" }],
+  ["different registry root", { ...activeRelease, source: "https://packs.xenotech.studio/other/" }],
+  ["missing registry source", { ...activeRelease, source: undefined }],
+  ["missing yank status", { ...activeRelease, yanked: undefined }],
+  ["missing freshness", { ...activeRelease, stale: undefined }],
+  ["missing comparison", undefined],
+])("omits certification for %s", (_reason, central) => {
+  expect(packCertification({ name: "community/foo", central })).toBeNull();
+});
+
+it("certifies built-in packs without a registry release", () => {
+  expect(packCertification({ name: "builtin/frame-extraction", central: { state: "absent" } }))
+    .toBe("builtin");
 });
 
 it("explains why each certified distribution is reproducible", () => {
