@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -27,21 +28,23 @@ CREATE TABLE IF NOT EXISTS persistent_cache (
 
 
 class PersistentCache:
-    """Synchronous, short-lived SQLite connections safe between processes."""
+    """Best-effort cache with read-only hits and no synchronous lock waits.
+
+    Gateway callbacks can use this cache while the asynchronous job writer
+    owns the same database. Cache reads must not upgrade to writes; optional
+    cache fills must yield to that writer instead of blocking its event loop.
+    """
 
     def __init__(self, path: Path):
         self.path = Path(path)
 
     def _connect(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(self.path, timeout=1)
-        conn.execute("PRAGMA busy_timeout=1000")
-        conn.execute(DDL)
-        return conn
+        return sqlite3.connect(self.path, timeout=0)
 
     def get(self, kind: str, key: str, fingerprint: str) -> Any | None:
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn:
                 row = conn.execute(
                     "SELECT payload_json FROM persistent_cache "
                     "WHERE cache_kind=? AND cache_key=? AND fingerprint=?",
@@ -49,11 +52,6 @@ class PersistentCache:
                 ).fetchone()
                 if row is None:
                     return None
-                now = time.time()
-                conn.execute(
-                    "UPDATE persistent_cache SET verified_ts=? WHERE cache_kind=? AND cache_key=?",
-                    (now, kind, key),
-                )
                 return json.loads(row[0])
         except (OSError, sqlite3.Error, ValueError):
             return None
@@ -61,7 +59,7 @@ class PersistentCache:
     def get_any(self, kind: str, key: str) -> Any | None:
         """Read an untrusted candidate; caller must calculate its witness."""
         try:
-            with self._connect() as conn:
+            with closing(self._connect()) as conn:
                 row = conn.execute(
                     "SELECT payload_json FROM persistent_cache WHERE cache_kind=? AND cache_key=?",
                     (kind, key),
@@ -74,7 +72,8 @@ class PersistentCache:
         try:
             now = time.time()
             encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-            with self._connect() as conn:
+            with closing(self._connect()) as conn, conn:
+                conn.execute(DDL)
                 conn.execute(
                     "INSERT INTO persistent_cache(cache_kind,cache_key,fingerprint,payload_json,created_ts,verified_ts) "
                     "VALUES(?,?,?,?,?,?) ON CONFLICT(cache_kind,cache_key) DO UPDATE SET "

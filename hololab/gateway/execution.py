@@ -502,6 +502,9 @@ async def _execute_fanout_body(
                     shard_job_id=shard.job_id,
                     element_id=element_id,
                     error=str(exc),
+                    sqlite_errorcode=getattr(exc, "sqlite_errorcode", None),
+                    sqlite_errorname=getattr(exc, "sqlite_errorname", None),
+                    exc_info=True,
                 )
                 # If the shard never made it past PENDING (e.g. session was
                 # gone by the time ``_dispatch_prepared_shard`` looked it

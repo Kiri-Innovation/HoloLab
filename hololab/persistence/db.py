@@ -2,8 +2,8 @@
 
 Callers use :meth:`Database.read` for SELECTs and :meth:`Database.write` for
 mutations. Write is a coroutine call that funnels work through a single
-serialized queue; this eliminates writer-writer contention on WAL SQLite and
-keeps the model dead simple.
+serialized queue. An immediate transaction reserves SQLite's writer before
+callbacks read, including when another process or cache writes the same file.
 
 Batched commits (C3): when multiple writes are already queued at the moment
 the writer loop wakes up, they are run inside a single transaction and
@@ -153,7 +153,7 @@ class Database:
 
         On each loop iteration we block for the next write, then greedily
         drain every write already sitting in the queue (up to
-        ``_MAX_WRITER_BATCH``). All drained writes run inside one implicit
+        ``_MAX_WRITER_BATCH``). All drained writes run inside one explicit
         transaction and share a single ``commit`` — replacing N fsyncs with
         1 during bursty phases (e.g. fan-out phase-1). Each write is
         wrapped in its own SAVEPOINT so a single ``fn`` failing rolls back
@@ -220,37 +220,39 @@ class Database:
         once. Returns a per-``fn`` list of ``(result, exception_or_None)`` —
         the caller fulfills the futures.
 
+        BEGIN IMMEDIATE reserves the writer before any callback reads. A
+        deferred SAVEPOINT can otherwise pin a WAL snapshot that a concurrent
+        writer invalidates before the callback upgrades from reading to writing.
+        An outer transaction also prevents RELEASE of the outermost savepoint
+        from committing each callback separately.
+
         Per-write savepoints matter because a single write failing (e.g.
         integrity violation) must NOT poison its batch neighbours: we
         ``ROLLBACK TO`` that write's savepoint and continue. If the
-        outer ``commit`` itself fails (very rare — disk full, corrupt
-        WAL), we roll back everything and every result flips to that
-        commit-time exception.
+        transaction cannot begin, roll back a savepoint or commit, every
+        result receives the transaction error and the writer loop stays alive.
         """
 
         results: list[tuple[Any, BaseException | None]] = []
-        for i, (fn, _fut) in enumerate(work):
-            savepoint = f"hlbatch_{i}"
-            try:
-                await conn.execute(f"SAVEPOINT {savepoint}")
-                result = await fn(conn)
-                await conn.execute(f"RELEASE SAVEPOINT {savepoint}")
-                results.append((result, None))
-            except BaseException as exc:
-                # Roll back just this write's effects; the batch proceeds.
-                # Suppress errors from the rollback itself — if the
-                # connection is genuinely broken, the outer commit will
-                # surface that.
-                with contextlib.suppress(Exception):
-                    await conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
-                    await conn.execute(f"RELEASE SAVEPOINT {savepoint}")
-                results.append((None, exc))
-
-        # One commit for the whole batch. On commit failure roll back
-        # the whole implicit transaction and propagate the error to
-        # every future — otherwise a caller would think its write
-        # succeeded when it didn't reach disk.
         try:
+            async with conn.execute("BEGIN IMMEDIATE"):
+                pass
+            for index, (fn, _future) in enumerate(work):
+                savepoint = f"hlbatch_{index}"
+                try:
+                    async with conn.execute(f"SAVEPOINT {savepoint}"):
+                        pass
+                    result = await fn(conn)
+                    async with conn.execute(f"RELEASE SAVEPOINT {savepoint}"):
+                        pass
+                    results.append((result, None))
+                except BaseException as exc:
+                    async with conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}"):
+                        pass
+                    async with conn.execute(f"RELEASE SAVEPOINT {savepoint}"):
+                        pass
+                    results.append((None, exc))
+
             await conn.commit()
         except Exception as exc:
             with contextlib.suppress(Exception):
