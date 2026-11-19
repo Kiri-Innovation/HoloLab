@@ -17,7 +17,6 @@ from pydantic import TypeAdapter
 
 from hololab.gateway.recipe import split_graph
 from hololab.gateway.workflows import WorkflowGraph, freeze_parameter_pins
-from hololab.type_registry import type_read_batch
 from hololab.inline_values import effective_inline
 from hololab.logging import get_logger
 from hololab.manifest.array_migration import migrate_array_params
@@ -29,6 +28,7 @@ from hololab.package_identity import (
     same_package,
     validate_graph_identities,
 )
+from hololab.type_registry import type_read_batch
 
 log = get_logger("gateway.prepare")
 
@@ -51,13 +51,18 @@ def digest(value: Any) -> str:
 
 @type_read_batch
 def context_revision(
-    graph: WorkflowGraph, catalog: list[dict], *, tolerate_array_view_errors: bool = False,
+    graph: WorkflowGraph,
+    catalog: list[dict],
+    *,
+    tolerate_array_view_errors: bool = False,
     array_views_compiled: bool = False,
 ) -> str:
     from hololab.gateway.array_views import compile_array_views
 
     if not array_views_compiled:
-        graph, _ = compile_array_views(graph, catalog, issues=[] if tolerate_array_view_errors else None)
+        graph, _ = compile_array_views(
+            graph, catalog, issues=[] if tolerate_array_view_errors else None
+        )
     recipe, bindings, _ = split_graph(graph)
     data = recipe.graph.model_dump(exclude={"execution"})
     for node in data["nodes"]:
@@ -72,8 +77,18 @@ def context_revision(
         (p for p in catalog if package_key(p["name"], p["version"]) in keys),
         key=lambda p: package_key(p["name"], p["version"]),
     )
-    packs = [{**p, "name": canonical_name(p["name"])} for p in packs]
-    return digest([data, bindings.devices, packs, bindings.variable_values])
+    revision_packs = []
+    for pack in packs:
+        entry = {**pack, "name": canonical_name(pack["name"])}
+        if "environment_by_node" in entry:
+            # Strict prepare can refresh this timestamp before issuing a token.
+            # Keep the evidence itself in the revision and in the frozen graph.
+            entry["environment_by_node"] = {
+                node_id: {key: value for key, value in report.items() if key != "checked_at"}
+                for node_id, report in entry["environment_by_node"].items()
+            }
+        revision_packs.append(entry)
+    return digest([data, bindings.devices, revision_packs, bindings.variable_values])
 
 
 def effective_parameters(explicit: dict | None, pack: dict | None) -> dict:
@@ -254,8 +269,12 @@ def resolve_recipe(
             name: copy.deepcopy(graph.variable_values.get(name, declaration.default))
             for name, declaration in graph.variables.items()
         },
-        "revision": context_revision(graph, catalog, tolerate_array_view_errors=tolerate_parameter_errors,
-                                     array_views_compiled=True),
+        "revision": context_revision(
+            graph,
+            catalog,
+            tolerate_array_view_errors=tolerate_parameter_errors,
+            array_views_compiled=True,
+        ),
         "inline_values": inline_values,
         "sources": sources,
         "environment_params": environment,
@@ -537,7 +556,9 @@ async def submitted_execution(
             )
     else:
         try:
-            prepared = await prepare_execution(app, graph, required=required, workflow_id=workflow_id)
+            prepared = await prepare_execution(
+                app, graph, required=required, workflow_id=workflow_id
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     from hololab.gateway.device_bindings import verify_device_revision
@@ -572,7 +593,8 @@ async def historical_execution(app, snapshot) -> WorkflowGraph:
             {
                 **source.execution,
                 "packs": [
-                    p for p in source.execution.get("packs", [])
+                    p
+                    for p in source.execution.get("packs", [])
                     if package_key(p["name"], p["version"]) in used
                 ],
             }

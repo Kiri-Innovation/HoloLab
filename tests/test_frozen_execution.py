@@ -201,6 +201,110 @@ def test_stale_preparation_and_retry_idempotency(tmp_path):
         assert len(received) == 1
 
 
+@pytest.mark.parametrize(
+    "changed_field", [None, "environment_fingerprint", "manifest_hash", "parameter_default"]
+)
+def test_single_node_prepare_refreshes_evidence_before_dispatch(
+    tmp_path, monkeypatch, changed_field
+):
+    from hololab.protocol.messages import EnvironmentEvidenceEntry
+
+    with TestClient(create_app(db_path=tmp_path / "test.sqlite")) as client:
+        app, catalog, graph, received = setup(client, tmp_path)
+        registry = app.state.registry
+        session = registry.get_session("node")
+        report = {
+            "status": "ok",
+            "issues": [],
+            "checked_at": 1,
+            "environment_fingerprint": "original",
+        }
+        inventory_id = "scan"
+        session.environment_checks = True
+        session.packs[0] = session.packs[0].model_copy(
+            update={
+                "environment_inventory_id": inventory_id,
+                "environment": report,
+                "requires": {"python": ">=3.10"},
+            }
+        )
+
+        def catalog_json():
+            pack = session.packs[0]
+            return [
+                {
+                    **deepcopy(catalog[0]),
+                    "manifest_hash": pack.manifest_hash,
+                    "environment_by_node": {"node": deepcopy(pack.environment)},
+                }
+            ]
+
+        async def reply(_app, _session, kind, _request, _req_id, **_kwargs):
+            assert kind == "capability_req"
+            current = session.packs[0].environment
+            return {
+                "report": {**current, "checked_at": current["checked_at"] + 1},
+                "environment_inventory_id": inventory_id,
+            }
+
+        async def change():
+            pack = session.packs[0]
+            if changed_field == "environment_fingerprint":
+                await registry.replace_environment_evidence(
+                    "node",
+                    [
+                        EnvironmentEvidenceEntry(
+                            name=pack.name,
+                            version=pack.version,
+                            environment_inventory_id=inventory_id,
+                            report={
+                                **pack.environment,
+                                "checked_at": pack.environment["checked_at"] + 1,
+                                "environment_fingerprint": "changed",
+                            },
+                        ),
+                    ],
+                )
+            elif changed_field == "manifest_hash":
+                session.packs[0] = pack.model_copy(update={"manifest_hash": "changed"})
+            elif changed_field == "parameter_default":
+                catalog[0]["params"]["count"]["default"] = 22
+
+        async def save():
+            return await app.state.workflows.save_draft(workflow_id=None, name="test", graph=graph)
+
+        monkeypatch.setattr(registry, "catalog_json", catalog_json)
+        monkeypatch.setattr("hololab.gateway.app._await_node_reply", reply)
+        row = client.portal.call(save)
+        url = f"/api/workflows/{row.workflow_id}"
+        attempts = []
+        stale = "Preparation is stale; prepare the current configuration again"
+        # Mirror the node button's one retry on this exact pre-dispatch 409.
+        for attempt in range(2):
+            prepared = client.post(url + "/prepare", json={"node_id": "a"})
+            assert prepared.status_code == 200, prepared.text
+            assert not prepared.json()["run_blockers"]
+            assert prepared.json()["environment_checks"]["a"]["checked_at"] > 1
+            if attempt == 0:
+                client.portal.call(change)
+            headers = {
+                "X-Preparation-Token": prepared.json()["token"],
+                "X-Request-ID": f"node-click-{attempt}",
+            }
+            dispatched = client.post(url + "/dispatch/a", headers=headers)
+            attempts.append(dispatched.status_code)
+            if dispatched.status_code != 409 or dispatched.json()["detail"] != stale:
+                break
+            assert not received
+
+        assert attempts == ([409, 200] if changed_field else [200])
+        repeated = client.post(url + "/dispatch/a", headers=headers)
+        assert repeated.json() == dispatched.json()
+        jobs = client.get("/api/jobs", params={"workflow_id": row.workflow_id}).json()
+        assert len(jobs) == 1
+        assert len(received) == 1
+
+
 @pytest.mark.asyncio
 async def test_node_path_preparation_and_nonmutating_validation(tmp_path, monkeypatch):
     from hololab.node.runtime import NodeRuntime
