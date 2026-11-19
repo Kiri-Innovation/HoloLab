@@ -31,6 +31,30 @@ class NodeAuthError(Exception):
     """
 
 
+def _latest_environment(*reports: dict[str, Any] | None) -> dict[str, Any] | None:
+    # Equal timestamps retain the existing snapshot. Missing timestamps are
+    # accepted for legacy inventories, but never displace timed evidence.
+    def checked_at(report: dict[str, Any]) -> float:
+        stamp = report.get("checked_at")
+        return stamp if isinstance(stamp, (int, float)) else float("-inf")
+
+    return max((report for report in reports if report is not None), key=checked_at, default=None)
+
+
+def _matching_environment(
+    pack: PackInventoryEntry, envs: dict[str, str], report: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    runtime = pack.runtime or {}
+    if (
+        report is not None
+        and "prefix" in report
+        and runtime.get("mode") == "conda"
+        and report["prefix"] != envs.get(runtime.get("env"))
+    ):
+        return None
+    return report
+
+
 @dataclass
 class NodeSession:
     """One active WebSocket session with a node.
@@ -89,6 +113,7 @@ class NodeSession:
     library_wakeup: bool = False
     content_identity: bool = False
     environment_checks: bool = False
+    pending_environment: dict[tuple[str, str, str], dict[str, Any]] = field(default_factory=dict)
     registry_v1: bool = False
     pack_install_v1: bool = False
     # ``token_issued`` is set when this session's register frame either
@@ -267,7 +292,12 @@ class NodeRegistry:
         return session
 
     async def replace_packs(
-        self, node_id: str, packs: list[PackInventoryEntry], envs: dict[str, str] | None = None
+        self,
+        node_id: str,
+        packs: list[PackInventoryEntry],
+        envs: dict[str, str] | None = None,
+        *,
+        expected_session: NodeSession | None = None,
     ) -> None:
         """Replace the pack inventory for an already-connected node.
 
@@ -276,9 +306,42 @@ class NodeRegistry:
         """
 
         session = self._sessions.get(node_id)
-        if session is not None:
-            session.packs = list(packs)
-            session.envs = dict(envs or {})
+        if session is None or (expected_session is not None and session is not expected_session):
+            return
+        new_envs = dict(envs or {})
+        previous = {(pack.name, pack.version): pack for pack in session.packs}
+        merged = []
+        for pack in packs:
+            key = (pack.name, pack.version)
+            prior = previous.get(key)
+            retained = None
+            if (
+                prior is not None
+                and pack.manifest_hash == prior.manifest_hash
+                and pack.code_sha256 == prior.code_sha256
+                and pack.runtime == prior.runtime
+                and pack.requires == prior.requires
+                and session.envs == new_envs
+                and (
+                    pack.environment_inventory_id == prior.environment_inventory_id
+                    or pack.code_sha256 is not None
+                )
+            ):
+                retained = prior.environment
+            pending = None
+            if pack.environment_inventory_id is not None:
+                pending = session.pending_environment.pop(
+                    (*key, pack.environment_inventory_id), None
+                )
+            environment = _latest_environment(
+                *(
+                    _matching_environment(pack, new_envs, report)
+                    for report in (retained, pending, pack.environment)
+                )
+            )
+            merged.append(pack.model_copy(update={"environment": environment}))
+        session.packs = merged
+        session.envs = new_envs
 
         async def _write(conn: aiosqlite.Connection) -> None:
             await conn.execute("DELETE FROM packs WHERE node_id=?", (node_id,))
@@ -291,32 +354,61 @@ class NodeRegistry:
         await self._db.write(_write)
 
     async def replace_environment_evidence(
-        self, node_id: str, evidence: list[EnvironmentEvidenceEntry]
-    ) -> None:
+        self,
+        node_id: str,
+        evidence: list[EnvironmentEvidenceEntry],
+        *,
+        expected_session: NodeSession | None = None,
+    ) -> bool:
         """Merge incremental node-local environment reports into inventory."""
 
         session = self._sessions.get(node_id)
-        if session is None:
-            return
-        reports = {(item.name, item.version): item.report for item in evidence}
-        session.packs = [
-            pack.model_copy(
-                update={"environment": reports.get((pack.name, pack.version), pack.environment)}
+        if session is None or (expected_session is not None and session is not expected_session):
+            return False
+        current = {
+            (pack.name, pack.version, pack.environment_inventory_id): index
+            for index, pack in enumerate(session.packs)
+        }
+        changed = False
+        for item in evidence:
+            # Older senders cannot bind a delta to a particular pack scan.
+            # Their reports embedded in a full inventory still work.
+            if item.environment_inventory_id is None:
+                continue
+            key = (item.name, item.version, item.environment_inventory_id)
+            index = current.get(key)
+            if index is None:
+                pending = session.pending_environment
+                if key not in pending and len(pending) >= 1024:
+                    pending.pop(next(iter(pending)))
+                pending[key] = _latest_environment(pending.get(key), item.report)
+                continue
+            pack = session.packs[index]
+            report = _latest_environment(
+                _matching_environment(pack, session.envs, pack.environment),
+                _matching_environment(pack, session.envs, item.report),
             )
-            for pack in session.packs
-        ]
+            if report != pack.environment:
+                session.packs[index] = pack.model_copy(update={"environment": report})
+                changed = True
+        return changed
 
-    async def mark_offline(self, node_id: str) -> None:
+    async def mark_offline(
+        self, node_id: str, *, expected_session: NodeSession | None = None
+    ) -> None:
         """Persist node offline flag. Idempotent."""
 
         async def _write(conn: aiosqlite.Connection) -> None:
+            if expected_session is not None and self._sessions.get(node_id) is not expected_session:
+                return
             await conn.execute(
                 "UPDATE nodes SET online=0 WHERE node_id=?",
                 (node_id,),
             )
 
         await self._db.write(_write)
-        self._sessions.pop(node_id, None)
+        if expected_session is None or self._sessions.get(node_id) is expected_session:
+            self._sessions.pop(node_id, None)
 
     async def touch_heartbeat(self, node_id: str) -> None:
         """Update the in-memory last-heartbeat and persist ``last_seen_ts``."""
@@ -503,6 +595,7 @@ class NodeRegistry:
         """
 
         from hololab.type_registry import registry as types
+
         types.refresh()
 
         # (name, version) -> catalog entry

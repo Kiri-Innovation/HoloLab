@@ -23,7 +23,9 @@ directory names are no longer required to match. Cross-source conflicts on
 from __future__ import annotations
 
 import tempfile
-from dataclasses import dataclass, replace
+import uuid
+from dataclasses import dataclass, field, replace
+from functools import cached_property
 from pathlib import Path
 
 from hololab.logging import get_logger
@@ -58,6 +60,12 @@ class LoadedPack:
     source_dir: Path
     bundled_identity: dict | None = None
     shadowed: tuple[LoadedPack, ...] = ()
+    environment_inventory_id: str = field(default_factory=lambda: uuid.uuid4().hex, compare=False)
+
+    @cached_property
+    def inventory_content(self) -> dict | None:
+        """Keep the reported code hash bound to this scan's identity."""
+        return self.content
 
     def locations(self, content: dict | None = None) -> list[dict]:
         """Reuse manifest hashes; never walk shadowed content on startup.

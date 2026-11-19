@@ -84,6 +84,9 @@ class PackInventoryEntry(BaseModel):
     # ``requires`` remains inside the report unchanged, including its
     # meaningful distinction between null and {}.
     environment: dict[str, Any] | None = None
+    # Node-generated identity of the scan that measured this inventory entry.
+    # Incremental evidence must identify the same scan.
+    environment_inventory_id: str | None = None
 
     @model_validator(mode="after")
     def _check_package_identity(self):
@@ -287,6 +290,7 @@ class EnvironmentEvidenceEntry(BaseModel):
     name: str
     version: str
     report: dict[str, Any]
+    environment_inventory_id: str | None = None
 
     @model_validator(mode="after")
     def _check_package_identity(self):
@@ -857,6 +861,7 @@ class CapabilityResp(BaseModel):
     req_id: str
     report: dict[str, Any] | None = None
     error: str | None = None
+    environment_inventory_id: str | None = None
 
 
 class PackStatusReq(BaseModel):

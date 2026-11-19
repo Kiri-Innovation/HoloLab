@@ -7,7 +7,7 @@ from fastapi import HTTPException
 
 from hololab.node.capabilities import BOUNDARY, enforce
 from hololab.package_identity import offered_identity, package_key
-from hololab.protocol.messages import CapabilityReq
+from hololab.protocol.messages import CapabilityReq, EnvironmentEvidenceEntry
 
 
 async def check_workflow(app, graph, *, required=None, fresh=False, strict=False):
@@ -19,6 +19,7 @@ async def check_workflow(app, graph, *, required=None, fresh=False, strict=False
 
     async def check(node):
         session = app.state.registry.get_session(node.assigned_node_id)
+        offered_pack = None
         entry = catalog.get(package_key(node.algorithm_name, node.algorithm_version), {})
         if session is not None and getattr(session, "environment_checks", False):
             # Catalog combines machines. A selected node's own contract wins.
@@ -29,7 +30,8 @@ async def check_workflow(app, graph, *, required=None, fresh=False, strict=False
                 == package_key(node.algorithm_name, node.algorithm_version)
             ]
             if matches:
-                entry = {**entry, "requires": matches[0].requires}
+                offered_pack = matches[0]
+                entry = {**entry, "requires": offered_pack.requires}
         declared = entry.get("requires") is not None
         report = {
             "status": "undeclared",
@@ -93,6 +95,31 @@ async def check_workflow(app, graph, *, required=None, fresh=False, strict=False
                     )
                 if reply.get("error") or not reply.get("report"):
                     raise ValueError(reply.get("error") or "节点未返回环境检查结果")
+                if app.state.registry.get_session(session.node_id) is not session:
+                    raise ValueError("节点会话已变化, 请重新检查")
+                if offered_pack is not None and offered_pack.environment_inventory_id is not None:
+                    inventory_id = reply.get("environment_inventory_id")
+                    if inventory_id != offered_pack.environment_inventory_id or not any(
+                        p.name == name
+                        and p.version == version
+                        and p.environment_inventory_id == inventory_id
+                        and p.manifest_hash == offered_pack.manifest_hash
+                        and p.code_sha256 == offered_pack.code_sha256
+                        for p in session.packs
+                    ):
+                        raise ValueError("包清单身份已变化, 请重新检查")
+                    await app.state.registry.replace_environment_evidence(
+                        session.node_id,
+                        [
+                            EnvironmentEvidenceEntry(
+                                name=name,
+                                version=version,
+                                report=reply["report"],
+                                environment_inventory_id=inventory_id,
+                            )
+                        ],
+                        expected_session=session,
+                    )
                 report = reply["report"]
         except (ValueError, TimeoutError, ConnectionError, HTTPException) as exc:
             report.update(

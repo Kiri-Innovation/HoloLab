@@ -4455,6 +4455,9 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
         # Step 2: process subsequent frames until disconnect.
         while True:
             raw = await ws.receive_text()
+            if registry.get_session(session.node_id) is not session:
+                await ws.close()
+                break
             try:
                 env, payload = decode(raw)
             except ValueError as exc:
@@ -4470,7 +4473,7 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
     except Exception as exc:
         log.warning("node socket error", error=str(exc), exc_info=True)
     finally:
-        if session is not None:
+        if session is not None and registry.get_session(session.node_id) is session:
             # Flip this node's ``assigned`` / ``running`` rows to
             # ``orphaned`` before marking the session offline. Without
             # this, a mid-flight WS drop (keepalive ping timeout,
@@ -4500,15 +4503,16 @@ async def _handle_node_socket(app: FastAPI, ws: WebSocket) -> None:
                     node_id=session.node_id,
                     error=str(exc),
                 )
-            await registry.mark_offline(session.node_id)
-            hub.broadcast(
-                encode(
-                    "node_offline",
-                    NodeOffline(node_id=session.node_id, reason="disconnect"),
-                    v=session.protocol_v,
+            await registry.mark_offline(session.node_id, expected_session=session)
+            if registry.get_session(session.node_id) is None:
+                hub.broadcast(
+                    encode(
+                        "node_offline",
+                        NodeOffline(node_id=session.node_id, reason="disconnect"),
+                        v=session.protocol_v,
+                    )
                 )
-            )
-            log.info("node disconnected", node_id=session.node_id)
+                log.info("node disconnected", node_id=session.node_id)
 
 
 async def _await_node_reply(
@@ -4987,7 +4991,11 @@ async def _dispatch_node_frame(
         configure(
             [Path(root) for node in registry.all_sessions() for root in (node.pack_dirs or [])]
         )
-        await registry.replace_packs(session.node_id, payload.packs, payload.envs)
+        await registry.replace_packs(
+            session.node_id, payload.packs, payload.envs, expected_session=session
+        )
+        if registry.get_session(session.node_id) is not session:
+            return
         # Notify frontend subscribers by re-emitting node_online with new packs.
         hub.broadcast(
             encode(
@@ -4995,7 +5003,7 @@ async def _dispatch_node_frame(
                 NodeOnline(
                     node_id=session.node_id,
                     node_name=session.node_name,
-                    packs=payload.packs,
+                    packs=session.packs,
                 ),
                 v=session.protocol_v,
             )
@@ -5005,7 +5013,11 @@ async def _dispatch_node_frame(
 
     if kind == "environment_updated":
         assert isinstance(payload, EnvironmentUpdated)
-        await registry.replace_environment_evidence(session.node_id, payload.evidence)
+        changed = await registry.replace_environment_evidence(
+            session.node_id, payload.evidence, expected_session=session
+        )
+        if not changed:
+            return
         # Catalog readers poll this state; the existing node_online event is
         # also enough to make live frontends refresh their node inventory.
         hub.broadcast(

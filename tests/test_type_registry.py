@@ -281,8 +281,10 @@ async def test_gateway_pack_update_uses_changed_type_roots(tmp_path, monkeypatch
     directory.mkdir(parents=True)
     (directory / "manifest.yaml").write_text("name: custom\npreview: {viewer: text}\n")
     monkeypatch.setattr(types, "registry", TypeRegistry([], bundled=False))
-    node = SimpleNamespace(node_id="n", node_name="node", protocol_v=1, pack_dirs=[])
-    nodes = SimpleNamespace(all_sessions=lambda: [node], replace_packs=AsyncMock())
+    node = SimpleNamespace(node_id="n", node_name="node", protocol_v=1, pack_dirs=[], packs=[])
+    nodes = SimpleNamespace(
+        all_sessions=lambda: [node], replace_packs=AsyncMock(), get_session=lambda _: node
+    )
     hub = SimpleNamespace(broadcast=Mock())
     await _dispatch_node_frame(
         "packs_updated",

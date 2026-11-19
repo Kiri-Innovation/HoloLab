@@ -824,7 +824,12 @@ class NodeRuntime:
         """Build inventory with the last evidence for each pack."""
 
         def entry(p: LoadedPack) -> PackInventoryEntry:
-            content = p.content
+            content = p.inventory_content
+            evidence = self._environment_evidence.get((p.manifest.name, p.manifest.version))
+            if evidence is not None and evidence.get("environment_inventory_id") != (
+                p.environment_inventory_id
+            ):
+                evidence = None
             return PackInventoryEntry(
                 name=p.manifest.name,
                 version=p.manifest.version,
@@ -841,7 +846,8 @@ class NodeRuntime:
                 source_dir=str(p.source_dir),
                 origin=p.origin,
                 bundled_identity=p.bundled_identity,
-                environment=self._environment_evidence.get((p.manifest.name, p.manifest.version)),
+                environment=evidence,
+                environment_inventory_id=p.environment_inventory_id,
             )
 
         return [entry(p) for p in self._packs.values()]
@@ -856,19 +862,29 @@ class NodeRuntime:
         from hololab.manifest import load_manifest
 
         changed: list[EnvironmentEvidenceEntry] = []
-        active_keys: set[tuple[str, str]] = set()
-        for key, pack in self._packs.items():
-            manifest, _ = load_manifest(pack.manifest_path)
+        for key, pack in list(self._packs.items()):
+            manifest, manifest_hash = load_manifest(pack.manifest_path)
+            if manifest_hash != pack.manifest_hash:
+                continue
             report = await self._environment_report(manifest)
-            active_keys.add(key)
+            if self._packs.get(key) is not pack:
+                continue
+            report = {**report, "environment_inventory_id": pack.environment_inventory_id}
             previous = self._environment_evidence.get(key)
             report, materially_changed = self._finalize_environment_evidence(
                 report, manifest, previous=previous
             )
             self._environment_evidence[key] = report
             if materially_changed:
-                changed.append(EnvironmentEvidenceEntry(name=key[0], version=key[1], report=report))
-        for key in set(self._environment_evidence) - active_keys:
+                changed.append(
+                    EnvironmentEvidenceEntry(
+                        name=key[0],
+                        version=key[1],
+                        report=report,
+                        environment_inventory_id=pack.environment_inventory_id,
+                    )
+                )
+        for key in set(self._environment_evidence) - self._packs.keys():
             self._environment_evidence.pop(key, None)
         if send_update and changed and self._ws is not None:
             await self._safe_send("environment_updated", EnvironmentUpdated(evidence=changed))
@@ -1382,16 +1398,19 @@ class NodeRuntime:
         from hololab.protocol.messages import CapabilityResp
 
         try:
-            pack = self._packs[
-                installed_key(self._packs, request.algorithm_name, request.algorithm_version)
-            ]
-            manifest, _ = load_manifest(pack.manifest_path)
+            key = installed_key(self._packs, request.algorithm_name, request.algorithm_version)
+            pack = self._packs[key]
+            config = self._config
+            manifest, manifest_hash = load_manifest(pack.manifest_path)
+            if manifest_hash != pack.manifest_hash:
+                raise ValueError("package inventory changed; retry environment check")
             report = await self._environment_report(
                 manifest, fresh=request.fresh, check_batch_id=request.check_batch_id
             )
-            key = (pack.manifest.name, pack.manifest.version)
+            if self._packs.get(key) is not pack or self._config is not config:
+                raise ValueError("package inventory or environment changed during check")
             evidence, materially_changed = self._finalize_environment_evidence(
-                report,
+                {**report, "environment_inventory_id": pack.environment_inventory_id},
                 manifest,
                 previous=self._environment_evidence.get(key),
             )
@@ -1405,11 +1424,20 @@ class NodeRuntime:
                     "environment_updated",
                     EnvironmentUpdated(
                         evidence=[
-                            EnvironmentEvidenceEntry(name=key[0], version=key[1], report=evidence)
+                            EnvironmentEvidenceEntry(
+                                name=pack.manifest.name,
+                                version=pack.manifest.version,
+                                report=evidence,
+                                environment_inventory_id=pack.environment_inventory_id,
+                            )
                         ]
                     ),
                 )
-            response = CapabilityResp(req_id=request.req_id, report=report)
+            response = CapabilityResp(
+                req_id=request.req_id,
+                report=report,
+                environment_inventory_id=pack.environment_inventory_id,
+            )
         except Exception as exc:
             response = CapabilityResp(req_id=request.req_id, error=str(exc))
         await self._safe_send("capability_resp", response)
