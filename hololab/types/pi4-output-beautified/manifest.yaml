@@ -1,0 +1,9 @@
+kind: Type
+name: pi4-output-beautified
+preview_rule:
+  order: 90
+  override: missing
+  storage: dir
+  preview:
+    viewer: pi4-output-beautified
+    entry: index.html

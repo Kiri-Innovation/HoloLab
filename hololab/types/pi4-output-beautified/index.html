@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pi4 Scene Preview</title>
+  <link rel="stylesheet" href="./preview.css">
+  <script type="module" src="./preview.js"></script>
+</head>
+<body>
+  <div id="viewer-stage">
+    <canvas id="point-cloud" tabindex="0" aria-label="3D view. Drag to orbit, scroll to zoom, Shift and drag to pan. Space plays or pauses. Arrow keys step through frames."></canvas>
+    <div class="camera-controls">
+      <button id="follow-view" aria-pressed="false" disabled>Follow camera</button>
+      <button id="reset-view" disabled>Reset view</button>
+    </div>
+    <p id="viewer-status" role="status">Waiting for a scene…</p>
+  </div>
+  <div class="controls">
+    <button id="play" type="button" aria-label="Play" disabled>▶</button>
+    <input id="timeline" type="range" min="1" max="1" value="1" aria-label="Frame" disabled>
+    <output id="frame-label" for="timeline"></output>
+    <details>
+      <summary>Layers</summary>
+      <div class="layers">
+        <label><input id="show-cloud" type="checkbox" checked>Static cloud</label>
+        <label><input id="show-frame" type="checkbox" checked>Current frame</label>
+        <label><input id="show-tracks" type="checkbox" checked>Tracks</label>
+        <label><input id="show-cameras" type="checkbox" checked>Cameras</label>
+      </div>
+    </details>
+  </div>
+</body>
+</html>
