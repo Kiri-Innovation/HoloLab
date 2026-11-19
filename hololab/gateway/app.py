@@ -965,7 +965,8 @@ def _mount_routes(app: FastAPI) -> None:
 
         Editable: ``workspace_root``, ``legacy_workspace_roots``,
         ``pack_dirs``, ``install_dir``, ``node_name``, ``advertised_url``,
-        ``flops_executor_id``. Identity (node_id/node_token), conda
+        ``flops_executor_id``, ``envs`` (whole-map replacement, including {}).
+        Identity (node_id/node_token), conda
         plumbing, and gateway URL are read-only from the UI — they
         need config.yaml + a node restart.
 
@@ -4827,6 +4828,8 @@ def _artifact_row_to_json(row: Any) -> dict[str, Any]:
 def _update_session_from_config(session: Any, cfg: dict[str, Any]) -> None:
     """Mirror a node's effective live config into its gateway session."""
 
+    if "envs" in cfg and isinstance(cfg["envs"], dict):
+        session.envs = dict(cfg["envs"])
     node_name = cfg.get("node_name")
     if isinstance(node_name, str) and node_name:
         session.node_name = node_name

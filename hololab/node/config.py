@@ -403,6 +403,20 @@ class NodeConfig(BaseModel):
     conda_bin: str = "conda"
     envs: dict[str, str] = Field(default_factory=dict)  # logical name → prefix path
 
+    @field_validator("envs", mode="before")
+    @classmethod
+    def validate_envs(cls, value):
+        if not isinstance(value, dict):
+            raise ValueError("envs must be a mapping of logical names to prefix paths")
+        for name, prefix in value.items():
+            if not isinstance(name, str) or not name.strip() or name != name.strip():
+                raise ValueError(
+                    "envs keys must be non-empty logical names without surrounding whitespace"
+                )
+            if not isinstance(prefix, str) or not prefix.strip() or "\0" in prefix:
+                raise ValueError("envs values must be non-empty prefix path strings")
+        return value
+
     # Machine-wide cap on how many jobs this node runs concurrently. The
     # gateway schedules a per-node-per-fanout cap via ``GraphNode.parallelism``;
     # this daemon-side cap is the hard ceiling that protects the box's

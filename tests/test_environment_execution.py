@@ -27,9 +27,15 @@ async def test_environment_evidence_prefix_is_resolved_once_on_node(tmp_path):
     node._capability_checker = SimpleNamespace(
         check=lambda *_args, **_kwargs: {"status": "satisfied"}
     )
-    conda_manifest = SimpleNamespace(runtime=SimpleNamespace(mode="conda", env="kiri"))
-    unmapped_manifest = SimpleNamespace(runtime=SimpleNamespace(mode="conda", env="missing"))
-    host_manifest = SimpleNamespace(runtime=SimpleNamespace(mode="host", env="kiri"))
+    conda_manifest = SimpleNamespace(
+        name="demo", version="1.0.0", runtime=SimpleNamespace(mode="conda", env="kiri")
+    )
+    unmapped_manifest = SimpleNamespace(
+        name="demo", version="1.0.0", runtime=SimpleNamespace(mode="conda", env="missing")
+    )
+    host_manifest = SimpleNamespace(
+        name="demo", version="1.0.0", runtime=SimpleNamespace(mode="host", env="kiri")
+    )
 
     assert (await node._environment_report(conda_manifest))["prefix"] == "/env/kiri"
     assert (await node._environment_report(unmapped_manifest))["prefix"] is None
@@ -245,7 +251,7 @@ def test_api_reports_an_unoffered_exact_package_as_missing(tmp_path):
             "item": "algorithm_package",
             "required": "demo@9.9.9",
             "actual": "执行节点未提供此版本",
-            "remedy": "在该节点安装此确切版本，或将工作流改为已提供的版本",
+            "remedy": "在该节点安装此确切版本，或将工作流改为已提供的版本",  # noqa: RUF001
         }
     ]
 

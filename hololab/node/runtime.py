@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 import websockets
+import yaml
 from websockets.exceptions import ConnectionClosed
 
 from hololab import PROTOCOL_V_MAX, PROTOCOL_V_MIN
@@ -100,6 +101,7 @@ ENVIRONMENT_RECHECK_INTERVAL_SECONDS = 60.0
 
 _HOT_CONFIG_FIELDS = frozenset(
     {
+        "envs",
         "pack_dirs",
         "workflows_dir",
         "installed_packs",
@@ -296,6 +298,8 @@ class NodeRuntime:
         # includes every manifest/config input that changes an accept/reject
         # verdict and is force-probed again when its TTL expires.
         self._environment_report_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._environment_generation = 0
+        self._env_reload_task: asyncio.Task[None] | None = None
         # Node-owned: this file is intentionally not the gateway database,
         # because nodes may run on a different machine/process.
         self._persistent_cache = PersistentCache(node_data_dir() / "runtime-cache.sqlite")
@@ -515,6 +519,7 @@ class NodeRuntime:
                 sweep_task,
                 metrics_task,
                 environment_task,
+                self._env_reload_task,
                 revalidate_task,
                 library_task,
             ):
@@ -852,7 +857,9 @@ class NodeRuntime:
 
         return [entry(p) for p in self._packs.values()]
 
-    async def _refresh_environment_evidence(self, *, send_update: bool) -> None:
+    async def _refresh_environment_evidence(
+        self, *, send_update: bool, fresh: bool = False
+    ) -> None:
         """Recheck packs and publish only evidence whose fingerprint changed.
 
         CapabilityChecker remains the sole implementation of environment
@@ -862,11 +869,18 @@ class NodeRuntime:
         from hololab.manifest import load_manifest
 
         changed: list[EnvironmentEvidenceEntry] = []
+        config = self._config
         for key, pack in list(self._packs.items()):
             manifest, manifest_hash = load_manifest(pack.manifest_path)
             if manifest_hash != pack.manifest_hash:
                 continue
-            report = await self._environment_report(manifest)
+            report = (
+                await self._environment_report(manifest, fresh=True)
+                if fresh
+                else await self._environment_report(manifest)
+            )
+            if self._config is not config:
+                return  # A newer refresh owns publication after a config change.
             if self._packs.get(key) is not pack:
                 continue
             report = {**report, "environment_inventory_id": pack.environment_inventory_id}
@@ -1287,6 +1301,8 @@ class NodeRuntime:
         fresh=False,
         check_batch_id: str | None = None,
         validate_cached=False,
+        config_snapshot=None,
+        env_cache_snapshot=None,
     ):
         """Return capability evidence with the node-resolved runtime prefix.
 
@@ -1300,7 +1316,9 @@ class NodeRuntime:
             self._capability_checker = CapabilityChecker()
         if not hasattr(self, "_environment_report_cache"):
             self._environment_report_cache = {}
-        prefix = self._config.envs.get(manifest.runtime.env)
+        config = config_snapshot if config_snapshot is not None else self._config
+        env_cache = env_cache_snapshot if env_cache_snapshot is not None else self._env_cache
+        prefix = config.envs.get(manifest.runtime.env)
 
         def cache_value(value):
             if value is None:
@@ -1317,14 +1335,13 @@ class NodeRuntime:
                 "requires": cache_value(getattr(manifest, "requires", None)),
                 # Retain the full mapping in the key: a config change cannot
                 # accidentally borrow evidence from a previous mapping.
-                "envs": self._config.envs,
-                "conda_bin": self._config.conda_bin,
+                "envs": config.envs,
+                "mapping_generation": self._environment_generation,
+                "conda_bin": config.conda_bin,
                 # PATH/CUDA visibility in the activated environment can alter
                 # binary and GPU requirements even when its prefix is stable.
                 "activated": (
-                    getattr(self, "_env_cache", {}).get(prefix)
-                    if manifest.runtime.mode != "host"
-                    else dict(os.environ)
+                    env_cache.get(prefix) if manifest.runtime.mode != "host" else dict(os.environ)
                 ),
             },
             sort_keys=True,
@@ -1359,7 +1376,7 @@ class NodeRuntime:
             not fresh
             and not validate_cached
             and cached
-            and now - cached[0] < self._config.env_cache_timeout_s
+            and now - cached[0] < config.env_cache_timeout_s
         ):
             return json.loads(json.dumps(cached[1]))
         if not fresh and not validate_cached:
@@ -1372,9 +1389,9 @@ class NodeRuntime:
         report = await asyncio.to_thread(
             self._capability_checker.check,
             manifest,
-            self._config.envs,
-            self._config.conda_bin,
-            getattr(self, "_env_cache", {}).get(prefix),
+            config.envs,
+            config.conda_bin,
+            env_cache.get(prefix),
             # Normal checks retain the historical fresh probe whenever the
             # short report cache misses. Spawn-time validation is different:
             # strict prepare just made fresh evidence for this exact job, so
@@ -1383,9 +1400,19 @@ class NodeRuntime:
             fresh=fresh or not validate_cached,
             check_batch_id=check_batch_id,
         )
+        if config_snapshot is None and self._config is not config:
+            # A probe may cross a reload. Do not publish/cache obsolete evidence.
+            return await self._environment_report(
+                manifest,
+                fresh=fresh,
+                check_batch_id=check_batch_id,
+                validate_cached=validate_cached,
+            )
         report["prefix"] = (
             str(prefix) if manifest.runtime.mode != "host" and prefix is not None else None
         )
+        if self._config is not config:
+            return report  # frozen job evidence must not refill the live cache
         self._environment_report_cache[cache_key] = (
             time.monotonic(),
             json.loads(json.dumps(report)),
@@ -1772,7 +1799,7 @@ class NodeRuntime:
         """UI-facing subset of the current config.
 
         Deliberately omits identity secrets (``node_token``) and things
-        the operator shouldn't tweak from the UI (``conda_bin``, ``envs``,
+        the operator shouldn't tweak from the UI (``conda_bin``,
         gateway URL). The frontend edit form uses this shape 1:1.
         """
 
@@ -1780,6 +1807,7 @@ class NodeRuntime:
 
         cfg = self._config
         return {
+            "envs": dict(cfg.envs),
             "node_name": cfg.node_name,
             "workspace_root": str(cfg.workspace_root),
             "library_root": str(cfg.library_root.expanduser().resolve()),
@@ -1810,6 +1838,10 @@ class NodeRuntime:
         await self._send("node_config_get_resp", resp)
 
     async def _handle_config_set_req(self, req: NodeConfigSetReq) -> None:
+        async with self._config_apply_lock:
+            await self._handle_config_set_req_locked(req)
+
+    async def _handle_config_set_req_locked(self, req: NodeConfigSetReq) -> None:
         """Validate + apply a patch, hot-restart what needs restarting.
 
         Failure cases each surface with a clean ``error`` string in the
@@ -1822,8 +1854,14 @@ class NodeRuntime:
         patch = dict(req.patch)
         updates: dict[str, Any] = {}
         try:
+            # Preserve disk-only restart fields and concurrent setup additions.
+            base = (
+                load_node_config(self._config_path) if self._config_path.exists() else self._config
+            )
             for key, raw in patch.items():
-                if key == "workspace_root":
+                if key == "envs":
+                    updates["envs"] = raw  # supplied map replaces; omitted map is retained
+                elif key == "workspace_root":
                     p = Path(str(raw)).expanduser()
                     if not p.is_absolute():
                         raise ValueError(f"workspace_root must be an absolute path, got {raw!r}")
@@ -1877,7 +1915,8 @@ class NodeRuntime:
                     updates["flops_executor_id"] = trimmed or None
                 else:
                     raise ValueError(f"field {key!r} is not editable from the UI")
-        except (ValueError, OSError) as exc:
+            new_cfg = NodeConfig.model_validate({**base.model_dump(), **updates})
+        except (ValueError, OSError, yaml.YAMLError) as exc:
             await self._send(
                 "node_config_set_resp",
                 NodeConfigSetResp(
@@ -1888,8 +1927,6 @@ class NodeRuntime:
                 ),
             )
             return
-
-        new_cfg = self._config.model_copy(update=updates)
 
         # Persist first — if config.yaml write fails, we don't want a
         # live-only config that vanishes on next boot.
@@ -1907,7 +1944,10 @@ class NodeRuntime:
             )
             return
 
-        await self._apply_config_candidate(new_cfg, trigger="api-patch")
+        if self._config_overrides:
+            new_cfg = NodeConfig.model_validate({**new_cfg.model_dump(), **self._config_overrides})
+        await self._apply_config_candidate_locked(new_cfg, trigger="api-patch")
+        self._last_config_reload_error = None
 
         await self._send(
             "node_config_set_resp",
@@ -1980,6 +2020,27 @@ class NodeRuntime:
 
         self._config = applied
         self._restart_required_fields = restart_required
+        envs_changed = "envs" in hot_changed
+        if envs_changed:
+            # Replace snapshots, never mutate objects retained by admitted jobs.
+            changed_names = {
+                name
+                for name in old_dump["envs"].keys() | applied.envs.keys()
+                if old_dump["envs"].get(name) != applied.envs.get(name)
+            }
+            changed_prefixes = {
+                mapping.get(name)
+                for mapping in (old_dump["envs"], applied.envs)
+                for name in changed_names
+            }
+            self._env_cache = {
+                prefix: env
+                for prefix, env in self._env_cache.items()
+                if prefix not in changed_prefixes
+            }  # uncached prefixes use the normal conda-run resolver
+            self._environment_generation += 1
+            self._environment_report_cache.clear()
+            self._environment_evidence.clear()
         if restart_required:
             log.warning(
                 "config fields changed but require restart",
@@ -2001,6 +2062,22 @@ class NodeRuntime:
                 pack_dirs=new_pack_dirs,
             )
             await self._restart_pack_watcher()
+        if envs_changed:
+            await self._safe_send(
+                "packs_updated",
+                PacksUpdated(
+                    packs=self._pack_inventory(),
+                    envs=dict(applied.envs),
+                    type_roots=[str(root) for root in applied.pack_scan_dirs],
+                ),
+            )
+            # Config RPCs have a short deadline; publish invalidated evidence
+            # now and probe asynchronously rather than blocking PATCH/watchers.
+            if self._env_reload_task is not None:
+                self._env_reload_task.cancel()
+            self._env_reload_task = asyncio.create_task(
+                self._refresh_reloaded_environments(), name="hololab-envs-reload"
+            )
         return {
             "changed_fields": changed,
             "applied_fields": hot_changed,
@@ -2008,6 +2085,13 @@ class NodeRuntime:
             "pack_roots_changed": packs_changed,
             "config": self._effective_config_view(),
         }
+
+    async def _refresh_reloaded_environments(self) -> None:
+        try:
+            await self._refresh_environment_evidence(send_update=True, fresh=True)
+        except Exception:
+            # Adoption succeeded; do not misreport a probe failure as rollback.
+            log.exception("environment evidence refresh failed after config reload")
 
     # -- artifact liveness / cleanup ----------------------------------------
 
@@ -2314,9 +2398,11 @@ class NodeRuntime:
         # Bundled host packs run under this node's absolute interpreter, not
         # a configured conda environment.  All other packages retain the
         # historical conda boundary.
+        job_config = self._config
+        job_env_cache = self._env_cache
         env_prefix = ""
         if pack.manifest.runtime.mode == "conda":
-            env_prefix = self._config.envs.get(pack.manifest.runtime.env) or ""
+            env_prefix = job_config.envs.get(pack.manifest.runtime.env) or ""
         if pack.manifest.runtime.mode == "conda" and not env_prefix:
             await self._send_job_fail(
                 assign.job_id,
@@ -2619,7 +2705,12 @@ class NodeRuntime:
                 # validate the package/environment fingerprint, but do not
                 # re-launch the expensive probe process when it is unchanged.
                 environment_started = time.monotonic()
-                report = await self._environment_report(pack.manifest, validate_cached=True)
+                report = await self._environment_report(
+                    pack.manifest,
+                    validate_cached=True,
+                    config_snapshot=job_config,
+                    env_cache_snapshot=job_env_cache,
+                )
                 startup_spans["environment_validation"] = time.monotonic() - environment_started
                 startup_spans["environment_cache_hit"] = int(bool(report.get("cache_hit")))
                 enforce(report)
@@ -2814,10 +2905,10 @@ class NodeRuntime:
                     try:
                         plan = _make_exec_plan(
                             rendered,
-                            self._config,
+                            job_config,
                             env_prefix,
                             pack,
-                            cached_env=self._env_cache.get(env_prefix),
+                            cached_env=job_env_cache.get(env_prefix),
                             cpu_mask=cpu_mask,
                         )
                         plan.resource_job = {
@@ -2835,10 +2926,10 @@ class NodeRuntime:
                 # the pool entirely.
                 plan = _make_exec_plan(
                     rendered,
-                    self._config,
+                    job_config,
                     env_prefix,
                     pack,
-                    cached_env=self._env_cache.get(env_prefix),
+                    cached_env=job_env_cache.get(env_prefix),
                     cpu_mask=None,
                 )
                 plan.resource_job = {"job_id": assign.job_id, "job_name": assign.algorithm_name}

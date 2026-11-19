@@ -973,7 +973,8 @@ def pack_setup(
 
     A host-runtime pack is reported as not needing setup. Existing ``envs``
     mappings are preserved; only a missing logical name is added to config.
-    Restart a running node afterwards so its environment cache is refreshed.
+    Running nodes watch config.yaml for new mappings; manual pack reload also
+    applies them. Already running jobs retain their original environment.
     """
     from hololab.pack_setup import SetupError, apply_plans, installed_plans
     from hololab.paths import node_data_dir
@@ -989,7 +990,7 @@ def pack_setup(
         raise typer.Exit(1) from exc
     if not dry_run:
         typer.echo(
-            "Setup complete. Restart hololab/node so the environment mapping and cache take effect."
+            "Setup complete. Nodes with envs hot reload watch config.yaml; use /api/packs/reload to reload explicitly."
         )
 
 
